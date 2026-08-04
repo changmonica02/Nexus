@@ -167,6 +167,7 @@ export default function PaginatedEditorView({
   onMarginsChange,
   toolbarTab = "home",
   fileMode = false,
+  showThumbRail = true,
 }: {
   content: any;
   onContentChange: (payload: { json: any; text: string }) => void;
@@ -178,6 +179,7 @@ export default function PaginatedEditorView({
   onMarginsChange?: (margins: PageMargins) => void;
   toolbarTab?: "home" | "insert" | "layout";
   fileMode?: boolean;
+  showThumbRail?: boolean;
 }) {
   const blocks: Block[] = useMemo(() => {
     return (content?.content as Block[]) || [];
@@ -230,17 +232,23 @@ export default function PaginatedEditorView({
       if (!pending) return;
       const { pageIndex: pIdx, blocks: curPages } = pending;
       const curPageBlocks = curPages[pIdx] || [];
-      const curHeight = curPageBlocks.reduce((sum, b) => sum + estimateBlockHeight(b), 0);
-      const buffer = 150;
-      if (curHeight > innerHeight + buffer && curPageBlocks.length > 1) {
-        const lastBlock = curPageBlocks[curPageBlocks.length - 1];
-        const remaining = curPageBlocks.slice(0, -1);
+      const curHeight = curPageBlocks.reduce((sum, b) => sum + (b.type === "pageBreak" ? 0 : estimateBlockHeight(b)), 0);
+      // buffer 與 innerHeight 一致（尾頁「離底部幾公分」bug：原 150px 固定 buffer 造成
+      // 內容實際可寫超過內文高度、與邊界不符）
+      const buffer = 24;
+      // 找最後一個「非 pageBreak」的 block（避免把 pageBreak 搬走造成結構錯亂）
+      let moveIdx = -1;
+      for (let i = curPageBlocks.length - 1; i >= 0; i--) {
+        if (curPageBlocks[i].type !== "pageBreak") { moveIdx = i; break; }
+      }
+      if (curHeight > innerHeight + buffer && moveIdx >= 0) {
+        const moving = curPageBlocks.splice(moveIdx, 1)[0];
         const newPages = [...curPages];
-        newPages[pIdx] = remaining;
+        newPages[pIdx] = curPageBlocks;
         if (pIdx + 1 < newPages.length) {
-          newPages[pIdx + 1] = [lastBlock, ...newPages[pIdx + 1]];
+          newPages[pIdx + 1] = [moving, ...newPages[pIdx + 1]];
         } else {
-          newPages.push([lastBlock]);
+          newPages.push([moving]);
         }
         const remerged = newPages.flat();
         onContentChange({ json: { type: "doc", content: remerged }, text: remerged.map(getTextFromNode).join("\n\n") });
@@ -250,8 +258,6 @@ export default function PaginatedEditorView({
 
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const [renamingPage, setRenamingPage] = useState<number | null>(null);
-  const [marginsOpen, setMarginsOpen] = useState(false);
-  const [draftMargins, setDraftMargins] = useState<PageMargins>(margins || DEFAULT_PAGE_MARGINS);
   const [renameValue, setRenameValue] = useState("");
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
@@ -320,40 +326,9 @@ export default function PaginatedEditorView({
   return (
     <div className="flex flex-1 min-h-0">
       {/* 需求3：左側分頁縮圖預覽（GoodNotes 風格） */}
+      {showThumbRail && (
       <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
-        {/* 需求2：邊界設定（Word 版面配置→邊界） */}
-        <button
-          onClick={() => { setDraftMargins(margins || DEFAULT_PAGE_MARGINS); setMarginsOpen(true); }}
-          className="w-full rounded-md py-1.5 text-[10px] flex items-center justify-center gap-1 hover:bg-zinc-200 transition-all"
-          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
-          title="頁面邊界"
-        >
-          ▦ 邊界
-        </button>
-        {marginsOpen && (
-          <div className="rounded-lg p-2 flex flex-col gap-1.5" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
-            <div className="text-[9px] font-semibold opacity-60 text-center">頁面邊界 (mm)</div>
-            {(["top", "right", "bottom", "left"] as const).map((k) => (
-              <label key={k} className="flex items-center justify-between gap-1 text-[10px]">
-                <span className="opacity-70">{k === "top" ? "上" : k === "bottom" ? "下" : k === "left" ? "左" : "右"}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={40}
-                  value={draftMargins[k]}
-                  onChange={(e) => setDraftMargins((prev) => ({ ...prev, [k]: Math.max(0, Math.min(40, Number(e.target.value) || 0)) }))}
-                  className="w-12 rounded px-1 py-0.5 text-[10px] text-right outline-none"
-                  style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", background: "var(--color-bg)" }}
-                />
-              </label>
-            ))}
-            <div className="flex gap-1">
-              <button onClick={() => { setDraftMargins(DEFAULT_PAGE_MARGINS); }} className="flex-1 rounded py-1 text-[10px] hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>預設</button>
-              <button onClick={() => { onMarginsChange?.(draftMargins); setMarginsOpen(false); }} className="flex-1 rounded py-1 text-[10px] font-medium" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-border)" }}>套用</button>
-            </div>
-          </div>
-        )}
-        {pagesBlocks.map((pb, idx) => {
+        {showThumbRail && pagesBlocks.map((pb, idx) => {
           const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
           const name = firstHeadingText(pb) || "未命名";
           const pageName = `${idx + 1}/${name}`;
@@ -397,6 +372,7 @@ export default function PaginatedEditorView({
           );
         })}
       </div>
+      )}
       {/* 縮圖右鍵選單（需求1） */}
       {pageMenu && (
         <div
@@ -432,6 +408,7 @@ export default function PaginatedEditorView({
             <div
               key={idx}
               ref={(el) => { pageRefs.current[idx] = el; }}
+              data-page={idx}
               className="relative bg-white rounded-sm"
               style={{
                 height: `${pageHeight}px`,
@@ -451,6 +428,8 @@ export default function PaginatedEditorView({
                   toolbarTarget={idx === activePage ? toolbarTarget : null}
                   showToolbar={idx === activePage && !fileMode}
                   toolbarTab={toolbarTab}
+                  margins={margins}
+                  onMarginsChange={onMarginsChange}
                   onFocus={() => setActivePage(idx)}
                   pageNightAdapt={nightAdapt}
                   onTogglePageNightAdapt={onToggleNightAdapt}

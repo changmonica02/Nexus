@@ -61,7 +61,10 @@ export default function EditorPane({
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
-  const [activeTab, setActiveTab] = useState<"file" | "home" | "insert" | "layout">("home");
+  const [activeTab, setActiveTab] = useState<"file" | "home" | "insert" | "layout" | "review">("home");
+  const [showRuler, setShowRuler] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [isThumbRailOpen, setIsThumbRailOpen] = useState(true);
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
@@ -141,6 +144,9 @@ export default function EditorPane({
     onContentChange({ json: newJson, text: newText });
   };
 
+  const charCount = (page.content_text || "").replace(/\s/g, "").length;
+  const wordCount = (page.content_text || "").trim() ? (page.content_text || "").trim().split(/\s+/).length : 0;
+
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
@@ -151,7 +157,7 @@ export default function EditorPane({
   };
 
   return (
-    <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+    <main className="relative flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
       {/* Title area */}
       <div className="shrink-0 pt-8 pb-3 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full" style={{ maxWidth: "820px" }}>
@@ -186,11 +192,12 @@ export default function EditorPane({
             { id: "home" as const, label: "常用" },
             { id: "insert" as const, label: "插入" },
             { id: "layout" as const, label: "版面配置" },
+            { id: "review" as const, label: "查閱" },
           ]).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="rounded-t-md px-3 py-1.5 text-sm font-medium transition-all"
+              className="rounded-t-md px-3 py-1.5 text-sm font-medium"
               style={{
                 color: "var(--color-text)",
                 backgroundColor: activeTab === tab.id ? "var(--color-border)" : "transparent",
@@ -213,7 +220,32 @@ export default function EditorPane({
           )}
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 min-h-[44px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)" }}>
-          {activeTab === "file" ? (
+          {/* 固定：縮圖側邊欄開關（僅分頁模式） */}
+          {isPaged && (
+            <button
+              type="button"
+              title={isThumbRailOpen ? "隱藏縮圖預覽" : "顯示縮圖預覽"}
+              onClick={() => setIsThumbRailOpen((v) => !v)}
+              className="shrink-0 rounded flex items-center justify-center w-[30px] h-[30px] text-[12px] transition-all hover:bg-zinc-200"
+              style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isThumbRailOpen ? "var(--color-border)" : "transparent" }}
+            >
+              ▤
+            </button>
+          )}
+          {activeTab === "review" ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowRuler((v) => !v)}
+                className="rounded flex items-center gap-1.5 px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 border"
+                style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: showRuler ? "var(--color-border)" : "transparent" }}
+                title="顯示/隱藏尺規"
+              >
+                📏 顯示尺規
+              </button>
+              <span className="text-[11px] opacity-60">字數：{wordCount} 字 ・ 字元：{charCount}</span>
+            </div>
+          ) : activeTab === "file" ? (
             <div className="flex items-center gap-2 flex-wrap">
               <FileMenu
                 currentFormat={currentFormat}
@@ -236,10 +268,45 @@ export default function EditorPane({
           ) : (
             <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
           )}
+          {/* 固定：適配夜晚（最右邊，不受 tab 影響） */}
+          <button
+            type="button"
+            title={nightAdapt ? "切換為原文字顏色（白底黑字）" : "切換為適配夜晚模式顏色"}
+            onMouseDown={(e) => { e.preventDefault(); onToggleNightAdapt?.(); }}
+            className="shrink-0 ml-auto rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium transition-all hover:bg-zinc-200 border"
+            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: nightAdapt ? "var(--color-border)" : "transparent" }}
+          >
+            {nightAdapt ? "🌙 適配夜晚" : "☀️ 原文字顏色"}
+          </button>
         </div>
       </div>
 
       {/* Content area */}
+      {/* 尺規（查閱 tab 開啟時顯示；寬度對齊內容） */}
+      {showRuler && (
+        <div className="shrink-0 mx-auto overflow-hidden nexus-print-hide" style={{ width: isPaged ? (currentFormat === "a4" ? "210mm" : currentFormat === "16:9" ? "960px" : currentFormat === "4:3" ? "800px" : "820px") : "820px", maxWidth: "100%" }}>
+          <div
+            className="h-5 relative select-none"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(to right, rgba(0,0,0,0.25) 0 1px, transparent 1px 7.56px), repeating-linear-gradient(to right, rgba(0,0,0,0.5) 0 1px, transparent 1px 37.8px)",
+              borderBottom: "1px solid var(--color-border)",
+            }}
+          >
+            {Array.from({ length: 22 }).map((_, i) => (
+              <span key={i} className="absolute top-0.5 text-[8px] opacity-50" style={{ left: i * 37.8 + 2 }}>{i}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* 縮放（Word 右下角） */}
+      <div className="absolute bottom-3 right-4 z-30 flex items-center gap-1 nexus-print-hide" style={{ bottom: 12, right: 16 }}>
+        <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))} className="rounded w-7 h-7 text-sm font-bold hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }}>−</button>
+        <span className="text-[11px] px-1.5 opacity-70" style={{ color: "var(--color-text)" }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))} className="rounded w-7 h-7 text-sm font-bold hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }}>＋</button>
+        <button onClick={() => setZoom(1)} className="rounded px-2 h-7 text-[11px] hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }} title="重設 100%">100%</button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto" style={{ zoom }}>
       {isPaged ? (
         <>
           {attachment && (
@@ -266,7 +333,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab={activeTab === "file" ? "home" : activeTab} fileMode={activeTab === "file"} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} fileMode={activeTab === "file" || activeTab === "review"} showThumbRail={isPaged && isThumbRailOpen} />
         </>
       ) : (
         <PageFormatView format={currentFormat}>
@@ -293,10 +360,11 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar={activeTab !== "file"} toolbarTab={activeTab === "file" ? "home" : activeTab} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar={activeTab !== "file" && activeTab !== "review"} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} />
           </div>
         </PageFormatView>
       )}
+      </div>
     </main>
   );
 }

@@ -196,13 +196,9 @@ export default function Sidebar({
 
   const commitRename = (id: string) => {
     const trimmed = renameValue.trim();
-    if (!trimmed && newlyCreatedRef.current.has(id)) {
-      newlyCreatedRef.current.delete(id);
-      onCancelNewPage(id);
-    } else {
-      onRenamePage(id, trimmed || t("common.untitled"));
-      newlyCreatedRef.current.delete(id);
-    }
+    // 2026-08-04：未命名的新建文件不刪除，直接叫「未命名」
+    onRenamePage(id, trimmed || t("common.untitled"));
+    newlyCreatedRef.current.delete(id);
     setRenamingId(null);
   };
 

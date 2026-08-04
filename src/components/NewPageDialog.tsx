@@ -4,10 +4,13 @@ import { useLanguage } from "../lib/LanguageContext";
 import type { PageFormat, PageKind } from "../lib/types";
 
 export type NewPageKindChoice = PageKind;
+// 2026-08-04：僅簡報保留格式選擇（16:9/4:3）；筆記/文檔建立時直接用預設格式（flow/a4）
 const FORMAT_OPTIONS_BY_KIND: Record<string, PageFormat[]> = {
-  document: ["flow", "a4", "custom"],
-  note: ["flow", "a4", "custom"],
   presentation: ["16:9", "4:3"],
+};
+const DEFAULT_FORMAT_BY_KIND: Record<string, PageFormat> = {
+  document: "a4",
+  note: "flow",
 };
 
 export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind }: {
@@ -23,9 +26,13 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
       if (initialKind === "study_set") {
         onConfirm(initialKind, "flow");
         onClose();
-      } else {
+      } else if (initialKind === "presentation") {
         setSelectedKind(initialKind);
         setStep("format");
+      } else {
+        // 筆記/文檔：直接建立（用預設格式），不顯示格式步驟
+        onConfirm(initialKind, DEFAULT_FORMAT_BY_KIND[initialKind] || "flow");
+        onClose();
       }
     } else if (isOpen) {
       setStep("kind");
@@ -53,8 +60,14 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
 
   const handleSelectKind = (kind: NewPageKindChoice) => {
     if (kind === "study_set") { onConfirm(kind, "flow"); handleClose(); return; }
-    setSelectedKind(kind);
-    setStep("format");
+    if (kind === "presentation") {
+      setSelectedKind(kind);
+      setStep("format");
+      return;
+    }
+    // 筆記/文檔：不選格式，直接用預設
+    onConfirm(kind, DEFAULT_FORMAT_BY_KIND[kind] || "flow");
+    handleClose();
   };
   const handleSelectFormat = (format: PageFormat) => {
     if (!selectedKind) return;
@@ -64,7 +77,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const handleClose = () => { setStep("kind"); setSelectedKind(null); onClose(); };
 
   const showKindStep = step === "kind" && !initialKind;
-  const showFormatStep = step === "format" && selectedKind && selectedKind !== "study_set";
+  const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
@@ -86,9 +99,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
             </button>
           ))}
         </div>
-        {showFormatStep && !initialKind && (
-          <div className="px-4 pb-4"><button onClick={() => setStep("kind")} className="text-xs opacity-60 hover:opacity-100 underline" style={{ color: "var(--color-text)" }}>{t("newPage.back")}</button></div>
-        )}
+
       </div>
     </div>
   );

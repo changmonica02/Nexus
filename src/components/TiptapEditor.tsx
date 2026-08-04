@@ -24,6 +24,7 @@ import { ObsidianMathInput } from "../lib/obsidianMathInput";
 import { PageBreak } from "../lib/pageBreakExtension";
 import { MultiColumn, Column } from "../lib/multiColumnExtension";
 import { WritingModeExtension } from "../lib/writingModeExtension";
+import { StableBlockId } from "../lib/stableBlockIdExtension";
 import { CellSelection, TableMap } from "prosemirror-tables";
 import { useLanguage } from "../lib/LanguageContext";
 import ToolbarDropdown from "./ToolbarDropdown";
@@ -40,6 +41,8 @@ interface TiptapEditorProps {
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
   toolbarTab?: "home" | "insert" | "layout";
+  margins?: any;
+  onMarginsChange?: (margins: any) => void;
 }
 
 type ToolbarState = {
@@ -82,12 +85,63 @@ function TB({ label, title, active, disabled, onClick, icon }: { label?: string;
 }
 function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />; }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home" }: TiptapEditorProps) {
+// 全域游標錨點：分頁模式下 block 被搬移到另一頁編輯器時，游標跨編輯器跟隨
+// （每頁是獨立 TiptapEditor，游標無法直接轉移，用模組級變數記錄「最近游標所在 block」，
+//   任一編輯器 setContent 後若發現該 block 在自己文件內 → 放置游標並聚焦）
+let globalCursorAnchor: { id: string; offset: number; prefix?: string } | null = null;
+// 依「block 文字前綴」在 doc 中定位（id 遺失時的跨頁 fallback）
+function findPosByPrefix(doc: any, prefix: string, preferAfter = false): number {
+  if (!prefix) return -1;
+  const fullText = doc.textBetween(0, doc.content.size, "\n", " ");
+  const idx = fullText.lastIndexOf(prefix);
+  if (idx === -1) return -1;
+  const targetChar = preferAfter ? idx + prefix.length : idx;
+  let charAcc = 0, bestPos = -1, bestDiff = Infinity;
+  doc.descendants((node: any, nodePos: number) => {
+    if (node.isText) {
+      const txt = node.text || "";
+      const ns = charAcc, ne = charAcc + txt.length;
+      charAcc = ne;
+      if (targetChar >= ns && targetChar <= ne) {
+        const candidate = nodePos + Math.max(0, targetChar - ns);
+        const len = doc.textBetween(0, candidate, "\n", " ").length;
+        const diff = Math.abs(len - targetChar);
+        if (diff < bestDiff) { bestDiff = diff; bestPos = candidate; }
+        return false;
+      }
+    } else if (node.isInline && !node.isText) {
+      charAcc += 1;
+    }
+    return true;
+  });
+  return bestPos;
+}
+
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", margins, onMarginsChange }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [toolbarState, setToolbarState] = useState<ToolbarState>(emptyToolbarState);
+  const [marginsPanelOpen, setMarginsPanelOpen] = useState(false);
+  const [marginsPos, setMarginsPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const marginsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const marginsPanelRef = useRef<HTMLDivElement | null>(null);
+  const updateMarginsPos = () => {
+    if (!marginsBtnRef.current) return;
+    const rect = marginsBtnRef.current.getBoundingClientRect();
+    let left = rect.left;
+    const w = 260;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    setMarginsPos({ top: rect.bottom + 6, left });
+  };
+  const MARGIN_PRESETS: Record<string, { top: number; right: number; bottom: number; left: number }> = {
+    normal: { top: 20, right: 18, bottom: 20, left: 18 },
+    narrow: { top: 12, right: 12, bottom: 12, left: 12 },
+    wide: { top: 25, right: 25, bottom: 25, left: 25 },
+    moderate: { top: 20, right: 15, bottom: 20, left: 15 },
+  };
+  const curMargins = margins || { top: 20, right: 18, bottom: 20, left: 18 };
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
@@ -127,6 +181,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       element: ref.current,
       extensions: [
         StarterKit.configure({ link: false, underline: false }),
+        StableBlockId,
         Placeholder.configure({ placeholder: t("tiptap.placeholder") }),
         Typography,
         Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
@@ -162,9 +217,72 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     editorRef.current = editor;
     setIsReady(true);
     refreshToolbarState();
+    // 新 mount 時檢查全域錨點：分頁搬移把 block 送來本頁時，游標跟隨（延遲至其他 effect 設定 anchor 後）
+    setTimeout(() => {
+      const ed = editorRef.current;
+      if (!ed || !globalCursorAnchor) return;
+      const anchor = globalCursorAnchor;
+      let found = -1;
+      ed.state.doc.descendants((n: any, np: number) => {
+        if (n.attrs && n.attrs.id === anchor.id) { found = np; return false; }
+        return true;
+      });
+      if (found >= 0) {
+        try {
+          const block = ed.state.doc.nodeAt(found);
+          if (block) {
+            const s = found + 1, e = found + block.nodeSize - 1;
+            const tp = posAtCharOffset(ed.state.doc, s, e, anchor.offset);
+            ed.commands.setTextSelection(Math.min(Math.max(tp, s), Math.max(e, s)));
+            ed.commands.focus();
+            setTimeout(() => {
+              (ed.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+            }, 30);
+          }
+        } catch { /* ignore */ }
+      }
+    }, 0);
     return () => { editor.destroy(); editorRef.current = null; setIsReady(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // IME composition 追蹤（中文輸入法期間不覆寫內容）
+  const compositionRef = useRef(false);
+  useEffect(() => {
+    const dom = ref.current;
+    if (!dom) return;
+    const onStart = () => { compositionRef.current = true; };
+    const onEnd = () => { compositionRef.current = false; };
+    dom.addEventListener("compositionstart", onStart);
+    dom.addEventListener("compositionend", onEnd);
+    return () => {
+      dom.removeEventListener("compositionstart", onStart);
+      dom.removeEventListener("compositionend", onEnd);
+    };
+  }, []);
+
+  // 在 block 內容範圍內，依「字元偏移」找出對應的 doc pos
+  const posAtCharOffset = (doc: any, from: number, to: number, targetChar: number): number => {
+    let acc = 0;
+    let result = from;
+    doc.nodesBetween(from, to, (node: any, nodePos: number) => {
+      if (acc >= targetChar) return false;
+      if (node.isText) {
+        const len = (node.text || "").length;
+        if (acc + len >= targetChar) {
+          result = nodePos + (targetChar - acc);
+          acc = targetChar;
+          return false;
+        }
+        acc += len;
+      } else if (node.isInline && !node.isText) {
+        acc += 1;
+        if (acc >= targetChar) result = nodePos + 1;
+      }
+      return true;
+    });
+    return result;
+  };
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -172,23 +290,102 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const currentJson = JSON.stringify(editor.getJSON());
     const targetJson = JSON.stringify(content);
     if (currentJson !== targetJson) {
-      // 需求4修復：保留游標（以游標前的文字前綴定位），避免分頁重排時游標跳到文末/大跳行
+      // IME composition 期間不覆寫（避免打斷中文輸入）
+      if (editor.isFocused && compositionRef.current) return;
+      // 游標保留（分頁重排修復）：block id + block 內字元偏移精確定位
       const { state } = editor;
       const sel = state.selection;
       let cursorPrefix = "";
+      let cursorBlockId: string | null = null;
+      let cursorBlockOffset = 0;
       if (sel && typeof sel.anchor === "number" && sel.anchor > 0) {
         const pos = Math.min(sel.anchor, state.doc.content.size);
         cursorPrefix = state.doc.textBetween(Math.max(0, pos - 300), pos, "\n", " ");
+        try {
+          const $pos = state.doc.resolve(pos);
+          for (let d = $pos.depth; d > 0; d--) {
+            const node = $pos.node(d);
+            if (node.type.isBlock && node.attrs && typeof node.attrs.id === "string" && node.attrs.id) {
+              cursorBlockId = node.attrs.id;
+              const blockContentStart = $pos.start(d);
+              cursorBlockOffset = state.doc.textBetween(blockContentStart, pos, "\n", " ").length;
+              break;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      // 更新全域游標錨點（供跨頁編輯器跟隨）
+      // 只有聚焦中的編輯器才能更新錨點（避免其他頁的舊游標覆蓋）
+      if (editor.isFocused) {
+        if (cursorBlockId) {
+          globalCursorAnchor = { id: cursorBlockId, offset: cursorBlockOffset, prefix: cursorPrefix };
+        } else if (cursorPrefix) {
+          // id 遺失（舊資料/新段落尚未補 id）→ 用前綴錨點
+          globalCursorAnchor = { id: "", offset: cursorBlockOffset, prefix: cursorPrefix.slice(-60) };
+        }
       }
       editor.commands.setContent(content, { emitUpdate: false });
+      const newDoc = editor.state.doc;
+      // 1) 全域錨點定位：block 可能在「這個編輯器」或「被搬到另一頁編輯器」
+      const anchor = globalCursorAnchor;
+      if (anchor) {
+        let foundBlockPos = -1;
+        if (anchor.id) {
+          newDoc.descendants((node: any, nodePos: number) => {
+            if (node.attrs && node.attrs.id === anchor.id) {
+              foundBlockPos = nodePos;
+              return false;
+            }
+            return true;
+          });
+        }
+        if (foundBlockPos >= 0) {
+          try {
+            const block = newDoc.nodeAt(foundBlockPos);
+            if (block) {
+              const innerStart = foundBlockPos + 1;
+              const innerEnd = foundBlockPos + block.nodeSize - 1;
+              const targetPos = posAtCharOffset(newDoc, innerStart, innerEnd, anchor.offset);
+              editor.commands.setTextSelection(Math.min(Math.max(targetPos, innerStart), Math.max(innerEnd, innerStart)));
+              // block 在此編輯器內 → 聚焦（跨頁搬移時讓使用者可繼續打字）
+              if (!editor.isFocused) editor.commands.focus();
+              // 滾動到該頁（Word 行為：畫面跟隨游標）
+              setTimeout(() => {
+                (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              }, 30);
+            } else {
+              editor.commands.setTextSelection(foundBlockPos + 1);
+            }
+            refreshToolbarState();
+            return;
+          } catch { /* fallthrough */ }
+        }
+        // 錨點 block 不在這個編輯器（被搬到別頁）
+        // 若有 prefix → 用前綴定位（id 遺失的跨頁 fallback）
+        if (anchor.prefix) {
+          const p = findPosByPrefix(newDoc, anchor.prefix, true);
+          if (p > 0) {
+            editor.commands.setTextSelection(p);
+            if (!editor.isFocused) editor.commands.focus();
+            setTimeout(() => {
+              (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+            }, 30);
+            refreshToolbarState();
+            return;
+          }
+        }
+        refreshToolbarState();
+        return;
+      }
+      // 2) 前綴定位 fallback（含 tail 遞減）
       if (cursorPrefix) {
         try {
-          const newDoc = editor.state.doc;
           const restoreAt = (prefix: string): boolean => {
             const fullText = newDoc.textBetween(0, newDoc.content.size, "\n", " ");
             const idx = fullText.lastIndexOf(prefix);
             if (idx === -1) return false;
-            // 掃描 text nodes，將字元索引轉成 doc pos（inline atom 以 \ufffc 佔 1 字元）
+            // 游標應放在「前綴結尾」（原本游標在前綴之後），不是前綴開頭
+            const targetChar = idx + prefix.length;
             let charAcc = 0;
             let bestPos = -1;
             let bestDiff = Infinity;
@@ -198,22 +395,21 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
                 const nodeStart = charAcc;
                 const nodeEnd = charAcc + txt.length;
                 charAcc = nodeEnd;
-                if (idx >= nodeStart && idx <= nodeEnd) {
-                  const candidate = nodePos + Math.max(0, idx - nodeStart);
+                if (targetChar >= nodeStart && targetChar <= nodeEnd) {
+                  const candidate = nodePos + Math.max(0, targetChar - nodeStart);
                   const len = newDoc.textBetween(0, candidate, "\n", " ").length;
-                  const diff = Math.abs(len - idx);
+                  const diff = Math.abs(len - targetChar);
                   if (diff < bestDiff) { bestDiff = diff; bestPos = candidate; }
                   return false;
                 }
               } else if (node.isInline && !node.isText) {
-                charAcc += 1; // 佔位字元
+                charAcc += 1;
               }
               return true;
             });
             if (bestPos > 0) { editor.commands.setTextSelection(bestPos); return true; }
             return false;
           };
-          // 完整前綴 → 尾段 80 字元（搬移時前段可能被移走）→ 尾段 30 字元
           if (!restoreAt(cursorPrefix)) {
             const tail = cursorPrefix.slice(-80);
             if (!restoreAt(tail)) restoreAt(cursorPrefix.slice(-30));
@@ -392,6 +588,52 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   })();
 
   // 需求2：框選文字右鍵 → 建立頁面連結
+  // 邊界選單（Word 風格：預設＋自訂；Portal 跳出工具列）
+  const marginsMenu = (typeof document !== "undefined") && marginsPanelOpen ? createPortal(
+    <div
+      ref={marginsPanelRef}
+      className="rounded-xl shadow-2xl z-[10000] overflow-hidden p-2"
+      style={{ position: "fixed", top: marginsPos.top, left: marginsPos.left, width: 260, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <div className="px-2 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-60">頁面邊界</div>
+      {/* 預設選項 */}
+      <div className="grid grid-cols-2 gap-1 mb-2">
+        {(["normal", "narrow", "moderate", "wide"] as const).map((preset) => (
+          <button
+            key={preset}
+            onClick={() => { onMarginsChange?.(MARGIN_PRESETS[preset]); setMarginsPanelOpen(false); }}
+            className="rounded-md px-2 py-1.5 text-[11px] text-left hover:bg-zinc-100"
+            style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: JSON.stringify(curMargins) === JSON.stringify(MARGIN_PRESETS[preset]) ? "var(--color-border)" : "transparent" }}
+          >
+            {preset === "normal" ? "一般" : preset === "narrow" ? "窄" : preset === "moderate" ? "適中" : "寬"}
+          </button>
+        ))}
+      </div>
+      {/* 自訂 4 欄 */}
+      <div className="border-t pt-1.5" style={{ borderColor: "var(--color-border)" }}>
+        <div className="px-1 pb-1 text-[9px] opacity-50">自訂邊界 (mm)</div>
+        <div className="grid grid-cols-4 gap-1">
+          {(["top", "right", "bottom", "left"] as const).map((k) => (
+            <label key={k} className="flex flex-col items-center gap-0.5">
+              <span className="text-[9px] opacity-60">{k === "top" ? "上" : k === "bottom" ? "下" : k === "left" ? "左" : "右"}</span>
+              <input
+                type="number"
+                min={0}
+                max={40}
+                value={curMargins[k]}
+                onChange={(e) => { const v = Math.max(0, Math.min(40, Number(e.target.value) || 0)); onMarginsChange?.({ ...curMargins, [k]: v }); }}
+                className="w-full rounded px-1 py-1 text-[10px] text-center outline-none"
+                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", background: "var(--color-bg)" }}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
   const textContextMenu = textMenu ? createPortal(
     <div
       className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
@@ -656,21 +898,27 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         </button>
         <Sep />
       </>)}
-      <button
-        type="button"
-        title={pageNightAdapt ? "切換為原文字顏色（白底黑字）" : "切換為適配夜晚模式顏色"}
-        disabled={disabled}
-        onMouseDown={(e) => { e.preventDefault(); onTogglePageNightAdapt?.(); }}
-        className="rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium transition-all hover:bg-zinc-200 disabled:opacity-30 border"
-        style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: pageNightAdapt ? "var(--color-border)" : "transparent" }}
-      >
-        {pageNightAdapt ? "🌙 適配夜晚" : "☀️ 原文字顏色"}
-      </button>
+      {onMarginsChange && (
+        <>
+          <Sep />
+          <button
+            ref={marginsBtnRef}
+            type="button"
+            title="頁面邊界（Word 版面配置→邊界）"
+            disabled={disabled}
+            onClick={() => { updateMarginsPos(); setMarginsPanelOpen((v) => !v); }}
+            className="rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 disabled:opacity-30 border"
+            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: marginsPanelOpen ? "var(--color-border)" : "transparent" }}
+          >
+            ▦ 邊界
+          </button>
+        </>
+      )}
     </>
   );
 
   const toolbarJSX = (
-    <div className="flex flex-wrap items-center gap-0.5 px-3 py-1">
+    <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
       {toolbarTab === "insert" ? insertTools : toolbarTab === "layout" ? layoutTools : homeTools}
     </div>
   );
@@ -678,6 +926,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   return (
     <>
       {showToolbar && (toolbarTarget ? createPortal(toolbarJSX, toolbarTarget) : toolbarJSX)}
+      {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
       <style>{`
