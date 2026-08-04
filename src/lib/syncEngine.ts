@@ -67,6 +67,11 @@ export class SyncEngine {
         console.log("[Sync] Remote attachment change:", payload.eventType, data?.id);
         this.handleRemoteAttachmentChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries" }, (payload: Record<string, unknown>) => {
+        const data = payload.new as Record<string, unknown> | null;
+        console.log("[Sync] Remote binary change:", payload.eventType, data?.id);
+        this.handleRemoteBinaryChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           this.setState({ status: "connected" });
@@ -88,6 +93,10 @@ export class SyncEngine {
     const localPages = await this.storage.listPages({ includeDeleted: true });
     const localPage = localPages.find((p) => p.id === data.id);
 
+    // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
+    if (localPage?.deleted_at && !data.deleted_at && localPage.updated_at >= (data.updated_at as number)) {
+      return;
+    }
     if (!localPage || (data.updated_at as number) > localPage.updated_at) {
       const page: Page = this.cloudRowToPage(data);
       await this.storage.savePage(page);
@@ -122,6 +131,35 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * M4-1: Realtime handler for binaries table.
+   * When another device pushes a PDF/image binary, download it to local IndexedDB.
+   * Note: binaries table has no device_id, so self-pushes also trigger this;
+   * the `!localBin` guard makes it a no-op for binaries we already have (idempotent).
+   */
+  private async handleRemoteBinaryChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
+    const data = payload.new;
+    if (!data || !data.id) return;
+    if (payload.eventType === "DELETE") return;
+
+    const localBin = await this.storage.readBinary(data.id as string);
+    if (localBin) return; // already have it (own push or already synced)
+
+    if (data.data) {
+      try {
+        const binary = atob(data.data as string);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const att = await this.storage.getAttachment(data.id as string);
+        const blob = new Blob([bytes], { type: att?.mime_type || "application/octet-stream" });
+        await this.storage.attachBinary(data.id as string, blob);
+        this.onRemoteChange?.();
+      } catch (err) {
+        console.error("[SyncEngine] handleRemoteBinaryChange error:", err);
+      }
+    }
+  }
+
   private cloudRowToPage(row: Record<string, unknown>): Page {
     return {
       id: row.id as string,
@@ -146,6 +184,11 @@ export class SyncEngine {
       format: (row.format as string as Page["format"]) || "flow",
       sort_order: (row.sort_order as number) ?? undefined,
       parent_id: (row.parent_id as string) || null,
+      // M4-1: todo / quick_note fields
+      due_date: (row.due_date as number) ?? null,
+      priority: (row.priority as "low" | "medium" | "high" | null) || null,
+      completed: (row.completed as boolean) || false,
+      color: (row.color as string) || null,
     };
   }
 
@@ -173,6 +216,10 @@ export class SyncEngine {
       // Pull cloud pages ??local (if cloud is newer)
       for (const cloudPage of (cloudPages || [])) {
         const localPage = localPageMap.get(cloudPage.id);
+        // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
+        if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
+          continue;
+        }
         if (!localPage || cloudPage.updated_at > localPage.updated_at) {
           await this.storage.savePage(this.cloudRowToPage(cloudPage as unknown as Record<string, unknown>));
         }
@@ -186,6 +233,25 @@ export class SyncEngine {
           await this.pushPage(localPage);
         }
         if (localPage.updated_at > maxUpdatedAt) maxUpdatedAt = localPage.updated_at;
+      }
+
+      // Push local attachments ??cloud (if local is newer or doesn't exist on cloud)
+      // M4-1 fix: previously fullSync only pushed pages; attachments/binaries created
+      // during offline periods never reached the cloud (PDFs missing on other devices).
+      for (const localAtt of localAttachments) {
+        const cloudAtt = (cloudAttachments || []).find((ca: { id: string }) => ca.id === localAtt.id);
+        if (!cloudAtt || localAtt.updated_at > cloudAtt.updated_at) {
+          await this.pushAttachment(localAtt);
+        }
+      }
+
+      // Push local binaries ??cloud (if missing on cloud)
+      for (const localAtt of localAttachments) {
+        const cloudBin = (cloudBinaries || []).find((cb: { id: string }) => cb.id === localAtt.id);
+        if (!cloudBin) {
+          const bin = await this.storage.readBinary(localAtt.id);
+          if (bin) await this.pushBinary(localAtt.id, bin);
+        }
       }
 
       // Pull cloud attachments ??local
@@ -244,6 +310,10 @@ export class SyncEngine {
         if (cloudPage.device_id === this.deviceId) continue; // Skip own changes
         const localPages = await this.storage.listPages({ includeDeleted: true });
         const localPage = localPages.find((p) => p.id === cloudPage.id);
+        // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
+        if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
+          continue;
+        }
         if (!localPage || cloudPage.updated_at > localPage.updated_at) {
           await this.storage.savePage(this.cloudRowToPage(cloudPage as unknown as Record<string, unknown>));
           changed = true;
@@ -275,6 +345,11 @@ export class SyncEngine {
         kind: page.kind || "note", study_items: page.study_items || null, presentation_data: page.presentation_data || null,
         is_favorite: page.is_favorite || false, format: page.format || "flow",
         sort_order: page.sort_order ?? null, parent_id: page.parent_id || null,
+        // M4-1: todo / quick_note fields (were missing -> cross-device data loss)
+        due_date: page.due_date ?? null,
+        priority: page.priority ?? null,
+        completed: page.completed ?? false,
+        color: page.color ?? null,
       }, { onConflict: "id" });
 
       if (page.updated_at > this.lastSyncAt) this.setState({ lastSyncAt: page.updated_at });

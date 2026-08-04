@@ -105,6 +105,7 @@ function NexusAppInner({
   const [secondaryPdfLoadError, setSecondaryPdfLoadError] = useState<string | null>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
+  const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
@@ -225,6 +226,9 @@ function NexusAppInner({
 
       const savedTheme = await adapter.getThemePreference();
       if (savedTheme === "dark" || savedTheme === "light") onThemeChange(savedTheme);
+
+      const savedNightAdapt = await adapter.getPageNightAdaptPreference();
+      if (savedNightAdapt === true) setIsPageNightAdapt(true);
 
       const savedId = await adapter.getActivePageId();
       const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.deleted_at === null) : null;
@@ -535,6 +539,15 @@ function NexusAppInner({
   }, [storageRef]);
 
   const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
+
+  // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
+  const handleTogglePageNightAdapt = useCallback(() => {
+    setIsPageNightAdapt((prev) => {
+      const next = !prev;
+      void storageRef.current?.setPageNightAdaptPreference?.(next);
+      return next;
+    });
+  }, [storageRef]);
   const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); }, []);
   const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); }, []);
@@ -879,6 +892,11 @@ function NexusAppInner({
     const deletedPage = pages.find((p) => p.id === id);
     const now = Date.now();
     await storageRef.current.deletePage(id);
+    // M4-1 fix: push the soft-deleted version to cloud so other devices don't resurrect it
+    if (deletedPage) {
+      const deletedVersion = { ...deletedPage, deleted_at: now, updated_at: now, revision: deletedPage.revision + 1 };
+      syncEngineRef.current?.pushPage(deletedVersion);
+    }
     setPages((prev) => prev.filter((p) => p.id !== id));
     if (deletedPage) setTrashPages((prev) => [{ ...deletedPage, deleted_at: now, updated_at: now, revision: deletedPage.revision + 1 }, ...prev.filter((p) => p.id !== id)]);
     if (activePageId === id) {
@@ -896,6 +914,10 @@ function NexusAppInner({
     const now = Date.now();
     const toDelete = pages.filter((p) => idSet.has(p.id));
     for (const id of ids) await storageRef.current.deletePage(id);
+    // M4-1 fix: push each soft-deleted version to cloud so other devices don't resurrect them
+    for (const p of toDelete) {
+      syncEngineRef.current?.pushPage({ ...p, deleted_at: now, updated_at: now, revision: p.revision + 1 });
+    }
     setPages((prev) => prev.filter((p) => !idSet.has(p.id)));
     setTrashPages((prev) => [...toDelete.map((p) => ({ ...p, deleted_at: now, updated_at: now, revision: p.revision + 1 })), ...prev.filter((p) => !idSet.has(p.id))]);
     if (activePageId && idSet.has(activePageId)) {
@@ -1098,6 +1120,8 @@ function NexusAppInner({
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
               
+                nightAdapt={isPageNightAdapt}
+                onToggleNightAdapt={handleTogglePageNightAdapt}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
@@ -1137,6 +1161,8 @@ function NexusAppInner({
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation(secondaryActivePageId || undefined)}
               
+                nightAdapt={isPageNightAdapt}
+                onToggleNightAdapt={handleTogglePageNightAdapt}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
@@ -1169,6 +1195,8 @@ function NexusAppInner({
           onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
         
+                nightAdapt={isPageNightAdapt}
+                onToggleNightAdapt={handleTogglePageNightAdapt}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}

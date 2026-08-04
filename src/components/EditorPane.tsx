@@ -28,6 +28,8 @@ export default function EditorPane({
   isSplitView = false,
   onCloseSplit,
   onSwapSplit,
+  nightAdapt = false,
+  onToggleNightAdapt = () => {},
 }: {
   page: Page | null;
   attachment: Attachment | null;
@@ -50,26 +52,14 @@ export default function EditorPane({
   isSplitView?: boolean;
   onCloseSplit?: () => void;
   onSwapSplit?: () => void;
+  nightAdapt?: boolean;
+  onToggleNightAdapt?: () => void;
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
-  const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("nexus-page-night-adapt");
-      if (saved === "true") setIsPageNightAdapt(true);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("nexus-page-night-adapt", String(isPageNightAdapt));
-    } catch {}
-  }, [isPageNightAdapt]);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -245,7 +235,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={isPageNightAdapt} onToggleNightAdapt={() => setIsPageNightAdapt((v) => !v)} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} />
         </>
       ) : (
         <PageFormatView format={currentFormat}>
@@ -272,7 +262,7 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={isPageNightAdapt} onTogglePageNightAdapt={() => setIsPageNightAdapt((v) => !v)} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} />
           </div>
         </PageFormatView>
       )}
