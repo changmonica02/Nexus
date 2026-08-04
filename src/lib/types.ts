@@ -1,0 +1,165 @@
+export type ID = string;
+
+export type BlockType =
+  | "paragraph"
+  | "heading"
+  | "bulletList"
+  | "orderedList"
+  | "taskItem"
+  | "blockquote"
+  | "codeBlock"
+  | "horizontalRule";
+
+export type AttachmentKind = "pdf" | "image" | "file";
+
+export interface Block {
+  id: ID;
+  type: BlockType;
+  text?: string;
+}
+
+export interface Attachment {
+  id: ID;
+  kind: AttachmentKind;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_key: string;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  device_id: ID;
+  page_count?: number;
+}
+
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo";
+export type PageFormat = "flow" | "a4" | "16:9" | "4:3" | "custom";
+
+export interface StudyItem {
+  id: ID;
+  front: string;
+  back: string;
+  mastery: "new" | "learning" | "mastered";
+  last_reviewed_at: number | null;
+  review_count: number;
+}
+
+export type SlideLayout = "title" | "title_content" | "two_column" | "chart" | "image" | "toc" | "quote" | "blank" | "canvas";
+
+export type ChartBaseType = "bar" | "line" | "pie" | "donut" | "gantt" | "pyramid" | "radar" | "timeline" | "text-columns" | "text-list" | "text-quote";
+export type BarVariant = "single" | "category" | "grouped" | "stacked" | "stacked-percent";
+export type ChartOrientation = "vertical" | "horizontal";
+
+export interface ChartData {
+  type: ChartBaseType;
+  variant?: BarVariant; // for bar charts
+  orientation?: ChartOrientation; // vertical / horizontal, one-click toggle
+  data: { label: string; value: number; series?: string; start?: number; end?: number }[];
+}
+
+export interface PresentationBlock {
+  id: ID;
+  type: "text" | "chart" | "image" | "diagram" | "shape";
+  x: number; // 0-100 %
+  y: number; // 0-100 %
+  w: number; // 0-100 %
+  h: number; // 0-100 % or auto
+  z: number;
+  text?: string;
+  content_json?: object; // for rich text block
+  chart?: ChartData;
+  diagramCode?: string;
+  style?: {
+    fontSize?: number;
+    color?: string;
+    background?: string;
+    textAlign?: "left" | "center" | "right";
+    bold?: boolean;
+  };
+}
+
+export interface Slide {
+  id: ID;
+  layout: SlideLayout;
+  title?: string;
+  content_json?: object; // legacy Tiptap JSON for this slide's body (for backward compat)
+  content_text?: string; // derived text
+  chart?: ChartData;
+  diagramCode?: string; // Mermaid code
+  notes?: string; // speaker notes
+  backgroundColor?: string;
+  blocks?: PresentationBlock[]; // new canvas-like blocks for intuitive editing
+}
+
+export interface PresentationData {
+  theme: "minimal" | "academic" | "business" | "dark";
+  slides: Slide[];
+  sourcePageId?: ID | null; // which Note it was converted from (weak linkage)
+}
+
+export interface Page {
+  id: ID;
+  title: string;
+  content_json: object;
+  content_text: string;
+  /** @deprecated 已被 kind 取代，僅為向後相容保留，新程式碼不應讀寫此欄位 (C2決策，需徵詢) */
+  default_mode: "note";
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  revision: number;
+  device_id: ID;
+  tags?: string[];
+  folder?: string | null;
+  links?: string[];
+  attachment_ids?: ID[];
+  primary_attachment_id?: ID | null;
+  kind?: PageKind;
+  study_items?: StudyItem[];
+  presentation_data?: PresentationData;
+  is_favorite?: boolean;
+  format?: PageFormat;
+  sort_order?: number;
+  parent_id?: ID | null;
+  // Todo specific
+  due_date?: number | null;
+  priority?: "low" | "medium" | "high" | null;
+  completed?: boolean;
+  color?: string | null; // for quick note
+}
+
+export interface PageQuery {
+  includeDeleted?: boolean;
+  limit?: number;
+}
+
+export interface CreatePageInput {
+  title?: string;
+  tags?: string[];
+  folder?: string | null;
+  attachment_ids?: ID[];
+  primary_attachment_id?: ID | null;
+  kind?: PageKind;
+  format?: PageFormat;
+  sort_order?: number;
+  parent_id?: ID | null;
+}
+
+export interface WorkspaceBackupAttachmentEntry {
+  attachment: Attachment;
+  binary_base64: string | null;
+}
+
+export interface WorkspaceBackupSettingEntry {
+  key: string;
+  value: unknown;
+}
+
+export interface WorkspaceBackup {
+  schema_version: number;
+  exported_at: number;
+  device_id: ID;
+  pages: Page[];
+  attachments: WorkspaceBackupAttachmentEntry[];
+  settings: WorkspaceBackupSettingEntry[];
+}
