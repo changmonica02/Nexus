@@ -184,6 +184,7 @@ export class SyncEngine {
       format: (row.format as string as Page["format"]) || "flow",
       sort_order: (row.sort_order as number) ?? undefined,
       parent_id: (row.parent_id as string) || null,
+      margins: (row.margins as Page["margins"]) || undefined,
       // M4-1: todo / quick_note fields
       due_date: (row.due_date as number) ?? null,
       priority: (row.priority as "low" | "medium" | "high" | null) || null,
@@ -345,6 +346,7 @@ export class SyncEngine {
         kind: page.kind || "note", study_items: page.study_items || null, presentation_data: page.presentation_data || null,
         is_favorite: page.is_favorite || false, format: page.format || "flow",
         sort_order: page.sort_order ?? null, parent_id: page.parent_id || null,
+        margins: page.margins ?? null,
         // M4-1: todo / quick_note fields (were missing -> cross-device data loss)
         due_date: page.due_date ?? null,
         priority: page.priority ?? null,

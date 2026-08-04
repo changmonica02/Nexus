@@ -206,11 +206,6 @@ export default function Sidebar({
     setRenamingId(null);
   };
 
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    pages.forEach((page) => (page.tags || []).forEach((tag) => tagSet.add(tag)));
-    return Array.from(tagSet);
-  }, [pages]);
 
   const filteredPages = pages.filter((page) => {
     const query = searchQuery.trim().toLowerCase();
@@ -367,8 +362,8 @@ export default function Sidebar({
                 lastClickIdRef.current = null;
                 lastClickTimeRef.current = 0;
               } else {
-                // 單擊展開與收合 + 選中頁面
-                if (hasChildren) {
+                // UX批次（需求1）：單擊進入頁面；已在此頁面時才開合子頁
+                if (isActive && hasChildren) {
                   toggleExpand(page.id);
                 }
                 onSelectPage(page.id);
@@ -548,93 +543,87 @@ export default function Sidebar({
       </div>
 
       <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <div className="relative flex items-center">
+        <button onClick={onShowHome} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isHomeMode ? "var(--color-border)" : "transparent" }}>
+          🏠 {t("sidebar.nav.home")}
+        </button>
+      </div>
+
+      {/* 垃圾桶（獨立按鈕，位於首頁之下） */}
+      <div className="px-2.5 pt-2.5">
+        <button onClick={() => { if (isTrashMode) onShowNotes(); else onShowTrash(); }} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isTrashMode ? "var(--color-border)" : "transparent" }}>
+          🗑️ {t("sidebar.nav.trash")}
+        </button>
+      </div>
+
+      {/* UX批次（需求6）：兩個類別 — 隨手記/ToDo；選中後展開顯示名稱並保持 */}
+      <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
+        <div className="flex items-stretch gap-1">
+          {[
+            { id: "quicknotes", icon: "📝", label: t("sidebar.nav.quickNote"), active: !!isQuickNoteMode, onClick: () => onShowQuickNotes?.() },
+            { id: "todo", icon: "✅", label: t("sidebar.nav.todoList"), active: !!isTodoMode, onClick: () => onShowTodoList?.() },
+            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode, onClick: onShowNotes },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={cat.onClick}
+              className="flex items-center justify-center gap-1.5 rounded-md h-10 text-sm font-medium transition-all hover:bg-zinc-200"
+              style={{
+                flex: cat.active ? "2.4" : "1",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text)",
+                backgroundColor: cat.active ? "var(--color-border)" : "transparent",
+              }}
+              title={cat.label}
+            >
+              <span className="text-base leading-none">{cat.icon}</span>
+              {cat.active && <span className="truncate">{cat.label}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
+        <div className="relative flex-1 min-w-0">
           <input
             type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={isTrashMode ? t("sidebar.search.placeholderTrash") : t("sidebar.search.placeholderNotes")}
-            className="w-full text-sm pl-3 pr-14 py-2.5 rounded outline-none bg-transparent transition-all focus:ring-1 focus:ring-blue-500"
+            className="w-full text-sm pl-2.5 pr-7 py-2 rounded outline-none bg-transparent transition-all focus:ring-1 focus:ring-blue-500"
             style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
           />
-          {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-9 text-sm opacity-40 hover:opacity-100 p-0.5">?</button>}
-          <button onClick={onOpenCommandPalette} title={t("sidebar.commandPalette.title")} className="absolute right-1.5 text-[10px] px-1.5 py-0.5 rounded opacity-50 hover:opacity-100 transition-all" style={{ border: "1px solid var(--color-border)" }}>
-            ?K
-          </button>
+          {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-sm opacity-40 hover:opacity-100 p-0.5">✕</button>}
         </div>
-      </div>
-
-      <div className="p-2.5 border-b space-y-1.5" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onShowHome} className="w-full rounded-md px-3 py-2.5 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isHomeMode ? "var(--color-border)" : "transparent" }}>
-          🏠 {t("sidebar.nav.home")}
-        </button>
-        <button onClick={onShowQuickNotes} className="w-full rounded-md px-3 py-2.5 text-sm font-medium text-left transition-all hover:bg-zinc-200 flex items-center gap-2" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isQuickNoteMode ? "var(--color-border)" : "transparent" }}>
-          <span>📝</span> {t("sidebar.nav.quickNote")}
-        </button>
-        <button onClick={onShowTodoList} className="w-full rounded-md px-3 py-2.5 text-sm font-medium text-left transition-all hover:bg-zinc-200 flex items-center gap-2" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isTodoMode ? "var(--color-border)" : "transparent" }}>
-          <span>✅</span> {t("sidebar.nav.todoList")}
-        </button>
-
-        <div className="flex items-center gap-1">
-          <button onClick={onShowNotes} className="flex-1 rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode ? "var(--color-border)" : "transparent" }}>
-            {t("sidebar.nav.notes")}
-          </button>
-
-          {!isTrashMode && (
-            <div className="relative shrink-0" ref={createMenuRef}>
-              <button
-                onClick={() => { setShowCreateMenu((prev) => !prev); }}
-                className="rounded-md w-9 h-9 flex items-center justify-center text-lg font-bold hover:bg-zinc-200 active:scale-95 transition-all"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: showCreateMenu ? "var(--color-border)" : "transparent" }}
-                title="?建"
-              >
-                +
-              </button>
-              {showCreateMenu && renderCreateMenu()}
-            </div>
-          )}
-
-          <button onClick={() => setIsSelectMode((prev) => !prev)} className="shrink-0 rounded-md px-2.5 h-9 text-sm font-medium hover:bg-zinc-200 active:scale-95 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isSelectMode ? "var(--color-border)" : "transparent" }} title={t("sidebar.select.title")}>
-            {t("sidebar.select.button")}
-          </button>
-
-          {!isTrashMode && (
-            <div className="relative shrink-0" ref={sortMenuRef}>
-              <button onClick={() => setShowSortMenu((prev) => !prev)} className="rounded-md w-9 h-9 flex items-center justify-center text-xs hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.sort.title")}>
-                ??              </button>
-              {showSortMenu && (
-                <div className="absolute right-0 top-full mt-1 w-52 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-                  <button onClick={() => { onSortModeChange("updated"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "updated" ? "var(--color-border)" : "transparent" }}>
-                    <span></span><span>{t("sidebar.sort.updated")}</span>{sortMode === "updated" && <span className="ml-auto text-xs"></span>}
-                  </button>
-                  <button onClick={() => { onSortModeChange("custom"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "custom" ? "var(--color-border)" : "transparent" }}>
-                    <span></span><span>{t("sidebar.sort.custom")}</span>{sortMode === "custom" && <span className="ml-auto text-xs"></span>}
-                  </button>
-                  <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
-                    <label className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left cursor-pointer hover:bg-zinc-200 transition-all" style={{ color: "var(--color-text)" }}>
-                      <input type="checkbox" checked={groupByType} onChange={(event) => setGroupByType(event.target.checked)} className="rounded" />
-                      <span>{t("sidebar.sort.groupByType")}</span>
-                    </label>
-                  </div>
+        <button onClick={onOpenCommandPalette} title={t("sidebar.commandPalette.title")} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-[11px] opacity-60 hover:opacity-100 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>⌘K</button>
+        {!isTrashMode && (
+          <div className="relative shrink-0" ref={createMenuRef}>
+            <button onClick={() => { setShowCreateMenu((prev) => !prev); }} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-lg font-bold hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: showCreateMenu ? "var(--color-border)" : "transparent" }} title="新建">+</button>
+            {showCreateMenu && renderCreateMenu()}
+          </div>
+        )}
+        <button onClick={() => setIsSelectMode((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs font-medium hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isSelectMode ? "var(--color-border)" : "transparent" }} title={t("sidebar.select.title")}>☑</button>
+        {!isTrashMode && (
+          <div className="relative shrink-0" ref={sortMenuRef}>
+            <button onClick={() => setShowSortMenu((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.sort.title")}>⇅</button>
+            {showSortMenu && (
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                <button onClick={() => { onSortModeChange("updated"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "updated" ? "var(--color-border)" : "transparent" }}>
+                  <span></span><span>{t("sidebar.sort.updated")}</span>{sortMode === "updated" && <span className="ml-auto text-xs"></span>}
+                </button>
+                <button onClick={() => { onSortModeChange("custom"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "custom" ? "var(--color-border)" : "transparent" }}>
+                  <span></span><span>{t("sidebar.sort.custom")}</span>{sortMode === "custom" && <span className="ml-auto text-xs"></span>}
+                </button>
+                <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
+                  <label className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left cursor-pointer hover:bg-zinc-200 transition-all" style={{ color: "var(--color-text)" }}>
+                    <input type="checkbox" checked={groupByType} onChange={(event) => setGroupByType(event.target.checked)} className="rounded" />
+                    <span>{t("sidebar.sort.groupByType")}</span>
+                  </label>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {allTags.length > 0 && (
-        <div className="p-2.5 border-b flex flex-wrap gap-1.5" style={{ borderColor: "var(--color-border)" }}>
-          <button onClick={() => onSelectTag(null)} className={`text-xs px-2.5 py-1 rounded transition-all ${selectedTag === null ? "bg-zinc-800 text-white font-medium" : "bg-zinc-200/60 text-zinc-600 hover:bg-zinc-200"}`}>
-            {t("sidebar.tags.all")}
-          </button>
-          {allTags.map((tag) => (
-            <button key={tag} onClick={() => onSelectTag(selectedTag === tag ? null : tag)} className={`text-xs px-2.5 py-1 rounded transition-all ${selectedTag === tag ? "bg-blue-600 text-white font-medium" : "bg-zinc-200/60 text-zinc-600 hover:bg-zinc-200"}`}>
-              #{tag}
-            </button>
-          ))}
-        </div>
-      )}
 
       {isSelectMode && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b text-xs" style={{ borderColor: "var(--color-border)" }}>
@@ -679,12 +668,6 @@ export default function Sidebar({
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
         {renderPageSections()}
-      </div>
-
-      <div className="p-2.5 border-t space-y-1.5 shrink-0" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={() => { if (isTrashMode) { onShowNotes(); } else { onShowTrash(); } }} className="w-full rounded-md px-3 py-2.5 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isTrashMode ? "var(--color-border)" : "transparent" }}>
-          🗑️ {t("sidebar.nav.trash")}
-        </button>
       </div>
 
       <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} />

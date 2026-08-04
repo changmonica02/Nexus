@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import type { Page, Attachment, PageFormat } from "../lib/types";
+import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import TiptapEditor from "./TiptapEditor";
 import PageFormatView from "./PageFormatView";
@@ -30,6 +30,8 @@ export default function EditorPane({
   onSwapSplit,
   nightAdapt = false,
   onToggleNightAdapt = () => {},
+  margins,
+  onMarginsChange,
 }: {
   page: Page | null;
   attachment: Attachment | null;
@@ -54,9 +56,12 @@ export default function EditorPane({
   onSwapSplit?: () => void;
   nightAdapt?: boolean;
   onToggleNightAdapt?: () => void;
+  margins?: PageMargins;
+  onMarginsChange?: (margins: PageMargins) => void;
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
+  const [activeTab, setActiveTab] = useState<"file" | "home" | "insert" | "layout">("home");
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
@@ -173,37 +178,63 @@ export default function EditorPane({
         </div>
       </div>
 
-      {/* Toolbar bar */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="shrink-0 flex items-center">
-          <FileMenu
-            currentFormat={currentFormat}
-            isDocument={isDocument}
-            isPresentation={isPresentation}
-            onFormatChange={onFormatChange}
-            onExportMarkdown={onExportMarkdown}
-            onExportPdf={onExportPdf}
-            onExportNexus={onExportNexus}
-            onPrint={() => window.print()}
-            onNewNote={onNewNote}
-            onNewDocument={onNewDocument}
-            onImportPdf={onImportPdf}
-            onImportMd={onImportMd}
-            onConvertToPresentation={onConvertToPresentation}
-            onDeleteBlankPages={handleDeleteBlankPages}
-          />
-        </div>
-        <div className="h-5 w-px bg-zinc-300 mx-1 shrink-0" />
-        <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
-        <div className="shrink-0 ml-auto flex items-center gap-1 border-l pl-2" style={{ borderColor: "var(--color-border)" }}>
+      {/* 需求3：兩行工具列（Word Ribbon 風格） */}
+      <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
+        <div className="flex items-center px-2 pt-1.5 gap-0.5">
+          {([
+            { id: "file" as const, label: "檔案" },
+            { id: "home" as const, label: "常用" },
+            { id: "insert" as const, label: "插入" },
+            { id: "layout" as const, label: "版面配置" },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="rounded-t-md px-3 py-1.5 text-sm font-medium transition-all"
+              style={{
+                color: "var(--color-text)",
+                backgroundColor: activeTab === tab.id ? "var(--color-border)" : "transparent",
+                border: "1px solid var(--color-border)",
+                borderBottom: activeTab === tab.id ? "none" : "1px solid var(--color-border)",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <div className="flex-1" />
           {isSplitView ? (
-            <>
+            <div className="flex items-center gap-1 pb-1.5">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hidden sm:inline">雙開中</span>
               <button onClick={() => onSwapSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium border hover:bg-zinc-200" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} title="交換左右分頁">⇄ 交換</button>
               <button onClick={() => onCloseSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium bg-zinc-800 text-white hover:bg-zinc-700" title="關閉右側分頁">✕ 關閉右側</button>
-            </>
+            </div>
           ) : (
-            <span className="text-[10px] opacity-40 hidden sm:inline">Ctrl+點擊側邊欄 開啟右側分頁</span>
+            <span className="text-[10px] opacity-40 hidden sm:inline pb-1.5">Ctrl+點擊側邊欄 開啟右側分頁</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 min-h-[44px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)" }}>
+          {activeTab === "file" ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <FileMenu
+                currentFormat={currentFormat}
+                isDocument={isDocument}
+                isPresentation={isPresentation}
+                onFormatChange={onFormatChange}
+                onExportMarkdown={onExportMarkdown}
+                onExportPdf={onExportPdf}
+                onExportNexus={onExportNexus}
+                onPrint={() => window.print()}
+                onNewNote={onNewNote}
+                onNewDocument={onNewDocument}
+                onImportPdf={onImportPdf}
+                onImportMd={onImportMd}
+                onConvertToPresentation={onConvertToPresentation}
+                onDeleteBlankPages={handleDeleteBlankPages}
+              />
+              <span className="text-[11px] opacity-40">檔案操作（新建／匯入／格式／匯出／列印）</span>
+            </div>
+          ) : (
+            <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
           )}
         </div>
       </div>
@@ -235,7 +266,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab={activeTab === "file" ? "home" : activeTab} fileMode={activeTab === "file"} />
         </>
       ) : (
         <PageFormatView format={currentFormat}>
@@ -262,7 +293,7 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar={activeTab !== "file"} toolbarTab={activeTab === "file" ? "home" : activeTab} />
           </div>
         </PageFormatView>
       )}

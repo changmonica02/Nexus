@@ -35,6 +35,16 @@ export interface Attachment {
 export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo";
 export type PageFormat = "flow" | "a4" | "16:9" | "4:3" | "custom";
 
+/** 頁面邊距（mm），用於 A4/分頁版面（可調整頁邊距） */
+export interface PageMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export const DEFAULT_PAGE_MARGINS: PageMargins = { top: 20, right: 18, bottom: 20, left: 18 };
+
 export interface StudyItem {
   id: ID;
   front: string;
@@ -121,6 +131,7 @@ export interface Page {
   format?: PageFormat;
   sort_order?: number;
   parent_id?: ID | null;
+  margins?: PageMargins;
   // Todo specific
   due_date?: number | null;
   priority?: "low" | "medium" | "high" | null;
@@ -141,6 +152,7 @@ export interface CreatePageInput {
   primary_attachment_id?: ID | null;
   kind?: PageKind;
   format?: PageFormat;
+  margins?: PageMargins;
   sort_order?: number;
   parent_id?: ID | null;
 }

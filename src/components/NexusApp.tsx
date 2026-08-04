@@ -15,6 +15,7 @@ import type {
   WorkspaceBackup,
   StudyItem,
   PageFormat,
+  PageMargins,
   CreatePageInput,
 } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
@@ -593,6 +594,7 @@ function NexusAppInner({
       parent_id: source.parent_id ?? null,
       kind: source.kind ?? "note",
       format: source.format ?? "flow",
+      margins: source.margins,
     });
     const pageToSave: Page = {
       ...duplicated,
@@ -847,6 +849,26 @@ function NexusAppInner({
     if (!secondaryActivePageId) return;
     setPages((prev) => {
       const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, tags: newTags } : p));
+      const updated = next.find((p) => p.id === secondaryActivePageId);
+      if (updated) scheduleSave(updated);
+      return next;
+    });
+  }, [secondaryActivePageId, scheduleSave]);
+
+  const handleMarginsChange = useCallback((margins: PageMargins) => {
+    if (!activePageId) return;
+    setPages((prev) => {
+      const next = prev.map((p) => (p.id === activePageId ? { ...p, margins } : p));
+      const updated = next.find((p) => p.id === activePageId);
+      if (updated) scheduleSave(updated);
+      return next;
+    });
+  }, [activePageId, scheduleSave]);
+
+  const handleSecondaryMarginsChange = useCallback((margins: PageMargins) => {
+    if (!secondaryActivePageId) return;
+    setPages((prev) => {
+      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, margins } : p));
       const updated = next.find((p) => p.id === secondaryActivePageId);
       if (updated) scheduleSave(updated);
       return next;
@@ -1110,6 +1132,8 @@ function NexusAppInner({
                 onTagsChange={handleTagsChange}
                 onContentChange={handleContentChange}
                 onFormatChange={handleFormatChange}
+                onMarginsChange={handleMarginsChange}
+                margins={activePage?.margins}
                 onAddSubPage={handleAddSubPage}
                 onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
                 onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
@@ -1151,6 +1175,8 @@ function NexusAppInner({
                 onTagsChange={handleSecondaryTagsChange}
                 onContentChange={handleSecondaryContentChange}
                 onFormatChange={handleSecondaryFormatChange}
+                onMarginsChange={handleSecondaryMarginsChange}
+                margins={secondaryActivePage?.margins}
                 onAddSubPage={handleAddSubPage}
                 onExportMarkdown={() => secondaryActivePage && handleExportPageMarkdown(secondaryActivePage.id)}
                 onExportPdf={() => secondaryActivePage && handleExportPageAsPdf(secondaryActivePage.id)}
@@ -1185,6 +1211,8 @@ function NexusAppInner({
           onTagsChange={handleTagsChange}
           onContentChange={handleContentChange}
           onFormatChange={handleFormatChange}
+          onMarginsChange={handleMarginsChange}
+          margins={activePage?.margins}
           onAddSubPage={handleAddSubPage}
           onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
           onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}

@@ -39,6 +39,7 @@ interface TiptapEditorProps {
   pageNightAdapt?: boolean;
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
+  toolbarTab?: "home" | "insert" | "layout";
 }
 
 type ToolbarState = {
@@ -81,7 +82,7 @@ function TB({ label, title, active, disabled, onClick, icon }: { label?: string;
 }
 function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />; }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true }: TiptapEditorProps) {
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home" }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -92,6 +93,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
 
   // Table context menu state
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
+  const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
   const tableMenuRef = useRef<HTMLDivElement>(null);
 
   const refreshToolbarState = () => {
@@ -169,7 +171,57 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     if (!editor || !content) return;
     const currentJson = JSON.stringify(editor.getJSON());
     const targetJson = JSON.stringify(content);
-    if (currentJson !== targetJson) { editor.commands.setContent(content); refreshToolbarState(); }
+    if (currentJson !== targetJson) {
+      // 需求4修復：保留游標（以游標前的文字前綴定位），避免分頁重排時游標跳到文末/大跳行
+      const { state } = editor;
+      const sel = state.selection;
+      let cursorPrefix = "";
+      if (sel && typeof sel.anchor === "number" && sel.anchor > 0) {
+        const pos = Math.min(sel.anchor, state.doc.content.size);
+        cursorPrefix = state.doc.textBetween(Math.max(0, pos - 300), pos, "\n", " ");
+      }
+      editor.commands.setContent(content, { emitUpdate: false });
+      if (cursorPrefix) {
+        try {
+          const newDoc = editor.state.doc;
+          const restoreAt = (prefix: string): boolean => {
+            const fullText = newDoc.textBetween(0, newDoc.content.size, "\n", " ");
+            const idx = fullText.lastIndexOf(prefix);
+            if (idx === -1) return false;
+            // 掃描 text nodes，將字元索引轉成 doc pos（inline atom 以 \ufffc 佔 1 字元）
+            let charAcc = 0;
+            let bestPos = -1;
+            let bestDiff = Infinity;
+            newDoc.descendants((node: any, nodePos: number) => {
+              if (node.isText) {
+                const txt = node.text || "";
+                const nodeStart = charAcc;
+                const nodeEnd = charAcc + txt.length;
+                charAcc = nodeEnd;
+                if (idx >= nodeStart && idx <= nodeEnd) {
+                  const candidate = nodePos + Math.max(0, idx - nodeStart);
+                  const len = newDoc.textBetween(0, candidate, "\n", " ").length;
+                  const diff = Math.abs(len - idx);
+                  if (diff < bestDiff) { bestDiff = diff; bestPos = candidate; }
+                  return false;
+                }
+              } else if (node.isInline && !node.isText) {
+                charAcc += 1; // 佔位字元
+              }
+              return true;
+            });
+            if (bestPos > 0) { editor.commands.setTextSelection(bestPos); return true; }
+            return false;
+          };
+          // 完整前綴 → 尾段 80 字元（搬移時前段可能被移走）→ 尾段 30 字元
+          if (!restoreAt(cursorPrefix)) {
+            const tail = cursorPrefix.slice(-80);
+            if (!restoreAt(tail)) restoreAt(cursorPrefix.slice(-30));
+          }
+        } catch { /* 保留失敗就維持預設 */ }
+      }
+      refreshToolbarState();
+    }
   }, [content]);
 
   useEffect(() => {
@@ -187,18 +239,25 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const cell = target.closest("td, th");
-      if (!cell) {
-        setTableMenu(null);
-        return;
-      }
-      // Only show if inside table
       const table = target.closest("table");
-      if (!table) {
-        setTableMenu(null);
+      // 表格右鍵（既有）
+      if (cell && table) {
+        e.preventDefault();
+        setTextMenu(null);
+        setTableMenu({ x: e.clientX, y: e.clientY });
         return;
       }
-      e.preventDefault();
-      setTableMenu({ x: e.clientX, y: e.clientY });
+      // 需求2：框選文字右鍵 → 「建立頁面連結」
+      const sel = window.getSelection();
+      const hasSelection = sel && !sel.isCollapsed && sel.toString().trim().length > 0;
+      if (hasSelection) {
+        e.preventDefault();
+        setTableMenu(null);
+        setTextMenu({ x: e.clientX, y: e.clientY });
+        return;
+      }
+      setTableMenu(null);
+      setTextMenu(null);
     };
     const onClick = (e: MouseEvent) => {
       if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node)) {
@@ -215,6 +274,21 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
 
   const editor = editorRef.current;
   const disabled = !isReady || !editor;
+
+  const handleInsertPageLink = () => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const title = window.prompt(t("tiptap.pageLinkPrompt") || "輸入頁面標題（會以 [[標題]] 建立內部連結）：");
+    if (title && title.trim()) {
+      const { from, to } = ed.state.selection;
+      if (from === to) {
+        ed.chain().focus().insertContent(`[[${title.trim()}]]`).run();
+      } else {
+        ed.chain().focus().insertContentAt({ from, to }, `[[${title.trim()}]]`).run();
+      }
+    }
+    setTextMenu(null);
+  };
 
   const handleSetLink = () => {
     const ed = editorRef.current;
@@ -316,6 +390,26 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       return count > 1;
     } catch { return false; }
   })();
+
+  // 需求2：框選文字右鍵 → 建立頁面連結
+  const textContextMenu = textMenu ? createPortal(
+    <div
+      className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
+      style={{
+        position: "fixed",
+        top: Math.min(textMenu.y, window.innerHeight - 120),
+        left: Math.min(textMenu.x, window.innerWidth - 200),
+        width: 190,
+        backgroundColor: "var(--color-bg)",
+        border: "1px solid var(--color-border)",
+      }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">文字操作</div>
+      <button onClick={handleInsertPageLink} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🔗</span> 建立頁面連結</button>
+    </div>,
+    document.body
+  ) : null;
 
   const tableContextMenu = tableMenu && toolbarState.table ? createPortal(
     <div
@@ -436,8 +530,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     document.body
   ) : null;
 
-  const toolbarJSX = (
-    <div className="flex flex-wrap items-center gap-0.5 px-3 py-1">
+    // 需求3：工具列分三組（常用/插入/版面配置），由 toolbarTab 決定顯示哪組
+  const homeTools = (
+    <>
       <TB icon="↩" title={t("tiptap.undo") || "Undo"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
       <TB icon="↪" title={t("tiptap.redo") || "Redo"} disabled={disabled || !toolbarState.canRedo} onClick={() => editorRef.current?.chain().focus().redo().run()} />
       <Sep />
@@ -471,7 +566,22 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           <input type="text" value={currentFontSize} disabled={disabled} onChange={(e) => { const val = parseInt(e.target.value, 10); if (!isNaN(val)) handleFontSizeChange(val); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleFontSizeChange(currentFontSize); } }} className="w-8 h-6 text-center text-[11px] bg-transparent outline-none disabled:opacity-40" style={{ color: "var(--color-text)" }} />
           <button type="button" title="+" disabled={disabled || currentFontSize >= 72} onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(currentFontSize + (currentFontSize >= 24 ? 4 : 2)); }} className="w-5 h-6 flex items-center justify-center text-[12px] hover:bg-zinc-200 rounded disabled:opacity-30" style={{ color: "var(--color-text)" }}>+</button>
         </div>
-        <Sep />
+        <select
+          value={toolbarState.textAlign}
+          disabled={disabled}
+          title="對齊方式"
+          onChange={(e) => {
+            const v = e.target.value as "left" | "center" | "right" | "justify";
+            editorRef.current?.chain().focus().setTextAlign(v).run();
+          }}
+          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[80px]"
+          style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+        >
+          <option value="left">向左對齊</option>
+          <option value="center">置中</option>
+          <option value="right">向右對齊</option>
+          <option value="justify">兩端對齊</option>
+        </select>
       </>)}
       <TB label="B" title={t("tiptap.bold")} active={toolbarState.bold} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBold().run()} />
       <TB label="I" title={t("tiptap.italic")} active={toolbarState.italic} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleItalic().run()} />
@@ -482,60 +592,6 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         <ColorPaletteButton icon={<span className="text-[11px] leading-none">🖍</span>} title={t("tiptap.highlight")} currentColor={toolbarState.highlightColor || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().toggleHighlight({ color }).run(); else editorRef.current?.chain().focus().unsetHighlight().run(); }} disabled={disabled} />
       </>)}
       <Sep />
-      <TB icon="🔗" title={t("tiptap.link")} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
-      <TB icon="🖼" title={t("tiptap.image")} disabled={disabled} onClick={handleInsertImage} />
-      {variant === "rich" && (<>
-        <Sep />
-        <div className="flex items-center gap-1 border rounded px-1.5 py-0.5" style={{ borderColor: "var(--color-border)" }}>
-          <span className="text-[10px] opacity-60 mr-0.5">排版</span>
-          <select
-            value={toolbarState.textAlign}
-            disabled={disabled}
-            title="對齊方式"
-            onChange={(e) => {
-              const v = e.target.value as "left" | "center" | "right" | "justify";
-              editorRef.current?.chain().focus().setTextAlign(v).run();
-            }}
-            className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:opacity-40 max-w-[80px]"
-            style={{ border: "1px solid transparent", color: "var(--color-text)" }}
-          >
-            <option value="left">向左對齊</option>
-            <option value="center">置中</option>
-            <option value="right">向右對齊</option>
-            <option value="justify">兩端對齊</option>
-          </select>
-          <div className="w-px h-4 bg-zinc-300 mx-0.5" />
-          <select
-            value={toolbarState.multiColumn ? "2" : "1"}
-            disabled={disabled}
-            title="分欄"
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "1") (editorRef.current as any)?.chain().focus().unsetMultiColumn().run();
-              else if (v === "2") (editorRef.current as any)?.chain().focus().setMultiColumn(2).run();
-              else if (v === "3") (editorRef.current as any)?.chain().focus().setMultiColumn(3).run();
-            }}
-            className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:opacity-40 max-w-[70px]"
-            style={{ border: "1px solid transparent", color: "var(--color-text)" }}
-          >
-            <option value="1">單欄</option>
-            <option value="2">2欄</option>
-            <option value="3">3欄</option>
-          </select>
-          <div className="w-px h-4 bg-zinc-300 mx-0.5" />
-          <button
-            type="button"
-            title="文字排列方向（點擊切換直/橫，主要用於儲存格）"
-            disabled={disabled}
-            onMouseDown={(e) => { e.preventDefault(); (editorRef.current as any)?.chain().focus().toggleWritingMode().run(); }}
-            className="rounded w-6 h-6 flex items-center justify-center text-[11px] hover:bg-zinc-200 disabled:opacity-30"
-            style={{ color: "var(--color-text)" }}
-          >
-            ↕️
-          </button>
-        </div>
-      </>)}
-      <Sep />
       <TB icon="•" title={t("tiptap.bulletList")} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
       <TB icon="1." title={t("tiptap.orderedList")} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
       <TB icon="☑" title={t("tiptap.taskList")} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
@@ -544,21 +600,62 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         <TB icon="⇥" title="Increase indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} />
       </>)}
       <Sep />
+      <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
+      <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
+      <Sep />
+      <TB icon="Tx" title={t("tiptap.clear")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
+    </>
+  );
+
+  const insertTools = (
+    <>
       <TableGridPicker editor={editorRef.current} disabled={disabled} />
+      <TB icon="🔗" title={t("tiptap.link")} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
+      <TB icon="🖼" title={t("tiptap.image")} disabled={disabled} onClick={handleInsertImage} />
       <ToolbarDropdown label="" icon="➕" variant="inline" disabled={disabled}
         items={[
-          { id: "insert-quote", icon: "❝", label: t("tiptap.label.quote"), onClick: () => editorRef.current?.chain().focus().toggleBlockquote().run() },
-          { id: "insert-code", icon: "{ }", label: t("tiptap.label.codeBlock"), onClick: () => editorRef.current?.chain().focus().toggleCodeBlock().run() },
           { id: "insert-callout", icon: "💡", label: t("tiptap.label.callout"), onClick: () => editorRef.current?.chain().focus().setCallout("info").run() },
           { id: "insert-inline-math", icon: "x²", label: t("tiptap.label.inlineMath"), onClick: handleInsertInlineMath },
           { id: "insert-block-math", icon: "∑", label: t("tiptap.label.blockMath"), onClick: handleInsertBlockMath },
         ]} />
-      
-
       {toolbarState.callout && (<TB icon="✕C" title={t("tiptap.callout")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetCallout().run()} />)}
       <Sep />
-      <TB icon="Tx" title={t("tiptap.clear")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
-      <Sep />
+      <TB icon="⛶" title="插入分頁符（A4 分頁用）" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setPageBreak().run()} />
+    </>
+  );
+
+  const layoutTools = (
+    <>
+      {variant === "rich" && (<>
+        <select
+          value={toolbarState.multiColumn ? "2" : "1"}
+          disabled={disabled}
+          title="分欄"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "1") (editorRef.current as any)?.chain().focus().unsetMultiColumn().run();
+            else if (v === "2") (editorRef.current as any)?.chain().focus().setMultiColumn(2).run();
+            else if (v === "3") (editorRef.current as any)?.chain().focus().setMultiColumn(3).run();
+          }}
+          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[70px]"
+          style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+        >
+          <option value="1">單欄</option>
+          <option value="2">2欄</option>
+          <option value="3">3欄</option>
+        </select>
+        <button
+          type="button"
+          title="文字排列方向（點擊切換直/橫，主要用於儲存格）"
+          disabled={disabled}
+          onMouseDown={(e) => { e.preventDefault(); (editorRef.current as any)?.chain().focus().toggleWritingMode().run(); }}
+          className="rounded w-6 h-6 flex items-center justify-center text-[11px] hover:bg-zinc-200 disabled:opacity-30"
+          style={{ color: "var(--color-text)" }}
+        >
+          ↕️
+        </button>
+        <Sep />
+      </>)}
       <button
         type="button"
         title={pageNightAdapt ? "切換為原文字顏色（白底黑字）" : "切換為適配夜晚模式顏色"}
@@ -569,12 +666,19 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       >
         {pageNightAdapt ? "🌙 適配夜晚" : "☀️ 原文字顏色"}
       </button>
+    </>
+  );
+
+  const toolbarJSX = (
+    <div className="flex flex-wrap items-center gap-0.5 px-3 py-1">
+      {toolbarTab === "insert" ? insertTools : toolbarTab === "layout" ? layoutTools : homeTools}
     </div>
   );
 
   return (
     <>
       {showToolbar && (toolbarTarget ? createPortal(toolbarJSX, toolbarTarget) : toolbarJSX)}
+      {textContextMenu}
       {tableContextMenu}
       <style>{`
         .nexus-tiptap-editor { margin-left: -56px; padding-left: 56px; }
