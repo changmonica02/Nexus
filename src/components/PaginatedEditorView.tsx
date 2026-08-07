@@ -3,8 +3,12 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { PageFormat, PageMargins } from "../lib/types";
 import { DEFAULT_PAGE_MARGINS } from "../lib/types";
 import TiptapEditor from "./TiptapEditor";
+import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
+import PageThumbnail from "./PageThumbnail";
 
 type Block = any;
+type CursorAnchor = { id: string; offset: number; blockIndex: number };
+type CursorFocusRequest = CursorAnchor & { targetPageIndex: number; revision: number };
 
 function getTextFromNode(node: any): string {
   if (!node) return "";
@@ -22,7 +26,9 @@ function estimateBlockHeight(node: Block): number {
       const text = getTextFromNode(node);
       const charsPerLine = 70;
       const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-      return lines * 26 + 20;
+      // Paragraphs are 15px with a 1.6 line-height, while the global reset
+      // removes their default margins. Each rendered line therefore uses 24px.
+      return lines * 24;
     }
     case "bulletList":
     case "orderedList":
@@ -156,30 +162,78 @@ function firstHeadingText(pageBlocks: Block[]): string {
   return "";
 }
 
+// Keep the first label of each page continuous. This mirrors the editor gutter:
+// headings, paragraphs, list items, and table rows count once; code blocks count
+// once per hard line. Wrapped visual lines deliberately do not get extra labels.
+function countLogicalLines(node: Block): number {
+  switch (node?.type) {
+    case "paragraph":
+    case "heading":
+    case "horizontalRule":
+      return 1;
+    case "codeBlock":
+      return Math.max(1, getTextFromNode(node).split("\n").length);
+    case "listItem":
+    case "taskItem":
+      return 1 + (node.content || [])
+        .filter((child: Block) => child.type !== "paragraph")
+        .reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+    case "bulletList":
+    case "orderedList":
+    case "taskList":
+    case "blockquote":
+    case "callout":
+    case "multiColumn":
+    case "column":
+      return (node.content || []).reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+    case "table":
+      return Math.max(1, node.content?.length || 0);
+    case "pageBreak":
+    case "image":
+      return 0;
+    default:
+      return (node.content || []).reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+  }
+}
+
+function countPageLines(pageBlocks: Block[]): number {
+  return pageBlocks.reduce((total, block) => total + countLogicalLines(block), 0);
+}
+
 export default function PaginatedEditorView({
   content,
   onContentChange,
   format,
   toolbarTarget,
+  menuToolbarTarget,
+  menuToolbarTab,
   nightAdapt = false,
   onToggleNightAdapt,
   margins,
   onMarginsChange,
   toolbarTab = "home",
   fileMode = false,
+  showRuler = false,
+  showLineNumbers = false,
   showThumbRail = true,
+  paneId = "primary",
 }: {
   content: any;
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
+  menuToolbarTarget?: HTMLElement | null;
+  menuToolbarTab?: "insert" | "layout";
   nightAdapt?: boolean;
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
   toolbarTab?: "home" | "insert" | "layout";
   fileMode?: boolean;
+  showRuler?: boolean;
+  showLineNumbers?: boolean;
   showThumbRail?: boolean;
+  paneId?: string;
 }) {
   const blocks: Block[] = useMemo(() => {
     return (content?.content as Block[]) || [];
@@ -211,11 +265,29 @@ export default function PaginatedEditorView({
     return splitIntoPages(blocks, innerHeight);
   }, [blocks, innerHeight]);
 
+  const pageLineStarts = useMemo(() => {
+    return pagesBlocks.map((_, index) => (
+      1 + pagesBlocks
+        .slice(0, index)
+        .reduce((total, pageBlocks) => total + countPageLines(pageBlocks), 0)
+    ));
+  }, [pagesBlocks]);
+
   const [activePage, setActivePage] = useState(0);
+  const [focusRequest, setFocusRequest] = useState<CursorFocusRequest | null>(null);
+  const focusRevisionRef = useRef(0);
   const redistributeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<{ pageIndex: number; blocks: Block[][] } | null>(null);
+  const isRedistributingRef = useRef(false);
 
-  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string }) => {
+  // A cross-page request is a one-shot hand-off.  Keeping it around after the
+  // destination editor has focused it makes later edits reapply an obsolete
+  // selection and pulls the cursor back to the start of the moved block.
+  const handleFocusRequestHandled = useCallback((revision: number) => {
+    setFocusRequest((current) => current?.revision === revision ? null : current);
+  }, []);
+
+  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string; cursor?: CursorAnchor }) => {
     const newPageBlocks = (payload.json?.content as Block[]) || [];
     const nextPages = [...pagesBlocks];
     nextPages[pageIndex] = newPageBlocks;
@@ -223,6 +295,24 @@ export default function PaginatedEditorView({
     const mergedBlocksImmediate = nextPages.flat();
     const mergedJsonImmediate = { type: "doc", content: mergedBlocksImmediate.length > 0 ? mergedBlocksImmediate : [{ type: "paragraph" }] };
     const mergedTextImmediate = mergedBlocksImmediate.map(getTextFromNode).join("\n\n");
+
+    // Work out where the selection's exact top-level block lands after the
+    // same pagination pass used for rendering. This remains reliable even if
+    // legacy content contains duplicate block IDs.
+    if (payload.cursor && payload.cursor.blockIndex >= 0) {
+      const precedingBlocks = nextPages.slice(0, pageIndex).reduce((total, page) => total + page.length, 0);
+      const cursorBlock = mergedBlocksImmediate[precedingBlocks + payload.cursor.blockIndex];
+      const targetPageIndex = splitIntoPages(mergedBlocksImmediate, innerHeight).findIndex((page) => page.includes(cursorBlock));
+      if (cursorBlock && targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
+        setFocusRequest({
+          id: cursorBlock.attrs?.id || payload.cursor.id,
+          offset: payload.cursor.offset,
+          blockIndex: payload.cursor.blockIndex,
+          targetPageIndex,
+          revision: ++focusRevisionRef.current,
+        });
+      }
+    }
     onContentChange({ json: mergedJsonImmediate, text: mergedTextImmediate });
 
     pendingRef.current = { pageIndex, blocks: nextPages };
@@ -253,7 +343,7 @@ export default function PaginatedEditorView({
         const remerged = newPages.flat();
         onContentChange({ json: { type: "doc", content: remerged }, text: remerged.map(getTextFromNode).join("\n\n") });
       }
-    }, 800);
+    }, 250);
   }, [pagesBlocks, innerHeight, onContentChange]);
 
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
@@ -349,7 +439,7 @@ export default function PaginatedEditorView({
                   backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
                 }}
               >
-                <div className="w-full aspect-[210/297] rounded-sm" style={{ background: "white", border: "1px solid var(--color-border)", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }} />
+                <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
                 <span className="text-[9px] opacity-60 truncate w-full text-center">{pageName}</span>
               </button>
               {/* 需求5：行內重新命名 */}
@@ -401,6 +491,13 @@ export default function PaginatedEditorView({
           min-height: ${innerHeight}px !important;
         }
       `}</style>
+      {showRuler && (
+        <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a" }}>
+          <div className="w-full max-w-full" style={{ width: getDocumentRulerWidth(format) }}>
+            <DocumentRuler format={format} margins={m} />
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-6 w-full" style={{ width: format === "a4" ? "210mm" : format === "16:9" ? "960px" : format === "4:3" ? "800px" : "100%", maxWidth: "100%" }}>
         {pagesBlocks.map((pageBlocks, idx) => {
           const isAdapt = nightAdapt;
@@ -426,10 +523,19 @@ export default function PaginatedEditorView({
                   onChange={(payload) => handlePageChange(idx, payload)}
                   variant="rich"
                   toolbarTarget={idx === activePage ? toolbarTarget : null}
+                  menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
+                  menuToolbarTab={menuToolbarTab}
                   showToolbar={idx === activePage && !fileMode}
                   toolbarTab={toolbarTab}
+                  showLineNumbers={showLineNumbers}
+                  lineNumberStart={pageLineStarts[idx]}
                   margins={margins}
                   onMarginsChange={onMarginsChange}
+                  paneId={paneId}
+                  pageIndex={idx}
+                  paginated
+                  focusRequest={focusRequest || undefined}
+                  onFocusRequestHandled={handleFocusRequestHandled}
                   onFocus={() => setActivePage(idx)}
                   pageNightAdapt={nightAdapt}
                   onTogglePageNightAdapt={onToggleNightAdapt}

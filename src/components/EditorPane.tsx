@@ -1,11 +1,13 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import TiptapEditor from "./TiptapEditor";
 import PageFormatView from "./PageFormatView";
 import PaginatedEditorView from "./PaginatedEditorView";
 import FileMenu from "./FileMenu";
+import ToolbarDropdown from "./ToolbarDropdown";
+import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 
 export default function EditorPane({
   page,
@@ -61,18 +63,33 @@ export default function EditorPane({
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
-  const [activeTab, setActiveTab] = useState<"file" | "home" | "insert" | "layout" | "review">("home");
   const [showRuler, setShowRuler] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
+  const [isWordCountOpen, setIsWordCountOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [isThumbRailOpen, setIsThumbRailOpen] = useState(true);
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+  const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
+  const [layoutToolbarTarget, setLayoutToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
+
+  const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
+  const setLayoutMenuTarget = useCallback((element: HTMLDivElement | null) => setLayoutToolbarTarget(element), []);
 
   useEffect(() => {
     if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!isWordCountOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsWordCountOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isWordCountOpen]);
 
   if (!page) {
     return (
@@ -144,8 +161,10 @@ export default function EditorPane({
     onContentChange({ json: newJson, text: newText });
   };
 
-  const charCount = (page.content_text || "").replace(/\s/g, "").length;
-  const wordCount = (page.content_text || "").trim() ? (page.content_text || "").trim().split(/\s+/).length : 0;
+  const textForCount = page.content_text || "";
+  const wordCount = textForCount.trim() ? textForCount.trim().split(/\s+/).length : 0;
+  const characterCount = textForCount.length;
+  const characterCountWithoutSpaces = textForCount.replace(/\s/g, "").length;
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -184,30 +203,56 @@ export default function EditorPane({
         </div>
       </div>
 
-      {/* 需求3：兩行工具列（Word Ribbon 風格） */}
+      {/* Google Docs-style menus above a permanently available common toolbar. */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
         <div className="flex items-center px-2 pt-1.5 gap-0.5">
-          {([
-            { id: "file" as const, label: "檔案" },
-            { id: "home" as const, label: "常用" },
-            { id: "insert" as const, label: "插入" },
-            { id: "layout" as const, label: "版面配置" },
-            { id: "review" as const, label: "查閱" },
-          ]).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="rounded-t-md px-3 py-1.5 text-sm font-medium"
-              style={{
-                color: "var(--color-text)",
-                backgroundColor: activeTab === tab.id ? "var(--color-border)" : "transparent",
-                border: "1px solid var(--color-border)",
-                borderBottom: activeTab === tab.id ? "none" : "1px solid var(--color-border)",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <FileMenu
+            currentFormat={currentFormat}
+            isDocument={isDocument}
+            isPresentation={isPresentation}
+            onFormatChange={onFormatChange}
+            onExportMarkdown={onExportMarkdown}
+            onExportPdf={onExportPdf}
+            onExportNexus={onExportNexus}
+            onPrint={() => window.print()}
+            onNewNote={onNewNote}
+            onNewDocument={onNewDocument}
+            onImportPdf={onImportPdf}
+            onImportMd={onImportMd}
+            onConvertToPresentation={onConvertToPresentation}
+            onDeleteBlankPages={handleDeleteBlankPages}
+          />
+          <ToolbarDropdown label="插入" icon="➕" variant="inline">
+            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown label="版面配置" icon="▦" variant="inline">
+            <div ref={setLayoutMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown
+            label="查閱"
+            icon="🔎"
+            variant="inline"
+            items={[
+              {
+                id: "toggle-line-numbers",
+                icon: "≣",
+                label: showLineNumbers ? "隱藏行數" : "顯示行數",
+                onClick: () => setShowLineNumbers((visible) => !visible),
+              },
+              {
+                id: "toggle-ruler",
+                icon: "📏",
+                label: showRuler ? "隱藏尺規" : "顯示尺規",
+                onClick: () => setShowRuler((visible) => !visible),
+              },
+              {
+                id: "word-count",
+                icon: "🔤",
+                label: "字數統計",
+                onClick: () => setIsWordCountOpen(true),
+              },
+            ]}
+          />
           <div className="flex-1" />
           {isSplitView ? (
             <div className="flex items-center gap-1 pb-1.5">
@@ -232,42 +277,7 @@ export default function EditorPane({
               ▤
             </button>
           )}
-          {activeTab === "review" ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowRuler((v) => !v)}
-                className="rounded flex items-center gap-1.5 px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 border"
-                style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: showRuler ? "var(--color-border)" : "transparent" }}
-                title="顯示/隱藏尺規"
-              >
-                📏 顯示尺規
-              </button>
-              <span className="text-[11px] opacity-60">字數：{wordCount} 字 ・ 字元：{charCount}</span>
-            </div>
-          ) : activeTab === "file" ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <FileMenu
-                currentFormat={currentFormat}
-                isDocument={isDocument}
-                isPresentation={isPresentation}
-                onFormatChange={onFormatChange}
-                onExportMarkdown={onExportMarkdown}
-                onExportPdf={onExportPdf}
-                onExportNexus={onExportNexus}
-                onPrint={() => window.print()}
-                onNewNote={onNewNote}
-                onNewDocument={onNewDocument}
-                onImportPdf={onImportPdf}
-                onImportMd={onImportMd}
-                onConvertToPresentation={onConvertToPresentation}
-                onDeleteBlankPages={handleDeleteBlankPages}
-              />
-              <span className="text-[11px] opacity-40">檔案操作（新建／匯入／格式／匯出／列印）</span>
-            </div>
-          ) : (
-            <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
-          )}
+          <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
           {/* 固定：適配夜晚（最右邊，不受 tab 影響） */}
           <button
             type="button"
@@ -282,21 +292,48 @@ export default function EditorPane({
       </div>
 
       {/* Content area */}
-      {/* 尺規（查閱 tab 開啟時顯示；寬度對齊內容） */}
-      {showRuler && (
-        <div className="shrink-0 mx-auto overflow-hidden nexus-print-hide" style={{ width: isPaged ? (currentFormat === "a4" ? "210mm" : currentFormat === "16:9" ? "960px" : currentFormat === "4:3" ? "800px" : "820px") : "820px", maxWidth: "100%" }}>
-          <div
-            className="h-5 relative select-none"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(to right, rgba(0,0,0,0.25) 0 1px, transparent 1px 7.56px), repeating-linear-gradient(to right, rgba(0,0,0,0.5) 0 1px, transparent 1px 37.8px)",
-              borderBottom: "1px solid var(--color-border)",
-            }}
+      {isWordCountOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 p-4 nexus-print-hide"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsWordCountOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="word-count-title"
+            className="w-full max-w-[360px] rounded-xl border p-5 shadow-2xl"
+            style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
           >
-            {Array.from({ length: 22 }).map((_, i) => (
-              <span key={i} className="absolute top-0.5 text-[8px] opacity-50" style={{ left: i * 37.8 + 2 }}>{i}</span>
-            ))}
-          </div>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 id="word-count-title" className="text-base font-semibold">字數統計</h2>
+              <button
+                type="button"
+                onClick={() => setIsWordCountOpen(false)}
+                aria-label="關閉字數統計"
+                className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none hover:bg-zinc-200"
+              >
+                ×
+              </button>
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字數</dt><dd className="font-medium tabular-nums">{wordCount}</dd></div>
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字元</dt><dd className="font-medium tabular-nums">{characterCount}</dd></div>
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字元（不含空白）</dt><dd className="font-medium tabular-nums">{characterCountWithoutSpaces}</dd></div>
+            </dl>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsWordCountOpen(false)}
+                className="rounded-md bg-zinc-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+              >
+                關閉
+              </button>
+            </div>
+          </section>
         </div>
       )}
       {/* 縮放（Word 右下角） */}
@@ -333,10 +370,16 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} fileMode={activeTab === "file" || activeTab === "review"} showThumbRail={isPaged && isThumbRailOpen} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
         </>
       ) : (
-        <PageFormatView format={currentFormat}>
+        <>
+          {showRuler && (
+            <div className="sticky top-0 z-20 mx-auto w-full max-w-full nexus-print-hide" style={{ width: getDocumentRulerWidth(currentFormat) }}>
+              <DocumentRuler format={currentFormat} margins={margins} />
+            </div>
+          )}
+          <PageFormatView format={currentFormat}>
           <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px 64px 48px" : "0" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
@@ -360,9 +403,10 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar={activeTab !== "file" && activeTab !== "review"} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
           </div>
-        </PageFormatView>
+          </PageFormatView>
+        </>
       )}
       </div>
     </main>

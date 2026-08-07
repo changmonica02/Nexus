@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -33,7 +33,7 @@ import TableGridPicker from "./TableGridPicker";
 
 interface TiptapEditorProps {
   content: any;
-  onChange: (payload: { json: any; text: string }) => void;
+  onChange: (payload: { json: any; text: string; cursor?: CursorAnchor }) => void;
   variant?: "rich" | "plain";
   toolbarTarget?: HTMLElement | null;
   onFocus?: () => void;
@@ -41,8 +41,26 @@ interface TiptapEditorProps {
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
   toolbarTab?: "home" | "insert" | "layout";
+  menuToolbarTarget?: HTMLElement | null;
+  menuToolbarTab?: "insert" | "layout";
+  showLineNumbers?: boolean;
+  lineNumberStart?: number;
+  paneId?: string;
+  pageIndex?: number;
+  focusRequest?: CursorAnchor & { targetPageIndex: number; revision: number };
+  onFocusRequestHandled?: (revision: number) => void;
   margins?: any;
   onMarginsChange?: (margins: any) => void;
+  /** 是否運作在分頁模式（PaginatedEditorView 底下）。分頁模式下，本頁找不到
+   *  錨點 block 代表它已被搬到別頁，應讓那一頁自己用 block id 精準接手，
+   *  而不是在本頁用文字前綴誤判「找到了」。 */
+  paginated?: boolean;
+}
+
+interface CursorAnchor {
+  id: string;
+  offset: number;
+  blockIndex: number;
 }
 
 type ToolbarState = {
@@ -88,7 +106,15 @@ function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />
 // 全域游標錨點：分頁模式下 block 被搬移到另一頁編輯器時，游標跨編輯器跟隨
 // （每頁是獨立 TiptapEditor，游標無法直接轉移，用模組級變數記錄「最近游標所在 block」，
 //   任一編輯器 setContent 後若發現該 block 在自己文件內 → 放置游標並聚焦）
-let globalCursorAnchor: { id: string; offset: number; prefix?: string } | null = null;
+let globalCursorAnchor: { id: string; offset: number; prefix?: string; paneId?: string } | null = null;
+// 主人機制：誰的 doc 握有 anchor block，誰就是游標主人（防止焦點被其他頁搶走）
+let anchorOwnerEl: HTMLElement | null = null;
+function canClaimCursorAnchor(editorEl: HTMLElement, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+  if (!anchorOwnerEl || anchorOwnerEl === editorEl || !anchorOwnerEl.isConnected || !anchor.id) return true;
+  return !Array.from(anchorOwnerEl.querySelectorAll<HTMLElement>("[data-id]")).some(
+    (element) => element.dataset.id === anchor.id,
+  );
+}
 // 依「block 文字前綴」在 doc 中定位（id 遺失時的跨頁 fallback）
 function findPosByPrefix(doc: any, prefix: string, preferAfter = false): number {
   if (!prefix) return -1;
@@ -117,13 +143,118 @@ function findPosByPrefix(doc: any, prefix: string, preferAfter = false): number 
   return bestPos;
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", margins, onMarginsChange }: TiptapEditorProps) {
+// 在 block 內容範圍內，依「字元偏移」找出對應的 doc pos。
+// 保持在 component 外，讓跨頁焦點交接 callback 不會因為每次 render 都
+// 取得新的函式參考而重複執行。
+function posAtCharOffset(doc: any, from: number, to: number, targetChar: number): number {
+  let acc = 0;
+  let result = from;
+  doc.nodesBetween(from, to, (node: any, nodePos: number) => {
+    if (acc >= targetChar) return false;
+    if (node.isText) {
+      const len = (node.text || "").length;
+      if (acc + len >= targetChar) {
+        result = nodePos + (targetChar - acc);
+        acc = targetChar;
+        return false;
+      }
+      acc += len;
+    } else if (node.isInline && !node.isText) {
+      acc += 1;
+      if (acc >= targetChar) result = nodePos + 1;
+    }
+    return true;
+  });
+  return result;
+}
+
+type LineNumber = { number: number; top: number };
+
+function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.RefObject<HTMLDivElement | null>; startAt: number }) {
+  const [lines, setLines] = useState<LineNumber[]>([]);
+
+  const measure = useCallback(() => {
+    const root = editorRootRef.current;
+    if (!root || !root.isConnected) return;
+
+    const rootRect = root.getBoundingClientRect();
+    const candidates = Array.from(root.querySelectorAll<HTMLElement>(
+      "p, h1, h2, h3, pre, hr, [data-type='page-break'], li, table tr",
+    )).filter((element) => {
+      // Paragraphs inside list/table cells belong to the list item or table
+      // row, so counting them too would produce duplicate line labels.
+      if (element.tagName === "P" && element.closest("li, td, th")) return false;
+      if (["H1", "H2", "H3", "PRE", "HR"].includes(element.tagName) && element.closest("td, th")) return false;
+      return true;
+    });
+
+    let nextNumber = startAt;
+    const nextLines: LineNumber[] = [];
+    for (const element of candidates) {
+      const rect = element.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      const top = Math.round(Math.max(0, rect.top - rootRect.top));
+
+      if (element.tagName === "PRE") {
+        const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight) || 22;
+        const lineCount = Math.max(1, (element.textContent || "").split("\n").length);
+        for (let index = 0; index < lineCount; index += 1) {
+          nextLines.push({ number: nextNumber++, top: Math.round(top + index * lineHeight) });
+        }
+      } else {
+        nextLines.push({ number: nextNumber++, top });
+      }
+    }
+
+    // An empty document still has one editable line even before Tiptap inserts
+    // its first paragraph into the DOM.
+    if (nextLines.length === 0) nextLines.push({ number: startAt, top: 0 });
+    setLines((previous) => (
+      previous.length === nextLines.length && previous.every((line, index) => (
+        line.number === nextLines[index].number && line.top === nextLines[index].top
+      )) ? previous : nextLines
+    ));
+  }, [editorRootRef, startAt]);
+
+  useEffect(() => {
+    const root = editorRootRef.current;
+    if (!root) return;
+    let frame = 0;
+    const scheduleMeasure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    const observer = new MutationObserver(scheduleMeasure);
+    const resizeObserver = new ResizeObserver(scheduleMeasure);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    resizeObserver.observe(root);
+    window.addEventListener("resize", scheduleMeasure);
+    scheduleMeasure();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [editorRootRef, measure]);
+
+  return (
+    <div aria-hidden="true" className="absolute inset-y-0 left-0 w-10 select-none border-r text-right text-[10px] leading-none opacity-45" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+      {lines.map((line) => (
+        <span key={`${line.number}-${line.top}`} className="absolute right-2" style={{ top: line.top }}>{line.number}</span>
+      ))}
+    </div>
+  );
+}
+
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", menuToolbarTarget, menuToolbarTab, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [toolbarState, setToolbarState] = useState<ToolbarState>(emptyToolbarState);
   const [marginsPanelOpen, setMarginsPanelOpen] = useState(false);
+  const handledFocusRevisionRef = useRef<number | null>(null);
   const [marginsPos, setMarginsPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const marginsBtnRef = useRef<HTMLButtonElement | null>(null);
   const marginsPanelRef = useRef<HTMLDivElement | null>(null);
@@ -211,8 +342,50 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       onCreate() { refreshToolbarState(); },
       onSelectionUpdate() { refreshToolbarState(); },
       onTransaction() { refreshToolbarState(); },
-      onFocus() { onFocus?.(); },
-      onUpdate({ editor }) { refreshToolbarState(); onChangeRef.current({ json: editor.getJSON(), text: editor.getText() }); },
+      onFocus() {
+        onFocus?.();
+        // 使用者主動聚焦本頁 → 更新 anchor 與 owner（避免別頁搶焦點）
+        try {
+          const { state } = editor;
+          const sel = state.selection;
+          if (sel && typeof sel.anchor === "number" && sel.anchor > 0) {
+            const pos = Math.min(sel.anchor, state.doc.content.size);
+            const $pos = state.doc.resolve(pos);
+            for (let d = $pos.depth; d > 0; d--) {
+              const node = $pos.node(d);
+              if (node.type.isBlock && node.attrs && typeof node.attrs.id === "string" && node.attrs.id) {
+                const off = state.doc.textBetween($pos.start(d), pos, "\n", " ").length;
+                globalCursorAnchor = { id: node.attrs.id, offset: off, paneId };
+                anchorOwnerEl = editor.view.dom as HTMLElement;
+                break;
+              }
+            }
+          }
+        } catch { /* ignore */ }
+      },
+      onUpdate({ editor }) {
+        refreshToolbarState();
+        const { state } = editor;
+        const position = state.selection.anchor;
+        let cursor: CursorAnchor | undefined;
+        let blockIndex = -1;
+        state.doc.forEach((node, offset, index) => {
+          if (position >= offset && position <= offset + node.nodeSize) blockIndex = index;
+        });
+        const $pos = state.doc.resolve(Math.min(position, state.doc.content.size));
+        for (let depth = $pos.depth; depth > 0; depth--) {
+          const node = $pos.node(depth);
+          if (node.type.isBlock && typeof node.attrs?.id === "string" && node.attrs.id) {
+            cursor = {
+              id: node.attrs.id,
+              offset: state.doc.textBetween($pos.start(depth), position, "\n", " ").length,
+              blockIndex,
+            };
+            break;
+          }
+        }
+        onChangeRef.current({ json: editor.getJSON(), text: editor.getText(), cursor });
+      },
     });
     editorRef.current = editor;
     setIsReady(true);
@@ -222,17 +395,19 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       const ed = editorRef.current;
       if (!ed || !globalCursorAnchor) return;
       const anchor = globalCursorAnchor;
+      if (anchor.paneId !== paneId) return;
       let found = -1;
       ed.state.doc.descendants((n: any, np: number) => {
         if (n.attrs && n.attrs.id === anchor.id) { found = np; return false; }
         return true;
       });
-      if (found >= 0) {
+      if (found >= 0 && canClaimCursorAnchor(ed.view.dom as HTMLElement, anchor)) {
         try {
           const block = ed.state.doc.nodeAt(found);
           if (block) {
             const s = found + 1, e = found + block.nodeSize - 1;
             const tp = posAtCharOffset(ed.state.doc, s, e, anchor.offset);
+            anchorOwnerEl = ed.view.dom as HTMLElement;
             ed.commands.setTextSelection(Math.min(Math.max(tp, s), Math.max(e, s)));
             ed.commands.focus();
             setTimeout(() => {
@@ -242,7 +417,12 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         } catch { /* ignore */ }
       }
     }, 0);
-    return () => { editor.destroy(); editorRef.current = null; setIsReady(false); };
+    return () => {
+      if (anchorOwnerEl === (editor.view.dom as HTMLElement)) anchorOwnerEl = null;
+      editor.destroy();
+      editorRef.current = null;
+      setIsReady(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -261,28 +441,38 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     };
   }, []);
 
-  // 在 block 內容範圍內，依「字元偏移」找出對應的 doc pos
-  const posAtCharOffset = (doc: any, from: number, to: number, targetChar: number): number => {
-    let acc = 0;
-    let result = from;
-    doc.nodesBetween(from, to, (node: any, nodePos: number) => {
-      if (acc >= targetChar) return false;
-      if (node.isText) {
-        const len = (node.text || "").length;
-        if (acc + len >= targetChar) {
-          result = nodePos + (targetChar - acc);
-          acc = targetChar;
-          return false;
-        }
-        acc += len;
-      } else if (node.isInline && !node.isText) {
-        acc += 1;
-        if (acc >= targetChar) result = nodePos + 1;
-      }
+  // The paginated parent calculates the page containing a moved cursor block.
+  // Apply each hand-off exactly once.  The target editor can already be mounted
+  // with its old content, so this helper is also called immediately after a
+  // content replacement below.
+  const applyFocusRequest = useCallback((editor = editorRef.current): boolean => {
+    if (!editor || !isReady || !focusRequest || focusRequest.targetPageIndex !== pageIndex) return false;
+    if (handledFocusRevisionRef.current === focusRequest.revision) return false;
+
+    let blockPos = -1;
+    editor.state.doc.descendants((node: any, nodePos: number) => {
+      if (node.attrs?.id === focusRequest.id) { blockPos = nodePos; return false; }
       return true;
     });
-    return result;
-  };
+    const block = blockPos >= 0 ? editor.state.doc.nodeAt(blockPos) : null;
+    if (!block) return false;
+
+    const from = blockPos + 1;
+    const to = blockPos + block.nodeSize - 1;
+    const target = posAtCharOffset(editor.state.doc, from, to, focusRequest.offset);
+    anchorOwnerEl = editor.view.dom as HTMLElement;
+    editor.commands.setTextSelection(Math.min(Math.max(target, from), Math.max(to, from)));
+    editor.commands.focus();
+    handledFocusRevisionRef.current = focusRequest.revision;
+    onFocusRequestHandled?.(focusRequest.revision);
+    return true;
+  }, [focusRequest, isReady, onFocusRequestHandled, pageIndex]);
+
+  // The request effect covers a newly-mounted target page.  Existing target
+  // pages are covered by the post-setContent call in the sync effect.
+  useEffect(() => {
+    applyFocusRequest();
+  }, [applyFocusRequest]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -318,16 +508,25 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       // 只有聚焦中的編輯器才能更新錨點（避免其他頁的舊游標覆蓋）
       if (editor.isFocused) {
         if (cursorBlockId) {
-          globalCursorAnchor = { id: cursorBlockId, offset: cursorBlockOffset, prefix: cursorPrefix };
+          globalCursorAnchor = { id: cursorBlockId, offset: cursorBlockOffset, prefix: cursorPrefix, paneId };
         } else if (cursorPrefix) {
           // id 遺失（舊資料/新段落尚未補 id）→ 用前綴錨點
-          globalCursorAnchor = { id: "", offset: cursorBlockOffset, prefix: cursorPrefix.slice(-60) };
+          globalCursorAnchor = { id: "", offset: cursorBlockOffset, prefix: cursorPrefix.slice(-60), paneId };
         }
       }
       editor.commands.setContent(content, { emitUpdate: false });
       const newDoc = editor.state.doc;
+      // If this editor was already mounted before the block crossed the page
+      // boundary, it only contains the moved block after setContent().
+      // Handling the request here prevents the focus effect from racing the
+      // content synchronization step.
+      if (applyFocusRequest(editor)) {
+        refreshToolbarState();
+        return;
+      }
       // 1) 全域錨點定位：block 可能在「這個編輯器」或「被搬到另一頁編輯器」
-      const anchor = globalCursorAnchor;
+      //    僅同 paneId（雙開分離）才接管
+      const anchor = globalCursorAnchor && globalCursorAnchor.paneId === paneId ? globalCursorAnchor : null;
       if (anchor) {
         let foundBlockPos = -1;
         if (anchor.id) {
@@ -346,6 +545,36 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               const innerStart = foundBlockPos + 1;
               const innerEnd = foundBlockPos + block.nodeSize - 1;
               const targetPos = posAtCharOffset(newDoc, innerStart, innerEnd, anchor.offset);
+              if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) {
+                // Sibling page effects can run before the previous owner has
+                // received its new content. Retry after that owner relinquishes
+                // the moved block instead of leaving focus at its page tail.
+                setTimeout(() => {
+                  const latestAnchor = globalCursorAnchor;
+                  if (
+                    !latestAnchor ||
+                    latestAnchor.id !== anchor.id ||
+                    latestAnchor.paneId !== paneId ||
+                    !canClaimCursorAnchor(editor.view.dom as HTMLElement, latestAnchor)
+                  ) return;
+
+                  let retryPos = -1;
+                  editor.state.doc.descendants((node: any, nodePos: number) => {
+                    if (node.attrs?.id === latestAnchor.id) { retryPos = nodePos; return false; }
+                    return true;
+                  });
+                  const retryBlock = retryPos >= 0 ? editor.state.doc.nodeAt(retryPos) : null;
+                  if (!retryBlock) return;
+
+                  const retryStart = retryPos + 1;
+                  const retryEnd = retryPos + retryBlock.nodeSize - 1;
+                  anchorOwnerEl = editor.view.dom as HTMLElement;
+                  editor.commands.setTextSelection(posAtCharOffset(editor.state.doc, retryStart, retryEnd, latestAnchor.offset));
+                  editor.commands.focus();
+                }, 0);
+                return;
+              }
+              anchorOwnerEl = editor.view.dom as HTMLElement;
               editor.commands.setTextSelection(Math.min(Math.max(targetPos, innerStart), Math.max(innerEnd, innerStart)));
               // block 在此編輯器內 → 聚焦（跨頁搬移時讓使用者可繼續打字）
               if (!editor.isFocused) editor.commands.focus();
@@ -361,10 +590,19 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           } catch { /* fallthrough */ }
         }
         // 錨點 block 不在這個編輯器（被搬到別頁）
-        // 若有 prefix → 用前綴定位（id 遺失的跨頁 fallback）
-        if (anchor.prefix) {
+        // 分頁模式下，交由 block 實際落腳的那一頁自己用 id 精準接手（它的
+        // content-diff effect 會在 setContent 後用同一個 globalCursorAnchor
+        // 找到這個 block）。這裡若仍用「文字前綴比對」在本頁復原，前綴文字
+        // 幾乎都還完整存在於本頁——因為真正被搬走的往往只是 Enter 新分出的
+        // 空段落，前綴剛好就是「移走前，本頁最後那段文字」——於是永遠會
+        // 假性比對成功，把游標留在來源頁、搶在目標頁之前。這正是「游標一碰
+        // 到第二頁，不管是斷行還是在尾端加行，都被拉回原行行首」的成因。
+        // 非分頁模式（單一編輯器、沒有別頁可接手）才需要這個前綴 fallback。
+        if (!paginated && anchor.prefix) {
           const p = findPosByPrefix(newDoc, anchor.prefix, true);
           if (p > 0) {
+            if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) return;
+            anchorOwnerEl = editor.view.dom as HTMLElement;
             editor.commands.setTextSelection(p);
             if (!editor.isFocused) editor.commands.focus();
             setTimeout(() => {
@@ -917,15 +1155,16 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 
-  const toolbarJSX = (
+  const renderToolbar = (tab: "home" | "insert" | "layout") => (
     <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
-      {toolbarTab === "insert" ? insertTools : toolbarTab === "layout" ? layoutTools : homeTools}
+      {tab === "insert" ? insertTools : tab === "layout" ? layoutTools : homeTools}
     </div>
   );
 
   return (
     <>
-      {showToolbar && (toolbarTarget ? createPortal(toolbarJSX, toolbarTarget) : toolbarJSX)}
+      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(toolbarTab), toolbarTarget) : renderToolbar(toolbarTab))}
+      {showToolbar && menuToolbarTarget && menuToolbarTab && createPortal(renderToolbar(menuToolbarTab), menuToolbarTarget)}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
@@ -980,7 +1219,10 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         .nexus-multi-column { display: grid; gap: 16px; margin: 1rem 0; padding: 0.5rem; border: 1px dashed var(--color-border); border-radius: 8px; }
         .nexus-column { min-width: 0; }
       `}</style>
-      <div ref={ref} className="w-full min-h-[400px] outline-none text-base" style={{ color: "var(--color-text)", fontFamily: "inherit", lineHeight: "1.6" }} />
+      <div className={`relative w-full min-h-[400px] ${showLineNumbers ? "pl-12" : ""}`}>
+        {showLineNumbers && <LineNumberGutter editorRootRef={ref} startAt={lineNumberStart} />}
+        <div ref={ref} className="w-full min-h-[400px] outline-none text-base" style={{ color: "var(--color-text)", fontFamily: "inherit", lineHeight: "1.6" }} />
+      </div>
     </>
   );
 }

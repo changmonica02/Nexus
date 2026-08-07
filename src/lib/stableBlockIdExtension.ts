@@ -61,10 +61,16 @@ export const StableBlockId = Extension.create({
         appendTransaction(_transactions, _oldState, newState) {
           if (!_transactions.some((tr) => tr.docChanged)) return null;
           let tr: any = null;
+          const seenIds = new Set<string>();
           newState.doc.descendants((node: any, pos: number) => {
-            if (node.type.isBlock && (!node.attrs || !node.attrs.id)) {
+            const id = node.attrs?.id;
+            // Pressing Enter splits a ProseMirror node and copies its attrs.
+            // Duplicate IDs make cursor anchors point at the previous page.
+            if (node.type.isBlock && (!id || seenIds.has(id))) {
               if (!tr) tr = newState.tr;
               tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: createClientBlockId() });
+            } else if (node.type.isBlock) {
+              seenIds.add(id);
             }
             return true;
           });

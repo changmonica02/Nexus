@@ -38,7 +38,6 @@ import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
-import NewPageDialog from "./NewPageDialog";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -99,7 +98,6 @@ function NexusAppInner({
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("updated");
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
-  const [sidebarNewDialogKind, setSidebarNewDialogKind] = useState<"note" | "document" | null>(null);
   // Task 3: Split view (Obsidian style) - left/right closable
   const [secondaryActivePageId, setSecondaryActivePageId] = useState<string | null>(null);
   const [secondaryPdfUrl, setSecondaryPdfUrl] = useState<string | null>(null);
@@ -114,6 +112,7 @@ function NexusAppInner({
   const activePageRef = useRef<Page | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncEngineRef = useRef<SyncEngine | null>(null);
+  const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
@@ -470,12 +469,28 @@ function NexusAppInner({
   }, [storageRef, pages]);
 
   const handleCreateItem = useCallback(async (type: "note" | "document" | "study_set" | "folder" | "presentation") => {
-    if (type === "note" || type === "document" || type === "presentation") {
-      if (type === "presentation") {
-        await handleCreatePresentation("16:9");
-        return;
+    if (type === "presentation") {
+      await handleCreatePresentation("16:9");
+      return;
+    }
+    if (type === "note" || type === "document") {
+      // New notes/documents used to be created from NewPageDialog's mount
+      // effect. React remounts could run that effect more than once, leaving
+      // one Untitled page plus a second page in rename mode. Creation must be
+      // a single user event, and repeated clicks while IndexedDB is pending
+      // must not create a second page.
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try {
+        const newPage = await createAndOpenPage({
+          kind: type,
+          format: type === "document" ? "a4" : "flow",
+          title: "",
+        });
+        if (newPage) setPendingRenameId(newPage.id);
+      } finally {
+        sidebarCreateInFlightRef.current = false;
       }
-      setSidebarNewDialogKind(type as "note" | "document");
       return;
     }
     const input: CreatePageInput = type === "folder"
@@ -484,11 +499,6 @@ function NexusAppInner({
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
   }, [createAndOpenPage, handleCreatePresentation]);
-
-  const handleSidebarNewDialogConfirm = useCallback(async (kind: string, format: PageFormat) => {
-    const newPage = await createAndOpenPage({ kind: kind as "note" | "document", format, title: "" });
-    if (newPage) setPendingRenameId(newPage.id);
-  }, [createAndOpenPage]);
 
   const handleCancelNewPage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -1239,17 +1249,6 @@ function NexusAppInner({
 
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
 
-      {sidebarNewDialogKind && (
-        <NewPageDialog
-          isOpen={true}
-          onClose={() => setSidebarNewDialogKind(null)}
-          onConfirm={(kind, format) => {
-            void handleSidebarNewDialogConfirm(kind, format);
-            setSidebarNewDialogKind(null);
-          }}
-          initialKind={sidebarNewDialogKind}
-        />
-      )}
     </div>
   );
 }

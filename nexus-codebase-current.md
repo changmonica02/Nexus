@@ -9187,13 +9187,15 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
 ## File: src/components/EditorPane.tsx
 ````
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import TiptapEditor from "./TiptapEditor";
 import PageFormatView from "./PageFormatView";
 import PaginatedEditorView from "./PaginatedEditorView";
 import FileMenu from "./FileMenu";
+import ToolbarDropdown from "./ToolbarDropdown";
+import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 
 export default function EditorPane({
   page,
@@ -9249,18 +9251,33 @@ export default function EditorPane({
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
-  const [activeTab, setActiveTab] = useState<"file" | "home" | "insert" | "layout" | "review">("home");
   const [showRuler, setShowRuler] = useState(false);
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
+  const [isWordCountOpen, setIsWordCountOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [isThumbRailOpen, setIsThumbRailOpen] = useState(true);
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+  const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
+  const [layoutToolbarTarget, setLayoutToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
+
+  const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
+  const setLayoutMenuTarget = useCallback((element: HTMLDivElement | null) => setLayoutToolbarTarget(element), []);
 
   useEffect(() => {
     if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!isWordCountOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsWordCountOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isWordCountOpen]);
 
   if (!page) {
     return (
@@ -9332,8 +9349,10 @@ export default function EditorPane({
     onContentChange({ json: newJson, text: newText });
   };
 
-  const charCount = (page.content_text || "").replace(/\s/g, "").length;
-  const wordCount = (page.content_text || "").trim() ? (page.content_text || "").trim().split(/\s+/).length : 0;
+  const textForCount = page.content_text || "";
+  const wordCount = textForCount.trim() ? textForCount.trim().split(/\s+/).length : 0;
+  const characterCount = textForCount.length;
+  const characterCountWithoutSpaces = textForCount.replace(/\s/g, "").length;
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -9372,30 +9391,56 @@ export default function EditorPane({
         </div>
       </div>
 
-      {/* 需求3：兩行工具列（Word Ribbon 風格） */}
+      {/* Google Docs-style menus above a permanently available common toolbar. */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
         <div className="flex items-center px-2 pt-1.5 gap-0.5">
-          {([
-            { id: "file" as const, label: "檔案" },
-            { id: "home" as const, label: "常用" },
-            { id: "insert" as const, label: "插入" },
-            { id: "layout" as const, label: "版面配置" },
-            { id: "review" as const, label: "查閱" },
-          ]).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="rounded-t-md px-3 py-1.5 text-sm font-medium"
-              style={{
-                color: "var(--color-text)",
-                backgroundColor: activeTab === tab.id ? "var(--color-border)" : "transparent",
-                border: "1px solid var(--color-border)",
-                borderBottom: activeTab === tab.id ? "none" : "1px solid var(--color-border)",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <FileMenu
+            currentFormat={currentFormat}
+            isDocument={isDocument}
+            isPresentation={isPresentation}
+            onFormatChange={onFormatChange}
+            onExportMarkdown={onExportMarkdown}
+            onExportPdf={onExportPdf}
+            onExportNexus={onExportNexus}
+            onPrint={() => window.print()}
+            onNewNote={onNewNote}
+            onNewDocument={onNewDocument}
+            onImportPdf={onImportPdf}
+            onImportMd={onImportMd}
+            onConvertToPresentation={onConvertToPresentation}
+            onDeleteBlankPages={handleDeleteBlankPages}
+          />
+          <ToolbarDropdown label="插入" icon="➕" variant="inline">
+            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown label="版面配置" icon="▦" variant="inline">
+            <div ref={setLayoutMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown
+            label="查閱"
+            icon="🔎"
+            variant="inline"
+            items={[
+              {
+                id: "toggle-line-numbers",
+                icon: "≣",
+                label: showLineNumbers ? "隱藏行數" : "顯示行數",
+                onClick: () => setShowLineNumbers((visible) => !visible),
+              },
+              {
+                id: "toggle-ruler",
+                icon: "📏",
+                label: showRuler ? "隱藏尺規" : "顯示尺規",
+                onClick: () => setShowRuler((visible) => !visible),
+              },
+              {
+                id: "word-count",
+                icon: "🔤",
+                label: "字數統計",
+                onClick: () => setIsWordCountOpen(true),
+              },
+            ]}
+          />
           <div className="flex-1" />
           {isSplitView ? (
             <div className="flex items-center gap-1 pb-1.5">
@@ -9420,42 +9465,7 @@ export default function EditorPane({
               ▤
             </button>
           )}
-          {activeTab === "review" ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowRuler((v) => !v)}
-                className="rounded flex items-center gap-1.5 px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 border"
-                style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: showRuler ? "var(--color-border)" : "transparent" }}
-                title="顯示/隱藏尺規"
-              >
-                📏 顯示尺規
-              </button>
-              <span className="text-[11px] opacity-60">字數：{wordCount} 字 ・ 字元：{charCount}</span>
-            </div>
-          ) : activeTab === "file" ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <FileMenu
-                currentFormat={currentFormat}
-                isDocument={isDocument}
-                isPresentation={isPresentation}
-                onFormatChange={onFormatChange}
-                onExportMarkdown={onExportMarkdown}
-                onExportPdf={onExportPdf}
-                onExportNexus={onExportNexus}
-                onPrint={() => window.print()}
-                onNewNote={onNewNote}
-                onNewDocument={onNewDocument}
-                onImportPdf={onImportPdf}
-                onImportMd={onImportMd}
-                onConvertToPresentation={onConvertToPresentation}
-                onDeleteBlankPages={handleDeleteBlankPages}
-              />
-              <span className="text-[11px] opacity-40">檔案操作（新建／匯入／格式／匯出／列印）</span>
-            </div>
-          ) : (
-            <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
-          )}
+          <div ref={toolbarPortalRef} className="flex-1 min-w-0 flex items-center overflow-x-auto" />
           {/* 固定：適配夜晚（最右邊，不受 tab 影響） */}
           <button
             type="button"
@@ -9470,21 +9480,48 @@ export default function EditorPane({
       </div>
 
       {/* Content area */}
-      {/* 尺規（查閱 tab 開啟時顯示；寬度對齊內容） */}
-      {showRuler && (
-        <div className="shrink-0 mx-auto overflow-hidden nexus-print-hide" style={{ width: isPaged ? (currentFormat === "a4" ? "210mm" : currentFormat === "16:9" ? "960px" : currentFormat === "4:3" ? "800px" : "820px") : "820px", maxWidth: "100%" }}>
-          <div
-            className="h-5 relative select-none"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(to right, rgba(0,0,0,0.25) 0 1px, transparent 1px 7.56px), repeating-linear-gradient(to right, rgba(0,0,0,0.5) 0 1px, transparent 1px 37.8px)",
-              borderBottom: "1px solid var(--color-border)",
-            }}
+      {isWordCountOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 p-4 nexus-print-hide"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsWordCountOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="word-count-title"
+            className="w-full max-w-[360px] rounded-xl border p-5 shadow-2xl"
+            style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
           >
-            {Array.from({ length: 22 }).map((_, i) => (
-              <span key={i} className="absolute top-0.5 text-[8px] opacity-50" style={{ left: i * 37.8 + 2 }}>{i}</span>
-            ))}
-          </div>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 id="word-count-title" className="text-base font-semibold">字數統計</h2>
+              <button
+                type="button"
+                onClick={() => setIsWordCountOpen(false)}
+                aria-label="關閉字數統計"
+                className="flex h-7 w-7 items-center justify-center rounded text-lg leading-none hover:bg-zinc-200"
+              >
+                ×
+              </button>
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字數</dt><dd className="font-medium tabular-nums">{wordCount}</dd></div>
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字元</dt><dd className="font-medium tabular-nums">{characterCount}</dd></div>
+              <div className="flex items-center justify-between gap-6"><dt className="opacity-65">字元（不含空白）</dt><dd className="font-medium tabular-nums">{characterCountWithoutSpaces}</dd></div>
+            </dl>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsWordCountOpen(false)}
+                className="rounded-md bg-zinc-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+              >
+                關閉
+              </button>
+            </div>
+          </section>
         </div>
       )}
       {/* 縮放（Word 右下角） */}
@@ -9521,10 +9558,16 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} fileMode={activeTab === "file" || activeTab === "review"} showThumbRail={isPaged && isThumbRailOpen} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
         </>
       ) : (
-        <PageFormatView format={currentFormat}>
+        <>
+          {showRuler && (
+            <div className="sticky top-0 z-20 mx-auto w-full max-w-full nexus-print-hide" style={{ width: getDocumentRulerWidth(currentFormat) }}>
+              <DocumentRuler format={currentFormat} margins={margins} />
+            </div>
+          )}
+          <PageFormatView format={currentFormat}>
           <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px 64px 48px" : "0" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
@@ -9548,9 +9591,10 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar={activeTab !== "file" && activeTab !== "review"} toolbarTab={activeTab === "file" || activeTab === "review" ? "home" : activeTab} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
           </div>
-        </PageFormatView>
+          </PageFormatView>
+        </>
       )}
       </div>
     </main>
@@ -9984,7 +10028,6 @@ import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
-import NewPageDialog from "./NewPageDialog";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -10045,7 +10088,6 @@ function NexusAppInner({
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("updated");
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
-  const [sidebarNewDialogKind, setSidebarNewDialogKind] = useState<"note" | "document" | null>(null);
   // Task 3: Split view (Obsidian style) - left/right closable
   const [secondaryActivePageId, setSecondaryActivePageId] = useState<string | null>(null);
   const [secondaryPdfUrl, setSecondaryPdfUrl] = useState<string | null>(null);
@@ -10060,6 +10102,7 @@ function NexusAppInner({
   const activePageRef = useRef<Page | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncEngineRef = useRef<SyncEngine | null>(null);
+  const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
@@ -10416,12 +10459,28 @@ function NexusAppInner({
   }, [storageRef, pages]);
 
   const handleCreateItem = useCallback(async (type: "note" | "document" | "study_set" | "folder" | "presentation") => {
-    if (type === "note" || type === "document" || type === "presentation") {
-      if (type === "presentation") {
-        await handleCreatePresentation("16:9");
-        return;
+    if (type === "presentation") {
+      await handleCreatePresentation("16:9");
+      return;
+    }
+    if (type === "note" || type === "document") {
+      // New notes/documents used to be created from NewPageDialog's mount
+      // effect. React remounts could run that effect more than once, leaving
+      // one Untitled page plus a second page in rename mode. Creation must be
+      // a single user event, and repeated clicks while IndexedDB is pending
+      // must not create a second page.
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try {
+        const newPage = await createAndOpenPage({
+          kind: type,
+          format: type === "document" ? "a4" : "flow",
+          title: "",
+        });
+        if (newPage) setPendingRenameId(newPage.id);
+      } finally {
+        sidebarCreateInFlightRef.current = false;
       }
-      setSidebarNewDialogKind(type as "note" | "document");
       return;
     }
     const input: CreatePageInput = type === "folder"
@@ -10430,11 +10489,6 @@ function NexusAppInner({
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
   }, [createAndOpenPage, handleCreatePresentation]);
-
-  const handleSidebarNewDialogConfirm = useCallback(async (kind: string, format: PageFormat) => {
-    const newPage = await createAndOpenPage({ kind: kind as "note" | "document", format, title: "" });
-    if (newPage) setPendingRenameId(newPage.id);
-  }, [createAndOpenPage]);
 
   const handleCancelNewPage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -11185,20 +11239,10 @@ function NexusAppInner({
 
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
 
-      {sidebarNewDialogKind && (
-        <NewPageDialog
-          isOpen={true}
-          onClose={() => setSidebarNewDialogKind(null)}
-          onConfirm={(kind, format) => {
-            void handleSidebarNewDialogConfirm(kind, format);
-            setSidebarNewDialogKind(null);
-          }}
-          initialKind={sidebarNewDialogKind}
-        />
-      )}
     </div>
   );
 }
+
 ````
 
 ## File: src/components/PageFormatView.tsx
@@ -11448,8 +11492,12 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { PageFormat, PageMargins } from "../lib/types";
 import { DEFAULT_PAGE_MARGINS } from "../lib/types";
 import TiptapEditor from "./TiptapEditor";
+import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
+import PageThumbnail from "./PageThumbnail";
 
 type Block = any;
+type CursorAnchor = { id: string; offset: number; blockIndex: number };
+type CursorFocusRequest = CursorAnchor & { targetPageIndex: number; revision: number };
 
 function getTextFromNode(node: any): string {
   if (!node) return "";
@@ -11467,7 +11515,9 @@ function estimateBlockHeight(node: Block): number {
       const text = getTextFromNode(node);
       const charsPerLine = 70;
       const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-      return lines * 26 + 20;
+      // Paragraphs are 15px with a 1.6 line-height, while the global reset
+      // removes their default margins. Each rendered line therefore uses 24px.
+      return lines * 24;
     }
     case "bulletList":
     case "orderedList":
@@ -11601,30 +11651,78 @@ function firstHeadingText(pageBlocks: Block[]): string {
   return "";
 }
 
+// Keep the first label of each page continuous. This mirrors the editor gutter:
+// headings, paragraphs, list items, and table rows count once; code blocks count
+// once per hard line. Wrapped visual lines deliberately do not get extra labels.
+function countLogicalLines(node: Block): number {
+  switch (node?.type) {
+    case "paragraph":
+    case "heading":
+    case "horizontalRule":
+      return 1;
+    case "codeBlock":
+      return Math.max(1, getTextFromNode(node).split("\n").length);
+    case "listItem":
+    case "taskItem":
+      return 1 + (node.content || [])
+        .filter((child: Block) => child.type !== "paragraph")
+        .reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+    case "bulletList":
+    case "orderedList":
+    case "taskList":
+    case "blockquote":
+    case "callout":
+    case "multiColumn":
+    case "column":
+      return (node.content || []).reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+    case "table":
+      return Math.max(1, node.content?.length || 0);
+    case "pageBreak":
+    case "image":
+      return 0;
+    default:
+      return (node.content || []).reduce((total: number, child: Block) => total + countLogicalLines(child), 0);
+  }
+}
+
+function countPageLines(pageBlocks: Block[]): number {
+  return pageBlocks.reduce((total, block) => total + countLogicalLines(block), 0);
+}
+
 export default function PaginatedEditorView({
   content,
   onContentChange,
   format,
   toolbarTarget,
+  menuToolbarTarget,
+  menuToolbarTab,
   nightAdapt = false,
   onToggleNightAdapt,
   margins,
   onMarginsChange,
   toolbarTab = "home",
   fileMode = false,
+  showRuler = false,
+  showLineNumbers = false,
   showThumbRail = true,
+  paneId = "primary",
 }: {
   content: any;
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
+  menuToolbarTarget?: HTMLElement | null;
+  menuToolbarTab?: "insert" | "layout";
   nightAdapt?: boolean;
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
   toolbarTab?: "home" | "insert" | "layout";
   fileMode?: boolean;
+  showRuler?: boolean;
+  showLineNumbers?: boolean;
   showThumbRail?: boolean;
+  paneId?: string;
 }) {
   const blocks: Block[] = useMemo(() => {
     return (content?.content as Block[]) || [];
@@ -11656,11 +11754,29 @@ export default function PaginatedEditorView({
     return splitIntoPages(blocks, innerHeight);
   }, [blocks, innerHeight]);
 
+  const pageLineStarts = useMemo(() => {
+    return pagesBlocks.map((_, index) => (
+      1 + pagesBlocks
+        .slice(0, index)
+        .reduce((total, pageBlocks) => total + countPageLines(pageBlocks), 0)
+    ));
+  }, [pagesBlocks]);
+
   const [activePage, setActivePage] = useState(0);
+  const [focusRequest, setFocusRequest] = useState<CursorFocusRequest | null>(null);
+  const focusRevisionRef = useRef(0);
   const redistributeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<{ pageIndex: number; blocks: Block[][] } | null>(null);
+  const isRedistributingRef = useRef(false);
 
-  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string }) => {
+  // A cross-page request is a one-shot hand-off.  Keeping it around after the
+  // destination editor has focused it makes later edits reapply an obsolete
+  // selection and pulls the cursor back to the start of the moved block.
+  const handleFocusRequestHandled = useCallback((revision: number) => {
+    setFocusRequest((current) => current?.revision === revision ? null : current);
+  }, []);
+
+  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string; cursor?: CursorAnchor }) => {
     const newPageBlocks = (payload.json?.content as Block[]) || [];
     const nextPages = [...pagesBlocks];
     nextPages[pageIndex] = newPageBlocks;
@@ -11668,6 +11784,24 @@ export default function PaginatedEditorView({
     const mergedBlocksImmediate = nextPages.flat();
     const mergedJsonImmediate = { type: "doc", content: mergedBlocksImmediate.length > 0 ? mergedBlocksImmediate : [{ type: "paragraph" }] };
     const mergedTextImmediate = mergedBlocksImmediate.map(getTextFromNode).join("\n\n");
+
+    // Work out where the selection's exact top-level block lands after the
+    // same pagination pass used for rendering. This remains reliable even if
+    // legacy content contains duplicate block IDs.
+    if (payload.cursor && payload.cursor.blockIndex >= 0) {
+      const precedingBlocks = nextPages.slice(0, pageIndex).reduce((total, page) => total + page.length, 0);
+      const cursorBlock = mergedBlocksImmediate[precedingBlocks + payload.cursor.blockIndex];
+      const targetPageIndex = splitIntoPages(mergedBlocksImmediate, innerHeight).findIndex((page) => page.includes(cursorBlock));
+      if (cursorBlock && targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
+        setFocusRequest({
+          id: cursorBlock.attrs?.id || payload.cursor.id,
+          offset: payload.cursor.offset,
+          blockIndex: payload.cursor.blockIndex,
+          targetPageIndex,
+          revision: ++focusRevisionRef.current,
+        });
+      }
+    }
     onContentChange({ json: mergedJsonImmediate, text: mergedTextImmediate });
 
     pendingRef.current = { pageIndex, blocks: nextPages };
@@ -11698,7 +11832,7 @@ export default function PaginatedEditorView({
         const remerged = newPages.flat();
         onContentChange({ json: { type: "doc", content: remerged }, text: remerged.map(getTextFromNode).join("\n\n") });
       }
-    }, 800);
+    }, 250);
   }, [pagesBlocks, innerHeight, onContentChange]);
 
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
@@ -11794,7 +11928,7 @@ export default function PaginatedEditorView({
                   backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
                 }}
               >
-                <div className="w-full aspect-[210/297] rounded-sm" style={{ background: "white", border: "1px solid var(--color-border)", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }} />
+                <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
                 <span className="text-[9px] opacity-60 truncate w-full text-center">{pageName}</span>
               </button>
               {/* 需求5：行內重新命名 */}
@@ -11846,6 +11980,13 @@ export default function PaginatedEditorView({
           min-height: ${innerHeight}px !important;
         }
       `}</style>
+      {showRuler && (
+        <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a" }}>
+          <div className="w-full max-w-full" style={{ width: getDocumentRulerWidth(format) }}>
+            <DocumentRuler format={format} margins={m} />
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-6 w-full" style={{ width: format === "a4" ? "210mm" : format === "16:9" ? "960px" : format === "4:3" ? "800px" : "100%", maxWidth: "100%" }}>
         {pagesBlocks.map((pageBlocks, idx) => {
           const isAdapt = nightAdapt;
@@ -11871,10 +12012,19 @@ export default function PaginatedEditorView({
                   onChange={(payload) => handlePageChange(idx, payload)}
                   variant="rich"
                   toolbarTarget={idx === activePage ? toolbarTarget : null}
+                  menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
+                  menuToolbarTab={menuToolbarTab}
                   showToolbar={idx === activePage && !fileMode}
                   toolbarTab={toolbarTab}
+                  showLineNumbers={showLineNumbers}
+                  lineNumberStart={pageLineStarts[idx]}
                   margins={margins}
                   onMarginsChange={onMarginsChange}
+                  paneId={paneId}
+                  pageIndex={idx}
+                  paginated
+                  focusRequest={focusRequest || undefined}
+                  onFocusRequestHandled={handleFocusRequestHandled}
                   onFocus={() => setActivePage(idx)}
                   pageNightAdapt={nightAdapt}
                   onTogglePageNightAdapt={onToggleNightAdapt}
@@ -13710,7 +13860,7 @@ export default function TableGridPicker({ editor, disabled }: { editor: Editor |
 ## File: src/components/TiptapEditor.tsx
 ````
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -13744,7 +13894,7 @@ import TableGridPicker from "./TableGridPicker";
 
 interface TiptapEditorProps {
   content: any;
-  onChange: (payload: { json: any; text: string }) => void;
+  onChange: (payload: { json: any; text: string; cursor?: CursorAnchor }) => void;
   variant?: "rich" | "plain";
   toolbarTarget?: HTMLElement | null;
   onFocus?: () => void;
@@ -13752,8 +13902,26 @@ interface TiptapEditorProps {
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
   toolbarTab?: "home" | "insert" | "layout";
+  menuToolbarTarget?: HTMLElement | null;
+  menuToolbarTab?: "insert" | "layout";
+  showLineNumbers?: boolean;
+  lineNumberStart?: number;
+  paneId?: string;
+  pageIndex?: number;
+  focusRequest?: CursorAnchor & { targetPageIndex: number; revision: number };
+  onFocusRequestHandled?: (revision: number) => void;
   margins?: any;
   onMarginsChange?: (margins: any) => void;
+  /** 是否運作在分頁模式（PaginatedEditorView 底下）。分頁模式下，本頁找不到
+   *  錨點 block 代表它已被搬到別頁，應讓那一頁自己用 block id 精準接手，
+   *  而不是在本頁用文字前綴誤判「找到了」。 */
+  paginated?: boolean;
+}
+
+interface CursorAnchor {
+  id: string;
+  offset: number;
+  blockIndex: number;
 }
 
 type ToolbarState = {
@@ -13799,7 +13967,15 @@ function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />
 // 全域游標錨點：分頁模式下 block 被搬移到另一頁編輯器時，游標跨編輯器跟隨
 // （每頁是獨立 TiptapEditor，游標無法直接轉移，用模組級變數記錄「最近游標所在 block」，
 //   任一編輯器 setContent 後若發現該 block 在自己文件內 → 放置游標並聚焦）
-let globalCursorAnchor: { id: string; offset: number; prefix?: string } | null = null;
+let globalCursorAnchor: { id: string; offset: number; prefix?: string; paneId?: string } | null = null;
+// 主人機制：誰的 doc 握有 anchor block，誰就是游標主人（防止焦點被其他頁搶走）
+let anchorOwnerEl: HTMLElement | null = null;
+function canClaimCursorAnchor(editorEl: HTMLElement, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+  if (!anchorOwnerEl || anchorOwnerEl === editorEl || !anchorOwnerEl.isConnected || !anchor.id) return true;
+  return !Array.from(anchorOwnerEl.querySelectorAll<HTMLElement>("[data-id]")).some(
+    (element) => element.dataset.id === anchor.id,
+  );
+}
 // 依「block 文字前綴」在 doc 中定位（id 遺失時的跨頁 fallback）
 function findPosByPrefix(doc: any, prefix: string, preferAfter = false): number {
   if (!prefix) return -1;
@@ -13828,13 +14004,118 @@ function findPosByPrefix(doc: any, prefix: string, preferAfter = false): number 
   return bestPos;
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", margins, onMarginsChange }: TiptapEditorProps) {
+// 在 block 內容範圍內，依「字元偏移」找出對應的 doc pos。
+// 保持在 component 外，讓跨頁焦點交接 callback 不會因為每次 render 都
+// 取得新的函式參考而重複執行。
+function posAtCharOffset(doc: any, from: number, to: number, targetChar: number): number {
+  let acc = 0;
+  let result = from;
+  doc.nodesBetween(from, to, (node: any, nodePos: number) => {
+    if (acc >= targetChar) return false;
+    if (node.isText) {
+      const len = (node.text || "").length;
+      if (acc + len >= targetChar) {
+        result = nodePos + (targetChar - acc);
+        acc = targetChar;
+        return false;
+      }
+      acc += len;
+    } else if (node.isInline && !node.isText) {
+      acc += 1;
+      if (acc >= targetChar) result = nodePos + 1;
+    }
+    return true;
+  });
+  return result;
+}
+
+type LineNumber = { number: number; top: number };
+
+function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.RefObject<HTMLDivElement | null>; startAt: number }) {
+  const [lines, setLines] = useState<LineNumber[]>([]);
+
+  const measure = useCallback(() => {
+    const root = editorRootRef.current;
+    if (!root || !root.isConnected) return;
+
+    const rootRect = root.getBoundingClientRect();
+    const candidates = Array.from(root.querySelectorAll<HTMLElement>(
+      "p, h1, h2, h3, pre, hr, [data-type='page-break'], li, table tr",
+    )).filter((element) => {
+      // Paragraphs inside list/table cells belong to the list item or table
+      // row, so counting them too would produce duplicate line labels.
+      if (element.tagName === "P" && element.closest("li, td, th")) return false;
+      if (["H1", "H2", "H3", "PRE", "HR"].includes(element.tagName) && element.closest("td, th")) return false;
+      return true;
+    });
+
+    let nextNumber = startAt;
+    const nextLines: LineNumber[] = [];
+    for (const element of candidates) {
+      const rect = element.getBoundingClientRect();
+      if (rect.height === 0) continue;
+      const top = Math.round(Math.max(0, rect.top - rootRect.top));
+
+      if (element.tagName === "PRE") {
+        const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight) || 22;
+        const lineCount = Math.max(1, (element.textContent || "").split("\n").length);
+        for (let index = 0; index < lineCount; index += 1) {
+          nextLines.push({ number: nextNumber++, top: Math.round(top + index * lineHeight) });
+        }
+      } else {
+        nextLines.push({ number: nextNumber++, top });
+      }
+    }
+
+    // An empty document still has one editable line even before Tiptap inserts
+    // its first paragraph into the DOM.
+    if (nextLines.length === 0) nextLines.push({ number: startAt, top: 0 });
+    setLines((previous) => (
+      previous.length === nextLines.length && previous.every((line, index) => (
+        line.number === nextLines[index].number && line.top === nextLines[index].top
+      )) ? previous : nextLines
+    ));
+  }, [editorRootRef, startAt]);
+
+  useEffect(() => {
+    const root = editorRootRef.current;
+    if (!root) return;
+    let frame = 0;
+    const scheduleMeasure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    const observer = new MutationObserver(scheduleMeasure);
+    const resizeObserver = new ResizeObserver(scheduleMeasure);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    resizeObserver.observe(root);
+    window.addEventListener("resize", scheduleMeasure);
+    scheduleMeasure();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [editorRootRef, measure]);
+
+  return (
+    <div aria-hidden="true" className="absolute inset-y-0 left-0 w-10 select-none border-r text-right text-[10px] leading-none opacity-45" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+      {lines.map((line) => (
+        <span key={`${line.number}-${line.top}`} className="absolute right-2" style={{ top: line.top }}>{line.number}</span>
+      ))}
+    </div>
+  );
+}
+
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", menuToolbarTarget, menuToolbarTab, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [toolbarState, setToolbarState] = useState<ToolbarState>(emptyToolbarState);
   const [marginsPanelOpen, setMarginsPanelOpen] = useState(false);
+  const handledFocusRevisionRef = useRef<number | null>(null);
   const [marginsPos, setMarginsPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const marginsBtnRef = useRef<HTMLButtonElement | null>(null);
   const marginsPanelRef = useRef<HTMLDivElement | null>(null);
@@ -13922,8 +14203,50 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       onCreate() { refreshToolbarState(); },
       onSelectionUpdate() { refreshToolbarState(); },
       onTransaction() { refreshToolbarState(); },
-      onFocus() { onFocus?.(); },
-      onUpdate({ editor }) { refreshToolbarState(); onChangeRef.current({ json: editor.getJSON(), text: editor.getText() }); },
+      onFocus() {
+        onFocus?.();
+        // 使用者主動聚焦本頁 → 更新 anchor 與 owner（避免別頁搶焦點）
+        try {
+          const { state } = editor;
+          const sel = state.selection;
+          if (sel && typeof sel.anchor === "number" && sel.anchor > 0) {
+            const pos = Math.min(sel.anchor, state.doc.content.size);
+            const $pos = state.doc.resolve(pos);
+            for (let d = $pos.depth; d > 0; d--) {
+              const node = $pos.node(d);
+              if (node.type.isBlock && node.attrs && typeof node.attrs.id === "string" && node.attrs.id) {
+                const off = state.doc.textBetween($pos.start(d), pos, "\n", " ").length;
+                globalCursorAnchor = { id: node.attrs.id, offset: off, paneId };
+                anchorOwnerEl = editor.view.dom as HTMLElement;
+                break;
+              }
+            }
+          }
+        } catch { /* ignore */ }
+      },
+      onUpdate({ editor }) {
+        refreshToolbarState();
+        const { state } = editor;
+        const position = state.selection.anchor;
+        let cursor: CursorAnchor | undefined;
+        let blockIndex = -1;
+        state.doc.forEach((node, offset, index) => {
+          if (position >= offset && position <= offset + node.nodeSize) blockIndex = index;
+        });
+        const $pos = state.doc.resolve(Math.min(position, state.doc.content.size));
+        for (let depth = $pos.depth; depth > 0; depth--) {
+          const node = $pos.node(depth);
+          if (node.type.isBlock && typeof node.attrs?.id === "string" && node.attrs.id) {
+            cursor = {
+              id: node.attrs.id,
+              offset: state.doc.textBetween($pos.start(depth), position, "\n", " ").length,
+              blockIndex,
+            };
+            break;
+          }
+        }
+        onChangeRef.current({ json: editor.getJSON(), text: editor.getText(), cursor });
+      },
     });
     editorRef.current = editor;
     setIsReady(true);
@@ -13933,17 +14256,19 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       const ed = editorRef.current;
       if (!ed || !globalCursorAnchor) return;
       const anchor = globalCursorAnchor;
+      if (anchor.paneId !== paneId) return;
       let found = -1;
       ed.state.doc.descendants((n: any, np: number) => {
         if (n.attrs && n.attrs.id === anchor.id) { found = np; return false; }
         return true;
       });
-      if (found >= 0) {
+      if (found >= 0 && canClaimCursorAnchor(ed.view.dom as HTMLElement, anchor)) {
         try {
           const block = ed.state.doc.nodeAt(found);
           if (block) {
             const s = found + 1, e = found + block.nodeSize - 1;
             const tp = posAtCharOffset(ed.state.doc, s, e, anchor.offset);
+            anchorOwnerEl = ed.view.dom as HTMLElement;
             ed.commands.setTextSelection(Math.min(Math.max(tp, s), Math.max(e, s)));
             ed.commands.focus();
             setTimeout(() => {
@@ -13953,7 +14278,12 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         } catch { /* ignore */ }
       }
     }, 0);
-    return () => { editor.destroy(); editorRef.current = null; setIsReady(false); };
+    return () => {
+      if (anchorOwnerEl === (editor.view.dom as HTMLElement)) anchorOwnerEl = null;
+      editor.destroy();
+      editorRef.current = null;
+      setIsReady(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -13972,28 +14302,38 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     };
   }, []);
 
-  // 在 block 內容範圍內，依「字元偏移」找出對應的 doc pos
-  const posAtCharOffset = (doc: any, from: number, to: number, targetChar: number): number => {
-    let acc = 0;
-    let result = from;
-    doc.nodesBetween(from, to, (node: any, nodePos: number) => {
-      if (acc >= targetChar) return false;
-      if (node.isText) {
-        const len = (node.text || "").length;
-        if (acc + len >= targetChar) {
-          result = nodePos + (targetChar - acc);
-          acc = targetChar;
-          return false;
-        }
-        acc += len;
-      } else if (node.isInline && !node.isText) {
-        acc += 1;
-        if (acc >= targetChar) result = nodePos + 1;
-      }
+  // The paginated parent calculates the page containing a moved cursor block.
+  // Apply each hand-off exactly once.  The target editor can already be mounted
+  // with its old content, so this helper is also called immediately after a
+  // content replacement below.
+  const applyFocusRequest = useCallback((editor = editorRef.current): boolean => {
+    if (!editor || !isReady || !focusRequest || focusRequest.targetPageIndex !== pageIndex) return false;
+    if (handledFocusRevisionRef.current === focusRequest.revision) return false;
+
+    let blockPos = -1;
+    editor.state.doc.descendants((node: any, nodePos: number) => {
+      if (node.attrs?.id === focusRequest.id) { blockPos = nodePos; return false; }
       return true;
     });
-    return result;
-  };
+    const block = blockPos >= 0 ? editor.state.doc.nodeAt(blockPos) : null;
+    if (!block) return false;
+
+    const from = blockPos + 1;
+    const to = blockPos + block.nodeSize - 1;
+    const target = posAtCharOffset(editor.state.doc, from, to, focusRequest.offset);
+    anchorOwnerEl = editor.view.dom as HTMLElement;
+    editor.commands.setTextSelection(Math.min(Math.max(target, from), Math.max(to, from)));
+    editor.commands.focus();
+    handledFocusRevisionRef.current = focusRequest.revision;
+    onFocusRequestHandled?.(focusRequest.revision);
+    return true;
+  }, [focusRequest, isReady, onFocusRequestHandled, pageIndex]);
+
+  // The request effect covers a newly-mounted target page.  Existing target
+  // pages are covered by the post-setContent call in the sync effect.
+  useEffect(() => {
+    applyFocusRequest();
+  }, [applyFocusRequest]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -14029,16 +14369,25 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       // 只有聚焦中的編輯器才能更新錨點（避免其他頁的舊游標覆蓋）
       if (editor.isFocused) {
         if (cursorBlockId) {
-          globalCursorAnchor = { id: cursorBlockId, offset: cursorBlockOffset, prefix: cursorPrefix };
+          globalCursorAnchor = { id: cursorBlockId, offset: cursorBlockOffset, prefix: cursorPrefix, paneId };
         } else if (cursorPrefix) {
           // id 遺失（舊資料/新段落尚未補 id）→ 用前綴錨點
-          globalCursorAnchor = { id: "", offset: cursorBlockOffset, prefix: cursorPrefix.slice(-60) };
+          globalCursorAnchor = { id: "", offset: cursorBlockOffset, prefix: cursorPrefix.slice(-60), paneId };
         }
       }
       editor.commands.setContent(content, { emitUpdate: false });
       const newDoc = editor.state.doc;
+      // If this editor was already mounted before the block crossed the page
+      // boundary, it only contains the moved block after setContent().
+      // Handling the request here prevents the focus effect from racing the
+      // content synchronization step.
+      if (applyFocusRequest(editor)) {
+        refreshToolbarState();
+        return;
+      }
       // 1) 全域錨點定位：block 可能在「這個編輯器」或「被搬到另一頁編輯器」
-      const anchor = globalCursorAnchor;
+      //    僅同 paneId（雙開分離）才接管
+      const anchor = globalCursorAnchor && globalCursorAnchor.paneId === paneId ? globalCursorAnchor : null;
       if (anchor) {
         let foundBlockPos = -1;
         if (anchor.id) {
@@ -14057,6 +14406,36 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               const innerStart = foundBlockPos + 1;
               const innerEnd = foundBlockPos + block.nodeSize - 1;
               const targetPos = posAtCharOffset(newDoc, innerStart, innerEnd, anchor.offset);
+              if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) {
+                // Sibling page effects can run before the previous owner has
+                // received its new content. Retry after that owner relinquishes
+                // the moved block instead of leaving focus at its page tail.
+                setTimeout(() => {
+                  const latestAnchor = globalCursorAnchor;
+                  if (
+                    !latestAnchor ||
+                    latestAnchor.id !== anchor.id ||
+                    latestAnchor.paneId !== paneId ||
+                    !canClaimCursorAnchor(editor.view.dom as HTMLElement, latestAnchor)
+                  ) return;
+
+                  let retryPos = -1;
+                  editor.state.doc.descendants((node: any, nodePos: number) => {
+                    if (node.attrs?.id === latestAnchor.id) { retryPos = nodePos; return false; }
+                    return true;
+                  });
+                  const retryBlock = retryPos >= 0 ? editor.state.doc.nodeAt(retryPos) : null;
+                  if (!retryBlock) return;
+
+                  const retryStart = retryPos + 1;
+                  const retryEnd = retryPos + retryBlock.nodeSize - 1;
+                  anchorOwnerEl = editor.view.dom as HTMLElement;
+                  editor.commands.setTextSelection(posAtCharOffset(editor.state.doc, retryStart, retryEnd, latestAnchor.offset));
+                  editor.commands.focus();
+                }, 0);
+                return;
+              }
+              anchorOwnerEl = editor.view.dom as HTMLElement;
               editor.commands.setTextSelection(Math.min(Math.max(targetPos, innerStart), Math.max(innerEnd, innerStart)));
               // block 在此編輯器內 → 聚焦（跨頁搬移時讓使用者可繼續打字）
               if (!editor.isFocused) editor.commands.focus();
@@ -14072,10 +14451,19 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           } catch { /* fallthrough */ }
         }
         // 錨點 block 不在這個編輯器（被搬到別頁）
-        // 若有 prefix → 用前綴定位（id 遺失的跨頁 fallback）
-        if (anchor.prefix) {
+        // 分頁模式下，交由 block 實際落腳的那一頁自己用 id 精準接手（它的
+        // content-diff effect 會在 setContent 後用同一個 globalCursorAnchor
+        // 找到這個 block）。這裡若仍用「文字前綴比對」在本頁復原，前綴文字
+        // 幾乎都還完整存在於本頁——因為真正被搬走的往往只是 Enter 新分出的
+        // 空段落，前綴剛好就是「移走前，本頁最後那段文字」——於是永遠會
+        // 假性比對成功，把游標留在來源頁、搶在目標頁之前。這正是「游標一碰
+        // 到第二頁，不管是斷行還是在尾端加行，都被拉回原行行首」的成因。
+        // 非分頁模式（單一編輯器、沒有別頁可接手）才需要這個前綴 fallback。
+        if (!paginated && anchor.prefix) {
           const p = findPosByPrefix(newDoc, anchor.prefix, true);
           if (p > 0) {
+            if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) return;
+            anchorOwnerEl = editor.view.dom as HTMLElement;
             editor.commands.setTextSelection(p);
             if (!editor.isFocused) editor.commands.focus();
             setTimeout(() => {
@@ -14628,15 +15016,16 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 
-  const toolbarJSX = (
+  const renderToolbar = (tab: "home" | "insert" | "layout") => (
     <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
-      {toolbarTab === "insert" ? insertTools : toolbarTab === "layout" ? layoutTools : homeTools}
+      {tab === "insert" ? insertTools : tab === "layout" ? layoutTools : homeTools}
     </div>
   );
 
   return (
     <>
-      {showToolbar && (toolbarTarget ? createPortal(toolbarJSX, toolbarTarget) : toolbarJSX)}
+      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(toolbarTab), toolbarTarget) : renderToolbar(toolbarTab))}
+      {showToolbar && menuToolbarTarget && menuToolbarTab && createPortal(renderToolbar(menuToolbarTab), menuToolbarTarget)}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
@@ -14691,7 +15080,10 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         .nexus-multi-column { display: grid; gap: 16px; margin: 1rem 0; padding: 0.5rem; border: 1px dashed var(--color-border); border-radius: 8px; }
         .nexus-column { min-width: 0; }
       `}</style>
-      <div ref={ref} className="w-full min-h-[400px] outline-none text-base" style={{ color: "var(--color-text)", fontFamily: "inherit", lineHeight: "1.6" }} />
+      <div className={`relative w-full min-h-[400px] ${showLineNumbers ? "pl-12" : ""}`}>
+        {showLineNumbers && <LineNumberGutter editorRootRef={ref} startAt={lineNumberStart} />}
+        <div ref={ref} className="w-full min-h-[400px] outline-none text-base" style={{ color: "var(--color-text)", fontFamily: "inherit", lineHeight: "1.6" }} />
+      </div>
     </>
   );
 }
@@ -14859,7 +15251,7 @@ export default function TodoView({
 ## File: src/components/ToolbarDropdown.tsx
 ````
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export interface ToolbarDropdownItem {
@@ -14873,12 +15265,14 @@ export default function ToolbarDropdown({
   label,
   icon,
   items,
+  children,
   variant = "block",
   disabled,
 }: {
   label: string;
   icon?: string;
-  items: ToolbarDropdownItem[];
+  items?: ToolbarDropdownItem[];
+  children?: ReactNode;
   variant?: "block" | "inline";
   disabled?: boolean;
 }) {
@@ -14962,10 +15356,13 @@ export default function ToolbarDropdown({
             backgroundColor: "var(--color-bg)",
             border: "1px solid var(--color-border)",
           }}
-          onMouseDown={(e) => e.preventDefault()}
+          // Button-only menus keep the editor selection. Custom menu content
+          // can include native selects, so it must retain its default mouse
+          // behavior.
+          onMouseDown={children ? undefined : (e) => e.preventDefault()}
         >
           <div className="max-h-[360px] overflow-y-auto p-1">
-            {items.map((item) => (
+            {children ?? items?.map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
@@ -17588,6 +17985,93 @@ export function createSlide(layout: Slide["layout"] = "title_content"): Slide {
 export function updateSlideContent(slide: Slide, json: any, text: string): Slide {
   return { ...slide, content_json: json, content_text: text };
 }
+````
+
+## File: src/lib/stableBlockIdExtension.ts
+````
+import { Extension } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
+import { createClientBlockId } from "./blockId";
+
+/**
+ * StableBlockId — 讓所有 block 節點保存穩定 id（data-id）
+ *
+ * 背景：createPage 產生的 content_json 中 paragraph 帶 attrs.id，
+ * 但 Tiptap schema 未定義 id attribute，導致讀入時 id 被丟棄。
+ * 此 extension 為所有 block 型別加上 id attribute（parse/render 皆走 data-id），
+ * 並透過 appendTransaction 自動為「缺少 id 的 block」補上 id
+ * （例如 Enter 新增的段落、複製貼上的內容），確保每個 block 都有穩定 id。
+ *
+ * 用途：
+ *   1. 分頁重排時游標精確跟隨 block（block id + block 內字元偏移定位）
+ *   2. 未來 Stable Block ID（M5-0）、block reference、annotation anchor 的前置
+ */
+export const StableBlockId = Extension.create({
+  name: "stableBlockId",
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: [
+          "paragraph",
+          "heading",
+          "bulletList",
+          "orderedList",
+          "listItem",
+          "taskList",
+          "taskItem",
+          "blockquote",
+          "codeBlock",
+          "horizontalRule",
+          "callout",
+          "multiColumn",
+          "column",
+          "table",
+          "tableRow",
+          "tableHeader",
+          "tableCell",
+        ],
+        attributes: {
+          id: {
+            default: null,
+            parseHTML: (element) => element.getAttribute("data-id"),
+            renderHTML: (attributes) => {
+              if (!attributes.id) return {};
+              return { "data-id": attributes.id };
+            },
+          },
+        },
+      },
+    ];
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        // 文件變更後，為缺少 id 的 block 自動補 id（游標定位的前置）
+        appendTransaction(_transactions, _oldState, newState) {
+          if (!_transactions.some((tr) => tr.docChanged)) return null;
+          let tr: any = null;
+          const seenIds = new Set<string>();
+          newState.doc.descendants((node: any, pos: number) => {
+            const id = node.attrs?.id;
+            // Pressing Enter splits a ProseMirror node and copies its attrs.
+            // Duplicate IDs make cursor anchors point at the previous page.
+            if (node.type.isBlock && (!id || seenIds.has(id))) {
+              if (!tr) tr = newState.tr;
+              tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: createClientBlockId() });
+            } else if (node.type.isBlock) {
+              seenIds.add(id);
+            }
+            return true;
+          });
+          return tr;
+        },
+      }),
+    ];
+  },
+});
+
 ````
 
 ## File: src/lib/supabase.ts

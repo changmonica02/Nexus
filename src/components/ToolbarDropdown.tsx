@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export interface ToolbarDropdownItem {
@@ -13,12 +13,14 @@ export default function ToolbarDropdown({
   label,
   icon,
   items,
+  children,
   variant = "block",
   disabled,
 }: {
   label: string;
   icon?: string;
-  items: ToolbarDropdownItem[];
+  items?: ToolbarDropdownItem[];
+  children?: ReactNode;
   variant?: "block" | "inline";
   disabled?: boolean;
 }) {
@@ -102,10 +104,13 @@ export default function ToolbarDropdown({
             backgroundColor: "var(--color-bg)",
             border: "1px solid var(--color-border)",
           }}
-          onMouseDown={(e) => e.preventDefault()}
+          // Button-only menus keep the editor selection. Custom menu content
+          // can include native selects, so it must retain its default mouse
+          // behavior.
+          onMouseDown={children ? undefined : (e) => e.preventDefault()}
         >
           <div className="max-h-[360px] overflow-y-auto p-1">
-            {items.map((item) => (
+            {children ?? items?.map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
