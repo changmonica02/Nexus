@@ -21,7 +21,7 @@ export default function ToolbarDropdown({
   icon?: string;
   items?: ToolbarDropdownItem[];
   children?: ReactNode;
-  variant?: "block" | "inline";
+  variant?: "block" | "inline" | "menu";
   disabled?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,7 +35,7 @@ export default function ToolbarDropdown({
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    const isInline = variant === "inline";
+    const isInline = variant === "inline" || variant === "menu";
     const w = isInline ? 220 : 260;
     let left = rect.left;
     let top = rect.bottom + 6;
@@ -56,18 +56,26 @@ export default function ToolbarDropdown({
       if (popupRef.current && popupRef.current.contains(target)) return;
       setIsOpen(false);
     };
+    // 2026-08-11：選單項執行後關閉（TiptapEditor MenuItem 觸發）
+    const onMenuAction = () => setIsOpen(false);
     const onResize = () => updatePosition();
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setIsOpen(false); };
     document.addEventListener("mousedown", handler);
+    window.addEventListener("nexus-close-menus", onMenuAction);
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onResize, true);
+    window.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", handler);
+      window.removeEventListener("nexus-close-menus", onMenuAction);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, [isOpen, updatePosition]);
 
   const isInline = variant === "inline";
+  const isMenu = variant === "menu";
 
   return (
     <>
@@ -76,21 +84,23 @@ export default function ToolbarDropdown({
         onClick={() => setIsOpen((prev) => !prev)}
         disabled={disabled}
         className={
-          isInline
-            ? "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-            : "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-zinc-200 active:scale-[0.99]"
+          isMenu
+            ? "flex items-center gap-0.5 rounded px-2 py-1 text-[13px] transition-colors hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-40"
+            : isInline
+              ? "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              : "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-zinc-200 active:scale-[0.99]"
         }
         style={{
-          border: "1px solid var(--color-border)",
+          border: isMenu ? "none" : "1px solid var(--color-border)",
           color: "var(--color-text)",
-          backgroundColor: isOpen ? "var(--color-border)" : "transparent",
+          backgroundColor: isOpen ? (isMenu ? "rgba(0,0,0,0.07)" : "var(--color-border)") : "transparent",
         }}
       >
         <span className="flex items-center gap-1.5">
           {icon && <span>{icon}</span>}
           <span>{label}</span>
         </span>
-        <span className="opacity-50 text-[10px] ml-1">▾</span>
+        <span className={isMenu ? "opacity-40 text-[9px] ml-0.5" : "opacity-50 text-[10px] ml-1"}>▾</span>
       </button>
       {mounted && isOpen && createPortal(
         <div

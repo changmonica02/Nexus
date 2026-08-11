@@ -109,8 +109,9 @@ export default function PaginatedEditorView({
   onContentChange,
   format,
   toolbarTarget,
-  menuToolbarTarget,
-  menuToolbarTab,
+  editToolbarTarget,
+  insertToolbarTarget,
+  formatToolbarTarget,
   nightAdapt = false,
   onToggleNightAdapt,
   margins,
@@ -126,13 +127,14 @@ export default function PaginatedEditorView({
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
-  menuToolbarTarget?: HTMLElement | null;
-  menuToolbarTab?: "insert" | "layout";
+  editToolbarTarget?: HTMLElement | null;
+  insertToolbarTarget?: HTMLElement | null;
+  formatToolbarTarget?: HTMLElement | null;
   nightAdapt?: boolean;
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
-  toolbarTab?: "home" | "insert" | "layout";
+  toolbarTab?: "home";
   fileMode?: boolean;
   showRuler?: boolean;
   showLineNumbers?: boolean;
@@ -400,8 +402,9 @@ export default function PaginatedEditorView({
                     onChange={(payload) => handlePageChange(idx, payload)}
                     variant="rich"
                     toolbarTarget={idx === activePage ? toolbarTarget : null}
-                    menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
-                    menuToolbarTab={menuToolbarTab}
+                    editToolbarTarget={idx === activePage ? editToolbarTarget : null}
+                    insertToolbarTarget={idx === activePage ? insertToolbarTarget : null}
+                    formatToolbarTarget={idx === activePage ? formatToolbarTarget : null}
                     showToolbar={idx === activePage && !fileMode}
                     toolbarTab={toolbarTab}
                     showLineNumbers={showLineNumbers}

@@ -109,6 +109,9 @@ function NexusAppInner({
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
+  // 2026-08-11：Markdown 拖曳匯入提示
+  const [isDragImportOver, setIsDragImportOver] = useState(false);
+  const dragDepthRef = useRef(0);
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
@@ -308,12 +311,61 @@ function NexusAppInner({
     const nextPage = { ...pageToSave, updated_at: Date.now(), revision: pageToSave.revision + 1 };
     await storageRef.current.savePage(nextPage);
     syncEngineRef.current?.pushPage(nextPage);
-  }, [storageRef]);
-
-  const scheduleSave = useCallback((page: Page) => {
+  }, [storageRef]);  const scheduleSave = useCallback((page: Page) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => void flushSave(page), 800);
   }, [flushSave]);
+
+  // 2026-08-11：Markdown 拖曳匯入（視窗級 dragover/drop）
+  useEffect(() => {
+    const hasMarkdownFile = (dt: DataTransfer | null): boolean => {
+      if (!dt) return false;
+      return Array.from(dt.items || []).some((item) => {
+        if (item.kind !== "file") return false;
+        const name = (item.getAsFile()?.name || "").toLowerCase();
+        return name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".txt");
+      });
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const onDragEnter = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        e.preventDefault();
+        dragDepthRef.current += 1;
+        setIsDragImportOver(true);
+      }
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setIsDragImportOver(false);
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragDepthRef.current = 0;
+      setIsDragImportOver(false);
+      const file = Array.from(e.dataTransfer?.files || []).find((f) => {
+        const n = f.name.toLowerCase();
+        return n.endsWith(".md") || n.endsWith(".markdown") || n.endsWith(".txt") || f.type === "text/markdown" || f.type === "text/plain";
+      });
+      if (file) void importMarkdownFileRef.current(file);
+    };
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -655,6 +707,50 @@ function NexusAppInner({
   const handleImportPdfClick = useCallback(() => pdfInputRef.current?.click(), []);
   const handleImportMarkdownClick = useCallback(() => markdownInputRef.current?.click(), []);
 
+  // 2026-08-11：Markdown 匯入核心（供檔案選擇與拖曳匯入共用）
+  const importMarkdownFile = useCallback(async (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    const isMarkdown = lowerName.endsWith(".md") || lowerName.endsWith(".markdown") || lowerName.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain";
+    if (!isMarkdown) { alert(t("app.chooseMarkdownFile")); return; }
+    const storage = storageRef.current;
+    if (!storage) return;
+    try {
+      if (activePageRef.current) await flushSave(activePageRef.current);
+      const markdown = await file.text();
+      const createdPage = await storage.createPage({
+        title: titleFromMarkdownFileName(file.name),
+        tags: ["imported"],
+        folder: "Imports",
+        kind: "document",
+        format: "flow",
+      });
+      const importedPage: Page = {
+        ...createdPage,
+        content_json: createMarkdownContent(markdown),
+        content_text: markdown,
+        updated_at: Date.now(),
+        revision: createdPage.revision + 1,
+      };
+      await storage.savePage(importedPage);
+      setIsTrashMode(false);
+      setIsHomeMode(false);
+      setPages((prev) => [importedPage, ...prev]);
+      setActivePageId(importedPage.id);
+      await storage.setActivePageId(importedPage.id);
+      syncEngineRef.current?.pushPage(importedPage);
+    } catch (error) { console.error(error); alert(t("app.markdownImportFailed")); }
+  }, [flushSave, storageRef, t]);
+
+  const importMarkdownFileRef = useRef(importMarkdownFile);
+  useEffect(() => { importMarkdownFileRef.current = importMarkdownFile; }, [importMarkdownFile]);
+
+  const handleImportMarkdownFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await importMarkdownFile(file);
+  }, [importMarkdownFile]);
+
   const handleExportPageMarkdown = useCallback(async (id: string) => {
     const page = id === activePageRef.current?.id ? activePageRef.current : pages.find((p) => p.id === id);
     if (!page) { alert(t("app.noActivePageToExport")); return; }
@@ -718,42 +814,6 @@ function NexusAppInner({
       window.location.reload();
     } catch (error) { console.error(error); alert(t("app.backupImportFailed")); }
   }, [storageRef, t]);
-
-  const handleImportMarkdownFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const lowerName = file.name.toLowerCase();
-    const isMarkdown = lowerName.endsWith(".md") || lowerName.endsWith(".markdown") || lowerName.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain";
-    if (!isMarkdown) { alert(t("app.chooseMarkdownFile")); return; }
-    const storage = storageRef.current;
-    if (!storage) return;
-    try {
-      if (activePageRef.current) await flushSave(activePageRef.current);
-      const markdown = await file.text();
-      const createdPage = await storage.createPage({
-        title: titleFromMarkdownFileName(file.name),
-        tags: ["imported"],
-        folder: "Imports",
-        kind: "document",
-        format: "flow",
-      });
-      const importedPage: Page = {
-        ...createdPage,
-        content_json: createMarkdownContent(markdown),
-        content_text: markdown,
-        updated_at: Date.now(),
-        revision: createdPage.revision + 1,
-      };
-      await storage.savePage(importedPage);
-      setIsTrashMode(false);
-      setIsHomeMode(false);
-      setPages((prev) => [importedPage, ...prev]);
-      setActivePageId(importedPage.id);
-      await storage.setActivePageId(importedPage.id);
-      syncEngineRef.current?.pushPage(importedPage);
-    } catch (error) { console.error(error); alert(t("app.markdownImportFailed")); }
-  }, [flushSave, storageRef, t]);
 
   const handleImportPdfFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1283,6 +1343,15 @@ function NexusAppInner({
         onClose={() => setCreateDialog({ open: false, initialKind: null })}
         onConfirm={handleConfirmCreateDialog}
       />
+
+      {/* 2026-08-11：Markdown 拖曳匯入提示 */}
+      {isDragImportOver && (
+        <div className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center" style={{ backgroundColor: "rgba(59,130,246,0.10)" }}>
+          <div className="rounded-2xl px-8 py-6 text-sm font-medium" style={{ border: "2px dashed #3b82f6", color: "#3b82f6", backgroundColor: "var(--color-bg)" }}>
+            {t("app.dropMarkdownHint")}
+          </div>
+        </div>
+      )}
 
     </div>
   );

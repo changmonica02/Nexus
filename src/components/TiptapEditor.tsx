@@ -40,9 +40,12 @@ interface TiptapEditorProps {
   pageNightAdapt?: boolean;
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
-  toolbarTab?: "home" | "insert" | "layout";
-  menuToolbarTarget?: HTMLElement | null;
-  menuToolbarTab?: "insert" | "layout";
+  toolbarTab?: "home";
+  // 2026-08-11：Google Docs 式選單列（第一列：檔案/編輯/檢視/插入/格式/工具）
+  // 編輯器相關的「編輯/插入/格式」選單內容由 TiptapEditor portal 注入
+  editToolbarTarget?: HTMLElement | null;
+  insertToolbarTarget?: HTMLElement | null;
+  formatToolbarTarget?: HTMLElement | null;
   showLineNumbers?: boolean;
   lineNumberStart?: number;
   paneId?: string;
@@ -94,14 +97,33 @@ function TB({ label, title, active, disabled, onClick, icon }: { label?: string;
       title={title}
       disabled={disabled}
       onMouseDown={(e) => { e.preventDefault(); onClick(); }}
-      className="rounded flex items-center justify-center w-[30px] h-[30px] text-[12px] font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30 leading-none"
-      style={{ color: "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
+      className="rounded flex items-center justify-center w-6 h-6 text-[12px] font-medium transition-colors hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-30 leading-none shrink-0"
+      style={{ color: "var(--color-text)", backgroundColor: active ? "rgba(0,0,0,0.08)" : "transparent" }}
     >
       {icon || label}
     </button>
   );
 }
-function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />; }
+function Sep() { return <div className="mx-0.5 h-4 w-px bg-zinc-300 shrink-0" />; }
+function MenuSep() { return <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />; }
+
+// 2026-08-11：Google Docs 式選單列的垂直選單項；執行後關閉選單
+function MenuItem({ label, icon, active, disabled, onClick, danger }: {
+  label: string; icon?: React.ReactNode; active?: boolean; disabled?: boolean; onClick: () => void; danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onMouseDown={(e) => { e.preventDefault(); if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
+      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+      style={{ color: danger ? "#dc2626" : "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
+    >
+      {icon && <span className="w-4 text-center shrink-0">{icon}</span>}
+      <span>{label}</span>
+    </button>
+  );
+}
 
 // 全域游標錨點：分頁模式下 block 被搬移到另一頁編輯器時，游標跨編輯器跟隨
 // （每頁是獨立 TiptapEditor，游標無法直接轉移，用模組級變數記錄「最近游標所在 block」，
@@ -247,7 +269,7 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", menuToolbarTarget, menuToolbarTab, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -1087,84 +1109,132 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 
+  // ============ 2026-08-11：Google Docs 式選單列內容（垂直選單） ============
+
+  // 編輯（undo / redo / 清除格式）
+  const editTools = (
+    <>
+      <MenuItem icon="↩" label={t("tiptap.undo") || "復原"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
+      <MenuItem icon="↪" label={t("tiptap.redo") || "重做"} disabled={disabled || !toolbarState.canRedo} onClick={() => editorRef.current?.chain().focus().redo().run()} />
+      <MenuSep />
+      <MenuItem icon="Tx" label={t("tiptap.clear") || "清除格式"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
+    </>
+  );
+
+  // 插入（表格 / 連結 / 圖片 / 提示框 / 公式 / 分頁符）
   const insertTools = (
     <>
-      <TableGridPicker editor={editorRef.current} disabled={disabled} />
-      <TB icon="🔗" title={t("tiptap.link")} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
-      <TB icon="🖼" title={t("tiptap.image")} disabled={disabled} onClick={handleInsertImage} />
-      <ToolbarDropdown label="" icon="➕" variant="inline" disabled={disabled}
-        items={[
-          { id: "insert-callout", icon: "💡", label: t("tiptap.label.callout"), onClick: () => editorRef.current?.chain().focus().setCallout("info").run() },
-          { id: "insert-inline-math", icon: "x²", label: t("tiptap.label.inlineMath"), onClick: handleInsertInlineMath },
-          { id: "insert-block-math", icon: "∑", label: t("tiptap.label.blockMath"), onClick: handleInsertBlockMath },
-        ]} />
-      {toolbarState.callout && (<TB icon="✕C" title={t("tiptap.callout")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetCallout().run()} />)}
-      <Sep />
-      <TB icon="⛶" title="插入分頁符（A4 分頁用）" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setPageBreak().run()} />
+      <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>表格</div>
+      <div className="px-2 pb-1"><TableGridPicker editor={editorRef.current} disabled={disabled} /></div>
+      <MenuSep />
+      <MenuItem icon="🔗" label={t("tiptap.link") || "連結"} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
+      <MenuItem icon="🖼" label={t("tiptap.image") || "圖片"} disabled={disabled} onClick={handleInsertImage} />
+      <MenuSep />
+      <MenuItem icon="💡" label={t("tiptap.label.callout") || "提示框"} active={toolbarState.callout} disabled={disabled} onClick={() => {
+        if (toolbarState.callout) editorRef.current?.chain().focus().unsetCallout().run();
+        else editorRef.current?.chain().focus().setCallout("info").run();
+      }} />
+      <MenuItem icon="x²" label={t("tiptap.label.inlineMath") || "行內公式"} disabled={disabled} onClick={handleInsertInlineMath} />
+      <MenuItem icon="∑" label={t("tiptap.label.blockMath") || "區塊公式"} disabled={disabled} onClick={handleInsertBlockMath} />
+      <MenuSep />
+      <MenuItem icon="⛶" label="分頁符" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setPageBreak().run()} />
     </>
   );
 
-  const layoutTools = (
+  // 格式（樣式 / 字型 / 字級 / 文字樣式 / 顏色 / 對齊 / 分欄 / 直排 / 邊界 / 清單 / 引用 / 程式碼）
+  const formatTools = (
     <>
       {variant === "rich" && (<>
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>樣式</div>
+        <MenuItem icon="¶" label={t("tiptap.style.normal") || "內文"} active={!toolbarState.h1 && !toolbarState.h2 && !toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: (ed.getAttributes("heading").level || 1) }).run(); }} />
+        <MenuItem icon="H1" label={t("tiptap.h1") || "標題 1"} active={toolbarState.h1} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); }} />
+        <MenuItem icon="H2" label={t("tiptap.h2") || "標題 2"} active={toolbarState.h2} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }} />
+        <MenuItem icon="H3" label={t("tiptap.h3") || "標題 3"} active={toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 3 })) ed.chain().focus().toggleHeading({ level: 3 }).run(); }} />
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>字型 / 字級</div>
         <select
-          value={toolbarState.multiColumn ? "2" : "1"}
+          value={toolbarState.fontFamily || ""}
           disabled={disabled}
-          title="分欄"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "1") (editorRef.current as any)?.chain().focus().unsetMultiColumn().run();
-            else if (v === "2") (editorRef.current as any)?.chain().focus().setMultiColumn(2).run();
-            else if (v === "3") (editorRef.current as any)?.chain().focus().setMultiColumn(3).run();
-          }}
-          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[70px]"
-          style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+          title={t("tiptap.fontFamily") || "字型"}
+          onChange={(e) => { const v = e.target.value; const c = editorRef.current?.chain().focus(); if (!c) return; if (v) c.setFontFamily(v).run(); else c.unsetFontFamily().run(); }}
+          className="w-[calc(100%-16px)] mx-2 rounded px-2 py-1.5 text-sm bg-transparent disabled:opacity-40"
+          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
         >
-          <option value="1">單欄</option>
-          <option value="2">2欄</option>
-          <option value="3">3欄</option>
+          <option value="">{t("tiptap.fontFamily.default") || "預設字型"}</option>
+          <option value="Arial, sans-serif">Arial</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Courier New', monospace">Courier New</option>
+          <option value="'Times New Roman', serif">Times New Roman</option>
+          <option value="'Noto Sans TC', sans-serif">Noto Sans TC</option>
         </select>
-        <button
-          type="button"
-          title="文字排列方向（點擊切換直/橫，主要用於儲存格）"
-          disabled={disabled}
-          onMouseDown={(e) => { e.preventDefault(); (editorRef.current as any)?.chain().focus().toggleWritingMode().run(); }}
-          className="rounded w-6 h-6 flex items-center justify-center text-[11px] hover:bg-zinc-200 disabled:opacity-30"
-          style={{ color: "var(--color-text)" }}
-        >
-          ↕️
-        </button>
-        <Sep />
+        <div className="flex items-center gap-2 px-3 py-1.5">
+          <button type="button" title="−" disabled={disabled || currentFontSize <= 8} onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(currentFontSize - (currentFontSize <= 12 ? 1 : 2)); }} className="w-7 h-7 flex items-center justify-center text-sm hover:bg-zinc-200 rounded disabled:opacity-30" style={{ color: "var(--color-text)" }}>−</button>
+          <input type="text" value={currentFontSize} disabled={disabled} onChange={(e) => { const val = parseInt(e.target.value, 10); if (!isNaN(val)) handleFontSizeChange(val); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleFontSizeChange(currentFontSize); } }} className="w-10 h-7 text-center text-sm bg-transparent outline-none disabled:opacity-40" style={{ color: "var(--color-text)" }} />
+          <button type="button" title="+" disabled={disabled || currentFontSize >= 72} onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(currentFontSize + (currentFontSize >= 24 ? 4 : 2)); }} className="w-7 h-7 flex items-center justify-center text-sm hover:bg-zinc-200 rounded disabled:opacity-30" style={{ color: "var(--color-text)" }}>+</button>
+          <span className="text-xs opacity-50">字級</span>
+        </div>
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>文字</div>
+        <MenuItem icon={<b>B</b>} label={t("tiptap.bold") || "粗體"} active={toolbarState.bold} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBold().run()} />
+        <MenuItem icon={<i>I</i>} label={t("tiptap.italic") || "斜體"} active={toolbarState.italic} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleItalic().run()} />
+        <MenuItem icon={<span style={{ textDecoration: "underline" }}>U</span>} label={t("tiptap.underline") || "底線"} active={toolbarState.underline} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()} />
+        <MenuItem icon={<span style={{ textDecoration: "line-through" }}>S</span>} label="刪除線" active={toolbarState.strike} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleStrike().run()} />
+        <div className="flex items-center gap-1 px-3 py-1.5">
+          <ColorPaletteButton icon={<span className="text-sm font-bold leading-none">A</span>} title={t("tiptap.textColor") || "文字顏色"} currentColor={toolbarState.color || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().setColor(color).run(); else editorRef.current?.chain().focus().unsetColor().run(); }} disabled={disabled} />
+          <ColorPaletteButton icon={<span className="text-sm leading-none">🖍</span>} title={t("tiptap.highlight") || "螢光筆"} currentColor={toolbarState.highlightColor || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().toggleHighlight({ color }).run(); else editorRef.current?.chain().focus().unsetHighlight().run(); }} disabled={disabled} />
+          <span className="text-xs opacity-50 ml-1">顏色 / 螢光筆</span>
+        </div>
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>版面</div>
+        <MenuItem icon="⇤" label="向左對齊" active={toolbarState.textAlign === "left"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("left").run()} />
+        <MenuItem icon="≣" label="置中對齊" active={toolbarState.textAlign === "center"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("center").run()} />
+        <MenuItem icon="⇥" label="向右對齊" active={toolbarState.textAlign === "right"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("right").run()} />
+        <MenuItem icon="☰" label="兩端對齊" active={toolbarState.textAlign === "justify"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("justify").run()} />
+        <MenuSep />
+        <MenuItem icon="▦" label="單欄" active={!toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().unsetMultiColumn().run()} />
+        <MenuItem icon="▥" label="2 欄" active={toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setMultiColumn(2).run()} />
+        <MenuItem icon="▤" label="3 欄" active={toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setMultiColumn(3).run()} />
+        <MenuItem icon="↕️" label="直排 / 橫排" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().toggleWritingMode().run()} />
+        {onMarginsChange && (
+          <div className="px-3 py-1.5">
+            <button
+              ref={marginsBtnRef}
+              type="button"
+              title="頁面邊界（Word 版面配置→邊界）"
+              disabled={disabled}
+              onClick={() => { updateMarginsPos(); setMarginsPanelOpen((v) => !v); }}
+              className="w-full rounded flex items-center justify-center px-2 py-1.5 text-sm font-medium hover:bg-zinc-200 disabled:opacity-30 border"
+              style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: marginsPanelOpen ? "var(--color-border)" : "transparent" }}
+            >
+              ▦ 邊界
+            </button>
+          </div>
+        )}
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>清單與區塊</div>
+        <MenuItem icon="•" label={t("tiptap.bulletList") || "項目符號清單"} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
+        <MenuItem icon="1." label={t("tiptap.orderedList") || "編號清單"} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
+        <MenuItem icon="☑" label={t("tiptap.taskList") || "待辦清單"} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
+        <MenuItem icon="⇥" label="增加縮排" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} />
+        <MenuItem icon="⇤" label="減少縮排" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} />
+        <MenuItem icon="❝" label={t("tiptap.quote") || "引用"} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
+        <MenuItem icon="{ }" label={t("tiptap.codeBlock") || "程式碼區塊"} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
       </>)}
-      {onMarginsChange && (
-        <>
-          <Sep />
-          <button
-            ref={marginsBtnRef}
-            type="button"
-            title="頁面邊界（Word 版面配置→邊界）"
-            disabled={disabled}
-            onClick={() => { updateMarginsPos(); setMarginsPanelOpen((v) => !v); }}
-            className="rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 disabled:opacity-30 border"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: marginsPanelOpen ? "var(--color-border)" : "transparent" }}
-          >
-            ▦ 邊界
-          </button>
-        </>
-      )}
     </>
   );
 
-  const renderToolbar = (tab: "home" | "insert" | "layout") => (
+  const renderToolbar = () => (
     <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
-      {tab === "insert" ? insertTools : tab === "layout" ? layoutTools : homeTools}
+      {homeTools}
     </div>
   );
 
   return (
     <>
-      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(toolbarTab), toolbarTarget) : renderToolbar(toolbarTab))}
-      {showToolbar && menuToolbarTarget && menuToolbarTab && createPortal(renderToolbar(menuToolbarTab), menuToolbarTarget)}
+      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(), toolbarTarget) : renderToolbar())}
+      {showToolbar && editToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[200px]">{editTools}</div>, editToolbarTarget)}
+      {showToolbar && insertToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[220px]">{insertTools}</div>, insertToolbarTarget)}
+      {showToolbar && formatToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[240px]">{formatTools}</div>, formatToolbarTarget)}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}

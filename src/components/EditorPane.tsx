@@ -71,12 +71,15 @@ export default function EditorPane({
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+  // 2026-08-11：Google Docs 式選單列——編輯/插入/格式 選單內容由 TiptapEditor portal 注入
+  const [editToolbarTarget, setEditToolbarTarget] = useState<HTMLElement | null>(null);
   const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
-  const [layoutToolbarTarget, setLayoutToolbarTarget] = useState<HTMLElement | null>(null);
+  const [formatToolbarTarget, setFormatToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
 
+  const setEditMenuTarget = useCallback((element: HTMLDivElement | null) => setEditToolbarTarget(element), []);
   const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
-  const setLayoutMenuTarget = useCallback((element: HTMLDivElement | null) => setLayoutToolbarTarget(element), []);
+  const setFormatMenuTarget = useCallback((element: HTMLDivElement | null) => setFormatToolbarTarget(element), []);
 
   useEffect(() => {
     if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
@@ -182,35 +185,29 @@ export default function EditorPane({
 
   return (
     <main className="relative flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      {/* Title area */}
-      <div className="shrink-0 pt-8 pb-3 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="mx-auto w-full" style={{ maxWidth: "820px" }}>
-          <div className="flex items-start gap-4">
-            <input
-              type="text"
-              value={page.title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder={t("editor.title.placeholder")}
-              className="flex-1 min-w-0 text-3xl font-semibold bg-transparent border-none outline-none pb-1"
-              style={{ color: "var(--color-text)", fontFamily: "inherit", borderBottom: "2px solid transparent" }}
-              onFocus={(e) => (e.target.style.borderBottomColor = "var(--color-border)")}
-              onBlur={(e) => (e.target.style.borderBottomColor = "transparent")}
-            />
-            <div className="shrink-0 flex flex-col items-end gap-1 pt-1.5">
-              <div className="flex flex-wrap items-center gap-1 justify-end">
-                {currentTags.map((tag) => (
-                  <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-200/80 text-zinc-700 text-[11px]">#{tag}<button onClick={() => onTagsChange(currentTags.filter((tt) => tt !== tag))} className="hover:text-red-500 font-bold ml-0.5 text-[10px]">×</button></span>
-                ))}
-                <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleAddTag} placeholder={currentTags.length === 0 ? t("editor.tags.addFirst") : "+"} className="bg-transparent outline-none px-0.5 py-0.5 w-14 text-[11px]" />
-              </div>
-            </div>
+      {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
+      <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+        <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
+          <input
+            type="text"
+            value={page.title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder={t("editor.title.placeholder")}
+            className="flex-1 min-w-0 text-xl font-medium bg-transparent border-none outline-none py-0.5"
+            style={{ color: "var(--color-text)", fontFamily: "inherit" }}
+          />
+          <div className="shrink-0 flex flex-wrap items-center gap-1 justify-end">
+            {currentTags.map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-200/80 text-zinc-700 text-[11px]">#{tag}<button onClick={() => onTagsChange(currentTags.filter((tt) => tt !== tag))} className="hover:text-red-500 font-bold ml-0.5 text-[10px]">×</button></span>
+            ))}
+            <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleAddTag} placeholder={currentTags.length === 0 ? t("editor.tags.addFirst") : "+"} className="bg-transparent outline-none px-0.5 py-0.5 w-14 text-[11px]" />
           </div>
         </div>
       </div>
 
-      {/* Google Docs-style menus above a permanently available common toolbar. */}
+      {/* 選單列（2026-08-11：Google Docs 式——純文字、無圖示、無邊框） */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="flex items-center px-2 pt-1.5 gap-0.5">
+        <div className="flex items-center px-2 py-0.5 gap-0.5">
           <FileMenu
             currentFormat={currentFormat}
             isDocument={isDocument}
@@ -227,16 +224,12 @@ export default function EditorPane({
             onConvertToPresentation={onConvertToPresentation}
             onDeleteBlankPages={handleDeleteBlankPages}
           />
-          <ToolbarDropdown label="插入" icon="➕" variant="inline">
-            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
-          </ToolbarDropdown>
-          <ToolbarDropdown label="版面配置" icon="▦" variant="inline">
-            <div ref={setLayoutMenuTarget} className="min-w-[220px]" />
+          <ToolbarDropdown label="編輯" variant="menu">
+            <div ref={setEditMenuTarget} className="min-w-[200px]" />
           </ToolbarDropdown>
           <ToolbarDropdown
-            label="查閱"
-            icon="🔎"
-            variant="inline"
+            label="檢視"
+            variant="menu"
             items={[
               {
                 id: "toggle-line-numbers",
@@ -258,26 +251,51 @@ export default function EditorPane({
               },
             ]}
           />
+          <ToolbarDropdown label="插入" variant="menu">
+            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown label="格式" variant="menu">
+            <div ref={setFormatMenuTarget} className="min-w-[240px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown
+            label="工具"
+            variant="menu"
+            items={[
+              {
+                id: "toggle-night-adapt",
+                icon: nightAdapt ? "🌙" : "☀️",
+                label: nightAdapt ? "原文字顏色" : "適配夜晚",
+                onClick: () => onToggleNightAdapt?.(),
+              },
+              {
+                id: "convert-presentation",
+                icon: "📊",
+                label: "轉為簡報",
+                onClick: () => onConvertToPresentation?.(),
+              },
+            ]}
+          />
           <div className="flex-1" />
           {isSplitView ? (
-            <div className="flex items-center gap-1 pb-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hidden sm:inline">雙開中</span>
-              <button onClick={() => onSwapSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium border hover:bg-zinc-200" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} title="交換左右分頁">⇄ 交換</button>
-              <button onClick={() => onCloseSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium bg-zinc-800 text-white hover:bg-zinc-700" title="關閉右側分頁">✕ 關閉右側</button>
+              <button onClick={() => onSwapSplit?.()} className="rounded px-2 py-1 text-xs hover:bg-zinc-200/70" style={{ color: "var(--color-text)" }} title="交換左右分頁">⇄ 交換</button>
+              <button onClick={() => onCloseSplit?.()} className="rounded px-2 py-1 text-xs hover:bg-zinc-200/70" style={{ color: "var(--color-text)" }} title="關閉右側分頁">✕ 關閉右側</button>
             </div>
           ) : (
-            <span className="text-[10px] opacity-40 hidden sm:inline pb-1.5">Ctrl+點擊側邊欄 開啟右側分頁</span>
+            <span className="text-[10px] opacity-40 hidden sm:inline">Ctrl+點擊側邊欄 開啟右側分頁</span>
           )}
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 min-h-[44px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)" }}>
+        {/* 工具列（2026-08-11：Google Docs 式——灰白底、圖示按鈕、分組） */}
+        <div className="flex items-center gap-1 px-2 py-1 min-h-[40px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)", backgroundColor: "var(--color-panel-bg)" }}>
           {/* 固定：縮圖側邊欄開關（僅分頁模式） */}
           {isPaged && (
             <button
               type="button"
               title={isThumbRailOpen ? "隱藏縮圖預覽" : "顯示縮圖預覽"}
               onClick={() => setIsThumbRailOpen((v) => !v)}
-              className="shrink-0 rounded flex items-center justify-center w-[30px] h-[30px] text-[12px] transition-all hover:bg-zinc-200"
-              style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isThumbRailOpen ? "var(--color-border)" : "transparent" }}
+              className="shrink-0 rounded flex items-center justify-center w-6 h-6 text-[12px] transition-colors hover:bg-zinc-200/70"
+              style={{ color: "var(--color-text)", backgroundColor: isThumbRailOpen ? "rgba(0,0,0,0.07)" : "transparent" }}
             >
               ▤
             </button>
@@ -288,8 +306,8 @@ export default function EditorPane({
             type="button"
             title={nightAdapt ? "切換為原文字顏色（白底黑字）" : "切換為適配夜晚模式顏色"}
             onMouseDown={(e) => { e.preventDefault(); onToggleNightAdapt?.(); }}
-            className="shrink-0 ml-auto rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium transition-all hover:bg-zinc-200 border"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: nightAdapt ? "var(--color-border)" : "transparent" }}
+            className="shrink-0 ml-auto rounded flex items-center justify-center px-2 h-6 text-[11px] font-medium transition-colors hover:bg-zinc-200/70"
+            style={{ color: "var(--color-text)", backgroundColor: nightAdapt ? "rgba(0,0,0,0.07)" : "transparent" }}
           >
             {nightAdapt ? "🌙 適配夜晚" : "☀️ 原文字顏色"}
           </button>
@@ -375,7 +393,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
         </>
       ) : (
         <>
@@ -408,7 +426,7 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
           </div>
           </PageFormatView>
         </>

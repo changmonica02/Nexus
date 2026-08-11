@@ -86,12 +86,12 @@ export default function FileMenu({
       <button
         ref={buttonRef}
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium hover:bg-zinc-200 transition-all"
-        style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+        className="flex items-center gap-0.5 rounded px-2 py-1 text-[13px] transition-colors hover:bg-zinc-200/70"
+        style={{ border: "none", color: "var(--color-text)", backgroundColor: isOpen ? "rgba(0,0,0,0.07)" : "transparent" }}
         title="檔案選單"
       >
         <span>{t("file.title")}</span>
-        <span className="text-[10px] opacity-50">▾</span>
+        <span className="text-[9px] opacity-40">▾</span>
       </button>
 
       {mounted && isOpen && createPortal(
