@@ -108,3 +108,4 @@ export default function TableGridPicker({ editor, disabled }: { editor: Editor |
     </>
   );
 }
+

@@ -17,6 +17,7 @@ import type {
   PageFormat,
   PageMargins,
   CreatePageInput,
+  PageKind,
 } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
@@ -38,6 +39,7 @@ import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
+import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -105,6 +107,8 @@ function NexusAppInner({
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
+  // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
+  const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
@@ -217,6 +221,19 @@ function NexusAppInner({
 
       let allPages = await adapter.listPages();
       let allAttachments = await adapter.listAttachments();
+
+      // 2026-08-11：舊資料遷移——筆記/文檔若為 a4/16:9/4:3/custom，
+      // 一律改為流動（分頁已改為「手動 A4 頁面」新模式，舊自動分頁資料以流動顯示）
+      const LEGACY_PAGED = new Set(["a4", "16:9", "4:3", "custom"]);
+      let migratedAny = false;
+      for (const p of allPages) {
+        if ((p.kind === "note" || p.kind === "document") && p.format && LEGACY_PAGED.has(p.format)) {
+          await adapter.savePage({ ...p, format: "flow" });
+          migratedAny = true;
+        }
+      }
+      if (migratedAny) allPages = await adapter.listPages();
+
       setPages(allPages);
       setAttachments(allAttachments);
 
@@ -336,8 +353,9 @@ function NexusAppInner({
     await createAndOpenPage({ kind: "note", format });
   }, [createAndOpenPage]);
 
-  const handleCreateDocument = useCallback(async (format: PageFormat = "a4") => {
-    await createAndOpenPage({ kind: "document", format });
+  const handleCreateDocument = useCallback(async (format: PageFormat = "flow") => {
+    // 2026-08-11：文檔一律流動
+    await createAndOpenPage({ kind: "document", format: "flow" });
   }, [createAndOpenPage]);
 
   const handleCreateStudySet = useCallback(async () => {
@@ -473,20 +491,17 @@ function NexusAppInner({
       await handleCreatePresentation("16:9");
       return;
     }
-    if (type === "note" || type === "document") {
-      // New notes/documents used to be created from NewPageDialog's mount
-      // effect. React remounts could run that effect more than once, leaving
-      // one Untitled page plus a second page in rename mode. Creation must be
-      // a single user event, and repeated clicks while IndexedDB is pending
-      // must not create a second page.
+    if (type === "note") {
+      // 2026-08-11：筆記建立後選「流動 / 分頁」（開啟模式選擇對話框）
+      setCreateDialog({ open: true, initialKind: "note" });
+      return;
+    }
+    if (type === "document") {
+      // 文檔一律流動，直接建立（單一使用者事件，防重複）
       if (sidebarCreateInFlightRef.current) return;
       sidebarCreateInFlightRef.current = true;
       try {
-        const newPage = await createAndOpenPage({
-          kind: type,
-          format: type === "document" ? "a4" : "flow",
-          title: "",
-        });
+        const newPage = await createAndOpenPage({ kind: "document", format: "flow", title: "" });
         if (newPage) setPendingRenameId(newPage.id);
       } finally {
         sidebarCreateInFlightRef.current = false;
@@ -499,6 +514,19 @@ function NexusAppInner({
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
   }, [createAndOpenPage, handleCreatePresentation]);
+
+  // 2026-08-11：模式選擇對話框確認（筆記：流動/分頁）
+  const handleConfirmCreateDialog = useCallback(async (kind: NewPageKindChoice, format: PageFormat) => {
+    setCreateDialog({ open: false, initialKind: null });
+    if (sidebarCreateInFlightRef.current) return;
+    sidebarCreateInFlightRef.current = true;
+    try {
+      const newPage = await createAndOpenPage({ kind, format, title: "" });
+      if (newPage) setPendingRenameId(newPage.id);
+    } finally {
+      sidebarCreateInFlightRef.current = false;
+    }
+  }, [createAndOpenPage]);
 
   const handleCancelNewPage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -996,7 +1024,7 @@ function NexusAppInner({
     { id: "go-notes", label: t("commandPalette.goNotes"), icon: "??", keywords: "notes", run: handleShowNotes },
     { id: "go-trash", label: t("commandPalette.goTrash"), icon: "??", keywords: "trash", run: () => void handleShowTrash() },
     { id: "new-document", label: t("commandPalette.newDocument"), icon: "??", keywords: "new create document", run: () => void handleCreateDocument() },
-    { id: "new-note", label: t("commandPalette.newNote"), icon: "??", keywords: "new create note", run: () => void handleCreatePage() },
+    { id: "new-note", label: t("commandPalette.newNote"), icon: "??", keywords: "new create note", run: () => setCreateDialog({ open: true, initialKind: "note" }) },
     { id: "new-study-set", label: t("commandPalette.newStudySet"), icon: "??", keywords: "study set flashcard", run: () => void handleCreateStudySet() },
     { id: "import-pdf", label: t("commandPalette.importPdf"), icon: "??", keywords: "pdf import", run: handleImportPdfClick },
     { id: "import-markdown", label: t("commandPalette.importMarkdown"), icon: "??", keywords: "markdown md import", run: handleImportMarkdownClick },
@@ -1149,7 +1177,7 @@ function NexusAppInner({
                 onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
                 onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
                 onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("a4")}
+                onNewDocument={() => handleCreateDocument("flow")}
                 onImportPdf={handleImportPdfClick}
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
@@ -1192,7 +1220,7 @@ function NexusAppInner({
                 onExportPdf={() => secondaryActivePage && handleExportPageAsPdf(secondaryActivePage.id)}
                 onExportNexus={() => secondaryActivePage && handleExportPageAsNexusJson(secondaryActivePage.id)}
                 onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("a4")}
+                onNewDocument={() => handleCreateDocument("flow")}
                 onImportPdf={handleImportPdfClick}
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation(secondaryActivePageId || undefined)}
@@ -1228,7 +1256,7 @@ function NexusAppInner({
           onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
           onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
           onNewNote={() => handleCreatePage("flow")}
-          onNewDocument={() => handleCreateDocument("a4")}
+          onNewDocument={() => handleCreateDocument("flow")}
           onImportPdf={handleImportPdfClick}
           onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
@@ -1249,6 +1277,14 @@ function NexusAppInner({
 
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
 
+      <NewPageDialog
+        isOpen={createDialog.open}
+        initialKind={createDialog.initialKind}
+        onClose={() => setCreateDialog({ open: false, initialKind: null })}
+        onConfirm={handleConfirmCreateDialog}
+      />
+
     </div>
   );
 }
+

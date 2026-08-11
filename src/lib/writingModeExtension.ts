@@ -78,3 +78,4 @@ declare module "@tiptap/core" {
     };
   }
 }
+

@@ -7,8 +7,10 @@ import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 import PageThumbnail from "./PageThumbnail";
 
 type Block = any;
-type CursorAnchor = { id: string; offset: number; blockIndex: number };
-type CursorFocusRequest = CursorAnchor & { targetPageIndex: number; revision: number };
+
+// A4 紙張（96dpi）：210mm ≈ 794px、297mm ≈ 1123px
+const A4_W_PX = 794;
+const A4_H_PX = 1123;
 
 function getTextFromNode(node: any): string {
   if (!node) return "";
@@ -17,130 +19,25 @@ function getTextFromNode(node: any): string {
   return "";
 }
 
-function estimateBlockHeight(node: Block): number {
-  const type = node.type;
-  switch (type) {
-    case "heading":
-      return node.attrs?.level === 1 ? 70 : node.attrs?.level === 2 ? 55 : 45;
-    case "paragraph": {
-      const text = getTextFromNode(node);
-      const charsPerLine = 70;
-      const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-      // Paragraphs are 15px with a 1.6 line-height, while the global reset
-      // removes their default margins. Each rendered line therefore uses 24px.
-      return lines * 24;
-    }
-    case "bulletList":
-    case "orderedList":
-    case "taskList": {
-      let h = 0;
-      for (const item of node.content || []) {
-        h += estimateBlockHeight(item);
-      }
-      return Math.max(30, h + 10);
-    }
-    case "listItem":
-    case "taskItem": {
-      let h = 0;
-      for (const c of node.content || []) {
-        h += estimateBlockHeight(c);
-      }
-      return Math.max(28, h);
-    }
-    case "table": {
-      const rows = node.content?.length || 3;
-      return rows * 48 + 50;
-    }
-    case "blockquote":
-      return 70;
-    case "codeBlock": {
-      const text = getTextFromNode(node);
-      const lines = text.split("\n").length;
-      return Math.max(70, lines * 22 + 36);
-    }
-    case "image":
-      return 240;
-    case "callout": {
-      let h = 0;
-      for (const c of node.content || []) {
-        h += estimateBlockHeight(c);
-      }
-      return h + 60;
-    }
-    case "multiColumn": {
-      let maxH = 0;
-      for (const col of node.content || []) {
-        let colH = 0;
-        for (const b of col.content || []) {
-          colH += estimateBlockHeight(b);
-        }
-        maxH = Math.max(maxH, colH);
-      }
-      return maxH + 30;
-    }
-    case "column": {
-      let h = 0;
-      for (const b of node.content || []) {
-        h += estimateBlockHeight(b);
-      }
-      return h;
-    }
-    case "pageBreak":
-      return 20;
-    default:
-      return 50;
-  }
-}
-
-function splitIntoPages(blocks: Block[], innerHeight: number): Block[][] {
-  const pages: Block[][] = [[]];
-  let currentHeight = 0;
-  let currentPage = pages[0];
+/**
+ * 手動分頁：僅以 pageBreak 節點切分頁面（不自動分頁、不估算高度）。
+ * 這是 2026-08-11 定案的「分頁筆記」模型——每張紙獨立、內容不會被自動搬移。
+ */
+function splitByPageBreaks(blocks: Block[]): Block[][] {
+  const pages: Block[][] = [];
+  let current: Block[] = [];
   for (const block of blocks) {
-    // 手動分頁符：強制換頁（不佔內容）
     if (block.type === "pageBreak") {
-      if (currentPage.length > 0) {
-        pages.push([]);
-        currentPage = pages[pages.length - 1];
-        currentHeight = 0;
-      }
-      continue;
+      pages.push(current);
+      current = [];
+    } else {
+      current.push(block);
     }
-    const h = estimateBlockHeight(block);
-    if (h > innerHeight) {
-      if (currentPage.length > 0) {
-        pages.push([]);
-        currentPage = pages[pages.length - 1];
-        currentHeight = 0;
-      }
-      currentPage.push(block);
-      pages.push([]);
-      currentPage = pages[pages.length - 1];
-      currentHeight = 0;
-      continue;
-    }
-    if (currentHeight + h > innerHeight && currentPage.length > 0) {
-      pages.push([]);
-      currentPage = pages[pages.length - 1];
-      currentHeight = 0;
-    }
-    currentPage.push(block);
-    currentHeight += h;
   }
-  while (pages.length > 1 && pages[pages.length - 1].length === 0) {
-    pages.pop();
-  }
-  if (pages.length === 0) return [[]];
-  return pages;
-}
-
-// 依物件引用找出某頁 blocks 在原始 blocks 陣列中的索引範圍
-function findPageRange(blocks: Block[], pageBlocks: Block[]): [number, number] {
-  const set = new Set(pageBlocks);
-  const idxs: number[] = [];
-  blocks.forEach((b, i) => { if (set.has(b)) idxs.push(i); });
-  if (idxs.length === 0) return [0, 0];
-  return [idxs[0], idxs[idxs.length - 1]];
+  pages.push(current);
+  // 移除開頭的空頁（若文件以 pageBreak 起始）
+  while (pages.length > 0 && pages[0].length === 0) pages.shift();
+  return pages.length > 0 ? pages : [[]];
 }
 
 // 壓縮連續 pageBreak、移除開頭/結尾 pageBreak
@@ -157,14 +54,21 @@ function normalizePageBreaks(blocks: Block[]): Block[] {
   return out;
 }
 
+// 依物件引用找出某頁 blocks 在原始 blocks 陣列中的索引範圍
+function findPageRange(blocks: Block[], pageBlocks: Block[]): [number, number] {
+  const set = new Set(pageBlocks);
+  const idxs: number[] = [];
+  blocks.forEach((b, i) => { if (set.has(b)) idxs.push(i); });
+  if (idxs.length === 0) return [0, 0];
+  return [idxs[0], idxs[idxs.length - 1]];
+}
+
 function firstHeadingText(pageBlocks: Block[]): string {
   for (const b of pageBlocks) if (b.type === "heading") return getTextFromNode(b).trim();
   return "";
 }
 
-// Keep the first label of each page continuous. This mirrors the editor gutter:
-// headings, paragraphs, list items, and table rows count once; code blocks count
-// once per hard line. Wrapped visual lines deliberately do not get extra labels.
+// 行號計數（邏輯行，與 editor gutter 一致；跨頁連續）
 function countLogicalLines(node: Block): number {
   switch (node?.type) {
     case "paragraph":
@@ -235,122 +139,63 @@ export default function PaginatedEditorView({
   showThumbRail?: boolean;
   paneId?: string;
 }) {
-  const blocks: Block[] = useMemo(() => {
-    return (content?.content as Block[]) || [];
-  }, [content]);
+  const blocks: Block[] = useMemo(() => (content?.content as Block[]) || [], [content]);
 
-  // 頁邊距（mm→px；A4: 297mm ≈ 1122px）
-  const MM_TO_PX = 3.7795;
   const m = margins || DEFAULT_PAGE_MARGINS;
-  const marginTopPx = m.top * MM_TO_PX;
-  const marginBottomPx = m.bottom * MM_TO_PX;
-  const marginLeftPx = m.left * MM_TO_PX;
-  const marginRightPx = m.right * MM_TO_PX;
+  const pagePaddingPx = useMemo(() => ({
+    top: Math.round(m.top * 3.7795),
+    right: Math.round(m.right * 3.7795),
+    bottom: Math.round(m.bottom * 3.7795),
+    left: Math.round(m.left * 3.7795),
+  }), [m]);
 
-  const innerHeight = useMemo(() => {
-    if (format === "a4") return Math.round(1122 - marginTopPx - marginBottomPx);
-    if (format === "16:9") return Math.round(540 - marginTopPx - marginBottomPx);
-    if (format === "4:3") return Math.round(600 - marginTopPx - marginBottomPx);
-    return 800;
-  }, [format, marginTopPx, marginBottomPx]);
+  // 頁面 = 以手動分頁符切分
+  const pagesBlocks = useMemo(() => splitByPageBreaks(blocks), [blocks]);
 
-  const pageHeight = useMemo(() => {
-    if (format === "a4") return 1122;
-    if (format === "16:9") return 540;
-    if (format === "4:3") return 600;
-    return 900;
-  }, [format]);
-
-  const pagesBlocks = useMemo(() => {
-    return splitIntoPages(blocks, innerHeight);
-  }, [blocks, innerHeight]);
-
-  const pageLineStarts = useMemo(() => {
-    return pagesBlocks.map((_, index) => (
-      1 + pagesBlocks
-        .slice(0, index)
-        .reduce((total, pageBlocks) => total + countPageLines(pageBlocks), 0)
-    ));
-  }, [pagesBlocks]);
+  // 行號跨頁連續
+  const pageLineStarts = useMemo(() => (
+    pagesBlocks.map((_, index) => (
+      1 + pagesBlocks.slice(0, index).reduce((total, page) => total + countPageLines(page), 0)
+    ))
+  ), [pagesBlocks]);
 
   const [activePage, setActivePage] = useState(0);
-  const [focusRequest, setFocusRequest] = useState<CursorFocusRequest | null>(null);
-  const focusRevisionRef = useRef(0);
-  const redistributeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<{ pageIndex: number; blocks: Block[][] } | null>(null);
-  const isRedistributingRef = useRef(false);
-
-  // A cross-page request is a one-shot hand-off.  Keeping it around after the
-  // destination editor has focused it makes later edits reapply an obsolete
-  // selection and pulls the cursor back to the start of the moved block.
-  const handleFocusRequestHandled = useCallback((revision: number) => {
-    setFocusRequest((current) => current?.revision === revision ? null : current);
-  }, []);
-
-  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string; cursor?: CursorAnchor }) => {
-    const newPageBlocks = (payload.json?.content as Block[]) || [];
-    const nextPages = [...pagesBlocks];
-    nextPages[pageIndex] = newPageBlocks;
-
-    const mergedBlocksImmediate = nextPages.flat();
-    const mergedJsonImmediate = { type: "doc", content: mergedBlocksImmediate.length > 0 ? mergedBlocksImmediate : [{ type: "paragraph" }] };
-    const mergedTextImmediate = mergedBlocksImmediate.map(getTextFromNode).join("\n\n");
-
-    // Work out where the selection's exact top-level block lands after the
-    // same pagination pass used for rendering. This remains reliable even if
-    // legacy content contains duplicate block IDs.
-    if (payload.cursor && payload.cursor.blockIndex >= 0) {
-      const precedingBlocks = nextPages.slice(0, pageIndex).reduce((total, page) => total + page.length, 0);
-      const cursorBlock = mergedBlocksImmediate[precedingBlocks + payload.cursor.blockIndex];
-      const targetPageIndex = splitIntoPages(mergedBlocksImmediate, innerHeight).findIndex((page) => page.includes(cursorBlock));
-      if (cursorBlock && targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
-        setFocusRequest({
-          id: cursorBlock.attrs?.id || payload.cursor.id,
-          offset: payload.cursor.offset,
-          blockIndex: payload.cursor.blockIndex,
-          targetPageIndex,
-          revision: ++focusRevisionRef.current,
-        });
-      }
-    }
-    onContentChange({ json: mergedJsonImmediate, text: mergedTextImmediate });
-
-    pendingRef.current = { pageIndex, blocks: nextPages };
-    if (redistributeTimeoutRef.current) clearTimeout(redistributeTimeoutRef.current);
-    redistributeTimeoutRef.current = setTimeout(() => {
-      const pending = pendingRef.current;
-      if (!pending) return;
-      const { pageIndex: pIdx, blocks: curPages } = pending;
-      const curPageBlocks = curPages[pIdx] || [];
-      const curHeight = curPageBlocks.reduce((sum, b) => sum + (b.type === "pageBreak" ? 0 : estimateBlockHeight(b)), 0);
-      // buffer 與 innerHeight 一致（尾頁「離底部幾公分」bug：原 150px 固定 buffer 造成
-      // 內容實際可寫超過內文高度、與邊界不符）
-      const buffer = 24;
-      // 找最後一個「非 pageBreak」的 block（避免把 pageBreak 搬走造成結構錯亂）
-      let moveIdx = -1;
-      for (let i = curPageBlocks.length - 1; i >= 0; i--) {
-        if (curPageBlocks[i].type !== "pageBreak") { moveIdx = i; break; }
-      }
-      if (curHeight > innerHeight + buffer && moveIdx >= 0) {
-        const moving = curPageBlocks.splice(moveIdx, 1)[0];
-        const newPages = [...curPages];
-        newPages[pIdx] = curPageBlocks;
-        if (pIdx + 1 < newPages.length) {
-          newPages[pIdx + 1] = [moving, ...newPages[pIdx + 1]];
-        } else {
-          newPages.push([moving]);
-        }
-        const remerged = newPages.flat();
-        onContentChange({ json: { type: "doc", content: remerged }, text: remerged.map(getTextFromNode).join("\n\n") });
-      }
-    }, 250);
-  }, [pagesBlocks, innerHeight, onContentChange]);
-
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const [renamingPage, setRenamingPage] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
+  // 紙張是否長高超過 A4 邊界（決定是否顯示虛線提示）
+  const [grownPages, setGrownPages] = useState<boolean[]>([]);
+
+  // 偵測每張紙是否超過 A4 高度 → 顯示分頁虛線
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    const nextGrown = new Array(pagesBlocks.length).fill(false);
+    let changed = false;
+    pagesBlocks.forEach((_, idx) => {
+      const el = pageRefs.current[idx];
+      if (!el) return;
+      const obs = new ResizeObserver(() => {
+        const h = el.getBoundingClientRect().height;
+        const grown = h > A4_H_PX + 2;
+        if (nextGrown[idx] !== grown) {
+          nextGrown[idx] = grown;
+          changed = true;
+          setGrownPages((prev) => {
+            const copy = [...prev];
+            copy[idx] = grown;
+            return copy;
+          });
+        }
+      });
+      obs.observe(el);
+      observers.push(obs);
+    });
+    // 初始同步一次
+    if (changed) setGrownPages([...nextGrown]);
+    return () => observers.forEach((o) => o.disconnect());
+  }, [pagesBlocks.length]);
 
   useEffect(() => {
     if (!pageMenu) return;
@@ -361,10 +206,31 @@ export default function PaginatedEditorView({
     return () => document.removeEventListener("mousedown", handler);
   }, [pageMenu]);
 
+  // 單頁編輯：只更新該頁區塊，不觸發任何自動搬移。
+  // 注意：pagesBlocks 是切分後的頁面（不含 pageBreak 節點），合併回 doc 時
+  // 必須在頁與頁之間重新插入 pageBreak，否則手動分頁符會遺失、頁面崩塌。
+  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string }) => {
+    const newPageBlocks = (payload.json?.content as Block[]) || [];
+    const nextPages = [...pagesBlocks];
+    nextPages[pageIndex] = newPageBlocks;
+    const merged: Block[] = [];
+    nextPages.forEach((page, i) => {
+      if (i > 0) merged.push({ type: "pageBreak" });
+      merged.push(...page);
+    });
+    onContentChange({
+      json: { type: "doc", content: merged.length > 0 ? merged : [{ type: "paragraph" }] },
+      text: merged.map(getTextFromNode).join("\n\n"),
+    });
+  }, [pagesBlocks, onContentChange]);
+
   const persistPages = useCallback((newBlocks: Block[]) => {
     const normalized = normalizePageBreaks(newBlocks);
     const finalBlocks = normalized.length > 0 ? normalized : [{ type: "paragraph" }];
-    onContentChange({ json: { type: "doc", content: finalBlocks }, text: finalBlocks.map(getTextFromNode).join("\n\n") });
+    onContentChange({
+      json: { type: "doc", content: finalBlocks },
+      text: finalBlocks.map(getTextFromNode).join("\n\n"),
+    });
   }, [onContentChange]);
 
   const applyRename = useCallback((idx: number, title: string) => {
@@ -385,22 +251,22 @@ export default function PaginatedEditorView({
     persistPages(newBlocks);
   }, [blocks, pagesBlocks, persistPages]);
 
-  const handleAddPageBefore = useCallback((idx: number) => {
-    const pageBlocks = pagesBlocks[idx] || [];
-    const newBlocks = [...blocks];
-    const [start] = findPageRange(newBlocks, pageBlocks);
-    newBlocks.splice(start, 0, { type: "paragraph" }, { type: "pageBreak" });
-    persistPages(newBlocks);
-    setActivePage(Math.min(idx, pagesBlocks.length));
-  }, [blocks, pagesBlocks, persistPages]);
-
   const handleAddPageAfter = useCallback((idx: number) => {
     const pageBlocks = pagesBlocks[idx] || [];
     const newBlocks = [...blocks];
     const [, end] = findPageRange(newBlocks, pageBlocks);
-    newBlocks.splice(end + 1, 0, { type: "pageBreak" }, { type: "paragraph" }, { type: "pageBreak" });
+    newBlocks.splice(end + 1, 0, { type: "pageBreak" }, { type: "paragraph" });
     persistPages(newBlocks);
     setActivePage(Math.min(idx + 1, pagesBlocks.length));
+  }, [blocks, pagesBlocks, persistPages]);
+
+  const handleAddPageBefore = useCallback((idx: number) => {
+    const pageBlocks = pagesBlocks[idx] || [];
+    const newBlocks = [...blocks];
+    const [start] = findPageRange(newBlocks, pageBlocks);
+    newBlocks.splice(start, 0, { type: "pageBreak" }, { type: "paragraph" });
+    persistPages(newBlocks);
+    setActivePage(Math.min(idx, pagesBlocks.length));
   }, [blocks, pagesBlocks, persistPages]);
 
   const handleDeletePage = useCallback((idx: number) => {
@@ -413,57 +279,63 @@ export default function PaginatedEditorView({
     setActivePage(Math.min(idx, Math.max(0, pagesBlocks.length - 2)));
   }, [blocks, pagesBlocks, persistPages]);
 
+  const handleAppendPage = useCallback(() => {
+    const newBlocks = [...blocks];
+    if (newBlocks.length > 0) newBlocks.push({ type: "pageBreak" });
+    newBlocks.push({ type: "paragraph" });
+    persistPages(newBlocks);
+    setActivePage(pagesBlocks.length);
+  }, [blocks, pagesBlocks, persistPages]);
+
   return (
     <div className="flex flex-1 min-h-0">
-      {/* 需求3：左側分頁縮圖預覽（GoodNotes 風格） */}
+      {/* 左側分頁縮圖列（GoodNotes 風格） */}
       {showThumbRail && (
-      <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
-        {showThumbRail && pagesBlocks.map((pb, idx) => {
-          const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
-          const name = firstHeadingText(pb) || "未命名";
-          const pageName = `${idx + 1}/${name}`;
-          return (
-            <div key={idx} className="flex flex-col gap-1">
-              {/* 需求1：左鍵點擊 → 編輯區捲動到該頁 */}
-              <button
-                onClick={() => {
-                  setActivePage(idx);
-                  pageRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                onContextMenu={(e) => { e.preventDefault(); setPageMenu({ x: e.clientX, y: e.clientY, idx }); }}
-                title={`${pageName}${summary ? " — " + summary : ""}`}
-                className="rounded-md p-1.5 flex flex-col items-center gap-1 transition-all"
-                style={{
-                  border: "1px solid",
-                  borderColor: activePage === idx ? "#3b82f6" : "var(--color-border)",
-                  backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
-                }}
-              >
-                <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
-                <span className="text-[9px] opacity-60 truncate w-full text-center">{pageName}</span>
-              </button>
-              {/* 需求5：行內重新命名 */}
-              {renamingPage === idx ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { applyRename(idx, renameValue); setRenamingPage(null); }
-                    if (e.key === "Escape") setRenamingPage(null);
+        <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
+          {pagesBlocks.map((pb, idx) => {
+            const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
+            const name = firstHeadingText(pb) || "未命名";
+            return (
+              <div key={idx} className="flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setActivePage(idx);
+                    pageRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
-                  onBlur={() => { applyRename(idx, renameValue); setRenamingPage(null); }}
-                  className="w-full text-[10px] rounded px-1 py-0.5 outline-none"
-                  style={{ border: "1px solid #3b82f6", color: "var(--color-text)", background: "var(--color-bg)" }}
-                />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+                  onContextMenu={(e) => { e.preventDefault(); setPageMenu({ x: e.clientX, y: e.clientY, idx }); }}
+                  title={`第 ${idx + 1} 頁 / ${name}${summary ? " — " + summary : ""}`}
+                  className="rounded-md p-1.5 flex flex-col items-center gap-1 transition-all"
+                  style={{
+                    border: "1px solid",
+                    borderColor: activePage === idx ? "#3b82f6" : "var(--color-border)",
+                    backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
+                  }}
+                >
+                  <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
+                  <span className="text-[9px] opacity-60 truncate w-full text-center">{idx + 1}/{name}</span>
+                </button>
+                {renamingPage === idx ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { applyRename(idx, renameValue); setRenamingPage(null); }
+                      if (e.key === "Escape") setRenamingPage(null);
+                    }}
+                    onBlur={() => { applyRename(idx, renameValue); setRenamingPage(null); }}
+                    className="w-full text-[10px] rounded px-1 py-0.5 outline-none"
+                    style={{ border: "1px solid #3b82f6", color: "var(--color-text)", background: "var(--color-bg)" }}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       )}
-      {/* 縮圖右鍵選單（需求1） */}
+
+      {/* 縮圖右鍵選單 */}
       {pageMenu && (
         <div
           ref={pageMenuRef}
@@ -485,66 +357,95 @@ export default function PaginatedEditorView({
           <button onClick={() => { handleDeletePage(pageMenu.idx); setPageMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 flex items-center gap-2 text-red-600"><span>🗑️</span> 刪除頁面</button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a", padding: "24px" }}>
-      <style>{`
-        .nexus-paged-content .ProseMirror {
-          min-height: ${innerHeight}px !important;
-        }
-      `}</style>
-      {showRuler && (
-        <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a" }}>
-          <div className="w-full max-w-full" style={{ width: getDocumentRulerWidth(format) }}>
-            <DocumentRuler format={format} margins={m} />
-          </div>
-        </div>
-      )}
-      <div className="flex flex-col gap-6 w-full" style={{ width: format === "a4" ? "210mm" : format === "16:9" ? "960px" : format === "4:3" ? "800px" : "100%", maxWidth: "100%" }}>
-        {pagesBlocks.map((pageBlocks, idx) => {
-          const isAdapt = nightAdapt;
-          return (
-            <div
-              key={idx}
-              ref={(el) => { pageRefs.current[idx] = el; }}
-              data-page={idx}
-              className="relative bg-white rounded-sm"
-              style={{
-                height: `${pageHeight}px`,
-                minHeight: `${pageHeight}px`,
-                background: isAdapt ? "var(--color-editor-bg)" : "white",
-                color: isAdapt ? "var(--color-text)" : "#1a1a1a",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08)",
-                overflow: "hidden",
-              }}
-            >
-              <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
-              <div className={`${isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}`} style={{ padding: `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm`, boxSizing: "border-box", height: "100%", overflow: "hidden" }}>
-                <TiptapEditor
-                  content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
-                  onChange={(payload) => handlePageChange(idx, payload)}
-                  variant="rich"
-                  toolbarTarget={idx === activePage ? toolbarTarget : null}
-                  menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
-                  menuToolbarTab={menuToolbarTab}
-                  showToolbar={idx === activePage && !fileMode}
-                  toolbarTab={toolbarTab}
-                  showLineNumbers={showLineNumbers}
-                  lineNumberStart={pageLineStarts[idx]}
-                  margins={margins}
-                  onMarginsChange={onMarginsChange}
-                  paneId={paneId}
-                  pageIndex={idx}
-                  paginated
-                  focusRequest={focusRequest || undefined}
-                  onFocusRequestHandled={handleFocusRequestHandled}
-                  onFocus={() => setActivePage(idx)}
-                  pageNightAdapt={nightAdapt}
-                  onTogglePageNightAdapt={onToggleNightAdapt}
-                />
-              </div>
+
+      {/* 主捲動區 */}
+      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px" }}>
+        {showRuler && (
+          <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: "#f5f5f4" }}>
+            <div style={{ width: getDocumentRulerWidth("paged") }}>
+              <DocumentRuler format="paged" margins={m} />
             </div>
-          );
-        })}
-      </div>
+          </div>
+        )}
+        <div className="flex flex-col gap-6 w-full items-center">
+          {pagesBlocks.map((pageBlocks, idx) => {
+            const isAdapt = nightAdapt;
+            const grown = grownPages[idx] || false;
+            return (
+              <div
+                key={idx}
+                ref={(el) => { pageRefs.current[idx] = el; }}
+                data-page={idx}
+                className="relative rounded-sm"
+                style={{
+                  width: A4_W_PX,
+                  minHeight: A4_H_PX,
+                  background: isAdapt ? "var(--color-editor-bg)" : "white",
+                  color: isAdapt ? "var(--color-text)" : "#1a1a1a",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08)",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
+                <div
+                  className={isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}
+                  style={{
+                    padding: `${pagePaddingPx.top}px ${pagePaddingPx.right}px ${pagePaddingPx.bottom}px ${pagePaddingPx.left}px`,
+                    boxSizing: "border-box",
+                    minHeight: A4_H_PX,
+                  }}
+                >
+                  <TiptapEditor
+                    content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
+                    onChange={(payload) => handlePageChange(idx, payload)}
+                    variant="rich"
+                    toolbarTarget={idx === activePage ? toolbarTarget : null}
+                    menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
+                    menuToolbarTab={menuToolbarTab}
+                    showToolbar={idx === activePage && !fileMode}
+                    toolbarTab={toolbarTab}
+                    showLineNumbers={showLineNumbers}
+                    lineNumberStart={pageLineStarts[idx]}
+                    margins={margins}
+                    onMarginsChange={onMarginsChange}
+                    paneId={paneId}
+                    pageIndex={idx}
+                    onFocus={() => setActivePage(idx)}
+                    pageNightAdapt={nightAdapt}
+                    onTogglePageNightAdapt={onToggleNightAdapt}
+                  />
+                </div>
+                {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}
+                {grown && (
+                  <div
+                    className="pointer-events-none select-none absolute"
+                    style={{
+                      left: pagePaddingPx.left,
+                      right: pagePaddingPx.right,
+                      top: A4_H_PX,
+                      borderTop: "2px dashed #94a3b8",
+                    }}
+                  >
+                    <span
+                      className="absolute text-[10px] text-slate-400"
+                      style={{ right: 0, top: -9, background: isAdapt ? "var(--color-editor-bg)" : "white", padding: "0 4px" }}
+                    >
+                      A4 分頁線
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* 新增頁面（手動） */}
+        <button
+          onClick={handleAppendPage}
+          className="mt-6 mb-4 rounded-lg px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-all nexus-print-hide"
+          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }}
+        >
+          ＋ 新增頁面
+        </button>
       </div>
     </div>
   );

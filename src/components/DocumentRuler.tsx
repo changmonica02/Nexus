@@ -7,7 +7,7 @@ const PX_PER_MM = 3.779527559;
 const FLOW_CONTENT_MARGIN_MM = 64 / PX_PER_MM;
 
 function getRulerDimensions(format: PageFormat): RulerDimensions {
-  if (format === "a4") return { widthMm: 210, width: "210mm" };
+  if (format === "a4" || format === "paged") return { widthMm: 210, width: "794px" };
   if (format === "16:9") return { widthMm: 960 / PX_PER_MM, width: "960px" };
   if (format === "4:3") return { widthMm: 800 / PX_PER_MM, width: "800px" };
   return { widthMm: 820 / PX_PER_MM, width: "820px" };
@@ -75,3 +75,4 @@ export default function DocumentRuler({
     </div>
   );
 }
+

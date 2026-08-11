@@ -79,7 +79,7 @@ export default function FileMenu({
   }, [isOpen, updatePos]);
 
   const fmt = currentFormat || "flow";
-  const canRestoreToFlow = fmt !== "flow";
+  // 2026-08-11：分頁/流動不可轉換。簡報保留 16:9/4:3 切換；其餘只顯示目前模式。
 
   return (
     <>
@@ -122,28 +122,28 @@ export default function FileMenu({
           <button onClick={() => { onConvertToPresentation?.(); setIsOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-zinc-100" style={{ color: "var(--color-text)" }}><span>📊</span> 轉為簡報 (用筆記製作簡報)</button>
 
           <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
-          <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between"><span>格式</span><span className="text-[9px] normal-case opacity-60">{canRestoreToFlow ? "可還原為流動" : "流動為源"}</span></div>
+          <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between"><span>格式</span><span className="text-[9px] normal-case opacity-60">{isPresentation ? "簡報" : "建立時選定"}</span></div>
           <div className="px-2 pb-1">
-            <div className="grid grid-cols-2 gap-1">
-              {(
-                isPresentation
-                  ? [
-                      { id: "16:9", label: "16:9 投影", desc: "簡報" },
-                      { id: "4:3", label: "4:3 投影", desc: "簡報" },
-                    ]
-                  : [
-                      { id: "flow", label: "流動", desc: "無限長卷" },
-                      { id: "a4", label: "A4 分頁", desc: "自動加頁" },
-                    ]
-              ).map((opt) => (
-                <button key={opt.id} onClick={() => { onFormatChange?.(opt.id as PageFormat); setIsOpen(false); }} className={`rounded-md px-2.5 py-2 text-left border transition-all ${fmt === opt.id ? "bg-zinc-800 text-white border-zinc-800" : "bg-transparent hover:bg-zinc-100 border-zinc-200"}`}>
-                  <div className="text-xs font-medium">{opt.label}{fmt === opt.id ? " ✓" : ""}</div>
-                  <div className="text-[10px] opacity-60">{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-            {canRestoreToFlow && (
-              <button onClick={() => { onFormatChange?.("flow"); setIsOpen(false); }} className="mt-2 w-full rounded-md bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 text-xs font-medium hover:bg-blue-100 text-center">↩ 還原為流動 (可還原)</button>
+            {isPresentation ? (
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  { id: "16:9", label: "16:9 投影", desc: "簡報" },
+                  { id: "4:3", label: "4:3 投影", desc: "簡報" },
+                ].map((opt) => (
+                  <button key={opt.id} onClick={() => { onFormatChange?.(opt.id as PageFormat); setIsOpen(false); }} className={`rounded-md px-2.5 py-2 text-left border transition-all ${fmt === opt.id ? "bg-zinc-800 text-white border-zinc-800" : "bg-transparent hover:bg-zinc-100 border-zinc-200"}`}>
+                    <div className="text-xs font-medium">{opt.label}{fmt === opt.id ? " ✓" : ""}</div>
+                    <div className="text-[10px] opacity-60">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-zinc-200 px-2.5 py-2 text-xs opacity-70" style={{ color: "var(--color-text)" }}>
+                {isDocument
+                  ? "📄 文檔（一律流動）"
+                  : fmt === "paged"
+                    ? "📑 分頁筆記（手動 A4 頁面）"
+                    : "📄 流動筆記（無限捲動）"}
+              </div>
             )}
           </div>
 
@@ -168,3 +168,4 @@ export default function FileMenu({
     </>
   );
 }
+

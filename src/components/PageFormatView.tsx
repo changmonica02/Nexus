@@ -164,3 +164,4 @@ export default function PageFormatView({ format, children }: Props) {
     </div>
   );
 }
+

@@ -183,3 +183,4 @@ export default function ChartTypeMenu({ chart, onChange }: { chart?: ChartData; 
     </div>
   );
 }
+

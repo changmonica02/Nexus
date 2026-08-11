@@ -100,10 +100,15 @@ export default function EditorPane({
   }
 
   const currentTags = page.tags || [];
-  const currentFormat = (page.format || "flow") as PageFormat;
+  // 2026-08-11：版面模式定案
+  // - 文檔一律流動（即使舊資料 format 為其他值，也以流動顯示）
+  // - 筆記：format "paged" → 分頁筆記；其餘（含舊 a4/16:9/4:3 資料）→ 流動
+  // - 簡報由 PresentationView 處理（不進 EditorPane）
+  const effectiveFormat: PageFormat = page.kind === "document" ? "flow" : ((page.format || "flow") === "paged" ? "paged" : "flow");
+  const currentFormat = effectiveFormat;
   const isDocument = page.kind === "document";
   const isPresentation = page.kind === "presentation";
-  const isPaged = currentFormat !== "flow";
+  const isPaged = page.kind === "note" && currentFormat === "paged";
 
   const getTextFromNode = (node: any): string => {
     if (!node) return "";
@@ -412,3 +417,4 @@ export default function EditorPane({
     </main>
   );
 }
+

@@ -191,3 +191,4 @@ export default function ColorPaletteButton({ icon, title, currentColor, onColorC
     </>
   );
 }
+

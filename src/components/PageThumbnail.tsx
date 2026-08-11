@@ -12,7 +12,7 @@ type PreviewNode = {
 type PageDimensions = { widthMm: number; heightMm: number; aspectRatio: string };
 
 function getPageDimensions(format: PageFormat): PageDimensions {
-  if (format === "a4") return { widthMm: 210, heightMm: 297, aspectRatio: "210 / 297" };
+  if (format === "a4" || format === "paged") return { widthMm: 210, heightMm: 297, aspectRatio: "210 / 297" };
   if (format === "16:9") return { widthMm: 254, heightMm: 142.875, aspectRatio: "16 / 9" };
   if (format === "4:3") return { widthMm: 211.667, heightMm: 158.75, aspectRatio: "4 / 3" };
   return { widthMm: 217, heightMm: 297, aspectRatio: "210 / 297" };
@@ -135,3 +135,4 @@ export default function PageThumbnail({
     </div>
   );
 }
+
