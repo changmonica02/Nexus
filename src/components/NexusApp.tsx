@@ -269,7 +269,10 @@ function NexusAppInner({
 
       setIsReady(true);
 
-      if (isSupabaseConfigured()) {
+      // 【臨時診斷】禁用 SyncEngine，確認拖曳問題是否由 sync 覆蓋引起。
+      // 若禁用後 drag 正常 → sync 是元兇；若仍不動 → 是渲染層問題。
+      const DISABLE_SYNC_FOR_DRAG_DEBUG = false;
+      if (isSupabaseConfigured() && !DISABLE_SYNC_FOR_DRAG_DEBUG) {
         const supabase = getSupabase();
         if (supabase) {
           const deviceId = await adapter.getDeviceId();

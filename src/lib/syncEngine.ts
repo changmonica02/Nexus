@@ -373,7 +373,7 @@ export class SyncEngine {
   /** Push a single page to cloud */
   async pushPage(page: Page): Promise<void> {
     try {
-      await this.supabase.from("pages").upsert({
+      const { error: upErr } = await this.supabase.from("pages").upsert({
         id: page.id, title: page.title, content_json: page.content_json,
         content_text: page.content_text, default_mode: page.default_mode,
         created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
@@ -390,6 +390,7 @@ export class SyncEngine {
         completed: page.completed ?? false,
         color: page.color ?? null,
       }, { onConflict: "id" });
+      if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
 
       if (page.updated_at > this.lastSyncAt) this.setState({ lastSyncAt: page.updated_at });
     } catch (err) {
