@@ -86,6 +86,7 @@ export interface PresentationBlock {
   w: number; // 0-100 %
   h: number; // 0-100 % or auto
   z: number;
+  rotation?: number;
   text?: string;
   content_json?: object; // for rich text block
   chart?: ChartData;

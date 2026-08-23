@@ -13,8 +13,6 @@ const BACKUP_SCHEMA_VERSION = 1;
 function newPageId(): ID { return `page_${nanoid()}`; }
 function newBlockId(): ID { return `blk_${nanoid()}`; }
 function newAttachmentId(): ID { return `att_${nanoid()}`; }
-function newQuickNoteId(): ID { return `qn_${nanoid()}`; }
-function newTodoId(): ID { return `todo_${nanoid()}`; }
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
@@ -59,63 +57,11 @@ export class IndexedDBAdapter implements StorageAdapter {
         if (!db.objectStoreNames.contains("binaries")) {
           db.createObjectStore("binaries", { keyPath: "id" });
         }
-        // Phase C5: independent stores for quick notes and todos
-        if (!db.objectStoreNames.contains("quick_notes")) {
-          const store = db.createObjectStore("quick_notes", { keyPath: "id" });
-          store.createIndex("by_updated", "updated_at");
-        }
-        if (!db.objectStoreNames.contains("todos")) {
-          const store = db.createObjectStore("todos", { keyPath: "id" });
-          store.createIndex("by_updated", "updated_at");
-          store.createIndex("by_due", "due_date");
-        }
+        // H3 fix (方案 A): quick_note/todo 統一為 pages store 的 kind，不再建立獨立 store。
+        // 既有 DB 若已存在 quick_notes/todos store（舊版建立），upgrade 不會移除它們，
+        // 但程式碼不再讀寫；未來可在 DB_VERSION 4 的 upgrade 中清理。
       },
     });
-
-    // Migration: move quick_note and todo kind pages from pages store to new stores (once)
-    try {
-      const allPages = await this.db.getAll("pages");
-      const quickNotesToMigrate = allPages.filter((p: any) => p.kind === "quick_note" || p.folder === "QuickNotes");
-      const todosToMigrate = allPages.filter((p: any) => p.kind === "todo");
-      if (quickNotesToMigrate.length > 0 || todosToMigrate.length > 0) {
-        const tx = this.db.transaction(["pages", "quick_notes", "todos"], "readwrite");
-        for (const qn of quickNotesToMigrate) {
-          // Only migrate if not already in quick_notes
-          const existing = await tx.objectStore("quick_notes").get(qn.id);
-          if (!existing) {
-            await tx.objectStore("quick_notes").put({
-              id: qn.id,
-              title: qn.title,
-              content_text: qn.content_text || "",
-              content_json: qn.content_json || { type: "doc", content: [{ type: "paragraph" }] },
-              color: (qn as any).color || null,
-              created_at: qn.created_at,
-              updated_at: qn.updated_at,
-              device_id: qn.device_id,
-            });
-            // Optionally keep in pages for backward compat or delete? We keep for now but mark? We will leave pages as is for safety, but new code will use quick_notes store primarily.
-          }
-        }
-        for (const td of todosToMigrate) {
-          const existing = await tx.objectStore("todos").get(td.id);
-          if (!existing) {
-            await tx.objectStore("todos").put({
-              id: td.id,
-              title: td.title,
-              completed: (td as any).completed || false,
-              due_date: (td as any).due_date || null,
-              priority: (td as any).priority || null,
-              created_at: td.created_at,
-              updated_at: td.updated_at,
-              device_id: td.device_id,
-            });
-          }
-        }
-        await tx.done;
-      }
-    } catch (e) {
-      console.warn("Quick notes / todos migration warning", e);
-    }
   }
 
   async getPage(id: ID): Promise<Page | null> {
@@ -297,46 +243,6 @@ export class IndexedDBAdapter implements StorageAdapter {
     };
     await this.db.put("attachments", attachment);
     return attachment;
-  }
-
-  // Quick Notes independent store
-  async listQuickNotes(): Promise<any[]> {
-    if (!this.db) throw new Error("DB not initialized");
-    if (!this.db.objectStoreNames.contains("quick_notes")) return [];
-    const all = await this.db.getAllFromIndex("quick_notes", "by_updated");
-    return all.reverse();
-  }
-
-  async saveQuickNote(note: any): Promise<any> {
-    if (!this.db) throw new Error("DB not initialized");
-    await this.db.put("quick_notes", note);
-    return note;
-  }
-
-  async deleteQuickNote(id: any): Promise<void> {
-    if (!this.db) throw new Error("DB not initialized");
-    if (!this.db.objectStoreNames.contains("quick_notes")) return;
-    await this.db.delete("quick_notes", id);
-  }
-
-  // Todos independent store
-  async listTodos(): Promise<any[]> {
-    if (!this.db) throw new Error("DB not initialized");
-    if (!this.db.objectStoreNames.contains("todos")) return [];
-    const all = await this.db.getAllFromIndex("todos", "by_updated");
-    return all.reverse();
-  }
-
-  async saveTodo(todo: any): Promise<any> {
-    if (!this.db) throw new Error("DB not initialized");
-    await this.db.put("todos", todo);
-    return todo;
-  }
-
-  async deleteTodo(id: any): Promise<void> {
-    if (!this.db) throw new Error("DB not initialized");
-    if (!this.db.objectStoreNames.contains("todos")) return;
-    await this.db.delete("todos", id);
   }
 
   async exportWorkspaceBackup(): Promise<WorkspaceBackup> {

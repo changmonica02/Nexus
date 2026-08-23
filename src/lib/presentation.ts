@@ -76,12 +76,15 @@ export function noteToPresentation(page: Page): PresentationData {
 
     // Convert Tiptap blocks to canvas PresentationBlocks for intuitive drag editing
     const textContent = currentSlideBlocks.map(getTextFromNode).join("\n\n");
-    const blocks: import("./types").PresentationBlock[] = [
+    // M3 fix: 不再截斷至 200 字。slide 上顯示前幾個 block 的完整文字，
+    // 完整內容保留在 speaker notes，避免靜默丟失長段落。
+    const visibleBlocks = currentSlideBlocks.slice(0, 5);
+    const slideBlocks: import("./types").PresentationBlock[] = [
       createTextBlock(currentTitle, 5, 5, 90, 12, 1),
-      ...currentSlideBlocks.slice(0, 3).map((b: any, i: number) => {
-        const txt = getTextFromNode(b).slice(0, 200);
+      ...visibleBlocks.map((b: any, i: number) => {
+        const txt = getTextFromNode(b);
         if (!txt) return null;
-        return createTextBlock(txt, 5, 22 + i * 22, 90, 18, 10 + i);
+        return createTextBlock(txt, 5, 20 + i * 16, 90, 14, 10 + i);
       }).filter(Boolean) as import("./types").PresentationBlock[]
     ];
 
@@ -91,8 +94,9 @@ export function noteToPresentation(page: Page): PresentationData {
       title: currentTitle,
       content_json: { type: "doc", content: currentSlideBlocks.length > 0 ? currentSlideBlocks : [{ type: "paragraph" }] },
       content_text: textContent,
+      notes: textContent.trim() || undefined,
       chart,
-      blocks,
+      blocks: slideBlocks,
     };
     slides.push(slide);
     currentSlideBlocks = [];

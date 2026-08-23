@@ -1,26 +1,7 @@
 import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "./types";
 
-export interface QuickNote {
-  id: ID;
-  title: string;
-  content_text: string;
-  content_json: object;
-  color?: string | null;
-  created_at: number;
-  updated_at: number;
-  device_id: ID;
-}
-
-export interface TodoItem {
-  id: ID;
-  title: string;
-  completed: boolean;
-  due_date: number | null;
-  priority?: "low" | "medium" | "high" | null;
-  created_at: number;
-  updated_at: number;
-  device_id: ID;
-}
+// H3 fix (方案 A): QuickNote/TodoItem 獨立 store 介面已廢棄；
+// quick_note/todo 統一為 pages store 的 kind（Page.kind），不再需要獨立 store 型別。
 
 export interface StorageAdapter {
   init(): Promise<void>;
@@ -55,13 +36,5 @@ export interface StorageAdapter {
   readBinary(attachmentId: ID): Promise<Blob | null>;
   exportWorkspaceBackup?(): Promise<WorkspaceBackup>;
   importWorkspaceBackup?(backup: WorkspaceBackup): Promise<void>;
-  // Quick Notes independent store (C5)
-  listQuickNotes?(): Promise<QuickNote[]>;
-  saveQuickNote?(note: QuickNote): Promise<QuickNote>;
-  deleteQuickNote?(id: ID): Promise<void>;
-  // Todos independent store (C5)
-  listTodos?(): Promise<TodoItem[]>;
-  saveTodo?(todo: TodoItem): Promise<TodoItem>;
-  deleteTodo?(id: ID): Promise<void>;
   close?(): Promise<void>;
 }

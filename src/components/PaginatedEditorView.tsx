@@ -220,9 +220,12 @@ export default function PaginatedEditorView({
       if (i > 0) merged.push({ type: "pageBreak" });
       merged.push(...page);
     });
+    // M4 fix: 壓縮連續 pageBreak（使用者在頁內插入分頁符時，會與頁間系統分隔疊加），
+    // 避免下次 splitByPageBreaks 產生空白頁。
+    const finalBlocks = normalizePageBreaks(merged);
     onContentChange({
-      json: { type: "doc", content: merged.length > 0 ? merged : [{ type: "paragraph" }] },
-      text: merged.map(getTextFromNode).join("\n\n"),
+      json: { type: "doc", content: finalBlocks.length > 0 ? finalBlocks : [{ type: "paragraph" }] },
+      text: finalBlocks.map(getTextFromNode).join("\n\n"),
     });
   }, [pagesBlocks, onContentChange]);
 

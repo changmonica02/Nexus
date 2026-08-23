@@ -322,6 +322,43 @@ export class SyncEngine {
         if (cloudPage.updated_at > maxUpdatedAt) maxUpdatedAt = cloudPage.updated_at;
       }
 
+      // M7 fix: pullChanges 原本只拉 pages，Realtime 斷線期間他機新增的附件/PDF 不會同步。
+      // 補上 attachments 與 binaries 的增量 pull。
+      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").gt("updated_at", this.lastSyncAt);
+      for (const cloudAtt of (cloudAttachments || [])) {
+        if (cloudAtt.device_id === this.deviceId) continue;
+        const localAtt = (await this.storage.listAttachments()).find((a) => a.id === cloudAtt.id);
+        if (!localAtt || (cloudAtt.updated_at as number) > localAtt.updated_at) {
+          await this.storage.saveAttachment({
+            id: cloudAtt.id, kind: ((cloudAtt.kind as string) || "file") as Attachment["kind"],
+            name: cloudAtt.name || "", mime_type: cloudAtt.mime_type || "application/octet-stream",
+            size_bytes: cloudAtt.size_bytes || 0, storage_key: cloudAtt.storage_key || "",
+            created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
+            deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
+            page_count: cloudAtt.page_count ?? undefined,
+          });
+          changed = true;
+        }
+        if ((cloudAtt.updated_at as number) > maxUpdatedAt) maxUpdatedAt = cloudAtt.updated_at as number;
+      }
+
+      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").gt("updated_at", this.lastSyncAt);
+      for (const cloudBin of (cloudBinaries || [])) {
+        const localBin = await this.storage.readBinary(cloudBin.id);
+        if (localBin) continue; // 本地已有（自己 push 或已同步）
+        if (cloudBin.data) {
+          try {
+            const binary = atob(cloudBin.data);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const att = (cloudAttachments || []).find((a: { id: string }) => a.id === cloudBin.id);
+            const blob = new Blob([bytes], { type: att?.mime_type || "application/octet-stream" });
+            await this.storage.attachBinary(cloudBin.id, blob);
+            changed = true;
+          } catch (err) { console.error("[SyncEngine] pullChanges binary error:", err); }
+        }
+      }
+
       this.lastSyncAt = maxUpdatedAt;
       this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
       if (changed) this.onRemoteChange?.();

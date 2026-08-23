@@ -82,7 +82,7 @@ function nodeToMarkdown(node: any): string {
     case "taskList": return (node.content || []).map((item: any) => taskItemToMarkdownLine(item)).join("\n");
     case "table": return tableToMarkdown(node);
     case "callout": return calloutToMarkdown(node);
-    case "pageBreak": return "\n---\n";
+    case "pageBreak": return "<!-- pagebreak -->";
     case "blockMath": { const latex = typeof node.attrs?.latex === "string" ? node.attrs.latex : ""; return `$$\n${latex}\n$$`; }
     case "blockquote": { const inner = (node.content || []).map(nodeToMarkdown).join("\n"); return inner.split("\n").map((line: string) => `> ${line}`).join("\n"); }
     case "codeBlock": return `\`\`\`\n${getTextFromNode(node)}\n\`\`\``;
@@ -184,7 +184,7 @@ export function createMarkdownContent(markdown: string): object {
     if (bulletMatch) { flushParagraph(); if (!listBuffer || listBuffer.kind !== "bullet") { flushList(); listBuffer = { kind: "bullet", items: [] }; } listBuffer.items.push({ text: bulletMatch[1] }); index += 1; continue; }
     const orderedMatch = line.match(/^\s*\d+[.)]\s+(.*)$/);
     if (orderedMatch) { flushParagraph(); if (!listBuffer || listBuffer.kind !== "ordered") { flushList(); listBuffer = { kind: "ordered", items: [] }; } listBuffer.items.push({ text: orderedMatch[1] }); index += 1; continue; }
-    if (/^---+$/.test(line.trim())) { flushParagraph(); flushList(); content.push({ type: "pageBreak" }); index += 1; continue; }
+    if (/^<!--\s*pagebreak\s*-->$/.test(line.trim())) { flushParagraph(); flushList(); content.push({ type: "pageBreak" }); index += 1; continue; }
     const calloutHeaderMatch = line.match(/^>\s*\[!(\w+)\]\s*(.*)$/);
     if (calloutHeaderMatch) {
       flushParagraph(); flushList();

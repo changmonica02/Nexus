@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
 
 export default eslintConfig;
 
+
 ````
 
 ## File: next.config.ts
@@ -30,6 +31,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {};
 
 export default nextConfig;
+
 
 ````
 
@@ -7872,6 +7874,7 @@ export default nextConfig;
   }
 }
 
+
 ````
 
 ## File: package.json
@@ -7927,6 +7930,7 @@ export default nextConfig;
   }
 }
 
+
 ````
 
 ## File: postcss.config.mjs
@@ -7936,6 +7940,7 @@ const config = {
 };
 
 export default config;
+
 
 ````
 
@@ -8157,6 +8162,7 @@ body {
   padding: 32px 40px;
   overflow: auto;
 }
+
 ````
 
 ## File: src/app/layout.tsx
@@ -8180,6 +8186,7 @@ export default function RootLayout({
     </html>
   );
 }
+
 ````
 
 ## File: src/app/page.tsx
@@ -8189,6 +8196,7 @@ import NexusApp from "../components/NexusApp";
 export default function Home() {
   return <NexusApp />;
 }
+
 ````
 
 ## File: src/components/AccountSettingsRow.tsx
@@ -8288,6 +8296,7 @@ export default function AccountSettingsRow({
     </>
   );
 }
+
 ````
 
 ## File: src/components/ChartRenderer.tsx
@@ -8594,6 +8603,7 @@ export default function ChartRenderer({ chart, width = 300, height = 160 }: { ch
 
   return <div className="text-xs opacity-50">未支援的圖表類型: {type}</div>;
 }
+
 ````
 
 ## File: src/components/ChartTypeMenu.tsx
@@ -8783,6 +8793,7 @@ export default function ChartTypeMenu({ chart, onChange }: { chart?: ChartData; 
     </div>
   );
 }
+
 
 ````
 
@@ -8982,6 +8993,7 @@ export default function ColorPaletteButton({ icon, title, currentColor, onColorC
   );
 }
 
+
 ````
 
 ## File: src/components/CommandPalette.tsx
@@ -9072,6 +9084,7 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
     </div>
   );
 }
+
 ````
 
 ## File: src/components/Dashboard.tsx
@@ -9182,6 +9195,7 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
     </main>
   );
 }
+
 ````
 
 ## File: src/components/DocumentRuler.tsx
@@ -9195,7 +9209,7 @@ const PX_PER_MM = 3.779527559;
 const FLOW_CONTENT_MARGIN_MM = 64 / PX_PER_MM;
 
 function getRulerDimensions(format: PageFormat): RulerDimensions {
-  if (format === "a4") return { widthMm: 210, width: "210mm" };
+  if (format === "a4" || format === "paged") return { widthMm: 210, width: "794px" };
   if (format === "16:9") return { widthMm: 960 / PX_PER_MM, width: "960px" };
   if (format === "4:3") return { widthMm: 800 / PX_PER_MM, width: "800px" };
   return { widthMm: 820 / PX_PER_MM, width: "820px" };
@@ -9263,6 +9277,7 @@ export default function DocumentRuler({
     </div>
   );
 }
+
 
 ````
 
@@ -9341,12 +9356,15 @@ export default function EditorPane({
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
   const [pdfViewerHeight, setPdfViewerHeight] = useState(560);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLElement | null>(null);
+  // 2026-08-11：Google Docs 式選單列——編輯/插入/格式 選單內容由 TiptapEditor portal 注入
+  const [editToolbarTarget, setEditToolbarTarget] = useState<HTMLElement | null>(null);
   const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
-  const [layoutToolbarTarget, setLayoutToolbarTarget] = useState<HTMLElement | null>(null);
+  const [formatToolbarTarget, setFormatToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
 
+  const setEditMenuTarget = useCallback((element: HTMLDivElement | null) => setEditToolbarTarget(element), []);
   const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
-  const setLayoutMenuTarget = useCallback((element: HTMLDivElement | null) => setLayoutToolbarTarget(element), []);
+  const setFormatMenuTarget = useCallback((element: HTMLDivElement | null) => setFormatToolbarTarget(element), []);
 
   useEffect(() => {
     if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
@@ -9370,10 +9388,15 @@ export default function EditorPane({
   }
 
   const currentTags = page.tags || [];
-  const currentFormat = (page.format || "flow") as PageFormat;
+  // 2026-08-11：版面模式定案
+  // - 文檔一律流動（即使舊資料 format 為其他值，也以流動顯示）
+  // - 筆記：format "paged" → 分頁筆記；其餘（含舊 a4/16:9/4:3 資料）→ 流動
+  // - 簡報由 PresentationView 處理（不進 EditorPane）
+  const effectiveFormat: PageFormat = page.kind === "document" ? "flow" : ((page.format || "flow") === "paged" ? "paged" : "flow");
+  const currentFormat = effectiveFormat;
   const isDocument = page.kind === "document";
   const isPresentation = page.kind === "presentation";
-  const isPaged = currentFormat !== "flow";
+  const isPaged = page.kind === "note" && currentFormat === "paged";
 
   const getTextFromNode = (node: any): string => {
     if (!node) return "";
@@ -9447,35 +9470,29 @@ export default function EditorPane({
 
   return (
     <main className="relative flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      {/* Title area */}
-      <div className="shrink-0 pt-8 pb-3 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="mx-auto w-full" style={{ maxWidth: "820px" }}>
-          <div className="flex items-start gap-4">
-            <input
-              type="text"
-              value={page.title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder={t("editor.title.placeholder")}
-              className="flex-1 min-w-0 text-3xl font-semibold bg-transparent border-none outline-none pb-1"
-              style={{ color: "var(--color-text)", fontFamily: "inherit", borderBottom: "2px solid transparent" }}
-              onFocus={(e) => (e.target.style.borderBottomColor = "var(--color-border)")}
-              onBlur={(e) => (e.target.style.borderBottomColor = "transparent")}
-            />
-            <div className="shrink-0 flex flex-col items-end gap-1 pt-1.5">
-              <div className="flex flex-wrap items-center gap-1 justify-end">
-                {currentTags.map((tag) => (
-                  <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-200/80 text-zinc-700 text-[11px]">#{tag}<button onClick={() => onTagsChange(currentTags.filter((tt) => tt !== tag))} className="hover:text-red-500 font-bold ml-0.5 text-[10px]">×</button></span>
-                ))}
-                <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleAddTag} placeholder={currentTags.length === 0 ? t("editor.tags.addFirst") : "+"} className="bg-transparent outline-none px-0.5 py-0.5 w-14 text-[11px]" />
-              </div>
-            </div>
+      {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
+      <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+        <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
+          <input
+            type="text"
+            value={page.title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder={t("editor.title.placeholder")}
+            className="flex-1 min-w-0 text-xl font-medium bg-transparent border-none outline-none py-0.5"
+            style={{ color: "var(--color-text)", fontFamily: "inherit" }}
+          />
+          <div className="shrink-0 flex flex-wrap items-center gap-1 justify-end">
+            {currentTags.map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-zinc-200/80 text-zinc-700 text-[11px]">#{tag}<button onClick={() => onTagsChange(currentTags.filter((tt) => tt !== tag))} className="hover:text-red-500 font-bold ml-0.5 text-[10px]">×</button></span>
+            ))}
+            <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleAddTag} placeholder={currentTags.length === 0 ? t("editor.tags.addFirst") : "+"} className="bg-transparent outline-none px-0.5 py-0.5 w-14 text-[11px]" />
           </div>
         </div>
       </div>
 
-      {/* Google Docs-style menus above a permanently available common toolbar. */}
+      {/* 選單列（2026-08-11：Google Docs 式——純文字、無圖示、無邊框） */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="flex items-center px-2 pt-1.5 gap-0.5">
+        <div className="flex items-center px-2 py-0.5 gap-0.5">
           <FileMenu
             currentFormat={currentFormat}
             isDocument={isDocument}
@@ -9492,16 +9509,12 @@ export default function EditorPane({
             onConvertToPresentation={onConvertToPresentation}
             onDeleteBlankPages={handleDeleteBlankPages}
           />
-          <ToolbarDropdown label="插入" icon="➕" variant="inline">
-            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
-          </ToolbarDropdown>
-          <ToolbarDropdown label="版面配置" icon="▦" variant="inline">
-            <div ref={setLayoutMenuTarget} className="min-w-[220px]" />
+          <ToolbarDropdown label="編輯" variant="menu">
+            <div ref={setEditMenuTarget} className="min-w-[200px]" />
           </ToolbarDropdown>
           <ToolbarDropdown
-            label="查閱"
-            icon="🔎"
-            variant="inline"
+            label="檢視"
+            variant="menu"
             items={[
               {
                 id: "toggle-line-numbers",
@@ -9523,26 +9536,51 @@ export default function EditorPane({
               },
             ]}
           />
+          <ToolbarDropdown label="插入" variant="menu">
+            <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown label="格式" variant="menu">
+            <div ref={setFormatMenuTarget} className="min-w-[240px]" />
+          </ToolbarDropdown>
+          <ToolbarDropdown
+            label="工具"
+            variant="menu"
+            items={[
+              {
+                id: "toggle-night-adapt",
+                icon: nightAdapt ? "🌙" : "☀️",
+                label: nightAdapt ? "原文字顏色" : "適配夜晚",
+                onClick: () => onToggleNightAdapt?.(),
+              },
+              {
+                id: "convert-presentation",
+                icon: "📊",
+                label: "轉為簡報",
+                onClick: () => onConvertToPresentation?.(),
+              },
+            ]}
+          />
           <div className="flex-1" />
           {isSplitView ? (
-            <div className="flex items-center gap-1 pb-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hidden sm:inline">雙開中</span>
-              <button onClick={() => onSwapSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium border hover:bg-zinc-200" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} title="交換左右分頁">⇄ 交換</button>
-              <button onClick={() => onCloseSplit?.()} className="rounded px-2.5 py-1 text-xs font-medium bg-zinc-800 text-white hover:bg-zinc-700" title="關閉右側分頁">✕ 關閉右側</button>
+              <button onClick={() => onSwapSplit?.()} className="rounded px-2 py-1 text-xs hover:bg-zinc-200/70" style={{ color: "var(--color-text)" }} title="交換左右分頁">⇄ 交換</button>
+              <button onClick={() => onCloseSplit?.()} className="rounded px-2 py-1 text-xs hover:bg-zinc-200/70" style={{ color: "var(--color-text)" }} title="關閉右側分頁">✕ 關閉右側</button>
             </div>
           ) : (
-            <span className="text-[10px] opacity-40 hidden sm:inline pb-1.5">Ctrl+點擊側邊欄 開啟右側分頁</span>
+            <span className="text-[10px] opacity-40 hidden sm:inline">Ctrl+點擊側邊欄 開啟右側分頁</span>
           )}
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 min-h-[44px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)" }}>
+        {/* 工具列（2026-08-11：Google Docs 式——灰白底、圖示按鈕、分組） */}
+        <div className="flex items-center gap-1 px-2 py-1 min-h-[40px]" style={{ borderTop: "1px solid var(--color-border)", borderColor: "var(--color-border)", backgroundColor: "var(--color-panel-bg)" }}>
           {/* 固定：縮圖側邊欄開關（僅分頁模式） */}
           {isPaged && (
             <button
               type="button"
               title={isThumbRailOpen ? "隱藏縮圖預覽" : "顯示縮圖預覽"}
               onClick={() => setIsThumbRailOpen((v) => !v)}
-              className="shrink-0 rounded flex items-center justify-center w-[30px] h-[30px] text-[12px] transition-all hover:bg-zinc-200"
-              style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isThumbRailOpen ? "var(--color-border)" : "transparent" }}
+              className="shrink-0 rounded flex items-center justify-center w-6 h-6 text-[12px] transition-colors hover:bg-zinc-200/70"
+              style={{ color: "var(--color-text)", backgroundColor: isThumbRailOpen ? "rgba(0,0,0,0.07)" : "transparent" }}
             >
               ▤
             </button>
@@ -9553,8 +9591,8 @@ export default function EditorPane({
             type="button"
             title={nightAdapt ? "切換為原文字顏色（白底黑字）" : "切換為適配夜晚模式顏色"}
             onMouseDown={(e) => { e.preventDefault(); onToggleNightAdapt?.(); }}
-            className="shrink-0 ml-auto rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium transition-all hover:bg-zinc-200 border"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: nightAdapt ? "var(--color-border)" : "transparent" }}
+            className="shrink-0 ml-auto rounded flex items-center justify-center px-2 h-6 text-[11px] font-medium transition-colors hover:bg-zinc-200/70"
+            style={{ color: "var(--color-text)", backgroundColor: nightAdapt ? "rgba(0,0,0,0.07)" : "transparent" }}
           >
             {nightAdapt ? "🌙 適配夜晚" : "☀️ 原文字顏色"}
           </button>
@@ -9640,7 +9678,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
+          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
         </>
       ) : (
         <>
@@ -9673,7 +9711,7 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} menuToolbarTarget={insertToolbarTarget || layoutToolbarTarget} menuToolbarTab={insertToolbarTarget ? "insert" : layoutToolbarTarget ? "layout" : undefined} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
           </div>
           </PageFormatView>
         </>
@@ -9682,6 +9720,7 @@ export default function EditorPane({
     </main>
   );
 }
+
 
 ````
 
@@ -9768,19 +9807,19 @@ export default function FileMenu({
   }, [isOpen, updatePos]);
 
   const fmt = currentFormat || "flow";
-  const canRestoreToFlow = fmt !== "flow";
+  // 2026-08-11：分頁/流動不可轉換。簡報保留 16:9/4:3 切換；其餘只顯示目前模式。
 
   return (
     <>
       <button
         ref={buttonRef}
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium hover:bg-zinc-200 transition-all"
-        style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+        className="flex items-center gap-0.5 rounded px-2 py-1 text-[13px] transition-colors hover:bg-zinc-200/70"
+        style={{ border: "none", color: "var(--color-text)", backgroundColor: isOpen ? "rgba(0,0,0,0.07)" : "transparent" }}
         title="檔案選單"
       >
         <span>{t("file.title")}</span>
-        <span className="text-[10px] opacity-50">▾</span>
+        <span className="text-[9px] opacity-40">▾</span>
       </button>
 
       {mounted && isOpen && createPortal(
@@ -9811,28 +9850,28 @@ export default function FileMenu({
           <button onClick={() => { onConvertToPresentation?.(); setIsOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-zinc-100" style={{ color: "var(--color-text)" }}><span>📊</span> 轉為簡報 (用筆記製作簡報)</button>
 
           <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
-          <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between"><span>格式</span><span className="text-[9px] normal-case opacity-60">{canRestoreToFlow ? "可還原為流動" : "流動為源"}</span></div>
+          <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between"><span>格式</span><span className="text-[9px] normal-case opacity-60">{isPresentation ? "簡報" : "建立時選定"}</span></div>
           <div className="px-2 pb-1">
-            <div className="grid grid-cols-2 gap-1">
-              {(
-                isPresentation
-                  ? [
-                      { id: "16:9", label: "16:9 投影", desc: "簡報" },
-                      { id: "4:3", label: "4:3 投影", desc: "簡報" },
-                    ]
-                  : [
-                      { id: "flow", label: "流動", desc: "無限長卷" },
-                      { id: "a4", label: "A4 分頁", desc: "自動加頁" },
-                    ]
-              ).map((opt) => (
-                <button key={opt.id} onClick={() => { onFormatChange?.(opt.id as PageFormat); setIsOpen(false); }} className={`rounded-md px-2.5 py-2 text-left border transition-all ${fmt === opt.id ? "bg-zinc-800 text-white border-zinc-800" : "bg-transparent hover:bg-zinc-100 border-zinc-200"}`}>
-                  <div className="text-xs font-medium">{opt.label}{fmt === opt.id ? " ✓" : ""}</div>
-                  <div className="text-[10px] opacity-60">{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-            {canRestoreToFlow && (
-              <button onClick={() => { onFormatChange?.("flow"); setIsOpen(false); }} className="mt-2 w-full rounded-md bg-blue-50 text-blue-700 border border-blue-200 px-3 py-2 text-xs font-medium hover:bg-blue-100 text-center">↩ 還原為流動 (可還原)</button>
+            {isPresentation ? (
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  { id: "16:9", label: "16:9 投影", desc: "簡報" },
+                  { id: "4:3", label: "4:3 投影", desc: "簡報" },
+                ].map((opt) => (
+                  <button key={opt.id} onClick={() => { onFormatChange?.(opt.id as PageFormat); setIsOpen(false); }} className={`rounded-md px-2.5 py-2 text-left border transition-all ${fmt === opt.id ? "bg-zinc-800 text-white border-zinc-800" : "bg-transparent hover:bg-zinc-100 border-zinc-200"}`}>
+                    <div className="text-xs font-medium">{opt.label}{fmt === opt.id ? " ✓" : ""}</div>
+                    <div className="text-[10px] opacity-60">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-zinc-200 px-2.5 py-2 text-xs opacity-70" style={{ color: "var(--color-text)" }}>
+                {isDocument
+                  ? "📄 文檔（一律流動）"
+                  : fmt === "paged"
+                    ? "📑 分頁筆記（手動 A4 頁面）"
+                    : "📄 流動筆記（無限捲動）"}
+              </div>
             )}
           </div>
 
@@ -9857,6 +9896,7 @@ export default function FileMenu({
     </>
   );
 }
+
 
 ````
 
@@ -9956,6 +9996,7 @@ export default function HelpGuide({ isOpen, onClose }: { isOpen: boolean; onClos
     </div>
   );
 }
+
 ````
 
 ## File: src/components/NewPageDialog.tsx
@@ -9966,13 +10007,21 @@ import { useLanguage } from "../lib/LanguageContext";
 import type { PageFormat, PageKind } from "../lib/types";
 
 export type NewPageKindChoice = PageKind;
-// 2026-08-04：僅簡報保留格式選擇（16:9/4:3）；筆記/文檔建立時直接用預設格式（flow/a4）
+// 2026-08-11：建立流程
+// - 筆記：選「流動 / 分頁」兩種模式（建立後不可轉換）
+// - 文檔：一律流動（直接建立）
+// - 學習集：直接建立（flow）
+// - 簡報：選 16:9 / 4:3
 const FORMAT_OPTIONS_BY_KIND: Record<string, PageFormat[]> = {
   presentation: ["16:9", "4:3"],
 };
+const NOTE_MODE_OPTIONS: { value: PageFormat; icon: string }[] = [
+  { value: "flow", icon: "📄" },
+  { value: "paged", icon: "📑" },
+];
 const DEFAULT_FORMAT_BY_KIND: Record<string, PageFormat> = {
-  document: "a4",
-  note: "flow",
+  document: "flow",
+  study_set: "flow",
 };
 
 export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind }: {
@@ -9980,19 +10029,22 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   initialKind?: PageKind | null;
 }) {
   const { t } = useLanguage();
-  const [step, setStep] = useState<"kind" | "format">("kind");
+  const [step, setStep] = useState<"kind" | "noteMode" | "format">("kind");
   const [selectedKind, setSelectedKind] = useState<NewPageKindChoice | null>(null);
 
   useEffect(() => {
     if (isOpen && initialKind) {
-      if (initialKind === "study_set") {
+      if (initialKind === "note") {
+        setSelectedKind(initialKind);
+        setStep("noteMode");
+      } else if (initialKind === "study_set") {
         onConfirm(initialKind, "flow");
         onClose();
       } else if (initialKind === "presentation") {
         setSelectedKind(initialKind);
         setStep("format");
       } else {
-        // 筆記/文檔：直接建立（用預設格式），不顯示格式步驟
+        // document：直接建立（一律流動）
         onConfirm(initialKind, DEFAULT_FORMAT_BY_KIND[initialKind] || "flow");
         onClose();
       }
@@ -10014,6 +10066,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
 
   const formatLabel = (f: PageFormat) => {
     if (f === "flow") return t("newPage.format.flow");
+    if (f === "paged") return t("newPage.format.paged");
     if (f === "a4") return t("newPage.format.a4");
     if (f === "16:9") return t("newPage.format.169");
     if (f === "4:3") return t("newPage.format.43");
@@ -10021,14 +10074,25 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   };
 
   const handleSelectKind = (kind: NewPageKindChoice) => {
+    if (kind === "note") {
+      setSelectedKind(kind);
+      setStep("noteMode");
+      return;
+    }
     if (kind === "study_set") { onConfirm(kind, "flow"); handleClose(); return; }
     if (kind === "presentation") {
       setSelectedKind(kind);
       setStep("format");
       return;
     }
-    // 筆記/文檔：不選格式，直接用預設
+    // document：不選格式，一律流動
     onConfirm(kind, DEFAULT_FORMAT_BY_KIND[kind] || "flow");
+    handleClose();
+  };
+
+  const handleSelectNoteMode = (format: PageFormat) => {
+    if (!selectedKind) return;
+    onConfirm(selectedKind, format);
     handleClose();
   };
   const handleSelectFormat = (format: PageFormat) => {
@@ -10039,13 +10103,16 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const handleClose = () => { setStep("kind"); setSelectedKind(null); onClose(); };
 
   const showKindStep = step === "kind" && !initialKind;
+  const showNoteModeStep = step === "noteMode" && selectedKind === "note";
   const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-border)" }}>
-          <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>{showFormatStep ? t("newPage.formatTitle") : t("newPage.title")}</span>
+          <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+            {showFormatStep ? t("newPage.formatTitle") : showNoteModeStep ? t("newPage.noteModeTitle") : t("newPage.title")}
+          </span>
           <button onClick={handleClose} className="text-sm opacity-40 hover:opacity-100 px-1.5 py-0.5 rounded" style={{ border: "1px solid var(--color-border)" }}>{t("commandPalette.esc")}</button>
         </div>
         <div className="p-4 space-y-2">
@@ -10053,6 +10120,17 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
             <button key={option.id} onClick={() => handleSelectKind(option.id)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
               <span className="text-2xl">{option.icon}</span>
               <span><span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{option.label}</span><span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>{option.desc}</span></span>
+            </button>
+          ))}
+          {showNoteModeStep && NOTE_MODE_OPTIONS.map((option) => (
+            <button key={option.value} onClick={() => handleSelectNoteMode(option.value)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
+              <span className="text-2xl">{option.icon}</span>
+              <span>
+                <span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{formatLabel(option.value)}</span>
+                <span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>
+                  {option.value === "flow" ? t("newPage.noteMode.flowDesc") : t("newPage.noteMode.pagedDesc")}
+                </span>
+              </span>
             </button>
           ))}
           {showFormatStep && (FORMAT_OPTIONS_BY_KIND[selectedKind as string] || ["flow"]).map((format) => (
@@ -10066,6 +10144,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
     </div>
   );
 }
+
 ````
 
 ## File: src/components/NexusApp.tsx
@@ -10089,6 +10168,7 @@ import type {
   PageFormat,
   PageMargins,
   CreatePageInput,
+  PageKind,
 } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
@@ -10110,6 +10190,7 @@ import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
+import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -10177,6 +10258,11 @@ function NexusAppInner({
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
+  // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
+  const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
+  // 2026-08-11：Markdown 拖曳匯入提示
+  const [isDragImportOver, setIsDragImportOver] = useState(false);
+  const dragDepthRef = useRef(0);
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
@@ -10289,6 +10375,19 @@ function NexusAppInner({
 
       let allPages = await adapter.listPages();
       let allAttachments = await adapter.listAttachments();
+
+      // 2026-08-11：舊資料遷移——筆記/文檔若為 a4/16:9/4:3/custom，
+      // 一律改為流動（分頁已改為「手動 A4 頁面」新模式，舊自動分頁資料以流動顯示）
+      const LEGACY_PAGED = new Set(["a4", "16:9", "4:3", "custom"]);
+      let migratedAny = false;
+      for (const p of allPages) {
+        if ((p.kind === "note" || p.kind === "document") && p.format && LEGACY_PAGED.has(p.format)) {
+          await adapter.savePage({ ...p, format: "flow" });
+          migratedAny = true;
+        }
+      }
+      if (migratedAny) allPages = await adapter.listPages();
+
       setPages(allPages);
       setAttachments(allAttachments);
 
@@ -10363,12 +10462,61 @@ function NexusAppInner({
     const nextPage = { ...pageToSave, updated_at: Date.now(), revision: pageToSave.revision + 1 };
     await storageRef.current.savePage(nextPage);
     syncEngineRef.current?.pushPage(nextPage);
-  }, [storageRef]);
-
-  const scheduleSave = useCallback((page: Page) => {
+  }, [storageRef]);  const scheduleSave = useCallback((page: Page) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => void flushSave(page), 800);
   }, [flushSave]);
+
+  // 2026-08-11：Markdown 拖曳匯入（視窗級 dragover/drop）
+  useEffect(() => {
+    const hasMarkdownFile = (dt: DataTransfer | null): boolean => {
+      if (!dt) return false;
+      return Array.from(dt.items || []).some((item) => {
+        if (item.kind !== "file") return false;
+        const name = (item.getAsFile()?.name || "").toLowerCase();
+        return name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".txt");
+      });
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const onDragEnter = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        e.preventDefault();
+        dragDepthRef.current += 1;
+        setIsDragImportOver(true);
+      }
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (hasMarkdownFile(e.dataTransfer)) {
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setIsDragImportOver(false);
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragDepthRef.current = 0;
+      setIsDragImportOver(false);
+      const file = Array.from(e.dataTransfer?.files || []).find((f) => {
+        const n = f.name.toLowerCase();
+        return n.endsWith(".md") || n.endsWith(".markdown") || n.endsWith(".txt") || f.type === "text/markdown" || f.type === "text/plain";
+      });
+      if (file) void importMarkdownFileRef.current(file);
+    };
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -10408,8 +10556,9 @@ function NexusAppInner({
     await createAndOpenPage({ kind: "note", format });
   }, [createAndOpenPage]);
 
-  const handleCreateDocument = useCallback(async (format: PageFormat = "a4") => {
-    await createAndOpenPage({ kind: "document", format });
+  const handleCreateDocument = useCallback(async (format: PageFormat = "flow") => {
+    // 2026-08-11：文檔一律流動
+    await createAndOpenPage({ kind: "document", format: "flow" });
   }, [createAndOpenPage]);
 
   const handleCreateStudySet = useCallback(async () => {
@@ -10545,20 +10694,17 @@ function NexusAppInner({
       await handleCreatePresentation("16:9");
       return;
     }
-    if (type === "note" || type === "document") {
-      // New notes/documents used to be created from NewPageDialog's mount
-      // effect. React remounts could run that effect more than once, leaving
-      // one Untitled page plus a second page in rename mode. Creation must be
-      // a single user event, and repeated clicks while IndexedDB is pending
-      // must not create a second page.
+    if (type === "note") {
+      // 2026-08-11：筆記建立後選「流動 / 分頁」（開啟模式選擇對話框）
+      setCreateDialog({ open: true, initialKind: "note" });
+      return;
+    }
+    if (type === "document") {
+      // 文檔一律流動，直接建立（單一使用者事件，防重複）
       if (sidebarCreateInFlightRef.current) return;
       sidebarCreateInFlightRef.current = true;
       try {
-        const newPage = await createAndOpenPage({
-          kind: type,
-          format: type === "document" ? "a4" : "flow",
-          title: "",
-        });
+        const newPage = await createAndOpenPage({ kind: "document", format: "flow", title: "" });
         if (newPage) setPendingRenameId(newPage.id);
       } finally {
         sidebarCreateInFlightRef.current = false;
@@ -10571,6 +10717,19 @@ function NexusAppInner({
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
   }, [createAndOpenPage, handleCreatePresentation]);
+
+  // 2026-08-11：模式選擇對話框確認（筆記：流動/分頁）
+  const handleConfirmCreateDialog = useCallback(async (kind: NewPageKindChoice, format: PageFormat) => {
+    setCreateDialog({ open: false, initialKind: null });
+    if (sidebarCreateInFlightRef.current) return;
+    sidebarCreateInFlightRef.current = true;
+    try {
+      const newPage = await createAndOpenPage({ kind, format, title: "" });
+      if (newPage) setPendingRenameId(newPage.id);
+    } finally {
+      sidebarCreateInFlightRef.current = false;
+    }
+  }, [createAndOpenPage]);
 
   const handleCancelNewPage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -10699,6 +10858,50 @@ function NexusAppInner({
   const handleImportPdfClick = useCallback(() => pdfInputRef.current?.click(), []);
   const handleImportMarkdownClick = useCallback(() => markdownInputRef.current?.click(), []);
 
+  // 2026-08-11：Markdown 匯入核心（供檔案選擇與拖曳匯入共用）
+  const importMarkdownFile = useCallback(async (file: File) => {
+    const lowerName = file.name.toLowerCase();
+    const isMarkdown = lowerName.endsWith(".md") || lowerName.endsWith(".markdown") || lowerName.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain";
+    if (!isMarkdown) { alert(t("app.chooseMarkdownFile")); return; }
+    const storage = storageRef.current;
+    if (!storage) return;
+    try {
+      if (activePageRef.current) await flushSave(activePageRef.current);
+      const markdown = await file.text();
+      const createdPage = await storage.createPage({
+        title: titleFromMarkdownFileName(file.name),
+        tags: ["imported"],
+        folder: "Imports",
+        kind: "document",
+        format: "flow",
+      });
+      const importedPage: Page = {
+        ...createdPage,
+        content_json: createMarkdownContent(markdown),
+        content_text: markdown,
+        updated_at: Date.now(),
+        revision: createdPage.revision + 1,
+      };
+      await storage.savePage(importedPage);
+      setIsTrashMode(false);
+      setIsHomeMode(false);
+      setPages((prev) => [importedPage, ...prev]);
+      setActivePageId(importedPage.id);
+      await storage.setActivePageId(importedPage.id);
+      syncEngineRef.current?.pushPage(importedPage);
+    } catch (error) { console.error(error); alert(t("app.markdownImportFailed")); }
+  }, [flushSave, storageRef, t]);
+
+  const importMarkdownFileRef = useRef(importMarkdownFile);
+  useEffect(() => { importMarkdownFileRef.current = importMarkdownFile; }, [importMarkdownFile]);
+
+  const handleImportMarkdownFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    await importMarkdownFile(file);
+  }, [importMarkdownFile]);
+
   const handleExportPageMarkdown = useCallback(async (id: string) => {
     const page = id === activePageRef.current?.id ? activePageRef.current : pages.find((p) => p.id === id);
     if (!page) { alert(t("app.noActivePageToExport")); return; }
@@ -10762,42 +10965,6 @@ function NexusAppInner({
       window.location.reload();
     } catch (error) { console.error(error); alert(t("app.backupImportFailed")); }
   }, [storageRef, t]);
-
-  const handleImportMarkdownFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    const lowerName = file.name.toLowerCase();
-    const isMarkdown = lowerName.endsWith(".md") || lowerName.endsWith(".markdown") || lowerName.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain";
-    if (!isMarkdown) { alert(t("app.chooseMarkdownFile")); return; }
-    const storage = storageRef.current;
-    if (!storage) return;
-    try {
-      if (activePageRef.current) await flushSave(activePageRef.current);
-      const markdown = await file.text();
-      const createdPage = await storage.createPage({
-        title: titleFromMarkdownFileName(file.name),
-        tags: ["imported"],
-        folder: "Imports",
-        kind: "document",
-        format: "flow",
-      });
-      const importedPage: Page = {
-        ...createdPage,
-        content_json: createMarkdownContent(markdown),
-        content_text: markdown,
-        updated_at: Date.now(),
-        revision: createdPage.revision + 1,
-      };
-      await storage.savePage(importedPage);
-      setIsTrashMode(false);
-      setIsHomeMode(false);
-      setPages((prev) => [importedPage, ...prev]);
-      setActivePageId(importedPage.id);
-      await storage.setActivePageId(importedPage.id);
-      syncEngineRef.current?.pushPage(importedPage);
-    } catch (error) { console.error(error); alert(t("app.markdownImportFailed")); }
-  }, [flushSave, storageRef, t]);
 
   const handleImportPdfFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -11068,7 +11235,7 @@ function NexusAppInner({
     { id: "go-notes", label: t("commandPalette.goNotes"), icon: "??", keywords: "notes", run: handleShowNotes },
     { id: "go-trash", label: t("commandPalette.goTrash"), icon: "??", keywords: "trash", run: () => void handleShowTrash() },
     { id: "new-document", label: t("commandPalette.newDocument"), icon: "??", keywords: "new create document", run: () => void handleCreateDocument() },
-    { id: "new-note", label: t("commandPalette.newNote"), icon: "??", keywords: "new create note", run: () => void handleCreatePage() },
+    { id: "new-note", label: t("commandPalette.newNote"), icon: "??", keywords: "new create note", run: () => setCreateDialog({ open: true, initialKind: "note" }) },
     { id: "new-study-set", label: t("commandPalette.newStudySet"), icon: "??", keywords: "study set flashcard", run: () => void handleCreateStudySet() },
     { id: "import-pdf", label: t("commandPalette.importPdf"), icon: "??", keywords: "pdf import", run: handleImportPdfClick },
     { id: "import-markdown", label: t("commandPalette.importMarkdown"), icon: "??", keywords: "markdown md import", run: handleImportMarkdownClick },
@@ -11221,7 +11388,7 @@ function NexusAppInner({
                 onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
                 onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
                 onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("a4")}
+                onNewDocument={() => handleCreateDocument("flow")}
                 onImportPdf={handleImportPdfClick}
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
@@ -11264,7 +11431,7 @@ function NexusAppInner({
                 onExportPdf={() => secondaryActivePage && handleExportPageAsPdf(secondaryActivePage.id)}
                 onExportNexus={() => secondaryActivePage && handleExportPageAsNexusJson(secondaryActivePage.id)}
                 onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("a4")}
+                onNewDocument={() => handleCreateDocument("flow")}
                 onImportPdf={handleImportPdfClick}
                 onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation(secondaryActivePageId || undefined)}
@@ -11300,7 +11467,7 @@ function NexusAppInner({
           onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
           onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
           onNewNote={() => handleCreatePage("flow")}
-          onNewDocument={() => handleCreateDocument("a4")}
+          onNewDocument={() => handleCreateDocument("flow")}
           onImportPdf={handleImportPdfClick}
           onImportMd={handleImportMarkdownClick}
                 onConvertToPresentation={() => handleConvertToPresentation()}
@@ -11321,9 +11488,26 @@ function NexusAppInner({
 
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
 
+      <NewPageDialog
+        isOpen={createDialog.open}
+        initialKind={createDialog.initialKind}
+        onClose={() => setCreateDialog({ open: false, initialKind: null })}
+        onConfirm={handleConfirmCreateDialog}
+      />
+
+      {/* 2026-08-11：Markdown 拖曳匯入提示 */}
+      {isDragImportOver && (
+        <div className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center" style={{ backgroundColor: "rgba(59,130,246,0.10)" }}>
+          <div className="rounded-2xl px-8 py-6 text-sm font-medium" style={{ border: "2px dashed #3b82f6", color: "#3b82f6", backgroundColor: "var(--color-bg)" }}>
+            {t("app.dropMarkdownHint")}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
 
 ````
 
@@ -11496,6 +11680,7 @@ export default function PageFormatView({ format, children }: Props) {
   );
 }
 
+
 ````
 
 ## File: src/components/PageItemMenu.tsx
@@ -11565,6 +11750,7 @@ export default function PageItemMenu({ items, title }: { items: PageMenuItem[]; 
     </>
   );
 }
+
 ````
 
 ## File: src/components/PageThumbnail.tsx
@@ -11583,7 +11769,7 @@ type PreviewNode = {
 type PageDimensions = { widthMm: number; heightMm: number; aspectRatio: string };
 
 function getPageDimensions(format: PageFormat): PageDimensions {
-  if (format === "a4") return { widthMm: 210, heightMm: 297, aspectRatio: "210 / 297" };
+  if (format === "a4" || format === "paged") return { widthMm: 210, heightMm: 297, aspectRatio: "210 / 297" };
   if (format === "16:9") return { widthMm: 254, heightMm: 142.875, aspectRatio: "16 / 9" };
   if (format === "4:3") return { widthMm: 211.667, heightMm: 158.75, aspectRatio: "4 / 3" };
   return { widthMm: 217, heightMm: 297, aspectRatio: "210 / 297" };
@@ -11707,6 +11893,7 @@ export default function PageThumbnail({
   );
 }
 
+
 ````
 
 ## File: src/components/PaginatedEditorView.tsx
@@ -11720,8 +11907,10 @@ import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 import PageThumbnail from "./PageThumbnail";
 
 type Block = any;
-type CursorAnchor = { id: string; offset: number; blockIndex: number };
-type CursorFocusRequest = CursorAnchor & { targetPageIndex: number; revision: number };
+
+// A4 紙張（96dpi）：210mm ≈ 794px、297mm ≈ 1123px
+const A4_W_PX = 794;
+const A4_H_PX = 1123;
 
 function getTextFromNode(node: any): string {
   if (!node) return "";
@@ -11730,130 +11919,25 @@ function getTextFromNode(node: any): string {
   return "";
 }
 
-function estimateBlockHeight(node: Block): number {
-  const type = node.type;
-  switch (type) {
-    case "heading":
-      return node.attrs?.level === 1 ? 70 : node.attrs?.level === 2 ? 55 : 45;
-    case "paragraph": {
-      const text = getTextFromNode(node);
-      const charsPerLine = 70;
-      const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
-      // Paragraphs are 15px with a 1.6 line-height, while the global reset
-      // removes their default margins. Each rendered line therefore uses 24px.
-      return lines * 24;
-    }
-    case "bulletList":
-    case "orderedList":
-    case "taskList": {
-      let h = 0;
-      for (const item of node.content || []) {
-        h += estimateBlockHeight(item);
-      }
-      return Math.max(30, h + 10);
-    }
-    case "listItem":
-    case "taskItem": {
-      let h = 0;
-      for (const c of node.content || []) {
-        h += estimateBlockHeight(c);
-      }
-      return Math.max(28, h);
-    }
-    case "table": {
-      const rows = node.content?.length || 3;
-      return rows * 48 + 50;
-    }
-    case "blockquote":
-      return 70;
-    case "codeBlock": {
-      const text = getTextFromNode(node);
-      const lines = text.split("\n").length;
-      return Math.max(70, lines * 22 + 36);
-    }
-    case "image":
-      return 240;
-    case "callout": {
-      let h = 0;
-      for (const c of node.content || []) {
-        h += estimateBlockHeight(c);
-      }
-      return h + 60;
-    }
-    case "multiColumn": {
-      let maxH = 0;
-      for (const col of node.content || []) {
-        let colH = 0;
-        for (const b of col.content || []) {
-          colH += estimateBlockHeight(b);
-        }
-        maxH = Math.max(maxH, colH);
-      }
-      return maxH + 30;
-    }
-    case "column": {
-      let h = 0;
-      for (const b of node.content || []) {
-        h += estimateBlockHeight(b);
-      }
-      return h;
-    }
-    case "pageBreak":
-      return 20;
-    default:
-      return 50;
-  }
-}
-
-function splitIntoPages(blocks: Block[], innerHeight: number): Block[][] {
-  const pages: Block[][] = [[]];
-  let currentHeight = 0;
-  let currentPage = pages[0];
+/**
+ * 手動分頁：僅以 pageBreak 節點切分頁面（不自動分頁、不估算高度）。
+ * 這是 2026-08-11 定案的「分頁筆記」模型——每張紙獨立、內容不會被自動搬移。
+ */
+function splitByPageBreaks(blocks: Block[]): Block[][] {
+  const pages: Block[][] = [];
+  let current: Block[] = [];
   for (const block of blocks) {
-    // 手動分頁符：強制換頁（不佔內容）
     if (block.type === "pageBreak") {
-      if (currentPage.length > 0) {
-        pages.push([]);
-        currentPage = pages[pages.length - 1];
-        currentHeight = 0;
-      }
-      continue;
+      pages.push(current);
+      current = [];
+    } else {
+      current.push(block);
     }
-    const h = estimateBlockHeight(block);
-    if (h > innerHeight) {
-      if (currentPage.length > 0) {
-        pages.push([]);
-        currentPage = pages[pages.length - 1];
-        currentHeight = 0;
-      }
-      currentPage.push(block);
-      pages.push([]);
-      currentPage = pages[pages.length - 1];
-      currentHeight = 0;
-      continue;
-    }
-    if (currentHeight + h > innerHeight && currentPage.length > 0) {
-      pages.push([]);
-      currentPage = pages[pages.length - 1];
-      currentHeight = 0;
-    }
-    currentPage.push(block);
-    currentHeight += h;
   }
-  while (pages.length > 1 && pages[pages.length - 1].length === 0) {
-    pages.pop();
-  }
-  if (pages.length === 0) return [[]];
-  return pages;
-}
-
-// 依物件引用找出某頁 blocks 在原始 blocks 陣列中的索引範圍
-function findPageRange(blocks: Block[], pageBlocks: Block[]): [number, number] {
-  const set = new Set(pageBlocks);
-  const idxs: number[] = [];
-  blocks.forEach((b, i) => { if (set.has(b)) idxs.push(i); });
-  if (idxs.length === 0) return [0, 0];
-  return [idxs[0], idxs[idxs.length - 1]];
+  pages.push(current);
+  // 移除開頭的空頁（若文件以 pageBreak 起始）
+  while (pages.length > 0 && pages[0].length === 0) pages.shift();
+  return pages.length > 0 ? pages : [[]];
 }
 
 // 壓縮連續 pageBreak、移除開頭/結尾 pageBreak
@@ -11870,14 +11954,21 @@ function normalizePageBreaks(blocks: Block[]): Block[] {
   return out;
 }
 
+// 依物件引用找出某頁 blocks 在原始 blocks 陣列中的索引範圍
+function findPageRange(blocks: Block[], pageBlocks: Block[]): [number, number] {
+  const set = new Set(pageBlocks);
+  const idxs: number[] = [];
+  blocks.forEach((b, i) => { if (set.has(b)) idxs.push(i); });
+  if (idxs.length === 0) return [0, 0];
+  return [idxs[0], idxs[idxs.length - 1]];
+}
+
 function firstHeadingText(pageBlocks: Block[]): string {
   for (const b of pageBlocks) if (b.type === "heading") return getTextFromNode(b).trim();
   return "";
 }
 
-// Keep the first label of each page continuous. This mirrors the editor gutter:
-// headings, paragraphs, list items, and table rows count once; code blocks count
-// once per hard line. Wrapped visual lines deliberately do not get extra labels.
+// 行號計數（邏輯行，與 editor gutter 一致；跨頁連續）
 function countLogicalLines(node: Block): number {
   switch (node?.type) {
     case "paragraph":
@@ -11918,8 +12009,9 @@ export default function PaginatedEditorView({
   onContentChange,
   format,
   toolbarTarget,
-  menuToolbarTarget,
-  menuToolbarTab,
+  editToolbarTarget,
+  insertToolbarTarget,
+  formatToolbarTarget,
   nightAdapt = false,
   onToggleNightAdapt,
   margins,
@@ -11935,135 +12027,77 @@ export default function PaginatedEditorView({
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
-  menuToolbarTarget?: HTMLElement | null;
-  menuToolbarTab?: "insert" | "layout";
+  editToolbarTarget?: HTMLElement | null;
+  insertToolbarTarget?: HTMLElement | null;
+  formatToolbarTarget?: HTMLElement | null;
   nightAdapt?: boolean;
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
-  toolbarTab?: "home" | "insert" | "layout";
+  toolbarTab?: "home";
   fileMode?: boolean;
   showRuler?: boolean;
   showLineNumbers?: boolean;
   showThumbRail?: boolean;
   paneId?: string;
 }) {
-  const blocks: Block[] = useMemo(() => {
-    return (content?.content as Block[]) || [];
-  }, [content]);
+  const blocks: Block[] = useMemo(() => (content?.content as Block[]) || [], [content]);
 
-  // 頁邊距（mm→px；A4: 297mm ≈ 1122px）
-  const MM_TO_PX = 3.7795;
   const m = margins || DEFAULT_PAGE_MARGINS;
-  const marginTopPx = m.top * MM_TO_PX;
-  const marginBottomPx = m.bottom * MM_TO_PX;
-  const marginLeftPx = m.left * MM_TO_PX;
-  const marginRightPx = m.right * MM_TO_PX;
+  const pagePaddingPx = useMemo(() => ({
+    top: Math.round(m.top * 3.7795),
+    right: Math.round(m.right * 3.7795),
+    bottom: Math.round(m.bottom * 3.7795),
+    left: Math.round(m.left * 3.7795),
+  }), [m]);
 
-  const innerHeight = useMemo(() => {
-    if (format === "a4") return Math.round(1122 - marginTopPx - marginBottomPx);
-    if (format === "16:9") return Math.round(540 - marginTopPx - marginBottomPx);
-    if (format === "4:3") return Math.round(600 - marginTopPx - marginBottomPx);
-    return 800;
-  }, [format, marginTopPx, marginBottomPx]);
+  // 頁面 = 以手動分頁符切分
+  const pagesBlocks = useMemo(() => splitByPageBreaks(blocks), [blocks]);
 
-  const pageHeight = useMemo(() => {
-    if (format === "a4") return 1122;
-    if (format === "16:9") return 540;
-    if (format === "4:3") return 600;
-    return 900;
-  }, [format]);
-
-  const pagesBlocks = useMemo(() => {
-    return splitIntoPages(blocks, innerHeight);
-  }, [blocks, innerHeight]);
-
-  const pageLineStarts = useMemo(() => {
-    return pagesBlocks.map((_, index) => (
-      1 + pagesBlocks
-        .slice(0, index)
-        .reduce((total, pageBlocks) => total + countPageLines(pageBlocks), 0)
-    ));
-  }, [pagesBlocks]);
+  // 行號跨頁連續
+  const pageLineStarts = useMemo(() => (
+    pagesBlocks.map((_, index) => (
+      1 + pagesBlocks.slice(0, index).reduce((total, page) => total + countPageLines(page), 0)
+    ))
+  ), [pagesBlocks]);
 
   const [activePage, setActivePage] = useState(0);
-  const [focusRequest, setFocusRequest] = useState<CursorFocusRequest | null>(null);
-  const focusRevisionRef = useRef(0);
-  const redistributeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<{ pageIndex: number; blocks: Block[][] } | null>(null);
-  const isRedistributingRef = useRef(false);
-
-  // A cross-page request is a one-shot hand-off.  Keeping it around after the
-  // destination editor has focused it makes later edits reapply an obsolete
-  // selection and pulls the cursor back to the start of the moved block.
-  const handleFocusRequestHandled = useCallback((revision: number) => {
-    setFocusRequest((current) => current?.revision === revision ? null : current);
-  }, []);
-
-  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string; cursor?: CursorAnchor }) => {
-    const newPageBlocks = (payload.json?.content as Block[]) || [];
-    const nextPages = [...pagesBlocks];
-    nextPages[pageIndex] = newPageBlocks;
-
-    const mergedBlocksImmediate = nextPages.flat();
-    const mergedJsonImmediate = { type: "doc", content: mergedBlocksImmediate.length > 0 ? mergedBlocksImmediate : [{ type: "paragraph" }] };
-    const mergedTextImmediate = mergedBlocksImmediate.map(getTextFromNode).join("\n\n");
-
-    // Work out where the selection's exact top-level block lands after the
-    // same pagination pass used for rendering. This remains reliable even if
-    // legacy content contains duplicate block IDs.
-    if (payload.cursor && payload.cursor.blockIndex >= 0) {
-      const precedingBlocks = nextPages.slice(0, pageIndex).reduce((total, page) => total + page.length, 0);
-      const cursorBlock = mergedBlocksImmediate[precedingBlocks + payload.cursor.blockIndex];
-      const targetPageIndex = splitIntoPages(mergedBlocksImmediate, innerHeight).findIndex((page) => page.includes(cursorBlock));
-      if (cursorBlock && targetPageIndex >= 0 && targetPageIndex !== pageIndex) {
-        setFocusRequest({
-          id: cursorBlock.attrs?.id || payload.cursor.id,
-          offset: payload.cursor.offset,
-          blockIndex: payload.cursor.blockIndex,
-          targetPageIndex,
-          revision: ++focusRevisionRef.current,
-        });
-      }
-    }
-    onContentChange({ json: mergedJsonImmediate, text: mergedTextImmediate });
-
-    pendingRef.current = { pageIndex, blocks: nextPages };
-    if (redistributeTimeoutRef.current) clearTimeout(redistributeTimeoutRef.current);
-    redistributeTimeoutRef.current = setTimeout(() => {
-      const pending = pendingRef.current;
-      if (!pending) return;
-      const { pageIndex: pIdx, blocks: curPages } = pending;
-      const curPageBlocks = curPages[pIdx] || [];
-      const curHeight = curPageBlocks.reduce((sum, b) => sum + (b.type === "pageBreak" ? 0 : estimateBlockHeight(b)), 0);
-      // buffer 與 innerHeight 一致（尾頁「離底部幾公分」bug：原 150px 固定 buffer 造成
-      // 內容實際可寫超過內文高度、與邊界不符）
-      const buffer = 24;
-      // 找最後一個「非 pageBreak」的 block（避免把 pageBreak 搬走造成結構錯亂）
-      let moveIdx = -1;
-      for (let i = curPageBlocks.length - 1; i >= 0; i--) {
-        if (curPageBlocks[i].type !== "pageBreak") { moveIdx = i; break; }
-      }
-      if (curHeight > innerHeight + buffer && moveIdx >= 0) {
-        const moving = curPageBlocks.splice(moveIdx, 1)[0];
-        const newPages = [...curPages];
-        newPages[pIdx] = curPageBlocks;
-        if (pIdx + 1 < newPages.length) {
-          newPages[pIdx + 1] = [moving, ...newPages[pIdx + 1]];
-        } else {
-          newPages.push([moving]);
-        }
-        const remerged = newPages.flat();
-        onContentChange({ json: { type: "doc", content: remerged }, text: remerged.map(getTextFromNode).join("\n\n") });
-      }
-    }, 250);
-  }, [pagesBlocks, innerHeight, onContentChange]);
-
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const [renamingPage, setRenamingPage] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
+  // 紙張是否長高超過 A4 邊界（決定是否顯示虛線提示）
+  const [grownPages, setGrownPages] = useState<boolean[]>([]);
+
+  // 偵測每張紙是否超過 A4 高度 → 顯示分頁虛線
+  useEffect(() => {
+    const observers: ResizeObserver[] = [];
+    const nextGrown = new Array(pagesBlocks.length).fill(false);
+    let changed = false;
+    pagesBlocks.forEach((_, idx) => {
+      const el = pageRefs.current[idx];
+      if (!el) return;
+      const obs = new ResizeObserver(() => {
+        const h = el.getBoundingClientRect().height;
+        const grown = h > A4_H_PX + 2;
+        if (nextGrown[idx] !== grown) {
+          nextGrown[idx] = grown;
+          changed = true;
+          setGrownPages((prev) => {
+            const copy = [...prev];
+            copy[idx] = grown;
+            return copy;
+          });
+        }
+      });
+      obs.observe(el);
+      observers.push(obs);
+    });
+    // 初始同步一次
+    if (changed) setGrownPages([...nextGrown]);
+    return () => observers.forEach((o) => o.disconnect());
+  }, [pagesBlocks.length]);
 
   useEffect(() => {
     if (!pageMenu) return;
@@ -12074,10 +12108,31 @@ export default function PaginatedEditorView({
     return () => document.removeEventListener("mousedown", handler);
   }, [pageMenu]);
 
+  // 單頁編輯：只更新該頁區塊，不觸發任何自動搬移。
+  // 注意：pagesBlocks 是切分後的頁面（不含 pageBreak 節點），合併回 doc 時
+  // 必須在頁與頁之間重新插入 pageBreak，否則手動分頁符會遺失、頁面崩塌。
+  const handlePageChange = useCallback((pageIndex: number, payload: { json: any; text: string }) => {
+    const newPageBlocks = (payload.json?.content as Block[]) || [];
+    const nextPages = [...pagesBlocks];
+    nextPages[pageIndex] = newPageBlocks;
+    const merged: Block[] = [];
+    nextPages.forEach((page, i) => {
+      if (i > 0) merged.push({ type: "pageBreak" });
+      merged.push(...page);
+    });
+    onContentChange({
+      json: { type: "doc", content: merged.length > 0 ? merged : [{ type: "paragraph" }] },
+      text: merged.map(getTextFromNode).join("\n\n"),
+    });
+  }, [pagesBlocks, onContentChange]);
+
   const persistPages = useCallback((newBlocks: Block[]) => {
     const normalized = normalizePageBreaks(newBlocks);
     const finalBlocks = normalized.length > 0 ? normalized : [{ type: "paragraph" }];
-    onContentChange({ json: { type: "doc", content: finalBlocks }, text: finalBlocks.map(getTextFromNode).join("\n\n") });
+    onContentChange({
+      json: { type: "doc", content: finalBlocks },
+      text: finalBlocks.map(getTextFromNode).join("\n\n"),
+    });
   }, [onContentChange]);
 
   const applyRename = useCallback((idx: number, title: string) => {
@@ -12098,22 +12153,22 @@ export default function PaginatedEditorView({
     persistPages(newBlocks);
   }, [blocks, pagesBlocks, persistPages]);
 
-  const handleAddPageBefore = useCallback((idx: number) => {
-    const pageBlocks = pagesBlocks[idx] || [];
-    const newBlocks = [...blocks];
-    const [start] = findPageRange(newBlocks, pageBlocks);
-    newBlocks.splice(start, 0, { type: "paragraph" }, { type: "pageBreak" });
-    persistPages(newBlocks);
-    setActivePage(Math.min(idx, pagesBlocks.length));
-  }, [blocks, pagesBlocks, persistPages]);
-
   const handleAddPageAfter = useCallback((idx: number) => {
     const pageBlocks = pagesBlocks[idx] || [];
     const newBlocks = [...blocks];
     const [, end] = findPageRange(newBlocks, pageBlocks);
-    newBlocks.splice(end + 1, 0, { type: "pageBreak" }, { type: "paragraph" }, { type: "pageBreak" });
+    newBlocks.splice(end + 1, 0, { type: "pageBreak" }, { type: "paragraph" });
     persistPages(newBlocks);
     setActivePage(Math.min(idx + 1, pagesBlocks.length));
+  }, [blocks, pagesBlocks, persistPages]);
+
+  const handleAddPageBefore = useCallback((idx: number) => {
+    const pageBlocks = pagesBlocks[idx] || [];
+    const newBlocks = [...blocks];
+    const [start] = findPageRange(newBlocks, pageBlocks);
+    newBlocks.splice(start, 0, { type: "pageBreak" }, { type: "paragraph" });
+    persistPages(newBlocks);
+    setActivePage(Math.min(idx, pagesBlocks.length));
   }, [blocks, pagesBlocks, persistPages]);
 
   const handleDeletePage = useCallback((idx: number) => {
@@ -12126,57 +12181,63 @@ export default function PaginatedEditorView({
     setActivePage(Math.min(idx, Math.max(0, pagesBlocks.length - 2)));
   }, [blocks, pagesBlocks, persistPages]);
 
+  const handleAppendPage = useCallback(() => {
+    const newBlocks = [...blocks];
+    if (newBlocks.length > 0) newBlocks.push({ type: "pageBreak" });
+    newBlocks.push({ type: "paragraph" });
+    persistPages(newBlocks);
+    setActivePage(pagesBlocks.length);
+  }, [blocks, pagesBlocks, persistPages]);
+
   return (
     <div className="flex flex-1 min-h-0">
-      {/* 需求3：左側分頁縮圖預覽（GoodNotes 風格） */}
+      {/* 左側分頁縮圖列（GoodNotes 風格） */}
       {showThumbRail && (
-      <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
-        {showThumbRail && pagesBlocks.map((pb, idx) => {
-          const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
-          const name = firstHeadingText(pb) || "未命名";
-          const pageName = `${idx + 1}/${name}`;
-          return (
-            <div key={idx} className="flex flex-col gap-1">
-              {/* 需求1：左鍵點擊 → 編輯區捲動到該頁 */}
-              <button
-                onClick={() => {
-                  setActivePage(idx);
-                  pageRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                onContextMenu={(e) => { e.preventDefault(); setPageMenu({ x: e.clientX, y: e.clientY, idx }); }}
-                title={`${pageName}${summary ? " — " + summary : ""}`}
-                className="rounded-md p-1.5 flex flex-col items-center gap-1 transition-all"
-                style={{
-                  border: "1px solid",
-                  borderColor: activePage === idx ? "#3b82f6" : "var(--color-border)",
-                  backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
-                }}
-              >
-                <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
-                <span className="text-[9px] opacity-60 truncate w-full text-center">{pageName}</span>
-              </button>
-              {/* 需求5：行內重新命名 */}
-              {renamingPage === idx ? (
-                <input
-                  autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { applyRename(idx, renameValue); setRenamingPage(null); }
-                    if (e.key === "Escape") setRenamingPage(null);
+        <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
+          {pagesBlocks.map((pb, idx) => {
+            const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
+            const name = firstHeadingText(pb) || "未命名";
+            return (
+              <div key={idx} className="flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setActivePage(idx);
+                    pageRefs.current[idx]?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
-                  onBlur={() => { applyRename(idx, renameValue); setRenamingPage(null); }}
-                  className="w-full text-[10px] rounded px-1 py-0.5 outline-none"
-                  style={{ border: "1px solid #3b82f6", color: "var(--color-text)", background: "var(--color-bg)" }}
-                />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+                  onContextMenu={(e) => { e.preventDefault(); setPageMenu({ x: e.clientX, y: e.clientY, idx }); }}
+                  title={`第 ${idx + 1} 頁 / ${name}${summary ? " — " + summary : ""}`}
+                  className="rounded-md p-1.5 flex flex-col items-center gap-1 transition-all"
+                  style={{
+                    border: "1px solid",
+                    borderColor: activePage === idx ? "#3b82f6" : "var(--color-border)",
+                    backgroundColor: activePage === idx ? "rgba(59,130,246,0.12)" : "var(--color-bg)",
+                  }}
+                >
+                  <PageThumbnail blocks={pb} format={format} margins={m} nightAdapt={nightAdapt} />
+                  <span className="text-[9px] opacity-60 truncate w-full text-center">{idx + 1}/{name}</span>
+                </button>
+                {renamingPage === idx ? (
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { applyRename(idx, renameValue); setRenamingPage(null); }
+                      if (e.key === "Escape") setRenamingPage(null);
+                    }}
+                    onBlur={() => { applyRename(idx, renameValue); setRenamingPage(null); }}
+                    className="w-full text-[10px] rounded px-1 py-0.5 outline-none"
+                    style={{ border: "1px solid #3b82f6", color: "var(--color-text)", background: "var(--color-bg)" }}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       )}
-      {/* 縮圖右鍵選單（需求1） */}
+
+      {/* 縮圖右鍵選單 */}
       {pageMenu && (
         <div
           ref={pageMenuRef}
@@ -12198,66 +12259,96 @@ export default function PaginatedEditorView({
           <button onClick={() => { handleDeletePage(pageMenu.idx); setPageMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 flex items-center gap-2 text-red-600"><span>🗑️</span> 刪除頁面</button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a", padding: "24px" }}>
-      <style>{`
-        .nexus-paged-content .ProseMirror {
-          min-height: ${innerHeight}px !important;
-        }
-      `}</style>
-      {showRuler && (
-        <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: format === "a4" ? "#f5f5f4" : "#0a0a0a" }}>
-          <div className="w-full max-w-full" style={{ width: getDocumentRulerWidth(format) }}>
-            <DocumentRuler format={format} margins={m} />
-          </div>
-        </div>
-      )}
-      <div className="flex flex-col gap-6 w-full" style={{ width: format === "a4" ? "210mm" : format === "16:9" ? "960px" : format === "4:3" ? "800px" : "100%", maxWidth: "100%" }}>
-        {pagesBlocks.map((pageBlocks, idx) => {
-          const isAdapt = nightAdapt;
-          return (
-            <div
-              key={idx}
-              ref={(el) => { pageRefs.current[idx] = el; }}
-              data-page={idx}
-              className="relative bg-white rounded-sm"
-              style={{
-                height: `${pageHeight}px`,
-                minHeight: `${pageHeight}px`,
-                background: isAdapt ? "var(--color-editor-bg)" : "white",
-                color: isAdapt ? "var(--color-text)" : "#1a1a1a",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08)",
-                overflow: "hidden",
-              }}
-            >
-              <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
-              <div className={`${isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}`} style={{ padding: `${m.top}mm ${m.right}mm ${m.bottom}mm ${m.left}mm`, boxSizing: "border-box", height: "100%", overflow: "hidden" }}>
-                <TiptapEditor
-                  content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
-                  onChange={(payload) => handlePageChange(idx, payload)}
-                  variant="rich"
-                  toolbarTarget={idx === activePage ? toolbarTarget : null}
-                  menuToolbarTarget={idx === activePage ? menuToolbarTarget : null}
-                  menuToolbarTab={menuToolbarTab}
-                  showToolbar={idx === activePage && !fileMode}
-                  toolbarTab={toolbarTab}
-                  showLineNumbers={showLineNumbers}
-                  lineNumberStart={pageLineStarts[idx]}
-                  margins={margins}
-                  onMarginsChange={onMarginsChange}
-                  paneId={paneId}
-                  pageIndex={idx}
-                  paginated
-                  focusRequest={focusRequest || undefined}
-                  onFocusRequestHandled={handleFocusRequestHandled}
-                  onFocus={() => setActivePage(idx)}
-                  pageNightAdapt={nightAdapt}
-                  onTogglePageNightAdapt={onToggleNightAdapt}
-                />
-              </div>
+
+      {/* 主捲動區 */}
+      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px" }}>
+        {showRuler && (
+          <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: "#f5f5f4" }}>
+            <div style={{ width: getDocumentRulerWidth("paged") }}>
+              <DocumentRuler format="paged" margins={m} />
             </div>
-          );
-        })}
-      </div>
+          </div>
+        )}
+        <div className="flex flex-col gap-6 w-full items-center">
+          {pagesBlocks.map((pageBlocks, idx) => {
+            const isAdapt = nightAdapt;
+            const grown = grownPages[idx] || false;
+            return (
+              <div
+                key={idx}
+                ref={(el) => { pageRefs.current[idx] = el; }}
+                data-page={idx}
+                className="relative rounded-sm"
+                style={{
+                  width: A4_W_PX,
+                  minHeight: A4_H_PX,
+                  background: isAdapt ? "var(--color-editor-bg)" : "white",
+                  color: isAdapt ? "var(--color-text)" : "#1a1a1a",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08)",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
+                <div
+                  className={isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}
+                  style={{
+                    padding: `${pagePaddingPx.top}px ${pagePaddingPx.right}px ${pagePaddingPx.bottom}px ${pagePaddingPx.left}px`,
+                    boxSizing: "border-box",
+                    minHeight: A4_H_PX,
+                  }}
+                >
+                  <TiptapEditor
+                    content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
+                    onChange={(payload) => handlePageChange(idx, payload)}
+                    variant="rich"
+                    toolbarTarget={idx === activePage ? toolbarTarget : null}
+                    editToolbarTarget={idx === activePage ? editToolbarTarget : null}
+                    insertToolbarTarget={idx === activePage ? insertToolbarTarget : null}
+                    formatToolbarTarget={idx === activePage ? formatToolbarTarget : null}
+                    showToolbar={idx === activePage && !fileMode}
+                    toolbarTab={toolbarTab}
+                    showLineNumbers={showLineNumbers}
+                    lineNumberStart={pageLineStarts[idx]}
+                    margins={margins}
+                    onMarginsChange={onMarginsChange}
+                    paneId={paneId}
+                    pageIndex={idx}
+                    onFocus={() => setActivePage(idx)}
+                    pageNightAdapt={nightAdapt}
+                    onTogglePageNightAdapt={onToggleNightAdapt}
+                  />
+                </div>
+                {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}
+                {grown && (
+                  <div
+                    className="pointer-events-none select-none absolute"
+                    style={{
+                      left: pagePaddingPx.left,
+                      right: pagePaddingPx.right,
+                      top: A4_H_PX,
+                      borderTop: "2px dashed #94a3b8",
+                    }}
+                  >
+                    <span
+                      className="absolute text-[10px] text-slate-400"
+                      style={{ right: 0, top: -9, background: isAdapt ? "var(--color-editor-bg)" : "white", padding: "0 4px" }}
+                    >
+                      A4 分頁線
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* 新增頁面（手動） */}
+        <button
+          onClick={handleAppendPage}
+          className="mt-6 mb-4 rounded-lg px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-all nexus-print-hide"
+          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }}
+        >
+          ＋ 新增頁面
+        </button>
       </div>
     </div>
   );
@@ -12602,6 +12693,7 @@ export default function PresentationView({
     </main>
   );
 }
+
 ````
 
 ## File: src/components/QuickNotesView.tsx
@@ -12671,6 +12763,7 @@ export default function QuickNotesView({
     </main>
   );
 }
+
 ````
 
 ## File: src/components/ResizablePanel.tsx
@@ -12722,6 +12815,7 @@ export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth,
     </div>
   );
 }
+
 ````
 
 ## File: src/components/RightPanel.tsx
@@ -12806,6 +12900,7 @@ export default function RightPanel({
     </aside>
   );
 }
+
 ````
 
 ## File: src/components/Sidebar.tsx
@@ -13482,6 +13577,7 @@ export default function Sidebar({
     </aside>
   );
 }
+
 ````
 
 ## File: src/components/StudySetView.tsx
@@ -13964,6 +14060,7 @@ export default function StudySetView({ page, onTitleChange, onUpdateStudyItems }
     </main>
   );
 }
+
 ````
 
 ## File: src/components/TableGridPicker.tsx
@@ -14079,6 +14176,7 @@ export default function TableGridPicker({ editor, disabled }: { editor: Editor |
   );
 }
 
+
 ````
 
 ## File: src/components/TiptapEditor.tsx
@@ -14125,9 +14223,12 @@ interface TiptapEditorProps {
   pageNightAdapt?: boolean;
   onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
-  toolbarTab?: "home" | "insert" | "layout";
-  menuToolbarTarget?: HTMLElement | null;
-  menuToolbarTab?: "insert" | "layout";
+  toolbarTab?: "home";
+  // 2026-08-11：Google Docs 式選單列（第一列：檔案/編輯/檢視/插入/格式/工具）
+  // 編輯器相關的「編輯/插入/格式」選單內容由 TiptapEditor portal 注入
+  editToolbarTarget?: HTMLElement | null;
+  insertToolbarTarget?: HTMLElement | null;
+  formatToolbarTarget?: HTMLElement | null;
   showLineNumbers?: boolean;
   lineNumberStart?: number;
   paneId?: string;
@@ -14179,14 +14280,33 @@ function TB({ label, title, active, disabled, onClick, icon }: { label?: string;
       title={title}
       disabled={disabled}
       onMouseDown={(e) => { e.preventDefault(); onClick(); }}
-      className="rounded flex items-center justify-center w-[30px] h-[30px] text-[12px] font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30 leading-none"
-      style={{ color: "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
+      className="rounded flex items-center justify-center w-6 h-6 text-[12px] font-medium transition-colors hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-30 leading-none shrink-0"
+      style={{ color: "var(--color-text)", backgroundColor: active ? "rgba(0,0,0,0.08)" : "transparent" }}
     >
       {icon || label}
     </button>
   );
 }
-function Sep() { return <div className="mx-0.5 h-5 w-px bg-zinc-300 shrink-0" />; }
+function Sep() { return <div className="mx-0.5 h-4 w-px bg-zinc-300 shrink-0" />; }
+function MenuSep() { return <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />; }
+
+// 2026-08-11：Google Docs 式選單列的垂直選單項；執行後關閉選單
+function MenuItem({ label, icon, active, disabled, onClick, danger }: {
+  label: string; icon?: React.ReactNode; active?: boolean; disabled?: boolean; onClick: () => void; danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onMouseDown={(e) => { e.preventDefault(); if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
+      className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+      style={{ color: danger ? "#dc2626" : "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
+    >
+      {icon && <span className="w-4 text-center shrink-0">{icon}</span>}
+      <span>{label}</span>
+    </button>
+  );
+}
 
 // 全域游標錨點：分頁模式下 block 被搬移到另一頁編輯器時，游標跨編輯器跟隨
 // （每頁是獨立 TiptapEditor，游標無法直接轉移，用模組級變數記錄「最近游標所在 block」，
@@ -14332,7 +14452,7 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", menuToolbarTarget, menuToolbarTab, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -15172,84 +15292,132 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 
+  // ============ 2026-08-11：Google Docs 式選單列內容（垂直選單） ============
+
+  // 編輯（undo / redo / 清除格式）
+  const editTools = (
+    <>
+      <MenuItem icon="↩" label={t("tiptap.undo") || "復原"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
+      <MenuItem icon="↪" label={t("tiptap.redo") || "重做"} disabled={disabled || !toolbarState.canRedo} onClick={() => editorRef.current?.chain().focus().redo().run()} />
+      <MenuSep />
+      <MenuItem icon="Tx" label={t("tiptap.clear") || "清除格式"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
+    </>
+  );
+
+  // 插入（表格 / 連結 / 圖片 / 提示框 / 公式 / 分頁符）
   const insertTools = (
     <>
-      <TableGridPicker editor={editorRef.current} disabled={disabled} />
-      <TB icon="🔗" title={t("tiptap.link")} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
-      <TB icon="🖼" title={t("tiptap.image")} disabled={disabled} onClick={handleInsertImage} />
-      <ToolbarDropdown label="" icon="➕" variant="inline" disabled={disabled}
-        items={[
-          { id: "insert-callout", icon: "💡", label: t("tiptap.label.callout"), onClick: () => editorRef.current?.chain().focus().setCallout("info").run() },
-          { id: "insert-inline-math", icon: "x²", label: t("tiptap.label.inlineMath"), onClick: handleInsertInlineMath },
-          { id: "insert-block-math", icon: "∑", label: t("tiptap.label.blockMath"), onClick: handleInsertBlockMath },
-        ]} />
-      {toolbarState.callout && (<TB icon="✕C" title={t("tiptap.callout")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetCallout().run()} />)}
-      <Sep />
-      <TB icon="⛶" title="插入分頁符（A4 分頁用）" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setPageBreak().run()} />
+      <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>表格</div>
+      <div className="px-2 pb-1"><TableGridPicker editor={editorRef.current} disabled={disabled} /></div>
+      <MenuSep />
+      <MenuItem icon="🔗" label={t("tiptap.link") || "連結"} active={toolbarState.link} disabled={disabled} onClick={handleSetLink} />
+      <MenuItem icon="🖼" label={t("tiptap.image") || "圖片"} disabled={disabled} onClick={handleInsertImage} />
+      <MenuSep />
+      <MenuItem icon="💡" label={t("tiptap.label.callout") || "提示框"} active={toolbarState.callout} disabled={disabled} onClick={() => {
+        if (toolbarState.callout) editorRef.current?.chain().focus().unsetCallout().run();
+        else editorRef.current?.chain().focus().setCallout("info").run();
+      }} />
+      <MenuItem icon="x²" label={t("tiptap.label.inlineMath") || "行內公式"} disabled={disabled} onClick={handleInsertInlineMath} />
+      <MenuItem icon="∑" label={t("tiptap.label.blockMath") || "區塊公式"} disabled={disabled} onClick={handleInsertBlockMath} />
+      <MenuSep />
+      <MenuItem icon="⛶" label="分頁符" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setPageBreak().run()} />
     </>
   );
 
-  const layoutTools = (
+  // 格式（樣式 / 字型 / 字級 / 文字樣式 / 顏色 / 對齊 / 分欄 / 直排 / 邊界 / 清單 / 引用 / 程式碼）
+  const formatTools = (
     <>
       {variant === "rich" && (<>
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>樣式</div>
+        <MenuItem icon="¶" label={t("tiptap.style.normal") || "內文"} active={!toolbarState.h1 && !toolbarState.h2 && !toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: (ed.getAttributes("heading").level || 1) }).run(); }} />
+        <MenuItem icon="H1" label={t("tiptap.h1") || "標題 1"} active={toolbarState.h1} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); }} />
+        <MenuItem icon="H2" label={t("tiptap.h2") || "標題 2"} active={toolbarState.h2} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }} />
+        <MenuItem icon="H3" label={t("tiptap.h3") || "標題 3"} active={toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 3 })) ed.chain().focus().toggleHeading({ level: 3 }).run(); }} />
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>字型 / 字級</div>
         <select
-          value={toolbarState.multiColumn ? "2" : "1"}
+          value={toolbarState.fontFamily || ""}
           disabled={disabled}
-          title="分欄"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "1") (editorRef.current as any)?.chain().focus().unsetMultiColumn().run();
-            else if (v === "2") (editorRef.current as any)?.chain().focus().setMultiColumn(2).run();
-            else if (v === "3") (editorRef.current as any)?.chain().focus().setMultiColumn(3).run();
-          }}
-          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[70px]"
-          style={{ border: "1px solid transparent", color: "var(--color-text)" }}
+          title={t("tiptap.fontFamily") || "字型"}
+          onChange={(e) => { const v = e.target.value; const c = editorRef.current?.chain().focus(); if (!c) return; if (v) c.setFontFamily(v).run(); else c.unsetFontFamily().run(); }}
+          className="w-[calc(100%-16px)] mx-2 rounded px-2 py-1.5 text-sm bg-transparent disabled:opacity-40"
+          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
         >
-          <option value="1">單欄</option>
-          <option value="2">2欄</option>
-          <option value="3">3欄</option>
+          <option value="">{t("tiptap.fontFamily.default") || "預設字型"}</option>
+          <option value="Arial, sans-serif">Arial</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Courier New', monospace">Courier New</option>
+          <option value="'Times New Roman', serif">Times New Roman</option>
+          <option value="'Noto Sans TC', sans-serif">Noto Sans TC</option>
         </select>
-        <button
-          type="button"
-          title="文字排列方向（點擊切換直/橫，主要用於儲存格）"
-          disabled={disabled}
-          onMouseDown={(e) => { e.preventDefault(); (editorRef.current as any)?.chain().focus().toggleWritingMode().run(); }}
-          className="rounded w-6 h-6 flex items-center justify-center text-[11px] hover:bg-zinc-200 disabled:opacity-30"
-          style={{ color: "var(--color-text)" }}
-        >
-          ↕️
-        </button>
-        <Sep />
+        <div className="flex items-center gap-2 px-3 py-1.5">
+          <button type="button" title="−" disabled={disabled || currentFontSize <= 8} onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(currentFontSize - (currentFontSize <= 12 ? 1 : 2)); }} className="w-7 h-7 flex items-center justify-center text-sm hover:bg-zinc-200 rounded disabled:opacity-30" style={{ color: "var(--color-text)" }}>−</button>
+          <input type="text" value={currentFontSize} disabled={disabled} onChange={(e) => { const val = parseInt(e.target.value, 10); if (!isNaN(val)) handleFontSizeChange(val); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleFontSizeChange(currentFontSize); } }} className="w-10 h-7 text-center text-sm bg-transparent outline-none disabled:opacity-40" style={{ color: "var(--color-text)" }} />
+          <button type="button" title="+" disabled={disabled || currentFontSize >= 72} onMouseDown={(e) => { e.preventDefault(); handleFontSizeChange(currentFontSize + (currentFontSize >= 24 ? 4 : 2)); }} className="w-7 h-7 flex items-center justify-center text-sm hover:bg-zinc-200 rounded disabled:opacity-30" style={{ color: "var(--color-text)" }}>+</button>
+          <span className="text-xs opacity-50">字級</span>
+        </div>
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>文字</div>
+        <MenuItem icon={<b>B</b>} label={t("tiptap.bold") || "粗體"} active={toolbarState.bold} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBold().run()} />
+        <MenuItem icon={<i>I</i>} label={t("tiptap.italic") || "斜體"} active={toolbarState.italic} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleItalic().run()} />
+        <MenuItem icon={<span style={{ textDecoration: "underline" }}>U</span>} label={t("tiptap.underline") || "底線"} active={toolbarState.underline} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()} />
+        <MenuItem icon={<span style={{ textDecoration: "line-through" }}>S</span>} label="刪除線" active={toolbarState.strike} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleStrike().run()} />
+        <div className="flex items-center gap-1 px-3 py-1.5">
+          <ColorPaletteButton icon={<span className="text-sm font-bold leading-none">A</span>} title={t("tiptap.textColor") || "文字顏色"} currentColor={toolbarState.color || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().setColor(color).run(); else editorRef.current?.chain().focus().unsetColor().run(); }} disabled={disabled} />
+          <ColorPaletteButton icon={<span className="text-sm leading-none">🖍</span>} title={t("tiptap.highlight") || "螢光筆"} currentColor={toolbarState.highlightColor || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().toggleHighlight({ color }).run(); else editorRef.current?.chain().focus().unsetHighlight().run(); }} disabled={disabled} />
+          <span className="text-xs opacity-50 ml-1">顏色 / 螢光筆</span>
+        </div>
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>版面</div>
+        <MenuItem icon="⇤" label="向左對齊" active={toolbarState.textAlign === "left"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("left").run()} />
+        <MenuItem icon="≣" label="置中對齊" active={toolbarState.textAlign === "center"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("center").run()} />
+        <MenuItem icon="⇥" label="向右對齊" active={toolbarState.textAlign === "right"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("right").run()} />
+        <MenuItem icon="☰" label="兩端對齊" active={toolbarState.textAlign === "justify"} disabled={disabled} onClick={() => editorRef.current?.chain().focus().setTextAlign("justify").run()} />
+        <MenuSep />
+        <MenuItem icon="▦" label="單欄" active={!toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().unsetMultiColumn().run()} />
+        <MenuItem icon="▥" label="2 欄" active={toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setMultiColumn(2).run()} />
+        <MenuItem icon="▤" label="3 欄" active={toolbarState.multiColumn} disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().setMultiColumn(3).run()} />
+        <MenuItem icon="↕️" label="直排 / 橫排" disabled={disabled} onClick={() => (editorRef.current as any)?.chain().focus().toggleWritingMode().run()} />
+        {onMarginsChange && (
+          <div className="px-3 py-1.5">
+            <button
+              ref={marginsBtnRef}
+              type="button"
+              title="頁面邊界（Word 版面配置→邊界）"
+              disabled={disabled}
+              onClick={() => { updateMarginsPos(); setMarginsPanelOpen((v) => !v); }}
+              className="w-full rounded flex items-center justify-center px-2 py-1.5 text-sm font-medium hover:bg-zinc-200 disabled:opacity-30 border"
+              style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: marginsPanelOpen ? "var(--color-border)" : "transparent" }}
+            >
+              ▦ 邊界
+            </button>
+          </div>
+        )}
+        <MenuSep />
+        <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>清單與區塊</div>
+        <MenuItem icon="•" label={t("tiptap.bulletList") || "項目符號清單"} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
+        <MenuItem icon="1." label={t("tiptap.orderedList") || "編號清單"} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
+        <MenuItem icon="☑" label={t("tiptap.taskList") || "待辦清單"} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
+        <MenuItem icon="⇥" label="增加縮排" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} />
+        <MenuItem icon="⇤" label="減少縮排" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} />
+        <MenuItem icon="❝" label={t("tiptap.quote") || "引用"} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
+        <MenuItem icon="{ }" label={t("tiptap.codeBlock") || "程式碼區塊"} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
       </>)}
-      {onMarginsChange && (
-        <>
-          <Sep />
-          <button
-            ref={marginsBtnRef}
-            type="button"
-            title="頁面邊界（Word 版面配置→邊界）"
-            disabled={disabled}
-            onClick={() => { updateMarginsPos(); setMarginsPanelOpen((v) => !v); }}
-            className="rounded flex items-center justify-center px-2 h-[30px] text-[11px] font-medium hover:bg-zinc-200 disabled:opacity-30 border"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: marginsPanelOpen ? "var(--color-border)" : "transparent" }}
-          >
-            ▦ 邊界
-          </button>
-        </>
-      )}
     </>
   );
 
-  const renderToolbar = (tab: "home" | "insert" | "layout") => (
+  const renderToolbar = () => (
     <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
-      {tab === "insert" ? insertTools : tab === "layout" ? layoutTools : homeTools}
+      {homeTools}
     </div>
   );
 
   return (
     <>
-      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(toolbarTab), toolbarTarget) : renderToolbar(toolbarTab))}
-      {showToolbar && menuToolbarTarget && menuToolbarTab && createPortal(renderToolbar(menuToolbarTab), menuToolbarTarget)}
+      {showToolbar && (toolbarTarget ? createPortal(renderToolbar(), toolbarTarget) : renderToolbar())}
+      {showToolbar && editToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[200px]">{editTools}</div>, editToolbarTarget)}
+      {showToolbar && insertToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[220px]">{insertTools}</div>, insertToolbarTarget)}
+      {showToolbar && formatToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[240px]">{formatTools}</div>, formatToolbarTarget)}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
@@ -15311,6 +15479,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 }
+
 
 ````
 
@@ -15470,6 +15639,7 @@ export default function TodoView({
     </main>
   );
 }
+
 ````
 
 ## File: src/components/ToolbarDropdown.tsx
@@ -15497,7 +15667,7 @@ export default function ToolbarDropdown({
   icon?: string;
   items?: ToolbarDropdownItem[];
   children?: ReactNode;
-  variant?: "block" | "inline";
+  variant?: "block" | "inline" | "menu";
   disabled?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -15511,7 +15681,7 @@ export default function ToolbarDropdown({
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    const isInline = variant === "inline";
+    const isInline = variant === "inline" || variant === "menu";
     const w = isInline ? 220 : 260;
     let left = rect.left;
     let top = rect.bottom + 6;
@@ -15532,18 +15702,26 @@ export default function ToolbarDropdown({
       if (popupRef.current && popupRef.current.contains(target)) return;
       setIsOpen(false);
     };
+    // 2026-08-11：選單項執行後關閉（TiptapEditor MenuItem 觸發）
+    const onMenuAction = () => setIsOpen(false);
     const onResize = () => updatePosition();
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setIsOpen(false); };
     document.addEventListener("mousedown", handler);
+    window.addEventListener("nexus-close-menus", onMenuAction);
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onResize, true);
+    window.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", handler);
+      window.removeEventListener("nexus-close-menus", onMenuAction);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
+      window.removeEventListener("keydown", onKeyDown);
     };
   }, [isOpen, updatePosition]);
 
   const isInline = variant === "inline";
+  const isMenu = variant === "menu";
 
   return (
     <>
@@ -15552,21 +15730,23 @@ export default function ToolbarDropdown({
         onClick={() => setIsOpen((prev) => !prev)}
         disabled={disabled}
         className={
-          isInline
-            ? "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-            : "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-zinc-200 active:scale-[0.99]"
+          isMenu
+            ? "flex items-center gap-0.5 rounded px-2 py-1 text-[13px] transition-colors hover:bg-zinc-200/70 disabled:cursor-not-allowed disabled:opacity-40"
+            : isInline
+              ? "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              : "w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-all hover:bg-zinc-200 active:scale-[0.99]"
         }
         style={{
-          border: "1px solid var(--color-border)",
+          border: isMenu ? "none" : "1px solid var(--color-border)",
           color: "var(--color-text)",
-          backgroundColor: isOpen ? "var(--color-border)" : "transparent",
+          backgroundColor: isOpen ? (isMenu ? "rgba(0,0,0,0.07)" : "var(--color-border)") : "transparent",
         }}
       >
         <span className="flex items-center gap-1.5">
           {icon && <span>{icon}</span>}
           <span>{label}</span>
         </span>
-        <span className="opacity-50 text-[10px] ml-1">▾</span>
+        <span className={isMenu ? "opacity-40 text-[9px] ml-0.5" : "opacity-50 text-[10px] ml-1"}>▾</span>
       </button>
       {mounted && isOpen && createPortal(
         <div
@@ -15608,6 +15788,7 @@ export default function ToolbarDropdown({
   );
 }
 
+
 ````
 
 ## File: src/contexts/WorkspaceContext.tsx
@@ -15635,6 +15816,7 @@ export function useWorkspace() {
   if (!ctx) throw new Error("useWorkspace must be used within WorkspaceProvider");
   return ctx;
 }
+
 
 ````
 
@@ -15726,6 +15908,7 @@ export function usePagesStorage(onLanguageLoaded: (lang: Language) => void, onTh
     syncState,
   };
 }
+
 ````
 
 ## File: src/hooks/useUiModes.ts
@@ -15768,6 +15951,7 @@ export function useUiModes() {
     setMode,
   };
 }
+
 ````
 
 ## File: src/lib/IndexedDBAdapter.ts
@@ -16157,6 +16341,7 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async close(): Promise<void> { this.db?.close(); }
 }
+
 ````
 
 ## File: src/lib/LanguageContext.tsx
@@ -16201,6 +16386,7 @@ export function useLanguage(): LanguageContextValue {
 
 export type { Language };
 export { DEFAULT_LANGUAGE };
+
 ````
 
 ## File: src/lib/StorageAdapter.ts
@@ -16272,6 +16458,7 @@ export interface StorageAdapter {
   deleteTodo?(id: ID): Promise<void>;
   close?(): Promise<void>;
 }
+
 ````
 
 ## File: src/lib/blockId.ts
@@ -16286,6 +16473,7 @@ export function createClientBlockId(): string {
   }
   return `blk_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
+
 ````
 
 ## File: src/lib/calloutExtension.ts
@@ -16473,6 +16661,7 @@ export const Callout = Node.create({
     };
   },
 });
+
 ````
 
 ## File: src/lib/creatableRegistry.ts
@@ -16583,6 +16772,7 @@ export function getProjectKinds(): PageKind[] {
 export function getAllCreatableKinds(): PageKind[] {
   return Object.keys(CREATABLE_REGISTRY) as PageKind[];
 }
+
 ````
 
 ## File: src/lib/fileDownload.ts
@@ -16620,6 +16810,7 @@ export function formatBackupFileName(): string {
   )}${pad(now.getMinutes())}`;
   return `nexus-backup-${stamp}.json`;
 }
+
 ````
 
 ## File: src/lib/i18n.ts
@@ -16893,6 +17084,7 @@ const en: Dictionary = {
   "app.backupExportFailed": "Backup export failed.",
   "app.noActivePageToExport": "No active page to export.",
   "app.chooseMarkdownFile": "Please choose a Markdown or text file.",
+  "app.dropMarkdownHint": "Drop a Markdown / text file here to import as Document",
   "app.markdownImportFailed": "Markdown import failed.",
   "app.choosePdfFile": "Please choose a PDF file.",
   "app.attachmentNotAvailable": "Attachment creation not available.",
@@ -16908,6 +17100,10 @@ const en: Dictionary = {
   "newPage.kind.studySet": "Study Set",
   "newPage.kind.studySet.desc": "Flashcards for practice",
   "newPage.format.flow": "Flowing (no page breaks)",
+  "newPage.format.paged": "Paged Note",
+  "newPage.noteModeTitle": "Choose note mode",
+  "newPage.noteMode.flowDesc": "Continuous flowing content, infinite scroll",
+  "newPage.noteMode.pagedDesc": "Manual A4 pages, no auto-pagination",
   "newPage.format.a4": "A4",
   "newPage.format.169": "16:9 (Slide)",
   "newPage.format.43": "4:3 (Slide)",
@@ -17196,6 +17392,19 @@ const zhTW: Dictionary = {
   "tiptap.label.blockMath": "∑ 公式",
   "tiptap.label.clear": "清除",
   "tiptap.label.image": "圖片",
+  "app.confirmImportBackup": "匯入備份會覆蓋目前所有資料，且無法復原。\\n\\n確定繼續？",
+  "app.backupImportedReload": "備份已匯入，Nexus 將重新載入。",
+  "app.backupImportFailed": "備份匯入失敗。",
+  "app.backupNotAvailable": "備份功能不可用。",
+  "app.backupExportFailed": "備份匯出失敗。",
+  "app.noActivePageToExport": "沒有可匯出的頁面。",
+  "app.chooseMarkdownFile": "請選擇 Markdown 或文字檔。",
+  "app.dropMarkdownHint": "拖曳 Markdown / 文字檔至此，匯入為文檔",
+  "app.markdownImportFailed": "Markdown 匯入失敗。",
+  "app.choosePdfFile": "請選擇 PDF 檔。",
+  "app.attachmentNotAvailable": "附件建立不可用。",
+  "app.pdfImportFailed": "PDF 匯入失敗。",
+  "app.confirmCreatePageFromLink": "頁面「{{title}}」不存在，要建立嗎？",
   "newPage.title": "新建",
   "newPage.formatTitle": "選擇版面格式",
   "newPage.back": "返回",
@@ -17206,6 +17415,10 @@ const zhTW: Dictionary = {
   "newPage.kind.studySet": "學習集",
   "newPage.kind.studySet.desc": "練習用字卡",
   "newPage.format.flow": "流動頁面（無分頁）",
+  "newPage.format.paged": "分頁筆記",
+  "newPage.noteModeTitle": "選擇筆記模式",
+  "newPage.noteMode.flowDesc": "連續流動內容，無限捲動",
+  "newPage.noteMode.pagedDesc": "手動 A4 紙張頁面，不自動分頁",
   "newPage.format.a4": "A4",
   "newPage.format.169": "16:9（簡報）",
   "newPage.format.43": "4:3（簡報）",
@@ -17280,6 +17493,7 @@ export function translate(language: Language, key: string, params?: Record<strin
   if (!params) return template;
   return Object.keys(params).reduce((acc, paramKey) => acc.split(`{{${paramKey}}}`).join(String(params[paramKey])), template);
 }
+
 ````
 
 ## File: src/lib/inbox.ts
@@ -17326,6 +17540,7 @@ export function captureTextToContentJson(text: string): object {
 export function isInboxPage(page: Page): boolean {
   return page.folder === "Inbox" || (page.tags || []).includes("inbox");
 }
+
 ````
 
 ## File: src/lib/markdown.ts
@@ -17547,6 +17762,7 @@ export function titleFromMarkdownFileName(fileName: string): string {
   const withoutExt = fileName.replace(/\.(md|markdown|txt)$/i, "").trim();
   return withoutExt || "Imported Markdown";
 }
+
 ````
 
 ## File: src/lib/multiColumnExtension.ts
@@ -17664,6 +17880,7 @@ declare module "@tiptap/core" {
   }
 }
 
+
 ````
 
 ## File: src/lib/obsidianMathInput.ts
@@ -17741,6 +17958,7 @@ export const ObsidianMathInput = Extension.create({
     ];
   },
 });
+
 ````
 
 ## File: src/lib/obsidianMathNodeView.ts
@@ -17932,6 +18150,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
     };
   };
 }
+
 ````
 
 ## File: src/lib/pageBreakExtension.ts
@@ -17984,6 +18203,7 @@ declare module "@tiptap/core" {
     };
   }
 }
+
 ````
 
 ## File: src/lib/pdfNote.ts
@@ -18035,6 +18255,7 @@ export function createResearchNoteContent(fileName: string): object {
     ],
   };
 }
+
 ````
 
 ## File: src/lib/presentation.ts
@@ -18209,6 +18430,7 @@ export function createSlide(layout: Slide["layout"] = "title_content"): Slide {
 export function updateSlideContent(slide: Slide, json: any, text: string): Slide {
   return { ...slide, content_json: json, content_text: text };
 }
+
 ````
 
 ## File: src/lib/stableBlockIdExtension.ts
@@ -18296,6 +18518,7 @@ export const StableBlockId = Extension.create({
   },
 });
 
+
 ````
 
 ## File: src/lib/supabase.ts
@@ -18333,6 +18556,7 @@ export function getSupabase(): SupabaseClient | null {
 export function isSupabaseConfigured(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
+
 ````
 
 ## File: src/lib/syncEngine.ts
@@ -18754,6 +18978,7 @@ export class SyncEngine {
     if (this.syncInterval) { clearInterval(this.syncInterval); this.syncInterval = null; }
   }
 }
+
 ````
 
 ## File: src/lib/types.ts
@@ -18793,7 +19018,18 @@ export interface Attachment {
 }
 
 export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo";
-export type PageFormat = "flow" | "a4" | "16:9" | "4:3" | "custom";
+export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
+
+/**
+ * 筆記的版面模式（2026-08-11 定案）：
+ * - "flow"  ：流動筆記（單一編輯器、無限捲動，原樣）
+ * - "paged" ：分頁筆記（手動 A4 紙張頁，不自動分頁；建立時選擇，之後不可轉換）
+ * 文檔一律流動；簡報維持 16:9 / 4:3。
+ * 舊資料（a4 / 16:9 / 4:3 / custom 的筆記與文檔）開啟後以流動顯示並自動遷移。
+ */
+export function isPagedNoteFormat(format?: PageFormat | null): boolean {
+  return format === "paged";
+}
 
 /** 頁面邊距（mm），用於 A4/分頁版面（可調整頁邊距） */
 export interface PageMargins {
@@ -18935,6 +19171,7 @@ export interface WorkspaceBackup {
   attachments: WorkspaceBackupAttachmentEntry[];
   settings: WorkspaceBackupSettingEntry[];
 }
+
 ````
 
 ## File: src/lib/wikilinks.ts
@@ -18953,6 +19190,7 @@ export function extractWikilinks(text: string): string[] {
   }
   return matches;
 }
+
 ````
 
 ## File: src/lib/writingModeExtension.ts
@@ -19038,6 +19276,7 @@ declare module "@tiptap/core" {
   }
 }
 
+
 ````
 
 ## File: tsconfig.json
@@ -19083,5 +19322,6 @@ declare module "@tiptap/core" {
     "node_modules"
   ]
 }
+
 ````
 

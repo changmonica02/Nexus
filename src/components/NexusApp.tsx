@@ -9,6 +9,7 @@ import {
   type ChangeEvent,
 } from "react";
 import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
+import { nanoid } from "nanoid";
 import type {
   Page,
   Attachment,
@@ -316,6 +317,18 @@ function NexusAppInner({
     saveTimerRef.current = setTimeout(() => void flushSave(page), 800);
   }, [flushSave]);
 
+  // M1 fix: 統一的 page patch helper——更新欄位時同步 refresh updated_at，
+  // 讓「最近編輯」排序在 session 內即時正確（state 不再落後 DB）。
+  // revision 維持「持久化版本」語意，仍由 flushSave 在寫入 DB 時 +1。
+  const patchPage = useCallback((id: string, patch: Partial<Page>) => {
+    setPages((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, ...patch, updated_at: Date.now() } : p));
+      const updated = next.find((p) => p.id === id);
+      if (updated) scheduleSave(updated);
+      return next;
+    });
+  }, [scheduleSave]);
+
   // 2026-08-11：Markdown 拖曳匯入（視窗級 dragover/drop）
   useEffect(() => {
     const hasMarkdownFile = (dt: DataTransfer | null): boolean => {
@@ -431,24 +444,12 @@ function NexusAppInner({
   }, [createAndOpenPage, flushSave]);
 
   const handleUpdatePresentation = useCallback((data: any) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, presentation_data: data } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { presentation_data: data });
+  }, [activePageId, patchPage]);
 
   const handleSecondaryUpdatePresentation = useCallback((data: any) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, presentation_data: data } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { presentation_data: data });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleConvertToPresentation = useCallback(async (id?: string) => {
     const targetId = id || activePageId;
@@ -614,14 +615,8 @@ function NexusAppInner({
   }, [storageRef, pages]);
 
   const handleUpdateStudyItems = useCallback((items: StudyItem[]) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, study_items: items } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { study_items: items });
+  }, [activePageId, patchPage]);
 
   const loadTrashPages = useCallback(async () => {
     if (!storageRef.current) return;
@@ -691,7 +686,8 @@ function NexusAppInner({
       content_json: source.content_json,
       content_text: source.content_text,
       links: [...(source.links || [])],
-      study_items: source.study_items ? source.study_items.map((item) => ({ ...item })) : duplicated.study_items,
+      study_items: source.study_items ? source.study_items.map((item) => ({ ...item, id: `study_${nanoid()}` })) : duplicated.study_items,
+      presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
@@ -768,26 +764,19 @@ function NexusAppInner({
   const handleExportPageAsPdf = useCallback(async (id: string) => {
     if (activePageRef.current?.id !== id) await handleSelectPage(id);
     if (activePageRef.current) await flushSave(activePageRef.current);
-    window.setTimeout(() => window.print(), 50);
+    // L10 fix: 用雙層 requestAnimationFrame 確保頁面切換 + React commit + 瀏覽器 paint
+    // 完成後再觸發列印，比固定 setTimeout(50) 更可靠（避免慢機器列印到切換前的頁面）。
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
   }, [flushSave, handleSelectPage]);
 
   const handleToggleFavorite = useCallback((id: string) => {
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, is_favorite: !p.is_favorite } : p));
-      const updated = next.find((p) => p.id === id);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [scheduleSave]);
+    const target = pages.find((p) => p.id === id);
+    if (target) patchPage(id, { is_favorite: !target.is_favorite });
+  }, [pages, patchPage]);
 
   const handleRenamePage = useCallback((id: string, title: string) => {
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, title } : p));
-      const updated = next.find((p) => p.id === id);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [scheduleSave]);
+    patchPage(id, { title });
+  }, [patchPage]);
 
   const handleExportBackup = useCallback(async () => {
     const storage = storageRef.current;
@@ -858,45 +847,21 @@ function NexusAppInner({
   }, [pages, handleSelectPage, t, createAndOpenPage]);
 
   const handleTitleChange = useCallback((title: string) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, title } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { title });
+  }, [activePageId, patchPage]);
 
   const handleFolderChange = useCallback((newFolder: string | null) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, folder: newFolder } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { folder: newFolder });
+  }, [activePageId, patchPage]);
 
   const handleTagsChange = useCallback((newTags: string[]) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, tags: newTags } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { tags: newTags });
+  }, [activePageId, patchPage]);
 
   // Task 1: PageFormat toggle - any paginated can convert to flow
   const handleFormatChange = useCallback((newFormat: PageFormat) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, format: newFormat } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { format: newFormat });
+  }, [activePageId, patchPage]);
 
   // Task 3: Split view handlers (Obsidian style, closable)
   const handleOpenInSplit = useCallback((id: string) => {
@@ -924,86 +889,36 @@ function NexusAppInner({
   }, [activePageId, secondaryActivePageId]);
 
   const handleSecondaryTitleChange = useCallback((title: string) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, title } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { title });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleSecondaryFolderChange = useCallback((newFolder: string | null) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, folder: newFolder } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { folder: newFolder });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleSecondaryTagsChange = useCallback((newTags: string[]) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, tags: newTags } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { tags: newTags });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleMarginsChange = useCallback((margins: PageMargins) => {
-    if (!activePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === activePageId ? { ...p, margins } : p));
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { margins });
+  }, [activePageId, patchPage]);
 
   const handleSecondaryMarginsChange = useCallback((margins: PageMargins) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, margins } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { margins });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleSecondaryFormatChange = useCallback((newFormat: PageFormat) => {
-    if (!secondaryActivePageId) return;
-    setPages((prev) => {
-      const next = prev.map((p) => (p.id === secondaryActivePageId ? { ...p, format: newFormat } : p));
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { format: newFormat });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleSecondaryContentChange = useCallback(({ json, text }: { json: any; text: string }) => {
-    if (!secondaryActivePageId) return;
-    const extractedLinks = extractWikilinks(text);
-    setPages((prev) => {
-      const next = prev.map((p) => p.id === secondaryActivePageId ? { ...p, content_json: json, content_text: text, links: extractedLinks } : p);
-      const updated = next.find((p) => p.id === secondaryActivePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [secondaryActivePageId, scheduleSave]);
+    if (secondaryActivePageId) patchPage(secondaryActivePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
+  }, [secondaryActivePageId, patchPage]);
 
   const handleContentChange = useCallback(({ json, text }: { json: any; text: string }) => {
-    if (!activePageId) return;
-    const extractedLinks = extractWikilinks(text);
-    setPages((prev) => {
-      const next = prev.map((p) => p.id === activePageId ? { ...p, content_json: json, content_text: text, links: extractedLinks } : p);
-      const updated = next.find((p) => p.id === activePageId);
-      if (updated) scheduleSave(updated);
-      return next;
-    });
-  }, [activePageId, scheduleSave]);
+    if (activePageId) patchPage(activePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
+  }, [activePageId, patchPage]);
 
   const handleDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;

@@ -148,10 +148,11 @@ export const Callout = Node.create({
       }
       iconButton.addEventListener("mousedown", (event) => { event.preventDefault(); event.stopPropagation(); });
       iconButton.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); renderMenu(); menu.style.display = menu.style.display === "none" ? "flex" : "none"; });
-      document.addEventListener("click", (event) => {
+      const onDocClick = (event: Event) => {
         const target = event.target as unknown as globalThis.Node | null;
         if (target && !dom.contains(target)) menu.style.display = "none";
-      });
+      };
+      document.addEventListener("click", onDocClick);
       CALLOUT_VARIANTS.forEach((v) => {
         const option = document.createElement("option");
         option.value = v.value;
@@ -177,6 +178,7 @@ export const Callout = Node.create({
           syncFromNode(updatedNode);
           return true;
         },
+        destroy() { document.removeEventListener("click", onDocClick); },
       };
     };
   },
