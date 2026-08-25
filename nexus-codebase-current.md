@@ -9087,6 +9087,56 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
 
 ````
 
+## File: src/components/CreativeView.tsx
+````
+"use client";
+import type { Page } from "../lib/types";
+import { useLanguage } from "../lib/LanguageContext";
+
+export default function CreativeView({ pages, onCreateNovel, onCreateCharacter, onSelectPage }: {
+  pages: Page[];
+  onCreateNovel: () => void;
+  onCreateCharacter: () => void;
+  onSelectPage: (id: string) => void;
+}) {
+  const { t } = useLanguage();
+  const creativePages = pages.filter((p) => p.kind === "creative" && !p.deleted_at);
+  return (
+    <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      <div className="mx-auto w-full max-w-[900px] p-6">
+        <h1 className="text-2xl font-semibold mb-2" style={{ color: "var(--color-text)" }}>✍️ {t("sidebar.nav.creative")}</h1>
+        <p className="text-xs opacity-60 mb-6">小說閱讀格式、角色詳細簡介表等創作工具</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onClick={onCreateNovel} className="rounded-xl border p-4 text-left hover:shadow-md transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+            <div className="text-2xl mb-2">📖</div>
+            <div className="text-sm font-semibold">小說閱讀格式</div>
+            <div className="text-xs opacity-60 mt-1">流動排版，適合長篇閱讀</div>
+          </button>
+          <button onClick={onCreateCharacter} className="rounded-xl border p-4 text-left hover:shadow-md transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+            <div className="text-2xl mb-2">🎭</div>
+            <div className="text-sm font-semibold">角色詳細簡介表</div>
+            <div className="text-xs opacity-60 mt-1">含姓名/年齡/性格/背景/外觀/能力</div>
+          </button>
+        </div>
+        <div className="mt-6 text-center opacity-40 text-sm">更多創作工具陸續新增中...</div>
+        {creativePages.length > 0 && (
+          <div className="mt-6">
+            <div className="text-xs font-semibold opacity-50 uppercase mb-2">已建立的創作</div>
+            {creativePages.map((p) => (
+              <button key={p.id} onClick={() => onSelectPage(p.id)} className="w-full text-left rounded-lg border p-3 mb-2 hover:shadow-sm transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+                <span className="text-sm font-medium">{p.title || "未命名"}</span>
+                <span className="text-xs opacity-40 ml-2">{new Date(p.updated_at).toLocaleDateString()}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+````
+
 ## File: src/components/Dashboard.tsx
 ````
 "use client";
@@ -10189,6 +10239,7 @@ import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
+import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
@@ -10258,6 +10309,7 @@ function NexusAppInner({
   const [secondaryPdfLoadError, setSecondaryPdfLoadError] = useState<string | null>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
+  const [isCreativeMode, setIsCreativeMode] = useState(false);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
@@ -10422,7 +10474,7 @@ function NexusAppInner({
 
       // 【臨時診斷】禁用 SyncEngine，確認拖曳問題是否由 sync 覆蓋引起。
       // 若禁用後 drag 正常 → sync 是元兇；若仍不動 → 是渲染層問題。
-      const DISABLE_SYNC_FOR_DRAG_DEBUG = true;
+      const DISABLE_SYNC_FOR_DRAG_DEBUG = false;
       if (isSupabaseConfigured() && !DISABLE_SYNC_FOR_DRAG_DEBUG) {
         const supabase = getSupabase();
         if (supabase) {
@@ -10778,7 +10830,7 @@ function NexusAppInner({
     setTrashPages(allPages.filter((page) => page.deleted_at !== null));
   }, [storageRef]);
 
-  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
+  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
 
   // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
   const handleTogglePageNightAdapt = useCallback(() => {
@@ -10788,9 +10840,10 @@ function NexusAppInner({
       return next;
     });
   }, [storageRef]);
-  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
-  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); }, []);
-  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); }, []);
+  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
+  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); }, []);
+  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); }, []);
+  const handleShowCreative = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(true); }, []);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -10798,6 +10851,7 @@ function NexusAppInner({
     setIsHomeMode(false);
     setIsQuickNoteMode(false);
     setIsTodoMode(false);
+    setIsCreativeMode(false);
   }, [flushSave, loadTrashPages]);
 
   const handleRestorePage = useCallback(async (id: string) => {
@@ -11222,8 +11276,10 @@ function NexusAppInner({
           onOpenInSplit={handleOpenInSplit}
           isQuickNoteMode={isQuickNoteMode}
           isTodoMode={isTodoMode}
+          isCreativeMode={isCreativeMode}
           onShowQuickNotes={handleShowQuickNotes}
           onShowTodoList={handleShowTodoList}
+          onShowCreative={handleShowCreative}
         />
       </ResizablePanel>
 
@@ -11280,6 +11336,8 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
+      ) : isCreativeMode ? (
+        <CreativeView pages={pages} onCreateNovel={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "小說閱讀格式", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "小說閱讀格式" }] }, { type: "paragraph", content: [{ type: "text", text: "在這裡開始撰寫..." }] }] } as any }); }} onCreateCharacter={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "角色詳細簡介表", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "角色簡介" }] }, { type: "paragraph", content: [{ type: "text", text: "姓名：\n年齡：\n性格：\n背景：\n外觀：\n能力：\n" }] }] } as any }); }} onSelectPage={handleSelectPage} />
       ) : secondaryActivePageId && secondaryActivePage ? (
         <div className="flex flex-1 overflow-hidden gap-2">
           {/* Primary pane */}
@@ -12369,6 +12427,13 @@ export default function PresentationView({
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [moreMenuFor, setMoreMenuFor] = useState<string | null>(null);
   const [chartEditOpen, setChartEditOpen] = useState(false);
+  const [chartTab, setChartTab] = useState<"data" | "type" | "style">("data");
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [textMenuOpen, setTextMenuOpen] = useState(false);
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const [chartMenuOpen, setChartMenuOpen] = useState(false);
+  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [slideCtx, setSlideCtx] = useState<{ x: number; y: number; slideId: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slideCtxRef = useRef<HTMLDivElement>(null);
@@ -12419,23 +12484,14 @@ export default function PresentationView({
   };
 
   // ---- 物件操作 ----
-  const handleAddTextBlock = () => {
+  const addBlock = (opts: Partial<PresentationBlock> & { type: PresentationBlock["type"] }) => {
     if (!activeSlide) return;
-    const nb: PresentationBlock = { id: genId(), type: "text", x: 20, y: 30, w: 45, h: 14, z: (activeSlide.blocks?.length || 0) + 10, text: "", style: { fontSize: 18 } };
+    const nb: PresentationBlock = { id: genId(), x: 20, y: 25, w: 50, h: 16, z: (activeSlide.blocks?.length || 0) + 10, ...opts } as PresentationBlock;
     updateActiveSlide({ blocks: [...(activeSlide.blocks || []), nb] });
     setSelectedIds([nb.id]);
   };
   const handleAddChart = () => {
-    if (!activeSlide) return;
-    const b: PresentationBlock = { id: genId(), type: "chart", x: 15, y: 20, w: 50, h: 45, z: 10, chart: { type: "bar", variant: "single", orientation: "vertical", data: [{ label: "A", value: 30 }, { label: "B", value: 50 }] } };
-    updateActiveSlide({ blocks: [...(activeSlide.blocks || []), b] });
-    setSelectedIds([b.id]);
-  };
-  const handleAddShape = () => {
-    if (!activeSlide) return;
-    const b: PresentationBlock = { id: genId(), type: "shape", x: 25, y: 30, w: 30, h: 25, z: 5, style: { background: "#e0e7ff" } };
-    updateActiveSlide({ blocks: [...(activeSlide.blocks || []), b] });
-    setSelectedIds([b.id]);
+    addBlock({ type: "chart", x: 15, y: 20, w: 50, h: 45, chart: { type: "bar", variant: "single", orientation: "vertical", data: [{ label: "A", value: 30 }, { label: "B", value: 50 }] } });
   };
   const handleDeleteBlocks = (ids: string[]) => {
     if (!activeSlide) return;
@@ -12491,13 +12547,16 @@ export default function PresentationView({
     const it = ptrRef.current;
     if (!it) return;
     if (it.kind === "drag") {
-      const dxPct = ((e.clientX - it.startMX) / it.cw) * 100;
-      const dyPct = ((e.clientY - it.startMY) / it.ch) * 100;
-      updateBlocks(it.ids, (b: PresentationBlock) => {
-        const o = it.orig[b.id];
-        if (!o) return b;
-        return { ...b, x: Math.max(0, Math.min(100 - b.w, o.x + dxPct)), y: Math.max(0, Math.min(100 - (b.h || 0), o.y + dyPct)) };
-      });
+      for (const id of it.ids) {
+        const o = it.orig[id];
+        if (!o) continue;
+        const newX = ((e.clientX - it.canvasLeft - it.grabOffsetX) / it.cw) * 100;
+        const newY = ((e.clientY - it.canvasTop - it.grabOffsetY) / it.ch) * 100;
+        updateBlock(id, {
+          x: Math.max(0, Math.min(100 - (o.w || 0), newX)),
+          y: Math.max(0, Math.min(100 - (o.h || 0), newY)),
+        });
+      }
     } else if (it.kind === "resize") {
       const orig = it.orig; const rot = orig.rotation || 0;
       let dxPx = e.clientX - it.startMX, dyPx = e.clientY - it.startMY;
@@ -12568,6 +12627,7 @@ export default function PresentationView({
     sw: { left: 0, top: "100%", cursor: "nesw-resize" }, w: { left: 0, top: "50%", cursor: "ew-resize" },
   };
   const selBoxStyle = (b: PresentationBlock): React.CSSProperties => ({
+    position: "absolute",
     left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: b.h ? `${b.h}%` : "auto",
     transform: `rotate(${b.rotation || 0}deg)`, transformOrigin: "center center",
   });
@@ -12576,13 +12636,74 @@ export default function PresentationView({
     <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
       {/* ===== 全寬上欄（加高） ===== */}
       <div className="shrink-0 border-b" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+        <div className="flex items-center gap-2 px-4 py-6 flex-wrap">
           <input value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder="簡報標題" className="bg-transparent font-semibold outline-none text-sm min-w-[120px]" />
           <span className="text-[10px] opacity-50">{slides.length} 張</span>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
-          <button onClick={handleAddTextBlock} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字</button>
-          <button onClick={handleAddChart} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📊 圖表</button>
-          <button onClick={handleAddShape} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">⬜ 形狀</button>
+          {/* ＋ 文字（下拉選單） */}
+          <div className="relative">
+            <button onClick={() => { setTextMenuOpen(v => !v); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字 ▾</button>
+            {textMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                {([
+                  { label: "標題", style: { fontSize: 32, bold: true }, text: "標題" },
+                  { label: "標題 1", style: { fontSize: 28, bold: true }, text: "標題 1" },
+                  { label: "標題 2", style: { fontSize: 24, bold: true }, text: "標題 2" },
+                  { label: "標題 3", style: { fontSize: 20, bold: true }, text: "標題 3" },
+                  { label: "標題 4", style: { fontSize: 18, bold: true }, text: "標題 4" },
+                  { label: "一般文字", style: { fontSize: 16 }, text: "" },
+                  { label: "區塊引述", style: { fontSize: 16 }, text: "引述內容" },
+                  { sep: true },
+                  { label: "📝 備註方塊", callout: "note", style: { fontSize: 16, background: "#f0f9ff" }, text: "備註內容" },
+                  { label: "💡 資訊方塊", callout: "info", style: { fontSize: 16, background: "#f0f9ff" }, text: "資訊內容" },
+                  { label: "⚠️ 警告方塊", callout: "warning", style: { fontSize: 16, background: "#fefce8" }, text: "警告內容" },
+                  { label: "🔴 錯誤方塊", callout: "danger", style: { fontSize: 16, background: "#fef2f2" }, text: "錯誤內容" },
+                  { label: "🟢 成功方塊", callout: "success", style: { fontSize: 16, background: "#f0fdf4" }, text: "成功內容" },
+                  { label: "❓ 問題方塊", callout: "question", style: { fontSize: 16, background: "#faf5ff" }, text: "問題內容" },
+                  { sep: true },
+                  { label: "清单 / 項目符號", style: { fontSize: 16 }, text: "• 項目一\n• 項目二\n• 項目三" },
+                  { label: "編號清單", style: { fontSize: 16 }, text: "1. 第一項\n2. 第二項\n3. 第三項" },
+                  { label: "代辦清單", style: { fontSize: 16 }, text: "☐ 待辦事項\n☑ 完成事項" },
+                ] as any[]).map((item, i) => item.sep
+                  ? <div key={i} className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
+                  : <button key={i} onClick={() => { addBlock({ type: "text", w: 55, h: item.callout ? 18 : 14, text: item.text, style: item.style }); setTextMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">{item.label}</button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <button onClick={() => { setChartMenuOpen(v => !v); setTextMenuOpen(false); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📊 圖表 ▾</button>
+            {chartMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[140px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                {([
+                  { label: "📊 長條圖", type: "bar" },
+                  { label: "📈 折線圖", type: "line" },
+                  { label: "🥧 圓餅圖", type: "pie" },
+                  { label: "🍩 環圖", type: "donut" },
+                  { label: "📅 甘特圖", type: "gantt" },
+                  { label: "🔺 金字塔", type: "pyramid" },
+                  { label: "🕸️ 雷達圖", type: "radar" },
+                ] as { label: string; type: string }[]).map((ct) => (
+                  <button key={ct.type} onClick={() => { addBlock({ type: "chart", x: 15, y: 15, w: 55, h: 50, chart: { type: ct.type as any, variant: "single", orientation: "vertical", data: [{ label: "A", value: 30 }, { label: "B", value: 50 }, { label: "C", value: 20 }] } }); setChartMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">{ct.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* 版面配置（下拉選單，取代形狀） */}
+          <div className="relative">
+            <button onClick={() => { setLayoutMenuOpen(v => !v); setTextMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📐 版面 ▾</button>
+            {layoutMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                <button onClick={() => { addBlock({ type: "text", x: 5, y: 5, w: 90, h: 90, text: "", style: { fontSize: 16 } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📑 目錄</button>
+                <button onClick={() => { addBlock({ type: "chart", x: 5, y: 5, w: 90, h: 50, chart: { type: "text-columns", data: [{ label: "欄一", value: 0 }, { label: "欄二", value: 0 }] } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📑 雙欄</button>
+                <button onClick={() => { addBlock({ type: "chart", x: 5, y: 5, w: 90, h: 50, chart: { type: "text-columns", data: [{ label: "欄一", value: 0 }, { label: "欄二", value: 0 }, { label: "欄三", value: 0 }] } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📑 三欄</button>
+                <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
+                <button onClick={() => { addBlock({ type: "chart", x: 10, y: 10, w: 80, h: 60, chart: { type: "text-quote", data: [{ label: "引述", value: 0 }] } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">❝ 引言卡</button>
+                <button onClick={() => { addBlock({ type: "chart", x: 10, y: 10, w: 80, h: 60, chart: { type: "timeline", data: [{ label: "事件一", value: 0 }, { label: "事件二", value: 0 }] } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">⏱️ 時間軸</button>
+                <button onClick={() => { addBlock({ type: "chart", x: 10, y: 10, w: 80, h: 60, chart: { type: "text-list", data: [{ label: "項目一", value: 0 }, { label: "項目二", value: 0 }] } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📋 文字清單</button>
+              </div>
+            )}
+          </div>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
           <span className="text-[10px] opacity-50">對齊</span>
           {([["left", "⤛"], ["hcenter", "↔"], ["right", "⤜"], ["top", "⤒"], ["vcenter", "⇕"], ["bottom", "⤓"]] as [AlignType, string][]).map(([t, ic]) => (
@@ -12604,8 +12725,8 @@ export default function PresentationView({
       {/* ===== 三欄 ===== */}
       <div className="flex flex-1 overflow-hidden">
         {/* 左：縮圖列（即時鏡像）+ 底部新增投影片 */}
-        <div className="w-[180px] shrink-0 flex flex-col border-r overflow-hidden" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b" style={{ borderColor: "var(--color-border)" }}>投影片（右鍵更多操作）</div>
+        <div className={`${leftPanelOpen ? "w-[180px]" : "w-0"} shrink-0 flex flex-col border-r overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setLeftPanelOpen(v => !v)} className="hover:opacity-100" title="開合">📑</button> 投影片</div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {slides.map((slide, idx) => (
               <SlideThumbnail key={slide.id} slide={slide} theme={data.theme} active={activeSlideId === slide.id} idx={idx} total={slides.length}
@@ -12614,7 +12735,7 @@ export default function PresentationView({
             ))}
           </div>
           <div className="p-2 border-t" style={{ borderColor: "var(--color-border)" }}>
-            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 text-white text-xs py-2 hover:bg-zinc-700">＋ 新增投影片</button>
+            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 text-white text-base py-10 hover:bg-zinc-700">＋ 新增投影片</button>
           </div>
         </div>
 
@@ -12651,7 +12772,7 @@ export default function PresentationView({
                     } else {
                       const targetIds = (selected && selectedIds.length > 1) ? selectedIds : [block.id];
                       const origBlocks = (selected && selectedIds.length > 1) ? selectedBlocks : [block];
-                      ptrRef.current = { kind: "drag", ids: targetIds, startMX: e.clientX, startMY: e.clientY, orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y }])), cw: cRect.width, ch: cRect.height };
+                      ptrRef.current = { kind: "drag", ids: targetIds, grabOffsetX: lx, grabOffsetY: ly, canvasLeft: cRect.left, canvasTop: cRect.top, cw: cRect.width, ch: cRect.height, orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y, w: b.w, h: b.h }])) };
                     }
                   }}
                   onPointerMove={handlePointerMove}
@@ -12681,14 +12802,14 @@ export default function PresentationView({
 
             {/* 浮動工具列（複製/刪除/編輯圖表/更多） */}
             {floatBarStyle && (
-              <div className="absolute z-[10001] flex items-center gap-0.5 rounded-lg shadow-lg px-1 py-1" style={{ ...floatBarStyle, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
-                {singleSelected && <button onClick={() => handleDuplicateBlock(singleSelected.id)} className="px-2 py-1 text-[11px] rounded hover:bg-zinc-100" title="複製">⧉</button>}
+              <div className="absolute z-[10001] flex items-center gap-2 rounded-lg shadow-lg px-3 py-3" style={{ ...floatBarStyle, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
+                {singleSelected && <button onClick={() => handleDuplicateBlock(singleSelected.id)} className="px-4 py-3 text-base rounded hover:bg-zinc-100" title="複製">⧉</button>}
                 {singleSelected?.type === "chart" && (
-                  <button onClick={() => setChartEditOpen((v) => !v)} className={`px-2 py-1 text-[11px] rounded ${chartEditOpen ? "bg-zinc-200" : "hover:bg-zinc-100"}`} title="編輯圖表（如 Gamma）">📊 編輯圖表</button>
+                  <button onClick={() => setChartEditOpen((v) => !v)} className={`px-4 py-3 text-base rounded ${chartEditOpen ? "bg-zinc-200" : "hover:bg-zinc-100"}`} title="編輯圖表（如 Gamma）">📊 編輯圖表</button>
                 )}
-                <button onClick={() => handleDeleteBlocks(selectedIds)} className="px-2 py-1 text-[11px] rounded hover:bg-red-50 text-red-600" title="刪除">🗑</button>
+                <button onClick={() => handleDeleteBlocks(selectedIds)} className="px-4 py-3 text-base rounded hover:bg-red-50 text-red-600" title="刪除">🗑</button>
                 <div className="relative">
-                  <button onClick={() => setMoreMenuFor(moreMenuFor ? null : "open")} className="px-2 py-1 text-[11px] rounded hover:bg-zinc-100" title="更多">⋯</button>
+                  <button onClick={() => setMoreMenuFor(moreMenuFor ? null : "open")} className="px-4 py-3 text-base rounded hover:bg-zinc-100" title="更多">⋯</button>
                   {moreMenuFor && (
                     <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 min-w-[120px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
                       <button onClick={() => { singleSelected && handleZOrder(singleSelected.id, "front"); setMoreMenuFor(null); }} disabled={!singleSelected} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100 disabled:opacity-30">⬆ 置頂</button>
@@ -12703,27 +12824,6 @@ export default function PresentationView({
               </div>
             )}
 
-            {/* 圖表編輯面板（Gamma 風格浮動卡片） */}
-            {chartEditOpen && singleSelected?.type === "chart" && singleSelected.chart && (
-              <div className="absolute z-[10002] rounded-xl shadow-2xl p-3" style={{ top: "8px", right: "8px", width: 280, maxHeight: "84%", overflowY: "auto", backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold">編輯圖表</span>
-                  <button onClick={() => setChartEditOpen(false)} className="text-xs opacity-60 hover:opacity-100">✕</button>
-                </div>
-                <div className="mb-2"><div className="text-[10px] opacity-60 mb-1">類型</div><ChartTypeMenu chart={singleSelected.chart} onChange={(c) => updateBlock(singleSelected.id, { chart: c })} /></div>
-                <div className="mb-2 rounded p-1.5" style={{ background: "var(--color-sidebar-bg)" }}>{singleSelected.chart ? <ChartRenderer chart={singleSelected.chart} width={248} height={110} /> : null}</div>
-                <div className="text-[10px] opacity-60 mb-1">資料</div>
-                {(singleSelected.chart.data || []).map((d, i) => (
-                  <div key={i} className="flex gap-1 mb-1">
-                    <input value={d.label} onChange={(e) => { const nd = [...(singleSelected.chart?.data || [])]; nd[i] = { ...nd[i], label: e.target.value }; updateBlock(singleSelected.id, { chart: { ...singleSelected.chart!, data: nd } as any }); }} className="flex-1 border rounded px-1 py-0.5 text-[11px]" placeholder="標籤" />
-                    <input value={d.series || ""} onChange={(e) => { const nd = [...(singleSelected.chart?.data || [])]; nd[i] = { ...nd[i], series: e.target.value }; updateBlock(singleSelected.id, { chart: { ...singleSelected.chart!, data: nd } as any }); }} className="w-12 border rounded px-1 py-0.5 text-[10px]" placeholder="系列" />
-                    <input type="number" value={d.value} onChange={(e) => { const nd = [...(singleSelected.chart?.data || [])]; nd[i] = { ...nd[i], value: Number(e.target.value) }; updateBlock(singleSelected.id, { chart: { ...singleSelected.chart!, data: nd } as any }); }} className="w-14 border rounded px-1 py-0.5 text-[11px]" />
-                    <button onClick={() => { const nd = (singleSelected.chart?.data || []).filter((_, idx) => idx !== i); updateBlock(singleSelected.id, { chart: { ...singleSelected.chart!, data: nd } as any }); }} className="text-[10px] px-1">×</button>
-                  </div>
-                ))}
-                <button onClick={() => { const nd = [...(singleSelected.chart?.data || []), { label: "新", value: 10 }]; updateBlock(singleSelected.id, { chart: { ...singleSelected.chart!, data: nd } as any }); }} className="w-full text-[11px] border rounded py-1 hover:bg-zinc-100">+ 資料列</button>
-              </div>
-            )}
 
             {/* 空畫布提示 */}
             {(!activeSlide?.blocks || activeSlide.blocks.length === 0) && (
@@ -12735,45 +12835,18 @@ export default function PresentationView({
         </div>
 
         {/* 右：圖層 + 屬性 */}
-        <div className="w-[260px] shrink-0 border-l flex flex-col overflow-hidden" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b" style={{ borderColor: "var(--color-border)" }}>圖層</div>
+        <div className={`${rightPanelOpen ? "w-[260px]" : "w-0"} shrink-0 border-l flex flex-col overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setRightPanelOpen(v => !v)} className="hover:opacity-100" title="開合">☰</button> 圖層</div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {[...(activeSlide?.blocks || [])].sort((a, b) => b.z - a.z).map((block) => (
-              <div key={block.id} onClick={(e) => { if (e.ctrlKey || e.metaKey) setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); else setSelectedIds([block.id]); }} className={`flex items-center gap-2 p-2 rounded cursor-pointer text-xs ${selectedIds.includes(block.id) ? "bg-white border border-blue-300 shadow-sm" : "hover:bg-white/60 border border-transparent"}`}>
+              <div key={block.id} draggable onDragStart={() => setDraggedBlockId(block.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (!draggedBlockId || draggedBlockId === block.id || !activeSlide) return; const sorted = [...(activeSlide.blocks || [])].sort((a, b) => a.z - b.z); const fromIdx = sorted.findIndex((b) => b.id === draggedBlockId); const toIdx = sorted.findIndex((b) => b.id === block.id); if (fromIdx === -1 || toIdx === -1) return; const [moved] = sorted.splice(fromIdx, 1); sorted.splice(toIdx, 0, moved); updateActiveSlide({ blocks: sorted.map((b, i) => ({ ...b, z: (i + 1) * 10 })) }); setDraggedBlockId(null); }} onClick={(e) => { if (e.ctrlKey || e.metaKey) setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); else setSelectedIds([block.id]); }} className={`flex items-center gap-2 p-2 rounded cursor-grab active:cursor-grabbing text-xs ${selectedIds.includes(block.id) ? "bg-white border border-blue-300 shadow-sm" : "hover:bg-white/60 border border-transparent"} ${draggedBlockId === block.id ? "opacity-40" : ""}`}>
+                <span className="opacity-40 select-none">⠿</span>
                 <span>{block.type === "text" ? "📝" : block.type === "chart" ? "📊" : block.type === "shape" ? "⬜" : "🖼️"}</span>
                 <span className="flex-1 truncate">{block.text?.slice(0, 18) || (block.type === "text" ? "(空文字)" : block.type)}</span>
-                <span className="text-[9px] opacity-40">z{block.z}</span>
               </div>
             ))}
             {(!activeSlide?.blocks || activeSlide.blocks.length === 0) && <div className="text-xs opacity-40 p-2">尚無圖層</div>}
           </div>
-          {singleSelected && (
-            <div className="p-3 border-t space-y-3 overflow-y-auto max-h-[45%]" style={{ borderColor: "var(--color-border)" }}>
-              <div className="text-xs font-semibold opacity-60 uppercase">屬性</div>
-              <div className="flex gap-1">
-                <button onClick={() => handleZOrder(singleSelected.id, "front")} className="flex-1 text-[11px] border rounded px-2 py-1 hover:bg-white">置頂</button>
-                <button onClick={() => handleZOrder(singleSelected.id, "back")} className="flex-1 text-[11px] border rounded px-2 py-1 hover:bg-white">置底</button>
-                <button onClick={() => handleDuplicateBlock(singleSelected.id)} className="flex-1 text-[11px] border rounded px-2 py-1 hover:bg-white">複製</button>
-              </div>
-              {singleSelected.type === "text" && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => updateBlock(singleSelected.id, { style: { ...singleSelected.style, bold: !singleSelected.style?.bold } })} className={`px-2 py-1 rounded border text-xs ${singleSelected.style?.bold ? "bg-zinc-800 text-white" : "bg-white"}`} style={{ fontWeight: 700 }}>B</button>
-                    <select value={singleSelected.style?.textAlign || "left"} onChange={(e) => updateBlock(singleSelected.id, { style: { ...singleSelected.style, textAlign: e.target.value as any } })} className="flex-1 border rounded px-1 py-1 text-xs"><option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option></select>
-                  </div>
-                  <div className="flex items-center gap-1"><span className="text-[10px] opacity-60">字級</span><input type="range" min={10} max={48} value={singleSelected.style?.fontSize || 16} onChange={(e) => updateBlock(singleSelected.id, { style: { ...singleSelected.style, fontSize: Number(e.target.value) } })} className="flex-1" /><span className="text-[10px] w-6">{singleSelected.style?.fontSize || 16}</span></div>
-                  <div className="flex items-center gap-1"><span className="text-[10px] opacity-60">旋轉</span><input type="number" value={Math.round(singleSelected.rotation || 0)} onChange={(e) => updateBlock(singleSelected.id, { rotation: Number(e.target.value) })} className="w-16 border rounded px-1 py-0.5 text-xs" /><span className="text-[10px] opacity-60">°</span></div>
-                  <button onClick={() => setEditingBlockId(singleSelected.id)} className="w-full border rounded px-2 py-1.5 text-xs hover:bg-white">✏️ 編輯文字</button>
-                </div>
-              )}
-              {singleSelected.type === "chart" && (
-                <button onClick={() => setChartEditOpen(true)} className="w-full border rounded px-2 py-1.5 text-xs hover:bg-white">📊 編輯圖表資料</button>
-              )}
-              {singleSelected.type === "shape" && (
-                <div className="space-y-2"><div className="text-[11px] opacity-60">背景色</div><input type="color" value={singleSelected.style?.background || "#e0e7ff"} onChange={(e) => updateBlock(singleSelected.id, { style: { ...singleSelected.style, background: e.target.value } })} className="w-full h-8 rounded border" /></div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -12786,6 +12859,74 @@ export default function PresentationView({
           <button onClick={() => { handleDeleteSlide(slideCtx.slideId); setSlideCtx(null); }} disabled={slides.length <= 1} className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-30">🗑 刪除投影片</button>
         </div>
       )}
+
+
+      {/* 圖表編輯底部面板：上半部（類型｜設定｜預覽）+ 下半部（資料表格） */}
+      {chartEditOpen && singleSelected?.type === "chart" && singleSelected.chart && (() => {
+        const c = singleSelected.chart!;
+        const upd = (patch: any) => updateBlock(singleSelected.id, { chart: { ...c, ...patch } as any });
+        const chartTypes: { t: string; icon: string }[] = [
+          { t: "bar", icon: "📊" }, { t: "line", icon: "📈" }, { t: "pie", icon: "🥧" }, { t: "donut", icon: "🍩" },
+          { t: "gantt", icon: "📅" }, { t: "pyramid", icon: "🔺" }, { t: "radar", icon: "🕸️" },
+          { t: "timeline", icon: "⏱️" }, { t: "text-columns", icon: "📑" }, { t: "text-list", icon: "📋" }, { t: "text-quote", icon: "❝" },
+        ];
+        return (
+          <div className="shrink-0 border-t flex flex-col relative" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+            {/* 關閉按鈕：固定在面板右側邊緣 */}
+            <button onClick={() => setChartEditOpen(false)} className="absolute -top-3 right-3 z-10 w-7 h-7 rounded-full shadow-lg flex items-center justify-center text-sm" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>✕</button>
+            {/* 標題列 */}
+            <div className="flex items-center px-4 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
+              <span className="text-sm font-semibold">📊 編輯圖表</span>
+            </div>
+            {/* 上半部：類型｜設定｜預覽（三欄並排） */}
+            <div className="flex gap-0 border-b" style={{ borderColor: "var(--color-border)" }}>
+              {/* 1. 圖表類型 */}
+              <div className="shrink-0 p-2 border-r overflow-y-auto" style={{ borderColor: "var(--color-border)", width: 120 }}>
+                <div className="text-[10px] opacity-50 font-semibold mb-1">類型</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {chartTypes.map(({ t, icon }) => (
+                    <button key={t} onClick={() => upd({ type: t as any })} title={t}
+                      className={`rounded p-1.5 text-lg text-center transition-all ${c.type === t ? "bg-blue-500 text-white" : "hover:bg-zinc-200"}`}>{icon}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 2. 細項設定 */}
+              <div className="flex-1 p-2 border-r overflow-y-auto" style={{ borderColor: "var(--color-border)" }}>
+                <div className="text-[10px] opacity-50 font-semibold mb-1">圖表選項</div>
+                <label className="flex items-center gap-1.5 mb-1 cursor-pointer"><input type="checkbox" checked={c.sortOrder === "desc"} onChange={(e) => upd({ sortOrder: e.target.checked ? "desc" : null })} className="accent-blue-500" /><span className="text-xs">由高到低排序</span></label>
+                <label className="flex items-center gap-1.5 mb-1 cursor-pointer"><input type="checkbox" checked={c.showDataLabels ?? false} onChange={(e) => upd({ showDataLabels: e.target.checked })} className="accent-blue-500" /><span className="text-xs">資料標籤</span></label>
+                <label className="flex items-center gap-1.5 mb-1 cursor-pointer"><input type="checkbox" checked={c.showGrid ?? true} onChange={(e) => upd({ showGrid: e.target.checked })} className="accent-blue-500" /><span className="text-xs">格線</span></label>
+                <label className="flex items-center gap-1.5 mb-1 cursor-pointer"><input type="checkbox" checked={c.showTitleNumber ?? false} onChange={(e) => upd({ showTitleNumber: e.target.checked })} className="accent-blue-500" /><span className="text-xs">標題數字</span></label>
+                <div className="text-[10px] opacity-50 font-semibold mb-1 mt-2">視覺效果</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs opacity-60">方向</span>
+                  <button onClick={() => upd({ orientation: c.orientation === "vertical" ? "horizontal" : "vertical" })} className="text-xs border rounded px-2 py-0.5 hover:bg-zinc-200">{c.orientation === "horizontal" ? "↔ 橫向" : "↕ 直向"}</button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs opacity-60">變體</span>
+                  <select value={c.variant || "single"} onChange={(e) => upd({ variant: e.target.value as any })} className="text-xs border rounded px-1 py-0.5 bg-transparent"><option value="single">單一</option><option value="category">類別</option><option value="grouped">群組</option><option value="stacked">堆疊</option><option value="stacked-percent">比例</option></select>
+                </div>
+              </div>
+              {/* 3. 預覽圖 */}
+              <div className="shrink-0 p-2 flex items-center justify-center" style={{ width: 260 }}>
+                <ChartRenderer chart={c} width={240} height={140} />
+              </div>
+            </div>
+            {/* 下半部：資料表格 */}
+            <div className="p-2" style={{ maxHeight: 140, overflowY: "auto" }}>
+              <div className="flex gap-1 mb-1 text-[10px] opacity-50 font-semibold"><span className="flex-1">標籤</span><span className="w-20 text-center">數值</span><span className="w-8"></span></div>
+              {(c.data || []).map((d, i) => (
+                <div key={i} className="flex gap-1 mb-1">
+                  <input value={d.label} onChange={(e) => { const nd = [...(c.data || [])]; nd[i] = { ...nd[i], label: e.target.value }; upd({ data: nd }); }} className="flex-1 border rounded px-2 py-1 text-xs" placeholder="標籤" />
+                  <input type="number" value={d.value} onChange={(e) => { const nd = [...(c.data || [])]; nd[i] = { ...nd[i], value: Number(e.target.value) }; upd({ data: nd }); }} className="w-20 border rounded px-1 py-1 text-xs text-center" />
+                  <button onClick={() => upd({ data: (c.data || []).filter((_, idx) => idx !== i) })} className="w-8 text-xs text-red-500 hover:bg-red-50 rounded">✕</button>
+                </div>
+              ))}
+              <button onClick={() => upd({ data: [...(c.data || []), { label: "新", value: 10 }] })} className="text-xs border rounded px-3 py-1 mt-1 hover:bg-zinc-100">+ 新增列</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 備註列 */}
       <div className="shrink-0 border-t p-3 flex gap-2 items-start" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
@@ -13038,6 +13179,7 @@ type SidebarProps = {
   isHomeMode: boolean;
   isQuickNoteMode?: boolean;
   isTodoMode?: boolean;
+  isCreativeMode?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -13049,6 +13191,7 @@ type SidebarProps = {
   onShowTrash: () => void;
   onShowQuickNotes?: () => void;
   onShowTodoList?: () => void;
+  onShowCreative?: () => void;
   onDeletePage: (id: string) => void;
   onRestorePage: (id: string) => void;
   onPermanentDeletePage: (id: string) => void;
@@ -13096,8 +13239,10 @@ export default function Sidebar({
   onShowTrash,
   onShowQuickNotes,
   onShowTodoList,
+  onShowCreative,
   isQuickNoteMode,
   isTodoMode,
+  isCreativeMode,
   onDeletePage,
   onRestorePage,
   onPermanentDeletePage,
@@ -13219,8 +13364,9 @@ export default function Sidebar({
     // Projects view (default) excludes quick_note and todo, which are independent per requirement 8
     if (isQuickNoteMode) return (page.kind as any) === "quick_note" && matchQuery && matchTag;
     if (isTodoMode) return (page.kind as any) === "todo" && matchQuery && matchTag;
-    // In trash/home/projects modes, exclude quick_note and todo from projects list
-    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo") return false;
+    if (isCreativeMode) return (page.kind as any) === "creative" && matchQuery && matchTag;
+    // In trash/home/projects modes, exclude quick_note, todo, and creative from projects list
+    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo" || (page.kind as any) === "creative") return false;
     return matchQuery && matchTag;
   });
 
@@ -13566,7 +13712,8 @@ export default function Sidebar({
           {[
             { id: "quicknotes", icon: "📝", label: t("sidebar.nav.quickNote"), active: !!isQuickNoteMode, onClick: () => onShowQuickNotes?.() },
             { id: "todo", icon: "✅", label: t("sidebar.nav.todoList"), active: !!isTodoMode, onClick: () => onShowTodoList?.() },
-            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode, onClick: onShowNotes },
+            { id: "creative", icon: "✍️", label: t("sidebar.nav.creative"), active: !!isCreativeMode, onClick: () => onShowCreative?.() },
+            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode && !isCreativeMode, onClick: onShowNotes },
           ].map((cat) => (
             <button
               key={cat.id}
@@ -16737,6 +16884,18 @@ export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
     isCreatableFromSidebar: false,
     isProject: false,
   },
+  creative: {
+    kind: "creative",
+    icon: "✍️",
+    label: "Creative",
+    labelZh: "創作",
+    desc: "Novel, character sheets",
+    descZh: "小說閱讀格式、角色簡介表等",
+    defaultFormat: "flow",
+    defaultFolder: null,
+    isCreatableFromSidebar: false,
+    isProject: false,
+  },
 };
 
 export function isProjectKind(kind?: PageKind): boolean {
@@ -16844,6 +17003,7 @@ const en: Dictionary = {
   "sidebar.nav.projects": "Projects",
   "sidebar.nav.quickNote": "Quick Notes",
   "sidebar.nav.todoList": "To-Do List",
+  "sidebar.nav.creative": "Creative",
   "sidebar.nav.items": "Projects",
   "sidebar.nav.trash": "Trash",
   "sidebar.tags.all": "All",
@@ -17184,6 +17344,7 @@ const zhTW: Dictionary = {
   "sidebar.nav.projects": "項目",
   "sidebar.nav.quickNote": "隨手記",
   "sidebar.nav.todoList": "To-Do List",
+  "sidebar.nav.creative": "創作",
   "sidebar.nav.items": "項目",
   "sidebar.nav.trash": "垃圾桶",
   "sidebar.tags.all": "全部",
@@ -18948,7 +19109,7 @@ export class SyncEngine {
   /** Push a single page to cloud */
   async pushPage(page: Page): Promise<void> {
     try {
-      await this.supabase.from("pages").upsert({
+      const { error: upErr } = await this.supabase.from("pages").upsert({
         id: page.id, title: page.title, content_json: page.content_json,
         content_text: page.content_text, default_mode: page.default_mode,
         created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
@@ -18965,6 +19126,7 @@ export class SyncEngine {
         completed: page.completed ?? false,
         color: page.color ?? null,
       }, { onConflict: "id" });
+      if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
 
       if (page.updated_at > this.lastSyncAt) this.setState({ lastSyncAt: page.updated_at });
     } catch (err) {
@@ -19066,7 +19228,7 @@ export interface Attachment {
   page_count?: number;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo";
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**
@@ -19110,6 +19272,10 @@ export interface ChartData {
   variant?: BarVariant; // for bar charts
   orientation?: ChartOrientation; // vertical / horizontal, one-click toggle
   data: { label: string; value: number; series?: string; start?: number; end?: number }[];
+  sortOrder?: "desc" | "asc" | null; // 由高到低排序
+  showDataLabels?: boolean; // 資料標籤
+  showGrid?: boolean; // 格線
+  showTitleNumber?: boolean; // 標題數字
 }
 
 export interface PresentationBlock {

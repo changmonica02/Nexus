@@ -148,11 +148,67 @@ export interface Page {
   sort_order?: number;
   parent_id?: ID | null;
   margins?: PageMargins;
-  // Todo specific
-  due_date?: number | null;
-  priority?: "low" | "medium" | "high" | null;
-  completed?: boolean;
-  color?: string | null; // for quick note
+  // Creative specific
+  creative_type?: "novel" | "character";
+  character_data?: CharacterProfileData;
+  novel_settings?: NovelSettings;
+}
+
+export type CreativeType = "novel" | "character";
+
+export interface NovelSettings {
+  theme?: "parchment" | "cream" | "eye_care" | "dark" | "pure_white";
+  fontSize?: number; // 14 ~ 26
+  fontFamily?: "serif" | "sans" | "kai";
+  lineHeight?: number; // 1.6 ~ 2.4
+  paragraphIndent?: boolean; // default true (2em)
+  showWordCount?: boolean;
+}
+
+export type CharacterComponentType = "key_value" | "rich_text" | "tags" | "stats" | "relations";
+
+export interface CharacterKeyValueItem {
+  key: string;
+  value: string;
+}
+
+export interface CharacterStatItem {
+  label: string;
+  value: number; // 0 ~ 100
+  max?: number;
+}
+
+export interface CharacterRelationItem {
+  targetName: string;
+  relationType: string;
+  description: string;
+}
+
+export interface CharacterSection {
+  id: string;
+  type: CharacterComponentType;
+  title: string;
+  icon?: string;
+  keyValues?: CharacterKeyValueItem[];
+  richText?: string;
+  tags?: string[];
+  stats?: CharacterStatItem[];
+  relations?: CharacterRelationItem[];
+}
+
+export interface CharacterProfileData {
+  templateId?: "fantasy" | "modern" | "blank";
+  basic: {
+    name: string;
+    alias?: string;
+    avatarUrl?: string;
+    gender?: string;
+    age?: string;
+    role?: string;
+    affiliation?: string;
+    quote?: string;
+  };
+  sections: CharacterSection[];
 }
 
 export interface PageQuery {

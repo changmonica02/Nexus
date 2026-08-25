@@ -22,8 +22,25 @@ const MIN_W = 5;
 const MIN_H = 4;
 type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
+interface GuideLine {
+  type: "vertical" | "horizontal";
+  pos: number;
+}
+
 type Interaction =
-  | { kind: "drag"; ids: string[]; startMX: number; startMY: number; orig: Record<string, { x: number; y: number }> }
+  | {
+      kind: "drag";
+      ids: string[];
+      startMX: number;
+      startMY: number;
+      cw: number;
+      ch: number;
+      groupOrigX: number;
+      groupOrigY: number;
+      groupW: number;
+      groupH: number;
+      orig: Record<string, { x: number; y: number; w: number; h?: number }>;
+    }
   | { kind: "resize"; id: string; handle: HandleDir; startMX: number; startMY: number; orig: PresentationBlock; cw: number; ch: number }
   | { kind: "rotate"; id: string; cx: number; cy: number; origRot: number };
 
@@ -37,9 +54,9 @@ function rotateVec(x: number, y: number, deg: number) {
 function BlockContent({ block, thumb }: { block: PresentationBlock; thumb?: boolean }) {
   if (block.type === "text") {
     const empty = !(block.text && block.text.trim());
-    if (thumb) return <div style={{ fontSize: 7, opacity: empty ? 0.35 : 1, color: block.style?.color || "inherit", whiteSpace: "pre-wrap", overflow: "hidden" }}>{empty ? "文字" : block.text!.slice(0, 30)}</div>;
+    if (thumb) return <div style={{ fontSize: 7, opacity: empty ? 0.35 : 1, color: block.style?.color || "inherit", whiteSpace: "pre-wrap", overflow: "hidden" }}>{empty ? "文字方塊" : block.text!.slice(0, 30)}</div>;
     return empty
-      ? <div className="pointer-events-none italic" style={{ opacity: 0.3 }}>點擊輸入文字</div>
+      ? <div className="pointer-events-none select-none text-zinc-400 dark:text-zinc-500 italic" style={{ opacity: 0.45 }}>文字方塊</div>
       : <div className="whitespace-pre-wrap break-words" style={{ fontWeight: block.style?.bold ? 700 : 400, color: block.style?.color || "inherit", textAlign: block.style?.textAlign }}>{block.text}</div>;
   }
   if (block.type === "chart" && block.chart) {
@@ -95,9 +112,14 @@ export default function PresentationView({
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const [activeGuides, setActiveGuides] = useState<GuideLine[]>([]);
   const [slideCtx, setSlideCtx] = useState<{ x: number; y: number; slideId: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slideCtxRef = useRef<HTMLDivElement>(null);
+  const textMenuRef = useRef<HTMLDivElement>(null);
+  const chartMenuRef = useRef<HTMLDivElement>(null);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const updateSlides = useCallback((newSlides: Slide[]) => { onUpdatePresentation({ ...data, slides: newSlides }); }, [data, onUpdatePresentation]);
   const updateActiveSlide = useCallback((patch: Partial<Slide>) => {
@@ -208,31 +230,160 @@ export default function PresentationView({
     const it = ptrRef.current;
     if (!it) return;
     if (it.kind === "drag") {
+      const dxPct = ((e.clientX - it.startMX) / it.cw) * 100;
+      const dyPct = ((e.clientY - it.startMY) / it.ch) * 100;
+
+      const rawGroupX = it.groupOrigX + dxPct;
+      const rawGroupY = it.groupOrigY + dyPct;
+
+      let snappedGroupX = rawGroupX;
+      let snappedGroupY = rawGroupY;
+      const newGuides: GuideLine[] = [];
+
+      if (!e.altKey && activeSlide) {
+        const snapThresholdX = (8 / it.cw) * 100;
+        const snapThresholdY = (8 / it.ch) * 100;
+
+        // Collect snap targets: Canvas centers and other blocks' edges and centers
+        const otherBlocks = (activeSlide.blocks || []).filter((b) => !it.ids.includes(b.id));
+
+        const xTargets: number[] = [50];
+        const yTargets: number[] = [50];
+
+        for (const ob of otherBlocks) {
+          const obH = ob.h || MIN_H;
+          xTargets.push(ob.x, ob.x + ob.w / 2, ob.x + ob.w);
+          yTargets.push(ob.y, ob.y + obH / 2, ob.y + obH);
+        }
+
+        // X-axis snapping
+        const xCandidates = [
+          { pos: rawGroupX, offsetFromLeft: 0 },
+          { pos: rawGroupX + it.groupW / 2, offsetFromLeft: it.groupW / 2 },
+          { pos: rawGroupX + it.groupW, offsetFromLeft: it.groupW },
+        ];
+
+        let minDiffX = snapThresholdX;
+        let bestSnapX: { snappedGroupLeft: number; guidePos: number } | null = null;
+
+        for (const cand of xCandidates) {
+          for (const target of xTargets) {
+            const diff = Math.abs(cand.pos - target);
+            if (diff < minDiffX) {
+              minDiffX = diff;
+              bestSnapX = {
+                snappedGroupLeft: target - cand.offsetFromLeft,
+                guidePos: target,
+              };
+            }
+          }
+        }
+
+        if (bestSnapX) {
+          snappedGroupX = bestSnapX.snappedGroupLeft;
+          newGuides.push({ type: "vertical", pos: bestSnapX.guidePos });
+        }
+
+        // Y-axis snapping
+        const yCandidates = [
+          { pos: rawGroupY, offsetFromTop: 0 },
+          { pos: rawGroupY + it.groupH / 2, offsetFromTop: it.groupH / 2 },
+          { pos: rawGroupY + it.groupH, offsetFromTop: it.groupH },
+        ];
+
+        let minDiffY = snapThresholdY;
+        let bestSnapY: { snappedGroupTop: number; guidePos: number } | null = null;
+
+        for (const cand of yCandidates) {
+          for (const target of yTargets) {
+            const diff = Math.abs(cand.pos - target);
+            if (diff < minDiffY) {
+              minDiffY = diff;
+              bestSnapY = {
+                snappedGroupTop: target - cand.offsetFromTop,
+                guidePos: target,
+              };
+            }
+          }
+        }
+
+        if (bestSnapY) {
+          snappedGroupY = bestSnapY.snappedGroupTop;
+          newGuides.push({ type: "horizontal", pos: bestSnapY.guidePos });
+        }
+      }
+
+      setActiveGuides(newGuides);
+
+      let finalDx = snappedGroupX - it.groupOrigX;
+      let finalDy = snappedGroupY - it.groupOrigY;
+
+      // Keep within canvas bounds [0, 100]
+      finalDx = Math.max(-it.groupOrigX, Math.min(100 - (it.groupOrigX + it.groupW), finalDx));
+      finalDy = Math.max(-it.groupOrigY, Math.min(100 - (it.groupOrigY + it.groupH), finalDy));
+
+      const patch: Record<string, Partial<PresentationBlock>> = {};
       for (const id of it.ids) {
         const o = it.orig[id];
         if (!o) continue;
-        const newX = ((e.clientX - it.canvasLeft - it.grabOffsetX) / it.cw) * 100;
-        const newY = ((e.clientY - it.canvasTop - it.grabOffsetY) / it.ch) * 100;
-        updateBlock(id, {
-          x: Math.max(0, Math.min(100 - (o.w || 0), newX)),
-          y: Math.max(0, Math.min(100 - (o.h || 0), newY)),
-        });
+        patch[id] = {
+          x: o.x + finalDx,
+          y: o.y + finalDy,
+        };
       }
+      updateBlocks(it.ids, (b) => ({ ...b, ...(patch[b.id] || {}) }));
     } else if (it.kind === "resize") {
-      const orig = it.orig; const rot = orig.rotation || 0;
-      let dxPx = e.clientX - it.startMX, dyPx = e.clientY - it.startMY;
-      if (rot) { const lv = rotateVec(dxPx, dyPx, -rot); dxPx = lv.x; dyPx = lv.y; }
-      const dxPct = (dxPx / it.cw) * 100, dyPct = (dyPx / it.ch) * 100;
-      let { x, y, w, h } = orig; const hd = it.handle;
-      if (hd.includes("e")) w = Math.max(MIN_W, orig.w + dxPct);
-      if (hd.includes("s")) h = Math.max(MIN_H, (orig.h || MIN_H) + dyPct);
-      if (hd.includes("w")) { const nw = Math.max(MIN_W, orig.w - dxPct); x = orig.x + (orig.w - nw); w = nw; }
-      if (hd.includes("n")) { const nh = Math.max(MIN_H, (orig.h || MIN_H) - dyPct); y = orig.y + ((orig.h || MIN_H) - nh); h = nh; }
-      // 邊界 clamp：物件保持在畫布內（0~100），避免邊緣超出被 overflow-hidden 裁切後無法選回
-      x = Math.max(0, x); y = Math.max(0, y);
-      w = Math.max(MIN_W, Math.min(w, 100 - x));
-      h = Math.max(MIN_H, Math.min(h, 100 - y));
-      updateBlock(orig.id, { x, y, w, h });
+      const orig = it.orig;
+      const rot = orig.rotation || 0;
+      let dxPx = e.clientX - it.startMX;
+      let dyPx = e.clientY - it.startMY;
+      if (rot) {
+        const lv = rotateVec(dxPx, dyPx, -rot);
+        dxPx = lv.x;
+        dyPx = lv.y;
+      }
+      const dxPct = (dxPx / it.cw) * 100;
+      const dyPct = (dyPx / it.ch) * 100;
+      const origW = orig.w;
+      const origH = orig.h || MIN_H;
+      const hd = it.handle;
+
+      let newW = origW;
+      let newH = origH;
+      let localCenterDx = 0;
+      let localCenterDy = 0;
+
+      if (hd.includes("e")) {
+        newW = Math.max(MIN_W, origW + dxPct);
+        localCenterDx = (newW - origW) / 2;
+      } else if (hd.includes("w")) {
+        newW = Math.max(MIN_W, origW - dxPct);
+        localCenterDx = -(newW - origW) / 2;
+      }
+
+      if (hd.includes("s")) {
+        newH = Math.max(MIN_H, origH + dyPct);
+        localCenterDy = (newH - origH) / 2;
+      } else if (hd.includes("n")) {
+        newH = Math.max(MIN_H, origH - dyPct);
+        localCenterDy = -(newH - origH) / 2;
+      }
+
+      const origCenterX = orig.x + origW / 2;
+      const origCenterY = orig.y + origH / 2;
+
+      const worldCenterShift = rot ? rotateVec(localCenterDx, localCenterDy, rot) : { x: localCenterDx, y: localCenterDy };
+
+      const newCenterX = origCenterX + worldCenterShift.x;
+      const newCenterY = origCenterY + worldCenterShift.y;
+
+      let newX = newCenterX - newW / 2;
+      let newY = newCenterY - newH / 2;
+
+      newX = Math.max(0, Math.min(100 - newW, newX));
+      newY = Math.max(0, Math.min(100 - newH, newY));
+
+      updateBlock(orig.id, { x: newX, y: newY, w: newW, h: newH });
     } else if (it.kind === "rotate") {
       let angle = (Math.atan2(e.clientY - it.cy, e.clientX - it.cx) * 180) / Math.PI + 90;
       if (e.shiftKey) angle = Math.round(angle / 15) * 15;
@@ -242,6 +393,7 @@ export default function PresentationView({
   };
   const handlePointerUp = (e: React.PointerEvent) => {
     ptrRef.current = null;
+    setActiveGuides([]);
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
   };
 
@@ -253,19 +405,44 @@ export default function PresentationView({
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault(); handleDeleteBlocks(selectedIds);
       }
-      if (e.key === "Escape") { setSelectedIds([]); setEditingBlockId(null); setChartEditOpen(false); setSlideCtx(null); }
+      if (e.key === "Escape") {
+        setSelectedIds([]);
+        setEditingBlockId(null);
+        setChartEditOpen(false);
+        setSlideCtx(null);
+        setTextMenuOpen(false);
+        setChartMenuOpen(false);
+        setLayoutMenuOpen(false);
+        setMoreMenuFor(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedIds, editingBlockId]);
 
-  // 關閉縮圖右鍵選單
+  // 點擊周圍空白處自動關閉所有下拉選單與右鍵選單
   useEffect(() => {
-    if (!slideCtx) return;
-    const h = (e: MouseEvent) => { if (slideCtxRef.current && !slideCtxRef.current.contains(e.target as Node)) setSlideCtx(null); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [slideCtx]);
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (slideCtx && slideCtxRef.current && !slideCtxRef.current.contains(target)) {
+        setSlideCtx(null);
+      }
+      if (textMenuOpen && textMenuRef.current && !textMenuRef.current.contains(target)) {
+        setTextMenuOpen(false);
+      }
+      if (chartMenuOpen && chartMenuRef.current && !chartMenuRef.current.contains(target)) {
+        setChartMenuOpen(false);
+      }
+      if (layoutMenuOpen && layoutMenuRef.current && !layoutMenuRef.current.contains(target)) {
+        setLayoutMenuOpen(false);
+      }
+      if (moreMenuFor && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuFor(null);
+      }
+    };
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown);
+  }, [slideCtx, textMenuOpen, chartMenuOpen, layoutMenuOpen, moreMenuFor]);
 
   if (!page.presentation_data) return <div className="flex-1 flex items-center justify-center">簡報資料載入中...</div>;
 
@@ -302,8 +479,8 @@ export default function PresentationView({
           <span className="text-[10px] opacity-50">{slides.length} 張</span>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
           {/* ＋ 文字（下拉選單） */}
-          <div className="relative">
-            <button onClick={() => { setTextMenuOpen(v => !v); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字 ▾</button>
+          <div ref={textMenuRef} className="relative">
+            <button onClick={() => { setTextMenuOpen(v => !v); setLayoutMenuOpen(false); setChartMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字 ▾</button>
             {textMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                 {([
@@ -332,7 +509,7 @@ export default function PresentationView({
               </div>
             )}
           </div>
-          <div className="relative">
+          <div ref={chartMenuRef} className="relative">
             <button onClick={() => { setChartMenuOpen(v => !v); setTextMenuOpen(false); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📊 圖表 ▾</button>
             {chartMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[140px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
@@ -351,8 +528,8 @@ export default function PresentationView({
             )}
           </div>
           {/* 版面配置（下拉選單，取代形狀） */}
-          <div className="relative">
-            <button onClick={() => { setLayoutMenuOpen(v => !v); setTextMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📐 版面 ▾</button>
+          <div ref={layoutMenuRef} className="relative">
+            <button onClick={() => { setLayoutMenuOpen(v => !v); setTextMenuOpen(false); setChartMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📐 版面 ▾</button>
             {layoutMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                 <button onClick={() => { addBlock({ type: "text", x: 5, y: 5, w: 90, h: 90, text: "", style: { fontSize: 16 } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📑 目錄</button>
@@ -373,13 +550,25 @@ export default function PresentationView({
           <button disabled={selectedIds.length < 3} onClick={() => handleAlign("hdistribute")} className="rounded px-2 py-1.5 text-xs border hover:bg-zinc-100 disabled:opacity-25" title="水平等距">⇆</button>
           <button disabled={selectedIds.length < 3} onClick={() => handleAlign("vdistribute")} className="rounded px-2 py-1.5 text-xs border hover:bg-zinc-100 disabled:opacity-25" title="垂直等距">⇅</button>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
-          <span className="text-[10px] opacity-50">版型</span>
-          {LAYOUTS.slice(0, 5).map((l) => (
-            <button key={l.id} onClick={() => activeSlide && updateActiveSlide({ layout: l.id })} className={`rounded px-2 py-1.5 text-xs border ${activeSlide?.layout === l.id ? "bg-zinc-800 text-white" : "hover:bg-zinc-100"}`} title={l.label}>{l.icon}</button>
-          ))}
-          <select value={data.theme} onChange={(e) => onUpdatePresentation({ ...data, theme: e.target.value as any })} className="ml-1 rounded border px-2 py-1.5 text-xs bg-transparent">
+          <select value={data.theme} onChange={(e) => onUpdatePresentation({ ...data, theme: e.target.value as any })} className="rounded border px-2 py-1.5 text-xs bg-transparent">
             <option value="minimal">Minimal</option><option value="academic">Academic</option><option value="business">Business</option><option value="dark">Dark</option>
           </select>
+          <div className="h-5 w-px bg-zinc-300 mx-1" />
+          {/* 投影片縮圖與圖層開合控制按鈕 */}
+          <button
+            onClick={() => setLeftPanelOpen((v) => !v)}
+            className={`rounded px-2.5 py-1.5 text-xs border transition-all ${leftPanelOpen ? "bg-zinc-800 text-white" : "hover:bg-zinc-100 opacity-70"}`}
+            title="切換顯示/隱藏 投影片列表"
+          >
+            📑 投影片
+          </button>
+          <button
+            onClick={() => setRightPanelOpen((v) => !v)}
+            className={`rounded px-2.5 py-1.5 text-xs border transition-all ${rightPanelOpen ? "bg-zinc-800 text-white" : "hover:bg-zinc-100 opacity-70"}`}
+            title="切換顯示/隱藏 圖層面板"
+          >
+            ☰ 圖層
+          </button>
         </div>
       </div>
 
@@ -387,7 +576,10 @@ export default function PresentationView({
       <div className="flex flex-1 overflow-hidden">
         {/* 左：縮圖列（即時鏡像）+ 底部新增投影片 */}
         <div className={`${leftPanelOpen ? "w-[180px]" : "w-0"} shrink-0 flex flex-col border-r overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setLeftPanelOpen(v => !v)} className="hover:opacity-100" title="開合">📑</button> 投影片</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-70 border-b flex items-center justify-between" style={{ borderColor: "var(--color-border)" }}>
+            <span className="flex items-center gap-1">📑 投影片</span>
+            <button onClick={() => setLeftPanelOpen(false)} className="hover:opacity-100 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs cursor-pointer" title="收合投影片列表">«</button>
+          </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {slides.map((slide, idx) => (
               <SlideThumbnail key={slide.id} slide={slide} theme={data.theme} active={activeSlideId === slide.id} idx={idx} total={slides.length}
@@ -401,7 +593,27 @@ export default function PresentationView({
         </div>
 
         {/* 中：編輯畫布（置中） */}
-        <div className="flex-1 overflow-auto p-8 flex items-center justify-center" style={{ backgroundColor: "#f5f5f4" }}>
+        <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative" style={{ backgroundColor: "#f5f5f4" }}>
+          {/* 左側縮圖展開按鈕（當左側收合時在畫布邊緣顯示） */}
+          {!leftPanelOpen && (
+            <button
+              onClick={() => setLeftPanelOpen(true)}
+              className="absolute left-3 top-3 z-30 flex items-center gap-1.5 rounded-lg px-3 py-1.5 bg-white shadow-md border text-xs font-medium hover:bg-zinc-50 transition-all text-zinc-700 cursor-pointer"
+              title="展開投影片列表"
+            >
+              📑 投影片 »
+            </button>
+          )}
+          {/* 右側圖層展開按鈕（當右側收合時在畫布邊緣顯示） */}
+          {!rightPanelOpen && (
+            <button
+              onClick={() => setRightPanelOpen(true)}
+              className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-lg px-3 py-1.5 bg-white shadow-md border text-xs font-medium hover:bg-zinc-50 transition-all text-zinc-700 cursor-pointer"
+              title="展開圖層面板"
+            >
+              « ☰ 圖層
+            </button>
+          )}
           <div ref={canvasRef} className="relative w-full max-w-[960px] aspect-[16/9] rounded-xl shadow-xl overflow-hidden select-none" style={{ backgroundColor: isDark ? "#1e1e1e" : "white", color: isDark ? "white" : "black" }}
             onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedIds([]); setEditingBlockId(null); setChartEditOpen(false); } }}>
             {activeSlide?.title && <div className="text-[10px] opacity-25 absolute top-2 left-3 pointer-events-none">{slides.findIndex((s) => s.id === activeSlideId) + 1} / {slides.length} — {activeSlide.title}</div>}
@@ -419,47 +631,264 @@ export default function PresentationView({
                     if (e.ctrlKey || e.metaKey) { setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); return; }
                     if (!selected) setSelectedIds([block.id]);
                     setChartEditOpen(false);
-                    const el = e.currentTarget as HTMLElement;
-                    const rect = el.getBoundingClientRect();
-                    const lx = e.clientX - rect.left, ly = e.clientY - rect.top;
-                    const E = 9;
-                    const L = lx < E, R = lx > rect.width - E, T = ly < E, B = ly > rect.height - E;
-                    let handle: HandleDir | null = null;
-                    if (L && T) handle = "nw"; else if (R && T) handle = "ne"; else if (L && B) handle = "sw"; else if (R && B) handle = "se";
-                    else if (T) handle = "n"; else if (B) handle = "s"; else if (L) handle = "w"; else if (R) handle = "e";
                     const cRect = canvasRef.current!.getBoundingClientRect();
-                    if (handle) {
-                      ptrRef.current = { kind: "resize", id: block.id, handle, startMX: e.clientX, startMY: e.clientY, orig: { ...block }, cw: cRect.width, ch: cRect.height };
-                    } else {
-                      const targetIds = (selected && selectedIds.length > 1) ? selectedIds : [block.id];
-                      const origBlocks = (selected && selectedIds.length > 1) ? selectedBlocks : [block];
-                      ptrRef.current = { kind: "drag", ids: targetIds, grabOffsetX: lx, grabOffsetY: ly, canvasLeft: cRect.left, canvasTop: cRect.top, cw: cRect.width, ch: cRect.height, orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y, w: b.w, h: b.h }])) };
-                    }
+                    const targetIds = (selected && selectedIds.length > 1) ? selectedIds : [block.id];
+                    const origBlocks = (activeSlide?.blocks || []).filter((b) => targetIds.includes(b.id));
+                    const minX = Math.min(...origBlocks.map((b) => b.x));
+                    const minY = Math.min(...origBlocks.map((b) => b.y));
+                    const maxX = Math.max(...origBlocks.map((b) => b.x + b.w));
+                    const maxY = Math.max(...origBlocks.map((b) => b.y + (b.h || MIN_H)));
+                    ptrRef.current = {
+                      kind: "drag",
+                      ids: targetIds,
+                      startMX: e.clientX,
+                      startMY: e.clientY,
+                      cw: cRect.width,
+                      ch: cRect.height,
+                      groupOrigX: minX,
+                      groupOrigY: minY,
+                      groupW: maxX - minX,
+                      groupH: maxY - minY,
+                      orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y, w: b.w, h: b.h }])),
+                    };
                   }}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onDoubleClick={(e) => { e.stopPropagation(); if (block.type === "text") { setSelectedIds([block.id]); setEditingBlockId(block.id); } }}
                   style={{ ...selBoxStyle(block), zIndex: block.z, background: block.style?.background || "transparent", border: selected ? `1.5px dashed ${selectedIds.length > 1 ? "#22c55e" : "#3b82f6"}` : "1px solid transparent", borderRadius: 3, padding: 4, cursor: editing ? "text" : "move", fontSize: block.style?.fontSize ? `${block.style.fontSize}px` : "14px", color: block.style?.color || "inherit", textAlign: block.style?.textAlign || "left" }}>
                   {block.type === "text" && editing ? (
-                    <textarea autoFocus value={block.text || ""} onChange={(e) => updateBlock(block.id, { text: e.target.value })} onBlur={() => setEditingBlockId(null)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) setEditingBlockId(null); }} className="w-full h-full bg-transparent outline-none resize-none" placeholder="點擊輸入文字" />
+                    <textarea autoFocus value={block.text || ""} onChange={(e) => updateBlock(block.id, { text: e.target.value })} onBlur={() => setEditingBlockId(null)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) setEditingBlockId(null); }} className="w-full h-full bg-transparent outline-none resize-none placeholder:text-zinc-400 placeholder:opacity-45 placeholder:italic" placeholder="文字方塊" />
                   ) : <BlockContent block={block} />}
                 </div>
               );
             })}
 
-            {/* 縮放圓點：獨立 10px 定位在物件邊角，純視覺（pointer-events:none），不覆蓋物件中心 → drag 不受阻 */}
-            {singleSelected && !editingBlockId && (() => {
-              const b = singleSelected; const h = b.h || MIN_H;
-              return ([["nw", b.x, b.y], ["n", b.x + b.w / 2, b.y], ["ne", b.x + b.w, b.y], ["e", b.x + b.w, b.y + h / 2], ["se", b.x + b.w, b.y + h], ["s", b.x + b.w / 2, b.y + h], ["sw", b.x, b.y + h], ["w", b.x, b.y + h / 2]] as [HandleDir, number, number][]).map(([hd, cx, cy]) => (
-                <div key={hd} style={{ position: "absolute", left: `${cx}%`, top: `${cy}%`, width: 10, height: 10, marginLeft: -5, marginTop: -5, background: "white", border: "1.5px solid #3b82f6", borderRadius: 9999, zIndex: 10000, pointerEvents: "none", cursor: HANDLE_POS[hd].cursor }} />
-              ));
-            })()}
-            {/* 旋轉把手：獨立定位在物件正上方，不覆蓋物件本體，可點擊 */}
-            {singleSelected && !editingBlockId && (
-              <div onPointerDown={(e) => { e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); const cr = canvasRef.current!.getBoundingClientRect(); const b = singleSelected!; const cx = cr.left + (b.x + b.w / 2) / 100 * cr.width; const cy = cr.top + (b.y + (b.h || MIN_H) / 2) / 100 * cr.height; ptrRef.current = { kind: "rotate", id: b.id, cx, cy, cw: cr.width, ch: cr.height }; }}
-                onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
-                style={{ position: "absolute", left: `${singleSelected.x + singleSelected.w / 2}%`, top: `calc(${singleSelected.y}% - 24px)`, width: 13, height: 13, marginLeft: -6.5, background: "white", border: "1.5px solid #3b82f6", borderRadius: 9999, zIndex: 10000, pointerEvents: "auto", cursor: "grab" }} />
+            {/* 磁吸對齊輔助線 */}
+            {activeGuides.map((guide, idx) =>
+              guide.type === "vertical" ? (
+                <div
+                  key={`guide-v-${idx}-${guide.pos}`}
+                  style={{
+                    position: "absolute",
+                    left: `${guide.pos}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: "1px",
+                    backgroundColor: "#0ea5e9",
+                    boxShadow: "0 0 3px rgba(14, 165, 233, 0.8)",
+                    zIndex: 9998,
+                    pointerEvents: "none",
+                  }}
+                />
+              ) : (
+                <div
+                  key={`guide-h-${idx}-${guide.pos}`}
+                  style={{
+                    position: "absolute",
+                    top: `${guide.pos}%`,
+                    left: 0,
+                    right: 0,
+                    height: "1px",
+                    backgroundColor: "#0ea5e9",
+                    boxShadow: "0 0 3px rgba(14, 165, 233, 0.8)",
+                    zIndex: 9998,
+                    pointerEvents: "none",
+                  }}
+                />
+              )
             )}
+
+            {/* 8 方向伸縮把手與 4 邊緣感應條（隨物件旋轉同步旋轉與縮放） */}
+            {singleSelected && !editingBlockId && (() => {
+              const b = singleSelected;
+              const h = b.h || MIN_H;
+              const rot = b.rotation || 0;
+
+              const handles: { hd: HandleDir; left: string; top: string; cursor: string }[] = [
+                { hd: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
+                { hd: "n", left: "50%", top: "0%", cursor: "ns-resize" },
+                { hd: "ne", left: "100%", top: "0%", cursor: "nesw-resize" },
+                { hd: "e", left: "100%", top: "50%", cursor: "ew-resize" },
+                { hd: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
+                { hd: "s", left: "50%", top: "100%", cursor: "ns-resize" },
+                { hd: "sw", left: "0%", top: "100%", cursor: "nesw-resize" },
+                { hd: "w", left: "0%", top: "50%", cursor: "ew-resize" },
+              ];
+
+              const edgeBars: { hd: HandleDir; style: React.CSSProperties; cursor: string }[] = [
+                // Top edge (上下伸縮)
+                {
+                  hd: "n",
+                  cursor: "ns-resize",
+                  style: { position: "absolute", left: 0, top: 0, width: "100%", height: 14, marginTop: -7 },
+                },
+                // Bottom edge (上下伸縮)
+                {
+                  hd: "s",
+                  cursor: "ns-resize",
+                  style: { position: "absolute", left: 0, top: "100%", width: "100%", height: 14, marginTop: -7 },
+                },
+                // Left edge (左右伸縮)
+                {
+                  hd: "w",
+                  cursor: "ew-resize",
+                  style: { position: "absolute", left: 0, top: 0, width: 14, height: "100%", marginLeft: -7 },
+                },
+                // Right edge (左右伸縮)
+                {
+                  hd: "e",
+                  cursor: "ew-resize",
+                  style: { position: "absolute", left: "100%", top: 0, width: 14, height: "100%", marginLeft: -7 },
+                },
+              ];
+
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${b.x}%`,
+                    top: `${b.y}%`,
+                    width: `${b.w}%`,
+                    height: `${h}%`,
+                    transform: `rotate(${rot}deg)`,
+                    transformOrigin: "center center",
+                    pointerEvents: "none",
+                    zIndex: 10000,
+                  }}
+                >
+                  {/* 4 條邊框感應條（大幅擴大上下左右伸縮的點擊與滑鼠辨識區域） */}
+                  {edgeBars.map(({ hd, style, cursor }, i) => (
+                    <div
+                      key={`edge-${hd}-${i}`}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                        const cRect = canvasRef.current!.getBoundingClientRect();
+                        ptrRef.current = {
+                          kind: "resize",
+                          id: b.id,
+                          handle: hd,
+                          startMX: e.clientX,
+                          startMY: e.clientY,
+                          orig: { ...b },
+                          cw: cRect.width,
+                          ch: cRect.height,
+                        };
+                      }}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      style={{
+                        ...style,
+                        pointerEvents: "auto",
+                        cursor,
+                      }}
+                    />
+                  ))}
+
+                  {/* 8 個控制點（大碰撞體積 22px + 10px 白底藍框控制圓點） */}
+                  {handles.map(({ hd, left, top, cursor }) => (
+                    <div
+                      key={hd}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                        const cRect = canvasRef.current!.getBoundingClientRect();
+                        ptrRef.current = {
+                          kind: "resize",
+                          id: b.id,
+                          handle: hd,
+                          startMX: e.clientX,
+                          startMY: e.clientY,
+                          orig: { ...b },
+                          cw: cRect.width,
+                          ch: cRect.height,
+                        };
+                      }}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      style={{
+                        position: "absolute",
+                        left,
+                        top,
+                        width: 22,
+                        height: 22,
+                        marginLeft: -11,
+                        marginTop: -11,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "auto",
+                        cursor,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          backgroundColor: "white",
+                          border: "1.5px solid #2563eb",
+                          borderRadius: "9999px",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+
+                  {/* 旋轉把手：獨立定位在物件正上方，連接線 + 圓點，隨物件同步旋轉 */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: -22,
+                      width: 1,
+                      height: 22,
+                      backgroundColor: "#3b82f6",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <div
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      const cr = canvasRef.current!.getBoundingClientRect();
+                      const cx = cr.left + ((b.x + b.w / 2) / 100) * cr.width;
+                      const cy = cr.top + ((b.y + (b.h || MIN_H) / 2) / 100) * cr.height;
+                      ptrRef.current = { kind: "rotate", id: b.id, cx, cy, cw: cr.width, ch: cr.height };
+                    }}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    title="拖曳旋轉物件（按住 Shift 鍵每 15° 吸附）"
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: -26,
+                      width: 24,
+                      height: 24,
+                      marginLeft: -12,
+                      marginTop: -12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      pointerEvents: "auto",
+                      cursor: "grab",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        backgroundColor: "#3b82f6",
+                        borderRadius: "9999px",
+                        border: "2px solid white",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 浮動工具列（複製/刪除/編輯圖表/更多） */}
             {floatBarStyle && (
@@ -469,7 +898,7 @@ export default function PresentationView({
                   <button onClick={() => setChartEditOpen((v) => !v)} className={`px-4 py-3 text-base rounded ${chartEditOpen ? "bg-zinc-200" : "hover:bg-zinc-100"}`} title="編輯圖表（如 Gamma）">📊 編輯圖表</button>
                 )}
                 <button onClick={() => handleDeleteBlocks(selectedIds)} className="px-4 py-3 text-base rounded hover:bg-red-50 text-red-600" title="刪除">🗑</button>
-                <div className="relative">
+                <div ref={moreMenuRef} className="relative">
                   <button onClick={() => setMoreMenuFor(moreMenuFor ? null : "open")} className="px-4 py-3 text-base rounded hover:bg-zinc-100" title="更多">⋯</button>
                   {moreMenuFor && (
                     <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 min-w-[120px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
@@ -497,7 +926,10 @@ export default function PresentationView({
 
         {/* 右：圖層 + 屬性 */}
         <div className={`${rightPanelOpen ? "w-[260px]" : "w-0"} shrink-0 border-l flex flex-col overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setRightPanelOpen(v => !v)} className="hover:opacity-100" title="開合">☰</button> 圖層</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-70 border-b flex items-center justify-between" style={{ borderColor: "var(--color-border)" }}>
+            <span className="flex items-center gap-1">☰ 圖層</span>
+            <button onClick={() => setRightPanelOpen(false)} className="hover:opacity-100 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs cursor-pointer" title="收合圖層面板">»</button>
+          </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {[...(activeSlide?.blocks || [])].sort((a, b) => b.z - a.z).map((block) => (
               <div key={block.id} draggable onDragStart={() => setDraggedBlockId(block.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (!draggedBlockId || draggedBlockId === block.id || !activeSlide) return; const sorted = [...(activeSlide.blocks || [])].sort((a, b) => a.z - b.z); const fromIdx = sorted.findIndex((b) => b.id === draggedBlockId); const toIdx = sorted.findIndex((b) => b.id === block.id); if (fromIdx === -1 || toIdx === -1) return; const [moved] = sorted.splice(fromIdx, 1); sorted.splice(toIdx, 0, moved); updateActiveSlide({ blocks: sorted.map((b, i) => ({ ...b, z: (i + 1) * 10 })) }); setDraggedBlockId(null); }} onClick={(e) => { if (e.ctrlKey || e.metaKey) setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); else setSelectedIds([block.id]); }} className={`flex items-center gap-2 p-2 rounded cursor-grab active:cursor-grabbing text-xs ${selectedIds.includes(block.id) ? "bg-white border border-blue-300 shadow-sm" : "hover:bg-white/60 border border-transparent"} ${draggedBlockId === block.id ? "opacity-40" : ""}`}>
