@@ -86,6 +86,18 @@ export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
     isCreatableFromSidebar: false,
     isProject: false,
   },
+  creative: {
+    kind: "creative",
+    icon: "✍️",
+    label: "Creative",
+    labelZh: "創作",
+    desc: "Novel, character sheets",
+    descZh: "小說閱讀格式、角色簡介表等",
+    defaultFormat: "flow",
+    defaultFolder: null,
+    isCreatableFromSidebar: false,
+    isProject: false,
+  },
 };
 
 export function isProjectKind(kind?: PageKind): boolean {

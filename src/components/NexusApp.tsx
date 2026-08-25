@@ -38,6 +38,7 @@ import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
+import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
@@ -107,6 +108,7 @@ function NexusAppInner({
   const [secondaryPdfLoadError, setSecondaryPdfLoadError] = useState<string | null>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
+  const [isCreativeMode, setIsCreativeMode] = useState(false);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
@@ -627,7 +629,7 @@ function NexusAppInner({
     setTrashPages(allPages.filter((page) => page.deleted_at !== null));
   }, [storageRef]);
 
-  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
+  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
 
   // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
   const handleTogglePageNightAdapt = useCallback(() => {
@@ -637,9 +639,10 @@ function NexusAppInner({
       return next;
     });
   }, [storageRef]);
-  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); }, []);
-  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); }, []);
-  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); }, []);
+  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
+  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); }, []);
+  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); }, []);
+  const handleShowCreative = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(true); }, []);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -647,6 +650,7 @@ function NexusAppInner({
     setIsHomeMode(false);
     setIsQuickNoteMode(false);
     setIsTodoMode(false);
+    setIsCreativeMode(false);
   }, [flushSave, loadTrashPages]);
 
   const handleRestorePage = useCallback(async (id: string) => {
@@ -1071,8 +1075,10 @@ function NexusAppInner({
           onOpenInSplit={handleOpenInSplit}
           isQuickNoteMode={isQuickNoteMode}
           isTodoMode={isTodoMode}
+          isCreativeMode={isCreativeMode}
           onShowQuickNotes={handleShowQuickNotes}
           onShowTodoList={handleShowTodoList}
+          onShowCreative={handleShowCreative}
         />
       </ResizablePanel>
 
@@ -1129,6 +1135,8 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
+      ) : isCreativeMode ? (
+        <CreativeView pages={pages} onCreateNovel={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "小說閱讀格式", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "小說閱讀格式" }] }, { type: "paragraph", content: [{ type: "text", text: "在這裡開始撰寫..." }] }] } as any }); }} onCreateCharacter={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "角色詳細簡介表", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "角色簡介" }] }, { type: "paragraph", content: [{ type: "text", text: "姓名：\n年齡：\n性格：\n背景：\n外觀：\n能力：\n" }] }] } as any }); }} onSelectPage={handleSelectPage} />
       ) : secondaryActivePageId && secondaryActivePage ? (
         <div className="flex flex-1 overflow-hidden gap-2">
           {/* Primary pane */}

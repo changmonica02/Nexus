@@ -29,6 +29,7 @@ type SidebarProps = {
   isHomeMode: boolean;
   isQuickNoteMode?: boolean;
   isTodoMode?: boolean;
+  isCreativeMode?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -40,6 +41,7 @@ type SidebarProps = {
   onShowTrash: () => void;
   onShowQuickNotes?: () => void;
   onShowTodoList?: () => void;
+  onShowCreative?: () => void;
   onDeletePage: (id: string) => void;
   onRestorePage: (id: string) => void;
   onPermanentDeletePage: (id: string) => void;
@@ -87,8 +89,10 @@ export default function Sidebar({
   onShowTrash,
   onShowQuickNotes,
   onShowTodoList,
+  onShowCreative,
   isQuickNoteMode,
   isTodoMode,
+  isCreativeMode,
   onDeletePage,
   onRestorePage,
   onPermanentDeletePage,
@@ -210,8 +214,9 @@ export default function Sidebar({
     // Projects view (default) excludes quick_note and todo, which are independent per requirement 8
     if (isQuickNoteMode) return (page.kind as any) === "quick_note" && matchQuery && matchTag;
     if (isTodoMode) return (page.kind as any) === "todo" && matchQuery && matchTag;
-    // In trash/home/projects modes, exclude quick_note and todo from projects list
-    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo") return false;
+    if (isCreativeMode) return (page.kind as any) === "creative" && matchQuery && matchTag;
+    // In trash/home/projects modes, exclude quick_note, todo, and creative from projects list
+    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo" || (page.kind as any) === "creative") return false;
     return matchQuery && matchTag;
   });
 
@@ -557,7 +562,8 @@ export default function Sidebar({
           {[
             { id: "quicknotes", icon: "📝", label: t("sidebar.nav.quickNote"), active: !!isQuickNoteMode, onClick: () => onShowQuickNotes?.() },
             { id: "todo", icon: "✅", label: t("sidebar.nav.todoList"), active: !!isTodoMode, onClick: () => onShowTodoList?.() },
-            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode, onClick: onShowNotes },
+            { id: "creative", icon: "✍️", label: t("sidebar.nav.creative"), active: !!isCreativeMode, onClick: () => onShowCreative?.() },
+            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode && !isCreativeMode, onClick: onShowNotes },
           ].map((cat) => (
             <button
               key={cat.id}

@@ -32,7 +32,7 @@ export interface Attachment {
   page_count?: number;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo";
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**
@@ -76,6 +76,10 @@ export interface ChartData {
   variant?: BarVariant; // for bar charts
   orientation?: ChartOrientation; // vertical / horizontal, one-click toggle
   data: { label: string; value: number; series?: string; start?: number; end?: number }[];
+  sortOrder?: "desc" | "asc" | null; // 由高到低排序
+  showDataLabels?: boolean; // 資料標籤
+  showGrid?: boolean; // 格線
+  showTitleNumber?: boolean; // 標題數字
 }
 
 export interface PresentationBlock {
