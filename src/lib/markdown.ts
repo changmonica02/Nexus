@@ -175,6 +175,12 @@ export function createMarkdownContent(markdown: string): object {
       content.push({ type: "blockMath", attrs: { latex: mathLines.join("\n").trim() } });
       index = cursor < lines.length ? cursor + 1 : cursor; continue;
     }
+    const singleLineBlockMath = line.trim().match(/^\$\$([^$]+)\$\$$/);
+    if (singleLineBlockMath) {
+      flushParagraph(); flushList();
+      content.push({ type: "blockMath", attrs: { latex: singleLineBlockMath[1].trim() } });
+      index += 1; continue;
+    }
     if (!line.trim()) { flushParagraph(); flushList(); index += 1; continue; }
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) { flushParagraph(); flushList(); content.push({ type: "heading", attrs: { level: headingMatch[1].length }, content: parseInlineMarkdown(headingMatch[2]) }); index += 1; continue; }

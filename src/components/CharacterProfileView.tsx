@@ -25,10 +25,12 @@ export default function CharacterProfileView({
   page,
   onTitleChange,
   onUpdateCharacterData,
+  onBackToCreativeOverview,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onUpdateCharacterData: (data: CharacterProfileData) => void;
+  onBackToCreativeOverview?: () => void;
 }) {
   const [viewMode, setViewMode] = useState<"edit" | "card">("edit");
   const [addComponentOpen, setAddComponentOpen] = useState(false);
@@ -110,11 +112,21 @@ export default function CharacterProfileView({
           color: "var(--color-text)",
         }}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-xl">🎭</span>
-          <div>
-            <div className="font-bold text-sm">{charData.basic.name || page.title || "未命名角色"}</div>
-            <div className="text-[11px] opacity-60">
+        <div className="flex items-center gap-3 min-w-0">
+          {onBackToCreativeOverview && (
+            <button
+              onClick={onBackToCreativeOverview}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm shrink-0"
+              style={{ borderColor: "var(--color-border)" }}
+              title="返回創作總覽工作台"
+            >
+              <span>« 創作總覽</span>
+            </button>
+          )}
+          <span className="text-xl shrink-0">🎭</span>
+          <div className="min-w-0">
+            <div className="font-bold text-sm truncate">{charData.basic.name || page.title || "未命名角色"}</div>
+            <div className="text-[11px] opacity-60 truncate">
               {charData.basic.role ? `${charData.basic.role} · ` : ""}
               {charData.basic.affiliation || "角色詳細簡介檔案"}
             </div>

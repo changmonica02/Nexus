@@ -398,9 +398,18 @@ function NexusAppInner({
 
   const activatePage = useCallback(async (id: string) => {
     setIsHomeMode(false);
+    setIsTrashMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    const target = pages.find((p) => p.id === id);
+    if (target?.kind === "creative") {
+      setIsCreativeMode(true);
+    } else {
+      setIsCreativeMode(false);
+    }
     setActivePageId(id);
     if (storageRef.current) await storageRef.current.setActivePageId(id);
-  }, [storageRef]);
+  }, [pages, storageRef]);
 
   const handleSelectPage = useCallback(async (id: string) => {
     if (activePageRef.current) await flushSave(activePageRef.current);
@@ -413,6 +422,13 @@ function NexusAppInner({
     const newPage = await storageRef.current.createPage(input);
     setIsTrashMode(false);
     setIsHomeMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    if (input.kind === "creative") {
+      setIsCreativeMode(true);
+    } else {
+      setIsCreativeMode(false);
+    }
     setPages((prev) => [newPage, ...prev]);
     setActivePageId(newPage.id);
     await storageRef.current.setActivePageId(newPage.id);
@@ -645,7 +661,14 @@ function NexusAppInner({
   const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); }, []);
   const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); }, []);
-  const handleShowCreative = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(true); }, []);
+  const handleShowCreative = useCallback(() => {
+    setIsTrashMode(false);
+    setIsHomeMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    setIsCreativeMode(true);
+    setActivePageId(null);
+  }, []);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -1138,7 +1161,7 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
-      ) : isCreativeMode ? (
+      ) : isCreativeMode && (!activePage || activePage.kind !== "creative") ? (
         <CreativeView
           pages={pages}
           onCreateNovel={async () => {
@@ -1194,6 +1217,7 @@ function NexusAppInner({
                   onUpdateCharacterData={(cData) => {
                     patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
                   }}
+                  onBackToCreativeOverview={handleShowCreative}
                 />
               ) : (
                 <NovelReaderView
@@ -1203,6 +1227,7 @@ function NexusAppInner({
                   onUpdateSettings={(nSettings) => {
                     patchPage(activePage.id, { novel_settings: nSettings });
                   }}
+                  onBackToCreativeOverview={handleShowCreative}
                 />
               )
             ) : (
@@ -1256,6 +1281,7 @@ function NexusAppInner({
                   onUpdateCharacterData={(cData) => {
                     patchPage(secondaryActivePage.id, { character_data: cData, title: cData.basic.name || secondaryActivePage.title });
                   }}
+                  onBackToCreativeOverview={handleShowCreative}
                 />
               ) : (
                 <NovelReaderView
@@ -1265,6 +1291,7 @@ function NexusAppInner({
                   onUpdateSettings={(nSettings) => {
                     patchPage(secondaryActivePage.id, { novel_settings: nSettings });
                   }}
+                  onBackToCreativeOverview={handleShowCreative}
                 />
               )
             ) : (
@@ -1311,6 +1338,7 @@ function NexusAppInner({
             onUpdateCharacterData={(cData) => {
               patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
             }}
+            onBackToCreativeOverview={handleShowCreative}
           />
         ) : (
           <NovelReaderView
@@ -1320,6 +1348,7 @@ function NexusAppInner({
             onUpdateSettings={(nSettings) => {
               patchPage(activePage.id, { novel_settings: nSettings });
             }}
+            onBackToCreativeOverview={handleShowCreative}
           />
         )
       ) : (

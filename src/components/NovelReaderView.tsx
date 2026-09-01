@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import type { Page, NovelSettings } from "../lib/types";
 import TiptapEditor from "./TiptapEditor";
+import katex from "katex";
 
 interface ChapterHeading {
   id: string;
@@ -80,11 +81,13 @@ export default function NovelReaderView({
   onTitleChange,
   onContentChange,
   onUpdateSettings,
+  onBackToCreativeOverview,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onContentChange: (json: any, text: string) => void;
   onUpdateSettings: (settings: NovelSettings) => void;
+  onBackToCreativeOverview?: () => void;
 }) {
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [tocOpen, setTocOpen] = useState(false);
@@ -241,6 +244,23 @@ export default function NovelReaderView({
         );
       }
 
+      if (node.type === "blockMath") {
+        const latex = node.attrs?.latex || "";
+        let renderedHtml = "";
+        try {
+          renderedHtml = katex.renderToString(latex, { displayMode: true, throwOnError: false });
+        } catch {
+          renderedHtml = latex;
+        }
+        return (
+          <div
+            key={i}
+            className="my-6 overflow-x-auto text-center"
+            dangerouslySetInnerHTML={{ __html: renderedHtml }}
+          />
+        );
+      }
+
       return null;
     });
   }, [page.content_json, settings, currentTheme]);
@@ -266,10 +286,21 @@ export default function NovelReaderView({
         }}
       >
         {/* 左側：標題與章節目錄按鈕 */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {onBackToCreativeOverview && (
+            <button
+              onClick={onBackToCreativeOverview}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
+              style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+              title="返回創作總覽工作台"
+            >
+              <span>« 創作總覽</span>
+            </button>
+          )}
+
           <button
             onClick={() => setTocOpen((v) => !v)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
             style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
             title="章節目錄大綱"
           >

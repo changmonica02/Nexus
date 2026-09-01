@@ -765,14 +765,16 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   const handleInsertBlockMath = () => {
     const ed = editorRef.current;
     if (!ed) return;
-    const pos = ed.state.selection.from;
-    ed.chain().focus().insertContentAt(pos, { type: "blockMath", attrs: { latex: "" } }).setNodeSelection(pos).run();
+    const { from, to } = ed.state.selection;
+    const selectedText = ed.state.doc.textBetween(from, to, "\n");
+    ed.chain().focus().insertContent({ type: "blockMath", attrs: { latex: selectedText || "" } }).run();
   };
   const handleInsertInlineMath = () => {
     const ed = editorRef.current;
     if (!ed) return;
-    const pos = ed.state.selection.from;
-    ed.chain().focus().insertContentAt(pos, { type: "inlineMath", attrs: { latex: "" } }).setNodeSelection(pos).run();
+    const { from, to } = ed.state.selection;
+    const selectedText = ed.state.doc.textBetween(from, to, " ");
+    ed.chain().focus().insertContent({ type: "inlineMath", attrs: { latex: selectedText || "" } }).run();
   };
   const currentFontSize = parseInt(toolbarState.fontSize || "16", 10) || 16;
   const handleFontSizeChange = (newSize: number) => {
@@ -1104,6 +1106,8 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       <Sep />
       <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
       <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
+      <TB icon="√x" title="插入行內公式 (Ctrl+M)" disabled={disabled} onClick={handleInsertInlineMath} />
+      <TB icon="∑" title="插入區塊公式 (Ctrl+Shift+M)" disabled={disabled} onClick={handleInsertBlockMath} />
       <Sep />
       <TB icon="Tx" title={t("tiptap.clear")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
     </>

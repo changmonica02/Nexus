@@ -11,6 +11,9 @@ function getPageIcon(page: Page): string {
   if (page.kind === "study_set") return "🗂️";
   if (page.kind === "document") return "📄";
   if (page.kind === "presentation") return "📊";
+  if (page.kind === "creative") {
+    return page.creative_type === "character" || !!page.character_data ? "🎭" : "📖";
+  }
   if (page.primary_attachment_id) return "📑";
   return "📝";
 }

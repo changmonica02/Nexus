@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 :root {
   --color-bg: #ffffff;
@@ -214,3 +215,184 @@ body {
   padding: 32px 40px;
   overflow: auto;
 }
+
+/* ========================================================================= */
+/* === LaTeX Math (KaTeX) Styles & Interactive Editor ====================== */
+/* ========================================================================= */
+
+.nexus-math-inline {
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: -0.15em;
+  margin: 0 2px;
+  position: relative;
+}
+
+.nexus-math-inline .math-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.nexus-math-inline .math-preview:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+  outline: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.nexus-math-inline .math-edit-wrapper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-editor-bg);
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 2px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  gap: 4px;
+  z-index: 30;
+}
+
+.nexus-math-inline .math-edit-input {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  min-width: 60px;
+}
+
+/* Block Math Container */
+.nexus-math-block {
+  margin: 1.2em 0;
+  position: relative;
+  display: block;
+}
+
+.nexus-math-block .math-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed transparent;
+  transition: all 0.18s ease;
+  overflow-x: auto;
+}
+
+.dark .nexus-math-block .math-preview {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.nexus-math-block .math-preview:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+}
+
+/* Block Math Interactive Card */
+.nexus-math-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-editor-bg);
+  border: 1px solid #3b82f6;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  margin: 8px 0;
+  z-index: 30;
+}
+
+.nexus-math-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: rgba(59, 130, 246, 0.08);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.nexus-math-card-symbols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dark .nexus-math-card-symbols {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.nexus-math-sym-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: 'Consolas', monospace;
+  background: var(--color-editor-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.nexus-math-sym-btn:hover {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+}
+
+.nexus-math-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  resize: vertical;
+}
+
+.nexus-math-live-preview {
+  padding: 12px;
+  border-top: 1px dashed var(--color-border);
+  background-color: rgba(0, 0, 0, 0.015);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
+  min-height: 48px;
+}
+
+.dark .nexus-math-live-preview {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.nexus-math-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-top: 1px solid var(--color-border);
+}
+
+.dark .nexus-math-card-footer {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+

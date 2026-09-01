@@ -1,29 +1,76 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 
-function hasBoundaryWhitespaceOrEmpty(raw: string): boolean {
-  if (raw.trim() === "") return true;
-  return /^\s|\s$/.test(raw);
-}
-
 export const ObsidianMathInput = Extension.create({
   name: "obsidianMathInput",
+
+  addKeyboardShortcuts() {
+    return {
+      "Mod-m": () => {
+        const { state, view } = this.editor;
+        const nodeType = state.schema.nodes.inlineMath;
+        if (!nodeType) return false;
+        const { from, to } = state.selection;
+        const selectedText = state.doc.textBetween(from, to, " ");
+        const node = nodeType.create({ latex: selectedText || "" });
+        const tr = state.tr.replaceWith(from, to, node);
+        view.dispatch(tr);
+        return true;
+      },
+      "Mod-Shift-m": () => {
+        const { state, view } = this.editor;
+        const nodeType = state.schema.nodes.blockMath;
+        if (!nodeType) return false;
+        const { from, to } = state.selection;
+        const selectedText = state.doc.textBetween(from, to, "\n");
+        const node = nodeType.create({ latex: selectedText || "" });
+        const tr = state.tr.replaceWith(from, to, node);
+        view.dispatch(tr);
+        return true;
+      },
+    };
+  },
 
   addProseMirrorPlugins() {
     return [
       new Plugin({
         key: new PluginKey("obsidianMathInput"),
         props: {
+          handleKeyDown(view, event) {
+            if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+              const { state } = view;
+              const { $from } = state.selection;
+              if ($from.parent.type.spec.code) return false;
+              const lineText = $from.parent.textContent.trim();
+
+              // 輸入 $$ 按 Enter → 自動轉換為區塊公式
+              if (lineText === "$$") {
+                const nodeType = state.schema.nodes.blockMath;
+                if (nodeType) {
+                  event.preventDefault();
+                  const startPos = $from.start();
+                  const endPos = $from.end();
+                  const node = nodeType.create({ latex: "" });
+                  const tr = state.tr.replaceRangeWith(startPos, endPos, node);
+                  view.dispatch(tr);
+                  return true;
+                }
+              }
+            }
+            return false;
+          },
+
           handleTextInput(view, from, to, text) {
             if (text !== "$") return false;
             const { state } = view;
             const $from = state.doc.resolve(from);
             if ($from.parent.type.spec.code) return false;
-            const textBefore = $from.parent.textBetween(Math.max(0, $from.parentOffset - 200), $from.parentOffset, null, "\ufffc");
+            const textBefore = $from.parent.textBetween(Math.max(0, $from.parentOffset - 300), $from.parentOffset, null, "\ufffc");
             const fullText = textBefore + "$";
 
+            // 1. 區塊公式 $$formula$$
             const blockMatch = fullText.match(/\$\$([^$]+)\$\$$/);
-            if (blockMatch && !hasBoundaryWhitespaceOrEmpty(blockMatch[1])) {
+            if (blockMatch) {
               const latex = blockMatch[1].trim();
               if (latex) {
                 const nodeType = state.schema.nodes.blockMath;
@@ -41,25 +88,27 @@ export const ObsidianMathInput = Extension.create({
               }
             }
 
-            const inlineMatch = fullText.match(/\$([^$]+)\$$/);
+            // 2. 行內公式 $formula$ (過濾純數字如 $100$)
+            const inlineMatch = fullText.match(/\$([^$\n]+)\$$/);
             if (inlineMatch) {
+              const rawInner = inlineMatch[1].trim();
+              const isPureCurrency = /^\d+(\.\d+)?$/.test(rawInner);
               const matchStart = fullText.length - inlineMatch[0].length;
               const precedingChar = matchStart > 0 ? fullText[matchStart - 1] : "";
-              if (precedingChar !== "$" && !hasBoundaryWhitespaceOrEmpty(inlineMatch[1])) {
-                const latex = inlineMatch[1].trim();
-                if (latex) {
-                  const nodeType = state.schema.nodes.inlineMath;
-                  if (nodeType) {
-                    const matchFrom = from - (inlineMatch[0].length - 1);
-                    const tr = state.tr;
-                    const node = nodeType.create({ latex });
-                    tr.replaceWith(matchFrom, from, node);
-                    const afterNodePos = matchFrom + node.nodeSize;
-                    const $pos = tr.doc.resolve(Math.min(afterNodePos, tr.doc.content.size));
-                    tr.setSelection(TextSelection.near($pos));
-                    view.dispatch(tr);
-                    return true;
-                  }
+
+              if (precedingChar !== "$" && rawInner.length > 0 && !isPureCurrency) {
+                const latex = rawInner;
+                const nodeType = state.schema.nodes.inlineMath;
+                if (nodeType) {
+                  const matchFrom = from - (inlineMatch[0].length - 1);
+                  const tr = state.tr;
+                  const node = nodeType.create({ latex });
+                  tr.replaceWith(matchFrom, from, node);
+                  const afterNodePos = matchFrom + node.nodeSize;
+                  const $pos = tr.doc.resolve(Math.min(afterNodePos, tr.doc.content.size));
+                  tr.setSelection(TextSelection.near($pos));
+                  view.dispatch(tr);
+                  return true;
                 }
               }
             }
@@ -71,3 +120,4 @@ export const ObsidianMathInput = Extension.create({
     ];
   },
 });
+
