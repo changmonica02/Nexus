@@ -42,6 +42,9 @@ import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
+import NovelReaderView from "./NovelReaderView";
+import CharacterProfileView from "./CharacterProfileView";
+import { createFantasyTemplate, createModernTemplate, createBlankTemplate } from "../lib/characterTemplates";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -1136,7 +1139,45 @@ function NexusAppInner({
           onSelectPage={handleSelectPage}
         />
       ) : isCreativeMode ? (
-        <CreativeView pages={pages} onCreateNovel={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "小說閱讀格式", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "小說閱讀格式" }] }, { type: "paragraph", content: [{ type: "text", text: "在這裡開始撰寫..." }] }] } as any }); }} onCreateCharacter={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "角色詳細簡介表", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "角色簡介" }] }, { type: "paragraph", content: [{ type: "text", text: "姓名：\n年齡：\n性格：\n背景：\n外觀：\n能力：\n" }] }] } as any }); }} onSelectPage={handleSelectPage} />
+        <CreativeView
+          pages={pages}
+          onCreateNovel={async () => {
+            const p = await createAndOpenPage({ kind: "creative" as any, title: "新小說作品", format: "flow" });
+            if (p) {
+              patchPage(p.id, {
+                creative_type: "novel",
+                novel_settings: { theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2.0, paragraphIndent: true, showWordCount: true },
+                content_json: {
+                  type: "doc",
+                  content: [
+                    { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "第一章：啟程" }] },
+                    { type: "paragraph", content: [{ type: "text", text: "清晨的微風拂過古老石橋，遠方傳來晨鐘的悠揚聲響。在這裡開始撰寫小說的正文內容..." }] },
+                  ],
+                } as any,
+                content_text: "第一章：啟程\n\n清晨的微風拂過古老石橋，遠方傳來晨鐘的悠揚聲響。在這裡開始撰寫小說的正文內容...",
+              });
+            }
+          }}
+          onCreateCharacter={async (templateId = "fantasy") => {
+            let initialData = createFantasyTemplate();
+            if (templateId === "modern") initialData = createModernTemplate();
+            if (templateId === "blank") initialData = createBlankTemplate();
+
+            const p = await createAndOpenPage({
+              kind: "creative" as any,
+              title: initialData.basic.name || "新角色檔案",
+              format: "flow",
+            });
+            if (p) {
+              patchPage(p.id, {
+                creative_type: "character",
+                character_data: initialData,
+              });
+            }
+          }}
+          onSelectPage={handleSelectPage}
+          onDeletePage={(id) => { void handleDeletePage(id); }}
+        />
       ) : secondaryActivePageId && secondaryActivePage ? (
         <div className="flex flex-1 overflow-hidden gap-2">
           {/* Primary pane */}
@@ -1145,6 +1186,25 @@ function NexusAppInner({
               <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} />
             ) : activePage?.kind === "presentation" ? (
               <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} />
+            ) : activePage?.kind === "creative" ? (
+              activePage.creative_type === "character" || !!activePage.character_data ? (
+                <CharacterProfileView
+                  page={activePage}
+                  onTitleChange={handleTitleChange}
+                  onUpdateCharacterData={(cData) => {
+                    patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
+                  }}
+                />
+              ) : (
+                <NovelReaderView
+                  page={activePage}
+                  onTitleChange={handleTitleChange}
+                  onContentChange={handleContentChange}
+                  onUpdateSettings={(nSettings) => {
+                    patchPage(activePage.id, { novel_settings: nSettings });
+                  }}
+                />
+              )
             ) : (
               <EditorPane
                 page={activePage}
@@ -1188,6 +1248,25 @@ function NexusAppInner({
               <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdateStudyItems={(items)=>{ handleSecondaryContentChange({ json: secondaryActivePage.content_json, text: secondaryActivePage.content_text }) }} />
             ) : secondaryActivePage.kind === "presentation" ? (
               <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} />
+            ) : secondaryActivePage.kind === "creative" ? (
+              secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
+                <CharacterProfileView
+                  page={secondaryActivePage}
+                  onTitleChange={handleSecondaryTitleChange}
+                  onUpdateCharacterData={(cData) => {
+                    patchPage(secondaryActivePage.id, { character_data: cData, title: cData.basic.name || secondaryActivePage.title });
+                  }}
+                />
+              ) : (
+                <NovelReaderView
+                  page={secondaryActivePage}
+                  onTitleChange={handleSecondaryTitleChange}
+                  onContentChange={handleSecondaryContentChange}
+                  onUpdateSettings={(nSettings) => {
+                    patchPage(secondaryActivePage.id, { novel_settings: nSettings });
+                  }}
+                />
+              )
             ) : (
               <EditorPane
                 page={secondaryActivePage}
@@ -1224,6 +1303,25 @@ function NexusAppInner({
         <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} />
       ) : activePage?.kind === "presentation" ? (
         <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} />
+      ) : activePage?.kind === "creative" ? (
+        activePage.creative_type === "character" || !!activePage.character_data ? (
+          <CharacterProfileView
+            page={activePage}
+            onTitleChange={handleTitleChange}
+            onUpdateCharacterData={(cData) => {
+              patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
+            }}
+          />
+        ) : (
+          <NovelReaderView
+            page={activePage}
+            onTitleChange={handleTitleChange}
+            onContentChange={handleContentChange}
+            onUpdateSettings={(nSettings) => {
+              patchPage(activePage.id, { novel_settings: nSettings });
+            }}
+          />
+        )
       ) : (
         <EditorPane
           page={activePage}

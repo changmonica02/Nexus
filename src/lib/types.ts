@@ -148,6 +148,11 @@ export interface Page {
   sort_order?: number;
   parent_id?: ID | null;
   margins?: PageMargins;
+  // Todo specific
+  due_date?: number | null;
+  priority?: "low" | "medium" | "high" | null;
+  completed?: boolean;
+  color?: string | null; // for quick note
   // Creative specific
   creative_type?: "novel" | "character";
   character_data?: CharacterProfileData;
