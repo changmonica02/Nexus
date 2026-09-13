@@ -417,8 +417,8 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-export default function StudySetView({ page, onTitleChange, onUpdateStudyItems }: {
-  page: Page; onTitleChange: (title: string) => void; onUpdateStudyItems: (items: StudyItem[]) => void;
+export default function StudySetView({ page, onTitleChange, onUpdateStudyItems, onBackToInterface }: {
+  page: Page; onTitleChange: (title: string) => void; onUpdateStudyItems: (items: StudyItem[]) => void; onBackToInterface?: () => void;
 }) {
   const { t } = useLanguage();
   const [mode, setMode] = useState<"manage" | "practice" | "quiz">("manage");
@@ -446,7 +446,7 @@ export default function StudySetView({ page, onTitleChange, onUpdateStudyItems }
     <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
       <div className="flex flex-col mx-auto w-full" style={{ maxWidth: "820px", padding: "48px 64px" }}>
         <div className="flex items-center justify-between gap-3 mb-4 text-sm opacity-80 pb-3 border-b" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-          <span>{t("studySet.label")}</span>
+          <span className="flex items-center gap-2">{onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-1.5 py-0.5 text-base hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}{t("studySet.label")}</span>
           <div className="flex gap-1.5">
             {mode === "manage" ? (<>
               <button onClick={() => setMode("practice")} disabled={studyItems.length === 0}

@@ -92,11 +92,14 @@ export default function PresentationView({
   page,
   onTitleChange,
   onUpdatePresentation,
+  onBackToInterface,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onUpdatePresentation: (data: PresentationData) => void;
+  onBackToInterface?: () => void;
 }) {
+  const { t } = useLanguage();
   const data = (page.presentation_data || { theme: "minimal", slides: [] }) as PresentationData;
   const slides = data.slides || [];
   const [activeSlideId, setActiveSlideId] = useState<string>(slides[0]?.id || "");
@@ -108,6 +111,7 @@ export default function PresentationView({
   const [chartTab, setChartTab] = useState<"data" | "type" | "style">("data");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelWidth, setRightPanelWidth] = useState(260);
   const [textMenuOpen, setTextMenuOpen] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
@@ -120,6 +124,29 @@ export default function PresentationView({
   const chartMenuRef = useRef<HTMLDivElement>(null);
   const layoutMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Migrate existing presentations as the speaker-notes feature has been removed.
+  useEffect(() => {
+    const legacySlides = slides as Array<Slide & { notes?: unknown }>;
+    if (!legacySlides.some((slide) => "notes" in slide)) return;
+    onUpdatePresentation({
+      ...data,
+      slides: legacySlides.map(({ notes: _removedNotes, ...slide }) => slide),
+    });
+  }, [data, onUpdatePresentation, slides]);
+
+  const startRightPanelResize = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = rightPanelWidth;
+    const onMove = (moveEvent: MouseEvent) => setRightPanelWidth(Math.min(480, Math.max(200, startWidth + startX - moveEvent.clientX)));
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const updateSlides = useCallback((newSlides: Slide[]) => { onUpdatePresentation({ ...data, slides: newSlides }); }, [data, onUpdatePresentation]);
   const updateActiveSlide = useCallback((patch: Partial<Slide>) => {
@@ -475,6 +502,7 @@ export default function PresentationView({
       {/* ===== 全寬上欄（加高） ===== */}
       <div className="shrink-0 border-b" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
         <div className="flex items-center gap-2 px-4 py-6 flex-wrap">
+          {onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-2 py-1 text-sm hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}
           <input value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder="簡報標題" className="bg-transparent font-semibold outline-none text-sm min-w-[120px]" />
           <span className="text-[10px] opacity-50">{slides.length} 張</span>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
@@ -551,7 +579,7 @@ export default function PresentationView({
           <button disabled={selectedIds.length < 3} onClick={() => handleAlign("vdistribute")} className="rounded px-2 py-1.5 text-xs border hover:bg-zinc-100 disabled:opacity-25" title="垂直等距">⇅</button>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
           <select value={data.theme} onChange={(e) => onUpdatePresentation({ ...data, theme: e.target.value as any })} className="rounded border px-2 py-1.5 text-xs bg-transparent">
-            <option value="minimal">Minimal</option><option value="academic">Academic</option><option value="business">Business</option><option value="dark">Dark</option>
+            <option value="minimal">{t("presentation.theme.minimal")}</option><option value="academic">{t("presentation.theme.academic")}</option><option value="business">{t("presentation.theme.business")}</option><option value="dark">{t("presentation.theme.dark")}</option>
           </select>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
           {/* 投影片縮圖與圖層開合控制按鈕 */}
@@ -588,7 +616,7 @@ export default function PresentationView({
             ))}
           </div>
           <div className="p-2 border-t" style={{ borderColor: "var(--color-border)" }}>
-            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 text-white text-base py-10 hover:bg-zinc-700">＋ 新增投影片</button>
+            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 px-3 py-2 text-sm text-white hover:bg-zinc-700">＋ 新增投影片</button>
           </div>
         </div>
 
@@ -925,7 +953,8 @@ export default function PresentationView({
         </div>
 
         {/* 右：圖層 + 屬性 */}
-        <div className={`${rightPanelOpen ? "w-[260px]" : "w-0"} shrink-0 border-l flex flex-col overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+        <div className="relative shrink-0 border-l flex flex-col overflow-hidden transition-[width] duration-200" style={{ width: rightPanelOpen ? rightPanelWidth : 0, borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+          {rightPanelOpen && <div role="separator" aria-label="調整圖層面板寬度" onMouseDown={startRightPanelResize} className="absolute inset-y-0 left-0 z-20 w-1 cursor-ew-resize hover:bg-blue-400" />}
           <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-70 border-b flex items-center justify-between" style={{ borderColor: "var(--color-border)" }}>
             <span className="flex items-center gap-1">☰ 圖層</span>
             <button onClick={() => setRightPanelOpen(false)} className="hover:opacity-100 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs cursor-pointer" title="收合圖層面板">»</button>
@@ -1020,12 +1049,6 @@ export default function PresentationView({
           </div>
         );
       })()}
-
-      {/* 備註列 */}
-      <div className="shrink-0 border-t p-3 flex gap-2 items-start" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-        <span className="text-xs opacity-60 mt-1">📝 備註</span>
-        <input value={activeSlide?.notes || ""} onChange={(e) => activeSlide && updateActiveSlide({ notes: e.target.value })} placeholder="講者備註，觀眾看不到..." className="flex-1 bg-transparent outline-none text-sm" />
-      </div>
     </main>
   );
 }

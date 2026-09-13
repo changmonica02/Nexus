@@ -131,7 +131,19 @@ function MenuItem({ label, icon, active, disabled, onClick, danger }: {
 let globalCursorAnchor: { id: string; offset: number; prefix?: string; paneId?: string } | null = null;
 // 主人機制：誰的 doc 握有 anchor block，誰就是游標主人（防止焦點被其他頁搶走）
 let anchorOwnerEl: HTMLElement | null = null;
-function canClaimCursorAnchor(editorEl: HTMLElement, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+
+// 安全取得 editor.view.dom，避免在 unmount/destroy 後觸發 Tiptap view error
+function getEditorDom(editor: Editor | null | undefined): HTMLElement | null {
+  if (!editor || editor.isDestroyed) return null;
+  try {
+    return (editor.view?.dom as HTMLElement) || null;
+  } catch {
+    return null;
+  }
+}
+
+function canClaimCursorAnchor(editorEl: HTMLElement | null | undefined, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+  if (!editorEl) return false;
   if (!anchorOwnerEl || anchorOwnerEl === editorEl || !anchorOwnerEl.isConnected || !anchor.id) return true;
   return !Array.from(anchorOwnerEl.querySelectorAll<HTMLElement>("[data-id]")).some(
     (element) => element.dataset.id === anchor.id,
@@ -352,7 +364,21 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
         ObsidianMathInput,
         NodeRange,
-        DragHandle.configure({ render: () => { const el = document.createElement("div"); el.classList.add("nexus-drag-handle"); el.innerHTML = "⠿"; return el; } }),
+        // A fixed Floating UI anchor keeps the block handle aligned when the
+        // editor lives inside a scrolling pane or a resized split editor.
+        DragHandle.configure({
+          computePositionConfig: { placement: "left-start", strategy: "fixed" },
+          render: () => {
+            const el = document.createElement("div");
+            el.classList.add("nexus-drag-handle");
+            // The extension only reveals it after it has found a hovered node.
+            // Starting hidden prevents a stale handle flashing at its last/zero position.
+            el.style.visibility = "hidden";
+            el.style.pointerEvents = "none";
+            el.innerHTML = "⠿";
+            return el;
+          },
+        }),
         ...(variant === "rich" ? [
           TextStyleKit.configure({ backgroundColor: false, lineHeight: false }),
           TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -378,7 +404,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               if (node.type.isBlock && node.attrs && typeof node.attrs.id === "string" && node.attrs.id) {
                 const off = state.doc.textBetween($pos.start(d), pos, "\n", " ").length;
                 globalCursorAnchor = { id: node.attrs.id, offset: off, paneId };
-                anchorOwnerEl = editor.view.dom as HTMLElement;
+                anchorOwnerEl = getEditorDom(editor);
                 break;
               }
             }
@@ -415,7 +441,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     // 新 mount 時檢查全域錨點：分頁搬移把 block 送來本頁時，游標跟隨（延遲至其他 effect 設定 anchor 後）
     setTimeout(() => {
       const ed = editorRef.current;
-      if (!ed || !globalCursorAnchor) return;
+      if (!ed || ed.isDestroyed || !globalCursorAnchor) return;
       const anchor = globalCursorAnchor;
       if (anchor.paneId !== paneId) return;
       let found = -1;
@@ -423,24 +449,27 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         if (n.attrs && n.attrs.id === anchor.id) { found = np; return false; }
         return true;
       });
-      if (found >= 0 && canClaimCursorAnchor(ed.view.dom as HTMLElement, anchor)) {
+      const edDom = getEditorDom(ed);
+      if (found >= 0 && edDom && canClaimCursorAnchor(edDom, anchor)) {
         try {
           const block = ed.state.doc.nodeAt(found);
           if (block) {
             const s = found + 1, e = found + block.nodeSize - 1;
             const tp = posAtCharOffset(ed.state.doc, s, e, anchor.offset);
-            anchorOwnerEl = ed.view.dom as HTMLElement;
+            anchorOwnerEl = edDom;
             ed.commands.setTextSelection(Math.min(Math.max(tp, s), Math.max(e, s)));
             ed.commands.focus();
             setTimeout(() => {
-              (ed.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              const currentDom = getEditorDom(ed);
+              currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
             }, 30);
           }
         } catch { /* ignore */ }
       }
     }, 0);
     return () => {
-      if (anchorOwnerEl === (editor.view.dom as HTMLElement)) anchorOwnerEl = null;
+      const currentDom = getEditorDom(editor);
+      if (currentDom && anchorOwnerEl === currentDom) anchorOwnerEl = null;
       editor.destroy();
       editorRef.current = null;
       setIsReady(false);
@@ -482,7 +511,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const from = blockPos + 1;
     const to = blockPos + block.nodeSize - 1;
     const target = posAtCharOffset(editor.state.doc, from, to, focusRequest.offset);
-    anchorOwnerEl = editor.view.dom as HTMLElement;
+    anchorOwnerEl = getEditorDom(editor);
     editor.commands.setTextSelection(Math.min(Math.max(target, from), Math.max(to, from)));
     editor.commands.focus();
     handledFocusRevisionRef.current = focusRequest.revision;
@@ -567,42 +596,48 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               const innerStart = foundBlockPos + 1;
               const innerEnd = foundBlockPos + block.nodeSize - 1;
               const targetPos = posAtCharOffset(newDoc, innerStart, innerEnd, anchor.offset);
-              if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) {
+              const edDom = getEditorDom(editor);
+              if (!canClaimCursorAnchor(edDom, anchor)) {
                 // Sibling page effects can run before the previous owner has
                 // received its new content. Retry after that owner relinquishes
                 // the moved block instead of leaving focus at its page tail.
                 setTimeout(() => {
+                  const ed = editorRef.current;
+                  if (!ed || ed.isDestroyed) return;
                   const latestAnchor = globalCursorAnchor;
+                  const retryDom = getEditorDom(ed);
                   if (
                     !latestAnchor ||
                     latestAnchor.id !== anchor.id ||
                     latestAnchor.paneId !== paneId ||
-                    !canClaimCursorAnchor(editor.view.dom as HTMLElement, latestAnchor)
+                    !retryDom ||
+                    !canClaimCursorAnchor(retryDom, latestAnchor)
                   ) return;
 
                   let retryPos = -1;
-                  editor.state.doc.descendants((node: any, nodePos: number) => {
+                  ed.state.doc.descendants((node: any, nodePos: number) => {
                     if (node.attrs?.id === latestAnchor.id) { retryPos = nodePos; return false; }
                     return true;
                   });
-                  const retryBlock = retryPos >= 0 ? editor.state.doc.nodeAt(retryPos) : null;
+                  const retryBlock = retryPos >= 0 ? ed.state.doc.nodeAt(retryPos) : null;
                   if (!retryBlock) return;
 
                   const retryStart = retryPos + 1;
                   const retryEnd = retryPos + retryBlock.nodeSize - 1;
-                  anchorOwnerEl = editor.view.dom as HTMLElement;
-                  editor.commands.setTextSelection(posAtCharOffset(editor.state.doc, retryStart, retryEnd, latestAnchor.offset));
-                  editor.commands.focus();
+                  anchorOwnerEl = retryDom;
+                  ed.commands.setTextSelection(posAtCharOffset(ed.state.doc, retryStart, retryEnd, latestAnchor.offset));
+                  ed.commands.focus();
                 }, 0);
                 return;
               }
-              anchorOwnerEl = editor.view.dom as HTMLElement;
+              anchorOwnerEl = edDom;
               editor.commands.setTextSelection(Math.min(Math.max(targetPos, innerStart), Math.max(innerEnd, innerStart)));
               // block 在此編輯器內 → 聚焦（跨頁搬移時讓使用者可繼續打字）
               if (!editor.isFocused) editor.commands.focus();
               // 滾動到該頁（Word 行為：畫面跟隨游標）
               setTimeout(() => {
-                (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                const currentDom = getEditorDom(editorRef.current);
+                currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
               }, 30);
             } else {
               editor.commands.setTextSelection(foundBlockPos + 1);
@@ -623,12 +658,14 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         if (!paginated && anchor.prefix) {
           const p = findPosByPrefix(newDoc, anchor.prefix, true);
           if (p > 0) {
-            if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) return;
-            anchorOwnerEl = editor.view.dom as HTMLElement;
+            const edDom = getEditorDom(editor);
+            if (!canClaimCursorAnchor(edDom, anchor)) return;
+            anchorOwnerEl = edDom;
             editor.commands.setTextSelection(p);
             if (!editor.isFocused) editor.commands.focus();
             setTimeout(() => {
-              (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              const currentDom = getEditorDom(editorRef.current);
+              currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
             }, 30);
             refreshToolbarState();
             return;
@@ -824,10 +861,11 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       const targetPos = tableStart + targetIndex;
       const $anchor = state.doc.resolve(targetPos);
       const $head = state.doc.resolve(cellPos);
-      // @ts-ignore
       const sel = (CellSelection as any).create(state.doc, $anchor.pos, $head.pos);
-      let tr = state.tr.setSelection(sel);
-      ed.view.dispatch(tr);
+      const tr = state.tr.setSelection(sel);
+      try {
+        if (!ed.isDestroyed) ed.view.dispatch(tr);
+      } catch {}
       setTimeout(() => {
         (ed as any).chain().focus().mergeCells().run();
         setTableMenu(null);
@@ -1027,7 +1065,10 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           const newColWidth = isMulti ? Array.from({length: right-left}, () => avgWidth) : [avgWidth];
           try { tr = tr.setNodeMarkup(pos, undefined, { ...existing, colwidth: newColWidth }); } catch {}
         });
-        ed.view.dispatch(tr); setTableMenu(null);
+        try {
+          if (!ed.isDestroyed) ed.view.dispatch(tr);
+        } catch {}
+        setTableMenu(null);
       }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⇔</span> 平均分配欄寬（僅選取範圍）</button>
       <button onClick={() => { editorRef.current?.chain().focus().deleteTable().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"><span>✕</span> 刪除表格</button>
     </div>,
@@ -1228,7 +1269,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   );
 
   const renderToolbar = () => (
-    <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
+    <div className="relative flex shrink-0 flex-nowrap items-center gap-0.5 px-3 py-1">
       {homeTools}
     </div>
   );
@@ -1300,4 +1341,3 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 }
-

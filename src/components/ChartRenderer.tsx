@@ -119,7 +119,12 @@ export default function ChartRenderer({ chart, width = 300, height = 160 }: { ch
   // --- PIE / DONUT ---
   if (type === "pie" || type === "donut") {
     const total = data.reduce((s, d) => s + d.value, 0) || 1;
-    let currentAngle = 0;
+    const segments = data.reduce<{ datum: typeof data[number]; index: number; startAngle: number; endAngle: number }[]>((items, datum, index) => {
+      const startAngle = items[index - 1]?.endAngle || 0;
+      const endAngle = startAngle + (datum.value / total) * 360;
+      items.push({ datum, index, startAngle, endAngle });
+      return items;
+    }, []);
     const cx = width / 2;
     const cy = height / 2;
     const r = Math.min(width, height) / 2 - 10;
@@ -128,11 +133,8 @@ export default function ChartRenderer({ chart, width = 300, height = 160 }: { ch
     return (
       <div className="flex items-center gap-3">
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-          {data.map((d, i) => {
-            const angle = (d.value / total) * 360;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-            currentAngle += angle;
+          {segments.map(({ datum: d, index: i, startAngle, endAngle }) => {
+            const angle = endAngle - startAngle;
             const largeArc = angle > 180 ? 1 : 0;
             const x1 = cx + r * Math.cos((Math.PI * startAngle) / 180);
             const y1 = cy + r * Math.sin((Math.PI * startAngle) / 180);

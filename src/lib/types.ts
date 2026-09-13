@@ -112,7 +112,6 @@ export interface Slide {
   content_text?: string; // derived text
   chart?: ChartData;
   diagramCode?: string; // Mermaid code
-  notes?: string; // speaker notes
   backgroundColor?: string;
   blocks?: PresentationBlock[]; // new canvas-like blocks for intuitive editing
 }
@@ -148,6 +147,8 @@ export interface Page {
   sort_order?: number;
   parent_id?: ID | null;
   margins?: PageMargins;
+  /** Attached expansion notes. They belong to this page and never open as pages. */
+  assistant_blocks?: AssistantBlock[];
   // Todo specific
   due_date?: number | null;
   priority?: "low" | "medium" | "high" | null;
@@ -157,6 +158,14 @@ export interface Page {
   creative_type?: "novel" | "character";
   character_data?: CharacterProfileData;
   novel_settings?: NovelSettings;
+}
+
+export interface AssistantBlock {
+  id: ID;
+  title: string;
+  content: string;
+  created_at: number;
+  updated_at: number;
 }
 
 export type CreativeType = "novel" | "character";

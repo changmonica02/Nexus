@@ -19,6 +19,7 @@ function getPageIcon(page: Page): string {
 }
 
 export type SortMode = "updated" | "custom";
+type FeatureFilter = "all" | "notes" | "documents" | "presentations" | "study" | "calendar" | "quicknotes" | "creative" | "novels";
 
 type CreateItemType = "note" | "document" | "study_set" | "folder" | "presentation";
 
@@ -33,6 +34,11 @@ type SidebarProps = {
   isQuickNoteMode?: boolean;
   isTodoMode?: boolean;
   isCreativeMode?: boolean;
+  isStudySetMode?: boolean;
+  isNovelMode?: boolean;
+  isDocumentMode?: boolean;
+  isNoteMode?: boolean;
+  isPresentationMode?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -45,6 +51,11 @@ type SidebarProps = {
   onShowQuickNotes?: () => void;
   onShowTodoList?: () => void;
   onShowCreative?: () => void;
+  onShowStudySets?: () => void;
+  onShowNovels?: () => void;
+  onShowDocuments?: () => void;
+  onShowNotesOverview?: () => void;
+  onShowPresentations?: () => void;
   onDeletePage: (id: string) => void;
   onRestorePage: (id: string) => void;
   onPermanentDeletePage: (id: string) => void;
@@ -93,9 +104,19 @@ export default function Sidebar({
   onShowQuickNotes,
   onShowTodoList,
   onShowCreative,
+  onShowStudySets,
+  onShowNovels,
+  onShowDocuments,
+  onShowNotesOverview,
+  onShowPresentations,
   isQuickNoteMode,
   isTodoMode,
   isCreativeMode,
+  isStudySetMode,
+  isNovelMode,
+  isDocumentMode,
+  isNoteMode,
+  isPresentationMode,
   onDeletePage,
   onRestorePage,
   onPermanentDeletePage,
@@ -138,6 +159,9 @@ export default function Sidebar({
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition>("below");
   const [subPageMenuId, setSubPageMenuId] = useState<string | null>(null);
   const [groupByType, setGroupByType] = useState(false);
+  const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
+  const [featureFilter, setFeatureFilter] = useState<FeatureFilter>("all");
+  const [hasManualFeatureFilter, setHasManualFeatureFilter] = useState(false);
 
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -147,11 +171,29 @@ export default function Sidebar({
   const lastClickIdRef = useRef<string | null>(null);
 
   const createLabel = (key: string) => t(key);
+  const modeFeatureFilter: FeatureFilter = isQuickNoteMode ? "quicknotes"
+    : isTodoMode ? "calendar"
+    : isStudySetMode ? "study"
+    : isPresentationMode ? "presentations"
+    : isDocumentMode ? "documents"
+    : isNoteMode ? "notes"
+    : isNovelMode ? "novels"
+    : isCreativeMode ? "creative"
+    : featureFilter;
+  // Clicking a feature only filters the list, even while another type of
+  // editor (such as a study set) is open in a split pane.
+  const activeFeatureFilter = hasManualFeatureFilter ? featureFilter : modeFeatureFilter;
 
   useEffect(() => {
     setIsSelectMode(false);
     setSelectedIds(new Set());
   }, [isTrashMode]);
+
+  // 「功能」是一組次層導覽。每次側欄由收合狀態重新開啟時，都從收合開始；
+  // 使用者在當次瀏覽中手動展開後則維持其選擇。
+  useEffect(() => {
+    if (!isCollapsed) setIsFeaturesExpanded(false);
+  }, [isCollapsed]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -214,12 +256,15 @@ export default function Sidebar({
     const query = searchQuery.trim().toLowerCase();
     const matchQuery = !query || (page.title || "").toLowerCase().includes(query) || (page.content_text || "").toLowerCase().includes(query);
     const matchTag = !selectedTag || (page.tags || []).includes(selectedTag);
-    // Projects view (default) excludes quick_note and todo, which are independent per requirement 8
-    if (isQuickNoteMode) return (page.kind as any) === "quick_note" && matchQuery && matchTag;
-    if (isTodoMode) return (page.kind as any) === "todo" && matchQuery && matchTag;
-    if (isCreativeMode) return (page.kind as any) === "creative" && matchQuery && matchTag;
-    // In trash/home/projects modes, exclude quick_note, todo, and creative from projects list
-    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo" || (page.kind as any) === "creative") return false;
+    // Every feature owns its list. The fallback is the explicit「所有項目」view.
+    if (activeFeatureFilter === "quicknotes") return (page.kind as any) === "quick_note" && matchQuery && matchTag;
+    if (activeFeatureFilter === "calendar") return (page.kind as any) === "todo" && matchQuery && matchTag;
+    if (activeFeatureFilter === "study") return page.kind === "study_set" && matchQuery && matchTag;
+    if (activeFeatureFilter === "presentations") return page.kind === "presentation" && matchQuery && matchTag;
+    if (activeFeatureFilter === "documents") return page.kind === "document" && matchQuery && matchTag;
+    if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
+    if (activeFeatureFilter === "novels") return page.kind === "creative" && page.creative_type === "novel" && matchQuery && matchTag;
+    if (activeFeatureFilter === "creative") return page.kind === "creative" && page.creative_type !== "novel" && matchQuery && matchTag;
     return matchQuery && matchTag;
   });
 
@@ -352,13 +397,20 @@ export default function Sidebar({
           onDragOver={(event) => handleDragOver(event, page.id)}
           onDragLeave={() => setDragOverId(null)}
           onDrop={(event) => handleDrop(event, page.id)}
-          onClick={() => {
+          onClick={(event) => {
             if (isRenaming) return;
             if (isSelectMode) {
               toggleSelectOne(page.id);
               return;
             }
             if (!isTrashMode) {
+              // A modifier click keeps the current editor in place and opens
+              // this page beside it. This makes split editing discoverable from
+              // the same switching list used by the editor sidebar.
+              if ((event.ctrlKey || event.metaKey) && onOpenInSplit) {
+                onOpenInSplit(page.id);
+                return;
+              }
               const now = Date.now();
               if (lastClickIdRef.current === page.id && now - lastClickTimeRef.current < 350) {
                 // 雙擊重新命名（依使用者要求改回）
@@ -381,6 +433,7 @@ export default function Sidebar({
           } ${isTrashMode ? "cursor-default opacity-80" : isActive ? "cursor-pointer font-medium" : "cursor-pointer hover:bg-zinc-200/50 opacity-80 hover:opacity-100"} ${
             !isTrashMode ? "cursor-grab active:cursor-grabbing" : ""
           }`}
+          title={!isTrashMode ? "點擊切換編輯器；Ctrl/Cmd + 點擊並排開啟" : undefined}
           style={{
             paddingLeft: `${8 + depth * 16}px`,
             paddingRight: "6px",
@@ -529,7 +582,8 @@ export default function Sidebar({
     return (
       <aside className="flex flex-col items-center pt-3.5 gap-3 border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ color: "var(--color-text)" }} title={t("sidebar.expand")}>
-          ??        </button>
+          ›
+        </button>
         <div className="w-2.5 h-2.5 rounded-full bg-zinc-400" />
       </aside>
     );
@@ -538,54 +592,46 @@ export default function Sidebar({
   return (
     <aside className="flex flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
       <div className="flex items-center justify-between px-4 py-3.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onShowHome} className="flex items-center gap-2 rounded-md px-1 py-1 -ml-1 transition-all hover:bg-zinc-200" title={t("sidebar.logoGoHome")}>
+        <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
+          ‹
+        </button>
+        <button onClick={onShowHome} className="flex items-center gap-2 rounded-md px-1 py-1 -mr-1 transition-all hover:bg-zinc-200" title={t("sidebar.logoGoHome")}>
           <div className="w-2.5 h-2.5 rounded-full bg-zinc-400" />
           <span className="text-base font-semibold tracking-wide" style={{ color: "var(--color-text)" }}>Nexus</span>
         </button>
-        <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
-          ??        </button>
       </div>
 
-      <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onShowHome} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isHomeMode ? "var(--color-border)" : "transparent" }}>
-          🏠 {t("sidebar.nav.home")}
+      {/* Google-style navigation: Home → Trash → collapsible Features, without dividers or card gaps. */}
+      <nav className="px-2 py-2" aria-label="功能導覽">
+        {[
+          { id: "home", icon: "⌂", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
+          { id: "trash", icon: "⌫", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
+        ].map((item) => (
+          <button key={item.id} type="button" onClick={item.onClick} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
+            <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+          </button>
+        ))}
+        <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
+          <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
         </button>
-      </div>
-
-      {/* 垃圾桶（獨立按鈕，位於首頁之下） */}
-      <div className="px-2.5 pt-2.5">
-        <button onClick={() => { if (isTrashMode) onShowNotes(); else onShowTrash(); }} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isTrashMode ? "var(--color-border)" : "transparent" }}>
-          🗑️ {t("sidebar.nav.trash")}
-        </button>
-      </div>
-
-      {/* UX批次（需求6）：兩個類別 — 隨手記/ToDo；選中後展開顯示名稱並保持 */}
-      <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex items-stretch gap-1">
+        {isFeaturesExpanded && <div className="max-h-[200px] overflow-y-auto overscroll-contain" aria-label="功能篩選清單">
           {[
-            { id: "quicknotes", icon: "📝", label: t("sidebar.nav.quickNote"), active: !!isQuickNoteMode, onClick: () => onShowQuickNotes?.() },
-            { id: "todo", icon: "✅", label: t("sidebar.nav.todoList"), active: !!isTodoMode, onClick: () => onShowTodoList?.() },
-            { id: "creative", icon: "✍️", label: t("sidebar.nav.creative"), active: !!isCreativeMode, onClick: () => onShowCreative?.() },
-            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode && !isCreativeMode, onClick: onShowNotes },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={cat.onClick}
-              className="flex items-center justify-center gap-1.5 rounded-md h-10 text-sm font-medium transition-all hover:bg-zinc-200"
-              style={{
-                flex: cat.active ? "2.4" : "1",
-                border: "1px solid var(--color-border)",
-                color: "var(--color-text)",
-                backgroundColor: cat.active ? "var(--color-border)" : "transparent",
-              }}
-              title={cat.label}
-            >
-              <span className="text-base leading-none">{cat.icon}</span>
-              {cat.active && <span className="truncate">{cat.label}</span>}
-            </button>
+          { id: "all", icon: "▦", label: "所有項目", onOpen: onShowNotes },
+          { id: "notes", icon: "✎", label: "筆記", onOpen: () => onShowNotesOverview?.() },
+          { id: "documents", icon: "▱", label: "文檔", onOpen: () => onShowDocuments?.() },
+          { id: "presentations", icon: "▰", label: "簡報", onOpen: () => onShowPresentations?.() },
+          { id: "study", icon: "▤", label: "字卡", onOpen: () => onShowStudySets?.() },
+          { id: "calendar", icon: "▣", label: "日曆", onOpen: () => onShowTodoList?.() },
+          { id: "quicknotes", icon: "▧", label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
+          { id: "creative", icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
+          { id: "novels", icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
+          ].map((item) => (
+          <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id as FeatureFilter); setHasManualFeatureFilter(true); }} onDoubleClick={item.onOpen} className="flex h-10 w-full items-center gap-3 py-0 pl-8 pr-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
+            <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+          </button>
           ))}
-        </div>
-      </div>
+        </div>}
+      </nav>
 
       <div className="p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
         <div className="relative flex-1 min-w-0">

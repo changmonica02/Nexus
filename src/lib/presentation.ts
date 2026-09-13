@@ -94,7 +94,6 @@ export function noteToPresentation(page: Page): PresentationData {
       title: currentTitle,
       content_json: { type: "doc", content: currentSlideBlocks.length > 0 ? currentSlideBlocks : [{ type: "paragraph" }] },
       content_text: textContent,
-      notes: textContent.trim() || undefined,
       chart,
       blocks: slideBlocks,
     };

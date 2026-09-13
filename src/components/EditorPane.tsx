@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import TiptapEditor from "./TiptapEditor";
@@ -18,7 +18,6 @@ export default function EditorPane({
   onTagsChange,
   onContentChange,
   onFormatChange,
-  onAddSubPage,
   onExportMarkdown,
   onExportPdf,
   onExportNexus,
@@ -34,6 +33,7 @@ export default function EditorPane({
   onToggleNightAdapt = () => {},
   margins,
   onMarginsChange,
+  onBackToInterface,
 }: {
   page: Page | null;
   attachment: Attachment | null;
@@ -44,7 +44,6 @@ export default function EditorPane({
   onTagsChange: (tags: string[]) => void;
   onContentChange: (payload: { json: any; text: string }) => void;
   onFormatChange?: (format: PageFormat) => void;
-  onAddSubPage?: (parentId: string) => void;
   onExportMarkdown?: () => void;
   onExportPdf?: () => void;
   onExportNexus?: () => void;
@@ -60,6 +59,8 @@ export default function EditorPane({
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
+  /** Returns to the feature's overview instead of exposing global navigation in an editor. */
+  onBackToInterface?: () => void;
 }) {
   const { t } = useLanguage();
   const [tagInput, setTagInput] = useState("");
@@ -76,14 +77,87 @@ export default function EditorPane({
   const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
   const [formatToolbarTarget, setFormatToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
+  const menuRowRef = useRef<HTMLDivElement>(null);
+  const [isToolbarCompact, setIsToolbarCompact] = useState(false);
 
   const setEditMenuTarget = useCallback((element: HTMLDivElement | null) => setEditToolbarTarget(element), []);
   const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
   const setFormatMenuTarget = useCallback((element: HTMLDivElement | null) => setFormatToolbarTarget(element), []);
 
   useEffect(() => {
-    if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
+    const menuRow = menuRowRef.current;
+    if (!menuRow) return;
+    const observer = new ResizeObserver(([entry]) => setIsToolbarCompact(entry.contentRect.width < 620));
+    observer.observe(menuRow);
+    return () => observer.disconnect();
   }, []);
+
+  // 自動存檔狀態回饋
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "just_saved">("saved");
+  const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleContentWithAutoSave = useCallback((payload: { json: any; text: string }) => {
+    setSaveStatus("saving");
+    onContentChange(payload);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  }, [onContentChange]);
+
+  const handleTitleWithAutoSave = useCallback((title: string) => {
+    setSaveStatus("saving");
+    onTitleChange(title);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  }, [onTitleChange]);
+
+  // 鍵盤 Ctrl+S / Cmd+S 手動立即儲存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setSaveStatus("just_saved");
+        const now = new Date();
+        setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+        setTimeout(() => setSaveStatus("saved"), 1500);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // The editor toolbar is rendered into this node with a portal.  A normal effect
+  // can run while a browser tab is hidden, leaving the portal measured at zero
+  // width until a full reload.  Layout effects + visibility recovery keep it in
+  // sync when the Nexus tab is revisited.
+  const refreshToolbarTarget = useCallback(() => {
+    if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }, []);
+
+  useLayoutEffect(() => {
+    refreshToolbarTarget();
+  }, [refreshToolbarTarget, page?.id]);
+
+  useEffect(() => {
+    const recoverToolbar = () => {
+      if (document.visibilityState === "visible") refreshToolbarTarget();
+    };
+    document.addEventListener("visibilitychange", recoverToolbar);
+    window.addEventListener("focus", recoverToolbar);
+    return () => {
+      document.removeEventListener("visibilitychange", recoverToolbar);
+      window.removeEventListener("focus", recoverToolbar);
+    };
+  }, [refreshToolbarTarget]);
 
   useEffect(() => {
     if (!isWordCountOpen) return;
@@ -188,10 +262,21 @@ export default function EditorPane({
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
+          {onBackToInterface && (
+            <button
+              type="button"
+              onClick={onBackToInterface}
+              className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="回到功能介面"
+              aria-label="回到功能介面"
+            >
+              ←
+            </button>
+          )}
           <input
             type="text"
             value={page.title}
-            onChange={(e) => onTitleChange(e.target.value)}
+            onChange={(e) => handleTitleWithAutoSave(e.target.value)}
             placeholder={t("editor.title.placeholder")}
             className="flex-1 min-w-0 text-xl font-medium bg-transparent border-none outline-none py-0.5"
             style={{ color: "var(--color-text)", fontFamily: "inherit" }}
@@ -207,7 +292,7 @@ export default function EditorPane({
 
       {/* 選單列（2026-08-11：Google Docs 式——純文字、無圖示、無邊框） */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="flex items-center px-2 py-0.5 gap-0.5">
+        <div ref={menuRowRef} className="flex items-center px-2 py-0.5 gap-0.5">
           <FileMenu
             currentFormat={currentFormat}
             isDocument={isDocument}
@@ -224,6 +309,23 @@ export default function EditorPane({
             onConvertToPresentation={onConvertToPresentation}
             onDeleteBlankPages={handleDeleteBlankPages}
           />
+          {isToolbarCompact ? (
+            <ToolbarDropdown label="⋯" variant="menu">
+              <div className="flex flex-col gap-1 p-1 min-w-[240px]">
+                <div className="px-3 pt-1 text-[10px] font-semibold uppercase opacity-50">編輯</div>
+                <div ref={setEditMenuTarget} className="min-w-[200px]" />
+                <div className="px-3 pt-2 text-[10px] font-semibold uppercase opacity-50">插入</div>
+                <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+                <div className="px-3 pt-2 text-[10px] font-semibold uppercase opacity-50">格式</div>
+                <div ref={setFormatMenuTarget} className="min-w-[240px]" />
+                <button type="button" onClick={() => setShowLineNumbers((visible) => !visible)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{showLineNumbers ? "隱藏行數" : "顯示行數"}</button>
+                <button type="button" onClick={() => setShowRuler((visible) => !visible)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{showRuler ? "隱藏尺規" : "顯示尺規"}</button>
+                <button type="button" onClick={() => setIsWordCountOpen(true)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">字數統計</button>
+                <button type="button" onClick={() => onToggleNightAdapt?.()} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{nightAdapt ? "原文字顏色" : "適配夜晚"}</button>
+                <button type="button" onClick={() => onConvertToPresentation?.()} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">轉為簡報</button>
+              </div>
+            </ToolbarDropdown>
+          ) : <>
           <ToolbarDropdown label="編輯" variant="menu">
             <div ref={setEditMenuTarget} className="min-w-[200px]" />
           </ToolbarDropdown>
@@ -251,6 +353,7 @@ export default function EditorPane({
               },
             ]}
           />
+          </>}
           <ToolbarDropdown label="插入" variant="menu">
             <div ref={setInsertMenuTarget} className="min-w-[220px]" />
           </ToolbarDropdown>
@@ -276,6 +379,29 @@ export default function EditorPane({
             ]}
           />
           <div className="flex-1" />
+
+          {/* 自動存檔即時狀態指示器 */}
+          <div className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded select-none shrink-0 mr-2">
+            {saveStatus === "saving" && (
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                <span>🟡</span>
+                <span>正在儲存...</span>
+              </span>
+            )}
+            {saveStatus === "just_saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span>✓</span>
+                <span>已立即手動存檔</span>
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity" title="所有文字編輯已自動即時儲存">
+                <span>🟢</span>
+                <span>已自動儲存{lastSavedTime ? ` (${lastSavedTime})` : ""}</span>
+              </span>
+            )}
+          </div>
+
           {isSplitView ? (
             <div className="flex items-center gap-1">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hidden sm:inline">雙開中</span>
@@ -393,7 +519,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
+          <PaginatedEditorView content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
         </>
       ) : (
         <>
@@ -426,7 +552,7 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
           </div>
           </PageFormatView>
         </>
@@ -435,4 +561,3 @@ export default function EditorPane({
     </main>
   );
 }
-

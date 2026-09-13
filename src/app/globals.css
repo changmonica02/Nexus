@@ -21,7 +21,10 @@
   --color-panel-bg: #1e1e22;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Tailwind supplies the reset.  Do not reset margin/padding here: this file is
+   loaded after Tailwind, so doing so silently cancels utilities such as mt-16
+   and p-6 and lets fixed navigation cover page content. */
+* { box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
   background-color: var(--color-bg);
@@ -395,4 +398,3 @@ body {
 .dark .nexus-math-card-footer {
   background-color: rgba(255, 255, 255, 0.02);
 }
-

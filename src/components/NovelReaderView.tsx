@@ -90,9 +90,12 @@ export default function NovelReaderView({
   onBackToCreativeOverview?: () => void;
 }) {
   const [mode, setMode] = useState<"read" | "edit">("read");
-  const [tocOpen, setTocOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(true); // 預設開啟目錄，如小說軟體
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "just_saved">("saved");
+  const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const readerScrollRef = useRef<HTMLDivElement>(null);
 
   const settings: NovelSettings = useMemo(
@@ -144,16 +147,90 @@ export default function NovelReaderView({
     return headings;
   }, [page.content_json]);
 
-  // Total word count and reading time
+  // Total word count (移除預估閱讀時間)
   const stats = useMemo(() => {
     const text = page.content_text || "";
     // Count Chinese characters & words
     const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
     const englishWords = (text.match(/[a-zA-Z0-9_-]+/g) || []).length;
     const totalCount = chineseChars + englishWords;
-    const readMinutes = Math.max(1, Math.ceil(totalCount / 450));
-    return { totalCount, readMinutes };
+    return { totalCount };
   }, [page.content_text]);
+
+  // 封裝內容與標題變更的自動存檔狀態
+  const handleContentWithAutoSave = (json: any, text: string) => {
+    setSaveStatus("saving");
+    onContentChange(json, text);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  };
+
+  const handleTitleWithAutoSave = (title: string) => {
+    setSaveStatus("saving");
+    onTitleChange(title);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  };
+
+  // 鍵盤 Ctrl+S / Cmd+S 手動立即儲存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setSaveStatus("just_saved");
+        const now = new Date();
+        setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+        setTimeout(() => {
+          setSaveStatus("saved");
+        }, 1500);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // 直覺新增章節：自動生成下一章節並切換至編輯模式
+  const handleAddChapter = () => {
+    const doc = (page.content_json as any) || { type: "doc", content: [] };
+    const currentContents = Array.isArray(doc.content) ? [...doc.content] : [];
+    
+    // 計算章節名稱（如：第 1 章：啟程、第 2 章：新章節）
+    const nextChapterNumber = chapters.length + 1;
+    const chapterName = chapters.length === 0 ? "第一章：啟程" : `第 ${nextChapterNumber} 章：新章節`;
+
+    const newHeadingNode = {
+      type: "heading",
+      attrs: { level: 1 },
+      content: [{ type: "text", text: chapterName }],
+    };
+    const newParagraphNode = {
+      type: "paragraph",
+      content: [{ type: "text", text: "在這裡開始書寫新章節內容..." }],
+    };
+
+    const newContentJson = {
+      ...doc,
+      type: "doc",
+      content: [...currentContents, newHeadingNode, newParagraphNode],
+    };
+
+    const appendedText = `\n\n${chapterName}\n\n在這裡開始書寫新章節內容...`;
+    const newContentText = (page.content_text || "") + appendedText;
+
+    handleContentWithAutoSave(newContentJson, newContentText);
+    setMode("edit"); // 自動進入編輯模式
+
+    // 若目錄收起則自動打開
+    setTocOpen(true);
+  };
 
   // Handle scroll progress in reader mode
   const handleScroll = () => {
@@ -270,7 +347,7 @@ export default function NovelReaderView({
     const el = readerScrollRef.current.querySelector(`#${id}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
-      setTocOpen(false);
+      // 保持目錄常駐，不強制收合，如現代小說閱讀軟體
     }
   };
 
@@ -285,7 +362,7 @@ export default function NovelReaderView({
           color: currentTheme.text,
         }}
       >
-        {/* 左側：標題與章節目錄按鈕 */}
+        {/* 左側：標題與章節目錄按鈕、新增章節與字數 */}
         <div className="flex items-center gap-2 min-w-0">
           {onBackToCreativeOverview && (
             <button
@@ -300,30 +377,64 @@ export default function NovelReaderView({
 
           <button
             onClick={() => setTocOpen((v) => !v)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0 ${
+              tocOpen ? "ring-1 ring-blue-500 font-bold" : ""
+            }`}
             style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
-            title="章節目錄大綱"
+            title={tocOpen ? "收合目錄大綱" : "展開目錄大綱"}
           >
             <span>📑</span>
             <span>目錄 ({chapters.length})</span>
           </button>
 
+          {/* 直覺新增章節快捷按鈕 */}
+          <button
+            onClick={handleAddChapter}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-all cursor-pointer shadow-sm shrink-0"
+            title="新增下一章節"
+          >
+            <span>＋</span>
+            <span>新增章節</span>
+          </button>
+
           <input
             value={page.title || ""}
-            onChange={(e) => onTitleChange(e.target.value)}
+            onChange={(e) => handleTitleWithAutoSave(e.target.value)}
             placeholder="小說作品名稱"
-            className="font-bold text-sm bg-transparent outline-none truncate min-w-[120px] max-w-[280px]"
+            className="font-bold text-sm bg-transparent outline-none truncate min-w-[120px] max-w-[240px] px-1 focus:ring-1 focus:ring-blue-500 rounded"
             style={{ color: currentTheme.text }}
           />
 
           {settings.showWordCount && (
             <span
-              className="text-[11px] px-2 py-0.5 rounded-full border opacity-75 hidden sm:inline-block"
+              className="text-[11px] px-2 py-0.5 rounded-full border opacity-75 hidden sm:inline-block shrink-0"
               style={{ borderColor: currentTheme.border, color: currentTheme.subText }}
             >
-              ✍️ {stats.totalCount.toLocaleString()} 字 · 約 {stats.readMinutes} 分鐘
+              ✍️ {stats.totalCount.toLocaleString()} 字
             </span>
           )}
+
+          {/* 自動存檔即時狀態指示器 */}
+          <div className="hidden md:flex items-center gap-1 text-[11px] opacity-75 px-1.5 py-0.5 rounded shrink-0">
+            {saveStatus === "saving" && (
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                <span>🟡</span>
+                <span>正在儲存...</span>
+              </span>
+            )}
+            {saveStatus === "just_saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span>✓</span>
+                <span>已立即手動存檔</span>
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <span>🟢</span>
+                <span>已自動儲存{lastSavedTime ? ` (${lastSavedTime})` : ""}</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* 右側：模式切換與閱讀排版設定 */}
@@ -526,31 +637,55 @@ export default function NovelReaderView({
             }}
           >
             <div className="flex items-center justify-between mb-3 pb-2 border-b" style={{ borderColor: currentTheme.border }}>
-              <span className="font-bold text-xs" style={{ color: currentTheme.text }}>
-                📑 章回大綱目錄
+              <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: currentTheme.text }}>
+                <span>📑</span>
+                <span>章回大綱目錄</span>
               </span>
-              <button onClick={() => setTocOpen(false)} className="text-xs opacity-50 hover:opacity-100">
+              <button onClick={() => setTocOpen(false)} className="text-xs opacity-50 hover:opacity-100 p-1 cursor-pointer" title="關閉目錄">
                 ✕
               </button>
             </div>
 
+            {/* 目錄側邊欄內的直覺「＋ 新增章節」按鈕 */}
+            <button
+              onClick={handleAddChapter}
+              className="w-full mb-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-semibold hover:opacity-90 transition-all cursor-pointer shadow-xs"
+              style={{
+                backgroundColor: currentTheme.bg,
+                borderColor: currentTheme.border,
+                color: currentTheme.text,
+              }}
+            >
+              <span className="text-blue-600 dark:text-blue-400 font-bold">＋</span>
+              <span>新增章節</span>
+            </button>
+
             {chapters.length === 0 ? (
-              <div className="text-xs opacity-50 py-8 text-center" style={{ color: currentTheme.subText }}>
-                尚未標記章節標題（在編輯模式使用 H1 或 H2 標題自動生成）
+              <div className="text-xs opacity-60 py-8 text-center flex flex-col items-center gap-3" style={{ color: currentTheme.subText }}>
+                <span>尚未建立章節</span>
+                <button
+                  onClick={handleAddChapter}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
+                >
+                  ＋ 建立第一章
+                </button>
               </div>
             ) : (
               <div className="space-y-1">
-                {chapters.map((chap) => (
+                {chapters.map((chap, cIdx) => (
                   <button
                     key={chap.id}
                     onClick={() => scrollToHeading(chap.id)}
-                    className={`w-full text-left text-xs py-2 px-2.5 rounded-lg truncate transition-all ${
+                    className={`w-full text-left text-xs py-2 px-2.5 rounded-lg truncate transition-all cursor-pointer flex items-center gap-2 ${
                       chap.level === 1 ? "font-bold" : "pl-5 opacity-80"
                     } hover:bg-black/5 dark:hover:bg-white/5`}
                     style={{ color: currentTheme.text }}
                     title={chap.title}
                   >
-                    {chap.title}
+                    <span className="opacity-40 text-[10px] font-mono shrink-0">
+                      {String(cIdx + 1).padStart(2, "0")}
+                    </span>
+                    <span className="truncate">{chap.title}</span>
                   </button>
                 ))}
               </div>
@@ -579,7 +714,7 @@ export default function NovelReaderView({
                   {page.title || "未命名小說"}
                 </h1>
                 <div className="text-xs opacity-60" style={{ color: currentTheme.subText }}>
-                  全文共 {stats.totalCount.toLocaleString()} 字 · 閱讀時間約 {stats.readMinutes} 分鐘
+                  全文共 {stats.totalCount.toLocaleString()} 字
                 </div>
               </div>
 
@@ -599,7 +734,7 @@ export default function NovelReaderView({
             <TiptapEditor
               content={page.content_json}
               onChange={({ json, text }: { json: any; text: string }) => {
-                onContentChange(json, text);
+                handleContentWithAutoSave(json, text);
               }}
               paneId="novel-editor"
               showToolbar={true}

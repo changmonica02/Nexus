@@ -79,7 +79,7 @@ export const MultiColumn = Node.create({
         ({ chain, state }: any) => {
           // Lift columns content to parent
           const { $from } = state.selection;
-          let depth = $from.depth;
+          const depth = $from.depth;
           for (let d = depth; d > 0; d--) {
             const node = $from.node(d);
             if (node.type.name === "multiColumn") {
