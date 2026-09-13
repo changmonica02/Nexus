@@ -89,7 +89,8 @@ export default function NovelReaderView({
   onUpdateSettings: (settings: NovelSettings) => void;
   onBackToCreativeOverview?: () => void;
 }) {
-  const [mode, setMode] = useState<"read" | "edit">("read");
+  // 小說先以作品總覽呈現；讀者可從目錄選擇章節後再進入閱讀或編輯。
+  const [mode, setMode] = useState<"overview" | "read" | "edit">("overview");
   const [tocOpen, setTocOpen] = useState(true); // 預設開啟目錄，如小說軟體
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [readProgress, setReadProgress] = useState(0);
@@ -100,6 +101,7 @@ export default function NovelReaderView({
 
   const settings: NovelSettings = useMemo(
     () => ({
+      synopsis: page.novel_settings?.synopsis || "",
       theme: page.novel_settings?.theme || "parchment",
       fontSize: page.novel_settings?.fontSize || 18,
       fontFamily: page.novel_settings?.fontFamily || "serif",
@@ -350,6 +352,71 @@ export default function NovelReaderView({
       // 保持目錄常駐，不強制收合，如現代小說閱讀軟體
     }
   };
+
+  const openChapter = (id: string) => {
+    setMode("read");
+    // 閱讀器完成掛載後再定位，避免從總覽跳轉時找不到章節節點。
+    requestAnimationFrame(() => requestAnimationFrame(() => scrollToHeading(id)));
+  };
+
+  if (mode === "overview") {
+    return (
+      <div className="flex flex-1 flex-col overflow-y-auto" style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}>
+        <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b py-3 pl-14 pr-4 md:px-4" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }}>
+          <div className="flex min-w-0 items-center gap-3">
+            {onBackToCreativeOverview && <button onClick={onBackToCreativeOverview} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>← 創作</button>}
+            <span className="truncate text-sm font-semibold">小說作品總覽</span>
+          </div>
+          <button onClick={() => setMode("edit")} className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>編輯作品</button>
+        </header>
+
+        <div className="mx-auto w-full max-w-6xl px-5 py-7 sm:px-8">
+          <section className="grid items-start gap-7 md:grid-cols-[190px_minmax(0,1fr)]">
+            <div className="flex aspect-[2/3] w-full max-w-[190px] flex-col justify-between rounded-xl border p-5 shadow-lg" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }}>
+              <span className="text-4xl opacity-75">▤</span>
+              <div><p className="mb-2 text-xs font-medium opacity-60">NEXUS NOVEL</p><h1 className="line-clamp-4 text-xl font-bold leading-relaxed">{page.title || "未命名小說"}</h1></div>
+            </div>
+            <div className="min-w-0 py-1">
+              <p className="mb-2 text-xs font-semibold tracking-[0.18em] opacity-60">作品概述</p>
+              <input
+                value={page.title}
+                onChange={(event) => handleTitleWithAutoSave(event.target.value)}
+                aria-label="作品名稱"
+                placeholder="未命名小說"
+                className="mb-4 w-full max-w-3xl bg-transparent text-3xl font-bold tracking-wide outline-none placeholder:opacity-35"
+                style={{ color: currentTheme.text }}
+              />
+              <textarea
+                value={settings.synopsis || ""}
+                onChange={(event) => updateSettings({ synopsis: event.target.value })}
+                aria-label="作品概述"
+                placeholder="在這裡撰寫作品概述…"
+                rows={5}
+                className="block w-full max-w-3xl resize-y rounded-lg border bg-transparent px-3 py-2 text-sm leading-7 outline-none focus:ring-2 focus:ring-blue-400/50"
+                style={{ borderColor: currentTheme.border, color: currentTheme.text }}
+              />
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-70"><span>{chapters.length} 個章節</span><span>{stats.totalCount.toLocaleString()} 字</span><span>{currentTheme.name} 閱讀主題</span></div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={() => setMode("read")} className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-85" style={{ backgroundColor: settings.theme === "dark" ? "#5f8fce" : "#476e9e" }}>開始閱讀</button>
+                <button onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }}>＋ 新增章節</button>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-10 border-t pt-6" style={{ borderColor: currentTheme.border }}>
+            <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-lg font-bold">完整目錄</p><p className="mt-1 text-xs opacity-60">點選章節即可從該處開始閱讀</p></div><span className="text-xs opacity-60">共 {chapters.length} 節</span></div>
+            {chapters.length === 0 ? (
+              <button onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>尚未建立章節，點此新增第一章</button>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {chapters.map((chapter, index) => <button key={chapter.id} onClick={() => openChapter(chapter.id)} className="flex min-w-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-opacity hover:opacity-70" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.barBg }}><span className="shrink-0 text-xs opacity-50">{String(index + 1).padStart(2, "0")}</span><span className={`truncate text-sm ${chapter.level === 2 ? "pl-3 opacity-80" : "font-semibold"}`}>{chapter.title}</span></button>)}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden" style={{ backgroundColor: currentTheme.bg }}>

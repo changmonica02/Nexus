@@ -310,11 +310,12 @@ export function createObsidianMathNodeView(isInline: boolean) {
       enterEdit();
     });
 
-    if (isInline) {
-      editInput.addEventListener("blur", () => {
-        exitEdit(true);
-      });
-    }
+    // Leaving either kind of formula confirms it, matching Obsidian's
+    // rendered-by-default behaviour. Clicking the preview is the only way
+    // to re-open its full LaTeX source.
+    editInput.addEventListener("blur", () => {
+      exitEdit(true);
+    });
 
     editInput.addEventListener("input", () => {
       if (isInline) autoSizeInput();
@@ -374,9 +375,13 @@ export function createObsidianMathNodeView(isInline: boolean) {
     return {
       dom: wrapper,
       selectNode() {
-        enterEdit();
+        // Selection can happen while opening a page or moving with arrows;
+        // it must not expose the raw LaTeX source. Explicit preview click
+        // above is the edit gesture.
+        wrapper.classList.add("is-selected");
       },
       deselectNode() {
+        wrapper.classList.remove("is-selected");
         exitEdit(true);
       },
       stopEvent() {

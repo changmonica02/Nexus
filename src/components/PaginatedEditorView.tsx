@@ -122,6 +122,7 @@ export default function PaginatedEditorView({
   showLineNumbers = false,
   showThumbRail = true,
   paneId = "primary",
+  zoom = 1,
 }: {
   content: any;
   onContentChange: (payload: { json: any; text: string }) => void;
@@ -140,6 +141,7 @@ export default function PaginatedEditorView({
   showLineNumbers?: boolean;
   showThumbRail?: boolean;
   paneId?: string;
+  zoom?: number;
 }) {
   const blocks: Block[] = useMemo(() => (content?.content as Block[]) || [], [content]);
 
@@ -296,8 +298,9 @@ export default function PaginatedEditorView({
     <div className="flex flex-1 min-h-0">
       {/* 左側分頁縮圖列（GoodNotes 風格） */}
       {showThumbRail && (
-        <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
-          {pagesBlocks.map((pb, idx) => {
+        <div className="w-20 shrink-0 border-r overflow-hidden flex flex-col" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+            {pagesBlocks.map((pb, idx) => {
             const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
             const name = firstHeadingText(pb) || "未命名";
             return (
@@ -336,7 +339,13 @@ export default function PaginatedEditorView({
                 ) : null}
               </div>
             );
-          })}
+            })}
+          </div>
+          <div className="shrink-0 border-t p-2" style={{ borderColor: "var(--color-border)" }}>
+            <button type="button" onClick={handleAppendPage} className="flex w-full flex-col items-center gap-0.5 rounded-md border py-1.5 text-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} title="新增頁面">
+              <span className="text-base leading-none">＋</span><span>新增頁面</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -364,7 +373,7 @@ export default function PaginatedEditorView({
       )}
 
       {/* 主捲動區 */}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px" }}>
+      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px", zoom }}>
         {showRuler && (
           <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: "#f5f5f4" }}>
             <div style={{ width: getDocumentRulerWidth("paged") }}>

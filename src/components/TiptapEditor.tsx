@@ -312,8 +312,10 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
 
   // Table context menu state
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
+  const [tableSubmenu, setTableSubmenu] = useState<"cell" | "delete" | null>(null);
   const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
   const tableMenuRef = useRef<HTMLDivElement>(null);
+  const tableSubmenuRef = useRef<HTMLDivElement>(null);
 
   const refreshToolbarState = () => {
     const editor = editorRef.current;
@@ -738,6 +740,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         e.preventDefault();
         setTextMenu(null);
         setTableMenu({ x: e.clientX, y: e.clientY });
+        setTableSubmenu(null);
         return;
       }
       // 需求2：框選文字右鍵 → 「建立頁面連結」
@@ -746,6 +749,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       if (hasSelection) {
         e.preventDefault();
         setTableMenu(null);
+        setTableSubmenu(null);
         setTextMenu({ x: e.clientX, y: e.clientY });
         return;
       }
@@ -753,8 +757,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       setTextMenu(null);
     };
     const onClick = (e: MouseEvent) => {
-      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node)) {
+      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node) && !tableSubmenuRef.current?.contains(e.target as Node)) {
         setTableMenu(null);
+        setTableSubmenu(null);
       }
     };
     el.addEventListener("contextmenu", onContextMenu);
@@ -936,7 +941,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
 
   const textContextMenu = textMenu ? createPortal(
     <div
-      className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
+      className="rounded-xl shadow-2xl z-[10000] overflow-visible py-1"
       style={{
         position: "fixed",
         top: Math.min(textMenu.y, window.innerHeight - 120),
@@ -953,15 +958,32 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     document.body
   ) : null;
 
+  const fitActiveTableToEditor = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const domAtSelection = editor.view.domAtPos(editor.state.selection.from).node as HTMLElement;
+    const table = domAtSelection.nodeType === Node.ELEMENT_NODE
+      ? domAtSelection.closest("table")
+      : domAtSelection.parentElement?.closest("table");
+    if (!table) return;
+    table.classList.add("nexus-table-fit");
+    table.style.width = "100%";
+    table.style.maxWidth = "100%";
+    table.style.tableLayout = "fixed";
+    setTableMenu(null);
+    setTableSubmenu(null);
+  };
+
   const tableContextMenu = tableMenu && toolbarState.table ? createPortal(
     <div
       ref={tableMenuRef}
-      className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
+      className="rounded-xl shadow-2xl z-[10000] overflow-y-auto py-1"
       style={{
         position: "fixed",
         top: Math.min(tableMenu.y, window.innerHeight - 340),
         left: Math.min(tableMenu.x, window.innerWidth - 220),
         width: 210,
+        maxHeight: "calc(100vh - 2rem)",
         backgroundColor: "var(--color-bg)",
         border: "1px solid var(--color-border)",
       }}
@@ -973,15 +995,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       <button onClick={() => { (editorRef.current as any)?.chain().focus().addColumnBefore().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬅️</span> 在左側插入欄</button>
       <button onClick={() => { editorRef.current?.chain().focus().addColumnAfter().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>➡️</span> 在右側插入欄</button>
       <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-      <button onClick={() => { editorRef.current?.chain().focus().deleteRow().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🗑️</span> 刪除列</button>
-      <button onClick={() => { editorRef.current?.chain().focus().deleteColumn().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🗑️</span> 刪除欄</button>
-      <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-      <button onClick={() => { (editorRef.current as any)?.chain().focus().mergeCells().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🔗</span> 合併儲存格（需先選多格）</button>
-      <button onClick={() => { mergeWith('up'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬆️</span> 與上方儲存格合併</button>
-      <button onClick={() => { mergeWith('down'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬇️</span> 與下方儲存格合併</button>
-      <button onClick={() => { mergeWith('left'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬅️</span> 與左側儲存格合併</button>
-      <button onClick={() => { mergeWith('right'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>➡️</span> 與右側儲存格合併</button>
-      <button onClick={() => { (editorRef.current as any)?.chain().focus().splitCell().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>✂️</span> 拆分儲存格</button>
+      <button onClick={fitActiveTableToEditor} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⛶</span> 完整顯示</button>
+      <button onClick={() => setTableSubmenu(tableSubmenu === "cell" ? null : "cell")} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>▣</span> 儲存格操作 <span className="ml-auto">›</span></button>
+      <button onClick={() => setTableSubmenu(tableSubmenu === "delete" ? null : "delete")} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2 text-red-600"><span>🗑️</span> 刪除 <span className="ml-auto">›</span></button>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().toggleHeaderRow().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>📌</span> 切換標題列</button>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().toggleHeaderColumn().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>📌</span> 切換標題欄</button>
       <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
@@ -1073,6 +1089,32 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       <button onClick={() => { editorRef.current?.chain().focus().deleteTable().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"><span>✕</span> 刪除表格</button>
     </div>,
     document.body
+  ) : null;
+
+  const tableSubmenuPopup = tableMenu && tableSubmenu ? createPortal(
+    <div
+      ref={tableSubmenuRef}
+      className="fixed z-[10001] w-52 rounded-xl border py-1 shadow-2xl"
+      style={{
+        top: Math.min(tableMenu.y, window.innerHeight - 280),
+        left: tableMenu.x + 426 > window.innerWidth ? Math.max(8, tableMenu.x - 216) : tableMenu.x + 216,
+        backgroundColor: "var(--color-bg)",
+        borderColor: "var(--color-border)",
+      }}
+      onMouseDown={(event) => event.preventDefault()}
+    >
+      {tableSubmenu === "cell" ? <>
+        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase opacity-60">儲存格操作</div>
+        <button onClick={() => { (editorRef.current as any)?.chain().focus().mergeCells().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">合併選取儲存格</button>
+        <button onClick={() => mergeWith("up")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與上方儲存格合併</button><button onClick={() => mergeWith("down")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與下方儲存格合併</button><button onClick={() => mergeWith("left")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與左側儲存格合併</button><button onClick={() => mergeWith("right")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與右側儲存格合併</button>
+        <button onClick={() => { (editorRef.current as any)?.chain().focus().splitCell().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">拆分儲存格</button>
+      </> : <>
+        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase opacity-60">刪除</div>
+        <button onClick={() => { editorRef.current?.chain().focus().deleteRow().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">刪除列</button>
+        <button onClick={() => { editorRef.current?.chain().focus().deleteColumn().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">刪除欄</button>
+      </>}
+    </div>,
+    document.body,
   ) : null;
 
     // 需求3：工具列分三組（常用/插入/版面配置），由 toolbarTab 決定顯示哪組
@@ -1283,6 +1325,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
+      {tableSubmenuPopup}
       <style>{`
         .nexus-tiptap-editor { margin-left: -56px; padding-left: 56px; }
         .nexus-paged-content .nexus-tiptap-editor { margin-left: 0 !important; padding-left: 0 !important; }
@@ -1317,6 +1360,8 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         .nexus-tiptap-editor table td p, .nexus-tiptap-editor table th p { margin: 0; }
         .nexus-tiptap-editor table .selectedCell { background: rgba(37,99,235,0.08); }
         .nexus-tiptap-editor table .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background-color: #2563eb; pointer-events: none; }
+        .nexus-tiptap-editor table.nexus-table-fit { width: 100% !important; max-width: 100% !important; table-layout: fixed; }
+        .nexus-tiptap-editor table.nexus-table-fit td, .nexus-tiptap-editor table.nexus-table-fit th { overflow-wrap: anywhere; word-break: break-word; }
         .nexus-tiptap-editor .tableWrapper { overflow-x: auto; }
         .nexus-tiptap-editor .resize-cursor { cursor: col-resize; }
         .nexus-tiptap-editor blockquote { border-left: 3px solid var(--color-border); margin: 1rem 0; padding-left: 1rem; opacity: 0.8; }

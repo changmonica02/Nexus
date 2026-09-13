@@ -83,6 +83,7 @@ type SidebarProps = {
   onCancelNewPage: (id: string) => void;
   onCreateItem: (type: CreateItemType) => void;
   syncState?: SyncState;
+  accountEmail?: string | null;
   onOpenInSplit?: (id: string) => void;
 };
 
@@ -143,6 +144,7 @@ export default function Sidebar({
   onCancelNewPage,
   onCreateItem,
   syncState,
+  accountEmail,
   onOpenInSplit,
 }: SidebarProps) {
   const { t } = useLanguage();
@@ -721,7 +723,7 @@ export default function Sidebar({
         {renderPageSections()}
       </div>
 
-      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} />
+      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} accountEmail={accountEmail} />
     </aside>
   );
 }

@@ -32,7 +32,7 @@ export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth,
   const effectiveWidth = isCollapsed ? collapsedWidth : width;
 
   return (
-    <div className="relative flex shrink-0 transition-[width] duration-150" style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
+    <div className={`relative flex shrink-0 transition-[width] duration-150 ${isCollapsed && collapsedWidth === 0 ? "overflow-hidden" : ""}`} style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
       {!isCollapsed && side === "right" && (
         <div onMouseDown={handleMouseDown} className="absolute left-0 top-0 bottom-0 w-1.5 -translate-x-0.5 cursor-col-resize z-10 hover:bg-blue-400/40 transition-colors"
           style={{ backgroundColor: isDragging ? "rgba(37, 99, 235, 0.35)" : "transparent" }} />

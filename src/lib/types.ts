@@ -171,6 +171,8 @@ export interface AssistantBlock {
 export type CreativeType = "novel" | "character";
 
 export interface NovelSettings {
+  /** Independent work overview shown before entering the reader. */
+  synopsis?: string;
   theme?: "parchment" | "cream" | "eye_care" | "dark" | "pure_white";
   fontSize?: number; // 14 ~ 26
   fontFamily?: "serif" | "sans" | "kai";

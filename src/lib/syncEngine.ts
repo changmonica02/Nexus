@@ -1,6 +1,6 @@
 /**
  * Nexus Sync Engine ??Shared Workspace
- * All users share the same data. Realtime sync via Supabase.
+ * Per-account workspace sync via Supabase.
  */
 
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
@@ -22,6 +22,7 @@ export class SyncEngine {
   private supabase: SupabaseClient;
   private storage: StorageAdapter;
   private deviceId: string;
+  private userId: string;
   private lastSyncAt: number = 0;
   private listeners: Set<SyncListener> = new Set();
   private syncInterval: ReturnType<typeof setInterval> | null = null;
@@ -30,10 +31,11 @@ export class SyncEngine {
   private realtimeChannel: RealtimeChannel | null = null;
   private onRemoteChange: (() => void) | null = null;
 
-  constructor(supabase: SupabaseClient, storage: StorageAdapter, deviceId: string) {
+  constructor(supabase: SupabaseClient, storage: StorageAdapter, deviceId: string, userId: string) {
     this.supabase = supabase;
     this.storage = storage;
     this.deviceId = deviceId;
+    this.userId = userId;
   }
 
   subscribe(listener: SyncListener): () => void {
@@ -56,18 +58,18 @@ export class SyncEngine {
   startRealtime(): void {
     // Subscribe to page changes
     this.realtimeChannel = this.supabase
-      .channel("nexus-shared")
-      .on("postgres_changes", { event: "*", schema: "public", table: "pages" }, (payload: Record<string, unknown>) => {
+      .channel(`nexus-${this.userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote page change:", payload.eventType, data?.id);
         this.handleRemotePageChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "attachments" }, (payload: Record<string, unknown>) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote attachment change:", payload.eventType, data?.id);
         this.handleRemoteAttachmentChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries" }, (payload: Record<string, unknown>) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote binary change:", payload.eventType, data?.id);
         this.handleRemoteBinaryChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
@@ -200,13 +202,13 @@ export class SyncEngine {
     this.setState({ status: "syncing", error: null });
 
     try {
-      const { data: cloudPages, error: pagesError } = await this.supabase.from("pages").select("*");
+      const { data: cloudPages, error: pagesError } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId);
       if (pagesError) throw new Error(`Pages pull failed: ${pagesError.message}`);
 
-      const { data: cloudAttachments, error: attachmentsError } = await this.supabase.from("attachments").select("*");
+      const { data: cloudAttachments, error: attachmentsError } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId);
       if (attachmentsError) throw new Error(`Attachments pull failed: ${attachmentsError.message}`);
 
-      const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*");
+      const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId);
       if (binariesError) throw new Error(`Binaries pull failed: ${binariesError.message}`);
 
       const localPages = await this.storage.listPages({ includeDeleted: true });
@@ -303,7 +305,7 @@ export class SyncEngine {
     this.setState({ status: "syncing" });
 
     try {
-      const { data: cloudPages } = await this.supabase.from("pages").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudPages } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       let maxUpdatedAt = this.lastSyncAt;
       let changed = false;
 
@@ -324,7 +326,7 @@ export class SyncEngine {
 
       // M7 fix: pullChanges 原本只拉 pages，Realtime 斷線期間他機新增的附件/PDF 不會同步。
       // 補上 attachments 與 binaries 的增量 pull。
-      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       for (const cloudAtt of (cloudAttachments || [])) {
         if (cloudAtt.device_id === this.deviceId) continue;
         const localAtt = (await this.storage.listAttachments()).find((a) => a.id === cloudAtt.id);
@@ -342,7 +344,7 @@ export class SyncEngine {
         if ((cloudAtt.updated_at as number) > maxUpdatedAt) maxUpdatedAt = cloudAtt.updated_at as number;
       }
 
-      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       for (const cloudBin of (cloudBinaries || [])) {
         const localBin = await this.storage.readBinary(cloudBin.id);
         if (localBin) continue; // 本地已有（自己 push 或已同步）
@@ -374,7 +376,7 @@ export class SyncEngine {
   async pushPage(page: Page): Promise<void> {
     try {
       const { error: upErr } = await this.supabase.from("pages").upsert({
-        id: page.id, title: page.title, content_json: page.content_json,
+        id: page.id, owner_id: this.userId, title: page.title, content_json: page.content_json,
         content_text: page.content_text, default_mode: page.default_mode,
         created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
         revision: page.revision, device_id: this.deviceId,
@@ -401,7 +403,7 @@ export class SyncEngine {
   async pushAttachment(attachment: Attachment): Promise<void> {
     try {
       await this.supabase.from("attachments").upsert({
-        id: attachment.id, kind: attachment.kind, name: attachment.name,
+        id: attachment.id, owner_id: this.userId, kind: attachment.kind, name: attachment.name,
         mime_type: attachment.mime_type, size_bytes: attachment.size_bytes,
         storage_key: attachment.storage_key, created_at: attachment.created_at,
         updated_at: attachment.updated_at, deleted_at: attachment.deleted_at,
@@ -420,7 +422,7 @@ export class SyncEngine {
       const chunkSize = 0x8000;
       for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
       await this.supabase.from("binaries").upsert({
-        id: attachmentId, data: btoa(binary), updated_at: Date.now(),
+        id: attachmentId, owner_id: this.userId, data: btoa(binary), updated_at: Date.now(),
       }, { onConflict: "id" });
     } catch (err) {
       console.error("[SyncEngine] pushBinary error:", err);
@@ -433,8 +435,8 @@ export class SyncEngine {
 
   async pushPermanentDeletePage(pageId: string): Promise<void> {
     try {
-      await this.supabase.from("pages").delete().eq("id", pageId);
-      await this.supabase.from("binaries").delete().eq("id", pageId);
+      await this.supabase.from("pages").delete().eq("id", pageId).eq("owner_id", this.userId);
+      await this.supabase.from("binaries").delete().eq("id", pageId).eq("owner_id", this.userId);
     } catch (err) {
       console.error("[SyncEngine] pushPermanentDeletePage error:", err);
     }

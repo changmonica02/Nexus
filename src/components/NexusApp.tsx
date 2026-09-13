@@ -47,6 +47,7 @@ import CharacterProfileView from "./CharacterProfileView";
 import FeatureOverview from "./FeatureOverview";
 import DevicePreview from "./DevicePreview";
 import { createFantasyTemplate, createModernTemplate, createBlankTemplate } from "../lib/characterTemplates";
+import AccountButton from "./AccountButton";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -142,6 +143,7 @@ function NexusAppInner({
   const syncEngineRef = useRef<SyncEngine | null>(null);
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
   const activeAttachment = activePage?.primary_attachment_id
@@ -320,22 +322,39 @@ function NexusAppInner({
         const supabase = getSupabase();
         if (supabase) {
           const deviceId = await adapter.getDeviceId();
-          const engine = new SyncEngine(supabase, adapter, deviceId);
-          syncEngineRef.current = engine;
-          engine.subscribe(setSyncState);
-          engine.setOnRemoteChange(async () => {
-            const syncedPages = await adapter.listPages();
-            const syncedAttachments = await adapter.listAttachments();
-            setPages(syncedPages);
-            setAttachments(syncedAttachments);
+          const startAccountSync = async (userId: string) => {
+            syncEngineRef.current?.destroy();
+            const engine = new SyncEngine(supabase, adapter, deviceId, userId);
+            syncEngineRef.current = engine;
+            engine.subscribe(setSyncState);
+            engine.setOnRemoteChange(async () => {
+              const syncedPages = await adapter.listPages();
+              const syncedAttachments = await adapter.listAttachments();
+              setPages(syncedPages);
+              setAttachments(syncedAttachments);
+            });
+            await engine.fullSync();
+            if (cancelled) return;
+            setPages(await adapter.listPages());
+            setAttachments(await adapter.listAttachments());
+            engine.startRealtime();
+          };
+
+          const { data: { session } } = await supabase.auth.getSession();
+          setAccountEmail(session?.user.email || null);
+          if (session?.user) await startAccountSync(session.user.id);
+          else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
+
+          supabase.auth.onAuthStateChange((event, nextSession) => {
+            setAccountEmail(nextSession?.user.email || null);
+            if (event === "SIGNED_OUT" || !nextSession?.user) {
+              syncEngineRef.current?.destroy();
+              syncEngineRef.current = null;
+              setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
+              return;
+            }
+            void startAccountSync(nextSession.user.id);
           });
-          await engine.fullSync();
-          if (cancelled) return;
-          allPages = await adapter.listPages();
-          allAttachments = await adapter.listAttachments();
-          setPages(allPages);
-          setAttachments(allAttachments);
-          engine.startRealtime();
         }
       }
     }
@@ -1184,6 +1203,7 @@ function NexusAppInner({
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="開啟導覽" title="開啟導覽">☰</button>
           <button type="button" onClick={handleShowHome} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
           <div className="flex-1" />
+          <div className="mr-2"><AccountButton accountEmail={accountEmail} /></div>
           <div className="relative">
             <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="功能總覽" title="功能總覽">
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
@@ -1207,6 +1227,10 @@ function NexusAppInner({
             )}
           </div>
         </header>
+      )}
+
+      {!isFeatureInterface && (
+        <div className="absolute right-3 top-2 z-40"><AccountButton accountEmail={accountEmail} /></div>
       )}
 
       {isNavigationOpen && (
@@ -1255,6 +1279,7 @@ function NexusAppInner({
           onCancelNewPage={handleCancelNewPage}
           onCreateItem={handleCreateItem}
           syncState={syncState}
+          accountEmail={accountEmail}
           onMovePage={handleMovePage}
           onOpenInSplit={handleOpenInSplit}
           isQuickNoteMode={isQuickNoteMode}
@@ -1283,7 +1308,7 @@ function NexusAppInner({
           Google-style interface drawer and lets users change pages or open a
           second editor without leaving their current editing context. */}
       {!isFeatureInterface && (
-        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} isCollapsed={isSidebarCollapsed}>
+        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed}>
           <Sidebar
             pages={pages}
             activePageId={activePageId}
@@ -1325,6 +1350,7 @@ function NexusAppInner({
             onCancelNewPage={handleCancelNewPage}
             onCreateItem={handleCreateItem}
             syncState={syncState}
+            accountEmail={accountEmail}
             onMovePage={handleMovePage}
             onOpenInSplit={handleOpenInSplit}
             isQuickNoteMode={isQuickNoteMode}
@@ -1345,6 +1371,20 @@ function NexusAppInner({
             onShowPresentations={handleShowPresentations}
           />
         </ResizablePanel>
+      )}
+
+      {/* 手機版不保留縮起後的垂直軌道；開關直接固定在編輯器最上方左側。 */}
+      {!isFeatureInterface && isMobileViewport && isSidebarCollapsed && (
+        <button
+          type="button"
+          onClick={() => setIsSidebarCollapsed(false)}
+          className="absolute left-2 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-lg shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+          aria-label="開啟左側面板"
+          title="開啟左側面板"
+        >
+          ☰
+        </button>
       )}
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100vh-4rem)]" : ""}`}>
