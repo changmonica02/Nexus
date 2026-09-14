@@ -36,6 +36,39 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 export class IndexedDBAdapter implements StorageAdapter {
   private db: IDBPDatabase | null = null;
   private deviceId: ID = `dev_${nanoid()}`;
+  // IndexedDB is shared by browser profiles, unlike Supabase. Keep its records
+  // explicitly partitioned so changing accounts never exposes another account's
+  // cached pages or attachments.
+  private workspaceOwnerId: ID | null = null;
+
+  setWorkspaceOwner(ownerId: ID | null): void {
+    this.workspaceOwnerId = ownerId;
+  }
+
+  async claimAnonymousWorkspace(ownerId: ID): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const claimKey = "anonymous_workspace_claimed_owner";
+    if (await this.db.get("settings", claimKey)) return;
+
+    // This is intentionally a one-time, explicit migration: the user asked
+    // for all current local data to belong to their account. Later anonymous
+    // workspaces must not be silently claimed by whichever account signs in.
+    const tx = this.db.transaction(["pages", "attachments", "settings"], "readwrite");
+    const pages = await tx.objectStore("pages").getAll();
+    const attachments = await tx.objectStore("attachments").getAll();
+    for (const page of pages) {
+      if ((page.workspace_owner_id ?? null) === null) {
+        await tx.objectStore("pages").put({ ...page, workspace_owner_id: ownerId });
+      }
+    }
+    for (const attachment of attachments) {
+      if ((attachment.workspace_owner_id ?? null) === null) {
+        await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
+      }
+    }
+    await tx.objectStore("settings").put({ key: claimKey, value: ownerId });
+    await tx.done;
+  }
 
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
@@ -73,8 +106,9 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (!this.db) throw new Error("DB not initialized");
     const all = await this.db.getAllFromIndex("pages", "by_updated");
     const visible = all.reverse();
-    if (!query?.includeDeleted) return visible.filter((p) => p.deleted_at === null);
-    return visible;
+    const workspacePages = visible.filter((p) => (p.workspace_owner_id ?? null) === this.workspaceOwnerId);
+    if (!query?.includeDeleted) return workspacePages.filter((p) => p.deleted_at === null);
+    return workspacePages;
   }
 
   async savePage(page: Page): Promise<Page> {
@@ -108,6 +142,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),
       sort_order: input?.sort_order,
       parent_id: input?.parent_id ?? null,
+      workspace_owner_id: this.workspaceOwnerId,
     };
     await this.db.put("pages", page);
     return page;
@@ -188,10 +223,10 @@ export class IndexedDBAdapter implements StorageAdapter {
     await this.db.put("settings", { key: "page_night_adapt", value: adapt });
   }
 
-  async listAttachments(): Promise<Attachment[]> {
+  async listAttachments(includeDeleted = false): Promise<Attachment[]> {
     if (!this.db) throw new Error("DB not initialized");
     const all = await this.db.getAllFromIndex("attachments", "by_updated");
-    return all.reverse().filter((a) => a.deleted_at === null);
+    return all.reverse().filter((a) => (includeDeleted || a.deleted_at === null) && (a.workspace_owner_id ?? null) === this.workspaceOwnerId);
   }
 
   async getAttachment(id: ID): Promise<Attachment | null> {
@@ -240,6 +275,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       deleted_at: null,
       device_id: this.deviceId,
       page_count: input.page_count,
+      workspace_owner_id: this.workspaceOwnerId,
     };
     await this.db.put("attachments", attachment);
     return attachment;

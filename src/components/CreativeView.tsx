@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import type { Page } from "../lib/types";
+import { isCreativeCharacterPage, type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 
 // 書本封面主題配色庫
@@ -45,7 +45,6 @@ export default function CreativeView({
   onDeletePage?: (id: string) => void;
 }) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"all" | "novel" | "character">("all");
   const [charModalOpen, setCharModalOpen] = useState(false);
 
   // Windows 總管三種檢視模式：圖示 (icons)、清單 (list)、詳細資料 (details)
@@ -68,20 +67,16 @@ export default function CreativeView({
   };
 
   const creativePages = useMemo(() => {
-    return pages.filter((p) => p.kind === "creative" && !p.deleted_at);
+    // 小說有專屬入口；創作工作台只管理角色與創作素材。
+    return pages.filter((p) => !p.deleted_at && isCreativeCharacterPage(p));
   }, [pages]);
 
-  const novelPages = useMemo(() => {
-    return creativePages.filter((p) => p.creative_type === "novel" || (!p.creative_type && !p.character_data));
-  }, [creativePages]);
-
   const characterPages = useMemo(() => {
-    return creativePages.filter((p) => p.creative_type === "character" || !!p.character_data);
+    return creativePages;
   }, [creativePages]);
 
   const displayedPages = useMemo(() => {
-    const baseList =
-      activeTab === "novel" ? novelPages : activeTab === "character" ? characterPages : creativePages;
+    const baseList = creativePages;
 
     return [...baseList].sort((a, b) => {
       let cmp = 0;
@@ -102,7 +97,7 @@ export default function CreativeView({
       }
       return sortOrder === "asc" ? cmp : -cmp;
     });
-  }, [activeTab, novelPages, characterPages, creativePages, sortField, sortOrder]);
+  }, [creativePages, sortField, sortOrder]);
 
   const toggleSort = (field: "title" | "type" | "size" | "updated_at" | "created_at") => {
     if (sortField === field) {
@@ -223,34 +218,8 @@ export default function CreativeView({
         {/* 已建立的創作清單區塊 */}
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
-            {/* 分類標籤頁 */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setActiveTab("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === "all" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-sm" : "opacity-60 hover:opacity-100"
-                }`}
-              >
-                全部創作 ({creativePages.length})
-              </button>
-              <button
-                onClick={() => setActiveTab("novel")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeTab === "novel" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-sm" : "opacity-60 hover:opacity-100"
-                }`}
-              >
-                <span>📖 小說列表</span>
-                <span>({novelPages.length})</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("character")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                  activeTab === "character" ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-sm" : "opacity-60 hover:opacity-100"
-                }`}
-              >
-                <span>🎭 角色列表</span>
-                <span>({characterPages.length})</span>
-              </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold">
+              <span>🎭 角色檔案</span><span className="opacity-55">({characterPages.length})</span>
             </div>
 
             {/* Windows 檔案總管三種檢視切換器 */}
@@ -300,8 +269,8 @@ export default function CreativeView({
           {/* 列表內容區域 */}
           {displayedPages.length === 0 ? (
             <div className="rounded-2xl border border-dashed py-14 text-center opacity-40 text-xs space-y-1" style={{ borderColor: "var(--color-border)" }}>
-              <div>目前分類尚無創作作品</div>
-              <div>點擊上方按鈕立即建立第一篇小說或角色檔案</div>
+              <div>目前尚無角色檔案</div>
+              <div>點擊上方按鈕建立第一位角色</div>
             </div>
           ) : viewMode === "icons" ? (
             /* 1. 圖示模式：立體書本封面 (Book Cover) 與立體角色肖像卡 */

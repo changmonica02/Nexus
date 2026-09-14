@@ -34,7 +34,7 @@ import TableGridPicker from "./TableGridPicker";
 interface TiptapEditorProps {
   content: any;
   onChange: (payload: { json: any; text: string; cursor?: CursorAnchor }) => void;
-  variant?: "rich" | "plain";
+  variant?: "rich" | "plain" | "novel";
   toolbarTarget?: HTMLElement | null;
   onFocus?: () => void;
   pageNightAdapt?: boolean;
@@ -347,28 +347,41 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const editor = new Editor({
       element: ref.current,
       extensions: [
-        StarterKit.configure({ link: false, underline: false }),
+        StarterKit.configure({
+          link: false,
+          underline: false,
+          // Novels deliberately stay a writing surface: only body text and
+          // chapter/subchapter headings are part of its document model.
+          heading: variant === "novel" ? { levels: [1, 2] } : undefined,
+          bulletList: variant === "novel" ? false : undefined,
+          orderedList: variant === "novel" ? false : undefined,
+          blockquote: variant === "novel" ? false : undefined,
+          codeBlock: variant === "novel" ? false : undefined,
+          horizontalRule: variant === "novel" ? false : undefined,
+        }),
         StableBlockId,
         Placeholder.configure({ placeholder: t("tiptap.placeholder") }),
         Typography,
-        Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
         Underline,
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        TableKit.configure({ table: { resizable: true } }),
-        Image.configure({ inline: false, allowBase64: true }),
-        Callout,
-        PageBreak,
-        Column,
-        MultiColumn,
-        WritingModeExtension,
-        BlockMath.extend({ addNodeView() { return createObsidianMathNodeView(false); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
-        InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
-        ObsidianMathInput,
-        NodeRange,
+        ...(variant !== "novel" ? [
+          Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
+          TaskList,
+          TaskItem.configure({ nested: true }),
+          TableKit.configure({ table: { resizable: true } }),
+          Image.configure({ inline: false, allowBase64: true }),
+          Callout,
+          PageBreak,
+          Column,
+          MultiColumn,
+          WritingModeExtension,
+          BlockMath.extend({ addNodeView() { return createObsidianMathNodeView(false); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
+          InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
+          ObsidianMathInput,
+          NodeRange,
+        ] : []),
         // A fixed Floating UI anchor keeps the block handle aligned when the
         // editor lives inside a scrolling pane or a resized split editor.
-        DragHandle.configure({
+        ...(variant !== "novel" ? [DragHandle.configure({
           computePositionConfig: { placement: "left-start", strategy: "fixed" },
           render: () => {
             const el = document.createElement("div");
@@ -380,7 +393,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
             el.innerHTML = "⠿";
             return el;
           },
-        }),
+        })] : []),
         ...(variant === "rich" ? [
           TextStyleKit.configure({ backgroundColor: false, lineHeight: false }),
           TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -388,7 +401,21 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         ] : []),
       ],
       content: content || { type: "doc", content: [{ type: "paragraph" }] },
-      editorProps: { attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" } },
+      editorProps: {
+        attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" },
+        // Rich clipboard HTML can otherwise recreate table/image/list nodes
+        // even though the novel toolbar does not expose them.
+        handlePaste: (view, event) => {
+          if (variant !== "novel") return false;
+          const plainText = event.clipboardData?.getData("text/plain") ?? "";
+          if (!plainText) return true;
+          event.preventDefault();
+          const blocks = plainText.replace(/\r/g, "").split("\n").map((text) => ({ type: "paragraph", content: text ? [{ type: "text", text }] : [] }));
+          editor.commands.insertContentAt(view.state.selection, blocks);
+          return true;
+        },
+        handleDrop: () => variant === "novel",
+      },
       onCreate() { refreshToolbarState(); },
       onSelectionUpdate() { refreshToolbarState(); },
       onTransaction() { refreshToolbarState(); },
@@ -1170,6 +1197,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           <option value="justify">兩端對齊</option>
         </select>
       </>)}
+      {variant === "novel" && (
+        <select value={toolbarState.h1 ? "h1" : toolbarState.h2 ? "h2" : "normal"} disabled={disabled} title="章節樣式"
+          onChange={(e) => { const ed = editorRef.current; if (!ed) return; const value = e.target.value; if (value === "normal" && ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: ed.getAttributes("heading").level || 1 }).run(); else if (value === "h1" && !ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); else if (value === "h2" && !ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }}
+          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[88px]" style={{ border: "1px solid transparent", color: "var(--color-text)" }}>
+          <option value="normal">內文</option><option value="h1">章節標題</option><option value="h2">小節標題</option>
+        </select>
+      )}
       <TB label="B" title={t("tiptap.bold")} active={toolbarState.bold} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBold().run()} />
       <TB label="I" title={t("tiptap.italic")} active={toolbarState.italic} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleItalic().run()} />
       <TB icon={<span style={{ textDecoration: "underline" }}>U</span>} title={t("tiptap.underline")} active={toolbarState.underline} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()} />
@@ -1178,19 +1212,18 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         <ColorPaletteButton icon={<span className="text-[11px] font-bold leading-none">A</span>} title={t("tiptap.textColor")} currentColor={toolbarState.color || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().setColor(color).run(); else editorRef.current?.chain().focus().unsetColor().run(); }} disabled={disabled} />
         <ColorPaletteButton icon={<span className="text-[11px] leading-none">🖍</span>} title={t("tiptap.highlight")} currentColor={toolbarState.highlightColor || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().toggleHighlight({ color }).run(); else editorRef.current?.chain().focus().unsetHighlight().run(); }} disabled={disabled} />
       </>)}
-      <Sep />
-      <TB icon="•" title={t("tiptap.bulletList")} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
-      <TB icon="1." title={t("tiptap.orderedList")} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
-      <TB icon="☑" title={t("tiptap.taskList")} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
-      {variant === "rich" && (<>
-        <TB icon="⇤" title="Decrease indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} />
-        <TB icon="⇥" title="Increase indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} />
-      </>)}
-      <Sep />
-      <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
-      <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
-      <TB icon="√x" title="插入行內公式 (Ctrl+M)" disabled={disabled} onClick={handleInsertInlineMath} />
-      <TB icon="∑" title="插入區塊公式 (Ctrl+Shift+M)" disabled={disabled} onClick={handleInsertBlockMath} />
+      {variant !== "novel" && <>
+        <Sep />
+        <TB icon="•" title={t("tiptap.bulletList")} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
+        <TB icon="1." title={t("tiptap.orderedList")} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
+        <TB icon="☑" title={t("tiptap.taskList")} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
+        {variant === "rich" && <><TB icon="⇤" title="Decrease indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} /><TB icon="⇥" title="Increase indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} /></>}
+        <Sep />
+        <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
+        <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
+        <TB icon="√x" title="插入行內公式 (Ctrl+M)" disabled={disabled} onClick={handleInsertInlineMath} />
+        <TB icon="∑" title="插入區塊公式 (Ctrl+Shift+M)" disabled={disabled} onClick={handleInsertBlockMath} />
+      </>}
       <Sep />
       <TB icon="Tx" title={t("tiptap.clear")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
     </>

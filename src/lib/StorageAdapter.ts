@@ -5,6 +5,10 @@ import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup 
 
 export interface StorageAdapter {
   init(): Promise<void>;
+  /** Selects the local workspace visible through list/create operations. */
+  setWorkspaceOwner?(ownerId: ID | null): void;
+  /** One-time migration of the legacy anonymous workspace after explicit authorization. */
+  claimAnonymousWorkspace?(ownerId: ID): Promise<void>;
   getPage(id: ID): Promise<Page | null>;
   listPages(query?: PageQuery): Promise<Page[]>;
   savePage(page: Page): Promise<Page>;
@@ -28,7 +32,7 @@ export interface StorageAdapter {
   setThemePreference(theme: string): Promise<void>;
   getPageNightAdaptPreference?(): Promise<boolean | null>;
   setPageNightAdaptPreference?(adapt: boolean): Promise<void>;
-  listAttachments(): Promise<Attachment[]>;
+  listAttachments(includeDeleted?: boolean): Promise<Attachment[]>;
   getAttachment(id: ID): Promise<Attachment | null>;
   saveAttachment(attachment: Attachment): Promise<Attachment>;
   deleteAttachment(id: ID): Promise<void>;

@@ -7,6 +7,7 @@ import {
   useCallback,
   type MutableRefObject,
   type ChangeEvent,
+  type TouchEvent,
 } from "react";
 import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
 import { nanoid } from "nanoid";
@@ -20,6 +21,7 @@ import type {
   CreatePageInput,
   PageKind,
 } from "../lib/types";
+import { isNovelPage } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
 import { titleFromMarkdownFileName, createMarkdownContent, pageToMarkdown } from "../lib/markdown";
@@ -94,6 +96,8 @@ function NexusAppInner({
   const { t } = useLanguage();
 
   const [isReady, setIsReady] = useState(false);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [trashPages, setTrashPages] = useState<Page[]>([]);
   const [isTrashMode, setIsTrashMode] = useState(false);
@@ -144,8 +148,15 @@ function NexusAppInner({
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [isNovelMoreOpen, setIsNovelMoreOpen] = useState(false);
+  const [novelContinueEditSignal, setNovelContinueEditSignal] = useState(0);
+  const [globalPullDistance, setGlobalPullDistance] = useState(0);
+  const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
+  const globalPullStartRef = useRef<number | null>(null);
+  const globalPullDistanceRef = useRef(0);
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
+  const isActiveNovel = !!activePage && isNovelPage(activePage);
   const activeAttachment = activePage?.primary_attachment_id
     ? attachments.find((a) => a.id === activePage.primary_attachment_id) || null
     : null;
@@ -265,6 +276,8 @@ function NexusAppInner({
 
   useEffect(() => {
     let cancelled = false;
+    let syncRun = 0;
+    let authSubscription: { unsubscribe: () => void } | null = null;
     const adapter = new IndexedDBAdapter();
 
     async function init() {
@@ -272,8 +285,34 @@ function NexusAppInner({
       if (cancelled) return;
       storageRef.current = adapter;
 
-      let allPages = await adapter.listPages();
-      let allAttachments = await adapter.listAttachments();
+      // Resolve an existing session before reading IndexedDB. Without this,
+      // a signed-in user could briefly see the anonymous workspace while the
+      // app is starting up.
+      let hasAuthenticatedSession = false;
+      if (isSupabaseConfigured()) {
+        const initialSupabase = getSupabase();
+        if (initialSupabase) {
+          const { data: { session } } = await initialSupabase.auth.getSession();
+          if (cancelled) return;
+          setAccountEmail(session?.user.email || null);
+          setIsAuthenticated(!!session?.user);
+          setIsAuthResolved(true);
+          if (session?.user) {
+            hasAuthenticatedSession = true;
+            await adapter.claimAnonymousWorkspace?.(session.user.id);
+            adapter.setWorkspaceOwner(session.user.id);
+          }
+        }
+      } else {
+        setIsAuthResolved(true);
+      }
+
+      let allPages: Page[] = [];
+      let allAttachments: Attachment[] = [];
+      if (hasAuthenticatedSession) {
+        allPages = await adapter.listPages();
+        allAttachments = await adapter.listAttachments();
+      }
 
       // 2026-08-11：舊資料遷移——筆記/文檔若為 a4/16:9/4:3/custom，
       // 一律改為流動（分頁已改為「手動 A4 頁面」新模式，舊自動分頁資料以流動顯示）
@@ -300,7 +339,7 @@ function NexusAppInner({
       const savedNightAdapt = await adapter.getPageNightAdaptPreference();
       if (savedNightAdapt === true) setIsPageNightAdapt(true);
 
-      const savedId = await adapter.getActivePageId();
+      const savedId = hasAuthenticatedSession ? await adapter.getActivePageId() : null;
       const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.deleted_at === null) : null;
 
       if (savedPage) {
@@ -308,12 +347,6 @@ function NexusAppInner({
       } else if (allPages.length > 0) {
         setActivePageId(allPages[0].id);
         await adapter.setActivePageId(allPages[0].id);
-      } else {
-        const first = await adapter.createPage();
-        allPages = [first];
-        setPages(allPages);
-        setActivePageId(first.id);
-        await adapter.setActivePageId(first.id);
       }
 
       setIsReady(true);
@@ -323,51 +356,97 @@ function NexusAppInner({
         if (supabase) {
           const deviceId = await adapter.getDeviceId();
           const startAccountSync = async (userId: string) => {
+            const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
+            // A browser's IndexedDB is shared by every account. Select the
+            // signed-in account's cache before any pull or push can run.
+            await adapter.claimAnonymousWorkspace?.(userId);
+            adapter.setWorkspaceOwner(userId);
             const engine = new SyncEngine(supabase, adapter, deviceId, userId);
             syncEngineRef.current = engine;
             engine.subscribe(setSyncState);
             engine.setOnRemoteChange(async () => {
+              if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
               const syncedPages = await adapter.listPages();
               const syncedAttachments = await adapter.listAttachments();
+              if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
               setPages(syncedPages);
               setAttachments(syncedAttachments);
             });
             await engine.fullSync();
-            if (cancelled) return;
-            setPages(await adapter.listPages());
+            if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+            let accountPages = await adapter.listPages();
+            if (accountPages.length === 0) {
+              const firstPage = await adapter.createPage();
+              accountPages = [firstPage];
+              await engine.pushPage(firstPage);
+            }
+            setPages(accountPages);
             setAttachments(await adapter.listAttachments());
+            const storedActiveId = await adapter.getActivePageId();
+            if (!accountPages.some((page) => page.id === storedActiveId)) {
+              const nextActiveId = accountPages[0]?.id ?? null;
+              setActivePageId(nextActiveId);
+              await adapter.setActivePageId(nextActiveId);
+            }
             engine.startRealtime();
           };
 
           const { data: { session } } = await supabase.auth.getSession();
           setAccountEmail(session?.user.email || null);
+          setIsAuthenticated(!!session?.user);
+          setIsAuthResolved(true);
           if (session?.user) await startAccountSync(session.user.id);
           else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
 
-          supabase.auth.onAuthStateChange((event, nextSession) => {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
             setAccountEmail(nextSession?.user.email || null);
+            setIsAuthenticated(!!nextSession?.user);
+            setIsAuthResolved(true);
             if (event === "SIGNED_OUT" || !nextSession?.user) {
+              syncRun += 1;
               syncEngineRef.current?.destroy();
               syncEngineRef.current = null;
+              adapter.setWorkspaceOwner(null);
+              // Remove account state immediately. The anonymous workspace is
+              // loaded afterwards, so a slow IndexedDB read can never leave
+              // private account pages visible in the signed-out UI.
+              setPages([]);
+              setAttachments([]);
+              setTrashPages([]);
+              setActivePageId(null);
+              setSecondaryActivePageId(null);
+              void Promise.all([adapter.listPages(), adapter.listAttachments()]).then(([localPages, localAttachments]) => {
+                if (!cancelled) {
+                  setPages(localPages);
+                  setAttachments(localAttachments);
+                  setActivePageId(localPages[0]?.id ?? null);
+                }
+              });
               setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
               return;
             }
             void startAccountSync(nextSession.user.id);
           });
+          authSubscription = subscription;
         }
       }
     }
 
     init().catch((error) => {
       console.error(error);
+      setIsAuthResolved(true);
       setIsReady(true);
     });
 
     return () => {
       cancelled = true;
+      syncRun += 1;
+      authSubscription?.unsubscribe();
       syncEngineRef.current?.destroy();
-      adapter.close?.();
+      // Do not explicitly close this connection here. React Strict Mode can
+      // run effect cleanup while its in-flight initial sync is still settling,
+      // which otherwise aborts IndexedDB transactions with "connection is closing".
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -395,8 +474,71 @@ function NexusAppInner({
     });
   }, [scheduleSave]);
 
+  const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
+    return storageRef.current?.readBinary(attachmentId) || null;
+  }, [storageRef]);
+
+  const uploadNovelCover = useCallback(async (pageId: string, file: File) => {
+    const storage = storageRef.current;
+    if (!storage?.createAttachment) throw new Error("Attachment storage is unavailable");
+    const target = pages.find((item) => item.id === pageId);
+    const previousAttachmentId = target?.novel_settings?.coverAttachmentId;
+    const attachment = await storage.createAttachment({
+      kind: "image",
+      name: file.name,
+      mime_type: file.type || "image/*",
+      size_bytes: file.size,
+    });
+    await storage.attachBinary(attachment.id, file);
+    setAttachments((previous) => [...previous.filter((item) => item.id !== attachment.id), attachment]);
+    await syncEngineRef.current?.pushAttachment(attachment);
+    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    if (target) patchPage(pageId, { novel_settings: { ...target.novel_settings, coverAttachmentId: attachment.id } });
+
+    // Replacing a cover should not leave the previous private image visible in
+    // storage forever. Preserve it only when another page deliberately reuses it.
+    if (previousAttachmentId) {
+      const isStillReferenced = pages.some((item) => item.id !== pageId && (
+        item.novel_settings?.coverAttachmentId === previousAttachmentId ||
+        item.primary_attachment_id === previousAttachmentId ||
+        item.attachment_ids?.includes(previousAttachmentId)
+      ));
+      const previousAttachment = attachments.find((item) => item.id === previousAttachmentId);
+      if (previousAttachment && !isStillReferenced) {
+        const removedAttachment = { ...previousAttachment, deleted_at: Date.now(), updated_at: Date.now() };
+        await storage.saveAttachment(removedAttachment);
+        setAttachments((items) => items.filter((item) => item.id !== previousAttachmentId));
+        await syncEngineRef.current?.pushAttachment(removedAttachment);
+      }
+    }
+  }, [attachments, pages, patchPage]);
+
+  const removeNovelCover = useCallback(async (pageId: string) => {
+    const page = pages.find((item) => item.id === pageId);
+    const attachmentId = page?.novel_settings?.coverAttachmentId;
+    if (!page || !attachmentId) return;
+
+    patchPage(pageId, { novel_settings: { ...page.novel_settings, coverAttachmentId: null } });
+
+    // An attachment can theoretically be reused by another page. Only retire
+    // a cover asset when no page still points to it in any attachment field.
+    const isStillReferenced = pages.some((item) => item.id !== pageId && (
+      item.novel_settings?.coverAttachmentId === attachmentId ||
+      item.primary_attachment_id === attachmentId ||
+      item.attachment_ids?.includes(attachmentId)
+    ));
+    const attachment = attachments.find((item) => item.id === attachmentId);
+    if (!attachment || isStillReferenced || !storageRef.current) return;
+
+    const removedAttachment = { ...attachment, deleted_at: Date.now(), updated_at: Date.now() };
+    await storageRef.current.saveAttachment(removedAttachment);
+    setAttachments((items) => items.filter((item) => item.id !== attachmentId));
+    await syncEngineRef.current?.pushAttachment(removedAttachment);
+  }, [attachments, pages, patchPage]);
+
   // 2026-08-11：Markdown 拖曳匯入（視窗級 dragover/drop）
   useEffect(() => {
+    if (!isAuthenticated) return;
     const hasMarkdownFile = (dt: DataTransfer | null): boolean => {
       if (!dt) return false;
       return Array.from(dt.items || []).some((item) => {
@@ -444,7 +586,7 @@ function NexusAppInner({
       window.removeEventListener("dragleave", onDragLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -705,6 +847,77 @@ function NexusAppInner({
     }
     if (changed.size > 0) setPages((prev) => prev.map((p) => changed.get(p.id) ?? p));
   }, [storageRef, pages]);
+
+  const handlePinPages = useCallback(async (ids: string[]) => {
+    if (!storageRef.current || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const now = Date.now();
+    const changed = new Map<string, Page>();
+    const allPinned = ids.every((id) => (pages.find((item) => item.id === id)?.sort_order ?? 0) < 0);
+    ids.forEach((id, index) => {
+      const page = pages.find((item) => item.id === id);
+      if (!page) return;
+      const updated = { ...page, sort_order: allPinned ? undefined : -10000 + index, updated_at: now, revision: page.revision + 1 };
+      changed.set(id, updated);
+    });
+    for (const page of changed.values()) {
+      await storageRef.current.savePage(page);
+      syncEngineRef.current?.pushPage(page);
+    }
+    if (idSet.size) setPages((current) => current.map((page) => changed.get(page.id) ?? page));
+  }, [pages, storageRef]);
+
+  const handleSetPagesFolder = useCallback(async (ids: string[], folder: string | null) => {
+    if (!storageRef.current || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const now = Date.now();
+    const changed = new Map<string, Page>();
+    for (const page of pages) {
+      if (!idSet.has(page.id)) continue;
+      const updated = { ...page, folder, updated_at: now, revision: page.revision + 1 };
+      await storageRef.current.savePage(updated);
+      syncEngineRef.current?.pushPage(updated);
+      changed.set(page.id, updated);
+    }
+    setPages((current) => current.map((page) => changed.get(page.id) ?? page));
+  }, [pages, storageRef]);
+
+  const findScrollContainer = (start: EventTarget | null): HTMLElement | null => {
+    let element = start instanceof HTMLElement ? start : null;
+    while (element) {
+      const overflowY = window.getComputedStyle(element).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") return element.scrollTop <= 0 ? element : null;
+      element = element.parentElement;
+    }
+    return null;
+  };
+
+  const beginGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1 || isGlobalRefreshing) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, [contenteditable='true']")) return;
+    if (findScrollContainer(event.target)) {
+      globalPullStartRef.current = event.touches[0]?.clientY ?? null;
+      globalPullDistanceRef.current = 0;
+    }
+  };
+  const moveGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
+    if (globalPullStartRef.current === null) return;
+    const distance = Math.min(96, Math.max(0, (event.touches[0]?.clientY ?? globalPullStartRef.current) - globalPullStartRef.current));
+    globalPullDistanceRef.current = distance;
+    setGlobalPullDistance(distance);
+  };
+  const endGlobalPull = () => {
+    const shouldRefresh = globalPullDistanceRef.current >= 64;
+    globalPullStartRef.current = null;
+    globalPullDistanceRef.current = 0;
+    if (!shouldRefresh) { setGlobalPullDistance(0); return; }
+    setIsGlobalRefreshing(true);
+    // This is intentionally a browser-page reload, not a cloud sync. It
+    // matches the native mobile pull-to-refresh expectation and restarts all
+    // application state cleanly.
+    window.location.reload();
+  };
 
   const handleUpdateStudyItems = useCallback((items: StudyItem[]) => {
     if (activePageId) patchPage(activePageId, { study_items: items });
@@ -1052,6 +1265,13 @@ function NexusAppInner({
     if (activePageId) patchPage(activePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
   }, [activePageId, patchPage]);
 
+  // Novel operations identify their target page explicitly. They must not rely
+  // on the currently-focused editor, because mobile navigation and split view
+  // can change that focus while a new chapter is being created.
+  const saveNovelContent = useCallback((pageId: string, json: any, text: string) => {
+    patchPage(pageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
+  }, [patchPage]);
+
   const handleDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
@@ -1188,12 +1408,17 @@ function NexusAppInner({
     { id: "device-preview", label: "裝置預覽", icon: "▣", keywords: "responsive device mobile tablet preview", run: () => setIsDevicePreviewOpen(true) },
   ];
 
-  if (!isReady) {
+  if (!isReady || !isAuthResolved) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
   }
 
+  if (!isAuthenticated) {
+    return <AccountButton required />;
+  }
+
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)" }}>
+    <div className="relative flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={() => { globalPullStartRef.current = null; globalPullDistanceRef.current = 0; setGlobalPullDistance(0); }}>
+      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 12 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : globalPullDistance >= 64 ? "放開以重新載入" : "下拉以重新載入"}</div>
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
@@ -1230,7 +1455,16 @@ function NexusAppInner({
       )}
 
       {!isFeatureInterface && (
-        <div className="absolute right-3 top-2 z-40"><AccountButton accountEmail={accountEmail} /></div>
+        <div className="absolute right-3 top-2 z-40 flex items-center gap-2">
+          {isActiveNovel && <div className="relative">
+            <button type="button" onClick={() => setIsNovelMoreOpen((open) => !open)} className="grid h-9 w-9 place-items-center rounded-full border text-lg leading-none shadow-sm hover:opacity-80" style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-panel-bg)" }} aria-label="小說更多操作" aria-expanded={isNovelMoreOpen} title="更多操作">⋮</button>
+            {isNovelMoreOpen && <div className="absolute right-0 top-11 z-50 min-w-36 overflow-hidden rounded-lg border py-1 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+              <button type="button" onClick={() => { setIsNovelMoreOpen(false); setNovelContinueEditSignal((signal) => signal + 1); }} className="block w-full px-3 py-2 text-left text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">繼續編輯</button>
+              <button type="button" onClick={() => { setIsNovelMoreOpen(false); if (activePage && window.confirm(`確定將小說「${activePage.title || "未命名小說"}」移至垃圾桶？`)) { void handleDeletePage(activePage.id); handleShowNovels(); } }} className="block w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/25">刪除小說</button>
+            </div>}
+          </div>}
+          <AccountButton accountEmail={accountEmail} />
+        </div>
       )}
 
       {isNavigationOpen && (
@@ -1389,7 +1623,7 @@ function NexusAppInner({
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100vh-4rem)]" : ""}`}>
       {isHomeMode ? (
-        <Dashboard pages={pages} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} />
+        <Dashboard pages={pages} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={async () => { window.location.reload(); }} />
       ) : isQuickNoteMode ? (
         <QuickNotesView
           pages={pages}
@@ -1457,7 +1691,7 @@ function NexusAppInner({
           description="管理小說作品、章節閱讀與沉浸式寫作。"
           icon="📖"
           actionLabel="建立小說"
-          pages={pages.filter((p) => p.kind === "creative" && p.creative_type === "novel" && !p.deleted_at)}
+          pages={pages.filter((p) => isNovelPage(p) && !p.deleted_at)}
           onCreate={() => {
             void createAndOpenPage({ kind: "creative", title: "新小說作品", format: "flow" }).then((p) => {
               if (p) patchPage(p.id, { creative_type: "novel", novel_settings: { theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
@@ -1540,11 +1774,16 @@ function NexusAppInner({
                 <NovelReaderView
                   page={activePage}
                   onTitleChange={handleTitleChange}
-                  onContentChange={handleContentChange}
+                  onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
                   onUpdateSettings={(nSettings) => {
                     patchPage(activePage.id, { novel_settings: nSettings });
                   }}
-                  onBackToCreativeOverview={handleShowCreative}
+                  getCoverBlob={getNovelCoverBlob}
+                  onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
+                  onRemoveCover={() => void removeNovelCover(activePage.id)}
+                  onBackToNovelList={handleShowNovels}
+                  onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
+                  continueEditSignal={novelContinueEditSignal}
                 />
               )
             ) : (
@@ -1604,11 +1843,16 @@ function NexusAppInner({
                 <NovelReaderView
                   page={secondaryActivePage}
                   onTitleChange={handleSecondaryTitleChange}
-                  onContentChange={handleSecondaryContentChange}
+                  onContentChange={(json, text) => saveNovelContent(secondaryActivePage.id, json, text)}
                   onUpdateSettings={(nSettings) => {
                     patchPage(secondaryActivePage.id, { novel_settings: nSettings });
                   }}
-                  onBackToCreativeOverview={handleShowCreative}
+                  getCoverBlob={getNovelCoverBlob}
+                  onUploadCover={(file) => uploadNovelCover(secondaryActivePage.id, file)}
+                  onRemoveCover={() => void removeNovelCover(secondaryActivePage.id)}
+                  onBackToNovelList={handleShowNovels}
+                  onDeleteNovel={() => { void handleDeletePage(secondaryActivePage.id); handleShowNovels(); }}
+                  continueEditSignal={novelContinueEditSignal}
                 />
               )
             ) : (
@@ -1661,11 +1905,16 @@ function NexusAppInner({
           <NovelReaderView
             page={activePage}
             onTitleChange={handleTitleChange}
-            onContentChange={handleContentChange}
+            onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
             onUpdateSettings={(nSettings) => {
               patchPage(activePage.id, { novel_settings: nSettings });
             }}
-            onBackToCreativeOverview={handleShowCreative}
+            getCoverBlob={getNovelCoverBlob}
+            onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
+            onRemoveCover={() => void removeNovelCover(activePage.id)}
+            onBackToNovelList={handleShowNovels}
+            onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
+            continueEditSignal={novelContinueEditSignal}
           />
         )
       ) : (

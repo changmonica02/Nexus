@@ -30,6 +30,8 @@ export interface Attachment {
   deleted_at: number | null;
   device_id: ID;
   page_count?: number;
+  /** Local-only workspace boundary. Cloud ownership is stored in Supabase owner_id. */
+  workspace_owner_id?: ID | null;
 }
 
 export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative";
@@ -158,6 +160,8 @@ export interface Page {
   creative_type?: "novel" | "character";
   character_data?: CharacterProfileData;
   novel_settings?: NovelSettings;
+  /** Local-only workspace boundary. Cloud ownership is stored in Supabase owner_id. */
+  workspace_owner_id?: ID | null;
 }
 
 export interface AssistantBlock {
@@ -170,9 +174,24 @@ export interface AssistantBlock {
 
 export type CreativeType = "novel" | "character";
 
+/**
+ * Early novels were saved before `creative_type` existed. Characters are the
+ * only creative pages with character data, so all remaining creative pages
+ * belong to the independent Novel entrance.
+ */
+export function isCreativeCharacterPage(page: Page): boolean {
+  return page.kind === "creative" && (page.creative_type === "character" || !!page.character_data);
+}
+
+export function isNovelPage(page: Page): boolean {
+  return page.kind === "creative" && !isCreativeCharacterPage(page);
+}
+
 export interface NovelSettings {
   /** Independent work overview shown before entering the reader. */
   synopsis?: string;
+  /** Image attachment used only as the novel cover. */
+  coverAttachmentId?: ID | null;
   theme?: "parchment" | "cream" | "eye_care" | "dark" | "pure_white";
   fontSize?: number; // 14 ~ 26
   fontFamily?: "serif" | "sans" | "kai";

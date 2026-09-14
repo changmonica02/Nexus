@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import type { Page } from "../lib/types";
+import { isCreativeCharacterPage, isNovelPage, type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
 import AccountSettingsRow from "./AccountSettingsRow";
@@ -12,7 +12,7 @@ function getPageIcon(page: Page): string {
   if (page.kind === "document") return "📄";
   if (page.kind === "presentation") return "📊";
   if (page.kind === "creative") {
-    return page.creative_type === "character" || !!page.character_data ? "🎭" : "📖";
+    return isCreativeCharacterPage(page) ? "🎭" : "📖";
   }
   if (page.primary_attachment_id) return "📑";
   return "📝";
@@ -185,6 +185,17 @@ export default function Sidebar({
   // Clicking a feature only filters the list, even while another type of
   // editor (such as a study set) is open in a split pane.
   const activeFeatureFilter = hasManualFeatureFilter ? featureFilter : modeFeatureFilter;
+  const emptyFeatureLabel: Record<FeatureFilter, string> = {
+    all: "尚無檔案",
+    notes: "尚無筆記",
+    documents: "尚無文檔",
+    presentations: "尚無簡報",
+    study: "尚無字卡",
+    calendar: "尚無日曆項目",
+    quicknotes: "尚無隨手記",
+    creative: "尚無創作項目",
+    novels: "尚無小說",
+  };
 
   useEffect(() => {
     setIsSelectMode(false);
@@ -265,8 +276,8 @@ export default function Sidebar({
     if (activeFeatureFilter === "presentations") return page.kind === "presentation" && matchQuery && matchTag;
     if (activeFeatureFilter === "documents") return page.kind === "document" && matchQuery && matchTag;
     if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
-    if (activeFeatureFilter === "novels") return page.kind === "creative" && page.creative_type === "novel" && matchQuery && matchTag;
-    if (activeFeatureFilter === "creative") return page.kind === "creative" && page.creative_type !== "novel" && matchQuery && matchTag;
+    if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
+    if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
     return matchQuery && matchTag;
   });
 
@@ -538,7 +549,8 @@ export default function Sidebar({
 
   const renderPageSections = () => {
     if (sortedTopLevel.length === 0) {
-      return <div className="text-sm text-center py-8 opacity-40 select-none" style={{ color: "var(--color-text)" }}>{isTrashMode ? t("sidebar.empty.trash") : t("sidebar.empty.notes")}</div>;
+      const message = isTrashMode ? t("sidebar.empty.trash") : searchQuery.trim() ? "找不到符合的檔案" : emptyFeatureLabel[activeFeatureFilter];
+      return <div className="text-sm text-center py-8 opacity-40 select-none" style={{ color: "var(--color-text)" }}>{message}</div>;
     }
 
     if (groupByType) {

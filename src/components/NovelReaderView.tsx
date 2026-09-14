@@ -8,6 +8,7 @@ interface ChapterHeading {
   id: string;
   title: string;
   level: number;
+  rootIndex?: number;
 }
 
 const THEME_STYLES: Record<
@@ -81,13 +82,24 @@ export default function NovelReaderView({
   onTitleChange,
   onContentChange,
   onUpdateSettings,
-  onBackToCreativeOverview,
+  onBackToNovelList,
+  getCoverBlob,
+  onUploadCover,
+  onRemoveCover,
+  onDeleteNovel,
+  continueEditSignal = 0,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onContentChange: (json: any, text: string) => void;
   onUpdateSettings: (settings: NovelSettings) => void;
-  onBackToCreativeOverview?: () => void;
+  onBackToNovelList?: () => void;
+  getCoverBlob?: (attachmentId: string) => Promise<Blob | null>;
+  onUploadCover?: (file: File) => Promise<void>;
+  onRemoveCover?: () => void;
+  onDeleteNovel?: () => void;
+  /** Raised by the application-level menu next to the account button. */
+  continueEditSignal?: number;
 }) {
   // 小說先以作品總覽呈現；讀者可從目錄選擇章節後再進入閱讀或編輯。
   const [mode, setMode] = useState<"overview" | "read" | "edit">("overview");
@@ -98,10 +110,42 @@ export default function NovelReaderView({
   const [lastSavedTime, setLastSavedTime] = useState<string>("");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const readerScrollRef = useRef<HTMLDivElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  // Keep an optimistic document while the parent saves. This prevents the
+  // editor mount from briefly receiving the previous document after adding a
+  // chapter, especially on slower mobile devices.
+  const [pendingDocument, setPendingDocument] = useState<any | null>(null);
+  const modeRef = useRef(mode);
+
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { if (continueEditSignal > 0) setMode("edit"); }, [continueEditSignal]);
+
+  // Mobile browser/hardware Back has no SPA history entry by default, so it
+  // would close the tab instead of leaving the novel editor. Reserve one
+  // in-app history entry and return to the novel list first.
+  useEffect(() => {
+    if (window.innerWidth >= 768) return;
+    const marker = { ...(window.history.state || {}), nexusNovelNavigation: true };
+    window.history.pushState(marker, "");
+    const onPopState = () => {
+      if (modeRef.current !== "overview") {
+        setMode("overview");
+        setTocOpen(true);
+      } else {
+        onBackToNovelList?.();
+      }
+      window.history.pushState(marker, "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [onBackToNovelList]);
 
   const settings: NovelSettings = useMemo(
     () => ({
       synopsis: page.novel_settings?.synopsis || "",
+      coverAttachmentId: page.novel_settings?.coverAttachmentId || null,
       theme: page.novel_settings?.theme || "parchment",
       fontSize: page.novel_settings?.fontSize || 18,
       fontFamily: page.novel_settings?.fontFamily || "serif",
@@ -116,16 +160,45 @@ export default function NovelReaderView({
     onUpdateSettings({ ...settings, ...patch });
   };
 
+  useEffect(() => {
+    const coverId = settings.coverAttachmentId;
+    if (!coverId || !getCoverBlob) { setCoverUrl(null); return; }
+    let active = true;
+    let objectUrl: string | null = null;
+    void getCoverBlob(coverId).then((blob) => {
+      if (!active || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setCoverUrl(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [settings.coverAttachmentId, getCoverBlob]);
+
+  const handleCoverFile = async (file?: File) => {
+    if (!file || !onUploadCover) return;
+    if (!file.type.startsWith("image/")) { setCoverError("封面請使用圖片檔。 "); return; }
+    if (file.size > 3 * 1024 * 1024) { setCoverError("封面圖片請小於 3 MB。 "); return; }
+    setCoverError(null);
+    try { await onUploadCover(file); } catch { setCoverError("封面上傳失敗，請稍後再試。 "); }
+  };
+
   const currentTheme = THEME_STYLES[settings.theme || "parchment"] || THEME_STYLES.parchment;
   const currentFont = FONT_FAMILIES[settings.fontFamily || "serif"] || FONT_FAMILIES.serif;
+  const documentContent = pendingDocument ?? page.content_json;
+
+  useEffect(() => {
+    if (pendingDocument && page.content_json === pendingDocument) setPendingDocument(null);
+  }, [page.content_json, pendingDocument]);
 
   // Extract chapters & headings from content_json
   const chapters: ChapterHeading[] = useMemo(() => {
-    const doc = (page.content_json as any) || { content: [] };
+    const doc = (documentContent as any) || { content: [] };
     const headings: ChapterHeading[] = [];
     let idx = 0;
 
-    function extract(node: any) {
+    function extract(node: any, rootIndex?: number) {
       if (!node) return;
       if (node.type === "heading" && (node.attrs?.level === 1 || node.attrs?.level === 2)) {
         let text = "";
@@ -137,17 +210,18 @@ export default function NovelReaderView({
             id: `heading-${idx++}`,
             title: text.trim(),
             level: node.attrs?.level || 1,
+            rootIndex,
           });
         }
       }
       if (Array.isArray(node.content)) {
-        node.content.forEach(extract);
+        node.content.forEach((child: any) => extract(child, rootIndex));
       }
     }
 
-    extract(doc);
+    if (Array.isArray(doc.content)) doc.content.forEach((node: any, index: number) => extract(node, index));
     return headings;
-  }, [page.content_json]);
+  }, [documentContent]);
 
   // Total word count (移除預估閱讀時間)
   const stats = useMemo(() => {
@@ -161,6 +235,7 @@ export default function NovelReaderView({
 
   // 封裝內容與標題變更的自動存檔狀態
   const handleContentWithAutoSave = (json: any, text: string) => {
+    setPendingDocument(json);
     setSaveStatus("saving");
     onContentChange(json, text);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -201,22 +276,23 @@ export default function NovelReaderView({
 
   // 直覺新增章節：自動生成下一章節並切換至編輯模式
   const handleAddChapter = () => {
-    const doc = (page.content_json as any) || { type: "doc", content: [] };
+    const savedDocument = (documentContent as any) || { type: "doc", content: [] };
+    // Clone so Tiptap never receives a partially-mutated object from an older
+    // document while React is applying the parent update.
+    const doc = JSON.parse(JSON.stringify(savedDocument));
     const currentContents = Array.isArray(doc.content) ? [...doc.content] : [];
     
-    // 計算章節名稱（如：第 1 章：啟程、第 2 章：新章節）
+    // New chapters deliberately have no suggested subtitle or body text.
+    // The author can name and start each chapter without deleting placeholders.
     const nextChapterNumber = chapters.length + 1;
-    const chapterName = chapters.length === 0 ? "第一章：啟程" : `第 ${nextChapterNumber} 章：新章節`;
+    const chapterName = `第${nextChapterNumber}章`;
 
     const newHeadingNode = {
       type: "heading",
       attrs: { level: 1 },
       content: [{ type: "text", text: chapterName }],
     };
-    const newParagraphNode = {
-      type: "paragraph",
-      content: [{ type: "text", text: "在這裡開始書寫新章節內容..." }],
-    };
+    const newParagraphNode = { type: "paragraph" };
 
     const newContentJson = {
       ...doc,
@@ -224,14 +300,66 @@ export default function NovelReaderView({
       content: [...currentContents, newHeadingNode, newParagraphNode],
     };
 
-    const appendedText = `\n\n${chapterName}\n\n在這裡開始書寫新章節內容...`;
+    const appendedText = `${page.content_text?.trimEnd() ? "\n\n" : ""}${chapterName}\n\n`;
     const newContentText = (page.content_text || "") + appendedText;
 
     handleContentWithAutoSave(newContentJson, newContentText);
-    setMode("edit"); // 自動進入編輯模式
+    // Let the optimistic document reach the editor before mounting it.
+    requestAnimationFrame(() => setMode("edit"));
 
     // 若目錄收起則自動打開
     setTocOpen(true);
+  };
+
+  const saveChapterStructure = (content: any[]) => {
+    const nextJson = { ...(page.content_json as any), type: "doc", content };
+    const textParts: string[] = [];
+    const collectText = (node: any) => {
+      if (node?.text) textParts.push(node.text);
+      if (Array.isArray(node?.content)) node.content.forEach(collectText);
+      if (["paragraph", "heading", "blockquote"].includes(node?.type)) textParts.push("\n");
+    };
+    content.forEach(collectText);
+    handleContentWithAutoSave(nextJson, textParts.join("").replace(/\n{3,}/g, "\n\n").trim());
+  };
+
+  const renameChapter = (chapter: ChapterHeading) => {
+    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
+    const nextTitle = window.prompt("章節名稱", chapter.title)?.trim();
+    if (!nextTitle || nextTitle === chapter.title) return;
+    const content = [...(((page.content_json as any)?.content as any[]) || [])];
+    const node = content[chapter.rootIndex];
+    if (!node || node.type !== "heading") return;
+    content[chapter.rootIndex] = { ...node, content: [{ type: "text", text: nextTitle }] };
+    saveChapterStructure(content);
+  };
+
+  const moveChapter = (chapter: ChapterHeading, direction: -1 | 1) => {
+    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
+    const content = [...(((page.content_json as any)?.content as any[]) || [])];
+    const starts = content.reduce<number[]>((list, node, index) => node?.type === "heading" && node?.attrs?.level === 1 ? [...list, index] : list, []);
+    const position = starts.indexOf(chapter.rootIndex);
+    const targetPosition = position + direction;
+    if (position < 0 || targetPosition < 0 || targetPosition >= starts.length) return;
+    const start = starts[position];
+    const end = starts[position + 1] ?? content.length;
+    const targetStart = starts[targetPosition];
+    const targetEnd = starts[targetPosition + 1] ?? content.length;
+    const currentChunk = content.slice(start, end);
+    const targetChunk = content.slice(targetStart, targetEnd);
+    if (direction < 0) content.splice(targetStart, end - targetStart, ...currentChunk, ...targetChunk);
+    else content.splice(start, targetEnd - start, ...targetChunk, ...currentChunk);
+    saveChapterStructure(content);
+  };
+
+  const deleteChapter = (chapter: ChapterHeading) => {
+    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
+    if (!window.confirm(`刪除「${chapter.title}」及其全部內容？此操作無法復原。`)) return;
+    const content = [...(((page.content_json as any)?.content as any[]) || [])];
+    let end = chapter.rootIndex + 1;
+    while (end < content.length && !(content[end]?.type === "heading" && content[end]?.attrs?.level === 1)) end++;
+    content.splice(chapter.rootIndex, end - chapter.rootIndex);
+    saveChapterStructure(content);
   };
 
   // Handle scroll progress in reader mode
@@ -364,17 +492,21 @@ export default function NovelReaderView({
       <div className="flex flex-1 flex-col overflow-y-auto" style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}>
         <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b py-3 pl-14 pr-4 md:px-4" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }}>
           <div className="flex min-w-0 items-center gap-3">
-            {onBackToCreativeOverview && <button onClick={onBackToCreativeOverview} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>← 創作</button>}
+            {onBackToNovelList && <button onClick={onBackToNovelList} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>← 小說</button>}
             <span className="truncate text-sm font-semibold">小說作品總覽</span>
           </div>
-          <button onClick={() => setMode("edit")} className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>編輯作品</button>
         </header>
 
-        <div className="mx-auto w-full max-w-6xl px-5 py-7 sm:px-8">
+        <div className="mx-auto w-full max-w-6xl px-5 py-7 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
           <section className="grid items-start gap-7 md:grid-cols-[190px_minmax(0,1fr)]">
-            <div className="flex aspect-[2/3] w-full max-w-[190px] flex-col justify-between rounded-xl border p-5 shadow-lg" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }}>
-              <span className="text-4xl opacity-75">▤</span>
-              <div><p className="mb-2 text-xs font-medium opacity-60">NEXUS NOVEL</p><h1 className="line-clamp-4 text-xl font-bold leading-relaxed">{page.title || "未命名小說"}</h1></div>
+            <div className="w-full max-w-[190px]">
+              <button type="button" onClick={() => coverInputRef.current?.click()} className="relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-xl border p-5 text-left shadow-lg hover:opacity-90" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }} title="更換作品封面">
+                {coverUrl ? <img src={coverUrl} alt={`${page.title || "小說"}封面`} className="absolute inset-0 h-full w-full object-cover" /> : <><span className="text-4xl opacity-75">▤</span><div><p className="mb-2 text-xs font-medium opacity-60">NEXUS NOVEL</p><h1 className="line-clamp-4 text-xl font-bold leading-relaxed">{page.title || "未命名小說"}</h1></div></>}
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-center text-xs font-medium text-white">{coverUrl ? "更換封面" : "上傳封面"}</span>
+              </button>
+              <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { void handleCoverFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+              {coverUrl && <button type="button" onClick={onRemoveCover} className="mt-2 text-xs opacity-60 hover:opacity-100">移除封面</button>}
+              {coverError && <p className="mt-2 text-xs text-red-600">{coverError}</p>}
             </div>
             <div className="min-w-0 py-1">
               <p className="mb-2 text-xs font-semibold tracking-[0.18em] opacity-60">作品概述</p>
@@ -398,7 +530,7 @@ export default function NovelReaderView({
               <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-70"><span>{chapters.length} 個章節</span><span>{stats.totalCount.toLocaleString()} 字</span><span>{currentTheme.name} 閱讀主題</span></div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <button onClick={() => setMode("read")} className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-85" style={{ backgroundColor: settings.theme === "dark" ? "#5f8fce" : "#476e9e" }}>開始閱讀</button>
-                <button onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }}>＋ 新增章節</button>
+                <button type="button" onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }}>＋ 新增章節</button>
               </div>
             </div>
           </section>
@@ -406,7 +538,7 @@ export default function NovelReaderView({
           <section className="mt-10 border-t pt-6" style={{ borderColor: currentTheme.border }}>
             <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-lg font-bold">完整目錄</p><p className="mt-1 text-xs opacity-60">點選章節即可從該處開始閱讀</p></div><span className="text-xs opacity-60">共 {chapters.length} 節</span></div>
             {chapters.length === 0 ? (
-              <button onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>尚未建立章節，點此新增第一章</button>
+              <button type="button" onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>尚未建立章節，點此新增第一章</button>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {chapters.map((chapter, index) => <button key={chapter.id} onClick={() => openChapter(chapter.id)} className="flex min-w-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-opacity hover:opacity-70" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.barBg }}><span className="shrink-0 text-xs opacity-50">{String(index + 1).padStart(2, "0")}</span><span className={`truncate text-sm ${chapter.level === 2 ? "pl-3 opacity-80" : "font-semibold"}`}>{chapter.title}</span></button>)}
@@ -419,10 +551,10 @@ export default function NovelReaderView({
   }
 
   return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden" style={{ backgroundColor: currentTheme.bg }}>
+    <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: currentTheme.bg }} onPasteCapture={() => requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
       {/* 頂部沉浸式導航列 */}
       <header
-        className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b select-none z-20 transition-colors duration-200"
+        className="shrink-0 hidden md:flex items-center justify-between gap-2 border-b px-4 py-2.5 select-none z-20 transition-colors duration-200"
         style={{
           backgroundColor: currentTheme.barBg,
           borderColor: currentTheme.border,
@@ -431,14 +563,14 @@ export default function NovelReaderView({
       >
         {/* 左側：標題與章節目錄按鈕、新增章節與字數 */}
         <div className="flex items-center gap-2 min-w-0">
-          {onBackToCreativeOverview && (
+          {onBackToNovelList && (
             <button
-              onClick={onBackToCreativeOverview}
+              onClick={onBackToNovelList}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
               style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
-              title="返回創作總覽工作台"
+              title="返回小說列表"
             >
-              <span>« 創作總覽</span>
+              <span className="hidden sm:inline">« 小說列表</span><span className="sm:hidden">←</span>
             </button>
           )}
 
@@ -450,8 +582,7 @@ export default function NovelReaderView({
             style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
             title={tocOpen ? "收合目錄大綱" : "展開目錄大綱"}
           >
-            <span>📑</span>
-            <span>目錄 ({chapters.length})</span>
+            <span>📑</span><span className="hidden sm:inline">目錄 ({chapters.length})</span>
           </button>
 
           {/* 直覺新增章節快捷按鈕 */}
@@ -460,15 +591,14 @@ export default function NovelReaderView({
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-all cursor-pointer shadow-sm shrink-0"
             title="新增下一章節"
           >
-            <span>＋</span>
-            <span>新增章節</span>
+            <span>＋</span><span className="hidden sm:inline">新增章節</span>
           </button>
 
           <input
             value={page.title || ""}
             onChange={(e) => handleTitleWithAutoSave(e.target.value)}
             placeholder="小說作品名稱"
-            className="font-bold text-sm bg-transparent outline-none truncate min-w-[120px] max-w-[240px] px-1 focus:ring-1 focus:ring-blue-500 rounded"
+            className="font-bold text-sm bg-transparent outline-none truncate min-w-[72px] max-w-[240px] px-1 focus:ring-1 focus:ring-blue-500 rounded"
             style={{ color: currentTheme.text }}
           />
 
@@ -513,7 +643,7 @@ export default function NovelReaderView({
           >
             <button
               onClick={() => setMode("read")}
-              className={`px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+              className={`px-2 sm:px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
                 mode === "read" ? "shadow-sm" : "opacity-60 hover:opacity-100"
               }`}
               style={{
@@ -521,11 +651,11 @@ export default function NovelReaderView({
                 color: currentTheme.text,
               }}
             >
-              📖 閱讀模式
+              <span>📖</span><span className="hidden sm:inline">閱讀模式</span>
             </button>
             <button
               onClick={() => setMode("edit")}
-              className={`px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+              className={`px-2 sm:px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
                 mode === "edit" ? "shadow-sm" : "opacity-60 hover:opacity-100"
               }`}
               style={{
@@ -533,7 +663,7 @@ export default function NovelReaderView({
                 color: currentTheme.text,
               }}
             >
-              ✍️ 編輯模式
+              <span>✍️</span><span className="hidden sm:inline">編輯模式</span>
             </button>
           </div>
 
@@ -545,7 +675,7 @@ export default function NovelReaderView({
               style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
               title="閱讀排版與主題設定"
             >
-              ⚙️ 排版
+              <span>⚙️</span><span className="hidden sm:inline">排版</span>
             </button>
 
             {/* 排版設定彈窗 */}
@@ -682,6 +812,21 @@ export default function NovelReaderView({
         </div>
       </header>
 
+      {/* Mobile keeps the essential actions in a compact, non-wrapping bar.
+          The desktop toolbar cannot fit a phone once the editor is active. */}
+      <header
+        className="relative z-40 md:hidden flex shrink-0 items-center gap-1 border-b px-2 py-2 shadow-sm"
+        style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border, color: currentTheme.text }}
+      >
+        {onBackToNovelList && (
+          <button onClick={onBackToNovelList} className="rounded-md border px-2 py-1.5 text-sm font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title="返回小說列表">←</button>
+        )}
+        <button onClick={() => setTocOpen((value) => !value)} className="rounded-md border px-2 py-1.5 text-sm" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={tocOpen ? "收合目錄" : "開啟目錄"}>📑</button>
+        <div className="min-w-0 flex-1 truncate px-1 text-xs font-semibold">{page.title || "未命名小說"}</div>
+        <span className={`shrink-0 text-[10px] ${saveStatus === "saving" ? "text-amber-600" : "text-emerald-600"}`} title={saveStatus === "saving" ? "正在儲存" : "已自動儲存"}>{saveStatus === "saving" ? "儲存中" : "已儲存"}</span>
+        <button onClick={() => setMode(mode === "edit" ? "read" : "edit")} className="rounded-md border px-2 py-1.5 text-xs font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={mode === "edit" ? "查看閱讀結果" : "回到編輯"}>{mode === "edit" ? "閱讀" : "編輯"}</button>
+      </header>
+
       {/* 閱讀進度條 */}
       {mode === "read" && (
         <div className="w-full h-1 bg-zinc-200/40 relative overflow-hidden">
@@ -693,11 +838,11 @@ export default function NovelReaderView({
       )}
 
       {/* 主要內容展示區 */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex min-h-0 flex-1 overflow-hidden relative">
         {/* 左側章節目錄側邊欄 / 抽屜 */}
         {tocOpen && (
           <aside
-            className="w-64 shrink-0 border-r flex flex-col p-4 z-10 overflow-y-auto transition-all duration-200"
+            className="absolute inset-y-0 left-0 z-30 flex w-[min(20rem,82vw)] flex-col overflow-y-auto border-r p-4 shadow-xl transition-all duration-200 md:static md:w-64 md:shrink-0 md:shadow-none touch-pan-y overscroll-contain"
             style={{
               backgroundColor: currentTheme.barBg,
               borderColor: currentTheme.border,
@@ -740,20 +885,19 @@ export default function NovelReaderView({
             ) : (
               <div className="space-y-1">
                 {chapters.map((chap, cIdx) => (
-                  <button
-                    key={chap.id}
-                    onClick={() => scrollToHeading(chap.id)}
-                    className={`w-full text-left text-xs py-2 px-2.5 rounded-lg truncate transition-all cursor-pointer flex items-center gap-2 ${
-                      chap.level === 1 ? "font-bold" : "pl-5 opacity-80"
-                    } hover:bg-black/5 dark:hover:bg-white/5`}
-                    style={{ color: currentTheme.text }}
-                    title={chap.title}
-                  >
-                    <span className="opacity-40 text-[10px] font-mono shrink-0">
-                      {String(cIdx + 1).padStart(2, "0")}
-                    </span>
-                    <span className="truncate">{chap.title}</span>
-                  </button>
+                  <div key={chap.id} className={`group flex items-center gap-1 rounded-lg ${chap.level === 1 ? "font-bold" : "pl-3 opacity-80"} hover:bg-black/5 dark:hover:bg-white/5`}>
+                    <button onClick={() => scrollToHeading(chap.id)} className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-xs" style={{ color: currentTheme.text }} title={chap.title}>
+                      <span className="mr-2 opacity-40 text-[10px] font-mono">{String(cIdx + 1).padStart(2, "0")}</span><span>{chap.title}</span>
+                    </button>
+                    {mode === "edit" && chap.level === 1 && (
+                      <div className="flex shrink-0 items-center pr-1 text-[10px] opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                        <button onClick={() => renameChapter(chap)} className="rounded px-1 py-1 hover:bg-black/10" title="重新命名章節">✎</button>
+                        <button onClick={() => moveChapter(chap, -1)} disabled={!chapters.slice(0, cIdx).some((item) => item.level === 1)} className="rounded px-1 py-1 hover:bg-black/10 disabled:opacity-25" title="上移章節">↑</button>
+                        <button onClick={() => moveChapter(chap, 1)} disabled={!chapters.slice(cIdx + 1).some((item) => item.level === 1)} className="rounded px-1 py-1 hover:bg-black/10 disabled:opacity-25" title="下移章節">↓</button>
+                        <button onClick={() => deleteChapter(chap)} className="rounded px-1 py-1 text-red-600 hover:bg-red-500/10" title="刪除章節">×</button>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -765,7 +909,7 @@ export default function NovelReaderView({
           <div
             ref={readerScrollRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-6 sm:px-12 py-10 transition-colors duration-200"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-5 py-8 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-12 sm:py-10 transition-colors duration-200"
             style={{
               backgroundColor: currentTheme.bg,
               fontFamily: currentFont.family,
@@ -797,15 +941,18 @@ export default function NovelReaderView({
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-            <TiptapEditor
-              content={page.content_json}
-              onChange={({ json, text }: { json: any; text: string }) => {
-                handleContentWithAutoSave(json, text);
-              }}
-              paneId="novel-editor"
-              showToolbar={true}
-            />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pb-[calc(8rem+env(safe-area-inset-bottom))]">
+              <TiptapEditor
+                content={documentContent}
+                onChange={({ json, text }: { json: any; text: string }) => {
+                  handleContentWithAutoSave(json, text);
+                }}
+                paneId="novel-editor"
+                variant="novel"
+                showToolbar={true}
+              />
+            </div>
           </div>
         )}
       </div>

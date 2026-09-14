@@ -28,6 +28,7 @@ export class SyncEngine {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private state: SyncState = { status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 };
   private isSyncing: boolean = false;
+  private destroyed: boolean = false;
   private realtimeChannel: RealtimeChannel | null = null;
   private onRemoteChange: (() => void) | null = null;
 
@@ -92,7 +93,8 @@ export class SyncEngine {
     // Skip if this change came from this device
     if (data.device_id === this.deviceId) return;
 
-    const localPages = await this.storage.listPages({ includeDeleted: true });
+    const localPages = (await this.storage.listPages({ includeDeleted: true }))
+      .filter((page) => page.workspace_owner_id === this.userId);
     const localPage = localPages.find((p) => p.id === data.id);
 
     // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
@@ -111,7 +113,8 @@ export class SyncEngine {
     if (!data || !data.id) return;
     if (data.device_id === this.deviceId) return;
 
-    const localAttachments = await this.storage.listAttachments();
+    const localAttachments = (await this.storage.listAttachments(true))
+      .filter((attachment) => attachment.workspace_owner_id === this.userId);
     const localAtt = localAttachments.find((a) => a.id === data.id);
 
     if (!localAtt || (data.updated_at as number) > localAtt.updated_at) {
@@ -127,6 +130,7 @@ export class SyncEngine {
         deleted_at: (data.deleted_at as number) || null,
         device_id: (data.device_id as string) || "",
         page_count: (data.page_count as number) ?? undefined,
+        workspace_owner_id: this.userId,
       };
       await this.storage.saveAttachment(att);
       this.onRemoteChange?.();
@@ -192,12 +196,17 @@ export class SyncEngine {
       priority: (row.priority as "low" | "medium" | "high" | null) || null,
       completed: (row.completed as boolean) || false,
       color: (row.color as string) || null,
+      creative_type: (row.creative_type as Page["creative_type"]) || undefined,
+      character_data: (row.character_data as Page["character_data"]) || undefined,
+      novel_settings: (row.novel_settings as Page["novel_settings"]) || undefined,
+      assistant_blocks: (row.assistant_blocks as Page["assistant_blocks"]) || undefined,
+      workspace_owner_id: this.userId,
     };
   }
 
   /** Initial full sync: pull everything from cloud */
   async fullSync(): Promise<void> {
-    if (this.isSyncing) return;
+    if (this.isSyncing || this.destroyed) return;
     this.isSyncing = true;
     this.setState({ status: "syncing", error: null });
 
@@ -211,8 +220,10 @@ export class SyncEngine {
       const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId);
       if (binariesError) throw new Error(`Binaries pull failed: ${binariesError.message}`);
 
-      const localPages = await this.storage.listPages({ includeDeleted: true });
-      const localAttachments = await this.storage.listAttachments();
+      const localPages = (await this.storage.listPages({ includeDeleted: true }))
+        .filter((page) => page.workspace_owner_id === this.userId);
+      const localAttachments = (await this.storage.listAttachments(true))
+        .filter((attachment) => attachment.workspace_owner_id === this.userId);
       const localPageMap = new Map(localPages.map((p) => [p.id, p]));
       let maxUpdatedAt = this.lastSyncAt;
 
@@ -268,6 +279,7 @@ export class SyncEngine {
             storage_key: cloudAtt.storage_key || "", created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
             deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
             page_count: cloudAtt.page_count ?? undefined,
+            workspace_owner_id: this.userId,
           };
           await this.storage.saveAttachment(att);
         }
@@ -286,10 +298,14 @@ export class SyncEngine {
         }
       }
 
+      if (this.destroyed) return;
       this.lastSyncAt = maxUpdatedAt;
       this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
       this.onRemoteChange?.();
     } catch (err) {
+      // A superseded login sync is intentionally abandoned. Do not surface its
+      // teardown race as a user-facing synchronization failure.
+      if (this.destroyed) return;
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error("[SyncEngine] fullSync error:", errorMsg);
       this.setState({ status: "error", error: errorMsg });
@@ -311,7 +327,8 @@ export class SyncEngine {
 
       for (const cloudPage of (cloudPages || [])) {
         if (cloudPage.device_id === this.deviceId) continue; // Skip own changes
-        const localPages = await this.storage.listPages({ includeDeleted: true });
+        const localPages = (await this.storage.listPages({ includeDeleted: true }))
+          .filter((page) => page.workspace_owner_id === this.userId);
         const localPage = localPages.find((p) => p.id === cloudPage.id);
         // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
         if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
@@ -329,7 +346,9 @@ export class SyncEngine {
       const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       for (const cloudAtt of (cloudAttachments || [])) {
         if (cloudAtt.device_id === this.deviceId) continue;
-        const localAtt = (await this.storage.listAttachments()).find((a) => a.id === cloudAtt.id);
+        const localAtt = (await this.storage.listAttachments(true))
+          .filter((attachment) => attachment.workspace_owner_id === this.userId)
+          .find((a) => a.id === cloudAtt.id);
         if (!localAtt || (cloudAtt.updated_at as number) > localAtt.updated_at) {
           await this.storage.saveAttachment({
             id: cloudAtt.id, kind: ((cloudAtt.kind as string) || "file") as Attachment["kind"],
@@ -338,6 +357,7 @@ export class SyncEngine {
             created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
             deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
             page_count: cloudAtt.page_count ?? undefined,
+            workspace_owner_id: this.userId,
           });
           changed = true;
         }
@@ -374,6 +394,7 @@ export class SyncEngine {
 
   /** Push a single page to cloud */
   async pushPage(page: Page): Promise<void> {
+    if (this.destroyed || page.workspace_owner_id !== this.userId) return;
     try {
       const { error: upErr } = await this.supabase.from("pages").upsert({
         id: page.id, owner_id: this.userId, title: page.title, content_json: page.content_json,
@@ -391,6 +412,12 @@ export class SyncEngine {
         priority: page.priority ?? null,
         completed: page.completed ?? false,
         color: page.color ?? null,
+        // Creative data must travel with the page; otherwise novels reopen as
+        // generic creative pages and lose their overview/settings on another device.
+        creative_type: page.creative_type ?? null,
+        character_data: page.character_data ?? null,
+        novel_settings: page.novel_settings ?? null,
+        assistant_blocks: page.assistant_blocks ?? null,
       }, { onConflict: "id" });
       if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
 
@@ -401,6 +428,7 @@ export class SyncEngine {
   }
 
   async pushAttachment(attachment: Attachment): Promise<void> {
+    if (this.destroyed || attachment.workspace_owner_id !== this.userId) return;
     try {
       await this.supabase.from("attachments").upsert({
         id: attachment.id, owner_id: this.userId, kind: attachment.kind, name: attachment.name,
@@ -415,6 +443,9 @@ export class SyncEngine {
   }
 
   async pushBinary(attachmentId: string, blob: Blob): Promise<void> {
+    if (this.destroyed) return;
+    const attachment = await this.storage.getAttachment(attachmentId);
+    if (!attachment || attachment.workspace_owner_id !== this.userId) return;
     try {
       const buffer = await blob.arrayBuffer();
       const bytes = new Uint8Array(buffer);
@@ -443,6 +474,7 @@ export class SyncEngine {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.stopPeriodicSync();
     if (this.realtimeChannel) {
       this.supabase.removeChannel(this.realtimeChannel);
