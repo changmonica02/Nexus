@@ -249,6 +249,14 @@ export class IndexedDBAdapter implements StorageAdapter {
     await this.saveAttachment(attachment);
   }
 
+  async permanentDeleteAttachment(id: ID): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const tx = this.db.transaction(["attachments", "binaries"], "readwrite");
+    await tx.objectStore("attachments").delete(id);
+    await tx.objectStore("binaries").delete(id);
+    await tx.done;
+  }
+
   async attachBinary(attachmentId: ID, blob: Blob): Promise<void> {
     if (!this.db) throw new Error("DB not initialized");
     await this.db.put("binaries", { id: attachmentId, blob, updated_at: Date.now() });

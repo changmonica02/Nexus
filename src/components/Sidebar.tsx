@@ -19,7 +19,7 @@ function getPageIcon(page: Page): string {
 }
 
 export type SortMode = "updated" | "custom";
-type FeatureFilter = "all" | "notes" | "documents" | "presentations" | "study" | "calendar" | "quicknotes" | "creative" | "novels";
+type FeatureFilter = "all" | "notes" | "documents" | "presentations" | "study" | "calendar" | "quicknotes" | "creative" | "novels" | "web" | "counter" | "draw";
 
 type CreateItemType = "note" | "document" | "study_set" | "folder" | "presentation";
 
@@ -164,6 +164,9 @@ export default function Sidebar({
   const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
   const [featureFilter, setFeatureFilter] = useState<FeatureFilter>("all");
   const [hasManualFeatureFilter, setHasManualFeatureFilter] = useState(false);
+  const [featureOrderMode, setFeatureOrderMode] = useState<"recent" | "default">("recent");
+  const [recentFeatureIds, setRecentFeatureIds] = useState<FeatureFilter[]>([]);
+  const [isFeatureSettingsOpen, setIsFeatureSettingsOpen] = useState(false);
 
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -195,6 +198,32 @@ export default function Sidebar({
     quicknotes: "尚無隨手記",
     creative: "尚無創作項目",
     novels: "尚無小說",
+    web: "尚無網頁項目",
+    counter: "尚無計數項目",
+    draw: "尚無抽選項目",
+  };
+
+  useEffect(() => {
+    try {
+      const storedMode = window.localStorage.getItem("nexus-feature-order-mode");
+      const storedRecent = JSON.parse(window.localStorage.getItem("nexus-recent-features") || "[]");
+      if (storedMode === "default" || storedMode === "recent") setFeatureOrderMode(storedMode);
+      if (Array.isArray(storedRecent)) setRecentFeatureIds(storedRecent.filter((id): id is FeatureFilter => typeof id === "string"));
+    } catch { /* local settings are optional */ }
+  }, []);
+
+  const rememberFeatureUse = (id: FeatureFilter) => {
+    if (id === "all" || id === "calendar") return;
+    setRecentFeatureIds((previous) => {
+      const next = [id, ...previous.filter((item) => item !== id)].slice(0, 20);
+      try { window.localStorage.setItem("nexus-recent-features", JSON.stringify(next)); } catch { /* ignored */ }
+      return next;
+    });
+  };
+
+  const changeFeatureOrderMode = (mode: "recent" | "default") => {
+    setFeatureOrderMode(mode);
+    try { window.localStorage.setItem("nexus-feature-order-mode", mode); } catch { /* ignored */ }
   };
 
   useEffect(() => {
@@ -278,6 +307,7 @@ export default function Sidebar({
     if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
     if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
     if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
+    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw") return false;
     return matchQuery && matchTag;
   });
 
@@ -625,26 +655,47 @@ export default function Sidebar({
             <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
           </button>
         ))}
-        <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
-          <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
-        </button>
-        {isFeaturesExpanded && <div className="max-h-[200px] overflow-y-auto overscroll-contain" aria-label="功能篩選清單">
-          {[
-          { id: "all", icon: "▦", label: "所有項目", onOpen: onShowNotes },
-          { id: "notes", icon: "✎", label: "筆記", onOpen: () => onShowNotesOverview?.() },
-          { id: "documents", icon: "▱", label: "文檔", onOpen: () => onShowDocuments?.() },
-          { id: "presentations", icon: "▰", label: "簡報", onOpen: () => onShowPresentations?.() },
-          { id: "study", icon: "▤", label: "字卡", onOpen: () => onShowStudySets?.() },
-          { id: "calendar", icon: "▣", label: "日曆", onOpen: () => onShowTodoList?.() },
-          { id: "quicknotes", icon: "▧", label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
-          { id: "creative", icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
-          { id: "novels", icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
-          ].map((item) => (
-          <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id as FeatureFilter); setHasManualFeatureFilter(true); }} onDoubleClick={item.onOpen} className="flex h-10 w-full items-center gap-3 py-0 pl-8 pr-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
-            <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+        <div className="relative flex h-10 items-center">
+          <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
+            <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
           </button>
-          ))}
-        </div>}
+          <button type="button" onClick={() => setIsFeatureSettingsOpen((open) => !open)} className="mr-2 grid h-7 w-7 place-items-center rounded text-sm opacity-60 hover:bg-zinc-200 hover:opacity-100 dark:hover:bg-zinc-800" title="功能排列設定" aria-label="功能排列設定">⚙</button>
+          {isFeatureSettingsOpen && <div className="absolute right-2 top-9 z-40 w-52 rounded-xl border p-1 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+            <button type="button" onClick={() => { changeFeatureOrderMode("recent"); setIsFeatureSettingsOpen(false); }} className="w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: featureOrderMode === "recent" ? "var(--color-border)" : "transparent" }}>功能以最新使用排列（預設）</button>
+            <button type="button" onClick={() => { changeFeatureOrderMode("default"); setIsFeatureSettingsOpen(false); }} className="w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: featureOrderMode === "default" ? "var(--color-border)" : "transparent" }}>功能以預設進行排列</button>
+          </div>}
+        </div>
+        {isFeaturesExpanded && (() => {
+          const fixed = [
+            { id: "all" as const, icon: "▦", label: "所有項目", onOpen: onShowNotes },
+            { id: "calendar" as const, icon: "▣", label: "日曆", onOpen: () => onShowTodoList?.() },
+          ];
+          const others = [
+            { id: "notes" as const, icon: "✎", label: "筆記", onOpen: () => onShowNotesOverview?.() },
+            { id: "documents" as const, icon: "▱", label: "文檔", onOpen: () => onShowDocuments?.() },
+            { id: "presentations" as const, icon: "▰", label: "簡報", onOpen: () => onShowPresentations?.() },
+            { id: "study" as const, icon: "▤", label: "字卡", onOpen: () => onShowStudySets?.() },
+            { id: "quicknotes" as const, icon: "▧", label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
+            { id: "creative" as const, icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
+            { id: "novels" as const, icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
+            { id: "web" as const, icon: "⌘", label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
+            { id: "counter" as const, icon: "＋", label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
+            { id: "draw" as const, icon: "⤨", label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
+          ];
+          const orderedOthers = featureOrderMode === "recent"
+            ? [...others].sort((a, b) => {
+              const aIndex = recentFeatureIds.indexOf(a.id); const bIndex = recentFeatureIds.indexOf(b.id);
+              return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+            })
+            : others;
+          return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
+            {[...fixed, ...orderedOthers].map((item) => (
+              <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); }} onDoubleClick={item.onOpen} className="flex h-11 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
+                <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">{item.icon}</span><span className="truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>;
+        })()}
       </nav>
 
       <div className="p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>

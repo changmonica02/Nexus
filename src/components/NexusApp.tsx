@@ -46,9 +46,10 @@ import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 import NovelReaderView from "./NovelReaderView";
 import CharacterProfileView from "./CharacterProfileView";
+import UtilityView from "./UtilityView";
 import FeatureOverview from "./FeatureOverview";
 import DevicePreview from "./DevicePreview";
-import { createFantasyTemplate, createModernTemplate, createBlankTemplate } from "../lib/characterTemplates";
+import { createFantasyTemplate, createModernTemplate, createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } from "../lib/characterTemplates";
 import AccountButton from "./AccountButton";
 
 export default function NexusApp() {
@@ -132,6 +133,7 @@ function NexusAppInner({
   const [isDocumentMode, setIsDocumentMode] = useState(false);
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
@@ -143,7 +145,10 @@ function NexusAppInner({
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const activePageRef = useRef<Page | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A page owns its own debounce. A single global timer made simultaneous
+  // edits in split view cancel one another's saves.
+  const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingSavesRef = useRef(new Map<string, Page>());
   const syncEngineRef = useRef<SyncEngine | null>(null);
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
@@ -168,7 +173,7 @@ function NexusAppInner({
     activePageRef.current = activePage;
   }, [activePage]);
 
-  const isFeatureInterface = isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode ||
+  const isFeatureInterface = isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
   const isTabletViewport = viewportWidth < 1024;
   const isMobileViewport = viewportWidth < 768;
@@ -192,6 +197,12 @@ function NexusAppInner({
     // still expand the rail with its own toggle when they need it.
     if (isMobileViewport) setIsSidebarCollapsed(true);
   }, [isMobileViewport]);
+
+  useEffect(() => {
+    // On tablets and phones the auxiliary panel is a drawer, never a second
+    // column competing with the editor's usable width.
+    if (isTabletViewport) setIsRightPanelCollapsed(true);
+  }, [isTabletViewport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -375,12 +386,10 @@ function NexusAppInner({
             });
             await engine.fullSync();
             if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
-            let accountPages = await adapter.listPages();
-            if (accountPages.length === 0) {
-              const firstPage = await adapter.createPage();
-              accountPages = [firstPage];
-              await engine.pushPage(firstPage);
-            }
+            // A newly registered account starts truly empty. Creating a
+            // placeholder here used to leave every account with an unwanted
+            // "Untitled" document, even when the user had not made anything.
+            const accountPages = await adapter.listPages();
             setPages(accountPages);
             setAttachments(await adapter.listAttachments());
             const storedActiveId = await adapter.getActivePageId();
@@ -452,14 +461,26 @@ function NexusAppInner({
   }, []);
 
   const flushSave = useCallback(async (pageToSave: Page) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const latestPage = pendingSavesRef.current.get(pageToSave.id) ?? pageToSave;
+    const timer = saveTimersRef.current.get(latestPage.id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(latestPage.id);
+    pendingSavesRef.current.delete(latestPage.id);
     if (!storageRef.current) return;
-    const nextPage = { ...pageToSave, updated_at: Date.now(), revision: pageToSave.revision + 1 };
+    const nextPage = { ...latestPage, updated_at: Date.now(), revision: latestPage.revision + 1 };
     await storageRef.current.savePage(nextPage);
     syncEngineRef.current?.pushPage(nextPage);
-  }, [storageRef]);  const scheduleSave = useCallback((page: Page) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => void flushSave(page), 800);
+  }, [storageRef]);
+  const flushAllSaves = useCallback(async () => {
+    const pending = [...pendingSavesRef.current.values()];
+    await Promise.all(pending.map((page) => flushSave(page)));
+  }, [flushSave]);
+  const scheduleSave = useCallback((page: Page) => {
+    const previousTimer = saveTimersRef.current.get(page.id);
+    if (previousTimer) clearTimeout(previousTimer);
+    pendingSavesRef.current.set(page.id, page);
+    const timer = setTimeout(() => void flushSave(page), 800);
+    saveTimersRef.current.set(page.id, timer);
   }, [flushSave]);
 
   // M1 fix: 統一的 page patch helper——更新欄位時同步 refresh updated_at，
@@ -512,6 +533,20 @@ function NexusAppInner({
       }
     }
   }, [attachments, pages, patchPage]);
+
+  const uploadCharacterGalleryImage = useCallback(async (pageId: string, file: File) => {
+    const storage = storageRef.current;
+    if (!storage?.createAttachment) throw new Error("Attachment storage is unavailable");
+    if (!file.type.startsWith("image/")) throw new Error("Gallery files must be images");
+    const attachment = await storage.createAttachment({ kind: "image", name: file.name, mime_type: file.type || "image/*", size_bytes: file.size });
+    await storage.attachBinary(attachment.id, file);
+    setAttachments((current) => [...current.filter((item) => item.id !== attachment.id), attachment]);
+    await syncEngineRef.current?.pushAttachment(attachment);
+    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    const target = pages.find((item) => item.id === pageId);
+    if (target) patchPage(pageId, { attachment_ids: [...(target.attachment_ids || []), attachment.id] });
+    return attachment.id;
+  }, [pages, patchPage]);
 
   const removeNovelCover = useCallback(async (pageId: string) => {
     const page = pages.find((item) => item.id === pageId);
@@ -903,20 +938,31 @@ function NexusAppInner({
   };
   const moveGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
     if (globalPullStartRef.current === null) return;
-    const distance = Math.min(96, Math.max(0, (event.touches[0]?.clientY ?? globalPullStartRef.current) - globalPullStartRef.current));
+    // Deliberately require a long pull: ordinary attempts to scroll a page
+    // back to its top should never accidentally reload the whole app.
+    const distance = Math.min(160, Math.max(0, (event.touches[0]?.clientY ?? globalPullStartRef.current) - globalPullStartRef.current));
     globalPullDistanceRef.current = distance;
     setGlobalPullDistance(distance);
   };
   const endGlobalPull = () => {
-    const shouldRefresh = globalPullDistanceRef.current >= 64;
+    const shouldRefresh = globalPullDistanceRef.current >= 120;
     globalPullStartRef.current = null;
     globalPullDistanceRef.current = 0;
     if (!shouldRefresh) { setGlobalPullDistance(0); return; }
     setIsGlobalRefreshing(true);
-    // This is intentionally a browser-page reload, not a cloud sync. It
-    // matches the native mobile pull-to-refresh expectation and restarts all
-    // application state cleanly.
-    window.location.reload();
+    // This is intentionally a browser-page reload, but first flush every
+    // page's debounce so a quick pull cannot discard the last typed text.
+    void flushAllSaves().catch((error) => console.error("Failed to flush before reload", error)).finally(() => window.location.reload());
+  };
+
+  const closeMobilePanelsWhenEditing = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isTabletViewport || isFeatureInterface || (isSidebarCollapsed && isRightPanelCollapsed)) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-side-panel]")) return;
+    if (target.closest("[contenteditable='true'], textarea, input")) {
+      setIsSidebarCollapsed(true);
+      setIsRightPanelCollapsed(true);
+    }
   };
 
   const handleUpdateStudyItems = useCallback((items: StudyItem[]) => {
@@ -929,7 +975,7 @@ function NexusAppInner({
     setTrashPages(allPages.filter((page) => page.deleted_at !== null));
   }, [storageRef]);
 
-  const closeFeatureOverviews = () => { setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); };
+  const closeFeatureOverviews = () => { setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(null); };
   const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
 
   // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
@@ -957,6 +1003,16 @@ function NexusAppInner({
   const handleShowDocuments = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
   const handleShowNotesOverview = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
   const handleShowPresentations = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
+  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
+
+  useEffect(() => {
+    const openUtility = (event: Event) => {
+      const kind = (event as CustomEvent<"web" | "counter" | "draw">).detail;
+      if (kind === "web" || kind === "counter" || kind === "draw") handleShowUtility(kind);
+    };
+    window.addEventListener("nexus-open-utility", openUtility);
+    return () => window.removeEventListener("nexus-open-utility", openUtility);
+  }, [handleShowUtility]);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -982,10 +1038,22 @@ function NexusAppInner({
 
   const handlePermanentDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
+    const page = trashPages.find((item) => item.id === id);
+    const attachmentIds = new Set([page?.primary_attachment_id, ...(page?.attachment_ids || []), page?.novel_settings?.coverAttachmentId].filter(Boolean) as string[]);
     await storageRef.current.permanentDeletePage(id);
+    for (const attachmentId of attachmentIds) {
+      const referencedElsewhere = [...pages, ...trashPages].some((item) => item.id !== id && (
+        item.primary_attachment_id === attachmentId || item.attachment_ids?.includes(attachmentId) || item.novel_settings?.coverAttachmentId === attachmentId
+      ));
+      if (!referencedElsewhere) {
+        await storageRef.current.permanentDeleteAttachment?.(attachmentId);
+        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
+      }
+    }
     setTrashPages((prev) => prev.filter((page) => page.id !== id));
     syncEngineRef.current?.pushPermanentDeletePage(id);
-  }, [storageRef]);
+  }, [pages, storageRef, trashPages]);
 
   const handleDuplicatePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -1274,7 +1342,10 @@ function NexusAppInner({
 
   const handleDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    const timer = saveTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(id);
+    pendingSavesRef.current.delete(id);
     if (activePageRef.current && activePageRef.current.id === id) activePageRef.current = null;
     const deletedPage = pages.find((p) => p.id === id);
     const now = Date.now();
@@ -1316,7 +1387,12 @@ function NexusAppInner({
   const handleBulkDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
     const idSet = new Set(ids);
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    for (const id of ids) {
+      const timer = saveTimersRef.current.get(id);
+      if (timer) clearTimeout(timer);
+      saveTimersRef.current.delete(id);
+      pendingSavesRef.current.delete(id);
+    }
     if (activePageRef.current && idSet.has(activePageRef.current.id)) activePageRef.current = null;
     const now = Date.now();
     const toDelete = pages.filter((p) => idSet.has(p.id));
@@ -1368,9 +1444,21 @@ function NexusAppInner({
   const handleBulkPermanentDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
     const idSet = new Set(ids);
+    const deletedPages = trashPages.filter((page) => idSet.has(page.id));
+    const candidateAttachmentIds = new Set(deletedPages.flatMap((page) => [page.primary_attachment_id, ...(page.attachment_ids || []), page.novel_settings?.coverAttachmentId].filter(Boolean) as string[]));
     for (const id of ids) { await storageRef.current.permanentDeletePage(id); syncEngineRef.current?.pushPermanentDeletePage(id); }
+    for (const attachmentId of candidateAttachmentIds) {
+      const referencedElsewhere = [...pages, ...trashPages].some((page) => !idSet.has(page.id) && (
+        page.primary_attachment_id === attachmentId || page.attachment_ids?.includes(attachmentId) || page.novel_settings?.coverAttachmentId === attachmentId
+      ));
+      if (!referencedElsewhere) {
+        await storageRef.current.permanentDeleteAttachment?.(attachmentId);
+        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
+      }
+    }
     setTrashPages((prev) => prev.filter((p) => !idSet.has(p.id)));
-  }, [storageRef]);
+  }, [pages, storageRef, trashPages]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1417,8 +1505,8 @@ function NexusAppInner({
   }
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={() => { globalPullStartRef.current = null; globalPullDistanceRef.current = 0; setGlobalPullDistance(0); }}>
-      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 12 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : globalPullDistance >= 64 ? "放開以重新載入" : "下拉以重新載入"}</div>
+    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={() => { globalPullStartRef.current = null; globalPullDistanceRef.current = 0; setGlobalPullDistance(0); }} onPointerDownCapture={closeMobilePanelsWhenEditing}>
+      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : globalPullDistance >= 120 ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
@@ -1443,6 +1531,9 @@ function NexusAppInner({
                   ["✎", "筆記", handleShowNotesOverview],
                   ["▱", "文檔", handleShowDocuments],
                   ["▰", "簡報", handleShowPresentations],
+                  ["⌘", "網頁", () => handleShowUtility("web")],
+                  ["＋", "計數", () => handleShowUtility("counter")],
+                  ["⤨", "抽選", () => handleShowUtility("draw")],
                 ].map(([icon, label, action]) => (
                   <button key={label as string} type="button" onClick={() => { (action as () => void)(); setIsAppLauncherOpen(false); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                     <span className="text-lg">{icon as string}</span><span>{label as string}</span>
@@ -1542,7 +1633,9 @@ function NexusAppInner({
           Google-style interface drawer and lets users change pages or open a
           second editor without leaving their current editing context. */}
       {!isFeatureInterface && (
-        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed}>
+        <>
+        {isMobileViewport && !isSidebarCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsSidebarCollapsed(true)} aria-label="關閉左側面板" />}
+        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed} overlay={isMobileViewport}>
           <Sidebar
             pages={pages}
             activePageId={activePageId}
@@ -1605,13 +1698,14 @@ function NexusAppInner({
             onShowPresentations={handleShowPresentations}
           />
         </ResizablePanel>
+        </>
       )}
 
       {/* 手機版不保留縮起後的垂直軌道；開關直接固定在編輯器最上方左側。 */}
       {!isFeatureInterface && isMobileViewport && isSidebarCollapsed && (
         <button
           type="button"
-          onClick={() => setIsSidebarCollapsed(false)}
+          onClick={() => { setIsRightPanelCollapsed(true); setIsSidebarCollapsed(false); }}
           className="absolute left-2 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-lg shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
           style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
           aria-label="開啟左側面板"
@@ -1621,7 +1715,20 @@ function NexusAppInner({
         </button>
       )}
 
-      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100vh-4rem)]" : ""}`}>
+      {!isFeatureInterface && isTabletViewport && !isActiveNovel && (
+        <button
+          type="button"
+          onClick={() => { setIsSidebarCollapsed(true); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
+          className="absolute right-14 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-base shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+          aria-label="開啟輔助頁"
+          title="開啟輔助頁"
+        >
+          {isRightPanelCollapsed ? "☷" : "×"}
+        </button>
+      )}
+
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100dvh-4rem)]" : ""}`}>
       {isHomeMode ? (
         <Dashboard pages={pages} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={async () => { window.location.reload(); }} />
       ) : isQuickNoteMode ? (
@@ -1675,6 +1782,20 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
+      ) : utilityMode ? (
+        activePage?.kind === utilityMode ? (
+          <UtilityView page={activePage} onBack={() => { setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
+        ) : (
+          <FeatureOverview
+            title={utilityMode === "web" ? "網頁" : utilityMode === "counter" ? "計數" : "抽選"}
+            description={utilityMode === "web" ? "建立可整理與公開的個人連結頁。" : utilityMode === "counter" ? "用項目與合計追蹤數值。" : "以標籤篩選你的抽選資料庫。"}
+            icon={utilityMode === "web" ? "⌘" : utilityMode === "counter" ? "＋" : "⤨"}
+            actionLabel={utilityMode === "web" ? "建立網頁" : utilityMode === "counter" ? "建立計數" : "建立抽選"}
+            pages={pages.filter((page) => page.kind === utilityMode && !page.deleted_at)}
+            onCreate={() => { const kind = utilityMode; void createAndOpenPage({ kind, title: kind === "web" ? "新網頁" : kind === "counter" ? "新計數" : "新抽選", format: "flow" }); }}
+            onSelectPage={handleSelectPage}
+          />
+        )
       ) : isStudySetMode ? (
         <FeatureOverview
           title="字卡"
@@ -1736,6 +1857,8 @@ function NexusAppInner({
             let initialData = createFantasyTemplate();
             if (templateId === "modern") initialData = createModernTemplate();
             if (templateId === "blank") initialData = createBlankTemplate();
+            if (templateId === "dnd5e") initialData = createDnd5eTemplate();
+            if (templateId === "coc7e") initialData = createCoc7eTemplate();
 
             const p = await createAndOpenPage({
               kind: "creative" as any,
@@ -1748,6 +1871,13 @@ function NexusAppInner({
                 character_data: initialData,
               });
             }
+          }}
+          onCreateWorld={async () => {
+            const initialData = createBlankTemplate();
+            initialData.basic.name = "新世界觀";
+            initialData.basic.role = "世界觀設定";
+            const p = await createAndOpenPage({ kind: "creative", title: initialData.basic.name, format: "flow" });
+            if (p) patchPage(p.id, { creative_type: "world", character_data: initialData });
           }}
           onSelectPage={handleSelectPage}
           onDeletePage={(id) => { void handleDeletePage(id); }}
@@ -1764,6 +1894,9 @@ function NexusAppInner({
               activePage.creative_type === "character" || !!activePage.character_data ? (
                 <CharacterProfileView
                   page={activePage}
+                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+                  getAttachmentBlob={getNovelCoverBlob}
+                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
                   onTitleChange={handleTitleChange}
                   onUpdateCharacterData={(cData) => {
                     patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
@@ -1826,13 +1959,16 @@ function NexusAppInner({
           {/* Secondary pane - Obsidian style closable */}
           <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--color-border)" }}>
             {secondaryActivePage.kind === "study_set" ? (
-              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdateStudyItems={(items)=>{ handleSecondaryContentChange({ json: secondaryActivePage.content_json, text: secondaryActivePage.content_text }) }} onBackToInterface={handleShowHome} />
+              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdateStudyItems={(items) => { patchPage(secondaryActivePage.id, { study_items: items }); }} onBackToInterface={handleShowHome} />
             ) : secondaryActivePage.kind === "presentation" ? (
               <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} onBackToInterface={handleShowHome} />
             ) : secondaryActivePage.kind === "creative" ? (
               secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
                 <CharacterProfileView
                   page={secondaryActivePage}
+                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+                  getAttachmentBlob={getNovelCoverBlob}
+                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(secondaryActivePage.id, file)}
                   onTitleChange={handleSecondaryTitleChange}
                   onUpdateCharacterData={(cData) => {
                     patchPage(secondaryActivePage.id, { character_data: cData, title: cData.basic.name || secondaryActivePage.title });
@@ -1895,6 +2031,9 @@ function NexusAppInner({
         activePage.creative_type === "character" || !!activePage.character_data ? (
           <CharacterProfileView
             page={activePage}
+            worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+            getAttachmentBlob={getNovelCoverBlob}
+            onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
             onTitleChange={handleTitleChange}
             onUpdateCharacterData={(cData) => {
               patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
@@ -1946,6 +2085,15 @@ function NexusAppInner({
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
               />
+      )}
+
+      {!isFeatureInterface && isTabletViewport && (
+        <>
+          {!isRightPanelCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsRightPanelCollapsed(true)} aria-label="關閉輔助頁" />}
+          <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} collapsedWidth={0} isCollapsed={isRightPanelCollapsed} overlay>
+            <RightPanel page={activePage} pages={pages} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
+          </ResizablePanel>
+        </>
       )}
 
       {!isFeatureInterface && !isTabletViewport && (

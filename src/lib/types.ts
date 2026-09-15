@@ -34,7 +34,7 @@ export interface Attachment {
   workspace_owner_id?: ID | null;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative";
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "web" | "counter" | "draw";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**
@@ -157,7 +157,7 @@ export interface Page {
   completed?: boolean;
   color?: string | null; // for quick note
   // Creative specific
-  creative_type?: "novel" | "character";
+  creative_type?: "novel" | "character" | "world";
   character_data?: CharacterProfileData;
   novel_settings?: NovelSettings;
   /** Local-only workspace boundary. Cloud ownership is stored in Supabase owner_id. */
@@ -172,7 +172,7 @@ export interface AssistantBlock {
   updated_at: number;
 }
 
-export type CreativeType = "novel" | "character";
+export type CreativeType = "novel" | "character" | "world";
 
 /**
  * Early novels were saved before `creative_type` existed. Characters are the
@@ -180,7 +180,7 @@ export type CreativeType = "novel" | "character";
  * belong to the independent Novel entrance.
  */
 export function isCreativeCharacterPage(page: Page): boolean {
-  return page.kind === "creative" && (page.creative_type === "character" || !!page.character_data);
+  return page.kind === "creative" && (page.creative_type === "character" || page.creative_type === "world" || !!page.character_data);
 }
 
 export function isNovelPage(page: Page): boolean {
@@ -200,7 +200,7 @@ export interface NovelSettings {
   showWordCount?: boolean;
 }
 
-export type CharacterComponentType = "key_value" | "rich_text" | "tags" | "stats" | "relations";
+export type CharacterComponentType = "key_value" | "rich_text" | "tags" | "stats" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
 
 export interface CharacterKeyValueItem {
   key: string;
@@ -218,6 +218,9 @@ export interface CharacterRelationItem {
   relationType: string;
   description: string;
 }
+export interface CharacterPaletteItem { label: string; color: string; }
+export interface CharacterStatisticItem { label: string; description: string; value: number; unit?: string; }
+export interface CharacterExternalLink { label: string; url: string; }
 
 export interface CharacterSection {
   id: string;
@@ -229,10 +232,23 @@ export interface CharacterSection {
   tags?: string[];
   stats?: CharacterStatItem[];
   relations?: CharacterRelationItem[];
+  palette?: CharacterPaletteItem[];
+  tendency?: { left: string; right: string; value: number }[];
+  statistics?: CharacterStatisticItem[];
+  gallery?: string[];
+  galleryAttachmentIds?: ID[];
+  externalLinks?: CharacterExternalLink[];
+  music?: CharacterExternalLink[];
+}
+
+export interface CharacterPageTab {
+  id: ID;
+  title: string;
+  sections: CharacterSection[];
 }
 
 export interface CharacterProfileData {
-  templateId?: "fantasy" | "modern" | "blank";
+  templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e";
   basic: {
     name: string;
     alias?: string;
@@ -243,6 +259,10 @@ export interface CharacterProfileData {
     affiliation?: string;
     quote?: string;
   };
+  /** Optional creative-world membership. Empty means an independent character. */
+  world_id?: ID | null;
+  /** Extra spreadsheet-like pages. The original sections remain the 基本資料 tab. */
+  tabs?: CharacterPageTab[];
   sections: CharacterSection[];
 }
 

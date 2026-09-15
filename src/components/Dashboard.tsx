@@ -89,8 +89,8 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
   };
 
   return (
-    <main className="relative flex flex-col flex-1 overflow-y-auto overscroll-contain" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="flex flex-col mx-auto w-full" style={{ maxWidth: "820px", padding: "48px 64px" }}>
+    <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      <div className="flex min-h-full w-full flex-col mx-auto" style={{ maxWidth: "820px", padding: "48px 64px" }}>
         <div className="mb-1 text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("dashboard.home")}</div>
         <h1 className="text-3xl font-semibold mb-6" style={{ color: "var(--color-text)" }}>{t("dashboard.welcome")}</h1>
         <div className="mb-8">

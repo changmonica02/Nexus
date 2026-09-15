@@ -36,6 +36,8 @@ export interface StorageAdapter {
   getAttachment(id: ID): Promise<Attachment | null>;
   saveAttachment(attachment: Attachment): Promise<Attachment>;
   deleteAttachment(id: ID): Promise<void>;
+  /** Permanently removes an attachment and its local binary. */
+  permanentDeleteAttachment?(id: ID): Promise<void>;
   attachBinary(attachmentId: ID, blob: Blob): Promise<void>;
   readBinary(attachmentId: ID): Promise<Blob | null>;
   exportWorkspaceBackup?(): Promise<WorkspaceBackup>;

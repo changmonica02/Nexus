@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth, collapsedWidth = 56, isCollapsed, children }: {
-  side: "left" | "right"; defaultWidth: number; minWidth: number; maxWidth: number; collapsedWidth?: number; isCollapsed: boolean; children: React.ReactNode;
+export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth, collapsedWidth = 56, isCollapsed, overlay = false, children }: {
+  side: "left" | "right"; defaultWidth: number; minWidth: number; maxWidth: number; collapsedWidth?: number; isCollapsed: boolean; overlay?: boolean; children: React.ReactNode;
 }) {
   const [width, setWidth] = useState(defaultWidth);
   const [isDragging, setIsDragging] = useState(false);
@@ -32,7 +32,7 @@ export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth,
   const effectiveWidth = isCollapsed ? collapsedWidth : width;
 
   return (
-    <div className={`relative flex shrink-0 transition-[width] duration-150 ${isCollapsed && collapsedWidth === 0 ? "overflow-hidden" : ""}`} style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
+    <div data-side-panel={overlay ? "true" : undefined} className={`${overlay ? `fixed inset-y-0 ${side === "left" ? "left-0" : "right-0"} z-50 shadow-2xl` : "relative shrink-0"} flex transition-[width] duration-150 ${isCollapsed && collapsedWidth === 0 ? "overflow-hidden" : ""}`} style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
       {!isCollapsed && side === "right" && (
         <div onMouseDown={handleMouseDown} className="absolute left-0 top-0 bottom-0 w-1.5 -translate-x-0.5 cursor-col-resize z-10 hover:bg-blue-400/40 transition-colors"
           style={{ backgroundColor: isDragging ? "rgba(37, 99, 235, 0.35)" : "transparent" }} />

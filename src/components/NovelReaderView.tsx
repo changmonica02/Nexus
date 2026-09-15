@@ -117,6 +117,7 @@ export default function NovelReaderView({
   // editor mount from briefly receiving the previous document after adding a
   // chapter, especially on slower mobile devices.
   const [pendingDocument, setPendingDocument] = useState<any | null>(null);
+  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
   const modeRef = useRef(mode);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -222,6 +223,15 @@ export default function NovelReaderView({
     if (Array.isArray(doc.content)) doc.content.forEach((node: any, index: number) => extract(node, index));
     return headings;
   }, [documentContent]);
+
+  // A chapter is a top-level heading plus everything until the next
+  // top-level heading. Existing novels keep their current document format,
+  // while the reader treats each chapter as its own page.
+  const chapterPages = useMemo(() => chapters.filter((chapter) => chapter.level === 1 && chapter.rootIndex !== undefined), [chapters]);
+
+  useEffect(() => {
+    setActiveChapterIndex((index) => Math.max(0, Math.min(index, Math.max(0, chapterPages.length - 1))));
+  }, [chapterPages.length]);
 
   // Total word count (移除預估閱讀時間)
   const stats = useMemo(() => {
@@ -377,7 +387,7 @@ export default function NovelReaderView({
 
   // Render HTML / Structured Text for Reader Mode
   const renderedContent = useMemo(() => {
-    const doc = (page.content_json as any) || { content: [] };
+    const doc = (documentContent as any) || { content: [] };
     if (!doc.content || doc.content.length === 0) {
       return (
         <div className="py-20 text-center opacity-40">
@@ -386,9 +396,14 @@ export default function NovelReaderView({
       );
     }
 
+    const topLevel = chapterPages[activeChapterIndex];
+    const startIndex = topLevel?.rootIndex ?? 0;
+    const nextTopLevel = chapterPages[activeChapterIndex + 1];
+    const endIndex = nextTopLevel?.rootIndex ?? doc.content.length;
+    const visibleNodes = mode === "read" && topLevel ? doc.content.slice(startIndex, endIndex) : doc.content;
     let headingCounter = 0;
 
-    return doc.content.map((node: any, i: number) => {
+    return visibleNodes.map((node: any, i: number) => {
       if (node.type === "heading") {
         const text = (node.content || []).map((c: any) => c.text || "").join("");
         const hId = `heading-${headingCounter++}`;
@@ -470,7 +485,7 @@ export default function NovelReaderView({
 
       return null;
     });
-  }, [page.content_json, settings, currentTheme]);
+  }, [documentContent, settings, currentTheme, mode, chapterPages, activeChapterIndex]);
 
   const scrollToHeading = (id: string) => {
     if (!readerScrollRef.current) return;
@@ -482,9 +497,16 @@ export default function NovelReaderView({
   };
 
   const openChapter = (id: string) => {
+    const nextIndex = chapterPages.findIndex((chapter) => chapter.id === id);
+    if (nextIndex >= 0) setActiveChapterIndex(nextIndex);
     setMode("read");
-    // 閱讀器完成掛載後再定位，避免從總覽跳轉時找不到章節節點。
-    requestAnimationFrame(() => requestAnimationFrame(() => scrollToHeading(id)));
+    requestAnimationFrame(() => { if (readerScrollRef.current) readerScrollRef.current.scrollTop = 0; });
+  };
+
+  const switchChapter = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= chapterPages.length) return;
+    setActiveChapterIndex(nextIndex);
+    requestAnimationFrame(() => readerScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
   };
 
   if (mode === "overview") {
@@ -886,7 +908,7 @@ export default function NovelReaderView({
               <div className="space-y-1">
                 {chapters.map((chap, cIdx) => (
                   <div key={chap.id} className={`group flex items-center gap-1 rounded-lg ${chap.level === 1 ? "font-bold" : "pl-3 opacity-80"} hover:bg-black/5 dark:hover:bg-white/5`}>
-                    <button onClick={() => scrollToHeading(chap.id)} className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-xs" style={{ color: currentTheme.text }} title={chap.title}>
+                    <button onClick={() => openChapter(chap.id)} className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-xs" style={{ color: currentTheme.text }} title={chap.title}>
                       <span className="mr-2 opacity-40 text-[10px] font-mono">{String(cIdx + 1).padStart(2, "0")}</span><span>{chap.title}</span>
                     </button>
                     {mode === "edit" && chap.level === 1 && (
@@ -934,9 +956,22 @@ export default function NovelReaderView({
                 {renderedContent}
               </div>
 
+              {chapterPages.length > 0 && (
+                <nav className="mt-14 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-y py-5 text-sm" style={{ borderColor: currentTheme.border }} aria-label="章節翻頁">
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex - 1)} disabled={activeChapterIndex === 0} className="justify-self-start rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>← 上一章</button>
+                  <label className="relative">
+                    <span className="sr-only">選擇章節</span>
+                    <select value={activeChapterIndex} onChange={(event) => switchChapter(Number(event.target.value))} className="max-w-40 rounded-lg border bg-transparent px-2 py-2 text-center text-xs outline-none" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>
+                      {chapterPages.map((chapter, index) => <option key={chapter.id} value={index}>{String(index + 1).padStart(2, "0")}　{chapter.title}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex + 1)} disabled={activeChapterIndex >= chapterPages.length - 1} className="justify-self-end rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>下一章 →</button>
+                </nav>
+              )}
+
               {/* 結尾標誌 */}
-              <div className="mt-20 pt-8 pb-16 text-center border-t opacity-40 text-xs" style={{ borderColor: currentTheme.border, color: currentTheme.subText }}>
-                ❖ 全文完 · 感謝閱讀 ❖
+              <div className="mt-12 pt-8 pb-16 text-center border-t opacity-40 text-xs" style={{ borderColor: currentTheme.border, color: currentTheme.subText }}>
+                {activeChapterIndex >= chapterPages.length - 1 ? "❖ 全文完 · 感謝閱讀 ❖" : "❖ 本章完 ❖"}
               </div>
             </div>
           </div>

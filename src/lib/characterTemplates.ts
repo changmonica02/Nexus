@@ -183,3 +183,14 @@ export function createBlankTemplate(): CharacterProfileData {
     ],
   };
 }
+
+/** Built-in system templates retain the same editable component model. */
+export function createDnd5eTemplate(): CharacterProfileData {
+  const data = createFantasyTemplate();
+  return { ...data, templateId: "dnd5e", basic: { ...data.basic, name: "新 D&D 角色", role: "冒險者", affiliation: "冒險者公會" } };
+}
+
+export function createCoc7eTemplate(): CharacterProfileData {
+  const data = createModernTemplate();
+  return { ...data, templateId: "coc7e", basic: { ...data.basic, name: "新 CoC 調查員", role: "調查員", affiliation: "調查團隊" } };
+}

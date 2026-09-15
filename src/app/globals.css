@@ -9,6 +9,10 @@
   --color-sidebar-text: #4a4a4a;
   --color-editor-bg: #ffffff;
   --color-panel-bg: #f9f9f9;
+  /* Shared stacking scale: base content < app chrome < overlays < dialogs. */
+  --z-app-chrome: 40;
+  --z-popover: 100;
+  --z-dialog: 1000;
 }
 
 .dark {

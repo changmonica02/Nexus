@@ -12,7 +12,7 @@ export default function HelpGuide({ isOpen, onClose }: { isOpen: boolean; onClos
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-3xl max-h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
           <h2 className="text-lg font-semibold" style={{ color: "var(--color-text)" }}>Nexus 使用說明</h2>

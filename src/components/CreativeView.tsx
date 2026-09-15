@@ -36,11 +36,13 @@ function getNovelStats(page: Page) {
 export default function CreativeView({
   pages,
   onCreateCharacter,
+  onCreateWorld,
   onSelectPage,
   onDeletePage,
 }: {
   pages: Page[];
-  onCreateCharacter: (templateId?: "fantasy" | "modern" | "blank") => void;
+  onCreateCharacter: (templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e") => void;
+  onCreateWorld: () => void;
   onSelectPage: (id: string) => void;
   onDeletePage?: (id: string) => void;
 }) {
@@ -121,7 +123,7 @@ export default function CreativeView({
         </div>
 
         {/* 快速新增區塊 */}
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* 新增角色卡片 */}
           <button
             onClick={() => setCharModalOpen(true)}
@@ -143,8 +145,13 @@ export default function CreativeView({
               </div>
             </div>
             <div className="mt-4 pt-3 border-t text-xs font-semibold text-blue-600 flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
-              <span>＋ 選擇範本建立角色</span>
+              <span>＋ 選擇模板建立角色</span>
             </div>
+          </button>
+          <button onClick={onCreateWorld} className="group rounded-2xl border p-5 text-left hover:shadow-lg transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+            <div className="text-base font-bold group-hover:text-blue-600">建立世界觀</div>
+            <div className="mt-2 text-xs leading-relaxed opacity-60">以相同的區塊式資料頁整理世界設定、地點、歷史與規則。</div>
+            <div className="mt-4 text-xs font-semibold text-blue-600">＋ 建立世界觀</div>
           </button>
         </div>
 
@@ -158,7 +165,7 @@ export default function CreativeView({
               <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: "var(--color-border)" }}>
                 <div className="flex items-center gap-2">
                   <span className="text-xl">🎭</span>
-                  <h3 className="font-bold text-base">選擇角色簡介範本</h3>
+                  <h3 className="font-bold text-base">選擇角色簡介模板</h3>
                 </div>
                 <button onClick={() => setCharModalOpen(false)} className="text-sm opacity-50 hover:opacity-100 p-1">
                   ✕
@@ -166,6 +173,20 @@ export default function CreativeView({
               </div>
 
               <div className="space-y-2">
+                <button
+                  onClick={() => { onCreateCharacter("dnd5e"); setCharModalOpen(false); }}
+                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <div><div className="font-bold text-sm group-hover:text-blue-600">D&amp;D 5e 角色模板</div><div className="text-xs opacity-60 mt-0.5">冒險者基本資料、能力評分與背景欄位</div></div>
+                </button>
+                <button
+                  onClick={() => { onCreateCharacter("coc7e"); setCharModalOpen(false); }}
+                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <div><div className="font-bold text-sm group-hover:text-blue-600">CoC 7e 調查員模板</div><div className="text-xs opacity-60 mt-0.5">調查員資料、專業能力與履歷欄位</div></div>
+                </button>
                 <button
                   onClick={() => {
                     onCreateCharacter("fantasy");
@@ -176,7 +197,7 @@ export default function CreativeView({
                 >
                   <span className="text-2xl mt-0.5">🌟</span>
                   <div>
-                    <div className="font-bold text-sm group-hover:text-blue-600">奇幻冒險 / 武俠角色範本</div>
+                    <div className="font-bold text-sm group-hover:text-blue-600">奇幻冒險 / 武俠角色模板</div>
                     <div className="text-xs opacity-60 mt-0.5">包含遊俠/魔劍士設定、陣營、戰鬥五維數值與傳承背景</div>
                   </div>
                 </button>
@@ -191,7 +212,7 @@ export default function CreativeView({
                 >
                   <span className="text-2xl mt-0.5">🏙️</span>
                   <div>
-                    <div className="font-bold text-sm group-hover:text-blue-600">現代懸疑 / 科幻角色範本</div>
+                    <div className="font-bold text-sm group-hover:text-blue-600">現代懸疑 / 科幻角色模板</div>
                     <div className="text-xs opacity-60 mt-0.5">包含刑偵顧問、犯罪心理分析、履歷檔案與懸案密碼</div>
                   </div>
                 </button>

@@ -467,9 +467,17 @@ export class SyncEngine {
   async pushPermanentDeletePage(pageId: string): Promise<void> {
     try {
       await this.supabase.from("pages").delete().eq("id", pageId).eq("owner_id", this.userId);
-      await this.supabase.from("binaries").delete().eq("id", pageId).eq("owner_id", this.userId);
     } catch (err) {
       console.error("[SyncEngine] pushPermanentDeletePage error:", err);
+    }
+  }
+
+  async pushPermanentDeleteAttachment(attachmentId: string): Promise<void> {
+    try {
+      await this.supabase.from("attachments").delete().eq("id", attachmentId).eq("owner_id", this.userId);
+      await this.supabase.from("binaries").delete().eq("id", attachmentId).eq("owner_id", this.userId);
+    } catch (err) {
+      console.error("[SyncEngine] pushPermanentDeleteAttachment error:", err);
     }
   }
 

@@ -51,7 +51,7 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-[12vh]" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg rounded-xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="opacity-40 text-sm">🔍</span>

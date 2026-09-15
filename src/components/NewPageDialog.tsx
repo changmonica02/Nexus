@@ -104,7 +104,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>

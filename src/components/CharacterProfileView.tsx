@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { nanoid } from "nanoid";
 import type {
   Page,
@@ -7,37 +7,55 @@ import type {
   CharacterSection,
   CharacterComponentType,
 } from "../lib/types";
-import {
-  createFantasyTemplate,
-  createModernTemplate,
-  createBlankTemplate,
-} from "../lib/characterTemplates";
+import { createFantasyTemplate } from "../lib/characterTemplates";
 
-const COMPONENT_TYPES: { type: CharacterComponentType; label: string; icon: string; desc: string }[] = [
-  { type: "key_value", label: "鍵值屬性表", icon: "🪪", desc: "如身高體重、武器裝備、生日等簡短資訊" },
-  { type: "tags", label: "標籤與特質", icon: "🧠", desc: "性格標籤 Chip 與詳細心理側寫" },
-  { type: "stats", label: "能力與數值評估", icon: "⚔️", desc: "力量、敏捷、智力等進度條數值評分" },
-  { type: "rich_text", label: "長篇描述與背景", icon: "📜", desc: "身世故事、經歷、未解之謎" },
-  { type: "relations", label: "人際關係網絡", icon: "👥", desc: "與同伴、導師、宿敵的互動關係" },
+const COMPONENT_TYPES: { type: CharacterComponentType; label: string; desc: string }[] = [
+  { type: "key_value", label: "短文字", desc: "如身高體重、武器裝備、生日等簡短資訊" },
+  { type: "tags", label: "標籤與特質", desc: "性格標籤與詳細心理側寫" },
+  { type: "stats", label: "評分", desc: "力量、敏捷、智力等進度條數值評分" },
+  { type: "rich_text", label: "長文", desc: "身世故事、經歷、未解之謎" },
+  { type: "relations", label: "關聯", desc: "與同伴、導師、宿敵的互動關係" },
+  { type: "radar", label: "雷達圖", desc: "可自訂多個能力維度與分數" },
+  { type: "palette", label: "色票", desc: "建立角色或世界觀的專屬配色" },
+  { type: "tendency", label: "偏向", desc: "以兩端描述呈現性格或狀態傾向" },
+  { type: "statistics", label: "統計", desc: "項目、說明、數值與單位的可加總資料" },
+  { type: "gallery", label: "相冊", desc: "以圖片網址整理角色或世界觀圖像" },
+  { type: "links", label: "連結", desc: "收納參考資料與外部網站" },
+  { type: "music", label: "音樂", desc: "收納主題曲、歌單或音樂連結" },
 ];
+
+function GalleryAttachment({ attachmentId, getBlob }: { attachmentId: string; getBlob?: (id: string) => Promise<Blob | null> }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { let current = true; let objectUrl: string | null = null; void getBlob?.(attachmentId).then((blob) => { if (!blob || !current) return; objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); }); return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); }; }, [attachmentId, getBlob]);
+  return url ? <img src={url} alt="相冊圖片" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs opacity-45">載入中…</div>;
+}
 
 export default function CharacterProfileView({
   page,
   onTitleChange,
   onUpdateCharacterData,
   onBackToCreativeOverview,
+  worlds = [],
+  getAttachmentBlob,
+  onUploadGalleryImage,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onUpdateCharacterData: (data: CharacterProfileData) => void;
   onBackToCreativeOverview?: () => void;
+  worlds?: Page[];
+  getAttachmentBlob?: (id: string) => Promise<Blob | null>;
+  onUploadGalleryImage?: (file: File) => Promise<string>;
 }) {
   const [viewMode, setViewMode] = useState<"edit" | "card">("edit");
   const [addComponentOpen, setAddComponentOpen] = useState(false);
-  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [expandedLongSections, setExpandedLongSections] = useState<Set<string>>(new Set());
+  const [activeTabId, setActiveTabId] = useState("base");
 
   // Initialize data with fallback to fantasy template
   const charData: CharacterProfileData = page.character_data || createFantasyTemplate();
+  const activeTab = activeTabId === "base" ? null : (charData.tabs || []).find((tab) => tab.id === activeTabId) || null;
+  const currentSections = activeTab ? activeTab.sections : (charData.sections || []);
 
   const updateData = (patch: Partial<CharacterProfileData>) => {
     const next = { ...charData, ...patch };
@@ -59,46 +77,54 @@ export default function CharacterProfileView({
       id: `sec_${nanoid()}`,
       type,
       title: meta?.label || "自訂組件",
-      icon: meta?.icon || "📌",
       keyValues: type === "key_value" ? [{ key: "新屬性", value: "內容" }] : undefined,
       tags: type === "tags" ? ["標籤一", "標籤二"] : undefined,
       richText: type === "tags" || type === "rich_text" || type === "stats" ? "" : undefined,
-      stats: type === "stats" ? [{ label: "綜合能力", value: 80, max: 100 }] : undefined,
+      // 雷達圖沿用可擴充的數值維度資料；視覺圖形可由同一份資料重建。
+      stats: type === "radar" ? [{ label: "力量", value: 3, max: 5 }, { label: "敏捷", value: 3, max: 5 }, { label: "意志", value: 3, max: 5 }] : type === "stats" ? [{ label: "綜合能力", value: 80, max: 100 }] : undefined,
+      palette: type === "palette" ? [{ label: "主色", color: "#9e4b2c" }, { label: "輔色", color: "#e8c47b" }] : undefined,
+      tendency: type === "tendency" ? [{ left: "內向", right: "外向", value: 50 }] : undefined,
+      statistics: type === "statistics" ? [{ label: "物品", description: "介紹", value: 37, unit: "公斤" }] : undefined,
+      gallery: type === "gallery" ? [] : undefined,
+      galleryAttachmentIds: type === "gallery" ? [] : undefined,
+      externalLinks: type === "links" ? [] : undefined,
+      music: type === "music" ? [] : undefined,
       relations: type === "relations" ? [{ targetName: "目標角色", relationType: "同伴", description: "關係描述" }] : undefined,
     };
-    updateData({ sections: [...(charData.sections || []), newSec] });
+    saveSections([...currentSections, newSec]);
     setAddComponentOpen(false);
   };
 
   const updateSection = (id: string, patch: Partial<CharacterSection>) => {
-    const nextSecs = (charData.sections || []).map((s) => (s.id === id ? { ...s, ...patch } : s));
-    updateData({ sections: nextSecs });
+    saveSections(currentSections.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
   const deleteSection = (id: string) => {
-    updateData({ sections: (charData.sections || []).filter((s) => s.id !== id) });
+    saveSections(currentSections.filter((s) => s.id !== id));
   };
 
   const moveSection = (id: string, dir: "up" | "down") => {
-    const list = [...(charData.sections || [])];
+    const list = [...currentSections];
     const idx = list.findIndex((s) => s.id === id);
     if (idx === -1) return;
     const targetIdx = dir === "up" ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= list.length) return;
     const [moved] = list.splice(idx, 1);
     list.splice(targetIdx, 0, moved);
-    updateData({ sections: list });
+    saveSections(list);
   };
 
-  const applyTemplate = (tId: "fantasy" | "modern" | "blank") => {
-    let tData: CharacterProfileData;
-    if (tId === "fantasy") tData = createFantasyTemplate();
-    else if (tId === "modern") tData = createModernTemplate();
-    else tData = createBlankTemplate();
+  const saveSections = (sections: CharacterSection[]) => {
+    if (!activeTab) { updateData({ sections }); return; }
+    updateData({ tabs: (charData.tabs || []).map((tab) => tab.id === activeTab.id ? { ...tab, sections } : tab) });
+  };
 
-    updateData(tData);
-    if (tData.basic.name) onTitleChange(tData.basic.name);
-    setTemplateMenuOpen(false);
+  const addTab = () => {
+    const title = window.prompt("新頁籤名稱", "補充資料")?.trim();
+    if (!title) return;
+    const tab = { id: `tab_${nanoid()}`, title, sections: [] };
+    updateData({ tabs: [...(charData.tabs || []), tab] });
+    setActiveTabId(tab.id);
   };
 
   return (
@@ -123,7 +149,6 @@ export default function CharacterProfileView({
               <span>« 創作總覽</span>
             </button>
           )}
-          <span className="text-xl shrink-0">🎭</span>
           <div className="min-w-0">
             <div className="font-bold text-sm truncate">{charData.basic.name || page.title || "未命名角色"}</div>
             <div className="text-[11px] opacity-60 truncate">
@@ -154,55 +179,6 @@ export default function CharacterProfileView({
             </button>
           </div>
 
-          {/* 範本切換按鈕 */}
-          <div className="relative">
-            <button
-              onClick={() => setTemplateMenuOpen((v) => !v)}
-              className="px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm flex items-center gap-1"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              <span>📋 範本</span>
-              <span>▾</span>
-            </button>
-            {templateMenuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1.5 w-48 rounded-xl shadow-xl p-1 z-50 text-xs border"
-                style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
-              >
-                <button
-                  onClick={() => applyTemplate("fantasy")}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
-                >
-                  <span>🌟</span>
-                  <div>
-                    <div className="font-semibold">奇幻冒險角色</div>
-                    <div className="text-[10px] opacity-50">魔劍士、陣營、戰鬥數值</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => applyTemplate("modern")}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
-                >
-                  <span>🏙️</span>
-                  <div>
-                    <div className="font-semibold">現代懸疑角色</div>
-                    <div className="text-[10px] opacity-50">刑偵顧問、心理側寫</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => applyTemplate("blank")}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2"
-                >
-                  <span>📄</span>
-                  <div>
-                    <div className="font-semibold">空白自訂檔案</div>
-                    <div className="text-[10px] opacity-50">無預設內容，完全自由新增</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* 新增組件按鈕 */}
           {viewMode === "edit" && (
             <div className="relative">
@@ -225,7 +201,6 @@ export default function CharacterProfileView({
                       onClick={() => addSection(comp.type)}
                       className="w-full text-left p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-start gap-2.5 transition-all"
                     >
-                      <span className="text-base">{comp.icon}</span>
                       <div>
                         <div className="font-semibold">{comp.label}</div>
                         <div className="text-[10px] opacity-50 leading-tight">{comp.desc}</div>
@@ -366,6 +341,13 @@ export default function CharacterProfileView({
                         style={{ borderColor: "var(--color-border)" }}
                       />
                     </div>
+                    <div>
+                      <label className="text-[11px] font-semibold opacity-60 block mb-1">所屬世界觀</label>
+                      <select value={charData.world_id || ""} onChange={(event) => updateData({ world_id: event.target.value || null })} className="w-full rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none" style={{ borderColor: "var(--color-border)" }}>
+                        <option value="">獨立角色（不歸屬世界觀）</option>
+                        {worlds.filter((world) => world.id !== page.id).map((world) => <option key={world.id} value={world.id}>{world.title || "未命名世界觀"}</option>)}
+                      </select>
+                    </div>
                   </>
                 ) : (
                   <div className="space-y-2">
@@ -379,6 +361,7 @@ export default function CharacterProfileView({
                       {charData.basic.affiliation && <span className="px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 font-medium">{charData.basic.affiliation}</span>}
                       {charData.basic.gender && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.gender}</span>}
                       {charData.basic.age && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.age}</span>}
+                      {charData.world_id && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">世界觀：{worlds.find((world) => world.id === charData.world_id)?.title || "已刪除的世界觀"}</span>}
                     </div>
 
                     {charData.basic.quote && (
@@ -392,9 +375,15 @@ export default function CharacterProfileView({
             </div>
           </div>
 
+          <div className="flex items-center gap-1 overflow-x-auto border-b pb-2" style={{ borderColor: "var(--color-border)" }}>
+            <button type="button" onClick={() => setActiveTabId("base")} className="shrink-0 rounded-t-lg px-3 py-2 text-xs font-medium" style={{ backgroundColor: activeTabId === "base" ? "var(--color-bg)" : "transparent" }}>基本資料</button>
+            {(charData.tabs || []).map((tab) => <button key={tab.id} type="button" onClick={() => setActiveTabId(tab.id)} className="shrink-0 rounded-t-lg px-3 py-2 text-xs font-medium" style={{ backgroundColor: activeTabId === tab.id ? "var(--color-bg)" : "transparent" }}>{tab.title}</button>)}
+            {viewMode === "edit" && <button type="button" onClick={addTab} className="shrink-0 rounded-lg border px-2 py-1 text-xs" style={{ borderColor: "var(--color-border)" }}>＋ 新增頁面</button>}
+          </div>
+
           {/* 自訂動態組件清單 */}
           <div className="space-y-4">
-            {(charData.sections || []).map((sec, sIdx) => (
+            {currentSections.map((sec, sIdx) => (
               <div
                 key={sec.id}
                 className="rounded-2xl border p-5 shadow-sm transition-all relative"
@@ -406,7 +395,6 @@ export default function CharacterProfileView({
                 {/* 組件標題欄 */}
                 <div className="flex items-center justify-between mb-4 pb-2 border-b" style={{ borderColor: "var(--color-border)" }}>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">{sec.icon || "📌"}</span>
                     {viewMode === "edit" ? (
                       <input
                         value={sec.title}
@@ -430,7 +418,7 @@ export default function CharacterProfileView({
                       </button>
                       <button
                         onClick={() => moveSection(sec.id, "down")}
-                        disabled={sIdx === (charData.sections || []).length - 1}
+                        disabled={sIdx === currentSections.length - 1}
                         className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-20 text-xs"
                         title="下移"
                       >
@@ -652,6 +640,25 @@ export default function CharacterProfileView({
                   </div>
                 )}
 
+                {sec.type === "radar" && (
+                  <div className="space-y-3">
+                    {(sec.stats || []).map((stat, index) => <div key={index} className="grid grid-cols-[1fr_8rem_2rem] items-center gap-2"><input value={stat.label} disabled={viewMode === "card"} onChange={(event) => { const stats = [...(sec.stats || [])]; stats[index] = { ...stat, label: event.target.value }; updateSection(sec.id, { stats }); }} className="rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><input type="range" min={0} max={stat.max || 5} value={stat.value} disabled={viewMode === "card"} onChange={(event) => { const stats = [...(sec.stats || [])]; stats[index] = { ...stat, value: Number(event.target.value) }; updateSection(sec.id, { stats }); }} /><span className="text-center text-xs font-semibold">{stat.value}</span></div>)}
+                    {viewMode === "edit" && <button onClick={() => updateSection(sec.id, { stats: [...(sec.stats || []), { label: "新維度", value: 3, max: 5 }] })} className="text-xs font-semibold text-blue-600">＋ 新增維度</button>}
+                  </div>
+                )}
+
+                {sec.type === "palette" && (
+                  <div className="space-y-2">{(sec.palette || []).map((item, index) => <div key={index} className="flex items-center gap-2"><input type="color" value={item.color} disabled={viewMode === "card"} onChange={(event) => { const palette = [...(sec.palette || [])]; palette[index] = { ...item, color: event.target.value }; updateSection(sec.id, { palette }); }} className="h-9 w-12 rounded border p-1" style={{ borderColor: "var(--color-border)" }} /><input value={item.label} disabled={viewMode === "card"} onChange={(event) => { const palette = [...(sec.palette || [])]; palette[index] = { ...item, label: event.target.value }; updateSection(sec.id, { palette }); }} className="flex-1 rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><code className="text-xs opacity-60">{item.color}</code>{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { palette: (sec.palette || []).filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { palette: [...(sec.palette || []), { label: "新顏色", color: "#64748b" }] })} className="text-xs font-semibold text-blue-600">＋ 新增顏色</button>}</div>
+                )}
+
+                {sec.type === "tendency" && <div className="space-y-3">{(sec.tendency || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_8rem_1fr_2rem] items-center gap-2 text-xs"><input value={item.left} disabled={viewMode === "card"} onChange={(event) => { const tendency = [...(sec.tendency || [])]; tendency[index] = { ...item, left: event.target.value }; updateSection(sec.id, { tendency }); }} className="rounded border bg-transparent px-2 py-1.5 text-right disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><input type="range" min={0} max={100} value={item.value} disabled={viewMode === "card"} onChange={(event) => { const tendency = [...(sec.tendency || [])]; tendency[index] = { ...item, value: Number(event.target.value) }; updateSection(sec.id, { tendency }); }} /><input value={item.right} disabled={viewMode === "card"} onChange={(event) => { const tendency = [...(sec.tendency || [])]; tendency[index] = { ...item, right: event.target.value }; updateSection(sec.id, { tendency }); }} className="rounded border bg-transparent px-2 py-1.5 disabled:border-0" style={{ borderColor: "var(--color-border)" }} />{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { tendency: (sec.tendency || []).filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { tendency: [...(sec.tendency || []), { left: "左側", right: "右側", value: 50 }] })} className="text-xs font-semibold text-blue-600">＋ 新增偏向</button>}</div>}
+
+                {sec.type === "statistics" && <div className="space-y-2">{(sec.statistics || []).map((item, index) => <div key={index} className="grid grid-cols-[1fr_2fr_5rem_4rem_2rem] gap-2"><input value={item.label} disabled={viewMode === "card"} onChange={(event) => { const statistics = [...(sec.statistics || [])]; statistics[index] = { ...item, label: event.target.value }; updateSection(sec.id, { statistics }); }} className="rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><input value={item.description} disabled={viewMode === "card"} onChange={(event) => { const statistics = [...(sec.statistics || [])]; statistics[index] = { ...item, description: event.target.value }; updateSection(sec.id, { statistics }); }} className="rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><input type="number" value={item.value} disabled={viewMode === "card"} onChange={(event) => { const statistics = [...(sec.statistics || [])]; statistics[index] = { ...item, value: Number(event.target.value) }; updateSection(sec.id, { statistics }); }} className="rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} /><input value={item.unit || ""} disabled={viewMode === "card"} onChange={(event) => { const statistics = [...(sec.statistics || [])]; statistics[index] = { ...item, unit: event.target.value }; updateSection(sec.id, { statistics }); }} placeholder="單位" className="rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} />{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { statistics: (sec.statistics || []).filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}<div className="text-right text-xs font-semibold">合計：{(sec.statistics || []).reduce((sum, item) => sum + (Number(item.value) || 0), 0)}</div>{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { statistics: [...(sec.statistics || []), { label: "", description: "", value: 0, unit: "" }] })} className="text-xs font-semibold text-blue-600">＋ 新增統計項目</button>}</div>}
+
+                {sec.type === "gallery" && <div className="space-y-3"><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{(sec.galleryAttachmentIds || []).map((attachmentId, index) => <div key={attachmentId} className="relative aspect-square overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}><GalleryAttachment attachmentId={attachmentId} getBlob={getAttachmentBlob} />{viewMode === "edit" && <button onClick={() => updateSection(sec.id, { galleryAttachmentIds: (sec.galleryAttachmentIds || []).filter((_, imageIndex) => imageIndex !== index) })} className="absolute right-1 top-1 rounded bg-black/60 px-1.5 text-xs text-white">×</button>}</div>)}{(sec.gallery || []).map((url, index) => <div key={url + index} className="relative aspect-square overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}><img src={url} alt="相冊圖片" className="h-full w-full object-cover" /></div>)}</div>{viewMode === "edit" && <><input id={`gallery-${sec.id}`} type="file" accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (!file || !onUploadGalleryImage) return; void onUploadGalleryImage(file).then((attachmentId) => updateSection(sec.id, { galleryAttachmentIds: [...(sec.galleryAttachmentIds || []), attachmentId] })); }} /><button onClick={() => document.getElementById(`gallery-${sec.id}`)?.click()} className="text-xs font-semibold text-blue-600">＋ 上傳圖片</button></>}</div>}
+
+                {(sec.type === "links" || sec.type === "music") && <div className="space-y-2">{(sec.type === "music" ? sec.music || [] : sec.externalLinks || []).map((item, index) => <div key={index} className="flex gap-2"><input value={item.label} disabled={viewMode === "card"} onChange={(event) => { const key = sec.type === "music" ? "music" : "externalLinks"; const list = [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || [])]; list[index] = { ...item, label: event.target.value }; updateSection(sec.id, { [key]: list }); }} className="w-1/3 rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0" style={{ borderColor: "var(--color-border)" }} placeholder="名稱" />{viewMode === "card" ? <a href={item.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate rounded border px-2 py-1.5 text-xs text-blue-600" style={{ borderColor: "var(--color-border)" }}>{item.url}</a> : <input value={item.url} onChange={(event) => { const key = sec.type === "music" ? "music" : "externalLinks"; const list = [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || [])]; list[index] = { ...item, url: event.target.value }; updateSection(sec.id, { [key]: list }); }} className="min-w-0 flex-1 rounded border bg-transparent px-2 py-1.5 text-xs" style={{ borderColor: "var(--color-border)" }} placeholder="https://" />}{viewMode === "edit" && <button onClick={() => { const key = sec.type === "music" ? "music" : "externalLinks"; updateSection(sec.id, { [key]: (sec.type === "music" ? sec.music || [] : sec.externalLinks || []).filter((_, linkIndex) => linkIndex !== index) }); }}>×</button>}</div>)}{viewMode === "edit" && <button onClick={() => { const key = sec.type === "music" ? "music" : "externalLinks"; updateSection(sec.id, { [key]: [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || []), { label: "", url: "" }] }); }} className="text-xs font-semibold text-blue-600">＋ 新增{sec.type === "music" ? "音樂" : "連結"}</button>}</div>}
+
                 {/* 4. 長篇描述與背景 (Rich Text) */}
                 {sec.type === "rich_text" && (
                   <div>
@@ -665,7 +672,12 @@ export default function CharacterProfileView({
                         style={{ borderColor: "var(--color-border)" }}
                       />
                     ) : (
-                      <p className="text-xs leading-relaxed opacity-90 whitespace-pre-wrap">{sec.richText || "(尚未填寫背景故事)"}</p>
+                      <div>
+                        <button type="button" onClick={() => setExpandedLongSections((current) => { const next = new Set(current); if (next.has(sec.id)) next.delete(sec.id); else next.add(sec.id); return next; })} className="flex w-full items-center gap-2 text-left text-xs font-medium opacity-80 hover:opacity-100">
+                          <span>{expandedLongSections.has(sec.id) ? "⌄" : "›"}</span><span>{expandedLongSections.has(sec.id) ? "收起長文" : "展開長文"}</span>
+                        </button>
+                        {expandedLongSections.has(sec.id) && <p className="mt-3 text-xs leading-relaxed opacity-90 whitespace-pre-wrap">{sec.richText || "(尚未填寫背景故事)"}</p>}
+                      </div>
                     )}
                   </div>
                 )}
@@ -765,4 +777,3 @@ export default function CharacterProfileView({
     </div>
   );
 }
-

@@ -98,6 +98,9 @@ export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
     isCreatableFromSidebar: false,
     isProject: false,
   },
+  web: { kind: "web", icon: "⌘", label: "Web", labelZh: "網頁", desc: "Link page", descZh: "個人連結與公開頁面", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
+  counter: { kind: "counter", icon: "＋", label: "Counter", labelZh: "計數", desc: "Groups and totals", descZh: "群組、子項目與自動加總", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
+  draw: { kind: "draw", icon: "⤨", label: "Draw", labelZh: "抽選", desc: "Tagged random picker", descZh: "含標籤的隨機抽選資料庫", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
 };
 
 export function isProjectKind(kind?: PageKind): boolean {
