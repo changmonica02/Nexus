@@ -12,6 +12,8 @@ export interface StorageAdapter {
   getPage(id: ID): Promise<Page | null>;
   listPages(query?: PageQuery): Promise<Page[]>;
   savePage(page: Page): Promise<Page>;
+  /** Atomically persists chapter activation and its independent records. */
+  savePages(pages: Page[]): Promise<void>;
   createPage(input?: CreatePageInput): Promise<Page>;
   deletePage(id: ID): Promise<void>;
   restorePage(id: ID): Promise<Page>;

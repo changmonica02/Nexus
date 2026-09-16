@@ -1,15 +1,12 @@
 "use client";
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import type { Page, NovelSettings } from "../lib/types";
+import type { Page, NovelSettings, NovelChapter } from "../lib/types";
+import { emptyNovelDocument } from "../lib/novelChapters";
+import { useWorkspaceDialog } from "./WorkspaceDialog";
 import TiptapEditor from "./TiptapEditor";
 import katex from "katex";
 
-interface ChapterHeading {
-  id: string;
-  title: string;
-  level: number;
-  rootIndex?: number;
-}
+type ChapterHeading = NovelChapter & { level: number };
 
 const THEME_STYLES: Record<
   NonNullable<NovelSettings["theme"]>,
@@ -79,6 +76,10 @@ const FONT_FAMILIES = {
 
 export default function NovelReaderView({
   page,
+  chapterRecords,
+  onEnableChapters,
+  onCreateChapter,
+  onPatchChapter,
   onTitleChange,
   onContentChange,
   onUpdateSettings,
@@ -90,6 +91,10 @@ export default function NovelReaderView({
   continueEditSignal = 0,
 }: {
   page: Page;
+  chapterRecords: NovelChapter[];
+  onEnableChapters: () => Promise<void>;
+  onCreateChapter: () => Promise<NovelChapter>;
+  onPatchChapter: (id: string, patch: Partial<NovelChapter>) => void;
   onTitleChange: (title: string) => void;
   onContentChange: (json: any, text: string) => void;
   onUpdateSettings: (settings: NovelSettings) => void;
@@ -101,6 +106,7 @@ export default function NovelReaderView({
   /** Raised by the application-level menu next to the account button. */
   continueEditSignal?: number;
 }) {
+  const { askText, askConfirm, dialog } = useWorkspaceDialog();
   // 小說先以作品總覽呈現；讀者可從目錄選擇章節後再進入閱讀或編輯。
   const [mode, setMode] = useState<"overview" | "read" | "edit">("overview");
   const [tocOpen, setTocOpen] = useState(true); // 預設開啟目錄，如小說軟體
@@ -113,12 +119,17 @@ export default function NovelReaderView({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [coverError, setCoverError] = useState<string | null>(null);
-  // Keep an optimistic document while the parent saves. This prevents the
-  // editor mount from briefly receiving the previous document after adding a
-  // chapter, especially on slower mobile devices.
-  const [pendingDocument, setPendingDocument] = useState<any | null>(null);
-  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
+  const [chapterError, setChapterError] = useState<string | null>(null);
+  const [chapterBusy, setChapterBusy] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+  const activeChapterIndex = Math.max(0, chapterRecords.findIndex((chapter) => chapter.id === activeChapterId));
+  const activeChapter = chapterRecords[activeChapterIndex];
+  const setActiveChapterIndex = (index: number) => setActiveChapterId(chapterRecords[index]?.id ?? null);
   const modeRef = useRef(mode);
+  // Keep the selected record stable when another chapter moves or disappears.
+  useEffect(() => {
+    if (activeChapter?.id !== activeChapterId) setActiveChapterId(activeChapter?.id ?? null);
+  }, [activeChapter?.id, activeChapterId]);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { if (continueEditSignal > 0) setMode("edit"); }, [continueEditSignal]);
@@ -145,6 +156,7 @@ export default function NovelReaderView({
 
   const settings: NovelSettings = useMemo(
     () => ({
+      ...page.novel_settings,
       synopsis: page.novel_settings?.synopsis || "",
       coverAttachmentId: page.novel_settings?.coverAttachmentId || null,
       theme: page.novel_settings?.theme || "parchment",
@@ -187,67 +199,28 @@ export default function NovelReaderView({
 
   const currentTheme = THEME_STYLES[settings.theme || "parchment"] || THEME_STYLES.parchment;
   const currentFont = FONT_FAMILIES[settings.fontFamily || "serif"] || FONT_FAMILIES.serif;
-  const documentContent = pendingDocument ?? page.content_json;
-
-  useEffect(() => {
-    if (pendingDocument && page.content_json === pendingDocument) setPendingDocument(null);
-  }, [page.content_json, pendingDocument]);
-
-  // Extract chapters & headings from content_json
-  const chapters: ChapterHeading[] = useMemo(() => {
-    const doc = (documentContent as any) || { content: [] };
-    const headings: ChapterHeading[] = [];
-    let idx = 0;
-
-    function extract(node: any, rootIndex?: number) {
-      if (!node) return;
-      if (node.type === "heading" && (node.attrs?.level === 1 || node.attrs?.level === 2)) {
-        let text = "";
-        if (Array.isArray(node.content)) {
-          text = node.content.map((c: any) => c.text || "").join("");
-        }
-        if (text.trim()) {
-          headings.push({
-            id: `heading-${idx++}`,
-            title: text.trim(),
-            level: node.attrs?.level || 1,
-            rootIndex,
-          });
-        }
-      }
-      if (Array.isArray(node.content)) {
-        node.content.forEach((child: any) => extract(child, rootIndex));
-      }
-    }
-
-    if (Array.isArray(doc.content)) doc.content.forEach((node: any, index: number) => extract(node, index));
-    return headings;
-  }, [documentContent]);
-
-  // A chapter is a top-level heading plus everything until the next
-  // top-level heading. Existing novels keep their current document format,
-  // while the reader treats each chapter as its own page.
-  const chapterPages = useMemo(() => chapters.filter((chapter) => chapter.level === 1 && chapter.rootIndex !== undefined), [chapters]);
-
-  useEffect(() => {
-    setActiveChapterIndex((index) => Math.max(0, Math.min(index, Math.max(0, chapterPages.length - 1))));
-  }, [chapterPages.length]);
+  const enabled = !!page.novel_settings?.chaptersEnabled;
+  const documentContent = enabled ? activeChapter?.content_json ?? emptyNovelDocument() : page.content_json;
+  const chapters: ChapterHeading[] = useMemo(() => chapterRecords.map((chapter) => ({ ...chapter, level: 1 })), [chapterRecords]);
+  const chapterPages = chapters;
 
   // Total word count (移除預估閱讀時間)
   const stats = useMemo(() => {
-    const text = page.content_text || "";
+    const text = enabled ? chapterRecords.map((chapter) => chapter.content_text).join("\n") : page.content_text || "";
     // Count Chinese characters & words
     const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
     const englishWords = (text.match(/[a-zA-Z0-9_-]+/g) || []).length;
     const totalCount = chineseChars + englishWords;
     return { totalCount };
-  }, [page.content_text]);
+  }, [page.content_text, enabled, chapterRecords]);
 
   // 封裝內容與標題變更的自動存檔狀態
   const handleContentWithAutoSave = (json: any, text: string) => {
-    setPendingDocument(json);
     setSaveStatus("saving");
-    onContentChange(json, text);
+    if (enabled) {
+      if (!activeChapter) return;
+      onPatchChapter(activeChapter.id, { content_json: json, content_text: text });
+    } else onContentChange(json, text);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       setSaveStatus("saved");
@@ -284,92 +257,36 @@ export default function NovelReaderView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // 直覺新增章節：自動生成下一章節並切換至編輯模式
-  const handleAddChapter = () => {
-    const savedDocument = (documentContent as any) || { type: "doc", content: [] };
-    // Clone so Tiptap never receives a partially-mutated object from an older
-    // document while React is applying the parent update.
-    const doc = JSON.parse(JSON.stringify(savedDocument));
-    const currentContents = Array.isArray(doc.content) ? [...doc.content] : [];
-    
-    // New chapters deliberately have no suggested subtitle or body text.
-    // The author can name and start each chapter without deleting placeholders.
-    const nextChapterNumber = chapters.length + 1;
-    const chapterName = `第${nextChapterNumber}章`;
-
-    const newHeadingNode = {
-      type: "heading",
-      attrs: { level: 1 },
-      content: [{ type: "text", text: chapterName }],
-    };
-    const newParagraphNode = { type: "paragraph" };
-
-    const newContentJson = {
-      ...doc,
-      type: "doc",
-      content: [...currentContents, newHeadingNode, newParagraphNode],
-    };
-
-    const appendedText = `${page.content_text?.trimEnd() ? "\n\n" : ""}${chapterName}\n\n`;
-    const newContentText = (page.content_text || "") + appendedText;
-
-    handleContentWithAutoSave(newContentJson, newContentText);
-    // Let the optimistic document reach the editor before mounting it.
-    requestAnimationFrame(() => setMode("edit"));
-
-    // 若目錄收起則自動打開
-    setTocOpen(true);
+  const handleAddChapter = async () => {
+    if (chapterBusy) return;
+    setChapterBusy(true);
+    setChapterError(null);
+    try {
+      if (!enabled) await onEnableChapters();
+      else {
+        const chapter = await onCreateChapter();
+        setActiveChapterId(chapter.id);
+      }
+      setMode("edit");
+      setTocOpen(true);
+    } catch {
+      setChapterError("章節儲存失敗，請重試。");
+    } finally { setChapterBusy(false); }
   };
-
-  const saveChapterStructure = (content: any[]) => {
-    const nextJson = { ...(page.content_json as any), type: "doc", content };
-    const textParts: string[] = [];
-    const collectText = (node: any) => {
-      if (node?.text) textParts.push(node.text);
-      if (Array.isArray(node?.content)) node.content.forEach(collectText);
-      if (["paragraph", "heading", "blockquote"].includes(node?.type)) textParts.push("\n");
-    };
-    content.forEach(collectText);
-    handleContentWithAutoSave(nextJson, textParts.join("").replace(/\n{3,}/g, "\n\n").trim());
+  const renameChapter = async (chapter: ChapterHeading) => {
+    const title = (await askText("章節名稱", chapter.title))?.trim();
+    if (title) onPatchChapter(chapter.id, { title });
   };
-
-  const renameChapter = (chapter: ChapterHeading) => {
-    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
-    const nextTitle = window.prompt("章節名稱", chapter.title)?.trim();
-    if (!nextTitle || nextTitle === chapter.title) return;
-    const content = [...(((page.content_json as any)?.content as any[]) || [])];
-    const node = content[chapter.rootIndex];
-    if (!node || node.type !== "heading") return;
-    content[chapter.rootIndex] = { ...node, content: [{ type: "text", text: nextTitle }] };
-    saveChapterStructure(content);
-  };
-
   const moveChapter = (chapter: ChapterHeading, direction: -1 | 1) => {
-    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
-    const content = [...(((page.content_json as any)?.content as any[]) || [])];
-    const starts = content.reduce<number[]>((list, node, index) => node?.type === "heading" && node?.attrs?.level === 1 ? [...list, index] : list, []);
-    const position = starts.indexOf(chapter.rootIndex);
-    const targetPosition = position + direction;
-    if (position < 0 || targetPosition < 0 || targetPosition >= starts.length) return;
-    const start = starts[position];
-    const end = starts[position + 1] ?? content.length;
-    const targetStart = starts[targetPosition];
-    const targetEnd = starts[targetPosition + 1] ?? content.length;
-    const currentChunk = content.slice(start, end);
-    const targetChunk = content.slice(targetStart, targetEnd);
-    if (direction < 0) content.splice(targetStart, end - targetStart, ...currentChunk, ...targetChunk);
-    else content.splice(start, targetEnd - start, ...targetChunk, ...currentChunk);
-    saveChapterStructure(content);
+    const index = chapters.findIndex((item) => item.id === chapter.id);
+    const target = index + direction;
+    if (target < 0 || target >= chapters.length) return;
+    const reordered = [...chapters];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    reordered.forEach((item, sort_order) => onPatchChapter(item.id, { sort_order }));
   };
-
-  const deleteChapter = (chapter: ChapterHeading) => {
-    if (chapter.level !== 1 || chapter.rootIndex === undefined) return;
-    if (!window.confirm(`刪除「${chapter.title}」及其全部內容？此操作無法復原。`)) return;
-    const content = [...(((page.content_json as any)?.content as any[]) || [])];
-    let end = chapter.rootIndex + 1;
-    while (end < content.length && !(content[end]?.type === "heading" && content[end]?.attrs?.level === 1)) end++;
-    content.splice(chapter.rootIndex, end - chapter.rootIndex);
-    saveChapterStructure(content);
+  const deleteChapter = async (chapter: ChapterHeading) => {
+    if (await askConfirm(`刪除「${chapter.title}」及其內容？`)) onPatchChapter(chapter.id, { deleted_at: Date.now() });
   };
 
   // Handle scroll progress in reader mode
@@ -396,11 +313,7 @@ export default function NovelReaderView({
       );
     }
 
-    const topLevel = chapterPages[activeChapterIndex];
-    const startIndex = topLevel?.rootIndex ?? 0;
-    const nextTopLevel = chapterPages[activeChapterIndex + 1];
-    const endIndex = nextTopLevel?.rootIndex ?? doc.content.length;
-    const visibleNodes = mode === "read" && topLevel ? doc.content.slice(startIndex, endIndex) : doc.content;
+    const visibleNodes = doc.content;
     let headingCounter = 0;
 
     return visibleNodes.map((node: any, i: number) => {
@@ -487,19 +400,10 @@ export default function NovelReaderView({
     });
   }, [documentContent, settings, currentTheme, mode, chapterPages, activeChapterIndex]);
 
-  const scrollToHeading = (id: string) => {
-    if (!readerScrollRef.current) return;
-    const el = readerScrollRef.current.querySelector(`#${id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      // 保持目錄常駐，不強制收合，如現代小說閱讀軟體
-    }
-  };
-
   const openChapter = (id: string) => {
     const nextIndex = chapterPages.findIndex((chapter) => chapter.id === id);
     if (nextIndex >= 0) setActiveChapterIndex(nextIndex);
-    setMode("read");
+    setMode((current) => current === "edit" ? "edit" : "read");
     requestAnimationFrame(() => { if (readerScrollRef.current) readerScrollRef.current.scrollTop = 0; });
   };
 
@@ -508,6 +412,19 @@ export default function NovelReaderView({
     setActiveChapterIndex(nextIndex);
     requestAnimationFrame(() => readerScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
   };
+
+  const chapterNavigation = (position: string) => chapterPages.length > 0 && (
+                <nav className="my-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-y py-5 text-sm" style={{ borderColor: currentTheme.border }} aria-label={`${position}章節翻頁`}>
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex - 1)} disabled={activeChapterIndex === 0} className="justify-self-start rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>← 上一章</button>
+                  <label className="relative">
+                    <span className="sr-only">選擇章節</span>
+                    <select value={activeChapterIndex} onChange={(event) => switchChapter(Number(event.target.value))} className="max-w-[35vw] sm:max-w-64 rounded-lg border bg-transparent px-2 py-2 text-center text-xs outline-none" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>
+                      {chapterPages.map((chapter, index) => <option key={chapter.id} value={index}>{String(index + 1).padStart(2, "0")}　{chapter.title}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex + 1)} disabled={activeChapterIndex >= chapterPages.length - 1} className="justify-self-end rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>下一章 →</button>
+                </nav>
+              );
 
   if (mode === "overview") {
     return (
@@ -552,15 +469,16 @@ export default function NovelReaderView({
               <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-70"><span>{chapters.length} 個章節</span><span>{stats.totalCount.toLocaleString()} 字</span><span>{currentTheme.name} 閱讀主題</span></div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <button onClick={() => setMode("read")} className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-85" style={{ backgroundColor: settings.theme === "dark" ? "#5f8fce" : "#476e9e" }}>開始閱讀</button>
-                <button type="button" onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }}>＋ 新增章節</button>
+                <button type="button" onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }} disabled={chapterBusy}>{enabled ? "＋ 新增章節" : "啟用章節工作區"}</button>
               </div>
             </div>
           </section>
 
+          {chapterError && <p role="alert" className="mt-4 text-red-600">{chapterError}</p>}
           <section className="mt-10 border-t pt-6" style={{ borderColor: currentTheme.border }}>
             <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-lg font-bold">完整目錄</p><p className="mt-1 text-xs opacity-60">點選章節即可從該處開始閱讀</p></div><span className="text-xs opacity-60">共 {chapters.length} 節</span></div>
             {chapters.length === 0 ? (
-              <button type="button" onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>尚未建立章節，點此新增第一章</button>
+              <button type="button" onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>{enabled ? "尚未建立章節，點此新增第一章" : "啟用章節工作區（先轉存舊正文，再清空作品正文）"}</button>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {chapters.map((chapter, index) => <button key={chapter.id} onClick={() => openChapter(chapter.id)} className="flex min-w-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-opacity hover:opacity-70" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.barBg }}><span className="shrink-0 text-xs opacity-50">{String(index + 1).padStart(2, "0")}</span><span className={`truncate text-sm ${chapter.level === 2 ? "pl-3 opacity-80" : "font-semibold"}`}>{chapter.title}</span></button>)}
@@ -834,6 +752,7 @@ export default function NovelReaderView({
         </div>
       </header>
 
+      {dialog}
       {/* Mobile keeps the essential actions in a compact, non-wrapping bar.
           The desktop toolbar cannot fit a phone once the editor is active. */}
       <header
@@ -849,6 +768,7 @@ export default function NovelReaderView({
         <button onClick={() => setMode(mode === "edit" ? "read" : "edit")} className="rounded-md border px-2 py-1.5 text-xs font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={mode === "edit" ? "查看閱讀結果" : "回到編輯"}>{mode === "edit" ? "閱讀" : "編輯"}</button>
       </header>
 
+      {chapterError && <p role="alert" className="p-3 text-red-600">{chapterError}</p>}
       {/* 閱讀進度條 */}
       {mode === "read" && (
         <div className="w-full h-1 bg-zinc-200/40 relative overflow-hidden">
@@ -873,7 +793,7 @@ export default function NovelReaderView({
             <div className="flex items-center justify-between mb-3 pb-2 border-b" style={{ borderColor: currentTheme.border }}>
               <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: currentTheme.text }}>
                 <span>📑</span>
-                <span>章回大綱目錄</span>
+                <span>章節工作區</span>
               </span>
               <button onClick={() => setTocOpen(false)} className="text-xs opacity-50 hover:opacity-100 p-1 cursor-pointer" title="關閉目錄">
                 ✕
@@ -891,7 +811,7 @@ export default function NovelReaderView({
               }}
             >
               <span className="text-blue-600 dark:text-blue-400 font-bold">＋</span>
-              <span>新增章節</span>
+              <span>{enabled ? "新增章節" : "啟用章節工作區"}</span>
             </button>
 
             {chapters.length === 0 ? (
@@ -901,7 +821,7 @@ export default function NovelReaderView({
                   onClick={handleAddChapter}
                   className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
                 >
-                  ＋ 建立第一章
+                  {enabled ? "＋ 建立第一章" : "啟用章節工作區"}
                 </button>
               </div>
             ) : (
@@ -951,23 +871,14 @@ export default function NovelReaderView({
                 </div>
               </div>
 
+              {chapterNavigation("頂部")}
               {/* 小說正文 */}
               <div className="novel-body selection:bg-amber-200 selection:text-black">
+                {enabled && activeChapter && <h2 className="mb-6 text-center text-2xl font-bold">{activeChapter.title}</h2>}
                 {renderedContent}
               </div>
 
-              {chapterPages.length > 0 && (
-                <nav className="mt-14 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-y py-5 text-sm" style={{ borderColor: currentTheme.border }} aria-label="章節翻頁">
-                  <button type="button" onClick={() => switchChapter(activeChapterIndex - 1)} disabled={activeChapterIndex === 0} className="justify-self-start rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>← 上一章</button>
-                  <label className="relative">
-                    <span className="sr-only">選擇章節</span>
-                    <select value={activeChapterIndex} onChange={(event) => switchChapter(Number(event.target.value))} className="max-w-40 rounded-lg border bg-transparent px-2 py-2 text-center text-xs outline-none" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>
-                      {chapterPages.map((chapter, index) => <option key={chapter.id} value={index}>{String(index + 1).padStart(2, "0")}　{chapter.title}</option>)}
-                    </select>
-                  </label>
-                  <button type="button" onClick={() => switchChapter(activeChapterIndex + 1)} disabled={activeChapterIndex >= chapterPages.length - 1} className="justify-self-end rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>下一章 →</button>
-                </nav>
-              )}
+              {chapterNavigation("底部")}
 
               {/* 結尾標誌 */}
               <div className="mt-12 pt-8 pb-16 text-center border-t opacity-40 text-xs" style={{ borderColor: currentTheme.border, color: currentTheme.subText }}>
@@ -978,15 +889,19 @@ export default function NovelReaderView({
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pb-[calc(8rem+env(safe-area-inset-bottom))]">
-              <TiptapEditor
+              {chapterNavigation("頂部")}
+              {enabled && activeChapter && <input aria-label="章節標題" value={activeChapter.title} onChange={(event) => onPatchChapter(activeChapter.id, { title: event.target.value })} className="w-full border-b bg-transparent p-5 text-xl font-bold" />}
+              {(!enabled || activeChapter) ? <TiptapEditor
+                key={activeChapter?.id ?? page.id}
                 content={documentContent}
                 onChange={({ json, text }: { json: any; text: string }) => {
                   handleContentWithAutoSave(json, text);
                 }}
-                paneId="novel-editor"
+                paneId={`novel-editor-${activeChapter?.id ?? page.id}`}
                 variant="novel"
                 showToolbar={true}
-              />
+              /> : <button onClick={handleAddChapter} className="p-8">＋ 建立第一章</button>}
+              {chapterNavigation("底部")}
             </div>
           </div>
         )}

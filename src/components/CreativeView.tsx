@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { isCreativeCharacterPage, type Page } from "../lib/types";
+import CharacterTemplateManager from "./CharacterTemplateManager";
 import { useLanguage } from "../lib/LanguageContext";
 
 // 書本封面主題配色庫
@@ -39,15 +40,22 @@ export default function CreativeView({
   onCreateWorld,
   onSelectPage,
   onDeletePage,
+  templates = [],
+  onCreateTemplate,
+  onRenameTemplate,
 }: {
   pages: Page[];
-  onCreateCharacter: (templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e") => void;
+  onCreateCharacter: (templateId?: string) => void;
+  templates?: Page[];
+  onCreateTemplate: () => void;
+  onRenameTemplate: (id: string, title: string) => void;
   onCreateWorld: () => void;
   onSelectPage: (id: string) => void;
   onDeletePage?: (id: string) => void;
 }) {
   const { t } = useLanguage();
   const [charModalOpen, setCharModalOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
 
   // Windows 總管三種檢視模式：圖示 (icons)、清單 (list)、詳細資料 (details)
   const [viewMode, setViewMode] = useState<"icons" | "list" | "details">("icons");
@@ -70,7 +78,7 @@ export default function CreativeView({
 
   const creativePages = useMemo(() => {
     // 小說有專屬入口；創作工作台只管理角色與創作素材。
-    return pages.filter((p) => !p.deleted_at && isCreativeCharacterPage(p));
+    return pages.filter((p) => !p.deleted_at && !p.character_data?.isTemplate && isCreativeCharacterPage(p));
   }, [pages]);
 
   const characterPages = useMemo(() => {
@@ -112,6 +120,7 @@ export default function CreativeView({
 
   return (
     <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      {templateManagerOpen && <CharacterTemplateManager templates={templates} onClose={() => setTemplateManagerOpen(false)} onCreate={onCreateTemplate} onEdit={onSelectPage} onRename={onRenameTemplate} onDelete={(id) => onDeletePage?.(id)} onUse={onCreateCharacter} />}
       <div className="mx-auto w-full max-w-[960px] p-6 sm:p-10 space-y-8">
         {/* 標題與簡介 */}
         <div>
@@ -122,6 +131,7 @@ export default function CreativeView({
           <p className="text-xs opacity-60 mt-1">管理世界觀、角色檔案與創作素材；小說請從獨立的「小說」功能進入。</p>
         </div>
 
+        <button onClick={() => setTemplateManagerOpen(true)} className="rounded-lg border px-4 py-2 text-sm" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>模板管理</button>
         {/* 快速新增區塊 */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* 新增角色卡片 */}
@@ -155,11 +165,11 @@ export default function CreativeView({
           </button>
         </div>
 
-        {/* 角色範本選擇 Modal */}
+        {/* 角色模板選擇 Modal */}
         {charModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
             <div
-              className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+              className="max-h-[85dvh] overflow-y-auto w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
               style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
             >
               <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: "var(--color-border)" }}>
@@ -189,36 +199,6 @@ export default function CreativeView({
                 </button>
                 <button
                   onClick={() => {
-                    onCreateCharacter("fantasy");
-                    setCharModalOpen(false);
-                  }}
-                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
-                  style={{ borderColor: "var(--color-border)" }}
-                >
-                  <span className="text-2xl mt-0.5">🌟</span>
-                  <div>
-                    <div className="font-bold text-sm group-hover:text-blue-600">奇幻冒險 / 武俠角色模板</div>
-                    <div className="text-xs opacity-60 mt-0.5">包含遊俠/魔劍士設定、陣營、戰鬥五維數值與傳承背景</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onCreateCharacter("modern");
-                    setCharModalOpen(false);
-                  }}
-                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
-                  style={{ borderColor: "var(--color-border)" }}
-                >
-                  <span className="text-2xl mt-0.5">🏙️</span>
-                  <div>
-                    <div className="font-bold text-sm group-hover:text-blue-600">現代懸疑 / 科幻角色模板</div>
-                    <div className="text-xs opacity-60 mt-0.5">包含刑偵顧問、犯罪心理分析、履歷檔案與懸案密碼</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
                     onCreateCharacter("blank");
                     setCharModalOpen(false);
                   }}
@@ -231,6 +211,7 @@ export default function CreativeView({
                     <div className="text-xs opacity-60 mt-0.5">純淨空白，隨心所欲自由新增鍵值、標籤、數值與關係組件</div>
                   </div>
                 </button>
+                {templates.length > 0 && <div className="border-t pt-3"><p className="mb-2 text-xs opacity-60">自訂模板</p>{templates.map((template) => <button key={template.id} onClick={() => { onCreateCharacter(template.id); setCharModalOpen(false); }} className="mb-2 w-full rounded-lg border p-3 text-left text-sm" style={{ borderColor: "var(--color-border)" }}>{template.title}</button>)}</div>}
               </div>
             </div>
           </div>

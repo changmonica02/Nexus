@@ -240,14 +240,17 @@ export class SyncEngine {
         if (cloudPage.updated_at > maxUpdatedAt) maxUpdatedAt = cloudPage.updated_at;
       }
 
-      // Push local pages ??cloud (if local is newer or doesn't exist on cloud)
+      // Push all pending page records together, including offline chapter activation.
+      const pendingPages: Page[] = [];
       for (const localPage of localPages) {
         const cloudPage = (cloudPages || []).find((cp: { id: string }) => cp.id === localPage.id);
         if (!cloudPage || localPage.updated_at > cloudPage.updated_at) {
-          await this.pushPage(localPage);
+          pendingPages.push(localPage);
         }
         if (localPage.updated_at > maxUpdatedAt) maxUpdatedAt = localPage.updated_at;
       }
+
+      await this.pushPages(pendingPages);
 
       // Push local attachments ??cloud (if local is newer or doesn't exist on cloud)
       // M4-1 fix: previously fullSync only pushed pages; attachments/binaries created
@@ -394,9 +397,14 @@ export class SyncEngine {
 
   /** Push a single page to cloud */
   async pushPage(page: Page): Promise<void> {
-    if (this.destroyed || page.workspace_owner_id !== this.userId) return;
+    return this.pushPages([page]);
+  }
+
+  /** One upsert keeps chapter activation and its parent change atomic remotely. */
+  async pushPages(pages: Page[]): Promise<void> {
+    if (this.destroyed || !pages.length || pages.some((page) => page.workspace_owner_id !== this.userId)) return;
     try {
-      const { error: upErr } = await this.supabase.from("pages").upsert({
+      const { error: upErr } = await this.supabase.from("pages").upsert(pages.map((page) => ({
         id: page.id, owner_id: this.userId, title: page.title, content_json: page.content_json,
         content_text: page.content_text, default_mode: page.default_mode,
         created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
@@ -418,10 +426,11 @@ export class SyncEngine {
         character_data: page.character_data ?? null,
         novel_settings: page.novel_settings ?? null,
         assistant_blocks: page.assistant_blocks ?? null,
-      }, { onConflict: "id" });
+      })), { onConflict: "id" });
       if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
 
-      if (page.updated_at > this.lastSyncAt) this.setState({ lastSyncAt: page.updated_at });
+      const updatedAt = Math.max(...pages.map((page) => page.updated_at));
+      if (!upErr && updatedAt > this.lastSyncAt) this.setState({ lastSyncAt: updatedAt });
     } catch (err) {
       console.error("[SyncEngine] pushPage error:", err);
     }

@@ -34,7 +34,7 @@ export interface Attachment {
   workspace_owner_id?: ID | null;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "web" | "counter" | "draw";
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "novel_chapter" | "web" | "counter" | "draw";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**
@@ -188,6 +188,8 @@ export function isNovelPage(page: Page): boolean {
 }
 
 export interface NovelSettings {
+  /** Set only by explicit, transactional chapter activation. */
+  chaptersEnabled?: boolean;
   /** Independent work overview shown before entering the reader. */
   synopsis?: string;
   /** Image attachment used only as the novel cover. */
@@ -200,7 +202,14 @@ export interface NovelSettings {
   showWordCount?: boolean;
 }
 
-export type CharacterComponentType = "key_value" | "rich_text" | "tags" | "stats" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
+/** An independent record in the pages store, synced and backed up as a page. */
+export interface NovelChapter extends Page {
+  kind: "novel_chapter";
+  parent_id: ID;
+  sort_order: number;
+}
+
+export type CharacterComponentType = "group" | "key_value" | "rich_text" | "tags" | "stats" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
 
 export interface CharacterKeyValueItem {
   key: string;
@@ -227,6 +236,11 @@ export interface CharacterSection {
   type: CharacterComponentType;
   title: string;
   icon?: string;
+  /** Mixed content belonging to one user-defined block. */
+  contents?: CharacterSection[];
+  /** Example text shown as placeholders, never as filled-in data. */
+  example?: CharacterSection;
+  statisticHeaders?: { label: string; description: string; value: string; unit: string };
   keyValues?: CharacterKeyValueItem[];
   richText?: string;
   tags?: string[];
@@ -248,6 +262,9 @@ export interface CharacterPageTab {
 }
 
 export interface CharacterProfileData {
+  isTemplate?: boolean;
+  templateSourceId?: ID;
+  basicExamples?: Partial<CharacterProfileData["basic"]>;
   templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e";
   basic: {
     name: string;

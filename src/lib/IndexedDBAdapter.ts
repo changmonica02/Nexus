@@ -117,6 +117,13 @@ export class IndexedDBAdapter implements StorageAdapter {
     return page;
   }
 
+  async savePages(pages: Page[]): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const tx = this.db.transaction("pages", "readwrite");
+    await Promise.all(pages.map((page) => tx.store.put(page)));
+    await tx.done;
+  }
+
   async createPage(input?: CreatePageInput): Promise<Page> {
     if (!this.db) throw new Error("DB not initialized");
     const now = Date.now();

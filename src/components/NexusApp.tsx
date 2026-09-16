@@ -13,6 +13,8 @@ import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
 import { nanoid } from "nanoid";
 import type {
   Page,
+  NovelChapter,
+  CharacterProfileData,
   Attachment,
   WorkspaceBackup,
   StudyItem,
@@ -21,6 +23,8 @@ import type {
   CreatePageInput,
   PageKind,
 } from "../lib/types";
+import { instantiateCharacterTemplate, snapshotCharacterTemplate } from "../lib/characterWorkspace";
+import { emptyNovelDocument, getNovelChapters, splitLegacyNovel } from "../lib/novelChapters";
 import { isNovelPage } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
@@ -351,13 +355,13 @@ function NexusAppInner({
       if (savedNightAdapt === true) setIsPageNightAdapt(true);
 
       const savedId = hasAuthenticatedSession ? await adapter.getActivePageId() : null;
-      const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.deleted_at === null) : null;
+      const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.kind !== "novel_chapter" && p.deleted_at === null) : null;
 
       if (savedPage) {
         setActivePageId(savedPage.id);
       } else if (allPages.length > 0) {
-        setActivePageId(allPages[0].id);
-        await adapter.setActivePageId(allPages[0].id);
+        setActivePageId((allPages.find((page) => page.kind !== "novel_chapter")?.id ?? null));
+        await adapter.setActivePageId((allPages.find((page) => page.kind !== "novel_chapter")?.id ?? null));
       }
 
       setIsReady(true);
@@ -393,8 +397,8 @@ function NexusAppInner({
             setPages(accountPages);
             setAttachments(await adapter.listAttachments());
             const storedActiveId = await adapter.getActivePageId();
-            if (!accountPages.some((page) => page.id === storedActiveId)) {
-              const nextActiveId = accountPages[0]?.id ?? null;
+            if (!accountPages.some((page) => page.id === storedActiveId && page.kind !== "novel_chapter")) {
+              const nextActiveId = accountPages.find((page) => page.kind !== "novel_chapter")?.id ?? null;
               setActivePageId(nextActiveId);
               await adapter.setActivePageId(nextActiveId);
             }
@@ -494,6 +498,68 @@ function NexusAppInner({
       return next;
     });
   }, [scheduleSave]);
+
+  const chapterMutationRef = useRef(new Set<string>());
+  const createNovelChapter = useCallback(async (novelId: string): Promise<NovelChapter> => {
+    const storage = storageRef.current;
+    const novel = pages.find((page) => page.id === novelId);
+    if (!storage || !novel || !novel.novel_settings?.chaptersEnabled) throw new Error("Chapter workspace is not enabled");
+    const chapters = getNovelChapters(pages, novelId);
+    const now = Date.now();
+    const chapter: NovelChapter = {
+      id: `chapter_${nanoid()}`, kind: "novel_chapter", parent_id: novelId,
+      sort_order: Math.max(-1, ...chapters.map((item) => item.sort_order)) + 1,
+      title: `第${chapters.length + 1}章`, content_json: emptyNovelDocument(), content_text: "",
+      created_at: now, updated_at: now, deleted_at: null, revision: 1,
+      device_id: await storage.getDeviceId(), default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+    };
+    await storage.savePage(chapter);
+    setPages((prev) => [...prev, chapter]);
+    void syncEngineRef.current?.pushPage(chapter);
+    return chapter;
+  }, [pages]);
+
+  const enableNovelChapters = useCallback(async (novelId: string) => {
+    if (chapterMutationRef.current.has(novelId)) return;
+    const storage = storageRef.current;
+    if (!storage) throw new Error("Storage unavailable");
+    chapterMutationRef.current.add(novelId);
+    try {
+      await flushAllSaves();
+      const novel = await storage.getPage(novelId);
+      if (!novel || novel.novel_settings?.chaptersEnabled) return;
+      const now = Date.now();
+      const device_id = await storage.getDeviceId();
+      const parts = splitLegacyNovel(novel);
+      if (!parts.length) parts.push({ title: "第1章", content_json: emptyNovelDocument(), content_text: "" });
+      const chapters: NovelChapter[] = parts.map((part, sort_order) => ({
+        ...part, id: `chapter_${nanoid()}`, kind: "novel_chapter", parent_id: novelId, sort_order,
+        created_at: now, updated_at: now, deleted_at: null, revision: 1, device_id,
+        default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+      }));
+      const updated: Page = { ...novel, novel_settings: { ...novel.novel_settings, chaptersEnabled: true },
+        content_json: emptyNovelDocument(), content_text: "", updated_at: now, revision: novel.revision + 1 };
+      await storage.savePages([...chapters, updated]);
+      setPages((prev) => [...prev.map((page) => page.id === novelId ? updated : page), ...chapters]);
+      await syncEngineRef.current?.pushPages([...chapters, updated]);
+    } finally { chapterMutationRef.current.delete(novelId); }
+  }, [flushAllSaves]);
+
+  const saveCharacterTemplate = useCallback(async (source: Page, title: string, data: CharacterProfileData) => {
+    const storage = storageRef.current;
+    if (!storage) throw new Error("Storage unavailable");
+    const now = Date.now();
+    const template: Page = {
+      id: `template_${nanoid()}`, title, kind: "creative", creative_type: "character",
+      character_data: snapshotCharacterTemplate(data), content_json: emptyNovelDocument(), content_text: "",
+      default_mode: "note", created_at: now, updated_at: now, deleted_at: null, revision: 1,
+      device_id: await storage.getDeviceId(), workspace_owner_id: source.workspace_owner_id,
+      attachment_ids: [...(source.attachment_ids || [])],
+    };
+    await storage.savePage(template);
+    setPages((prev) => [template, ...prev]);
+    void syncEngineRef.current?.pushPage(template);
+  }, []);
 
   const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
     return storageRef.current?.readBinary(attachmentId) || null;
@@ -1036,10 +1102,28 @@ function NexusAppInner({
     syncEngineRef.current?.pushPage(restored);
   }, [storageRef]);
 
+  const permanentlyDeleteNovelChapters = useCallback(async (novelIds: string[]) => {
+    const storage = storageRef.current;
+    if (!storage) return;
+    const chapters = (await storage.listPages({ includeDeleted: true })).filter((page) => page.kind === "novel_chapter" && novelIds.includes(page.parent_id || ""));
+    for (const chapter of chapters) {
+      const timer = saveTimersRef.current.get(chapter.id);
+      if (timer) clearTimeout(timer);
+      saveTimersRef.current.delete(chapter.id);
+      pendingSavesRef.current.delete(chapter.id);
+      await storage.permanentDeletePage(chapter.id);
+      await syncEngineRef.current?.pushPermanentDeletePage(chapter.id);
+    }
+    const ids = new Set(chapters.map((chapter) => chapter.id));
+    setPages((prev) => prev.filter((page) => !ids.has(page.id)));
+    setTrashPages((prev) => prev.filter((page) => !ids.has(page.id)));
+  }, []);
+
   const handlePermanentDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
     const page = trashPages.find((item) => item.id === id);
     const attachmentIds = new Set([page?.primary_attachment_id, ...(page?.attachment_ids || []), page?.novel_settings?.coverAttachmentId].filter(Boolean) as string[]);
+    await permanentlyDeleteNovelChapters([id]);
     await storageRef.current.permanentDeletePage(id);
     for (const attachmentId of attachmentIds) {
       const referencedElsewhere = [...pages, ...trashPages].some((item) => item.id !== id && (
@@ -1053,7 +1137,7 @@ function NexusAppInner({
     }
     setTrashPages((prev) => prev.filter((page) => page.id !== id));
     syncEngineRef.current?.pushPermanentDeletePage(id);
-  }, [pages, storageRef, trashPages]);
+  }, [pages, storageRef, trashPages, permanentlyDeleteNovelChapters]);
 
   const handleDuplicatePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -1076,18 +1160,24 @@ function NexusAppInner({
       content_json: source.content_json,
       content_text: source.content_text,
       links: [...(source.links || [])],
+      creative_type: source.creative_type,
+      novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
+      character_data: source.character_data ? structuredClone(source.character_data) : undefined,
       study_items: source.study_items ? source.study_items.map((item) => ({ ...item, id: `study_${nanoid()}` })) : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
-    await storageRef.current.savePage(pageToSave);
+    const chapters = getNovelChapters(pages, source.id).map((chapter) => ({ ...structuredClone(chapter),
+      id: `chapter_${nanoid()}`, parent_id: pageToSave.id, created_at: Date.now(), updated_at: Date.now(), revision: 1,
+    }));
+    await storageRef.current.savePages([pageToSave, ...chapters]);
     setIsTrashMode(false);
     setIsHomeMode(false);
-    setPages((prev) => [pageToSave, ...prev]);
+    setPages((prev) => [pageToSave, ...chapters, ...prev]);
     setActivePageId(pageToSave.id);
     await storageRef.current.setActivePageId(pageToSave.id);
-    syncEngineRef.current?.pushPage(pageToSave);
+    syncEngineRef.current?.pushPages([pageToSave, ...chapters]);
   }, [flushSave, pages, storageRef]);
 
   const handleImportPdfClick = useCallback(() => pdfInputRef.current?.click(), []);
@@ -1371,7 +1461,7 @@ function NexusAppInner({
       } else {
         // 一般筆記/文檔模式：只在一般筆記（排除 quick_note, todo, creative）中切換至下一個專案頁面
         const remainingProjectPages = pages.filter(
-          (p) => p.id !== id && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative"
+          (p) => p.id !== id && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative" && p.kind !== "novel_chapter"
         );
         if (remainingProjectPages.length > 0) {
           await handleSelectPage(remainingProjectPages[0].id);
@@ -1415,7 +1505,7 @@ function NexusAppInner({
         if (storageRef.current) await storageRef.current.setActivePageId(null);
       } else {
         const remainingProjectPages = pages.filter(
-          (p) => !idSet.has(p.id) && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative"
+          (p) => !idSet.has(p.id) && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative" && p.kind !== "novel_chapter"
         );
         if (remainingProjectPages.length > 0) {
           await handleSelectPage(remainingProjectPages[0].id);
@@ -1446,6 +1536,7 @@ function NexusAppInner({
     const idSet = new Set(ids);
     const deletedPages = trashPages.filter((page) => idSet.has(page.id));
     const candidateAttachmentIds = new Set(deletedPages.flatMap((page) => [page.primary_attachment_id, ...(page.attachment_ids || []), page.novel_settings?.coverAttachmentId].filter(Boolean) as string[]));
+    await permanentlyDeleteNovelChapters(ids);
     for (const id of ids) { await storageRef.current.permanentDeletePage(id); syncEngineRef.current?.pushPermanentDeletePage(id); }
     for (const attachmentId of candidateAttachmentIds) {
       const referencedElsewhere = [...pages, ...trashPages].some((page) => !idSet.has(page.id) && (
@@ -1458,7 +1549,7 @@ function NexusAppInner({
       }
     }
     setTrashPages((prev) => prev.filter((p) => !idSet.has(p.id)));
-  }, [pages, storageRef, trashPages]);
+  }, [pages, storageRef, trashPages, permanentlyDeleteNovelChapters]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1564,7 +1655,7 @@ function NexusAppInner({
           <div className="fixed inset-y-0 left-0 z-50 flex h-screen w-[min(360px,100vw)] shadow-2xl [&>div]:h-full">
       <ResizablePanel side="left" defaultWidth={360} minWidth={220} maxWidth={480} isCollapsed={false}>
         <Sidebar
-          pages={isTrashMode ? trashPages : pages}
+          pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter")}
           activePageId={isTrashMode || isHomeMode ? null : activePageId}
           selectedTag={selectedTag}
           isTrashMode={isTrashMode}
@@ -1637,7 +1728,7 @@ function NexusAppInner({
         {isMobileViewport && !isSidebarCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsSidebarCollapsed(true)} aria-label="關閉左側面板" />}
         <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed} overlay={isMobileViewport}>
           <Sidebar
-            pages={pages}
+            pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
             activePageId={activePageId}
             selectedTag={selectedTag}
             isTrashMode={false}
@@ -1730,10 +1821,10 @@ function NexusAppInner({
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100dvh-4rem)]" : ""}`}>
       {isHomeMode ? (
-        <Dashboard pages={pages} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={async () => { window.location.reload(); }} />
+        <Dashboard pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={async () => { window.location.reload(); }} />
       ) : isQuickNoteMode ? (
         <QuickNotesView
-          pages={pages}
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(txt) => {
             const title = txt.slice(0, 30) || "隨手記";
             void createAndOpenPage({ title, kind: "quick_note" as any, folder: "QuickNotes" }).then((p) => {
@@ -1759,7 +1850,7 @@ function NexusAppInner({
         />
       ) : isTodoMode ? (
         <TodoView
-          pages={pages}
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(title, due) => {
             void createAndOpenPage({ title, kind: "todo" as any }).then((p) => {
               if (p) {
@@ -1852,13 +1943,20 @@ function NexusAppInner({
         />
       ) : isCreativeMode && (!activePage || activePage.kind !== "creative") ? (
         <CreativeView
-          pages={pages}
-          onCreateCharacter={async (templateId = "fantasy") => {
-            let initialData = createFantasyTemplate();
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
+          templates={pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at)}
+          onRenameTemplate={(id, title) => patchPage(id, { title })}
+          onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
+          onCreateCharacter={async (templateId = "blank") => {
+            let initialData = createBlankTemplate();
+            if (templateId === "fantasy") initialData = createFantasyTemplate();
             if (templateId === "modern") initialData = createModernTemplate();
             if (templateId === "blank") initialData = createBlankTemplate();
             if (templateId === "dnd5e") initialData = createDnd5eTemplate();
             if (templateId === "coc7e") initialData = createCoc7eTemplate();
+            const customTemplate = pages.find((page) => page.id === templateId && page.character_data?.isTemplate && !page.deleted_at);
+            if (customTemplate?.character_data) initialData = customTemplate.character_data;
+            initialData = instantiateCharacterTemplate(initialData, customTemplate?.id);
 
             const p = await createAndOpenPage({
               kind: "creative" as any,
@@ -1869,6 +1967,7 @@ function NexusAppInner({
               patchPage(p.id, {
                 creative_type: "character",
                 character_data: initialData,
+                attachment_ids: [...(customTemplate?.attachment_ids || [])],
               });
             }
           }}
@@ -1893,19 +1992,26 @@ function NexusAppInner({
             ) : activePage?.kind === "creative" ? (
               activePage.creative_type === "character" || !!activePage.character_data ? (
                 <CharacterProfileView
+                  key={activePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
                   page={activePage}
                   worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
                   getAttachmentBlob={getNovelCoverBlob}
                   onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
                   onTitleChange={handleTitleChange}
                   onUpdateCharacterData={(cData) => {
-                    patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
+                    patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
                   }}
                   onBackToCreativeOverview={handleShowCreative}
                 />
               ) : (
                 <NovelReaderView
+                  key={activePage.id}
                   page={activePage}
+                  chapterRecords={getNovelChapters(pages, activePage.id)}
+                  onEnableChapters={() => enableNovelChapters(activePage.id)}
+                  onCreateChapter={() => createNovelChapter(activePage.id)}
+                  onPatchChapter={patchPage}
                   onTitleChange={handleTitleChange}
                   onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
                   onUpdateSettings={(nSettings) => {
@@ -1965,19 +2071,26 @@ function NexusAppInner({
             ) : secondaryActivePage.kind === "creative" ? (
               secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
                 <CharacterProfileView
+                  key={secondaryActivePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(secondaryActivePage, name, data)}
                   page={secondaryActivePage}
                   worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
                   getAttachmentBlob={getNovelCoverBlob}
                   onUploadGalleryImage={(file) => uploadCharacterGalleryImage(secondaryActivePage.id, file)}
                   onTitleChange={handleSecondaryTitleChange}
                   onUpdateCharacterData={(cData) => {
-                    patchPage(secondaryActivePage.id, { character_data: cData, title: cData.basic.name || secondaryActivePage.title });
+                    patchPage(secondaryActivePage.id, { character_data: cData, title: cData.isTemplate ? secondaryActivePage.title : cData.basic.name || secondaryActivePage.title });
                   }}
                   onBackToCreativeOverview={handleShowCreative}
                 />
               ) : (
                 <NovelReaderView
+                  key={secondaryActivePage.id}
                   page={secondaryActivePage}
+                  chapterRecords={getNovelChapters(pages, secondaryActivePage.id)}
+                  onEnableChapters={() => enableNovelChapters(secondaryActivePage.id)}
+                  onCreateChapter={() => createNovelChapter(secondaryActivePage.id)}
+                  onPatchChapter={patchPage}
                   onTitleChange={handleSecondaryTitleChange}
                   onContentChange={(json, text) => saveNovelContent(secondaryActivePage.id, json, text)}
                   onUpdateSettings={(nSettings) => {
@@ -2030,19 +2143,26 @@ function NexusAppInner({
       ) : activePage?.kind === "creative" ? (
         activePage.creative_type === "character" || !!activePage.character_data ? (
           <CharacterProfileView
-            page={activePage}
+            key={activePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
+                  page={activePage}
             worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
             getAttachmentBlob={getNovelCoverBlob}
             onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
             onTitleChange={handleTitleChange}
             onUpdateCharacterData={(cData) => {
-              patchPage(activePage.id, { character_data: cData, title: cData.basic.name || activePage.title });
+              patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
             }}
             onBackToCreativeOverview={handleShowCreative}
           />
         ) : (
           <NovelReaderView
-            page={activePage}
+            key={activePage.id}
+                  page={activePage}
+                  chapterRecords={getNovelChapters(pages, activePage.id)}
+                  onEnableChapters={() => enableNovelChapters(activePage.id)}
+                  onCreateChapter={() => createNovelChapter(activePage.id)}
+                  onPatchChapter={patchPage}
             onTitleChange={handleTitleChange}
             onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
             onUpdateSettings={(nSettings) => {
@@ -2091,19 +2211,19 @@ function NexusAppInner({
         <>
           {!isRightPanelCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsRightPanelCollapsed(true)} aria-label="關閉輔助頁" />}
           <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} collapsedWidth={0} isCollapsed={isRightPanelCollapsed} overlay>
-            <RightPanel page={activePage} pages={pages} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
+            <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
           </ResizablePanel>
         </>
       )}
 
       {!isFeatureInterface && !isTabletViewport && (
         <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} isCollapsed={isRightPanelCollapsed}>
-          <RightPanel page={activePage} pages={pages} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
+          <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
         </ResizablePanel>
       )}
       </div>
 
-      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
+      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
       {isDevicePreviewOpen && <DevicePreview onClose={() => setIsDevicePreviewOpen(false)} />}
 
       <NewPageDialog

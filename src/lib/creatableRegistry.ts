@@ -14,6 +14,11 @@ export interface CreatableDefinition {
 }
 
 export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
+  novel_chapter: {
+    kind: "novel_chapter", icon: "📖", label: "Novel chapter", labelZh: "小說章節",
+    desc: "Chapter within a novel", descZh: "小說作品的獨立章節", defaultFormat: "flow",
+    isCreatableFromSidebar: false, isProject: false,
+  },
   note: {
     kind: "note",
     icon: "📝",

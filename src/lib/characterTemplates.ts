@@ -142,55 +142,54 @@ export function createModernTemplate(): CharacterProfileData {
 }
 
 export function createBlankTemplate(): CharacterProfileData {
+  return { templateId: "blank", basic: { name: "" }, sections: [], tabs: [] };
+}
+
+const section = (type: CharacterSection["type"], title: string, data: Partial<CharacterSection> = {}): CharacterSection => ({ id: `sec_${nanoid()}`, type, title, ...data });
+const fields = (title: string, labels: string[]) => section("key_value", title, { keyValues: labels.map((key) => ({ key, value: "" })) });
+const group = (title: string, contents: CharacterSection[]) => section("group", title, { contents });
+const prose = (title: string) => section("rich_text", title, { richText: "" });
+const inventory = () => section("statistics", "攜帶物品", { statisticHeaders: { label: "物品", description: "介紹", value: "數量", unit: "單位" }, statistics: [] });
+
+// Field references: official D&D 5e character sheet and Chaosium's 7e sheets.
+// These are editable record templates; derived values are entered by the user.
+export function createDnd5eTemplate(): CharacterProfileData {
   return {
-    templateId: "blank",
-    basic: {
-      name: "新角色",
-      alias: "",
-      avatarUrl: "",
-      gender: "",
-      age: "",
-      role: "",
-      affiliation: "",
-      quote: "",
-    },
+    templateId: "dnd5e", basic: { name: "", role: "例如：戰士", affiliation: "例如：冒險小隊" },
     sections: [
-      {
-        id: `sec_${nanoid()}`,
-        type: "key_value",
-        title: "基礎設定",
-        icon: "🪪",
-        keyValues: [
-          { key: "身高 / 體型", value: "" },
-          { key: "外觀特徵", value: "" },
-        ],
-      },
-      {
-        id: `sec_${nanoid()}`,
-        type: "tags",
-        title: "性格標籤",
-        icon: "🧠",
-        tags: ["冷靜", "果決"],
-        richText: "",
-      },
-      {
-        id: `sec_${nanoid()}`,
-        type: "rich_text",
-        title: "背景故事",
-        icon: "📜",
-        richText: "",
-      },
+      group("角色資料", [fields("冒險者", ["職業與等級", "種族", "背景", "陣營", "經驗值", "玩家姓名"])]),
+      group("能力與戰鬥", [
+        section("stats", "六項能力", { stats: ["力量 STR", "敏捷 DEX", "體質 CON", "智力 INT", "感知 WIS", "魅力 CHA"].map((label) => ({ label, value: 10, max: 30 })) }),
+        fields("戰鬥狀態", ["熟練加值", "護甲等級 AC", "先攻", "速度", "生命值上限", "目前生命值", "暫時生命值", "生命骰", "死亡豁免成功", "死亡豁免失敗"]),
+        fields("豁免", ["力量豁免", "敏捷豁免", "體質豁免", "智力豁免", "感知豁免", "魅力豁免"]),
+        fields("技能", ["特技", "馴養動物", "奧秘", "運動", "欺瞞", "歷史", "洞悉", "威嚇", "調查", "醫藥", "自然", "察覺", "表演", "說服", "宗教", "巧手", "隱匿", "求生"]),
+        prose("攻擊與武器"), prose("特性與專長"),
+      ]),
+      group("背景", [prose("個性特質"), prose("理念"), prose("牽絆"), prose("缺點"), prose("角色經歷")]),
+    ],
+    tabs: [
+      { id: `tab_${nanoid()}`, title: "法術", sections: [group("施法", [fields("施法資料", ["施法職業", "施法能力", "法術豁免 DC", "法術攻擊加值"]), fields("法術位（總數／已用）", ["1環", "2環", "3環", "4環", "5環", "6環", "7環", "8環", "9環"]), prose("戲法"), prose("已知與準備法術")])] },
+      { id: `tab_${nanoid()}`, title: "裝備", sections: [group("物資", [inventory(), fields("貨幣", ["銅幣", "銀幣", "琥珀金幣", "金幣", "白金幣"]), prose("語言與工具熟練")])] },
     ],
   };
 }
 
-/** Built-in system templates retain the same editable component model. */
-export function createDnd5eTemplate(): CharacterProfileData {
-  const data = createFantasyTemplate();
-  return { ...data, templateId: "dnd5e", basic: { ...data.basic, name: "新 D&D 角色", role: "冒險者", affiliation: "冒險者公會" } };
-}
-
 export function createCoc7eTemplate(): CharacterProfileData {
-  const data = createModernTemplate();
-  return { ...data, templateId: "coc7e", basic: { ...data.basic, name: "新 CoC 調查員", role: "調查員", affiliation: "調查團隊" } };
+  return {
+    templateId: "coc7e", basic: { name: "", role: "例如：記者", affiliation: "例如：調查團隊" },
+    sections: [
+      group("調查員資料", [fields("身分", ["職業", "玩家姓名", "時代", "居住地", "出生地"])]),
+      group("能力與狀態", [
+        section("stats", "八項能力", { stats: ["力量 STR", "體質 CON", "體型 SIZ", "敏捷 DEX", "外貌 APP", "智力 INT", "意志 POW", "教育 EDU"].map((label) => ({ label, value: 0, max: 100 })) }),
+        fields("狀態", ["生命值 HP", "魔法值 MP", "理智 SAN", "幸運", "移動率 MOV", "傷害加值", "體格", "重傷／瀕死", "暫時／不定性瘋狂"]),
+        fields("技能（一般／困難／極難）", ["會計", "人類學", "估價", "考古學", "攀爬", "喬裝", "閃避", "汽車駕駛", "電氣維修", "急救", "歷史", "法律", "圖書館使用", "聆聽", "鎖匠", "機械維修", "醫學", "博物學", "導航", "神秘學", "說服", "心理學", "偵查", "潛行", "游泳", "投擲", "信用評級", "克蘇魯神話"]),
+        prose("專業技能與語言"), prose("戰鬥技能與武器"),
+      ]),
+      group("背景故事", [prose("個人描述"), prose("思想與信念"), prose("重要之人"), prose("意義非凡之地"), prose("珍視之物"), prose("特質"), prose("傷疤、恐懼與躁狂")]),
+    ],
+    tabs: [
+      { id: `tab_${nanoid()}`, title: "物品與資產", sections: [group("物資", [inventory(), fields("資產", ["現金", "消費水平", "資產"]), prose("裝備與重要文件")])] },
+      { id: `tab_${nanoid()}`, title: "調查紀錄", sections: [group("案件", [prose("線索與推論"), prose("接觸的神話存在"), prose("典籍與法術")])] },
+    ],
+  };
 }
