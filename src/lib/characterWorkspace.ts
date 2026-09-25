@@ -73,7 +73,9 @@ export function snapshotCharacterTemplate(source: CharacterProfileData): Charact
   };
   const basic = { ...data.basic };
   for (const key of Object.keys(basic) as Array<keyof typeof basic>) {
-    basic[key] = basic[key] || data.basicExamples?.[key] || "";
+    if (key !== "customFields") {
+      (basic as any)[key] = basic[key] || data.basicExamples?.[key] || "";
+    }
   }
   return { ...data, isTemplate: true, world_id: null, templateSourceId: undefined, basic, basicExamples: undefined,
     sections: data.sections.map(snapshot), tabs: data.tabs?.map((tab) => ({ ...tab, sections: tab.sections.map(snapshot) })) };

@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LessonBlock, LessonToc, AnswerSpace, LessonParagraph, LESSON_INDEX_EVENT } from "../lib/lessonExtensions";
+import type { JSONContent } from "@tiptap/core";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -32,6 +34,8 @@ import ColorPaletteButton from "./ColorPaletteButton";
 import TableGridPicker from "./TableGridPicker";
 
 interface TiptapEditorProps {
+  lessonDocument?: JSONContent;
+  onNavigateLesson?: (id: string) => void;
   content: any;
   onChange: (payload: { json: any; text: string; cursor?: CursorAnchor }) => void;
   variant?: "rich" | "plain" | "novel";
@@ -115,7 +119,8 @@ function MenuItem({ label, icon, active, disabled, onClick, danger }: {
     <button
       type="button"
       disabled={disabled}
-      onMouseDown={(e) => { e.preventDefault(); if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => { if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
       style={{ color: danger ? "#dc2626" : "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
     >
@@ -281,7 +286,11 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
+  const lessonDocumentRef = useRef(lessonDocument);
+  lessonDocumentRef.current = lessonDocument;
+  const navigateLessonRef = useRef(onNavigateLesson);
+  navigateLessonRef.current = onNavigateLesson;
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -313,6 +322,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   // Table context menu state
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
   const [tableSubmenu, setTableSubmenu] = useState<"cell" | "delete" | null>(null);
+  const textMenuRef = useRef<HTMLDivElement>(null);
+  const [clipboardMessage, setClipboardMessage] = useState("");
+  const clipboardBusyRef = useRef(false);
   const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
   const tableMenuRef = useRef<HTMLDivElement>(null);
   const tableSubmenuRef = useRef<HTMLDivElement>(null);
@@ -370,6 +382,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           TableKit.configure({ table: { resizable: true } }),
           Image.configure({ inline: false, allowBase64: true }),
           Callout,
+          LessonParagraph,
+          LessonBlock.configure({ getDocument: () => lessonDocumentRef.current }),
+          AnswerSpace,
+          LessonToc.configure({ getDocument: () => lessonDocumentRef.current, navigate: (id) => {
+            if (navigateLessonRef.current) navigateLessonRef.current(id);
+            else Array.from(ref.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((element) => element.dataset.id === id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          } }),
           PageBreak,
           Column,
           MultiColumn,
@@ -558,7 +577,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const editor = editorRef.current;
     if (!editor || !content) return;
     const currentJson = JSON.stringify(editor.getJSON());
-    const targetJson = JSON.stringify(content);
+    const targetJson = JSON.stringify(editor.schema.nodeFromJSON(content).toJSON());
     if (currentJson !== targetJson) {
       // IME composition 期間不覆寫（避免打斷中文輸入）
       if (editor.isFocused && compositionRef.current) return;
@@ -760,6 +779,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     if (!el) return;
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, button")) return;
       const cell = target.closest("td, th");
       const table = target.closest("table");
       // 表格右鍵（既有）
@@ -773,7 +793,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       // 需求2：框選文字右鍵 → 「建立頁面連結」
       const sel = window.getSelection();
       const hasSelection = sel && !sel.isCollapsed && sel.toString().trim().length > 0;
-      if (hasSelection) {
+      if (hasSelection || target.closest(".nexus-tiptap-editor")) {
         e.preventDefault();
         setTableMenu(null);
         setTableSubmenu(null);
@@ -784,18 +804,27 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       setTextMenu(null);
     };
     const onClick = (e: MouseEvent) => {
+      if (!textMenuRef.current?.contains(e.target as Node)) setTextMenu(null);
       if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node) && !tableSubmenuRef.current?.contains(e.target as Node)) {
         setTableMenu(null);
         setTableSubmenu(null);
       }
     };
+    const closeMenus = () => { setTextMenu(null); setTableMenu(null); setTableSubmenu(null); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenus(); };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", closeMenus);
     el.addEventListener("contextmenu", onContextMenu);
     document.addEventListener("mousedown", onClick);
     return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", closeMenus);
       el.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("mousedown", onClick);
     };
   }, []);
+
+  useEffect(() => { document.dispatchEvent(new Event(LESSON_INDEX_EVENT)); }, [lessonDocument]);
 
   const editor = editorRef.current;
   const disabled = !isReady || !editor;
@@ -966,12 +995,75 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     document.body
   ) : null;
 
+  const handleClipboardAction = async (action: "all" | "copy" | "cut" | "paste") => {
+    const ed = editorRef.current;
+    if (!ed || clipboardBusyRef.current) return;
+    setClipboardMessage("");
+    setTextMenu(null); setTableMenu(null); setTableSubmenu(null);
+    if (action === "all") { ed.chain().focus().selectAll().run(); return; }
+    if ((action === "copy" || action === "cut") && ed.state.selection.empty) return;
+    const initialDoc = ed.state.doc;
+    const bookmark = ed.state.selection.getBookmark();
+    clipboardBusyRef.current = true;
+    try {
+      ed.view.focus();
+      if (action === "copy" || action === "cut") {
+        const serialized = ed.view.serializeForClipboard(ed.state.selection.content());
+        if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([serialized.text], { type: "text/plain" }),
+            "text/html": new Blob([serialized.dom.innerHTML], { type: "text/html" }),
+          })]);
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(serialized.text);
+        } else if (!document.execCommand("copy")) throw new Error("clipboard blocked");
+        if (action === "cut") {
+          if (ed.isDestroyed || ed.state.doc !== initialDoc) throw new Error("document changed");
+          ed.view.dispatch(ed.state.tr.setSelection(bookmark.resolve(ed.state.doc)).deleteSelection().scrollIntoView());
+          ed.view.focus();
+        }
+      } else {
+        let html = "";
+        let plain = "";
+        if (navigator.clipboard?.read) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+            if (item.types.includes("text/plain")) plain = await (await item.getType("text/plain")).text();
+            if (html || plain) break;
+          }
+        } else { plain = await navigator.clipboard.readText(); }
+        if (ed.isDestroyed || ed.state.doc !== initialDoc) throw new Error("document changed");
+        if (!html && !plain) { setClipboardMessage("剪貼簿沒有可貼上的文字；圖片請使用系統貼上。"); return; }
+        ed.view.dispatch(ed.state.tr.setSelection(bookmark.resolve(ed.state.doc)));
+        ed.view.focus();
+        if (variant === "novel") {
+          if (!plain && html) plain = new DOMParser().parseFromString(html, "text/html").body.textContent || "";
+          const blocks = plain.replace(/\r/g, "").split("\n").map((text) => ({ type: "paragraph", content: text ? [{ type: "text", text }] : [] }));
+          ed.commands.insertContent(blocks);
+        } else if (html) ed.view.pasteHTML(html);
+        else ed.view.pasteText(plain);
+      }
+    } catch {
+      setClipboardMessage("未完成操作。請使用 Ctrl／⌘ + C、X、V，或手機的系統文字選單；若出現剪貼簿權限提示，請允許後重試。");
+    } finally { clipboardBusyRef.current = false; }
+  };
+  const clipboardTools = <>
+    <MenuItem icon="" label="全選" disabled={disabled} onClick={() => void handleClipboardAction("all")} />
+    <MenuItem icon="" label="複製" disabled={disabled || !!editor?.state.selection.empty} onClick={() => void handleClipboardAction("copy")} />
+    <MenuItem icon="" label="剪下" disabled={disabled || !!editor?.state.selection.empty} onClick={() => void handleClipboardAction("cut")} />
+    <MenuItem icon="" label="貼上" disabled={disabled} onClick={() => void handleClipboardAction("paste")} />
+    <MenuSep />
+  </>;
+
   const textContextMenu = textMenu ? createPortal(
-    <div
+    <div ref={textMenuRef}
       className="rounded-xl shadow-2xl z-[10000] overflow-visible py-1"
       style={{
         position: "fixed",
-        top: Math.min(textMenu.y, window.innerHeight - 120),
+        top: Math.max(8, Math.min(textMenu.y, window.innerHeight - 285)),
+        maxHeight: "calc(100dvh - 16px)",
+        overflowY: "auto",
         left: Math.min(textMenu.x, window.innerWidth - 200),
         width: 190,
         backgroundColor: "var(--color-bg)",
@@ -980,6 +1072,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">文字操作</div>
+      {clipboardTools}
       <button onClick={handleInsertPageLink} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🔗</span> 建立頁面連結</button>
     </div>,
     document.body
@@ -1016,6 +1109,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       }}
       onMouseDown={(e) => e.preventDefault()}
     >
+      {clipboardTools}
       <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">儲存格操作（右鍵）</div>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().addRowBefore().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬆️</span> 在上方插入列</button>
       <button onClick={() => { editorRef.current?.chain().focus().addRowAfter().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬇️</span> 在下方插入列</button>
@@ -1234,6 +1328,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   // 編輯（undo / redo / 清除格式）
   const editTools = (
     <>
+      {clipboardTools}
       <MenuItem icon="↩" label={t("tiptap.undo") || "復原"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
       <MenuItem icon="↪" label={t("tiptap.redo") || "重做"} disabled={disabled || !toolbarState.canRedo} onClick={() => editorRef.current?.chain().focus().redo().run()} />
       <MenuSep />
@@ -1244,6 +1339,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   // 插入（表格 / 連結 / 圖片 / 提示框 / 公式 / 分頁符）
   const insertTools = (
     <>
+      {variant === "rich" && <>
+        <div className="px-3 py-1 text-xs opacity-60">教學內容</div>
+        {([['definition', '定義'], ['example', '例題'], ['exercise', '練習'], ['answer', '解答']] as const).map(([kind, label]) => <MenuItem key={kind} label={label} disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "lessonBlock", attrs: { kind, collapsed: false }, content: [{ type: "paragraph" }] }, { type: "paragraph" }]).run()} />)}
+        {[3, 5, 8].map((lines) => <MenuItem key={lines} label={`${lines} 行作答留白`} disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "answerSpace", attrs: { lines } }, { type: "paragraph" }]).run()} />)}
+        <MenuItem label="自動目錄" disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "lessonToc" }, { type: "paragraph" }]).run()} />
+        <MenuSep />
+      </>}
       <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>表格</div>
       <div className="px-2 pb-1"><TableGridPicker editor={editorRef.current} disabled={disabled} /></div>
       <MenuSep />
@@ -1266,6 +1368,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     <>
       {variant === "rich" && (<>
         <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>樣式</div>
+        <MenuItem label="圖說" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: "caption" }).run()} />
+        <MenuItem label="重點" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: "key" }).run()} />
+        <MenuItem label="一般正文" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: null }).run()} />
         <MenuItem icon="¶" label={t("tiptap.style.normal") || "內文"} active={!toolbarState.h1 && !toolbarState.h2 && !toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: (ed.getAttributes("heading").level || 1) }).run(); }} />
         <MenuItem icon="H1" label={t("tiptap.h1") || "標題 1"} active={toolbarState.h1} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); }} />
         <MenuItem icon="H2" label={t("tiptap.h2") || "標題 2"} active={toolbarState.h2} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }} />
@@ -1355,6 +1460,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       {showToolbar && editToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[200px]">{editTools}</div>, editToolbarTarget)}
       {showToolbar && insertToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[220px]">{insertTools}</div>, insertToolbarTarget)}
       {showToolbar && formatToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[240px]">{formatTools}</div>, formatToolbarTarget)}
+      {clipboardMessage && <div role="status" className="fixed bottom-4 left-4 right-4 z-[10001] rounded-lg border bg-amber-50 p-3 text-sm text-zinc-900 shadow-lg">{clipboardMessage}<button className="ml-3 underline" onClick={() => setClipboardMessage("")}>關閉</button></div>}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}

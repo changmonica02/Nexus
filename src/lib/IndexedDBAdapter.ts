@@ -1,14 +1,17 @@
+import { sameStudyRecord } from "./studyFSRS";
+import { QUIZ_STORES } from "./quizPersistence";
+import { StudyRepository, STUDY_STORES } from "./StudyRepository";
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";
 import type {
   ID, Page, PageQuery, CreatePageInput, Attachment,
-  WorkspaceBackup, WorkspaceBackupAttachmentEntry, WorkspaceBackupSettingEntry,
+  WorkspaceBackup, WorkspaceBackupAttachmentEntry,
 } from "./types";
 import type { StorageAdapter } from "./StorageAdapter";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 3;
-const BACKUP_SCHEMA_VERSION = 1;
+const DB_VERSION = 6;
+const BACKUP_SCHEMA_VERSION = 3;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
 function newBlockId(): ID { return `blk_${nanoid()}`; }
@@ -35,6 +38,17 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 
 export class IndexedDBAdapter implements StorageAdapter {
   private db: IDBPDatabase | null = null;
+  private studyRepository: StudyRepository | null = null;
+  private studyRepositoryOwner: string | null | undefined;
+  getStudyRepository(): StudyRepository {
+    if (!this.db) throw new Error("DB not initialized");
+    if (!this.studyRepository || this.studyRepositoryOwner !== this.workspaceOwnerId) {
+      const owner = this.workspaceOwnerId;
+      this.studyRepositoryOwner = owner;
+      this.studyRepository = new StudyRepository(this.db, () => owner, this.deviceId);
+    }
+    return this.studyRepository;
+  }
   private deviceId: ID = `dev_${nanoid()}`;
   // IndexedDB is shared by browser profiles, unlike Supabase. Keep its records
   // explicitly partitioned so changing accounts never exposes another account's
@@ -53,7 +67,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     // This is intentionally a one-time, explicit migration: the user asked
     // for all current local data to belong to their account. Later anonymous
     // workspaces must not be silently claimed by whichever account signs in.
-    const tx = this.db.transaction(["pages", "attachments", "settings"], "readwrite");
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readwrite");
     const pages = await tx.objectStore("pages").getAll();
     const attachments = await tx.objectStore("attachments").getAll();
     for (const page of pages) {
@@ -66,6 +80,18 @@ export class IndexedDBAdapter implements StorageAdapter {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
       }
     }
+    const claimStudy = (record: Record<string, unknown>): Record<string, unknown> => {
+      const claimed: Record<string, unknown> = { ...record, owner_id: ownerId };
+      for (const field of ["value", "before", "after", "session"]) {
+        if (record[field] && typeof record[field] === "object") claimed[field] = claimStudy(record[field] as Record<string, unknown>);
+      }
+      return claimed;
+    };
+    for (const name of STUDY_STORES) {
+      for (const record of await tx.objectStore(name).getAll()) {
+        if (record.owner_id == null) await tx.objectStore(name).put(claimStudy(record));
+      }
+    }
     await tx.objectStore("settings").put({ key: claimKey, value: ownerId });
     await tx.done;
   }
@@ -73,6 +99,12 @@ export class IndexedDBAdapter implements StorageAdapter {
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
+        for (const name of [...STUDY_STORES,...QUIZ_STORES]) {
+          if (!db.objectStoreNames.contains(name)) {
+            const store = db.createObjectStore(name, { keyPath: "id" });
+            if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
+          }
+        }
         if (!db.objectStoreNames.contains("pages")) {
           const store = db.createObjectStore("pages", { keyPath: "id" });
           store.createIndex("by_updated", "updated_at");
@@ -298,9 +330,13 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async exportWorkspaceBackup(): Promise<WorkspaceBackup> {
     if (!this.db) throw new Error("DB not initialized");
-    const allPages = await this.db.getAll("pages");
-    const allAttachments = await this.db.getAll("attachments");
-    const allSettingsRecords: WorkspaceBackupSettingEntry[] = await this.db.getAll("settings");
+    const snapshotTime = Date.now();
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readonly");
+    const [allPages, allAttachments, allSettingsRecords, cards, states, events, settings, sessions] = await Promise.all(
+      ["pages", "attachments", "settings", "study_cards", "study_states", "study_events", "study_settings", "study_sessions"].map(name => tx.objectStore(name).getAll())
+    );
+    await tx.done;
+    const study = { cards, states, events, settings, sessions };
     const attachmentEntries: WorkspaceBackupAttachmentEntry[] = [];
     for (const attachment of allAttachments) {
       const binaryRecord = await this.db.get("binaries", attachment.id);
@@ -309,11 +345,12 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
     return {
       schema_version: BACKUP_SCHEMA_VERSION,
-      exported_at: Date.now(),
+      exported_at: snapshotTime,
       device_id: this.deviceId,
       pages: allPages,
       attachments: attachmentEntries,
       settings: allSettingsRecords,
+      study,
     };
   }
 
@@ -321,7 +358,66 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (!this.db) throw new Error("DB not initialized");
     if (!backup || typeof backup.schema_version !== "number") throw new Error("Invalid backup file.");
     if (backup.schema_version > BACKUP_SCHEMA_VERSION) throw new Error(`Backup schema_version (${backup.schema_version}) is newer than supported (${BACKUP_SCHEMA_VERSION}).`);
-    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings"], "readwrite");
+    if (backup.schema_version >= 2 && !backup.study) throw new Error("新版備份缺少字卡資料，還原已停止。");
+    if (backup.schema_version >= 3 && !Array.isArray(backup.study?.sessions)) throw new Error("新版備份缺少 session 資料。");
+    if (backup.study) {
+      const study = backup.study;
+      if (![study.cards, study.states, study.events, study.settings].every(Array.isArray)) throw new Error("字卡備份格式不完整。");
+      const cards = new Map(study.cards.map(card => [card.id, card]));
+      const events = new Map(study.events.map(event => [event.id, event]));
+      if (events.size !== study.events.length || cards.size !== study.cards.length) throw new Error("備份有重複 ID。");
+      for (const event of study.events) {
+        if (!cards.has(event.card_id) || (event.parent && !events.has(event.parent))) throw new Error("備份缺少卡片或前序作答，還原已停止。");
+      }
+      for (const state of study.states) {
+        if (!cards.has(state.id) || (state.head && !events.has(state.head))) throw new Error("備份排程缺少對應的歷史，還原已停止。");
+      }
+      for(const session of study.sessions??[]) {
+        if(!Array.isArray(session.targets) || !Array.isArray(session.queue) || !Number.isInteger(session.revision)) throw new Error("練習備份格式錯誤。");
+        for(const target of session.targets) {
+          const event=target.official_event_id ? events.get(target.official_event_id) : null;
+          if(!cards.has(target.card_id) || target.official_event_id && (!event || event.session_id!==session.id || event.card_id!==target.card_id)) throw new Error("練習備份缺少對應正式評分。");
+        }
+      }
+    }
+    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES], "readwrite", { durability: "strict" });
+    try {
+    // Never erase review history when importing an older or partial backup.
+    if (backup.study) {
+      for (const event of backup.study.events) {
+        const existing = await tx.objectStore("study_events").get(event.id);
+        if (existing && !sameStudyRecord(existing, event)) throw new Error("備份中的事件 ID 與既有內容衝突，還原已停止。");
+        if (!existing) await tx.objectStore("study_events").add(event);
+      }
+      for (const [store, records] of [["study_cards", backup.study.cards], ["study_settings", backup.study.settings]] as const) {
+        for (const record of records) {
+          const local = await tx.objectStore(store).get(record.id);
+          if (!local || local.updated_at < record.updated_at) await tx.objectStore(store).put(record);
+        }
+      }
+      for (const state of backup.study.states) {
+        const local = await tx.objectStore("study_states").get(state.id);
+        if (!local) await tx.objectStore("study_states").put(state);
+        else if (local.head !== state.head) await tx.objectStore("study_states").put({ ...local, conflict: true });
+      }
+      for (const card of backup.study.cards) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: card.owner_id, kind: "card", value: card });
+      for (const setting of backup.study.settings) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: setting.owner_id, kind: "settings", value: setting });
+      for (const state of backup.study.states) {
+        const first = backup.study.events.filter(event => event.card_id === state.id).sort((a,b) => a.at-b.at).find(event => event.parent === null);
+        const seed = first?.before ?? state;
+        await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: seed.owner_id, kind: "seed", value: seed });
+      }
+      for (const event of backup.study.events) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: event.owner_id, kind: "event", value: event, restore:true });
+      for (const session of backup.study.sessions??[]) {
+        const local=await tx.objectStore("study_sessions").get(session.id);
+        if(local && !sameStudyRecord(local,session)) {
+          await tx.objectStore("study_sessions").put({...local,conflict:true});
+        } else {
+          await tx.objectStore("study_sessions").put(session);
+          await tx.objectStore("study_outbox").put({id:crypto.randomUUID(),owner_id:session.owner_id,kind:"session",value:session,restore:true});
+        }
+      }
+    }
     await tx.objectStore("pages").clear();
     await tx.objectStore("attachments").clear();
     await tx.objectStore("binaries").clear();
@@ -336,6 +432,11 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
     for (const setting of backup.settings) await tx.objectStore("settings").put(setting);
     await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
   }
 
   async close(): Promise<void> { this.db?.close(); }

@@ -41,3 +41,14 @@ test("chapter workspace isolates works, excludes deleted records and orders by s
   assert.equal(pages[0].id, "b");
   assert.deepEqual(api.getNovelChapters([], "work"), []);
 });
+
+test("workspace entry resolves a saved chapter to its parent and never opens orphan chapters", () => {
+  const novel = { id: "work", kind: "creative", creative_type: "novel", deleted_at: null };
+  const chapter = { id: "chapter", kind: "novel_chapter", parent_id: "work", deleted_at: null };
+  const template = { id: "template", kind: "creative", character_data: { isTemplate: true }, deleted_at: null };
+  assert.equal(api.getWorkspaceEntryPage([chapter, novel], "chapter").id, "work");
+  assert.equal(api.getWorkspaceEntryPage([chapter, template, novel]).id, "work");
+  assert.equal(api.getWorkspaceEntryPage([chapter, { ...novel, deleted_at: 10 }], "chapter"), null);
+  assert.equal(api.getWorkspaceEntryPage([chapter]), null);
+  assert.equal(api.getWorkspaceEntryPage([template], "template").id, "template");
+});

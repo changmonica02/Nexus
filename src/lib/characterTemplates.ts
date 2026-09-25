@@ -165,9 +165,9 @@ export function createDnd5eTemplate(): CharacterProfileData {
         fields("技能", ["特技", "馴養動物", "奧秘", "運動", "欺瞞", "歷史", "洞悉", "威嚇", "調查", "醫藥", "自然", "察覺", "表演", "說服", "宗教", "巧手", "隱匿", "求生"]),
         prose("攻擊與武器"), prose("特性與專長"),
       ]),
-      group("背景", [prose("個性特質"), prose("理念"), prose("牽絆"), prose("缺點"), prose("角色經歷")]),
     ],
     tabs: [
+      { id: `tab_${nanoid()}`, title: "人物背景", sections: [group("人物背景", [prose("個性特質"), prose("理念"), prose("牽絆"), prose("缺點"), prose("角色經歷")])] },
       { id: `tab_${nanoid()}`, title: "法術", sections: [group("施法", [fields("施法資料", ["施法職業", "施法能力", "法術豁免 DC", "法術攻擊加值"]), fields("法術位（總數／已用）", ["1環", "2環", "3環", "4環", "5環", "6環", "7環", "8環", "9環"]), prose("戲法"), prose("已知與準備法術")])] },
       { id: `tab_${nanoid()}`, title: "裝備", sections: [group("物資", [inventory(), fields("貨幣", ["銅幣", "銀幣", "琥珀金幣", "金幣", "白金幣"]), prose("語言與工具熟練")])] },
     ],

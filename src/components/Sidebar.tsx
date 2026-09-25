@@ -18,10 +18,18 @@ function getPageIcon(page: Page): string {
   return "📝";
 }
 
-export type SortMode = "updated" | "custom";
-type FeatureFilter = "all" | "notes" | "documents" | "presentations" | "study" | "calendar" | "quicknotes" | "creative" | "novels" | "web" | "counter" | "draw";
+import {
+  getStoredFeatureOrderMode,
+  getStoredRecentFeatureIds,
+  recordFeatureUsage,
+  getStoredCustomFeatureOrder,
+  type FeatureFilter,
+  type FeatureOrderMode,
+} from "../lib/featurePreferences";
 
-type CreateItemType = "note" | "document" | "study_set" | "folder" | "presentation";
+export type SortMode = "updated" | "custom";
+
+import { creationOptions, type CreateItemType } from "../lib/creationOptions";
 
 type DropPosition = "above" | "below" | "child";
 
@@ -39,6 +47,7 @@ type SidebarProps = {
   isDocumentMode?: boolean;
   isNoteMode?: boolean;
   isPresentationMode?: boolean;
+  utilityMode?: "web" | "counter" | "draw" | null;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -118,6 +127,7 @@ export default function Sidebar({
   isDocumentMode,
   isNoteMode,
   isPresentationMode,
+  utilityMode,
   onDeletePage,
   onRestorePage,
   onPermanentDeletePage,
@@ -164,9 +174,9 @@ export default function Sidebar({
   const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
   const [featureFilter, setFeatureFilter] = useState<FeatureFilter>("all");
   const [hasManualFeatureFilter, setHasManualFeatureFilter] = useState(false);
-  const [featureOrderMode, setFeatureOrderMode] = useState<"recent" | "default">("recent");
-  const [recentFeatureIds, setRecentFeatureIds] = useState<FeatureFilter[]>([]);
-  const [isFeatureSettingsOpen, setIsFeatureSettingsOpen] = useState(false);
+  const [featureOrderMode, setFeatureOrderMode] = useState<FeatureOrderMode>("recent");
+  const [snapshotRecentFeatureIds, setSnapshotRecentFeatureIds] = useState<FeatureFilter[]>([]);
+  const [customFeatureOrder, setCustomFeatureOrder] = useState<FeatureFilter[]>([]);
 
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -176,15 +186,26 @@ export default function Sidebar({
   const lastClickIdRef = useRef<string | null>(null);
 
   const createLabel = (key: string) => t(key);
-  const modeFeatureFilter: FeatureFilter = isQuickNoteMode ? "quicknotes"
+  const currentPage = pages.find((page) => page.id === activePageId);
+  const editorFeature: FeatureFilter | null = isHomeMode || isTrashMode || !currentPage ? null
+    : isNovelPage(currentPage) ? "novels"
+    : currentPage.kind === "creative" ? "creative"
+    : currentPage.kind === "study_set" ? "study"
+    : currentPage.kind === "document" ? "documents"
+    : currentPage.kind === "presentation" ? "presentations"
+    : currentPage.kind === "quick_note" ? "quicknotes"
+    : currentPage.kind === "todo" ? "calendar"
+    : currentPage.kind === "web" || currentPage.kind === "counter" || currentPage.kind === "draw" ? currentPage.kind
+    : "notes";
+  const modeFeatureFilter: FeatureFilter = utilityMode ?? (isQuickNoteMode ? "quicknotes"
     : isTodoMode ? "calendar"
     : isStudySetMode ? "study"
     : isPresentationMode ? "presentations"
     : isDocumentMode ? "documents"
     : isNoteMode ? "notes"
     : isNovelMode ? "novels"
-    : isCreativeMode ? "creative"
-    : featureFilter;
+    : isCreativeMode ? (editorFeature ?? "creative")
+    : (editorFeature ?? featureFilter));
   // Clicking a feature only filters the list, even while another type of
   // editor (such as a study set) is open in a split pane.
   const activeFeatureFilter = hasManualFeatureFilter ? featureFilter : modeFeatureFilter;
@@ -203,27 +224,24 @@ export default function Sidebar({
     draw: "尚無抽選項目",
   };
 
+  // 刷新功能排序快照（僅在載入時、偏好設定變更時、或重新展開側欄時觸發）
+  const refreshFeatureOrderSnapshot = () => {
+    setFeatureOrderMode(getStoredFeatureOrderMode());
+    setSnapshotRecentFeatureIds(getStoredRecentFeatureIds());
+    setCustomFeatureOrder(getStoredCustomFeatureOrder());
+  };
+
   useEffect(() => {
-    try {
-      const storedMode = window.localStorage.getItem("nexus-feature-order-mode");
-      const storedRecent = JSON.parse(window.localStorage.getItem("nexus-recent-features") || "[]");
-      if (storedMode === "default" || storedMode === "recent") setFeatureOrderMode(storedMode);
-      if (Array.isArray(storedRecent)) setRecentFeatureIds(storedRecent.filter((id): id is FeatureFilter => typeof id === "string"));
-    } catch { /* local settings are optional */ }
+    refreshFeatureOrderSnapshot();
+    const handleChanged = () => refreshFeatureOrderSnapshot();
+    window.addEventListener("nexus-feature-order-changed", handleChanged);
+    return () => window.removeEventListener("nexus-feature-order-changed", handleChanged);
   }, []);
 
   const rememberFeatureUse = (id: FeatureFilter) => {
-    if (id === "all" || id === "calendar") return;
-    setRecentFeatureIds((previous) => {
-      const next = [id, ...previous.filter((item) => item !== id)].slice(0, 20);
-      try { window.localStorage.setItem("nexus-recent-features", JSON.stringify(next)); } catch { /* ignored */ }
-      return next;
-    });
-  };
-
-  const changeFeatureOrderMode = (mode: "recent" | "default") => {
-    setFeatureOrderMode(mode);
-    try { window.localStorage.setItem("nexus-feature-order-mode", mode); } catch { /* ignored */ }
+    recordFeatureUsage(id);
+    // 注意：不立即重排 snapshotRecentFeatureIds，避免點擊時畫面跳動。
+    // 在下一次展開側邊欄或重新載入頁面時才會刷新。
   };
 
   useEffect(() => {
@@ -231,10 +249,12 @@ export default function Sidebar({
     setSelectedIds(new Set());
   }, [isTrashMode]);
 
-  // 「功能」是一組次層導覽。每次側欄由收合狀態重新開啟時，都從收合開始；
-  // 使用者在當次瀏覽中手動展開後則維持其選擇。
+  // 「功能」是一組次層導覽。每次側欄由收合狀態重新開啟時，都從收合開始並刷新排列順序
   useEffect(() => {
-    if (!isCollapsed) setIsFeaturesExpanded(false);
+    if (!isCollapsed) {
+      setIsFeaturesExpanded(false);
+      refreshFeatureOrderSnapshot();
+    }
   }, [isCollapsed]);
 
   useEffect(() => {
@@ -307,7 +327,7 @@ export default function Sidebar({
     if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
     if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
     if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
-    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw") return false;
+    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw") return page.kind === activeFeatureFilter && matchQuery && matchTag;
     return matchQuery && matchTag;
   });
 
@@ -562,17 +582,15 @@ export default function Sidebar({
   };
 
   const renderCreateMenu = () => (
-    <div className="absolute left-0 top-full mt-1 w-60 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+    <div className="absolute left-0 top-full mt-1 w-60 max-h-[65dvh] rounded-xl overflow-y-auto shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
       <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">新建</div>
-      <button onClick={() => { onCreateItem("document"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📄</span><span>{t("sidebar.create.document")}</span></button>
-      <button onClick={() => { onCreateItem("note"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📝</span><span>{t("sidebar.create.note")}</span></button>
-      <button onClick={() => { onCreateItem("study_set"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>🗂️</span><span>{t("sidebar.create.studySet")}</span></button>
-      <button onClick={() => { onCreateItem("presentation" as any); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📊</span><span>簡報</span></button>
-      <button onClick={() => { onCreateItem("folder"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📁</span><span>{t("sidebar.create.folder")}</span></button>
+      {creationOptions[activeFeatureFilter].map((option) => <button key={option.type} onClick={() => { onCreateItem(option.type); setShowCreateMenu(false); }} className="w-full px-3 py-2.5 text-sm text-left hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }}>{option.label}</button>)}
+      {(["all", "notes", "documents"] as string[]).includes(activeFeatureFilter) && <>
       <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
       <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">匯入</div>
       <button onClick={() => { onImportPdf(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📥</span><span>{t("sidebar.import.pdf")}</span></button>
       <button onClick={() => { onImportMarkdown(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📄</span><span>{t("sidebar.import.markdown")}</span></button>
+      </>}
     </div>
   );
 
@@ -659,11 +677,6 @@ export default function Sidebar({
           <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
             <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
           </button>
-          <button type="button" onClick={() => setIsFeatureSettingsOpen((open) => !open)} className="mr-2 grid h-7 w-7 place-items-center rounded text-sm opacity-60 hover:bg-zinc-200 hover:opacity-100 dark:hover:bg-zinc-800" title="功能排列設定" aria-label="功能排列設定">⚙</button>
-          {isFeatureSettingsOpen && <div className="absolute right-2 top-9 z-40 w-52 rounded-xl border p-1 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-            <button type="button" onClick={() => { changeFeatureOrderMode("recent"); setIsFeatureSettingsOpen(false); }} className="w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: featureOrderMode === "recent" ? "var(--color-border)" : "transparent" }}>功能以最新使用排列（預設）</button>
-            <button type="button" onClick={() => { changeFeatureOrderMode("default"); setIsFeatureSettingsOpen(false); }} className="w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: featureOrderMode === "default" ? "var(--color-border)" : "transparent" }}>功能以預設進行排列</button>
-          </div>}
         </div>
         {isFeaturesExpanded && (() => {
           const fixed = [
@@ -684,7 +697,14 @@ export default function Sidebar({
           ];
           const orderedOthers = featureOrderMode === "recent"
             ? [...others].sort((a, b) => {
-              const aIndex = recentFeatureIds.indexOf(a.id); const bIndex = recentFeatureIds.indexOf(b.id);
+              const aIndex = snapshotRecentFeatureIds.indexOf(a.id);
+              const bIndex = snapshotRecentFeatureIds.indexOf(b.id);
+              return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+            })
+            : featureOrderMode === "custom"
+            ? [...others].sort((a, b) => {
+              const aIndex = customFeatureOrder.indexOf(a.id);
+              const bIndex = customFeatureOrder.indexOf(b.id);
               return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
             })
             : others;

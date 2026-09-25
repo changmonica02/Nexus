@@ -2,6 +2,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { PageFormat, PageMargins } from "../lib/types";
 import { DEFAULT_PAGE_MARGINS } from "../lib/types";
+import { paginateLessonBlocks, type LessonLayout } from "../lib/lessonDocument";
 import TiptapEditor from "./TiptapEditor";
 import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 import PageThumbnail from "./PageThumbnail";
@@ -106,6 +107,8 @@ function countPageLines(pageBlocks: Block[]): number {
 
 export default function PaginatedEditorView({
   content,
+  lessonLayout,
+  onNavigateLesson,
   onContentChange,
   format,
   toolbarTarget,
@@ -125,6 +128,8 @@ export default function PaginatedEditorView({
   zoom = 1,
 }: {
   content: any;
+  lessonLayout?: LessonLayout;
+  onNavigateLesson?: (id: string) => void;
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
@@ -147,11 +152,11 @@ export default function PaginatedEditorView({
 
   const m = margins || DEFAULT_PAGE_MARGINS;
   const pagePaddingPx = useMemo(() => ({
-    top: Math.round(m.top * 3.7795),
+    top: Math.max(Math.round(m.top * 3.7795), lessonLayout?.header ? 64 : 0),
     right: Math.round(m.right * 3.7795),
-    bottom: Math.round(m.bottom * 3.7795),
+    bottom: Math.max(Math.round(m.bottom * 3.7795), lessonLayout?.footer ? 64 : lessonLayout?.pageNumbers !== false ? 40 : 0),
     left: Math.round(m.left * 3.7795),
-  }), [m]);
+  }), [m, lessonLayout?.header, lessonLayout?.footer, lessonLayout?.pageNumbers]);
 
   // 頁面 = 以手動分頁符切分
   const pagesBlocks = useMemo(() => splitByPageBreaks(blocks), [blocks]);
@@ -163,6 +168,9 @@ export default function PaginatedEditorView({
     ))
   ), [pagesBlocks]);
 
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const [layoutMessage, setLayoutMessage] = useState("");
+  const [lastLayout, setLastLayout] = useState<{ before: Block[]; after: string } | null>(null);
   const [activePage, setActivePage] = useState(0);
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const [renamingPage, setRenamingPage] = useState<number | null>(null);
@@ -181,7 +189,7 @@ export default function PaginatedEditorView({
       const el = pageRefs.current[idx];
       if (!el) return;
       const obs = new ResizeObserver(() => {
-        const h = el.getBoundingClientRect().height;
+        const h = el.offsetHeight;
         const grown = h > A4_H_PX + 2;
         if (nextGrown[idx] !== grown) {
           nextGrown[idx] = grown;
@@ -239,6 +247,37 @@ export default function PaginatedEditorView({
       text: finalBlocks.map(getTextFromNode).join("\n\n"),
     });
   }, [onContentChange]);
+
+  const arrangePages = () => {
+    if (pageRefs.current.some((root) => root?.querySelector('[data-lesson-kind="answer"][data-collapsed="true"]'))) { setLayoutMessage("請先展開解答，再整理分頁；列印會包含完整解答。"); return; }
+    const heights: number[] = [];
+    let measurementFailed = false;
+    pagesBlocks.forEach((page, index) => {
+      const root = pageRefs.current[index];
+      const editor = root?.querySelector(".ProseMirror");
+      const children = Array.from(editor?.children ?? []) as HTMLElement[];
+      const scale = root ? root.getBoundingClientRect().width / A4_W_PX : 1;
+      if (children.length !== page.length) measurementFailed = true;
+      if (index > 0) heights.push(0);
+      children.forEach((element) => {
+        const style = window.getComputedStyle(element);
+        heights.push(element.getBoundingClientRect().height / scale + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
+      });
+    });
+    if (measurementFailed || heights.length !== blocks.length) { setLayoutMessage("編輯器尚未完成排版，請稍後再試。"); return; }
+    const result = paginateLessonBlocks(blocks, heights, A4_H_PX - pagePaddingPx.top - pagePaddingPx.bottom - 24);
+    setLastLayout({ before: blocks, after: JSON.stringify(normalizePageBreaks(result.blocks)) });
+    persistPages(result.blocks);
+    setLayoutRevision((revision) => revision + 1);
+    setLayoutMessage(result.oversized ? `已整理分頁；${result.oversized} 個區塊超出單頁高度，請拆分長表格／段落或縮小圖片後再整理。` : "已依 A4 整理分頁，保留原有手動分頁位置。");
+  };
+  const undoArrange = () => {
+    if (!lastLayout || JSON.stringify(blocks) !== lastLayout.after) return;
+    persistPages(lastLayout.before);
+    setLastLayout(null);
+    setLayoutRevision((revision) => revision + 1);
+    setLayoutMessage("已還原整理前的分頁。");
+  };
 
   const applyRename = useCallback((idx: number, title: string) => {
     const t = (title || "").trim();
@@ -373,7 +412,12 @@ export default function PaginatedEditorView({
       )}
 
       {/* 主捲動區 */}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px", zoom }}>
+      <div className="lesson-paper-scroll flex-1 overflow-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px", zoom }}>
+        <div className="nexus-print-hide mb-3 flex w-full flex-wrap items-center gap-2 text-sm">
+          <button type="button" className="rounded-lg border bg-white px-3 py-2 text-zinc-800" onClick={arrangePages}>依 A4 整理分頁</button>
+          <button type="button" className="rounded-lg border bg-white px-3 py-2 text-zinc-800 disabled:opacity-40" disabled={!lastLayout || JSON.stringify(blocks) !== lastLayout.after} onClick={undoArrange}>復原分頁整理</button>
+          {layoutMessage && <span role="status" className="text-xs text-zinc-600">{layoutMessage}</span>}
+        </div>
         {showRuler && (
           <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: "#f5f5f4" }}>
             <div style={{ width: getDocumentRulerWidth("paged") }}>
@@ -381,16 +425,16 @@ export default function PaginatedEditorView({
             </div>
           </div>
         )}
-        <div className="flex flex-col gap-6 w-full items-center">
+        <div className="nexus-print-target lesson-paper-stack flex flex-col gap-6 w-full items-center">
           {pagesBlocks.map((pageBlocks, idx) => {
             const isAdapt = nightAdapt;
             const grown = grownPages[idx] || false;
             return (
               <div
-                key={idx}
+                key={`${layoutRevision}-${idx}`}
                 ref={(el) => { pageRefs.current[idx] = el; }}
                 data-page={idx}
-                className="relative rounded-sm"
+                className="lesson-paper relative rounded-sm"
                 style={{
                   width: A4_W_PX,
                   minHeight: A4_H_PX,
@@ -400,7 +444,8 @@ export default function PaginatedEditorView({
                   boxSizing: "border-box",
                 }}
               >
-                <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
+                {lessonLayout?.header && <div className="lesson-paper-header" style={{ left: pagePaddingPx.left, right: pagePaddingPx.right }}>{lessonLayout.header}</div>}
+                <div className="lesson-paper-footer" style={{ left: pagePaddingPx.left, right: pagePaddingPx.right }}><span>{lessonLayout?.footer}</span>{lessonLayout?.pageNumbers !== false && <span>{idx + 1} / {pagesBlocks.length}</span>}</div>
                 <div
                   className={isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}
                   style={{
@@ -410,6 +455,8 @@ export default function PaginatedEditorView({
                   }}
                 >
                   <TiptapEditor
+                    lessonDocument={content}
+                    onNavigateLesson={onNavigateLesson}
                     content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
                     onChange={(payload) => handlePageChange(idx, payload)}
                     variant="rich"
@@ -433,7 +480,7 @@ export default function PaginatedEditorView({
                 {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}
                 {grown && (
                   <div
-                    className="pointer-events-none select-none absolute"
+                    className="nexus-print-hide pointer-events-none select-none absolute"
                     style={{
                       left: pagePaddingPx.left,
                       right: pagePaddingPx.right,

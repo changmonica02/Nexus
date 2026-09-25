@@ -67,6 +67,11 @@ function PreviewBlock({ node }: { node: PreviewNode }) {
       return <div style={{ ...baseTextStyle, marginBottom: "2px", padding: "2px", borderRadius: "1px", background: "rgba(100,116,139,0.14)", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>{text}</div>;
     case "blockquote":
       return <div style={{ ...baseTextStyle, marginBottom: "2px", paddingLeft: "2px", borderLeft: "1px solid #94a3b8", opacity: 0.8 }}>{text}</div>;
+    case "lessonToc":
+      return <div style={baseTextStyle}>目錄</div>;
+    case "answerSpace":
+      return <div style={{ height: `${Math.min(12, Number(node.attrs?.lines) || 4) * 4}px`, borderBottom: "1px solid #aaa" }} />;
+    case "lessonBlock":
     case "callout":
       return <div style={{ ...baseTextStyle, marginBottom: "2px", padding: "2px", borderRadius: "1px", background: "rgba(59,130,246,0.12)" }}>{text}</div>;
     case "table":

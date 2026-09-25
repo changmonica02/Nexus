@@ -1,4 +1,6 @@
-# Nexus Codebase Dump - 2026-08-04
+# Nexus Codebase Dump - Current
+
+Generated: 2026-09-25 10:58:27
 
 ## File: eslint.config.mjs
 ````
@@ -9,6 +11,19 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // This workspace predates React Compiler rules and uses Tiptap's dynamic
+    // command API. Keep migration debt visible without turning a working
+    // production build into a blocked commit. New code should still avoid
+    // these patterns unless an adapter boundary requires them.
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/immutability": "warn",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -20,7 +35,6 @@ const eslintConfig = defineConfig([
 ]);
 
 export default eslintConfig;
-
 
 ````
 
@@ -56,29 +70,31 @@ export default nextConfig;
         "@tiptap/extension-mathematics": "3.27.1",
         "@tiptap/extension-node-range": "3.27.1",
         "@tiptap/extension-placeholder": "3.27.1",
-        "@tiptap/extension-table": "^3.27.1",
-        "@tiptap/extension-task-item": "^3.27.1",
+        "@tiptap/extension-table": "3.27.1",
+        "@tiptap/extension-task-item": "3.27.1",
         "@tiptap/extension-task-list": "3.27.1",
         "@tiptap/extension-text-align": "3.27.1",
         "@tiptap/extension-text-style": "3.27.1",
         "@tiptap/extension-typography": "3.27.1",
         "@tiptap/extension-underline": "3.27.1",
-        "@tiptap/react": "^3.29.2",
         "@tiptap/starter-kit": "3.27.1",
         "idb": "^8.0.3",
         "katex": "^0.16.11",
         "nanoid": "^5.1.16",
         "next": "16.2.9",
         "react": "19.2.4",
-        "react-dom": "19.2.4"
+        "react-dom": "19.2.4",
+        "ts-fsrs": "5.4.2"
       },
       "devDependencies": {
+        "@electric-sql/pglite": "0.5.8",
         "@tailwindcss/postcss": "^4",
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
         "eslint": "^9",
         "eslint-config-next": "16.2.9",
+        "fake-indexeddb": "6.2.4",
         "tailwindcss": "^4",
         "typescript": "^5"
       }
@@ -335,6 +351,13 @@ export default nextConfig;
       "engines": {
         "node": ">=6.9.0"
       }
+    },
+    "node_modules/@electric-sql/pglite": {
+      "version": "0.5.8",
+      "resolved": "https://registry.npmjs.org/@electric-sql/pglite/-/pglite-0.5.8.tgz",
+      "integrity": "sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==",
+      "dev": true,
+      "license": "Apache-2.0"
     },
     "node_modules/@emnapi/core": {
       "version": "1.10.0",
@@ -1745,24 +1768,6 @@ export default nextConfig;
         "@tiptap/core": "3.29.2"
       }
     },
-    "node_modules/@tiptap/extension-bubble-menu": {
-      "version": "3.29.2",
-      "resolved": "https://registry.npmjs.org/@tiptap/extension-bubble-menu/-/extension-bubble-menu-3.29.2.tgz",
-      "integrity": "sha512-kzcWarcpr031rZu+R3Hzut5uxb3Qj/xxMDEYZIQ3uiq1yb5vEMXj8/SIyWautk6Nu8Rr1leV3rGdR4NzhzyFAA==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "@floating-ui/dom": "^1.0.0"
-      },
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/ueberdosis"
-      },
-      "peerDependencies": {
-        "@tiptap/core": "3.29.2",
-        "@tiptap/pm": "3.29.2"
-      }
-    },
     "node_modules/@tiptap/extension-code": {
       "version": "3.29.2",
       "resolved": "https://registry.npmjs.org/@tiptap/extension-code/-/extension-code-3.29.2.tgz",
@@ -1838,22 +1843,6 @@ export default nextConfig;
         "@tiptap/extension-node-range": "3.27.1",
         "@tiptap/pm": "3.27.1",
         "@tiptap/y-tiptap": "^3.0.5"
-      }
-    },
-    "node_modules/@tiptap/extension-floating-menu": {
-      "version": "3.29.2",
-      "resolved": "https://registry.npmjs.org/@tiptap/extension-floating-menu/-/extension-floating-menu-3.29.2.tgz",
-      "integrity": "sha512-CBTq4Xs5aGWr65uFCIkKBms796OhmirWf/ax//iJ4fl9IfwqjwFuc2vQs9PmuwpKn9ctDHo2sMTtvyeCvIt5LQ==",
-      "license": "MIT",
-      "optional": true,
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/ueberdosis"
-      },
-      "peerDependencies": {
-        "@floating-ui/dom": "^1.0.0",
-        "@tiptap/core": "3.29.2",
-        "@tiptap/pm": "3.29.2"
       }
     },
     "node_modules/@tiptap/extension-hard-break": {
@@ -2180,33 +2169,6 @@ export default nextConfig;
         "url": "https://github.com/sponsors/ueberdosis"
       }
     },
-    "node_modules/@tiptap/react": {
-      "version": "3.29.2",
-      "resolved": "https://registry.npmjs.org/@tiptap/react/-/react-3.29.2.tgz",
-      "integrity": "sha512-ZMKgteYmZXnq7C22U9fbCTC6jAF8XlQM5n2K2FLWCdYAlP4FNV3XeQ9hY2a13KSQ0Q3yltWXZlcWBpt5ClxScg==",
-      "license": "MIT",
-      "dependencies": {
-        "@types/use-sync-external-store": "^0.0.6",
-        "fast-equals": "^5.3.3",
-        "use-sync-external-store": "^1.4.0"
-      },
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/ueberdosis"
-      },
-      "optionalDependencies": {
-        "@tiptap/extension-bubble-menu": "^3.29.2",
-        "@tiptap/extension-floating-menu": "^3.29.2"
-      },
-      "peerDependencies": {
-        "@tiptap/core": "3.29.2",
-        "@tiptap/pm": "3.29.2",
-        "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-        "@types/react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
-        "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-        "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"
-      }
-    },
     "node_modules/@tiptap/starter-kit": {
       "version": "3.27.1",
       "resolved": "https://registry.npmjs.org/@tiptap/starter-kit/-/starter-kit-3.27.1.tgz",
@@ -2416,6 +2378,7 @@ export default nextConfig;
       "version": "19.2.17",
       "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.17.tgz",
       "integrity": "sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==",
+      "dev": true,
       "license": "MIT",
       "dependencies": {
         "csstype": "^3.2.2"
@@ -2425,16 +2388,11 @@ export default nextConfig;
       "version": "19.2.3",
       "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz",
       "integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
+      "dev": true,
       "license": "MIT",
       "peerDependencies": {
         "@types/react": "^19.2.0"
       }
-    },
-    "node_modules/@types/use-sync-external-store": {
-      "version": "0.0.6",
-      "resolved": "https://registry.npmjs.org/@types/use-sync-external-store/-/use-sync-external-store-0.0.6.tgz",
-      "integrity": "sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==",
-      "license": "MIT"
     },
     "node_modules/@typescript-eslint/eslint-plugin": {
       "version": "8.65.0",
@@ -3583,6 +3541,7 @@ export default nextConfig;
       "version": "3.2.3",
       "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
       "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
+      "dev": true,
       "license": "MIT"
     },
     "node_modules/damerau-levenshtein": {
@@ -4401,21 +4360,22 @@ export default nextConfig;
         "node": ">=0.10.0"
       }
     },
+    "node_modules/fake-indexeddb": {
+      "version": "6.2.4",
+      "resolved": "https://registry.npmjs.org/fake-indexeddb/-/fake-indexeddb-6.2.4.tgz",
+      "integrity": "sha512-INKeIKEtSViN4yVtEWEUqbsqmaIy7Ls+MfU0yxQVXg67pOJ/sH1ZxcVrP8XrKULUFohcPD9gnmym+qBfEybACw==",
+      "dev": true,
+      "license": "Apache-2.0",
+      "engines": {
+        "node": ">=18"
+      }
+    },
     "node_modules/fast-deep-equal": {
       "version": "3.1.3",
       "resolved": "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz",
       "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
       "dev": true,
       "license": "MIT"
-    },
-    "node_modules/fast-equals": {
-      "version": "5.4.1",
-      "resolved": "https://registry.npmjs.org/fast-equals/-/fast-equals-5.4.1.tgz",
-      "integrity": "sha512-DjlFSM5Pk9cGcL0q5QXl66eGzx0N6szNgaswwc5ZphlBohjTVJSnGgI+rJVOgOi65qUoQnDZN4nDqi33udtydQ==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=6.0.0"
-      }
     },
     "node_modules/fast-glob": {
       "version": "3.3.1",
@@ -7393,6 +7353,15 @@ export default nextConfig;
         "typescript": ">=4.8.4"
       }
     },
+    "node_modules/ts-fsrs": {
+      "version": "5.4.2",
+      "resolved": "https://registry.npmjs.org/ts-fsrs/-/ts-fsrs-5.4.2.tgz",
+      "integrity": "sha512-z4qop4pzTcyTzuJ566d9EaX/4bZZzhYfeaPImfVr+xcYT65c5oBgFDijUhCE/D+C78eaolHIhKRZ04/RwF+v2g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=20.0.0"
+      }
+    },
     "node_modules/tsconfig-paths": {
       "version": "3.15.0",
       "resolved": "https://registry.npmjs.org/tsconfig-paths/-/tsconfig-paths-3.15.0.tgz",
@@ -7659,15 +7628,6 @@ export default nextConfig;
         "punycode": "^2.1.0"
       }
     },
-    "node_modules/use-sync-external-store": {
-      "version": "1.6.0",
-      "resolved": "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.6.0.tgz",
-      "integrity": "sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==",
-      "license": "MIT",
-      "peerDependencies": {
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
-      }
-    },
     "node_modules/w3c-keyname": {
       "version": "2.2.8",
       "resolved": "https://registry.npmjs.org/w3c-keyname/-/w3c-keyname-2.2.8.tgz",
@@ -7874,7 +7834,6 @@ export default nextConfig;
   }
 }
 
-
 ````
 
 ## File: package.json
@@ -7912,15 +7871,18 @@ export default nextConfig;
     "nanoid": "^5.1.16",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "ts-fsrs": "5.4.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "fake-indexeddb": "6.2.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
@@ -7929,7 +7891,6 @@ export default nextConfig;
     "@tiptap/pm": "3.27.1"
   }
 }
-
 
 ````
 
@@ -7947,6 +7908,7 @@ export default config;
 ## File: src/app/globals.css
 ````
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 :root {
   --color-bg: #ffffff;
@@ -7956,6 +7918,10 @@ export default config;
   --color-sidebar-text: #4a4a4a;
   --color-editor-bg: #ffffff;
   --color-panel-bg: #f9f9f9;
+  /* Shared stacking scale: base content < app chrome < overlays < dialogs. */
+  --z-app-chrome: 40;
+  --z-popover: 100;
+  --z-dialog: 1000;
 }
 
 .dark {
@@ -7968,7 +7934,10 @@ export default config;
   --color-panel-bg: #1e1e22;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* Tailwind supplies the reset.  Do not reset margin/padding here: this file is
+   loaded after Tailwind, so doing so silently cancels utilities such as mt-16
+   and p-6 and lets fixed navigation cover page content. */
+* { box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
   background-color: var(--color-bg);
@@ -8163,6 +8132,249 @@ body {
   overflow: auto;
 }
 
+/* ========================================================================= */
+/* === LaTeX Math (KaTeX) Styles & Interactive Editor ====================== */
+/* ========================================================================= */
+
+.nexus-math-inline {
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: -0.15em;
+  margin: 0 2px;
+  position: relative;
+}
+
+.nexus-math-inline .math-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.nexus-math-inline .math-preview:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+  outline: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.nexus-math-inline .math-edit-wrapper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-editor-bg);
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 2px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  gap: 4px;
+  z-index: 30;
+}
+
+.nexus-math-inline .math-edit-input {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  min-width: 60px;
+}
+
+/* Block Math Container */
+.nexus-math-block {
+  margin: 1.2em 0;
+  position: relative;
+  display: block;
+}
+
+.nexus-math-block .math-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed transparent;
+  transition: all 0.18s ease;
+  overflow-x: auto;
+}
+
+.dark .nexus-math-block .math-preview {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.nexus-math-block .math-preview:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+}
+
+/* Block Math Interactive Card */
+.nexus-math-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-editor-bg);
+  border: 1px solid #3b82f6;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  margin: 8px 0;
+  z-index: 30;
+}
+
+.nexus-math-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: rgba(59, 130, 246, 0.08);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.nexus-math-card-symbols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dark .nexus-math-card-symbols {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.nexus-math-sym-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: 'Consolas', monospace;
+  background: var(--color-editor-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.nexus-math-sym-btn:hover {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+}
+
+.nexus-math-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  resize: vertical;
+}
+
+.nexus-math-live-preview {
+  padding: 12px;
+  border-top: 1px dashed var(--color-border);
+  background-color: rgba(0, 0, 0, 0.015);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
+  min-height: 48px;
+}
+
+.dark .nexus-math-live-preview {
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.nexus-math-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-top: 1px solid var(--color-border);
+}
+
+.dark .nexus-math-card-footer {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* The app owns refresh gestures; editor overscroll must never reload it. */
+html, body { overscroll-behavior-y: none; }
+[data-pull-refresh] { overscroll-behavior-y: contain; }
+
+/* Shared note typography, scoped so novels and character sheets keep their styles. */
+.lesson-document { counter-reset: lesson-figure; }
+.lesson-document .nexus-tiptap-editor { font-size: var(--lesson-font-size, 16px); line-height: var(--lesson-line-height, 1.6); }
+.lesson-document .nexus-tiptap-editor p { font-size: inherit; line-height: inherit; orphans: 3; widows: 3; }
+.lesson-document .nexus-tiptap-editor h1 { font-size: calc(2em * var(--lesson-heading-scale, 1)); }
+.lesson-document .nexus-tiptap-editor h2 { font-size: calc(1.5em * var(--lesson-heading-scale, 1)); }
+.lesson-document .nexus-tiptap-editor h3 { font-size: calc(1.2em * var(--lesson-heading-scale, 1)); }
+.lesson-document[data-lesson-preset="textbook"] .nexus-tiptap-editor { font-family: "Noto Serif TC", "PMingLiU", serif; }
+.lesson-document[data-lesson-preset="handout"] .nexus-tiptap-editor h1 { border-bottom: 2px solid currentColor; padding-bottom: .3em; }
+.nexus-tiptap-editor p[data-lesson-style="caption"] { counter-increment: lesson-figure; text-align: center; font-size: .85em; opacity: .75; margin-top: .35em; }
+.nexus-tiptap-editor p[data-lesson-style="caption"]::before { content: "圖 " counter(lesson-figure) "　"; }
+.nexus-tiptap-editor p[data-lesson-style="key"] { border-left: 3px solid #b7791f; padding: .65em 1em; background: rgba(234,179,8,.1); font-weight: 600; }
+.lesson-block { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.lesson-block[data-lesson-kind="definition"] { border-left: 4px solid #2563eb; }
+.lesson-block[data-lesson-kind="example"] { border-left: 4px solid #15803d; }
+.lesson-block[data-lesson-kind="exercise"] { border-left: 4px solid #b7791f; }
+.lesson-block-label { font-size: .85em; font-weight: 700; display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.lesson-answer-toggle { cursor: pointer; font-weight: 400; text-decoration: underline; }
+.lesson-block-body > :first-child { margin-top: 0; }
+.lesson-block-body > :last-child { margin-bottom: 0; }
+.lesson-answer-space { margin: 12px 0; background: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #a1a1aa 31px, #a1a1aa 32px); }
+.lesson-answer-space > span { font-size: 11px; opacity: .5; }
+.lesson-toc { margin: 16px 0; padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; }
+.lesson-toc button { display: block; width: 100%; text-align: left; padding-top: 5px; padding-bottom: 5px; cursor: pointer; }
+.lesson-toc button:hover { text-decoration: underline; }
+.lesson-page-header, .lesson-page-footer { font-size: 12px; opacity: .65; padding: 8px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lesson-page-header { border-bottom: 1px solid var(--color-border); margin-bottom: 16px; }
+.lesson-page-footer { border-top: 1px solid var(--color-border); margin-top: 16px; }
+.lesson-paper-header, .lesson-paper-footer { position: absolute; font-size: 11px; opacity: .65; overflow-wrap: anywhere; }
+.lesson-paper-header { top: 16px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.lesson-paper-footer { bottom: 16px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #ddd; padding-top: 4px; }
+.lesson-paper-footer > :last-child { flex-shrink: 0; }
+@media print {
+  @page lessonPaper { size: A4; margin: 0; }
+  body:has(.lesson-document) :has(.lesson-document), .lesson-document, .lesson-document :has(.nexus-print-target) { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; display: block !important; position: static !important; padding: 0 !important; margin: 0 !important; zoom: 1 !important; }
+  .lesson-document > :not(:has(.nexus-print-target)) { display: none !important; }
+  .lesson-document .nexus-print-target { position: static !important; width: 100% !important; padding: 0 !important; }
+  .lesson-paper-stack { gap: 0 !important; }
+  .lesson-paper { page: lessonPaper; width: 210mm !important; min-height: 297mm !important; box-shadow: none !important; border-radius: 0 !important; break-after: page; }
+  .lesson-paper:last-child { break-after: auto; }
+  .lesson-document h1, .lesson-document h2, .lesson-document h3 { break-after: avoid; }
+  .lesson-document tr, .lesson-document img, .lesson-block, .lesson-answer-space { break-inside: avoid; }
+  .lesson-document thead { display: table-header-group; }
+  .lesson-document p[data-lesson-style="caption"] { break-before: avoid; }
+  .lesson-document .lesson-block-body[hidden] { display: block !important; }
+  .lesson-document .lesson-answer-space { print-color-adjust: exact; }
+  .lesson-document .nexus-print-hide, .lesson-document .nexus-drag-handle { display: none !important; }
+}
+
+@media print {
+  body:has(.lesson-document) *:has(.lesson-document) > :not(:has(.lesson-document)):not(.lesson-document) { display: none !important; }
+  .lesson-document :has(.nexus-print-target) > :not(:has(.nexus-print-target)):not(.nexus-print-target) { display: none !important; }
+}
+
+.lesson-document .nexus-format-flow { width: 100%; max-width: none; margin: 0; padding: 0; }
+.lesson-menu-row > button { flex-shrink: 0; white-space: nowrap; }
+
+.lesson-paper-footer > :first-child { min-width: 0; flex: 1; }
+
 ````
 
 ## File: src/app/layout.tsx
@@ -8199,14 +8411,62 @@ export default function Home() {
 
 ````
 
+## File: src/components/AccountButton.tsx
+````
+"use client";
+
+import { useState } from "react";
+import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
+
+export default function AccountButton({ accountEmail, required = false }: { accountEmail?: string | null; required?: boolean }) {
+  const [isOpen, setIsOpen] = useState(required);
+  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submit = async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setMessage("尚未設定 Supabase 雲端服務。"); return; }
+    setIsSubmitting(true); setMessage(null);
+    const result = mode === "signIn" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password });
+    setIsSubmitting(false);
+    if (result.error) { setMessage(result.error.message); return; }
+    setMessage(mode === "signUp" && !result.data.session ? "註冊完成，請至信箱確認後再登入。" : "已登入，正在同步工作區。");
+    if (mode === "signIn" || result.data.session) setTimeout(() => setIsOpen(false), 700);
+  };
+
+  const signInWithGoogle = async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setMessage("尚未設定 Supabase 雲端服務。"); return; }
+    setMessage(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) setMessage(error.message);
+  };
+
+  return <>
+    {!required && <button type="button" onClick={() => setIsOpen(true)} className="flex h-9 min-w-9 items-center justify-center rounded-full border px-2 text-sm font-semibold shadow-sm hover:opacity-80" style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-panel-bg)" }} aria-label={accountEmail ? "帳號設定" : "登入或建立帳號"} title={accountEmail || "登入"}>{accountEmail ? accountEmail.slice(0, 1).toUpperCase() : "◉"}</button>}
+    {isOpen && <div className={`fixed inset-0 z-[1000] flex items-center justify-center p-4 ${required ? "bg-[var(--color-bg)]" : "bg-black/35"}`} onMouseDown={() => { if (!required) setIsOpen(false); }}><div className="w-full max-w-sm rounded-2xl border p-5 shadow-2xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">{required ? "登入 Nexus" : "帳號與同步"}</h2><p className="mt-1 text-xs opacity-60">登入後可在你的裝置間同步資料，也可在離線時繼續編輯。</p></div>{!required && <button onClick={() => setIsOpen(false)} className="rounded-md px-2 py-1 text-lg opacity-60">×</button>}</div>
+      {!isSupabaseConfigured() ? <p className="rounded-lg border p-3 text-sm leading-6 opacity-75" style={{ borderColor: "var(--color-border)" }}>尚未連接雲端帳號服務。</p> : accountEmail ? <div><p className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--color-border)" }}>目前登入：{accountEmail}</p><button onClick={async () => { await getSupabase()?.auth.signOut(); setIsOpen(false); }} className="mt-4 w-full rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: "var(--color-border)" }}>登出</button></div> : <div className="space-y-3"><button onClick={signInWithGoogle} className="flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-zinc-50" style={{ borderColor: "var(--color-border)" }}><span className="text-base">G</span> 使用 Google 登入</button><div className="flex items-center gap-2 text-xs opacity-45"><span className="h-px flex-1 bg-current" />或<span className="h-px flex-1 bg-current" /></div><div className="flex rounded-lg border p-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setMode("signIn")} className="flex-1 rounded-md py-1.5 text-sm" style={{ backgroundColor: mode === "signIn" ? "var(--color-border)" : "transparent" }}>登入</button><button onClick={() => setMode("signUp")} className="flex-1 rounded-md py-1.5 text-sm" style={{ backgroundColor: mode === "signUp" ? "var(--color-border)" : "transparent" }}>註冊</button></div><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="電子郵件" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--color-border)" }} /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="密碼（至少 6 個字元）" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--color-border)" }} /><button disabled={isSubmitting || !email || password.length < 6} onClick={submit} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-45">{isSubmitting ? "處理中…" : mode === "signIn" ? "登入" : "建立帳號"}</button>{message && <p className="text-xs leading-5 opacity-70">{message}</p>}</div>}
+    </div></div>}
+  </>;
+}
+
+````
+
 ## File: src/components/AccountSettingsRow.tsx
 ````
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { SUPPORTED_LANGUAGES } from "../lib/i18n";
-import { useLanguage } from "../lib/LanguageContext";
+import { useState } from "react";
 import type { SyncState } from "../lib/syncEngine";
-import HelpGuide from "./HelpGuide";
+import PreferencesMenu from "./PreferencesMenu";
+import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
+
 
 export default function AccountSettingsRow({
   theme,
@@ -8214,87 +8474,1849 @@ export default function AccountSettingsRow({
   onExportBackup,
   onImportBackup,
   syncState,
+  accountEmail,
 }: {
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
   onExportBackup: () => void;
   onImportBackup: () => void;
   syncState?: SyncState;
+  accountEmail?: string | null;
 }) {
-  const { language, setLanguage, t } = useLanguage();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isSettingsOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as globalThis.Node)) setIsSettingsOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isSettingsOpen]);
-
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const syncLabel =
     syncState?.status === "syncing" ? "同步中..." :
     syncState?.status === "error" ? "同步錯誤" :
     syncState?.status === "connected" ? "已同步" :
     syncState?.status === "offline" ? "離線" : "本機";
 
+  const handleAuth = async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setAuthMessage("尚未設定 Supabase，請先設定雲端服務環境變數。"); return; }
+    setIsAuthenticating(true);
+    setAuthMessage(null);
+    const result = authMode === "signIn"
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signUp({ email, password });
+    setIsAuthenticating(false);
+    if (result.error) { setAuthMessage(result.error.message); return; }
+    setAuthMessage(authMode === "signUp" && !result.data.session ? "註冊完成，請至信箱確認後再登入。" : "已登入，正在同步你的工作區。");
+    if (authMode === "signIn" || result.data.session) setTimeout(() => setIsAccountOpen(false), 700);
+  };
+
+  const handleSignOut = async () => {
+    await getSupabase()?.auth.signOut();
+    setIsAccountOpen(false);
+  };
+
   return (
     <>
-      <div className="flex items-center justify-between gap-1.5 px-2.5 py-2.5 border-t shrink-0" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex items-center gap-1.5 text-xs opacity-60 px-1">
-          <span style={{ color: "var(--color-text)" }}>{syncLabel}</span>
-        </div>
-        <div ref={settingsRef} className="relative shrink-0">
-          {isSettingsOpen && (
-            <div className="absolute bottom-full right-0 mb-2 w-64 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-              <div className="px-3 py-2 text-xs font-semibold tracking-wider uppercase opacity-60" style={{ borderBottom: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-                {t("preferences.title")}
-              </div>
-              <div className="p-2.5 space-y-2">
-                <div>
-                  <div className="text-xs opacity-60 px-0.5 mb-1" style={{ color: "var(--color-text)" }}>{t("preferences.language")}</div>
-                  <div className="space-y-0.5">
-                    {SUPPORTED_LANGUAGES.map((option) => (
-                      <button key={option.value} onClick={() => setLanguage(option.value)} className="w-full flex items-center justify-between rounded-md px-2.5 py-2 text-sm" style={{ backgroundColor: language === option.value ? "var(--color-border)" : "transparent", color: "var(--color-text)" }}>
-                        <span>{option.label}</span>
-                        {language === option.value && <span>✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs opacity-60 px-0.5 mb-1" style={{ color: "var(--color-text)" }}>{t("preferences.theme")}</div>
-                  <div className="flex gap-1">
-                    <button onClick={() => onThemeChange("light")} className="flex-1 rounded-md px-2.5 py-2 text-sm" style={{ backgroundColor: theme === "light" ? "var(--color-border)" : "transparent", color: "var(--color-text)", border: "1px solid var(--color-border)" }}>淺色</button>
-                    <button onClick={() => onThemeChange("dark")} className="flex-1 rounded-md px-2.5 py-2 text-sm" style={{ backgroundColor: theme === "dark" ? "var(--color-border)" : "transparent", color: "var(--color-text)", border: "1px solid var(--color-border)" }}>深色</button>
-                  </div>
-                </div>
-                <div className="pt-1" style={{ borderTop: "1px solid var(--color-border)" }}>
-                  <button onClick={() => { setIsHelpOpen(true); setIsSettingsOpen(false); }} className="w-full rounded-md px-3 py-2 text-sm text-left hover:bg-zinc-100 flex items-center gap-2" style={{ color: "var(--color-text)" }}>
-                    <span>📖</span> 使用說明
-                  </button>
-                </div>
-                <div className="pt-1" style={{ borderTop: "1px solid var(--color-border)" }}>
-                  <div className="text-xs opacity-60 px-0.5 mb-1.5" style={{ color: "var(--color-text)" }}>備份</div>
-                  <div className="flex gap-1">
-                    <button onClick={() => { onExportBackup(); setIsSettingsOpen(false); }} className="flex-1 rounded-md px-2 py-2 text-xs font-medium" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>匯出</button>
-                    <button onClick={() => { onImportBackup(); setIsSettingsOpen(false); }} className="flex-1 rounded-md px-2 py-2 text-xs font-medium" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>匯入</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <button onClick={() => setIsSettingsOpen((prev) => !prev)} className="flex items-center justify-center w-9 h-9 rounded-md transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", backgroundColor: isSettingsOpen ? "var(--color-border)" : "transparent" }} title={t("preferences.title")}>
-            <span className="text-base leading-none">⚙️</span>
-          </button>
-        </div>
+      <div className="flex items-center justify-between gap-1.5 px-2.5 py-2.5 border-t shrink-0 select-none" style={{ borderColor: "var(--color-border)" }}>
+        {/* 左側帳號按鈕（登入／登出與同步狀態） */}
+        <button
+          type="button"
+          onClick={() => setIsAccountOpen(true)}
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors truncate max-w-[170px]"
+          style={{ color: "var(--color-text)" }}
+          title={accountEmail ? `已登入: ${accountEmail}` : "帳號登入與同步"}
+        >
+          <span className="text-sm">👤</span>
+          <div className="flex flex-col items-start min-w-0 text-left">
+            <span className="truncate w-full font-semibold">{accountEmail ? accountEmail.split("@")[0] : "登入帳號"}</span>
+            <span className="text-[10px] opacity-60 leading-none">{syncLabel}</span>
+          </div>
+        </button>
+
+        <PreferencesMenu theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />
       </div>
-      <HelpGuide isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* 帳號登入/註冊/登出 Modal */}
+      {isAccountOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4" onMouseDown={() => setIsAccountOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl border p-5 shadow-2xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-base">帳號與同步</h2>
+                <p className="mt-1 text-xs opacity-60">登入後可在你的各個裝置間同步資料。</p>
+              </div>
+              <button onClick={() => setIsAccountOpen(false)} className="rounded-md px-2 py-1 text-lg opacity-60 hover:opacity-100">×</button>
+            </div>
+            {!isSupabaseConfigured() ? (
+              <p className="rounded-lg border p-3 text-sm leading-6 opacity-75" style={{ borderColor: "var(--color-border)" }}>
+                尚未連接雲端帳號服務。設定 <code>NEXT_PUBLIC_SUPABASE_URL</code> 與 <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 後即可啟用。
+              </p>
+            ) : accountEmail ? (
+              <div>
+                <div className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--color-border)" }}>
+                  <div className="text-xs opacity-60 mb-1">目前登入帳號</div>
+                  <div className="font-semibold truncate">{accountEmail}</div>
+                </div>
+                <button onClick={handleSignOut} className="mt-4 w-full rounded-lg border px-3 py-2 text-sm font-medium hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors" style={{ borderColor: "var(--color-border)" }}>
+                  登出帳號
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex rounded-lg border p-1" style={{ borderColor: "var(--color-border)" }}>
+                  <button onClick={() => setAuthMode("signIn")} className="flex-1 rounded-md py-1.5 text-sm" style={{ backgroundColor: authMode === "signIn" ? "var(--color-border)" : "transparent" }}>登入</button>
+                  <button onClick={() => setAuthMode("signUp")} className="flex-1 rounded-md py-1.5 text-sm" style={{ backgroundColor: authMode === "signUp" ? "var(--color-border)" : "transparent" }}>註冊</button>
+                </div>
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="電子郵件" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--color-border)" }} />
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="密碼（至少 6 個字元）" className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none" style={{ borderColor: "var(--color-border)" }} />
+                <button disabled={isAuthenticating || !email || password.length < 6} onClick={handleAuth} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-45 hover:bg-blue-700 transition-colors">
+                  {isAuthenticating ? "處理中…" : authMode === "signIn" ? "登入" : "建立帳號"}
+                </button>
+                {authMessage && <p className="text-xs leading-5 opacity-70 text-amber-600 dark:text-amber-400">{authMessage}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
+}
+
+````
+
+## File: src/components/CharacterProfileView.tsx
+````
+"use client";
+import React, { useEffect, useState, useRef } from "react";
+import { nanoid } from "nanoid";
+import type {
+  Page,
+  CharacterProfileData,
+  CharacterSection,
+  CharacterComponentType,
+} from "../lib/types";
+import { useWorkspaceDialog } from "./WorkspaceDialog";
+import CharacterStatistics from "./CharacterStatistics";
+import CharacterRadar from "./CharacterRadar";
+import { updateCharacterSection, deleteCharacterSection, moveCharacterSection } from "../lib/characterWorkspace";
+import { createBlankTemplate } from "../lib/characterTemplates";
+
+const COMPONENT_TYPES: { type: CharacterComponentType; label: string; desc: string }[] = [
+  { type: "key_value", label: "短文字", desc: "如身高體重、武器裝備、生日等簡短資訊" },
+  { type: "tags", label: "標籤與特質", desc: "性格標籤與詳細心理側寫" },
+  { type: "stats", label: "分數", desc: "力量、敏捷、智力等進度條數值分數（自訂上限）" },
+  { type: "rating", label: "評分", desc: "1~5 顆圓圈點選評分" },
+  { type: "tendency", label: "偏向", desc: "可滑動豎直線，中央磁吸，中立客觀兩端呈現" },
+  { type: "statistics", label: "統計", desc: "項目、介紹、數量、重量與總重自動計算清單" },
+  { type: "rich_text", label: "長文", desc: "身世故事、經歷、未解之謎" },
+  { type: "relations", label: "關聯", desc: "與同伴、導師、宿敵的互動關係" },
+  { type: "radar", label: "雷達圖", desc: "可自訂多個能力維度與分數" },
+  { type: "palette", label: "色票", desc: "建立角色或世界觀的專屬配色" },
+  { type: "gallery", label: "相冊", desc: "以圖片網址整理角色或世界觀圖像" },
+  { type: "links", label: "連結", desc: "收納參考資料與外部網站" },
+  { type: "music", label: "音樂", desc: "收納主題曲、歌單或音樂連結" },
+];
+
+function GalleryAttachment({ attachmentId, getBlob }: { attachmentId: string; getBlob?: (id: string) => Promise<Blob | null> }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    let objectUrl: string | null = null;
+    void getBlob?.(attachmentId).then((blob) => {
+      if (!blob || !current) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
+    });
+    return () => {
+      current = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [attachmentId, getBlob]);
+  return url ? <img src={url} alt="相冊圖片" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs opacity-45">載入中…</div>;
+}
+
+export default function CharacterProfileView({
+  page,
+  onTitleChange,
+  onUpdateCharacterData,
+  onBackToCreativeOverview,
+  worlds = [],
+  getAttachmentBlob,
+  onUploadGalleryImage,
+  onSaveTemplate,
+}: {
+  page: Page;
+  onTitleChange: (title: string) => void;
+  onUpdateCharacterData: (data: CharacterProfileData) => void;
+  onBackToCreativeOverview?: () => void;
+  worlds?: Page[];
+  getAttachmentBlob?: (id: string) => Promise<Blob | null>;
+  onUploadGalleryImage?: (file: File) => Promise<string>;
+  onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
+}) {
+  const { askText, askConfirm, dialog } = useWorkspaceDialog();
+  const [viewMode, setViewMode] = useState<"edit" | "card">("edit");
+  const [templateStatus, setTemplateStatus] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [expandedLongSections, setExpandedLongSections] = useState<Set<string>>(new Set());
+  const [activeTabId, setActiveTabId] = useState("base");
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize data with fallback to blank template
+  const charData: CharacterProfileData = page.character_data || createBlankTemplate();
+  const activeTab = activeTabId === "base" ? null : (charData.tabs || []).find((tab) => tab.id === activeTabId) || null;
+  const currentSections = activeTab ? activeTab.sections : (charData.sections || []);
+  const layoutMode = charData.layout || "single";
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    if (isMoreMenuOpen) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [isMoreMenuOpen]);
+
+  const updateData = (patch: Partial<CharacterProfileData>) => {
+    const next = { ...charData, ...patch };
+    onUpdateCharacterData(next);
+  };
+
+  const updateBasic = (patch: Partial<CharacterProfileData["basic"]>) => {
+    const nextBasic = { ...charData.basic, ...patch };
+    updateData({ basic: nextBasic });
+    if (!charData.isTemplate && patch.name !== undefined && patch.name.trim() && patch.name !== page.title) {
+      onTitleChange(patch.name.trim());
+    }
+  };
+
+  // Focus helper
+  const focusAndScrollTo = (elementId: string) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = document.getElementById(elementId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          const input = el.querySelector<HTMLElement>("input, textarea, select, button");
+          input?.focus();
+        }
+      }, 50);
+    });
+  };
+
+  // Section operations
+  const addSection = (type: CharacterComponentType, parent?: CharacterSection) => {
+    const meta = COMPONENT_TYPES.find((c) => c.type === type);
+    const newId = `sec_${nanoid()}`;
+    const newSec: CharacterSection = {
+      id: newId,
+      type,
+      title: type === "group" ? "新區塊" : meta?.label || "自訂內容",
+      contents: type === "group" ? [] : undefined,
+      keyValues: type === "key_value" ? [{ key: "新屬性", value: "內容" }] : undefined,
+      tags: type === "tags" ? ["標籤一", "標籤二"] : undefined,
+      richText: type === "tags" || type === "rich_text" || type === "stats" ? "" : undefined,
+      stats: type === "radar"
+        ? [{ label: "力量", value: 3, max: 5 }, { label: "敏捷", value: 3, max: 5 }, { label: "意志", value: 3, max: 5 }]
+        : type === "stats"
+        ? [{ label: "力量", value: 17, max: 30 }]
+        : undefined,
+      ratings: type === "rating"
+        ? [{ label: "角色吸引力", value: 4 }, { label: "危險度", value: 3 }]
+        : undefined,
+      palette: type === "palette" ? [{ label: "主色", color: "#9e4b2c" }, { label: "輔色", color: "#e8c47b" }] : undefined,
+      tendency: type === "tendency" ? [{ left: "守序", right: "混亂", value: 50 }] : undefined,
+      statistics: type === "statistics" ? [{ label: "長劍", description: "精鋼打造", count: 1, unitWeight: 1.5, value: 1 }] : undefined,
+      gallery: type === "gallery" ? [] : undefined,
+      galleryAttachmentIds: type === "gallery" ? [] : undefined,
+      externalLinks: type === "links" ? [] : undefined,
+      music: type === "music" ? [] : undefined,
+      relations: type === "relations" ? [{ targetName: "目標角色", relationType: "同伴", description: "關係描述" }] : undefined,
+    };
+
+    if (parent) {
+      updateSection(parent.id, { contents: [...(parent.contents || []), newSec] });
+    } else {
+      saveSections([...currentSections, newSec]);
+    }
+
+    focusAndScrollTo(newId);
+  };
+
+  const updateSection = (id: string, patch: Partial<CharacterSection>) => {
+    saveSections(updateCharacterSection(currentSections, id, patch));
+  };
+
+  const deleteSection = async (id: string) => {
+    if (await askConfirm("刪除此區塊或內容？其中的資料也會一併刪除。")) {
+      saveSections(deleteCharacterSection(currentSections, id));
+    }
+  };
+
+  const moveSection = (id: string, dir: "up" | "down") => {
+    saveSections(moveCharacterSection(currentSections, id, dir === "up" ? -1 : 1));
+  };
+
+  const saveSections = (sections: CharacterSection[]) => {
+    if (!activeTab) {
+      updateData({ sections });
+      return;
+    }
+    updateData({ tabs: (charData.tabs || []).map((tab) => (tab.id === activeTab.id ? { ...tab, sections } : tab)) });
+  };
+
+  const addTab = async () => {
+    const title = (await askText("新頁面名稱", "補充資料"))?.trim();
+    if (!title) return;
+    const tab = { id: `tab_${nanoid()}`, title, sections: [] };
+    updateData({ tabs: [...(charData.tabs || []), tab] });
+    setActiveTabId(tab.id);
+  };
+
+  const duplicateCurrentTab = () => {
+    const newId = `tab_${nanoid()}`;
+    if (!activeTab) {
+      // 複製基本資料到新頁面
+      const clonedSections = JSON.parse(JSON.stringify(charData.sections || []));
+      const newTab = { id: newId, title: "基本資料 (複製)", sections: clonedSections };
+      updateData({ tabs: [...(charData.tabs || []), newTab] });
+      setActiveTabId(newId);
+    } else {
+      const clonedSections = JSON.parse(JSON.stringify(activeTab.sections || []));
+      const newTab = { id: newId, title: `${activeTab.title} (複製)`, sections: clonedSections };
+      updateData({ tabs: [...(charData.tabs || []), newTab] });
+      setActiveTabId(newId);
+    }
+    setIsMoreMenuOpen(false);
+  };
+
+  const renameTab = async () => {
+    if (!activeTab) {
+      // 命名基本資料標籤（若使用者想客製）
+      return;
+    }
+    const title = (await askText("頁面名稱", activeTab.title))?.trim();
+    if (title) {
+      updateData({ tabs: (charData.tabs || []).map((tab) => (tab.id === activeTab.id ? { ...tab, title } : tab)) });
+    }
+    setIsMoreMenuOpen(false);
+  };
+
+  const moveTab = (direction: -1 | 1) => {
+    if (!activeTab) return;
+    const tabs = [...(charData.tabs || [])];
+    const index = tabs.findIndex((tab) => tab.id === activeTabId);
+    if (index < 0 || index + direction < 0 || index + direction >= tabs.length) return;
+    [tabs[index], tabs[index + direction]] = [tabs[index + direction], tabs[index]];
+    updateData({ tabs });
+  };
+
+  const deleteCurrentTab = async () => {
+    if (!activeTab) return;
+    if (await askConfirm(`確定刪除頁面「${activeTab.title}」及其所有內容？`)) {
+      updateData({ tabs: (charData.tabs || []).filter((tab) => tab.id !== activeTab.id) });
+      setActiveTabId("base");
+      setIsMoreMenuOpen(false);
+    }
+  };
+
+  const toggleLayout = () => {
+    const nextLayout = layoutMode === "two_column" ? "single" : "two_column";
+    updateData({ layout: nextLayout });
+    setIsMoreMenuOpen(false);
+  };
+
+  const saveTemplate = async () => {
+    if (!onSaveTemplate || savingTemplate) return;
+    const name = (await askText("模板名稱", `${page.title || "角色"}模板`))?.trim();
+    if (!name) return;
+    setSavingTemplate(true);
+    try {
+      await onSaveTemplate(name, charData);
+      setTemplateStatus("已儲存，可在創作總覽的模板管理中編輯或使用。");
+    } catch {
+      setTemplateStatus("模板儲存失敗，請重試。");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  // 偏向磁吸計算
+  const handleTendencyChange = (secId: string, itemIndex: number, rawVal: number, list: { left: string; right: string; value: number }[]) => {
+    let finalVal = rawVal;
+    // 正中央 50% 磁吸：47% ~ 53% 吸附至 50%
+    if (Math.abs(rawVal - 50) <= 3) {
+      finalVal = 50;
+    }
+    const next = [...list];
+    next[itemIndex] = { ...next[itemIndex], value: finalVal };
+    updateSection(secId, { tendency: next });
+  };
+
+  // 自訂基本資料欄位
+  const customBasicFields = charData.basic.customFields || [];
+  const addCustomBasicField = () => {
+    const newField = { id: `bf_${nanoid()}`, key: "新欄位", value: "" };
+    updateBasic({ customFields: [...customBasicFields, newField] });
+  };
+  const updateCustomBasicField = (id: string, patch: Partial<{ key: string; value: string }>) => {
+    const next = customBasicFields.map((f) => (f.id === id ? { ...f, ...patch } : f));
+    updateBasic({ customFields: next });
+  };
+  const removeCustomBasicField = (id: string) => {
+    const next = customBasicFields.filter((f) => f.id !== id);
+    updateBasic({ customFields: next });
+  };
+
+  const renderSections = (sections: CharacterSection[]): React.ReactNode =>
+    sections.map((sec, sIdx) => (
+      <div
+        id={sec.id}
+        key={sec.id}
+        className="min-w-0 rounded-2xl border p-3 sm:p-5 shadow-sm transition-all relative"
+        style={{
+          backgroundColor: "var(--color-bg)",
+          borderColor: "var(--color-border)",
+        }}
+      >
+        {/* 組件標題欄 */}
+        <div className="flex min-w-0 items-center justify-between gap-2 mb-4 pb-2 border-b" style={{ borderColor: "var(--color-border)" }}>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {viewMode === "edit" ? (
+              <input
+                value={sec.title}
+                onChange={(e) => updateSection(sec.id, { title: e.target.value })}
+                className="min-w-0 w-full font-bold text-sm bg-transparent outline-none border-b border-dashed border-zinc-400 pb-0.5"
+              />
+            ) : (
+              <span className="font-bold text-sm">{sec.title}</span>
+            )}
+          </div>
+
+          {viewMode === "edit" && (
+            <div className="flex shrink-0 items-center gap-1">
+              {sec.type !== "group" && currentSections.some((item) => item.id === sec.id) && (
+                <button
+                  title="將內容放入區塊"
+                  onClick={() =>
+                    saveSections(
+                      currentSections.map((item) =>
+                        item.id === sec.id
+                          ? { id: `sec_${nanoid()}`, type: "group", title: sec.title, contents: [sec] }
+                          : item
+                      )
+                    )
+                  }
+                  className="px-1 text-xs opacity-60 hover:opacity-100"
+                >
+                  建立區塊
+                </button>
+              )}
+              <button
+                onClick={() => moveSection(sec.id, "up")}
+                disabled={sIdx === 0}
+                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-20 text-xs"
+                title="上移"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => moveSection(sec.id, "down")}
+                disabled={sIdx === sections.length - 1}
+                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-20 text-xs"
+                title="下移"
+              >
+                ▼
+              </button>
+              <button
+                onClick={() => deleteSection(sec.id)}
+                className="p-1 rounded text-red-500 hover:bg-red-50 text-xs ml-1"
+                title="刪除組件"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 區塊容器 (Group) */}
+        {sec.type === "group" && (
+          <div className="space-y-4">
+            <div className={layoutMode === "two_column" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4"}>
+              {renderSections(sec.contents || [])}
+            </div>
+            {viewMode === "edit" && (
+              <div className="flex items-center gap-2 pt-2 border-t text-xs font-semibold" style={{ borderColor: "var(--color-border)" }}>
+                <span>新增內容：</span>
+                <select
+                  aria-label={`新增內容至${sec.title}`}
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value) addSection(event.target.value as CharacterComponentType, sec);
+                  }}
+                  className="rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none cursor-pointer hover:border-blue-500"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <option value="" disabled>新增內容</option>
+                  {COMPONENT_TYPES.map((item) => (
+                    <option key={item.type} value={item.type}>
+                      {item.label} — {item.desc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {!sec.contents?.length && viewMode === "card" && <p className="text-xs opacity-50">尚無內容</p>}
+          </div>
+        )}
+
+        {/* 1. 鍵值屬性組件 (Key-Value) */}
+        {sec.type === "key_value" && (
+          <div className="space-y-2">
+            {viewMode === "edit" ? (
+              <>
+                {(sec.keyValues || []).map((kv, kvIdx) => (
+                  <div key={kvIdx} className="flex items-center gap-2">
+                    <input
+                      value={kv.key}
+                      onChange={(e) => {
+                        const next = (sec.keyValues || []).map((item) => ({ ...item }));
+                        next[kvIdx].key = e.target.value;
+                        updateSection(sec.id, { keyValues: next });
+                      }}
+                      placeholder="屬性名（如身高）"
+                      className="w-1/3 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-transparent outline-none"
+                      style={{ borderColor: "var(--color-border)" }}
+                    />
+                    <input
+                      value={kv.value}
+                      onChange={(e) => {
+                        const next = (sec.keyValues || []).map((item) => ({ ...item }));
+                        next[kvIdx].value = e.target.value;
+                        updateSection(sec.id, { keyValues: next });
+                      }}
+                      placeholder={sec.example?.keyValues?.[kvIdx]?.value || "屬性內容"}
+                      className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none"
+                      style={{ borderColor: "var(--color-border)" }}
+                    />
+                    <button
+                      onClick={() => {
+                        const next = (sec.keyValues || []).filter((_, i) => i !== kvIdx);
+                        updateSection(sec.id, { keyValues: next });
+                      }}
+                      className="text-red-500 text-xs px-1.5 opacity-60 hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const next = [...(sec.keyValues || []), { key: "", value: "" }];
+                    updateSection(sec.id, { keyValues: next });
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:underline block pt-1"
+                >
+                  ＋ 新增屬性行
+                </button>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(sec.keyValues || []).map((kv, i) => (
+                  <div key={i} className="p-2.5 rounded-xl border text-xs" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
+                    <div className="opacity-60 text-[10px] truncate">{kv.key}</div>
+                    <div className="font-semibold mt-0.5 truncate">{kv.value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. 標籤與心理側寫 (Tags) */}
+        {sec.type === "tags" && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {(sec.tags || []).map((tag, tIdx) => (
+                <span key={tIdx} className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 flex items-center gap-1.5">
+                  <span>{tag}</span>
+                  {viewMode === "edit" && (
+                    <button onClick={() => updateSection(sec.id, { tags: (sec.tags || []).filter((_, i) => i !== tIdx) })} className="hover:text-red-500 font-bold">
+                      ✕
+                    </button>
+                  )}
+                </span>
+              ))}
+              {viewMode === "edit" && (
+                <button
+                  onClick={async () => {
+                    const t = await askText("請輸入新標籤：", sec.example?.tags?.join("、") || "");
+                    if (t && t.trim()) updateSection(sec.id, { tags: [...(sec.tags || []), t.trim()] });
+                  }}
+                  className="px-2.5 py-1 rounded-full border border-dashed text-xs text-blue-600 hover:bg-blue-50 transition-all font-medium"
+                >
+                  ＋ 新增標籤
+                </button>
+              )}
+            </div>
+            {viewMode === "edit" ? (
+              <textarea
+                value={sec.richText || ""}
+                onChange={(e) => updateSection(sec.id, { richText: e.target.value })}
+                placeholder={sec.example?.richText || "詳細性格心理特質說明..."}
+                rows={3}
+                className="w-full p-2.5 rounded-lg border text-xs bg-transparent outline-none resize-y"
+                style={{ borderColor: "var(--color-border)" }}
+              />
+            ) : sec.richText ? (
+              <p className="text-xs leading-relaxed opacity-85 whitespace-pre-wrap">{sec.richText}</p>
+            ) : null}
+          </div>
+        )}
+
+        {/* 3. 分數組件 (Stats - 稱呼為「分數」，自由自訂上限，如 17/30) */}
+        {sec.type === "stats" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(sec.stats || []).map((st, stIdx) => {
+                const maxVal = st.max !== undefined ? st.max : 100;
+                const pct = maxVal > 0 ? Math.min(100, Math.max(0, (st.value / maxVal) * 100)) : 0;
+                return (
+                  <div key={stIdx} className="space-y-1.5 p-2 rounded-xl border" style={{ borderColor: "var(--color-border)" }}>
+                    <div className="flex items-center justify-between text-xs">
+                      {viewMode === "edit" ? (
+                        <input
+                          value={st.label}
+                          onChange={(e) => {
+                            const next = (sec.stats || []).map((item) => ({ ...item }));
+                            next[stIdx].label = e.target.value;
+                            updateSection(sec.id, { stats: next });
+                          }}
+                          placeholder="能力名稱"
+                          className="font-semibold bg-transparent outline-none w-28 border-b border-dashed border-zinc-400"
+                        />
+                      ) : (
+                        <span className="font-semibold">{st.label}</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        {viewMode === "edit" ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={st.value}
+                              onChange={(e) => {
+                                const next = (sec.stats || []).map((item) => ({ ...item }));
+                                next[stIdx].value = Number(e.target.value) || 0;
+                                updateSection(sec.id, { stats: next });
+                              }}
+                              className="w-12 text-right font-bold text-blue-600 font-mono bg-transparent border-b border-zinc-400 outline-none"
+                            />
+                            <span className="opacity-40 text-xs">/</span>
+                            <input
+                              type="number"
+                              value={maxVal}
+                              title="上限值（可自由設定，如 30、100）"
+                              onChange={(e) => {
+                                const next = (sec.stats || []).map((item) => ({ ...item }));
+                                next[stIdx].max = Math.max(1, Number(e.target.value) || 1);
+                                updateSection(sec.id, { stats: next });
+                              }}
+                              className="w-12 text-left opacity-60 font-mono text-xs bg-transparent border-b border-zinc-400 outline-none"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-bold text-blue-600 font-mono">{st.value}</span>
+                            <span className="opacity-40 text-[10px]">/ {maxVal}</span>
+                          </>
+                        )}
+                        {viewMode === "edit" && (
+                          <button
+                            onClick={() => {
+                              const next = (sec.stats || []).filter((_, i) => i !== stIdx);
+                              updateSection(sec.id, { stats: next });
+                            }}
+                            className="text-red-500 ml-1 text-xs opacity-60 hover:opacity-100"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {/* 進度條 */}
+                    <div className="w-full h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    {viewMode === "edit" && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={maxVal}
+                        value={st.value}
+                        onChange={(e) => {
+                          const next = (sec.stats || []).map((item) => ({ ...item }));
+                          next[stIdx].value = Number(e.target.value);
+                          updateSection(sec.id, { stats: next });
+                        }}
+                        className="w-full accent-blue-600 h-1 cursor-pointer"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {viewMode === "edit" ? (
+              <>
+                <button
+                  onClick={() => {
+                    const next = [...(sec.stats || []), { label: "新能力", value: 10, max: 30 }];
+                    updateSection(sec.id, { stats: next });
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:underline block"
+                >
+                  ＋ 新增分數項目
+                </button>
+                <textarea
+                  value={sec.richText || ""}
+                  onChange={(e) => updateSection(sec.id, { richText: e.target.value })}
+                  placeholder={sec.example?.richText || "能力、魔法與戰鬥風格詳細說明..."}
+                  rows={2}
+                  className="w-full p-2.5 rounded-lg border text-xs bg-transparent outline-none resize-y mt-2"
+                  style={{ borderColor: "var(--color-border)" }}
+                />
+              </>
+            ) : sec.richText ? (
+              <p className="text-xs leading-relaxed opacity-85 whitespace-pre-wrap pt-2 border-t" style={{ borderColor: "var(--color-border)" }}>
+                {sec.richText}
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        {/* 4. 評分組件 (Rating - 5 個圓圈 點選評分 1~5) */}
+        {sec.type === "rating" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(sec.ratings || []).map((item, rIdx) => (
+                <div key={rIdx} className="flex items-center justify-between p-2.5 rounded-xl border text-xs" style={{ borderColor: "var(--color-border)" }}>
+                  {viewMode === "edit" ? (
+                    <input
+                      value={item.label}
+                      onChange={(e) => {
+                        const next = (sec.ratings || []).map((it) => ({ ...it }));
+                        next[rIdx].label = e.target.value;
+                        updateSection(sec.id, { ratings: next });
+                      }}
+                      placeholder="評分項目"
+                      className="font-semibold bg-transparent outline-none w-28 border-b border-dashed border-zinc-400"
+                    />
+                  ) : (
+                    <span className="font-semibold">{item.label}</span>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((score) => {
+                      const filled = item.value >= score;
+                      return (
+                        <button
+                          key={score}
+                          type="button"
+                          disabled={viewMode === "card"}
+                          onClick={() => {
+                            const next = (sec.ratings || []).map((it) => ({ ...it }));
+                            next[rIdx].value = score;
+                            updateSection(sec.id, { ratings: next });
+                          }}
+                          className={`w-4 h-4 rounded-full border transition-all ${
+                            filled
+                              ? "bg-blue-600 border-blue-600 shadow-xs"
+                              : "border-zinc-400 bg-transparent hover:border-blue-400"
+                          } ${viewMode === "edit" ? "cursor-pointer" : "cursor-default"}`}
+                          title={`${score} 分`}
+                        />
+                      );
+                    })}
+                    <span className="ml-1 text-[11px] font-mono opacity-60 w-6 text-right">
+                      {item.value}/5
+                    </span>
+                    {viewMode === "edit" && (
+                      <button
+                        onClick={() => {
+                          const next = (sec.ratings || []).filter((_, i) => i !== rIdx);
+                          updateSection(sec.id, { ratings: next });
+                        }}
+                        className="text-red-500 ml-1 opacity-60 hover:opacity-100"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {viewMode === "edit" && (
+              <button
+                onClick={() => {
+                  const next = [...(sec.ratings || []), { label: "新評分", value: 3 }];
+                  updateSection(sec.id, { ratings: next });
+                }}
+                className="text-xs font-semibold text-blue-600 hover:underline block"
+              >
+                ＋ 新增評分項目
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 5. 偏向組件 (Tendency - 可滑動豎直線滑桿，中央磁吸，無單側填色) */}
+        {sec.type === "tendency" && (
+          <div className="space-y-4">
+            {(sec.tendency || []).map((item, index) => {
+              const list = sec.tendency || [];
+              return (
+                <div key={index} className="p-3 rounded-xl border text-xs space-y-2" style={{ borderColor: "var(--color-border)" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <input
+                      value={item.left}
+                      disabled={viewMode === "card"}
+                      onChange={(e) => {
+                        const next = [...list];
+                        next[index] = { ...item, left: e.target.value };
+                        updateSection(sec.id, { tendency: next });
+                      }}
+                      className="font-medium text-left bg-transparent outline-none border-b border-dashed border-zinc-400 flex-1 min-w-0"
+                      placeholder="左端特性"
+                    />
+                    <span className="text-[10px] font-mono opacity-60 shrink-0">
+                      {item.value === 50 ? "中立 (50%)" : item.value < 50 ? `偏向左 (${item.value}%)` : `偏向右 (${item.value}%)`}
+                    </span>
+                    <input
+                      value={item.right}
+                      disabled={viewMode === "card"}
+                      onChange={(e) => {
+                        const next = [...list];
+                        next[index] = { ...item, right: e.target.value };
+                        updateSection(sec.id, { tendency: next });
+                      }}
+                      className="font-medium text-right bg-transparent outline-none border-b border-dashed border-zinc-400 flex-1 min-w-0"
+                      placeholder="右端特性"
+                    />
+                    {viewMode === "edit" && (
+                      <button
+                        onClick={() => updateSection(sec.id, { tendency: list.filter((_, idx) => idx !== index) })}
+                        className="text-red-500 opacity-60 hover:opacity-100 shrink-0 ml-1"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 中立滑軌與可滑動豎直線（無單邊顏色填色） */}
+                  <div className="relative py-2 select-none">
+                    {/* 中央中立刻度線 */}
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-zinc-400 dark:bg-zinc-600 -translate-x-1/2 pointer-events-none opacity-60" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={item.value}
+                      disabled={viewMode === "card"}
+                      onChange={(e) => handleTendencyChange(sec.id, index, Number(e.target.value), list)}
+                      className="w-full appearance-none h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 outline-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-1.5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-none [&::-webkit-slider-thumb]:border-0 [&::-moz-range-thumb]:w-1.5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:rounded-none [&::-moz-range-thumb]:border-0"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {viewMode === "edit" && (
+              <button
+                onClick={() =>
+                  updateSection(sec.id, {
+                    tendency: [...(sec.tendency || []), { left: "守序", right: "混亂", value: 50 }],
+                  })
+                }
+                className="text-xs font-semibold text-blue-600 hover:underline block"
+              >
+                ＋ 新增偏向
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 6. 統計組件 (Statistics - 項目 / 介紹 / 數量 / 重量 / 總重 / 合計) */}
+        {sec.type === "statistics" && (
+          <CharacterStatistics section={sec} editing={viewMode === "edit"} onChange={(patch) => updateSection(sec.id, patch)} />
+        )}
+
+        {/* 雷達圖 */}
+        {sec.type === "radar" && (
+          <CharacterRadar section={sec} editing={viewMode === "edit"} onChange={(patch) => updateSection(sec.id, patch)} />
+        )}
+
+        {/* 色票 */}
+        {sec.type === "palette" && (
+          <div className="space-y-2">
+            {(sec.palette || []).map((item, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={item.color}
+                  disabled={viewMode === "card"}
+                  onChange={(event) => {
+                    const palette = [...(sec.palette || [])];
+                    palette[index] = { ...item, color: event.target.value };
+                    updateSection(sec.id, { palette });
+                  }}
+                  className="h-9 w-12 rounded border p-1 cursor-pointer"
+                  style={{ borderColor: "var(--color-border)" }}
+                />
+                <input
+                  value={item.label}
+                  disabled={viewMode === "card"}
+                  onChange={(event) => {
+                    const palette = [...(sec.palette || [])];
+                    palette[index] = { ...item, label: event.target.value };
+                    updateSection(sec.id, { palette });
+                  }}
+                  className="min-w-0 flex-1 rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0"
+                  style={{ borderColor: "var(--color-border)" }}
+                />
+                <code className="text-xs opacity-60 font-mono">{item.color}</code>
+                {viewMode === "edit" && (
+                  <button onClick={() => updateSection(sec.id, { palette: (sec.palette || []).filter((_, itemIndex) => itemIndex !== index) })}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            {viewMode === "edit" && (
+              <button onClick={() => updateSection(sec.id, { palette: [...(sec.palette || []), { label: "新顏色", color: "#64748b" }] })} className="text-xs font-semibold text-blue-600">
+                ＋ 新增顏色
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 相冊 */}
+        {sec.type === "gallery" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {(sec.galleryAttachmentIds || []).map((attachmentId, index) => (
+                <div key={attachmentId} className="relative aspect-square overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
+                  <GalleryAttachment attachmentId={attachmentId} getBlob={getAttachmentBlob} />
+                  {viewMode === "edit" && (
+                    <button
+                      onClick={() =>
+                        updateSection(sec.id, {
+                          galleryAttachmentIds: (sec.galleryAttachmentIds || []).filter((_, imageIndex) => imageIndex !== index),
+                        })
+                      }
+                      className="absolute right-1 top-1 rounded bg-black/60 px-1.5 text-xs text-white"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {(sec.gallery || []).map((url, index) => (
+                <div key={url + index} className="relative aspect-square overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
+                  <img src={url} alt="相冊圖片" className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+            {viewMode === "edit" && (
+              <>
+                <input
+                  id={`gallery-${sec.id}`}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file || !onUploadGalleryImage) return;
+                    void onUploadGalleryImage(file).then((attachmentId) =>
+                      updateSection(sec.id, { galleryAttachmentIds: [...(sec.galleryAttachmentIds || []), attachmentId] })
+                    );
+                  }}
+                />
+                <button onClick={() => document.getElementById(`gallery-${sec.id}`)?.click()} className="text-xs font-semibold text-blue-600">
+                  ＋ 上傳圖片
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 連結與音樂 */}
+        {(sec.type === "links" || sec.type === "music") && (
+          <div className="space-y-2">
+            {(sec.type === "music" ? sec.music || [] : sec.externalLinks || []).map((item, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  value={item.label}
+                  disabled={viewMode === "card"}
+                  onChange={(event) => {
+                    const key = sec.type === "music" ? "music" : "externalLinks";
+                    const list = [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || [])];
+                    list[index] = { ...item, label: event.target.value };
+                    updateSection(sec.id, { [key]: list });
+                  }}
+                  className="w-1/3 rounded border bg-transparent px-2 py-1.5 text-xs disabled:border-0"
+                  style={{ borderColor: "var(--color-border)" }}
+                  placeholder="名稱"
+                />
+                {viewMode === "card" ? (
+                  <a href={item.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate rounded border px-2 py-1.5 text-xs text-blue-600" style={{ borderColor: "var(--color-border)" }}>
+                    {item.url}
+                  </a>
+                ) : (
+                  <input
+                    value={item.url}
+                    onChange={(event) => {
+                      const key = sec.type === "music" ? "music" : "externalLinks";
+                      const list = [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || [])];
+                      list[index] = { ...item, url: event.target.value };
+                      updateSection(sec.id, { [key]: list });
+                    }}
+                    className="min-w-0 flex-1 rounded border bg-transparent px-2 py-1.5 text-xs"
+                    style={{ borderColor: "var(--color-border)" }}
+                    placeholder="https://"
+                  />
+                )}
+                {viewMode === "edit" && (
+                  <button
+                    onClick={() => {
+                      const key = sec.type === "music" ? "music" : "externalLinks";
+                      updateSection(sec.id, {
+                        [key]: (sec.type === "music" ? sec.music || [] : sec.externalLinks || []).filter((_, linkIndex) => linkIndex !== index),
+                      });
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            {viewMode === "edit" && (
+              <button
+                onClick={() => {
+                  const key = sec.type === "music" ? "music" : "externalLinks";
+                  updateSection(sec.id, {
+                    [key]: [...(sec.type === "music" ? sec.music || [] : sec.externalLinks || []), { label: "", url: "" }],
+                  });
+                }}
+                className="text-xs font-semibold text-blue-600"
+              >
+                ＋ 新增{sec.type === "music" ? "音樂" : "連結"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* 長文故事 (Rich Text) */}
+        {sec.type === "rich_text" && (
+          <div>
+            {viewMode === "edit" ? (
+              <textarea
+                value={sec.richText || ""}
+                onChange={(e) => updateSection(sec.id, { richText: e.target.value })}
+                placeholder={sec.example?.richText || "填寫背景身世、轉折經歷或故事細節..."}
+                rows={6}
+                className="w-full p-3 rounded-lg border text-xs bg-transparent outline-none resize-y leading-relaxed"
+                style={{ borderColor: "var(--color-border)" }}
+              />
+            ) : (
+              <div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedLongSections((current) => {
+                      const next = new Set(current);
+                      if (next.has(sec.id)) next.delete(sec.id);
+                      else next.add(sec.id);
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-center gap-2 text-left text-xs font-medium opacity-80 hover:opacity-100"
+                >
+                  <span>{expandedLongSections.has(sec.id) ? "▾ 收合長文" : "▸ 展開長文"}</span>
+                </button>
+                {expandedLongSections.has(sec.id) && (
+                  <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed opacity-85 border-t pt-2" style={{ borderColor: "var(--color-border)" }}>
+                    {sec.richText || "尚無內容"}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 關聯 (Relations) */}
+        {sec.type === "relations" && (
+          <div className="space-y-3">
+            {viewMode === "edit" ? (
+              <>
+                {(sec.relations || []).map((rel, rIdx) => (
+                  <div key={rIdx} className="space-y-2 p-3 rounded-xl border text-xs" style={{ borderColor: "var(--color-border)" }}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={rel.targetName}
+                        onChange={(e) => {
+                          const next = (sec.relations || []).map((item) => ({ ...item }));
+                          next[rIdx].targetName = e.target.value;
+                          updateSection(sec.id, { relations: next });
+                        }}
+                        placeholder="對象姓名"
+                        className="w-1/2 px-2.5 py-1 rounded border text-xs font-semibold bg-transparent outline-none"
+                        style={{ borderColor: "var(--color-border)" }}
+                      />
+                      <input
+                        value={rel.relationType}
+                        onChange={(e) => {
+                          const next = (sec.relations || []).map((item) => ({ ...item }));
+                          next[rIdx].relationType = e.target.value;
+                          updateSection(sec.id, { relations: next });
+                        }}
+                        placeholder="關係（如：同伴、導師）"
+                        className="w-1/2 px-2.5 py-1 rounded border text-xs bg-transparent outline-none"
+                        style={{ borderColor: "var(--color-border)" }}
+                      />
+                      <button
+                        onClick={() => {
+                          const next = (sec.relations || []).filter((_, i) => i !== rIdx);
+                          updateSection(sec.id, { relations: next });
+                        }}
+                        className="text-red-500 px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <input
+                      value={rel.description}
+                      onChange={(e) => {
+                        const next = (sec.relations || []).map((item) => ({ ...item }));
+                        next[rIdx].description = e.target.value;
+                        updateSection(sec.id, { relations: next });
+                      }}
+                      placeholder="關係與互動備註描述"
+                      className="w-full px-2.5 py-1 rounded border text-xs bg-transparent outline-none"
+                      style={{ borderColor: "var(--color-border)" }}
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const next = [...(sec.relations || []), { targetName: "", relationType: "", description: "" }];
+                    updateSection(sec.id, { relations: next });
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:underline block"
+                >
+                  ＋ 新增人際關係
+                </button>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(sec.relations || []).map((rel, i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-xl border text-xs space-y-1"
+                    style={{
+                      backgroundColor: "var(--color-sidebar-bg)",
+                      borderColor: "var(--color-border)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm">{rel.targetName || "未具名"}</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] bg-blue-50 dark:bg-blue-950 text-blue-600 font-medium">
+                        {rel.relationType || "關係"}
+                      </span>
+                    </div>
+                    <p className="opacity-75 text-[11px] leading-relaxed">{rel.description || "無描述"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ));
+
+  return (
+    <div className="flex flex-col flex-1 h-full overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      {dialog}
+      {/* 頂部工具列 */}
+      <header
+        className="shrink-0 flex flex-wrap gap-3 items-center justify-between px-4 py-3 border-b select-none z-20"
+        style={{
+          backgroundColor: "var(--color-sidebar-bg)",
+          borderColor: "var(--color-border)",
+          color: "var(--color-text)",
+        }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {onBackToCreativeOverview && (
+            <button
+              onClick={onBackToCreativeOverview}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm shrink-0"
+              style={{ borderColor: "var(--color-border)" }}
+              title="返回創作總覽工作台"
+            >
+              <span>« 創作總覽</span>
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="font-bold text-sm truncate">{charData.isTemplate ? page.title : charData.basic.name || page.title || "未命名角色"}</div>
+            <div className="text-[11px] opacity-60 truncate">
+              {charData.basic.role ? `${charData.basic.role} · ` : ""}
+              {charData.basic.affiliation || "角色檔案"}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* 模式切換 */}
+          <div className="flex items-center rounded-lg p-0.5 border text-xs bg-black/5 dark:bg-white/5" style={{ borderColor: "var(--color-border)" }}>
+            <button
+              onClick={() => setViewMode("edit")}
+              className={`px-3 py-1 rounded-md transition-all font-medium ${
+                viewMode === "edit" ? "bg-white dark:bg-zinc-800 shadow-sm" : "opacity-60 hover:opacity-100"
+              }`}
+            >
+              編輯表單
+            </button>
+            <button
+              onClick={() => setViewMode("card")}
+              className={`px-3 py-1 rounded-md transition-all font-medium ${
+                viewMode === "card" ? "bg-white dark:bg-zinc-800 shadow-sm" : "opacity-60 hover:opacity-100"
+              }`}
+            >
+              檢視卡片
+            </button>
+          </div>
+
+          {viewMode === "edit" && (
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="新增內容"
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) addSection(event.target.value as CharacterComponentType);
+                }}
+                className="rounded-lg border bg-transparent px-3 py-1.5 text-xs font-semibold outline-none cursor-pointer hover:border-blue-500"
+                style={{ borderColor: "var(--color-border)" }}
+              >
+                <option value="" disabled>新增內容</option>
+                {COMPONENT_TYPES.map((item) => (
+                  <option key={item.type} value={item.type}>
+                    {item.label} — {item.desc}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => addSection("group")}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                ＋ 新增區塊
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-2 text-xs" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+        {charData.isTemplate ? (
+          <>
+            <strong>編輯模板與範文</strong>
+            <span>文字用作新角色的背景提示；數值、色票與圖片作為預設內容。</span>
+          </>
+        ) : (
+          <button disabled={savingTemplate} onClick={() => void saveTemplate()} className="rounded border px-3 py-1.5 disabled:opacity-50 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            {savingTemplate ? "儲存中…" : "將目前組件與內容設為模板"}
+          </button>
+        )}
+        <span role="status">{templateStatus}</span>
+      </div>
+
+      {/* 主內容區 */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* 角色核心基礎資訊 (Hero Header) */}
+          <div
+            className="rounded-2xl border p-6 shadow-sm transition-all relative overflow-hidden"
+            style={{
+              backgroundColor: "var(--color-bg)",
+              borderColor: "var(--color-border)",
+            }}
+          >
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              {/* 頭像區域 */}
+              <div className="shrink-0 flex flex-col items-center gap-2">
+                <div
+                  className="w-28 h-28 rounded-2xl border-2 flex items-center justify-center overflow-hidden shadow-inner relative group"
+                  style={{
+                    backgroundColor: "var(--color-sidebar-bg)",
+                    borderColor: "var(--color-border)",
+                  }}
+                >
+                  {charData.basic.avatarUrl ? (
+                    <img src={charData.basic.avatarUrl} alt={charData.basic.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-4xl opacity-30 select-none">🎭</span>
+                  )}
+                  {viewMode === "edit" && (
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                      <button
+                        onClick={async () => {
+                          const url = await askText("請輸入頭像圖片 URL：", charData.basic.avatarUrl || "");
+                          if (url !== null) updateBasic({ avatarUrl: url.trim() });
+                        }}
+                        className="text-[10px] text-white bg-blue-600 px-2 py-1 rounded shadow"
+                      >
+                        更換圖片
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {viewMode === "edit" && charData.basic.avatarUrl && (
+                  <button onClick={() => updateBasic({ avatarUrl: "" })} className="text-[10px] text-red-500 hover:underline">
+                    移除頭像
+                  </button>
+                )}
+              </div>
+
+              {/* 基礎欄位 */}
+              <div className="flex-1 w-full space-y-3">
+                {viewMode === "edit" ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">角色全名 *</label>
+                        <input
+                          value={charData.basic.name}
+                          onChange={(e) => updateBasic({ name: e.target.value })}
+                          placeholder={charData.basicExamples?.name || "例如：艾爾溫·晨星"}
+                          className="w-full px-3 py-1.5 rounded-lg border text-sm font-bold bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">別名 / 稱號</label>
+                        <input
+                          value={charData.basic.alias || ""}
+                          onChange={(e) => updateBasic({ alias: e.target.value })}
+                          placeholder={charData.basicExamples?.alias || "例如：破曉之刃"}
+                          className="w-full px-3 py-1.5 rounded-lg border text-sm bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">性別</label>
+                        <input
+                          value={charData.basic.gender || ""}
+                          onChange={(e) => updateBasic({ gender: e.target.value })}
+                          placeholder={charData.basicExamples?.gender || "例如：男"}
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">年齡</label>
+                        <input
+                          value={charData.basic.age || ""}
+                          onChange={(e) => updateBasic({ age: e.target.value })}
+                          placeholder={charData.basicExamples?.age || "例如：24 歲"}
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">職業 / 身份</label>
+                        <input
+                          value={charData.basic.role || ""}
+                          onChange={(e) => updateBasic({ role: e.target.value })}
+                          placeholder={charData.basicExamples?.role || "例如：遊俠"}
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold opacity-60 block mb-1">所屬陣營 / 組織</label>
+                        <input
+                          value={charData.basic.affiliation || ""}
+                          onChange={(e) => updateBasic({ affiliation: e.target.value })}
+                          placeholder={charData.basicExamples?.affiliation || "例如：銀月騎士團"}
+                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                          style={{ borderColor: "var(--color-border)" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 自訂基本資料欄位清單 */}
+                    {customBasicFields.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t" style={{ borderColor: "var(--color-border)" }}>
+                        <div className="text-[11px] font-semibold opacity-60">自訂基礎欄位</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {customBasicFields.map((field) => (
+                            <div key={field.id} className="flex items-center gap-1.5">
+                              <input
+                                value={field.key}
+                                onChange={(e) => updateCustomBasicField(field.id, { key: e.target.value })}
+                                placeholder="欄位名稱"
+                                className="w-1/3 px-2 py-1 rounded border text-xs font-semibold bg-transparent outline-none"
+                                style={{ borderColor: "var(--color-border)" }}
+                              />
+                              <input
+                                value={field.value}
+                                onChange={(e) => updateCustomBasicField(field.id, { value: e.target.value })}
+                                placeholder="內容"
+                                className="min-w-0 flex-1 px-2 py-1 rounded border text-xs bg-transparent outline-none"
+                                style={{ borderColor: "var(--color-border)" }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeCustomBasicField(field.id)}
+                                className="text-red-500 text-xs px-1 hover:opacity-100 opacity-60"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={addCustomBasicField}
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        ＋ 新增自訂基本欄位
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold opacity-60 block mb-1">代表名言 / 口頭禪</label>
+                      <input
+                        value={charData.basic.quote || ""}
+                        onChange={(e) => updateBasic({ quote: e.target.value })}
+                        placeholder={charData.basicExamples?.quote || "例如：「只要晨光尚未熄滅，黑夜便無法吞噬希望。」"}
+                        className="w-full px-3 py-1.5 rounded-lg border text-xs italic bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
+                        style={{ borderColor: "var(--color-border)" }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold opacity-60 block mb-1">所屬世界觀</label>
+                      <select
+                        value={charData.world_id || ""}
+                        onChange={(event) => updateData({ world_id: event.target.value || null })}
+                        className="w-full rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
+                        style={{ borderColor: "var(--color-border)" }}
+                      >
+                        <option value="">獨立角色（不歸屬世界觀）</option>
+                        {worlds.filter((world) => world.id !== page.id).map((world) => (
+                          <option key={world.id} value={world.id}>
+                            {world.title || "未命名世界觀"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <h1 className="text-2xl font-bold">{charData.basic.name}</h1>
+                      {charData.basic.alias && <span className="text-sm opacity-60 font-medium">({charData.basic.alias})</span>}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      {charData.basic.role && <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-semibold">{charData.basic.role}</span>}
+                      {charData.basic.affiliation && <span className="px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 font-medium">{charData.basic.affiliation}</span>}
+                      {charData.basic.gender && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.gender}</span>}
+                      {charData.basic.age && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.age}</span>}
+                      {customBasicFields.map((f) => (
+                        <span key={f.id} className="px-2 py-0.5 rounded border text-[11px] opacity-75">
+                          {f.key}：{f.value || "—"}
+                        </span>
+                      ))}
+                      {charData.world_id && (
+                        <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">
+                          世界觀：{worlds.find((world) => world.id === charData.world_id)?.title || "已刪除的世界觀"}
+                        </span>
+                      )}
+                    </div>
+
+                    {charData.basic.quote && (
+                      <div className="pt-2 text-sm italic opacity-85 border-t mt-3" style={{ borderColor: "var(--color-border)" }}>
+                        {charData.basic.quote}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 自訂動態組件清單（支援單欄與雙欄檢視） */}
+          <div className={layoutMode === "two_column" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4"}>
+            {renderSections(currentSections)}
+          </div>
+        </div>
+      </div>
+
+      {/* 底部導覽頁籤與「更多操作」 */}
+      <footer
+        className="shrink-0 border-t p-2 flex items-center justify-between gap-2 select-none z-20"
+        style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-sidebar-bg)" }}
+      >
+        <nav aria-label="角色卡頁面" className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1">
+          <button
+            aria-current={!activeTab ? "page" : undefined}
+            onClick={() => setActiveTabId("base")}
+            className={`shrink-0 rounded px-3 py-1.5 text-xs font-medium transition-all ${
+              !activeTab ? "bg-blue-600 text-white shadow-xs" : "opacity-70 hover:opacity-100"
+            }`}
+          >
+            基本資料
+          </button>
+          {(charData.tabs || []).map((tab) => (
+            <button
+              key={tab.id}
+              aria-current={activeTab?.id === tab.id ? "page" : undefined}
+              onClick={() => setActiveTabId(tab.id)}
+              className={`shrink-0 rounded px-3 py-1.5 text-xs font-medium transition-all ${
+                activeTab?.id === tab.id ? "bg-blue-600 text-white shadow-xs" : "opacity-70 hover:opacity-100"
+              }`}
+            >
+              {tab.title}
+            </button>
+          ))}
+          {viewMode === "edit" && (
+            <button onClick={addTab} className="shrink-0 rounded border px-2.5 py-1.5 text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              ＋ 新增頁面
+            </button>
+          )}
+        </nav>
+
+        {/* 更多操作下拉選單 */}
+        {viewMode === "edit" && (
+          <div ref={moreMenuRef} className="relative shrink-0">
+            {isMoreMenuOpen && (
+              <div
+                className="absolute bottom-full right-0 mb-2 w-48 rounded-xl border shadow-2xl p-1 z-30 text-xs"
+                style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+              >
+                {/* 雙欄切換 */}
+                <button
+                  type="button"
+                  onClick={toggleLayout}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-between"
+                >
+                  <span>雙欄檢視</span>
+                  <span>{layoutMode === "two_column" ? "✓ 已開啟" : "關閉"}</span>
+                </button>
+
+                <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
+
+                {/* 頁面操作 */}
+                <button
+                  type="button"
+                  onClick={duplicateCurrentTab}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  複製目前頁面
+                </button>
+
+                {activeTab && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={renameTab}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      重新命名目前頁面
+                    </button>
+                    <button
+                      type="button"
+                      disabled={charData.tabs?.[0]?.id === activeTab.id}
+                      onClick={() => moveTab(-1)}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
+                    >
+                      ← 頁面向左移
+                    </button>
+                    <button
+                      type="button"
+                      disabled={charData.tabs?.at(-1)?.id === activeTab.id}
+                      onClick={() => moveTab(1)}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
+                    >
+                      頁面向右移 →
+                    </button>
+                    <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
+                    <button
+                      type="button"
+                      onClick={deleteCurrentTab}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 font-medium"
+                    >
+                      刪除目前頁面
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+              className="rounded border px-2.5 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-1"
+              style={{ borderColor: "var(--color-border)" }}
+            >
+              <span>⚙ 更多操作</span>
+              <span className="text-[10px]">▾</span>
+            </button>
+          </div>
+        )}
+      </footer>
+    </div>
+  );
+}
+
+````
+
+## File: src/components/CharacterRadar.tsx
+````
+"use client";
+import type { CharacterSection } from "../lib/types";
+
+export default function CharacterRadar({ section, editing, onChange }: {
+  section: CharacterSection; editing: boolean; onChange: (patch: Partial<CharacterSection>) => void;
+}) {
+  const stats = section.stats || [];
+  const point = (index: number, ratio: number) => {
+    const angle = index * Math.PI * 2 / stats.length - Math.PI / 2;
+    return [160 + Math.cos(angle) * 102 * ratio, 160 + Math.sin(angle) * 102 * ratio];
+  };
+  return <div className="space-y-3">
+    {stats.length >= 3 ? <svg viewBox="0 0 320 320" role="img" aria-label={`${section.title}：${stats.map((item) => `${item.label} ${item.value}/${item.max || 5}`).join("、")}`} className="mx-auto w-full max-w-80 overflow-visible">
+      {[0.25, 0.5, 0.75, 1].map((ratio) => <polygon key={ratio} points={stats.map((_, index) => point(index, ratio).join(",")).join(" ")} fill="none" stroke="currentColor" opacity="0.18" />)}
+      {stats.map((stat, index) => { const [x, y] = point(index, 1.24); const [endX, endY] = point(index, 1); return <g key={index}><line x1="160" y1="160" x2={endX} y2={endY} stroke="currentColor" opacity="0.18" /><text x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="11" fill="currentColor">{stat.label}</text></g>; })}
+      <polygon points={stats.map((stat, index) => point(index, Math.max(0, Math.min(1, stat.value / (stat.max || 5)))).join(",")).join(" ")} fill="#3b82f6" fillOpacity="0.25" stroke="#3b82f6" strokeWidth="2" />
+    </svg> : <p className="text-xs opacity-60">新增至少三個維度以顯示雷達圖。</p>}
+    {stats.map((stat, index) => <div key={index} className="flex flex-wrap items-center gap-2 text-xs">
+      <input aria-label={`維度 ${index + 1} 名稱`} value={stat.label} disabled={!editing} onChange={(event) => onChange({ stats: stats.map((item, i) => i === index ? { ...item, label: event.target.value } : item) })} className="min-w-0 flex-1 rounded border bg-transparent p-2 disabled:border-0" />
+      <input aria-label={`${stat.label}數值`} type="number" min={0} max={stat.max || 5} value={stat.value} disabled={!editing} onChange={(event) => onChange({ stats: stats.map((item, i) => i === index ? { ...item, value: Math.max(0, Math.min(item.max || 5, Number(event.target.value) || 0)) } : item) })} className="w-16 rounded border bg-transparent p-2 disabled:border-0" />
+      <span>/</span><input aria-label={`${stat.label}上限`} type="number" min={1} value={stat.max || 5} disabled={!editing} onChange={(event) => { const max = Math.max(1, Number(event.target.value) || 1); onChange({ stats: stats.map((item, i) => i === index ? { ...item, max, value: Math.min(item.value, max) } : item) }); }} className="w-16 rounded border bg-transparent p-2 disabled:border-0" />
+      {editing && <button aria-label={`刪除維度 ${stat.label}`} onClick={() => onChange({ stats: stats.filter((_, i) => i !== index) })}>×</button>}
+    </div>)}
+    {editing && <button onClick={() => onChange({ stats: [...stats, { label: "新維度", value: 0, max: 5 }] })} className="text-xs text-blue-600">＋ 新增維度</button>}
+  </div>;
+}
+
+````
+
+## File: src/components/CharacterStatistics.tsx
+````
+"use client";
+import type { CharacterSection, CharacterStatisticItem } from "../lib/types";
+
+export default function CharacterStatistics({
+  section,
+  editing,
+  onChange,
+}: {
+  section: CharacterSection;
+  editing: boolean;
+  onChange: (patch: Partial<CharacterSection>) => void;
+}) {
+  const rows = section.statistics || [];
+
+  const update = (index: number, patch: Partial<CharacterStatisticItem>) =>
+    onChange({
+      statistics: rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    });
+
+  // 計算合計
+  const totalCount = rows.reduce((sum, row) => {
+    const c = row.count !== undefined ? row.count : (row.value !== undefined ? row.value : 0);
+    return sum + (Number(c) || 0);
+  }, 0);
+
+  const totalWeight = rows.reduce((sum, row) => {
+    const c = row.count !== undefined ? row.count : (row.value !== undefined ? row.value : 0);
+    const w = row.unitWeight !== undefined ? row.unitWeight : 0;
+    return sum + ((Number(c) || 0) * (Number(w) || 0));
+  }, 0);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[540px] text-left text-xs border-collapse">
+        <thead>
+          <tr className="border-b" style={{ borderColor: "var(--color-border)" }}>
+            <th className="p-2 font-semibold w-1/4">項目</th>
+            <th className="p-2 font-semibold w-1/3">介紹</th>
+            <th className="p-2 font-semibold w-16 text-right">數量</th>
+            <th className="p-2 font-semibold w-20 text-right">重量</th>
+            <th className="p-2 font-semibold w-20 text-right">總重</th>
+            {editing && <th className="w-8"><span className="sr-only">刪除</span></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            const count = row.count !== undefined ? row.count : (row.value !== undefined ? row.value : 0);
+            const unitWeight = row.unitWeight !== undefined ? row.unitWeight : 0;
+            const itemTotalWeight = Math.round((Number(count) * Number(unitWeight)) * 100) / 100;
+
+            return (
+              <tr key={index} className="border-t" style={{ borderColor: "var(--color-border)" }}>
+                <td className="p-2">
+                  {editing ? (
+                    <input
+                      aria-label={`項目 ${index + 1}`}
+                      value={row.label}
+                      placeholder={section.example?.statistics?.[index]?.label || "名稱"}
+                      onChange={(event) => update(index, { label: event.target.value })}
+                      className="w-full bg-transparent outline-none border-b border-dashed border-zinc-400 focus:border-blue-500"
+                    />
+                  ) : (
+                    row.label || "—"
+                  )}
+                </td>
+                <td className="p-2">
+                  {editing ? (
+                    <textarea
+                      aria-label={`介紹 ${index + 1}`}
+                      value={row.description}
+                      placeholder={section.example?.statistics?.[index]?.description || "說明與特點"}
+                      rows={2}
+                      onChange={(event) => update(index, { description: event.target.value })}
+                      className="w-full resize-y bg-transparent outline-none border-b border-dashed border-zinc-400 focus:border-blue-500"
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{row.description || "—"}</p>
+                  )}
+                </td>
+                <td className="p-2 text-right">
+                  {editing ? (
+                    <input
+                      aria-label={`數量 ${index + 1}`}
+                      type="number"
+                      step="any"
+                      value={count}
+                      onChange={(event) => update(index, { count: Number(event.target.value) || 0, value: Number(event.target.value) || 0 })}
+                      className="w-16 text-right bg-transparent outline-none border-b border-dashed border-zinc-400 focus:border-blue-500"
+                    />
+                  ) : (
+                    count
+                  )}
+                </td>
+                <td className="p-2 text-right">
+                  {editing ? (
+                    <input
+                      aria-label={`重量 ${index + 1}`}
+                      type="number"
+                      step="any"
+                      value={unitWeight}
+                      onChange={(event) => update(index, { unitWeight: Number(event.target.value) || 0 })}
+                      className="w-16 text-right bg-transparent outline-none border-b border-dashed border-zinc-400 focus:border-blue-500"
+                    />
+                  ) : (
+                    unitWeight
+                  )}
+                </td>
+                <td className="p-2 text-right font-medium text-blue-600 dark:text-blue-400">
+                  {itemTotalWeight}
+                </td>
+                {editing && (
+                  <td className="p-2 text-center">
+                    <button
+                      aria-label={`刪除項目 ${index + 1}`}
+                      onClick={() => onChange({ statistics: rows.filter((_, i) => i !== index) })}
+                      className="text-red-500 hover:opacity-100 opacity-60 text-sm font-bold"
+                    >
+                      ×
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* 底部合計分割線與統計 */}
+      <div className="mt-3 pt-2 border-t flex flex-wrap items-center justify-between gap-4 text-xs font-semibold" style={{ borderColor: "var(--color-border)" }}>
+        <div className="opacity-60 select-none">—————（合計）</div>
+        <div className="flex items-center gap-6">
+          <div>
+            <span className="opacity-60 mr-1.5">總數量:</span>
+            <span className="font-bold font-mono text-sm">{totalCount}</span>
+          </div>
+          <div>
+            <span className="opacity-60 mr-1.5">總重量:</span>
+            <span className="font-bold font-mono text-sm text-blue-600 dark:text-blue-400">
+              {Math.round(totalWeight * 100) / 100}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {editing && (
+        <button
+          onClick={() =>
+            onChange({
+              statistics: [
+                ...rows,
+                { label: "", description: "", count: 1, unitWeight: 0, value: 1 },
+              ],
+            })
+          }
+          className="mt-3 text-xs text-blue-600 font-semibold hover:underline block"
+        >
+          ＋ 新增項目
+        </button>
+      )}
+    </div>
+  );
+}
+
+````
+
+## File: src/components/CharacterTemplateManager.tsx
+````
+"use client";
+import { useWorkspaceDialog } from "./WorkspaceDialog";
+import type { Page } from "../lib/types";
+
+export default function CharacterTemplateManager({ templates, onClose, onCreate, onEdit, onRename, onDelete, onUse }: {
+  templates: Page[]; onClose: () => void; onCreate: () => void; onEdit: (id: string) => void;
+  onRename: (id: string, title: string) => void; onDelete: (id: string) => void; onUse: (id: string) => void;
+}) {
+  const { askText, askConfirm, dialog } = useWorkspaceDialog();
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    {dialog}
+    <section role="dialog" aria-modal="true" aria-labelledby="template-manager-title" onClick={(event) => event.stopPropagation()} className="max-h-[85dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border p-5 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+      <header className="mb-4 flex items-center justify-between"><h2 id="template-manager-title" className="text-lg font-bold">模板管理</h2><button aria-label="關閉模板管理" onClick={onClose}>×</button></header>
+      <p className="mb-4 text-sm opacity-65">在模板中編輯區塊、分頁與範文。修改模板不會改動已建立的角色。</p>
+      <button onClick={() => { onCreate(); onClose(); }} className="mb-4 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white">＋ 建立空白模板</button>
+      {!templates.length && <p className="py-8 text-center text-sm opacity-60">尚無自訂模板，也可從角色卡儲存目前組件與內容。</p>}
+      <div className="space-y-3">{templates.map((template) => <article key={template.id} className="rounded-xl border p-4" style={{ borderColor: "var(--color-border)" }}>
+        <h3 className="mb-3 font-semibold">{template.title}</h3>
+        <div className="flex flex-wrap gap-4 text-xs">
+          <button className="text-blue-600" onClick={() => { onUse(template.id); onClose(); }}>使用模板建立角色</button>
+          <button onClick={() => { onEdit(template.id); onClose(); }}>編輯模板與範文</button>
+          <button onClick={async () => { const title = (await askText("模板名稱", template.title))?.trim(); if (title) onRename(template.id, title); }}>重新命名</button>
+          <button className="text-red-600" onClick={async () => { if (await askConfirm(`將模板「${template.title}」移至垃圾桶？已建立的角色不受影響。`)) onDelete(template.id); }}>刪除</button>
+        </div>
+      </article>)}</div>
+    </section>
+  </div>;
 }
 
 ````
@@ -8422,7 +10444,12 @@ export default function ChartRenderer({ chart, width = 300, height = 160 }: { ch
   // --- PIE / DONUT ---
   if (type === "pie" || type === "donut") {
     const total = data.reduce((s, d) => s + d.value, 0) || 1;
-    let currentAngle = 0;
+    const segments = data.reduce<{ datum: typeof data[number]; index: number; startAngle: number; endAngle: number }[]>((items, datum, index) => {
+      const startAngle = items[index - 1]?.endAngle || 0;
+      const endAngle = startAngle + (datum.value / total) * 360;
+      items.push({ datum, index, startAngle, endAngle });
+      return items;
+    }, []);
     const cx = width / 2;
     const cy = height / 2;
     const r = Math.min(width, height) / 2 - 10;
@@ -8431,11 +10458,8 @@ export default function ChartRenderer({ chart, width = 300, height = 160 }: { ch
     return (
       <div className="flex items-center gap-3">
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-          {data.map((d, i) => {
-            const angle = (d.value / total) * 360;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-            currentAngle += angle;
+          {segments.map(({ datum: d, index: i, startAngle, endAngle }) => {
+            const angle = endAngle - startAngle;
             const largeArc = angle > 180 ? 1 : 0;
             const x1 = cx + r * Math.cos((Math.PI * startAngle) / 180);
             const y1 = cy + r * Math.sin((Math.PI * startAngle) / 180);
@@ -9051,7 +11075,7 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh]" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-[12vh]" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg rounded-xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="opacity-40 text-sm">🔍</span>
@@ -9090,46 +11114,650 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
 ## File: src/components/CreativeView.tsx
 ````
 "use client";
-import type { Page } from "../lib/types";
+import React, { useState, useMemo, useEffect } from "react";
+import { isCreativeCharacterPage, type Page } from "../lib/types";
+import CharacterTemplateManager from "./CharacterTemplateManager";
 import { useLanguage } from "../lib/LanguageContext";
 
-export default function CreativeView({ pages, onCreateNovel, onCreateCharacter, onSelectPage }: {
+// 書本封面主題配色庫
+const BOOK_COVER_THEMES = [
+  { bg: "linear-gradient(145deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%)", border: "#4338ca", accent: "#fbbf24", spine: "#17143a" },
+  { bg: "linear-gradient(145deg, #450a0a 0%, #7f1d1d 60%, #991b1b 100%)", border: "#991b1b", accent: "#fef08a", spine: "#310505" },
+  { bg: "linear-gradient(145deg, #064e3b 0%, #065f46 60%, #047857 100%)", border: "#047857", accent: "#a7f3d0", spine: "#033427" },
+  { bg: "linear-gradient(145deg, #18181b 0%, #27272a 60%, #3f3f46 100%)", border: "#3f3f46", accent: "#e4e4e7", spine: "#09090b" },
+  { bg: "linear-gradient(145deg, #4c1d95 0%, #6d28d9 60%, #7c3aed 100%)", border: "#7c3aed", accent: "#fbcfe8", spine: "#37146e" },
+  { bg: "linear-gradient(145deg, #451a03 0%, #78350f 60%, #92400e 100%)", border: "#92400e", accent: "#fde68a", spine: "#2e1001" },
+];
+
+function getNovelStats(page: Page) {
+  const text = page.content_text || "";
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishWords = (text.match(/[a-zA-Z0-9_-]+/g) || []).length;
+  const totalCount = chineseChars + englishWords;
+
+  const doc = (page.content_json as any) || { content: [] };
+  let chapterCount = 0;
+  function countHeadings(node: any) {
+    if (!node) return;
+    if (node.type === "heading" && (node.attrs?.level === 1 || node.attrs?.level === 2)) {
+      chapterCount++;
+    }
+    if (Array.isArray(node.content)) node.content.forEach(countHeadings);
+  }
+  countHeadings(doc);
+
+  return { totalCount, chapterCount: Math.max(chapterCount, 1) };
+}
+
+export default function CreativeView({
+  pages,
+  onCreateCharacter,
+  onCreateWorld,
+  onSelectPage,
+  onDeletePage,
+  templates = [],
+  onCreateTemplate,
+  onRenameTemplate,
+}: {
   pages: Page[];
-  onCreateNovel: () => void;
-  onCreateCharacter: () => void;
+  onCreateCharacter: (templateId?: string) => void;
+  templates?: Page[];
+  onCreateTemplate: () => void;
+  onRenameTemplate: (id: string, title: string) => void;
+  onCreateWorld: () => void;
   onSelectPage: (id: string) => void;
+  onDeletePage?: (id: string) => void;
 }) {
   const { t } = useLanguage();
-  const creativePages = pages.filter((p) => p.kind === "creative" && !p.deleted_at);
+  const [charModalOpen, setCharModalOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+
+  // Windows 總管三種檢視模式：圖示 (icons)、清單 (list)、詳細資料 (details)
+  const [viewMode, setViewMode] = useState<"icons" | "list" | "details">("icons");
+
+  // 詳細資料模式排序狀態
+  const [sortField, setSortField] = useState<"title" | "type" | "size" | "updated_at" | "created_at">("updated_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  useEffect(() => {
+    const savedMode = localStorage.getItem("nexus_creative_view_mode") as "icons" | "list" | "details" | null;
+    if (savedMode === "icons" || savedMode === "list" || savedMode === "details") {
+      setViewMode(savedMode);
+    }
+  }, []);
+
+  const handleSetViewMode = (mode: "icons" | "list" | "details") => {
+    setViewMode(mode);
+    localStorage.setItem("nexus_creative_view_mode", mode);
+  };
+
+  const creativePages = useMemo(() => {
+    // 小說有專屬入口；創作工作台只管理角色與創作素材。
+    return pages.filter((p) => !p.deleted_at && !p.character_data?.isTemplate && isCreativeCharacterPage(p));
+  }, [pages]);
+
+  const characterPages = useMemo(() => {
+    return creativePages;
+  }, [creativePages]);
+
+  const displayedPages = useMemo(() => {
+    const baseList = creativePages;
+
+    return [...baseList].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "title") {
+        cmp = (a.title || "").localeCompare(b.title || "");
+      } else if (sortField === "type") {
+        const aType = a.creative_type || (a.character_data ? "character" : "novel");
+        const bType = b.creative_type || (b.character_data ? "character" : "novel");
+        cmp = aType.localeCompare(bType);
+      } else if (sortField === "size") {
+        const aSize = (a.content_text || "").length;
+        const bSize = (b.content_text || "").length;
+        cmp = aSize - bSize;
+      } else if (sortField === "created_at") {
+        cmp = (a.created_at || 0) - (b.created_at || 0);
+      } else {
+        cmp = (a.updated_at || 0) - (b.updated_at || 0);
+      }
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [creativePages, sortField, sortOrder]);
+
+  const toggleSort = (field: "title" | "type" | "size" | "updated_at" | "created_at") => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
+
   return (
     <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="mx-auto w-full max-w-[900px] p-6">
-        <h1 className="text-2xl font-semibold mb-2" style={{ color: "var(--color-text)" }}>✍️ {t("sidebar.nav.creative")}</h1>
-        <p className="text-xs opacity-60 mb-6">小說閱讀格式、角色詳細簡介表等創作工具</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button onClick={onCreateNovel} className="rounded-xl border p-4 text-left hover:shadow-md transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-            <div className="text-2xl mb-2">📖</div>
-            <div className="text-sm font-semibold">小說閱讀格式</div>
-            <div className="text-xs opacity-60 mt-1">流動排版，適合長篇閱讀</div>
+      {templateManagerOpen && <CharacterTemplateManager templates={templates} onClose={() => setTemplateManagerOpen(false)} onCreate={onCreateTemplate} onEdit={onSelectPage} onRename={onRenameTemplate} onDelete={(id) => onDeletePage?.(id)} onUse={onCreateCharacter} />}
+      <div className="mx-auto w-full max-w-[960px] p-6 sm:p-10 space-y-8">
+        {/* 標題與簡介 */}
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "var(--color-text)" }}>
+            <span>✍️</span>
+            <span>{t("sidebar.nav.creative")} 工作台</span>
+          </h1>
+          <p className="text-xs opacity-60 mt-1">管理世界觀、角色檔案與創作素材；小說請從獨立的「小說」功能進入。</p>
+        </div>
+
+        <button onClick={() => setTemplateManagerOpen(true)} className="rounded-lg border px-4 py-2 text-sm" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>模板管理</button>
+        {/* 快速新增區塊 */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* 新增角色卡片 */}
+          <button
+            onClick={() => setCharModalOpen(true)}
+            className="group rounded-2xl border p-5 text-left hover:shadow-lg transition-all duration-200 cursor-pointer relative overflow-hidden flex flex-col justify-between"
+            style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-2xl flex items-center justify-center border border-indigo-200 dark:border-indigo-900 group-hover:scale-105 transition-transform">
+                🎭
+              </div>
+              <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100/60 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                動態組件
+              </span>
+            </div>
+            <div className="mt-4">
+              <div className="text-base font-bold group-hover:text-blue-600 transition-colors">角色詳細簡介表</div>
+              <div className="text-xs opacity-60 mt-1 leading-relaxed">
+                結構化角色檔案、外貌心理、自訂屬性數值條、人際關係與履歷卡
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t text-xs font-semibold text-blue-600 flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
+              <span>＋ 選擇模板建立角色</span>
+            </div>
           </button>
-          <button onClick={onCreateCharacter} className="rounded-xl border p-4 text-left hover:shadow-md transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-            <div className="text-2xl mb-2">🎭</div>
-            <div className="text-sm font-semibold">角色詳細簡介表</div>
-            <div className="text-xs opacity-60 mt-1">含姓名/年齡/性格/背景/外觀/能力</div>
+          <button onClick={onCreateWorld} className="group rounded-2xl border p-5 text-left hover:shadow-lg transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+            <div className="text-base font-bold group-hover:text-blue-600">建立世界觀</div>
+            <div className="mt-2 text-xs leading-relaxed opacity-60">以相同的區塊式資料頁整理世界設定、地點、歷史與規則。</div>
+            <div className="mt-4 text-xs font-semibold text-blue-600">＋ 建立世界觀</div>
           </button>
         </div>
-        <div className="mt-6 text-center opacity-40 text-sm">更多創作工具陸續新增中...</div>
-        {creativePages.length > 0 && (
-          <div className="mt-6">
-            <div className="text-xs font-semibold opacity-50 uppercase mb-2">已建立的創作</div>
-            {creativePages.map((p) => (
-              <button key={p.id} onClick={() => onSelectPage(p.id)} className="w-full text-left rounded-lg border p-3 mb-2 hover:shadow-sm transition-all" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-                <span className="text-sm font-medium">{p.title || "未命名"}</span>
-                <span className="text-xs opacity-40 ml-2">{new Date(p.updated_at).toLocaleDateString()}</span>
-              </button>
-            ))}
+
+        {/* 角色模板選擇 Modal */}
+        {charModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div
+              className="max-h-[85dvh] overflow-y-auto w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+              style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
+            >
+              <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: "var(--color-border)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎭</span>
+                  <h3 className="font-bold text-base">選擇角色簡介模板</h3>
+                </div>
+                <button onClick={() => setCharModalOpen(false)} className="text-sm opacity-50 hover:opacity-100 p-1">
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => { onCreateCharacter("dnd5e"); setCharModalOpen(false); }}
+                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <div><div className="font-bold text-sm group-hover:text-blue-600">D&amp;D 5e 角色模板</div><div className="text-xs opacity-60 mt-0.5">冒險者基本資料、能力評分與背景欄位</div></div>
+                </button>
+                <button
+                  onClick={() => { onCreateCharacter("coc7e"); setCharModalOpen(false); }}
+                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <div><div className="font-bold text-sm group-hover:text-blue-600">CoC 7e 調查員模板</div><div className="text-xs opacity-60 mt-0.5">調查員資料、專業能力與履歷欄位</div></div>
+                </button>
+                <button
+                  onClick={() => {
+                    onCreateCharacter("blank");
+                    setCharModalOpen(false);
+                  }}
+                  className="w-full text-left p-3.5 rounded-xl border hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all flex items-start gap-3 group"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <span className="text-2xl mt-0.5">📄</span>
+                  <div>
+                    <div className="font-bold text-sm group-hover:text-blue-600">空白自訂角色檔案</div>
+                    <div className="text-xs opacity-60 mt-0.5">純淨空白，隨心所欲自由新增鍵值、標籤、數值與關係組件</div>
+                  </div>
+                </button>
+                {templates.length > 0 && <div className="border-t pt-3"><p className="mb-2 text-xs opacity-60">自訂模板</p>{templates.map((template) => <button key={template.id} onClick={() => { onCreateCharacter(template.id); setCharModalOpen(false); }} className="mb-2 w-full rounded-lg border p-3 text-left text-sm" style={{ borderColor: "var(--color-border)" }}>{template.title}</button>)}</div>}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* 已建立的創作清單區塊 */}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3" style={{ borderColor: "var(--color-border)" }}>
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold">
+              <span>🎭 角色檔案</span><span className="opacity-55">({characterPages.length})</span>
+            </div>
+
+            {/* Windows 檔案總管三種檢視切換器 */}
+            <div
+              className="flex items-center rounded-lg border p-0.5 text-xs shadow-inner"
+              style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
+            >
+              <button
+                onClick={() => handleSetViewMode("icons")}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === "icons"
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-xs font-bold"
+                    : "opacity-65 hover:opacity-100"
+                }`}
+                title="圖示檢視（如小說軟體般顯示封面）"
+              >
+                <span>🔲</span>
+                <span>圖示</span>
+              </button>
+              <button
+                onClick={() => handleSetViewMode("list")}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === "list"
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-xs font-bold"
+                    : "opacity-65 hover:opacity-100"
+                }`}
+                title="清單檢視（卡片清單模式）"
+              >
+                <span>☰</span>
+                <span>清單</span>
+              </button>
+              <button
+                onClick={() => handleSetViewMode("details")}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === "details"
+                    ? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black shadow-xs font-bold"
+                    : "opacity-65 hover:opacity-100"
+                }`}
+                title="詳細資料檢視（參照 Windows 檔案總管表格與排序）"
+              >
+                <span>📋</span>
+                <span>詳細資料</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 列表內容區域 */}
+          {displayedPages.length === 0 ? (
+            <div className="rounded-2xl border border-dashed py-14 text-center opacity-40 text-xs space-y-1" style={{ borderColor: "var(--color-border)" }}>
+              <div>目前尚無角色檔案</div>
+              <div>點擊上方按鈕建立第一位角色</div>
+            </div>
+          ) : viewMode === "icons" ? (
+            /* 1. 圖示模式：立體書本封面 (Book Cover) 與立體角色肖像卡 */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+              {displayedPages.map((p, idx) => {
+                const isChar = p.creative_type === "character" || !!p.character_data;
+                const char = p.character_data;
+                const novelStats = !isChar ? getNovelStats(p) : null;
+                const theme = BOOK_COVER_THEMES[idx % BOOK_COVER_THEMES.length];
+                const dateStr = new Date(p.updated_at).toLocaleDateString();
+
+                if (isChar) {
+                  // 角色立體檔案卡
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => onSelectPage(p.id)}
+                      className="group relative rounded-xl border p-4 text-left hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden hover:-translate-y-1"
+                      style={{
+                        backgroundColor: "var(--color-bg)",
+                        borderColor: "var(--color-border)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-2xl flex items-center justify-center border border-indigo-200 dark:border-indigo-900 shadow-inner group-hover:scale-110 transition-transform">
+                          🎭
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-indigo-100/60 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                          角色
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex-1 min-w-0">
+                        <h4 className="font-bold text-sm truncate group-hover:text-blue-600 transition-colors">
+                          {p.title || char?.basic?.name || "未命名角色"}
+                        </h4>
+                        {char?.basic?.role && (
+                          <p className="text-xs opacity-60 mt-0.5 truncate">{char.basic.role}</p>
+                        )}
+                        {char?.basic?.affiliation && (
+                          <p className="text-[11px] opacity-40 truncate">{char.basic.affiliation}</p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-2 border-t flex items-center justify-between text-[11px] opacity-50" style={{ borderColor: "var(--color-border)" }}>
+                        <span>{char?.sections?.length || 0} 組件</span>
+                        <span>{dateStr}</span>
+                      </div>
+
+                      {/* 刪除按鈕 */}
+                      {onDeletePage && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`確定要刪除角色「${p.title || "此創作"}」嗎？`)) {
+                              onDeletePage(p.id);
+                            }
+                          }}
+                          className="absolute top-2 right-2 text-xs text-red-500 opacity-0 group-hover:opacity-60 hover:opacity-100! p-1 transition-opacity cursor-pointer"
+                          title="刪除"
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                // 小說立體書本封面 (Novel 3D Book Cover)
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => onSelectPage(p.id)}
+                    className="group cursor-pointer flex flex-col items-center select-none"
+                  >
+                    {/* 3D 書本容器 */}
+                    <div
+                      className="w-full aspect-[2/3] rounded-r-xl rounded-l-xs relative shadow-md group-hover:shadow-2xl transition-all duration-300 group-hover:-translate-y-1.5 flex flex-col justify-between p-4 overflow-hidden border border-black/10"
+                      style={{
+                        background: theme.bg,
+                        color: "#ffffff",
+                      }}
+                    >
+                      {/* 書脊立體折痕光影 (Book spine) */}
+                      <div
+                        className="absolute inset-y-0 left-0 w-3.5 pointer-events-none opacity-40"
+                        style={{
+                          background: "linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(255,255,255,0.2) 30%, rgba(0,0,0,0.3) 100%)",
+                          boxShadow: "inset -1px 0 2px rgba(0,0,0,0.4)",
+                        }}
+                      />
+
+                      {/* 精裝燙金裝飾框 */}
+                      <div
+                        className="absolute inset-2.5 rounded border pointer-events-none opacity-30"
+                        style={{ borderColor: theme.accent }}
+                      />
+
+                      {/* 書本頂部資訊標籤 */}
+                      <div className="relative z-10 pl-2 flex items-center justify-between">
+                        <span className="text-[10px] tracking-widest uppercase font-mono opacity-70">
+                          NOVEL
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 backdrop-blur-xs font-semibold">
+                          {novelStats?.chapterCount || 1} 章
+                        </span>
+                      </div>
+
+                      {/* 書名大字 */}
+                      <div className="relative z-10 pl-2 my-auto text-center">
+                        <div
+                          className="font-bold text-base sm:text-lg tracking-wider line-clamp-3 leading-snug drop-shadow-md"
+                          style={{
+                            fontFamily: "'Noto Serif TC', 'Source Han Serif TC', serif",
+                          }}
+                        >
+                          {p.title || "未命名小說"}
+                        </div>
+                        <div className="w-8 h-0.5 mx-auto mt-2 rounded-full opacity-60" style={{ backgroundColor: theme.accent }} />
+                      </div>
+
+                      {/* 書本底部資訊腰封 */}
+                      <div className="relative z-10 pl-2 pt-1 border-t border-white/20 flex items-center justify-between text-[10px] opacity-80">
+                        <span>✍️ {novelStats?.totalCount.toLocaleString()} 字</span>
+                        <span className="text-[9px] opacity-60">Nexus</span>
+                      </div>
+
+                      {/* 刪除按鈕 */}
+                      {onDeletePage && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                              onDeletePage(p.id);
+                            }
+                          }}
+                          className="absolute top-2 right-2 text-xs text-white/70 hover:text-red-400 opacity-0 group-hover:opacity-100 p-1 transition-opacity z-20 cursor-pointer"
+                          title="刪除"
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 書籍下方文字名稱與日期 */}
+                    <div className="w-full text-center mt-2 px-1">
+                      <div className="font-semibold text-xs truncate group-hover:text-blue-600 transition-colors" style={{ color: "var(--color-text)" }}>
+                        {p.title || "未命名小說"}
+                      </div>
+                      <div className="text-[10px] opacity-40 mt-0.5">更新於 {dateStr}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : viewMode === "list" ? (
+            /* 2. 清單模式：優雅的卡片清單 */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {displayedPages.map((p) => {
+                const isChar = p.creative_type === "character" || !!p.character_data;
+                const char = p.character_data;
+                const dateStr = new Date(p.updated_at).toLocaleDateString();
+
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => onSelectPage(p.id)}
+                    className="group rounded-xl border p-4 text-left hover:shadow-md transition-all duration-200 cursor-pointer flex items-start gap-3.5 relative"
+                    style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                        isChar ? "bg-indigo-50 dark:bg-indigo-950/40" : "bg-amber-50 dark:bg-amber-950/40"
+                      }`}
+                    >
+                      {isChar ? "🎭" : "📖"}
+                    </div>
+
+                    <div className="flex-1 min-w-0 pr-6">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm truncate group-hover:text-blue-600 transition-colors">
+                          {p.title || (isChar ? "未命名角色" : "未命名小說")}
+                        </span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
+                            isChar
+                              ? "bg-indigo-100/60 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                              : "bg-amber-100/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {isChar ? "角色" : "小說"}
+                        </span>
+                      </div>
+
+                      {isChar && char?.basic?.role && (
+                        <div className="text-xs opacity-60 mt-0.5 truncate">
+                          {char.basic.role} {char.basic.affiliation ? `· ${char.basic.affiliation}` : ""}
+                        </div>
+                      )}
+
+                      {!isChar && p.content_text && (
+                        <div className="text-xs opacity-50 mt-1 truncate">
+                          {p.content_text.slice(0, 45)}
+                        </div>
+                      )}
+
+                      <div className="text-[11px] opacity-40 mt-2">更新於 {dateStr}</div>
+                    </div>
+
+                    {/* 刪除按鈕 */}
+                    {onDeletePage && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                            onDeletePage(p.id);
+                          }
+                        }}
+                        className="absolute top-3 right-3 text-xs text-red-500 opacity-0 group-hover:opacity-60 hover:opacity-100! p-1 transition-opacity cursor-pointer"
+                        title="刪除"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 3. 詳細資料模式：參照 Windows 檔案總管表格，支援欄位點選排序 */
+            <div
+              className="rounded-xl border overflow-hidden shadow-xs"
+              style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr
+                      className="border-b select-none font-semibold text-zinc-500 dark:text-zinc-400"
+                      style={{ backgroundColor: "var(--color-editor-bg)", borderColor: "var(--color-border)" }}
+                    >
+                      <th
+                        onClick={() => toggleSort("title")}
+                        className="py-2.5 px-4 cursor-pointer hover:text-blue-600 transition-colors"
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>名稱</span>
+                          {sortField === "title" && (
+                            <span className="text-[10px]">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => toggleSort("type")}
+                        className="py-2.5 px-3 cursor-pointer hover:text-blue-600 transition-colors w-24"
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>類型</span>
+                          {sortField === "type" && (
+                            <span className="text-[10px]">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => toggleSort("size")}
+                        className="py-2.5 px-3 cursor-pointer hover:text-blue-600 transition-colors w-32"
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>內容規模</span>
+                          {sortField === "size" && (
+                            <span className="text-[10px]">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => toggleSort("updated_at")}
+                        className="py-2.5 px-3 cursor-pointer hover:text-blue-600 transition-colors w-40"
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>修改日期</span>
+                          {sortField === "updated_at" && (
+                            <span className="text-[10px]">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        onClick={() => toggleSort("created_at")}
+                        className="py-2.5 px-3 cursor-pointer hover:text-blue-600 transition-colors w-32 hidden sm:table-cell"
+                      >
+                        <div className="flex items-center gap-1">
+                          <span>建立日期</span>
+                          {sortField === "created_at" && (
+                            <span className="text-[10px]">{sortOrder === "asc" ? "▲" : "▼"}</span>
+                          )}
+                        </div>
+                      </th>
+                      <th className="py-2.5 px-3 text-right w-16">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: "var(--color-border)" }}>
+                    {displayedPages.map((p) => {
+                      const isChar = p.creative_type === "character" || !!p.character_data;
+                      const char = p.character_data;
+                      const novelStats = !isChar ? getNovelStats(p) : null;
+
+                      const updatedDate = new Date(p.updated_at);
+                      const updatedStr = `${updatedDate.getFullYear()}/${String(updatedDate.getMonth() + 1).padStart(2, "0")}/${String(updatedDate.getDate()).padStart(2, "0")} ${String(updatedDate.getHours()).padStart(2, "0")}:${String(updatedDate.getMinutes()).padStart(2, "0")}`;
+
+                      const createdDate = new Date(p.created_at || p.updated_at);
+                      const createdStr = `${createdDate.getFullYear()}/${String(createdDate.getMonth() + 1).padStart(2, "0")}/${String(createdDate.getDate()).padStart(2, "0")}`;
+
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => onSelectPage(p.id)}
+                          className="group hover:bg-blue-50/50 dark:hover:bg-blue-950/20 cursor-pointer transition-colors"
+                        >
+                          <td className="py-2.5 px-4 font-medium flex items-center gap-2.5">
+                            <span className="text-base shrink-0">{isChar ? "🎭" : "📖"}</span>
+                            <span className="truncate group-hover:text-blue-600 transition-colors">
+                              {p.title || (isChar ? "未命名角色" : "未命名小說")}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                isChar
+                                  ? "bg-indigo-100/60 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                                  : "bg-amber-100/60 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                              }`}
+                            >
+                              {isChar ? "角色簡介" : "小說文稿"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-500 dark:text-zinc-400">
+                            {isChar
+                              ? `${char?.sections?.length || 0} 個組件`
+                              : `${novelStats?.chapterCount || 1} 章 · ${novelStats?.totalCount.toLocaleString()} 字`}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-zinc-500 dark:text-zinc-400">
+                            {updatedStr}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-zinc-500 dark:text-zinc-400 hidden sm:table-cell">
+                            {createdStr}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {onDeletePage && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                                    onDeletePage(p.id);
+                                  }
+                                }}
+                                className="text-xs text-red-500 opacity-0 group-hover:opacity-80 hover:opacity-100! p-1 transition-opacity cursor-pointer"
+                                title="刪除"
+                              >
+                                🗑
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
@@ -9141,45 +11769,58 @@ export default function CreativeView({ pages, onCreateNovel, onCreateCharacter, 
 ````
 "use client";
 import { useMemo, useState } from "react";
-import type { Page, PageFormat } from "../lib/types";
+import { isNovelPage, type Page, type PageFormat } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 
-function isResearchPage(page: Page): boolean { return !!page.primary_attachment_id; }
-function isPlainNote(page: Page): boolean { return (!page.kind || page.kind === "note") && !isResearchPage(page) && !page.parent_id; }
-function isDocumentPage(page: Page): boolean { return page.kind === "document" && !page.parent_id; }
-
-function StatCard({ label, value, icon }: { label: string; value: number; icon: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl px-4 py-3.5" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-      <div className="text-2xl leading-none">{icon}</div>
-      <div>
-        <div className="text-xl font-semibold" style={{ color: "var(--color-text)" }}>{value}</div>
-        <div className="text-xs opacity-60" style={{ color: "var(--color-text)" }}>{label}</div>
-      </div>
-    </div>
-  );
-}
-
-export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateDocument, onCreateStudySet, onCreatePresentation, onImportPdf }: {
+export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateDocument, onCreateStudySet, onCreatePresentation, onImportPdf, onDeletePages, onPinPages, onReorderPages, onSetFolder, onRefresh }: {
   pages: Page[]; onSelectPage: (id: string) => void; onCreatePage: (format: PageFormat) => void;
   onCreateDocument: (format: PageFormat) => void; onCreateStudySet: () => void; onCreatePresentation?: (format: PageFormat) => void; onImportPdf: () => void;
+  onDeletePages: (ids: string[]) => void; onPinPages: (ids: string[]) => void; onReorderPages: (orderedIds: string[]) => void;
+  onSetFolder: (ids: string[], folder: string | null) => void; onRefresh: () => Promise<void>;
 }) {
   const { t } = useLanguage();
   const [isNewPageDialogOpen, setIsNewPageDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [sortMode, setSortMode] = useState<"updated" | "custom">("updated");
+  const [folderFilter, setFolderFilter] = useState("all");
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openedAt] = useState(() => Date.now());
   const topLevelPages = pages.filter((p) => !p.parent_id);
-  const stats = useMemo(() => ({
-    total: topLevelPages.length,
-    notes: topLevelPages.filter(isPlainNote).length,
-    documents: topLevelPages.filter(isDocumentPage).length,
-    research: topLevelPages.filter(isResearchPage).length,
-    studySets: topLevelPages.filter((p) => p.kind === "study_set").length,
-    presentations: topLevelPages.filter((p) => p.kind === "presentation").length,
-  }), [topLevelPages]);
-  const recentPages = useMemo(() => [...topLevelPages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 8), [topLevelPages]);
+  const folders = useMemo(() => [...new Set(topLevelPages.map((page) => page.folder?.trim() || "未分類"))].sort(), [topLevelPages]);
+  const folderGroups = useMemo(() => {
+    const filtered = folderFilter === "all" ? topLevelPages : topLevelPages.filter((page) => (page.folder?.trim() || "未分類") === folderFilter);
+    const sorted = [...filtered].sort((a, b) => {
+      const aPinned = (a.sort_order ?? 0) < 0;
+      const bPinned = (b.sort_order ?? 0) < 0;
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      return sortMode === "updated" ? b.updated_at - a.updated_at : (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER);
+    });
+    const groups = new Map<string, Page[]>();
+    sorted.forEach((page) => {
+      const folder = page.folder?.trim() || "未分類";
+      groups.set(folder, [...(groups.get(folder) || []), page]);
+    });
+    return [...groups.entries()].map(([name, items]) => ({ name, items }));
+  }, [topLevelPages, sortMode, folderFilter]);
+
+  const visiblePages = useMemo(() => folderGroups.flatMap((group) => group.items), [folderGroups]);
+  const allSelectedPinned = selectedIds.size > 0 && [...selectedIds].every((id) => (pages.find((page) => page.id === id)?.sort_order ?? 0) < 0);
+  const toggleSelection = (id: string) => setSelectedIds((previous) => {
+    const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next;
+  });
+  const finishSelection = () => { setIsSelecting(false); setSelectedIds(new Set()); };
+  const movePage = (id: string, direction: -1 | 1) => {
+    const ids = visiblePages.map((page) => page.id); const index = ids.indexOf(id); const target = index + direction;
+    if (index < 0 || target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]]; onReorderPages(ids);
+  };
+  const refresh = async () => { if (isRefreshing) return; setIsRefreshing(true); try { await onRefresh(); } finally { setIsRefreshing(false); } };
 
   const formatRelativeTime = (ts: number): string => {
-    const diffMs = Date.now() - ts;
+    const diffMs = openedAt - ts;
     const diffMinutes = Math.floor(diffMs / 60000);
     if (diffMinutes < 1) return t("time.justNow");
     if (diffMinutes < 60) return t("time.minutesAgo", { n: diffMinutes });
@@ -9205,19 +11846,22 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
     return "📝";
   };
 
+  const pageKindLabel = (page: Page) => {
+    if (page.kind === "study_set") return "字卡";
+    if (page.kind === "document") return "文檔";
+    if (page.kind === "presentation") return "簡報";
+    if (page.kind === "quick_note") return "隨手記";
+    if (page.kind === "todo") return "日曆";
+    if (page.kind === "creative") return isNovelPage(page) ? "小說" : "創作";
+    if (page.primary_attachment_id) return "PDF 研究";
+    return "筆記";
+  };
+
   return (
-    <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="flex flex-col mx-auto w-full" style={{ maxWidth: "820px", padding: "48px 64px" }}>
+    <main data-pull-refresh className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      <div className="flex min-h-full w-full flex-col mx-auto" style={{ maxWidth: "820px", padding: "48px 64px" }}>
         <div className="mb-1 text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("dashboard.home")}</div>
         <h1 className="text-3xl font-semibold mb-6" style={{ color: "var(--color-text)" }}>{t("dashboard.welcome")}</h1>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-          <StatCard label={t("dashboard.stats.total")} value={stats.total} icon="📚" />
-          <StatCard label={t("dashboard.stats.documents")} value={stats.documents} icon="📄" />
-          <StatCard label={t("dashboard.stats.notes")} value={stats.notes} icon="📝" />
-          <StatCard label={t("dashboard.stats.research")} value={stats.research} icon="📑" />
-          <StatCard label={t("dashboard.stats.studySets")} value={stats.studySets} icon="🗂️" />
-          <StatCard label="簡報" value={stats.presentations} icon="📊" />
-        </div>
         <div className="mb-8">
           <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t("dashboard.quickCreate")}</div>
           <div className="flex flex-wrap gap-2">
@@ -9225,24 +11869,108 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
             <button onClick={onImportPdf} className="rounded-md px-3.5 py-2 text-sm font-medium transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("dashboard.importPdf")}</button>
           </div>
         </div>
-        <div>
-          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t("dashboard.recent")}</div>
-          {recentPages.length === 0 ? (
+        <section>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2"><div className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{t("dashboard.recent")}</div><button type="button" onClick={() => void refresh()} disabled={isRefreshing} className="rounded-md px-1.5 py-0.5 text-sm leading-none opacity-60 hover:opacity-100 disabled:opacity-35" style={{ color: "var(--color-text)" }} title="重新整理" aria-label="重新整理">↻</button></div>
+            <div className="flex items-center gap-1 rounded-lg border p-1" style={{ borderColor: "var(--color-border)" }} aria-label="首頁顯示與排列方式">
+              <div className="flex items-center gap-0.5" aria-label="顯示方式">
+                <button type="button" onClick={() => setViewMode("list")} className="rounded-md px-2 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: viewMode === "list" ? "var(--color-border)" : "transparent" }} title="清單顯示" aria-label="清單顯示">☷</button>
+                <button type="button" onClick={() => setViewMode("grid")} className="rounded-md px-2 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: viewMode === "grid" ? "var(--color-border)" : "transparent" }} title="格狀顯示" aria-label="格狀顯示">▦</button>
+              </div>
+              <span className="h-4 w-px" style={{ backgroundColor: "var(--color-border)" }} />
+              <select value={sortMode} onChange={(event) => setSortMode(event.target.value as "updated" | "custom")} className="bg-transparent px-1.5 py-1 text-xs outline-none" style={{ color: "var(--color-text)" }} aria-label="排列方式">
+                <option value="updated">最近編輯</option>
+                <option value="custom">自訂順序</option>
+              </select>
+            </div>
+          </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <select value={folderFilter} onChange={(event) => setFolderFilter(event.target.value)} className="rounded-md border bg-transparent px-2 py-1.5 text-xs" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} aria-label="資料夾篩選">
+              <option value="all">全部資料夾</option>{folders.map((folder) => <option key={folder} value={folder}>{folder}</option>)}
+            </select>
+            <button type="button" onClick={() => isSelecting ? finishSelection() : setIsSelecting(true)} className="rounded-md border px-2.5 py-1.5 text-xs font-medium" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>{isSelecting ? "完成" : "選取檔案"}</button>
+            {isSelecting && <span className="text-xs opacity-60">已選 {selectedIds.size} 項</span>}
+          </div>
+          {isSelecting && selectedIds.size > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border p-2" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}>
+              <button type="button" onClick={() => onPinPages([...selectedIds])} className="rounded-md border px-2.5 py-1.5 text-xs" style={{ borderColor: "var(--color-border)" }}>📌 {allSelectedPinned ? "取消置頂" : "置頂"}</button>
+              <button type="button" onClick={() => { const name = window.prompt("資料夾名稱（留白代表未分類）", ""); if (name !== null) onSetFolder([...selectedIds], name.trim() || null); }} className="rounded-md border px-2.5 py-1.5 text-xs" style={{ borderColor: "var(--color-border)" }}>📁 分類</button>
+              <button type="button" onClick={() => { if (window.confirm(`將 ${selectedIds.size} 個檔案移至垃圾桶？`)) { onDeletePages([...selectedIds]); finishSelection(); } }} className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs text-red-600">移至垃圾桶</button>
+            </div>
+          )}
+          {folderGroups.length === 0 ? (
             <div className="rounded-xl py-10 text-center text-sm opacity-50" style={{ border: "1px dashed var(--color-border)", color: "var(--color-text)" }}>{t("dashboard.emptyState")}</div>
           ) : (
-            <div className="space-y-1">
-              {recentPages.map((page) => (
-                <button key={page.id} onClick={() => onSelectPage(page.id)} className="w-full flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition-all hover:bg-zinc-200/60" style={{ color: "var(--color-text)" }}>
-                  <span className="truncate flex items-center gap-1.5"><span>{pageIcon(page)}</span><span className="truncate">{page.title || t("common.untitled")}</span></span>
-                  <span className="shrink-0 text-xs opacity-40">{formatRelativeTime(page.updated_at)}</span>
-                </button>
+            <div className="space-y-6">
+              {folderGroups.map(({ name, items }) => (
+                <div key={name}>
+                  <div className="mb-2 flex items-center gap-2 text-xs font-medium opacity-60" style={{ color: "var(--color-text)" }}><span>📁</span><span>{name}</span><span className="opacity-60">{items.length}</span></div>
+                  <div className={viewMode === "grid" ? "grid grid-cols-1 gap-2 sm:grid-cols-2" : "space-y-1"}>
+                    {items.map((page) => (
+                      <div key={page.id} className={viewMode === "grid" ? "flex min-h-24 items-start rounded-xl border p-3 transition-all hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60" : "flex w-full items-center gap-1 rounded-md px-3 py-2 text-sm transition-all hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60"} style={{ color: "var(--color-text)", borderColor: viewMode === "grid" ? "var(--color-border)" : "transparent" }}>
+                        {isSelecting && <input type="checkbox" checked={selectedIds.has(page.id)} onChange={() => toggleSelection(page.id)} className="mr-2 mt-1 h-4 w-4 shrink-0 accent-blue-600" aria-label={`選取 ${page.title || t("common.untitled")}`} />}
+                        <button onClick={() => isSelecting ? toggleSelection(page.id) : onSelectPage(page.id)} className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+                          <span className="flex min-w-0 items-center gap-2"><span className="text-base">{pageIcon(page)}</span><span className="min-w-0"><span className="block truncate text-sm">{page.title || t("common.untitled")}{(page.sort_order ?? 0) < 0 && <span className="ml-1 text-xs">📌</span>}</span>{viewMode === "grid" && <span className="mt-1 block text-xs opacity-50">{pageKindLabel(page)}</span>}</span></span>
+                          <span className="shrink-0 text-xs opacity-40">{formatRelativeTime(page.updated_at)}</span>
+                        </button>
+                        {sortMode === "custom" && !isSelecting && <span className="ml-1 flex shrink-0 flex-col"><button onClick={() => movePage(page.id, -1)} className="px-1 text-xs opacity-55 hover:opacity-100" title="上移">↑</button><button onClick={() => movePage(page.id, 1)} className="px-1 text-xs opacity-55 hover:opacity-100" title="下移">↓</button></span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
       <NewPageDialog isOpen={isNewPageDialogOpen} onClose={() => setIsNewPageDialogOpen(false)} onConfirm={handleConfirmNewPage} />
     </main>
+  );
+}
+
+````
+
+## File: src/components/DevicePreview.tsx
+````
+"use client";
+
+import { useState } from "react";
+
+const DEVICES = [
+  { id: "desktop", label: "Desktop", detail: "1440 × 900", width: 1440, height: 900 },
+  { id: "laptop", label: "Laptop", detail: "1024 × 768", width: 1024, height: 768 },
+  { id: "tablet-landscape", label: "Tablet 橫向", detail: "1024 × 768", width: 1024, height: 768 },
+  { id: "tablet", label: "Tablet 直向", detail: "768 × 1024", width: 768, height: 1024 },
+  { id: "mobile", label: "Mobile", detail: "390 × 844", width: 390, height: 844 },
+  { id: "mobile-landscape", label: "Mobile 橫向", detail: "844 × 390", width: 844, height: 390 },
+] as const;
+
+export default function DevicePreview({ onClose }: { onClose: () => void }) {
+  const [deviceId, setDeviceId] = useState<(typeof DEVICES)[number]["id"]>("mobile");
+  const device = DEVICES.find((item) => item.id === deviceId) || DEVICES[0];
+
+  return (
+    <div className="fixed inset-0 z-[10001] flex flex-col bg-zinc-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="裝置預覽">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-hidden rounded-2xl border shadow-2xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+        <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3" style={{ borderColor: "var(--color-border)" }}>
+          <div className="mr-2 text-sm font-semibold" style={{ color: "var(--color-text)" }}>裝置預覽</div>
+          <div className="flex flex-1 flex-wrap gap-1">
+            {DEVICES.map((item) => (
+              <button key={item.id} type="button" onClick={() => setDeviceId(item.id)} className="rounded-md px-2.5 py-1.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ backgroundColor: item.id === device.id ? "rgba(26,115,232,0.14)" : "transparent", color: "var(--color-text)" }}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs opacity-55" style={{ color: "var(--color-text)" }}>{device.detail}</span>
+          <button type="button" onClick={onClose} className="ml-2 rounded-md px-2 py-1 text-lg leading-none hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="關閉裝置預覽">×</button>
+        </header>
+        <div className="flex flex-1 items-start justify-center overflow-auto bg-zinc-200 p-6 dark:bg-zinc-900">
+          <div className="shrink-0 overflow-hidden rounded-[1.5rem] border-8 border-zinc-800 bg-white shadow-2xl" style={{ width: device.width, height: device.height, maxWidth: "none" }}>
+            <iframe title={`${device.label} Nexus 預覽`} src="/" className="h-full w-full border-0" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -9334,9 +12062,11 @@ export default function DocumentRuler({
 ## File: src/components/EditorPane.tsx
 ````
 "use client";
-import { useRef, useState, useEffect, useCallback } from "react";
+import { type CSSProperties, useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
+import LessonLayoutPanel from "./LessonLayoutPanel";
+import { readLessonLayout, buildLessonIndex, type LessonLayout } from "../lib/lessonDocument";
 import TiptapEditor from "./TiptapEditor";
 import PageFormatView from "./PageFormatView";
 import PaginatedEditorView from "./PaginatedEditorView";
@@ -9353,7 +12083,6 @@ export default function EditorPane({
   onTagsChange,
   onContentChange,
   onFormatChange,
-  onAddSubPage,
   onExportMarkdown,
   onExportPdf,
   onExportNexus,
@@ -9369,6 +12098,7 @@ export default function EditorPane({
   onToggleNightAdapt = () => {},
   margins,
   onMarginsChange,
+  onBackToInterface,
 }: {
   page: Page | null;
   attachment: Attachment | null;
@@ -9379,7 +12109,6 @@ export default function EditorPane({
   onTagsChange: (tags: string[]) => void;
   onContentChange: (payload: { json: any; text: string }) => void;
   onFormatChange?: (format: PageFormat) => void;
-  onAddSubPage?: (parentId: string) => void;
   onExportMarkdown?: () => void;
   onExportPdf?: () => void;
   onExportNexus?: () => void;
@@ -9395,8 +12124,16 @@ export default function EditorPane({
   onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
+  /** Returns to the feature's overview instead of exposing global navigation in an editor. */
+  onBackToInterface?: () => void;
 }) {
   const { t } = useLanguage();
+  const lessonRootRef = useRef<HTMLElement>(null);
+  const lessonMetadataRef = useRef((page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout);
+  lessonMetadataRef.current = (page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout;
+  const navigateLesson = (id: string) => {
+    Array.from(lessonRootRef.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((element) => element.dataset.id === id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   const [tagInput, setTagInput] = useState("");
   const [showRuler, setShowRuler] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(false);
@@ -9411,14 +12148,87 @@ export default function EditorPane({
   const [insertToolbarTarget, setInsertToolbarTarget] = useState<HTMLElement | null>(null);
   const [formatToolbarTarget, setFormatToolbarTarget] = useState<HTMLElement | null>(null);
   const toolbarPortalRef = useRef<HTMLDivElement>(null);
+  const menuRowRef = useRef<HTMLDivElement>(null);
+  const [isToolbarCompact, setIsToolbarCompact] = useState(false);
 
   const setEditMenuTarget = useCallback((element: HTMLDivElement | null) => setEditToolbarTarget(element), []);
   const setInsertMenuTarget = useCallback((element: HTMLDivElement | null) => setInsertToolbarTarget(element), []);
   const setFormatMenuTarget = useCallback((element: HTMLDivElement | null) => setFormatToolbarTarget(element), []);
 
   useEffect(() => {
-    if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
+    const menuRow = menuRowRef.current;
+    if (!menuRow) return;
+    const observer = new ResizeObserver(([entry]) => setIsToolbarCompact(entry.contentRect.width < 620));
+    observer.observe(menuRow);
+    return () => observer.disconnect();
   }, []);
+
+  // 自動存檔狀態回饋
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "just_saved">("saved");
+  const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleContentWithAutoSave = useCallback((payload: { json: any; text: string }) => {
+    setSaveStatus("saving");
+    onContentChange({ ...payload, json: { ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  }, [onContentChange]);
+
+  const handleTitleWithAutoSave = useCallback((title: string) => {
+    setSaveStatus("saving");
+    onTitleChange(title);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  }, [onTitleChange]);
+
+  // 鍵盤 Ctrl+S / Cmd+S 手動立即儲存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setSaveStatus("just_saved");
+        const now = new Date();
+        setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+        setTimeout(() => setSaveStatus("saved"), 1500);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // The editor toolbar is rendered into this node with a portal.  A normal effect
+  // can run while a browser tab is hidden, leaving the portal measured at zero
+  // width until a full reload.  Layout effects + visibility recovery keep it in
+  // sync when the Nexus tab is revisited.
+  const refreshToolbarTarget = useCallback(() => {
+    if (toolbarPortalRef.current) setToolbarTarget(toolbarPortalRef.current);
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }, []);
+
+  useLayoutEffect(() => {
+    refreshToolbarTarget();
+  }, [refreshToolbarTarget, page?.id]);
+
+  useEffect(() => {
+    const recoverToolbar = () => {
+      if (document.visibilityState === "visible") refreshToolbarTarget();
+    };
+    document.addEventListener("visibilitychange", recoverToolbar);
+    window.addEventListener("focus", recoverToolbar);
+    return () => {
+      document.removeEventListener("visibilitychange", recoverToolbar);
+      window.removeEventListener("focus", recoverToolbar);
+    };
+  }, [refreshToolbarTarget]);
 
   useEffect(() => {
     if (!isWordCountOpen) return;
@@ -9437,6 +12247,13 @@ export default function EditorPane({
     );
   }
 
+  const lessonLayout = readLessonLayout(page.content_json);
+  const lessonEntries = buildLessonIndex(page.content_json);
+  const isLessonNote = !page.kind || page.kind === "note";
+  const changeLessonLayout = (layout: LessonLayout) => {
+    lessonMetadataRef.current = layout;
+    handleContentWithAutoSave({ json: { ...page.content_json, lessonLayout: layout }, text: page.content_text || "" });
+  };
   const currentTags = page.tags || [];
   // 2026-08-11：版面模式定案
   // - 文檔一律流動（即使舊資料 format 為其他值，也以流動顯示）
@@ -9501,7 +12318,7 @@ export default function EditorPane({
     const finalBlocks = filtered.length > 0 ? filtered : [{ type: "paragraph" }];
     const newJson = { type: "doc", content: finalBlocks };
     const newText = finalBlocks.map(getTextFromNode).join("\n\n");
-    onContentChange({ json: newJson, text: newText });
+    handleContentWithAutoSave({ json: newJson, text: newText });
   };
 
   const textForCount = page.content_text || "";
@@ -9519,14 +12336,25 @@ export default function EditorPane({
   };
 
   return (
-    <main className="relative flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+    <main ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
+          {onBackToInterface && (
+            <button
+              type="button"
+              onClick={onBackToInterface}
+              className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="回到功能介面"
+              aria-label="回到功能介面"
+            >
+              ←
+            </button>
+          )}
           <input
             type="text"
             value={page.title}
-            onChange={(e) => onTitleChange(e.target.value)}
+            onChange={(e) => handleTitleWithAutoSave(e.target.value)}
             placeholder={t("editor.title.placeholder")}
             className="flex-1 min-w-0 text-xl font-medium bg-transparent border-none outline-none py-0.5"
             style={{ color: "var(--color-text)", fontFamily: "inherit" }}
@@ -9542,7 +12370,7 @@ export default function EditorPane({
 
       {/* 選單列（2026-08-11：Google Docs 式——純文字、無圖示、無邊框） */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="flex items-center px-2 py-0.5 gap-0.5">
+        <div ref={menuRowRef} className="lesson-menu-row flex overflow-x-auto items-center px-2 py-0.5 gap-0.5">
           <FileMenu
             currentFormat={currentFormat}
             isDocument={isDocument}
@@ -9559,6 +12387,23 @@ export default function EditorPane({
             onConvertToPresentation={onConvertToPresentation}
             onDeleteBlankPages={handleDeleteBlankPages}
           />
+          {isToolbarCompact ? (
+            <ToolbarDropdown label="⋯" variant="menu">
+              <div className="flex flex-col gap-1 p-1 min-w-[240px]">
+                <div className="px-3 pt-1 text-[10px] font-semibold uppercase opacity-50">編輯</div>
+                <div ref={setEditMenuTarget} className="min-w-[200px]" />
+                <div className="px-3 pt-2 text-[10px] font-semibold uppercase opacity-50">插入</div>
+                <div ref={setInsertMenuTarget} className="min-w-[220px]" />
+                <div className="px-3 pt-2 text-[10px] font-semibold uppercase opacity-50">格式</div>
+                <div ref={setFormatMenuTarget} className="min-w-[240px]" />
+                <button type="button" onClick={() => setShowLineNumbers((visible) => !visible)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{showLineNumbers ? "隱藏行數" : "顯示行數"}</button>
+                <button type="button" onClick={() => setShowRuler((visible) => !visible)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{showRuler ? "隱藏尺規" : "顯示尺規"}</button>
+                <button type="button" onClick={() => setIsWordCountOpen(true)} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">字數統計</button>
+                <button type="button" onClick={() => onToggleNightAdapt?.()} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">{nightAdapt ? "原文字顏色" : "適配夜晚"}</button>
+                <button type="button" onClick={() => onConvertToPresentation?.()} className="px-3 py-2 text-left text-sm hover:bg-zinc-100">轉為簡報</button>
+              </div>
+            </ToolbarDropdown>
+          ) : <>
           <ToolbarDropdown label="編輯" variant="menu">
             <div ref={setEditMenuTarget} className="min-w-[200px]" />
           </ToolbarDropdown>
@@ -9586,6 +12431,8 @@ export default function EditorPane({
               },
             ]}
           />
+          </>}
+          {!isToolbarCompact && <>
           <ToolbarDropdown label="插入" variant="menu">
             <div ref={setInsertMenuTarget} className="min-w-[220px]" />
           </ToolbarDropdown>
@@ -9610,7 +12457,31 @@ export default function EditorPane({
               },
             ]}
           />
+          </>}
           <div className="flex-1" />
+
+          {/* 自動存檔即時狀態指示器 */}
+          <div className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded select-none shrink-0 mr-2">
+            {saveStatus === "saving" && (
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                <span>🟡</span>
+                <span>正在儲存...</span>
+              </span>
+            )}
+            {saveStatus === "just_saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span>✓</span>
+                <span>已立即手動存檔</span>
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity" title="所有文字編輯已自動即時儲存">
+                <span>🟢</span>
+                <span>已自動儲存{lastSavedTime ? ` (${lastSavedTime})` : ""}</span>
+              </span>
+            )}
+          </div>
+
           {isSplitView ? (
             <div className="flex items-center gap-1">
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200 hidden sm:inline">雙開中</span>
@@ -9649,6 +12520,7 @@ export default function EditorPane({
         </div>
       </div>
 
+      {isLessonNote && <LessonLayoutPanel layout={lessonLayout} onChange={changeLessonLayout} entries={lessonEntries} onNavigate={navigateLesson} paged={isPaged} />}
       {/* Content area */}
       {isWordCountOpen && (
         <div
@@ -9701,7 +12573,7 @@ export default function EditorPane({
         <button onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))} className="rounded w-7 h-7 text-sm font-bold hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }}>＋</button>
         <button onClick={() => setZoom(1)} className="rounded px-2 h-7 text-[11px] hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-bg)" }} title="重設 100%">100%</button>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto" style={{ zoom }}>
+      <div className={`flex-1 min-h-0 ${isPaged ? "flex flex-col overflow-hidden" : "overflow-auto"}`} style={isPaged ? undefined : { zoom }}>
       {isPaged ? (
         <>
           {attachment && (
@@ -9728,7 +12600,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={onContentChange} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} />
+          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
         </>
       ) : (
         <>
@@ -9738,7 +12610,7 @@ export default function EditorPane({
             </div>
           )}
           <PageFormatView format={currentFormat}>
-          <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px 64px 48px" : "0" }}>
+          <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px clamp(16px, 5vw, 64px) 48px" : "0" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
                 <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs" style={{ borderBottom: "1px solid var(--color-border)", color: "var(--color-text)" }}>
@@ -9761,7 +12633,9 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={onContentChange} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            {isLessonNote && lessonLayout.header && <div className="lesson-page-header">{lessonLayout.header}</div>}
+            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            {isLessonNote && lessonLayout.footer && <div className="lesson-page-footer">{lessonLayout.footer}</div>}
           </div>
           </PageFormatView>
         </>
@@ -9771,6 +12645,66 @@ export default function EditorPane({
   );
 }
 
+````
+
+## File: src/components/FeatureOverview.tsx
+````
+"use client";
+
+import type { Page } from "../lib/types";
+
+export default function FeatureOverview({
+  title,
+  description,
+  icon,
+  actionLabel,
+  pages,
+  onCreate,
+  onSelectPage,
+}: {
+  title: string;
+  description: string;
+  icon: string;
+  actionLabel: string;
+  pages: Page[];
+  onCreate: () => void;
+  onSelectPage: (id: string) => void;
+}) {
+  const orderedPages = [...pages].sort((a, b) => b.updated_at - a.updated_at);
+
+  return (
+    <main data-pull-refresh className="flex flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+      <section className="mx-auto w-full max-w-5xl px-6 py-10 sm:px-10">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="mb-2 text-3xl">{icon}</div>
+            <h1 className="text-3xl font-semibold" style={{ color: "var(--color-text)" }}>{title}</h1>
+            <p className="mt-2 text-sm opacity-60" style={{ color: "var(--color-text)" }}>{description}</p>
+          </div>
+          <button type="button" onClick={onCreate} className="rounded-full px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-transform hover:-translate-y-0.5" style={{ backgroundColor: "#1a73e8" }}>
+            + {actionLabel}
+          </button>
+        </div>
+
+        {orderedPages.length === 0 ? (
+          <div className="rounded-2xl border border-dashed px-6 py-16 text-center text-sm opacity-55" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+            尚未建立任何項目
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {orderedPages.map((page) => (
+              <button key={page.id} type="button" onClick={() => onSelectPage(page.id)} className="rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+                <div className="mb-6 text-xl">{icon}</div>
+                <div className="truncate font-medium">{page.title || "未命名"}</div>
+                <div className="mt-1 text-xs opacity-50">最近編輯於 {new Date(page.updated_at).toLocaleDateString()}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
 
 ````
 
@@ -9953,98 +12887,17 @@ export default function FileMenu({
 ## File: src/components/HelpGuide.tsx
 ````
 "use client";
-import { useEffect } from "react";
 
-export default function HelpGuide({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.35)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-3xl max-h-[85vh] rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
-          <h2 className="text-lg font-semibold" style={{ color: "var(--color-text)" }}>Nexus 使用說明</h2>
-          <button onClick={onClose} className="rounded-md px-3 py-1 text-sm border hover:bg-zinc-100" style={{ borderColor: "var(--color-border)" }}>Esc 關閉</button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm leading-relaxed" style={{ color: "var(--color-text)" }}>
-          <section>
-            <h3 className="font-semibold text-base mb-2">1. 檔案選單（工具列最左邊）</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>位置：格式化工具列同一行最左邊，類似 Google 文件</li>
-              <li>新建：筆記（流動預設）、文檔（A4預設）、簡報（16比9）</li>
-              <li>匯入：PDF 會生成研究筆記，Markdown 匯入為文檔（可再匯出MD）</li>
-              <li>格式：流動原本不改，僅 A4 / 16比9 / 4比3 可還原為流動</li>
-              <li>簡報：轉為簡報（用筆記製作簡報），H1 自動切頁，表格自動轉圖表，超過4張自動目錄</li>
-              <li>匯出：文檔匯出 Markdown，筆記匯出 PDF 或 Nexus JSON，列印為瀏覽器列印</li>
-            </ul>
-          </section>
-          <section>
-            <h3 className="font-semibold text-base mb-2">2. 分頁與排版（A4 引擎）</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>單一上欄與標題，內頁分頁：標題與工具列固定，只有紙張區域捲動</li>
-              <li>Document 預設 A4（可還原為流動），Note 預設流動（保持不改）</li>
-              <li>工具列插入分頁符：在 A4 中插入虛線分頁符</li>
-              <li>16比9 / 4比3 為簡報預覽容器，黑色舞台</li>
-            </ul>
-          </section>
-          <section>
-            <h3 className="font-semibold text-base mb-2">3. 側邊欄</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>搜尋：支援標題與內容子字串，右側 CmdK 開命令面板</li>
-              <li>新建：側邊欄加號按鈕在多選左邊，單一扁平下拉（新建與匯入同層）</li>
-              <li>排序：最近編輯 / 自訂拖曳，可勾選依類型分組</li>
-              <li>子頁規則：只有同類型能成為子頁（文檔的只能是文檔，筆記的只能是筆記，學習集的只能是學習集），簡報無子頁概念</li>
-              <li>子頁建立：每項 hover 左側加號按鈕，僅顯示同類型選項，點擊直接建立並進入重新命名</li>
-              <li>拖曳：可拖曳改變順序，上方30%插入上方，下方30%下方，中間40%變成子頁（同類型才允許）</li>
-              <li>雙開：Ctrl 或 Cmd 點擊側邊欄項目，在右側開啟左右分頁</li>
-            </ul>
-          </section>
-          <section>
-            <h3 className="font-semibold text-base mb-2">4. 左右雙開（Obsidian 風格）</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>開啟：Ctrl 或 Cmd 點擊 或 右鍵選單在右側開啟</li>
-              <li>工具列右側顯示：雙開中、交換、關閉右側</li>
-              <li>左右皆可獨立編輯、獨立 PDF 預覽、獨立格式切換</li>
-              <li>標題右側新增子頁已移除，僅保留側邊欄的加號</li>
-            </ul>
-          </section>
-          <section>
-            <h3 className="font-semibold text-base mb-2">5. 簡報（獨立，可大改）</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>建立：側邊欄加號到簡報，或 Dashboard 新建，或筆記檔案轉為簡報</li>
-              <li>版面：左側投影片清單（可上下移動），中間自由畫布（16比9），右側圖層與屬性</li>
-              <li>直觀操作：加號文字區塊到畫布隨機新增可拖曳，雙擊編輯，右上角刪除</li>
-              <li>圖層：右側圖層面板按 z 倒序，點選切換，置頂置底改變層級，像 Canva</li>
-              <li>圖表：圖表按鈕新增，右側屬性面板表格直接填 label 與 value，切換 bar line pie</li>
-              <li>示圖：Mermaid 程式碼 textarea，未來渲染為 SVG</li>
-              <li>備註：底部固定備註，講者備註觀眾看不到</li>
-              <li>版型：標題、標題加內容、兩欄、圖表、自由畫布、目錄等 8 種</li>
-              <li>主題：Minimal Academic Business Dark</li>
-            </ul>
-          </section>
-          <section>
-            <h3 className="font-semibold text-base mb-2">6. 其他</h3>
-            <ul className="list-disc pl-5 space-y-1 opacity-80">
-              <li>標籤：標題下方輸入加 Enter 新增，點擊刪除，側邊欄可過濾</li>
-              <li>資料夾：已從標題右側移除，改由側邊欄自動分組（未分類置頂）</li>
-              <li>命令面板：Ctrl 或 Cmd 加 K 開啟，搜尋頁面或執行動作</li>
-              <li>偏好設定：右下齒輪，可切主題、語言、匯入匯出備份、使用說明（本頁）</li>
-              <li>同步：右下顯示同步狀態（共享工作區，無登入）</li>
-            </ul>
-          </section>
-          <section className="pt-4 border-t" style={{ borderColor: "var(--color-border)" }}>
-            <p className="text-xs opacity-50">Nexus 是 local-first 個人學習與知識生成 workspace，支援筆記、文檔、PDF研究、學習集、簡報、雙開、A4分頁。簡報已獨立，框架可依順手原則大改。</p>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
+const sections = [
+  { title: "新增與切換功能", items: ["在側欄單擊功能可篩選項目，雙擊可開啟功能總覽。", "加號選單會依目前功能顯示對應選項：筆記選流動／分頁，創作選世界觀／角色卡。", "角色卡在建立時選擇模板；小說以獨立章節編輯、排序與翻頁。"] },
+  { title: "筆記與講義", items: ["流動筆記適合連續書寫；分頁筆記使用手動 A4 頁面，建立時選擇版面。文檔使用流動版面。", "在「講義排版與目錄」設定整份樣式、行距、標題比例與頁首頁尾。", "從「插入」加入定義、例題、練習、解答、作答留白及自動目錄。例題與練習會自動編號。", "在「格式」套用圖說或重點樣式；圖片旁可加入圖說。", "分頁筆記的「依 A4 整理分頁」保留手動分頁位置，可在繼續編輯前復原整理。超大區塊會保留並提示處理；請先展開解答再整理。", "列印包含完整解答；畫面上的收合狀態用於閱讀。"] },
+  { title: "文字操作", items: ["右鍵文字、表格或開啟「編輯」選單，可以全選、複製、剪下、貼上。", "手機窄畫面可從「⋯」開啟編輯、插入與格式操作。", "瀏覽器可能要求剪貼簿權限；無法貼上時，可使用系統文字選單或 Ctrl／⌘ + V。"] },
+  { title: "檔案整理", items: ["側欄可搜尋標題與內容、重新命名、收藏、建立同類型子頁及移至垃圾桶。", "Ctrl／⌘ + K 開啟命令面板；桌面可 Ctrl／⌘ 點擊項目，在右側開啟。", "檔案選單提供 Markdown、PDF 列印與 Nexus JSON 等匯出入口；工作區備份位於偏好選單。"] },
+  { title: "刷新與儲存", items: ["首頁及功能總覽支援從已到頂清單的頂部緩慢下拉，達到提示後放手刷新。", "編輯區不接受下拉刷新。刷新前會等待待儲存內容完成；儲存失敗會中止刷新。"] },
+  { title: "偏好與帳號", items: ["側欄底部的帳號入口提供登入、登出與同步狀態。", "偏好第一層為主題、語言、設定及備份；主題與語言在右側面板切換。", "詳細設定內可調整功能排序、閱讀使用建議與說明，以及操作備份。功能排序儲存在目前瀏覽器。"] },
+];
+export default function HelpGuide() {
+  return <div className="space-y-6 text-sm leading-7">{sections.map((section) => <section key={section.title}><h4 className="mb-2 font-semibold">{section.title}</h4><ul className="list-disc space-y-1 pl-5 opacity-80">{section.items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</div>;
 }
 
 ````
@@ -10157,7 +13010,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
@@ -10208,19 +13061,24 @@ import {
   useCallback,
   type MutableRefObject,
   type ChangeEvent,
+  type TouchEvent,
 } from "react";
 import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
 import { nanoid } from "nanoid";
 import type {
   Page,
+  NovelChapter,
+  CharacterProfileData,
   Attachment,
   WorkspaceBackup,
-  StudyItem,
   PageFormat,
   PageMargins,
   CreatePageInput,
   PageKind,
 } from "../lib/types";
+import { instantiateCharacterTemplate, snapshotCharacterTemplate } from "../lib/characterWorkspace";
+import { emptyNovelDocument, getNovelChapters, getWorkspaceEntryPage, splitLegacyNovel } from "../lib/novelChapters";
+import { isNovelPage } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
 import { titleFromMarkdownFileName, createMarkdownContent, pageToMarkdown } from "../lib/markdown";
@@ -10230,11 +13088,15 @@ import { DEFAULT_LANGUAGE, detectDefaultLanguage, type Language } from "../lib/i
 import { LanguageProvider, useLanguage } from "../lib/LanguageContext";
 import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
 import { SyncEngine, type SyncState } from "../lib/syncEngine";
+import { measureRefreshPull } from "../lib/pullToRefresh";
+import type { CreateItemType } from "../lib/creationOptions";
+import CreationChoiceDialog from "./CreationChoiceDialog";
 import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
 import StudySetView from "./StudySetView";
+import QuizOfflinePrompt from "./QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
@@ -10243,6 +13105,13 @@ import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
+import NovelReaderView from "./NovelReaderView";
+import CharacterProfileView from "./CharacterProfileView";
+import UtilityView from "./UtilityView";
+import FeatureOverview from "./FeatureOverview";
+import DevicePreview from "./DevicePreview";
+import { createFantasyTemplate, createModernTemplate, createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } from "../lib/characterTemplates";
+import AccountButton from "./AccountButton";
 
 export default function NexusApp() {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
@@ -10289,12 +13158,20 @@ function NexusAppInner({
   const { t } = useLanguage();
 
   const [isReady, setIsReady] = useState(false);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [trashPages, setTrashPages] = useState<Page[]>([]);
   const [isTrashMode, setIsTrashMode] = useState(false);
   const [isHomeMode, setIsHomeMode] = useState(true);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isDevicePreviewOpen, setIsDevicePreviewOpen] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(1440);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Feature interfaces use a Google-style overlay drawer: it never consumes
+  // editor canvas width, and is closed by default.
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
@@ -10305,13 +13182,22 @@ function NexusAppInner({
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
   // Task 3: Split view (Obsidian style) - left/right closable
   const [secondaryActivePageId, setSecondaryActivePageId] = useState<string | null>(null);
+  const [splitPrimaryWidth, setSplitPrimaryWidth] = useState(50);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
   const [secondaryPdfUrl, setSecondaryPdfUrl] = useState<string | null>(null);
   const [secondaryPdfLoadError, setSecondaryPdfLoadError] = useState<string | null>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isCreativeMode, setIsCreativeMode] = useState(false);
+  const [isStudySetMode, setIsStudySetMode] = useState(false);
+  const [isNovelMode, setIsNovelMode] = useState(false);
+  const [isDocumentMode, setIsDocumentMode] = useState(false);
+  const [isNoteMode, setIsNoteMode] = useState(false);
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
+  const [characterTemplatePicker, setCharacterTemplatePicker] = useState(false);
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
   // 2026-08-11：Markdown 拖曳匯入提示
   const [isDragImportOver, setIsDragImportOver] = useState(false);
@@ -10321,12 +13207,27 @@ function NexusAppInner({
   const markdownInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const activePageRef = useRef<Page | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A page owns its own debounce. A single global timer made simultaneous
+  // edits in split view cancel one another's saves.
+  const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingSavesRef = useRef(new Map<string, Page>());
+  const activeSavesRef = useRef(new Map<string, Promise<void>>());
   const syncEngineRef = useRef<SyncEngine | null>(null);
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [isNovelMoreOpen, setIsNovelMoreOpen] = useState(false);
+  const [novelContinueEditSignal, setNovelContinueEditSignal] = useState(0);
+  const [globalPullDistance, setGlobalPullDistance] = useState(0);
+  const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
+  const globalPullStartRef = useRef<{ x: number; y: number; time: number; container: HTMLElement } | null>(null);
+  const refreshReadyRef = useRef(false);
+  const refreshBusyRef = useRef(false);
+  const [refreshReady, setRefreshReady] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
+  const isActiveNovel = !!activePage && isNovelPage(activePage);
   const activeAttachment = activePage?.primary_attachment_id
     ? attachments.find((a) => a.id === activePage.primary_attachment_id) || null
     : null;
@@ -10334,7 +13235,40 @@ function NexusAppInner({
   const secondaryActiveAttachment = secondaryActivePage?.primary_attachment_id
     ? attachments.find((a) => a.id === secondaryActivePage.primary_attachment_id) || null
     : null;
-  activePageRef.current = activePage;
+  useEffect(() => {
+    activePageRef.current = activePage;
+  }, [activePage]);
+
+  const isFeatureInterface = isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
+    (isCreativeMode && (!activePage || activePage.kind !== "creative"));
+  const isTabletViewport = viewportWidth < 1024;
+  const isMobileViewport = viewportWidth < 768;
+
+  useEffect(() => {
+    const updateViewport = () => setViewportWidth(window.innerWidth);
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!isTabletViewport || !secondaryActivePageId) return;
+    setSecondaryActivePageId(null);
+    setSecondaryPdfUrl(null);
+    setSecondaryPdfLoadError(null);
+  }, [isTabletViewport, secondaryActivePageId]);
+
+  useEffect(() => {
+    // A narrow editor starts with its page switcher tucked away; users can
+    // still expand the rail with its own toggle when they need it.
+    if (isMobileViewport) setIsSidebarCollapsed(true);
+  }, [isMobileViewport]);
+
+  useEffect(() => {
+    // On tablets and phones the auxiliary panel is a drawer, never a second
+    // column competing with the editor's usable width.
+    if (isTabletViewport) setIsRightPanelCollapsed(true);
+  }, [isTabletViewport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -10419,6 +13353,8 @@ function NexusAppInner({
 
   useEffect(() => {
     let cancelled = false;
+    let syncRun = 0;
+    let authSubscription: { unsubscribe: () => void } | null = null;
     const adapter = new IndexedDBAdapter();
 
     async function init() {
@@ -10426,8 +13362,34 @@ function NexusAppInner({
       if (cancelled) return;
       storageRef.current = adapter;
 
-      let allPages = await adapter.listPages();
-      let allAttachments = await adapter.listAttachments();
+      // Resolve an existing session before reading IndexedDB. Without this,
+      // a signed-in user could briefly see the anonymous workspace while the
+      // app is starting up.
+      let hasAuthenticatedSession = false;
+      if (isSupabaseConfigured()) {
+        const initialSupabase = getSupabase();
+        if (initialSupabase) {
+          const { data: { session } } = await initialSupabase.auth.getSession();
+          if (cancelled) return;
+          setAccountEmail(session?.user.email || null);
+          setIsAuthenticated(!!session?.user);
+          setIsAuthResolved(true);
+          if (session?.user) {
+            hasAuthenticatedSession = true;
+            await adapter.claimAnonymousWorkspace?.(session.user.id);
+            adapter.setWorkspaceOwner(session.user.id);
+          }
+        }
+      } else {
+        setIsAuthResolved(true);
+      }
+
+      let allPages: Page[] = [];
+      let allAttachments: Attachment[] = [];
+      if (hasAuthenticatedSession) {
+        allPages = await adapter.listPages();
+        allAttachments = await adapter.listAttachments();
+      }
 
       // 2026-08-11：舊資料遷移——筆記/文檔若為 a4/16:9/4:3/custom，
       // 一律改為流動（分頁已改為「手動 A4 頁面」新模式，舊自動分頁資料以流動顯示）
@@ -10454,73 +13416,142 @@ function NexusAppInner({
       const savedNightAdapt = await adapter.getPageNightAdaptPreference();
       if (savedNightAdapt === true) setIsPageNightAdapt(true);
 
-      const savedId = await adapter.getActivePageId();
-      const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.deleted_at === null) : null;
-
-      if (savedPage) {
-        setActivePageId(savedPage.id);
-      } else if (allPages.length > 0) {
-        setActivePageId(allPages[0].id);
-        await adapter.setActivePageId(allPages[0].id);
-      } else {
-        const first = await adapter.createPage();
-        allPages = [first];
-        setPages(allPages);
-        setActivePageId(first.id);
-        await adapter.setActivePageId(first.id);
-      }
+      const savedId = hasAuthenticatedSession ? await adapter.getActivePageId() : null;
+      const savedPage = getWorkspaceEntryPage(allPages, savedId);
+      setActivePageId(savedPage?.id ?? null);
+      await adapter.setActivePageId(savedPage?.id ?? null);
 
       setIsReady(true);
 
-      // 【臨時診斷】禁用 SyncEngine，確認拖曳問題是否由 sync 覆蓋引起。
-      // 若禁用後 drag 正常 → sync 是元兇；若仍不動 → 是渲染層問題。
-      const DISABLE_SYNC_FOR_DRAG_DEBUG = false;
-      if (isSupabaseConfigured() && !DISABLE_SYNC_FOR_DRAG_DEBUG) {
+      if (isSupabaseConfigured()) {
         const supabase = getSupabase();
         if (supabase) {
           const deviceId = await adapter.getDeviceId();
-          const engine = new SyncEngine(supabase, adapter, deviceId);
-          syncEngineRef.current = engine;
-          engine.subscribe(setSyncState);
-          engine.setOnRemoteChange(async () => {
-            const syncedPages = await adapter.listPages();
-            const syncedAttachments = await adapter.listAttachments();
-            setPages(syncedPages);
-            setAttachments(syncedAttachments);
+          const startAccountSync = async (userId: string) => {
+            const thisRun = ++syncRun;
+            syncEngineRef.current?.destroy();
+            // A browser's IndexedDB is shared by every account. Select the
+            // signed-in account's cache before any pull or push can run.
+            await adapter.claimAnonymousWorkspace?.(userId);
+            adapter.setWorkspaceOwner(userId);
+            const engine = new SyncEngine(supabase, adapter, deviceId, userId);
+            syncEngineRef.current = engine;
+            engine.subscribe(setSyncState);
+            engine.setOnRemoteChange(async () => {
+              if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+              const syncedPages = await adapter.listPages();
+              const syncedAttachments = await adapter.listAttachments();
+              if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+              setPages(syncedPages);
+              setAttachments(syncedAttachments);
+            });
+            await engine.fullSync();
+            if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+            // A newly registered account starts truly empty. Creating a
+            // placeholder here used to leave every account with an unwanted
+            // "Untitled" document, even when the user had not made anything.
+            const accountPages = await adapter.listPages();
+            setPages(accountPages);
+            setAttachments(await adapter.listAttachments());
+            const storedActiveId = await adapter.getActivePageId();
+            const nextActiveId = getWorkspaceEntryPage(accountPages, storedActiveId)?.id ?? null;
+            setActivePageId(nextActiveId);
+            await adapter.setActivePageId(nextActiveId);
+            engine.startRealtime();
+          };
+
+          const { data: { session } } = await supabase.auth.getSession();
+          setAccountEmail(session?.user.email || null);
+          setIsAuthenticated(!!session?.user);
+          setIsAuthResolved(true);
+          if (session?.user) await startAccountSync(session.user.id);
+          else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
+
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+            setAccountEmail(nextSession?.user.email || null);
+            setIsAuthenticated(!!nextSession?.user);
+            setIsAuthResolved(true);
+            if (event === "SIGNED_OUT" || !nextSession?.user) {
+              syncRun += 1;
+              syncEngineRef.current?.destroy();
+              syncEngineRef.current = null;
+              adapter.setWorkspaceOwner(null);
+              // Remove account state immediately. The anonymous workspace is
+              // loaded afterwards, so a slow IndexedDB read can never leave
+              // private account pages visible in the signed-out UI.
+              setPages([]);
+              setAttachments([]);
+              setTrashPages([]);
+              setActivePageId(null);
+              setSecondaryActivePageId(null);
+              void Promise.all([adapter.listPages(), adapter.listAttachments()]).then(([localPages, localAttachments]) => {
+                if (!cancelled) {
+                  setPages(localPages);
+                  setAttachments(localAttachments);
+                  setActivePageId(getWorkspaceEntryPage(localPages)?.id ?? null);
+                }
+              });
+              setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
+              return;
+            }
+            void startAccountSync(nextSession.user.id);
           });
-          await engine.fullSync();
-          if (cancelled) return;
-          allPages = await adapter.listPages();
-          allAttachments = await adapter.listAttachments();
-          setPages(allPages);
-          setAttachments(allAttachments);
-          engine.startRealtime();
+          authSubscription = subscription;
         }
       }
     }
 
     init().catch((error) => {
       console.error(error);
+      setIsAuthResolved(true);
       setIsReady(true);
     });
 
     return () => {
       cancelled = true;
+      syncRun += 1;
+      authSubscription?.unsubscribe();
       syncEngineRef.current?.destroy();
-      adapter.close?.();
+      // Do not explicitly close this connection here. React Strict Mode can
+      // run effect cleanup while its in-flight initial sync is still settling,
+      // which otherwise aborts IndexedDB transactions with "connection is closing".
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const flushSave = useCallback(async (pageToSave: Page) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    if (!storageRef.current) return;
-    const nextPage = { ...pageToSave, updated_at: Date.now(), revision: pageToSave.revision + 1 };
-    await storageRef.current.savePage(nextPage);
-    syncEngineRef.current?.pushPage(nextPage);
-  }, [storageRef]);  const scheduleSave = useCallback((page: Page) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => void flushSave(page), 800);
+    const latestPage = pendingSavesRef.current.get(pageToSave.id) ?? pageToSave;
+    const timer = saveTimersRef.current.get(latestPage.id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(latestPage.id);
+    if (!storageRef.current) throw new Error("Storage unavailable");
+    pendingSavesRef.current.set(latestPage.id, latestPage);
+    const previous = activeSavesRef.current.get(latestPage.id);
+    const operation = (async () => {
+      // Serialize writes to the same page; a later successful retry supersedes a failed write.
+      if (previous) await previous.catch(() => undefined);
+      const nextPage = { ...latestPage, updated_at: Date.now(), revision: latestPage.revision + 1 };
+      await storageRef.current!.savePage(nextPage);
+      if (pendingSavesRef.current.get(latestPage.id) === latestPage) pendingSavesRef.current.delete(latestPage.id);
+      syncEngineRef.current?.pushPage(nextPage);
+    })();
+    activeSavesRef.current.set(latestPage.id, operation);
+    try { await operation; }
+    finally { if (activeSavesRef.current.get(latestPage.id) === operation) activeSavesRef.current.delete(latestPage.id); }
+  }, [storageRef]);
+  const flushAllSaves = useCallback(async () => {
+    do {
+      const pending = [...pendingSavesRef.current.values()];
+      await Promise.all(pending.map((page) => flushSave(page)));
+      await Promise.all([...activeSavesRef.current.values()]);
+    } while (pendingSavesRef.current.size || activeSavesRef.current.size);
+  }, [flushSave]);
+  const scheduleSave = useCallback((page: Page) => {
+    const previousTimer = saveTimersRef.current.get(page.id);
+    if (previousTimer) clearTimeout(previousTimer);
+    pendingSavesRef.current.set(page.id, page);
+    const timer = setTimeout(() => void flushSave(page).catch((error) => { console.error(error); setRefreshError("儲存未完成，內容仍保留在目前頁面，請稍後重試。"); }), 800);
+    saveTimersRef.current.set(page.id, timer);
   }, [flushSave]);
 
   // M1 fix: 統一的 page patch helper——更新欄位時同步 refresh updated_at，
@@ -10535,8 +13566,147 @@ function NexusAppInner({
     });
   }, [scheduleSave]);
 
+  const chapterMutationRef = useRef(new Set<string>());
+  const createNovelChapter = useCallback(async (novelId: string): Promise<NovelChapter> => {
+    const storage = storageRef.current;
+    const novel = pages.find((page) => page.id === novelId);
+    if (!storage || !novel || !novel.novel_settings?.chaptersEnabled) throw new Error("Chapter workspace is not enabled");
+    const chapters = getNovelChapters(pages, novelId);
+    const now = Date.now();
+    const chapter: NovelChapter = {
+      id: `chapter_${nanoid()}`, kind: "novel_chapter", parent_id: novelId,
+      sort_order: Math.max(-1, ...chapters.map((item) => item.sort_order)) + 1,
+      title: `第${chapters.length + 1}章`, content_json: emptyNovelDocument(), content_text: "",
+      created_at: now, updated_at: now, deleted_at: null, revision: 1,
+      device_id: await storage.getDeviceId(), default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+    };
+    await storage.savePage(chapter);
+    setPages((prev) => [...prev, chapter]);
+    void syncEngineRef.current?.pushPage(chapter);
+    return chapter;
+  }, [pages]);
+
+  const enableNovelChapters = useCallback(async (novelId: string) => {
+    if (chapterMutationRef.current.has(novelId)) return;
+    const storage = storageRef.current;
+    if (!storage) throw new Error("Storage unavailable");
+    chapterMutationRef.current.add(novelId);
+    try {
+      await flushAllSaves();
+      const novel = await storage.getPage(novelId);
+      if (!novel || novel.novel_settings?.chaptersEnabled) return;
+      const now = Date.now();
+      const device_id = await storage.getDeviceId();
+      const parts = splitLegacyNovel(novel);
+      if (!parts.length) parts.push({ title: "第1章", content_json: emptyNovelDocument(), content_text: "" });
+      const chapters: NovelChapter[] = parts.map((part, sort_order) => ({
+        ...part, id: `chapter_${nanoid()}`, kind: "novel_chapter", parent_id: novelId, sort_order,
+        created_at: now, updated_at: now, deleted_at: null, revision: 1, device_id,
+        default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+      }));
+      const updated: Page = { ...novel, novel_settings: { ...novel.novel_settings, chaptersEnabled: true },
+        content_json: emptyNovelDocument(), content_text: "", updated_at: now, revision: novel.revision + 1 };
+      await storage.savePages([...chapters, updated]);
+      setPages((prev) => [...prev.map((page) => page.id === novelId ? updated : page), ...chapters]);
+      await syncEngineRef.current?.pushPages([...chapters, updated]);
+    } finally { chapterMutationRef.current.delete(novelId); }
+  }, [flushAllSaves]);
+
+  const saveCharacterTemplate = useCallback(async (source: Page, title: string, data: CharacterProfileData) => {
+    const storage = storageRef.current;
+    if (!storage) throw new Error("Storage unavailable");
+    const now = Date.now();
+    const template: Page = {
+      id: `template_${nanoid()}`, title, kind: "creative", creative_type: "character",
+      character_data: snapshotCharacterTemplate(data), content_json: emptyNovelDocument(), content_text: "",
+      default_mode: "note", created_at: now, updated_at: now, deleted_at: null, revision: 1,
+      device_id: await storage.getDeviceId(), workspace_owner_id: source.workspace_owner_id,
+      attachment_ids: [...(source.attachment_ids || [])],
+    };
+    await storage.savePage(template);
+    setPages((prev) => [template, ...prev]);
+    void syncEngineRef.current?.pushPage(template);
+  }, []);
+
+  const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
+    return storageRef.current?.readBinary(attachmentId) || null;
+  }, [storageRef]);
+
+  const uploadNovelCover = useCallback(async (pageId: string, file: File) => {
+    const storage = storageRef.current;
+    if (!storage?.createAttachment) throw new Error("Attachment storage is unavailable");
+    const target = pages.find((item) => item.id === pageId);
+    const previousAttachmentId = target?.novel_settings?.coverAttachmentId;
+    const attachment = await storage.createAttachment({
+      kind: "image",
+      name: file.name,
+      mime_type: file.type || "image/*",
+      size_bytes: file.size,
+    });
+    await storage.attachBinary(attachment.id, file);
+    setAttachments((previous) => [...previous.filter((item) => item.id !== attachment.id), attachment]);
+    await syncEngineRef.current?.pushAttachment(attachment);
+    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    if (target) patchPage(pageId, { novel_settings: { ...target.novel_settings, coverAttachmentId: attachment.id } });
+
+    // Replacing a cover should not leave the previous private image visible in
+    // storage forever. Preserve it only when another page deliberately reuses it.
+    if (previousAttachmentId) {
+      const isStillReferenced = pages.some((item) => item.id !== pageId && (
+        item.novel_settings?.coverAttachmentId === previousAttachmentId ||
+        item.primary_attachment_id === previousAttachmentId ||
+        item.attachment_ids?.includes(previousAttachmentId)
+      ));
+      const previousAttachment = attachments.find((item) => item.id === previousAttachmentId);
+      if (previousAttachment && !isStillReferenced) {
+        const removedAttachment = { ...previousAttachment, deleted_at: Date.now(), updated_at: Date.now() };
+        await storage.saveAttachment(removedAttachment);
+        setAttachments((items) => items.filter((item) => item.id !== previousAttachmentId));
+        await syncEngineRef.current?.pushAttachment(removedAttachment);
+      }
+    }
+  }, [attachments, pages, patchPage]);
+
+  const uploadCharacterGalleryImage = useCallback(async (pageId: string, file: File) => {
+    const storage = storageRef.current;
+    if (!storage?.createAttachment) throw new Error("Attachment storage is unavailable");
+    if (!file.type.startsWith("image/")) throw new Error("Gallery files must be images");
+    const attachment = await storage.createAttachment({ kind: "image", name: file.name, mime_type: file.type || "image/*", size_bytes: file.size });
+    await storage.attachBinary(attachment.id, file);
+    setAttachments((current) => [...current.filter((item) => item.id !== attachment.id), attachment]);
+    await syncEngineRef.current?.pushAttachment(attachment);
+    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    const target = pages.find((item) => item.id === pageId);
+    if (target) patchPage(pageId, { attachment_ids: [...(target.attachment_ids || []), attachment.id] });
+    return attachment.id;
+  }, [pages, patchPage]);
+
+  const removeNovelCover = useCallback(async (pageId: string) => {
+    const page = pages.find((item) => item.id === pageId);
+    const attachmentId = page?.novel_settings?.coverAttachmentId;
+    if (!page || !attachmentId) return;
+
+    patchPage(pageId, { novel_settings: { ...page.novel_settings, coverAttachmentId: null } });
+
+    // An attachment can theoretically be reused by another page. Only retire
+    // a cover asset when no page still points to it in any attachment field.
+    const isStillReferenced = pages.some((item) => item.id !== pageId && (
+      item.novel_settings?.coverAttachmentId === attachmentId ||
+      item.primary_attachment_id === attachmentId ||
+      item.attachment_ids?.includes(attachmentId)
+    ));
+    const attachment = attachments.find((item) => item.id === attachmentId);
+    if (!attachment || isStillReferenced || !storageRef.current) return;
+
+    const removedAttachment = { ...attachment, deleted_at: Date.now(), updated_at: Date.now() };
+    await storageRef.current.saveAttachment(removedAttachment);
+    setAttachments((items) => items.filter((item) => item.id !== attachmentId));
+    await syncEngineRef.current?.pushAttachment(removedAttachment);
+  }, [attachments, pages, patchPage]);
+
   // 2026-08-11：Markdown 拖曳匯入（視窗級 dragover/drop）
   useEffect(() => {
+    if (!isAuthenticated) return;
     const hasMarkdownFile = (dt: DataTransfer | null): boolean => {
       if (!dt) return false;
       return Array.from(dt.items || []).some((item) => {
@@ -10584,7 +13754,7 @@ function NexusAppInner({
       window.removeEventListener("dragleave", onDragLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -10596,9 +13766,23 @@ function NexusAppInner({
 
   const activatePage = useCallback(async (id: string) => {
     setIsHomeMode(false);
+    setIsTrashMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    setIsStudySetMode(false);
+    setIsNovelMode(false);
+    setIsDocumentMode(false);
+    setIsNoteMode(false);
+    setIsPresentationMode(false);
+    const target = pages.find((p) => p.id === id);
+    if (target?.kind === "creative") {
+      setIsCreativeMode(true);
+    } else {
+      setIsCreativeMode(false);
+    }
     setActivePageId(id);
     if (storageRef.current) await storageRef.current.setActivePageId(id);
-  }, [storageRef]);
+  }, [pages, storageRef]);
 
   const handleSelectPage = useCallback(async (id: string) => {
     if (activePageRef.current) await flushSave(activePageRef.current);
@@ -10609,8 +13793,21 @@ function NexusAppInner({
     if (!storageRef.current) return;
     if (activePageRef.current) await flushSave(activePageRef.current);
     const newPage = await storageRef.current.createPage(input);
+    setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" ? input.kind : null);
     setIsTrashMode(false);
     setIsHomeMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    setIsStudySetMode(false);
+    setIsNovelMode(false);
+    setIsDocumentMode(false);
+    setIsNoteMode(false);
+    setIsPresentationMode(false);
+    if (input.kind === "creative") {
+      setIsCreativeMode(true);
+    } else {
+      setIsCreativeMode(false);
+    }
     setPages((prev) => [newPage, ...prev]);
     setActivePageId(newPage.id);
     await storageRef.current.setActivePageId(newPage.id);
@@ -10745,9 +13942,55 @@ function NexusAppInner({
     setPages((prev) => prev.map((p) => changed.get(p.id) ?? p));
   }, [storageRef, pages]);
 
-  const handleCreateItem = useCallback(async (type: "note" | "document" | "study_set" | "folder" | "presentation") => {
+  const handleCreateCharacter = async (templateId = "blank") => {
+    let initialData = createBlankTemplate();
+    if (templateId === "fantasy") initialData = createFantasyTemplate();
+    if (templateId === "modern") initialData = createModernTemplate();
+    if (templateId === "blank") initialData = createBlankTemplate();
+    if (templateId === "dnd5e") initialData = createDnd5eTemplate();
+    if (templateId === "coc7e") initialData = createCoc7eTemplate();
+    const customTemplate = pages.find((page) => page.id === templateId && page.character_data?.isTemplate && !page.deleted_at);
+    if (customTemplate?.character_data) initialData = customTemplate.character_data;
+    initialData = instantiateCharacterTemplate(initialData, customTemplate?.id);
+
+    const p = await createAndOpenPage({
+      kind: "creative" as any,
+      title: initialData.basic.name || "新角色檔案",
+      format: "flow",
+    });
+    if (p) {
+      patchPage(p.id, {
+        creative_type: "character",
+        character_data: initialData,
+        attachment_ids: [...(customTemplate?.attachment_ids || [])],
+      });
+    }
+
+  };
+
+  const handleCreateItem = useCallback(async (type: CreateItemType) => {
+    if (type === "character") { setCharacterTemplatePicker(true); return; }
+    if (type === "note_flow" || type === "note_paged") {
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try { await createAndOpenPage({ kind: "note", format: type === "note_flow" ? "flow" : "paged", title: "" }); }
+      finally { sidebarCreateInFlightRef.current = false; }
+      return;
+    }
+    if (["novel", "world", "web", "counter", "draw", "quick_note", "todo"].includes(type)) {
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try {
+        const titles: Record<string, string> = { novel: "新小說作品", world: "新世界觀", web: "新網頁", counter: "新計數", draw: "新抽選", quick_note: "隨手記", todo: "新事項" };
+        const page = await createAndOpenPage({ kind: type === "novel" || type === "world" ? "creative" : type as PageKind, format: "flow", title: titles[type] });
+        if (page && type === "novel") patchPage(page.id, { creative_type: "novel", novel_settings: { chaptersEnabled: true, theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
+        if (page && type === "world") { const data = createBlankTemplate(); data.basic.name = titles.world; data.basic.role = "世界觀設定"; patchPage(page.id, { creative_type: "world", character_data: data }); }
+        if (page && type === "todo") patchPage(page.id, { due_date: Date.now(), completed: false });
+      } finally { sidebarCreateInFlightRef.current = false; }
+      return;
+    }
     if (type === "presentation") {
-      await handleCreatePresentation("16:9");
+      setCreateDialog({ open: true, initialKind: "presentation" });
       return;
     }
     if (type === "note") {
@@ -10772,7 +14015,7 @@ function NexusAppInner({
       : { kind: "study_set", title: "" };
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
-  }, [createAndOpenPage, handleCreatePresentation]);
+  }, [createAndOpenPage, patchPage]);
 
   // 2026-08-11：模式選擇對話框確認（筆記：流動/分頁）
   const handleConfirmCreateDialog = useCallback(async (kind: NewPageKindChoice, format: PageFormat) => {
@@ -10820,9 +14063,104 @@ function NexusAppInner({
     if (changed.size > 0) setPages((prev) => prev.map((p) => changed.get(p.id) ?? p));
   }, [storageRef, pages]);
 
-  const handleUpdateStudyItems = useCallback((items: StudyItem[]) => {
-    if (activePageId) patchPage(activePageId, { study_items: items });
-  }, [activePageId, patchPage]);
+  const handlePinPages = useCallback(async (ids: string[]) => {
+    if (!storageRef.current || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const now = Date.now();
+    const changed = new Map<string, Page>();
+    const allPinned = ids.every((id) => (pages.find((item) => item.id === id)?.sort_order ?? 0) < 0);
+    ids.forEach((id, index) => {
+      const page = pages.find((item) => item.id === id);
+      if (!page) return;
+      const updated = { ...page, sort_order: allPinned ? undefined : -10000 + index, updated_at: now, revision: page.revision + 1 };
+      changed.set(id, updated);
+    });
+    for (const page of changed.values()) {
+      await storageRef.current.savePage(page);
+      syncEngineRef.current?.pushPage(page);
+    }
+    if (idSet.size) setPages((current) => current.map((page) => changed.get(page.id) ?? page));
+  }, [pages, storageRef]);
+
+  const handleSetPagesFolder = useCallback(async (ids: string[], folder: string | null) => {
+    if (!storageRef.current || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const now = Date.now();
+    const changed = new Map<string, Page>();
+    for (const page of pages) {
+      if (!idSet.has(page.id)) continue;
+      const updated = { ...page, folder, updated_at: now, revision: page.revision + 1 };
+      await storageRef.current.savePage(updated);
+      syncEngineRef.current?.pushPage(updated);
+      changed.set(page.id, updated);
+    }
+    setPages((current) => current.map((page) => changed.get(page.id) ?? page));
+  }, [pages, storageRef]);
+
+  const cancelGlobalPull = () => {
+    globalPullStartRef.current = null;
+    refreshReadyRef.current = false;
+    setRefreshReady(false);
+    setGlobalPullDistance(0);
+  };
+  const reloadWorkspace = async () => {
+    if (refreshBusyRef.current) return;
+    refreshBusyRef.current = true;
+    setIsGlobalRefreshing(true);
+    setRefreshError("");
+    try {
+      await flushAllSaves();
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to save before refresh", error);
+      setRefreshError("儲存未完成，已取消刷新，請稍後重試。");
+      refreshBusyRef.current = false;
+      setIsGlobalRefreshing(false);
+    }
+  };
+  const beginGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
+    cancelGlobalPull();
+    if (event.touches.length !== 1 || refreshBusyRef.current) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, button, a, select, [contenteditable], [role='dialog'], [data-side-panel]")) return;
+    if (!window.getSelection()?.isCollapsed) return;
+    const container = target.closest<HTMLElement>("[data-pull-refresh]");
+    const touch = event.touches[0];
+    if (!container || container.scrollTop > 0 || touch.clientY - container.getBoundingClientRect().top > 80) return;
+    // A nested scroller must keep its own gestures, even at its upper edge.
+    for (let element = target; element && element !== container; element = element.parentElement!) {
+      if (/(auto|scroll)/.test(window.getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight) return;
+    }
+    globalPullStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now(), container };
+  };
+  const moveGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
+    const start = globalPullStartRef.current;
+    if (!start) return;
+    if (event.touches.length !== 1 || start.container.scrollTop > 0) { cancelGlobalPull(); return; }
+    const touch = event.touches[0];
+    const pull = measureRefreshPull(touch.clientX - start.x, touch.clientY - start.y, Date.now() - start.time);
+    if (pull.cancelled) { cancelGlobalPull(); return; }
+    refreshReadyRef.current = pull.ready;
+    setRefreshReady(pull.ready);
+    setGlobalPullDistance(pull.distance);
+  };
+  const endGlobalPull = () => {
+    const shouldRefresh = refreshReadyRef.current;
+    cancelGlobalPull();
+    if (shouldRefresh) void reloadWorkspace();
+  };
+
+  const closeMobilePanelsWhenEditing = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isTabletViewport || isFeatureInterface || (isSidebarCollapsed && isRightPanelCollapsed)) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-side-panel], [role='dialog'], dialog")) return;
+    if (target.closest("[contenteditable='true'], textarea, input")) {
+      setIsSidebarCollapsed(true);
+      setIsRightPanelCollapsed(true);
+    }
+  };
+
+
 
   const loadTrashPages = useCallback(async () => {
     if (!storageRef.current) return;
@@ -10830,7 +14168,8 @@ function NexusAppInner({
     setTrashPages(allPages.filter((page) => page.deleted_at !== null));
   }, [storageRef]);
 
-  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
+  const closeFeatureOverviews = () => { setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(null); };
+  const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
 
   // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
   const handleTogglePageNightAdapt = useCallback(() => {
@@ -10840,10 +14179,33 @@ function NexusAppInner({
       return next;
     });
   }, [storageRef]);
-  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); }, []);
-  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); }, []);
-  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); }, []);
-  const handleShowCreative = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(true); }, []);
+  const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  const handleShowCreative = useCallback(() => {
+    setIsTrashMode(false);
+    setIsHomeMode(false);
+    setIsQuickNoteMode(false);
+    setIsTodoMode(false);
+    setIsCreativeMode(true);
+    closeFeatureOverviews();
+    setActivePageId(null);
+  }, []);
+  const handleShowStudySets = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsStudySetMode(true); setActivePageId(null); }, []);
+  const handleShowNovels = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsDocumentMode(false); setIsNovelMode(true); setActivePageId(null); }, []);
+  const handleShowDocuments = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
+  const handleShowNotesOverview = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
+  const handleShowPresentations = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
+  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
+
+  useEffect(() => {
+    const openUtility = (event: Event) => {
+      const kind = (event as CustomEvent<"web" | "counter" | "draw">).detail;
+      if (kind === "web" || kind === "counter" || kind === "draw") handleShowUtility(kind);
+    };
+    window.addEventListener("nexus-open-utility", openUtility);
+    return () => window.removeEventListener("nexus-open-utility", openUtility);
+  }, [handleShowUtility]);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -10852,6 +14214,7 @@ function NexusAppInner({
     setIsQuickNoteMode(false);
     setIsTodoMode(false);
     setIsCreativeMode(false);
+    closeFeatureOverviews();
   }, [flushSave, loadTrashPages]);
 
   const handleRestorePage = useCallback(async (id: string) => {
@@ -10866,12 +14229,42 @@ function NexusAppInner({
     syncEngineRef.current?.pushPage(restored);
   }, [storageRef]);
 
+  const permanentlyDeleteNovelChapters = useCallback(async (novelIds: string[]) => {
+    const storage = storageRef.current;
+    if (!storage) return;
+    const chapters = (await storage.listPages({ includeDeleted: true })).filter((page) => page.kind === "novel_chapter" && novelIds.includes(page.parent_id || ""));
+    for (const chapter of chapters) {
+      const timer = saveTimersRef.current.get(chapter.id);
+      if (timer) clearTimeout(timer);
+      saveTimersRef.current.delete(chapter.id);
+      pendingSavesRef.current.delete(chapter.id);
+      await storage.permanentDeletePage(chapter.id);
+      await syncEngineRef.current?.pushPermanentDeletePage(chapter.id);
+    }
+    const ids = new Set(chapters.map((chapter) => chapter.id));
+    setPages((prev) => prev.filter((page) => !ids.has(page.id)));
+    setTrashPages((prev) => prev.filter((page) => !ids.has(page.id)));
+  }, []);
+
   const handlePermanentDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
+    const page = trashPages.find((item) => item.id === id);
+    const attachmentIds = new Set([page?.primary_attachment_id, ...(page?.attachment_ids || []), page?.novel_settings?.coverAttachmentId].filter(Boolean) as string[]);
+    await permanentlyDeleteNovelChapters([id]);
     await storageRef.current.permanentDeletePage(id);
+    for (const attachmentId of attachmentIds) {
+      const referencedElsewhere = [...pages, ...trashPages].some((item) => item.id !== id && (
+        item.primary_attachment_id === attachmentId || item.attachment_ids?.includes(attachmentId) || item.novel_settings?.coverAttachmentId === attachmentId
+      ));
+      if (!referencedElsewhere) {
+        await storageRef.current.permanentDeleteAttachment?.(attachmentId);
+        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
+      }
+    }
     setTrashPages((prev) => prev.filter((page) => page.id !== id));
     syncEngineRef.current?.pushPermanentDeletePage(id);
-  }, [storageRef]);
+  }, [pages, storageRef, trashPages, permanentlyDeleteNovelChapters]);
 
   const handleDuplicatePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -10894,18 +14287,31 @@ function NexusAppInner({
       content_json: source.content_json,
       content_text: source.content_text,
       links: [...(source.links || [])],
-      study_items: source.study_items ? source.study_items.map((item) => ({ ...item, id: `study_${nanoid()}` })) : duplicated.study_items,
+      creative_type: source.creative_type,
+      novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
+      character_data: source.character_data ? structuredClone(source.character_data) : undefined,
+      study_items: source.kind === "study_set" ? [] : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
-    await storageRef.current.savePage(pageToSave);
+    const chapters = getNovelChapters(pages, source.id).map((chapter) => ({ ...structuredClone(chapter),
+      id: `chapter_${nanoid()}`, parent_id: pageToSave.id, created_at: Date.now(), updated_at: Date.now(), revision: 1,
+    }));
+    await storageRef.current.savePages([pageToSave, ...chapters]);
+    if (source.kind === "study_set") {
+      const repository = storageRef.current.getStudyRepository();
+      const original = await repository.ensureDeck(source);
+      await repository.ensureDeck(pageToSave);
+      await repository.addCards(pageToSave.id, original.cards.filter(card => !card.deleted_at).map(card => ({ front: card.front, back: card.back })));
+      await repository.configure(pageToSave.id, { direction_confirmed: original.settings.direction_confirmed });
+    }
     setIsTrashMode(false);
     setIsHomeMode(false);
-    setPages((prev) => [pageToSave, ...prev]);
+    setPages((prev) => [pageToSave, ...chapters, ...prev]);
     setActivePageId(pageToSave.id);
     await storageRef.current.setActivePageId(pageToSave.id);
-    syncEngineRef.current?.pushPage(pageToSave);
+    syncEngineRef.current?.pushPages([pageToSave, ...chapters]);
   }, [flushSave, pages, storageRef]);
 
   const handleImportPdfClick = useCallback(() => pdfInputRef.current?.click(), []);
@@ -11074,16 +14480,23 @@ function NexusAppInner({
   // Task 3: Split view handlers (Obsidian style, closable)
   const handleOpenInSplit = useCallback((id: string) => {
     if (id === activePageId) return;
-    setSecondaryActivePageId(id);
+    const previousPrimaryId = activePageId;
+    setActivePageId(id);
+    setSecondaryActivePageId(previousPrimaryId);
+    if (storageRef.current) void storageRef.current.setActivePageId(id);
     setIsHomeMode(false);
     setIsTrashMode(false);
-  }, [activePageId]);
+  }, [activePageId, storageRef]);
 
   const handleCloseSplit = useCallback(() => {
+    if (secondaryActivePageId) {
+      setActivePageId(secondaryActivePageId);
+      if (storageRef.current) void storageRef.current.setActivePageId(secondaryActivePageId);
+    }
     setSecondaryActivePageId(null);
     setSecondaryPdfUrl(null);
     setSecondaryPdfLoadError(null);
-  }, []);
+  }, [secondaryActivePageId, storageRef]);
 
   const handleSwapSplit = useCallback(() => {
     if (!activePageId || !secondaryActivePageId) return;
@@ -11095,6 +14508,22 @@ function NexusAppInner({
       void storageRef.current.setActivePageId(secondary);
     }
   }, [activePageId, secondaryActivePageId]);
+
+  const handleSplitResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const bounds = splitContainerRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const onMove = (moveEvent: MouseEvent) => {
+      const percentage = ((moveEvent.clientX - bounds.left) / bounds.width) * 100;
+      setSplitPrimaryWidth(Math.min(75, Math.max(25, percentage)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
 
   const handleSecondaryTitleChange = useCallback((title: string) => {
     if (secondaryActivePageId) patchPage(secondaryActivePageId, { title });
@@ -11128,9 +14557,19 @@ function NexusAppInner({
     if (activePageId) patchPage(activePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
   }, [activePageId, patchPage]);
 
+  // Novel operations identify their target page explicitly. They must not rely
+  // on the currently-focused editor, because mobile navigation and split view
+  // can change that focus while a new chapter is being created.
+  const saveNovelContent = useCallback((pageId: string, json: any, text: string) => {
+    patchPage(pageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
+  }, [patchPage]);
+
   const handleDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    const timer = saveTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(id);
+    pendingSavesRef.current.delete(id);
     if (activePageRef.current && activePageRef.current.id === id) activePageRef.current = null;
     const deletedPage = pages.find((p) => p.id === id);
     const now = Date.now();
@@ -11143,16 +14582,41 @@ function NexusAppInner({
     setPages((prev) => prev.filter((p) => p.id !== id));
     if (deletedPage) setTrashPages((prev) => [{ ...deletedPage, deleted_at: now, updated_at: now, revision: deletedPage.revision + 1 }, ...prev.filter((p) => p.id !== id)]);
     if (activePageId === id) {
-      const remaining = pages.filter((p) => p.id !== id);
-      if (remaining.length > 0) await handleSelectPage(remaining[0].id);
-      else { setActivePageId(null); await storageRef.current.setActivePageId(null); }
+      if (isTodoMode) {
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else if (isQuickNoteMode) {
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else if (isCreativeMode) {
+        // 在創作模式下刪除，維持在創作總覽，不切換到其他非創作頁面
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else {
+        // 一般筆記/文檔模式：只在一般筆記（排除 quick_note, todo, creative）中切換至下一個專案頁面
+        const remainingProjectPages = pages.filter(
+          (p) => p.id !== id && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative" && p.kind !== "novel_chapter"
+        );
+        if (remainingProjectPages.length > 0) {
+          await handleSelectPage(remainingProjectPages[0].id);
+        } else {
+          setActivePageId(null);
+          if (storageRef.current) await storageRef.current.setActivePageId(null);
+          setIsHomeMode(true);
+        }
+      }
     }
-  }, [activePageId, pages, handleSelectPage, storageRef]);
+  }, [activePageId, pages, handleSelectPage, storageRef, isTodoMode, isQuickNoteMode, isCreativeMode]);
 
   const handleBulkDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
     const idSet = new Set(ids);
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    for (const id of ids) {
+      const timer = saveTimersRef.current.get(id);
+      if (timer) clearTimeout(timer);
+      saveTimersRef.current.delete(id);
+      pendingSavesRef.current.delete(id);
+    }
     if (activePageRef.current && idSet.has(activePageRef.current.id)) activePageRef.current = null;
     const now = Date.now();
     const toDelete = pages.filter((p) => idSet.has(p.id));
@@ -11164,11 +14628,29 @@ function NexusAppInner({
     setPages((prev) => prev.filter((p) => !idSet.has(p.id)));
     setTrashPages((prev) => [...toDelete.map((p) => ({ ...p, deleted_at: now, updated_at: now, revision: p.revision + 1 })), ...prev.filter((p) => !idSet.has(p.id))]);
     if (activePageId && idSet.has(activePageId)) {
-      const remaining = pages.filter((p) => !idSet.has(p.id));
-      if (remaining.length > 0) await handleSelectPage(remaining[0].id);
-      else { setActivePageId(null); await storageRef.current.setActivePageId(null); }
+      if (isTodoMode) {
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else if (isQuickNoteMode) {
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else if (isCreativeMode) {
+        setActivePageId(null);
+        if (storageRef.current) await storageRef.current.setActivePageId(null);
+      } else {
+        const remainingProjectPages = pages.filter(
+          (p) => !idSet.has(p.id) && !p.deleted_at && (p.kind as any) !== "quick_note" && (p.kind as any) !== "todo" && (p.kind as any) !== "creative" && p.kind !== "novel_chapter"
+        );
+        if (remainingProjectPages.length > 0) {
+          await handleSelectPage(remainingProjectPages[0].id);
+        } else {
+          setActivePageId(null);
+          await storageRef.current.setActivePageId(null);
+          setIsHomeMode(true);
+        }
+      }
     }
-  }, [activePageId, pages, handleSelectPage, storageRef]);
+  }, [activePageId, pages, handleSelectPage, storageRef, isTodoMode, isQuickNoteMode, isCreativeMode]);
 
   const handleBulkRestorePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
@@ -11186,9 +14668,22 @@ function NexusAppInner({
   const handleBulkPermanentDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
     const idSet = new Set(ids);
+    const deletedPages = trashPages.filter((page) => idSet.has(page.id));
+    const candidateAttachmentIds = new Set(deletedPages.flatMap((page) => [page.primary_attachment_id, ...(page.attachment_ids || []), page.novel_settings?.coverAttachmentId].filter(Boolean) as string[]));
+    await permanentlyDeleteNovelChapters(ids);
     for (const id of ids) { await storageRef.current.permanentDeletePage(id); syncEngineRef.current?.pushPermanentDeletePage(id); }
+    for (const attachmentId of candidateAttachmentIds) {
+      const referencedElsewhere = [...pages, ...trashPages].some((page) => !idSet.has(page.id) && (
+        page.primary_attachment_id === attachmentId || page.attachment_ids?.includes(attachmentId) || page.novel_settings?.coverAttachmentId === attachmentId
+      ));
+      if (!referencedElsewhere) {
+        await storageRef.current.permanentDeleteAttachment?.(attachmentId);
+        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
+      }
+    }
     setTrashPages((prev) => prev.filter((p) => !idSet.has(p.id)));
-  }, [storageRef]);
+  }, [pages, storageRef, trashPages, permanentlyDeleteNovelChapters]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -11196,6 +14691,11 @@ function NexusAppInner({
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+      if ((isMac ? event.metaKey : event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setIsDevicePreviewOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -11218,27 +14718,85 @@ function NexusAppInner({
       else void handleExportPageAsPdf(page.id);
     }},
     { id: "export-backup", label: t("commandPalette.exportBackup"), icon: "??", keywords: "backup export", run: () => void handleExportBackup() },
+    { id: "device-preview", label: "裝置預覽", icon: "▣", keywords: "responsive device mobile tablet preview", run: () => setIsDevicePreviewOpen(true) },
   ];
 
-  if (!isReady) {
+  if (!isReady || !isAuthResolved) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
   }
 
+  if (!isAuthenticated) {
+    return <AccountButton required />;
+  }
+
+  const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
-    <div className="flex h-screen w-screen overflow-hidden gap-3 p-3" style={{ backgroundColor: "var(--color-bg)" }}>
+    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
+      {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
+      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
+      {quizRepository&&<QuizOfflinePrompt key={accountEmail} repository={quizRepository}/>}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
 
-      <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} isCollapsed={isSidebarCollapsed}>
+      {isFeatureInterface && (
+        <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="開啟導覽" title="開啟導覽">☰</button>
+          <button type="button" onClick={handleShowHome} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
+          <div className="flex-1" />
+          <div className="relative">
+            <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="功能總覽" title="功能總覽">
+              <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
+            </button>
+            {isAppLauncherOpen && (
+              <div className="absolute right-0 top-12 grid w-72 grid-cols-2 gap-1 rounded-2xl border p-2 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+                {[
+                  ["▣", "日曆", handleShowTodoList],
+                  ["▤", "字卡", handleShowStudySets],
+                  ["✦", "創作", handleShowCreative],
+                  ["📖", "小說", handleShowNovels],
+                  ["✎", "筆記", handleShowNotesOverview],
+                  ["▱", "文檔", handleShowDocuments],
+                  ["▰", "簡報", handleShowPresentations],
+                  ["⌘", "網頁", () => handleShowUtility("web")],
+                  ["＋", "計數", () => handleShowUtility("counter")],
+                  ["⤨", "抽選", () => handleShowUtility("draw")],
+                ].map(([icon, label, action]) => (
+                  <button key={label as string} type="button" onClick={() => { (action as () => void)(); setIsAppLauncherOpen(false); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <span className="text-lg">{icon as string}</span><span>{label as string}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </header>
+      )}
+
+      {!isFeatureInterface && (
+        <div className="absolute right-3 top-2 z-40 flex items-center gap-2">
+          {isActiveNovel && <div className="relative">
+            <button type="button" onClick={() => setIsNovelMoreOpen((open) => !open)} className="grid h-9 w-9 place-items-center rounded-full border text-lg leading-none shadow-sm hover:opacity-80" style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-panel-bg)" }} aria-label="小說更多操作" aria-expanded={isNovelMoreOpen} title="更多操作">⋮</button>
+            {isNovelMoreOpen && <div className="absolute right-0 top-11 z-50 min-w-36 overflow-hidden rounded-lg border py-1 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+              <button type="button" onClick={() => { setIsNovelMoreOpen(false); setNovelContinueEditSignal((signal) => signal + 1); }} className="block w-full px-3 py-2 text-left text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">繼續編輯</button>
+              <button type="button" onClick={() => { setIsNovelMoreOpen(false); if (activePage && window.confirm(`確定將小說「${activePage.title || "未命名小說"}」移至垃圾桶？`)) { void handleDeletePage(activePage.id); handleShowNovels(); } }} className="block w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/25">刪除小說</button>
+            </div>}
+          </div>}
+        </div>
+      )}
+
+      {isNavigationOpen && (
+        <>
+          <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/20" onClick={() => setIsNavigationOpen(false)} aria-label="關閉導覽" />
+          <div className="fixed inset-y-0 left-0 z-50 flex h-screen w-[min(360px,100vw)] shadow-2xl [&>div]:h-full">
+      <ResizablePanel side="left" defaultWidth={360} minWidth={220} maxWidth={480} isCollapsed={false}>
         <Sidebar
-          pages={isTrashMode ? trashPages : pages}
+          pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
           activePageId={isTrashMode || isHomeMode ? null : activePageId}
           selectedTag={selectedTag}
           isTrashMode={isTrashMode}
           isHomeMode={isHomeMode}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+          isCollapsed={false}
+          onToggleCollapse={() => setIsNavigationOpen(false)}
           onSelectTag={setSelectedTag}
           onSelectPage={handleSelectPage}
           onImportPdf={handleImportPdfClick}
@@ -11270,24 +14828,140 @@ function NexusAppInner({
           pendingRenameId={pendingRenameId}
           onClearPendingRename={handleClearPendingRename}
           onCancelNewPage={handleCancelNewPage}
+          utilityMode={utilityMode}
           onCreateItem={handleCreateItem}
           syncState={syncState}
+          accountEmail={accountEmail}
           onMovePage={handleMovePage}
           onOpenInSplit={handleOpenInSplit}
           isQuickNoteMode={isQuickNoteMode}
           isTodoMode={isTodoMode}
           isCreativeMode={isCreativeMode}
+          isStudySetMode={isStudySetMode}
+          isNovelMode={isNovelMode}
+          isDocumentMode={isDocumentMode}
+          isNoteMode={isNoteMode}
+          isPresentationMode={isPresentationMode}
           onShowQuickNotes={handleShowQuickNotes}
           onShowTodoList={handleShowTodoList}
           onShowCreative={handleShowCreative}
+          onShowStudySets={handleShowStudySets}
+          onShowNovels={handleShowNovels}
+          onShowDocuments={handleShowDocuments}
+          onShowNotesOverview={handleShowNotesOverview}
+          onShowPresentations={handleShowPresentations}
         />
       </ResizablePanel>
+          </div>
+        </>
+      )}
 
+      {/* Editors keep a local, collapsible switcher. It is separate from the
+          Google-style interface drawer and lets users change pages or open a
+          second editor without leaving their current editing context. */}
+      {!isFeatureInterface && (
+        <>
+        {isMobileViewport && !isSidebarCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsSidebarCollapsed(true)} aria-label="關閉左側面板" />}
+        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed} overlay={isMobileViewport}>
+          <Sidebar
+            pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
+            activePageId={activePageId}
+            selectedTag={selectedTag}
+            isTrashMode={false}
+            isHomeMode={false}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+            onSelectTag={setSelectedTag}
+            onSelectPage={handleSelectPage}
+            onImportPdf={handleImportPdfClick}
+            onImportMarkdown={handleImportMarkdownClick}
+            onShowHome={handleShowHome}
+            onShowNotes={handleShowNotes}
+            onShowTrash={handleShowTrash}
+            onDeletePage={handleDeletePage}
+            onRestorePage={handleRestorePage}
+            onPermanentDeletePage={handlePermanentDeletePage}
+            onDuplicatePage={handleDuplicatePage}
+            onBulkDeletePages={handleBulkDeletePages}
+            onBulkRestorePages={handleBulkRestorePages}
+            onBulkPermanentDeletePages={handleBulkPermanentDeletePages}
+            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+            onToggleFavorite={handleToggleFavorite}
+            onRenamePage={handleRenamePage}
+            onExportPageMarkdown={handleExportPageMarkdown}
+            onExportPageAsPdf={handleExportPageAsPdf}
+            onExportPageAsNexusJson={handleExportPageAsNexusJson}
+            onAddSubPage={handleAddSubPage}
+            theme={theme}
+            onThemeChange={onThemeChange}
+            onExportBackup={handleExportBackup}
+            onImportBackup={handleImportBackupClick}
+            sortMode={sortMode}
+            onSortModeChange={setSortMode}
+            onReorderPages={handleReorderPages}
+            pendingRenameId={pendingRenameId}
+            onClearPendingRename={handleClearPendingRename}
+            onCancelNewPage={handleCancelNewPage}
+            utilityMode={utilityMode}
+          onCreateItem={handleCreateItem}
+            syncState={syncState}
+            accountEmail={accountEmail}
+            onMovePage={handleMovePage}
+            onOpenInSplit={handleOpenInSplit}
+            isQuickNoteMode={isQuickNoteMode}
+            isTodoMode={isTodoMode}
+            isCreativeMode={isCreativeMode}
+            isStudySetMode={isStudySetMode}
+            isNovelMode={isNovelMode}
+            isDocumentMode={isDocumentMode}
+            isNoteMode={isNoteMode}
+            isPresentationMode={isPresentationMode}
+            onShowQuickNotes={handleShowQuickNotes}
+            onShowTodoList={handleShowTodoList}
+            onShowCreative={handleShowCreative}
+            onShowStudySets={handleShowStudySets}
+            onShowNovels={handleShowNovels}
+            onShowDocuments={handleShowDocuments}
+            onShowNotesOverview={handleShowNotesOverview}
+            onShowPresentations={handleShowPresentations}
+          />
+        </ResizablePanel>
+        </>
+      )}
+
+      {/* 手機版不保留縮起後的垂直軌道；開關直接固定在編輯器最上方左側。 */}
+      {!isFeatureInterface && isMobileViewport && isSidebarCollapsed && (
+        <button
+          type="button"
+          onClick={() => { setIsRightPanelCollapsed(true); setIsSidebarCollapsed(false); }}
+          className="absolute left-2 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-lg shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+          aria-label="開啟左側面板"
+          title="開啟左側面板"
+        >
+          ☰
+        </button>
+      )}
+
+      {!isFeatureInterface && isTabletViewport && !isActiveNovel && (
+        <button
+          type="button"
+          onClick={() => { setIsSidebarCollapsed(true); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
+          className="absolute right-3 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-base shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+          aria-label="開啟輔助頁"
+          title="開啟輔助頁"
+        >
+          {isRightPanelCollapsed ? "☷" : "×"}
+        </button>
+      )}
+
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100dvh-4rem)]" : ""}`}>
       {isHomeMode ? (
-        <Dashboard pages={pages} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} />
+        <Dashboard pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
       ) : isQuickNoteMode ? (
         <QuickNotesView
-          pages={pages}
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(txt) => {
             const title = txt.slice(0, 30) || "隨手記";
             void createAndOpenPage({ title, kind: "quick_note" as any, folder: "QuickNotes" }).then((p) => {
@@ -11313,7 +14987,7 @@ function NexusAppInner({
         />
       ) : isTodoMode ? (
         <TodoView
-          pages={pages}
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(title, due) => {
             void createAndOpenPage({ title, kind: "todo" as any }).then((p) => {
               if (p) {
@@ -11336,16 +15010,131 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
-      ) : isCreativeMode ? (
-        <CreativeView pages={pages} onCreateNovel={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "小說閱讀格式", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "小說閱讀格式" }] }, { type: "paragraph", content: [{ type: "text", text: "在這裡開始撰寫..." }] }] } as any }); }} onCreateCharacter={async () => { const p = await createAndOpenPage({ kind: "creative" as any, title: "角色詳細簡介表", format: "flow" }); if (p) patchPage(p.id, { content_json: { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "角色簡介" }] }, { type: "paragraph", content: [{ type: "text", text: "姓名：\n年齡：\n性格：\n背景：\n外觀：\n能力：\n" }] }] } as any }); }} onSelectPage={handleSelectPage} />
-      ) : secondaryActivePageId && secondaryActivePage ? (
-        <div className="flex flex-1 overflow-hidden gap-2">
+      ) : utilityMode ? (
+        activePage?.kind === utilityMode ? (
+          <UtilityView page={activePage} onBack={() => { setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
+        ) : (
+          <FeatureOverview
+            title={utilityMode === "web" ? "網頁" : utilityMode === "counter" ? "計數" : "抽選"}
+            description={utilityMode === "web" ? "建立可整理與公開的個人連結頁。" : utilityMode === "counter" ? "用項目與合計追蹤數值。" : "以標籤篩選你的抽選資料庫。"}
+            icon={utilityMode === "web" ? "⌘" : utilityMode === "counter" ? "＋" : "⤨"}
+            actionLabel={utilityMode === "web" ? "建立網頁" : utilityMode === "counter" ? "建立計數" : "建立抽選"}
+            pages={pages.filter((page) => page.kind === utilityMode && !page.deleted_at)}
+            onCreate={() => { const kind = utilityMode; void createAndOpenPage({ kind, title: kind === "web" ? "新網頁" : kind === "counter" ? "新計數" : "新抽選", format: "flow" }); }}
+            onSelectPage={handleSelectPage}
+          />
+        )
+      ) : isStudySetMode ? (
+        <FeatureOverview
+          title="字卡"
+          description="建立、整理並練習你的學習卡片。"
+          icon="🗂️"
+          actionLabel="建立字卡集"
+          pages={pages.filter((p) => p.kind === "study_set" && !p.deleted_at)}
+          onCreate={() => void handleCreateStudySet()}
+          onSelectPage={handleSelectPage}
+        />
+      ) : isNovelMode ? (
+        <FeatureOverview
+          title="小說"
+          description="管理小說作品、章節閱讀與沉浸式寫作。"
+          icon="📖"
+          actionLabel="建立小說"
+          pages={pages.filter((p) => isNovelPage(p) && !p.deleted_at)}
+          onCreate={() => void handleCreateItem("novel")}
+          onSelectPage={handleSelectPage}
+        />
+      ) : isDocumentMode ? (
+        <FeatureOverview
+          title="文檔"
+          description="以流動式閱讀與撰寫為主的獨立文檔空間。"
+          icon="📄"
+          actionLabel="建立文檔"
+          pages={pages.filter((p) => p.kind === "document" && !p.deleted_at)}
+          onCreate={() => void handleCreateDocument("flow")}
+          onSelectPage={handleSelectPage}
+        />
+      ) : isNoteMode ? (
+        <FeatureOverview
+          title="筆記"
+          description="以流動式書寫、頁面連結與輔助頁為核心的筆記空間。"
+          icon="📝"
+          actionLabel="建立筆記"
+          pages={pages.filter((p) => (!p.kind || p.kind === "note") && !p.parent_id && !p.deleted_at)}
+          onCreate={() => setCreateDialog({ open: true, initialKind: "note" })}
+          onSelectPage={handleSelectPage}
+        />
+      ) : isPresentationMode ? (
+        <FeatureOverview
+          title="簡報"
+          description="使用圖層、自由文字方塊與圖表建立投影片。"
+          icon="📊"
+          actionLabel="建立簡報"
+          pages={pages.filter((p) => p.kind === "presentation" && !p.deleted_at)}
+          onCreate={() => setCreateDialog({ open: true, initialKind: "presentation" })}
+          onSelectPage={handleSelectPage}
+        />
+      ) : isCreativeMode && (!activePage || activePage.kind !== "creative") ? (
+        <CreativeView
+          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
+          templates={pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at)}
+          onRenameTemplate={(id, title) => patchPage(id, { title })}
+          onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
+          onCreateCharacter={handleCreateCharacter}
+          onCreateWorld={async () => {
+            const initialData = createBlankTemplate();
+            initialData.basic.name = "新世界觀";
+            initialData.basic.role = "世界觀設定";
+            const p = await createAndOpenPage({ kind: "creative", title: initialData.basic.name, format: "flow" });
+            if (p) patchPage(p.id, { creative_type: "world", character_data: initialData });
+          }}
+          onSelectPage={handleSelectPage}
+          onDeletePage={(id) => { void handleDeletePage(id); }}
+        />
+      ) : secondaryActivePageId && secondaryActivePage && !isTabletViewport ? (
+        <div ref={splitContainerRef} className="flex flex-1 overflow-hidden gap-2">
           {/* Primary pane */}
-          <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--color-border)" }}>
+          <div className="flex flex-col shrink-0 overflow-hidden rounded-2xl" style={{ flexBasis: `calc(${splitPrimaryWidth}% - 18px)`, border: "1px solid var(--color-border)" }}>
             {activePage?.kind === "study_set" ? (
-              <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} />
+              <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
             ) : activePage?.kind === "presentation" ? (
-              <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} />
+              <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
+            ) : activePage?.kind === "creative" ? (
+              activePage.creative_type === "character" || !!activePage.character_data ? (
+                <CharacterProfileView
+                  key={activePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
+                  page={activePage}
+                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+                  getAttachmentBlob={getNovelCoverBlob}
+                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
+                  onTitleChange={handleTitleChange}
+                  onUpdateCharacterData={(cData) => {
+                    patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
+                  }}
+                  onBackToCreativeOverview={handleShowCreative}
+                />
+              ) : (
+                <NovelReaderView
+                  key={activePage.id}
+                  page={activePage}
+                  chapterRecords={getNovelChapters(pages, activePage.id)}
+                  onEnableChapters={() => enableNovelChapters(activePage.id)}
+                  onCreateChapter={() => createNovelChapter(activePage.id)}
+                  onPatchChapter={patchPage}
+                  onTitleChange={handleTitleChange}
+                  onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
+                  onUpdateSettings={(nSettings) => {
+                    patchPage(activePage.id, { novel_settings: nSettings });
+                  }}
+                  getCoverBlob={getNovelCoverBlob}
+                  onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
+                  onRemoveCover={() => void removeNovelCover(activePage.id)}
+                  onBackToNovelList={handleShowNovels}
+                  onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
+                  continueEditSignal={novelContinueEditSignal}
+                />
+              )
             ) : (
               <EditorPane
                 page={activePage}
@@ -11359,7 +15148,6 @@ function NexusAppInner({
                 onFormatChange={handleFormatChange}
                 onMarginsChange={handleMarginsChange}
                 margins={activePage?.margins}
-                onAddSubPage={handleAddSubPage}
                 onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
                 onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
                 onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
@@ -11371,6 +15159,7 @@ function NexusAppInner({
               
                 nightAdapt={isPageNightAdapt}
                 onToggleNightAdapt={handleTogglePageNightAdapt}
+                onBackToInterface={handleShowHome}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
@@ -11378,17 +15167,53 @@ function NexusAppInner({
             )}
           </div>
           {/* Divider with controls */}
-          <div className="flex flex-col items-center gap-1 py-2">
-            <button onClick={handleSwapSplit} className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:bg-zinc-200" title="交換左右">⇄</button>
+          <div onMouseDown={handleSplitResizeStart} className="flex w-7 shrink-0 cursor-col-resize flex-col items-center gap-1 py-2" title="拖曳調整左右編輯器寬度">
+            <button onMouseDown={(event) => event.stopPropagation()} onClick={handleSwapSplit} className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:bg-zinc-200" title="交換左右">⇄</button>
             <div className="flex-1 w-px bg-zinc-300" />
-            <button onClick={handleCloseSplit} className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:bg-zinc-200" title="關閉右側">✕</button>
+            <button onMouseDown={(event) => event.stopPropagation()} onClick={handleCloseSplit} className="w-7 h-7 rounded-md flex items-center justify-center text-xs hover:bg-zinc-200" title="關閉目前編輯器">✕</button>
           </div>
           {/* Secondary pane - Obsidian style closable */}
           <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--color-border)" }}>
             {secondaryActivePage.kind === "study_set" ? (
-              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdateStudyItems={(items)=>{ handleSecondaryContentChange({ json: secondaryActivePage.content_json, text: secondaryActivePage.content_text }) }} />
+              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
             ) : secondaryActivePage.kind === "presentation" ? (
-              <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} />
+              <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} onBackToInterface={handleShowHome} />
+            ) : secondaryActivePage.kind === "creative" ? (
+              secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
+                <CharacterProfileView
+                  key={secondaryActivePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(secondaryActivePage, name, data)}
+                  page={secondaryActivePage}
+                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+                  getAttachmentBlob={getNovelCoverBlob}
+                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(secondaryActivePage.id, file)}
+                  onTitleChange={handleSecondaryTitleChange}
+                  onUpdateCharacterData={(cData) => {
+                    patchPage(secondaryActivePage.id, { character_data: cData, title: cData.isTemplate ? secondaryActivePage.title : cData.basic.name || secondaryActivePage.title });
+                  }}
+                  onBackToCreativeOverview={handleShowCreative}
+                />
+              ) : (
+                <NovelReaderView
+                  key={secondaryActivePage.id}
+                  page={secondaryActivePage}
+                  chapterRecords={getNovelChapters(pages, secondaryActivePage.id)}
+                  onEnableChapters={() => enableNovelChapters(secondaryActivePage.id)}
+                  onCreateChapter={() => createNovelChapter(secondaryActivePage.id)}
+                  onPatchChapter={patchPage}
+                  onTitleChange={handleSecondaryTitleChange}
+                  onContentChange={(json, text) => saveNovelContent(secondaryActivePage.id, json, text)}
+                  onUpdateSettings={(nSettings) => {
+                    patchPage(secondaryActivePage.id, { novel_settings: nSettings });
+                  }}
+                  getCoverBlob={getNovelCoverBlob}
+                  onUploadCover={(file) => uploadNovelCover(secondaryActivePage.id, file)}
+                  onRemoveCover={() => void removeNovelCover(secondaryActivePage.id)}
+                  onBackToNovelList={handleShowNovels}
+                  onDeleteNovel={() => { void handleDeletePage(secondaryActivePage.id); handleShowNovels(); }}
+                  continueEditSignal={novelContinueEditSignal}
+                />
+              )
             ) : (
               <EditorPane
                 page={secondaryActivePage}
@@ -11402,7 +15227,6 @@ function NexusAppInner({
                 onFormatChange={handleSecondaryFormatChange}
                 onMarginsChange={handleSecondaryMarginsChange}
                 margins={secondaryActivePage?.margins}
-                onAddSubPage={handleAddSubPage}
                 onExportMarkdown={() => secondaryActivePage && handleExportPageMarkdown(secondaryActivePage.id)}
                 onExportPdf={() => secondaryActivePage && handleExportPageAsPdf(secondaryActivePage.id)}
                 onExportNexus={() => secondaryActivePage && handleExportPageAsNexusJson(secondaryActivePage.id)}
@@ -11414,6 +15238,7 @@ function NexusAppInner({
               
                 nightAdapt={isPageNightAdapt}
                 onToggleNightAdapt={handleTogglePageNightAdapt}
+                onBackToInterface={handleShowHome}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
@@ -11422,9 +15247,45 @@ function NexusAppInner({
           </div>
         </div>
       ) : activePage?.kind === "study_set" ? (
-        <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} />
+        <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
       ) : activePage?.kind === "presentation" ? (
-        <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} />
+        <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
+      ) : activePage?.kind === "creative" ? (
+        activePage.creative_type === "character" || !!activePage.character_data ? (
+          <CharacterProfileView
+            key={activePage.id}
+                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
+                  page={activePage}
+            worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
+            getAttachmentBlob={getNovelCoverBlob}
+            onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
+            onTitleChange={handleTitleChange}
+            onUpdateCharacterData={(cData) => {
+              patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
+            }}
+            onBackToCreativeOverview={handleShowCreative}
+          />
+        ) : (
+          <NovelReaderView
+            key={activePage.id}
+                  page={activePage}
+                  chapterRecords={getNovelChapters(pages, activePage.id)}
+                  onEnableChapters={() => enableNovelChapters(activePage.id)}
+                  onCreateChapter={() => createNovelChapter(activePage.id)}
+                  onPatchChapter={patchPage}
+            onTitleChange={handleTitleChange}
+            onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
+            onUpdateSettings={(nSettings) => {
+              patchPage(activePage.id, { novel_settings: nSettings });
+            }}
+            getCoverBlob={getNovelCoverBlob}
+            onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
+            onRemoveCover={() => void removeNovelCover(activePage.id)}
+            onBackToNovelList={handleShowNovels}
+            onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
+            continueEditSignal={novelContinueEditSignal}
+          />
+        )
       ) : (
         <EditorPane
           page={activePage}
@@ -11438,7 +15299,6 @@ function NexusAppInner({
           onFormatChange={handleFormatChange}
           onMarginsChange={handleMarginsChange}
           margins={activePage?.margins}
-          onAddSubPage={handleAddSubPage}
           onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
           onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
           onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
@@ -11450,20 +15310,33 @@ function NexusAppInner({
         
                 nightAdapt={isPageNightAdapt}
                 onToggleNightAdapt={handleTogglePageNightAdapt}
+                onBackToInterface={handleShowHome}
                 isSplitView={!!secondaryActivePageId}
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
               />
       )}
 
-      {!isHomeMode && (
-        <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} isCollapsed={isRightPanelCollapsed}>
-          <RightPanel page={activePage} pages={pages} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} />
-        </ResizablePanel>
+      {!isFeatureInterface && isTabletViewport && (
+        <>
+          {!isRightPanelCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsRightPanelCollapsed(true)} aria-label="關閉輔助頁" />}
+          <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} collapsedWidth={0} isCollapsed={isRightPanelCollapsed} overlay>
+            <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
+          </ResizablePanel>
+        </>
       )}
 
-      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
+      {!isFeatureInterface && !isTabletViewport && (
+        <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} isCollapsed={isRightPanelCollapsed}>
+          <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
+        </ResizablePanel>
+      )}
+      </div>
 
+      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
+      {isDevicePreviewOpen && <DevicePreview onClose={() => setIsDevicePreviewOpen(false)} />}
+
+      {characterTemplatePicker && <CreationChoiceDialog title="選擇角色卡模板" options={[{ id: "blank", label: "全空白" }, { id: "dnd5e", label: "D&D 5e" }, { id: "coc7e", label: "CoC 7e" }, ...pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at).map((page) => ({ id: page.id, label: page.title }))]} onClose={() => setCharacterTemplatePicker(false)} onChoose={(id) => { setCharacterTemplatePicker(false); void handleCreateCharacter(id); }} />}
       <NewPageDialog
         isOpen={createDialog.open}
         initialKind={createDialog.initialKind}
@@ -11484,6 +15357,921 @@ function NexusAppInner({
   );
 }
 
+````
+
+## File: src/components/NovelReaderView.tsx
+````
+"use client";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import type { Page, NovelSettings, NovelChapter } from "../lib/types";
+import { emptyNovelDocument } from "../lib/novelChapters";
+import { useWorkspaceDialog } from "./WorkspaceDialog";
+import TiptapEditor from "./TiptapEditor";
+import katex from "katex";
+
+type ChapterHeading = NovelChapter & { level: number };
+
+const THEME_STYLES: Record<
+  NonNullable<NovelSettings["theme"]>,
+  { bg: string; text: string; subText: string; border: string; barBg: string; name: string; icon: string }
+> = {
+  parchment: {
+    bg: "#fcf8ec",
+    text: "#2c2621",
+    subText: "#786c5f",
+    border: "#e7dec8",
+    barBg: "#f5edd6",
+    name: "羊皮紙",
+    icon: "📜",
+  },
+  cream: {
+    bg: "#f7f4ed",
+    text: "#33302b",
+    subText: "#837d74",
+    border: "#e5ded4",
+    barBg: "#ede6da",
+    name: "經典米白",
+    icon: "🥛",
+  },
+  eye_care: {
+    bg: "#eef5e8",
+    text: "#20331f",
+    subText: "#5f775d",
+    border: "#d5e5cc",
+    barBg: "#deeed3",
+    name: "護眼綠",
+    icon: "🍃",
+  },
+  dark: {
+    bg: "#18191c",
+    text: "#dcdad5",
+    subText: "#888680",
+    border: "#2d2f34",
+    barBg: "#222428",
+    name: "夜間深色",
+    icon: "🌙",
+  },
+  pure_white: {
+    bg: "#ffffff",
+    text: "#1f2937",
+    subText: "#6b7280",
+    border: "#e5e7eb",
+    barBg: "#f9fafb",
+    name: "極簡純白",
+    icon: "⚪",
+  },
+};
+
+const FONT_FAMILIES = {
+  serif: {
+    name: "宋體 / 明體",
+    family: "'Noto Serif TC', 'Source Han Serif TC', 'Songti TC', 'SimSun', serif",
+  },
+  sans: {
+    name: "黑體",
+    family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif",
+  },
+  kai: {
+    name: "楷體",
+    family: "'Kaiti TC', 'STKaiti', 'DFKai-SB', 'BiauKai', serif",
+  },
+};
+
+export default function NovelReaderView({
+  page,
+  chapterRecords,
+  onEnableChapters,
+  onCreateChapter,
+  onPatchChapter,
+  onTitleChange,
+  onContentChange,
+  onUpdateSettings,
+  onBackToNovelList,
+  getCoverBlob,
+  onUploadCover,
+  onRemoveCover,
+  onDeleteNovel,
+  continueEditSignal = 0,
+}: {
+  page: Page;
+  chapterRecords: NovelChapter[];
+  onEnableChapters: () => Promise<void>;
+  onCreateChapter: () => Promise<NovelChapter>;
+  onPatchChapter: (id: string, patch: Partial<NovelChapter>) => void;
+  onTitleChange: (title: string) => void;
+  onContentChange: (json: any, text: string) => void;
+  onUpdateSettings: (settings: NovelSettings) => void;
+  onBackToNovelList?: () => void;
+  getCoverBlob?: (attachmentId: string) => Promise<Blob | null>;
+  onUploadCover?: (file: File) => Promise<void>;
+  onRemoveCover?: () => void;
+  onDeleteNovel?: () => void;
+  /** Raised by the application-level menu next to the account button. */
+  continueEditSignal?: number;
+}) {
+  const { askText, askConfirm, dialog } = useWorkspaceDialog();
+  // 小說先以作品總覽呈現；讀者可從目錄選擇章節後再進入閱讀或編輯。
+  const [mode, setMode] = useState<"overview" | "read" | "edit">("overview");
+  const [tocOpen, setTocOpen] = useState(true); // 預設開啟目錄，如小說軟體
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [readProgress, setReadProgress] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "just_saved">("saved");
+  const [lastSavedTime, setLastSavedTime] = useState<string>("");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const readerScrollRef = useRef<HTMLDivElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [chapterError, setChapterError] = useState<string | null>(null);
+  const [chapterBusy, setChapterBusy] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+  const activeChapterIndex = Math.max(0, chapterRecords.findIndex((chapter) => chapter.id === activeChapterId));
+  const activeChapter = chapterRecords[activeChapterIndex];
+  const setActiveChapterIndex = (index: number) => setActiveChapterId(chapterRecords[index]?.id ?? null);
+  const modeRef = useRef(mode);
+  // Keep the selected record stable when another chapter moves or disappears.
+  useEffect(() => {
+    if (activeChapter?.id !== activeChapterId) setActiveChapterId(activeChapter?.id ?? null);
+  }, [activeChapter?.id, activeChapterId]);
+
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { if (continueEditSignal > 0) setMode("edit"); }, [continueEditSignal]);
+
+  // Mobile browser/hardware Back has no SPA history entry by default, so it
+  // would close the tab instead of leaving the novel editor. Reserve one
+  // in-app history entry and return to the novel list first.
+  useEffect(() => {
+    if (window.innerWidth >= 768) return;
+    const marker = { ...(window.history.state || {}), nexusNovelNavigation: true };
+    window.history.pushState(marker, "");
+    const onPopState = () => {
+      if (modeRef.current !== "overview") {
+        setMode("overview");
+        setTocOpen(true);
+      } else {
+        onBackToNovelList?.();
+      }
+      window.history.pushState(marker, "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [onBackToNovelList]);
+
+  const settings: NovelSettings = useMemo(
+    () => ({
+      ...page.novel_settings,
+      synopsis: page.novel_settings?.synopsis || "",
+      coverAttachmentId: page.novel_settings?.coverAttachmentId || null,
+      theme: page.novel_settings?.theme || "parchment",
+      fontSize: page.novel_settings?.fontSize || 18,
+      fontFamily: page.novel_settings?.fontFamily || "serif",
+      lineHeight: page.novel_settings?.lineHeight || 2.0,
+      paragraphIndent: page.novel_settings?.paragraphIndent ?? true,
+      showWordCount: page.novel_settings?.showWordCount ?? true,
+    }),
+    [page.novel_settings]
+  );
+
+  const updateSettings = (patch: Partial<NovelSettings>) => {
+    onUpdateSettings({ ...settings, ...patch });
+  };
+
+  useEffect(() => {
+    const coverId = settings.coverAttachmentId;
+    if (!coverId || !getCoverBlob) { setCoverUrl(null); return; }
+    let active = true;
+    let objectUrl: string | null = null;
+    void getCoverBlob(coverId).then((blob) => {
+      if (!active || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setCoverUrl(objectUrl);
+    });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [settings.coverAttachmentId, getCoverBlob]);
+
+  const handleCoverFile = async (file?: File) => {
+    if (!file || !onUploadCover) return;
+    if (!file.type.startsWith("image/")) { setCoverError("封面請使用圖片檔。 "); return; }
+    if (file.size > 3 * 1024 * 1024) { setCoverError("封面圖片請小於 3 MB。 "); return; }
+    setCoverError(null);
+    try { await onUploadCover(file); } catch { setCoverError("封面上傳失敗，請稍後再試。 "); }
+  };
+
+  const currentTheme = THEME_STYLES[settings.theme || "parchment"] || THEME_STYLES.parchment;
+  const currentFont = FONT_FAMILIES[settings.fontFamily || "serif"] || FONT_FAMILIES.serif;
+  const enabled = !!page.novel_settings?.chaptersEnabled;
+  const documentContent = enabled ? activeChapter?.content_json ?? emptyNovelDocument() : page.content_json;
+  const chapters: ChapterHeading[] = useMemo(() => chapterRecords.map((chapter) => ({ ...chapter, level: 1 })), [chapterRecords]);
+  const chapterPages = chapters;
+
+  // Total word count (移除預估閱讀時間)
+  const stats = useMemo(() => {
+    const text = enabled ? chapterRecords.map((chapter) => chapter.content_text).join("\n") : page.content_text || "";
+    // Count Chinese characters & words
+    const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishWords = (text.match(/[a-zA-Z0-9_-]+/g) || []).length;
+    const totalCount = chineseChars + englishWords;
+    return { totalCount };
+  }, [page.content_text, enabled, chapterRecords]);
+
+  // 封裝內容與標題變更的自動存檔狀態
+  const handleContentWithAutoSave = (json: any, text: string) => {
+    setSaveStatus("saving");
+    if (enabled) {
+      if (!activeChapter) return;
+      onPatchChapter(activeChapter.id, { content_json: json, content_text: text });
+    } else onContentChange(json, text);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  };
+
+  const handleTitleWithAutoSave = (title: string) => {
+    setSaveStatus("saving");
+    onTitleChange(title);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus("saved");
+      const now = new Date();
+      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+    }, 800);
+  };
+
+  // 鍵盤 Ctrl+S / Cmd+S 手動立即儲存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setSaveStatus("just_saved");
+        const now = new Date();
+        setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+        setTimeout(() => {
+          setSaveStatus("saved");
+        }, 1500);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleAddChapter = async () => {
+    if (chapterBusy) return;
+    setChapterBusy(true);
+    setChapterError(null);
+    try {
+      if (!enabled) await onEnableChapters();
+      else {
+        const chapter = await onCreateChapter();
+        setActiveChapterId(chapter.id);
+      }
+      setMode("edit");
+      setTocOpen(true);
+    } catch {
+      setChapterError("章節儲存失敗，請重試。");
+    } finally { setChapterBusy(false); }
+  };
+  const renameChapter = async (chapter: ChapterHeading) => {
+    const title = (await askText("章節名稱", chapter.title))?.trim();
+    if (title) onPatchChapter(chapter.id, { title });
+  };
+  const moveChapter = (chapter: ChapterHeading, direction: -1 | 1) => {
+    const index = chapters.findIndex((item) => item.id === chapter.id);
+    const target = index + direction;
+    if (target < 0 || target >= chapters.length) return;
+    const reordered = [...chapters];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    reordered.forEach((item, sort_order) => onPatchChapter(item.id, { sort_order }));
+  };
+  const deleteChapter = async (chapter: ChapterHeading) => {
+    if (await askConfirm(`刪除「${chapter.title}」及其內容？`)) onPatchChapter(chapter.id, { deleted_at: Date.now() });
+  };
+
+  // Handle scroll progress in reader mode
+  const handleScroll = () => {
+    if (!readerScrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = readerScrollRef.current;
+    const total = scrollHeight - clientHeight;
+    if (total <= 0) {
+      setReadProgress(100);
+      return;
+    }
+    const pct = Math.min(100, Math.max(0, Math.round((scrollTop / total) * 100)));
+    setReadProgress(pct);
+  };
+
+  // Render HTML / Structured Text for Reader Mode
+  const renderedContent = useMemo(() => {
+    const doc = (documentContent as any) || { content: [] };
+    if (!doc.content || doc.content.length === 0) {
+      return (
+        <div className="py-20 text-center opacity-40">
+          目前尚無小說內容，請點擊上方「✍️ 編輯模式」開始創作章節！
+        </div>
+      );
+    }
+
+    const visibleNodes = doc.content;
+    let headingCounter = 0;
+
+    return visibleNodes.map((node: any, i: number) => {
+      if (node.type === "heading") {
+        const text = (node.content || []).map((c: any) => c.text || "").join("");
+        const hId = `heading-${headingCounter++}`;
+        if (node.attrs?.level === 1) {
+          return (
+            <h1
+              key={i}
+              id={hId}
+              className="font-bold text-center mt-12 mb-6 tracking-wide"
+              style={{ fontSize: `${(settings.fontSize || 18) * 1.6}px`, color: currentTheme.text }}
+            >
+              {text}
+            </h1>
+          );
+        }
+        return (
+          <h2
+            key={i}
+            id={hId}
+            className="font-bold mt-8 mb-4 tracking-normal"
+            style={{ fontSize: `${(settings.fontSize || 18) * 1.3}px`, color: currentTheme.text }}
+          >
+            {text}
+          </h2>
+        );
+      }
+
+      if (node.type === "paragraph") {
+        const text = (node.content || []).map((c: any) => c.text || "").join("");
+        if (!text.trim()) {
+          return <div key={i} className="h-4" />;
+        }
+        return (
+          <p
+            key={i}
+            className="my-3 text-justify"
+            style={{
+              textIndent: settings.paragraphIndent ? "2em" : "0",
+              lineHeight: settings.lineHeight,
+              fontSize: `${settings.fontSize}px`,
+              letterSpacing: "0.04em",
+              color: currentTheme.text,
+            }}
+          >
+            {text}
+          </p>
+        );
+      }
+
+      if (node.type === "blockquote") {
+        const text = (node.content || []).map((c: any) => c.text || "").join("");
+        return (
+          <blockquote
+            key={i}
+            className="my-4 pl-4 border-l-4 italic opacity-85"
+            style={{ borderColor: currentTheme.border, color: currentTheme.text }}
+          >
+            {text}
+          </blockquote>
+        );
+      }
+
+      if (node.type === "blockMath") {
+        const latex = node.attrs?.latex || "";
+        let renderedHtml = "";
+        try {
+          renderedHtml = katex.renderToString(latex, { displayMode: true, throwOnError: false });
+        } catch {
+          renderedHtml = latex;
+        }
+        return (
+          <div
+            key={i}
+            className="my-6 overflow-x-auto text-center"
+            dangerouslySetInnerHTML={{ __html: renderedHtml }}
+          />
+        );
+      }
+
+      return null;
+    });
+  }, [documentContent, settings, currentTheme, mode, chapterPages, activeChapterIndex]);
+
+  const openChapter = (id: string) => {
+    const nextIndex = chapterPages.findIndex((chapter) => chapter.id === id);
+    if (nextIndex >= 0) setActiveChapterIndex(nextIndex);
+    setMode((current) => current === "edit" ? "edit" : "read");
+    requestAnimationFrame(() => { if (readerScrollRef.current) readerScrollRef.current.scrollTop = 0; });
+  };
+
+  const switchChapter = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= chapterPages.length) return;
+    setActiveChapterIndex(nextIndex);
+    requestAnimationFrame(() => readerScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
+  };
+
+  const chapterNavigation = (position: string) => chapterPages.length > 0 && (
+                <nav className="my-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-y py-5 text-sm" style={{ borderColor: currentTheme.border }} aria-label={`${position}章節翻頁`}>
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex - 1)} disabled={activeChapterIndex === 0} className="justify-self-start rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>← 上一章</button>
+                  <label className="relative">
+                    <span className="sr-only">選擇章節</span>
+                    <select value={activeChapterIndex} onChange={(event) => switchChapter(Number(event.target.value))} className="max-w-[35vw] sm:max-w-64 rounded-lg border bg-transparent px-2 py-2 text-center text-xs outline-none" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>
+                      {chapterPages.map((chapter, index) => <option key={chapter.id} value={index}>{String(index + 1).padStart(2, "0")}　{chapter.title}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => switchChapter(activeChapterIndex + 1)} disabled={activeChapterIndex >= chapterPages.length - 1} className="justify-self-end rounded-lg border px-3 py-2 disabled:opacity-35" style={{ borderColor: currentTheme.border, color: currentTheme.text }}>下一章 →</button>
+                </nav>
+              );
+
+  if (mode === "overview") {
+    return (
+      <div className="flex flex-1 flex-col overflow-y-auto" style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}>
+        <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b py-3 pl-14 pr-4 md:px-4" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }}>
+          <div className="flex min-w-0 items-center gap-3">
+            {onBackToNovelList && <button onClick={onBackToNovelList} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>← 小說</button>}
+            <span className="truncate text-sm font-semibold">小說作品總覽</span>
+          </div>
+        </header>
+
+        <div className="mx-auto w-full max-w-6xl px-5 py-7 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
+          <section className="grid items-start gap-7 md:grid-cols-[190px_minmax(0,1fr)]">
+            <div className="w-full max-w-[190px]">
+              <button type="button" onClick={() => coverInputRef.current?.click()} className="relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-xl border p-5 text-left shadow-lg hover:opacity-90" style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border }} title="更換作品封面">
+                {coverUrl ? <img src={coverUrl} alt={`${page.title || "小說"}封面`} className="absolute inset-0 h-full w-full object-cover" /> : <><span className="text-4xl opacity-75">▤</span><div><p className="mb-2 text-xs font-medium opacity-60">NEXUS NOVEL</p><h1 className="line-clamp-4 text-xl font-bold leading-relaxed">{page.title || "未命名小說"}</h1></div></>}
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-center text-xs font-medium text-white">{coverUrl ? "更換封面" : "上傳封面"}</span>
+              </button>
+              <input ref={coverInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => { void handleCoverFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+              {coverUrl && <button type="button" onClick={onRemoveCover} className="mt-2 text-xs opacity-60 hover:opacity-100">移除封面</button>}
+              {coverError && <p className="mt-2 text-xs text-red-600">{coverError}</p>}
+            </div>
+            <div className="min-w-0 py-1">
+              <p className="mb-2 text-xs font-semibold tracking-[0.18em] opacity-60">作品概述</p>
+              <input
+                value={page.title}
+                onChange={(event) => handleTitleWithAutoSave(event.target.value)}
+                aria-label="作品名稱"
+                placeholder="未命名小說"
+                className="mb-4 w-full max-w-3xl bg-transparent text-3xl font-bold tracking-wide outline-none placeholder:opacity-35"
+                style={{ color: currentTheme.text }}
+              />
+              <textarea
+                value={settings.synopsis || ""}
+                onChange={(event) => updateSettings({ synopsis: event.target.value })}
+                aria-label="作品概述"
+                placeholder="在這裡撰寫作品概述…"
+                rows={5}
+                className="block w-full max-w-3xl resize-y rounded-lg border bg-transparent px-3 py-2 text-sm leading-7 outline-none focus:ring-2 focus:ring-blue-400/50"
+                style={{ borderColor: currentTheme.border, color: currentTheme.text }}
+              />
+              <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-70"><span>{chapters.length} 個章節</span><span>{stats.totalCount.toLocaleString()} 字</span><span>{currentTheme.name} 閱讀主題</span></div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={() => setMode("read")} className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-85" style={{ backgroundColor: settings.theme === "dark" ? "#5f8fce" : "#476e9e" }}>開始閱讀</button>
+                <button type="button" onClick={handleAddChapter} className="rounded-lg border px-4 py-2 text-sm font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border }} disabled={chapterBusy}>{enabled ? "＋ 新增章節" : "啟用章節工作區"}</button>
+              </div>
+            </div>
+          </section>
+
+          {chapterError && <p role="alert" className="mt-4 text-red-600">{chapterError}</p>}
+          <section className="mt-10 border-t pt-6" style={{ borderColor: currentTheme.border }}>
+            <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-lg font-bold">完整目錄</p><p className="mt-1 text-xs opacity-60">點選章節即可從該處開始閱讀</p></div><span className="text-xs opacity-60">共 {chapters.length} 節</span></div>
+            {chapters.length === 0 ? (
+              <button type="button" onClick={handleAddChapter} className="w-full rounded-xl border border-dashed px-4 py-8 text-center text-sm opacity-70 hover:opacity-100" style={{ borderColor: currentTheme.border }}>{enabled ? "尚未建立章節，點此新增第一章" : "啟用章節工作區（先轉存舊正文，再清空作品正文）"}</button>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {chapters.map((chapter, index) => <button key={chapter.id} onClick={() => openChapter(chapter.id)} className="flex min-w-0 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-opacity hover:opacity-70" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.barBg }}><span className="shrink-0 text-xs opacity-50">{String(index + 1).padStart(2, "0")}</span><span className={`truncate text-sm ${chapter.level === 2 ? "pl-3 opacity-80" : "font-semibold"}`}>{chapter.title}</span></button>)}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: currentTheme.bg }} onPasteCapture={() => requestAnimationFrame(() => window.dispatchEvent(new Event("resize")))}>
+      {/* 頂部沉浸式導航列 */}
+      <header
+        className="shrink-0 hidden md:flex items-center justify-between gap-2 border-b px-4 py-2.5 select-none z-20 transition-colors duration-200"
+        style={{
+          backgroundColor: currentTheme.barBg,
+          borderColor: currentTheme.border,
+          color: currentTheme.text,
+        }}
+      >
+        {/* 左側：標題與章節目錄按鈕、新增章節與字數 */}
+        <div className="flex items-center gap-2 min-w-0">
+          {onBackToNovelList && (
+            <button
+              onClick={onBackToNovelList}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
+              style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+              title="返回小說列表"
+            >
+              <span className="hidden sm:inline">« 小說列表</span><span className="sm:hidden">←</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setTocOpen((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0 ${
+              tocOpen ? "ring-1 ring-blue-500 font-bold" : ""
+            }`}
+            style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+            title={tocOpen ? "收合目錄大綱" : "展開目錄大綱"}
+          >
+            <span>📑</span><span className="hidden sm:inline">目錄 ({chapters.length})</span>
+          </button>
+
+          {/* 直覺新增章節快捷按鈕 */}
+          <button
+            onClick={handleAddChapter}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-all cursor-pointer shadow-sm shrink-0"
+            title="新增下一章節"
+          >
+            <span>＋</span><span className="hidden sm:inline">新增章節</span>
+          </button>
+
+          <input
+            value={page.title || ""}
+            onChange={(e) => handleTitleWithAutoSave(e.target.value)}
+            placeholder="小說作品名稱"
+            className="font-bold text-sm bg-transparent outline-none truncate min-w-[72px] max-w-[240px] px-1 focus:ring-1 focus:ring-blue-500 rounded"
+            style={{ color: currentTheme.text }}
+          />
+
+          {settings.showWordCount && (
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full border opacity-75 hidden sm:inline-block shrink-0"
+              style={{ borderColor: currentTheme.border, color: currentTheme.subText }}
+            >
+              ✍️ {stats.totalCount.toLocaleString()} 字
+            </span>
+          )}
+
+          {/* 自動存檔即時狀態指示器 */}
+          <div className="hidden md:flex items-center gap-1 text-[11px] opacity-75 px-1.5 py-0.5 rounded shrink-0">
+            {saveStatus === "saving" && (
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
+                <span>🟡</span>
+                <span>正在儲存...</span>
+              </span>
+            )}
+            {saveStatus === "just_saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span>✓</span>
+                <span>已立即手動存檔</span>
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <span>🟢</span>
+                <span>已自動儲存{lastSavedTime ? ` (${lastSavedTime})` : ""}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 右側：模式切換與閱讀排版設定 */}
+        <div className="flex items-center gap-2">
+          {/* 模式切換 */}
+          <div
+            className="flex items-center rounded-lg p-0.5 border text-xs shadow-inner"
+            style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+          >
+            <button
+              onClick={() => setMode("read")}
+              className={`px-2 sm:px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+                mode === "read" ? "shadow-sm" : "opacity-60 hover:opacity-100"
+              }`}
+              style={{
+                backgroundColor: mode === "read" ? currentTheme.barBg : "transparent",
+                color: currentTheme.text,
+              }}
+            >
+              <span>📖</span><span className="hidden sm:inline">閱讀模式</span>
+            </button>
+            <button
+              onClick={() => setMode("edit")}
+              className={`px-2 sm:px-3 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+                mode === "edit" ? "shadow-sm" : "opacity-60 hover:opacity-100"
+              }`}
+              style={{
+                backgroundColor: mode === "edit" ? currentTheme.barBg : "transparent",
+                color: currentTheme.text,
+              }}
+            >
+              <span>✍️</span><span className="hidden sm:inline">編輯模式</span>
+            </button>
+          </div>
+
+          {/* 排版設定按鈕 */}
+          <div className="relative">
+            <button
+              onClick={() => setSettingsOpen((v) => !v)}
+              className="p-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-all cursor-pointer shadow-sm flex items-center gap-1"
+              style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+              title="閱讀排版與主題設定"
+            >
+              <span>⚙️</span><span className="hidden sm:inline">排版</span>
+            </button>
+
+            {/* 排版設定彈窗 */}
+            {settingsOpen && (
+              <div
+                className="absolute right-0 top-full mt-2 w-72 rounded-xl shadow-2xl p-4 z-50 text-xs border space-y-4"
+                style={{
+                  backgroundColor: currentTheme.barBg,
+                  borderColor: currentTheme.border,
+                  color: currentTheme.text,
+                }}
+              >
+                <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: currentTheme.border }}>
+                  <span className="font-bold text-sm">小說閱讀排版設定</span>
+                  <button onClick={() => setSettingsOpen(false)} className="opacity-50 hover:opacity-100">✕</button>
+                </div>
+
+                {/* 閱讀底色主題 */}
+                <div>
+                  <div className="opacity-70 mb-2 font-medium">閱讀紙張氛圍</div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(Object.keys(THEME_STYLES) as Array<NonNullable<NovelSettings["theme"]>>).map((thKey) => {
+                      const th = THEME_STYLES[thKey];
+                      const active = settings.theme === thKey;
+                      return (
+                        <button
+                          key={thKey}
+                          onClick={() => updateSettings({ theme: thKey })}
+                          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg border transition-all text-xs ${
+                            active ? "ring-2 ring-blue-500 font-bold" : "opacity-80 hover:opacity-100"
+                          }`}
+                          style={{
+                            backgroundColor: th.bg,
+                            color: th.text,
+                            borderColor: th.border,
+                          }}
+                        >
+                          <span>{th.icon}</span>
+                          <span>{th.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 字體選擇 */}
+                <div>
+                  <div className="opacity-70 mb-2 font-medium">閱讀字體</div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(Object.keys(FONT_FAMILIES) as Array<keyof typeof FONT_FAMILIES>).map((fKey) => {
+                      const active = settings.fontFamily === fKey;
+                      return (
+                        <button
+                          key={fKey}
+                          onClick={() => updateSettings({ fontFamily: fKey })}
+                          className={`py-1.5 px-2 rounded-lg border text-center transition-all ${
+                            active ? "ring-2 ring-blue-500 font-bold" : "opacity-80 hover:opacity-100"
+                          }`}
+                          style={{
+                            borderColor: currentTheme.border,
+                            backgroundColor: currentTheme.bg,
+                          }}
+                        >
+                          {FONT_FAMILIES[fKey].name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 字體大小 */}
+                <div>
+                  <div className="flex items-center justify-between opacity-70 mb-1.5 font-medium">
+                    <span>字體大小</span>
+                    <span className="font-mono">{settings.fontSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateSettings({ fontSize: Math.max(14, (settings.fontSize || 18) - 1) })}
+                      className="px-3 py-1 rounded border hover:opacity-80 font-bold"
+                      style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+                    >
+                      A-
+                    </button>
+                    <input
+                      type="range"
+                      min={14}
+                      max={26}
+                      step={1}
+                      value={settings.fontSize || 18}
+                      onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
+                      className="flex-1 accent-blue-600"
+                    />
+                    <button
+                      onClick={() => updateSettings({ fontSize: Math.min(26, (settings.fontSize || 18) + 1) })}
+                      className="px-3 py-1 rounded border hover:opacity-80 font-bold"
+                      style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}
+                    >
+                      A+
+                    </button>
+                  </div>
+                </div>
+
+                {/* 行高調整 */}
+                <div>
+                  <div className="flex items-center justify-between opacity-70 mb-1.5 font-medium">
+                    <span>行距間隔</span>
+                    <span className="font-mono">{(settings.lineHeight || 2.0).toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1.6}
+                    max={2.6}
+                    step={0.1}
+                    value={settings.lineHeight || 2.0}
+                    onChange={(e) => updateSettings({ lineHeight: Number(e.target.value) })}
+                    className="w-full accent-blue-600"
+                  />
+                </div>
+
+                {/* 段落縮排開關 */}
+                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: currentTheme.border }}>
+                  <span className="font-medium">段落首行縮排 (2 字元)</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.paragraphIndent}
+                    onChange={(e) => updateSettings({ paragraphIndent: e.target.checked })}
+                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {dialog}
+      {/* Mobile keeps the essential actions in a compact, non-wrapping bar.
+          The desktop toolbar cannot fit a phone once the editor is active. */}
+      <header
+        className="relative z-40 md:hidden flex shrink-0 items-center gap-1 border-b px-2 py-2 shadow-sm"
+        style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border, color: currentTheme.text }}
+      >
+        {onBackToNovelList && (
+          <button onClick={onBackToNovelList} className="rounded-md border px-2 py-1.5 text-sm font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title="返回小說列表">←</button>
+        )}
+        <button onClick={() => setTocOpen((value) => !value)} className="rounded-md border px-2 py-1.5 text-sm" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={tocOpen ? "收合目錄" : "開啟目錄"}>📑</button>
+        <div className="min-w-0 flex-1 truncate px-1 text-xs font-semibold">{page.title || "未命名小說"}</div>
+        <span className={`shrink-0 text-[10px] ${saveStatus === "saving" ? "text-amber-600" : "text-emerald-600"}`} title={saveStatus === "saving" ? "正在儲存" : "已自動儲存"}>{saveStatus === "saving" ? "儲存中" : "已儲存"}</span>
+        <button onClick={() => setMode(mode === "edit" ? "read" : "edit")} className="rounded-md border px-2 py-1.5 text-xs font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={mode === "edit" ? "查看閱讀結果" : "回到編輯"}>{mode === "edit" ? "閱讀" : "編輯"}</button>
+      </header>
+
+      {chapterError && <p role="alert" className="p-3 text-red-600">{chapterError}</p>}
+      {/* 閱讀進度條 */}
+      {mode === "read" && (
+        <div className="w-full h-1 bg-zinc-200/40 relative overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all duration-150"
+            style={{ width: `${readProgress}%` }}
+          />
+        </div>
+      )}
+
+      {/* 主要內容展示區 */}
+      <div className="flex min-h-0 flex-1 overflow-hidden relative">
+        {/* 左側章節目錄側邊欄 / 抽屜 */}
+        {tocOpen && (
+          <aside
+            className="absolute inset-y-0 left-0 z-30 flex w-[min(20rem,82vw)] flex-col overflow-y-auto border-r p-4 shadow-xl transition-all duration-200 md:static md:w-64 md:shrink-0 md:shadow-none touch-pan-y overscroll-contain"
+            style={{
+              backgroundColor: currentTheme.barBg,
+              borderColor: currentTheme.border,
+            }}
+          >
+            <div className="flex items-center justify-between mb-3 pb-2 border-b" style={{ borderColor: currentTheme.border }}>
+              <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: currentTheme.text }}>
+                <span>📑</span>
+                <span>章節工作區</span>
+              </span>
+              <button onClick={() => setTocOpen(false)} className="text-xs opacity-50 hover:opacity-100 p-1 cursor-pointer" title="關閉目錄">
+                ✕
+              </button>
+            </div>
+
+            {/* 目錄側邊欄內的直覺「＋ 新增章節」按鈕 */}
+            <button
+              onClick={handleAddChapter}
+              className="w-full mb-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-semibold hover:opacity-90 transition-all cursor-pointer shadow-xs"
+              style={{
+                backgroundColor: currentTheme.bg,
+                borderColor: currentTheme.border,
+                color: currentTheme.text,
+              }}
+            >
+              <span className="text-blue-600 dark:text-blue-400 font-bold">＋</span>
+              <span>{enabled ? "新增章節" : "啟用章節工作區"}</span>
+            </button>
+
+            {chapters.length === 0 ? (
+              <div className="text-xs opacity-60 py-8 text-center flex flex-col items-center gap-3" style={{ color: currentTheme.subText }}>
+                <span>尚未建立章節</span>
+                <button
+                  onClick={handleAddChapter}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
+                >
+                  {enabled ? "＋ 建立第一章" : "啟用章節工作區"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {chapters.map((chap, cIdx) => (
+                  <div key={chap.id} className={`group flex items-center gap-1 rounded-lg ${chap.level === 1 ? "font-bold" : "pl-3 opacity-80"} hover:bg-black/5 dark:hover:bg-white/5`}>
+                    <button onClick={() => openChapter(chap.id)} className="min-w-0 flex-1 truncate px-2.5 py-2 text-left text-xs" style={{ color: currentTheme.text }} title={chap.title}>
+                      <span className="mr-2 opacity-40 text-[10px] font-mono">{String(cIdx + 1).padStart(2, "0")}</span><span>{chap.title}</span>
+                    </button>
+                    {mode === "edit" && chap.level === 1 && (
+                      <div className="flex shrink-0 items-center pr-1 text-[10px] opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                        <button onClick={() => renameChapter(chap)} className="rounded px-1 py-1 hover:bg-black/10" title="重新命名章節">✎</button>
+                        <button onClick={() => moveChapter(chap, -1)} disabled={!chapters.slice(0, cIdx).some((item) => item.level === 1)} className="rounded px-1 py-1 hover:bg-black/10 disabled:opacity-25" title="上移章節">↑</button>
+                        <button onClick={() => moveChapter(chap, 1)} disabled={!chapters.slice(cIdx + 1).some((item) => item.level === 1)} className="rounded px-1 py-1 hover:bg-black/10 disabled:opacity-25" title="下移章節">↓</button>
+                        <button onClick={() => deleteChapter(chap)} className="rounded px-1 py-1 text-red-600 hover:bg-red-500/10" title="刪除章節">×</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
+        )}
+
+        {/* 閱讀檢視或編輯器檢視 */}
+        {mode === "read" ? (
+          <div
+            ref={readerScrollRef}
+            onScroll={handleScroll}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-5 py-8 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-12 sm:py-10 transition-colors duration-200"
+            style={{
+              backgroundColor: currentTheme.bg,
+              fontFamily: currentFont.family,
+            }}
+          >
+            <div className="max-w-[760px] mx-auto min-h-[90vh]">
+              {/* 小說主標題 */}
+              <div className="text-center mb-10 pb-6 border-b" style={{ borderColor: currentTheme.border }}>
+                <h1
+                  className="font-bold tracking-widest mb-2"
+                  style={{ fontSize: `${(settings.fontSize || 18) * 1.8}px`, color: currentTheme.text }}
+                >
+                  {page.title || "未命名小說"}
+                </h1>
+                <div className="text-xs opacity-60" style={{ color: currentTheme.subText }}>
+                  全文共 {stats.totalCount.toLocaleString()} 字
+                </div>
+              </div>
+
+              {chapterNavigation("頂部")}
+              {/* 小說正文 */}
+              <div className="novel-body selection:bg-amber-200 selection:text-black">
+                {enabled && activeChapter && <h2 className="mb-6 text-center text-2xl font-bold">{activeChapter.title}</h2>}
+                {renderedContent}
+              </div>
+
+              {chapterNavigation("底部")}
+
+              {/* 結尾標誌 */}
+              <div className="mt-12 pt-8 pb-16 text-center border-t opacity-40 text-xs" style={{ borderColor: currentTheme.border, color: currentTheme.subText }}>
+                {activeChapterIndex >= chapterPages.length - 1 ? "❖ 全文完 · 感謝閱讀 ❖" : "❖ 本章完 ❖"}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pb-[calc(8rem+env(safe-area-inset-bottom))]">
+              {chapterNavigation("頂部")}
+              {enabled && activeChapter && <input aria-label="章節標題" value={activeChapter.title} onChange={(event) => onPatchChapter(activeChapter.id, { title: event.target.value })} className="w-full border-b bg-transparent p-5 text-xl font-bold" />}
+              {(!enabled || activeChapter) ? <TiptapEditor
+                key={activeChapter?.id ?? page.id}
+                content={documentContent}
+                onChange={({ json, text }: { json: any; text: string }) => {
+                  handleContentWithAutoSave(json, text);
+                }}
+                paneId={`novel-editor-${activeChapter?.id ?? page.id}`}
+                variant="novel"
+                showToolbar={true}
+              /> : <button onClick={handleAddChapter} className="p-8">＋ 建立第一章</button>}
+              {chapterNavigation("底部")}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 ````
 
@@ -11800,6 +16588,11 @@ function PreviewBlock({ node }: { node: PreviewNode }) {
       return <div style={{ ...baseTextStyle, marginBottom: "2px", padding: "2px", borderRadius: "1px", background: "rgba(100,116,139,0.14)", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>{text}</div>;
     case "blockquote":
       return <div style={{ ...baseTextStyle, marginBottom: "2px", paddingLeft: "2px", borderLeft: "1px solid #94a3b8", opacity: 0.8 }}>{text}</div>;
+    case "lessonToc":
+      return <div style={baseTextStyle}>目錄</div>;
+    case "answerSpace":
+      return <div style={{ height: `${Math.min(12, Number(node.attrs?.lines) || 4) * 4}px`, borderBottom: "1px solid #aaa" }} />;
+    case "lessonBlock":
     case "callout":
       return <div style={{ ...baseTextStyle, marginBottom: "2px", padding: "2px", borderRadius: "1px", background: "rgba(59,130,246,0.12)" }}>{text}</div>;
     case "table":
@@ -11878,6 +16671,7 @@ export default function PageThumbnail({
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { PageFormat, PageMargins } from "../lib/types";
 import { DEFAULT_PAGE_MARGINS } from "../lib/types";
+import { paginateLessonBlocks, type LessonLayout } from "../lib/lessonDocument";
 import TiptapEditor from "./TiptapEditor";
 import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
 import PageThumbnail from "./PageThumbnail";
@@ -11982,6 +16776,8 @@ function countPageLines(pageBlocks: Block[]): number {
 
 export default function PaginatedEditorView({
   content,
+  lessonLayout,
+  onNavigateLesson,
   onContentChange,
   format,
   toolbarTarget,
@@ -11998,8 +16794,11 @@ export default function PaginatedEditorView({
   showLineNumbers = false,
   showThumbRail = true,
   paneId = "primary",
+  zoom = 1,
 }: {
   content: any;
+  lessonLayout?: LessonLayout;
+  onNavigateLesson?: (id: string) => void;
   onContentChange: (payload: { json: any; text: string }) => void;
   format: PageFormat;
   toolbarTarget: HTMLElement | null;
@@ -12016,16 +16815,17 @@ export default function PaginatedEditorView({
   showLineNumbers?: boolean;
   showThumbRail?: boolean;
   paneId?: string;
+  zoom?: number;
 }) {
   const blocks: Block[] = useMemo(() => (content?.content as Block[]) || [], [content]);
 
   const m = margins || DEFAULT_PAGE_MARGINS;
   const pagePaddingPx = useMemo(() => ({
-    top: Math.round(m.top * 3.7795),
+    top: Math.max(Math.round(m.top * 3.7795), lessonLayout?.header ? 64 : 0),
     right: Math.round(m.right * 3.7795),
-    bottom: Math.round(m.bottom * 3.7795),
+    bottom: Math.max(Math.round(m.bottom * 3.7795), lessonLayout?.footer ? 64 : lessonLayout?.pageNumbers !== false ? 40 : 0),
     left: Math.round(m.left * 3.7795),
-  }), [m]);
+  }), [m, lessonLayout?.header, lessonLayout?.footer, lessonLayout?.pageNumbers]);
 
   // 頁面 = 以手動分頁符切分
   const pagesBlocks = useMemo(() => splitByPageBreaks(blocks), [blocks]);
@@ -12037,6 +16837,9 @@ export default function PaginatedEditorView({
     ))
   ), [pagesBlocks]);
 
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const [layoutMessage, setLayoutMessage] = useState("");
+  const [lastLayout, setLastLayout] = useState<{ before: Block[]; after: string } | null>(null);
   const [activePage, setActivePage] = useState(0);
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number; idx: number } | null>(null);
   const [renamingPage, setRenamingPage] = useState<number | null>(null);
@@ -12055,7 +16858,7 @@ export default function PaginatedEditorView({
       const el = pageRefs.current[idx];
       if (!el) return;
       const obs = new ResizeObserver(() => {
-        const h = el.getBoundingClientRect().height;
+        const h = el.offsetHeight;
         const grown = h > A4_H_PX + 2;
         if (nextGrown[idx] !== grown) {
           nextGrown[idx] = grown;
@@ -12113,6 +16916,37 @@ export default function PaginatedEditorView({
       text: finalBlocks.map(getTextFromNode).join("\n\n"),
     });
   }, [onContentChange]);
+
+  const arrangePages = () => {
+    if (pageRefs.current.some((root) => root?.querySelector('[data-lesson-kind="answer"][data-collapsed="true"]'))) { setLayoutMessage("請先展開解答，再整理分頁；列印會包含完整解答。"); return; }
+    const heights: number[] = [];
+    let measurementFailed = false;
+    pagesBlocks.forEach((page, index) => {
+      const root = pageRefs.current[index];
+      const editor = root?.querySelector(".ProseMirror");
+      const children = Array.from(editor?.children ?? []) as HTMLElement[];
+      const scale = root ? root.getBoundingClientRect().width / A4_W_PX : 1;
+      if (children.length !== page.length) measurementFailed = true;
+      if (index > 0) heights.push(0);
+      children.forEach((element) => {
+        const style = window.getComputedStyle(element);
+        heights.push(element.getBoundingClientRect().height / scale + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
+      });
+    });
+    if (measurementFailed || heights.length !== blocks.length) { setLayoutMessage("編輯器尚未完成排版，請稍後再試。"); return; }
+    const result = paginateLessonBlocks(blocks, heights, A4_H_PX - pagePaddingPx.top - pagePaddingPx.bottom - 24);
+    setLastLayout({ before: blocks, after: JSON.stringify(normalizePageBreaks(result.blocks)) });
+    persistPages(result.blocks);
+    setLayoutRevision((revision) => revision + 1);
+    setLayoutMessage(result.oversized ? `已整理分頁；${result.oversized} 個區塊超出單頁高度，請拆分長表格／段落或縮小圖片後再整理。` : "已依 A4 整理分頁，保留原有手動分頁位置。");
+  };
+  const undoArrange = () => {
+    if (!lastLayout || JSON.stringify(blocks) !== lastLayout.after) return;
+    persistPages(lastLayout.before);
+    setLastLayout(null);
+    setLayoutRevision((revision) => revision + 1);
+    setLayoutMessage("已還原整理前的分頁。");
+  };
 
   const applyRename = useCallback((idx: number, title: string) => {
     const t = (title || "").trim();
@@ -12172,8 +17006,9 @@ export default function PaginatedEditorView({
     <div className="flex flex-1 min-h-0">
       {/* 左側分頁縮圖列（GoodNotes 風格） */}
       {showThumbRail && (
-        <div className="w-20 shrink-0 border-r overflow-y-auto p-2 flex flex-col gap-2" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
-          {pagesBlocks.map((pb, idx) => {
+        <div className="w-20 shrink-0 border-r overflow-hidden flex flex-col" style={{ borderColor: "var(--color-border)", background: "var(--color-panel-bg)" }}>
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+            {pagesBlocks.map((pb, idx) => {
             const summary = pb.map(getTextFromNode).join(" ").trim().slice(0, 24);
             const name = firstHeadingText(pb) || "未命名";
             return (
@@ -12212,7 +17047,13 @@ export default function PaginatedEditorView({
                 ) : null}
               </div>
             );
-          })}
+            })}
+          </div>
+          <div className="shrink-0 border-t p-2" style={{ borderColor: "var(--color-border)" }}>
+            <button type="button" onClick={handleAppendPage} className="flex w-full flex-col items-center gap-0.5 rounded-md border py-1.5 text-[10px] hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }} title="新增頁面">
+              <span className="text-base leading-none">＋</span><span>新增頁面</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -12240,7 +17081,12 @@ export default function PaginatedEditorView({
       )}
 
       {/* 主捲動區 */}
-      <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px" }}>
+      <div className="lesson-paper-scroll flex-1 overflow-auto flex flex-col items-center" style={{ background: "#f5f5f4", padding: "24px", zoom }}>
+        <div className="nexus-print-hide mb-3 flex w-full flex-wrap items-center gap-2 text-sm">
+          <button type="button" className="rounded-lg border bg-white px-3 py-2 text-zinc-800" onClick={arrangePages}>依 A4 整理分頁</button>
+          <button type="button" className="rounded-lg border bg-white px-3 py-2 text-zinc-800 disabled:opacity-40" disabled={!lastLayout || JSON.stringify(blocks) !== lastLayout.after} onClick={undoArrange}>復原分頁整理</button>
+          {layoutMessage && <span role="status" className="text-xs text-zinc-600">{layoutMessage}</span>}
+        </div>
         {showRuler && (
           <div className="sticky top-0 z-20 mb-4 flex w-full justify-center nexus-print-hide" style={{ background: "#f5f5f4" }}>
             <div style={{ width: getDocumentRulerWidth("paged") }}>
@@ -12248,16 +17094,16 @@ export default function PaginatedEditorView({
             </div>
           </div>
         )}
-        <div className="flex flex-col gap-6 w-full items-center">
+        <div className="nexus-print-target lesson-paper-stack flex flex-col gap-6 w-full items-center">
           {pagesBlocks.map((pageBlocks, idx) => {
             const isAdapt = nightAdapt;
             const grown = grownPages[idx] || false;
             return (
               <div
-                key={idx}
+                key={`${layoutRevision}-${idx}`}
                 ref={(el) => { pageRefs.current[idx] = el; }}
                 data-page={idx}
-                className="relative rounded-sm"
+                className="lesson-paper relative rounded-sm"
                 style={{
                   width: A4_W_PX,
                   minHeight: A4_H_PX,
@@ -12267,7 +17113,8 @@ export default function PaginatedEditorView({
                   boxSizing: "border-box",
                 }}
               >
-                <div className="absolute top-2 right-3 text-[9px] opacity-20 select-none">第 {idx + 1} 頁 / 共 {pagesBlocks.length} 頁</div>
+                {lessonLayout?.header && <div className="lesson-paper-header" style={{ left: pagePaddingPx.left, right: pagePaddingPx.right }}>{lessonLayout.header}</div>}
+                <div className="lesson-paper-footer" style={{ left: pagePaddingPx.left, right: pagePaddingPx.right }}><span>{lessonLayout?.footer}</span>{lessonLayout?.pageNumbers !== false && <span>{idx + 1} / {pagesBlocks.length}</span>}</div>
                 <div
                   className={isAdapt ? "nexus-paged-content nexus-paged-adapt" : "nexus-paged-content"}
                   style={{
@@ -12277,6 +17124,8 @@ export default function PaginatedEditorView({
                   }}
                 >
                   <TiptapEditor
+                    lessonDocument={content}
+                    onNavigateLesson={onNavigateLesson}
                     content={{ type: "doc", content: pageBlocks.length > 0 ? pageBlocks : [{ type: "paragraph" }] }}
                     onChange={(payload) => handlePageChange(idx, payload)}
                     variant="rich"
@@ -12300,7 +17149,7 @@ export default function PaginatedEditorView({
                 {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}
                 {grown && (
                   <div
-                    className="pointer-events-none select-none absolute"
+                    className="nexus-print-hide pointer-events-none select-none absolute"
                     style={{
                       left: pagePaddingPx.left,
                       right: pagePaddingPx.right,
@@ -12361,8 +17210,25 @@ const MIN_W = 5;
 const MIN_H = 4;
 type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
+interface GuideLine {
+  type: "vertical" | "horizontal";
+  pos: number;
+}
+
 type Interaction =
-  | { kind: "drag"; ids: string[]; startMX: number; startMY: number; orig: Record<string, { x: number; y: number }> }
+  | {
+      kind: "drag";
+      ids: string[];
+      startMX: number;
+      startMY: number;
+      cw: number;
+      ch: number;
+      groupOrigX: number;
+      groupOrigY: number;
+      groupW: number;
+      groupH: number;
+      orig: Record<string, { x: number; y: number; w: number; h?: number }>;
+    }
   | { kind: "resize"; id: string; handle: HandleDir; startMX: number; startMY: number; orig: PresentationBlock; cw: number; ch: number }
   | { kind: "rotate"; id: string; cx: number; cy: number; origRot: number };
 
@@ -12376,9 +17242,9 @@ function rotateVec(x: number, y: number, deg: number) {
 function BlockContent({ block, thumb }: { block: PresentationBlock; thumb?: boolean }) {
   if (block.type === "text") {
     const empty = !(block.text && block.text.trim());
-    if (thumb) return <div style={{ fontSize: 7, opacity: empty ? 0.35 : 1, color: block.style?.color || "inherit", whiteSpace: "pre-wrap", overflow: "hidden" }}>{empty ? "文字" : block.text!.slice(0, 30)}</div>;
+    if (thumb) return <div style={{ fontSize: 7, opacity: empty ? 0.35 : 1, color: block.style?.color || "inherit", whiteSpace: "pre-wrap", overflow: "hidden" }}>{empty ? "文字方塊" : block.text!.slice(0, 30)}</div>;
     return empty
-      ? <div className="pointer-events-none italic" style={{ opacity: 0.3 }}>點擊輸入文字</div>
+      ? <div className="pointer-events-none select-none text-zinc-400 dark:text-zinc-500 italic" style={{ opacity: 0.45 }}>文字方塊</div>
       : <div className="whitespace-pre-wrap break-words" style={{ fontWeight: block.style?.bold ? 700 : 400, color: block.style?.color || "inherit", textAlign: block.style?.textAlign }}>{block.text}</div>;
   }
   if (block.type === "chart" && block.chart) {
@@ -12414,11 +17280,14 @@ export default function PresentationView({
   page,
   onTitleChange,
   onUpdatePresentation,
+  onBackToInterface,
 }: {
   page: Page;
   onTitleChange: (title: string) => void;
   onUpdatePresentation: (data: PresentationData) => void;
+  onBackToInterface?: () => void;
 }) {
+  const { t } = useLanguage();
   const data = (page.presentation_data || { theme: "minimal", slides: [] }) as PresentationData;
   const slides = data.slides || [];
   const [activeSlideId, setActiveSlideId] = useState<string>(slides[0]?.id || "");
@@ -12430,13 +17299,42 @@ export default function PresentationView({
   const [chartTab, setChartTab] = useState<"data" | "type" | "style">("data");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelWidth, setRightPanelWidth] = useState(260);
   const [textMenuOpen, setTextMenuOpen] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const [activeGuides, setActiveGuides] = useState<GuideLine[]>([]);
   const [slideCtx, setSlideCtx] = useState<{ x: number; y: number; slideId: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slideCtxRef = useRef<HTMLDivElement>(null);
+  const textMenuRef = useRef<HTMLDivElement>(null);
+  const chartMenuRef = useRef<HTMLDivElement>(null);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Migrate existing presentations as the speaker-notes feature has been removed.
+  useEffect(() => {
+    const legacySlides = slides as Array<Slide & { notes?: unknown }>;
+    if (!legacySlides.some((slide) => "notes" in slide)) return;
+    onUpdatePresentation({
+      ...data,
+      slides: legacySlides.map(({ notes: _removedNotes, ...slide }) => slide),
+    });
+  }, [data, onUpdatePresentation, slides]);
+
+  const startRightPanelResize = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = rightPanelWidth;
+    const onMove = (moveEvent: MouseEvent) => setRightPanelWidth(Math.min(480, Math.max(200, startWidth + startX - moveEvent.clientX)));
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const updateSlides = useCallback((newSlides: Slide[]) => { onUpdatePresentation({ ...data, slides: newSlides }); }, [data, onUpdatePresentation]);
   const updateActiveSlide = useCallback((patch: Partial<Slide>) => {
@@ -12547,31 +17445,160 @@ export default function PresentationView({
     const it = ptrRef.current;
     if (!it) return;
     if (it.kind === "drag") {
+      const dxPct = ((e.clientX - it.startMX) / it.cw) * 100;
+      const dyPct = ((e.clientY - it.startMY) / it.ch) * 100;
+
+      const rawGroupX = it.groupOrigX + dxPct;
+      const rawGroupY = it.groupOrigY + dyPct;
+
+      let snappedGroupX = rawGroupX;
+      let snappedGroupY = rawGroupY;
+      const newGuides: GuideLine[] = [];
+
+      if (!e.altKey && activeSlide) {
+        const snapThresholdX = (8 / it.cw) * 100;
+        const snapThresholdY = (8 / it.ch) * 100;
+
+        // Collect snap targets: Canvas centers and other blocks' edges and centers
+        const otherBlocks = (activeSlide.blocks || []).filter((b) => !it.ids.includes(b.id));
+
+        const xTargets: number[] = [50];
+        const yTargets: number[] = [50];
+
+        for (const ob of otherBlocks) {
+          const obH = ob.h || MIN_H;
+          xTargets.push(ob.x, ob.x + ob.w / 2, ob.x + ob.w);
+          yTargets.push(ob.y, ob.y + obH / 2, ob.y + obH);
+        }
+
+        // X-axis snapping
+        const xCandidates = [
+          { pos: rawGroupX, offsetFromLeft: 0 },
+          { pos: rawGroupX + it.groupW / 2, offsetFromLeft: it.groupW / 2 },
+          { pos: rawGroupX + it.groupW, offsetFromLeft: it.groupW },
+        ];
+
+        let minDiffX = snapThresholdX;
+        let bestSnapX: { snappedGroupLeft: number; guidePos: number } | null = null;
+
+        for (const cand of xCandidates) {
+          for (const target of xTargets) {
+            const diff = Math.abs(cand.pos - target);
+            if (diff < minDiffX) {
+              minDiffX = diff;
+              bestSnapX = {
+                snappedGroupLeft: target - cand.offsetFromLeft,
+                guidePos: target,
+              };
+            }
+          }
+        }
+
+        if (bestSnapX) {
+          snappedGroupX = bestSnapX.snappedGroupLeft;
+          newGuides.push({ type: "vertical", pos: bestSnapX.guidePos });
+        }
+
+        // Y-axis snapping
+        const yCandidates = [
+          { pos: rawGroupY, offsetFromTop: 0 },
+          { pos: rawGroupY + it.groupH / 2, offsetFromTop: it.groupH / 2 },
+          { pos: rawGroupY + it.groupH, offsetFromTop: it.groupH },
+        ];
+
+        let minDiffY = snapThresholdY;
+        let bestSnapY: { snappedGroupTop: number; guidePos: number } | null = null;
+
+        for (const cand of yCandidates) {
+          for (const target of yTargets) {
+            const diff = Math.abs(cand.pos - target);
+            if (diff < minDiffY) {
+              minDiffY = diff;
+              bestSnapY = {
+                snappedGroupTop: target - cand.offsetFromTop,
+                guidePos: target,
+              };
+            }
+          }
+        }
+
+        if (bestSnapY) {
+          snappedGroupY = bestSnapY.snappedGroupTop;
+          newGuides.push({ type: "horizontal", pos: bestSnapY.guidePos });
+        }
+      }
+
+      setActiveGuides(newGuides);
+
+      let finalDx = snappedGroupX - it.groupOrigX;
+      let finalDy = snappedGroupY - it.groupOrigY;
+
+      // Keep within canvas bounds [0, 100]
+      finalDx = Math.max(-it.groupOrigX, Math.min(100 - (it.groupOrigX + it.groupW), finalDx));
+      finalDy = Math.max(-it.groupOrigY, Math.min(100 - (it.groupOrigY + it.groupH), finalDy));
+
+      const patch: Record<string, Partial<PresentationBlock>> = {};
       for (const id of it.ids) {
         const o = it.orig[id];
         if (!o) continue;
-        const newX = ((e.clientX - it.canvasLeft - it.grabOffsetX) / it.cw) * 100;
-        const newY = ((e.clientY - it.canvasTop - it.grabOffsetY) / it.ch) * 100;
-        updateBlock(id, {
-          x: Math.max(0, Math.min(100 - (o.w || 0), newX)),
-          y: Math.max(0, Math.min(100 - (o.h || 0), newY)),
-        });
+        patch[id] = {
+          x: o.x + finalDx,
+          y: o.y + finalDy,
+        };
       }
+      updateBlocks(it.ids, (b) => ({ ...b, ...(patch[b.id] || {}) }));
     } else if (it.kind === "resize") {
-      const orig = it.orig; const rot = orig.rotation || 0;
-      let dxPx = e.clientX - it.startMX, dyPx = e.clientY - it.startMY;
-      if (rot) { const lv = rotateVec(dxPx, dyPx, -rot); dxPx = lv.x; dyPx = lv.y; }
-      const dxPct = (dxPx / it.cw) * 100, dyPct = (dyPx / it.ch) * 100;
-      let { x, y, w, h } = orig; const hd = it.handle;
-      if (hd.includes("e")) w = Math.max(MIN_W, orig.w + dxPct);
-      if (hd.includes("s")) h = Math.max(MIN_H, (orig.h || MIN_H) + dyPct);
-      if (hd.includes("w")) { const nw = Math.max(MIN_W, orig.w - dxPct); x = orig.x + (orig.w - nw); w = nw; }
-      if (hd.includes("n")) { const nh = Math.max(MIN_H, (orig.h || MIN_H) - dyPct); y = orig.y + ((orig.h || MIN_H) - nh); h = nh; }
-      // 邊界 clamp：物件保持在畫布內（0~100），避免邊緣超出被 overflow-hidden 裁切後無法選回
-      x = Math.max(0, x); y = Math.max(0, y);
-      w = Math.max(MIN_W, Math.min(w, 100 - x));
-      h = Math.max(MIN_H, Math.min(h, 100 - y));
-      updateBlock(orig.id, { x, y, w, h });
+      const orig = it.orig;
+      const rot = orig.rotation || 0;
+      let dxPx = e.clientX - it.startMX;
+      let dyPx = e.clientY - it.startMY;
+      if (rot) {
+        const lv = rotateVec(dxPx, dyPx, -rot);
+        dxPx = lv.x;
+        dyPx = lv.y;
+      }
+      const dxPct = (dxPx / it.cw) * 100;
+      const dyPct = (dyPx / it.ch) * 100;
+      const origW = orig.w;
+      const origH = orig.h || MIN_H;
+      const hd = it.handle;
+
+      let newW = origW;
+      let newH = origH;
+      let localCenterDx = 0;
+      let localCenterDy = 0;
+
+      if (hd.includes("e")) {
+        newW = Math.max(MIN_W, origW + dxPct);
+        localCenterDx = (newW - origW) / 2;
+      } else if (hd.includes("w")) {
+        newW = Math.max(MIN_W, origW - dxPct);
+        localCenterDx = -(newW - origW) / 2;
+      }
+
+      if (hd.includes("s")) {
+        newH = Math.max(MIN_H, origH + dyPct);
+        localCenterDy = (newH - origH) / 2;
+      } else if (hd.includes("n")) {
+        newH = Math.max(MIN_H, origH - dyPct);
+        localCenterDy = -(newH - origH) / 2;
+      }
+
+      const origCenterX = orig.x + origW / 2;
+      const origCenterY = orig.y + origH / 2;
+
+      const worldCenterShift = rot ? rotateVec(localCenterDx, localCenterDy, rot) : { x: localCenterDx, y: localCenterDy };
+
+      const newCenterX = origCenterX + worldCenterShift.x;
+      const newCenterY = origCenterY + worldCenterShift.y;
+
+      let newX = newCenterX - newW / 2;
+      let newY = newCenterY - newH / 2;
+
+      newX = Math.max(0, Math.min(100 - newW, newX));
+      newY = Math.max(0, Math.min(100 - newH, newY));
+
+      updateBlock(orig.id, { x: newX, y: newY, w: newW, h: newH });
     } else if (it.kind === "rotate") {
       let angle = (Math.atan2(e.clientY - it.cy, e.clientX - it.cx) * 180) / Math.PI + 90;
       if (e.shiftKey) angle = Math.round(angle / 15) * 15;
@@ -12581,6 +17608,7 @@ export default function PresentationView({
   };
   const handlePointerUp = (e: React.PointerEvent) => {
     ptrRef.current = null;
+    setActiveGuides([]);
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
   };
 
@@ -12592,19 +17620,44 @@ export default function PresentationView({
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault(); handleDeleteBlocks(selectedIds);
       }
-      if (e.key === "Escape") { setSelectedIds([]); setEditingBlockId(null); setChartEditOpen(false); setSlideCtx(null); }
+      if (e.key === "Escape") {
+        setSelectedIds([]);
+        setEditingBlockId(null);
+        setChartEditOpen(false);
+        setSlideCtx(null);
+        setTextMenuOpen(false);
+        setChartMenuOpen(false);
+        setLayoutMenuOpen(false);
+        setMoreMenuFor(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedIds, editingBlockId]);
 
-  // 關閉縮圖右鍵選單
+  // 點擊周圍空白處自動關閉所有下拉選單與右鍵選單
   useEffect(() => {
-    if (!slideCtx) return;
-    const h = (e: MouseEvent) => { if (slideCtxRef.current && !slideCtxRef.current.contains(e.target as Node)) setSlideCtx(null); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [slideCtx]);
+    const handleDocumentMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (slideCtx && slideCtxRef.current && !slideCtxRef.current.contains(target)) {
+        setSlideCtx(null);
+      }
+      if (textMenuOpen && textMenuRef.current && !textMenuRef.current.contains(target)) {
+        setTextMenuOpen(false);
+      }
+      if (chartMenuOpen && chartMenuRef.current && !chartMenuRef.current.contains(target)) {
+        setChartMenuOpen(false);
+      }
+      if (layoutMenuOpen && layoutMenuRef.current && !layoutMenuRef.current.contains(target)) {
+        setLayoutMenuOpen(false);
+      }
+      if (moreMenuFor && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuFor(null);
+      }
+    };
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown);
+  }, [slideCtx, textMenuOpen, chartMenuOpen, layoutMenuOpen, moreMenuFor]);
 
   if (!page.presentation_data) return <div className="flex-1 flex items-center justify-center">簡報資料載入中...</div>;
 
@@ -12637,12 +17690,13 @@ export default function PresentationView({
       {/* ===== 全寬上欄（加高） ===== */}
       <div className="shrink-0 border-b" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
         <div className="flex items-center gap-2 px-4 py-6 flex-wrap">
+          {onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-2 py-1 text-sm hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}
           <input value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder="簡報標題" className="bg-transparent font-semibold outline-none text-sm min-w-[120px]" />
           <span className="text-[10px] opacity-50">{slides.length} 張</span>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
           {/* ＋ 文字（下拉選單） */}
-          <div className="relative">
-            <button onClick={() => { setTextMenuOpen(v => !v); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字 ▾</button>
+          <div ref={textMenuRef} className="relative">
+            <button onClick={() => { setTextMenuOpen(v => !v); setLayoutMenuOpen(false); setChartMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs bg-zinc-800 text-white hover:bg-zinc-700">＋ 文字 ▾</button>
             {textMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                 {([
@@ -12671,7 +17725,7 @@ export default function PresentationView({
               </div>
             )}
           </div>
-          <div className="relative">
+          <div ref={chartMenuRef} className="relative">
             <button onClick={() => { setChartMenuOpen(v => !v); setTextMenuOpen(false); setLayoutMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📊 圖表 ▾</button>
             {chartMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[140px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
@@ -12690,8 +17744,8 @@ export default function PresentationView({
             )}
           </div>
           {/* 版面配置（下拉選單，取代形狀） */}
-          <div className="relative">
-            <button onClick={() => { setLayoutMenuOpen(v => !v); setTextMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📐 版面 ▾</button>
+          <div ref={layoutMenuRef} className="relative">
+            <button onClick={() => { setLayoutMenuOpen(v => !v); setTextMenuOpen(false); setChartMenuOpen(false); }} className="rounded px-3 py-1.5 text-xs border hover:bg-zinc-100">📐 版面 ▾</button>
             {layoutMenuOpen && (
               <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 z-[10004] min-w-[160px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                 <button onClick={() => { addBlock({ type: "text", x: 5, y: 5, w: 90, h: 90, text: "", style: { fontSize: 16 } }); setLayoutMenuOpen(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-100">📑 目錄</button>
@@ -12712,13 +17766,25 @@ export default function PresentationView({
           <button disabled={selectedIds.length < 3} onClick={() => handleAlign("hdistribute")} className="rounded px-2 py-1.5 text-xs border hover:bg-zinc-100 disabled:opacity-25" title="水平等距">⇆</button>
           <button disabled={selectedIds.length < 3} onClick={() => handleAlign("vdistribute")} className="rounded px-2 py-1.5 text-xs border hover:bg-zinc-100 disabled:opacity-25" title="垂直等距">⇅</button>
           <div className="h-5 w-px bg-zinc-300 mx-1" />
-          <span className="text-[10px] opacity-50">版型</span>
-          {LAYOUTS.slice(0, 5).map((l) => (
-            <button key={l.id} onClick={() => activeSlide && updateActiveSlide({ layout: l.id })} className={`rounded px-2 py-1.5 text-xs border ${activeSlide?.layout === l.id ? "bg-zinc-800 text-white" : "hover:bg-zinc-100"}`} title={l.label}>{l.icon}</button>
-          ))}
-          <select value={data.theme} onChange={(e) => onUpdatePresentation({ ...data, theme: e.target.value as any })} className="ml-1 rounded border px-2 py-1.5 text-xs bg-transparent">
-            <option value="minimal">Minimal</option><option value="academic">Academic</option><option value="business">Business</option><option value="dark">Dark</option>
+          <select value={data.theme} onChange={(e) => onUpdatePresentation({ ...data, theme: e.target.value as any })} className="rounded border px-2 py-1.5 text-xs bg-transparent">
+            <option value="minimal">{t("presentation.theme.minimal")}</option><option value="academic">{t("presentation.theme.academic")}</option><option value="business">{t("presentation.theme.business")}</option><option value="dark">{t("presentation.theme.dark")}</option>
           </select>
+          <div className="h-5 w-px bg-zinc-300 mx-1" />
+          {/* 投影片縮圖與圖層開合控制按鈕 */}
+          <button
+            onClick={() => setLeftPanelOpen((v) => !v)}
+            className={`rounded px-2.5 py-1.5 text-xs border transition-all ${leftPanelOpen ? "bg-zinc-800 text-white" : "hover:bg-zinc-100 opacity-70"}`}
+            title="切換顯示/隱藏 投影片列表"
+          >
+            📑 投影片
+          </button>
+          <button
+            onClick={() => setRightPanelOpen((v) => !v)}
+            className={`rounded px-2.5 py-1.5 text-xs border transition-all ${rightPanelOpen ? "bg-zinc-800 text-white" : "hover:bg-zinc-100 opacity-70"}`}
+            title="切換顯示/隱藏 圖層面板"
+          >
+            ☰ 圖層
+          </button>
         </div>
       </div>
 
@@ -12726,7 +17792,10 @@ export default function PresentationView({
       <div className="flex flex-1 overflow-hidden">
         {/* 左：縮圖列（即時鏡像）+ 底部新增投影片 */}
         <div className={`${leftPanelOpen ? "w-[180px]" : "w-0"} shrink-0 flex flex-col border-r overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setLeftPanelOpen(v => !v)} className="hover:opacity-100" title="開合">📑</button> 投影片</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-70 border-b flex items-center justify-between" style={{ borderColor: "var(--color-border)" }}>
+            <span className="flex items-center gap-1">📑 投影片</span>
+            <button onClick={() => setLeftPanelOpen(false)} className="hover:opacity-100 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs cursor-pointer" title="收合投影片列表">«</button>
+          </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {slides.map((slide, idx) => (
               <SlideThumbnail key={slide.id} slide={slide} theme={data.theme} active={activeSlideId === slide.id} idx={idx} total={slides.length}
@@ -12735,12 +17804,32 @@ export default function PresentationView({
             ))}
           </div>
           <div className="p-2 border-t" style={{ borderColor: "var(--color-border)" }}>
-            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 text-white text-base py-10 hover:bg-zinc-700">＋ 新增投影片</button>
+            <button onClick={() => handleAddSlide()} className="w-full rounded-md bg-zinc-800 px-3 py-2 text-sm text-white hover:bg-zinc-700">＋ 新增投影片</button>
           </div>
         </div>
 
         {/* 中：編輯畫布（置中） */}
-        <div className="flex-1 overflow-auto p-8 flex items-center justify-center" style={{ backgroundColor: "#f5f5f4" }}>
+        <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative" style={{ backgroundColor: "#f5f5f4" }}>
+          {/* 左側縮圖展開按鈕（當左側收合時在畫布邊緣顯示） */}
+          {!leftPanelOpen && (
+            <button
+              onClick={() => setLeftPanelOpen(true)}
+              className="absolute left-3 top-3 z-30 flex items-center gap-1.5 rounded-lg px-3 py-1.5 bg-white shadow-md border text-xs font-medium hover:bg-zinc-50 transition-all text-zinc-700 cursor-pointer"
+              title="展開投影片列表"
+            >
+              📑 投影片 »
+            </button>
+          )}
+          {/* 右側圖層展開按鈕（當右側收合時在畫布邊緣顯示） */}
+          {!rightPanelOpen && (
+            <button
+              onClick={() => setRightPanelOpen(true)}
+              className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-lg px-3 py-1.5 bg-white shadow-md border text-xs font-medium hover:bg-zinc-50 transition-all text-zinc-700 cursor-pointer"
+              title="展開圖層面板"
+            >
+              « ☰ 圖層
+            </button>
+          )}
           <div ref={canvasRef} className="relative w-full max-w-[960px] aspect-[16/9] rounded-xl shadow-xl overflow-hidden select-none" style={{ backgroundColor: isDark ? "#1e1e1e" : "white", color: isDark ? "white" : "black" }}
             onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedIds([]); setEditingBlockId(null); setChartEditOpen(false); } }}>
             {activeSlide?.title && <div className="text-[10px] opacity-25 absolute top-2 left-3 pointer-events-none">{slides.findIndex((s) => s.id === activeSlideId) + 1} / {slides.length} — {activeSlide.title}</div>}
@@ -12758,47 +17847,264 @@ export default function PresentationView({
                     if (e.ctrlKey || e.metaKey) { setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); return; }
                     if (!selected) setSelectedIds([block.id]);
                     setChartEditOpen(false);
-                    const el = e.currentTarget as HTMLElement;
-                    const rect = el.getBoundingClientRect();
-                    const lx = e.clientX - rect.left, ly = e.clientY - rect.top;
-                    const E = 9;
-                    const L = lx < E, R = lx > rect.width - E, T = ly < E, B = ly > rect.height - E;
-                    let handle: HandleDir | null = null;
-                    if (L && T) handle = "nw"; else if (R && T) handle = "ne"; else if (L && B) handle = "sw"; else if (R && B) handle = "se";
-                    else if (T) handle = "n"; else if (B) handle = "s"; else if (L) handle = "w"; else if (R) handle = "e";
                     const cRect = canvasRef.current!.getBoundingClientRect();
-                    if (handle) {
-                      ptrRef.current = { kind: "resize", id: block.id, handle, startMX: e.clientX, startMY: e.clientY, orig: { ...block }, cw: cRect.width, ch: cRect.height };
-                    } else {
-                      const targetIds = (selected && selectedIds.length > 1) ? selectedIds : [block.id];
-                      const origBlocks = (selected && selectedIds.length > 1) ? selectedBlocks : [block];
-                      ptrRef.current = { kind: "drag", ids: targetIds, grabOffsetX: lx, grabOffsetY: ly, canvasLeft: cRect.left, canvasTop: cRect.top, cw: cRect.width, ch: cRect.height, orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y, w: b.w, h: b.h }])) };
-                    }
+                    const targetIds = (selected && selectedIds.length > 1) ? selectedIds : [block.id];
+                    const origBlocks = (activeSlide?.blocks || []).filter((b) => targetIds.includes(b.id));
+                    const minX = Math.min(...origBlocks.map((b) => b.x));
+                    const minY = Math.min(...origBlocks.map((b) => b.y));
+                    const maxX = Math.max(...origBlocks.map((b) => b.x + b.w));
+                    const maxY = Math.max(...origBlocks.map((b) => b.y + (b.h || MIN_H)));
+                    ptrRef.current = {
+                      kind: "drag",
+                      ids: targetIds,
+                      startMX: e.clientX,
+                      startMY: e.clientY,
+                      cw: cRect.width,
+                      ch: cRect.height,
+                      groupOrigX: minX,
+                      groupOrigY: minY,
+                      groupW: maxX - minX,
+                      groupH: maxY - minY,
+                      orig: Object.fromEntries(origBlocks.map((b) => [b.id, { x: b.x, y: b.y, w: b.w, h: b.h }])),
+                    };
                   }}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onDoubleClick={(e) => { e.stopPropagation(); if (block.type === "text") { setSelectedIds([block.id]); setEditingBlockId(block.id); } }}
                   style={{ ...selBoxStyle(block), zIndex: block.z, background: block.style?.background || "transparent", border: selected ? `1.5px dashed ${selectedIds.length > 1 ? "#22c55e" : "#3b82f6"}` : "1px solid transparent", borderRadius: 3, padding: 4, cursor: editing ? "text" : "move", fontSize: block.style?.fontSize ? `${block.style.fontSize}px` : "14px", color: block.style?.color || "inherit", textAlign: block.style?.textAlign || "left" }}>
                   {block.type === "text" && editing ? (
-                    <textarea autoFocus value={block.text || ""} onChange={(e) => updateBlock(block.id, { text: e.target.value })} onBlur={() => setEditingBlockId(null)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) setEditingBlockId(null); }} className="w-full h-full bg-transparent outline-none resize-none" placeholder="點擊輸入文字" />
+                    <textarea autoFocus value={block.text || ""} onChange={(e) => updateBlock(block.id, { text: e.target.value })} onBlur={() => setEditingBlockId(null)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) setEditingBlockId(null); }} className="w-full h-full bg-transparent outline-none resize-none placeholder:text-zinc-400 placeholder:opacity-45 placeholder:italic" placeholder="文字方塊" />
                   ) : <BlockContent block={block} />}
                 </div>
               );
             })}
 
-            {/* 縮放圓點：獨立 10px 定位在物件邊角，純視覺（pointer-events:none），不覆蓋物件中心 → drag 不受阻 */}
-            {singleSelected && !editingBlockId && (() => {
-              const b = singleSelected; const h = b.h || MIN_H;
-              return ([["nw", b.x, b.y], ["n", b.x + b.w / 2, b.y], ["ne", b.x + b.w, b.y], ["e", b.x + b.w, b.y + h / 2], ["se", b.x + b.w, b.y + h], ["s", b.x + b.w / 2, b.y + h], ["sw", b.x, b.y + h], ["w", b.x, b.y + h / 2]] as [HandleDir, number, number][]).map(([hd, cx, cy]) => (
-                <div key={hd} style={{ position: "absolute", left: `${cx}%`, top: `${cy}%`, width: 10, height: 10, marginLeft: -5, marginTop: -5, background: "white", border: "1.5px solid #3b82f6", borderRadius: 9999, zIndex: 10000, pointerEvents: "none", cursor: HANDLE_POS[hd].cursor }} />
-              ));
-            })()}
-            {/* 旋轉把手：獨立定位在物件正上方，不覆蓋物件本體，可點擊 */}
-            {singleSelected && !editingBlockId && (
-              <div onPointerDown={(e) => { e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); const cr = canvasRef.current!.getBoundingClientRect(); const b = singleSelected!; const cx = cr.left + (b.x + b.w / 2) / 100 * cr.width; const cy = cr.top + (b.y + (b.h || MIN_H) / 2) / 100 * cr.height; ptrRef.current = { kind: "rotate", id: b.id, cx, cy, cw: cr.width, ch: cr.height }; }}
-                onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
-                style={{ position: "absolute", left: `${singleSelected.x + singleSelected.w / 2}%`, top: `calc(${singleSelected.y}% - 24px)`, width: 13, height: 13, marginLeft: -6.5, background: "white", border: "1.5px solid #3b82f6", borderRadius: 9999, zIndex: 10000, pointerEvents: "auto", cursor: "grab" }} />
+            {/* 磁吸對齊輔助線 */}
+            {activeGuides.map((guide, idx) =>
+              guide.type === "vertical" ? (
+                <div
+                  key={`guide-v-${idx}-${guide.pos}`}
+                  style={{
+                    position: "absolute",
+                    left: `${guide.pos}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: "1px",
+                    backgroundColor: "#0ea5e9",
+                    boxShadow: "0 0 3px rgba(14, 165, 233, 0.8)",
+                    zIndex: 9998,
+                    pointerEvents: "none",
+                  }}
+                />
+              ) : (
+                <div
+                  key={`guide-h-${idx}-${guide.pos}`}
+                  style={{
+                    position: "absolute",
+                    top: `${guide.pos}%`,
+                    left: 0,
+                    right: 0,
+                    height: "1px",
+                    backgroundColor: "#0ea5e9",
+                    boxShadow: "0 0 3px rgba(14, 165, 233, 0.8)",
+                    zIndex: 9998,
+                    pointerEvents: "none",
+                  }}
+                />
+              )
             )}
+
+            {/* 8 方向伸縮把手與 4 邊緣感應條（隨物件旋轉同步旋轉與縮放） */}
+            {singleSelected && !editingBlockId && (() => {
+              const b = singleSelected;
+              const h = b.h || MIN_H;
+              const rot = b.rotation || 0;
+
+              const handles: { hd: HandleDir; left: string; top: string; cursor: string }[] = [
+                { hd: "nw", left: "0%", top: "0%", cursor: "nwse-resize" },
+                { hd: "n", left: "50%", top: "0%", cursor: "ns-resize" },
+                { hd: "ne", left: "100%", top: "0%", cursor: "nesw-resize" },
+                { hd: "e", left: "100%", top: "50%", cursor: "ew-resize" },
+                { hd: "se", left: "100%", top: "100%", cursor: "nwse-resize" },
+                { hd: "s", left: "50%", top: "100%", cursor: "ns-resize" },
+                { hd: "sw", left: "0%", top: "100%", cursor: "nesw-resize" },
+                { hd: "w", left: "0%", top: "50%", cursor: "ew-resize" },
+              ];
+
+              const edgeBars: { hd: HandleDir; style: React.CSSProperties; cursor: string }[] = [
+                // Top edge (上下伸縮)
+                {
+                  hd: "n",
+                  cursor: "ns-resize",
+                  style: { position: "absolute", left: 0, top: 0, width: "100%", height: 14, marginTop: -7 },
+                },
+                // Bottom edge (上下伸縮)
+                {
+                  hd: "s",
+                  cursor: "ns-resize",
+                  style: { position: "absolute", left: 0, top: "100%", width: "100%", height: 14, marginTop: -7 },
+                },
+                // Left edge (左右伸縮)
+                {
+                  hd: "w",
+                  cursor: "ew-resize",
+                  style: { position: "absolute", left: 0, top: 0, width: 14, height: "100%", marginLeft: -7 },
+                },
+                // Right edge (左右伸縮)
+                {
+                  hd: "e",
+                  cursor: "ew-resize",
+                  style: { position: "absolute", left: "100%", top: 0, width: 14, height: "100%", marginLeft: -7 },
+                },
+              ];
+
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `${b.x}%`,
+                    top: `${b.y}%`,
+                    width: `${b.w}%`,
+                    height: `${h}%`,
+                    transform: `rotate(${rot}deg)`,
+                    transformOrigin: "center center",
+                    pointerEvents: "none",
+                    zIndex: 10000,
+                  }}
+                >
+                  {/* 4 條邊框感應條（大幅擴大上下左右伸縮的點擊與滑鼠辨識區域） */}
+                  {edgeBars.map(({ hd, style, cursor }, i) => (
+                    <div
+                      key={`edge-${hd}-${i}`}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                        const cRect = canvasRef.current!.getBoundingClientRect();
+                        ptrRef.current = {
+                          kind: "resize",
+                          id: b.id,
+                          handle: hd,
+                          startMX: e.clientX,
+                          startMY: e.clientY,
+                          orig: { ...b },
+                          cw: cRect.width,
+                          ch: cRect.height,
+                        };
+                      }}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      style={{
+                        ...style,
+                        pointerEvents: "auto",
+                        cursor,
+                      }}
+                    />
+                  ))}
+
+                  {/* 8 個控制點（大碰撞體積 22px + 10px 白底藍框控制圓點） */}
+                  {handles.map(({ hd, left, top, cursor }) => (
+                    <div
+                      key={hd}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                        const cRect = canvasRef.current!.getBoundingClientRect();
+                        ptrRef.current = {
+                          kind: "resize",
+                          id: b.id,
+                          handle: hd,
+                          startMX: e.clientX,
+                          startMY: e.clientY,
+                          orig: { ...b },
+                          cw: cRect.width,
+                          ch: cRect.height,
+                        };
+                      }}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      style={{
+                        position: "absolute",
+                        left,
+                        top,
+                        width: 22,
+                        height: 22,
+                        marginLeft: -11,
+                        marginTop: -11,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "auto",
+                        cursor,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          backgroundColor: "white",
+                          border: "1.5px solid #2563eb",
+                          borderRadius: "9999px",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+
+                  {/* 旋轉把手：獨立定位在物件正上方，連接線 + 圓點，隨物件同步旋轉 */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: -22,
+                      width: 1,
+                      height: 22,
+                      backgroundColor: "#3b82f6",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  <div
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      const cr = canvasRef.current!.getBoundingClientRect();
+                      const cx = cr.left + ((b.x + b.w / 2) / 100) * cr.width;
+                      const cy = cr.top + ((b.y + (b.h || MIN_H) / 2) / 100) * cr.height;
+                      ptrRef.current = { kind: "rotate", id: b.id, cx, cy, cw: cr.width, ch: cr.height };
+                    }}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    title="拖曳旋轉物件（按住 Shift 鍵每 15° 吸附）"
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: -26,
+                      width: 24,
+                      height: 24,
+                      marginLeft: -12,
+                      marginTop: -12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      pointerEvents: "auto",
+                      cursor: "grab",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        backgroundColor: "#3b82f6",
+                        borderRadius: "9999px",
+                        border: "2px solid white",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 浮動工具列（複製/刪除/編輯圖表/更多） */}
             {floatBarStyle && (
@@ -12808,7 +18114,7 @@ export default function PresentationView({
                   <button onClick={() => setChartEditOpen((v) => !v)} className={`px-4 py-3 text-base rounded ${chartEditOpen ? "bg-zinc-200" : "hover:bg-zinc-100"}`} title="編輯圖表（如 Gamma）">📊 編輯圖表</button>
                 )}
                 <button onClick={() => handleDeleteBlocks(selectedIds)} className="px-4 py-3 text-base rounded hover:bg-red-50 text-red-600" title="刪除">🗑</button>
-                <div className="relative">
+                <div ref={moreMenuRef} className="relative">
                   <button onClick={() => setMoreMenuFor(moreMenuFor ? null : "open")} className="px-4 py-3 text-base rounded hover:bg-zinc-100" title="更多">⋯</button>
                   {moreMenuFor && (
                     <div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl py-1 min-w-[120px]" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onMouseDown={(e) => e.stopPropagation()}>
@@ -12835,8 +18141,12 @@ export default function PresentationView({
         </div>
 
         {/* 右：圖層 + 屬性 */}
-        <div className={`${rightPanelOpen ? "w-[260px]" : "w-0"} shrink-0 border-l flex flex-col overflow-hidden transition-all duration-200`} style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-50 border-b flex items-center justify-center gap-1" style={{ borderColor: "var(--color-border)" }}><button onClick={() => setRightPanelOpen(v => !v)} className="hover:opacity-100" title="開合">☰</button> 圖層</div>
+        <div className="relative shrink-0 border-l flex flex-col overflow-hidden transition-[width] duration-200" style={{ width: rightPanelOpen ? rightPanelWidth : 0, borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+          {rightPanelOpen && <div role="separator" aria-label="調整圖層面板寬度" onMouseDown={startRightPanelResize} className="absolute inset-y-0 left-0 z-20 w-1 cursor-ew-resize hover:bg-blue-400" />}
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase opacity-70 border-b flex items-center justify-between" style={{ borderColor: "var(--color-border)" }}>
+            <span className="flex items-center gap-1">☰ 圖層</span>
+            <button onClick={() => setRightPanelOpen(false)} className="hover:opacity-100 px-1.5 py-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-xs cursor-pointer" title="收合圖層面板">»</button>
+          </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {[...(activeSlide?.blocks || [])].sort((a, b) => b.z - a.z).map((block) => (
               <div key={block.id} draggable onDragStart={() => setDraggedBlockId(block.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (!draggedBlockId || draggedBlockId === block.id || !activeSlide) return; const sorted = [...(activeSlide.blocks || [])].sort((a, b) => a.z - b.z); const fromIdx = sorted.findIndex((b) => b.id === draggedBlockId); const toIdx = sorted.findIndex((b) => b.id === block.id); if (fromIdx === -1 || toIdx === -1) return; const [moved] = sorted.splice(fromIdx, 1); sorted.splice(toIdx, 0, moved); updateActiveSlide({ blocks: sorted.map((b, i) => ({ ...b, z: (i + 1) * 10 })) }); setDraggedBlockId(null); }} onClick={(e) => { if (e.ctrlKey || e.metaKey) setSelectedIds((p) => p.includes(block.id) ? p.filter((id) => id !== block.id) : [...p, block.id]); else setSelectedIds([block.id]); }} className={`flex items-center gap-2 p-2 rounded cursor-grab active:cursor-grabbing text-xs ${selectedIds.includes(block.id) ? "bg-white border border-blue-300 shadow-sm" : "hover:bg-white/60 border border-transparent"} ${draggedBlockId === block.id ? "opacity-40" : ""}`}>
@@ -12927,12 +18237,6 @@ export default function PresentationView({
           </div>
         );
       })()}
-
-      {/* 備註列 */}
-      <div className="shrink-0 border-t p-3 flex gap-2 items-start" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
-        <span className="text-xs opacity-60 mt-1">📝 備註</span>
-        <input value={activeSlide?.notes || ""} onChange={(e) => activeSlide && updateActiveSlide({ notes: e.target.value })} placeholder="講者備註，觀眾看不到..." className="flex-1 bg-transparent outline-none text-sm" />
-      </div>
     </main>
   );
 }
@@ -13014,8 +18318,8 @@ export default function QuickNotesView({
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth, collapsedWidth = 56, isCollapsed, children }: {
-  side: "left" | "right"; defaultWidth: number; minWidth: number; maxWidth: number; collapsedWidth?: number; isCollapsed: boolean; children: React.ReactNode;
+export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth, collapsedWidth = 56, isCollapsed, overlay = false, children }: {
+  side: "left" | "right"; defaultWidth: number; minWidth: number; maxWidth: number; collapsedWidth?: number; isCollapsed: boolean; overlay?: boolean; children: React.ReactNode;
 }) {
   const [width, setWidth] = useState(defaultWidth);
   const [isDragging, setIsDragging] = useState(false);
@@ -13045,7 +18349,7 @@ export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth,
   const effectiveWidth = isCollapsed ? collapsedWidth : width;
 
   return (
-    <div className="relative flex shrink-0 transition-[width] duration-150" style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
+    <div data-side-panel={overlay ? "true" : undefined} className={`${overlay ? `fixed inset-y-0 ${side === "left" ? "left-0" : "right-0"} z-50 shadow-2xl` : "relative shrink-0"} flex transition-[width] duration-150 ${isCollapsed && collapsedWidth === 0 ? "overflow-hidden" : ""}`} style={{ width: `${effectiveWidth}px`, minWidth: `${effectiveWidth}px` }}>
       {!isCollapsed && side === "right" && (
         <div onMouseDown={handleMouseDown} className="absolute left-0 top-0 bottom-0 w-1.5 -translate-x-0.5 cursor-col-resize z-10 hover:bg-blue-400/40 transition-colors"
           style={{ backgroundColor: isDragging ? "rgba(37, 99, 235, 0.35)" : "transparent" }} />
@@ -13064,8 +18368,8 @@ export default function ResizablePanel({ side, defaultWidth, minWidth, maxWidth,
 ## File: src/components/RightPanel.tsx
 ````
 "use client";
-import { useMemo } from "react";
-import type { Page } from "../lib/types";
+import { useMemo, useState } from "react";
+import type { AssistantBlock, Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 
 export default function RightPanel({
@@ -13074,14 +18378,17 @@ export default function RightPanel({
   isCollapsed,
   onToggleCollapse,
   onSelectPageTitle,
+  onUpdateAssistantBlocks,
 }: {
   page: Page | null;
   pages: Page[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectPageTitle: (title: string) => void;
+  onUpdateAssistantBlocks?: (blocks: AssistantBlock[]) => void;
 }) {
   const { t } = useLanguage();
+  const [expandedAssistantId, setExpandedAssistantId] = useState<string | null>(null);
 
   const backlinks = useMemo(() => {
     if (!page || !page.title.trim()) return [];
@@ -13093,6 +18400,23 @@ export default function RightPanel({
   }, [page, pages]);
 
   const outgoingLinks = page?.links || [];
+  const assistantBlocks = page?.assistant_blocks || [];
+
+  const addAssistantBlock = () => {
+    const now = Date.now();
+    const block: AssistantBlock = { id: crypto.randomUUID(), title: "未命名輔助筆記", content: "", created_at: now, updated_at: now };
+    onUpdateAssistantBlocks?.([...assistantBlocks, block]);
+    setExpandedAssistantId(block.id);
+  };
+
+  const updateAssistantBlock = (id: string, patch: Partial<AssistantBlock>) => {
+    onUpdateAssistantBlocks?.(assistantBlocks.map((block) => block.id === id ? { ...block, ...patch, updated_at: Date.now() } : block));
+  };
+
+  const removeAssistantBlock = (id: string) => {
+    onUpdateAssistantBlocks?.(assistantBlocks.filter((block) => block.id !== id));
+    if (expandedAssistantId === id) setExpandedAssistantId(null);
+  };
 
   if (isCollapsed) {
     return (
@@ -13109,6 +18433,22 @@ export default function RightPanel({
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-zinc-200 transition-all normal-case" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("rightPanel.collapse")}>»</button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 text-sm">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 uppercase tracking-wider"><span>輔助區塊 ({assistantBlocks.length})</span>{page && <button type="button" onClick={addAssistantBlock} className="rounded px-1.5 py-0.5 normal-case text-blue-600 hover:bg-blue-50">+ 新增</button>}</div>
+          {assistantBlocks.length === 0 ? <div className="text-xs opacity-40 pl-1 py-1" style={{ color: "var(--color-text)" }}>可在此建立講稿、補充資料或延伸筆記；內容會附屬於目前頁面。</div> : <div className="space-y-1">{assistantBlocks.map((block) => {
+            const isExpanded = expandedAssistantId === block.id;
+            return <div key={block.id} className="rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
+              <div className="flex items-center gap-1 px-1.5 py-1">
+                <button type="button" onClick={() => setExpandedAssistantId(isExpanded ? null : block.id)} className="min-w-0 flex-1 truncate px-1 text-left text-sm hover:text-blue-700">{isExpanded ? "⌄" : "›"} {block.title || "未命名輔助筆記"}</button>
+                <button type="button" onClick={() => removeAssistantBlock(block.id)} className="rounded px-1 text-xs opacity-45 hover:bg-red-50 hover:text-red-600 hover:opacity-100" aria-label="刪除輔助區塊">×</button>
+              </div>
+              {isExpanded && <div className="border-t p-2" style={{ borderColor: "var(--color-border)" }}>
+                <input value={block.title} onChange={(event) => updateAssistantBlock(block.id, { title: event.target.value })} placeholder="輔助筆記標題" className="mb-2 w-full bg-transparent text-xs font-medium outline-none" />
+                <textarea value={block.content} onChange={(event) => updateAssistantBlock(block.id, { content: event.target.value })} placeholder="輸入講稿、補充內容或延伸筆記…" rows={6} className="w-full resize-y bg-transparent text-xs leading-5 outline-none" />
+              </div>}
+            </div>;
+          })}</div>}
+        </div>
         <div className="space-y-2">
           <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("rightPanel.backlinks")} ({backlinks.length})</div>
           {backlinks.length === 0 ? (
@@ -13151,7 +18491,7 @@ export default function RightPanel({
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import type { Page } from "../lib/types";
+import { isCreativeCharacterPage, isNovelPage, type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
 import AccountSettingsRow from "./AccountSettingsRow";
@@ -13161,13 +18501,25 @@ function getPageIcon(page: Page): string {
   if (page.kind === "study_set") return "🗂️";
   if (page.kind === "document") return "📄";
   if (page.kind === "presentation") return "📊";
+  if (page.kind === "creative") {
+    return isCreativeCharacterPage(page) ? "🎭" : "📖";
+  }
   if (page.primary_attachment_id) return "📑";
   return "📝";
 }
 
+import {
+  getStoredFeatureOrderMode,
+  getStoredRecentFeatureIds,
+  recordFeatureUsage,
+  getStoredCustomFeatureOrder,
+  type FeatureFilter,
+  type FeatureOrderMode,
+} from "../lib/featurePreferences";
+
 export type SortMode = "updated" | "custom";
 
-type CreateItemType = "note" | "document" | "study_set" | "folder" | "presentation";
+import { creationOptions, type CreateItemType } from "../lib/creationOptions";
 
 type DropPosition = "above" | "below" | "child";
 
@@ -13180,6 +18532,12 @@ type SidebarProps = {
   isQuickNoteMode?: boolean;
   isTodoMode?: boolean;
   isCreativeMode?: boolean;
+  isStudySetMode?: boolean;
+  isNovelMode?: boolean;
+  isDocumentMode?: boolean;
+  isNoteMode?: boolean;
+  isPresentationMode?: boolean;
+  utilityMode?: "web" | "counter" | "draw" | null;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -13192,6 +18550,11 @@ type SidebarProps = {
   onShowQuickNotes?: () => void;
   onShowTodoList?: () => void;
   onShowCreative?: () => void;
+  onShowStudySets?: () => void;
+  onShowNovels?: () => void;
+  onShowDocuments?: () => void;
+  onShowNotesOverview?: () => void;
+  onShowPresentations?: () => void;
   onDeletePage: (id: string) => void;
   onRestorePage: (id: string) => void;
   onPermanentDeletePage: (id: string) => void;
@@ -13219,6 +18582,7 @@ type SidebarProps = {
   onCancelNewPage: (id: string) => void;
   onCreateItem: (type: CreateItemType) => void;
   syncState?: SyncState;
+  accountEmail?: string | null;
   onOpenInSplit?: (id: string) => void;
 };
 
@@ -13240,9 +18604,20 @@ export default function Sidebar({
   onShowQuickNotes,
   onShowTodoList,
   onShowCreative,
+  onShowStudySets,
+  onShowNovels,
+  onShowDocuments,
+  onShowNotesOverview,
+  onShowPresentations,
   isQuickNoteMode,
   isTodoMode,
   isCreativeMode,
+  isStudySetMode,
+  isNovelMode,
+  isDocumentMode,
+  isNoteMode,
+  isPresentationMode,
+  utilityMode,
   onDeletePage,
   onRestorePage,
   onPermanentDeletePage,
@@ -13269,6 +18644,7 @@ export default function Sidebar({
   onCancelNewPage,
   onCreateItem,
   syncState,
+  accountEmail,
   onOpenInSplit,
 }: SidebarProps) {
   const { t } = useLanguage();
@@ -13285,6 +18661,12 @@ export default function Sidebar({
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition>("below");
   const [subPageMenuId, setSubPageMenuId] = useState<string | null>(null);
   const [groupByType, setGroupByType] = useState(false);
+  const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
+  const [featureFilter, setFeatureFilter] = useState<FeatureFilter>("all");
+  const [hasManualFeatureFilter, setHasManualFeatureFilter] = useState(false);
+  const [featureOrderMode, setFeatureOrderMode] = useState<FeatureOrderMode>("recent");
+  const [snapshotRecentFeatureIds, setSnapshotRecentFeatureIds] = useState<FeatureFilter[]>([]);
+  const [customFeatureOrder, setCustomFeatureOrder] = useState<FeatureFilter[]>([]);
 
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
@@ -13294,11 +18676,76 @@ export default function Sidebar({
   const lastClickIdRef = useRef<string | null>(null);
 
   const createLabel = (key: string) => t(key);
+  const currentPage = pages.find((page) => page.id === activePageId);
+  const editorFeature: FeatureFilter | null = isHomeMode || isTrashMode || !currentPage ? null
+    : isNovelPage(currentPage) ? "novels"
+    : currentPage.kind === "creative" ? "creative"
+    : currentPage.kind === "study_set" ? "study"
+    : currentPage.kind === "document" ? "documents"
+    : currentPage.kind === "presentation" ? "presentations"
+    : currentPage.kind === "quick_note" ? "quicknotes"
+    : currentPage.kind === "todo" ? "calendar"
+    : currentPage.kind === "web" || currentPage.kind === "counter" || currentPage.kind === "draw" ? currentPage.kind
+    : "notes";
+  const modeFeatureFilter: FeatureFilter = utilityMode ?? (isQuickNoteMode ? "quicknotes"
+    : isTodoMode ? "calendar"
+    : isStudySetMode ? "study"
+    : isPresentationMode ? "presentations"
+    : isDocumentMode ? "documents"
+    : isNoteMode ? "notes"
+    : isNovelMode ? "novels"
+    : isCreativeMode ? (editorFeature ?? "creative")
+    : (editorFeature ?? featureFilter));
+  // Clicking a feature only filters the list, even while another type of
+  // editor (such as a study set) is open in a split pane.
+  const activeFeatureFilter = hasManualFeatureFilter ? featureFilter : modeFeatureFilter;
+  const emptyFeatureLabel: Record<FeatureFilter, string> = {
+    all: "尚無檔案",
+    notes: "尚無筆記",
+    documents: "尚無文檔",
+    presentations: "尚無簡報",
+    study: "尚無字卡",
+    calendar: "尚無日曆項目",
+    quicknotes: "尚無隨手記",
+    creative: "尚無創作項目",
+    novels: "尚無小說",
+    web: "尚無網頁項目",
+    counter: "尚無計數項目",
+    draw: "尚無抽選項目",
+  };
+
+  // 刷新功能排序快照（僅在載入時、偏好設定變更時、或重新展開側欄時觸發）
+  const refreshFeatureOrderSnapshot = () => {
+    setFeatureOrderMode(getStoredFeatureOrderMode());
+    setSnapshotRecentFeatureIds(getStoredRecentFeatureIds());
+    setCustomFeatureOrder(getStoredCustomFeatureOrder());
+  };
+
+  useEffect(() => {
+    refreshFeatureOrderSnapshot();
+    const handleChanged = () => refreshFeatureOrderSnapshot();
+    window.addEventListener("nexus-feature-order-changed", handleChanged);
+    return () => window.removeEventListener("nexus-feature-order-changed", handleChanged);
+  }, []);
+
+  const rememberFeatureUse = (id: FeatureFilter) => {
+    recordFeatureUsage(id);
+    // 注意：不立即重排 snapshotRecentFeatureIds，避免點擊時畫面跳動。
+    // 在下一次展開側邊欄或重新載入頁面時才會刷新。
+  };
 
   useEffect(() => {
     setIsSelectMode(false);
     setSelectedIds(new Set());
   }, [isTrashMode]);
+
+  // 「功能」是一組次層導覽。每次側欄由收合狀態重新開啟時，都從收合開始並刷新排列順序
+  useEffect(() => {
+    if (!isCollapsed) {
+      setIsFeaturesExpanded(false);
+      refreshFeatureOrderSnapshot();
+    }
+  }, [isCollapsed]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -13361,12 +18808,16 @@ export default function Sidebar({
     const query = searchQuery.trim().toLowerCase();
     const matchQuery = !query || (page.title || "").toLowerCase().includes(query) || (page.content_text || "").toLowerCase().includes(query);
     const matchTag = !selectedTag || (page.tags || []).includes(selectedTag);
-    // Projects view (default) excludes quick_note and todo, which are independent per requirement 8
-    if (isQuickNoteMode) return (page.kind as any) === "quick_note" && matchQuery && matchTag;
-    if (isTodoMode) return (page.kind as any) === "todo" && matchQuery && matchTag;
-    if (isCreativeMode) return (page.kind as any) === "creative" && matchQuery && matchTag;
-    // In trash/home/projects modes, exclude quick_note, todo, and creative from projects list
-    if ((page.kind as any) === "quick_note" || (page.kind as any) === "todo" || (page.kind as any) === "creative") return false;
+    // Every feature owns its list. The fallback is the explicit「所有項目」view.
+    if (activeFeatureFilter === "quicknotes") return (page.kind as any) === "quick_note" && matchQuery && matchTag;
+    if (activeFeatureFilter === "calendar") return (page.kind as any) === "todo" && matchQuery && matchTag;
+    if (activeFeatureFilter === "study") return page.kind === "study_set" && matchQuery && matchTag;
+    if (activeFeatureFilter === "presentations") return page.kind === "presentation" && matchQuery && matchTag;
+    if (activeFeatureFilter === "documents") return page.kind === "document" && matchQuery && matchTag;
+    if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
+    if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
+    if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
+    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw") return page.kind === activeFeatureFilter && matchQuery && matchTag;
     return matchQuery && matchTag;
   });
 
@@ -13499,13 +18950,20 @@ export default function Sidebar({
           onDragOver={(event) => handleDragOver(event, page.id)}
           onDragLeave={() => setDragOverId(null)}
           onDrop={(event) => handleDrop(event, page.id)}
-          onClick={() => {
+          onClick={(event) => {
             if (isRenaming) return;
             if (isSelectMode) {
               toggleSelectOne(page.id);
               return;
             }
             if (!isTrashMode) {
+              // A modifier click keeps the current editor in place and opens
+              // this page beside it. This makes split editing discoverable from
+              // the same switching list used by the editor sidebar.
+              if ((event.ctrlKey || event.metaKey) && onOpenInSplit) {
+                onOpenInSplit(page.id);
+                return;
+              }
               const now = Date.now();
               if (lastClickIdRef.current === page.id && now - lastClickTimeRef.current < 350) {
                 // 雙擊重新命名（依使用者要求改回）
@@ -13528,6 +18986,7 @@ export default function Sidebar({
           } ${isTrashMode ? "cursor-default opacity-80" : isActive ? "cursor-pointer font-medium" : "cursor-pointer hover:bg-zinc-200/50 opacity-80 hover:opacity-100"} ${
             !isTrashMode ? "cursor-grab active:cursor-grabbing" : ""
           }`}
+          title={!isTrashMode ? "點擊切換編輯器；Ctrl/Cmd + 點擊並排開啟" : undefined}
           style={{
             paddingLeft: `${8 + depth * 16}px`,
             paddingRight: "6px",
@@ -13613,24 +19072,23 @@ export default function Sidebar({
   };
 
   const renderCreateMenu = () => (
-    <div className="absolute left-0 top-full mt-1 w-60 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+    <div className="absolute left-0 top-full mt-1 w-60 max-h-[65dvh] rounded-xl overflow-y-auto shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
       <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">新建</div>
-      <button onClick={() => { onCreateItem("document"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📄</span><span>{t("sidebar.create.document")}</span></button>
-      <button onClick={() => { onCreateItem("note"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📝</span><span>{t("sidebar.create.note")}</span></button>
-      <button onClick={() => { onCreateItem("study_set"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>🗂️</span><span>{t("sidebar.create.studySet")}</span></button>
-      <button onClick={() => { onCreateItem("presentation" as any); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📊</span><span>簡報</span></button>
-      <button onClick={() => { onCreateItem("folder"); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📁</span><span>{t("sidebar.create.folder")}</span></button>
+      {creationOptions[activeFeatureFilter].map((option) => <button key={option.type} onClick={() => { onCreateItem(option.type); setShowCreateMenu(false); }} className="w-full px-3 py-2.5 text-sm text-left hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }}>{option.label}</button>)}
+      {(["all", "notes", "documents"] as string[]).includes(activeFeatureFilter) && <>
       <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
       <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">匯入</div>
       <button onClick={() => { onImportPdf(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📥</span><span>{t("sidebar.import.pdf")}</span></button>
       <button onClick={() => { onImportMarkdown(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📄</span><span>{t("sidebar.import.markdown")}</span></button>
+      </>}
     </div>
   );
 
 
   const renderPageSections = () => {
     if (sortedTopLevel.length === 0) {
-      return <div className="text-sm text-center py-8 opacity-40 select-none" style={{ color: "var(--color-text)" }}>{isTrashMode ? t("sidebar.empty.trash") : t("sidebar.empty.notes")}</div>;
+      const message = isTrashMode ? t("sidebar.empty.trash") : searchQuery.trim() ? "找不到符合的檔案" : emptyFeatureLabel[activeFeatureFilter];
+      return <div className="text-sm text-center py-8 opacity-40 select-none" style={{ color: "var(--color-text)" }}>{message}</div>;
     }
 
     if (groupByType) {
@@ -13676,7 +19134,8 @@ export default function Sidebar({
     return (
       <aside className="flex flex-col items-center pt-3.5 gap-3 border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ color: "var(--color-text)" }} title={t("sidebar.expand")}>
-          ??        </button>
+          ›
+        </button>
         <div className="w-2.5 h-2.5 rounded-full bg-zinc-400" />
       </aside>
     );
@@ -13685,54 +19144,69 @@ export default function Sidebar({
   return (
     <aside className="flex flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
       <div className="flex items-center justify-between px-4 py-3.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onShowHome} className="flex items-center gap-2 rounded-md px-1 py-1 -ml-1 transition-all hover:bg-zinc-200" title={t("sidebar.logoGoHome")}>
+        <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
+          ‹
+        </button>
+        <button onClick={onShowHome} className="flex items-center gap-2 rounded-md px-1 py-1 -mr-1 transition-all hover:bg-zinc-200" title={t("sidebar.logoGoHome")}>
           <div className="w-2.5 h-2.5 rounded-full bg-zinc-400" />
           <span className="text-base font-semibold tracking-wide" style={{ color: "var(--color-text)" }}>Nexus</span>
         </button>
-        <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
-          ??        </button>
       </div>
 
-      <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onShowHome} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isHomeMode ? "var(--color-border)" : "transparent" }}>
-          🏠 {t("sidebar.nav.home")}
-        </button>
-      </div>
-
-      {/* 垃圾桶（獨立按鈕，位於首頁之下） */}
-      <div className="px-2.5 pt-2.5">
-        <button onClick={() => { if (isTrashMode) onShowNotes(); else onShowTrash(); }} className="w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-all hover:bg-zinc-200" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isTrashMode ? "var(--color-border)" : "transparent" }}>
-          🗑️ {t("sidebar.nav.trash")}
-        </button>
-      </div>
-
-      {/* UX批次（需求6）：兩個類別 — 隨手記/ToDo；選中後展開顯示名稱並保持 */}
-      <div className="p-2.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex items-stretch gap-1">
-          {[
-            { id: "quicknotes", icon: "📝", label: t("sidebar.nav.quickNote"), active: !!isQuickNoteMode, onClick: () => onShowQuickNotes?.() },
-            { id: "todo", icon: "✅", label: t("sidebar.nav.todoList"), active: !!isTodoMode, onClick: () => onShowTodoList?.() },
-            { id: "creative", icon: "✍️", label: t("sidebar.nav.creative"), active: !!isCreativeMode, onClick: () => onShowCreative?.() },
-            { id: "projects", icon: "📚", label: t("sidebar.nav.notes"), active: !isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode && !isCreativeMode, onClick: onShowNotes },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={cat.onClick}
-              className="flex items-center justify-center gap-1.5 rounded-md h-10 text-sm font-medium transition-all hover:bg-zinc-200"
-              style={{
-                flex: cat.active ? "2.4" : "1",
-                border: "1px solid var(--color-border)",
-                color: "var(--color-text)",
-                backgroundColor: cat.active ? "var(--color-border)" : "transparent",
-              }}
-              title={cat.label}
-            >
-              <span className="text-base leading-none">{cat.icon}</span>
-              {cat.active && <span className="truncate">{cat.label}</span>}
-            </button>
-          ))}
+      {/* Google-style navigation: Home → Trash → collapsible Features, without dividers or card gaps. */}
+      <nav className="px-2 py-2" aria-label="功能導覽">
+        {[
+          { id: "home", icon: "⌂", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
+          { id: "trash", icon: "⌫", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
+        ].map((item) => (
+          <button key={item.id} type="button" onClick={item.onClick} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
+            <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+          </button>
+        ))}
+        <div className="relative flex h-10 items-center">
+          <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
+            <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
+          </button>
         </div>
-      </div>
+        {isFeaturesExpanded && (() => {
+          const fixed = [
+            { id: "all" as const, icon: "▦", label: "所有項目", onOpen: onShowNotes },
+            { id: "calendar" as const, icon: "▣", label: "日曆", onOpen: () => onShowTodoList?.() },
+          ];
+          const others = [
+            { id: "notes" as const, icon: "✎", label: "筆記", onOpen: () => onShowNotesOverview?.() },
+            { id: "documents" as const, icon: "▱", label: "文檔", onOpen: () => onShowDocuments?.() },
+            { id: "presentations" as const, icon: "▰", label: "簡報", onOpen: () => onShowPresentations?.() },
+            { id: "study" as const, icon: "▤", label: "字卡", onOpen: () => onShowStudySets?.() },
+            { id: "quicknotes" as const, icon: "▧", label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
+            { id: "creative" as const, icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
+            { id: "novels" as const, icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
+            { id: "web" as const, icon: "⌘", label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
+            { id: "counter" as const, icon: "＋", label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
+            { id: "draw" as const, icon: "⤨", label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
+          ];
+          const orderedOthers = featureOrderMode === "recent"
+            ? [...others].sort((a, b) => {
+              const aIndex = snapshotRecentFeatureIds.indexOf(a.id);
+              const bIndex = snapshotRecentFeatureIds.indexOf(b.id);
+              return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+            })
+            : featureOrderMode === "custom"
+            ? [...others].sort((a, b) => {
+              const aIndex = customFeatureOrder.indexOf(a.id);
+              const bIndex = customFeatureOrder.indexOf(b.id);
+              return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+            })
+            : others;
+          return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
+            {[...fixed, ...orderedOthers].map((item) => (
+              <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); }} onDoubleClick={item.onOpen} className="flex h-11 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
+                <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">{item.icon}</span><span className="truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>;
+        })()}
+      </nav>
 
       <div className="p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
         <div className="relative flex-1 min-w-0">
@@ -13822,7 +19296,7 @@ export default function Sidebar({
         {renderPageSections()}
       </div>
 
-      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} />
+      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} accountEmail={accountEmail} />
     </aside>
   );
 }
@@ -13832,19 +19306,14 @@ export default function Sidebar({
 ## File: src/components/StudySetView.tsx
 ````
 "use client";
-import { useMemo, useState } from "react";
-import type { Page, StudyItem } from "../lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import QuizSession from "./QuizSession";
+import type { StudyRepository } from "../lib/StudyRepository";
+import { State, type StudyCard, type StudySnapshot } from "../lib/studyFSRS";
+import { displayStudyCards, hasLearningData, isLearned } from "../lib/studySessions";
+import DailyStudySession from "./DailyStudySession";
+import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
-
-function newStudyItemId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  if (uuid) return `item_${uuid}`;
-  return `item_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-function createEmptyStudyItem(): StudyItem {
-  return { id: newStudyItemId(), front: "", back: "", mastery: "new", last_reviewed_at: null, review_count: 0 };
-}
 
 /** Parse CSV or TSV text into front/back pairs */
 function parseCsvTsv(text: string): { front: string; back: string }[] {
@@ -13882,108 +19351,121 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-/** Generate wrong answers for quiz: pick from other cards, or generate similar strings */
-function generateChoices(correctItem: StudyItem, allItems: StudyItem[], showFront: boolean): string[] {
-  const correctAnswer = showFront ? correctItem.back : correctItem.front;
-  const otherItems = allItems.filter((item) => item.id !== correctItem.id);
-  const wrongPool = otherItems.map((item) => (showFront ? item.back : item.front)).filter((s) => s && s !== correctAnswer);
-
-  // Shuffle and pick up to 3 wrong answers
-  const shuffled = [...wrongPool].sort(() => Math.random() - 0.5);
-  const wrongAnswers = shuffled.slice(0, 3);
-
-  // If not enough wrong answers, generate similar strings
-  while (wrongAnswers.length < 3) {
-    wrongAnswers.push(generateSimilarString(correctAnswer, wrongAnswers.length));
-  }
-
-  // Combine and shuffle
-  const all = [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5);
-  return all;
-}
-
-/** Generate a string similar to the input but different */
-function generateSimilarString(input: string, seed: number): string {
-  if (!input) return `Option ${seed + 1}`;
-  const chars = input.split("");
-  // Apply a simple transformation based on seed
-  const transformations = [
-    (s: string[]) => { if (s.length > 2) { const i = Math.floor(s.length / 2); [s[i], s[i + 1]] = [s[i + 1], s[i]]; } return s; }, // swap middle chars
-    (s: string[]) => { s.push(s[0]); return s.slice(1); }, // rotate left
-    (s: string[]) => { return [...s].reverse(); }, // reverse
-  ];
-  const transform = transformations[seed % transformations.length];
-  const result = transform([...chars]).join("");
-  return result === input ? `${input}*` : result;
-}
-
-/** Shuffle array */
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function buildPracticeQueue(items: StudyItem[]): StudyItem[] {
-  const unmastered = shuffle(items.filter((item) => item.mastery !== "mastered"));
-  const mastered = shuffle(items.filter((item) => item.mastery === "mastered"));
-  const queue: StudyItem[] = [];
-  let mi = 0;
-  unmastered.forEach((item, idx) => { queue.push(item); if ((idx + 1) % 3 === 0 && mi < mastered.length) queue.push(mastered[mi++]); });
-  while (mi < mastered.length) queue.push(mastered[mi++]);
-  return queue;
+function CardText({value,label,onCommit}:{value:string;label:string;onCommit:(text:string)=>void}) {
+  const [draft,setDraft]=useState(value);
+  useEffect(()=>setDraft(value),[value]);
+  return <textarea aria-label={label} value={draft} onChange={event=>setDraft(event.target.value)} onBlur={()=>{if(draft!==value)onCommit(draft);}} rows={2} placeholder={label}
+    className="min-w-0 w-full resize-y rounded bg-transparent px-1 py-1 text-sm leading-5 outline-none focus:ring-1 focus:ring-blue-500" />;
 }
 
 /* ============ Card Management ============ */
 
-function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onImportCsv }: {
-  studyItems: StudyItem[]; onAddCard: () => void; onUpdateCard: (id: string, patch: Partial<StudyItem>) => void;
-  onDeleteCard: (id: string) => void; onImportCsv: () => void;
+function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onImportCsv, onReorder, onCopy, statuses, customSort }: {
+  studyItems: StudyCard[]; onAddCard: () => void; onUpdateCard: (id: string, patch: Partial<StudyCard>) => void;
+  onDeleteCard: (id: string) => void; onImportCsv: () => void; onReorder: (items: StudyCard[]) => void;
+  onCopy: (item: StudyCard) => void; statuses: Record<string,string>; customSort: boolean;
 }) {
   const { t } = useLanguage();
+  const listRef = useRef<HTMLDivElement>(null);
+  const pointer = useRef<{ id: string; x: number; y: number; target: string } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; target: string } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  const moveCard = (id: string, target: string) => {
+    if (!customSort) return;
+    const from = studyItems.findIndex((item) => item.id === id);
+    const to = studyItems.findIndex((item) => item.id === target);
+    if (from < 0 || to < 0 || from === to) return;
+    const reordered = [...studyItems];
+    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+    onReorder(reordered);
+    setAnnouncement(`已移至第 ${to + 1} 張`);
+  };
+
+  const isDragging = drag !== null;
+
+  // Only the handle captures touch gestures; the rest of the list scrolls normally.
+  useEffect(() => {
+    if (!isDragging) return;
+    let frame: number;
+    const tick = () => {
+      const current = pointer.current;
+      const container = listRef.current?.closest("main");
+      if (current && container) {
+        const bounds = container.getBoundingClientRect();
+        const speed = current.y < bounds.top + 56 ? -10 : current.y > bounds.bottom - 56 ? 10 : 0;
+        if (speed) container.scrollTop += speed;
+        const rows = Array.from(listRef.current!.querySelectorAll<HTMLElement>("[data-study-card]"));
+        const nearest = rows.reduce<HTMLElement | null>((best, row) => {
+          const rect = row.getBoundingClientRect();
+          const previous = best?.getBoundingClientRect();
+          return !previous || Math.abs(current.y - (rect.top + rect.height / 2)) < Math.abs(current.y - (previous.top + previous.height / 2)) ? row : best;
+        }, null);
+        const target = nearest?.dataset.studyCard;
+        if (target && target !== current.target) {
+          current.target = target;
+          setDrag({ id: current.id, target });
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isDragging]);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("studySet.cardCount", { count: studyItems.length })}</div>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm opacity-60">{t("studySet.cardCount", { count: studyItems.length })}</div>
         <div className="flex gap-1.5">
-          <button onClick={onImportCsv}
-            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-            style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-            ? {t("studySet.importCsv")}
-          </button>
-          <button onClick={onAddCard}
-            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-            style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-            {t("studySet.addCard")}
-          </button>
+          <button onClick={onImportCsv} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.importCsv")}</button>
+          <button onClick={onAddCard} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.addCard")}</button>
         </div>
       </div>
+
+      {customSort&&<p className="text-xs opacity-50">拖曳左側把手調整順序；也可以聚焦把手後按 ↑／↓ 移動。</p>}
+      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
       {studyItems.length === 0 ? (
-        <div className="rounded-xl py-12 text-center text-sm opacity-50" style={{ border: "1px dashed var(--color-border)", color: "var(--color-text)" }}>{t("studySet.emptyCards")}</div>
+        <div className="rounded-xl border border-dashed py-12 text-center text-sm opacity-50">{t("studySet.emptyCards")}</div>
       ) : (
-        <div className="space-y-2">
+        <div ref={listRef} className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+          <div className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] gap-2 px-2 py-2 text-xs opacity-60" style={{ background: "var(--color-sidebar-bg)" }}>
+            <span>#</span><span>英文</span><span>中文</span><span />
+          </div>
           {studyItems.map((item, index) => (
-            <div key={item.id} className="rounded-xl p-3" style={{ border: "1px solid var(--color-border)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>#{index + 1}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${item.mastery === "mastered" ? "bg-green-100 text-green-700" : item.mastery === "learning" ? "bg-amber-100 text-amber-700" : "bg-zinc-200 text-zinc-600"}`}>
-                    {item.mastery === "mastered" ? t("studySet.mastery.mastered") : item.mastery === "learning" ? t("studySet.mastery.learning") : t("studySet.mastery.new")}
-                  </span>
-                  <button onClick={() => onDeleteCard(item.id)} className="text-xs px-1.5 py-0.5 rounded hover:bg-red-100 hover:text-red-700 transition-all"
-                    style={{ color: "var(--color-sidebar-text)" }} title={t("studySet.deleteCard")}></button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <textarea value={item.front} onChange={(e) => onUpdateCard(item.id, { front: e.target.value })} placeholder={t("studySet.front")} rows={2}
-                  className="w-full text-sm px-2.5 py-1.5 rounded-md outline-none resize-none bg-transparent focus:ring-1 focus:ring-blue-500"
-                  style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-                <textarea value={item.back} onChange={(e) => onUpdateCard(item.id, { back: e.target.value })} placeholder={t("studySet.back")} rows={2}
-                  className="w-full text-sm px-2.5 py-1.5 rounded-md outline-none resize-none bg-transparent focus:ring-1 focus:ring-blue-500"
-                  style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+            <div key={item.id} data-study-card={item.id}
+              className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-2 border-t px-2 py-1.5"
+              style={{ borderColor: "var(--color-border)", opacity: drag?.id === item.id ? 0.5 : 1,
+                boxShadow: drag?.target === item.id ? `inset 0 ${studyItems.findIndex((card) => card.id === drag.id) < index ? '-3' : '3'}px #3b82f6` : undefined }}>
+              {customSort?<button type="button" aria-label={`拖曳第 ${index + 1} 張字卡排序`} title="拖曳排序，或按上下方向鍵"
+                className="flex min-h-11 touch-none cursor-grab flex-col items-center justify-center rounded text-xs focus-visible:ring-2 focus-visible:ring-blue-500 active:cursor-grabbing"
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return;
+                  event.preventDefault();
+                  event.currentTarget.focus();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  pointer.current = { id: item.id, target: item.id, x: event.clientX, y: event.clientY };
+                  setDrag({ id: item.id, target: item.id });
+                }}
+                onPointerMove={(event) => { if (pointer.current) { pointer.current.x = event.clientX; pointer.current.y = event.clientY; } }}
+                onPointerUp={() => { if (pointer.current) moveCard(pointer.current.id, pointer.current.target); pointer.current = null; setDrag(null); }}
+                onPointerCancel={() => { pointer.current = null; setDrag(null); }}
+                onLostPointerCapture={() => { pointer.current = null; setDrag(null); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") { pointer.current = null; setDrag(null); }
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  const target = studyItems[index + (event.key === "ArrowUp" ? -1 : 1)];
+                  if (target) moveCard(item.id, target.id);
+                }}>
+                <span aria-hidden="true" className="text-base leading-4 opacity-50">⠿</span><span>{index + 1}</span>
+              </button>:<span className="text-center text-xs opacity-50">{index+1}</span>}
+              <CardText key={`${item.id}-front-${item.front}`} value={item.front} label={`英文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{front:value})} />
+              <CardText key={`${item.id}-back-${item.back}`} value={item.back} label={`中文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{back:value})} />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] opacity-60" title={statuses[item.id]}>{statuses[item.id]}</span>
+                <button onClick={()=>onCopy(item)} aria-label={`複製卡片 ${index+1}`} title="複製為新卡" className="text-xs">＋</button>
+                <button onClick={() => onDeleteCard(item.id)} aria-label={`${t("studySet.deleteCard")} ${index + 1}`} title={t("studySet.deleteCard")} className="h-8 w-8 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>
               </div>
             </div>
           ))}
@@ -13995,174 +19477,7 @@ function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onI
 
 /* ============ Flashcard Practice ============ */
 
-function PracticeSession({ studyItems, onFinishItem, onExit }: {
-  studyItems: StudyItem[]; onFinishItem: (id: string, result: "again" | "got_it") => void; onExit: () => void;
-}) {
-  const { t } = useLanguage();
-  const queue = useMemo(() => buildPracticeQueue(studyItems), [studyItems]);
-  const [index, setIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [summary, setSummary] = useState({ reviewed: 0, gotIt: 0 });
-  const currentItem = queue[index] || null;
-  const isFinished = queue.length === 0 || index >= queue.length;
-
-  const handleMark = (result: "again" | "got_it") => {
-    if (!currentItem) return;
-    onFinishItem(currentItem.id, result);
-    setSummary((prev) => ({ reviewed: prev.reviewed + 1, gotIt: prev.gotIt + (result === "got_it" ? 1 : 0) }));
-    setIsFlipped(false);
-    setIndex((prev) => prev + 1);
-  };
-
-  if (queue.length === 0 || isFinished) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16">
-        {isFinished && queue.length > 0 && (<>
-          <div className="text-xl font-semibold" style={{ color: "var(--color-text)" }}>{t("studySet.practice.finishedTitle")}</div>
-          <div className="text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("studySet.practice.summary", { reviewed: summary.reviewed, gotIt: summary.gotIt })}</div>
-        </>)}
-        <button onClick={onExit} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-zinc-200"
-          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.practice.backToManage")}</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-8">
-      <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{index + 1} / {queue.length}</div>
-      <button type="button" onClick={() => setIsFlipped((prev) => !prev)}
-        className="w-full max-w-md min-h-[220px] rounded-2xl flex items-center justify-center p-8 text-center text-xl font-medium transition-all hover:shadow-md"
-        style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)", color: "var(--color-text)" }}>
-        {isFlipped ? currentItem?.back : currentItem?.front}
-      </button>
-      <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{isFlipped ? t("studySet.practice.flipHintBack") : t("studySet.practice.flipHintFront")}</div>
-      {isFlipped && (
-        <div className="flex items-center gap-3">
-          <button onClick={() => handleMark("again")} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-amber-100"
-            style={{ border: "1px solid var(--color-border)", color: "#b45309" }}>{t("studySet.practice.again")}</button>
-          <button onClick={() => handleMark("got_it")} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-green-100"
-            style={{ border: "1px solid var(--color-border)", color: "#15803d" }}>{t("studySet.practice.gotIt")}</button>
-        </div>
-      )}
-      <button onClick={onExit} className="text-xs opacity-50 hover:opacity-100 underline" style={{ color: "var(--color-text)" }}>{t("studySet.practice.exit")}</button>
-    </div>
-  );
-}
-
 /* ============ Quiz Mode (Four-Choice) ============ */
-
-function QuizSession({ studyItems, onFinishItem, onExit }: {
-  studyItems: StudyItem[]; onFinishItem: (id: string, result: "again" | "got_it") => void; onExit: () => void;
-}) {
-  const { t } = useLanguage();
-  const [quizItems] = useState(() => shuffle([...studyItems]));
-  const [index, setIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [score, setScore] = useState({ correct: 0, total: 0 });
-  const [showFront] = useState(() => Math.random() > 0.5); // Randomly decide: show front?pick back, or show back?pick front
-
-  const currentItem = quizItems[index] || null;
-  const isFinished = index >= quizItems.length;
-
-  const choices = useMemo(() => {
-    if (!currentItem) return [];
-    return generateChoices(currentItem, studyItems, showFront);
-  }, [currentItem, studyItems, showFront]);
-
-  const question = currentItem ? (showFront ? currentItem.front : currentItem.back) : "";
-  const correctAnswer = currentItem ? (showFront ? currentItem.back : currentItem.front) : "";
-
-  const handleSelect = (answer: string) => {
-    if (selectedAnswer || !currentItem) return;
-    setSelectedAnswer(answer);
-    const isCorrect = answer === correctAnswer;
-    setScore((prev) => ({ correct: prev.correct + (isCorrect ? 1 : 0), total: prev.total + 1 }));
-    onFinishItem(currentItem.id, isCorrect ? "got_it" : "again");
-  };
-
-  const handleNext = () => {
-    setSelectedAnswer(null);
-    setIndex((prev) => prev + 1);
-  };
-
-  if (isFinished) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16">
-        <div className="text-2xl font-semibold" style={{ color: "var(--color-text)" }}>??</div>
-        <div className="text-xl font-semibold" style={{ color: "var(--color-text)" }}>{t("studySet.practice.finishedTitle")}</div>
-        <div className="text-lg" style={{ color: "var(--color-text)" }}>
-          {t("studySet.quiz.score", { correct: score.correct, total: score.total })}
-        </div>
-        <div className="text-4xl font-bold mt-2" style={{ color: score.correct === score.total ? "#15803d" : score.correct >= score.total * 0.7 ? "#b45309" : "#dc2626" }}>
-          {score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0}%
-        </div>
-        <button onClick={onExit} className="mt-4 rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-zinc-200"
-          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-          {t("studySet.practice.backToManage")}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-8 max-w-lg mx-auto">
-      <div className="flex items-center justify-between w-full">
-        <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{index + 1} / {quizItems.length}</div>
-        <div className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
-          {t("studySet.quiz.score", { correct: score.correct, total: score.total })}
-        </div>
-      </div>
-
-      {/* Question */}
-      <div className="w-full rounded-2xl p-8 text-center text-xl font-medium"
-        style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)", color: "var(--color-text)" }}>
-        {question}
-      </div>
-
-      <div className="text-sm opacity-50" style={{ color: "var(--color-text)" }}>{t("studySet.quiz.selectCorrect")}</div>
-
-      {/* Choices */}
-      <div className="w-full space-y-2">
-        {choices.map((choice, i) => {
-          const isSelected = selectedAnswer === choice;
-          const isCorrect = choice === correctAnswer;
-          const showResult = selectedAnswer !== null;
-          let bg = "var(--color-sidebar-bg)";
-          let border = "var(--color-border)";
-          let textColor = "var(--color-text)";
-          if (showResult && isCorrect) { bg = "#dcfce7"; border = "#15803d"; textColor = "#15803d"; }
-          else if (showResult && isSelected && !isCorrect) { bg = "#fee2e2"; border = "#dc2626"; textColor = "#dc2626"; }
-          return (
-            <button key={i} onClick={() => handleSelect(choice)} disabled={selectedAnswer !== null}
-              className="w-full rounded-xl px-5 py-4 text-left text-base transition-all disabled:cursor-default"
-              style={{ border: `2px solid ${border}`, backgroundColor: bg, color: textColor }}>
-              <span className="font-medium mr-2 opacity-50">{String.fromCharCode(65 + i)}.</span>
-              {choice}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Feedback + Next */}
-      {selectedAnswer !== null && (
-        <div className="w-full flex flex-col items-center gap-3 mt-2">
-          {selectedAnswer === correctAnswer ? (
-            <div className="text-green-600 font-medium text-sm">??{t("studySet.quiz.correct")}</div>
-          ) : (
-            <div className="text-red-600 font-medium text-sm">??{t("studySet.quiz.wrong")} <strong>{correctAnswer}</strong></div>
-          )}
-          <button onClick={handleNext}
-            className="rounded-md px-5 py-2 text-sm font-semibold transition-all hover:opacity-90"
-            style={{ backgroundColor: "var(--color-text)", color: "var(--color-bg)" }}>
-            {index + 1 >= quizItems.length ? t("studySet.quiz.finish") : t("studySet.quiz.next")}
-          </button>
-        </div>
-      )}
-
-      <button onClick={onExit} className="text-xs opacity-50 hover:opacity-100 underline" style={{ color: "var(--color-text)" }}>{t("studySet.practice.exit")}</button>
-    </div>
-  );
-}
 
 /* ============ CSV Import Dialog ============ */
 
@@ -14250,64 +19565,78 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-export default function StudySetView({ page, onTitleChange, onUpdateStudyItems }: {
-  page: Page; onTitleChange: (title: string) => void; onUpdateStudyItems: (items: StudyItem[]) => void;
+function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface }: {
+  page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
 }) {
-  const { t } = useLanguage();
-  const [mode, setMode] = useState<"manage" | "practice" | "quiz">("manage");
-  const [showCsvImport, setShowCsvImport] = useState(false);
-  const studyItems = page.study_items || [];
-
-  const handleAddCard = () => onUpdateStudyItems([...studyItems, createEmptyStudyItem()]);
-  const handleUpdateCard = (id: string, patch: Partial<StudyItem>) => onUpdateStudyItems(studyItems.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  const handleDeleteCard = (id: string) => onUpdateStudyItems(studyItems.filter((i) => i.id !== id));
-  const handleFinishItem = (id: string, result: "again" | "got_it") => {
-    onUpdateStudyItems(studyItems.map((item) => {
-      if (item.id !== id) return item;
-      const nextMastery: StudyItem["mastery"] = result === "got_it" ? (item.mastery === "learning" ? "mastered" : "learning") : "learning";
-      return { ...item, mastery: result === "got_it" && item.mastery === "new" ? "learning" : nextMastery, last_reviewed_at: Date.now(), review_count: item.review_count + 1 };
-    }));
+  const [snapshot,setSnapshot]=useState<StudySnapshot|null>(null);
+  const [mode,setMode]=useState<"manage"|"daily"|"all"|"quiz"|"history">("manage");
+  const [showCsvImport,setShowCsvImport]=useState(false);
+  const [error,setError]=useState("");
+  const [historyLimit,setHistoryLimit]=useState(50);
+  const [editorVersion,setEditorVersion]=useState(0);
+  const [editingEnglish,setEditingEnglish]=useState<{id:string;value:string}|null>(null);
+  const refresh=useRef(()=>{});
+  useEffect(()=>{
+    let active=true;
+    const read=()=>{void repository.ensureDeck(page).then(data=>{if(active)setSnapshot(data);}).catch(e=>{if(active)setError(String(e));});};
+    refresh.current=read;read();window.addEventListener("nexus-study-changed",read);
+    return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
+  },[repository,page]);
+  const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(e instanceof Error?e.message:String(e));}};
+  const sortMode=snapshot?.settings.sort_mode??"custom";
+  const cards=displayStudyCards(snapshot?.cards.filter(card=>!card.deleted_at)??[],sortMode);
+  const statuses=Object.fromEntries((snapshot?.states??[]).map(state=>[state.id,state.conflict?"衝突":state.fsrs?({[State.New]:"新卡",[State.Learning]:"學習",[State.Review]:"複習",[State.Relearning]:"重學"}[state.fsrs.state]):state.legacy_due_at!=null?"待接續":"新卡"]));
+  const updateCard=(id:string,patch:Partial<StudyCard>)=>{
+    if(patch.front!=null) {
+      const state=snapshot?.states.find(s=>s.id===id);
+      if(hasLearningData(state,snapshot?.sessions)) setEditingEnglish({id,value:patch.front});
+      else void act(()=>repository.updateCard(id,{front:patch.front}));
+    }
+    else void act(()=>repository.updateCard(id,{back:patch.back}));
   };
-  const handleImportCsv = (items: { front: string; back: string }[]) => {
-    const newItems: StudyItem[] = items.map((item) => ({
-      id: newStudyItemId(), front: item.front, back: item.back, mastery: "new", last_reviewed_at: null, review_count: 0,
-    }));
-    onUpdateStudyItems([...studyItems, ...newItems]);
-  };
-
-  return (
-    <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="flex flex-col mx-auto w-full" style={{ maxWidth: "820px", padding: "48px 64px" }}>
-        <div className="flex items-center justify-between gap-3 mb-4 text-sm opacity-80 pb-3 border-b" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-          <span>{t("studySet.label")}</span>
-          <div className="flex gap-1.5">
-            {mode === "manage" ? (<>
-              <button onClick={() => setMode("practice")} disabled={studyItems.length === 0}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.startPractice")}</button>
-              <button onClick={() => { if (studyItems.length < 4) { alert(t("studySet.quiz.notEnough")); return; } setMode("quiz"); }}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>?? {t("studySet.quiz")}</button>
-            </>) : (
-              <button onClick={() => setMode("manage")}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.backToCards")}</button>
-            )}
-          </div>
-        </div>
-        <input type="text" value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder={t("studySet.titlePlaceholder")}
-          className="w-full text-3xl font-semibold bg-transparent border-none outline-none mb-6" style={{ color: "var(--color-text)", fontFamily: "inherit" }} />
-        {mode === "manage" ? (
-          <CardManageList studyItems={studyItems} onAddCard={handleAddCard} onUpdateCard={handleUpdateCard} onDeleteCard={handleDeleteCard} onImportCsv={() => setShowCsvImport(true)} />
-        ) : mode === "practice" ? (
-          <PracticeSession studyItems={studyItems} onFinishItem={handleFinishItem} onExit={() => setMode("manage")} />
-        ) : (
-          <QuizSession studyItems={studyItems} onFinishItem={handleFinishItem} onExit={() => setMode("manage")} />
-        )}
+  const changeEnglish=(reset:boolean)=>{const edit=editingEnglish;if(!edit)return;void act(async()=>{await repository.updateCard(edit.id,{front:edit.value},reset);setEditingEnglish(null);});};
+  if(!snapshot)return <main className="flex-1 p-8">{error||"正在載入字卡…"}</main>;
+  return <main className="flex flex-1 flex-col overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
+    <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
+        <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label="回到功能介面">←</button>}<span>字卡・英 → 中</span></div>
+        <div className="flex flex-wrap gap-2">{mode==="manage"?<>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("daily")}>每日學習</button>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("all")}>單字複習</button>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" onClick={()=>setMode("quiz")}>測驗</button>
+          <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>複習紀錄</button>
+        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>返回全部預覽</button>}</div>
       </div>
-      {showCsvImport && <CsvImportDialog onImport={handleImportCsv} onClose={() => setShowCsvImport(false)} />}
-    </main>
-  );
+      <input aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
+      {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
+      {mode==="manage"&&<>
+        {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用每日學習</button></div>}
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm"><label>每日新字上限 <input key={snapshot.settings.new_limit} aria-label="每日新字上限" type="number" min={0} max={10000} defaultValue={snapshot.settings.new_limit} onBlur={event=>{if(event.target.value!==String(snapshot.settings.new_limit))void act(()=>repository.configure(page.id,{new_limit:event.target.value===""?NaN:Number(event.target.value)}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label><span className="text-xs opacity-60">首次進入時固定當日批次；調整數量不影響已建立的批次。</span></div>
+        <p className="mb-3 text-xs leading-5 opacity-60">每日學習先把新字練到 Easy；單字複習使用已學字卡，每卡每輪首次評分更新 FSRS。測驗獨立，不影響排程或學習進度。</p>
+        {snapshot.states.filter(state=>state.conflict).map(state=><div key={state.id} className="mb-2 rounded border border-amber-400 p-3 text-sm">「{cards.find(card=>card.id===state.id)?.front}」排程衝突，兩邊紀錄均保留。<button className="ml-2 underline" onClick={()=>{if(confirm("保留所有歷史，但將這張卡重新設為 New？"))void act(()=>repository.updateCard(state.id,{},true));}}>保留歷史並重新學習</button></div>)}
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+          <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
+          <label>排序 <select aria-label="字卡排序" value={sortMode} onChange={event=>void act(()=>repository.configure(page.id,{sort_mode:event.target.value as "az"|"custom"}))} className="rounded border bg-transparent px-2 py-1"><option value="custom">自訂排序</option><option value="az">A–Z</option></select></label>
+          <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>
+        </div>
+        <CardManageList customSort={sortMode==="custom"} key={`${editorVersion}-${sortMode}`} studyItems={cards} statuses={statuses} onAddCard={()=>void act(()=>repository.addCards(page.id,[{front:"",back:""}]))} onUpdateCard={updateCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)} onReorder={items=>void act(()=>repository.reorder(page.id,items.map(item=>item.id)))} onCopy={item=>void act(()=>repository.addCards(page.id,[{front:item.front,back:item.back}]))}/>
+      </>}
+      {mode==="daily"&&<DailyStudySession key="daily" mode="daily" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
+      {mode==="all"&&<DailyStudySession key="free" mode="free" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
+      {mode==="quiz"&&<QuizSession repository={repository} snapshot={snapshot} onExit={()=>setMode("manage")}/>}
+      {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">正式複習紀錄</h2><p className="mb-3 text-xs opacity-60">正式複習記錄第一次實際評分。舊資料不補造歷史。</p>
+        {[...snapshot.events].reverse().filter(event=>event.kind==="review").slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","記得","簡單"][event.rating!]}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(event.after.fsrs!.due).toLocaleString()}</span></div>)}
+        {snapshot.events.filter(event=>event.kind==="review").length>historyLimit&&<button className="mt-3 underline" onClick={()=>setHistoryLimit(n=>n+50)}>顯示更多紀錄</button>}
+        <details className="mt-5"><summary>遷移前的學習摘要</summary>{cards.filter(card=>card.legacy).map(card=><p key={card.id} className="py-2 text-sm">{card.front}：舊複習次數 {card.legacy!.item.review_count}，原到期時間 {card.legacy!.item.daily_due_at?new Date(card.legacy!.item.daily_due_at).toLocaleString():"未排程"}</p>)}</details>
+      </div>}
+    </div>
+    {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}
+    {editingEnglish&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"><div role="dialog" aria-modal="true" aria-label="修改英文題面" className="max-w-md rounded-xl p-5 shadow-xl" style={{background:"var(--color-bg)"}}><p>英文題面已修改。要保留原排程，還是重新設為 New？兩者都保留歷史。</p><div className="mt-4 flex flex-wrap gap-2"><button className="rounded border p-2" onClick={()=>changeEnglish(false)}>保留排程</button><button className="rounded border p-2" onClick={()=>changeEnglish(true)}>重設為新卡</button><button className="rounded border p-2" onClick={()=>{setEditingEnglish(null);setEditorVersion(n=>n+1);refresh.current();}}>取消修改</button></div></div></div>}
+  </main>;
+}
+
+export default function StudySetView(props:Parameters<typeof StudySetWorkspace>[0]) {
+  return <StudySetWorkspace key={props.page.id} {...props}/>;
 }
 
 ````
@@ -14433,6 +19762,8 @@ export default function TableGridPicker({ editor, disabled }: { editor: Editor |
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LessonBlock, LessonToc, AnswerSpace, LessonParagraph, LESSON_INDEX_EVENT } from "../lib/lessonExtensions";
+import type { JSONContent } from "@tiptap/core";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -14464,9 +19795,11 @@ import ColorPaletteButton from "./ColorPaletteButton";
 import TableGridPicker from "./TableGridPicker";
 
 interface TiptapEditorProps {
+  lessonDocument?: JSONContent;
+  onNavigateLesson?: (id: string) => void;
   content: any;
   onChange: (payload: { json: any; text: string; cursor?: CursorAnchor }) => void;
-  variant?: "rich" | "plain";
+  variant?: "rich" | "plain" | "novel";
   toolbarTarget?: HTMLElement | null;
   onFocus?: () => void;
   pageNightAdapt?: boolean;
@@ -14547,7 +19880,8 @@ function MenuItem({ label, icon, active, disabled, onClick, danger }: {
     <button
       type="button"
       disabled={disabled}
-      onMouseDown={(e) => { e.preventDefault(); if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => { if (!disabled) onClick(); window.dispatchEvent(new CustomEvent("nexus-close-menus")); }}
       className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left rounded-md transition-all hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
       style={{ color: danger ? "#dc2626" : "var(--color-text)", backgroundColor: active ? "var(--color-border)" : "transparent" }}
     >
@@ -14563,7 +19897,19 @@ function MenuItem({ label, icon, active, disabled, onClick, danger }: {
 let globalCursorAnchor: { id: string; offset: number; prefix?: string; paneId?: string } | null = null;
 // 主人機制：誰的 doc 握有 anchor block，誰就是游標主人（防止焦點被其他頁搶走）
 let anchorOwnerEl: HTMLElement | null = null;
-function canClaimCursorAnchor(editorEl: HTMLElement, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+
+// 安全取得 editor.view.dom，避免在 unmount/destroy 後觸發 Tiptap view error
+function getEditorDom(editor: Editor | null | undefined): HTMLElement | null {
+  if (!editor || editor.isDestroyed) return null;
+  try {
+    return (editor.view?.dom as HTMLElement) || null;
+  } catch {
+    return null;
+  }
+}
+
+function canClaimCursorAnchor(editorEl: HTMLElement | null | undefined, anchor: NonNullable<typeof globalCursorAnchor>): boolean {
+  if (!editorEl) return false;
   if (!anchorOwnerEl || anchorOwnerEl === editorEl || !anchorOwnerEl.isConnected || !anchor.id) return true;
   return !Array.from(anchorOwnerEl.querySelectorAll<HTMLElement>("[data-id]")).some(
     (element) => element.dataset.id === anchor.id,
@@ -14701,7 +20047,11 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false }: TiptapEditorProps) {
+export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
+  const lessonDocumentRef = useRef(lessonDocument);
+  lessonDocumentRef.current = lessonDocument;
+  const navigateLessonRef = useRef(onNavigateLesson);
+  navigateLessonRef.current = onNavigateLesson;
   const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -14732,8 +20082,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
 
   // Table context menu state
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
+  const [tableSubmenu, setTableSubmenu] = useState<"cell" | "delete" | null>(null);
+  const textMenuRef = useRef<HTMLDivElement>(null);
+  const [clipboardMessage, setClipboardMessage] = useState("");
+  const clipboardBusyRef = useRef(false);
   const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
   const tableMenuRef = useRef<HTMLDivElement>(null);
+  const tableSubmenuRef = useRef<HTMLDivElement>(null);
 
   const refreshToolbarState = () => {
     const editor = editorRef.current;
@@ -14765,26 +20120,60 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const editor = new Editor({
       element: ref.current,
       extensions: [
-        StarterKit.configure({ link: false, underline: false }),
+        StarterKit.configure({
+          link: false,
+          underline: false,
+          // Novels deliberately stay a writing surface: only body text and
+          // chapter/subchapter headings are part of its document model.
+          heading: variant === "novel" ? { levels: [1, 2] } : undefined,
+          bulletList: variant === "novel" ? false : undefined,
+          orderedList: variant === "novel" ? false : undefined,
+          blockquote: variant === "novel" ? false : undefined,
+          codeBlock: variant === "novel" ? false : undefined,
+          horizontalRule: variant === "novel" ? false : undefined,
+        }),
         StableBlockId,
         Placeholder.configure({ placeholder: t("tiptap.placeholder") }),
         Typography,
-        Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
         Underline,
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        TableKit.configure({ table: { resizable: true } }),
-        Image.configure({ inline: false, allowBase64: true }),
-        Callout,
-        PageBreak,
-        Column,
-        MultiColumn,
-        WritingModeExtension,
-        BlockMath.extend({ addNodeView() { return createObsidianMathNodeView(false); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
-        InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
-        ObsidianMathInput,
-        NodeRange,
-        DragHandle.configure({ render: () => { const el = document.createElement("div"); el.classList.add("nexus-drag-handle"); el.innerHTML = "⠿"; return el; } }),
+        ...(variant !== "novel" ? [
+          Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
+          TaskList,
+          TaskItem.configure({ nested: true }),
+          TableKit.configure({ table: { resizable: true } }),
+          Image.configure({ inline: false, allowBase64: true }),
+          Callout,
+          LessonParagraph,
+          LessonBlock.configure({ getDocument: () => lessonDocumentRef.current }),
+          AnswerSpace,
+          LessonToc.configure({ getDocument: () => lessonDocumentRef.current, navigate: (id) => {
+            if (navigateLessonRef.current) navigateLessonRef.current(id);
+            else Array.from(ref.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((element) => element.dataset.id === id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          } }),
+          PageBreak,
+          Column,
+          MultiColumn,
+          WritingModeExtension,
+          BlockMath.extend({ addNodeView() { return createObsidianMathNodeView(false); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
+          InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
+          ObsidianMathInput,
+          NodeRange,
+        ] : []),
+        // A fixed Floating UI anchor keeps the block handle aligned when the
+        // editor lives inside a scrolling pane or a resized split editor.
+        ...(variant !== "novel" ? [DragHandle.configure({
+          computePositionConfig: { placement: "left-start", strategy: "fixed" },
+          render: () => {
+            const el = document.createElement("div");
+            el.classList.add("nexus-drag-handle");
+            // The extension only reveals it after it has found a hovered node.
+            // Starting hidden prevents a stale handle flashing at its last/zero position.
+            el.style.visibility = "hidden";
+            el.style.pointerEvents = "none";
+            el.innerHTML = "⠿";
+            return el;
+          },
+        })] : []),
         ...(variant === "rich" ? [
           TextStyleKit.configure({ backgroundColor: false, lineHeight: false }),
           TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -14792,7 +20181,21 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         ] : []),
       ],
       content: content || { type: "doc", content: [{ type: "paragraph" }] },
-      editorProps: { attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" } },
+      editorProps: {
+        attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" },
+        // Rich clipboard HTML can otherwise recreate table/image/list nodes
+        // even though the novel toolbar does not expose them.
+        handlePaste: (view, event) => {
+          if (variant !== "novel") return false;
+          const plainText = event.clipboardData?.getData("text/plain") ?? "";
+          if (!plainText) return true;
+          event.preventDefault();
+          const blocks = plainText.replace(/\r/g, "").split("\n").map((text) => ({ type: "paragraph", content: text ? [{ type: "text", text }] : [] }));
+          editor.commands.insertContentAt(view.state.selection, blocks);
+          return true;
+        },
+        handleDrop: () => variant === "novel",
+      },
       onCreate() { refreshToolbarState(); },
       onSelectionUpdate() { refreshToolbarState(); },
       onTransaction() { refreshToolbarState(); },
@@ -14810,7 +20213,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               if (node.type.isBlock && node.attrs && typeof node.attrs.id === "string" && node.attrs.id) {
                 const off = state.doc.textBetween($pos.start(d), pos, "\n", " ").length;
                 globalCursorAnchor = { id: node.attrs.id, offset: off, paneId };
-                anchorOwnerEl = editor.view.dom as HTMLElement;
+                anchorOwnerEl = getEditorDom(editor);
                 break;
               }
             }
@@ -14847,7 +20250,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     // 新 mount 時檢查全域錨點：分頁搬移把 block 送來本頁時，游標跟隨（延遲至其他 effect 設定 anchor 後）
     setTimeout(() => {
       const ed = editorRef.current;
-      if (!ed || !globalCursorAnchor) return;
+      if (!ed || ed.isDestroyed || !globalCursorAnchor) return;
       const anchor = globalCursorAnchor;
       if (anchor.paneId !== paneId) return;
       let found = -1;
@@ -14855,24 +20258,27 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         if (n.attrs && n.attrs.id === anchor.id) { found = np; return false; }
         return true;
       });
-      if (found >= 0 && canClaimCursorAnchor(ed.view.dom as HTMLElement, anchor)) {
+      const edDom = getEditorDom(ed);
+      if (found >= 0 && edDom && canClaimCursorAnchor(edDom, anchor)) {
         try {
           const block = ed.state.doc.nodeAt(found);
           if (block) {
             const s = found + 1, e = found + block.nodeSize - 1;
             const tp = posAtCharOffset(ed.state.doc, s, e, anchor.offset);
-            anchorOwnerEl = ed.view.dom as HTMLElement;
+            anchorOwnerEl = edDom;
             ed.commands.setTextSelection(Math.min(Math.max(tp, s), Math.max(e, s)));
             ed.commands.focus();
             setTimeout(() => {
-              (ed.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              const currentDom = getEditorDom(ed);
+              currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
             }, 30);
           }
         } catch { /* ignore */ }
       }
     }, 0);
     return () => {
-      if (anchorOwnerEl === (editor.view.dom as HTMLElement)) anchorOwnerEl = null;
+      const currentDom = getEditorDom(editor);
+      if (currentDom && anchorOwnerEl === currentDom) anchorOwnerEl = null;
       editor.destroy();
       editorRef.current = null;
       setIsReady(false);
@@ -14914,7 +20320,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const from = blockPos + 1;
     const to = blockPos + block.nodeSize - 1;
     const target = posAtCharOffset(editor.state.doc, from, to, focusRequest.offset);
-    anchorOwnerEl = editor.view.dom as HTMLElement;
+    anchorOwnerEl = getEditorDom(editor);
     editor.commands.setTextSelection(Math.min(Math.max(target, from), Math.max(to, from)));
     editor.commands.focus();
     handledFocusRevisionRef.current = focusRequest.revision;
@@ -14932,7 +20338,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     const editor = editorRef.current;
     if (!editor || !content) return;
     const currentJson = JSON.stringify(editor.getJSON());
-    const targetJson = JSON.stringify(content);
+    const targetJson = JSON.stringify(editor.schema.nodeFromJSON(content).toJSON());
     if (currentJson !== targetJson) {
       // IME composition 期間不覆寫（避免打斷中文輸入）
       if (editor.isFocused && compositionRef.current) return;
@@ -14999,42 +20405,48 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
               const innerStart = foundBlockPos + 1;
               const innerEnd = foundBlockPos + block.nodeSize - 1;
               const targetPos = posAtCharOffset(newDoc, innerStart, innerEnd, anchor.offset);
-              if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) {
+              const edDom = getEditorDom(editor);
+              if (!canClaimCursorAnchor(edDom, anchor)) {
                 // Sibling page effects can run before the previous owner has
                 // received its new content. Retry after that owner relinquishes
                 // the moved block instead of leaving focus at its page tail.
                 setTimeout(() => {
+                  const ed = editorRef.current;
+                  if (!ed || ed.isDestroyed) return;
                   const latestAnchor = globalCursorAnchor;
+                  const retryDom = getEditorDom(ed);
                   if (
                     !latestAnchor ||
                     latestAnchor.id !== anchor.id ||
                     latestAnchor.paneId !== paneId ||
-                    !canClaimCursorAnchor(editor.view.dom as HTMLElement, latestAnchor)
+                    !retryDom ||
+                    !canClaimCursorAnchor(retryDom, latestAnchor)
                   ) return;
 
                   let retryPos = -1;
-                  editor.state.doc.descendants((node: any, nodePos: number) => {
+                  ed.state.doc.descendants((node: any, nodePos: number) => {
                     if (node.attrs?.id === latestAnchor.id) { retryPos = nodePos; return false; }
                     return true;
                   });
-                  const retryBlock = retryPos >= 0 ? editor.state.doc.nodeAt(retryPos) : null;
+                  const retryBlock = retryPos >= 0 ? ed.state.doc.nodeAt(retryPos) : null;
                   if (!retryBlock) return;
 
                   const retryStart = retryPos + 1;
                   const retryEnd = retryPos + retryBlock.nodeSize - 1;
-                  anchorOwnerEl = editor.view.dom as HTMLElement;
-                  editor.commands.setTextSelection(posAtCharOffset(editor.state.doc, retryStart, retryEnd, latestAnchor.offset));
-                  editor.commands.focus();
+                  anchorOwnerEl = retryDom;
+                  ed.commands.setTextSelection(posAtCharOffset(ed.state.doc, retryStart, retryEnd, latestAnchor.offset));
+                  ed.commands.focus();
                 }, 0);
                 return;
               }
-              anchorOwnerEl = editor.view.dom as HTMLElement;
+              anchorOwnerEl = edDom;
               editor.commands.setTextSelection(Math.min(Math.max(targetPos, innerStart), Math.max(innerEnd, innerStart)));
               // block 在此編輯器內 → 聚焦（跨頁搬移時讓使用者可繼續打字）
               if (!editor.isFocused) editor.commands.focus();
               // 滾動到該頁（Word 行為：畫面跟隨游標）
               setTimeout(() => {
-                (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                const currentDom = getEditorDom(editorRef.current);
+                currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
               }, 30);
             } else {
               editor.commands.setTextSelection(foundBlockPos + 1);
@@ -15055,12 +20467,14 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         if (!paginated && anchor.prefix) {
           const p = findPosByPrefix(newDoc, anchor.prefix, true);
           if (p > 0) {
-            if (!canClaimCursorAnchor(editor.view.dom as HTMLElement, anchor)) return;
-            anchorOwnerEl = editor.view.dom as HTMLElement;
+            const edDom = getEditorDom(editor);
+            if (!canClaimCursorAnchor(edDom, anchor)) return;
+            anchorOwnerEl = edDom;
             editor.commands.setTextSelection(p);
             if (!editor.isFocused) editor.commands.focus();
             setTimeout(() => {
-              (editor.view.dom as HTMLElement).closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              const currentDom = getEditorDom(editorRef.current);
+              currentDom?.closest?.("[data-page]")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
             }, 30);
             refreshToolbarState();
             return;
@@ -15126,6 +20540,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     if (!el) return;
     const onContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      if (target.closest("input, textarea, select, button")) return;
       const cell = target.closest("td, th");
       const table = target.closest("table");
       // 表格右鍵（既有）
@@ -15133,14 +20548,16 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         e.preventDefault();
         setTextMenu(null);
         setTableMenu({ x: e.clientX, y: e.clientY });
+        setTableSubmenu(null);
         return;
       }
       // 需求2：框選文字右鍵 → 「建立頁面連結」
       const sel = window.getSelection();
       const hasSelection = sel && !sel.isCollapsed && sel.toString().trim().length > 0;
-      if (hasSelection) {
+      if (hasSelection || target.closest(".nexus-tiptap-editor")) {
         e.preventDefault();
         setTableMenu(null);
+        setTableSubmenu(null);
         setTextMenu({ x: e.clientX, y: e.clientY });
         return;
       }
@@ -15148,17 +20565,27 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       setTextMenu(null);
     };
     const onClick = (e: MouseEvent) => {
-      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node)) {
+      if (!textMenuRef.current?.contains(e.target as Node)) setTextMenu(null);
+      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target as Node) && !tableSubmenuRef.current?.contains(e.target as Node)) {
         setTableMenu(null);
+        setTableSubmenu(null);
       }
     };
+    const closeMenus = () => { setTextMenu(null); setTableMenu(null); setTableSubmenu(null); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenus(); };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", closeMenus);
     el.addEventListener("contextmenu", onContextMenu);
     document.addEventListener("mousedown", onClick);
     return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", closeMenus);
       el.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("mousedown", onClick);
     };
   }, []);
+
+  useEffect(() => { document.dispatchEvent(new Event(LESSON_INDEX_EVENT)); }, [lessonDocument]);
 
   const editor = editorRef.current;
   const disabled = !isReady || !editor;
@@ -15197,14 +20624,16 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   const handleInsertBlockMath = () => {
     const ed = editorRef.current;
     if (!ed) return;
-    const pos = ed.state.selection.from;
-    ed.chain().focus().insertContentAt(pos, { type: "blockMath", attrs: { latex: "" } }).setNodeSelection(pos).run();
+    const { from, to } = ed.state.selection;
+    const selectedText = ed.state.doc.textBetween(from, to, "\n");
+    ed.chain().focus().insertContent({ type: "blockMath", attrs: { latex: selectedText || "" } }).run();
   };
   const handleInsertInlineMath = () => {
     const ed = editorRef.current;
     if (!ed) return;
-    const pos = ed.state.selection.from;
-    ed.chain().focus().insertContentAt(pos, { type: "inlineMath", attrs: { latex: "" } }).setNodeSelection(pos).run();
+    const { from, to } = ed.state.selection;
+    const selectedText = ed.state.doc.textBetween(from, to, " ");
+    ed.chain().focus().insertContent({ type: "inlineMath", attrs: { latex: selectedText || "" } }).run();
   };
   const currentFontSize = parseInt(toolbarState.fontSize || "16", 10) || 16;
   const handleFontSizeChange = (newSize: number) => {
@@ -15254,10 +20683,11 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       const targetPos = tableStart + targetIndex;
       const $anchor = state.doc.resolve(targetPos);
       const $head = state.doc.resolve(cellPos);
-      // @ts-ignore
       const sel = (CellSelection as any).create(state.doc, $anchor.pos, $head.pos);
-      let tr = state.tr.setSelection(sel);
-      ed.view.dispatch(tr);
+      const tr = state.tr.setSelection(sel);
+      try {
+        if (!ed.isDestroyed) ed.view.dispatch(tr);
+      } catch {}
       setTimeout(() => {
         (ed as any).chain().focus().mergeCells().run();
         setTableMenu(null);
@@ -15326,12 +20756,75 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     document.body
   ) : null;
 
+  const handleClipboardAction = async (action: "all" | "copy" | "cut" | "paste") => {
+    const ed = editorRef.current;
+    if (!ed || clipboardBusyRef.current) return;
+    setClipboardMessage("");
+    setTextMenu(null); setTableMenu(null); setTableSubmenu(null);
+    if (action === "all") { ed.chain().focus().selectAll().run(); return; }
+    if ((action === "copy" || action === "cut") && ed.state.selection.empty) return;
+    const initialDoc = ed.state.doc;
+    const bookmark = ed.state.selection.getBookmark();
+    clipboardBusyRef.current = true;
+    try {
+      ed.view.focus();
+      if (action === "copy" || action === "cut") {
+        const serialized = ed.view.serializeForClipboard(ed.state.selection.content());
+        if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([serialized.text], { type: "text/plain" }),
+            "text/html": new Blob([serialized.dom.innerHTML], { type: "text/html" }),
+          })]);
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(serialized.text);
+        } else if (!document.execCommand("copy")) throw new Error("clipboard blocked");
+        if (action === "cut") {
+          if (ed.isDestroyed || ed.state.doc !== initialDoc) throw new Error("document changed");
+          ed.view.dispatch(ed.state.tr.setSelection(bookmark.resolve(ed.state.doc)).deleteSelection().scrollIntoView());
+          ed.view.focus();
+        }
+      } else {
+        let html = "";
+        let plain = "";
+        if (navigator.clipboard?.read) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+            if (item.types.includes("text/plain")) plain = await (await item.getType("text/plain")).text();
+            if (html || plain) break;
+          }
+        } else { plain = await navigator.clipboard.readText(); }
+        if (ed.isDestroyed || ed.state.doc !== initialDoc) throw new Error("document changed");
+        if (!html && !plain) { setClipboardMessage("剪貼簿沒有可貼上的文字；圖片請使用系統貼上。"); return; }
+        ed.view.dispatch(ed.state.tr.setSelection(bookmark.resolve(ed.state.doc)));
+        ed.view.focus();
+        if (variant === "novel") {
+          if (!plain && html) plain = new DOMParser().parseFromString(html, "text/html").body.textContent || "";
+          const blocks = plain.replace(/\r/g, "").split("\n").map((text) => ({ type: "paragraph", content: text ? [{ type: "text", text }] : [] }));
+          ed.commands.insertContent(blocks);
+        } else if (html) ed.view.pasteHTML(html);
+        else ed.view.pasteText(plain);
+      }
+    } catch {
+      setClipboardMessage("未完成操作。請使用 Ctrl／⌘ + C、X、V，或手機的系統文字選單；若出現剪貼簿權限提示，請允許後重試。");
+    } finally { clipboardBusyRef.current = false; }
+  };
+  const clipboardTools = <>
+    <MenuItem icon="" label="全選" disabled={disabled} onClick={() => void handleClipboardAction("all")} />
+    <MenuItem icon="" label="複製" disabled={disabled || !!editor?.state.selection.empty} onClick={() => void handleClipboardAction("copy")} />
+    <MenuItem icon="" label="剪下" disabled={disabled || !!editor?.state.selection.empty} onClick={() => void handleClipboardAction("cut")} />
+    <MenuItem icon="" label="貼上" disabled={disabled} onClick={() => void handleClipboardAction("paste")} />
+    <MenuSep />
+  </>;
+
   const textContextMenu = textMenu ? createPortal(
-    <div
-      className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
+    <div ref={textMenuRef}
+      className="rounded-xl shadow-2xl z-[10000] overflow-visible py-1"
       style={{
         position: "fixed",
-        top: Math.min(textMenu.y, window.innerHeight - 120),
+        top: Math.max(8, Math.min(textMenu.y, window.innerHeight - 285)),
+        maxHeight: "calc(100dvh - 16px)",
+        overflowY: "auto",
         left: Math.min(textMenu.x, window.innerWidth - 200),
         width: 190,
         backgroundColor: "var(--color-bg)",
@@ -15340,40 +20833,53 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">文字操作</div>
+      {clipboardTools}
       <button onClick={handleInsertPageLink} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🔗</span> 建立頁面連結</button>
     </div>,
     document.body
   ) : null;
 
+  const fitActiveTableToEditor = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const domAtSelection = editor.view.domAtPos(editor.state.selection.from).node as HTMLElement;
+    const table = domAtSelection.nodeType === Node.ELEMENT_NODE
+      ? domAtSelection.closest("table")
+      : domAtSelection.parentElement?.closest("table");
+    if (!table) return;
+    table.classList.add("nexus-table-fit");
+    table.style.width = "100%";
+    table.style.maxWidth = "100%";
+    table.style.tableLayout = "fixed";
+    setTableMenu(null);
+    setTableSubmenu(null);
+  };
+
   const tableContextMenu = tableMenu && toolbarState.table ? createPortal(
     <div
       ref={tableMenuRef}
-      className="rounded-xl shadow-2xl z-[10000] overflow-hidden py-1"
+      className="rounded-xl shadow-2xl z-[10000] overflow-y-auto py-1"
       style={{
         position: "fixed",
         top: Math.min(tableMenu.y, window.innerHeight - 340),
         left: Math.min(tableMenu.x, window.innerWidth - 220),
         width: 210,
+        maxHeight: "calc(100vh - 2rem)",
         backgroundColor: "var(--color-bg)",
         border: "1px solid var(--color-border)",
       }}
       onMouseDown={(e) => e.preventDefault()}
     >
+      {clipboardTools}
       <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider uppercase opacity-60">儲存格操作（右鍵）</div>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().addRowBefore().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬆️</span> 在上方插入列</button>
       <button onClick={() => { editorRef.current?.chain().focus().addRowAfter().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬇️</span> 在下方插入列</button>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().addColumnBefore().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬅️</span> 在左側插入欄</button>
       <button onClick={() => { editorRef.current?.chain().focus().addColumnAfter().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>➡️</span> 在右側插入欄</button>
       <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-      <button onClick={() => { editorRef.current?.chain().focus().deleteRow().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🗑️</span> 刪除列</button>
-      <button onClick={() => { editorRef.current?.chain().focus().deleteColumn().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🗑️</span> 刪除欄</button>
-      <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-      <button onClick={() => { (editorRef.current as any)?.chain().focus().mergeCells().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>🔗</span> 合併儲存格（需先選多格）</button>
-      <button onClick={() => { mergeWith('up'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬆️</span> 與上方儲存格合併</button>
-      <button onClick={() => { mergeWith('down'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬇️</span> 與下方儲存格合併</button>
-      <button onClick={() => { mergeWith('left'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⬅️</span> 與左側儲存格合併</button>
-      <button onClick={() => { mergeWith('right'); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>➡️</span> 與右側儲存格合併</button>
-      <button onClick={() => { (editorRef.current as any)?.chain().focus().splitCell().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>✂️</span> 拆分儲存格</button>
+      <button onClick={fitActiveTableToEditor} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⛶</span> 完整顯示</button>
+      <button onClick={() => setTableSubmenu(tableSubmenu === "cell" ? null : "cell")} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>▣</span> 儲存格操作 <span className="ml-auto">›</span></button>
+      <button onClick={() => setTableSubmenu(tableSubmenu === "delete" ? null : "delete")} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2 text-red-600"><span>🗑️</span> 刪除 <span className="ml-auto">›</span></button>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().toggleHeaderRow().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>📌</span> 切換標題列</button>
       <button onClick={() => { (editorRef.current as any)?.chain().focus().toggleHeaderColumn().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>📌</span> 切換標題欄</button>
       <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
@@ -15457,11 +20963,40 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           const newColWidth = isMulti ? Array.from({length: right-left}, () => avgWidth) : [avgWidth];
           try { tr = tr.setNodeMarkup(pos, undefined, { ...existing, colwidth: newColWidth }); } catch {}
         });
-        ed.view.dispatch(tr); setTableMenu(null);
+        try {
+          if (!ed.isDestroyed) ed.view.dispatch(tr);
+        } catch {}
+        setTableMenu(null);
       }} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 flex items-center gap-2"><span>⇔</span> 平均分配欄寬（僅選取範圍）</button>
       <button onClick={() => { editorRef.current?.chain().focus().deleteTable().run(); setTableMenu(null); }} className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"><span>✕</span> 刪除表格</button>
     </div>,
     document.body
+  ) : null;
+
+  const tableSubmenuPopup = tableMenu && tableSubmenu ? createPortal(
+    <div
+      ref={tableSubmenuRef}
+      className="fixed z-[10001] w-52 rounded-xl border py-1 shadow-2xl"
+      style={{
+        top: Math.min(tableMenu.y, window.innerHeight - 280),
+        left: tableMenu.x + 426 > window.innerWidth ? Math.max(8, tableMenu.x - 216) : tableMenu.x + 216,
+        backgroundColor: "var(--color-bg)",
+        borderColor: "var(--color-border)",
+      }}
+      onMouseDown={(event) => event.preventDefault()}
+    >
+      {tableSubmenu === "cell" ? <>
+        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase opacity-60">儲存格操作</div>
+        <button onClick={() => { (editorRef.current as any)?.chain().focus().mergeCells().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">合併選取儲存格</button>
+        <button onClick={() => mergeWith("up")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與上方儲存格合併</button><button onClick={() => mergeWith("down")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與下方儲存格合併</button><button onClick={() => mergeWith("left")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與左側儲存格合併</button><button onClick={() => mergeWith("right")} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">與右側儲存格合併</button>
+        <button onClick={() => { (editorRef.current as any)?.chain().focus().splitCell().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">拆分儲存格</button>
+      </> : <>
+        <div className="px-3 py-1.5 text-[10px] font-semibold uppercase opacity-60">刪除</div>
+        <button onClick={() => { editorRef.current?.chain().focus().deleteRow().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">刪除列</button>
+        <button onClick={() => { editorRef.current?.chain().focus().deleteColumn().run(); setTableMenu(null); setTableSubmenu(null); }} className="w-full px-3 py-2 text-left text-xs hover:bg-zinc-100">刪除欄</button>
+      </>}
+    </div>,
+    document.body,
   ) : null;
 
     // 需求3：工具列分三組（常用/插入/版面配置），由 toolbarTab 決定顯示哪組
@@ -15517,6 +21052,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           <option value="justify">兩端對齊</option>
         </select>
       </>)}
+      {variant === "novel" && (
+        <select value={toolbarState.h1 ? "h1" : toolbarState.h2 ? "h2" : "normal"} disabled={disabled} title="章節樣式"
+          onChange={(e) => { const ed = editorRef.current; if (!ed) return; const value = e.target.value; if (value === "normal" && ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: ed.getAttributes("heading").level || 1 }).run(); else if (value === "h1" && !ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); else if (value === "h2" && !ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }}
+          className="rounded px-1 py-0.5 text-[11px] bg-transparent disabled:cursor-not-allowed disabled:opacity-40 max-w-[88px]" style={{ border: "1px solid transparent", color: "var(--color-text)" }}>
+          <option value="normal">內文</option><option value="h1">章節標題</option><option value="h2">小節標題</option>
+        </select>
+      )}
       <TB label="B" title={t("tiptap.bold")} active={toolbarState.bold} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBold().run()} />
       <TB label="I" title={t("tiptap.italic")} active={toolbarState.italic} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleItalic().run()} />
       <TB icon={<span style={{ textDecoration: "underline" }}>U</span>} title={t("tiptap.underline")} active={toolbarState.underline} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()} />
@@ -15525,17 +21067,18 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         <ColorPaletteButton icon={<span className="text-[11px] font-bold leading-none">A</span>} title={t("tiptap.textColor")} currentColor={toolbarState.color || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().setColor(color).run(); else editorRef.current?.chain().focus().unsetColor().run(); }} disabled={disabled} />
         <ColorPaletteButton icon={<span className="text-[11px] leading-none">🖍</span>} title={t("tiptap.highlight")} currentColor={toolbarState.highlightColor || ""} onColorChange={(color: string) => { if (color) editorRef.current?.chain().focus().toggleHighlight({ color }).run(); else editorRef.current?.chain().focus().unsetHighlight().run(); }} disabled={disabled} />
       </>)}
-      <Sep />
-      <TB icon="•" title={t("tiptap.bulletList")} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
-      <TB icon="1." title={t("tiptap.orderedList")} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
-      <TB icon="☑" title={t("tiptap.taskList")} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
-      {variant === "rich" && (<>
-        <TB icon="⇤" title="Decrease indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} />
-        <TB icon="⇥" title="Increase indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} />
-      </>)}
-      <Sep />
-      <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
-      <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
+      {variant !== "novel" && <>
+        <Sep />
+        <TB icon="•" title={t("tiptap.bulletList")} active={toolbarState.bulletList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()} />
+        <TB icon="1." title={t("tiptap.orderedList")} active={toolbarState.orderedList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()} />
+        <TB icon="☑" title={t("tiptap.taskList")} active={toolbarState.taskList} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleTaskList().run()} />
+        {variant === "rich" && <><TB icon="⇤" title="Decrease indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().liftListItem("listItem").run(); }} /><TB icon="⇥" title="Increase indent" disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("listItem")) ed.chain().focus().sinkListItem("listItem").run(); }} /></>}
+        <Sep />
+        <TB icon="❝" title={t("tiptap.quote")} active={toolbarState.blockquote} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleBlockquote().run()} />
+        <TB icon="{ }" title={t("tiptap.codeBlock")} active={toolbarState.codeBlock} disabled={disabled} onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()} />
+        <TB icon="√x" title="插入行內公式 (Ctrl+M)" disabled={disabled} onClick={handleInsertInlineMath} />
+        <TB icon="∑" title="插入區塊公式 (Ctrl+Shift+M)" disabled={disabled} onClick={handleInsertBlockMath} />
+      </>}
       <Sep />
       <TB icon="Tx" title={t("tiptap.clear")} disabled={disabled} onClick={() => editorRef.current?.chain().focus().unsetAllMarks().clearNodes().run()} />
     </>
@@ -15546,6 +21089,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   // 編輯（undo / redo / 清除格式）
   const editTools = (
     <>
+      {clipboardTools}
       <MenuItem icon="↩" label={t("tiptap.undo") || "復原"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
       <MenuItem icon="↪" label={t("tiptap.redo") || "重做"} disabled={disabled || !toolbarState.canRedo} onClick={() => editorRef.current?.chain().focus().redo().run()} />
       <MenuSep />
@@ -15556,6 +21100,13 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   // 插入（表格 / 連結 / 圖片 / 提示框 / 公式 / 分頁符）
   const insertTools = (
     <>
+      {variant === "rich" && <>
+        <div className="px-3 py-1 text-xs opacity-60">教學內容</div>
+        {([['definition', '定義'], ['example', '例題'], ['exercise', '練習'], ['answer', '解答']] as const).map(([kind, label]) => <MenuItem key={kind} label={label} disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "lessonBlock", attrs: { kind, collapsed: false }, content: [{ type: "paragraph" }] }, { type: "paragraph" }]).run()} />)}
+        {[3, 5, 8].map((lines) => <MenuItem key={lines} label={`${lines} 行作答留白`} disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "answerSpace", attrs: { lines } }, { type: "paragraph" }]).run()} />)}
+        <MenuItem label="自動目錄" disabled={disabled} onClick={() => editorRef.current?.chain().focus().insertContent([{ type: "lessonToc" }, { type: "paragraph" }]).run()} />
+        <MenuSep />
+      </>}
       <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>表格</div>
       <div className="px-2 pb-1"><TableGridPicker editor={editorRef.current} disabled={disabled} /></div>
       <MenuSep />
@@ -15578,6 +21129,9 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     <>
       {variant === "rich" && (<>
         <div className="px-3 py-1 text-[10px] font-semibold tracking-wider uppercase opacity-50" style={{ color: "var(--color-text)" }}>樣式</div>
+        <MenuItem label="圖說" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: "caption" }).run()} />
+        <MenuItem label="重點" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: "key" }).run()} />
+        <MenuItem label="一般正文" disabled={disabled} onClick={() => editorRef.current?.chain().focus().setParagraph().updateAttributes("paragraph", { lessonStyle: null }).run()} />
         <MenuItem icon="¶" label={t("tiptap.style.normal") || "內文"} active={!toolbarState.h1 && !toolbarState.h2 && !toolbarState.h3} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (ed.isActive("heading")) ed.chain().focus().toggleHeading({ level: (ed.getAttributes("heading").level || 1) }).run(); }} />
         <MenuItem icon="H1" label={t("tiptap.h1") || "標題 1"} active={toolbarState.h1} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 1 })) ed.chain().focus().toggleHeading({ level: 1 }).run(); }} />
         <MenuItem icon="H2" label={t("tiptap.h2") || "標題 2"} active={toolbarState.h2} disabled={disabled} onClick={() => { const ed = editorRef.current; if (!ed) return; if (!ed.isActive("heading", { level: 2 })) ed.chain().focus().toggleHeading({ level: 2 }).run(); }} />
@@ -15656,7 +21210,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   );
 
   const renderToolbar = () => (
-    <div className="relative flex flex-wrap items-center gap-0.5 px-3 py-1">
+    <div className="relative flex shrink-0 flex-nowrap items-center gap-0.5 px-3 py-1">
       {homeTools}
     </div>
   );
@@ -15667,9 +21221,11 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       {showToolbar && editToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[200px]">{editTools}</div>, editToolbarTarget)}
       {showToolbar && insertToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[220px]">{insertTools}</div>, insertToolbarTarget)}
       {showToolbar && formatToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[240px]">{formatTools}</div>, formatToolbarTarget)}
+      {clipboardMessage && <div role="status" className="fixed bottom-4 left-4 right-4 z-[10001] rounded-lg border bg-amber-50 p-3 text-sm text-zinc-900 shadow-lg">{clipboardMessage}<button className="ml-3 underline" onClick={() => setClipboardMessage("")}>關閉</button></div>}
       {marginsMenu}
       {textContextMenu}
       {tableContextMenu}
+      {tableSubmenuPopup}
       <style>{`
         .nexus-tiptap-editor { margin-left: -56px; padding-left: 56px; }
         .nexus-paged-content .nexus-tiptap-editor { margin-left: 0 !important; padding-left: 0 !important; }
@@ -15704,6 +21260,8 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         .nexus-tiptap-editor table td p, .nexus-tiptap-editor table th p { margin: 0; }
         .nexus-tiptap-editor table .selectedCell { background: rgba(37,99,235,0.08); }
         .nexus-tiptap-editor table .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background-color: #2563eb; pointer-events: none; }
+        .nexus-tiptap-editor table.nexus-table-fit { width: 100% !important; max-width: 100% !important; table-layout: fixed; }
+        .nexus-tiptap-editor table.nexus-table-fit td, .nexus-tiptap-editor table.nexus-table-fit th { overflow-wrap: anywhere; word-break: break-word; }
         .nexus-tiptap-editor .tableWrapper { overflow-x: auto; }
         .nexus-tiptap-editor .resize-cursor { cursor: col-resize; }
         .nexus-tiptap-editor blockquote { border-left: 3px solid var(--color-border); margin: 1rem 0; padding-left: 1rem; opacity: 0.8; }
@@ -15728,7 +21286,6 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </>
   );
 }
-
 
 ````
 
@@ -16040,182 +21597,112 @@ export default function ToolbarDropdown({
 
 ````
 
-## File: src/contexts/WorkspaceContext.tsx
+## File: src/components/UtilityView.tsx
 ````
 "use client";
-import { createContext, useContext, ReactNode } from "react";
-import type { useUiModes } from "../hooks/useUiModes";
-import type { usePagesStorage } from "../hooks/usePagesStorage";
 
-export type WorkspaceContextType = {
-  ui: ReturnType<typeof useUiModes>;
-  storage: ReturnType<typeof usePagesStorage>;
-  theme: "light" | "dark";
-  setTheme: (t: "light" | "dark") => void;
-};
+import { useMemo, useState } from "react";
+import type { Page } from "../lib/types";
 
-const WorkspaceContext = createContext<WorkspaceContextType | null>(null);
+type UtilityKind = "web" | "counter" | "draw";
+type Link = { id: string; label: string; url: string };
+type CounterItem = { id: string; name: string; value: number; group?: string };
+type DrawItem = { id: string; label: string; tags: string[] };
+const id = () => crypto.randomUUID();
 
-export function WorkspaceProvider({ value, children }: { value: WorkspaceContextType, children: ReactNode }) {
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+export default function UtilityView({ page, onUpdate, onBack }: { page: Page; onUpdate: (patch: Partial<Page>) => void; onBack: () => void }) {
+  const kind = page.kind as UtilityKind;
+  const data = (page.content_json || {}) as { links?: Link[]; counters?: CounterItem[]; draws?: DrawItem[]; intro?: string };
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [drawAmount, setDrawAmount] = useState(1);
+  const [result, setResult] = useState<string | null>(null);
+  const update = (patch: object) => onUpdate({ content_json: { ...data, ...patch }, content_text: JSON.stringify({ ...data, ...patch }) });
+  const title = kind === "web" ? "網頁" : kind === "counter" ? "計數" : "抽選";
+  const allTags = useMemo(() => [...new Set((data.draws || []).flatMap((item) => item.tags))], [data.draws]);
+
+  return <main className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-10" style={{ backgroundColor: "var(--color-editor-bg)", color: "var(--color-text)" }}>
+    <section className="mx-auto max-w-3xl">
+      <header className="mb-7 flex items-center gap-3"><button onClick={onBack} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-border)" }}>← 返回</button><input value={page.title} onChange={(event) => onUpdate({ title: event.target.value })} className="min-w-0 flex-1 bg-transparent text-2xl font-bold outline-none" placeholder={`未命名${title}`} /></header>
+      {kind === "web" && <div className="space-y-4"><textarea value={data.intro || ""} onChange={(event) => update({ intro: event.target.value })} placeholder="簡短介紹…" className="w-full rounded-xl border bg-transparent p-3 text-sm" style={{ borderColor: "var(--color-border)" }} />{(data.links || []).map((link) => <div key={link.id} className="flex gap-2"><input value={link.label} onChange={(event) => update({ links: (data.links || []).map((x) => x.id === link.id ? { ...x, label: event.target.value } : x) })} placeholder="連結名稱" className="w-1/3 rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><input value={link.url} onChange={(event) => update({ links: (data.links || []).map((x) => x.id === link.id ? { ...x, url: event.target.value } : x) })} placeholder="https://" className="min-w-0 flex-1 rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><button onClick={() => update({ links: (data.links || []).filter((x) => x.id !== link.id) })}>×</button></div>)}<button onClick={() => update({ links: [...(data.links || []), { id: id(), label: "", url: "" }] })} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-border)" }}>＋ 新增連結</button></div>}
+      {kind === "counter" && <div className="space-y-3">{(data.counters || []).map((item) => <div key={item.id} className="grid grid-cols-[1fr_8rem_6rem_2rem] gap-2 rounded-xl border p-3" style={{ borderColor: "var(--color-border)" }}><input value={item.name} onChange={(event) => update({ counters: (data.counters || []).map((x) => x.id === item.id ? { ...x, name: event.target.value } : x) })} placeholder="小組／項目名稱" className="bg-transparent outline-none" /><input value={item.group || ""} onChange={(event) => update({ counters: (data.counters || []).map((x) => x.id === item.id ? { ...x, group: event.target.value } : x) })} placeholder="大組名稱" className="rounded border bg-transparent px-2 text-xs" style={{ borderColor: "var(--color-border)" }} /><input type="number" value={item.value} onChange={(event) => update({ counters: (data.counters || []).map((x) => x.id === item.id ? { ...x, value: Number(event.target.value) } : x) })} className="rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><button onClick={() => update({ counters: (data.counters || []).filter((x) => x.id !== item.id) })}>×</button></div>)}<div className="grid gap-2 sm:grid-cols-2">{Object.entries((data.counters || []).reduce<Record<string, number>>((groups, item) => { const group = item.group?.trim() || "未分組"; groups[group] = (groups[group] || 0) + (Number(item.value) || 0); return groups; }, {})).map(([group, total]) => <div key={group} className="rounded-lg border p-3 text-sm" style={{ borderColor: "var(--color-border)" }}><span className="opacity-60">{group}</span><strong className="float-right">{total}</strong></div>)}</div><div className="text-sm opacity-70">全部合計：{(data.counters || []).reduce((sum, item) => sum + (Number(item.value) || 0), 0)}</div><button onClick={() => update({ counters: [...(data.counters || []), { id: id(), name: "新小組", group: "", value: 0 }] })} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-border)" }}>＋ 新增小組</button></div>}
+      {kind === "draw" && <div className="space-y-3"><div className="flex flex-wrap gap-2">{allTags.map((tag) => <label key={tag} className="rounded-full border px-2 py-1 text-xs" style={{ borderColor: "var(--color-border)" }}><input type="checkbox" checked={selectedTags.includes(tag)} onChange={() => setSelectedTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag])} className="mr-1" />{tag}</label>)}</div><div className="flex gap-2"><input type="number" min={1} value={drawAmount} onChange={(event) => setDrawAmount(Math.max(1, Number(event.target.value) || 1))} className="w-20 rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><button onClick={() => { const candidates = (data.draws || []).filter((item) => selectedTags.every((tag) => item.tags.includes(tag))); const chosen = [...candidates].sort(() => Math.random() - 0.5).slice(0, drawAmount); setResult(chosen.length ? chosen.map((item) => item.label).join("、") : "沒有符合的項目"); }} className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white">抽取</button></div>{result && <div className="rounded-xl border p-4 text-lg font-bold" style={{ borderColor: "var(--color-border)" }}>結果：{result}</div>}{(data.draws || []).map((item) => <div key={item.id} className="flex gap-2"><input value={item.label} onChange={(event) => update({ draws: (data.draws || []).map((x) => x.id === item.id ? { ...x, label: event.target.value } : x) })} placeholder="資料內容" className="min-w-0 flex-1 rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><input value={item.tags.join(", ")} onChange={(event) => update({ draws: (data.draws || []).map((x) => x.id === item.id ? { ...x, tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) } : x) })} placeholder="標籤，以逗號分隔" className="w-44 rounded border bg-transparent px-2" style={{ borderColor: "var(--color-border)" }} /><button onClick={() => update({ draws: (data.draws || []).filter((x) => x.id !== item.id) })}>×</button></div>)}<button onClick={() => update({ draws: [...(data.draws || []), { id: id(), label: "", tags: [] }] })} className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--color-border)" }}>＋ 新增資料</button></div>}
+    </section>
+  </main>;
 }
-
-export function useWorkspace() {
-  const ctx = useContext(WorkspaceContext);
-  if (!ctx) throw new Error("useWorkspace must be used within WorkspaceProvider");
-  return ctx;
-}
-
 
 ````
 
-## File: src/hooks/usePagesStorage.ts
+## File: src/components/WorkspaceDialog.tsx
 ````
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
-import type { Page, Attachment } from "../lib/types";
-import type { StorageAdapter } from "../lib/StorageAdapter";
-import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
-import { SyncEngine, type SyncState } from "../lib/syncEngine";
-import { detectDefaultLanguage, type Language } from "../lib/i18n";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-/**
- * Phase B9: Extract pages storage logic from NexusApp (1198 lines)
- * This hook encapsulates init, pages, trash, attachments, sync
- * Currently used as reference, NexusApp still has its own states for backward compat
- * Future: NexusApp will use this hook directly to reduce size
- */
-
-export function usePagesStorage(onLanguageLoaded: (lang: Language) => void, onThemeChange: (t: "light" | "dark") => void) {
-  const storageRef = useRef<StorageAdapter | null>(null);
-  const syncEngineRef = useRef<SyncEngine | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [pages, setPages] = useState<Page[]>([]);
-  const [trashPages, setTrashPages] = useState<Page[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
-
-  useEffect(() => {
-    let cancelled = false;
-    const adapter = new IndexedDBAdapter();
-    async function init() {
-      await adapter.init();
-      if (cancelled) return;
-      storageRef.current = adapter;
-      let allPages = await adapter.listPages();
-      let allAttachments = await adapter.listAttachments();
-      setPages(allPages);
-      setAttachments(allAttachments);
-      const savedLanguage = await adapter.getLanguagePreference();
-      if (savedLanguage === "en" || savedLanguage === "zh-TW") onLanguageLoaded(savedLanguage as any);
-      else onLanguageLoaded(detectDefaultLanguage() as any);
-      const savedTheme = await adapter.getThemePreference();
-      if (savedTheme === "dark" || savedTheme === "light") onThemeChange(savedTheme as any);
-      setIsReady(true);
-      if (isSupabaseConfigured()) {
-        const supabase = getSupabase();
-        if (supabase) {
-          const deviceId = await adapter.getDeviceId();
-          const engine = new SyncEngine(supabase, adapter, deviceId);
-          syncEngineRef.current = engine;
-          engine.subscribe(setSyncState);
-          engine.setOnRemoteChange(async () => {
-            const syncedPages = await adapter.listPages();
-            const syncedAttachments = await adapter.listAttachments();
-            setPages(syncedPages);
-            setAttachments(syncedAttachments);
-          });
-          await engine.fullSync();
-          if (cancelled) return;
-          allPages = await adapter.listPages();
-          allAttachments = await adapter.listAttachments();
-          setPages(allPages);
-          setAttachments(allAttachments);
-          engine.startRealtime();
-        }
-      }
-    }
-    init().catch((e) => { console.error(e); setIsReady(true); });
-    return () => {
-      cancelled = true;
-      syncEngineRef.current?.destroy();
-      adapter.close?.();
-    };
+type Request = { title: string; kind: "text" | "confirm"; initial?: string };
+export function useWorkspaceDialog() {
+  const [request, setRequest] = useState<Request | null>(null);
+  const [value, setValue] = useState("");
+  const resolveRef = useRef<((result: string | boolean | null) => void) | null>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
+  const titleId = useId();
+  const finish = useCallback((result: string | boolean | null) => {
+    resolveRef.current?.(result);
+    resolveRef.current = null;
+    setRequest(null);
+    previousFocus.current?.focus();
   }, []);
-
-  return {
-    storageRef,
-    syncEngineRef,
-    isReady,
-    pages,
-    setPages,
-    trashPages,
-    setTrashPages,
-    attachments,
-    setAttachments,
-    syncState,
-  };
-}
-
-````
-
-## File: src/hooks/useUiModes.ts
-````
-"use client";
-import { useState, useCallback } from "react";
-
-export type UiMode = "home" | "projects" | "trash" | "quickNotes" | "todos";
-
-export function useUiModes() {
-  const [mode, setMode] = useState<UiMode>("home");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-
-  const showHome = useCallback(() => setMode("home"), []);
-  const showProjects = useCallback(() => setMode("projects"), []);
-  const showTrash = useCallback(() => setMode("trash"), []);
-  const showQuickNotes = useCallback(() => setMode("quickNotes"), []);
-  const showTodos = useCallback(() => setMode("todos"), []);
-
-  return {
-    mode,
-    isHomeMode: mode === "home",
-    isTrashMode: mode === "trash",
-    isQuickNoteMode: mode === "quickNotes",
-    isTodoMode: mode === "todos",
-    isProjectsMode: mode === "projects",
-    isSidebarCollapsed,
-    isRightPanelCollapsed,
-    isCommandPaletteOpen,
-    setIsSidebarCollapsed,
-    setIsRightPanelCollapsed,
-    setIsCommandPaletteOpen,
-    showHome,
-    showProjects,
-    showTrash,
-    showQuickNotes,
-    showTodos,
-    setMode,
-  };
+  useEffect(() => () => { resolveRef.current?.(null); }, []);
+  useEffect(() => {
+    if (request) dialogRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+  }, [request]);
+  const ask = useCallback((next: Request) => new Promise<string | boolean | null>((resolve) => {
+    resolveRef.current?.(null);
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    resolveRef.current = resolve;
+    setValue(next.initial || "");
+    setRequest(next);
+  }), []);
+  const askText = useCallback(async (title: string, initial = "") => {
+    const result = await ask({ title, initial, kind: "text" });
+    return typeof result === "string" ? result : null;
+  }, [ask]);
+  const askConfirm = useCallback(async (title: string) => (await ask({ title, kind: "confirm" })) === true, [ask]);
+  const dialog = request && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/50 p-4" onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) finish(null); }}>
+    <form ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-2xl border p-5 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }} onSubmit={(event) => { event.preventDefault(); finish(request.kind === "text" ? value : true); }} onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(null); }
+      if (event.key === "Tab") {
+        const elements = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("input, button") || []);
+        const first = elements[0], last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }}>
+      <h2 id={titleId} className="mb-4 text-base font-semibold">{request.title}</h2>
+      {request.kind === "text" && <input aria-label={request.title} value={value} onChange={(event) => setValue(event.target.value)} className="mb-4 w-full rounded-lg border bg-transparent px-3 py-2" />}
+      <div className="flex justify-end gap-3"><button type="button" onClick={() => finish(null)} className="rounded-lg border px-4 py-2 text-sm">取消</button><button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">確認</button></div>
+    </form>
+  </div>;
+  return { askText, askConfirm, dialog };
 }
 
 ````
 
 ## File: src/lib/IndexedDBAdapter.ts
 ````
+import { sameStudyRecord } from "./studyFSRS";
+import { QUIZ_STORES } from "./quizPersistence";
+import { StudyRepository, STUDY_STORES } from "./StudyRepository";
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";
 import type {
   ID, Page, PageQuery, CreatePageInput, Attachment,
-  WorkspaceBackup, WorkspaceBackupAttachmentEntry, WorkspaceBackupSettingEntry,
+  WorkspaceBackup, WorkspaceBackupAttachmentEntry,
 } from "./types";
 import type { StorageAdapter } from "./StorageAdapter";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 3;
-const BACKUP_SCHEMA_VERSION = 1;
+const DB_VERSION = 6;
+const BACKUP_SCHEMA_VERSION = 3;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
 function newBlockId(): ID { return `blk_${nanoid()}`; }
@@ -16242,11 +21729,73 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 
 export class IndexedDBAdapter implements StorageAdapter {
   private db: IDBPDatabase | null = null;
+  private studyRepository: StudyRepository | null = null;
+  private studyRepositoryOwner: string | null | undefined;
+  getStudyRepository(): StudyRepository {
+    if (!this.db) throw new Error("DB not initialized");
+    if (!this.studyRepository || this.studyRepositoryOwner !== this.workspaceOwnerId) {
+      const owner = this.workspaceOwnerId;
+      this.studyRepositoryOwner = owner;
+      this.studyRepository = new StudyRepository(this.db, () => owner, this.deviceId);
+    }
+    return this.studyRepository;
+  }
   private deviceId: ID = `dev_${nanoid()}`;
+  // IndexedDB is shared by browser profiles, unlike Supabase. Keep its records
+  // explicitly partitioned so changing accounts never exposes another account's
+  // cached pages or attachments.
+  private workspaceOwnerId: ID | null = null;
+
+  setWorkspaceOwner(ownerId: ID | null): void {
+    this.workspaceOwnerId = ownerId;
+  }
+
+  async claimAnonymousWorkspace(ownerId: ID): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const claimKey = "anonymous_workspace_claimed_owner";
+    if (await this.db.get("settings", claimKey)) return;
+
+    // This is intentionally a one-time, explicit migration: the user asked
+    // for all current local data to belong to their account. Later anonymous
+    // workspaces must not be silently claimed by whichever account signs in.
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readwrite");
+    const pages = await tx.objectStore("pages").getAll();
+    const attachments = await tx.objectStore("attachments").getAll();
+    for (const page of pages) {
+      if ((page.workspace_owner_id ?? null) === null) {
+        await tx.objectStore("pages").put({ ...page, workspace_owner_id: ownerId });
+      }
+    }
+    for (const attachment of attachments) {
+      if ((attachment.workspace_owner_id ?? null) === null) {
+        await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
+      }
+    }
+    const claimStudy = (record: Record<string, unknown>): Record<string, unknown> => {
+      const claimed: Record<string, unknown> = { ...record, owner_id: ownerId };
+      for (const field of ["value", "before", "after", "session"]) {
+        if (record[field] && typeof record[field] === "object") claimed[field] = claimStudy(record[field] as Record<string, unknown>);
+      }
+      return claimed;
+    };
+    for (const name of STUDY_STORES) {
+      for (const record of await tx.objectStore(name).getAll()) {
+        if (record.owner_id == null) await tx.objectStore(name).put(claimStudy(record));
+      }
+    }
+    await tx.objectStore("settings").put({ key: claimKey, value: ownerId });
+    await tx.done;
+  }
 
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
+        for (const name of [...STUDY_STORES,...QUIZ_STORES]) {
+          if (!db.objectStoreNames.contains(name)) {
+            const store = db.createObjectStore(name, { keyPath: "id" });
+            if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
+          }
+        }
         if (!db.objectStoreNames.contains("pages")) {
           const store = db.createObjectStore("pages", { keyPath: "id" });
           store.createIndex("by_updated", "updated_at");
@@ -16280,14 +21829,22 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (!this.db) throw new Error("DB not initialized");
     const all = await this.db.getAllFromIndex("pages", "by_updated");
     const visible = all.reverse();
-    if (!query?.includeDeleted) return visible.filter((p) => p.deleted_at === null);
-    return visible;
+    const workspacePages = visible.filter((p) => (p.workspace_owner_id ?? null) === this.workspaceOwnerId);
+    if (!query?.includeDeleted) return workspacePages.filter((p) => p.deleted_at === null);
+    return workspacePages;
   }
 
   async savePage(page: Page): Promise<Page> {
     if (!this.db) throw new Error("DB not initialized");
     await this.db.put("pages", page);
     return page;
+  }
+
+  async savePages(pages: Page[]): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const tx = this.db.transaction("pages", "readwrite");
+    await Promise.all(pages.map((page) => tx.store.put(page)));
+    await tx.done;
   }
 
   async createPage(input?: CreatePageInput): Promise<Page> {
@@ -16315,6 +21872,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),
       sort_order: input?.sort_order,
       parent_id: input?.parent_id ?? null,
+      workspace_owner_id: this.workspaceOwnerId,
     };
     await this.db.put("pages", page);
     return page;
@@ -16395,10 +21953,10 @@ export class IndexedDBAdapter implements StorageAdapter {
     await this.db.put("settings", { key: "page_night_adapt", value: adapt });
   }
 
-  async listAttachments(): Promise<Attachment[]> {
+  async listAttachments(includeDeleted = false): Promise<Attachment[]> {
     if (!this.db) throw new Error("DB not initialized");
     const all = await this.db.getAllFromIndex("attachments", "by_updated");
-    return all.reverse().filter((a) => a.deleted_at === null);
+    return all.reverse().filter((a) => (includeDeleted || a.deleted_at === null) && (a.workspace_owner_id ?? null) === this.workspaceOwnerId);
   }
 
   async getAttachment(id: ID): Promise<Attachment | null> {
@@ -16419,6 +21977,14 @@ export class IndexedDBAdapter implements StorageAdapter {
     attachment.updated_at = Date.now();
     attachment.device_id = this.deviceId;
     await this.saveAttachment(attachment);
+  }
+
+  async permanentDeleteAttachment(id: ID): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    const tx = this.db.transaction(["attachments", "binaries"], "readwrite");
+    await tx.objectStore("attachments").delete(id);
+    await tx.objectStore("binaries").delete(id);
+    await tx.done;
   }
 
   async attachBinary(attachmentId: ID, blob: Blob): Promise<void> {
@@ -16447,6 +22013,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       deleted_at: null,
       device_id: this.deviceId,
       page_count: input.page_count,
+      workspace_owner_id: this.workspaceOwnerId,
     };
     await this.db.put("attachments", attachment);
     return attachment;
@@ -16454,9 +22021,13 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async exportWorkspaceBackup(): Promise<WorkspaceBackup> {
     if (!this.db) throw new Error("DB not initialized");
-    const allPages = await this.db.getAll("pages");
-    const allAttachments = await this.db.getAll("attachments");
-    const allSettingsRecords: WorkspaceBackupSettingEntry[] = await this.db.getAll("settings");
+    const snapshotTime = Date.now();
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readonly");
+    const [allPages, allAttachments, allSettingsRecords, cards, states, events, settings, sessions] = await Promise.all(
+      ["pages", "attachments", "settings", "study_cards", "study_states", "study_events", "study_settings", "study_sessions"].map(name => tx.objectStore(name).getAll())
+    );
+    await tx.done;
+    const study = { cards, states, events, settings, sessions };
     const attachmentEntries: WorkspaceBackupAttachmentEntry[] = [];
     for (const attachment of allAttachments) {
       const binaryRecord = await this.db.get("binaries", attachment.id);
@@ -16465,11 +22036,12 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
     return {
       schema_version: BACKUP_SCHEMA_VERSION,
-      exported_at: Date.now(),
+      exported_at: snapshotTime,
       device_id: this.deviceId,
       pages: allPages,
       attachments: attachmentEntries,
       settings: allSettingsRecords,
+      study,
     };
   }
 
@@ -16477,7 +22049,66 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (!this.db) throw new Error("DB not initialized");
     if (!backup || typeof backup.schema_version !== "number") throw new Error("Invalid backup file.");
     if (backup.schema_version > BACKUP_SCHEMA_VERSION) throw new Error(`Backup schema_version (${backup.schema_version}) is newer than supported (${BACKUP_SCHEMA_VERSION}).`);
-    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings"], "readwrite");
+    if (backup.schema_version >= 2 && !backup.study) throw new Error("新版備份缺少字卡資料，還原已停止。");
+    if (backup.schema_version >= 3 && !Array.isArray(backup.study?.sessions)) throw new Error("新版備份缺少 session 資料。");
+    if (backup.study) {
+      const study = backup.study;
+      if (![study.cards, study.states, study.events, study.settings].every(Array.isArray)) throw new Error("字卡備份格式不完整。");
+      const cards = new Map(study.cards.map(card => [card.id, card]));
+      const events = new Map(study.events.map(event => [event.id, event]));
+      if (events.size !== study.events.length || cards.size !== study.cards.length) throw new Error("備份有重複 ID。");
+      for (const event of study.events) {
+        if (!cards.has(event.card_id) || (event.parent && !events.has(event.parent))) throw new Error("備份缺少卡片或前序作答，還原已停止。");
+      }
+      for (const state of study.states) {
+        if (!cards.has(state.id) || (state.head && !events.has(state.head))) throw new Error("備份排程缺少對應的歷史，還原已停止。");
+      }
+      for(const session of study.sessions??[]) {
+        if(!Array.isArray(session.targets) || !Array.isArray(session.queue) || !Number.isInteger(session.revision)) throw new Error("練習備份格式錯誤。");
+        for(const target of session.targets) {
+          const event=target.official_event_id ? events.get(target.official_event_id) : null;
+          if(!cards.has(target.card_id) || target.official_event_id && (!event || event.session_id!==session.id || event.card_id!==target.card_id)) throw new Error("練習備份缺少對應正式評分。");
+        }
+      }
+    }
+    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES], "readwrite", { durability: "strict" });
+    try {
+    // Never erase review history when importing an older or partial backup.
+    if (backup.study) {
+      for (const event of backup.study.events) {
+        const existing = await tx.objectStore("study_events").get(event.id);
+        if (existing && !sameStudyRecord(existing, event)) throw new Error("備份中的事件 ID 與既有內容衝突，還原已停止。");
+        if (!existing) await tx.objectStore("study_events").add(event);
+      }
+      for (const [store, records] of [["study_cards", backup.study.cards], ["study_settings", backup.study.settings]] as const) {
+        for (const record of records) {
+          const local = await tx.objectStore(store).get(record.id);
+          if (!local || local.updated_at < record.updated_at) await tx.objectStore(store).put(record);
+        }
+      }
+      for (const state of backup.study.states) {
+        const local = await tx.objectStore("study_states").get(state.id);
+        if (!local) await tx.objectStore("study_states").put(state);
+        else if (local.head !== state.head) await tx.objectStore("study_states").put({ ...local, conflict: true });
+      }
+      for (const card of backup.study.cards) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: card.owner_id, kind: "card", value: card });
+      for (const setting of backup.study.settings) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: setting.owner_id, kind: "settings", value: setting });
+      for (const state of backup.study.states) {
+        const first = backup.study.events.filter(event => event.card_id === state.id).sort((a,b) => a.at-b.at).find(event => event.parent === null);
+        const seed = first?.before ?? state;
+        await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: seed.owner_id, kind: "seed", value: seed });
+      }
+      for (const event of backup.study.events) await tx.objectStore("study_outbox").put({ id: crypto.randomUUID(), owner_id: event.owner_id, kind: "event", value: event, restore:true });
+      for (const session of backup.study.sessions??[]) {
+        const local=await tx.objectStore("study_sessions").get(session.id);
+        if(local && !sameStudyRecord(local,session)) {
+          await tx.objectStore("study_sessions").put({...local,conflict:true});
+        } else {
+          await tx.objectStore("study_sessions").put(session);
+          await tx.objectStore("study_outbox").put({id:crypto.randomUUID(),owner_id:session.owner_id,kind:"session",value:session,restore:true});
+        }
+      }
+    }
     await tx.objectStore("pages").clear();
     await tx.objectStore("attachments").clear();
     await tx.objectStore("binaries").clear();
@@ -16492,6 +22123,11 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
     for (const setting of backup.settings) await tx.objectStore("settings").put(setting);
     await tx.done;
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
   }
 
   async close(): Promise<void> { this.db?.close(); }
@@ -16546,6 +22182,7 @@ export { DEFAULT_LANGUAGE };
 
 ## File: src/lib/StorageAdapter.ts
 ````
+import type { StudyRepository } from "./StudyRepository";
 import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "./types";
 
 // H3 fix (方案 A): QuickNote/TodoItem 獨立 store 介面已廢棄；
@@ -16553,9 +22190,16 @@ import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup 
 
 export interface StorageAdapter {
   init(): Promise<void>;
+  getStudyRepository(): StudyRepository;
+  /** Selects the local workspace visible through list/create operations. */
+  setWorkspaceOwner?(ownerId: ID | null): void;
+  /** One-time migration of the legacy anonymous workspace after explicit authorization. */
+  claimAnonymousWorkspace?(ownerId: ID): Promise<void>;
   getPage(id: ID): Promise<Page | null>;
   listPages(query?: PageQuery): Promise<Page[]>;
   savePage(page: Page): Promise<Page>;
+  /** Atomically persists chapter activation and its independent records. */
+  savePages(pages: Page[]): Promise<void>;
   createPage(input?: CreatePageInput): Promise<Page>;
   deletePage(id: ID): Promise<void>;
   restorePage(id: ID): Promise<Page>;
@@ -16576,10 +22220,12 @@ export interface StorageAdapter {
   setThemePreference(theme: string): Promise<void>;
   getPageNightAdaptPreference?(): Promise<boolean | null>;
   setPageNightAdaptPreference?(adapt: boolean): Promise<void>;
-  listAttachments(): Promise<Attachment[]>;
+  listAttachments(includeDeleted?: boolean): Promise<Attachment[]>;
   getAttachment(id: ID): Promise<Attachment | null>;
   saveAttachment(attachment: Attachment): Promise<Attachment>;
   deleteAttachment(id: ID): Promise<void>;
+  /** Permanently removes an attachment and its local binary. */
+  permanentDeleteAttachment?(id: ID): Promise<void>;
   attachBinary(attachmentId: ID, blob: Blob): Promise<void>;
   readBinary(attachmentId: ID): Promise<Blob | null>;
   exportWorkspaceBackup?(): Promise<WorkspaceBackup>;
@@ -16794,6 +22440,293 @@ export const Callout = Node.create({
 
 ````
 
+## File: src/lib/characterTemplates.ts
+````
+import { nanoid } from "nanoid";
+import type { CharacterProfileData, CharacterSection } from "./types";
+
+export function createFantasyTemplate(): CharacterProfileData {
+  return {
+    templateId: "fantasy",
+    basic: {
+      name: "艾爾溫·晨星",
+      alias: "破曉之刃",
+      avatarUrl: "",
+      gender: "男",
+      age: "24 歲",
+      role: "遊俠 / 魔劍士",
+      affiliation: "銀月騎士團",
+      quote: "「只要晨光尚未熄滅，黑夜便無法吞噬希望。」",
+    },
+    sections: [
+      {
+        id: `sec_${nanoid()}`,
+        type: "key_value",
+        title: "外貌與裝備",
+        icon: "🪪",
+        keyValues: [
+          { key: "身高 / 體重", value: "182 cm / 74 kg" },
+          { key: "髮色 / 瞳色", value: "銀灰短髮 / 琥珀金瞳" },
+          { key: "隨身武器", value: "誓約之鋼（單手長劍）、符文獵弓" },
+          { key: "代表特徵", value: "右腕有淡淡的星紋烙印，常披深藍色兜帽斗篷" },
+        ],
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "tags",
+        title: "性格標籤與特質",
+        icon: "🧠",
+        tags: ["冷靜果斷", "重視承諾", "警惕心強", "外冷內熱", "不擅表達感情"],
+        richText: "平日沉默寡言，但在關鍵決策時極其敏銳果決。對待弱者心懷同情，面對敵人則冷靜克制。最無法容忍背叛與欺凌。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "stats",
+        title: "戰鬥與能力數值",
+        icon: "⚔️",
+        stats: [
+          { label: "物理力量", value: 82, max: 100 },
+          { label: "敏捷身法", value: 92, max: 100 },
+          { label: "魔力親和", value: 76, max: 100 },
+          { label: "戰術洞察", value: 88, max: 100 },
+          { label: "精神意志", value: 95, max: 100 },
+        ],
+        richText: "擅長將風系魔力附著於劍刃與箭矢之上，具備極高速的突進與破甲能力。缺點是長時間施展高階劍技對體能消耗極大。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "rich_text",
+        title: "身世背景與命運轉折",
+        icon: "📜",
+        richText: "出生於邊境古老的觀星者家族。十二歲那年家族領地遭深淵侵襲覆滅，唯有他攜帶家族傳承的星紋長劍逃出，後被銀月騎士團長收留並培訓成頂尖遊俠。\n\n目前一邊為騎士團執行清剿異端任務，一邊暗中追查當年覆滅家族的幕後黑手。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "relations",
+        title: "人際關係網絡",
+        icon: "👥",
+        relations: [
+          { targetName: "雷恩團長", relationType: "導師 / 救命恩人", description: "如父親般敬重，嚴格受其教導但偶爾理念有所衝突。" },
+          { targetName: "瑟菲雅", relationType: "青梅竹馬 / 魔法學者", description: "唯一能讓他放下防備的人，負責為其解析星紋秘辛。" },
+          { targetName: "「無面者」卡厄斯", relationType: "宿敵 / 復仇目標", description: "深淵教團執政官，家族覆滅事件的直接主謀。" },
+        ],
+      },
+    ],
+  };
+}
+
+export function createModernTemplate(): CharacterProfileData {
+  return {
+    templateId: "modern",
+    basic: {
+      name: "陸修遠",
+      alias: "Professor Leo",
+      avatarUrl: "",
+      gender: "男",
+      age: "31 歲",
+      role: "資深刑偵顧問 / 犯罪心理學教授",
+      affiliation: "市立重案調查局特別顧問組",
+      quote: "「所有完美的謊言，都在試圖掩蓋恐懼的痕跡。」",
+    },
+    sections: [
+      {
+        id: `sec_${nanoid()}`,
+        type: "key_value",
+        title: "基本身分與外在特徵",
+        icon: "👔",
+        keyValues: [
+          { key: "身高 / 體態", value: "178 cm / 勻稱修長" },
+          { key: "穿著風格", value: "深灰色風衣、訂製襯衫、金絲無框眼鏡" },
+          { key: "日常隨身物", value: "古董機械懷錶、皮革記事本、薄荷糖盒" },
+          { key: "日常習慣", value: "思考時會習慣性旋轉鋼筆，咖啡只喝黑咖啡不加糖" },
+        ],
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "tags",
+        title: "心理側寫與性格特質",
+        icon: "🎭",
+        tags: ["極致理性", "觀察入微", "完美主義", "微精神潔癖", "言辭犀利"],
+        richText: "具備令人畏懼的微表情與行為洞察力。習慣在心中建構犯罪現場的情境回放，極少被情緒左右，但對未解的懸案有近乎執拗的強迫傾向。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "stats",
+        title: "專業能力評估",
+        icon: "💻",
+        stats: [
+          { label: "邏輯演繹", value: 96, max: 100 },
+          { label: "微表情分析", value: 94, max: 100 },
+          { label: "情報蒐集", value: 85, max: 100 },
+          { label: "心理抗壓", value: 90, max: 100 },
+          { label: "近身格鬥", value: 68, max: 100 },
+        ],
+        richText: "能在極短時間內透過對話捕捉對方思維漏洞，擅長高壓審訊與犯罪動機重建。體能普通，但受過專業擒拿訓練以求自保。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "rich_text",
+        title: "履歷檔案與過去秘密",
+        icon: "📂",
+        richText: "二十五歲取得海外頂尖大學心理學博士學位，回國後兼任大學教職與警隊特聘顧問，曾破獲多起轟動全城的連環疑案。\n\n五年前其雙胞胎哥哥在未結案的「雨夜密室案」中離奇失蹤，至今仍是其心中唯一的未解結印與心魔。",
+      },
+      {
+        id: `sec_${nanoid()}`,
+        type: "relations",
+        title: "人脈與社交網絡",
+        icon: "🤝",
+        relations: [
+          { targetName: "陳嵐 隊長", relationType: "搭檔 / 重案組組長", description: "行動派刑警，與陸修遠互補，在現場互相提供絕對信任。" },
+          { targetName: "林曉微", relationType: "助理 / 學生", description: "協助整理繁雜案件檔案與法醫檢驗報告的可靠幫手。" },
+          { targetName: "「莫里亞蒂」代號X", relationType: "幕後對手", description: "多次在案發現場留下指向哥哥失蹤案的挑釁密碼。" },
+        ],
+      },
+    ],
+  };
+}
+
+export function createBlankTemplate(): CharacterProfileData {
+  return { templateId: "blank", basic: { name: "" }, sections: [], tabs: [] };
+}
+
+const section = (type: CharacterSection["type"], title: string, data: Partial<CharacterSection> = {}): CharacterSection => ({ id: `sec_${nanoid()}`, type, title, ...data });
+const fields = (title: string, labels: string[]) => section("key_value", title, { keyValues: labels.map((key) => ({ key, value: "" })) });
+const group = (title: string, contents: CharacterSection[]) => section("group", title, { contents });
+const prose = (title: string) => section("rich_text", title, { richText: "" });
+const inventory = () => section("statistics", "攜帶物品", { statisticHeaders: { label: "物品", description: "介紹", value: "數量", unit: "單位" }, statistics: [] });
+
+// Field references: official D&D 5e character sheet and Chaosium's 7e sheets.
+// These are editable record templates; derived values are entered by the user.
+export function createDnd5eTemplate(): CharacterProfileData {
+  return {
+    templateId: "dnd5e", basic: { name: "", role: "例如：戰士", affiliation: "例如：冒險小隊" },
+    sections: [
+      group("角色資料", [fields("冒險者", ["職業與等級", "種族", "背景", "陣營", "經驗值", "玩家姓名"])]),
+      group("能力與戰鬥", [
+        section("stats", "六項能力", { stats: ["力量 STR", "敏捷 DEX", "體質 CON", "智力 INT", "感知 WIS", "魅力 CHA"].map((label) => ({ label, value: 10, max: 30 })) }),
+        fields("戰鬥狀態", ["熟練加值", "護甲等級 AC", "先攻", "速度", "生命值上限", "目前生命值", "暫時生命值", "生命骰", "死亡豁免成功", "死亡豁免失敗"]),
+        fields("豁免", ["力量豁免", "敏捷豁免", "體質豁免", "智力豁免", "感知豁免", "魅力豁免"]),
+        fields("技能", ["特技", "馴養動物", "奧秘", "運動", "欺瞞", "歷史", "洞悉", "威嚇", "調查", "醫藥", "自然", "察覺", "表演", "說服", "宗教", "巧手", "隱匿", "求生"]),
+        prose("攻擊與武器"), prose("特性與專長"),
+      ]),
+    ],
+    tabs: [
+      { id: `tab_${nanoid()}`, title: "人物背景", sections: [group("人物背景", [prose("個性特質"), prose("理念"), prose("牽絆"), prose("缺點"), prose("角色經歷")])] },
+      { id: `tab_${nanoid()}`, title: "法術", sections: [group("施法", [fields("施法資料", ["施法職業", "施法能力", "法術豁免 DC", "法術攻擊加值"]), fields("法術位（總數／已用）", ["1環", "2環", "3環", "4環", "5環", "6環", "7環", "8環", "9環"]), prose("戲法"), prose("已知與準備法術")])] },
+      { id: `tab_${nanoid()}`, title: "裝備", sections: [group("物資", [inventory(), fields("貨幣", ["銅幣", "銀幣", "琥珀金幣", "金幣", "白金幣"]), prose("語言與工具熟練")])] },
+    ],
+  };
+}
+
+export function createCoc7eTemplate(): CharacterProfileData {
+  return {
+    templateId: "coc7e", basic: { name: "", role: "例如：記者", affiliation: "例如：調查團隊" },
+    sections: [
+      group("調查員資料", [fields("身分", ["職業", "玩家姓名", "時代", "居住地", "出生地"])]),
+      group("能力與狀態", [
+        section("stats", "八項能力", { stats: ["力量 STR", "體質 CON", "體型 SIZ", "敏捷 DEX", "外貌 APP", "智力 INT", "意志 POW", "教育 EDU"].map((label) => ({ label, value: 0, max: 100 })) }),
+        fields("狀態", ["生命值 HP", "魔法值 MP", "理智 SAN", "幸運", "移動率 MOV", "傷害加值", "體格", "重傷／瀕死", "暫時／不定性瘋狂"]),
+        fields("技能（一般／困難／極難）", ["會計", "人類學", "估價", "考古學", "攀爬", "喬裝", "閃避", "汽車駕駛", "電氣維修", "急救", "歷史", "法律", "圖書館使用", "聆聽", "鎖匠", "機械維修", "醫學", "博物學", "導航", "神秘學", "說服", "心理學", "偵查", "潛行", "游泳", "投擲", "信用評級", "克蘇魯神話"]),
+        prose("專業技能與語言"), prose("戰鬥技能與武器"),
+      ]),
+      group("背景故事", [prose("個人描述"), prose("思想與信念"), prose("重要之人"), prose("意義非凡之地"), prose("珍視之物"), prose("特質"), prose("傷疤、恐懼與躁狂")]),
+    ],
+    tabs: [
+      { id: `tab_${nanoid()}`, title: "物品與資產", sections: [group("物資", [inventory(), fields("資產", ["現金", "消費水平", "資產"]), prose("裝備與重要文件")])] },
+      { id: `tab_${nanoid()}`, title: "調查紀錄", sections: [group("案件", [prose("線索與推論"), prose("接觸的神話存在"), prose("典籍與法術")])] },
+    ],
+  };
+}
+
+````
+
+## File: src/lib/characterWorkspace.ts
+````
+import { nanoid } from "nanoid";
+import type { CharacterProfileData, CharacterSection } from "./types";
+
+export function updateCharacterSection(sections: CharacterSection[], id: string, patch: Partial<CharacterSection>): CharacterSection[] {
+  return sections.map((section) => section.id === id ? { ...section, ...patch } :
+    section.contents ? { ...section, contents: updateCharacterSection(section.contents, id, patch) } : section);
+}
+
+export function deleteCharacterSection(sections: CharacterSection[], id: string): CharacterSection[] {
+  return sections.filter((section) => section.id !== id).map((section) => section.contents ?
+    { ...section, contents: deleteCharacterSection(section.contents, id) } : section);
+}
+
+export function moveCharacterSection(sections: CharacterSection[], id: string, direction: -1 | 1): CharacterSection[] {
+  const index = sections.findIndex((section) => section.id === id);
+  if (index < 0) return sections.map((section) => section.contents ?
+    { ...section, contents: moveCharacterSection(section.contents, id, direction) } : section);
+  const target = index + direction;
+  if (target < 0 || target >= sections.length) return sections;
+  const next = [...sections];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/** Templates retain example text; each instance has fresh IDs and blank prose. */
+export function instantiateCharacterTemplate(source: CharacterProfileData, sourceId?: string): CharacterProfileData {
+  const data = structuredClone(source);
+  const instantiate = (section: CharacterSection): CharacterSection => {
+    const next = { ...section, id: `sec_${nanoid()}`, example: { ...section, contents: undefined, example: undefined } };
+    if (section.contents) next.contents = section.contents.map(instantiate);
+    if (section.keyValues) next.keyValues = section.keyValues.map((item) => ({ ...item, value: "" }));
+    if (section.richText !== undefined) next.richText = "";
+    if (section.tags) next.tags = [];
+    if (section.statistics) next.statistics = section.statistics.map((item) => ({ ...item, label: "", description: "" }));
+    if (section.relations) next.relations = section.relations.map((item) => ({ ...item, targetName: "", description: "" }));
+    if (section.externalLinks) next.externalLinks = section.externalLinks.map((item) => ({ ...item, url: "" }));
+    if (section.music) next.music = section.music.map((item) => ({ ...item, url: "" }));
+    return next;
+  };
+  return {
+    ...data, isTemplate: false, templateSourceId: sourceId, world_id: null,
+    basicExamples: { ...data.basicExamples, ...data.basic },
+    basic: { name: "", alias: "", gender: "", age: "", role: "", affiliation: "", quote: "", avatarUrl: "" },
+    sections: data.sections.map(instantiate),
+    tabs: data.tabs?.map((tab) => ({ ...tab, id: `tab_${nanoid()}`, sections: tab.sections.map(instantiate) })),
+  };
+}
+
+/** Empty fields in an existing instance keep their previous example text. */
+export function snapshotCharacterTemplate(source: CharacterProfileData): CharacterProfileData {
+  const data = structuredClone(source);
+  const snapshot = (section: CharacterSection): CharacterSection => {
+    const next = { ...section, example: undefined };
+    const example = section.example;
+    if (section.contents) next.contents = section.contents.map(snapshot);
+    if (example) {
+      if (section.richText !== undefined) next.richText = section.richText || example.richText;
+      if (section.keyValues) next.keyValues = section.keyValues.map((item, index) => ({ ...item, value: item.value || example.keyValues?.[index]?.value || "" }));
+      if (section.tags && !section.tags.length) next.tags = example.tags || [];
+      if (section.statistics) next.statistics = section.statistics.map((item, index) => ({ ...item,
+        label: item.label || example.statistics?.[index]?.label || "",
+        description: item.description || example.statistics?.[index]?.description || "",
+      }));
+      if (section.relations) next.relations = section.relations.map((item, index) => ({ ...item,
+        targetName: item.targetName || example.relations?.[index]?.targetName || "",
+        description: item.description || example.relations?.[index]?.description || "",
+      }));
+      for (const key of ["externalLinks", "music"] as const) {
+        if (section[key]) next[key] = section[key].map((item, index) => ({ ...item, url: item.url || example[key]?.[index]?.url || "" }));
+      }
+    }
+    return next;
+  };
+  const basic = { ...data.basic };
+  for (const key of Object.keys(basic) as Array<keyof typeof basic>) {
+    if (key !== "customFields") {
+      (basic as any)[key] = basic[key] || data.basicExamples?.[key] || "";
+    }
+  }
+  return { ...data, isTemplate: true, world_id: null, templateSourceId: undefined, basic, basicExamples: undefined,
+    sections: data.sections.map(snapshot), tabs: data.tabs?.map((tab) => ({ ...tab, sections: tab.sections.map(snapshot) })) };
+}
+
+````
+
 ## File: src/lib/creatableRegistry.ts
 ````
 import type { PageKind, PageFormat } from "./types";
@@ -16812,6 +22745,11 @@ export interface CreatableDefinition {
 }
 
 export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
+  novel_chapter: {
+    kind: "novel_chapter", icon: "📖", label: "Novel chapter", labelZh: "小說章節",
+    desc: "Chapter within a novel", descZh: "小說作品的獨立章節", defaultFormat: "flow",
+    isCreatableFromSidebar: false, isProject: false,
+  },
   note: {
     kind: "note",
     icon: "📝",
@@ -16896,6 +22834,9 @@ export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
     isCreatableFromSidebar: false,
     isProject: false,
   },
+  web: { kind: "web", icon: "⌘", label: "Web", labelZh: "網頁", desc: "Link page", descZh: "個人連結與公開頁面", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
+  counter: { kind: "counter", icon: "＋", label: "Counter", labelZh: "計數", desc: "Groups and totals", descZh: "群組、子項目與自動加總", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
+  draw: { kind: "draw", icon: "⤨", label: "Draw", labelZh: "抽選", desc: "Tagged random picker", descZh: "含標籤的隨機抽選資料庫", defaultFormat: "flow", isCreatableFromSidebar: false, isProject: false },
 };
 
 export function isProjectKind(kind?: PageKind): boolean {
@@ -16988,7 +22929,7 @@ const en: Dictionary = {
   "sidebar.expand": "Expand sidebar",
   "sidebar.collapse": "Collapse sidebar",
   "sidebar.logoGoHome": "Go to Home",
-  "sidebar.search.placeholderNotes": "Search notes...",
+  "sidebar.search.placeholderNotes": "Search files...",
   "sidebar.search.placeholderTrash": "Search trash...",
   "sidebar.commandPalette.title": "Open command palette (Ctrl/Cmd+K)",
   "sidebar.import.button": "Import",
@@ -17002,7 +22943,7 @@ const en: Dictionary = {
   "sidebar.nav.notes": "Projects",
   "sidebar.nav.projects": "Projects",
   "sidebar.nav.quickNote": "Quick Notes",
-  "sidebar.nav.todoList": "To-Do List",
+  "sidebar.nav.todoList": "Calendar",
   "sidebar.nav.creative": "Creative",
   "sidebar.nav.items": "Projects",
   "sidebar.nav.trash": "Trash",
@@ -17087,6 +23028,10 @@ const en: Dictionary = {
   "dashboard.newButton": "New",
   "dashboard.importPdf": "Import PDF",
   "dashboard.recent": "Recently Edited",
+  "presentation.theme.minimal": "Minimal",
+  "presentation.theme.academic": "Academic",
+  "presentation.theme.business": "Business",
+  "presentation.theme.dark": "Dark",
   "dashboard.emptyState": "No pages yet",
   "time.justNow": "Just now",
   "time.minutesAgo": "{{n}} minutes ago",
@@ -17300,7 +23245,7 @@ const en: Dictionary = {
   "quickNote.placeholder": "Quick note...",
   "quickNote.add": "Add quick note",
   "quickNote.empty": "No quick notes yet, like Google Keep",
-  "todo.title": "To-Do List",
+  "todo.title": "Calendar",
   "todo.calendar": "Calendar",
   "todo.add": "Add task",
   "todo.empty": "No tasks yet",
@@ -17329,7 +23274,7 @@ const zhTW: Dictionary = {
   "sidebar.expand": "展開側邊欄",
   "sidebar.collapse": "收合側邊欄",
   "sidebar.logoGoHome": "回到首頁",
-  "sidebar.search.placeholderNotes": "搜尋筆記...",
+  "sidebar.search.placeholderNotes": "搜尋檔案...",
   "sidebar.search.placeholderTrash": "搜尋垃圾桶...",
   "sidebar.commandPalette.title": "開啟命令面板 (Ctrl/Cmd+K)",
   "sidebar.import.button": "匯入",
@@ -17343,7 +23288,7 @@ const zhTW: Dictionary = {
   "sidebar.nav.notes": "項目",
   "sidebar.nav.projects": "項目",
   "sidebar.nav.quickNote": "隨手記",
-  "sidebar.nav.todoList": "To-Do List",
+  "sidebar.nav.todoList": "日曆",
   "sidebar.nav.creative": "創作",
   "sidebar.nav.items": "項目",
   "sidebar.nav.trash": "垃圾桶",
@@ -17407,7 +23352,7 @@ const zhTW: Dictionary = {
   "editor.pdf.unavailable": "PDF 預覽無法使用",
   "editor.pdf.loading": "PDF 預覽載入中...",
   "editor.pdf.hiddenNotice": "PDF 預覽已隱藏。點擊展開以顯示。",
-  "rightPanel.relations": "關聯",
+  "rightPanel.relations": "輔助頁",
   "rightPanel.expand": "展開面板",
   "rightPanel.collapse": "收合面板",
   "rightPanel.backlinks": "反向連結",
@@ -17428,6 +23373,10 @@ const zhTW: Dictionary = {
   "dashboard.newButton": "新建",
   "dashboard.importPdf": "匯入 PDF",
   "dashboard.recent": "最近編輯",
+  "presentation.theme.minimal": "極簡",
+  "presentation.theme.academic": "學術",
+  "presentation.theme.business": "商務",
+  "presentation.theme.dark": "深色",
   "dashboard.emptyState": "尚無頁面，點擊上方新建",
   "time.justNow": "剛剛",
   "time.minutesAgo": "{{n}} 分鐘前",
@@ -17455,9 +23404,9 @@ const zhTW: Dictionary = {
   "studySet.cardCount": "{{count}} 張卡片",
   "studySet.addCard": "+ 新增卡片",
   "studySet.emptyCards": "尚無卡片",
-  "studySet.mastery.mastered": "已掌握",
-  "studySet.mastery.learning": "學習中",
-  "studySet.mastery.new": "新學習",
+  "studySet.mastery.mastered": "沒問題",
+  "studySet.mastery.learning": "不熟悉",
+  "studySet.mastery.new": "不認識",
   "studySet.deleteCard": "刪除卡片",
   "studySet.front": "正面",
   "studySet.back": "背面",
@@ -17616,7 +23565,7 @@ const zhTW: Dictionary = {
   "quickNote.placeholder": "隨手記一下...",
   "quickNote.add": "新增隨手記",
   "quickNote.empty": "尚無隨手記，類似 Google 記事本",
-  "todo.title": "To-Do List",
+  "todo.title": "日曆",
   "todo.calendar": "日曆",
   "todo.add": "新增任務",
   "todo.empty": "尚無任務",
@@ -17797,6 +23746,9 @@ function nodeToMarkdown(node: any): string {
     case "orderedList": return (node.content || []).map((item: any, index: number) => listItemToMarkdown(item, true, index)).join("\n");
     case "taskList": return (node.content || []).map((item: any) => taskItemToMarkdownLine(item)).join("\n");
     case "table": return tableToMarkdown(node);
+    case "lessonBlock": return `**${({ definition: "定義", example: "例題", exercise: "練習", answer: "解答" } as Record<string, string>)[node.attrs?.kind] || "例題"}**\n\n${(node.content || []).map(nodeToMarkdown).join("\n\n")}`;
+    case "answerSpace": return Array.from({ length: Math.min(12, Math.max(1, Number(node.attrs?.lines) || 4)) }, () => "________________________").join("\n\n");
+    case "lessonToc": return "<!-- 自動目錄：請參閱文件標題 -->";
     case "callout": return calloutToMarkdown(node);
     case "pageBreak": return "<!-- pagebreak -->";
     case "blockMath": { const latex = typeof node.attrs?.latex === "string" ? node.attrs.latex : ""; return `$$\n${latex}\n$$`; }
@@ -17890,6 +23842,12 @@ export function createMarkdownContent(markdown: string): object {
       while (cursor < lines.length && lines[cursor].trim() !== "$$") { mathLines.push(lines[cursor]); cursor += 1; }
       content.push({ type: "blockMath", attrs: { latex: mathLines.join("\n").trim() } });
       index = cursor < lines.length ? cursor + 1 : cursor; continue;
+    }
+    const singleLineBlockMath = line.trim().match(/^\$\$([^$]+)\$\$$/);
+    if (singleLineBlockMath) {
+      flushParagraph(); flushList();
+      content.push({ type: "blockMath", attrs: { latex: singleLineBlockMath[1].trim() } });
+      index += 1; continue;
     }
     if (!line.trim()) { flushParagraph(); flushList(); index += 1; continue; }
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
@@ -18017,7 +23975,7 @@ export const MultiColumn = Node.create({
         ({ chain, state }: any) => {
           // Lift columns content to parent
           const { $from } = state.selection;
-          let depth = $from.depth;
+          const depth = $from.depth;
           for (let d = depth; d > 0; d--) {
             const node = $from.node(d);
             if (node.type.name === "multiColumn") {
@@ -18052,34 +24010,136 @@ declare module "@tiptap/core" {
 
 ````
 
+## File: src/lib/novelChapters.ts
+````
+import type { NovelChapter, Page } from "./types";
+
+export const emptyNovelDocument = () => ({ type: "doc", content: [{ type: "paragraph" }] });
+
+/** Chapters always reopen through their work, never through the generic editor. */
+export function getWorkspaceEntryPage(pages: Page[], preferredId?: string | null): Page | null {
+  const visible = pages.filter((page) => page.deleted_at === null);
+  const preferred = visible.find((page) => page.id === preferredId);
+  if (preferred && preferred.kind !== "novel_chapter") return preferred;
+  if (preferred?.kind === "novel_chapter") {
+    const parent = visible.find((page) => page.id === preferred.parent_id && page.kind === "creative" && page.creative_type !== "character" && page.creative_type !== "world" && !page.character_data);
+    if (parent) return parent;
+  }
+  return visible.find((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate) ?? null;
+}
+
+export function getNovelChapters(pages: Page[], novelId: string): NovelChapter[] {
+  return pages.filter((page): page is NovelChapter => page.kind === "novel_chapter" && page.parent_id === novelId && page.deleted_at === null)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id.localeCompare(b.id));
+}
+
+type Node = { type?: string; text?: string; attrs?: { level?: number }; content?: Node[] };
+function textOf(node: Node): string {
+  return node.text ?? (node.content || []).map(textOf).join("") + (["paragraph", "heading"].includes(node.type || "") ? "\n" : "");
+}
+
+/** Preserve every block, including any preface before the first H1. */
+export function splitLegacyNovel(page: Page): Array<Pick<NovelChapter, "title" | "content_json" | "content_text">> {
+  const chapters: Array<{ title: string; nodes: Node[] }> = [];
+  const nodes = (page.content_json as Node)?.content || [];
+  // Some imported legacy works only have plain text. Never clear that text
+  // without first placing it in an editable chapter document.
+  if (nodes.every((node) => node.type === "paragraph" && !node.content?.length) && page.content_text?.trim()) {
+    return [{ title: "第1章", content_text: page.content_text, content_json: {
+      type: "doc", content: page.content_text.split("\n").map((text) => ({
+        type: "paragraph", ...(text ? { content: [{ type: "text", text }] } : {}),
+      })),
+    } }];
+  }
+  for (const node of nodes) {
+    if (node.type === "heading" && node.attrs?.level === 1) {
+      chapters.push({ title: textOf(node).trim() || `第${chapters.length + 1}章`, nodes: [] });
+    } else {
+      if (!chapters.length) chapters.push({ title: "序章", nodes: [] });
+      chapters[chapters.length - 1].nodes.push(node);
+    }
+  }
+  if (chapters.length === 1 && chapters[0].title === "序章") chapters[0].title = "第1章";
+  return chapters.map(({ title, nodes }) => ({ title, content_json: { type: "doc", content: nodes.length ? nodes : [{ type: "paragraph" }] }, content_text: nodes.map(textOf).join("").trim() }));
+}
+
+````
+
 ## File: src/lib/obsidianMathInput.ts
 ````
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 
-function hasBoundaryWhitespaceOrEmpty(raw: string): boolean {
-  if (raw.trim() === "") return true;
-  return /^\s|\s$/.test(raw);
-}
-
 export const ObsidianMathInput = Extension.create({
   name: "obsidianMathInput",
+
+  addKeyboardShortcuts() {
+    return {
+      "Mod-m": () => {
+        const { state, view } = this.editor;
+        const nodeType = state.schema.nodes.inlineMath;
+        if (!nodeType) return false;
+        const { from, to } = state.selection;
+        const selectedText = state.doc.textBetween(from, to, " ");
+        const node = nodeType.create({ latex: selectedText || "" });
+        const tr = state.tr.replaceWith(from, to, node);
+        view.dispatch(tr);
+        return true;
+      },
+      "Mod-Shift-m": () => {
+        const { state, view } = this.editor;
+        const nodeType = state.schema.nodes.blockMath;
+        if (!nodeType) return false;
+        const { from, to } = state.selection;
+        const selectedText = state.doc.textBetween(from, to, "\n");
+        const node = nodeType.create({ latex: selectedText || "" });
+        const tr = state.tr.replaceWith(from, to, node);
+        view.dispatch(tr);
+        return true;
+      },
+    };
+  },
 
   addProseMirrorPlugins() {
     return [
       new Plugin({
         key: new PluginKey("obsidianMathInput"),
         props: {
+          handleKeyDown(view, event) {
+            if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+              const { state } = view;
+              const { $from } = state.selection;
+              if ($from.parent.type.spec.code) return false;
+              const lineText = $from.parent.textContent.trim();
+
+              // 輸入 $$ 按 Enter → 自動轉換為區塊公式
+              if (lineText === "$$") {
+                const nodeType = state.schema.nodes.blockMath;
+                if (nodeType) {
+                  event.preventDefault();
+                  const startPos = $from.start();
+                  const endPos = $from.end();
+                  const node = nodeType.create({ latex: "" });
+                  const tr = state.tr.replaceRangeWith(startPos, endPos, node);
+                  view.dispatch(tr);
+                  return true;
+                }
+              }
+            }
+            return false;
+          },
+
           handleTextInput(view, from, to, text) {
             if (text !== "$") return false;
             const { state } = view;
             const $from = state.doc.resolve(from);
             if ($from.parent.type.spec.code) return false;
-            const textBefore = $from.parent.textBetween(Math.max(0, $from.parentOffset - 200), $from.parentOffset, null, "\ufffc");
+            const textBefore = $from.parent.textBetween(Math.max(0, $from.parentOffset - 300), $from.parentOffset, null, "\ufffc");
             const fullText = textBefore + "$";
 
+            // 1. 區塊公式 $$formula$$
             const blockMatch = fullText.match(/\$\$([^$]+)\$\$$/);
-            if (blockMatch && !hasBoundaryWhitespaceOrEmpty(blockMatch[1])) {
+            if (blockMatch) {
               const latex = blockMatch[1].trim();
               if (latex) {
                 const nodeType = state.schema.nodes.blockMath;
@@ -18097,25 +24157,27 @@ export const ObsidianMathInput = Extension.create({
               }
             }
 
-            const inlineMatch = fullText.match(/\$([^$]+)\$$/);
+            // 2. 行內公式 $formula$ (過濾純數字如 $100$)
+            const inlineMatch = fullText.match(/\$([^$\n]+)\$$/);
             if (inlineMatch) {
+              const rawInner = inlineMatch[1].trim();
+              const isPureCurrency = /^\d+(\.\d+)?$/.test(rawInner);
               const matchStart = fullText.length - inlineMatch[0].length;
               const precedingChar = matchStart > 0 ? fullText[matchStart - 1] : "";
-              if (precedingChar !== "$" && !hasBoundaryWhitespaceOrEmpty(inlineMatch[1])) {
-                const latex = inlineMatch[1].trim();
-                if (latex) {
-                  const nodeType = state.schema.nodes.inlineMath;
-                  if (nodeType) {
-                    const matchFrom = from - (inlineMatch[0].length - 1);
-                    const tr = state.tr;
-                    const node = nodeType.create({ latex });
-                    tr.replaceWith(matchFrom, from, node);
-                    const afterNodePos = matchFrom + node.nodeSize;
-                    const $pos = tr.doc.resolve(Math.min(afterNodePos, tr.doc.content.size));
-                    tr.setSelection(TextSelection.near($pos));
-                    view.dispatch(tr);
-                    return true;
-                  }
+
+              if (precedingChar !== "$" && rawInner.length > 0 && !isPureCurrency) {
+                const latex = rawInner;
+                const nodeType = state.schema.nodes.inlineMath;
+                if (nodeType) {
+                  const matchFrom = from - (inlineMatch[0].length - 1);
+                  const tr = state.tr;
+                  const node = nodeType.create({ latex });
+                  tr.replaceWith(matchFrom, from, node);
+                  const afterNodePos = matchFrom + node.nodeSize;
+                  const $pos = tr.doc.resolve(Math.min(afterNodePos, tr.doc.content.size));
+                  tr.setSelection(TextSelection.near($pos));
+                  view.dispatch(tr);
+                  return true;
                 }
               }
             }
@@ -18128,6 +24190,7 @@ export const ObsidianMathInput = Extension.create({
   },
 });
 
+
 ````
 
 ## File: src/lib/obsidianMathNodeView.ts
@@ -18135,6 +24198,30 @@ export const ObsidianMathInput = Extension.create({
 import katex from "katex";
 import type { Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+
+const COMMON_MATH_SYMBOLS = [
+  { label: "a/b", latex: "\\frac{a}{b}" },
+  { label: "√x", latex: "\\sqrt{x}" },
+  { label: "xⁿ", latex: "x^{n}" },
+  { label: "xₙ", latex: "x_{n}" },
+  { label: "∑", latex: "\\sum_{i=1}^{n} x_i" },
+  { label: "∫", latex: "\\int_{a}^{b} f(x) dx" },
+  { label: "lim", latex: "\\lim_{x \\to 0}" },
+  { label: "α", latex: "\\alpha" },
+  { label: "β", latex: "\\beta" },
+  { label: "π", latex: "\\pi" },
+  { label: "θ", latex: "\\theta" },
+  { label: "∞", latex: "\\infty" },
+  { label: "±", latex: "\\pm" },
+  { label: "≠", latex: "\\neq" },
+  { label: "≈", latex: "\\approx" },
+  { label: "≤", latex: "\\le" },
+  { label: "≥", latex: "\\ge" },
+  { label: "×", latex: "\\times" },
+  { label: "÷", latex: "\\div" },
+  { label: "→", latex: "\\rightarrow" },
+  { label: "[矩陣]", latex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
+];
 
 export function createObsidianMathNodeView(isInline: boolean) {
   return ({
@@ -18151,19 +24238,154 @@ export function createObsidianMathNodeView(isInline: boolean) {
 
     const wrapper = document.createElement(isInline ? "span" : "div");
     wrapper.className = isInline ? "nexus-math-inline" : "nexus-math-block";
+
+    // 預覽層 (KaTeX Rendered)
     const preview = document.createElement(isInline ? "span" : "div");
     preview.className = "math-preview";
-    const editEl: HTMLInputElement | HTMLTextAreaElement = isInline ? document.createElement("input") : document.createElement("textarea");
-    editEl.className = "math-edit";
-    if (isInline) (editEl as HTMLInputElement).type = "text";
-    editEl.style.display = "none";
-    wrapper.append(preview, editEl as unknown as Node);
+    preview.title = "點擊編輯 LaTeX 公式";
+
+    // 編輯層
+    let editContainer: HTMLElement;
+    let editInput: HTMLInputElement | HTMLTextAreaElement;
+    let livePreviewEl: HTMLElement | null = null;
+
+    if (isInline) {
+      editContainer = document.createElement("span");
+      editContainer.className = "math-edit-wrapper";
+      editContainer.style.display = "none";
+
+      const prefix = document.createElement("span");
+      prefix.textContent = "$";
+      prefix.style.opacity = "0.5";
+      prefix.style.userSelect = "none";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "math-edit-input";
+      input.placeholder = "latex";
+
+      const suffix = document.createElement("span");
+      suffix.textContent = "$";
+      suffix.style.opacity = "0.5";
+      suffix.style.userSelect = "none";
+
+      editContainer.append(prefix, input, suffix);
+      editInput = input;
+    } else {
+      // 區塊公式編輯卡片
+      editContainer = document.createElement("div");
+      editContainer.className = "nexus-math-card";
+      editContainer.style.display = "none";
+
+      // 頂部標題
+      const header = document.createElement("div");
+      header.className = "nexus-math-card-header";
+      header.innerHTML = `<span>∑ 編輯區塊公式 (LaTeX)</span><span style="font-size:11px;opacity:0.6;">Ctrl+Enter 完成 · Esc 取消</span>`;
+
+      // 快捷符號按鈕列
+      const symbolsBar = document.createElement("div");
+      symbolsBar.className = "nexus-math-card-symbols";
+      COMMON_MATH_SYMBOLS.forEach((sym) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "nexus-math-sym-btn";
+        btn.textContent = sym.label;
+        btn.title = `插入 ${sym.latex}`;
+        btn.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          insertLatexSnippet(sym.latex);
+        });
+        symbolsBar.appendChild(btn);
+      });
+
+      // 輸入框 Textarea
+      const textarea = document.createElement("textarea");
+      textarea.className = "nexus-math-textarea";
+      textarea.placeholder = "在此輸入 LaTeX 公式代碼，例如：\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}";
+      textarea.rows = 3;
+
+      // 即時預覽區
+      livePreviewEl = document.createElement("div");
+      livePreviewEl.className = "nexus-math-live-preview";
+
+      // 底部操作列
+      const footer = document.createElement("div");
+      footer.className = "nexus-math-card-footer";
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "nexus-math-sym-btn";
+      deleteBtn.style.color = "#ef4444";
+      deleteBtn.style.marginRight = "auto";
+      deleteBtn.textContent = "🗑️ 刪除";
+      deleteBtn.addEventListener("click", () => {
+        deleteThisNode();
+      });
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "nexus-math-sym-btn";
+      cancelBtn.textContent = "✕ 取消";
+      cancelBtn.addEventListener("click", () => {
+        exitEdit(false);
+      });
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className = "nexus-math-sym-btn";
+      confirmBtn.style.backgroundColor = "#3b82f6";
+      confirmBtn.style.color = "#ffffff";
+      confirmBtn.style.borderColor = "#2563eb";
+      confirmBtn.style.fontWeight = "600";
+      confirmBtn.style.padding = "3px 12px";
+      confirmBtn.textContent = "✓ 完成";
+      confirmBtn.addEventListener("click", () => {
+        exitEdit(true);
+      });
+
+      footer.append(deleteBtn, cancelBtn, confirmBtn);
+      editContainer.append(header, symbolsBar, textarea, livePreviewEl, footer);
+      editInput = textarea;
+    }
+
+    wrapper.append(preview, editContainer);
+
+    function insertLatexSnippet(snippet: string) {
+      const el = editInput;
+      const start = el.selectionStart || 0;
+      const end = el.selectionEnd || 0;
+      const val = el.value;
+      el.value = val.substring(0, start) + snippet + val.substring(end);
+      el.selectionStart = el.selectionEnd = start + snippet.length;
+      el.focus();
+      updateLivePreview();
+      if (isInline) autoSizeInput();
+    }
+
+    function updateLivePreview() {
+      if (!livePreviewEl) return;
+      const raw = editInput.value.trim();
+      if (!raw) {
+        livePreviewEl.innerHTML = `<span style="font-size:12px;opacity:0.4;font-style:italic;">即時預覽區域</span>`;
+        return;
+      }
+      try {
+        livePreviewEl.innerHTML = "";
+        katex.render(raw, livePreviewEl, { displayMode: true, throwOnError: true });
+      } catch (err: any) {
+        livePreviewEl.innerHTML = `<span style="color:#ef4444;font-size:12px;font-family:monospace;">${err?.message || "LaTeX 語法錯誤"}</span>`;
+      }
+    }
 
     function renderKaTeX() {
       const latex = currentNode.attrs.latex || "";
-      if (!latex) {
-        preview.textContent = isInline ? "$" : "$$";
-        preview.style.opacity = "0.35";
+      if (!latex.trim()) {
+        if (isInline) {
+          preview.innerHTML = `<span style="opacity:0.75;font-size:0.85em;padding:1px 5px;border:1px dashed #3b82f6;border-radius:4px;color:#3b82f6;background-color:rgba(59,130,246,0.06);">＋ 行內公式</span>`;
+        } else {
+          preview.innerHTML = `<div style="text-align:center;padding:12px;border:1px dashed #3b82f6;border-radius:8px;color:#3b82f6;background-color:rgba(59,130,246,0.04);cursor:pointer;font-size:13px;font-weight:500;">∑ 點擊輸入區塊公式 (LaTeX)</div>`;
+        }
+        preview.style.opacity = "1";
         return;
       }
       preview.innerHTML = "";
@@ -18180,93 +24402,93 @@ export function createObsidianMathNodeView(isInline: boolean) {
     function stripDelimiters(raw: string): string {
       let s = raw.trim();
       if (isInline) {
-        if (s.startsWith("$")) s = s.slice(1);
-        if (s.endsWith("$")) s = s.slice(0, -1);
+        if (s.startsWith("$") && s.endsWith("$") && s.length >= 2) s = s.slice(1, -1);
       } else {
-        if (s.startsWith("$$")) s = s.slice(2);
-        if (s.endsWith("$$")) s = s.slice(0, -2);
+        if (s.startsWith("$$") && s.endsWith("$$") && s.length >= 4) s = s.slice(2, -2);
       }
       return s.trim();
     }
 
     function autoSizeInput() {
-      const el = editEl as HTMLInputElement;
+      if (!isInline) return;
+      const el = editInput as HTMLInputElement;
       const measure = document.createElement("span");
       measure.style.cssText = "position:absolute;visibility:hidden;white-space:pre;font:13px/1.4 monospace;";
-      measure.textContent = el.value || " ";
+      measure.textContent = el.value || "latex";
       document.body.appendChild(measure);
-      el.style.width = Math.max(measure.offsetWidth + 16, 40) + "px";
+      el.style.width = Math.max(measure.offsetWidth + 16, 60) + "px";
       document.body.removeChild(measure);
     }
 
-    function autoSizeTextarea() {
-      const el = editEl as HTMLTextAreaElement;
-      el.style.height = "auto";
-      el.style.height = el.scrollHeight + "px";
+    function deleteThisNode() {
+      const pos = typeof getPos === "function" ? getPos() : undefined;
+      if (pos !== undefined && editor && !editor.isDestroyed) {
+        const tr = editor.state.tr.delete(pos, pos + currentNode.nodeSize);
+        editor.view.dispatch(tr);
+      }
     }
 
-    function enterEdit(cursorAt: "start" | "end" | "all" = "all") {
+    function enterEdit() {
       if (!editor.isEditable || isEditing) return;
       isEditing = true;
       const latex = currentNode.attrs.latex || "";
-      const raw = isInline ? `$${latex}$` : `$$\n${latex}\n$$`;
+      editInput.value = latex;
       preview.style.display = "none";
-      editEl.style.display = isInline ? "inline-block" : "block";
-      editEl.value = raw;
-      if (isInline) autoSizeInput();
-      else autoSizeTextarea();
+      editContainer.style.display = isInline ? "inline-flex" : "flex";
+
+      if (isInline) {
+        autoSizeInput();
+      } else {
+        updateLivePreview();
+      }
+
       setTimeout(() => {
-        if ((editor as any).isDestroyed) return;
-        editEl.focus();
-        if (cursorAt === "start") {
-          editEl.setSelectionRange(isInline ? 1 : 3, isInline ? 1 : 3);
-        } else if (cursorAt === "end") {
-          const len = editEl.value.length;
-          const pos = isInline ? Math.max(len - 1, 0) : Math.max(len - 3, 0);
-          editEl.setSelectionRange(pos, pos);
-        } else {
-          editEl.select();
-        }
-      }, 0);
+        if (editor.isDestroyed) return;
+        editInput.focus();
+        editInput.select();
+      }, 10);
     }
 
     function exitEdit(save: boolean) {
       if (!isEditing) return;
       isEditing = false;
+      const val = editInput.value.trim();
+
       if (save) {
-        const latex = stripDelimiters(editEl.value);
+        const latex = stripDelimiters(val);
         const pos = typeof getPos === "function" ? getPos() : undefined;
-        if (pos !== undefined) {
-          if (latex === "") {
-            const cmd = isInline ? "deleteInlineMath" : "deleteBlockMath";
-            (editor.chain().focus() as any)[cmd]({ pos }).run();
-            return;
-          }
+        if (pos !== undefined && editor && !editor.isDestroyed) {
           if (latex !== currentNode.attrs.latex) {
-            const cmd = isInline ? "updateInlineMath" : "updateBlockMath";
-            (editor.chain().focus() as any)[cmd]({ latex, pos }).run();
+            const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+              ...currentNode.attrs,
+              latex,
+            });
+            editor.view.dispatch(tr);
           }
         }
       }
-      editEl.style.display = "none";
-      preview.style.display = isInline ? "inline-block" : "block";
+
+      editContainer.style.display = "none";
+      preview.style.display = isInline ? "inline-flex" : "flex";
       renderKaTeX();
     }
 
     function handleBoundaryArrow(direction: "left" | "right"): boolean {
       const pos = typeof getPos === "function" ? getPos() : undefined;
       if (pos === undefined) return false;
-      const atStart = editEl.selectionStart === 0;
-      const atEnd = editEl.selectionEnd === editEl.value.length;
+      const atStart = editInput.selectionStart === 0;
+      const atEnd = editInput.selectionEnd === editInput.value.length;
       if (direction === "left" && atStart) {
         exitEdit(true);
-        setTimeout(() => { if (!(editor as any).isDestroyed) editor.chain().focus().setTextSelection(pos).run(); }, 0);
+        setTimeout(() => {
+          if (!editor.isDestroyed) editor.chain().focus().setTextSelection(pos).run();
+        }, 0);
         return true;
       }
       if (direction === "right" && atEnd) {
         exitEdit(true);
         setTimeout(() => {
-          if ((editor as any).isDestroyed) return;
+          if (editor.isDestroyed) return;
           const nextPos = pos + currentNode.nodeSize;
           editor.chain().focus().setTextSelection(nextPos).run();
         }, 0);
@@ -18275,25 +24497,73 @@ export function createObsidianMathNodeView(isInline: boolean) {
       return false;
     }
 
-    preview.addEventListener("mousedown", (event) => { event.preventDefault(); });
-    preview.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); enterEdit("all"); });
-    editEl.addEventListener("blur", () => exitEdit(true));
-    editEl.addEventListener("input", () => { if (isInline) autoSizeInput(); else autoSizeTextarea(); });
-    editEl.addEventListener("keydown", (event: Event) => {
+    // 事件監聽
+    preview.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
+    preview.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      enterEdit();
+    });
+
+    // Leaving either kind of formula confirms it, matching Obsidian's
+    // rendered-by-default behaviour. Clicking the preview is the only way
+    // to re-open its full LaTeX source.
+    editInput.addEventListener("blur", () => {
+      exitEdit(true);
+    });
+
+    editInput.addEventListener("input", () => {
+      if (isInline) autoSizeInput();
+      else updateLivePreview();
+    });
+
+    editInput.addEventListener("keydown", (event: Event) => {
       const keyboardEvent = event as KeyboardEvent;
       if (keyboardEvent.key === "Escape") {
-        event.preventDefault(); event.stopPropagation();
-        exitEdit(false); editor.commands.focus(); return;
+        keyboardEvent.preventDefault();
+        keyboardEvent.stopPropagation();
+        exitEdit(false);
+        editor.commands.focus();
+        return;
       }
-      if (isInline && keyboardEvent.key === "Enter") { event.preventDefault(); (editEl as HTMLElement).blur(); return; }
-      if (keyboardEvent.key === "ArrowLeft" && handleBoundaryArrow("left")) { event.preventDefault(); return; }
-      if (keyboardEvent.key === "ArrowRight" && handleBoundaryArrow("right")) { event.preventDefault(); return; }
+
+      if (isInline && keyboardEvent.key === "Enter") {
+        keyboardEvent.preventDefault();
+        exitEdit(true);
+        editor.commands.focus();
+        return;
+      }
+
+      if (!isInline && keyboardEvent.key === "Enter" && (keyboardEvent.ctrlKey || keyboardEvent.metaKey)) {
+        keyboardEvent.preventDefault();
+        exitEdit(true);
+        editor.commands.focus();
+        return;
+      }
+
+      if (keyboardEvent.key === "ArrowLeft" && handleBoundaryArrow("left")) {
+        keyboardEvent.preventDefault();
+        return;
+      }
+      if (keyboardEvent.key === "ArrowRight" && handleBoundaryArrow("right")) {
+        keyboardEvent.preventDefault();
+        return;
+      }
+
       if (!isInline) {
-        const el = editEl as HTMLTextAreaElement;
+        const el = editInput as HTMLTextAreaElement;
         const lines = el.value.split("\n");
         const cursorLine = el.value.substring(0, el.selectionStart).split("\n").length - 1;
-        if (keyboardEvent.key === "ArrowUp" && cursorLine === 0 && handleBoundaryArrow("left")) { event.preventDefault(); return; }
-        if (keyboardEvent.key === "ArrowDown" && cursorLine === lines.length - 1 && handleBoundaryArrow("right")) { event.preventDefault(); return; }
+        if (keyboardEvent.key === "ArrowUp" && cursorLine === 0 && handleBoundaryArrow("left")) {
+          keyboardEvent.preventDefault();
+          return;
+        }
+        if (keyboardEvent.key === "ArrowDown" && cursorLine === lines.length - 1 && handleBoundaryArrow("right")) {
+          keyboardEvent.preventDefault();
+          return;
+        }
       }
     });
 
@@ -18302,14 +24572,21 @@ export function createObsidianMathNodeView(isInline: boolean) {
     return {
       dom: wrapper,
       selectNode() {
-        const pos = typeof getPos === "function" ? getPos() : undefined;
-        if (pos === undefined) { enterEdit("all"); return; }
-        const head = editor.state.selection.head;
-        enterEdit(head <= pos ? "start" : "end");
+        // Selection can happen while opening a page or moving with arrows;
+        // it must not expose the raw LaTeX source. Explicit preview click
+        // above is the edit gesture.
+        wrapper.classList.add("is-selected");
       },
-      deselectNode() { exitEdit(true); },
-      stopEvent() { return isEditing; },
-      ignoreMutation() { return true; },
+      deselectNode() {
+        wrapper.classList.remove("is-selected");
+        exitEdit(true);
+      },
+      stopEvent() {
+        return isEditing;
+      },
+      ignoreMutation() {
+        return true;
+      },
       update(updatedNode: ProseMirrorNode) {
         if (updatedNode.type.name !== currentNode.type.name) return false;
         currentNode = updatedNode;
@@ -18525,7 +24802,6 @@ export function noteToPresentation(page: Page): PresentationData {
       title: currentTitle,
       content_json: { type: "doc", content: currentSlideBlocks.length > 0 ? currentSlideBlocks : [{ type: "paragraph" }] },
       content_text: textContent,
-      notes: textContent.trim() || undefined,
       chart,
       blocks: slideBlocks,
     };
@@ -18632,6 +24908,10 @@ export const StableBlockId = Extension.create({
     return [
       {
         types: [
+          "lessonBlock",
+          "lessonToc",
+          "answerSpace",
+          "image",
           "paragraph",
           "heading",
           "bulletList",
@@ -18673,6 +24953,7 @@ export const StableBlockId = Extension.create({
           let tr: any = null;
           const seenIds = new Set<string>();
           newState.doc.descendants((node: any, pos: number) => {
+            if (!("id" in node.attrs)) return true;
             const id = node.attrs?.id;
             // Pressing Enter splits a ProseMirror node and copies its attrs.
             // Duplicate IDs make cursor anchors point at the previous page.
@@ -18734,9 +25015,10 @@ export function isSupabaseConfigured(): boolean {
 
 ## File: src/lib/syncEngine.ts
 ````
+import { syncStudy } from "./studySync";
 /**
  * Nexus Sync Engine ??Shared Workspace
- * All users share the same data. Realtime sync via Supabase.
+ * Per-account workspace sync via Supabase.
  */
 
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
@@ -18758,18 +25040,62 @@ export class SyncEngine {
   private supabase: SupabaseClient;
   private storage: StorageAdapter;
   private deviceId: string;
+  private userId: string;
   private lastSyncAt: number = 0;
   private listeners: Set<SyncListener> = new Set();
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private state: SyncState = { status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 };
   private isSyncing: boolean = false;
+  private studySync: Promise<void> | null = null;
+  private studySyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private studyError: string | null = null;
+  private studyOnline = () => { void this.syncStudyNow(); };
+  private studyChanged = () => {
+    if (this.destroyed || this.studySyncTimer) return;
+    this.studySyncTimer = setTimeout(() => {
+      this.studySyncTimer = null;
+      void this.storage.getStudyRepository().pending().then(pending => {
+        if (pending.length) void this.syncStudyNow();
+        else void this.storage.getStudyRepository().getQuizRepository()?.pending().then(quiz=>{
+          if(quiz.length)void this.syncStudyNow();
+        });
+      });
+    }, 300);
+  };
+  async syncStudyNow(): Promise<void> {
+    if (this.destroyed) return;
+    if (this.studySync) return this.studySync;
+    this.studySync = (async () => {
+      try {
+        await syncStudy(this.storage.getStudyRepository(), this.supabase, this.userId, () => !this.destroyed);
+        if (!this.destroyed) {
+          const previousError = this.studyError;
+          this.studyError = null;
+          const repository=this.storage.getStudyRepository();
+          const pendingPushes = (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length;
+          this.setState({ pendingPushes, ...(previousError && this.state.error === previousError ? { status: "connected" as const, error: null } : {}) });
+          if (pendingPushes) this.studyChanged();
+        }
+      } catch (error) {
+        this.storage.getStudyRepository().getQuizRepository()?.setReachable(false);
+        if (!this.destroyed) {
+          this.studyError = error instanceof Error ? error.message : String(error);
+          const repository=this.storage.getStudyRepository();
+          this.setState({ status: "error", error: this.studyError, pendingPushes: (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length });
+        }
+      }
+    })();
+    try { await this.studySync; } finally { this.studySync = null; }
+  }
+  private destroyed: boolean = false;
   private realtimeChannel: RealtimeChannel | null = null;
   private onRemoteChange: (() => void) | null = null;
 
-  constructor(supabase: SupabaseClient, storage: StorageAdapter, deviceId: string) {
+  constructor(supabase: SupabaseClient, storage: StorageAdapter, deviceId: string, userId: string) {
     this.supabase = supabase;
     this.storage = storage;
     this.deviceId = deviceId;
+    this.userId = userId;
   }
 
   subscribe(listener: SyncListener): () => void {
@@ -18780,6 +25106,7 @@ export class SyncEngine {
 
   private setState(partial: Partial<SyncState>): void {
     this.state = { ...this.state, ...partial };
+    if (partial.status === "connected" && this.studyError) this.state = { ...this.state, status: "error", error: this.studyError };
     this.listeners.forEach((l) => l(this.state));
   }
 
@@ -18790,20 +25117,21 @@ export class SyncEngine {
 
   /** Start realtime subscriptions + periodic sync */
   startRealtime(): void {
+    if (typeof window !== "undefined") { window.addEventListener("nexus-study-changed", this.studyChanged); window.addEventListener("online", this.studyOnline); }
     // Subscribe to page changes
     this.realtimeChannel = this.supabase
-      .channel("nexus-shared")
-      .on("postgres_changes", { event: "*", schema: "public", table: "pages" }, (payload: Record<string, unknown>) => {
+      .channel(`nexus-${this.userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote page change:", payload.eventType, data?.id);
         this.handleRemotePageChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "attachments" }, (payload: Record<string, unknown>) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote attachment change:", payload.eventType, data?.id);
         this.handleRemoteAttachmentChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries" }, (payload: Record<string, unknown>) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
         const data = payload.new as Record<string, unknown> | null;
         console.log("[Sync] Remote binary change:", payload.eventType, data?.id);
         this.handleRemoteBinaryChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
@@ -18817,7 +25145,7 @@ export class SyncEngine {
       });
 
     // Also do periodic pull as backup (every 60 seconds)
-    this.syncInterval = setInterval(() => { this.pullChanges(); }, 60000);
+    this.syncInterval = setInterval(() => { void this.pullChanges().then(() => this.syncStudyNow()); }, 60000);
   }
 
   private async handleRemotePageChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
@@ -18826,7 +25154,8 @@ export class SyncEngine {
     // Skip if this change came from this device
     if (data.device_id === this.deviceId) return;
 
-    const localPages = await this.storage.listPages({ includeDeleted: true });
+    const localPages = (await this.storage.listPages({ includeDeleted: true }))
+      .filter((page) => page.workspace_owner_id === this.userId);
     const localPage = localPages.find((p) => p.id === data.id);
 
     // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
@@ -18845,7 +25174,8 @@ export class SyncEngine {
     if (!data || !data.id) return;
     if (data.device_id === this.deviceId) return;
 
-    const localAttachments = await this.storage.listAttachments();
+    const localAttachments = (await this.storage.listAttachments(true))
+      .filter((attachment) => attachment.workspace_owner_id === this.userId);
     const localAtt = localAttachments.find((a) => a.id === data.id);
 
     if (!localAtt || (data.updated_at as number) > localAtt.updated_at) {
@@ -18861,6 +25191,7 @@ export class SyncEngine {
         deleted_at: (data.deleted_at as number) || null,
         device_id: (data.device_id as string) || "",
         page_count: (data.page_count as number) ?? undefined,
+        workspace_owner_id: this.userId,
       };
       await this.storage.saveAttachment(att);
       this.onRemoteChange?.();
@@ -18926,27 +25257,34 @@ export class SyncEngine {
       priority: (row.priority as "low" | "medium" | "high" | null) || null,
       completed: (row.completed as boolean) || false,
       color: (row.color as string) || null,
+      creative_type: (row.creative_type as Page["creative_type"]) || undefined,
+      character_data: (row.character_data as Page["character_data"]) || undefined,
+      novel_settings: (row.novel_settings as Page["novel_settings"]) || undefined,
+      assistant_blocks: (row.assistant_blocks as Page["assistant_blocks"]) || undefined,
+      workspace_owner_id: this.userId,
     };
   }
 
   /** Initial full sync: pull everything from cloud */
   async fullSync(): Promise<void> {
-    if (this.isSyncing) return;
+    if (this.isSyncing || this.destroyed) return;
     this.isSyncing = true;
     this.setState({ status: "syncing", error: null });
 
     try {
-      const { data: cloudPages, error: pagesError } = await this.supabase.from("pages").select("*");
+      const { data: cloudPages, error: pagesError } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId);
       if (pagesError) throw new Error(`Pages pull failed: ${pagesError.message}`);
 
-      const { data: cloudAttachments, error: attachmentsError } = await this.supabase.from("attachments").select("*");
+      const { data: cloudAttachments, error: attachmentsError } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId);
       if (attachmentsError) throw new Error(`Attachments pull failed: ${attachmentsError.message}`);
 
-      const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*");
+      const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId);
       if (binariesError) throw new Error(`Binaries pull failed: ${binariesError.message}`);
 
-      const localPages = await this.storage.listPages({ includeDeleted: true });
-      const localAttachments = await this.storage.listAttachments();
+      const localPages = (await this.storage.listPages({ includeDeleted: true }))
+        .filter((page) => page.workspace_owner_id === this.userId);
+      const localAttachments = (await this.storage.listAttachments(true))
+        .filter((attachment) => attachment.workspace_owner_id === this.userId);
       const localPageMap = new Map(localPages.map((p) => [p.id, p]));
       let maxUpdatedAt = this.lastSyncAt;
 
@@ -18963,14 +25301,17 @@ export class SyncEngine {
         if (cloudPage.updated_at > maxUpdatedAt) maxUpdatedAt = cloudPage.updated_at;
       }
 
-      // Push local pages ??cloud (if local is newer or doesn't exist on cloud)
+      // Push all pending page records together, including offline chapter activation.
+      const pendingPages: Page[] = [];
       for (const localPage of localPages) {
         const cloudPage = (cloudPages || []).find((cp: { id: string }) => cp.id === localPage.id);
         if (!cloudPage || localPage.updated_at > cloudPage.updated_at) {
-          await this.pushPage(localPage);
+          pendingPages.push(localPage);
         }
         if (localPage.updated_at > maxUpdatedAt) maxUpdatedAt = localPage.updated_at;
       }
+
+      await this.pushPages(pendingPages);
 
       // Push local attachments ??cloud (if local is newer or doesn't exist on cloud)
       // M4-1 fix: previously fullSync only pushed pages; attachments/binaries created
@@ -19002,6 +25343,7 @@ export class SyncEngine {
             storage_key: cloudAtt.storage_key || "", created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
             deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
             page_count: cloudAtt.page_count ?? undefined,
+            workspace_owner_id: this.userId,
           };
           await this.storage.saveAttachment(att);
         }
@@ -19020,10 +25362,15 @@ export class SyncEngine {
         }
       }
 
+      if (this.destroyed) return;
       this.lastSyncAt = maxUpdatedAt;
       this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
+      await this.syncStudyNow();
       this.onRemoteChange?.();
     } catch (err) {
+      // A superseded login sync is intentionally abandoned. Do not surface its
+      // teardown race as a user-facing synchronization failure.
+      if (this.destroyed) return;
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error("[SyncEngine] fullSync error:", errorMsg);
       this.setState({ status: "error", error: errorMsg });
@@ -19039,13 +25386,14 @@ export class SyncEngine {
     this.setState({ status: "syncing" });
 
     try {
-      const { data: cloudPages } = await this.supabase.from("pages").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudPages } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       let maxUpdatedAt = this.lastSyncAt;
       let changed = false;
 
       for (const cloudPage of (cloudPages || [])) {
         if (cloudPage.device_id === this.deviceId) continue; // Skip own changes
-        const localPages = await this.storage.listPages({ includeDeleted: true });
+        const localPages = (await this.storage.listPages({ includeDeleted: true }))
+          .filter((page) => page.workspace_owner_id === this.userId);
         const localPage = localPages.find((p) => p.id === cloudPage.id);
         // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
         if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
@@ -19060,10 +25408,12 @@ export class SyncEngine {
 
       // M7 fix: pullChanges 原本只拉 pages，Realtime 斷線期間他機新增的附件/PDF 不會同步。
       // 補上 attachments 與 binaries 的增量 pull。
-      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       for (const cloudAtt of (cloudAttachments || [])) {
         if (cloudAtt.device_id === this.deviceId) continue;
-        const localAtt = (await this.storage.listAttachments()).find((a) => a.id === cloudAtt.id);
+        const localAtt = (await this.storage.listAttachments(true))
+          .filter((attachment) => attachment.workspace_owner_id === this.userId)
+          .find((a) => a.id === cloudAtt.id);
         if (!localAtt || (cloudAtt.updated_at as number) > localAtt.updated_at) {
           await this.storage.saveAttachment({
             id: cloudAtt.id, kind: ((cloudAtt.kind as string) || "file") as Attachment["kind"],
@@ -19072,13 +25422,14 @@ export class SyncEngine {
             created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
             deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
             page_count: cloudAtt.page_count ?? undefined,
+            workspace_owner_id: this.userId,
           });
           changed = true;
         }
         if ((cloudAtt.updated_at as number) > maxUpdatedAt) maxUpdatedAt = cloudAtt.updated_at as number;
       }
 
-      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").gt("updated_at", this.lastSyncAt);
+      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
       for (const cloudBin of (cloudBinaries || [])) {
         const localBin = await this.storage.readBinary(cloudBin.id);
         if (localBin) continue; // 本地已有（自己 push 或已同步）
@@ -19108,9 +25459,15 @@ export class SyncEngine {
 
   /** Push a single page to cloud */
   async pushPage(page: Page): Promise<void> {
+    return this.pushPages([page]);
+  }
+
+  /** One upsert keeps chapter activation and its parent change atomic remotely. */
+  async pushPages(pages: Page[]): Promise<void> {
+    if (this.destroyed || !pages.length || pages.some((page) => page.workspace_owner_id !== this.userId)) return;
     try {
-      const { error: upErr } = await this.supabase.from("pages").upsert({
-        id: page.id, title: page.title, content_json: page.content_json,
+      const { error: upErr } = await this.supabase.from("pages").upsert(pages.map((page) => ({
+        id: page.id, owner_id: this.userId, title: page.title, content_json: page.content_json,
         content_text: page.content_text, default_mode: page.default_mode,
         created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
         revision: page.revision, device_id: this.deviceId,
@@ -19125,19 +25482,27 @@ export class SyncEngine {
         priority: page.priority ?? null,
         completed: page.completed ?? false,
         color: page.color ?? null,
-      }, { onConflict: "id" });
+        // Creative data must travel with the page; otherwise novels reopen as
+        // generic creative pages and lose their overview/settings on another device.
+        creative_type: page.creative_type ?? null,
+        character_data: page.character_data ?? null,
+        novel_settings: page.novel_settings ?? null,
+        assistant_blocks: page.assistant_blocks ?? null,
+      })), { onConflict: "id" });
       if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
 
-      if (page.updated_at > this.lastSyncAt) this.setState({ lastSyncAt: page.updated_at });
+      const updatedAt = Math.max(...pages.map((page) => page.updated_at));
+      if (!upErr && updatedAt > this.lastSyncAt) this.setState({ lastSyncAt: updatedAt });
     } catch (err) {
       console.error("[SyncEngine] pushPage error:", err);
     }
   }
 
   async pushAttachment(attachment: Attachment): Promise<void> {
+    if (this.destroyed || attachment.workspace_owner_id !== this.userId) return;
     try {
       await this.supabase.from("attachments").upsert({
-        id: attachment.id, kind: attachment.kind, name: attachment.name,
+        id: attachment.id, owner_id: this.userId, kind: attachment.kind, name: attachment.name,
         mime_type: attachment.mime_type, size_bytes: attachment.size_bytes,
         storage_key: attachment.storage_key, created_at: attachment.created_at,
         updated_at: attachment.updated_at, deleted_at: attachment.deleted_at,
@@ -19149,6 +25514,9 @@ export class SyncEngine {
   }
 
   async pushBinary(attachmentId: string, blob: Blob): Promise<void> {
+    if (this.destroyed) return;
+    const attachment = await this.storage.getAttachment(attachmentId);
+    if (!attachment || attachment.workspace_owner_id !== this.userId) return;
     try {
       const buffer = await blob.arrayBuffer();
       const bytes = new Uint8Array(buffer);
@@ -19156,7 +25524,7 @@ export class SyncEngine {
       const chunkSize = 0x8000;
       for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
       await this.supabase.from("binaries").upsert({
-        id: attachmentId, data: btoa(binary), updated_at: Date.now(),
+        id: attachmentId, owner_id: this.userId, data: btoa(binary), updated_at: Date.now(),
       }, { onConflict: "id" });
     } catch (err) {
       console.error("[SyncEngine] pushBinary error:", err);
@@ -19169,14 +25537,25 @@ export class SyncEngine {
 
   async pushPermanentDeletePage(pageId: string): Promise<void> {
     try {
-      await this.supabase.from("pages").delete().eq("id", pageId);
-      await this.supabase.from("binaries").delete().eq("id", pageId);
+      await this.supabase.from("pages").delete().eq("id", pageId).eq("owner_id", this.userId);
     } catch (err) {
       console.error("[SyncEngine] pushPermanentDeletePage error:", err);
     }
   }
 
+  async pushPermanentDeleteAttachment(attachmentId: string): Promise<void> {
+    try {
+      await this.supabase.from("attachments").delete().eq("id", attachmentId).eq("owner_id", this.userId);
+      await this.supabase.from("binaries").delete().eq("id", attachmentId).eq("owner_id", this.userId);
+    } catch (err) {
+      console.error("[SyncEngine] pushPermanentDeleteAttachment error:", err);
+    }
+  }
+
   destroy(): void {
+    if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }
+    if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
+    this.destroyed = true;
     this.stopPeriodicSync();
     if (this.realtimeChannel) {
       this.supabase.removeChannel(this.realtimeChannel);
@@ -19194,6 +25573,7 @@ export class SyncEngine {
 
 ## File: src/lib/types.ts
 ````
+import type { StudyBackup } from "./studyFSRS";
 export type ID = string;
 
 export type BlockType =
@@ -19226,9 +25606,11 @@ export interface Attachment {
   deleted_at: number | null;
   device_id: ID;
   page_count?: number;
+  /** Local-only workspace boundary. Cloud ownership is stored in Supabase owner_id. */
+  workspace_owner_id?: ID | null;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative";
+export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "novel_chapter" | "web" | "counter" | "draw";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**
@@ -19259,6 +25641,12 @@ export interface StudyItem {
   mastery: "new" | "learning" | "mastered";
   last_reviewed_at: number | null;
   review_count: number;
+  /** Daily scheduling is independent of cram practice and quiz results. */
+  daily_introduced_at?: number;
+  daily_due_at?: number;
+  daily_interval_days?: number;
+  daily_phase?: "learning" | "review";
+
 }
 
 export type SlideLayout = "title" | "title_content" | "two_column" | "chart" | "image" | "toc" | "quote" | "blank" | "canvas";
@@ -19308,7 +25696,6 @@ export interface Slide {
   content_text?: string; // derived text
   chart?: ChartData;
   diagramCode?: string; // Mermaid code
-  notes?: string; // speaker notes
   backgroundColor?: string;
   blocks?: PresentationBlock[]; // new canvas-like blocks for intuitive editing
 }
@@ -19344,11 +25731,153 @@ export interface Page {
   sort_order?: number;
   parent_id?: ID | null;
   margins?: PageMargins;
+  /** Attached expansion notes. They belong to this page and never open as pages. */
+  assistant_blocks?: AssistantBlock[];
   // Todo specific
   due_date?: number | null;
   priority?: "low" | "medium" | "high" | null;
   completed?: boolean;
   color?: string | null; // for quick note
+  // Creative specific
+  creative_type?: "novel" | "character" | "world";
+  character_data?: CharacterProfileData;
+  novel_settings?: NovelSettings;
+  /** Local-only workspace boundary. Cloud ownership is stored in Supabase owner_id. */
+  workspace_owner_id?: ID | null;
+}
+
+export interface AssistantBlock {
+  id: ID;
+  title: string;
+  content: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export type CreativeType = "novel" | "character" | "world";
+
+/**
+ * Early novels were saved before `creative_type` existed. Characters are the
+ * only creative pages with character data, so all remaining creative pages
+ * belong to the independent Novel entrance.
+ */
+export function isCreativeCharacterPage(page: Page): boolean {
+  return page.kind === "creative" && (page.creative_type === "character" || page.creative_type === "world" || !!page.character_data);
+}
+
+export function isNovelPage(page: Page): boolean {
+  return page.kind === "creative" && !isCreativeCharacterPage(page);
+}
+
+export interface NovelSettings {
+  /** Set only by explicit, transactional chapter activation. */
+  chaptersEnabled?: boolean;
+  /** Independent work overview shown before entering the reader. */
+  synopsis?: string;
+  /** Image attachment used only as the novel cover. */
+  coverAttachmentId?: ID | null;
+  theme?: "parchment" | "cream" | "eye_care" | "dark" | "pure_white";
+  fontSize?: number; // 14 ~ 26
+  fontFamily?: "serif" | "sans" | "kai";
+  lineHeight?: number; // 1.6 ~ 2.4
+  paragraphIndent?: boolean; // default true (2em)
+  showWordCount?: boolean;
+}
+
+/** An independent record in the pages store, synced and backed up as a page. */
+export interface NovelChapter extends Page {
+  kind: "novel_chapter";
+  parent_id: ID;
+  sort_order: number;
+}
+
+export type CharacterComponentType = "group" | "key_value" | "rich_text" | "tags" | "stats" | "rating" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
+
+export interface CharacterKeyValueItem {
+  key: string;
+  value: string;
+}
+
+export interface CharacterStatItem {
+  label: string;
+  value: number;
+  max?: number;
+}
+
+export interface CharacterRatingItem {
+  label: string;
+  value: number; // 1 ~ 5
+}
+
+export interface CharacterRelationItem {
+  targetName: string;
+  relationType: string;
+  description: string;
+}
+export interface CharacterPaletteItem { label: string; color: string; }
+export interface CharacterStatisticItem {
+  label: string;
+  description: string;
+  value?: number;
+  count?: number;
+  unitWeight?: number;
+  unit?: string;
+}
+export interface CharacterExternalLink { label: string; url: string; }
+
+export interface CharacterSection {
+  id: string;
+  type: CharacterComponentType;
+  title: string;
+  icon?: string;
+  /** Mixed content belonging to one user-defined block. */
+  contents?: CharacterSection[];
+  /** Example text shown as placeholders, never as filled-in data. */
+  example?: CharacterSection;
+  statisticHeaders?: { label: string; description: string; value: string; unit: string };
+  keyValues?: CharacterKeyValueItem[];
+  richText?: string;
+  tags?: string[];
+  stats?: CharacterStatItem[];
+  ratings?: CharacterRatingItem[];
+  relations?: CharacterRelationItem[];
+  palette?: CharacterPaletteItem[];
+  tendency?: { left: string; right: string; value: number }[];
+  statistics?: CharacterStatisticItem[];
+  gallery?: string[];
+  galleryAttachmentIds?: ID[];
+  externalLinks?: CharacterExternalLink[];
+  music?: CharacterExternalLink[];
+}
+
+export interface CharacterPageTab {
+  id: ID;
+  title: string;
+  sections: CharacterSection[];
+}
+
+export interface CharacterProfileData {
+  isTemplate?: boolean;
+  templateSourceId?: ID;
+  basicExamples?: Partial<CharacterProfileData["basic"]>;
+  templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e";
+  layout?: "single" | "two_column";
+  basic: {
+    name: string;
+    alias?: string;
+    avatarUrl?: string;
+    gender?: string;
+    age?: string;
+    role?: string;
+    affiliation?: string;
+    quote?: string;
+    customFields?: { id: string; key: string; value: string }[];
+  };
+  /** Optional creative-world membership. Empty means an independent character. */
+  world_id?: ID | null;
+  /** Extra spreadsheet-like pages. The original sections remain the 基本資料 tab. */
+  tabs?: CharacterPageTab[];
+  sections: CharacterSection[];
 }
 
 export interface PageQuery {
@@ -19380,6 +25909,7 @@ export interface WorkspaceBackupSettingEntry {
 }
 
 export interface WorkspaceBackup {
+  study?: StudyBackup;
   schema_version: number;
   exported_at: number;
   device_id: ID;
@@ -19492,6 +26022,250 @@ declare module "@tiptap/core" {
   }
 }
 
+
+````
+
+## File: supabase/migrations/20260913_account_isolation.sql
+````
+-- Nexus account isolation. Apply this in the Supabase SQL editor before
+-- enabling account sync in production.
+--
+-- Existing shared rows deliberately remain owner_id = NULL: assign them to
+-- a specific auth user manually before enabling RLS, rather than exposing
+-- them to the first person who signs in.
+
+alter table public.pages add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.attachments add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table public.binaries add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+
+create index if not exists pages_owner_id_idx on public.pages(owner_id);
+create index if not exists attachments_owner_id_idx on public.attachments(owner_id);
+create index if not exists binaries_owner_id_idx on public.binaries(owner_id);
+
+alter table public.pages enable row level security;
+alter table public.attachments enable row level security;
+alter table public.binaries enable row level security;
+
+-- Remove the legacy shared-workspace policies. Leaving any of these in place
+-- would bypass the per-account policies below because Supabase policies are ORed.
+drop policy if exists "allow all pages" on public.pages;
+drop policy if exists "allow all attachments" on public.attachments;
+drop policy if exists "allow all binaries" on public.binaries;
+
+drop policy if exists "Nexus users manage their own pages" on public.pages;
+create policy "Nexus users manage their own pages" on public.pages
+  for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+drop policy if exists "Nexus users manage their own attachments" on public.attachments;
+create policy "Nexus users manage their own attachments" on public.attachments
+  for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+drop policy if exists "Nexus users manage their own binaries" on public.binaries;
+create policy "Nexus users manage their own binaries" on public.binaries
+  for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+-- To assign legacy shared data to its owner, run this once with the user's UUID:
+-- update public.pages set owner_id = '<auth-user-uuid>' where owner_id is null;
+-- update public.attachments set owner_id = '<auth-user-uuid>' where owner_id is null;
+-- update public.binaries set owner_id = '<auth-user-uuid>' where owner_id is null;
+
+````
+
+## File: supabase/migrations/20260914_creative_sync_fields.sql
+````
+-- Creative page sync coverage. Run after the initial schema and
+-- 20260913_account_isolation.sql.
+
+alter table public.pages add column if not exists creative_type text;
+alter table public.pages add column if not exists character_data jsonb;
+alter table public.pages add column if not exists novel_settings jsonb;
+alter table public.pages add column if not exists assistant_blocks jsonb;
+
+-- Existing RLS policies remain unchanged: these fields inherit the page row's
+-- owner_id protection.
+
+````
+
+## File: supabase/migrations/20260916_novel_chapters.sql
+````
+-- Chapters are independent pages records. They inherit owner_id RLS, sync,
+-- tombstones and backup support. This migration never alters novel content.
+-- Allow the new kind on installations that constrain the kind column.
+do $$
+declare
+  kind_column smallint;
+  restriction record;
+begin
+  select attnum into kind_column from pg_attribute
+    where attrelid = 'public.pages'::regclass and attname = 'kind';
+  for restriction in
+    select conname, pg_get_expr(conbin, conrelid) as expression
+    from pg_constraint where conrelid = 'public.pages'::regclass
+      and contype = 'c' and conkey = array[kind_column]::smallint[]
+  loop
+    execute format('alter table public.pages drop constraint %I', restriction.conname);
+    execute format('alter table public.pages add constraint %I check ((%s) or kind = ''novel_chapter'')',
+      restriction.conname, restriction.expression);
+  end loop;
+end $$;
+
+alter table public.pages add constraint novel_chapter_required_fields
+  check (kind <> 'novel_chapter' or
+    (parent_id is not null and parent_id <> id and sort_order is not null
+      and title is not null and content_json is not null
+      and created_at is not null and updated_at is not null));
+
+create index if not exists pages_novel_chapter_order
+  on public.pages (owner_id, parent_id, sort_order)
+  where kind = 'novel_chapter' and deleted_at is null;
+
+````
+
+## File: tests/characterWorkspace.test.cjs
+````
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const ts = require("typescript");
+function load(path) {
+  const output = ts.transpileModule(fs.readFileSync(path, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const api = {};
+  new Function("exports", "require", output)(api, require);
+  return api;
+}
+const { updateCharacterSection, deleteCharacterSection, moveCharacterSection, snapshotCharacterTemplate, instantiateCharacterTemplate } = load("src/lib/characterWorkspace.ts");
+const { createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } = load("src/lib/characterTemplates.ts");
+
+const mixed = () => [{ id: "block", type: "group", title: "背景", contents: [
+  { id: "prose", type: "rich_text", title: "故事", richText: "第一行\n第二行" },
+  { id: "short", type: "key_value", title: "外觀", keyValues: [{ key: "髮色", value: "銀白" }] },
+] }, { id: "legacy", type: "rich_text", title: "舊版組件", richText: "保留" }];
+
+test("mixed blocks edit and reorder only the selected sibling, preserving legacy data", () => {
+  const source = mixed();
+  const original = JSON.stringify(source);
+  const updated = updateCharacterSection(source, "prose", { richText: "新內容" });
+  assert.equal(updated[0].contents[0].richText, "新內容");
+  assert.equal(updated[1].richText, "保留");
+  const moved = moveCharacterSection(updated, "short", -1);
+  assert.deepEqual(moved[0].contents.map((section) => section.id), ["short", "prose"]);
+  assert.deepEqual(deleteCharacterSection(moved, "short")[0].contents.map((section) => section.id), ["prose"]);
+  assert.deepEqual(deleteCharacterSection(moved, "block").map((section) => section.id), ["legacy"]);
+  assert.equal(JSON.stringify(source), original);
+});
+
+test("templates retain structure and examples without filling in a new character's prose", () => {
+  const source = { basic: { name: "原角色", alias: "破曉之刃", gender: "男" }, world_id: "old-world", sections: mixed(),
+    tabs: [{ id: "old-tab", title: "裝備", sections: [{ id: "stats", type: "statistics", title: "背包", statisticHeaders: { label: "物品", description: "介紹", value: "重量", unit: "單位" }, statistics: [{ label: "劍", description: "雙手劍", value: 2, unit: "公斤" }] }] }],
+  };
+  const snapshot = snapshotCharacterTemplate(source);
+  const one = instantiateCharacterTemplate(snapshot, "template-id");
+  const two = instantiateCharacterTemplate(snapshot, "template-id");
+  assert.equal(one.basic.name, "");
+  assert.equal(one.basic.alias, "");
+  assert.equal(one.basicExamples.alias, "破曉之刃");
+  assert.equal(one.world_id, null);
+  assert.equal(one.isTemplate, false);
+  assert.equal(one.templateSourceId, "template-id");
+  assert.equal(one.sections[0].contents[0].richText, "");
+  assert.equal(one.sections[0].contents[0].example.richText, "第一行\n第二行");
+  assert.equal(one.sections[0].contents[1].keyValues[0].key, "髮色");
+  assert.equal(one.sections[0].contents[1].keyValues[0].value, "");
+  assert.equal(one.tabs[0].sections[0].statisticHeaders.value, "重量");
+  assert.equal(one.tabs[0].sections[0].statistics[0].value, 2);
+  assert.notEqual(one.tabs[0].id, two.tabs[0].id);
+  assert.notEqual(one.sections[0].contents[0].id, two.sections[0].contents[0].id);
+  one.sections[0].contents[0].richText = "自己的故事";
+  assert.equal(two.sections[0].contents[0].richText, "");
+  assert.equal(snapshot.sections[0].contents[0].richText, "第一行\n第二行");
+  assert.equal(snapshot.isTemplate, true);
+});
+
+test("saving an instance as another template preserves unfilled example text", () => {
+  const source = { basic: { name: "範例名", alias: "範例稱號" }, sections: mixed() };
+  const instance = instantiateCharacterTemplate(snapshotCharacterTemplate(source));
+  instance.basic.name = "新範例名";
+  const resaved = snapshotCharacterTemplate(instance);
+  assert.equal(resaved.basic.name, "新範例名");
+  assert.equal(resaved.basic.alias, "範例稱號");
+  assert.equal(resaved.sections[0].contents[0].richText, "第一行\n第二行");
+  assert.equal(resaved.sections[0].contents[1].keyValues[0].value, "銀白");
+});
+
+test("built-in sheets have no invented character and use separate D&D and CoC structures", () => {
+  const blank = createBlankTemplate();
+  assert.deepEqual(blank.sections, []);
+  assert.deepEqual(blank.tabs, []);
+  assert.equal(blank.basic.name, "");
+  const dnd = createDnd5eTemplate();
+  const coc = createCoc7eTemplate();
+  assert.equal(dnd.sections[1].contents[0].stats.length, 6);
+  assert.equal(coc.sections[1].contents[0].stats.length, 8);
+  assert.ok(dnd.tabs.some((tab) => tab.title === "法術"));
+  assert.ok(coc.tabs.some((tab) => tab.title === "調查紀錄"));
+  assert.equal(coc.basic.name, "");
+});
+
+````
+
+## File: tests/novelChapters.test.cjs
+````
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const ts = require("typescript");
+const compiled = ts.transpileModule(fs.readFileSync("src/lib/novelChapters.ts", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+}).outputText;
+const api = {};
+new Function("exports", compiled)(api);
+const paragraph = (text) => ({ type: "paragraph", content: [{ type: "text", text }] });
+const heading = (text, level = 1) => ({ type: "heading", attrs: { level }, content: [{ type: "text", text }] });
+
+test("activation preserves preface, nested headings and rich blocks without mutating the original", () => {
+  const image = { type: "image", attrs: { src: "attachment:test" } };
+  const page = { content_json: { type: "doc", content: [paragraph("序言"), heading("第一章"), paragraph("正文"), heading("小節", 2), image, heading("第二章")] } };
+  const original = JSON.stringify(page);
+  const chapters = api.splitLegacyNovel(page);
+  assert.deepEqual(chapters.map((chapter) => chapter.title), ["序章", "第一章", "第二章"]);
+  assert.deepEqual(chapters[1].content_json.content, [paragraph("正文"), heading("小節", 2), image]);
+  assert.equal(chapters[1].content_text, "正文\n小節");
+  assert.deepEqual(chapters[2].content_json.content, [{ type: "paragraph" }]);
+  assert.equal(JSON.stringify(page), original);
+});
+
+test("unstructured legacy works and plain-text imports keep their body", () => {
+  assert.equal(api.splitLegacyNovel({ content_json: { content: [paragraph("完整正文")] } })[0].content_text, "完整正文");
+  const imported = api.splitLegacyNovel({ content_json: {}, content_text: "甲\n乙" });
+  assert.equal(imported[0].content_text, "甲\n乙");
+  assert.deepEqual(imported[0].content_json.content, [paragraph("甲"), paragraph("乙")]);
+  assert.deepEqual(api.splitLegacyNovel({ content_json: {} }), []);
+});
+
+test("chapter workspace isolates works, excludes deleted records and orders by stable IDs", () => {
+  const chapter = { kind: "novel_chapter", parent_id: "work", deleted_at: null };
+  const pages = [
+    { ...chapter, id: "b", sort_order: 1 }, { ...chapter, id: "a", sort_order: 1 },
+    { ...chapter, id: "first", sort_order: 0 }, { ...chapter, id: "deleted", deleted_at: 10 },
+    { ...chapter, id: "other", parent_id: "other" }, { ...chapter, id: "note", kind: "note" },
+  ];
+  assert.deepEqual(api.getNovelChapters(pages, "work").map((item) => item.id), ["first", "a", "b"]);
+  assert.equal(pages[0].id, "b");
+  assert.deepEqual(api.getNovelChapters([], "work"), []);
+});
+
+test("workspace entry resolves a saved chapter to its parent and never opens orphan chapters", () => {
+  const novel = { id: "work", kind: "creative", creative_type: "novel", deleted_at: null };
+  const chapter = { id: "chapter", kind: "novel_chapter", parent_id: "work", deleted_at: null };
+  const template = { id: "template", kind: "creative", character_data: { isTemplate: true }, deleted_at: null };
+  assert.equal(api.getWorkspaceEntryPage([chapter, novel], "chapter").id, "work");
+  assert.equal(api.getWorkspaceEntryPage([chapter, template, novel]).id, "work");
+  assert.equal(api.getWorkspaceEntryPage([chapter, { ...novel, deleted_at: 10 }], "chapter"), null);
+  assert.equal(api.getWorkspaceEntryPage([chapter]), null);
+  assert.equal(api.getWorkspaceEntryPage([template], "template").id, "template");
+});
 
 ````
 

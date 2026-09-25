@@ -2,6 +2,18 @@ import type { NovelChapter, Page } from "./types";
 
 export const emptyNovelDocument = () => ({ type: "doc", content: [{ type: "paragraph" }] });
 
+/** Chapters always reopen through their work, never through the generic editor. */
+export function getWorkspaceEntryPage(pages: Page[], preferredId?: string | null): Page | null {
+  const visible = pages.filter((page) => page.deleted_at === null);
+  const preferred = visible.find((page) => page.id === preferredId);
+  if (preferred && preferred.kind !== "novel_chapter") return preferred;
+  if (preferred?.kind === "novel_chapter") {
+    const parent = visible.find((page) => page.id === preferred.parent_id && page.kind === "creative" && page.creative_type !== "character" && page.creative_type !== "world" && !page.character_data);
+    if (parent) return parent;
+  }
+  return visible.find((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate) ?? null;
+}
+
 export function getNovelChapters(pages: Page[], novelId: string): NovelChapter[] {
   return pages.filter((page): page is NovelChapter => page.kind === "novel_chapter" && page.parent_id === novelId && page.deleted_at === null)
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id.localeCompare(b.id));

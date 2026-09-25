@@ -1,3 +1,4 @@
+import type { StudyBackup } from "./studyFSRS";
 export type ID = string;
 
 export type BlockType =
@@ -65,6 +66,12 @@ export interface StudyItem {
   mastery: "new" | "learning" | "mastered";
   last_reviewed_at: number | null;
   review_count: number;
+  /** Daily scheduling is independent of cram practice and quiz results. */
+  daily_introduced_at?: number;
+  daily_due_at?: number;
+  daily_interval_days?: number;
+  daily_phase?: "learning" | "review";
+
 }
 
 export type SlideLayout = "title" | "title_content" | "two_column" | "chart" | "image" | "toc" | "quote" | "blank" | "canvas";
@@ -209,7 +216,7 @@ export interface NovelChapter extends Page {
   sort_order: number;
 }
 
-export type CharacterComponentType = "group" | "key_value" | "rich_text" | "tags" | "stats" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
+export type CharacterComponentType = "group" | "key_value" | "rich_text" | "tags" | "stats" | "rating" | "relations" | "radar" | "palette" | "tendency" | "statistics" | "gallery" | "links" | "music";
 
 export interface CharacterKeyValueItem {
   key: string;
@@ -218,8 +225,13 @@ export interface CharacterKeyValueItem {
 
 export interface CharacterStatItem {
   label: string;
-  value: number; // 0 ~ 100
+  value: number;
   max?: number;
+}
+
+export interface CharacterRatingItem {
+  label: string;
+  value: number; // 1 ~ 5
 }
 
 export interface CharacterRelationItem {
@@ -228,7 +240,14 @@ export interface CharacterRelationItem {
   description: string;
 }
 export interface CharacterPaletteItem { label: string; color: string; }
-export interface CharacterStatisticItem { label: string; description: string; value: number; unit?: string; }
+export interface CharacterStatisticItem {
+  label: string;
+  description: string;
+  value?: number;
+  count?: number;
+  unitWeight?: number;
+  unit?: string;
+}
 export interface CharacterExternalLink { label: string; url: string; }
 
 export interface CharacterSection {
@@ -245,6 +264,7 @@ export interface CharacterSection {
   richText?: string;
   tags?: string[];
   stats?: CharacterStatItem[];
+  ratings?: CharacterRatingItem[];
   relations?: CharacterRelationItem[];
   palette?: CharacterPaletteItem[];
   tendency?: { left: string; right: string; value: number }[];
@@ -266,6 +286,7 @@ export interface CharacterProfileData {
   templateSourceId?: ID;
   basicExamples?: Partial<CharacterProfileData["basic"]>;
   templateId?: "fantasy" | "modern" | "blank" | "dnd5e" | "coc7e";
+  layout?: "single" | "two_column";
   basic: {
     name: string;
     alias?: string;
@@ -275,6 +296,7 @@ export interface CharacterProfileData {
     role?: string;
     affiliation?: string;
     quote?: string;
+    customFields?: { id: string; key: string; value: string }[];
   };
   /** Optional creative-world membership. Empty means an independent character. */
   world_id?: ID | null;
@@ -312,6 +334,7 @@ export interface WorkspaceBackupSettingEntry {
 }
 
 export interface WorkspaceBackup {
+  study?: StudyBackup;
   schema_version: number;
   exported_at: number;
   device_id: ID;

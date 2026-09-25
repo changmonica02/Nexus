@@ -1,3 +1,4 @@
+import type { StudyRepository } from "./StudyRepository";
 import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "./types";
 
 // H3 fix (方案 A): QuickNote/TodoItem 獨立 store 介面已廢棄；
@@ -5,6 +6,7 @@ import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup 
 
 export interface StorageAdapter {
   init(): Promise<void>;
+  getStudyRepository(): StudyRepository;
   /** Selects the local workspace visible through list/create operations. */
   setWorkspaceOwner?(ownerId: ID | null): void;
   /** One-time migration of the legacy anonymous workspace after explicit authorization. */

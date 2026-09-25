@@ -402,3 +402,66 @@ body {
 .dark .nexus-math-card-footer {
   background-color: rgba(255, 255, 255, 0.02);
 }
+
+/* The app owns refresh gestures; editor overscroll must never reload it. */
+html, body { overscroll-behavior-y: none; }
+[data-pull-refresh] { overscroll-behavior-y: contain; }
+
+/* Shared note typography, scoped so novels and character sheets keep their styles. */
+.lesson-document { counter-reset: lesson-figure; }
+.lesson-document .nexus-tiptap-editor { font-size: var(--lesson-font-size, 16px); line-height: var(--lesson-line-height, 1.6); }
+.lesson-document .nexus-tiptap-editor p { font-size: inherit; line-height: inherit; orphans: 3; widows: 3; }
+.lesson-document .nexus-tiptap-editor h1 { font-size: calc(2em * var(--lesson-heading-scale, 1)); }
+.lesson-document .nexus-tiptap-editor h2 { font-size: calc(1.5em * var(--lesson-heading-scale, 1)); }
+.lesson-document .nexus-tiptap-editor h3 { font-size: calc(1.2em * var(--lesson-heading-scale, 1)); }
+.lesson-document[data-lesson-preset="textbook"] .nexus-tiptap-editor { font-family: "Noto Serif TC", "PMingLiU", serif; }
+.lesson-document[data-lesson-preset="handout"] .nexus-tiptap-editor h1 { border-bottom: 2px solid currentColor; padding-bottom: .3em; }
+.nexus-tiptap-editor p[data-lesson-style="caption"] { counter-increment: lesson-figure; text-align: center; font-size: .85em; opacity: .75; margin-top: .35em; }
+.nexus-tiptap-editor p[data-lesson-style="caption"]::before { content: "圖 " counter(lesson-figure) "　"; }
+.nexus-tiptap-editor p[data-lesson-style="key"] { border-left: 3px solid #b7791f; padding: .65em 1em; background: rgba(234,179,8,.1); font-weight: 600; }
+.lesson-block { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+.lesson-block[data-lesson-kind="definition"] { border-left: 4px solid #2563eb; }
+.lesson-block[data-lesson-kind="example"] { border-left: 4px solid #15803d; }
+.lesson-block[data-lesson-kind="exercise"] { border-left: 4px solid #b7791f; }
+.lesson-block-label { font-size: .85em; font-weight: 700; display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.lesson-answer-toggle { cursor: pointer; font-weight: 400; text-decoration: underline; }
+.lesson-block-body > :first-child { margin-top: 0; }
+.lesson-block-body > :last-child { margin-bottom: 0; }
+.lesson-answer-space { margin: 12px 0; background: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #a1a1aa 31px, #a1a1aa 32px); }
+.lesson-answer-space > span { font-size: 11px; opacity: .5; }
+.lesson-toc { margin: 16px 0; padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; }
+.lesson-toc button { display: block; width: 100%; text-align: left; padding-top: 5px; padding-bottom: 5px; cursor: pointer; }
+.lesson-toc button:hover { text-decoration: underline; }
+.lesson-page-header, .lesson-page-footer { font-size: 12px; opacity: .65; padding: 8px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lesson-page-header { border-bottom: 1px solid var(--color-border); margin-bottom: 16px; }
+.lesson-page-footer { border-top: 1px solid var(--color-border); margin-top: 16px; }
+.lesson-paper-header, .lesson-paper-footer { position: absolute; font-size: 11px; opacity: .65; overflow-wrap: anywhere; }
+.lesson-paper-header { top: 16px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+.lesson-paper-footer { bottom: 16px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #ddd; padding-top: 4px; }
+.lesson-paper-footer > :last-child { flex-shrink: 0; }
+@media print {
+  @page lessonPaper { size: A4; margin: 0; }
+  body:has(.lesson-document) :has(.lesson-document), .lesson-document, .lesson-document :has(.nexus-print-target) { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; display: block !important; position: static !important; padding: 0 !important; margin: 0 !important; zoom: 1 !important; }
+  .lesson-document > :not(:has(.nexus-print-target)) { display: none !important; }
+  .lesson-document .nexus-print-target { position: static !important; width: 100% !important; padding: 0 !important; }
+  .lesson-paper-stack { gap: 0 !important; }
+  .lesson-paper { page: lessonPaper; width: 210mm !important; min-height: 297mm !important; box-shadow: none !important; border-radius: 0 !important; break-after: page; }
+  .lesson-paper:last-child { break-after: auto; }
+  .lesson-document h1, .lesson-document h2, .lesson-document h3 { break-after: avoid; }
+  .lesson-document tr, .lesson-document img, .lesson-block, .lesson-answer-space { break-inside: avoid; }
+  .lesson-document thead { display: table-header-group; }
+  .lesson-document p[data-lesson-style="caption"] { break-before: avoid; }
+  .lesson-document .lesson-block-body[hidden] { display: block !important; }
+  .lesson-document .lesson-answer-space { print-color-adjust: exact; }
+  .lesson-document .nexus-print-hide, .lesson-document .nexus-drag-handle { display: none !important; }
+}
+
+@media print {
+  body:has(.lesson-document) *:has(.lesson-document) > :not(:has(.lesson-document)):not(.lesson-document) { display: none !important; }
+  .lesson-document :has(.nexus-print-target) > :not(:has(.nexus-print-target)):not(.nexus-print-target) { display: none !important; }
+}
+
+.lesson-document .nexus-format-flow { width: 100%; max-width: none; margin: 0; padding: 0; }
+.lesson-menu-row > button { flex-shrink: 0; white-space: nowrap; }
+
+.lesson-paper-footer > :first-child { min-width: 0; flex: 1; }

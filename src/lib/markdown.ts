@@ -81,6 +81,9 @@ function nodeToMarkdown(node: any): string {
     case "orderedList": return (node.content || []).map((item: any, index: number) => listItemToMarkdown(item, true, index)).join("\n");
     case "taskList": return (node.content || []).map((item: any) => taskItemToMarkdownLine(item)).join("\n");
     case "table": return tableToMarkdown(node);
+    case "lessonBlock": return `**${({ definition: "定義", example: "例題", exercise: "練習", answer: "解答" } as Record<string, string>)[node.attrs?.kind] || "例題"}**\n\n${(node.content || []).map(nodeToMarkdown).join("\n\n")}`;
+    case "answerSpace": return Array.from({ length: Math.min(12, Math.max(1, Number(node.attrs?.lines) || 4)) }, () => "________________________").join("\n\n");
+    case "lessonToc": return "<!-- 自動目錄：請參閱文件標題 -->";
     case "callout": return calloutToMarkdown(node);
     case "pageBreak": return "<!-- pagebreak -->";
     case "blockMath": { const latex = typeof node.attrs?.latex === "string" ? node.attrs.latex : ""; return `$$\n${latex}\n$$`; }

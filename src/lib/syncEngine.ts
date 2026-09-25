@@ -1,3 +1,4 @@
+import { syncStudy } from "./studySync";
 /**
  * Nexus Sync Engine ??Shared Workspace
  * Per-account workspace sync via Supabase.
@@ -28,6 +29,47 @@ export class SyncEngine {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private state: SyncState = { status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 };
   private isSyncing: boolean = false;
+  private studySync: Promise<void> | null = null;
+  private studySyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private studyError: string | null = null;
+  private studyOnline = () => { void this.syncStudyNow(); };
+  private studyChanged = () => {
+    if (this.destroyed || this.studySyncTimer) return;
+    this.studySyncTimer = setTimeout(() => {
+      this.studySyncTimer = null;
+      void this.storage.getStudyRepository().pending().then(pending => {
+        if (pending.length) void this.syncStudyNow();
+        else void this.storage.getStudyRepository().getQuizRepository()?.pending().then(quiz=>{
+          if(quiz.length)void this.syncStudyNow();
+        });
+      });
+    }, 300);
+  };
+  async syncStudyNow(): Promise<void> {
+    if (this.destroyed) return;
+    if (this.studySync) return this.studySync;
+    this.studySync = (async () => {
+      try {
+        await syncStudy(this.storage.getStudyRepository(), this.supabase, this.userId, () => !this.destroyed);
+        if (!this.destroyed) {
+          const previousError = this.studyError;
+          this.studyError = null;
+          const repository=this.storage.getStudyRepository();
+          const pendingPushes = (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length;
+          this.setState({ pendingPushes, ...(previousError && this.state.error === previousError ? { status: "connected" as const, error: null } : {}) });
+          if (pendingPushes) this.studyChanged();
+        }
+      } catch (error) {
+        this.storage.getStudyRepository().getQuizRepository()?.setReachable(false);
+        if (!this.destroyed) {
+          this.studyError = error instanceof Error ? error.message : String(error);
+          const repository=this.storage.getStudyRepository();
+          this.setState({ status: "error", error: this.studyError, pendingPushes: (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length });
+        }
+      }
+    })();
+    try { await this.studySync; } finally { this.studySync = null; }
+  }
   private destroyed: boolean = false;
   private realtimeChannel: RealtimeChannel | null = null;
   private onRemoteChange: (() => void) | null = null;
@@ -47,6 +89,7 @@ export class SyncEngine {
 
   private setState(partial: Partial<SyncState>): void {
     this.state = { ...this.state, ...partial };
+    if (partial.status === "connected" && this.studyError) this.state = { ...this.state, status: "error", error: this.studyError };
     this.listeners.forEach((l) => l(this.state));
   }
 
@@ -57,6 +100,7 @@ export class SyncEngine {
 
   /** Start realtime subscriptions + periodic sync */
   startRealtime(): void {
+    if (typeof window !== "undefined") { window.addEventListener("nexus-study-changed", this.studyChanged); window.addEventListener("online", this.studyOnline); }
     // Subscribe to page changes
     this.realtimeChannel = this.supabase
       .channel(`nexus-${this.userId}`)
@@ -84,7 +128,7 @@ export class SyncEngine {
       });
 
     // Also do periodic pull as backup (every 60 seconds)
-    this.syncInterval = setInterval(() => { this.pullChanges(); }, 60000);
+    this.syncInterval = setInterval(() => { void this.pullChanges().then(() => this.syncStudyNow()); }, 60000);
   }
 
   private async handleRemotePageChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
@@ -304,6 +348,7 @@ export class SyncEngine {
       if (this.destroyed) return;
       this.lastSyncAt = maxUpdatedAt;
       this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
+      await this.syncStudyNow();
       this.onRemoteChange?.();
     } catch (err) {
       // A superseded login sync is intentionally abandoned. Do not surface its
@@ -491,6 +536,8 @@ export class SyncEngine {
   }
 
   destroy(): void {
+    if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }
+    if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
     this.destroyed = true;
     this.stopPeriodicSync();
     if (this.realtimeChannel) {

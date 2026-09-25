@@ -22,7 +22,7 @@ export default function FeatureOverview({
   const orderedPages = [...pages].sort((a, b) => b.updated_at - a.updated_at);
 
   return (
-    <main className="flex flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+    <main data-pull-refresh className="flex flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
       <section className="mx-auto w-full max-w-5xl px-6 py-10 sm:px-10">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>

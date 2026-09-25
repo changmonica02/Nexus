@@ -22,6 +22,10 @@ export const StableBlockId = Extension.create({
     return [
       {
         types: [
+          "lessonBlock",
+          "lessonToc",
+          "answerSpace",
+          "image",
           "paragraph",
           "heading",
           "bulletList",
@@ -63,6 +67,7 @@ export const StableBlockId = Extension.create({
           let tr: any = null;
           const seenIds = new Set<string>();
           newState.doc.descendants((node: any, pos: number) => {
+            if (!("id" in node.attrs)) return true;
             const id = node.attrs?.id;
             // Pressing Enter splits a ProseMirror node and copies its attrs.
             // Duplicate IDs make cursor anchors point at the previous page.

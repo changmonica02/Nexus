@@ -1,17 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
-import type { Page, StudyItem } from "../lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import QuizSession from "./QuizSession";
+import type { StudyRepository } from "../lib/StudyRepository";
+import { State, type StudyCard, type StudySnapshot } from "../lib/studyFSRS";
+import { displayStudyCards, hasLearningData, isLearned } from "../lib/studySessions";
+import DailyStudySession from "./DailyStudySession";
+import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
-
-function newStudyItemId(): string {
-  const uuid = globalThis.crypto?.randomUUID?.();
-  if (uuid) return `item_${uuid}`;
-  return `item_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-function createEmptyStudyItem(): StudyItem {
-  return { id: newStudyItemId(), front: "", back: "", mastery: "new", last_reviewed_at: null, review_count: 0 };
-}
 
 /** Parse CSV or TSV text into front/back pairs */
 function parseCsvTsv(text: string): { front: string; back: string }[] {
@@ -49,108 +44,121 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-/** Generate wrong answers for quiz: pick from other cards, or generate similar strings */
-function generateChoices(correctItem: StudyItem, allItems: StudyItem[], showFront: boolean): string[] {
-  const correctAnswer = showFront ? correctItem.back : correctItem.front;
-  const otherItems = allItems.filter((item) => item.id !== correctItem.id);
-  const wrongPool = otherItems.map((item) => (showFront ? item.back : item.front)).filter((s) => s && s !== correctAnswer);
-
-  // Shuffle and pick up to 3 wrong answers
-  const shuffled = [...wrongPool].sort(() => Math.random() - 0.5);
-  const wrongAnswers = shuffled.slice(0, 3);
-
-  // If not enough wrong answers, generate similar strings
-  while (wrongAnswers.length < 3) {
-    wrongAnswers.push(generateSimilarString(correctAnswer, wrongAnswers.length));
-  }
-
-  // Combine and shuffle
-  const all = [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5);
-  return all;
-}
-
-/** Generate a string similar to the input but different */
-function generateSimilarString(input: string, seed: number): string {
-  if (!input) return `Option ${seed + 1}`;
-  const chars = input.split("");
-  // Apply a simple transformation based on seed
-  const transformations = [
-    (s: string[]) => { if (s.length > 2) { const i = Math.floor(s.length / 2); [s[i], s[i + 1]] = [s[i + 1], s[i]]; } return s; }, // swap middle chars
-    (s: string[]) => { s.push(s[0]); return s.slice(1); }, // rotate left
-    (s: string[]) => { return [...s].reverse(); }, // reverse
-  ];
-  const transform = transformations[seed % transformations.length];
-  const result = transform([...chars]).join("");
-  return result === input ? `${input}*` : result;
-}
-
-/** Shuffle array */
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function buildPracticeQueue(items: StudyItem[]): StudyItem[] {
-  const unmastered = shuffle(items.filter((item) => item.mastery !== "mastered"));
-  const mastered = shuffle(items.filter((item) => item.mastery === "mastered"));
-  const queue: StudyItem[] = [];
-  let mi = 0;
-  unmastered.forEach((item, idx) => { queue.push(item); if ((idx + 1) % 3 === 0 && mi < mastered.length) queue.push(mastered[mi++]); });
-  while (mi < mastered.length) queue.push(mastered[mi++]);
-  return queue;
+function CardText({value,label,onCommit}:{value:string;label:string;onCommit:(text:string)=>void}) {
+  const [draft,setDraft]=useState(value);
+  useEffect(()=>setDraft(value),[value]);
+  return <textarea aria-label={label} value={draft} onChange={event=>setDraft(event.target.value)} onBlur={()=>{if(draft!==value)onCommit(draft);}} rows={2} placeholder={label}
+    className="min-w-0 w-full resize-y rounded bg-transparent px-1 py-1 text-sm leading-5 outline-none focus:ring-1 focus:ring-blue-500" />;
 }
 
 /* ============ Card Management ============ */
 
-function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onImportCsv }: {
-  studyItems: StudyItem[]; onAddCard: () => void; onUpdateCard: (id: string, patch: Partial<StudyItem>) => void;
-  onDeleteCard: (id: string) => void; onImportCsv: () => void;
+function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onImportCsv, onReorder, onCopy, statuses, customSort }: {
+  studyItems: StudyCard[]; onAddCard: () => void; onUpdateCard: (id: string, patch: Partial<StudyCard>) => void;
+  onDeleteCard: (id: string) => void; onImportCsv: () => void; onReorder: (items: StudyCard[]) => void;
+  onCopy: (item: StudyCard) => void; statuses: Record<string,string>; customSort: boolean;
 }) {
   const { t } = useLanguage();
+  const listRef = useRef<HTMLDivElement>(null);
+  const pointer = useRef<{ id: string; x: number; y: number; target: string } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; target: string } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  const moveCard = (id: string, target: string) => {
+    if (!customSort) return;
+    const from = studyItems.findIndex((item) => item.id === id);
+    const to = studyItems.findIndex((item) => item.id === target);
+    if (from < 0 || to < 0 || from === to) return;
+    const reordered = [...studyItems];
+    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+    onReorder(reordered);
+    setAnnouncement(`已移至第 ${to + 1} 張`);
+  };
+
+  const isDragging = drag !== null;
+
+  // Only the handle captures touch gestures; the rest of the list scrolls normally.
+  useEffect(() => {
+    if (!isDragging) return;
+    let frame: number;
+    const tick = () => {
+      const current = pointer.current;
+      const container = listRef.current?.closest("main");
+      if (current && container) {
+        const bounds = container.getBoundingClientRect();
+        const speed = current.y < bounds.top + 56 ? -10 : current.y > bounds.bottom - 56 ? 10 : 0;
+        if (speed) container.scrollTop += speed;
+        const rows = Array.from(listRef.current!.querySelectorAll<HTMLElement>("[data-study-card]"));
+        const nearest = rows.reduce<HTMLElement | null>((best, row) => {
+          const rect = row.getBoundingClientRect();
+          const previous = best?.getBoundingClientRect();
+          return !previous || Math.abs(current.y - (rect.top + rect.height / 2)) < Math.abs(current.y - (previous.top + previous.height / 2)) ? row : best;
+        }, null);
+        const target = nearest?.dataset.studyCard;
+        if (target && target !== current.target) {
+          current.target = target;
+          setDrag({ id: current.id, target });
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isDragging]);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("studySet.cardCount", { count: studyItems.length })}</div>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm opacity-60">{t("studySet.cardCount", { count: studyItems.length })}</div>
         <div className="flex gap-1.5">
-          <button onClick={onImportCsv}
-            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-            style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-            ? {t("studySet.importCsv")}
-          </button>
-          <button onClick={onAddCard}
-            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-            style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-            {t("studySet.addCard")}
-          </button>
+          <button onClick={onImportCsv} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.importCsv")}</button>
+          <button onClick={onAddCard} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.addCard")}</button>
         </div>
       </div>
+
+      {customSort&&<p className="text-xs opacity-50">拖曳左側把手調整順序；也可以聚焦把手後按 ↑／↓ 移動。</p>}
+      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
       {studyItems.length === 0 ? (
-        <div className="rounded-xl py-12 text-center text-sm opacity-50" style={{ border: "1px dashed var(--color-border)", color: "var(--color-text)" }}>{t("studySet.emptyCards")}</div>
+        <div className="rounded-xl border border-dashed py-12 text-center text-sm opacity-50">{t("studySet.emptyCards")}</div>
       ) : (
-        <div className="space-y-2">
+        <div ref={listRef} className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+          <div className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] gap-2 px-2 py-2 text-xs opacity-60" style={{ background: "var(--color-sidebar-bg)" }}>
+            <span>#</span><span>英文</span><span>中文</span><span />
+          </div>
           {studyItems.map((item, index) => (
-            <div key={item.id} className="rounded-xl p-3" style={{ border: "1px solid var(--color-border)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>#{index + 1}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${item.mastery === "mastered" ? "bg-green-100 text-green-700" : item.mastery === "learning" ? "bg-amber-100 text-amber-700" : "bg-zinc-200 text-zinc-600"}`}>
-                    {item.mastery === "mastered" ? t("studySet.mastery.mastered") : item.mastery === "learning" ? t("studySet.mastery.learning") : t("studySet.mastery.new")}
-                  </span>
-                  <button onClick={() => onDeleteCard(item.id)} className="text-xs px-1.5 py-0.5 rounded hover:bg-red-100 hover:text-red-700 transition-all"
-                    style={{ color: "var(--color-sidebar-text)" }} title={t("studySet.deleteCard")}></button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <textarea value={item.front} onChange={(e) => onUpdateCard(item.id, { front: e.target.value })} placeholder={t("studySet.front")} rows={2}
-                  className="w-full text-sm px-2.5 py-1.5 rounded-md outline-none resize-none bg-transparent focus:ring-1 focus:ring-blue-500"
-                  style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-                <textarea value={item.back} onChange={(e) => onUpdateCard(item.id, { back: e.target.value })} placeholder={t("studySet.back")} rows={2}
-                  className="w-full text-sm px-2.5 py-1.5 rounded-md outline-none resize-none bg-transparent focus:ring-1 focus:ring-blue-500"
-                  style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+            <div key={item.id} data-study-card={item.id}
+              className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-2 border-t px-2 py-1.5"
+              style={{ borderColor: "var(--color-border)", opacity: drag?.id === item.id ? 0.5 : 1,
+                boxShadow: drag?.target === item.id ? `inset 0 ${studyItems.findIndex((card) => card.id === drag.id) < index ? '-3' : '3'}px #3b82f6` : undefined }}>
+              {customSort?<button type="button" aria-label={`拖曳第 ${index + 1} 張字卡排序`} title="拖曳排序，或按上下方向鍵"
+                className="flex min-h-11 touch-none cursor-grab flex-col items-center justify-center rounded text-xs focus-visible:ring-2 focus-visible:ring-blue-500 active:cursor-grabbing"
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return;
+                  event.preventDefault();
+                  event.currentTarget.focus();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  pointer.current = { id: item.id, target: item.id, x: event.clientX, y: event.clientY };
+                  setDrag({ id: item.id, target: item.id });
+                }}
+                onPointerMove={(event) => { if (pointer.current) { pointer.current.x = event.clientX; pointer.current.y = event.clientY; } }}
+                onPointerUp={() => { if (pointer.current) moveCard(pointer.current.id, pointer.current.target); pointer.current = null; setDrag(null); }}
+                onPointerCancel={() => { pointer.current = null; setDrag(null); }}
+                onLostPointerCapture={() => { pointer.current = null; setDrag(null); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") { pointer.current = null; setDrag(null); }
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  const target = studyItems[index + (event.key === "ArrowUp" ? -1 : 1)];
+                  if (target) moveCard(item.id, target.id);
+                }}>
+                <span aria-hidden="true" className="text-base leading-4 opacity-50">⠿</span><span>{index + 1}</span>
+              </button>:<span className="text-center text-xs opacity-50">{index+1}</span>}
+              <CardText key={`${item.id}-front-${item.front}`} value={item.front} label={`英文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{front:value})} />
+              <CardText key={`${item.id}-back-${item.back}`} value={item.back} label={`中文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{back:value})} />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] opacity-60" title={statuses[item.id]}>{statuses[item.id]}</span>
+                <button onClick={()=>onCopy(item)} aria-label={`複製卡片 ${index+1}`} title="複製為新卡" className="text-xs">＋</button>
+                <button onClick={() => onDeleteCard(item.id)} aria-label={`${t("studySet.deleteCard")} ${index + 1}`} title={t("studySet.deleteCard")} className="h-8 w-8 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>
               </div>
             </div>
           ))}
@@ -162,174 +170,7 @@ function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onI
 
 /* ============ Flashcard Practice ============ */
 
-function PracticeSession({ studyItems, onFinishItem, onExit }: {
-  studyItems: StudyItem[]; onFinishItem: (id: string, result: "again" | "got_it") => void; onExit: () => void;
-}) {
-  const { t } = useLanguage();
-  const queue = useMemo(() => buildPracticeQueue(studyItems), [studyItems]);
-  const [index, setIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [summary, setSummary] = useState({ reviewed: 0, gotIt: 0 });
-  const currentItem = queue[index] || null;
-  const isFinished = queue.length === 0 || index >= queue.length;
-
-  const handleMark = (result: "again" | "got_it") => {
-    if (!currentItem) return;
-    onFinishItem(currentItem.id, result);
-    setSummary((prev) => ({ reviewed: prev.reviewed + 1, gotIt: prev.gotIt + (result === "got_it" ? 1 : 0) }));
-    setIsFlipped(false);
-    setIndex((prev) => prev + 1);
-  };
-
-  if (queue.length === 0 || isFinished) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16">
-        {isFinished && queue.length > 0 && (<>
-          <div className="text-xl font-semibold" style={{ color: "var(--color-text)" }}>{t("studySet.practice.finishedTitle")}</div>
-          <div className="text-sm opacity-60" style={{ color: "var(--color-text)" }}>{t("studySet.practice.summary", { reviewed: summary.reviewed, gotIt: summary.gotIt })}</div>
-        </>)}
-        <button onClick={onExit} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-zinc-200"
-          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.practice.backToManage")}</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-8">
-      <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{index + 1} / {queue.length}</div>
-      <button type="button" onClick={() => setIsFlipped((prev) => !prev)}
-        className="w-full max-w-md min-h-[220px] rounded-2xl flex items-center justify-center p-8 text-center text-xl font-medium transition-all hover:shadow-md"
-        style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)", color: "var(--color-text)" }}>
-        {isFlipped ? currentItem?.back : currentItem?.front}
-      </button>
-      <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{isFlipped ? t("studySet.practice.flipHintBack") : t("studySet.practice.flipHintFront")}</div>
-      {isFlipped && (
-        <div className="flex items-center gap-3">
-          <button onClick={() => handleMark("again")} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-amber-100"
-            style={{ border: "1px solid var(--color-border)", color: "#b45309" }}>{t("studySet.practice.again")}</button>
-          <button onClick={() => handleMark("got_it")} className="rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-green-100"
-            style={{ border: "1px solid var(--color-border)", color: "#15803d" }}>{t("studySet.practice.gotIt")}</button>
-        </div>
-      )}
-      <button onClick={onExit} className="text-xs opacity-50 hover:opacity-100 underline" style={{ color: "var(--color-text)" }}>{t("studySet.practice.exit")}</button>
-    </div>
-  );
-}
-
 /* ============ Quiz Mode (Four-Choice) ============ */
-
-function QuizSession({ studyItems, onFinishItem, onExit }: {
-  studyItems: StudyItem[]; onFinishItem: (id: string, result: "again" | "got_it") => void; onExit: () => void;
-}) {
-  const { t } = useLanguage();
-  const [quizItems] = useState(() => shuffle([...studyItems]));
-  const [index, setIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [score, setScore] = useState({ correct: 0, total: 0 });
-  const [showFront] = useState(() => Math.random() > 0.5); // Randomly decide: show front?pick back, or show back?pick front
-
-  const currentItem = quizItems[index] || null;
-  const isFinished = index >= quizItems.length;
-
-  const choices = useMemo(() => {
-    if (!currentItem) return [];
-    return generateChoices(currentItem, studyItems, showFront);
-  }, [currentItem, studyItems, showFront]);
-
-  const question = currentItem ? (showFront ? currentItem.front : currentItem.back) : "";
-  const correctAnswer = currentItem ? (showFront ? currentItem.back : currentItem.front) : "";
-
-  const handleSelect = (answer: string) => {
-    if (selectedAnswer || !currentItem) return;
-    setSelectedAnswer(answer);
-    const isCorrect = answer === correctAnswer;
-    setScore((prev) => ({ correct: prev.correct + (isCorrect ? 1 : 0), total: prev.total + 1 }));
-    onFinishItem(currentItem.id, isCorrect ? "got_it" : "again");
-  };
-
-  const handleNext = () => {
-    setSelectedAnswer(null);
-    setIndex((prev) => prev + 1);
-  };
-
-  if (isFinished) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16">
-        <div className="text-2xl font-semibold" style={{ color: "var(--color-text)" }}>??</div>
-        <div className="text-xl font-semibold" style={{ color: "var(--color-text)" }}>{t("studySet.practice.finishedTitle")}</div>
-        <div className="text-lg" style={{ color: "var(--color-text)" }}>
-          {t("studySet.quiz.score", { correct: score.correct, total: score.total })}
-        </div>
-        <div className="text-4xl font-bold mt-2" style={{ color: score.correct === score.total ? "#15803d" : score.correct >= score.total * 0.7 ? "#b45309" : "#dc2626" }}>
-          {score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0}%
-        </div>
-        <button onClick={onExit} className="mt-4 rounded-md px-4 py-2 text-sm font-medium transition-all hover:bg-zinc-200"
-          style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-          {t("studySet.practice.backToManage")}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-8 max-w-lg mx-auto">
-      <div className="flex items-center justify-between w-full">
-        <div className="text-xs opacity-40" style={{ color: "var(--color-text)" }}>{index + 1} / {quizItems.length}</div>
-        <div className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
-          {t("studySet.quiz.score", { correct: score.correct, total: score.total })}
-        </div>
-      </div>
-
-      {/* Question */}
-      <div className="w-full rounded-2xl p-8 text-center text-xl font-medium"
-        style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)", color: "var(--color-text)" }}>
-        {question}
-      </div>
-
-      <div className="text-sm opacity-50" style={{ color: "var(--color-text)" }}>{t("studySet.quiz.selectCorrect")}</div>
-
-      {/* Choices */}
-      <div className="w-full space-y-2">
-        {choices.map((choice, i) => {
-          const isSelected = selectedAnswer === choice;
-          const isCorrect = choice === correctAnswer;
-          const showResult = selectedAnswer !== null;
-          let bg = "var(--color-sidebar-bg)";
-          let border = "var(--color-border)";
-          let textColor = "var(--color-text)";
-          if (showResult && isCorrect) { bg = "#dcfce7"; border = "#15803d"; textColor = "#15803d"; }
-          else if (showResult && isSelected && !isCorrect) { bg = "#fee2e2"; border = "#dc2626"; textColor = "#dc2626"; }
-          return (
-            <button key={i} onClick={() => handleSelect(choice)} disabled={selectedAnswer !== null}
-              className="w-full rounded-xl px-5 py-4 text-left text-base transition-all disabled:cursor-default"
-              style={{ border: `2px solid ${border}`, backgroundColor: bg, color: textColor }}>
-              <span className="font-medium mr-2 opacity-50">{String.fromCharCode(65 + i)}.</span>
-              {choice}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Feedback + Next */}
-      {selectedAnswer !== null && (
-        <div className="w-full flex flex-col items-center gap-3 mt-2">
-          {selectedAnswer === correctAnswer ? (
-            <div className="text-green-600 font-medium text-sm">??{t("studySet.quiz.correct")}</div>
-          ) : (
-            <div className="text-red-600 font-medium text-sm">??{t("studySet.quiz.wrong")} <strong>{correctAnswer}</strong></div>
-          )}
-          <button onClick={handleNext}
-            className="rounded-md px-5 py-2 text-sm font-semibold transition-all hover:opacity-90"
-            style={{ backgroundColor: "var(--color-text)", color: "var(--color-bg)" }}>
-            {index + 1 >= quizItems.length ? t("studySet.quiz.finish") : t("studySet.quiz.next")}
-          </button>
-        </div>
-      )}
-
-      <button onClick={onExit} className="text-xs opacity-50 hover:opacity-100 underline" style={{ color: "var(--color-text)" }}>{t("studySet.practice.exit")}</button>
-    </div>
-  );
-}
 
 /* ============ CSV Import Dialog ============ */
 
@@ -417,62 +258,76 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-export default function StudySetView({ page, onTitleChange, onUpdateStudyItems, onBackToInterface }: {
-  page: Page; onTitleChange: (title: string) => void; onUpdateStudyItems: (items: StudyItem[]) => void; onBackToInterface?: () => void;
+function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface }: {
+  page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
 }) {
-  const { t } = useLanguage();
-  const [mode, setMode] = useState<"manage" | "practice" | "quiz">("manage");
-  const [showCsvImport, setShowCsvImport] = useState(false);
-  const studyItems = page.study_items || [];
-
-  const handleAddCard = () => onUpdateStudyItems([...studyItems, createEmptyStudyItem()]);
-  const handleUpdateCard = (id: string, patch: Partial<StudyItem>) => onUpdateStudyItems(studyItems.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  const handleDeleteCard = (id: string) => onUpdateStudyItems(studyItems.filter((i) => i.id !== id));
-  const handleFinishItem = (id: string, result: "again" | "got_it") => {
-    onUpdateStudyItems(studyItems.map((item) => {
-      if (item.id !== id) return item;
-      const nextMastery: StudyItem["mastery"] = result === "got_it" ? (item.mastery === "learning" ? "mastered" : "learning") : "learning";
-      return { ...item, mastery: result === "got_it" && item.mastery === "new" ? "learning" : nextMastery, last_reviewed_at: Date.now(), review_count: item.review_count + 1 };
-    }));
+  const [snapshot,setSnapshot]=useState<StudySnapshot|null>(null);
+  const [mode,setMode]=useState<"manage"|"daily"|"all"|"quiz"|"history">("manage");
+  const [showCsvImport,setShowCsvImport]=useState(false);
+  const [error,setError]=useState("");
+  const [historyLimit,setHistoryLimit]=useState(50);
+  const [editorVersion,setEditorVersion]=useState(0);
+  const [editingEnglish,setEditingEnglish]=useState<{id:string;value:string}|null>(null);
+  const refresh=useRef(()=>{});
+  useEffect(()=>{
+    let active=true;
+    const read=()=>{void repository.ensureDeck(page).then(data=>{if(active)setSnapshot(data);}).catch(e=>{if(active)setError(String(e));});};
+    refresh.current=read;read();window.addEventListener("nexus-study-changed",read);
+    return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
+  },[repository,page]);
+  const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(e instanceof Error?e.message:String(e));}};
+  const sortMode=snapshot?.settings.sort_mode??"custom";
+  const cards=displayStudyCards(snapshot?.cards.filter(card=>!card.deleted_at)??[],sortMode);
+  const statuses=Object.fromEntries((snapshot?.states??[]).map(state=>[state.id,state.conflict?"衝突":state.fsrs?({[State.New]:"新卡",[State.Learning]:"學習",[State.Review]:"複習",[State.Relearning]:"重學"}[state.fsrs.state]):state.legacy_due_at!=null?"待接續":"新卡"]));
+  const updateCard=(id:string,patch:Partial<StudyCard>)=>{
+    if(patch.front!=null) {
+      const state=snapshot?.states.find(s=>s.id===id);
+      if(hasLearningData(state,snapshot?.sessions)) setEditingEnglish({id,value:patch.front});
+      else void act(()=>repository.updateCard(id,{front:patch.front}));
+    }
+    else void act(()=>repository.updateCard(id,{back:patch.back}));
   };
-  const handleImportCsv = (items: { front: string; back: string }[]) => {
-    const newItems: StudyItem[] = items.map((item) => ({
-      id: newStudyItemId(), front: item.front, back: item.back, mastery: "new", last_reviewed_at: null, review_count: 0,
-    }));
-    onUpdateStudyItems([...studyItems, ...newItems]);
-  };
-
-  return (
-    <main className="flex flex-col flex-1 overflow-y-auto" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="flex flex-col mx-auto w-full" style={{ maxWidth: "820px", padding: "48px 64px" }}>
-        <div className="flex items-center justify-between gap-3 mb-4 text-sm opacity-80 pb-3 border-b" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-          <span className="flex items-center gap-2">{onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-1.5 py-0.5 text-base hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}{t("studySet.label")}</span>
-          <div className="flex gap-1.5">
-            {mode === "manage" ? (<>
-              <button onClick={() => setMode("practice")} disabled={studyItems.length === 0}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.startPractice")}</button>
-              <button onClick={() => { if (studyItems.length < 4) { alert(t("studySet.quiz.notEnough")); return; } setMode("quiz"); }}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>?? {t("studySet.quiz")}</button>
-            </>) : (
-              <button onClick={() => setMode("manage")}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all hover:bg-zinc-200"
-                style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}>{t("studySet.backToCards")}</button>
-            )}
-          </div>
-        </div>
-        <input type="text" value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder={t("studySet.titlePlaceholder")}
-          className="w-full text-3xl font-semibold bg-transparent border-none outline-none mb-6" style={{ color: "var(--color-text)", fontFamily: "inherit" }} />
-        {mode === "manage" ? (
-          <CardManageList studyItems={studyItems} onAddCard={handleAddCard} onUpdateCard={handleUpdateCard} onDeleteCard={handleDeleteCard} onImportCsv={() => setShowCsvImport(true)} />
-        ) : mode === "practice" ? (
-          <PracticeSession studyItems={studyItems} onFinishItem={handleFinishItem} onExit={() => setMode("manage")} />
-        ) : (
-          <QuizSession studyItems={studyItems} onFinishItem={handleFinishItem} onExit={() => setMode("manage")} />
-        )}
+  const changeEnglish=(reset:boolean)=>{const edit=editingEnglish;if(!edit)return;void act(async()=>{await repository.updateCard(edit.id,{front:edit.value},reset);setEditingEnglish(null);});};
+  if(!snapshot)return <main className="flex-1 p-8">{error||"正在載入字卡…"}</main>;
+  return <main className="flex flex-1 flex-col overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
+    <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
+        <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label="回到功能介面">←</button>}<span>字卡・英 → 中</span></div>
+        <div className="flex flex-wrap gap-2">{mode==="manage"?<>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("daily")}>每日學習</button>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("all")}>單字複習</button>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" onClick={()=>setMode("quiz")}>測驗</button>
+          <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>複習紀錄</button>
+        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>返回全部預覽</button>}</div>
       </div>
-      {showCsvImport && <CsvImportDialog onImport={handleImportCsv} onClose={() => setShowCsvImport(false)} />}
-    </main>
-  );
+      <input aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
+      {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
+      {mode==="manage"&&<>
+        {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用每日學習</button></div>}
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm"><label>每日新字上限 <input key={snapshot.settings.new_limit} aria-label="每日新字上限" type="number" min={0} max={10000} defaultValue={snapshot.settings.new_limit} onBlur={event=>{if(event.target.value!==String(snapshot.settings.new_limit))void act(()=>repository.configure(page.id,{new_limit:event.target.value===""?NaN:Number(event.target.value)}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label><span className="text-xs opacity-60">首次進入時固定當日批次；調整數量不影響已建立的批次。</span></div>
+        <p className="mb-3 text-xs leading-5 opacity-60">每日學習先把新字練到 Easy；單字複習使用已學字卡，每卡每輪首次評分更新 FSRS。測驗獨立，不影響排程或學習進度。</p>
+        {snapshot.states.filter(state=>state.conflict).map(state=><div key={state.id} className="mb-2 rounded border border-amber-400 p-3 text-sm">「{cards.find(card=>card.id===state.id)?.front}」排程衝突，兩邊紀錄均保留。<button className="ml-2 underline" onClick={()=>{if(confirm("保留所有歷史，但將這張卡重新設為 New？"))void act(()=>repository.updateCard(state.id,{},true));}}>保留歷史並重新學習</button></div>)}
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+          <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
+          <label>排序 <select aria-label="字卡排序" value={sortMode} onChange={event=>void act(()=>repository.configure(page.id,{sort_mode:event.target.value as "az"|"custom"}))} className="rounded border bg-transparent px-2 py-1"><option value="custom">自訂排序</option><option value="az">A–Z</option></select></label>
+          <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>
+        </div>
+        <CardManageList customSort={sortMode==="custom"} key={`${editorVersion}-${sortMode}`} studyItems={cards} statuses={statuses} onAddCard={()=>void act(()=>repository.addCards(page.id,[{front:"",back:""}]))} onUpdateCard={updateCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)} onReorder={items=>void act(()=>repository.reorder(page.id,items.map(item=>item.id)))} onCopy={item=>void act(()=>repository.addCards(page.id,[{front:item.front,back:item.back}]))}/>
+      </>}
+      {mode==="daily"&&<DailyStudySession key="daily" mode="daily" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
+      {mode==="all"&&<DailyStudySession key="free" mode="free" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
+      {mode==="quiz"&&<QuizSession repository={repository} snapshot={snapshot} onExit={()=>setMode("manage")}/>}
+      {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">正式複習紀錄</h2><p className="mb-3 text-xs opacity-60">正式複習記錄第一次實際評分。舊資料不補造歷史。</p>
+        {[...snapshot.events].reverse().filter(event=>event.kind==="review").slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","記得","簡單"][event.rating!]}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(event.after.fsrs!.due).toLocaleString()}</span></div>)}
+        {snapshot.events.filter(event=>event.kind==="review").length>historyLimit&&<button className="mt-3 underline" onClick={()=>setHistoryLimit(n=>n+50)}>顯示更多紀錄</button>}
+        <details className="mt-5"><summary>遷移前的學習摘要</summary>{cards.filter(card=>card.legacy).map(card=><p key={card.id} className="py-2 text-sm">{card.front}：舊複習次數 {card.legacy!.item.review_count}，原到期時間 {card.legacy!.item.daily_due_at?new Date(card.legacy!.item.daily_due_at).toLocaleString():"未排程"}</p>)}</details>
+      </div>}
+    </div>
+    {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}
+    {editingEnglish&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"><div role="dialog" aria-modal="true" aria-label="修改英文題面" className="max-w-md rounded-xl p-5 shadow-xl" style={{background:"var(--color-bg)"}}><p>英文題面已修改。要保留原排程，還是重新設為 New？兩者都保留歷史。</p><div className="mt-4 flex flex-wrap gap-2"><button className="rounded border p-2" onClick={()=>changeEnglish(false)}>保留排程</button><button className="rounded border p-2" onClick={()=>changeEnglish(true)}>重設為新卡</button><button className="rounded border p-2" onClick={()=>{setEditingEnglish(null);setEditorVersion(n=>n+1);refresh.current();}}>取消修改</button></div></div></div>}
+  </main>;
+}
+
+export default function StudySetView(props:Parameters<typeof StudySetWorkspace>[0]) {
+  return <StudySetWorkspace key={props.page.id} {...props}/>;
 }

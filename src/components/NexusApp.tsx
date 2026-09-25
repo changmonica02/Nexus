@@ -17,14 +17,13 @@ import type {
   CharacterProfileData,
   Attachment,
   WorkspaceBackup,
-  StudyItem,
   PageFormat,
   PageMargins,
   CreatePageInput,
   PageKind,
 } from "../lib/types";
 import { instantiateCharacterTemplate, snapshotCharacterTemplate } from "../lib/characterWorkspace";
-import { emptyNovelDocument, getNovelChapters, splitLegacyNovel } from "../lib/novelChapters";
+import { emptyNovelDocument, getNovelChapters, getWorkspaceEntryPage, splitLegacyNovel } from "../lib/novelChapters";
 import { isNovelPage } from "../lib/types";
 import type { StorageAdapter } from "../lib/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
@@ -35,11 +34,15 @@ import { DEFAULT_LANGUAGE, detectDefaultLanguage, type Language } from "../lib/i
 import { LanguageProvider, useLanguage } from "../lib/LanguageContext";
 import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
 import { SyncEngine, type SyncState } from "../lib/syncEngine";
+import { measureRefreshPull } from "../lib/pullToRefresh";
+import type { CreateItemType } from "../lib/creationOptions";
+import CreationChoiceDialog from "./CreationChoiceDialog";
 import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
 import StudySetView from "./StudySetView";
+import QuizOfflinePrompt from "./QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
@@ -140,6 +143,7 @@ function NexusAppInner({
   const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
+  const [characterTemplatePicker, setCharacterTemplatePicker] = useState(false);
   const [createDialog, setCreateDialog] = useState<{ open: boolean; initialKind: PageKind | null }>({ open: false, initialKind: null });
   // 2026-08-11：Markdown 拖曳匯入提示
   const [isDragImportOver, setIsDragImportOver] = useState(false);
@@ -153,6 +157,7 @@ function NexusAppInner({
   // edits in split view cancel one another's saves.
   const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pendingSavesRef = useRef(new Map<string, Page>());
+  const activeSavesRef = useRef(new Map<string, Promise<void>>());
   const syncEngineRef = useRef<SyncEngine | null>(null);
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
@@ -161,8 +166,11 @@ function NexusAppInner({
   const [novelContinueEditSignal, setNovelContinueEditSignal] = useState(0);
   const [globalPullDistance, setGlobalPullDistance] = useState(0);
   const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
-  const globalPullStartRef = useRef<number | null>(null);
-  const globalPullDistanceRef = useRef(0);
+  const globalPullStartRef = useRef<{ x: number; y: number; time: number; container: HTMLElement } | null>(null);
+  const refreshReadyRef = useRef(false);
+  const refreshBusyRef = useRef(false);
+  const [refreshReady, setRefreshReady] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
   const isActiveNovel = !!activePage && isNovelPage(activePage);
@@ -355,14 +363,9 @@ function NexusAppInner({
       if (savedNightAdapt === true) setIsPageNightAdapt(true);
 
       const savedId = hasAuthenticatedSession ? await adapter.getActivePageId() : null;
-      const savedPage = savedId ? allPages.find((p) => p.id === savedId && p.kind !== "novel_chapter" && p.deleted_at === null) : null;
-
-      if (savedPage) {
-        setActivePageId(savedPage.id);
-      } else if (allPages.length > 0) {
-        setActivePageId((allPages.find((page) => page.kind !== "novel_chapter")?.id ?? null));
-        await adapter.setActivePageId((allPages.find((page) => page.kind !== "novel_chapter")?.id ?? null));
-      }
+      const savedPage = getWorkspaceEntryPage(allPages, savedId);
+      setActivePageId(savedPage?.id ?? null);
+      await adapter.setActivePageId(savedPage?.id ?? null);
 
       setIsReady(true);
 
@@ -397,11 +400,9 @@ function NexusAppInner({
             setPages(accountPages);
             setAttachments(await adapter.listAttachments());
             const storedActiveId = await adapter.getActivePageId();
-            if (!accountPages.some((page) => page.id === storedActiveId && page.kind !== "novel_chapter")) {
-              const nextActiveId = accountPages.find((page) => page.kind !== "novel_chapter")?.id ?? null;
-              setActivePageId(nextActiveId);
-              await adapter.setActivePageId(nextActiveId);
-            }
+            const nextActiveId = getWorkspaceEntryPage(accountPages, storedActiveId)?.id ?? null;
+            setActivePageId(nextActiveId);
+            await adapter.setActivePageId(nextActiveId);
             engine.startRealtime();
           };
 
@@ -433,7 +434,7 @@ function NexusAppInner({
                 if (!cancelled) {
                   setPages(localPages);
                   setAttachments(localAttachments);
-                  setActivePageId(localPages[0]?.id ?? null);
+                  setActivePageId(getWorkspaceEntryPage(localPages)?.id ?? null);
                 }
               });
               setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
@@ -469,21 +470,33 @@ function NexusAppInner({
     const timer = saveTimersRef.current.get(latestPage.id);
     if (timer) clearTimeout(timer);
     saveTimersRef.current.delete(latestPage.id);
-    pendingSavesRef.current.delete(latestPage.id);
-    if (!storageRef.current) return;
-    const nextPage = { ...latestPage, updated_at: Date.now(), revision: latestPage.revision + 1 };
-    await storageRef.current.savePage(nextPage);
-    syncEngineRef.current?.pushPage(nextPage);
+    if (!storageRef.current) throw new Error("Storage unavailable");
+    pendingSavesRef.current.set(latestPage.id, latestPage);
+    const previous = activeSavesRef.current.get(latestPage.id);
+    const operation = (async () => {
+      // Serialize writes to the same page; a later successful retry supersedes a failed write.
+      if (previous) await previous.catch(() => undefined);
+      const nextPage = { ...latestPage, updated_at: Date.now(), revision: latestPage.revision + 1 };
+      await storageRef.current!.savePage(nextPage);
+      if (pendingSavesRef.current.get(latestPage.id) === latestPage) pendingSavesRef.current.delete(latestPage.id);
+      syncEngineRef.current?.pushPage(nextPage);
+    })();
+    activeSavesRef.current.set(latestPage.id, operation);
+    try { await operation; }
+    finally { if (activeSavesRef.current.get(latestPage.id) === operation) activeSavesRef.current.delete(latestPage.id); }
   }, [storageRef]);
   const flushAllSaves = useCallback(async () => {
-    const pending = [...pendingSavesRef.current.values()];
-    await Promise.all(pending.map((page) => flushSave(page)));
+    do {
+      const pending = [...pendingSavesRef.current.values()];
+      await Promise.all(pending.map((page) => flushSave(page)));
+      await Promise.all([...activeSavesRef.current.values()]);
+    } while (pendingSavesRef.current.size || activeSavesRef.current.size);
   }, [flushSave]);
   const scheduleSave = useCallback((page: Page) => {
     const previousTimer = saveTimersRef.current.get(page.id);
     if (previousTimer) clearTimeout(previousTimer);
     pendingSavesRef.current.set(page.id, page);
-    const timer = setTimeout(() => void flushSave(page), 800);
+    const timer = setTimeout(() => void flushSave(page).catch((error) => { console.error(error); setRefreshError("儲存未完成，內容仍保留在目前頁面，請稍後重試。"); }), 800);
     saveTimersRef.current.set(page.id, timer);
   }, [flushSave]);
 
@@ -726,6 +739,7 @@ function NexusAppInner({
     if (!storageRef.current) return;
     if (activePageRef.current) await flushSave(activePageRef.current);
     const newPage = await storageRef.current.createPage(input);
+    setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" ? input.kind : null);
     setIsTrashMode(false);
     setIsHomeMode(false);
     setIsQuickNoteMode(false);
@@ -874,9 +888,55 @@ function NexusAppInner({
     setPages((prev) => prev.map((p) => changed.get(p.id) ?? p));
   }, [storageRef, pages]);
 
-  const handleCreateItem = useCallback(async (type: "note" | "document" | "study_set" | "folder" | "presentation") => {
+  const handleCreateCharacter = async (templateId = "blank") => {
+    let initialData = createBlankTemplate();
+    if (templateId === "fantasy") initialData = createFantasyTemplate();
+    if (templateId === "modern") initialData = createModernTemplate();
+    if (templateId === "blank") initialData = createBlankTemplate();
+    if (templateId === "dnd5e") initialData = createDnd5eTemplate();
+    if (templateId === "coc7e") initialData = createCoc7eTemplate();
+    const customTemplate = pages.find((page) => page.id === templateId && page.character_data?.isTemplate && !page.deleted_at);
+    if (customTemplate?.character_data) initialData = customTemplate.character_data;
+    initialData = instantiateCharacterTemplate(initialData, customTemplate?.id);
+
+    const p = await createAndOpenPage({
+      kind: "creative" as any,
+      title: initialData.basic.name || "新角色檔案",
+      format: "flow",
+    });
+    if (p) {
+      patchPage(p.id, {
+        creative_type: "character",
+        character_data: initialData,
+        attachment_ids: [...(customTemplate?.attachment_ids || [])],
+      });
+    }
+
+  };
+
+  const handleCreateItem = useCallback(async (type: CreateItemType) => {
+    if (type === "character") { setCharacterTemplatePicker(true); return; }
+    if (type === "note_flow" || type === "note_paged") {
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try { await createAndOpenPage({ kind: "note", format: type === "note_flow" ? "flow" : "paged", title: "" }); }
+      finally { sidebarCreateInFlightRef.current = false; }
+      return;
+    }
+    if (["novel", "world", "web", "counter", "draw", "quick_note", "todo"].includes(type)) {
+      if (sidebarCreateInFlightRef.current) return;
+      sidebarCreateInFlightRef.current = true;
+      try {
+        const titles: Record<string, string> = { novel: "新小說作品", world: "新世界觀", web: "新網頁", counter: "新計數", draw: "新抽選", quick_note: "隨手記", todo: "新事項" };
+        const page = await createAndOpenPage({ kind: type === "novel" || type === "world" ? "creative" : type as PageKind, format: "flow", title: titles[type] });
+        if (page && type === "novel") patchPage(page.id, { creative_type: "novel", novel_settings: { chaptersEnabled: true, theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
+        if (page && type === "world") { const data = createBlankTemplate(); data.basic.name = titles.world; data.basic.role = "世界觀設定"; patchPage(page.id, { creative_type: "world", character_data: data }); }
+        if (page && type === "todo") patchPage(page.id, { due_date: Date.now(), completed: false });
+      } finally { sidebarCreateInFlightRef.current = false; }
+      return;
+    }
     if (type === "presentation") {
-      await handleCreatePresentation("16:9");
+      setCreateDialog({ open: true, initialKind: "presentation" });
       return;
     }
     if (type === "note") {
@@ -901,7 +961,7 @@ function NexusAppInner({
       : { kind: "study_set", title: "" };
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
-  }, [createAndOpenPage, handleCreatePresentation]);
+  }, [createAndOpenPage, patchPage]);
 
   // 2026-08-11：模式選擇對話框確認（筆記：流動/分頁）
   const handleConfirmCreateDialog = useCallback(async (kind: NewPageKindChoice, format: PageFormat) => {
@@ -983,57 +1043,70 @@ function NexusAppInner({
     setPages((current) => current.map((page) => changed.get(page.id) ?? page));
   }, [pages, storageRef]);
 
-  const findScrollContainer = (start: EventTarget | null): HTMLElement | null => {
-    let element = start instanceof HTMLElement ? start : null;
-    while (element) {
-      const overflowY = window.getComputedStyle(element).overflowY;
-      if (overflowY === "auto" || overflowY === "scroll") return element.scrollTop <= 0 ? element : null;
-      element = element.parentElement;
-    }
-    return null;
+  const cancelGlobalPull = () => {
+    globalPullStartRef.current = null;
+    refreshReadyRef.current = false;
+    setRefreshReady(false);
+    setGlobalPullDistance(0);
   };
-
-  const beginGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 1 || isGlobalRefreshing) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("input, textarea, [contenteditable='true']")) return;
-    if (findScrollContainer(event.target)) {
-      globalPullStartRef.current = event.touches[0]?.clientY ?? null;
-      globalPullDistanceRef.current = 0;
+  const reloadWorkspace = async () => {
+    if (refreshBusyRef.current) return;
+    refreshBusyRef.current = true;
+    setIsGlobalRefreshing(true);
+    setRefreshError("");
+    try {
+      await flushAllSaves();
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to save before refresh", error);
+      setRefreshError("儲存未完成，已取消刷新，請稍後重試。");
+      refreshBusyRef.current = false;
+      setIsGlobalRefreshing(false);
     }
+  };
+  const beginGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
+    cancelGlobalPull();
+    if (event.touches.length !== 1 || refreshBusyRef.current) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, button, a, select, [contenteditable], [role='dialog'], [data-side-panel]")) return;
+    if (!window.getSelection()?.isCollapsed) return;
+    const container = target.closest<HTMLElement>("[data-pull-refresh]");
+    const touch = event.touches[0];
+    if (!container || container.scrollTop > 0 || touch.clientY - container.getBoundingClientRect().top > 80) return;
+    // A nested scroller must keep its own gestures, even at its upper edge.
+    for (let element = target; element && element !== container; element = element.parentElement!) {
+      if (/(auto|scroll)/.test(window.getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight) return;
+    }
+    globalPullStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now(), container };
   };
   const moveGlobalPull = (event: TouchEvent<HTMLDivElement>) => {
-    if (globalPullStartRef.current === null) return;
-    // Deliberately require a long pull: ordinary attempts to scroll a page
-    // back to its top should never accidentally reload the whole app.
-    const distance = Math.min(160, Math.max(0, (event.touches[0]?.clientY ?? globalPullStartRef.current) - globalPullStartRef.current));
-    globalPullDistanceRef.current = distance;
-    setGlobalPullDistance(distance);
+    const start = globalPullStartRef.current;
+    if (!start) return;
+    if (event.touches.length !== 1 || start.container.scrollTop > 0) { cancelGlobalPull(); return; }
+    const touch = event.touches[0];
+    const pull = measureRefreshPull(touch.clientX - start.x, touch.clientY - start.y, Date.now() - start.time);
+    if (pull.cancelled) { cancelGlobalPull(); return; }
+    refreshReadyRef.current = pull.ready;
+    setRefreshReady(pull.ready);
+    setGlobalPullDistance(pull.distance);
   };
   const endGlobalPull = () => {
-    const shouldRefresh = globalPullDistanceRef.current >= 120;
-    globalPullStartRef.current = null;
-    globalPullDistanceRef.current = 0;
-    if (!shouldRefresh) { setGlobalPullDistance(0); return; }
-    setIsGlobalRefreshing(true);
-    // This is intentionally a browser-page reload, but first flush every
-    // page's debounce so a quick pull cannot discard the last typed text.
-    void flushAllSaves().catch((error) => console.error("Failed to flush before reload", error)).finally(() => window.location.reload());
+    const shouldRefresh = refreshReadyRef.current;
+    cancelGlobalPull();
+    if (shouldRefresh) void reloadWorkspace();
   };
 
   const closeMobilePanelsWhenEditing = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!isTabletViewport || isFeatureInterface || (isSidebarCollapsed && isRightPanelCollapsed)) return;
     const target = event.target as HTMLElement;
-    if (target.closest("[data-side-panel]")) return;
+    if (target.closest("[data-side-panel], [role='dialog'], dialog")) return;
     if (target.closest("[contenteditable='true'], textarea, input")) {
       setIsSidebarCollapsed(true);
       setIsRightPanelCollapsed(true);
     }
   };
 
-  const handleUpdateStudyItems = useCallback((items: StudyItem[]) => {
-    if (activePageId) patchPage(activePageId, { study_items: items });
-  }, [activePageId, patchPage]);
+
 
   const loadTrashPages = useCallback(async () => {
     if (!storageRef.current) return;
@@ -1163,7 +1236,7 @@ function NexusAppInner({
       creative_type: source.creative_type,
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? structuredClone(source.character_data) : undefined,
-      study_items: source.study_items ? source.study_items.map((item) => ({ ...item, id: `study_${nanoid()}` })) : duplicated.study_items,
+      study_items: source.kind === "study_set" ? [] : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
@@ -1172,6 +1245,13 @@ function NexusAppInner({
       id: `chapter_${nanoid()}`, parent_id: pageToSave.id, created_at: Date.now(), updated_at: Date.now(), revision: 1,
     }));
     await storageRef.current.savePages([pageToSave, ...chapters]);
+    if (source.kind === "study_set") {
+      const repository = storageRef.current.getStudyRepository();
+      const original = await repository.ensureDeck(source);
+      await repository.ensureDeck(pageToSave);
+      await repository.addCards(pageToSave.id, original.cards.filter(card => !card.deleted_at).map(card => ({ front: card.front, back: card.back })));
+      await repository.configure(pageToSave.id, { direction_confirmed: original.settings.direction_confirmed });
+    }
     setIsTrashMode(false);
     setIsHomeMode(false);
     setPages((prev) => [pageToSave, ...chapters, ...prev]);
@@ -1595,9 +1675,12 @@ function NexusAppInner({
     return <AccountButton required />;
   }
 
+  const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
-    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={() => { globalPullStartRef.current = null; globalPullDistanceRef.current = 0; setGlobalPullDistance(0); }} onPointerDownCapture={closeMobilePanelsWhenEditing}>
-      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : globalPullDistance >= 120 ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
+    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
+      {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
+      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
+      {quizRepository&&<QuizOfflinePrompt key={accountEmail} repository={quizRepository}/>}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
@@ -1607,7 +1690,6 @@ function NexusAppInner({
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="開啟導覽" title="開啟導覽">☰</button>
           <button type="button" onClick={handleShowHome} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
           <div className="flex-1" />
-          <div className="mr-2"><AccountButton accountEmail={accountEmail} /></div>
           <div className="relative">
             <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="功能總覽" title="功能總覽">
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
@@ -1645,7 +1727,6 @@ function NexusAppInner({
               <button type="button" onClick={() => { setIsNovelMoreOpen(false); if (activePage && window.confirm(`確定將小說「${activePage.title || "未命名小說"}」移至垃圾桶？`)) { void handleDeletePage(activePage.id); handleShowNovels(); } }} className="block w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/25">刪除小說</button>
             </div>}
           </div>}
-          <AccountButton accountEmail={accountEmail} />
         </div>
       )}
 
@@ -1655,7 +1736,7 @@ function NexusAppInner({
           <div className="fixed inset-y-0 left-0 z-50 flex h-screen w-[min(360px,100vw)] shadow-2xl [&>div]:h-full">
       <ResizablePanel side="left" defaultWidth={360} minWidth={220} maxWidth={480} isCollapsed={false}>
         <Sidebar
-          pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter")}
+          pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
           activePageId={isTrashMode || isHomeMode ? null : activePageId}
           selectedTag={selectedTag}
           isTrashMode={isTrashMode}
@@ -1693,6 +1774,7 @@ function NexusAppInner({
           pendingRenameId={pendingRenameId}
           onClearPendingRename={handleClearPendingRename}
           onCancelNewPage={handleCancelNewPage}
+          utilityMode={utilityMode}
           onCreateItem={handleCreateItem}
           syncState={syncState}
           accountEmail={accountEmail}
@@ -1766,7 +1848,8 @@ function NexusAppInner({
             pendingRenameId={pendingRenameId}
             onClearPendingRename={handleClearPendingRename}
             onCancelNewPage={handleCancelNewPage}
-            onCreateItem={handleCreateItem}
+            utilityMode={utilityMode}
+          onCreateItem={handleCreateItem}
             syncState={syncState}
             accountEmail={accountEmail}
             onMovePage={handleMovePage}
@@ -1810,7 +1893,7 @@ function NexusAppInner({
         <button
           type="button"
           onClick={() => { setIsSidebarCollapsed(true); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
-          className="absolute right-14 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-base shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="absolute right-3 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-base shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
           style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
           aria-label="開啟輔助頁"
           title="開啟輔助頁"
@@ -1821,7 +1904,7 @@ function NexusAppInner({
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100dvh-4rem)]" : ""}`}>
       {isHomeMode ? (
-        <Dashboard pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={async () => { window.location.reload(); }} />
+        <Dashboard pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
       ) : isQuickNoteMode ? (
         <QuickNotesView
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
@@ -1904,11 +1987,7 @@ function NexusAppInner({
           icon="📖"
           actionLabel="建立小說"
           pages={pages.filter((p) => isNovelPage(p) && !p.deleted_at)}
-          onCreate={() => {
-            void createAndOpenPage({ kind: "creative", title: "新小說作品", format: "flow" }).then((p) => {
-              if (p) patchPage(p.id, { creative_type: "novel", novel_settings: { theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
-            });
-          }}
+          onCreate={() => void handleCreateItem("novel")}
           onSelectPage={handleSelectPage}
         />
       ) : isDocumentMode ? (
@@ -1947,30 +2026,7 @@ function NexusAppInner({
           templates={pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at)}
           onRenameTemplate={(id, title) => patchPage(id, { title })}
           onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
-          onCreateCharacter={async (templateId = "blank") => {
-            let initialData = createBlankTemplate();
-            if (templateId === "fantasy") initialData = createFantasyTemplate();
-            if (templateId === "modern") initialData = createModernTemplate();
-            if (templateId === "blank") initialData = createBlankTemplate();
-            if (templateId === "dnd5e") initialData = createDnd5eTemplate();
-            if (templateId === "coc7e") initialData = createCoc7eTemplate();
-            const customTemplate = pages.find((page) => page.id === templateId && page.character_data?.isTemplate && !page.deleted_at);
-            if (customTemplate?.character_data) initialData = customTemplate.character_data;
-            initialData = instantiateCharacterTemplate(initialData, customTemplate?.id);
-
-            const p = await createAndOpenPage({
-              kind: "creative" as any,
-              title: initialData.basic.name || "新角色檔案",
-              format: "flow",
-            });
-            if (p) {
-              patchPage(p.id, {
-                creative_type: "character",
-                character_data: initialData,
-                attachment_ids: [...(customTemplate?.attachment_ids || [])],
-              });
-            }
-          }}
+          onCreateCharacter={handleCreateCharacter}
           onCreateWorld={async () => {
             const initialData = createBlankTemplate();
             initialData.basic.name = "新世界觀";
@@ -1986,7 +2042,7 @@ function NexusAppInner({
           {/* Primary pane */}
           <div className="flex flex-col shrink-0 overflow-hidden rounded-2xl" style={{ flexBasis: `calc(${splitPrimaryWidth}% - 18px)`, border: "1px solid var(--color-border)" }}>
             {activePage?.kind === "study_set" ? (
-              <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} onBackToInterface={handleShowHome} />
+              <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
             ) : activePage?.kind === "presentation" ? (
               <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
             ) : activePage?.kind === "creative" ? (
@@ -2065,7 +2121,7 @@ function NexusAppInner({
           {/* Secondary pane - Obsidian style closable */}
           <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--color-border)" }}>
             {secondaryActivePage.kind === "study_set" ? (
-              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdateStudyItems={(items) => { patchPage(secondaryActivePage.id, { study_items: items }); }} onBackToInterface={handleShowHome} />
+              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
             ) : secondaryActivePage.kind === "presentation" ? (
               <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} onBackToInterface={handleShowHome} />
             ) : secondaryActivePage.kind === "creative" ? (
@@ -2137,7 +2193,7 @@ function NexusAppInner({
           </div>
         </div>
       ) : activePage?.kind === "study_set" ? (
-        <StudySetView page={activePage} onTitleChange={handleTitleChange} onUpdateStudyItems={handleUpdateStudyItems} onBackToInterface={handleShowHome} />
+        <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
       ) : activePage?.kind === "presentation" ? (
         <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
       ) : activePage?.kind === "creative" ? (
@@ -2226,6 +2282,7 @@ function NexusAppInner({
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
       {isDevicePreviewOpen && <DevicePreview onClose={() => setIsDevicePreviewOpen(false)} />}
 
+      {characterTemplatePicker && <CreationChoiceDialog title="選擇角色卡模板" options={[{ id: "blank", label: "全空白" }, { id: "dnd5e", label: "D&D 5e" }, { id: "coc7e", label: "CoC 7e" }, ...pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at).map((page) => ({ id: page.id, label: page.title }))]} onClose={() => setCharacterTemplatePicker(false)} onChoose={(id) => { setCharacterTemplatePicker(false); void handleCreateCharacter(id); }} />}
       <NewPageDialog
         isOpen={createDialog.open}
         initialKind={createDialog.initialKind}

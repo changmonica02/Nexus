@@ -1,7 +1,9 @@
 "use client";
-import { useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
+import { type CSSProperties, useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
+import LessonLayoutPanel from "./LessonLayoutPanel";
+import { readLessonLayout, buildLessonIndex, type LessonLayout } from "../lib/lessonDocument";
 import TiptapEditor from "./TiptapEditor";
 import PageFormatView from "./PageFormatView";
 import PaginatedEditorView from "./PaginatedEditorView";
@@ -63,6 +65,12 @@ export default function EditorPane({
   onBackToInterface?: () => void;
 }) {
   const { t } = useLanguage();
+  const lessonRootRef = useRef<HTMLElement>(null);
+  const lessonMetadataRef = useRef((page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout);
+  lessonMetadataRef.current = (page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout;
+  const navigateLesson = (id: string) => {
+    Array.from(lessonRootRef.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((element) => element.dataset.id === id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   const [tagInput, setTagInput] = useState("");
   const [showRuler, setShowRuler] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(false);
@@ -99,7 +107,7 @@ export default function EditorPane({
 
   const handleContentWithAutoSave = useCallback((payload: { json: any; text: string }) => {
     setSaveStatus("saving");
-    onContentChange(payload);
+    onContentChange({ ...payload, json: { ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       setSaveStatus("saved");
@@ -176,6 +184,13 @@ export default function EditorPane({
     );
   }
 
+  const lessonLayout = readLessonLayout(page.content_json);
+  const lessonEntries = buildLessonIndex(page.content_json);
+  const isLessonNote = !page.kind || page.kind === "note";
+  const changeLessonLayout = (layout: LessonLayout) => {
+    lessonMetadataRef.current = layout;
+    handleContentWithAutoSave({ json: { ...page.content_json, lessonLayout: layout }, text: page.content_text || "" });
+  };
   const currentTags = page.tags || [];
   // 2026-08-11：版面模式定案
   // - 文檔一律流動（即使舊資料 format 為其他值，也以流動顯示）
@@ -240,7 +255,7 @@ export default function EditorPane({
     const finalBlocks = filtered.length > 0 ? filtered : [{ type: "paragraph" }];
     const newJson = { type: "doc", content: finalBlocks };
     const newText = finalBlocks.map(getTextFromNode).join("\n\n");
-    onContentChange({ json: newJson, text: newText });
+    handleContentWithAutoSave({ json: newJson, text: newText });
   };
 
   const textForCount = page.content_text || "";
@@ -258,7 +273,7 @@ export default function EditorPane({
   };
 
   return (
-    <main className="relative flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
+    <main ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
@@ -292,7 +307,7 @@ export default function EditorPane({
 
       {/* 選單列（2026-08-11：Google Docs 式——純文字、無圖示、無邊框） */}
       <div className="shrink-0 border-b nexus-print-hide" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-editor-bg)" }}>
-        <div ref={menuRowRef} className="flex items-center px-2 py-0.5 gap-0.5">
+        <div ref={menuRowRef} className="lesson-menu-row flex overflow-x-auto items-center px-2 py-0.5 gap-0.5">
           <FileMenu
             currentFormat={currentFormat}
             isDocument={isDocument}
@@ -354,6 +369,7 @@ export default function EditorPane({
             ]}
           />
           </>}
+          {!isToolbarCompact && <>
           <ToolbarDropdown label="插入" variant="menu">
             <div ref={setInsertMenuTarget} className="min-w-[220px]" />
           </ToolbarDropdown>
@@ -378,6 +394,7 @@ export default function EditorPane({
               },
             ]}
           />
+          </>}
           <div className="flex-1" />
 
           {/* 自動存檔即時狀態指示器 */}
@@ -440,6 +457,7 @@ export default function EditorPane({
         </div>
       </div>
 
+      {isLessonNote && <LessonLayoutPanel layout={lessonLayout} onChange={changeLessonLayout} entries={lessonEntries} onNavigate={navigateLesson} paged={isPaged} />}
       {/* Content area */}
       {isWordCountOpen && (
         <div
@@ -519,7 +537,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
+          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
         </>
       ) : (
         <>
@@ -529,7 +547,7 @@ export default function EditorPane({
             </div>
           )}
           <PageFormatView format={currentFormat}>
-          <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px 64px 48px" : "0" }}>
+          <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px clamp(16px, 5vw, 64px) 48px" : "0" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
                 <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs" style={{ borderBottom: "1px solid var(--color-border)", color: "var(--color-text)" }}>
@@ -552,7 +570,9 @@ export default function EditorPane({
                 {isPdfCollapsed && <div className="flex h-[48px] items-center justify-center text-xs opacity-50" style={{ color: "var(--color-text)" }}>{t("editor.pdf.hiddenNotice")}</div>}
               </div>
             )}
-            <TiptapEditor key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            {isLessonNote && lessonLayout.header && <div className="lesson-page-header">{lessonLayout.header}</div>}
+            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            {isLessonNote && lessonLayout.footer && <div className="lesson-page-footer">{lessonLayout.footer}</div>}
           </div>
           </PageFormatView>
         </>
