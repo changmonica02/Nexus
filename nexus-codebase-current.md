@@ -1,6 +1,6 @@
 # Nexus Codebase Dump - Current
 
-Generated: 2026-09-25 10:58:27
+Generated: 2026-09-25 10:59:23
 
 ## File: eslint.config.mjs
 ````
@@ -11111,6 +11111,28 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
 
 ````
 
+## File: src/components/CreationChoiceDialog.tsx
+````
+"use client";
+import { useEffect, useRef } from "react";
+
+export default function CreationChoiceDialog({ title, options, onChoose, onClose }: {
+  title: string;
+  options: { id: string; label: string }[];
+  onChoose: (id: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  return <dialog ref={ref} onCancel={onClose} className="m-auto w-[min(90vw,420px)] max-h-[80dvh] overflow-y-auto rounded-2xl border p-5 backdrop:bg-black/40" style={{ background: "var(--color-bg)", color: "var(--color-text)", borderColor: "var(--color-border)" }} aria-labelledby="creation-choice-title">
+    <h2 id="creation-choice-title" className="mb-4 text-lg font-semibold">{title}</h2>
+    <div className="grid gap-2">{options.map((option) => <button key={option.id} type="button" onClick={() => onChoose(option.id)} className="rounded-lg border p-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{ borderColor: "var(--color-border)" }}>{option.label}</button>)}</div>
+    <button type="button" onClick={onClose} className="mt-4 rounded-lg px-3 py-2 text-sm">取消</button>
+  </dialog>;
+}
+
+````
+
 ## File: src/components/CreativeView.tsx
 ````
 "use client";
@@ -11761,6 +11783,88 @@ export default function CreativeView({
       </div>
     </main>
   );
+}
+
+````
+
+## File: src/components/DailyStudySession.tsx
+````
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { StudyRepository } from "../lib/StudyRepository";
+import { intervalLabel, previewStudy, type Grade, type StudySnapshot } from "../lib/studyFSRS";
+import { freezingInterval, type SessionMode, type StudySession } from "../lib/studySessions";
+
+/** Both modes share session mastery; only their official-review policy differs. */
+export default function DailyStudySession({repository,deckId,mode="daily",onExit}:{repository:StudyRepository;deckId:string;mode?:SessionMode;onExit:()=>void}) {
+  const [data,setData]=useState<{session:StudySession;snapshot:StudySnapshot}|null>(null);
+  const [revealed,setRevealed]=useState(false),[error,setError]=useState(""),[saving,setSaving]=useState(false);
+  const [previewTime,setPreviewTime]=useState(()=>Date.now());
+  const sessionId=useRef<string|null>(null),active=useRef(true),busy=useRef(false);
+  const actionId=useRef(crypto.randomUUID());
+  const opening=useRef<Promise<StudySession>|null>(null);
+  const load=useCallback(async()=>{
+    if(!sessionId.current)return;
+    const next=await repository.readSession(sessionId.current);
+    if(active.current){setData(next);setRevealed(false);setPreviewTime(Date.now());actionId.current=crypto.randomUUID();}
+  },[repository]);
+  useEffect(()=>{
+    active.current=true;
+    opening.current??=repository.startSession(deckId,mode);
+    void opening.current.then(async session=>{sessionId.current=session.id;await load();}).catch(e=>{if(active.current)setError(String(e));});
+    const changed=()=>{if(!busy.current)void load().catch(e=>{if(active.current)setError(String(e));});};
+    window.addEventListener("nexus-study-changed",changed);
+    return()=>{active.current=false;window.removeEventListener("nexus-study-changed",changed);};
+  },[repository,deckId,mode,load]);
+  const session=data?.session;
+  const target=session?.targets.find(t=>t.card_id===session.queue[0]);
+  const card=data?.snapshot.cards.find(c=>c.id===target?.card_id);
+  const state=data?.snapshot.states.find(s=>s.id===target?.card_id);
+  const official=mode==="free" && target && !target.official_event_id;
+  const preview=official && revealed && state ? previewStudy(state,previewTime):null;
+  const interval=state?freezingInterval(state):null;
+  const mark=async(rating:Grade)=>{
+    if(!session || !card || !state || !revealed || busy.current)return;
+    busy.current=true;setSaving(true);setError("");
+    try{
+      await repository.rateSession({sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating,actionId:actionId.current,now:Date.now()});
+      await load();
+    }catch(e){if(active.current)setError(e instanceof Error?e.message:String(e));}
+    finally{busy.current=false;if(active.current)setSaving(false);}
+  };
+  const restart=async()=>{
+    if(busy.current)return;busy.current=true;setSaving(true);setError("");
+    try{const next=await repository.startSession(deckId,mode);sessionId.current=next.id;await load();}
+    catch(e){setError(String(e));}finally{busy.current=false;setSaving(false);}
+  };
+  return <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 py-6">
+    <h2 className="text-lg font-semibold">{mode==="daily"?"每日學習":"單字複習"}・英 → 中</h2>
+    {session&&<p className="text-sm opacity-60">完成 {session.targets.filter(t=>t.easy_at!=null).length} / {session.targets.length} 字・已作答 {session.answers} 次{mode==="daily"?`・批次 ${session.day}`:""}</p>}
+    <p className="text-xs leading-5 opacity-60">{mode==="daily"?"本輪每張卡都取得 Easy 才完成。新字首次學會後成為待複習的新卡；重練不改排程。":"每張卡本輪第一次評分更新 FSRS；之後只練到 Easy，不改第一次決定的冷凍時間。"}</p>
+    {saving&&<p role="status" className="text-sm">正在儲存作答…</p>}
+    {error&&<div role="alert" className="rounded border border-red-400 p-3 text-sm text-red-600">{error}<button disabled={saving} className="ml-2 underline" onClick={()=>{setError("");void (sessionId.current?load():restart()).catch(e=>setError(String(e)));}}>重新載入練習</button></div>}
+    {card&&state&&target?<>
+      <div className="w-full rounded-2xl border p-8 text-center" style={{borderColor:"var(--color-border)",background:"var(--color-sidebar-bg)"}}>
+        <p className="whitespace-pre-wrap break-words text-2xl font-medium" lang="en">{card.front}</p>
+        {revealed&&<p className="mt-6 whitespace-pre-wrap break-words border-t pt-6 text-xl" lang="zh">{card.back}</p>}
+      </div>
+      {!revealed?<><p className="text-sm opacity-60">先回想中文，再顯示答案。</p><button disabled={!!error||saving} className="rounded-lg border px-6 py-3" onClick={()=>{setPreviewTime(Date.now());setRevealed(true);}}>顯示答案</button></>:<>
+        {mode==="free"&&<p className="text-sm">{official?"本卡本輪首次正式評分：以下時間為 FSRS 排程預覽。":"本輪後續練習：只有 Easy 出箱，不再更新 FSRS。"}</p>}
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+          {([[1,"忘記","Again"],[2,"困難","Hard"],[3,"記得","Good"],[4,"簡單","Easy"]] as const).map(([rating,label,en])=><button key={rating} disabled={saving||!!error} onClick={()=>void mark(rating)} className="rounded-lg border px-2 py-3 disabled:opacity-40">
+            <span className="block font-medium">{label}</span><span className="block text-xs opacity-60">{en}</span>
+            {preview&&<span className="mt-2 block text-sm">{intervalLabel(preview[rating].card.due.getTime(),previewTime)}</span>}
+          </button>)}
+        </div>
+        <p className="text-xs opacity-60">忘記＝沒想起來或答錯；困難＝成功但吃力；記得＝正常回想；簡單＝立即想起。</p>
+        {mode==="free"&&!official&&<p className="text-sm">本輪練習，不變更排程。冷凍時間：{interval==null?"尚未排程":intervalLabel(interval,0)}</p>}
+      </>}
+    </>:<div className="space-y-3 py-8 text-center">
+      <p>{!session?"正在恢復練習…":session.targets.length?"本次練習完成，每張字卡都已取得 Easy。":mode==="daily"?"今日批次沒有可學的新字。":"目前沒有已學字卡，請先完成每日學習中的 Easy。"}</p>
+      {session&&<button disabled={saving} className="rounded border px-4 py-2" onClick={()=>void restart()}>再練一次</button>}
+    </div>}
+    <button disabled={saving} onClick={onExit} className="text-sm underline opacity-70">返回全部預覽</button>
+  </div>;
 }
 
 ````
@@ -12898,6 +13002,39 @@ const sections = [
 ];
 export default function HelpGuide() {
   return <div className="space-y-6 text-sm leading-7">{sections.map((section) => <section key={section.title}><h4 className="mb-2 font-semibold">{section.title}</h4><ul className="list-disc space-y-1 pl-5 opacity-80">{section.items.map((item) => <li key={item}>{item}</li>)}</ul></section>)}</div>;
+}
+
+````
+
+## File: src/components/LessonLayoutPanel.tsx
+````
+"use client";
+import { LESSON_PRESETS, type LessonLayout, type LessonEntry } from "../lib/lessonDocument";
+
+export default function LessonLayoutPanel({ layout, onChange, entries, onNavigate, paged }: {
+  layout: LessonLayout; onChange: (layout: LessonLayout) => void;
+  entries: LessonEntry[]; onNavigate: (id: string) => void; paged: boolean;
+}) {
+  return <details className="nexus-print-hide shrink-0 border-b px-4 py-2 text-sm" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+    <summary className="cursor-pointer font-medium">講義排版與目錄</summary>
+    <div className="max-h-[40dvh] overflow-auto pt-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <label>整份樣式 <select aria-label="整份樣式" className="rounded border bg-transparent p-1" value={layout.preset} onChange={(event) => { const preset = event.target.value as LessonLayout["preset"]; onChange({ ...layout, preset, ...LESSON_PRESETS[preset] }); }}><option value="original">原有樣式</option><option value="textbook">課本</option><option value="handout">講義</option></select></label>
+        <label>正文字級 <input aria-label="正文字級" className="w-16 rounded border bg-transparent p-1" type="number" min={12} max={24} value={layout.fontSize} onChange={(e) => { if (e.target.value) onChange({ ...layout, fontSize: Math.min(24, Math.max(12, Number(e.target.value))) }); }} /></label>
+        <label>行距 <select aria-label="整份行距" className="rounded border bg-transparent p-1" value={layout.lineHeight} onChange={(e) => onChange({ ...layout, lineHeight: Number(e.target.value) })}>{[1.2, 1.4, 1.6, 1.7, 1.8, 1.9, 2, 2.2, 2.5].map((n) => <option key={n}>{n}</option>)}</select></label>
+        <label>標題比例 <input aria-label="標題比例" className="w-20 rounded border bg-transparent p-1" type="number" min={0.8} max={1.5} step={0.05} value={layout.headingScale} onChange={(e) => { if (e.target.value) onChange({ ...layout, headingScale: Math.min(1.5, Math.max(0.8, Number(e.target.value))) }); }} /></label>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <label>頁首 <input aria-label="頁首" maxLength={120} className="max-w-full rounded border bg-transparent p-1" value={layout.header} onChange={(e) => onChange({ ...layout, header: e.target.value })} /></label>
+        <label>頁尾 <input aria-label="頁尾" maxLength={120} className="max-w-full rounded border bg-transparent p-1" value={layout.footer} onChange={(e) => onChange({ ...layout, footer: e.target.value })} /></label>
+        {paged && <label className="flex items-center gap-1"><input type="checkbox" checked={layout.pageNumbers} onChange={(e) => onChange({ ...layout, pageNumbers: e.target.checked })} />顯示頁碼</label>}
+      </div>
+      <p className="my-2 text-xs opacity-60">整份樣式會套用到正文、標題、圖說及教學區塊；手動設定的文字字級仍會保留。{!paged && "流動筆記的頁首、頁尾顯示於全文開頭及結尾。"}</p>
+      <nav aria-label="講義導航" className="mb-2 grid gap-1">
+        {entries.length ? entries.map((entry, index) => <button key={`${entry.id}-${index}`} type="button" className="flex gap-2 rounded px-2 py-1 text-left hover:bg-zinc-500/10" style={{ paddingLeft: Math.max(0, entry.level - 1) * 12 + 8 }} onClick={() => onNavigate(entry.id)}><span className="min-w-0 flex-1 truncate">{entry.kind === "exercise" ? `練習 ${entry.number}：` : entry.kind === "example" ? `例題 ${entry.number}：` : entry.kind === "figure" ? `圖 ${entry.number}：` : ""}{entry.title}</span>{paged && <span className="shrink-0 opacity-50">第 {entry.page} 頁</span>}</button>) : <p className="text-xs opacity-60">使用標題樣式、例題或練習後，這裡會自動產生導航。</p>}
+      </nav>
+    </div>
+  </details>;
 }
 
 ````
@@ -17184,6 +17321,83 @@ export default function PaginatedEditorView({
 
 ````
 
+## File: src/components/PreferencesMenu.tsx
+````
+"use client";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { SUPPORTED_LANGUAGES } from "../lib/i18n";
+import { useLanguage } from "../lib/LanguageContext";
+import SettingsDialog from "./SettingsDialog";
+
+export interface PreferencesProps {
+  theme: "light" | "dark";
+  onThemeChange: (theme: "light" | "dark") => void;
+  onExportBackup: () => void;
+  onImportBackup: () => void;
+}
+export default function PreferencesMenu(props: PreferencesProps) {
+  const { language, setLanguage, t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<"theme" | "language" | "backup" | null>(null);
+  const [settings, setSettings] = useState(false);
+  const [position, setPosition] = useState({ left: 8, bottom: 8, width: 180, detailWidth: 220 });
+  const anchor = useRef<HTMLButtonElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const close = () => { setOpen(false); setPanel(null); anchor.current?.focus(); };
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const rect = anchor.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = window.innerWidth < 480 ? 140 : 180;
+      const detailWidth = Math.min(240, window.innerWidth - width - 24);
+      const maxLeft = window.innerWidth - width - (panel ? detailWidth + 8 : 0) - 8;
+      setPosition({ left: Math.max(8, Math.min(rect.right - width, maxLeft)), bottom: Math.min(window.innerHeight - 220, Math.max(8, window.innerHeight - rect.top + 8)), width, detailWidth });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
+  }, [open, panel]);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!popup.current?.contains(target) && !anchor.current?.contains(target)) { setOpen(false); setPanel(null); }
+    };
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); if (panel) setPanel(null); else close(); }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", keyboard);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", keyboard); };
+  }, [open, panel]);
+  const buttonClass = "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-500/10";
+  const surface = { backgroundColor: "var(--color-bg)", color: "var(--color-text)", borderColor: "var(--color-border)" };
+  return <>
+    <button ref={anchor} type="button" title={t("preferences.title")} aria-label="偏好" aria-expanded={open} onClick={() => { setPanel(null); setOpen(!open); }} className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-zinc-500/10" style={surface}>⚙</button>
+    {open && createPortal(<div ref={popup} role="dialog" aria-label="偏好選單" className="fixed z-[1100] flex items-end gap-2" style={{ left: position.left, bottom: Math.max(8, position.bottom) }}>
+      <div className="rounded-xl border p-1.5 shadow-xl" style={{ ...surface, width: position.width }}>
+        <div className="px-3 py-2 text-xs font-semibold opacity-60">{t("preferences.title")}</div>
+        <button type="button" className={buttonClass} aria-expanded={panel === "theme"} onClick={() => setPanel("theme")} onKeyDown={(e) => { if (e.key === "ArrowRight") setPanel("theme"); }}><span>主題</span><span>›</span></button>
+        <button type="button" className={buttonClass} aria-expanded={panel === "language"} onClick={() => setPanel("language")} onKeyDown={(e) => { if (e.key === "ArrowRight") setPanel("language"); }}><span>語言</span><span>›</span></button>
+        <button type="button" className={buttonClass} onClick={() => { setOpen(false); setPanel(null); setSettings(true); }}>設定</button>
+        <button type="button" className={buttonClass} aria-expanded={panel === "backup"} onClick={() => setPanel("backup")}><span>備份</span><span>›</span></button>
+      </div>
+      {panel && <div aria-label={panel === "theme" ? "主題選項" : panel === "language" ? "語言選項" : "備份選項"} role="region" className="max-h-[70dvh] overflow-y-auto rounded-xl border p-2 shadow-xl" style={{ ...surface, width: position.detailWidth }}>
+        <div className="px-3 py-2 text-xs font-semibold opacity-60">{panel === "theme" ? "主題" : panel === "language" ? "語言" : "備份"}</div>
+        {panel === "theme" && ([['light', '淺色'], ['dark', '深色']] as const).map(([value, label]) => <button key={value} type="button" className={buttonClass} aria-pressed={props.theme === value} onClick={() => props.onThemeChange(value)}><span>{label}</span>{props.theme === value && <span>✓</span>}</button>)}
+        {panel === "language" && SUPPORTED_LANGUAGES.map((option) => <button key={option.value} type="button" className={buttonClass} aria-pressed={language === option.value} onClick={() => setLanguage(option.value)}><span>{option.label}</span>{language === option.value && <span>✓</span>}</button>)}
+        {panel === "backup" && <><button type="button" className={buttonClass} onClick={() => { close(); props.onExportBackup(); }}>匯出備份</button><button type="button" className={buttonClass} onClick={() => { close(); props.onImportBackup(); }}>匯入備份</button></>}
+      </div>}
+    </div>, document.body)}
+    {settings && <SettingsDialog {...props} onClose={() => { setSettings(false); anchor.current?.focus(); }} />}
+  </>;
+}
+
+````
+
 ## File: src/components/PresentationView.tsx
 ````
 "use client";
@@ -18313,6 +18527,148 @@ export default function QuickNotesView({
 
 ````
 
+## File: src/components/QuizOfflinePrompt.tsx
+````
+"use client";
+import { useEffect, useRef, useState } from "react";
+import type { QuizRepository } from "../lib/quizPersistence";
+
+export default function QuizOfflinePrompt({repository}:{repository:QuizRepository}) {
+  const [ids,setIds]=useState<string[]|null>(null),[count,setCount]=useState(0);
+  const [busy,setBusy]=useState(false),[error,setError]=useState("");
+  const snapshot=useRef<string[]|null>(null),later=useRef(false),locked=useRef(false);
+  const [connected,setConnected]=useState(false);
+  useEffect(()=>{
+    let active=true,readVersion=0;
+    const read=async()=>{
+      const version=++readVersion,online=repository.canOfferUpload();
+      const pending=await repository.awaiting();
+      if(!active||version!==readVersion)return;
+      setConnected(online);setCount(pending.length);
+      if(snapshot.current){
+        // Another tab may already have authorized these IDs. Remove them, never add late arrivals.
+        const awaiting=new Set(pending.map(a=>a.id));
+        snapshot.current=snapshot.current.filter(id=>awaiting.has(id));
+        if(!snapshot.current.length)snapshot.current=null;
+        setIds(snapshot.current);
+      }else if(online&&pending.length&&!later.current){
+        snapshot.current=pending.map(a=>a.id);setIds(snapshot.current);
+      }
+    };
+    const changed=()=>{void read().catch(e=>{if(active)setError(String(e));});};
+    changed();
+    window.addEventListener("nexus-study-changed",changed);
+    window.addEventListener("nexus-quiz-connectivity",changed);
+    window.addEventListener("offline",changed);
+    return()=>{active=false;window.removeEventListener("nexus-study-changed",changed);window.removeEventListener("nexus-quiz-connectivity",changed);window.removeEventListener("offline",changed);};
+  },[repository]);
+  const decide=async(decision:"upload"|"discard"|"later")=>{
+    if(!snapshot.current||locked.current)return;
+    locked.current=true;setBusy(true);setError("");
+    try{
+      await repository.decide([...snapshot.current],decision);
+      later.current=true;snapshot.current=null;setIds(null);setCount((await repository.awaiting()).length);
+    }catch(e){setError(String(e));}
+    finally{locked.current=false;setBusy(false);}
+  };
+  const reopen=async()=>{
+    if(locked.current)return;locked.current=true;setBusy(true);
+    try{snapshot.current=(await repository.awaiting()).map(a=>a.id);setIds(snapshot.current.length?snapshot.current:null);}
+    catch(e){setError(String(e));}finally{locked.current=false;setBusy(false);}
+  };
+  if(!connected||(!count&&!ids&&!error))return null;
+  return <aside aria-label="離線測驗結果" className="fixed bottom-4 right-4 z-[90] max-w-sm rounded-xl border p-4 shadow-xl" style={{background:"var(--color-bg)",color:"var(--color-text)"}}>
+    {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
+    {ids?<><p role="status">有 {ids.length} 筆離線測驗結果尚未上傳。</p>
+      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+        <button disabled={busy} className="rounded border p-2" onClick={()=>void decide("upload")}>上傳並更新跨裝置錯題權重</button>
+        <button disabled={busy} className="rounded border p-2" onClick={()=>void decide("discard")}>捨棄</button>
+        <button disabled={busy} className="rounded border p-2" onClick={()=>void decide("later")}>稍後決定</button>
+      </div></>:<button disabled={busy} className="text-sm underline" onClick={()=>void reopen()}>處理 {count} 筆離線測驗結果</button>}
+  </aside>;
+}
+
+````
+
+## File: src/components/QuizSession.tsx
+````
+"use client";
+import { useRef, useState } from "react";
+import type { StudyRepository } from "../lib/StudyRepository";
+import type { StudySnapshot } from "../lib/studyFSRS";
+import { canStartQuiz, createQuizSubmission, DEFAULT_QUIZ_DIRECTION, nextQuizQuestion, quizEligible,
+  QUIZ_REQUIRED_ANSWERS, saveQuizAnswer, type QuizDirection, type QuizQuestion } from "../lib/quizQuestions";
+
+export default function QuizSession({repository,snapshot,onExit}:{repository:StudyRepository;snapshot:StudySnapshot;onExit:()=>void}) {
+  const direction=snapshot.settings.quiz_direction??DEFAULT_QUIZ_DIRECTION;
+  const quiz=repository.getQuizRepository();
+  const [question,setQuestion]=useState<QuizQuestion|null>(null);
+  const [selected,setSelected]=useState<string|null>(null);
+  const [saved,setSaved]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
+  const [score,setScore]=useState({correct:0,total:0}),[limit,setLimit]=useState(0);
+  const lock=useRef(false),batch=useRef(""),submission=useRef<ReturnType<typeof createQuizSubmission>|null>(null);
+  const [finished,setFinished]=useState(false);
+  const draw=async(start=false)=>{
+    if(lock.current||!quiz)return;lock.current=true;setBusy(true);setError("");
+    try{
+      const fresh=await repository.readDeck(snapshot.settings.id);
+      const nextDirection=fresh.settings.quiz_direction??DEFAULT_QUIZ_DIRECTION;
+      const next=nextQuizQuestion(fresh,await quiz.states(),nextDirection,start?null:question?.cardId??null,Date.now());
+      if(start){batch.current=crypto.randomUUID();setLimit(quizEligible(fresh).length);setScore({correct:0,total:0});}
+      setQuestion(next);setSelected(null);setSaved(false);setFinished(false);submission.current=null;
+    }catch(e){setError(e instanceof Error?e.message:String(e));}
+    finally{lock.current=false;setBusy(false);}
+  };
+  const choose=async(choice:string)=>{
+    if(!question||!quiz||lock.current||saved)return;
+    lock.current=true;setBusy(true);setError("");
+    submission.current??=createQuizSubmission(question,choice,batch.current,Date.now());
+    setSelected(choice);
+    try{
+      await saveQuizAnswer(quiz,submission.current);
+      setSaved(true);setScore(s=>({correct:s.correct+(submission.current!.correct?1:0),total:s.total+1}));
+    }catch(e){setError(e instanceof Error?e.message:String(e));}
+    finally{lock.current=false;setBusy(false);}
+  };
+  const changeDirection=async(value:QuizDirection)=>{
+    if(lock.current)return;lock.current=true;setBusy(true);setError("");
+    try{await repository.configure(snapshot.settings.id,{quiz_direction:value});}
+    catch(e){setError(String(e));}finally{lock.current=false;setBusy(false);}
+  };
+  return <div className="mx-auto flex max-w-lg flex-col items-center gap-5 py-8">
+    <h2 className="text-lg font-semibold">單字測驗</h2>
+    <label className="text-sm">測驗方向 <select aria-label="測驗方向" disabled={busy||!!question&&!finished}
+      value={question&&!finished?question.direction:direction} onChange={e=>void changeDirection(e.target.value as QuizDirection)}
+      className="rounded border bg-transparent px-3 py-2"><option value="zh-en">中文 → 英文</option><option value="en-zh">英文 → 中文</option></select></label>
+    <p className="text-xs opacity-60">四選一辨認測驗；作答只更新測驗錯題權重，不影響 FSRS 或單字複習進度。</p>
+    {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
+    {busy&&<p role="status" className="text-sm">正在儲存／載入…</p>}
+    {!question||finished?<>
+      {finished&&<p className="text-lg">本次測驗完成：答對 {score.correct} / {score.total} 題</p>}
+      {!canStartQuiz(snapshot,direction)&&<p role="status">{QUIZ_REQUIRED_ANSWERS}</p>}
+      {!quiz&&<p role="alert">測驗資料庫尚未準備完成。</p>}
+      <button className="rounded border px-5 py-3 disabled:opacity-40" disabled={busy||!quiz||!canStartQuiz(snapshot,direction)} onClick={()=>void draw(true)}>{finished?"再測一次":"開始測驗"}</button>
+    </>:<>
+      <p className="text-xs opacity-60">第 {Math.min(score.total+(saved?0:1),limit)} / {limit} 題・答對 {score.correct} 題</p>
+      <div className="w-full whitespace-pre-wrap rounded-2xl border p-8 text-center text-xl" lang={question.direction==="zh-en"?"zh":"en"} style={{background:"var(--color-sidebar-bg)"}}>{question.prompt}</div>
+      <div className="w-full space-y-2">{question.choices.map((choice,i)=><button key={choice} onClick={()=>void choose(choice)}
+        disabled={busy||selected!=null} className="w-full whitespace-pre-wrap rounded-xl border-2 px-5 py-4 text-left disabled:cursor-default"
+        lang={question.direction==="zh-en"?"en":"zh"}
+        style={{borderColor:selected!=null&&choice===question.answer?"#15803d":selected===choice?"#dc2626":"var(--color-border)"}}>
+        <span className="mr-2 opacity-50">{String.fromCharCode(65+i)}.</span>{choice}
+      </button>)}</div>
+      {selected!=null&&<>
+        <p role="status" className={selected===question.answer?"text-green-600":"text-red-600"}>{selected===question.answer?"答對了！":<>答錯了，正確答案：<strong>{question.answer}</strong></>}</p>
+        {!saved?<button disabled={busy} className="rounded border px-4 py-2" onClick={()=>void choose(selected)}>重試儲存本題作答</button>:
+          <button disabled={busy} className="rounded border px-4 py-2" onClick={()=>{if(score.total>=limit)setFinished(true);else void draw();}}>{score.total>=limit?"完成測驗":"下一題"}</button>}
+      </>}
+    </>}
+    <button disabled={busy} className="text-sm underline opacity-60" onClick={onExit}>返回全部預覽</button>
+  </div>;
+}
+
+````
+
 ## File: src/components/ResizablePanel.tsx
 ````
 "use client";
@@ -18482,6 +18838,74 @@ export default function RightPanel({
       </div>
     </aside>
   );
+}
+
+````
+
+## File: src/components/SettingsDialog.tsx
+````
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { PreferencesProps } from "./PreferencesMenu";
+import { useLanguage } from "../lib/LanguageContext";
+import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
+import { DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
+import HelpGuide from "./HelpGuide";
+
+const sections = ["一般", "功能排序", "使用建議", "使用說明", "備份"] as const;
+export default function SettingsDialog({ theme, onThemeChange, onExportBackup, onImportBackup, onClose }: PreferencesProps & { onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const { language, setLanguage } = useLanguage();
+  const [section, setSection] = useState<typeof sections[number]>("一般");
+  const [orderMode, setOrderMode] = useState(getStoredFeatureOrderMode);
+  const [order, setOrder] = useState(getStoredCustomFeatureOrder);
+  useEffect(() => {
+    const dialog = ref.current;
+    dialog?.showModal();
+    const update = () => { setOrderMode(getStoredFeatureOrderMode()); setOrder(getStoredCustomFeatureOrder()); };
+    window.addEventListener("nexus-feature-order-changed", update);
+    return () => { dialog?.close(); window.removeEventListener("nexus-feature-order-changed", update); };
+  }, []);
+  const changeMode = (mode: FeatureOrderMode) => { setOrderMode(mode); setStoredFeatureOrderMode(mode); };
+  const move = (index: number, step: number) => {
+    const next = [...order];
+    const target = index + step;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setOrder(next);
+    setStoredCustomFeatureOrder(next);
+  };
+  const control = "rounded-lg border bg-transparent px-3 py-2 text-sm";
+  return createPortal(<dialog ref={ref} aria-labelledby="settings-title" onCancel={onClose} className="m-auto h-[min(720px,90dvh)] max-h-[90dvh] w-[min(880px,94vw)] max-w-none overflow-hidden rounded-2xl border p-0 shadow-2xl backdrop:bg-black/40" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex shrink-0 items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--color-border)" }}><h2 id="settings-title" className="text-lg font-semibold">設定</h2><button autoFocus type="button" aria-label="關閉設定" onClick={onClose} className="rounded-lg px-3 py-1 text-xl hover:bg-zinc-500/10">×</button></header>
+      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+        <nav aria-label="設定分類" className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-44 sm:flex-col sm:border-b-0 sm:border-r" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>{sections.map((name) => <button key={name} type="button" onClick={() => setSection(name)} aria-current={section === name ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-500/10" style={{ backgroundColor: section === name ? "var(--color-border)" : undefined }}>{name}</button>)}</nav>
+        <section aria-label={section} className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5 sm:p-7">
+          <h3 className="mb-5 text-lg font-semibold">{section}</h3>
+          {section === "一般" && <div className="space-y-6 text-sm">
+            <label className="flex flex-wrap items-center justify-between gap-3">主題<select className={control} value={theme} onChange={(e) => onThemeChange(e.target.value as "light" | "dark")}><option value="light">淺色</option><option value="dark">深色</option></select></label>
+            <label className="flex flex-wrap items-center justify-between gap-3">語言<select className={control} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>{SUPPORTED_LANGUAGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <p className="text-xs leading-6 opacity-60">設定變更會立即套用。主題和語言也可以從側欄的偏好選單快速切換。</p>
+          </div>}
+          {section === "功能排序" && <div className="space-y-4 text-sm">
+            <p className="leading-6 opacity-70">「所有項目」與「日曆」固定在第一排，其他功能可依使用習慣排列。</p>
+            <fieldset className="space-y-2"><legend className="mb-2 font-medium">排列方式</legend>{([['recent', '最新使用排列（預設）'], ['default', '預設排列'], ['custom', '自訂排列']] as const).map(([value, label]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-border)" }}><input type="radio" name="feature-order" value={value} checked={orderMode === value} onChange={() => changeMode(value)} />{label}</label>)}</fieldset>
+            {orderMode === "custom" && <ol className="space-y-2">{order.map((id, index) => { const feature = DEFAULT_FEATURE_ITEMS.find((item) => item.id === id); if (!feature) return null; return <li key={id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--color-border)" }}><span>{index + 1}. {feature.label}</span><div className="flex gap-1"><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={`上移${feature.label}`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={`下移${feature.label}`} disabled={index === order.length - 1} onClick={() => move(index, 1)}>↓</button></div></li>; })}</ol>}
+          </div>}
+          {section === "使用建議" && <div className="space-y-5 text-sm leading-7">
+            <div><h4 className="font-semibold">選擇適合的功能排序</h4><p className="opacity-75">經常切換工作類型，可使用「最新使用排列」；希望位置保持一致，可選「預設排列」或「自訂排列」。</p></div>
+            <div><h4 className="font-semibold">製作課本與講義</h4><p className="opacity-75">先用章標題與小節建立結構，再加入例題、練習與解答。完成內容後，從「講義排版與目錄」統一樣式；分頁筆記可使用「依 A4 整理分頁」。</p></div>
+            <div><h4 className="font-semibold">保存常用創作結構</h4><p className="opacity-75">角色卡的組件與背景範文可存成自訂模板，之後建立角色時直接選用。世界觀與角色卡可分開管理。</p></div>
+            <div><h4 className="font-semibold">備份與同步</h4><p className="opacity-75">帳號入口位於側欄底部，可查看同步狀態；也可從「備份」匯出工作區，保留一份獨立副本。</p></div>
+          </div>}
+          {section === "使用說明" && <HelpGuide />}
+          {section === "備份" && <div className="space-y-4 text-sm leading-7"><p className="opacity-75">匯出工作區備份，或選擇先前保存的 JSON 備份檔匯入。</p><div className="flex flex-wrap gap-3"><button type="button" className={control} onClick={() => { onClose(); onExportBackup(); }}>匯出備份</button><button type="button" className={control} onClick={() => { onClose(); onImportBackup(); }}>匯入備份</button></div></div>}
+        </section>
+      </div>
+    </div>
+  </dialog>, document.body);
 }
 
 ````
@@ -22235,6 +22659,391 @@ export interface StorageAdapter {
 
 ````
 
+## File: src/lib/StudyRepository.ts
+````
+import type { IDBPDatabase, IDBPTransaction } from "idb";
+import { QuizRepository, QUIZ_STORES } from "./quizPersistence";
+import type { Page } from "./types";
+import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
+import { localStudyDay, Rating } from "./studyFSRS";
+import { createStudyEvent, emptyStudyState, migrateStudyDeck, nextDailyCard, sameStudyRecord,
+  type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
+  type StudySettings, type StudySnapshot, type StudyState } from "./studyFSRS";
+
+export const STUDY_STORES = ["study_cards", "study_states", "study_events", "study_settings", "study_sessions", "study_outbox"];
+type Write = IDBPTransaction<unknown, string[], "readwrite">;
+const newId = () => crypto.randomUUID();
+
+/** Durable, account-scoped study operations. No React/debounce/page save dependency. */
+export class StudyRepository {
+  private quizRepository?: QuizRepository;
+  getQuizRepository(): QuizRepository | null {
+    if (!QUIZ_STORES.every(name=>this.db.objectStoreNames.contains(name))) return null;
+    return this.quizRepository ??= new QuizRepository(this.db,this.owner);
+  }
+  constructor(private db: IDBPDatabase, private owner: () => string | null, private device: string) {}
+  private owned(value: { owner_id: string | null } | undefined) {
+    if (!value || value.owner_id !== this.owner()) throw new Error("字卡不存在或不屬於目前帳號。");
+  }
+  private async enqueue(tx: Write, operation: Omit<StudyOperation, "id">) {
+    await tx.objectStore("study_outbox").put({ ...operation, id: newId() });
+  }
+  private changed() {
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-study-changed"));
+  }
+  async ensureDeck(page: Page): Promise<StudySnapshot> {
+    if ((page.workspace_owner_id ?? null) !== this.owner()) throw new Error("學習集帳號不符。");
+    const tx = this.db.transaction(STUDY_STORES, "readwrite", {durability:"strict"});
+    try {
+    const existing = await tx.objectStore("study_settings").get(page.id);
+    if (!existing) {
+      const migrated = migrateStudyDeck(page, Date.now());
+      for (const card of migrated.cards) {
+        await tx.objectStore("study_cards").put(card);
+        await this.enqueue(tx, { owner_id: this.owner(), kind: "card", value: card, initial: true });
+      }
+      for (const state of migrated.states) {
+        await tx.objectStore("study_states").put(state);
+        await this.enqueue(tx, { owner_id: this.owner(), kind: "seed", value: state });
+      }
+      await tx.objectStore("study_settings").put(migrated.settings);
+      await this.enqueue(tx, { owner_id: this.owner(), kind: "settings", value: migrated.settings, initial: true });
+    } else this.owned(existing);
+    // Explicitly requested reset of four legacy test cards. Preserve content, snapshots and all history.
+    const deckCards: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(page.id);
+    for (const card of deckCards.filter(isLegacyTestCard)) {
+      const state: StudyState = await tx.objectStore("study_states").get(card.id);
+      if (!state.legacy_test_reset) {
+        const event = createStudyEvent(card, {...state,conflict:false}, "reset", Date.now(), this.device, newId());
+        event.before = state; event.source = "legacy_test_reset";
+        event.after.legacy_test_reset = true;
+        await this.persistEvent(tx,event);
+      }
+    }
+    await tx.done;
+    return this.readDeck(page.id);
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  async readDeck(deckId: string): Promise<StudySnapshot> {
+    const tx = this.db.transaction(STUDY_STORES, "readonly");
+    const settings: StudySettings = await tx.objectStore("study_settings").get(deckId);
+    this.owned(settings);
+    const [cards, states, events, sessions] = await Promise.all([
+      tx.objectStore("study_cards").index("deck").getAll(deckId),
+      tx.objectStore("study_states").index("deck").getAll(deckId),
+      tx.objectStore("study_events").index("deck").getAll(deckId),
+      tx.objectStore("study_sessions").getAll(),
+    ]);
+    await tx.done;
+    return { settings, sessions: sessions.filter(s=>s.owner_id===this.owner() && s.deck_id===deckId), cards: cards.filter(c => c.owner_id === this.owner()).sort((a,b) => a.sort_order - b.sort_order),
+      states: states.filter(s => s.owner_id === this.owner()), events: events.filter(e => e.owner_id === this.owner()).sort((a,b) => a.at - b.at || a.id.localeCompare(b.id)) };
+  }
+  async addCards(deckId: string, pairs: {front: string; back: string}[]) {
+    const tx = this.db.transaction(STUDY_STORES, "readwrite", {durability:"strict"});
+    try {
+    this.owned(await tx.objectStore("study_settings").get(deckId));
+    const existing: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(deckId);
+    const first = Math.max(-1, ...existing.map(card => card.sort_order)) + 1;
+    for (const [i, pair] of pairs.entries()) {
+      const now = Date.now();
+      const card: StudyCard = { id: newId(), deck_id: deckId, owner_id: this.owner(), front: pair.front, back: pair.back,
+        direction: "en-zh", sort_order: first + i, content_revision: 1, created_at: now, updated_at: now, deleted_at: null };
+      const state = emptyStudyState(card);
+      await tx.objectStore("study_cards").add(card);
+      await tx.objectStore("study_states").add(state);
+      await this.enqueue(tx, {owner_id: this.owner(),kind:"card",value:card});
+      await this.enqueue(tx, {owner_id: this.owner(),kind:"seed",value:state});
+    }
+    await tx.done; this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  private async persistEvent(tx: Write, event: StudyEvent) {
+    await tx.objectStore("study_events").add(event);
+    await tx.objectStore("study_states").put(event.after);
+    await this.enqueue(tx, {owner_id:this.owner(),kind:"event",value:event});
+  }
+  async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at">>, reset = false) {
+    const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    const card: StudyCard = await tx.objectStore("study_cards").get(id); this.owned(card);
+    const updated = {...card,...patch,migration_only:false,content_revision:card.content_revision+1,updated_at:Math.max(Date.now(),card.updated_at+1)};
+    await tx.objectStore("study_cards").put(updated);
+    await this.enqueue(tx,{owner_id:this.owner(),kind:"card",value:updated});
+    if (reset) {
+      const state: StudyState = await tx.objectStore("study_states").get(id);
+      const event = createStudyEvent(updated, {...state,conflict:false}, "reset", Date.now(), this.device, newId());
+      event.before = state;
+      await this.persistEvent(tx,event);
+    }
+    await tx.done; this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  async reorder(deckId: string, ids: string[]) {
+    const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    const setting: StudySettings = await tx.objectStore("study_settings").get(deckId); this.owned(setting);
+    if (setting.sort_mode === "az") throw new Error("A–Z 模式不能手動排序。");
+    const cards: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(deckId);
+    const active = cards.filter(c => !c.deleted_at);
+    if (ids.length !== active.length || new Set(ids).size !== ids.length || active.some(c=>!ids.includes(c.id))) throw new Error("卡片清單已變更，請重新整理後排序。");
+    for (const card of active) {
+      this.owned(card);
+      const updated = {...card,migration_only:false,sort_order:ids.indexOf(card.id),updated_at:Math.max(Date.now(),card.updated_at+1)};
+      await tx.objectStore("study_cards").put(updated);
+      await this.enqueue(tx,{owner_id:this.owner(),kind:"card",value:updated});
+    }
+    await tx.done; this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"sort_mode"|"quiz_direction">>) {
+    if (patch.quiz_direction != null && !["zh-en","en-zh"].includes(patch.quiz_direction)) throw new Error("無效測驗方向。");
+    if (patch.new_limit != null && (!Number.isInteger(patch.new_limit) || patch.new_limit < 0 || patch.new_limit > 10000)) throw new Error("每日新字數須為 0–10000 的整數。");
+    if (patch.review_limit != null && (!Number.isInteger(patch.review_limit) || patch.review_limit < 1 || patch.review_limit > 10000)) throw new Error("自由複習數量須為 1–10000 的整數。");
+    if (patch.sort_mode != null && !["custom","az"].includes(patch.sort_mode)) throw new Error("無效排序模式。");
+    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    const setting:StudySettings=await tx.objectStore("study_settings").get(deckId);this.owned(setting);
+    const updated={...setting,...patch,configured:true,updated_at:Math.max(Date.now(),setting.updated_at+1)};
+    await tx.objectStore("study_settings").put(updated);
+    await this.enqueue(tx,{owner_id:this.owner(),kind:"settings",value:updated});
+    await tx.done;this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  async peekNext(deckId:string,now:number):Promise<{card:StudyCard;state:StudyState}|null> {
+    const snapshot=await this.readDeck(deckId);
+    const card=nextDailyCard(snapshot,now);
+    return card?{card,state:snapshot.states.find(state=>state.id===card.id)!}:null;
+  }
+  /** Confirm the rendered question. Merely selecting/preloading it cannot consume quota. */
+  async presentNext(deckId: string, now: number, expectedId?:string): Promise<{card:StudyCard;state:StudyState}|null> {
+    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    const settings:StudySettings=await tx.objectStore("study_settings").get(deckId);this.owned(settings);
+    const cards=await tx.objectStore("study_cards").index("deck").getAll(deckId);
+    const states=await tx.objectStore("study_states").index("deck").getAll(deckId);
+    const events=await tx.objectStore("study_events").index("deck").getAll(deckId);
+    const card=nextDailyCard({cards,states,events,settings},now);
+    if(expectedId && card?.id!==expectedId) throw new Error("待練習清單已變更，請重新載入題目。");
+    if (!card) {await tx.done;return null;}
+    let state:StudyState=states.find(s=>s.id===card.id);
+    const introduced=!state.fsrs && state.legacy_due_at == null && state.introduced_at == null;
+    if (introduced) {
+      const event=createStudyEvent(card,state,"introduce",now,this.device,newId());
+      await this.persistEvent(tx,event);state=event.after;
+    }
+    await tx.done;if(introduced)this.changed();return {card,state};
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  async review(id: string, expectedHead: string|null, contentRevision: number, rating: Grade, eventId: string, now: number): Promise<StudyEvent> {
+    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    const existing:StudyEvent|undefined=await tx.objectStore("study_events").get(eventId);
+    if (existing) {
+      this.owned(existing);
+      if(existing.card_id!==id || existing.rating!==rating) throw new Error("重複事件 ID 的內容不一致。");
+      await tx.done;return existing;
+    }
+    const card:StudyCard=await tx.objectStore("study_cards").get(id);this.owned(card);
+    const state:StudyState=await tx.objectStore("study_states").get(id);
+    if(card.deleted_at || card.content_revision!==contentRevision || state.head!==expectedHead) throw new Error("這張卡已在其他視窗變更；此作答尚未提交，請重新載入題目。");
+    const event=createStudyEvent(card,state,"review",now,this.device,eventId,rating);
+    await this.persistEvent(tx,event);
+    await tx.done;this.changed();return event;
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+  private async sessionWrite<T>(work: (tx: Write) => Promise<T>, notify = true): Promise<T> {
+    const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try { const result=await work(tx); await tx.done; if(notify)this.changed(); return result; }
+    catch(error) { try{tx.abort();}catch{} await tx.done.catch(()=>undefined); throw error; }
+  }
+  private async snapshotIn(tx: Write, deckId: string): Promise<StudySnapshot> {
+    const settings:StudySettings=await tx.objectStore("study_settings").get(deckId); this.owned(settings);
+    const [cards,states,events]=await Promise.all(["study_cards","study_states","study_events"].map(name=>tx.objectStore(name).index("deck").getAll(deckId)));
+    return {settings,cards,states,events};
+  }
+  private async saveSession(tx: Write, session: StudySession, event?: StudyEvent) {
+    await tx.objectStore("study_sessions").put(session);
+    if(event) await this.persistEvent(tx,event);
+  }
+  private async reconciled(tx: Write, session: StudySession, snapshot: StudySnapshot, now: number) {
+    this.owned(session);
+    if(session.conflict) throw new Error("此練習有跨裝置進度衝突，已保留本機進度，請先同步處理。");
+    const next=reconcileSession(session,snapshot,now);
+    if(!sameStudyRecord(next,session)) {
+      next.revision++; next.updated_at=Math.max(now,session.updated_at+1);
+      await this.saveSession(tx,next);
+    }
+    return next;
+  }
+  async startSession(deckId: string, mode: SessionMode, now = Date.now()): Promise<StudySession> {
+    return this.sessionWrite(async tx=>{
+      const snapshot=await this.snapshotIn(tx,deckId);
+      if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
+      const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
+      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0];
+      if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
+      let batch:StudySession|undefined;
+      let cards:StudyCard[];
+      if(mode==="daily") {
+        const batchId=JSON.stringify(["daily-batch",deckId,localStudyDay(now)]);
+        batch=sessions.find(s=>s.id===batchId);
+        if(!batch) {
+          batch=makeSession(snapshot,"batch",selectSessionCards(snapshot,"daily",now),now,batchId);
+          await this.saveSession(tx,batch);
+        }
+        // The batch IDs are fixed. A new session binds to the current generation after a reset.
+        cards=batch.targets.flatMap(t=>snapshot.cards.filter(c=>c.id===t.card_id && !c.deleted_at));
+      } else cards=selectSessionCards(snapshot,"free",now);
+      const session=makeSession(snapshot,mode,cards,now,newId(),batch?.id);
+      await this.saveSession(tx,session);
+      return session;
+    });
+  }
+  async readSession(id:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+    return this.sessionWrite(async tx=>{
+      const value:StudySession=await tx.objectStore("study_sessions").get(id);this.owned(value);
+      const snapshot=await this.snapshotIn(tx,value.deck_id);
+      const session=await this.reconciled(tx,value,snapshot,now);
+      return {session,snapshot};
+    },false);
+  }
+  async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number}):Promise<StudySession> {
+    return this.sessionWrite(async tx=>{
+      const {sessionId,cardId,rating,actionId,now}=input;
+      if(![1,2,3,4].includes(rating)) throw new Error("無效評分。");
+      const saved:StudySession=await tx.objectStore("study_sessions").get(sessionId);this.owned(saved);
+      if(saved.last_action_id===actionId) return saved;
+      const snapshot=await this.snapshotIn(tx,saved.deck_id);
+      const session=await this.reconciled(tx,saved,snapshot,now);
+      if(session.mode==="batch" || session.completed_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
+      const card=snapshot.cards.find(c=>c.id===cardId)!;
+      const state=snapshot.states.find(s=>s.id===cardId)!;
+      if(state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
+      const target=session.targets.find(t=>t.card_id===cardId)!;
+      target.attempts=(target.attempts??0)+1;
+      let event:StudyEvent|undefined;
+      if(session.mode==="free" && !isLearned(state)) throw new Error("此卡尚未學會，請先完成每日學習。");
+      if(session.mode==="free" && !target.official_event_id) {
+        event=createStudyEvent(card, state, "review", now, this.device, target.event_id, rating);
+        event.before=structuredClone(state);
+        event.session_id=session.id; event.source="free_review";
+        event.session_rating=rating;
+        target.official_event_id=event.id;
+        target.official_rating=rating;
+      } else if(session.mode==="daily" && rating===Rating.Easy && !isLearned(state)) {
+        event=createStudyEvent(card, state, "introduce", now, this.device, target.event_id, null, "daily_learning");
+        event.before=structuredClone(state);
+        event.session_id=session.id; event.source="daily_learning";
+        target.official_event_id=event.id;
+      }
+      if(rating===Rating.Easy) target.easy_at=now;
+      session.queue=session.queue.slice(1);
+      if(rating!==Rating.Easy) session.queue.push(cardId);
+      session.answers++; session.revision++; session.last_action_id=actionId;
+      session.updated_at=Math.max(now,session.updated_at+1);
+      if(!session.queue.length) session.completed_at=now;
+      await this.saveSession(tx,session,event);
+      return session;
+    });
+  }
+  async pending():Promise<StudyOperation[]> {
+    return (await this.db.getAll("study_outbox")).filter(op=>op.owner_id===this.owner());
+  }
+  async acknowledge(id:string) { await this.db.delete("study_outbox",id); }
+  async exportData():Promise<StudyBackup> {
+    const tx=this.db.transaction(STUDY_STORES,"readonly");
+    const [cards,states,events,settings,sessions]=await Promise.all(["study_cards","study_states","study_events","study_settings","study_sessions"].map(store=>tx.objectStore(store).getAll()));
+    await tx.done;return {cards,states,events,settings,sessions};
+  }
+  /** Events are unioned by ID. Divergent heads are retained and marked, never overwritten silently. */
+  async mergeRemote(data:StudyBackup) {
+    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    try {
+    for(const event of data.events) {
+      this.owned(event);
+      const existing=await tx.objectStore("study_events").get(event.id);
+      if(existing && !sameStudyRecord(existing,event)) throw new Error("同一事件 ID 出現不同內容，已停止同步並保留本地紀錄。");
+      if(!existing) await tx.objectStore("study_events").add(event);
+    }
+    for(const [store,values] of [["study_cards",data.cards],["study_settings",data.settings]] as const) {
+      for(const value of values) {
+        this.owned(value);
+        const local=await tx.objectStore(store).get(value.id);
+        if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);
+      }
+    }
+    const descends = async (head:string|null, ancestor:string|null) => {
+      const seen=new Set<string>();
+      while(head && head!==ancestor && !seen.has(head)) {
+        seen.add(head);const event:StudyEvent|undefined=await tx.objectStore("study_events").get(head);
+        if(!event) return false;head=event.parent;
+      }
+      return head===ancestor;
+    };
+    for(const remote of data.states) {
+      this.owned(remote);
+      const local:StudyState|undefined=await tx.objectStore("study_states").get(remote.id);
+      if(!local || await descends(remote.head,local.head)) await tx.objectStore("study_states").put(remote);
+      else if(!await descends(local.head,remote.head) || remote.conflict) await tx.objectStore("study_states").put({...remote,conflict:true});
+    }
+    const pending:StudyOperation[]=await tx.objectStore("study_outbox").getAll();
+    for(const remote of data.sessions??[]) {
+      this.owned(remote);
+      // The REST tables are fetched in separate requests. Do not install a session checkpoint
+      // from a newer cloud snapshot until its event AND scheduling state have also arrived.
+      for(const target of remote.targets) {
+        if(!target.official_event_id)continue;
+        const event:StudyEvent|undefined=await tx.objectStore("study_events").get(target.official_event_id);
+        const state:StudyState|undefined=await tx.objectStore("study_states").get(target.card_id);
+        if(!event || event.session_id!==remote.id || event.card_id!==target.card_id || !state ||
+          (!state.conflict && state.generation===target.generation && !await descends(state.head,event.id))) {
+          throw new Error("雲端練習與排程正在更新，尚未套用不完整進度，請重新同步。");
+        }
+      }
+      const local:StudySession|undefined=await tx.objectStore("study_sessions").get(remote.id);
+      const unsynced=pending.some(op=>op.kind==="session"&&op.value.id===remote.id || op.session?.id===remote.id);
+      if(!local || !unsynced && remote.revision>=local.revision) await tx.objectStore("study_sessions").put(remote);
+      else if(!sameStudyRecord(local,remote) && remote.revision>=local.revision) await tx.objectStore("study_sessions").put({...local,conflict:true});
+    }
+    await tx.done;this.changed();
+    } catch (error) {
+      try { tx.abort(); } catch {}
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
+  }
+}
+
+````
+
 ## File: src/lib/blockId.ts
 ````
 /**
@@ -22855,6 +23664,129 @@ export function getProjectKinds(): PageKind[] {
 export function getAllCreatableKinds(): PageKind[] {
   return Object.keys(CREATABLE_REGISTRY) as PageKind[];
 }
+
+````
+
+## File: src/lib/creationOptions.ts
+````
+import type { FeatureFilter } from "./featurePreferences";
+
+export type CreateItemType = "note" | "note_flow" | "note_paged" | "document" | "study_set" | "folder" | "presentation" | "character" | "world" | "novel" | "web" | "counter" | "draw" | "quick_note" | "todo";
+export const creationOptions: Record<FeatureFilter, { type: CreateItemType; label: string }[]> = {
+  all: [{ type: "note", label: "筆記" }, { type: "document", label: "文檔" }, { type: "study_set", label: "字卡集" }, { type: "presentation", label: "簡報" }, { type: "character", label: "角色卡" }, { type: "world", label: "世界觀" }, { type: "novel", label: "小說" }, { type: "web", label: "網頁" }, { type: "counter", label: "計數" }, { type: "draw", label: "抽選" }, { type: "folder", label: "資料夾" }],
+  notes: [{ type: "note_flow", label: "流動筆記" }, { type: "note_paged", label: "分頁筆記" }],
+  creative: [{ type: "world", label: "世界觀" }, { type: "character", label: "角色卡" }],
+  novels: [{ type: "novel", label: "小說作品" }],
+  documents: [{ type: "document", label: "文檔" }],
+  presentations: [{ type: "presentation", label: "簡報" }],
+  study: [{ type: "study_set", label: "字卡集" }],
+  calendar: [{ type: "todo", label: "日曆事項" }],
+  quicknotes: [{ type: "quick_note", label: "隨手記" }],
+  web: [{ type: "web", label: "網頁" }],
+  counter: [{ type: "counter", label: "計數項目" }],
+  draw: [{ type: "draw", label: "抽選資料庫" }],
+};
+
+````
+
+## File: src/lib/featurePreferences.ts
+````
+export type FeatureFilter =
+  | "all"
+  | "notes"
+  | "documents"
+  | "presentations"
+  | "study"
+  | "calendar"
+  | "quicknotes"
+  | "creative"
+  | "novels"
+  | "web"
+  | "counter"
+  | "draw";
+
+export type FeatureOrderMode = "recent" | "default" | "custom";
+
+export const DEFAULT_FEATURE_ITEMS: { id: FeatureFilter; icon: string; label: string }[] = [
+  { id: "notes", icon: "✎", label: "筆記" },
+  { id: "documents", icon: "▱", label: "文檔" },
+  { id: "presentations", icon: "▰", label: "簡報" },
+  { id: "study", icon: "▤", label: "字卡" },
+  { id: "quicknotes", icon: "▧", label: "隨手記" },
+  { id: "creative", icon: "✦", label: "創作" },
+  { id: "novels", icon: "◫", label: "小說" },
+  { id: "web", icon: "⌘", label: "網頁" },
+  { id: "counter", icon: "＋", label: "計數" },
+  { id: "draw", icon: "⤨", label: "抽選" },
+];
+
+export function getStoredFeatureOrderMode(): FeatureOrderMode {
+  if (typeof window === "undefined") return "recent";
+  try {
+    const mode = window.localStorage.getItem("nexus-feature-order-mode");
+    if (mode === "default" || mode === "recent" || mode === "custom") return mode;
+  } catch {}
+  return "recent";
+}
+
+export function setStoredFeatureOrderMode(mode: FeatureOrderMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("nexus-feature-order-mode", mode);
+    window.dispatchEvent(new Event("nexus-feature-order-changed"));
+  } catch {}
+}
+
+export function getStoredRecentFeatureIds(): FeatureFilter[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem("nexus-recent-features");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((id): id is FeatureFilter => typeof id === "string");
+    }
+  } catch {}
+  return [];
+}
+
+export function recordFeatureUsage(id: FeatureFilter): void {
+  if (typeof window === "undefined" || id === "all" || id === "calendar") return;
+  try {
+    const prev = getStoredRecentFeatureIds();
+    const next = [id, ...prev.filter((item) => item !== id)].slice(0, 20);
+    window.localStorage.setItem("nexus-recent-features", JSON.stringify(next));
+  } catch {}
+}
+
+export function getStoredCustomFeatureOrder(): FeatureFilter[] {
+  if (typeof window === "undefined") return DEFAULT_FEATURE_ITEMS.map((item) => item.id);
+  try {
+    const raw = window.localStorage.getItem("nexus-custom-feature-order");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const set = new Set(parsed);
+        const valid = parsed.filter((id): id is FeatureFilter =>
+          DEFAULT_FEATURE_ITEMS.some((item) => item.id === id)
+        );
+        DEFAULT_FEATURE_ITEMS.forEach((item) => {
+          if (!set.has(item.id)) valid.push(item.id);
+        });
+        return valid;
+      }
+    }
+  } catch {}
+  return DEFAULT_FEATURE_ITEMS.map((item) => item.id);
+}
+
+export function setStoredCustomFeatureOrder(order: FeatureFilter[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem("nexus-custom-feature-order", JSON.stringify(order));
+    window.dispatchEvent(new Event("nexus-feature-order-changed"));
+  } catch {}
+}
+
 
 ````
 
@@ -23658,6 +24590,204 @@ export function captureTextToContentJson(text: string): object {
 export function isInboxPage(page: Page): boolean {
   return page.folder === "Inbox" || (page.tags || []).includes("inbox");
 }
+
+````
+
+## File: src/lib/lessonDocument.ts
+````
+import type { JSONContent } from "@tiptap/core";
+
+export interface LessonLayout {
+  preset: "original" | "textbook" | "handout";
+  fontSize: number;
+  lineHeight: number;
+  headingScale: number;
+  header: string;
+  footer: string;
+  pageNumbers: boolean;
+}
+export const LESSON_PRESETS: Record<LessonLayout["preset"], Pick<LessonLayout, "fontSize" | "lineHeight" | "headingScale">> = {
+  original: { fontSize: 16, lineHeight: 1.6, headingScale: 1 },
+  textbook: { fontSize: 17, lineHeight: 1.9, headingScale: 1.15 },
+  handout: { fontSize: 16, lineHeight: 1.7, headingScale: 1 },
+};
+const clamp = (value: unknown, min: number, max: number, fallback: number) => typeof value === "number" && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+export function readLessonLayout(doc: JSONContent & { lessonLayout?: Partial<LessonLayout> } = {}): LessonLayout {
+  const raw = doc.lessonLayout ?? {};
+  const preset = raw.preset === "textbook" || raw.preset === "handout" ? raw.preset : "original";
+  return { preset, fontSize: clamp(raw.fontSize, 12, 24, LESSON_PRESETS[preset].fontSize), lineHeight: clamp(raw.lineHeight, 1.2, 2.5, LESSON_PRESETS[preset].lineHeight), headingScale: clamp(raw.headingScale, 0.8, 1.5, LESSON_PRESETS[preset].headingScale), header: typeof raw.header === "string" ? raw.header.slice(0, 120) : "", footer: typeof raw.footer === "string" ? raw.footer.slice(0, 120) : "", pageNumbers: raw.pageNumbers !== false };
+}
+export const LESSON_LABELS: Record<string, string> = { definition: "定義", example: "例題", exercise: "練習", answer: "解答" };
+export interface LessonEntry { id: string; title: string; level: number; page: number; kind: string; number?: number }
+export function lessonText(node: JSONContent): string {
+  return node.text ?? (node.content ?? []).map(lessonText).join("");
+}
+export function buildLessonIndex(doc: JSONContent): LessonEntry[] {
+  const entries: LessonEntry[] = [];
+  const counts: Record<string, number> = {};
+  let page = 1;
+  function visit(node: JSONContent) {
+    if (node.type === "pageBreak") { page++; return; }
+    const id = node.attrs?.id;
+    const kind = node.type === "heading" ? "heading" : node.type === "lessonBlock" ? node.attrs?.kind : node.type === "paragraph" && node.attrs?.lessonStyle === "caption" ? "figure" : null;
+    if (id && kind && kind !== "answer") {
+      const numbered = kind === "example" || kind === "exercise" || kind === "figure";
+      const number = numbered ? (counts[kind] = (counts[kind] ?? 0) + 1) : undefined;
+      entries.push({ id, kind, page, level: node.type === "heading" ? node.attrs?.level ?? 1 : 0, number, title: lessonText(node).slice(0, 100) || LESSON_LABELS[kind] || "未命名標題" });
+    }
+    node.content?.forEach(visit);
+  }
+  visit(doc);
+  return entries;
+}
+
+/** Preserve manual boundaries and every original block. Oversize blocks remain intact. */
+export function paginateLessonBlocks(blocks: JSONContent[], heights: number[], capacity: number) {
+  const output: JSONContent[] = [];
+  let used = 0;
+  let oversized = 0;
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index];
+    if (block.type === "pageBreak") { output.push(block); used = 0; continue; }
+    const group = [block];
+    let size = heights[index] ?? 0;
+    // A run of headings stays with its first content block; captions stay with images.
+    while ((group[group.length - 1].type === "heading" || (group[group.length - 1].type === "image" && blocks[index + 1]?.attrs?.lessonStyle === "caption")) && blocks[index + 1] && blocks[index + 1].type !== "pageBreak") {
+      index++;
+      group.push(blocks[index]);
+      size += heights[index] ?? 0;
+    }
+    if (used > 0 && used + size > capacity) { output.push({ type: "pageBreak" }); used = 0; }
+    if (size > capacity) oversized++;
+    output.push(...group);
+    used += size;
+  }
+  return { blocks: output, oversized };
+}
+
+````
+
+## File: src/lib/lessonExtensions.ts
+````
+import { Extension, Node, mergeAttributes, type JSONContent } from "@tiptap/core";
+import { buildLessonIndex, LESSON_LABELS, type LessonEntry } from "./lessonDocument";
+
+export const LESSON_INDEX_EVENT = "nexus-lesson-index";
+export const LessonParagraph = Extension.create({
+  name: "lessonParagraph",
+  addGlobalAttributes() {
+    return [{ types: ["paragraph"], attributes: { lessonStyle: {
+      default: null,
+      parseHTML: (element) => ["caption", "key"].includes(element.dataset.lessonStyle || "") ? element.dataset.lessonStyle : null,
+      renderHTML: (attrs) => attrs.lessonStyle ? { "data-lesson-style": attrs.lessonStyle } : {},
+    } } }];
+  },
+});
+
+type LessonOptions = { getDocument: () => JSONContent | undefined; navigate: (id: string) => void };
+export const LessonBlock = Node.create<LessonOptions>({
+  name: "lessonBlock", group: "block", content: "block+", defining: true,
+  addOptions: () => ({ getDocument: () => undefined, navigate: () => {} }),
+  addAttributes: () => ({
+    kind: { default: "example", parseHTML: (el) => el.dataset.lessonKind || "example", renderHTML: (attrs) => ({ "data-lesson-kind": attrs.kind }) },
+    collapsed: { default: false, parseHTML: (el) => el.dataset.collapsed === "true", renderHTML: (attrs) => ({ "data-collapsed": String(attrs.collapsed) }) },
+  }),
+  parseHTML: () => [{ tag: 'section[data-type="lessonBlock"]', contentElement: ".lesson-block-body" }],
+  renderHTML({ HTMLAttributes, node }) {
+    return ["section", mergeAttributes(HTMLAttributes, { "data-type": "lessonBlock", class: "lesson-block" }), ["div", { class: "lesson-block-label", contenteditable: "false" }, LESSON_LABELS[node.attrs.kind] || "例題"], ["div", { class: "lesson-block-body" }, 0]];
+  },
+  addNodeView() {
+    const options = this.options;
+    return ({ node, editor, getPos }) => {
+      let current = node;
+      const dom = document.createElement("section");
+      dom.className = "lesson-block";
+      dom.dataset.type = "lessonBlock";
+      const header = document.createElement("div");
+      header.contentEditable = "false";
+      header.className = "lesson-block-label";
+      const label = document.createElement("span");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "lesson-answer-toggle nexus-print-hide";
+      const content = document.createElement("div");
+      content.className = "lesson-block-body";
+      header.append(label, toggle);
+      dom.append(header, content);
+      const render = () => {
+        const kind = current.attrs.kind;
+        const entry = buildLessonIndex(options.getDocument() ?? editor.getJSON()).find((item) => item.id === current.attrs.id);
+        dom.dataset.id = current.attrs.id || "";
+        dom.dataset.lessonKind = kind;
+        dom.dataset.collapsed = String(current.attrs.collapsed);
+        label.textContent = `${LESSON_LABELS[kind] || "例題"}${entry?.number ? ` ${entry.number}` : ""}`;
+        toggle.hidden = kind !== "answer";
+        toggle.textContent = current.attrs.collapsed ? "展開解答" : "收合解答";
+        toggle.setAttribute("aria-expanded", String(!current.attrs.collapsed));
+        content.hidden = kind === "answer" && current.attrs.collapsed;
+      };
+      toggle.addEventListener("mousedown", (event) => event.preventDefault());
+      toggle.addEventListener("click", () => {
+        const pos = getPos();
+        if (typeof pos === "number") editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...current.attrs, collapsed: !current.attrs.collapsed }));
+      });
+      editor.on("transaction", render);
+      document.addEventListener(LESSON_INDEX_EVENT, render);
+      render();
+      return { dom, contentDOM: content, update(next) { if (next.type !== current.type) return false; current = next; render(); return true; }, stopEvent: (event) => header.contains(event.target as globalThis.Node), ignoreMutation: (mutation) => mutation.type !== "selection" && (mutation.target === content && mutation.type === "attributes" || !content.contains(mutation.target)), destroy() { editor.off("transaction", render); document.removeEventListener(LESSON_INDEX_EVENT, render); } };
+    };
+  },
+});
+
+export const AnswerSpace = Node.create({
+  name: "answerSpace", group: "block", atom: true,
+  addAttributes: () => ({ lines: { default: 4, parseHTML: (el) => Number(el.dataset.lines) || 4, renderHTML: (attrs) => ({ "data-lines": attrs.lines }) } }),
+  parseHTML: () => [{ tag: 'div[data-type="answerSpace"]' }],
+  renderHTML({ node, HTMLAttributes }) {
+    const lines = Math.max(1, Math.min(12, Number(node.attrs.lines) || 4));
+    return ["div", mergeAttributes(HTMLAttributes, { "data-type": "answerSpace", class: "lesson-answer-space", style: `height:${lines * 32}px`, "aria-label": `${lines} 行作答留白` }), ["span", { class: "nexus-print-hide" }, `${lines} 行作答留白`]];
+  },
+});
+
+export const LessonToc = Node.create<LessonOptions>({
+  name: "lessonToc", group: "block", atom: true,
+  addOptions: () => ({ getDocument: () => undefined, navigate: () => {} }),
+  parseHTML: () => [{ tag: 'nav[data-type="lessonToc"]' }],
+  renderHTML: ({ HTMLAttributes }) => ["nav", mergeAttributes(HTMLAttributes, { "data-type": "lessonToc", class: "lesson-toc" }), "目錄"],
+  addNodeView() {
+    const options = this.options;
+    return ({ editor }) => {
+      const dom = document.createElement("nav");
+      dom.className = "lesson-toc";
+      dom.dataset.type = "lessonToc";
+      dom.contentEditable = "false";
+      dom.setAttribute("aria-label", "自動目錄");
+      let previous = "";
+      const render = () => {
+        const entries = buildLessonIndex(options.getDocument() ?? editor.getJSON()).filter((item) => item.kind === "heading");
+        const key = JSON.stringify(entries);
+        if (key === previous) return;
+        previous = key;
+        const title = document.createElement("strong");
+        title.textContent = "目錄";
+        dom.replaceChildren(title);
+        if (!entries.length) { const hint = document.createElement("p"); hint.textContent = "加入章標題或小節後，目錄會自動更新。"; dom.append(hint); }
+        entries.forEach((entry: LessonEntry) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.style.paddingLeft = `${(entry.level - 1) * 16}px`;
+          button.textContent = entry.title;
+          button.addEventListener("click", () => options.navigate(entry.id));
+          dom.append(button);
+        });
+      };
+      editor.on("transaction", render);
+      document.addEventListener(LESSON_INDEX_EVENT, render);
+      render();
+      return { dom, stopEvent: () => true, ignoreMutation: () => true, destroy() { editor.off("transaction", render); document.removeEventListener(LESSON_INDEX_EVENT, render); } };
+    };
+  },
+});
 
 ````
 
@@ -24882,6 +26012,225 @@ export function updateSlideContent(slide: Slide, json: any, text: string): Slide
 
 ````
 
+## File: src/lib/pullToRefresh.ts
+````
+export const REFRESH_PULL_THRESHOLD = 80;
+export function measureRefreshPull(dx: number, dy: number, elapsed: number) {
+  const cancelled = dy < -8 || (Math.abs(dx) > 16 && Math.abs(dx) > Math.max(0, dy) * 0.6);
+  const distance = cancelled ? 0 : Math.min(100, Math.max(0, dy - 24) * 0.35);
+  return { cancelled, distance, ready: !cancelled && distance >= REFRESH_PULL_THRESHOLD && elapsed >= 500 };
+}
+
+````
+
+## File: src/lib/quizPersistence.ts
+````
+import type { IDBPDatabase, IDBPTransaction } from "idb";
+import { isLearned } from "./studySessions";
+
+// Mirrored by apply_study_quiz_operation; the integration test checks both boundaries.
+export const QUIZ_SCORE = { min: 0, max: 4, wrong: 1, correct: 1 } as const;
+export const QUIZ_STORES = ["quiz_attempts", "quiz_states", "quiz_outbox"];
+export interface QuizPayload {
+  event_id: string; owner_id: string; card_id: string; correct: boolean;
+  answered_at: number; batch_id: string; local_sequence: number;
+}
+export interface QuizAttempt {
+  id: string; owner_id: string; payload: QuizPayload;
+  status: "awaiting_decision" | "authorized" | "synced" | "discarded" | "failed";
+  error?: string;
+}
+export interface QuizState {
+  owner_id: string; card_id: string; mistake_score: number; revision: number; updated_at: string;
+}
+type Tx = IDBPTransaction<unknown, string[], "readwrite">;
+export class QuizRepository {
+  private reachable = true;
+  private confirmedConnection = false;
+  constructor(private db: IDBPDatabase, private owner: () => string | null) {}
+  setReachable(value: boolean) {
+    const changed=this.confirmedConnection!==value;
+    this.reachable = value; this.confirmedConnection=value;
+    if(changed&&typeof window!=="undefined")window.dispatchEvent(new Event("nexus-quiz-connectivity"));
+  }
+  canOfferUpload() { return this.confirmedConnection&&(typeof navigator==="undefined"||navigator.onLine!==false); }
+  private user() { const owner=this.owner(); if(!owner) throw new Error("Quiz 同步需要登入帳號。"); return owner; }
+  private changed() { if(typeof window!=="undefined") window.dispatchEvent(new Event("nexus-study-changed")); }
+  private async write<T>(run:(tx:Tx)=>Promise<T>):Promise<T> {
+    const tx=this.db.transaction([...QUIZ_STORES,"study_cards","study_states"],"readwrite",{durability:"strict"});
+    try { const result=await run(tx); await tx.done; this.changed(); return result; }
+    catch(e) { try{tx.abort();}catch{} await tx.done.catch(()=>undefined); throw e; }
+  }
+  async record(input:{cardId:string;correct:boolean;batchId:string;eventId:string;now:number}):Promise<QuizAttempt> {
+    const owner=this.user();
+    return this.write(async tx=>{
+      const existing:QuizAttempt|undefined=await tx.objectStore("quiz_attempts").get(input.eventId);
+      if(existing) {
+        const p=existing.payload;
+        if(existing.owner_id!==owner||p.card_id!==input.cardId||p.correct!==input.correct||p.batch_id!==input.batchId||p.answered_at!==input.now) throw new Error("Quiz event ID collision");
+        return existing;
+      }
+      const card=await tx.objectStore("study_cards").get(input.cardId);
+      const state=await tx.objectStore("study_states").get(input.cardId);
+      if(!card||card.owner_id!==owner||card.deleted_at!=null||!state||state.owner_id!==owner||!isLearned(state)) throw new Error("Quiz 字卡不存在、已刪除或尚未學習。");
+      if(typeof input.correct!=="boolean"||!Number.isSafeInteger(input.now)||!input.batchId||!input.eventId) throw new Error("Invalid quiz attempt");
+      const all:QuizAttempt[]=await tx.objectStore("quiz_attempts").getAll();
+      const sequence=1+Math.max(0,...all.filter(a=>a.owner_id===owner&&a.payload.batch_id===input.batchId).map(a=>a.payload.local_sequence));
+      const online=this.reachable&&(typeof navigator==="undefined"||navigator.onLine!==false);
+      const attempt:QuizAttempt={id:input.eventId,owner_id:owner,status:online?"authorized":"awaiting_decision",
+        payload:{event_id:input.eventId,owner_id:owner,card_id:input.cardId,correct:input.correct,answered_at:input.now,batch_id:input.batchId,local_sequence:sequence}};
+      await tx.objectStore("quiz_attempts").add(attempt);
+      if(online) await tx.objectStore("quiz_outbox").put(attempt);
+      return attempt;
+    });
+  }
+  async awaiting() { return (await this.attempts()).filter(a=>a.status==="awaiting_decision"); }
+  async attempts():Promise<QuizAttempt[]> { const owner=this.user(); return (await this.db.getAll("quiz_attempts")).filter(a=>a.owner_id===owner); }
+  // The UI supplies the exact IDs displayed in its confirmation, not an open-ended batch query.
+  async decide(ids:string[],decision:"upload"|"discard"|"later") {
+    const owner=this.user();
+    return this.write(async tx=>{
+      for(const id of new Set(ids)) {
+        const a:QuizAttempt|undefined=await tx.objectStore("quiz_attempts").get(id);
+        if(!a||a.owner_id!==owner) throw new Error("Quiz owner mismatch");
+        if(a.status!=="awaiting_decision") continue;
+        if(decision==="later") continue;
+        a.status=decision==="upload"?"authorized":"discarded";
+        await tx.objectStore("quiz_attempts").put(a);
+        if(decision==="upload") await tx.objectStore("quiz_outbox").put(a);
+      }
+    });
+  }
+  async pending():Promise<QuizAttempt[]> {
+    const owner=this.user();
+    return (await this.db.getAll("quiz_outbox")).filter(a=>a.owner_id===owner&&a.status==="authorized")
+      .sort((a,b)=>a.payload.batch_id.localeCompare(b.payload.batch_id)||a.payload.local_sequence-b.payload.local_sequence);
+  }
+  private async cache(tx:Tx,state:QuizState) {
+    const owner=this.user();
+    if(state.owner_id!==owner||!Number.isSafeInteger(state.revision)||state.revision<0||!Number.isInteger(state.mistake_score)||state.mistake_score<QUIZ_SCORE.min||state.mistake_score>QUIZ_SCORE.max) throw new Error("Invalid quiz server state");
+    const card=await tx.objectStore("study_cards").get(state.card_id);
+    if(!card||card.owner_id!==owner) throw new Error("Quiz cache card owner mismatch");
+    const id=JSON.stringify([owner,state.card_id]);
+    const old=await tx.objectStore("quiz_states").get(id);
+    if(!old||state.revision>old.revision) await tx.objectStore("quiz_states").put({...state,id});
+  }
+  async accept(id:string,state:QuizState) {
+    return this.write(async tx=>{
+      const a:QuizAttempt=await tx.objectStore("quiz_attempts").get(id);
+      if(!a||a.owner_id!==this.user()||a.payload.card_id!==state.card_id||!["authorized","synced"].includes(a.status)) throw new Error("Quiz acknowledgement mismatch");
+      await this.cache(tx,state);
+      await tx.objectStore("quiz_attempts").put({...a,status:"synced"});
+      await tx.objectStore("quiz_outbox").delete(id);
+    });
+  }
+  async fail(id:string,error:string) {
+    return this.write(async tx=>{
+      const a:QuizAttempt=await tx.objectStore("quiz_attempts").get(id);
+      if(!a||a.owner_id!==this.user()) throw new Error("Quiz owner mismatch");
+      await tx.objectStore("quiz_attempts").put({...a,status:"failed",error});
+      await tx.objectStore("quiz_outbox").delete(id);
+    });
+  }
+  async merge(states:QuizState[]) { return this.write(async tx=>{for(const state of states) await this.cache(tx,state);}); }
+  async states():Promise<QuizState[]> { const owner=this.user();return (await this.db.getAll("quiz_states")).filter(s=>s.owner_id===owner); }
+}
+
+````
+
+## File: src/lib/quizQuestions.ts
+````
+import { schedulerCard, studyScheduler, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
+import { isLearned } from "./studySessions";
+import { QUIZ_SCORE, type QuizRepository, type QuizState } from "./quizPersistence";
+
+export type QuizDirection = "zh-en" | "en-zh";
+export const DEFAULT_QUIZ_DIRECTION: QuizDirection = "zh-en";
+export const QUIZ_REQUIRED_ANSWERS = "至少需要 4 個不同答案的已學習單字才能進行測驗";
+export const QUIZ_WEIGHT = { BASE_WEIGHT: 1, NEW_CARD_BONUS: 0.5, MAX_FSRS_BONUS: 1,
+  MISTAKE_BONUS_PER_POINT: 0.25, MAX_TOTAL_WEIGHT: 3 } as const;
+export function quizEligible(snapshot:StudySnapshot) {
+  const states=new Map(snapshot.states.map(s=>[s.id,s]));
+  return snapshot.cards.filter(c=>c.deleted_at==null&&typeof c.front==="string"&&!!c.front.trim()&&typeof c.back==="string"&&!!c.back.trim()&&
+    states.has(c.id)&&isLearned(states.get(c.id)!));
+}
+const answer=(card:StudyCard,direction:QuizDirection)=>(direction==="zh-en"?card.front:card.back).trim();
+export function canStartQuiz(snapshot:StudySnapshot,direction:QuizDirection) {
+  return new Set(quizEligible(snapshot).map(c=>answer(c,direction))).size>=4;
+}
+export function quizWeight(state:StudyState,mistakeScore:number,now:number) {
+  const retrievability=state.fsrs==null?null:studyScheduler.get_retrievability(schedulerCard(state,now),new Date(now),false);
+  const memoryBonus=retrievability==null?QUIZ_WEIGHT.NEW_CARD_BONUS:
+    QUIZ_WEIGHT.MAX_FSRS_BONUS*(1-Math.max(0,Math.min(1,Number.isFinite(retrievability)?retrievability:1)));
+  const score=Number.isFinite(mistakeScore)?Math.max(QUIZ_SCORE.min,Math.min(QUIZ_SCORE.max,mistakeScore)):0;
+  const mistakeBonus=score*QUIZ_WEIGHT.MISTAKE_BONUS_PER_POINT;
+  return {retrievability,memoryBonus,mistakeBonus,
+    weight:Math.min(QUIZ_WEIGHT.MAX_TOTAL_WEIGHT,QUIZ_WEIGHT.BASE_WEIGHT+memoryBonus+mistakeBonus)};
+}
+function shuffle<T>(items:T[],rng:()=>number) {
+  const copy=[...items];
+  for(let i=copy.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}
+  return copy;
+}
+export interface QuizQuestion { cardId:string; prompt:string; answer:string; choices:string[]; direction:QuizDirection }
+export function nextQuizQuestion(snapshot:StudySnapshot,states:QuizState[],direction:QuizDirection,previousId:string|null,now:number,rng:()=>number=Math.random):QuizQuestion {
+  if(!canStartQuiz(snapshot,direction))throw new Error(QUIZ_REQUIRED_ANSWERS);
+  const eligible=quizEligible(snapshot),candidates=eligible.length>1?eligible.filter(c=>c.id!==previousId):eligible;
+  const weights=candidates.map(c=>quizWeight(snapshot.states.find(s=>s.id===c.id)!,states.find(s=>s.card_id===c.id&&s.owner_id===c.owner_id)?.mistake_score??0,now).weight);
+  let threshold=rng()*weights.reduce((a,b)=>a+b,0),card=candidates[candidates.length-1];
+  for(let i=0;i<candidates.length;i++){threshold-=weights[i];if(threshold<0){card=candidates[i];break;}}
+  const correct=answer(card,direction);
+  const distractors=[...new Set(eligible.filter(c=>c.id!==card.id).map(c=>answer(c,direction)).filter(value=>value!==correct))];
+  return {cardId:card.id,prompt:(direction==="zh-en"?card.back:card.front).trim(),answer:correct,direction,
+    choices:shuffle([correct,...shuffle(distractors,rng).slice(0,3)],rng)};
+}
+// A question owns one immutable submission so a storage retry retains the event identity and answer.
+export function createQuizSubmission(question:QuizQuestion,choice:string,batchId:string,now:number,eventId=crypto.randomUUID()) {
+  if(!question.choices.includes(choice))throw new Error("無效測驗選項");
+  return {cardId:question.cardId,correct:choice===question.answer,batchId,eventId,now};
+}
+export async function saveQuizAnswer(repo:QuizRepository,submission:ReturnType<typeof createQuizSubmission>) {
+  return repo.record(submission);
+}
+
+````
+
+## File: src/lib/quizSync.ts
+````
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { QuizRepository, QuizState } from "./quizPersistence";
+
+export async function syncQuiz(repo:QuizRepository,client:SupabaseClient,owner:string,active:()=>boolean=()=>true) {
+  try {
+    for(const attempt of await repo.pending()) {
+      if(!active())return;
+      if(attempt.owner_id!==owner)throw new Error("Quiz sync owner mismatch");
+      const {data,error}=await client.rpc("apply_study_quiz_operation",{attempt:attempt.payload});
+      if(!active())return;
+      if(error) {
+        // Only a definitive server rejection is terminal. Transport/unknown outcomes stay retryable.
+        if(error.code==="P0001"&&["QUIZ_CARD_UNAVAILABLE","QUIZ_EVENT_COLLISION","QUIZ_INVALID_ATTEMPT","QUIZ_OWNER_MISMATCH"].includes(error.message)) {
+          await repo.fail(attempt.id,error.message); continue;
+        }
+        throw new Error(error.message);
+      }
+      await repo.accept(attempt.id,data as QuizState);
+    }
+    let offset=0;
+    while(active()) {
+      const {data,error}=await client.from("study_card_quiz_states").select("*").eq("owner_id",owner).order("card_id").range(offset,offset+499);
+      if(error)throw new Error(error.message);
+      if(!active())return;
+      await repo.merge((data??[]) as QuizState[]);
+      if(!data||data.length<500)break;
+      offset+=data.length;
+    }
+    if(active())repo.setReachable(true);
+  } catch(e) { repo.setReachable(false);throw e; }
+}
+
+````
+
 ## File: src/lib/stableBlockIdExtension.ts
 ````
 import { Extension } from "@tiptap/core";
@@ -24972,6 +26321,334 @@ export const StableBlockId = Extension.create({
   },
 });
 
+
+````
+
+## File: src/lib/studyFSRS.ts
+````
+import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
+import type { Page, StudyItem } from "./types";
+import type { StudySession } from "./studySessions";
+
+export const STUDY_ENGINE = "ts-fsrs@5.4.2/FSRS-6";
+export const STUDY_PARAMETERS = generatorParameters({ request_retention: 0.90, enable_short_term: true, learning_steps: ["10m"], relearning_steps: ["10m"] });
+export const studyScheduler = fsrs(STUDY_PARAMETERS);
+export { Rating, State };
+export type { Grade };
+export type StoredFSRS = Omit<Card, "due" | "last_review"> & { due: number; last_review?: number };
+export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
+
+export interface StudyCard {
+  id: string; deck_id: string; owner_id: string | null;
+  front: string; back: string; direction: "en-zh"; sort_order: number;
+  content_revision: number; created_at: number; updated_at: number; deleted_at: number | null;
+  legacy?: { item: StudyItem; migrated_at: number; schema: 1 };
+  migration_only?: boolean;
+}
+export interface StudyState {
+  id: string; deck_id: string; owner_id: string | null;
+  fsrs: StoredFSRS | null; legacy_due_at: number | null;
+  introduced_at: number | null; head: string | null; generation: number;
+  conflict: boolean;
+  learned_at?: number | null;
+  legacy_test_reset?: boolean;
+}
+export interface StudySettings {
+  id: string; owner_id: string | null; new_limit: number;
+  direction_confirmed: boolean; updated_at: number; schema: 2;
+  configured?: boolean;
+  review_limit?: number;
+  sort_mode?: "custom" | "az";
+  quiz_direction?: "zh-en" | "en-zh";
+}
+export interface StudyEvent {
+  id: string; card_id: string; deck_id: string; owner_id: string | null;
+  kind: "review" | "introduce" | "reset"; at: number; local_day: string;
+  device_id: string; parent: string | null; before: StudyState; after: StudyState;
+  rating: Grade | null; log: StoredReviewLog | null;
+  engine: typeof STUDY_ENGINE; parameters: typeof STUDY_PARAMETERS;
+  content_revision: number; question: string; answer: string;
+  session_id?: string;
+  source?: "daily_initialization" | "daily_learning" | "free_review" | "legacy_test_reset";
+  session_rating?: Grade;
+}
+export interface StudySnapshot { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings; sessions?: StudySession[] }
+export interface StudyBackup { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings[]; sessions?: StudySession[] }
+export function sameStudyRecord(a:unknown,b:unknown):boolean {
+  const canonical = (_key:string,value:unknown) => value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([x],[y])=>x.localeCompare(y))) : value;
+  return JSON.stringify(a,canonical) === JSON.stringify(b,canonical);
+}
+export type StudyOperation = (
+  | { id: string; owner_id: string | null; kind: "card"; value: StudyCard }
+  | { id: string; owner_id: string | null; kind: "settings"; value: StudySettings }
+  | { id: string; owner_id: string | null; kind: "seed"; value: StudyState }
+  | { id: string; owner_id: string | null; kind: "session"; value: StudySession }
+  | { id: string; owner_id: string | null; kind: "event"; value: StudyEvent }) & { initial?: boolean; session?: StudySession; restore?: boolean };
+
+export function localStudyDay(now: number): string {
+  const date = new Date(now);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+export function emptyStudyState(card: StudyCard): StudyState {
+  return { id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, fsrs: null,
+    legacy_due_at: card.legacy?.item.daily_due_at ?? null,
+    introduced_at: card.legacy?.item.daily_introduced_at ?? null, head: null, generation: 0, conflict: false };
+}
+export function migrateStudyDeck(page: Page, now: number): StudySnapshot {
+  const cards = (page.study_items ?? []).map((item, index): StudyCard => ({
+    id: JSON.stringify([page.id, item.id]), deck_id: page.id, owner_id: page.workspace_owner_id ?? null,
+    front: item.front, back: item.back, direction: "en-zh", sort_order: index, content_revision: 1,
+    created_at: now, updated_at: now, deleted_at: null,
+    legacy: { item: structuredClone(item), migrated_at: now, schema: 1 }, migration_only: true,
+  }));
+  if (new Set(cards.map(card => card.id)).size !== cards.length) throw new Error("舊字卡 ID 重複，遷移已停止，原始資料未變更。");
+  return { cards, states: cards.map(emptyStudyState), events: [], settings: {
+    id: page.id, owner_id: page.workspace_owner_id ?? null, new_limit: 20,
+    direction_confirmed: cards.length === 0, updated_at: now, schema: 2,
+  } };
+}
+export function serializeFSRS(card: Card): StoredFSRS {
+  return { ...card, due: card.due.getTime(), last_review: card.last_review?.getTime() };
+}
+export function schedulerCard(state: StudyState, now: number): Card {
+  // Legacy due is an eligibility gate, never invented FSRS memory/history.
+  return state.fsrs ? { ...state.fsrs, due: new Date(state.fsrs.due), last_review: state.fsrs.last_review == null ? undefined : new Date(state.fsrs.last_review) } : createEmptyCard(new Date(now));
+}
+export function previewStudy(state: StudyState, now: number) {
+  return studyScheduler.repeat(schedulerCard(state, now), new Date(now));
+}
+export function createStudyEvent(card: StudyCard, state: StudyState, kind: StudyEvent["kind"], now: number, device: string, id: string, rating: Grade | null = null, source?: StudyEvent["source"]): StudyEvent {
+  if (state.conflict) throw new Error("此卡有跨裝置排程衝突，紀錄已保留，請先處理衝突。");
+  let after: StudyState = { ...state, head: id };
+  let log: StoredReviewLog | null = null;
+  if (kind === "review") {
+    if (![Rating.Again, Rating.Hard, Rating.Good, Rating.Easy].includes(rating!)) throw new Error("無效評分");
+    const result = studyScheduler.next(schedulerCard(state, now), new Date(now), rating!);
+    after = { ...after, fsrs: serializeFSRS(result.card), legacy_due_at: null };
+    log = { ...result.log, due: result.log.due.getTime(), review: result.log.review.getTime() };
+  } else if (kind === "introduce") {
+    after.introduced_at = now;
+    // Legacy exposure alone is not daily-learning graduation.
+    if (source === "daily_learning") after.learned_at = now;
+  } else {
+    after = { ...after, fsrs: null, legacy_due_at: null, introduced_at: null, learned_at: null, generation: state.generation + 1 };
+  }
+  return { id, card_id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, kind, at: now,
+    local_day: localStudyDay(now), device_id: device, parent: state.head, before: structuredClone(state), after,
+    rating, log, engine: STUDY_ENGINE, parameters: structuredClone(STUDY_PARAMETERS),
+    content_revision: card.content_revision, question: card.front, answer: card.back,
+    ...(source ? { source } : {}) };
+}
+export function nextDailyCard(snapshot: StudySnapshot, now: number): StudyCard | null {
+  if (!snapshot.settings.direction_confirmed) return null;
+  const states = new Map(snapshot.states.map(state => [state.id, state]));
+  const cards = snapshot.cards.filter(card => !card.deleted_at && card.front.trim() && card.back.trim() && !states.get(card.id)?.conflict);
+  const due = cards.filter(card => {
+    const state = states.get(card.id)!;
+    return state.fsrs ? state.fsrs.due <= now : state.legacy_due_at != null ? state.legacy_due_at <= now : state.introduced_at != null;
+  });
+  due.sort((a, b) => {
+    const x = states.get(a.id)!, y = states.get(b.id)!;
+    const priority = (s: StudyState) => s.fsrs?.state === State.Learning || s.fsrs?.state === State.Relearning ? 0 : 1;
+    return priority(x) - priority(y) || (x.fsrs?.due ?? x.legacy_due_at ?? 0) - (y.fsrs?.due ?? y.legacy_due_at ?? 0) || a.sort_order - b.sort_order;
+  });
+  if (due.length) return due[0];
+  const used = new Set([
+    ...snapshot.events.filter(event => event.kind === "introduce" && event.local_day === localStudyDay(now)).map(event => event.card_id),
+    ...snapshot.states.filter(state => state.introduced_at != null && localStudyDay(state.introduced_at) === localStudyDay(now)).map(state => state.id),
+  ]).size;
+  if (used >= snapshot.settings.new_limit) return null;
+  return cards.filter(card => {
+    const state = states.get(card.id)!;
+    return state.fsrs == null && state.legacy_due_at == null && state.introduced_at == null;
+  }).sort((a,b) => a.sort_order - b.sort_order)[0] ?? null;
+}
+export function intervalLabel(due: number, now: number): string {
+  const minutes = Math.max(1, Math.round((due - now) / 60_000));
+  return minutes < 60 ? `${minutes} 分` : minutes < 1440 ? `${Math.round(minutes / 60)} 小時` : `${Math.round(minutes / 1440)} 天`;
+}
+
+````
+
+## File: src/lib/studyPractice.ts
+````
+/** Free practice never accepts or writes a scheduler state. */
+export function shuffleCards<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+export function advanceFreeQueue<T>(queue: T[], passed: boolean): T[] {
+  if (!queue.length) return queue;
+  return passed ? queue.slice(1) : [...queue.slice(1), queue[0]];
+}
+
+````
+
+## File: src/lib/studySessions.ts
+````
+import { localStudyDay, type Grade, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
+
+export type SessionMode = "daily" | "free";
+export interface SessionTarget {
+  card_id: string;
+  generation: number;
+  easy_at: number | null;
+  official_event_id: string | null;
+  // Optional only for sessions saved before this field existed.
+  official_rating?: Grade | null;
+  // Reserved on creation; a retry/another device cannot mint a second official event.
+  event_id: string;
+  attempts: number;
+}
+export interface StudySession {
+  id: string; owner_id: string | null; deck_id: string;
+  mode: SessionMode | "batch"; day: string; batch_id?: string;
+  targets: SessionTarget[]; queue: string[];
+  started_at: number; completed_at: number | null;
+  revision: number; updated_at: number; answers: number;
+  last_action_id?: string;
+  conflict?: boolean;
+}
+// Only these explicitly authorized test records are reset, never cards matched by text.
+const testItems = new Set([
+  "item_da626310-0b85-4ecd-88d0-dee59e00599d", "item_831a5e05-5425-460a-84ca-502930470f4e",
+  "item_f860f930-920e-4a2f-8f4e-611e367c04e1", "item_1da0c904-f70a-4e2b-98ff-baecf5628c2c",
+]);
+export function isLegacyTestCard(card: StudyCard) {
+  return card.deck_id === "page_kXB_pon1cdluNzbAk2EBJ" && !!card.legacy && testItems.has(card.legacy.item.id);
+}
+export function isLearned(state: StudyState) {
+  // Existing real FSRS states remain usable. Legacy counts/exposures/due grant no eligibility.
+  return state.learned_at != null || (state.learned_at === undefined && state.fsrs != null);
+}
+export function freezingInterval(state: StudyState): number | null {
+  const fsrs = state.fsrs;
+  return fsrs?.last_review == null ? null : fsrs.due - fsrs.last_review;
+}
+export function hasLearningData(state: StudyState | undefined, sessions: StudySession[] = []) {
+  return !!state && (isLearned(state) || state.fsrs != null || state.legacy_due_at != null || state.introduced_at != null ||
+    sessions.some(session=>session.mode!=="batch" && session.targets.some(t=>t.card_id===state.id && t.generation===state.generation && t.attempts>0)));
+}
+export function displayStudyCards(cards: StudyCard[], mode: "custom" | "az") {
+  return [...cards].sort((a,b) => (mode === "az" ? a.front.localeCompare(b.front,"en",{sensitivity:"base"}) : 0) || a.sort_order-b.sort_order || a.id.localeCompare(b.id));
+}
+export function selectSessionCards(snapshot: StudySnapshot, mode: SessionMode, now: number) {
+  const states = new Map(snapshot.states.map(s => [s.id,s]));
+  const eligible = snapshot.cards.filter(c => {
+    const s = states.get(c.id);
+    return !c.deleted_at && !!c.front.trim() && !!c.back.trim() && s && !s.conflict &&
+      (mode === "daily" ? !isLearned(s) : isLearned(s));
+  });
+  eligible.sort((a,b) => a.sort_order-b.sort_order || a.id.localeCompare(b.id));
+  if (mode === "daily") return eligible.slice(0, snapshot.settings.new_limit);
+  const limit = snapshot.settings.review_limit ?? 20;
+  const selected: StudyCard[] = [];
+  const take = (pool: StudyCard[]) => {
+    const remaining = Math.max(0, limit - selected.length);
+    if (pool.length > remaining && remaining > 0) {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+    selected.push(...pool.slice(0, remaining));
+  };
+  take(eligible.filter(c => states.get(c.id)!.fsrs == null));
+  take(eligible.filter(c => {
+    const fsrs = states.get(c.id)!.fsrs;
+    return fsrs != null && fsrs.due <= now;
+  }));
+  const upcoming = eligible.filter(c => {
+    const fsrs = states.get(c.id)!.fsrs;
+    return fsrs != null && fsrs.due > now;
+  }).sort((a,b) => states.get(a.id)!.fsrs!.due - states.get(b.id)!.fsrs!.due);
+  selected.push(...upcoming.slice(0, Math.max(0, limit - selected.length)));
+  return selected;
+}
+export function makeSession(snapshot: StudySnapshot, mode: StudySession["mode"], cards: StudyCard[], now: number, id: string, batchId?: string): StudySession {
+  return { id, owner_id: snapshot.settings.owner_id, deck_id: snapshot.settings.id, mode,
+    day: localStudyDay(now), batch_id: batchId, started_at: now, completed_at: cards.length ? null : now,
+    revision: 0, updated_at: now, answers: 0,
+    targets: cards.map(c => ({card_id:c.id,generation:snapshot.states.find(s=>s.id===c.id)!.generation,easy_at:null,official_event_id:null,official_rating:null,event_id:crypto.randomUUID(),attempts:0})),
+    queue: cards.map(c=>c.id) };
+}
+export function reconcileSession(session: StudySession, snapshot: StudySnapshot, now: number): StudySession {
+  const states = new Map(snapshot.states.map(s=>[s.id,s]));
+  const cards = new Map(snapshot.cards.map(c=>[c.id,c]));
+  const targets = session.targets.filter(t => cards.has(t.card_id) && !cards.get(t.card_id)!.deleted_at && states.get(t.card_id)?.generation === t.generation).map(t => {
+    if (t.official_rating !== undefined) return t;
+    // Recover only from the actual referenced review, never from mastery or FSRS state.
+    const event = snapshot.events.find(e => e.id === t.official_event_id && e.card_id === t.card_id && e.kind === "review");
+    return {...t, official_rating: event?.rating ?? null};
+  });
+  const queue = session.queue.filter(id => targets.some(t=>t.card_id===id && t.easy_at == null));
+  return {...session, targets, queue, completed_at: session.completed_at ?? (queue.length ? null : now)};
+}
+
+````
+
+## File: src/lib/studySync.ts
+````
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { syncQuiz } from "./quizSync";
+import type { StudyRepository } from "./StudyRepository";
+import type { StudyBackup, StudyOperation } from "./studyFSRS";
+
+/** Keep each event's predecessor before it, including equal-timestamp answers. */
+export function orderStudyOperations(operations: StudyOperation[]): StudyOperation[] {
+  // Only sync operations supported by production 20260922_study_fsrs.sql
+  const validOps = operations.filter(op => op.kind === "card" || op.kind === "settings" || op.kind === "seed" || op.kind === "event");
+  const base = validOps.filter(op => op.kind !== "event");
+  base.sort((a,b) => ({card:0, settings:1, seed:2}[a.kind] - {card:0, settings:1, seed:2}[b.kind]) ||
+    (("updated_at" in a.value ? a.value.updated_at : 0) - ("updated_at" in b.value ? b.value.updated_at : 0)));
+  const pending = validOps.filter(op => op.kind === "event");
+  const result: StudyOperation[] = [...base];
+  while(pending.length) {
+    const ids = new Set(pending.map(op => op.value.id));
+    const index = pending.findIndex(op => {
+      return !(op.value.parent && ids.has(op.value.parent));
+    });
+    if(index < 0) throw new Error("複習事件存在循環，已保留本地資料並停止同步。");
+    result.push(pending.splice(index, 1)[0]);
+  }
+  return result;
+}
+
+export async function syncStudy(repository:StudyRepository,client:SupabaseClient,owner:string,stillActive:()=>boolean=()=>true) {
+  const operations=orderStudyOperations(await repository.pending());
+  for(const operation of operations) {
+    if(!stillActive())return;
+    if(operation.owner_id!==owner) throw new Error("同步帳號已變更。");
+    // Older outboxes may carry a session envelope. Sessions remain local.
+    const cloudOperation={...operation};
+    delete cloudOperation.session;
+    const {error}=await client.rpc("apply_study_operation",{operation:cloudOperation});
+    if(error) throw new Error(`字卡同步未完成，本地紀錄已保留：${error.message}`);
+    // A dropped response leaves the operation queued. Server event IDs make retries safe.
+    await repository.acknowledge(operation.id);
+  }
+  const data:StudyBackup={cards:[],states:[],events:[],settings:[],sessions:[]};
+  for(const [table,key] of [["study_cards","cards"],["study_card_states","states"],["study_review_events","events"],["study_deck_settings","settings"]] as const) {
+    let offset=0;
+    for(;;) {
+      if(!stillActive())return;
+      const {data:rows,error}=await client.from(table).select("payload").eq("owner_id",owner).order("id").range(offset,offset+499);
+      if(error) throw new Error(`字卡同步未完成，本地紀錄已保留：${error.message}`);
+      // Each entity is validated/scoped before its transaction in mergeRemote.
+      data[key]!.push(...(rows??[]).map(row=>row.payload));
+      if(!rows || rows.length<500) break;
+      offset+=rows.length;
+    }
+  }
+  if(stillActive())await repository.mergeRemote(data);
+  const quiz=repository.getQuizRepository();
+  if(quiz && stillActive())await syncQuiz(quiz,client,owner,stillActive);
+}
 
 ````
 
@@ -26121,6 +27798,221 @@ create index if not exists pages_novel_chapter_order
 
 ````
 
+## File: supabase/migrations/20260922_study_fsrs.sql
+````
+-- FSRS v2: independent content, state, append-only events and per-deck settings.
+-- No destructive change to pages.study_items. Old data remains a migration source.
+create table if not exists public.study_cards (
+  owner_id uuid not null, id text not null, payload jsonb not null,
+  primary key (owner_id, id),
+  check (payload->>'id' = id and payload->>'owner_id' = owner_id::text)
+);
+create table if not exists public.study_card_states (
+  owner_id uuid not null, id text not null, payload jsonb not null,
+  primary key (owner_id, id),
+  foreign key (owner_id,id) references public.study_cards(owner_id,id),
+  check (payload->>'id' = id and payload->>'owner_id' = owner_id::text)
+);
+create table if not exists public.study_review_events (
+  owner_id uuid not null, id text not null, card_id text not null, payload jsonb not null,
+  primary key (owner_id, id),
+  foreign key (owner_id,card_id) references public.study_cards(owner_id,id),
+  check (payload->>'id' = id and payload->>'owner_id' = owner_id::text),
+  check (payload->>'kind' in ('review','introduce','reset'))
+);
+create index if not exists study_events_card on public.study_review_events(owner_id,card_id);
+create table if not exists public.study_deck_settings (
+  owner_id uuid not null, id text not null, payload jsonb not null,
+  primary key (owner_id, id),
+  check (payload->>'id' = id and payload->>'owner_id' = owner_id::text)
+);
+
+alter table public.study_cards enable row level security;
+alter table public.study_card_states enable row level security;
+alter table public.study_review_events enable row level security;
+alter table public.study_deck_settings enable row level security;
+-- Only the guarded operation below can mutate study data. Clients can read their own rows.
+drop policy if exists study_owner_read on public.study_cards;
+create policy study_owner_read on public.study_cards for select to authenticated using (owner_id=auth.uid());
+drop policy if exists study_owner_read on public.study_card_states;
+create policy study_owner_read on public.study_card_states for select to authenticated using (owner_id=auth.uid());
+drop policy if exists study_owner_read on public.study_review_events;
+create policy study_owner_read on public.study_review_events for select to authenticated using (owner_id=auth.uid());
+drop policy if exists study_owner_read on public.study_deck_settings;
+create policy study_owner_read on public.study_deck_settings for select to authenticated using (owner_id=auth.uid());
+revoke all on public.study_cards,public.study_card_states,public.study_review_events,public.study_deck_settings from anon,authenticated;
+grant select on public.study_cards,public.study_card_states,public.study_review_events,public.study_deck_settings to authenticated;
+
+create or replace function public.apply_study_operation(operation jsonb) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  caller uuid := auth.uid();
+  value jsonb := operation->'value';
+  category text := operation->>'kind';
+  key text := value->>'id';
+  current_state jsonb;
+  existing_event jsonb;
+begin
+  if caller is null or (value->>'owner_id') is distinct from caller::text or key is null then
+    raise exception 'Study owner or ID mismatch';
+  end if;
+  if category = 'card' then
+    insert into study_cards(owner_id,id,payload) values(caller,key,value)
+    on conflict(owner_id,id) do update set payload=excluded.payload
+      where not coalesce((operation->>'initial')::boolean,false) and (study_cards.payload->>'updated_at')::bigint < (excluded.payload->>'updated_at')::bigint;
+  elsif category = 'settings' then
+    if (value->>'new_limit')::integer not between 0 and 10000 then raise exception 'Invalid new limit'; end if;
+    insert into study_deck_settings(owner_id,id,payload) values(caller,key,value)
+    on conflict(owner_id,id) do update set payload=excluded.payload
+      where not coalesce((operation->>'initial')::boolean,false) and (study_deck_settings.payload->>'updated_at')::bigint < (excluded.payload->>'updated_at')::bigint;
+  elsif category = 'seed' then
+    if value->>'head' is not null or value->'fsrs' <> 'null'::jsonb then raise exception 'Seed cannot invent review history'; end if;
+    insert into study_card_states(owner_id,id,payload) values(caller,key,value) on conflict do nothing;
+  elsif category = 'event' then
+    select payload into current_state from study_card_states
+      where owner_id=caller and id=value->>'card_id' for update;
+    if current_state is null then raise exception 'Missing initial card state'; end if;
+    select payload into existing_event from study_review_events where owner_id=caller and id=key;
+    if existing_event is not null then
+      if existing_event <> value then raise exception 'Event ID collision'; end if;
+      return;
+    end if;
+    if value->>'kind' not in ('review','introduce','reset') or
+       (value->'after'->>'head') is distinct from key or
+       (value->'after'->>'id') is distinct from (value->>'card_id') or
+       (value->'after'->>'owner_id') is distinct from caller::text or
+       (value->'before'->>'head') is distinct from (value->>'parent') then
+      raise exception 'Malformed study event';
+    end if;
+    if value->>'kind' = 'review' and ((value->>'rating')::integer not between 1 and 4 or value->'log'='null'::jsonb) then
+      raise exception 'Invalid review';
+    end if;
+    if value->>'parent' is not null and not exists(select 1 from study_review_events where owner_id=caller and id=value->>'parent' and card_id=value->>'card_id') then
+      raise exception 'Missing parent event';
+    end if;
+    insert into study_review_events(owner_id,id,card_id,payload) values(caller,key,value->>'card_id',value);
+    if (current_state->>'head') is not distinct from (value->>'parent') and
+       (coalesce((current_state->>'conflict')::boolean,false)=false or value->>'kind'='reset') then
+      update study_card_states set payload=value->'after' where owner_id=caller and id=value->>'card_id';
+    else
+      -- Preserve both branches, retain the canonical state and block automatic scheduling.
+      update study_card_states set payload=jsonb_set(current_state,'{conflict}','true') where owner_id=caller and id=value->>'card_id';
+    end if;
+  else raise exception 'Unsupported study operation';
+  end if;
+end;
+$$;
+revoke all on function public.apply_study_operation(jsonb) from public,anon;
+grant execute on function public.apply_study_operation(jsonb) to authenticated;
+
+````
+
+## File: supabase/migrations/20260925_study_quiz_persistence.sql
+````
+-- Quiz only. No changes to FSRS state, events, or the production baseline RPC.
+create table public.study_card_quiz_states (
+  owner_id uuid not null,
+  card_id text not null,
+  mistake_score integer not null default 0 check (mistake_score between 0 and 4),
+  revision bigint not null default 0 check (revision >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, card_id),
+  foreign key (owner_id, card_id) references public.study_cards(owner_id,id)
+);
+create table public.study_quiz_attempt_receipts (
+  owner_id uuid not null,
+  event_id text not null,
+  card_id text not null,
+  correct boolean not null,
+  answered_at bigint not null,
+  batch_id text not null,
+  local_sequence bigint not null,
+  applied_revision bigint not null,
+  received_at timestamptz not null default now(),
+  primary key (owner_id,event_id),
+  foreign key (owner_id,card_id) references public.study_cards(owner_id,id)
+);
+create index study_quiz_receipts_card on public.study_quiz_attempt_receipts(owner_id,card_id);
+alter table public.study_card_quiz_states enable row level security;
+alter table public.study_quiz_attempt_receipts enable row level security;
+create policy quiz_owner_read on public.study_card_quiz_states for select to authenticated using (owner_id=auth.uid());
+create policy quiz_owner_read on public.study_quiz_attempt_receipts for select to authenticated using (owner_id=auth.uid());
+revoke all on public.study_card_quiz_states,public.study_quiz_attempt_receipts from public,anon,authenticated;
+grant select on public.study_card_quiz_states,public.study_quiz_attempt_receipts to authenticated;
+
+create function public.apply_study_quiz_operation(attempt jsonb) returns jsonb
+language plpgsql security definer set search_path=public,pg_temp as $$
+declare
+  caller uuid := auth.uid();
+  receipt public.study_quiz_attempt_receipts%rowtype;
+  result public.study_card_quiz_states%rowtype;
+  card jsonb;
+  -- Keep in sync with QUIZ_SCORE in quizPersistence.ts.
+  score_min constant integer := 0;
+  score_max constant integer := 4;
+  wrong_step constant integer := 1;
+  correct_step constant integer := 1;
+begin
+  if caller is null or (attempt->>'owner_id') is distinct from caller::text then
+    raise exception 'QUIZ_OWNER_MISMATCH';
+  end if;
+  if jsonb_typeof(attempt) is distinct from 'object'
+     or not (attempt ?& array['event_id','owner_id','card_id','correct','answered_at','batch_id','local_sequence'])
+     or (attempt - array['event_id','owner_id','card_id','correct','answered_at','batch_id','local_sequence']) <> '{}'::jsonb
+     or jsonb_typeof(attempt->'correct') is distinct from 'boolean'
+     or jsonb_typeof(attempt->'event_id') is distinct from 'string'
+     or jsonb_typeof(attempt->'card_id') is distinct from 'string'
+     or jsonb_typeof(attempt->'batch_id') is distinct from 'string'
+     or length(attempt->>'event_id') not between 1 and 200
+     or length(attempt->>'card_id') not between 1 and 1000
+     or length(attempt->>'batch_id') not between 1 and 200
+     or jsonb_typeof(attempt->'answered_at') is distinct from 'number'
+     or jsonb_typeof(attempt->'local_sequence') is distinct from 'number'
+     or (attempt->>'answered_at') !~ '^[0-9]{1,15}$'
+     or (attempt->>'local_sequence') !~ '^[1-9][0-9]{0,14}$' then
+    raise exception 'QUIZ_INVALID_ATTEMPT';
+  end if;
+  -- Serialize reuse of an event ID even when a collision names a different card.
+  perform pg_advisory_xact_lock(hashtextextended(caller::text || ':' || (attempt->>'event_id'),0));
+  select * into receipt from public.study_quiz_attempt_receipts
+    where owner_id=caller and event_id=attempt->>'event_id';
+  if found then
+    if receipt.card_id is distinct from (attempt->>'card_id')
+      or receipt.correct is distinct from (attempt->>'correct')::boolean
+      or receipt.answered_at is distinct from (attempt->>'answered_at')::bigint
+      or receipt.batch_id is distinct from (attempt->>'batch_id')
+      or receipt.local_sequence is distinct from (attempt->>'local_sequence')::bigint then
+      raise exception 'QUIZ_EVENT_COLLISION';
+    end if;
+    select * into result from public.study_card_quiz_states where owner_id=caller and card_id=receipt.card_id;
+    return to_jsonb(result);
+  end if;
+  select payload into card from public.study_cards
+    where owner_id=caller and id=attempt->>'card_id' for share;
+  if card is null or (card->>'deleted_at') is not null then
+    raise exception 'QUIZ_CARD_UNAVAILABLE';
+  end if;
+  insert into public.study_card_quiz_states(owner_id,card_id)
+    values(caller,attempt->>'card_id') on conflict do nothing;
+  select * into result from public.study_card_quiz_states
+    where owner_id=caller and card_id=attempt->>'card_id' for update;
+  update public.study_card_quiz_states set
+    mistake_score=greatest(score_min,least(score_max,mistake_score+
+      case when (attempt->>'correct')::boolean then -correct_step else wrong_step end)),
+    revision=revision+1,updated_at=clock_timestamp()
+    where owner_id=caller and card_id=attempt->>'card_id' returning * into result;
+  insert into public.study_quiz_attempt_receipts
+    (owner_id,event_id,card_id,correct,answered_at,batch_id,local_sequence,applied_revision)
+    values(caller,attempt->>'event_id',attempt->>'card_id',(attempt->>'correct')::boolean,
+      (attempt->>'answered_at')::bigint,attempt->>'batch_id',(attempt->>'local_sequence')::bigint,result.revision);
+  return to_jsonb(result);
+end;
+$$;
+revoke all on function public.apply_study_quiz_operation(jsonb) from public,anon;
+grant execute on function public.apply_study_quiz_operation(jsonb) to authenticated;
+
+````
+
 ## File: tests/characterWorkspace.test.cjs
 ````
 const { test } = require("node:test");
@@ -26210,6 +28102,176 @@ test("built-in sheets have no invented character and use separate D&D and CoC st
 
 ````
 
+## File: tests/creative-workspace.md
+````
+# Novel and character workspace verification
+
+Run the regression tests with:
+
+```sh
+node --test tests/novelChapters.test.cjs tests/characterWorkspace.test.cjs
+```
+
+The browser smoke checks use isolated fixture data, not a signed-in account.
+Verified at desktop size and 390 × 844:
+
+- A legacy novel retains its body before activation. Activation creates separate
+  chapter records. Top and bottom navigation change one chapter at a time.
+- Editing chapter one, navigating to chapter two, and returning preserves the
+  edited text without copying it into chapter two. Rename and reorder preserve
+  the active chapter's identity.
+- One character block holds prose, statistics and a radar chart simultaneously.
+  Prose starts collapsed in card mode. Statistics support multiline descriptions,
+  renamed column headings and totals (37 + 5 = 42).
+- Character tabs can be created, renamed and moved. Cancelling a deletion leaves
+  the page intact. Deletion of nested content is covered by regression tests.
+- Saving a template and instantiating it copies the block/tab structure with new
+  IDs. Text becomes placeholders, not completed character values. Numeric and
+  visual defaults remain editable. Template manager renaming updates the list.
+- A reload preserves the fixture's profile structure and text. Production
+  IndexedDB and cloud persistence use the existing account-owned pages pipeline;
+  live-account sync was not exercised in the isolated browser test.
+
+## Data compatibility
+
+Existing leaf sections remain readable/editable. `group` sections own a
+`contents` array. Custom templates are account-owned creative page records with
+`character_data.isTemplate = true`; they are included in existing workspace
+backup and synchronization. Updating a template never mutates an existing card.
+
+The built-in blank template contains no sections or filled-in character.
+D&D 5e and CoC 7e provide editable, system-specific fields and supplementary
+pages. They are recording templates, not rules calculators. Field references:
+
+- [Official D&D 5e character sheet](https://media.dndbeyond.com/compendium-images/marketing/dnd_5e_charactersheet_formfillable.pdf)
+- [Chaosium investigator characteristics](https://callofcthulhuwiki.chaosium.com/investigators/step-one-investigator-characteristics.html)
+- [Chaosium character sheets](https://www.chaosium.com/cthulhu-character-sheets/)
+
+Before enabling chapter sync in production, apply
+`supabase/migrations/20260916_novel_chapters.sql` after earlier migrations.
+The migration changes schema only; existing novel bodies are transferred and
+cleared only when the user enables the chapter workspace.
+
+````
+
+## File: tests/lesson-workspace.md
+````
+# 講義排版與偏好介面驗證
+
+## 功能與資料
+
+- 筆記的「講義排版與目錄」可設定原有／課本／講義樣式、正文字級、行距、標題比例及頁首頁尾；分頁筆記可顯示頁碼。
+- 設定儲存在 `content_json.lessonLayout`，沿用既有 JSON 儲存、同步及備份欄位，不需要資料庫遷移；編輯器更新正文時保留這份設定。
+- 新節點：`lessonBlock`（定義、例題、練習、解答）、`answerSpace`、`lessonToc`。段落支援圖說與重點樣式，穩定 ID 延伸至新節點及圖片。
+- 目錄、題號與導航從整份筆記產生，包含跨頁及多欄內容。修改標題後目錄同步更新。
+- 手動分頁保留原有模式；「依 A4 整理分頁」以實際畫面量測區塊高度，維持標題與後段、圖片與圖說相鄰，保留原本手動分頁。可在繼續編輯前復原整理。超高區塊保持完整並提示處理，不切掉表格或文字。
+- 列印樣式保留頁碼、頁首頁尾、標題相鄰及表格列不斷頁規則。列印包含完整解答，沒有教師／學生版功能。解答收合時要求先展開再整理頁面。
+- 流動筆記保留流動版面，頁首尾位於全文首尾；修正重複邊距造成手機正文過窄及手機選單重複入口。
+- 右上角帳號入口移除，保留獨立登入畫面及側欄帳號入口。
+- 偏好第一層只有主題、語言、設定、備份，子面板浮於右側並限制在視窗內。詳細設定使用原生模態對話框，含一般、功能排序、使用建議、使用說明、備份。
+- 功能排序沿用原有儲存與通知事件；帳號與同步機制未遷移。
+
+## 自動化測試
+
+`node --test tests/lessonDocument.test.cjs tests/pullToRefresh.test.cjs tests/novelChapters.test.cjs tests/characterWorkspace.test.cjs`：14 項通過。
+
+新增測試包含跨頁／巢狀區塊題號與移除後重編、富文字分頁完整性、標題與圖說相鄰、超高表格不截斷、異常設定值界限，以及 Tiptap schema 的新節點 JSON 往返。
+
+## 隔離介面測試
+
+使用暫時測試頁與本機測試資料，未使用正式帳號；測試頁完成後移除。
+
+- 切換課本樣式、輸入頁首尾、收合解答後重新載入：樣式及收合狀態保留。
+- 兩頁長文整理為三頁，各紙張量測高度 1123px；復原回兩頁成功。
+- 改名第一章，文件內目錄立即更新；新增跨頁練習顯示練習 3，導航頁碼同步。
+- 390 × 844：手機更多選單各有一份教學插入／圖說操作，排版控制可見，正文可用寬度約 345px。
+- 偏好第一層四項；右側主題子面板左右邊界 156 / 382px，沒有超出手機畫面。
+- 詳細設定左右邊界約 11.7 / 378.3px；自訂排序移動筆記後重開仍保留。測試結束將排序復原為最新使用。
+- 使用說明可見，備份按鈕成功呼叫測試回呼。
+
+## 限制
+
+- 未測試實體印表機、各瀏覽器 PDF 分頁差異或遠端帳號同步；未部署。
+- 單一區塊大於 A4 可用高度時，需自行拆分長段落／表格或縮小圖片；不自動拆解富文字區塊。
+- 自訂樣式保留手動文字格式；Markdown 不保留完整紙張排版，新教學區塊會匯出文字標籤與內容，完整資料使用 Nexus JSON 或工作區備份。
+
+````
+
+## File: tests/lessonDocument.test.cjs
+````
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const api = {};
+new Function('exports', ts.transpileModule(fs.readFileSync('src/lib/lessonDocument.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(api);
+const paragraph = (id, text) => ({ type: 'paragraph', attrs: { id }, content: [{ type: 'text', text, marks: [{ type: 'bold' }] }] });
+
+test('numbering and outline follow the whole document across manual pages and nested blocks', () => {
+  const exercise = (id) => ({ type: 'lessonBlock', attrs: { id, kind: 'exercise' }, content: [paragraph(id + '-p', '題目')] });
+  const doc = { type: 'doc', content: [{ type: 'heading', attrs: { id: 'h1', level: 1 }, content: [{ type: 'text', text: '第一章' }] }, exercise('q1'), { type: 'pageBreak' }, { type: 'multiColumn', content: [{ type: 'column', content: [exercise('q2')] }] }] };
+  const index = api.buildLessonIndex(doc);
+  assert.deepEqual(index.map(({ id, page, number }) => [id, page, number]), [['h1', 1, undefined], ['q1', 1, 1], ['q2', 2, 2]]);
+  doc.content.splice(1, 1);
+  assert.equal(api.buildLessonIndex(doc).find(x => x.id === 'q2').number, 1);
+});
+test('pagination keeps headings and captions attached, preserving rich blocks and manual boundaries', () => {
+  const heading = { type: 'heading', attrs: { id: 'h', level: 1 }, content: [{ type: 'text', text: '章' }] };
+  const image = { type: 'image', attrs: { src: 'attachment:abc' } };
+  const caption = { ...paragraph('caption', '插圖'), attrs: { id: 'caption', lessonStyle: 'caption' } };
+  const blocks = [paragraph('intro', '序'), heading, paragraph('body', '正文'), { type: 'pageBreak' }, paragraph('more', '下一頁'), image, caption];
+  const original = JSON.stringify(blocks);
+  const result = api.paginateLessonBlocks(blocks, [80, 20, 30, 0, 80, 20, 10], 100);
+  assert.equal(result.blocks[1].type, 'pageBreak');
+  assert.equal(result.blocks[result.blocks.length - 3].type, 'pageBreak');
+  assert.deepEqual(result.blocks.filter(b => b.type !== 'pageBreak'), blocks.filter(b => b.type !== 'pageBreak'));
+  assert.equal(JSON.stringify(blocks), original);
+});
+test('oversized tables are never truncated and corrupt layout values are bounded', () => {
+  const table = { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [paragraph('cell', '資料')] }] }] };
+  const result = api.paginateLessonBlocks([table], [1000], 800);
+  assert.equal(result.oversized, 1);
+  assert.deepEqual(result.blocks, [table]);
+  const layout = api.readLessonLayout({ lessonLayout: { preset: 'wrong', fontSize: -8, lineHeight: Infinity, headingScale: 99 } });
+  assert.equal(layout.fontSize, 12);
+  assert.equal(layout.lineHeight, 1.6);
+  assert.equal(layout.headingScale, 1.5);
+  assert.equal(layout.preset, 'original');
+});
+
+test('editor schema round-trips teaching content, collapsed answers and semantic styles', () => {
+  const extensions = {};
+  const source = ts.transpileModule(fs.readFileSync('src/lib/lessonExtensions.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  new Function('exports', 'require', source)(extensions, (name) => name === './lessonDocument' ? api : require(name));
+  const { getSchema } = require('@tiptap/core');
+  const StarterKit = require('@tiptap/starter-kit').default;
+  const schema = getSchema([StarterKit, extensions.LessonBlock, extensions.AnswerSpace, extensions.LessonToc, extensions.LessonParagraph]);
+  const doc = schema.nodeFromJSON({ type: 'doc', content: [
+    { type: 'lessonToc' },
+    { type: 'lessonBlock', attrs: { kind: 'answer', collapsed: true }, content: [paragraph('answer', '完整解答')] },
+    { type: 'answerSpace', attrs: { lines: 5 } },
+    { type: 'paragraph', attrs: { lessonStyle: 'caption' }, content: [{ type: 'text', text: '圖片說明' }] },
+  ] });
+  doc.check();
+  const json = doc.toJSON();
+  assert.equal(json.content[1].attrs.collapsed, true);
+  assert.equal(json.content[1].content[0].content[0].text, '完整解答');
+  assert.equal(json.content[1].content[0].content[0].marks[0].type, 'bold');
+  assert.equal(json.content[2].attrs.lines, 5);
+  assert.equal(json.content[3].attrs.lessonStyle, 'caption');
+  assert.deepEqual(schema.nodeFromJSON(json).toJSON(), json);
+});
+
+````
+
+## File: tests/loadStudy.cjs
+````
+const ts = require('typescript');
+const fs = require('node:fs');
+require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText, filename);
+
+````
+
 ## File: tests/novelChapters.test.cjs
 ````
 const { test } = require("node:test");
@@ -26266,6 +28328,1001 @@ test("workspace entry resolves a saved chapter to its parent and never opens orp
   assert.equal(api.getWorkspaceEntryPage([chapter]), null);
   assert.equal(api.getWorkspaceEntryPage([template], "template").id, "template");
 });
+
+````
+
+## File: tests/pullToRefresh.test.cjs
+````
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+const api = {};
+new Function('exports', ts.transpileModule(fs.readFileSync('src/lib/pullToRefresh.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(api);
+
+test('ordinary pulls and fast long swipes do not arm refresh', () => {
+  assert.equal(api.measureRefreshPull(0, 120, 900).ready, false);
+  assert.equal(api.measureRefreshPull(0, 300, 150).ready, false);
+  assert.equal(api.measureRefreshPull(0, 260, 700).ready, true);
+});
+test('horizontal, upward and withdrawn gestures cancel refresh', () => {
+  assert.equal(api.measureRefreshPull(180, 150, 900).cancelled, true);
+  assert.equal(api.measureRefreshPull(0, -20, 900).cancelled, true);
+  assert.equal(api.measureRefreshPull(0, 270, 900).ready, true);
+  assert.equal(api.measureRefreshPull(0, 100, 1000).ready, false);
+});
+
+````
+
+## File: tests/quizPersistence.test.cjs
+````
+require('./loadStudy.cjs');require('fake-indexeddb/auto');
+const {openDB,deleteDB}=require('idb');
+const {PGlite}=require('@electric-sql/pglite');
+const fs=require('node:fs'),test=require('node:test'),assert=require('node:assert/strict');
+const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
+const {QUIZ_STORES,QUIZ_SCORE}=require('../src/lib/quizPersistence.ts');
+const {syncQuiz}=require('../src/lib/quizSync.ts');
+const {syncStudy}=require('../src/lib/studySync.ts');
+const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
+async function fixture(){
+ const name=crypto.randomUUID(),db=await openDB(name,1,{upgrade(db){
+  for(const name of [...STUDY_STORES,...QUIZ_STORES]){
+   const s=db.createObjectStore(name,{keyPath:'id'});
+   if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');
+  }
+ }});
+ const repo=new StudyRepository(db,()=>owner,'device');
+ await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});
+ await repo.addCards('deck',[{front:'word',back:'字'}]);
+ const card=(await repo.readDeck('deck')).cards[0];
+ const daily=await repo.startSession('deck','daily',1000),state=(await repo.readDeck('deck')).states[0];
+ await repo.rateSession({sessionId:daily.id,cardId:card.id,revision:daily.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:4,actionId:crypto.randomUUID(),now:1000});
+ const quiz=repo.getQuizRepository();
+ return {name,db,repo,quiz,card,record:(correct=false,batchId='batch',eventId=crypto.randomUUID())=>quiz.record({cardId:card.id,correct,batchId,eventId,now:2000}),
+ close:async()=>{db.close();await deleteDB(name);}};
+}
+async function server(f){
+ const pg=new PGlite();
+ await pg.exec("create schema auth; create role authenticated; create role anon; create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema public,auth to authenticated,anon;");
+ await pg.exec(fs.readFileSync('supabase/migrations/20260922_study_fsrs.sql','utf8'));
+ await pg.exec(fs.readFileSync('supabase/migrations/20260925_study_quiz_persistence.sql','utf8'));
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ await pg.query('insert into study_cards values($1,$2,$3)',[owner,f.card.id,JSON.stringify(f.card)]);
+ const rpc=async attempt=>{
+  try{return {data:(await pg.query('select apply_study_quiz_operation($1::jsonb) as state',[JSON.stringify(attempt)])).rows[0].state,error:null};}
+  catch(e){return {data:null,error:{message:e.message,code:e.code}};}
+ };
+ const tables=['study_cards','study_card_states','study_review_events','study_deck_settings','study_card_quiz_states'];
+ const client={rpc:async(name,{attempt,operation})=>{
+  if(name==='apply_study_quiz_operation')return rpc(attempt);
+  assert.equal(name,'apply_study_operation');
+  try{await pg.query('select apply_study_operation($1::jsonb)',[JSON.stringify(operation)]);return {error:null};}
+  catch(e){return {error:{message:e.message,code:e.code}};}
+ },
+ from:table=>{assert.ok(tables.includes(table));return {select:()=>({eq:(_key,user)=>({order:()=>({range:async(start,end)=>({data:(await pg.query('select * from '+table+' where owner_id=$1 order by '+(table==='study_card_quiz_states'?'card_id':'id')+' offset $2 limit $3',[user,start,end-start+1])).rows,error:null})})})})};}};
+ return {pg,rpc,client};
+}
+
+test('online authorized; offline decisions persist and authorize only the displayed IDs',async()=>{
+ const f=await fixture();try{
+ const online=await f.record();assert.equal(online.status,'authorized');assert.equal((await f.quiz.pending()).length,1);
+ f.quiz.setReachable(false);
+ const a=await f.record(false,'A'),b=await f.record(false,'B');
+ assert.equal(a.status,'awaiting_decision');assert.equal((await f.quiz.pending()).length,1);
+ await f.quiz.decide([a.id],'later');assert.equal((await f.quiz.awaiting()).length,2);
+ await f.quiz.decide([a.id],'upload');
+ const later=await f.record(false,'A'); // Even new attempts sharing a batch stay unapproved.
+ assert.equal((await f.quiz.pending()).length,2);
+ assert.deepEqual(new Set((await f.quiz.awaiting()).map(a=>a.id)),new Set([b.id,later.id]));
+ await f.quiz.decide([b.id],'discard');assert.equal((await f.quiz.attempts()).find(a=>a.id===b.id).status,'discarded');
+ await f.quiz.decide([online.id],'discard');assert.equal((await f.quiz.attempts()).find(a=>a.id===online.id).status,'authorized');
+ const {QuizRepository}=require('../src/lib/quizPersistence.ts');
+ const reopened=new QuizRepository(f.db,()=>owner);
+ assert.equal((await reopened.pending()).length,2);assert.equal((await reopened.awaiting()).length,1);
+ }finally{await f.close();}
+});
+
+test('confirmation requires successful API health, excludes authorized, and discard snapshot excludes later arrivals',async()=>{
+ const f=await fixture();try{
+ assert.equal(f.quiz.canOfferUpload(),false);
+ const online=await f.record();
+ f.quiz.setReachable(false);const a=await f.record(false,'A');
+ const ids=(await f.quiz.awaiting()).map(a=>a.id);
+ const b=await f.record(false,'B');
+ f.quiz.setReachable(true);assert.equal(f.quiz.canOfferUpload(),true);
+ await f.quiz.decide(ids,'discard');
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===a.id).status,'discarded');
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===b.id).status,'awaiting_decision');
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===online.id).status,'authorized');
+ const before=await f.quiz.attempts();await f.quiz.decide([b.id],'later');assert.deepEqual(await f.quiz.attempts(),before);
+ }finally{await f.close();}
+});
+
+test('deck quiz direction persists on reload and syncs to another device without touching FSRS',async()=>{
+ const f=await fixture(),computer=await fixture(),s=await server(f);try{
+ const {DEFAULT_QUIZ_DIRECTION}=require('../src/lib/quizQuestions.ts');
+ assert.equal((await f.repo.readDeck('deck')).settings.quiz_direction??DEFAULT_QUIZ_DIRECTION,'zh-en');
+ const before=await f.repo.exportData();
+ await f.repo.configure('deck',{quiz_direction:'en-zh'});
+ const reopened=new StudyRepository(f.db,()=>owner,'reload');
+ assert.equal((await reopened.readDeck('deck')).settings.quiz_direction,'en-zh');
+ await syncStudy(f.repo,s.client,owner);
+ const settings=(await s.pg.query('select payload from study_deck_settings')).rows.map(r=>r.payload);
+ await computer.repo.mergeRemote({cards:[],states:[],events:[],settings,sessions:[]});
+ assert.equal((await computer.repo.readDeck('deck')).settings.quiz_direction,'en-zh');
+ const after=await f.repo.exportData();
+ for(const field of ['states','events','sessions'])assert.deepEqual(after[field],before[field]);
+ await assert.rejects(()=>f.repo.configure('deck',{quiz_direction:'bad'}),/無效/);
+ }finally{await s.pg.close();await f.close();await computer.close();}
+});
+
+test('ordinary sync never uploads awaiting attempts; approved attempts sync and pull leaves FSRS untouched',async()=>{
+ const f=await fixture(),s=await server(f);try{
+ const review=await f.repo.startSession('deck','free',1500),state=(await f.repo.readDeck('deck')).states[0];
+ await f.repo.rateSession({sessionId:review.id,cardId:f.card.id,revision:review.revision,contentRevision:f.card.content_revision,expectedHead:state.head,rating:3,actionId:crypto.randomUUID(),now:1500});
+ await syncStudy(f.repo,s.client,owner);
+ const before=await f.repo.exportData();
+ assert.ok(before.states[0].fsrs);
+ const cloudBefore=(await s.pg.query('select payload from study_card_states')).rows;
+ const eventsBefore=(await s.pg.query('select payload from study_review_events order by id')).rows;
+ f.quiz.setReachable(false);const a=await f.record();
+ await syncStudy(f.repo,s.client,owner);
+ assert.equal((await s.pg.query('select count(*)::int n from study_quiz_attempt_receipts')).rows[0].n,0);
+ assert.equal((await f.quiz.awaiting()).length,1);
+ await f.quiz.decide([a.id],'upload');await syncStudy(f.repo,s.client,owner);
+ assert.equal((await f.quiz.states())[0].mistake_score,1);
+ assert.equal((await f.quiz.pending()).length,0);
+ assert.equal((await f.quiz.attempts())[0].status,'synced');
+ assert.deepEqual(await f.repo.exportData(),before);
+ assert.deepEqual((await s.pg.query('select payload from study_card_states')).rows,cloudBefore);
+ assert.deepEqual((await s.pg.query('select payload from study_review_events order by id')).rows,eventsBefore);
+ }finally{await s.pg.close();await f.close();}
+});
+
+test('response lost after commit retries same event; API failure makes new attempts awaiting',async()=>{
+ const f=await fixture(),s=await server(f);try{
+ const a=await f.record();
+ let lost=true;
+ const client={...s.client,rpc:async(...args)=>{const result=await s.client.rpc(...args);if(lost){lost=false;throw new Error('response lost');}return result;}};
+ await assert.rejects(()=>syncQuiz(f.quiz,client,owner),/response lost/);
+ assert.equal((await f.quiz.pending()).length,1);
+ const b=await f.record();assert.equal(b.status,'awaiting_decision');
+ await syncQuiz(f.quiz,client,owner);await syncQuiz(f.quiz,client,owner);
+ const state=(await f.quiz.states())[0];assert.equal(state.mistake_score,1);assert.equal(state.revision,1);
+ assert.equal((await s.pg.query('select count(*)::int n from study_quiz_attempt_receipts')).rows[0].n,1);
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===a.id).status,'synced');
+ }finally{await s.pg.close();await f.close();}
+});
+
+test('event identity rejects collisions; two-device wrongs apply once and processing order is authoritative',async()=>{
+ const f=await fixture(),s=await server(f);try{
+ const a=await f.record(),b={...a.payload,event_id:crypto.randomUUID(),batch_id:'computer'};
+ const results=await Promise.all([s.rpc(a.payload),s.rpc(b)]);
+ assert.ok(results.every(r=>!r.error));
+ let result=await s.rpc(a.payload);assert.equal(result.data.mistake_score,2);assert.equal(result.data.revision,2);
+ assert.equal((await s.rpc({...a.payload,correct:true})).error.message,'QUIZ_EVENT_COLLISION');
+ assert.equal((await s.rpc({...a.payload,card_id:'different-card'})).error.message,'QUIZ_EVENT_COLLISION');
+ // Sequential requests are the authoritative server order.
+ for(let i=0;i<8;i++)result=await s.rpc({...a.payload,event_id:'wrong-'+i});
+ assert.equal(result.data.mistake_score,QUIZ_SCORE.max);
+ for(let i=0;i<8;i++)result=await s.rpc({...a.payload,event_id:'right-'+i,correct:true});
+ assert.equal(result.data.mistake_score,QUIZ_SCORE.min);
+ result=await s.rpc({...a.payload,event_id:'correct-first',correct:true});assert.equal(result.data.mistake_score,0);
+ result=await s.rpc({...a.payload,event_id:'wrong-second'});assert.equal(result.data.mistake_score,1);
+ result=await s.rpc({...a.payload,event_id:'correct-last',correct:true});assert.equal(result.data.mistake_score,0);
+ assert.equal((await s.pg.query('select count(*)::int n from study_review_events')).rows[0].n,0);
+ }finally{await s.pg.close();await f.close();}
+});
+
+test('second device pulls revisions; pending answers never replace shared aggregate',async()=>{
+ const f=await fixture(),computer=await fixture(),s=await server(f);try{
+ await computer.db.put('study_cards',f.card);
+ await computer.db.put('study_states',(await f.repo.readDeck('deck')).states[0]);
+ const a=await f.record();await syncQuiz(f.quiz,s.client,owner);
+ computer.quiz.setReachable(false);
+ await computer.quiz.record({cardId:f.card.id,correct:false,batchId:'offline',eventId:crypto.randomUUID(),now:3000});
+ await syncQuiz(computer.quiz,s.client,owner);
+ assert.equal((await computer.quiz.states())[0].mistake_score,1);
+ assert.equal((await computer.quiz.awaiting()).length,1);
+ const old=(await computer.quiz.states())[0];
+ const b={...a.payload,event_id:crypto.randomUUID()};
+ await s.rpc(b);await syncQuiz(computer.quiz,s.client,owner);
+ await computer.quiz.merge([old]);
+ assert.equal((await computer.quiz.states())[0].mistake_score,2);
+ assert.equal((await computer.quiz.states())[0].revision,2);
+ }finally{await s.pg.close();await f.close();await computer.close();}
+});
+
+test('owner isolation, RLS, deleted cards and permanent failures',async()=>{
+ const f=await fixture(),s=await server(f);try{
+ const a=await f.record();
+ assert.equal((await s.rpc({...a.payload,owner_id:other})).error.message,'QUIZ_OWNER_MISMATCH');
+ await s.pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+ assert.equal((await s.rpc({...a.payload,owner_id:other})).error.message,'QUIZ_CARD_UNAVAILABLE');
+ await s.pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ await s.rpc(a.payload);
+ await s.pg.exec('set role authenticated');
+ await assert.rejects(()=>s.pg.exec('update study_card_quiz_states set mistake_score=4'),/permission denied/);
+ await s.pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+ assert.equal((await s.pg.query('select * from study_card_quiz_states')).rows.length,0);
+ assert.equal((await s.pg.query('select * from study_quiz_attempt_receipts')).rows.length,0);
+ await s.pg.exec('reset role');
+ await s.pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ await s.pg.query("update study_cards set payload=jsonb_set(payload,'{deleted_at}','123') where id=$1",[f.card.id]);
+ assert.equal((await s.rpc(a.payload)).error,null,'already-applied retry still succeeds after deletion');
+ const b=await f.record();
+ await syncQuiz(f.quiz,s.client,owner);
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===b.id).status,'failed');
+ assert.equal((await f.quiz.attempts()).find(x=>x.id===b.id).error,'QUIZ_CARD_UNAVAILABLE');
+ assert.equal((await s.pg.query('select count(*)::int n from study_cards')).rows[0].n,1);
+ const {QuizRepository}=require('../src/lib/quizPersistence.ts');
+ const wrongOwner=new QuizRepository(f.db,()=>other);
+ await assert.rejects(()=>wrongOwner.decide([a.id],'upload'),/owner mismatch/);
+ assert.deepEqual(await wrongOwner.attempts(),[]);
+ }finally{await s.pg.close();await f.close();}
+});
+
+test('receipt insertion failure rolls back aggregate; local outbox failure rolls back attempt',async()=>{
+ const f=await fixture(),s=await server(f);try{
+ const a=await f.record();
+ await s.pg.exec("create function fail_quiz_receipt() returns trigger language plpgsql as $$ begin raise exception 'test failure'; end $$; create trigger fail_receipt before insert on study_quiz_attempt_receipts for each row execute function fail_quiz_receipt();");
+ assert.match((await s.rpc(a.payload)).error.message,/test failure/);
+ assert.equal((await s.pg.query('select count(*)::int n from study_card_quiz_states')).rows[0].n,0);
+ assert.equal((await s.pg.query('select count(*)::int n from study_quiz_attempt_receipts')).rows[0].n,0);
+ await s.pg.exec('drop trigger fail_receipt on study_quiz_attempt_receipts');
+ assert.equal((await s.rpc(a.payload)).data.revision,1);
+ const prototype=IDBObjectStore.prototype,original=prototype.put;
+ prototype.put=function(...args){if(this.name==='quiz_outbox')throw new Error('disk failure');return original.apply(this,args);};
+ try{await assert.rejects(()=>f.record(),/disk failure/);}finally{prototype.put=original;}
+ assert.equal((await f.quiz.attempts()).length,1);
+ }finally{await s.pg.close();await f.close();}
+});
+
+test('IndexedDB v5 upgrades to v6 retaining existing records',async()=>{
+ await deleteDB('nexus');
+ const old=await openDB('nexus',5,{upgrade(db){
+  for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');}
+ }});
+ await old.put('study_settings',{id:'preserved'});old.close();
+ const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts'),adapter=new IndexedDBAdapter();
+ try{
+ await adapter.init();const db=await openDB('nexus');
+ assert.equal(db.version,6);assert.ok(QUIZ_STORES.every(s=>db.objectStoreNames.contains(s)));
+ assert.equal((await db.get('study_settings','preserved')).id,'preserved');db.close();
+ }finally{await adapter.close();await deleteDB('nexus');}
+});
+
+````
+
+## File: tests/quizQuestions.test.cjs
+````
+require('./loadStudy.cjs');
+const test=require('node:test'),assert=require('node:assert/strict');
+const api=require('../src/lib/studyFSRS.ts');
+const quiz=require('../src/lib/quizQuestions.ts');
+const now=1_800_000_000_000;
+function snapshot(){
+ const s=api.migrateStudyDeck({id:'deck',study_items:[
+  {id:'a',front:'apple',back:'蘋果'},{id:'b',front:'book',back:'書'},
+  {id:'c',front:'cat',back:'貓'},{id:'d',front:'dog',back:'狗'},
+  {id:'e',front:' secret ',back:'秘密'},{id:'f',front:' apple ',back:'水果'},
+  {id:'g',front:'   ',back:'空白'}]},now);
+ s.states.forEach((state,i)=>{if(i!==4)state.learned_at=now;});
+ return s;
+}
+test('default direction, strict eligibility, New cards and distinct displayed answers',()=>{
+ const s=snapshot(),before=structuredClone(s);
+ assert.equal(quiz.DEFAULT_QUIZ_DIRECTION,'zh-en');
+ assert.equal(quiz.quizEligible(s).length,5);
+ for(const direction of ['zh-en','en-zh']){
+  for(const rng of [()=>0,()=>0.3,()=>0.999]){
+   const q=quiz.nextQuizQuestion(s,[],direction,null,now,rng);
+   const card=s.cards.find(c=>c.id===q.cardId);
+   assert.equal(q.prompt,(direction==='zh-en'?card.back:card.front).trim());
+   assert.equal(q.answer,(direction==='zh-en'?card.front:card.back).trim());
+   assert.equal(q.choices.length,4);assert.equal(new Set(q.choices).size,4);
+   assert.ok(q.choices.every(c=>c.trim()&&!['secret','秘密','空白'].includes(c)));
+  }
+ }
+ assert.deepEqual(s,before);
+ s.cards[3].front='apple';
+ assert.equal(quiz.canStartQuiz(s,'zh-en'),false);
+ assert.throws(()=>quiz.nextQuizQuestion(s,[],'zh-en',null,now),new RegExp(quiz.QUIZ_REQUIRED_ANSWERS));
+ assert.equal(quiz.canStartQuiz(s,'en-zh'),true);
+ s.cards[3].back='貓';s.cards[5].back='書';
+ assert.equal(quiz.canStartQuiz(s,'en-zh'),false);
+});
+test('real ts-fsrs retrievability, New bonus, score progression, base and cap',()=>{
+ const s=snapshot(),state=s.states[0];
+ const before=structuredClone(state),original=api.studyScheduler.get_retrievability;
+ api.studyScheduler.get_retrievability=()=>{throw new Error('New must not call retrievability');};
+ try{
+  const w=quiz.quizWeight(state,0,now);
+  assert.equal(w.retrievability,null);assert.equal(w.memoryBonus,quiz.QUIZ_WEIGHT.NEW_CARD_BONUS);
+ }finally{api.studyScheduler.get_retrievability=original;}
+ assert.deepEqual(state,before);
+ const scheduled=api.createStudyEvent(s.cards[0],state,'review',now,'d','e',4).after;
+ const fresh=quiz.quizWeight(scheduled,0,now),old=quiz.quizWeight(scheduled,0,now+90*86400000);
+ assert.equal(old.retrievability,api.studyScheduler.get_retrievability(api.schedulerCard(scheduled,now),new Date(now+90*86400000),false));
+ assert.ok(old.memoryBonus>fresh.memoryBonus);assert.ok(fresh.weight>=quiz.QUIZ_WEIGHT.BASE_WEIGHT);
+ let previous=0;
+ for(let score=0;score<=4;score++){
+  const w=quiz.quizWeight(scheduled,score,now);
+  assert.ok(w.weight>previous);assert.ok(w.weight<=quiz.QUIZ_WEIGHT.MAX_TOTAL_WEIGHT);previous=w.weight;
+ }
+ assert.equal(quiz.quizWeight(scheduled,1000,now).weight,quiz.quizWeight(scheduled,4,now).weight);
+});
+test('weighted sampling uses intervals, excludes previous only, permits later repeat',()=>{
+ const s=snapshot();s.cards=s.cards.slice(0,4);s.states=s.states.slice(0,4);
+ const states=[{card_id:s.cards[0].id,owner_id:s.cards[0].owner_id,mistake_score:4}];
+ // Weights 2.5,1.5,1.5,1.5: at 0.3 the weighted draw is A, while equal random would be B.
+ assert.equal(quiz.nextQuizQuestion(s,states,'zh-en',null,now,()=>0.3).cardId,s.cards[0].id);
+ assert.equal(quiz.nextQuizQuestion(s,states,'zh-en',null,now,()=>0.5).cardId,s.cards[1].id);
+ const first=quiz.nextQuizQuestion(s,states,'zh-en',null,now,()=>0);
+ const second=quiz.nextQuizQuestion(s,states,'zh-en',first.cardId,now,()=>0);
+ const third=quiz.nextQuizQuestion(s,states,'zh-en',second.cardId,now,()=>0);
+ assert.notEqual(first.cardId,second.cardId);assert.equal(first.cardId,third.cardId);
+});
+test('answer submission is immutable across retries and reports correct/incorrect',async()=>{
+ const s=snapshot(),q=quiz.nextQuizQuestion(s,[],'zh-en',null,now,()=>0),calls=[];
+ const repo={record:async input=>{calls.push(input);return input;}};
+ const wrong=quiz.createQuizSubmission(q,q.choices.find(c=>c!==q.answer),'batch',now,'event');
+ assert.equal(wrong.correct,false);
+ await quiz.saveQuizAnswer(repo,wrong);await quiz.saveQuizAnswer(repo,wrong);
+ assert.deepEqual(calls[0],calls[1]);
+ assert.equal(quiz.createQuizSubmission(q,q.answer,'batch',now,'right').correct,true);
+ assert.throws(()=>quiz.createQuizSubmission(q,'undefined','batch',now),/無效/);
+});
+
+````
+
+## File: tests/study-workspace.md
+````
+# FSRS 每日練習：實作與驗證
+
+## 產品決策與演算法
+
+- 固定 ts-fsrs 5.4.2，FSRS-6；request_retention=0.90；learning_steps=['10m']；relearning_steps=['10m']。其餘採該固定版本預設值，包括 enable_fuzz=false、maximum_interval=36500，完整參數存入每筆事件。
+- 每日練習僅英→中主動回想。只顯示英文，按「顯示答案」後顯示中文與 Again／Hard／Good／Easy。按鈕間隔直接取 scheduler.repeat，提交使用 scheduler.next；不覆寫 due。
+- 新字與 Review 卡 Again 分別進入 Learning／Relearning，約 10 分鐘後到期。Good／Easy 可直接 Review。固定套件對本次測試新卡輸出 Again 10 分、Hard 15 分、Good 2 天、Easy 8 天；UI 不寫死這些值。
+- 每個學習集預設每天 20 張新字，可設定 0–10000。裝置當地 00:00 換日。選卡與預載不扣額度；題面掛載後以交易確認首次顯示，交易完成前不能揭露答案或評分。重新進入不重扣同一張卡。
+- 到期 Learning／Relearning 優先，再處理到期 Review／舊卡，最後新卡。每次取下一題重新讀取資料；等待時每秒查到期，不提前出題，不中途替換正在回想的題目。
+- 自由複習只維持當次本地 UI 隊列，未通過放回隊尾，不寫正式狀態或事件。四選一固定英→中，只用實際中文答案，至少需要 4 個不同答案；分數不永久保存。
+
+## 資料與遷移
+
+IndexedDB nexus 由 v3 升為 v4，新增 study_cards、study_states、study_events、study_settings、study_outbox。正式評分以 strict durability 交易寫入事件、狀態、outbox；交易失敗明確 abort，畫面不前進。事件以 UUID 去重，記錄原題面與答案、內容版本、父事件、狀態前後、排程器版本、完整參數與真實 review log。introduce/reset 是管理事件，不是假造的 review。
+
+- 舊 Page.study_items 原樣保留。獨立卡片另存完整 legacy snapshot，使用學習集＋舊卡 ID 的穩定鍵，遷移可重試。
+- 舊 daily_due_at 保留為首次新版正式複習的資格門檻；尚未到期不出題。首次真實四級評分由空白 FSRS 記憶狀態初始化。不把舊 review_count、三段評分或 daily_phase 冒充 FSRS 歷史／記憶參數。
+- 舊卡需要在預覽確認左欄英文、右欄中文後啟用每日練習。未填完整的卡保留，但不出題。
+- 中文修改保留排程。英文修改提供保留／重設／取消；重設用新 generation 與 reset 事件，歷史仍保留。
+- 單卡與整個學習集的複製只複製內容，建立 New 卡。刪除獨立卡採 soft delete，保留歷史。
+- 備份 schema v2 包含獨立記錄；metadata 與學習資料取同一快照。匯入 v1 不刪除既存 FSRS history。缺少歷史、重複 ID 或 event ID 內容衝突會停止還原；既存與備份 head 不同時標記衝突。
+- 匿名資料首次明確歸戶涵蓋字卡、事件及待同步項目；不同帳號不共用 repository 的擁有者。
+
+## 雲端部署
+
+部署新版客戶端前，於 Supabase 套用 `supabase/migrations/20260922_study_fsrs.sql`。此檔新增四張独立資料表、RLS 與 apply_study_operation RPC，不刪改 pages.study_items。
+
+此工作階段只在隔離的本機 PostgreSQL（PGlite）執行 SQL 測試，沒有修改正式 Supabase 或部署網站。若遠端尚未套用 migration，客戶端會保留本地 outbox 並顯示字卡同步失敗；連線恢復與定時同步會重試。
+
+事件先按前序順序送出，伺服器使用事件 ID 去重與狀態列鎖。一旦雲端確認才移除 outbox；遺失回應時可安全重送。舊裝置的首次遷移寫入是 insert-only，不能蓋掉新版已修改內容／設定。正式學習請使用新版客戶端；舊程式只認識 pages.study_items。
+
+兩台裝置同時離線回答同一卡：保留所有事件與兩邊結果，標記衝突並停止該卡正式排程。介面提供由使用者明確選擇「保留歷史並重新學習」。第一版不自動推測分支的語義合併。自由複習／測驗不受排程衝突影響。
+
+## 測試
+
+- studyFSRS.test.cjs：真正的固定版本 steps、狀態轉換、preview/commit 一致、legacy 保留、到期優先、新字額度與換日。
+- studyRepository.test.cjs：v3 升級、歸戶與帳號隔離、預載不扣額度、顯示扣額度、重開、event ID 重試、寫入失敗全交易回滾、舊卡遷移、中文修改與複製、跨裝置分支、備份往返與拒絕不完整備份。
+- studySync.test.cjs：實際執行 PostgreSQL migration 兩次，測試已收件但回應遺失、事件去重、跨裝置衝突與明確重設、舊遷移不覆寫內容、RLS 帳號隔離與禁止直接刪除事件。
+- studyPractice.test.cjs：自由複習队列及不改原始資料。
+- 瀏覽器隔離頁：首次題面只有英文、顯示答案才出現評分與預覽；重整後額度／歷史保留；每日限額用完不提前出題；自由複習與測驗正式事件數保持不變；英文修改確認／取消、複製 New、歷史瀏覽；390px 無水平溢出。
+
+尚未在正式 Supabase、兩台實體裝置或 iOS 實機執行端到端驗證。持久化測試涵蓋已提交的本地交易；使用者清除瀏覽器資料不屬於離線／重整的保存保證。
+
+````
+
+## File: tests/studyFSRS.test.cjs
+````
+require('./loadStudy.cjs');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const api = require('../src/lib/studyFSRS.ts');
+const now = new Date(2026,8,22,12).getTime();
+const item = {id:'one',front:'word',back:'中文',mastery:'mastered',review_count:99,last_reviewed_at:now-1000,daily_due_at:now+60000};
+const migrated = () => api.migrateStudyDeck({id:'deck',study_items:[item]},now);
+
+test('legacy exposure is distinct from daily-learning graduation; neither creates FSRS state',()=>{
+ const {isLearned}=require('../src/lib/studySessions.ts');
+ const snapshot=migrated(), card=snapshot.cards[0], state=snapshot.states[0];
+ const exposure=api.createStudyEvent(card,state,'introduce',now,'device','exposure');
+ assert.equal(exposure.after.introduced_at,now);assert.equal(isLearned(exposure.after),false);
+ const graduation=api.createStudyEvent(card,exposure.after,'introduce',now+1,'device','learned',null,'daily_learning');
+ assert.equal(graduation.after.learned_at,now+1);assert.equal(isLearned(graduation.after),true);
+ assert.equal(graduation.after.fsrs,null);assert.equal(graduation.rating,null);assert.equal(graduation.log,null);
+ assert.equal(graduation.after.legacy_due_at,state.legacy_due_at);
+ assert.equal(graduation.parent,exposure.id);
+});
+test('fixed FSRS configuration has real 10 minute steps; Good/Easy graduate; Review Again relearns', () => {
+ const snapshot = migrated(), card=snapshot.cards[0], state=snapshot.states[0];
+ const preview = api.previewStudy(state,now);
+ assert.equal(preview[1].card.due.getTime()-now,600000);
+ assert.equal(preview[1].card.state,api.State.Learning);
+ for(const rating of [3,4]) assert.equal(preview[rating].card.state,api.State.Review);
+ const good=api.createStudyEvent(card,state,'review',now,'device','e1',3);
+ const again=api.createStudyEvent(card,good.after,'review',good.after.fsrs.due,'device','e2',1);
+ assert.equal(again.after.fsrs.state,api.State.Relearning);
+ assert.equal(again.after.fsrs.due-again.at,600000);
+ assert.deepEqual(good.after.fsrs,api.serializeFSRS(preview[3].card));
+ assert.equal(good.after.fsrs.reps,1);
+});
+test('migration preserves all legacy data without fabricating a single review or memory state',()=>{
+ const snapshot=migrated();
+ assert.deepEqual(snapshot.cards[0].legacy.item,item);
+ assert.equal(snapshot.events.length,0); assert.equal(snapshot.states[0].fsrs,null);
+ snapshot.settings.direction_confirmed=true;
+ assert.equal(api.nextDailyCard(snapshot,now),null);
+ assert.equal(api.nextDailyCard(snapshot,now+60000).id,snapshot.cards[0].id);
+});
+test('due relearning outranks new cards; no early review; introductions consume local-day quota',()=>{
+ const snapshot=api.migrateStudyDeck({id:'deck',study_items:Array.from({length:22},(_,i)=>({...item,id:String(i),daily_due_at:undefined,mastery:'new'}))},now);
+ snapshot.settings.direction_confirmed=true;
+ for(let i=0;i<20;i++) {
+   const card=api.nextDailyCard(snapshot,now); assert.ok(card);
+   let event=api.createStudyEvent(card,snapshot.states.find(s=>s.id===card.id),'introduce',now,'dev',`intro${i}`);
+   snapshot.events.push(event);
+   event=api.createStudyEvent(card,event.after,'review',now,'dev',`review${i}`,3);
+   snapshot.events.push(event);
+   snapshot.states=snapshot.states.map(s=>s.id===card.id?event.after:s);
+ }
+ assert.equal(api.nextDailyCard(snapshot,now),null);
+ assert.ok(api.nextDailyCard(snapshot,now+86400000));
+ const card=snapshot.cards[0];
+ const event=api.createStudyEvent(card,snapshot.states[0],'review',now,'dev','again',1);
+ snapshot.states[0]=event.after;
+ assert.equal(api.nextDailyCard(snapshot,now),null);
+ snapshot.settings.new_limit=22;
+ assert.notEqual(api.nextDailyCard(snapshot,now).id,card.id);
+ assert.equal(api.nextDailyCard(snapshot,now+600000).id,card.id);
+});
+
+````
+
+## File: tests/studyPractice.test.cjs
+````
+require('./loadStudy.cjs');
+const test=require('node:test');const assert=require('node:assert/strict');
+const {advanceFreeQueue,shuffleCards}=require('../src/lib/studyPractice.ts');
+test('free practice exhausts cards before repeats and never mutates original data',()=>{
+ const cards=[{id:'1'},{id:'2'},{id:'3'}];const original=structuredClone(cards);
+ let queue=advanceFreeQueue(cards,false);assert.deepEqual(queue.map(c=>c.id),['2','3','1']);
+ queue=advanceFreeQueue(queue,true);queue=advanceFreeQueue(queue,true);queue=advanceFreeQueue(queue,true);
+ assert.equal(queue.length,0);assert.deepEqual(cards,original);
+ for(let i=0;i<30;i++)assert.deepEqual(shuffleCards(cards).map(c=>c.id).sort(),['1','2','3']);
+});
+
+````
+
+## File: tests/studyRepository.test.cjs
+````
+require('./loadStudy.cjs');
+require('fake-indexeddb/auto');
+const {openDB,deleteDB}=require('idb');
+const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
+const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts');
+const test=require('node:test');const assert=require('node:assert/strict');
+const now=new Date(2026,8,22,12).getTime();
+async function fixture() {
+ const name=crypto.randomUUID();const db=await openDB(name,1,{upgrade(db){for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');}}});
+ const repo=new StudyRepository(db,()=>null,'test');await repo.ensureDeck({id:'deck',study_items:[]});await repo.addCards('deck',[{front:'apple',back:'蘋果'},{front:'pear',back:'梨'}]);
+ return {db,repo,close:async()=>{db.close();await deleteDB(name);}};
+}
+test('presentation consumes quota durably before grading; reopen never replenishes allowance',async()=>{
+ const f=await fixture();try{
+ await f.repo.configure('deck',{new_limit:1});
+ await f.repo.peekNext('deck',now);
+ assert.equal((await f.repo.readDeck('deck')).events.length,0,'preloading is not presentation');
+ const first=await f.repo.presentNext('deck',now);assert.ok(first);
+ const reopened=new StudyRepository(f.db,()=>null,'second');
+ const again=await reopened.presentNext('deck',now);assert.equal(again.card.id,first.card.id);
+ assert.equal((await reopened.readDeck('deck')).events.length,1);
+ await reopened.review(first.card.id,first.state.head,first.card.content_revision,3,'answer',now);
+ assert.equal(await reopened.presentNext('deck',now),null);
+ assert.ok(await reopened.presentNext('deck',now+86400000));
+ }finally{await f.close();}
+});
+test('upgrading a v3 database preserves legacy pages and migrates only once',async()=>{
+ await deleteDB('nexus');
+ const legacy=await openDB('nexus',3,{upgrade(db){const p=db.createObjectStore('pages',{keyPath:'id'});p.createIndex('by_updated','updated_at');p.createIndex('by_deleted','deleted_at');db.createObjectStore('settings',{keyPath:'key'});db.createObjectStore('attachments',{keyPath:'id'});db.createObjectStore('binaries',{keyPath:'id'});}});
+ const original={id:'old',kind:'study_set',updated_at:1,deleted_at:null,study_items:[{id:'one',front:'one',back:'一',mastery:'mastered',review_count:10,last_reviewed_at:1,daily_due_at:now+1000}]};
+ await legacy.put('pages',original);legacy.close();
+ const adapter=new IndexedDBAdapter();await adapter.init();
+ try{const page=await adapter.getPage('old');assert.deepEqual(page,original);const repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.ensureDeck(page);const snapshot=await repo.readDeck('old');assert.equal(snapshot.cards.length,1);assert.equal(snapshot.events.length,0);assert.equal(snapshot.states[0].legacy_due_at,now+1000);}
+ finally{await adapter.close();await deleteDB('nexus');}
+});
+test('anonymous claim includes review events and pending operations, and account switch stays isolated',async()=>{
+ await deleteDB('nexus');const adapter=new IndexedDBAdapter();await adapter.init();
+ try{
+ const page=await adapter.createPage({kind:'study_set'}),repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.addCards(page.id,[{front:'one',back:'一'}]);
+ const q=await repo.presentNext(page.id,now);await repo.review(q.card.id,q.state.head,1,3,'claim-event',now);
+ const user='11111111-1111-4111-8111-111111111111';await adapter.claimAnonymousWorkspace(user);adapter.setWorkspaceOwner(user);
+ const owned=adapter.getStudyRepository(),snapshot=await owned.readDeck(page.id);
+ assert.equal(snapshot.events[0].owner_id,user);assert.equal(snapshot.events[0].after.owner_id,user);
+ assert.ok((await owned.pending()).every(op=>op.owner_id===user && op.value.owner_id===user));
+ adapter.setWorkspaceOwner('other');await assert.rejects(()=>adapter.getStudyRepository().readDeck(page.id));
+ }finally{await adapter.close();await deleteDB('nexus');}
+});
+test('answer, state and outbox persist together, duplicate event retries do not double count',async()=>{
+ const f=await fixture();try{
+ const q=await f.repo.presentNext('deck',now);
+ const e=await f.repo.review(q.card.id,q.state.head,q.card.content_revision,1,'answer',now);
+ await f.repo.review(q.card.id,q.state.head,q.card.content_revision,1,'answer',now);
+ const reopened=new StudyRepository(f.db,()=>null,'second');const snapshot=await reopened.readDeck('deck');
+ assert.equal(snapshot.events.filter(e=>e.kind==='review').length,1);
+ assert.equal(snapshot.states.find(s=>s.id===q.card.id).head,e.id);
+ assert.equal((await reopened.pending()).filter(op=>op.kind==='event'&&op.value.id===e.id).length,1);
+ await assert.rejects(()=>reopened.review(q.card.id,q.state.head,q.card.content_revision,3,'stale',now));
+ assert.equal((await reopened.readDeck('deck')).events.length,2);
+ }finally{await f.close();}
+});
+test('failure of outbox write rolls back event and state, preserving retry on same question',async()=>{
+ const f=await fixture();try{
+ const q=await f.repo.presentNext('deck',now);
+ // IndexedDB structured clone failure during the transaction must roll back prior writes.
+ const original=globalThis.crypto.randomUUID;
+ Object.defineProperty(globalThis.crypto,'randomUUID',{configurable:true,value:()=>()=>{}});
+ try{await assert.rejects(()=>f.repo.review(q.card.id,q.state.head,q.card.content_revision,3,'failed',now));}
+ finally{Object.defineProperty(globalThis.crypto,'randomUUID',{configurable:true,value:original});}
+ const snapshot=await f.repo.readDeck('deck');
+ assert.equal(snapshot.events.some(e=>e.id==='failed'),false);
+ assert.equal(snapshot.states.find(s=>s.id===q.card.id).head,q.state.head);
+ }finally{await f.close();}
+});
+test('legacy migration idempotent; text changes preserve schedule unless explicitly reset; copies start New',async()=>{
+ const f=await fixture();try{
+ const item={id:'x',front:'word',back:'字',mastery:'mastered',review_count:50,last_reviewed_at:1,daily_due_at:now+10000};
+ const page={id:'old',study_items:[item]};
+ let snapshot=await f.repo.ensureDeck(page);assert.deepEqual(snapshot.cards[0].legacy.item,item);
+ await f.repo.ensureDeck(page);assert.equal((await f.repo.readDeck('old')).cards.length,1);
+ assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.events.length,0);
+ await f.repo.configure('old',{direction_confirmed:true});assert.equal(await f.repo.presentNext('old',now),null);
+ const q=await f.repo.presentNext('old',now+10000);await f.repo.review(q.card.id,q.state.head,1,3,'legacy-real',now+10000);
+ const state=(await f.repo.readDeck('old')).states[0];await f.repo.updateCard(q.card.id,{back:'單字'});
+ assert.deepEqual((await f.repo.readDeck('old')).states[0],state);
+ await f.repo.addCards('old',[{front:q.card.front,back:q.card.back}]);snapshot=await f.repo.readDeck('old');
+ assert.equal(snapshot.states.find(s=>s.id!==q.card.id).fsrs,null);
+ await f.repo.updateCard(q.card.id,{front:'changed'},true);snapshot=await f.repo.readDeck('old');
+ assert.equal(snapshot.states.find(s=>s.id===q.card.id).fsrs,null);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,1);
+ }finally{await f.close();}
+});
+test('remote event union preserves divergent histories and blocks scheduling conflict',async()=>{
+ const f=await fixture();try{
+ const q=await f.repo.presentNext('deck',now);
+ const {createStudyEvent}=require('../src/lib/studyFSRS.ts');
+ await f.repo.review(q.card.id,q.state.head,1,3,'local',now);
+ const remote=createStudyEvent(q.card,q.state,'review',now,'remote','remote',1);
+ await f.repo.mergeRemote({cards:[],settings:[],events:[remote],states:[remote.after]});
+ const snapshot=await f.repo.readDeck('deck');assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);
+ assert.equal(snapshot.states.find(s=>s.id===q.card.id).conflict,true);
+ }finally{await f.close();}
+});
+test('v2 backup round trip retains events; importing old backup cannot erase FSRS history',async()=>{
+ await deleteDB('nexus');let adapter=new IndexedDBAdapter();await adapter.init();
+ try{
+ const page=await adapter.createPage({kind:'study_set'});let repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.addCards(page.id,[{front:'one',back:'一'}]);
+ const q=await repo.presentNext(page.id,now);await repo.review(q.card.id,q.state.head,1,3,'backup-event',now);
+ const backup=await adapter.exportWorkspaceBackup();assert.equal(backup.schema_version,3);
+ await adapter.close();await deleteDB('nexus');adapter=new IndexedDBAdapter();await adapter.init();await adapter.importWorkspaceBackup(backup);
+ repo=adapter.getStudyRepository();assert.equal((await repo.readDeck(page.id)).events.filter(e=>e.kind==='review').length,1);
+ const old={...backup,schema_version:1};delete old.study;await adapter.importWorkspaceBackup(old);
+ assert.equal((await repo.readDeck(page.id)).events.filter(e=>e.kind==='review').length,1);
+ const damaged=structuredClone(backup);damaged.study.events=[];
+ await assert.rejects(()=>adapter.importWorkspaceBackup(damaged),/歷史/);
+ assert.equal((await repo.readDeck(page.id)).events.filter(e=>e.kind==='review').length,1);
+ }finally{await adapter.close();await deleteDB('nexus');}
+});
+
+````
+
+## File: tests/studySessions.test.cjs
+````
+require('./loadStudy.cjs');require('fake-indexeddb/auto');
+const {openDB,deleteDB}=require('idb');
+const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
+const {freezingInterval,displayStudyCards,isLearned,hasLearningData,selectSessionCards}=require('../src/lib/studySessions.ts');
+const test=require('node:test'),assert=require('node:assert/strict');
+const day=new Date(2026,8,24,23,55).getTime();
+async function fixture(count=3){
+ const name=crypto.randomUUID();const db=await openDB(name,1,{upgrade(db){for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');}}});
+ const repo=new StudyRepository(db,()=>null,'test');await repo.ensureDeck({id:'deck',study_items:[]});await repo.addCards('deck',Array.from({length:count},(_,i)=>({front:['zebra','apple','pear'][i]??String(i),back:String(i)})));
+ return {db,repo,close:async()=>{db.close();await deleteDB(name);}};
+}
+async function rate(repo,sessionId,rating,now=day){const {session,snapshot}=await repo.readSession(sessionId,now);const id=session.queue[0],c=snapshot.cards.find(c=>c.id===id),s=snapshot.states.find(s=>s.id===id);const input={sessionId,cardId:id,revision:session.revision,contentRevision:c.content_revision,expectedHead:s.head,rating,actionId:crypto.randomUUID(),now};return {session:await repo.rateSession(input),input};}
+
+async function learnAll(repo,now=day) {
+ const daily=await repo.startSession('deck','daily',now);
+ for(const _target of daily.targets) await rate(repo,daily.id,4,now);
+}
+const reviews=snapshot=>snapshot.events.filter(e=>e.kind==='review');
+const expectedFSRS=(state,rating,now)=>{
+ const api=require('../src/lib/studyFSRS.ts');
+ return api.serializeFSRS(api.previewStudy(state,now)[rating].card);
+};
+
+test('New Good is the sole official rating through Hard/Good/Easy, including repository reload',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);
+ const session=await f.repo.startSession('deck','free',day+1);
+ const before=(await f.repo.readDeck('deck')).states[0];
+ assert.equal(before.fsrs,null);
+ const first=await rate(f.repo,session.id,3,day+1);
+ const official=(await f.repo.readDeck('deck')).states[0];
+ assert.deepEqual(official.fsrs,expectedFSRS(before,3,day+1));
+ assert.equal(first.session.completed_at,null);assert.equal(first.session.queue.length,1);
+ assert.equal(first.session.targets[0].official_rating,3);
+ assert.equal(first.session.targets[0].official_event_id,official.head);
+ await f.repo.rateSession(first.input); // Lost-response retry is idempotent.
+ const dbName=f.db.name;f.db.close();
+ const db=await openDB(dbName);try {
+ const reopened=new StudyRepository(db,()=>null,'reopened');
+ const resumed=await reopened.startSession('deck','free',day+2);
+ assert.equal(resumed.id,session.id);assert.equal(resumed.targets[0].official_event_id,official.head);
+ assert.equal(resumed.targets[0].official_rating,3);
+ const pendingBefore=await reopened.pending();
+ for(const rating of [2,3,4]){
+   const result=await rate(reopened,session.id,rating,day+rating+2);
+   const snapshot=await reopened.readDeck('deck');
+   assert.equal(reviews(snapshot).length,1);assert.deepEqual(snapshot.states[0],official);
+   assert.equal(result.session.targets[0].official_rating,3);
+   assert.equal(result.session.queue.length,rating===4?0:1);
+   assert.equal(result.session.completed_at!=null,rating===4);
+ }
+ assert.deepEqual(await reopened.pending(),pendingBefore,'session-only answers add no sync operations');
+ assert.equal((await reopened.readSession(session.id)).session.targets[0].attempts,4);
+ assert.ok(pendingBefore.every(op=>op.kind!=='session'&&!('session' in op)));
+ }finally{db.close();}
+ }finally{await f.close();}
+});
+
+test('New first Easy writes scheduler result and immediately leaves the session',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);const before=(await f.repo.readDeck('deck')).states[0];
+ const session=await f.repo.startSession('deck','free',day+1);
+ const result=await rate(f.repo,session.id,4,day+1);
+ const snapshot=await f.repo.readDeck('deck');
+ assert.equal(reviews(snapshot).length,1);assert.deepEqual(snapshot.states[0].fsrs,expectedFSRS(before,4,day+1));
+ assert.equal(result.session.targets[0].official_rating,4);
+ assert.equal(result.session.targets[0].easy_at,day+1);
+ assert.equal(result.session.completed_at,day+1);assert.deepEqual(result.session.queue,[]);
+ }finally{await f.close();}
+});
+
+test('Due Review Again uses real scheduler; reaching due again does not duplicate target or review',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);const initial=await f.repo.startSession('deck','free',day+1);
+ await rate(f.repo,initial.id,4,day+1);
+ const before=(await f.repo.readDeck('deck')).states[0],now=before.fsrs.due;
+ const session=await f.repo.startSession('deck','free',now);
+ await rate(f.repo,session.id,1,now);
+ const official=(await f.repo.readDeck('deck')).states[0];
+ assert.deepEqual(official.fsrs,expectedFSRS(before,1,now));
+ const count=reviews(await f.repo.readDeck('deck')).length;assert.equal(count,2);
+ const resumed=await f.repo.startSession('deck','free',official.fsrs.due);
+ assert.equal(resumed.id,session.id);assert.equal(resumed.targets.length,1);assert.equal(resumed.queue.length,1);
+ await rate(f.repo,session.id,3,official.fsrs.due);
+ await rate(f.repo,session.id,4,official.fsrs.due+1);
+ const after=await f.repo.readDeck('deck');
+ assert.equal(reviews(after).length,count);assert.deepEqual(after.states[0],official);
+ const next=await f.repo.startSession('deck','free',official.fsrs.due+2);
+ assert.notEqual(next.id,session.id);assert.equal(next.targets[0].card_id,official.id);
+ }finally{await f.close();}
+});
+
+test('not-due filler receives an official FSRS rating from its current state',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);const initial=await f.repo.startSession('deck','free',day+1);
+ await rate(f.repo,initial.id,4,day+1);
+ const before=(await f.repo.readDeck('deck')).states[0],now=day+60000;
+ assert.ok(before.fsrs.due>now);
+ const session=await f.repo.startSession('deck','free',now);
+ const result=await rate(f.repo,session.id,2,now);
+ const snapshot=await f.repo.readDeck('deck');
+ assert.equal(reviews(snapshot).length,2);assert.deepEqual(snapshot.states[0].fsrs,expectedFSRS(before,2,now));
+ assert.equal(result.session.targets[0].official_rating,2);
+ assert.equal(reviews(snapshot).find(e=>e.id===result.session.targets[0].official_event_id).parent,before.head);
+ }finally{await f.close();}
+});
+
+test('20-target session resumes only 8 remaining cards after 12 Easy; completes only after all Easy',async()=>{
+ const f=await fixture(20);try{
+ await learnAll(f.repo);const session=await f.repo.startSession('deck','free',day+1);
+ for(let i=0;i<12;i++)await rate(f.repo,session.id,4,day+2);
+ const reopened=new StudyRepository(f.db,()=>null,'reopened');
+ await reopened.addCards('deck',[{front:'extra',back:'額外'}]);
+ const resumed=await reopened.startSession('deck','free',day+3);
+ assert.equal(resumed.id,session.id);assert.equal(resumed.targets.length,20);
+ assert.deepEqual(resumed.queue,session.queue.slice(12));
+ for(let i=0;i<8;i++)await rate(reopened,session.id,3,day+4);
+ let progress=(await reopened.readSession(session.id)).session;
+ assert.equal(progress.answers,20);assert.equal(progress.completed_at,null);assert.equal(progress.queue.length,8);
+ for(let i=0;i<8;i++)await rate(reopened,session.id,4,day+5);
+ progress=(await reopened.readSession(session.id)).session;
+ assert.equal(progress.answers,28);assert.equal(progress.completed_at,day+5);
+ assert.ok(progress.targets.every(t=>t.easy_at!=null));assert.deepEqual(progress.queue,[]);
+ assert.equal(reviews(await reopened.readDeck('deck')).length,20);
+ }finally{await f.close();}
+});
+
+test('old session recovers first rating from its real event without writing another review',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);const session=await f.repo.startSession('deck','free',day+1);
+ await rate(f.repo,session.id,2,day+1);
+ const old=await f.db.get('study_sessions',session.id);delete old.targets[0].official_rating;
+ await f.db.put('study_sessions',old);
+ const restored=await f.repo.readSession(session.id,day+2);
+ assert.equal(restored.session.targets[0].official_rating,2);
+ await rate(f.repo,session.id,4,day+3);
+ assert.equal(reviews(await f.repo.readDeck('deck')).length,1);
+ assert.equal((await f.repo.readSession(session.id)).session.targets[0].official_rating,2);
+ }finally{await f.close();}
+});
+
+test('free first rating atomically rolls back session, FSRS event/state and outbox on write failure',async()=>{
+ const f=await fixture(1);try{
+ await learnAll(f.repo);const session=await f.repo.startSession('deck','free',day+1);
+ const before=await f.repo.exportData(),pending=await f.repo.pending(),original=crypto.randomUUID;
+ Object.defineProperty(crypto,'randomUUID',{configurable:true,value:()=>()=>{}});
+ try{await assert.rejects(()=>rate(f.repo,session.id,3,day+1));}
+ finally{Object.defineProperty(crypto,'randomUUID',{configurable:true,value:original});}
+ assert.deepEqual(await f.repo.exportData(),before);assert.deepEqual(await f.repo.pending(),pending);
+ await rate(f.repo,session.id,3,day+1);
+ assert.equal(reviews(await f.repo.readDeck('deck')).length,1);
+ }finally{await f.close();}
+});
+
+test('review selection uses caller time: New, random Due, then nearest not-due; excludes unlearned',()=>{
+ const api=require('../src/lib/studyFSRS.ts');
+ const snapshot=api.migrateStudyDeck({id:'deck',study_items:Array.from({length:9},(_,i)=>({id:String(i),front:String(i),back:'字'}))},day);
+ snapshot.states.forEach((s,i)=>{
+   if(i<8)s.learned_at=day-1000;
+   if(i>=3&&i<8)s.fsrs={...api.serializeFSRS(api.schedulerCard(s,day)),due:[day-5000,day,day+3000,day+1000,day+2000][i-3]};
+ });
+ const select=limit=>{snapshot.settings.review_limit=limit;return selectSessionCards(snapshot,'free',day).map(c=>snapshot.cards.indexOf(c));};
+ const original=Math.random;
+ try {
+   Math.random=()=>0;
+   assert.deepEqual(select(2),[1,2],'overflow New is shuffled');
+   assert.deepEqual(select(4),[0,1,2,4],'boundary due is eligible; most overdue is not privileged');
+   assert.deepEqual(select(6),[0,1,2,3,4,6]);
+   assert.deepEqual(select(7),[0,1,2,3,4,6,7]);
+   assert.deepEqual(select(20),[0,1,2,3,4,6,7,5]);
+   snapshot.settings.review_limit=4;
+   assert.deepEqual(selectSessionCards(snapshot,'free',day-1).map(c=>snapshot.cards.indexOf(c)),[0,1,2,3]);
+   assert.deepEqual(selectSessionCards(snapshot,'daily',day).map(c=>snapshot.cards.indexOf(c)),[8]);
+ } finally {Math.random=original;}
+});
+test('daily fixed batch survives midnight/reopen, quota edits, Easy introduces without FSRS, repeat same batch',async()=>{
+ const f=await fixture();try{
+ await f.repo.configure('deck',{new_limit:2});let session=await f.repo.startSession('deck','daily',day);
+ const ids=session.targets.map(t=>t.card_id);await rate(f.repo,session.id,2);await rate(f.repo,session.id,3);
+ assert.equal((await f.repo.readDeck('deck')).events.length,0);
+ await f.repo.configure('deck',{new_limit:3});const reopened=new StudyRepository(f.db,()=>null,'other');
+ assert.equal((await reopened.startSession('deck','daily',day+600000)).id,session.id);
+ const first=await rate(reopened,session.id,4);let snapshot=await reopened.readDeck('deck');
+ assert.equal(snapshot.states.filter(isLearned).length,1);assert.equal(snapshot.events.length,1);
+ assert.equal(snapshot.events[0].kind,'introduce');assert.equal(snapshot.events[0].rating,null);
+ assert.equal(snapshot.events[0].log,null);assert.equal(snapshot.events[0].source,'daily_learning');
+ assert.equal(snapshot.events[0].after.learned_at,day);assert.equal(snapshot.events[0].after.fsrs,null);
+ assert.equal(freezingInterval(snapshot.events[0].after),null);
+ await reopened.rateSession(first.input);assert.equal((await reopened.readDeck('deck')).events.length,1);
+ await rate(reopened,session.id,4);session=await reopened.startSession('deck','daily',day+1000);
+ assert.deepEqual(session.targets.map(t=>t.card_id),ids);assert.ok(session.targets.every(t=>t.easy_at===null));
+ await rate(reopened,session.id,4);await rate(reopened,session.id,4);assert.equal((await reopened.readDeck('deck')).events.length,2);
+ assert.equal((await reopened.readDeck('deck')).events.filter(e=>e.kind==='review').length,0);
+ const tomorrow=await reopened.startSession('deck','daily',day+600000);assert.equal(tomorrow.targets.length,1);
+ }finally{await f.close();}
+});
+test('free selects only learned cards, permits early review, first Hard stays official through Good and Easy',async()=>{
+ const f=await fixture();try{
+ const empty=await f.repo.startSession('deck','free',day);assert.equal(empty.targets.length,0);
+ await f.repo.configure('deck',{new_limit:1});const daily=await f.repo.startSession('deck','daily',day);await rate(f.repo,daily.id,4);
+ const free=await f.repo.startSession('deck','free',day+1000);assert.equal(free.targets.length,1);
+ await rate(f.repo,free.id,2,day+1000);const official=(await f.repo.readDeck('deck')).states.find(s=>s.id===free.queue[0]);
+ assert.equal(freezingInterval(official),900000);
+ await rate(f.repo,free.id,3,day+2000);await rate(f.repo,free.id,4,day+3000);
+ const after=await f.repo.readDeck('deck');assert.deepEqual(after.states.find(s=>s.id===official.id),official);assert.equal(after.events.filter(e=>e.source==='free_review').length,1);
+ assert.ok((await f.repo.readSession(free.id)).session.completed_at);
+ const next=await f.repo.startSession('deck','free',day+4000);await rate(f.repo,next.id,4,day+4000);assert.equal((await f.repo.readDeck('deck')).events.filter(e=>e.source==='free_review').length,2);
+ }finally{await f.close();}
+});
+test('session official event, state, mastery and outbox all roll back on persistence failure',async()=>{
+ const f=await fixture(1);try{
+ const session=await f.repo.startSession('deck','daily',day);const before=await f.repo.readSession(session.id);const original=crypto.randomUUID;
+ Object.defineProperty(crypto,'randomUUID',{configurable:true,value:()=>()=>{}});
+ try{await assert.rejects(()=>rate(f.repo,session.id,4));}finally{Object.defineProperty(crypto,'randomUUID',{configurable:true,value:original});}
+ assert.deepEqual(await f.repo.readSession(session.id),before);assert.equal((await f.repo.readDeck('deck')).events.length,0);
+ await rate(f.repo,session.id,4);assert.equal((await f.repo.readDeck('deck')).events.length,1);
+ }finally{await f.close();}
+});
+test('delete and reset remove stale generation targets; reset can relearn in a fresh daily session',async()=>{
+ const f=await fixture(2);try{
+ const daily=await f.repo.startSession('deck','daily',day);await rate(f.repo,daily.id,4);const id=daily.queue[0];
+ const free=await f.repo.startSession('deck','free',day);await f.repo.updateCard(id,{},true);
+ assert.equal((await f.repo.readSession(free.id)).session.targets.length,0);
+ assert.equal((await f.repo.readDeck('deck')).states.find(s=>s.id===id).learned_at,null);
+ await f.repo.updateCard(daily.queue[1],{deleted_at:Date.now()});assert.ok((await f.repo.readSession(daily.id)).session.completed_at);
+ const repeat=await f.repo.startSession('deck','daily',day);assert.equal(repeat.targets.length,1);assert.equal(repeat.targets[0].generation,1);
+ await rate(f.repo,repeat.id,4);const snapshot=await f.repo.readDeck('deck');assert.equal(snapshot.events.filter(e=>e.source==='daily_learning').length,2);
+ }finally{await f.close();}
+});
+test('A–Z is live and independent of custom order; blank New state has no edit warning',async()=>{
+ const f=await fixture();try{
+ let snapshot=await f.repo.readDeck('deck');assert.equal(hasLearningData(snapshot.states[0]),false);
+ await f.repo.configure('deck',{sort_mode:'az'});await f.repo.addCards('deck',[{front:'banana',back:'蕉'}]);snapshot=await f.repo.readDeck('deck');
+ assert.deepEqual(displayStudyCards(snapshot.cards,'az').map(c=>c.front),['apple','banana','pear','zebra']);
+ assert.deepEqual(displayStudyCards(snapshot.cards,'custom').map(c=>c.front),['zebra','apple','pear','banana']);
+ await assert.rejects(()=>f.repo.reorder('deck',snapshot.cards.map(c=>c.id)),/A–Z/);
+ }finally{await f.close();}
+});
+test('only four authorized legacy IDs reset, keeping snapshot/history without fabricated reviews',async()=>{
+ const f=await fixture(0);try{
+ const page={id:'page_kXB_pon1cdluNzbAk2EBJ',study_items:[{id:'item_da626310-0b85-4ecd-88d0-dee59e00599d',front:'raise',back:'升起',review_count:99,mastery:'mastered',daily_due_at:day+100000,daily_introduced_at:day-1000}]};
+ await f.repo.ensureDeck(page);await f.repo.ensureDeck(page);const snapshot=await f.repo.readDeck(page.id);
+ assert.equal(isLearned(snapshot.states[0]),false);assert.equal(snapshot.states[0].legacy_due_at,null);assert.equal(snapshot.cards[0].legacy.item.review_count,99);
+ assert.equal(snapshot.events.length,1);assert.equal(snapshot.events[0].kind,'reset');assert.equal(snapshot.events[0].source,'legacy_test_reset');
+ }finally{await f.close();}
+});
+
+test('free fills not-due cards by nearest due, respects limit and freezes its targets',async()=>{
+ const f=await fixture();try{
+ const daily=await f.repo.startSession('deck','daily',day);for(let i=0;i<3;i++)await rate(f.repo,daily.id,4);
+ const initial=await f.repo.startSession('deck','free',day+1);
+ await rate(f.repo,initial.id,3,day+1);await rate(f.repo,initial.id,2,day+2);await rate(f.repo,initial.id,4,day+3);
+ while((await f.repo.readSession(initial.id)).session.completed_at==null)await rate(f.repo,initial.id,4,day+4);
+ await f.repo.configure('deck',{review_limit:2});const snapshot=await f.repo.readDeck('deck');
+ const next=await f.repo.startSession('deck','free',day+5);assert.equal(next.targets.length,2);
+ assert.equal(next.targets[0].card_id,initial.targets[1].card_id,'15-minute Hard outranks both day intervals');
+ assert.equal(freezingInterval(snapshot.states.find(s=>s.id===next.targets[0].card_id)),900000);
+ await f.repo.configure('deck',{review_limit:3});assert.deepEqual((await f.repo.startSession('deck','free',day+6)).targets,next.targets);
+ }finally{await f.close();}
+});
+
+test('v3 backup restores unfinished sessions and official IDs; old backups do not erase them',async()=>{
+ const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts');await deleteDB('nexus');let adapter=new IndexedDBAdapter();await adapter.init();
+ try{
+ const page=await adapter.createPage({kind:'study_set'});let repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.addCards(page.id,[{front:'word',back:'字'}]);
+ const daily=await repo.startSession(page.id,'daily',day);await rate(repo,daily.id,4);
+ const free=await repo.startSession(page.id,'free',day+1);await rate(repo,free.id,2,day+1);
+ const backup=await adapter.exportWorkspaceBackup();assert.equal(backup.study.sessions.length,3);
+ await adapter.close();await deleteDB('nexus');adapter=new IndexedDBAdapter();await adapter.init();await adapter.importWorkspaceBackup(backup);repo=adapter.getStudyRepository();
+ assert.equal((await repo.startSession(page.id,'free',day+2)).id,free.id);await rate(repo,free.id,4,day+2);
+ assert.equal((await repo.readDeck(page.id)).events.length,2);
+ const old=structuredClone(backup);old.schema_version=2;delete old.study.sessions;await adapter.importWorkspaceBackup(old);
+ assert.equal((await repo.exportData()).sessions.length,3);
+ }finally{await adapter.close();await deleteDB('nexus');}
+});
+
+test('a cloud session cannot outrun its event/state snapshot; partial pulls roll back and retry safely',async()=>{
+ const source=await fixture(1),target=await fixture(0);try{
+ const daily=await source.repo.startSession('deck','daily',day);const before=await source.repo.exportData();
+ await rate(source.repo,daily.id,4);const complete=await source.repo.exportData();
+ await assert.rejects(()=>target.repo.mergeRemote({...complete,states:before.states}),/不完整進度/);
+ assert.equal((await target.repo.readDeck('deck')).events.length,0);
+ assert.equal((await target.repo.exportData()).sessions.length,0);
+ await target.repo.mergeRemote(complete);assert.equal((await target.repo.readDeck('deck')).events.length,1);
+ const repeat=await target.repo.startSession('deck','daily',day+1);await rate(target.repo,repeat.id,4,day+1);
+ assert.equal((await target.repo.readDeck('deck')).events.length,1);
+ }finally{await source.close();await target.close();}
+});
+
+````
+
+## File: tests/studySync.test.cjs
+````
+require('./loadStudy.cjs');require('fake-indexeddb/auto');
+const {PGlite}=require('@electric-sql/pglite');
+const {openDB,deleteDB}=require('idb');
+const fs=require('node:fs');const test=require('node:test');const assert=require('node:assert/strict');
+const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
+const {syncStudy}=require('../src/lib/studySync.ts');
+const {createStudyEvent}=require('../src/lib/studyFSRS.ts');
+const owner='11111111-1111-4111-8111-111111111111';
+test('real PostgreSQL migration: retry after lost response, event deduplication, conflict retention, owner isolation',async()=>{
+ const pg=new PGlite();const dbName=crypto.randomUUID();let db;
+ try{
+ await pg.exec(`create schema auth; create role authenticated; create role anon;
+ create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+ grant usage on schema public,auth to authenticated,anon;`);
+ const sql=fs.readFileSync('supabase/migrations/20260922_study_fsrs.sql','utf8');
+ await pg.exec(sql);await pg.exec(sql);
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ db=await openDB(dbName,1,{upgrade(db){for(const name of STUDY_STORES){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
+ const repo=new StudyRepository(db,()=>owner,'device');
+ await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});await repo.addCards('deck',[{front:'word',back:'字'}]);
+ const now=Date.now(),q=await repo.presentNext('deck',now);
+ const event=await repo.review(q.card.id,q.state.head,1,3,'event-one',now);
+ // Simulate a pending operation written before sessions became local-only.
+ const queued=(await repo.pending()).find(op=>op.kind==='event'&&op.value.id===event.id);
+ await db.put('study_outbox',{...queued,session:{id:'local-session',targets:[]}});
+ let loseResponse=true;
+ const rpc=async(operation)=>{
+   try{await pg.query('select apply_study_operation($1::jsonb)',[JSON.stringify(operation)]);return {error:null};}
+   catch(e){return {error:{message:e.message}};}
+ };
+ const client={rpc:async(name,{operation})=>{
+   assert.equal('session' in operation,false,'even old queued session envelopes must stay local');
+   const result=await rpc(operation);
+   if(loseResponse&&operation.kind==='event'&&operation.value.id==='event-one'&&!result.error){loseResponse=false;return {error:{message:'response lost'}};}
+   return result;
+ },from:table=>({select:()=>({eq:()=>({order:()=>({range:async(start,end)=>{
+   const result=await pg.query(`select payload from ${table} where owner_id=$1 order by id offset $2 limit $3`,[owner,start,end-start+1]);return {data:result.rows,error:null};
+ }})})})})};
+ await assert.rejects(()=>syncStudy(repo,client,owner),/response lost/);
+ assert.ok((await repo.pending()).some(op=>op.kind==='event'&&op.value.id==='event-one'));
+ await syncStudy(repo,client,owner);
+ assert.equal((await repo.pending()).length,0);
+ assert.equal((await pg.query("select count(*)::int as n from study_review_events where payload->>'kind'='review'")).rows[0].n,1);
+ assert.equal((await repo.readDeck('deck')).states[0].head,event.id);
+ // A second device migrating an old pages.study_items copy cannot overwrite edited content/settings.
+ const edited={...q.card,back:'新答案',content_revision:2,updated_at:now+100,migration_only:false};
+ assert.equal((await rpc({kind:'card',value:edited})).error,null);
+ assert.equal((await rpc({kind:'card',initial:true,value:{...q.card,updated_at:now+99999}})).error,null);
+ assert.equal((await pg.query('select payload from study_cards where id=$1',[q.card.id])).rows[0].payload.back,'新答案');
+ // A simultaneous offline branch is stored, but never silently replaces the first result.
+ const branch=createStudyEvent(q.card,q.state,'review',now+1,'other-device','other-event',1);
+ assert.equal((await rpc({kind:'event',value:branch})).error,null);
+ await syncStudy(repo,client,owner);
+ let snapshot=await repo.readDeck('deck');assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);assert.equal(snapshot.states[0].conflict,true);
+ await repo.updateCard(q.card.id,{},true);await syncStudy(repo,client,owner);
+ snapshot=await repo.readDeck('deck');assert.equal(snapshot.states[0].conflict,false);assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);
+ // The function cannot write another owner and clients cannot directly delete history.
+ await pg.exec('set role authenticated');
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",['22222222-2222-4222-8222-222222222222']);
+ assert.equal((await pg.query('select * from study_review_events')).rows.length,0);
+ assert.ok((await rpc({kind:'event',value:branch})).error);
+ await assert.rejects(()=>pg.exec('delete from study_review_events'),/permission denied/);
+ await pg.exec('reset role');
+ }finally{if(db){db.close();await deleteDB(dbName);}await pg.close();}
+});
+
+````
+
+## File: tests/workspace-interactions.md
+````
+# 新增、刷新與文字操作驗證
+
+## 刷新設計依據
+
+- Ionic Refresher：依捲動容器判斷手勢，區分拉動／刷新狀態，使用拉動倍率與門檻。
+  https://ionicframework.com/docs/api/refresher
+- Chrome：用 overscroll-behavior 控制捲動串連及瀏覽器原生下拉刷新，避免與自訂刷新同時觸發。
+  https://developer.chrome.com/blog/overscroll-behavior
+- 本專案採較保守的文件工作區策略：僅首頁及功能總覽清單接受刷新，需從已到頂清單的頂部 80px 開始；略過按鈕、編輯區、文字選取、側欄與內層捲動。24px 緩衝、0.35 倍阻力、80px 指示距離及至少 500ms 拉動，放手才刷新。換方向、多指及取消事件取消手勢。刷新前等待待儲存及進行中的儲存，失敗保留待儲存內容並中止。
+
+## 已驗證
+
+- `node --test tests/pullToRefresh.test.cjs tests/novelChapters.test.cjs tests/characterWorkspace.test.cjs`：10 項通過。
+- 隔離 UI fixture（完成後移除，未連接帳號資料）：筆記的新建顯示流動／分頁，分頁選項送出 note_paged；創作顯示世界觀／角色卡，角色卡可選模板；小說顯示小說作品。
+- 編輯器右鍵：全選、複製、剪下、貼上；實際確認 Clipboard API 複製出文字，剪下清空選取，貼回還原文字。
+- 390 × 844 模板選單左右邊界為 19.5 / 370.5，未超出畫面；測試頁無瀏覽器錯誤。
+- 原生文字輸入框保留系統選單，表格選單與編輯選單加入同一組文字操作。
+
+## 驗證限制
+
+- 尚未以真實 iOS／Android 觸控裝置驗證手勢手感與剪貼簿權限提示。
+- 未執行遠端同步、部署或正式帳號資料的新增測試。
+- 剪貼簿圖片仍使用系統貼上；自訂貼上支援純文字及 HTML，小說只接收文字。
+
+## 筆記後續建議（尚未實作）
+
+目前已有表格、公式、多欄、提示框及分頁基礎。課本／講義方向建議先做：
+
+1. 樣式集：章標題、小節、正文、圖說、重點、例題，一次套用整份筆記。
+2. 教學區塊：定義、例題、練習、可收合解答、作答留白，支援教師版／學生版輸出。
+3. 紙張排版：欄寬、圖片與圖說、頁首頁尾、頁碼、標題與下段同頁、避免表格列斷頁。
+4. 長文導航：自動目錄、圖表及題號、交互參照，以及與畫面一致的 PDF／列印預覽。
 
 ````
 

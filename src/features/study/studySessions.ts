@@ -4,6 +4,7 @@ export type SessionMode = "daily" | "free";
 export interface SessionTarget {
   card_id: string;
   generation: number;
+  // Persisted completion timestamp: daily requires Easy; free review accepts Good or Easy.
   easy_at: number | null;
   official_event_id: string | null;
   // Optional only for sessions saved before this field existed.

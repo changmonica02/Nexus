@@ -301,9 +301,10 @@ export class StudyRepository {
         event.session_id=session.id; event.source="daily_learning";
         target.official_event_id=event.id;
       }
-      if(rating===Rating.Easy) target.easy_at=now;
+      const completed=rating===Rating.Easy || (session.mode==="free" && rating===Rating.Good);
+      if(completed) target.easy_at=now;
       session.queue=session.queue.slice(1);
-      if(rating!==Rating.Easy) session.queue.push(cardId);
+      if(!completed) session.queue.push(cardId);
       session.answers++; session.revision++; session.last_action_id=actionId;
       session.updated_at=Math.max(now,session.updated_at+1);
       if(!session.queue.length) session.completed_at=now;
