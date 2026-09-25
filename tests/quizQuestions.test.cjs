@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
-const api=require('../src/lib/studyFSRS.ts');
-const quiz=require('../src/lib/quizQuestions.ts');
+const api=require('../src/features/study/studyFSRS.ts');
+const quiz=require('../src/features/study/quiz/quizQuestions.ts');
 const now=1_800_000_000_000;
 function snapshot(){
  const s=api.migrateStudyDeck({id:'deck',study_items:[

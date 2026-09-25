@@ -1,6 +1,6 @@
 import type { IDBPDatabase, IDBPTransaction } from "idb";
-import { QuizRepository, QUIZ_STORES } from "./quizPersistence";
-import type { Page } from "./types";
+import { QuizRepository, QUIZ_STORES } from "./quiz/quizPersistence";
+import type { Page } from "../../lib/types";
 import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
 import { localStudyDay, Rating } from "./studyFSRS";
 import { createStudyEvent, emptyStudyState, migrateStudyDeck, nextDailyCard, sameStudyRecord,

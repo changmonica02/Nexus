@@ -1,4 +1,4 @@
-import type { StudyBackup } from "./studyFSRS";
+import type { StudyBackup } from "../features/study/studyFSRS";
 export type ID = string;
 
 export type BlockType =

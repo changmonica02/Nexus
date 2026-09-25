@@ -1,5 +1,5 @@
-import { schedulerCard, studyScheduler, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
-import { isLearned } from "./studySessions";
+import { schedulerCard, studyScheduler, type StudyCard, type StudySnapshot, type StudyState } from "../studyFSRS";
+import { isLearned } from "../studySessions";
 import { QUIZ_SCORE, type QuizRepository, type QuizState } from "./quizPersistence";
 
 export type QuizDirection = "zh-en" | "en-zh";

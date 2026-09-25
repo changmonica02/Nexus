@@ -5,7 +5,7 @@ import { isCreativeCharacterPage, isNovelPage, type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
 import AccountSettingsRow from "./AccountSettingsRow";
-import type { SyncState } from "../lib/syncEngine";
+import type { SyncState } from "../infrastructure/sync/syncEngine";
 
 function getPageIcon(page: Page): string {
   if (page.kind === "study_set") return "🗂️";

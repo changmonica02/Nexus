@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
-const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
-const {freezingInterval,displayStudyCards,isLearned,hasLearningData,selectSessionCards}=require('../src/lib/studySessions.ts');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {freezingInterval,displayStudyCards,isLearned,hasLearningData,selectSessionCards}=require('../src/features/study/studySessions.ts');
 const test=require('node:test'),assert=require('node:assert/strict');
 const day=new Date(2026,8,24,23,55).getTime();
 async function fixture(count=3){
@@ -17,7 +17,7 @@ async function learnAll(repo,now=day) {
 }
 const reviews=snapshot=>snapshot.events.filter(e=>e.kind==='review');
 const expectedFSRS=(state,rating,now)=>{
- const api=require('../src/lib/studyFSRS.ts');
+ const api=require('../src/features/study/studyFSRS.ts');
  return api.serializeFSRS(api.previewStudy(state,now)[rating].card);
 };
 
@@ -153,7 +153,7 @@ test('free first rating atomically rolls back session, FSRS event/state and outb
 });
 
 test('review selection uses caller time: New, random Due, then nearest not-due; excludes unlearned',()=>{
- const api=require('../src/lib/studyFSRS.ts');
+ const api=require('../src/features/study/studyFSRS.ts');
  const snapshot=api.migrateStudyDeck({id:'deck',study_items:Array.from({length:9},(_,i)=>({id:String(i),front:String(i),back:'字'}))},day);
  snapshot.states.forEach((s,i)=>{
    if(i<8)s.learned_at=day-1000;
@@ -260,7 +260,7 @@ test('free fills not-due cards by nearest due, respects limit and freezes its ta
 });
 
 test('v3 backup restores unfinished sessions and official IDs; old backups do not erase them',async()=>{
- const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts');await deleteDB('nexus');let adapter=new IndexedDBAdapter();await adapter.init();
+ const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts');await deleteDB('nexus');let adapter=new IndexedDBAdapter();await adapter.init();
  try{
  const page=await adapter.createPage({kind:'study_set'});let repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.addCards(page.id,[{front:'word',back:'字'}]);
  const daily=await repo.startSession(page.id,'daily',day);await rate(repo,daily.id,4);

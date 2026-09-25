@@ -1,12 +1,12 @@
-import { sameStudyRecord } from "./studyFSRS";
-import { QUIZ_STORES } from "./quizPersistence";
-import { StudyRepository, STUDY_STORES } from "./StudyRepository";
+import { sameStudyRecord } from "../../features/study/studyFSRS";
+import { QUIZ_STORES } from "../../features/study/quiz/quizPersistence";
+import { StudyRepository, STUDY_STORES } from "../../features/study/StudyRepository";
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";
 import type {
   ID, Page, PageQuery, CreatePageInput, Attachment,
   WorkspaceBackup, WorkspaceBackupAttachmentEntry,
-} from "./types";
+} from "../../lib/types";
 import type { StorageAdapter } from "./StorageAdapter";
 
 const DB_NAME = "nexus";

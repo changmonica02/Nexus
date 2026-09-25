@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { QuizRepository } from "../lib/quizPersistence";
+import type { QuizRepository } from "./quizPersistence";
 
 export default function QuizOfflinePrompt({repository}:{repository:QuizRepository}) {
   const [ids,setIds]=useState<string[]|null>(null),[count,setCount]=useState(0);

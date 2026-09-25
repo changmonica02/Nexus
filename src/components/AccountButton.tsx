@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
+import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
 
 export default function AccountButton({ accountEmail, required = false }: { accountEmail?: string | null; required?: boolean }) {
   const [isOpen, setIsOpen] = useState(required);

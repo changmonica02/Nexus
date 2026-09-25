@@ -1,8 +1,8 @@
 require('./loadStudy.cjs');
 require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
-const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
-const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts');
 const test=require('node:test');const assert=require('node:assert/strict');
 const now=new Date(2026,8,22,12).getTime();
 async function fixture() {
@@ -91,7 +91,7 @@ test('legacy migration idempotent; text changes preserve schedule unless explici
 test('remote event union preserves divergent histories and blocks scheduling conflict',async()=>{
  const f=await fixture();try{
  const q=await f.repo.presentNext('deck',now);
- const {createStudyEvent}=require('../src/lib/studyFSRS.ts');
+ const {createStudyEvent}=require('../src/features/study/studyFSRS.ts');
  await f.repo.review(q.card.id,q.state.head,1,3,'local',now);
  const remote=createStudyEvent(q.card,q.state,'review',now,'remote','remote',1);
  await f.repo.mergeRemote({cards:[],settings:[],events:[remote],states:[remote.after]});

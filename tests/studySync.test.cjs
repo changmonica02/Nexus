@@ -2,9 +2,9 @@ require('./loadStudy.cjs');require('fake-indexeddb/auto');
 const {PGlite}=require('@electric-sql/pglite');
 const {openDB,deleteDB}=require('idb');
 const fs=require('node:fs');const test=require('node:test');const assert=require('node:assert/strict');
-const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
-const {syncStudy}=require('../src/lib/studySync.ts');
-const {createStudyEvent}=require('../src/lib/studyFSRS.ts');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {syncStudy}=require('../src/features/study/studySync.ts');
+const {createStudyEvent}=require('../src/features/study/studyFSRS.ts');
 const owner='11111111-1111-4111-8111-111111111111';
 test('real PostgreSQL migration: retry after lost response, event deduplication, conflict retention, owner isolation',async()=>{
  const pg=new PGlite();const dbName=crypto.randomUUID();let db;

@@ -1,5 +1,5 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
-import type { Page, StudyItem } from "./types";
+import type { Page, StudyItem } from "../../lib/types";
 import type { StudySession } from "./studySessions";
 
 export const STUDY_ENGINE = "ts-fsrs@5.4.2/FSRS-6";

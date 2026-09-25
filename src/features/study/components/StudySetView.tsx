@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import QuizSession from "./QuizSession";
-import type { StudyRepository } from "../lib/StudyRepository";
-import { State, type StudyCard, type StudySnapshot } from "../lib/studyFSRS";
-import { displayStudyCards, hasLearningData, isLearned } from "../lib/studySessions";
+import QuizSession from "../quiz/QuizSession";
+import type { StudyRepository } from "../StudyRepository";
+import { State, type StudyCard, type StudySnapshot } from "../studyFSRS";
+import { displayStudyCards, hasLearningData, isLearned } from "../studySessions";
 import DailyStudySession from "./DailyStudySession";
-import type { Page } from "../lib/types";
-import { useLanguage } from "../lib/LanguageContext";
+import type { Page } from "../../../lib/types";
+import { useLanguage } from "../../../lib/LanguageContext";
 
 /** Parse CSV or TSV text into front/back pairs */
 function parseCsvTsv(text: string): { front: string; back: string }[] {

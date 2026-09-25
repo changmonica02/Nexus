@@ -1,5 +1,5 @@
-import type { StudyRepository } from "./StudyRepository";
-import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "./types";
+import type { StudyRepository } from "../../features/study/StudyRepository";
+import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "../../lib/types";
 
 // H3 fix (方案 A): QuickNote/TodoItem 獨立 store 介面已廢棄；
 // quick_note/todo 統一為 pages store 的 kind（Page.kind），不再需要獨立 store 型別。

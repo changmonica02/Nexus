@@ -2,10 +2,10 @@ require('./loadStudy.cjs');require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
 const {PGlite}=require('@electric-sql/pglite');
 const fs=require('node:fs'),test=require('node:test'),assert=require('node:assert/strict');
-const {StudyRepository,STUDY_STORES}=require('../src/lib/StudyRepository.ts');
-const {QUIZ_STORES,QUIZ_SCORE}=require('../src/lib/quizPersistence.ts');
-const {syncQuiz}=require('../src/lib/quizSync.ts');
-const {syncStudy}=require('../src/lib/studySync.ts');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {QUIZ_STORES,QUIZ_SCORE}=require('../src/features/study/quiz/quizPersistence.ts');
+const {syncQuiz}=require('../src/features/study/quiz/quizSync.ts');
+const {syncStudy}=require('../src/features/study/studySync.ts');
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
 async function fixture(){
  const name=crypto.randomUUID(),db=await openDB(name,1,{upgrade(db){
@@ -59,7 +59,7 @@ test('online authorized; offline decisions persist and authorize only the displa
  assert.deepEqual(new Set((await f.quiz.awaiting()).map(a=>a.id)),new Set([b.id,later.id]));
  await f.quiz.decide([b.id],'discard');assert.equal((await f.quiz.attempts()).find(a=>a.id===b.id).status,'discarded');
  await f.quiz.decide([online.id],'discard');assert.equal((await f.quiz.attempts()).find(a=>a.id===online.id).status,'authorized');
- const {QuizRepository}=require('../src/lib/quizPersistence.ts');
+ const {QuizRepository}=require('../src/features/study/quiz/quizPersistence.ts');
  const reopened=new QuizRepository(f.db,()=>owner);
  assert.equal((await reopened.pending()).length,2);assert.equal((await reopened.awaiting()).length,1);
  }finally{await f.close();}
@@ -83,7 +83,7 @@ test('confirmation requires successful API health, excludes authorized, and disc
 
 test('deck quiz direction persists on reload and syncs to another device without touching FSRS',async()=>{
  const f=await fixture(),computer=await fixture(),s=await server(f);try{
- const {DEFAULT_QUIZ_DIRECTION}=require('../src/lib/quizQuestions.ts');
+ const {DEFAULT_QUIZ_DIRECTION}=require('../src/features/study/quiz/quizQuestions.ts');
  assert.equal((await f.repo.readDeck('deck')).settings.quiz_direction??DEFAULT_QUIZ_DIRECTION,'zh-en');
  const before=await f.repo.exportData();
  await f.repo.configure('deck',{quiz_direction:'en-zh'});
@@ -198,7 +198,7 @@ test('owner isolation, RLS, deleted cards and permanent failures',async()=>{
  assert.equal((await f.quiz.attempts()).find(x=>x.id===b.id).status,'failed');
  assert.equal((await f.quiz.attempts()).find(x=>x.id===b.id).error,'QUIZ_CARD_UNAVAILABLE');
  assert.equal((await s.pg.query('select count(*)::int n from study_cards')).rows[0].n,1);
- const {QuizRepository}=require('../src/lib/quizPersistence.ts');
+ const {QuizRepository}=require('../src/features/study/quiz/quizPersistence.ts');
  const wrongOwner=new QuizRepository(f.db,()=>other);
  await assert.rejects(()=>wrongOwner.decide([a.id],'upload'),/owner mismatch/);
  assert.deepEqual(await wrongOwner.attempts(),[]);
@@ -227,7 +227,7 @@ test('IndexedDB v5 upgrades to v6 retaining existing records',async()=>{
   for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');}
  }});
  await old.put('study_settings',{id:'preserved'});old.close();
- const {IndexedDBAdapter}=require('../src/lib/IndexedDBAdapter.ts'),adapter=new IndexedDBAdapter();
+ const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts'),adapter=new IndexedDBAdapter();
  try{
  await adapter.init();const db=await openDB('nexus');
  assert.equal(db.version,6);assert.ok(QUIZ_STORES.every(s=>db.objectStoreNames.contains(s)));

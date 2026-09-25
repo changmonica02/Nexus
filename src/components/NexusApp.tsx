@@ -9,7 +9,7 @@ import {
   type ChangeEvent,
   type TouchEvent,
 } from "react";
-import { IndexedDBAdapter } from "../lib/IndexedDBAdapter";
+import { IndexedDBAdapter } from "../infrastructure/storage/IndexedDBAdapter";
 import { nanoid } from "nanoid";
 import type {
   Page,
@@ -25,15 +25,15 @@ import type {
 import { instantiateCharacterTemplate, snapshotCharacterTemplate } from "../lib/characterWorkspace";
 import { emptyNovelDocument, getNovelChapters, getWorkspaceEntryPage, splitLegacyNovel } from "../lib/novelChapters";
 import { isNovelPage } from "../lib/types";
-import type { StorageAdapter } from "../lib/StorageAdapter";
+import type { StorageAdapter } from "../infrastructure/storage/StorageAdapter";
 import { createResearchNoteContent, titleFromPdfFileName } from "../lib/pdfNote";
 import { titleFromMarkdownFileName, createMarkdownContent, pageToMarkdown } from "../lib/markdown";
 import { extractWikilinks } from "../lib/wikilinks";
 import { downloadTextFile, safeFileName, downloadJsonFile, formatBackupFileName } from "../lib/fileDownload";
 import { DEFAULT_LANGUAGE, detectDefaultLanguage, type Language } from "../lib/i18n";
 import { LanguageProvider, useLanguage } from "../lib/LanguageContext";
-import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
-import { SyncEngine, type SyncState } from "../lib/syncEngine";
+import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
+import { SyncEngine, type SyncState } from "../infrastructure/sync/syncEngine";
 import { measureRefreshPull } from "../lib/pullToRefresh";
 import type { CreateItemType } from "../lib/creationOptions";
 import CreationChoiceDialog from "./CreationChoiceDialog";
@@ -41,8 +41,8 @@ import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
-import StudySetView from "./StudySetView";
-import QuizOfflinePrompt from "./QuizOfflinePrompt";
+import StudySetView from "../features/study/components/StudySetView";
+import QuizOfflinePrompt from "../features/study/quiz/QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";

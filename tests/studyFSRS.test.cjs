@@ -1,13 +1,13 @@
 require('./loadStudy.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const api = require('../src/lib/studyFSRS.ts');
+const api = require('../src/features/study/studyFSRS.ts');
 const now = new Date(2026,8,22,12).getTime();
 const item = {id:'one',front:'word',back:'中文',mastery:'mastered',review_count:99,last_reviewed_at:now-1000,daily_due_at:now+60000};
 const migrated = () => api.migrateStudyDeck({id:'deck',study_items:[item]},now);
 
 test('legacy exposure is distinct from daily-learning graduation; neither creates FSRS state',()=>{
- const {isLearned}=require('../src/lib/studySessions.ts');
+ const {isLearned}=require('../src/features/study/studySessions.ts');
  const snapshot=migrated(), card=snapshot.cards[0], state=snapshot.states[0];
  const exposure=api.createStudyEvent(card,state,'introduce',now,'device','exposure');
  assert.equal(exposure.after.introduced_at,now);assert.equal(isLearned(exposure.after),false);

@@ -1,6 +1,6 @@
 require('./loadStudy.cjs');
 const test=require('node:test');const assert=require('node:assert/strict');
-const {advanceFreeQueue,shuffleCards}=require('../src/lib/studyPractice.ts');
+const {advanceFreeQueue,shuffleCards}=require('../src/features/study/studyPractice.ts');
 test('free practice exhausts cards before repeats and never mutates original data',()=>{
  const cards=[{id:'1'},{id:'2'},{id:'3'}];const original=structuredClone(cards);
  let queue=advanceFreeQueue(cards,false);assert.deepEqual(queue.map(c=>c.id),['2','3','1']);

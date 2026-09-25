@@ -1,9 +1,9 @@
 "use client";
 import { useRef, useState } from "react";
-import type { StudyRepository } from "../lib/StudyRepository";
-import type { StudySnapshot } from "../lib/studyFSRS";
+import type { StudyRepository } from "../StudyRepository";
+import type { StudySnapshot } from "../studyFSRS";
 import { canStartQuiz, createQuizSubmission, DEFAULT_QUIZ_DIRECTION, nextQuizQuestion, quizEligible,
-  QUIZ_REQUIRED_ANSWERS, saveQuizAnswer, type QuizDirection, type QuizQuestion } from "../lib/quizQuestions";
+  QUIZ_REQUIRED_ANSWERS, saveQuizAnswer, type QuizDirection, type QuizQuestion } from "./quizQuestions";
 
 export default function QuizSession({repository,snapshot,onExit}:{repository:StudyRepository;snapshot:StudySnapshot;onExit:()=>void}) {
   const direction=snapshot.settings.quiz_direction??DEFAULT_QUIZ_DIRECTION;

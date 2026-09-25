@@ -1,12 +1,12 @@
-import { syncStudy } from "./studySync";
+import { syncStudy } from "../../features/study/studySync";
 /**
  * Nexus Sync Engine ??Shared Workspace
  * Per-account workspace sync via Supabase.
  */
 
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
-import type { Page, Attachment } from "./types";
-import type { StorageAdapter } from "./StorageAdapter";
+import type { Page, Attachment } from "../../lib/types";
+import type { StorageAdapter } from "../storage/StorageAdapter";
 
 export type SyncStatus = "idle" | "syncing" | "error" | "offline" | "connected";
 

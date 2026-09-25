@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import type { SyncState } from "../lib/syncEngine";
+import type { SyncState } from "../infrastructure/sync/syncEngine";
 import PreferencesMenu from "./PreferencesMenu";
-import { getSupabase, isSupabaseConfigured } from "../lib/supabase";
+import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
 
 
 export default function AccountSettingsRow({

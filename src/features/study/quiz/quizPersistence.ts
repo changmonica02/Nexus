@@ -1,5 +1,5 @@
 import type { IDBPDatabase, IDBPTransaction } from "idb";
-import { isLearned } from "./studySessions";
+import { isLearned } from "../studySessions";
 
 // Mirrored by apply_study_quiz_operation; the integration test checks both boundaries.
 export const QUIZ_SCORE = { min: 0, max: 4, wrong: 1, correct: 1 } as const;

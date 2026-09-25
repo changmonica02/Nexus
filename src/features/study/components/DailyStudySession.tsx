@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { StudyRepository } from "../lib/StudyRepository";
-import { intervalLabel, previewStudy, type Grade, type StudySnapshot } from "../lib/studyFSRS";
-import { freezingInterval, type SessionMode, type StudySession } from "../lib/studySessions";
+import type { StudyRepository } from "../StudyRepository";
+import { intervalLabel, previewStudy, type Grade, type StudySnapshot } from "../studyFSRS";
+import { freezingInterval, type SessionMode, type StudySession } from "../studySessions";
 
 /** Both modes share session mastery; only their official-review policy differs. */
 export default function DailyStudySession({repository,deckId,mode="daily",onExit}:{repository:StudyRepository;deckId:string;mode?:SessionMode;onExit:()=>void}) {
