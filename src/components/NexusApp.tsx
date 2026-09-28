@@ -58,8 +58,9 @@ import FeatureOverview from "./FeatureOverview";
 import DevicePreview from "./DevicePreview";
 import { createFantasyTemplate, createModernTemplate, createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } from "../lib/characterTemplates";
 import AccountButton from "./AccountButton";
+import {useSidebarPreference} from "./useSidebarPreference";
 
-export default function NexusApp() {
+export default function NexusApp({initialFeature="home"}:{initialFeature?:"home"|"study"}={}) {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const storageRef = useRef<StorageAdapter | null>(null);
@@ -81,6 +82,7 @@ export default function NexusApp() {
   return (
     <LanguageProvider initialLanguage={language} onLanguageChange={handleLanguageChange}>
       <NexusAppInner
+        initialFeature={initialFeature}
         storageRef={storageRef}
         onLanguageLoaded={setLanguage}
         theme={theme}
@@ -91,11 +93,13 @@ export default function NexusApp() {
 }
 
 function NexusAppInner({
+  initialFeature,
   storageRef,
   onLanguageLoaded,
   theme,
   onThemeChange,
 }: {
+  initialFeature: "home"|"study";
   storageRef: MutableRefObject<StorageAdapter | null>;
   onLanguageLoaded: (lang: Language) => void;
   theme: "light" | "dark";
@@ -109,14 +113,14 @@ function NexusAppInner({
   const [pages, setPages] = useState<Page[]>([]);
   const [trashPages, setTrashPages] = useState<Page[]>([]);
   const [isTrashMode, setIsTrashMode] = useState(false);
-  const [isHomeMode, setIsHomeMode] = useState(true);
+  const [isHomeMode, setIsHomeMode] = useState(initialFeature==="home");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isDevicePreviewOpen, setIsDevicePreviewOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1440);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useSidebarPreference("nexus.sidebar.collapsed",false);
   // Feature interfaces use a Google-style overlay drawer: it never consumes
   // editor canvas width, and is closed by default.
-  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [isNavigationOpen, setIsNavigationOpen] = useSidebarPreference("nexus.navigation.open",false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -135,7 +139,7 @@ function NexusAppInner({
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isCreativeMode, setIsCreativeMode] = useState(false);
-  const [isStudySetMode, setIsStudySetMode] = useState(false);
+  const [isStudySetMode, setIsStudySetMode] = useState(initialFeature==="study");
   const [isNovelMode, setIsNovelMode] = useState(false);
   const [isDocumentMode, setIsDocumentMode] = useState(false);
   const [isNoteMode, setIsNoteMode] = useState(false);
@@ -162,8 +166,7 @@ function NexusAppInner({
   const sidebarCreateInFlightRef = useRef(false);
   const [syncState, setSyncState] = useState<SyncState>({ status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 });
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const [isNovelMoreOpen, setIsNovelMoreOpen] = useState(false);
-  const [novelContinueEditSignal, setNovelContinueEditSignal] = useState(0);
+
   const [globalPullDistance, setGlobalPullDistance] = useState(0);
   const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
   const globalPullStartRef = useRef<{ x: number; y: number; time: number; container: HTMLElement } | null>(null);
@@ -1718,18 +1721,6 @@ function NexusAppInner({
         </header>
       )}
 
-      {!isFeatureInterface && (
-        <div className="absolute right-3 top-2 z-40 flex items-center gap-2">
-          {isActiveNovel && <div className="relative">
-            <button type="button" onClick={() => setIsNovelMoreOpen((open) => !open)} className="grid h-9 w-9 place-items-center rounded-full border text-lg leading-none shadow-sm hover:opacity-80" style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-panel-bg)" }} aria-label="小說更多操作" aria-expanded={isNovelMoreOpen} title="更多操作">⋮</button>
-            {isNovelMoreOpen && <div className="absolute right-0 top-11 z-50 min-w-36 overflow-hidden rounded-lg border py-1 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-              <button type="button" onClick={() => { setIsNovelMoreOpen(false); setNovelContinueEditSignal((signal) => signal + 1); }} className="block w-full px-3 py-2 text-left text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">繼續編輯</button>
-              <button type="button" onClick={() => { setIsNovelMoreOpen(false); if (activePage && window.confirm(`確定將小說「${activePage.title || "未命名小說"}」移至垃圾桶？`)) { void handleDeletePage(activePage.id); handleShowNovels(); } }} className="block w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/25">刪除小說</button>
-            </div>}
-          </div>}
-        </div>
-      )}
-
       {isNavigationOpen && (
         <>
           <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/20" onClick={() => setIsNavigationOpen(false)} aria-label="關閉導覽" />
@@ -1974,7 +1965,7 @@ function NexusAppInner({
         <FeatureOverview
           title="字卡"
           description="建立、整理並練習你的學習卡片。"
-          relatedLink={{ href: "/etymology", label: "開啟字源百科" }}
+          relatedLink={{ href: "/dictionary", label: "字典／百科" }}
           icon="🗂️"
           actionLabel="建立字卡集"
           pages={pages.filter((p) => p.kind === "study_set" && !p.deleted_at)}
@@ -2079,7 +2070,7 @@ function NexusAppInner({
                   onRemoveCover={() => void removeNovelCover(activePage.id)}
                   onBackToNovelList={handleShowNovels}
                   onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
-                  continueEditSignal={novelContinueEditSignal}
+
                 />
               )
             ) : (
@@ -2158,7 +2149,7 @@ function NexusAppInner({
                   onRemoveCover={() => void removeNovelCover(secondaryActivePage.id)}
                   onBackToNovelList={handleShowNovels}
                   onDeleteNovel={() => { void handleDeletePage(secondaryActivePage.id); handleShowNovels(); }}
-                  continueEditSignal={novelContinueEditSignal}
+
                 />
               )
             ) : (
@@ -2230,7 +2221,7 @@ function NexusAppInner({
             onRemoveCover={() => void removeNovelCover(activePage.id)}
             onBackToNovelList={handleShowNovels}
             onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
-            continueEditSignal={novelContinueEditSignal}
+
           />
         )
       ) : (

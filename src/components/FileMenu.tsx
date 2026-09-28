@@ -1,4 +1,5 @@
 "use client";
+import { useMenuDismiss } from "./useMenuDismiss";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import type { PageFormat } from "../lib/types";
@@ -41,6 +42,7 @@ export default function FileMenu({
   const popupRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [mounted, setMounted] = useState(false);
+  useMenuDismiss(isOpen,[buttonRef,popupRef],()=>setIsOpen(false));
 
   useEffect(() => setMounted(true), []);
 
@@ -61,18 +63,12 @@ export default function FileMenu({
   useEffect(() => {
     if (!isOpen) return;
     updatePos();
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (buttonRef.current && buttonRef.current.contains(target)) return;
-      if (popupRef.current && popupRef.current.contains(target)) return;
-      setIsOpen(false);
-    };
     const onResize = () => updatePos();
-    document.addEventListener("mousedown", handler);
+
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onResize, true);
     return () => {
-      document.removeEventListener("mousedown", handler);
+
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };

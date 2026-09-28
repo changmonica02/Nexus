@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useMenuDismiss } from "./useMenuDismiss";
+import { useRef, useState } from "react";
 
 export interface PageMenuItem {
   id: string;
@@ -19,17 +20,7 @@ export default function PageItemMenu({ items, title }: { items: PageMenuItem[]; 
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedButton = buttonRef.current?.contains(target);
-      const clickedMenu = menuRef.current?.contains(target);
-      if (!clickedButton && !clickedMenu) setIsOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  useMenuDismiss(isOpen,[buttonRef,menuRef],()=>setIsOpen(false));
 
   const openMenu = (event: React.MouseEvent) => {
     event.stopPropagation();

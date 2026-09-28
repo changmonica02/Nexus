@@ -3,6 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StudyRepository } from "../StudyRepository";
 import { intervalLabel, previewStudy, type Grade, type StudySnapshot } from "../studyFSRS";
 import { freezingInterval, type SessionMode, type StudySession } from "../studySessions";
+import CardDictionaryPanel from "../../dictionary/CardDictionaryPanel";
+
+export function AnswerSaveNotice({saving,error,onRetry,onReload}:{saving:boolean;error:string;onRetry?:()=>void;onReload:()=>void}) {
+  if(saving)return <p role="status" className="text-sm">正在儲存作答…</p>;
+  if(!error)return null;
+  return <div role="alert" className="w-full rounded border border-red-400 p-3 text-sm text-red-600">{error}{onRetry&&<button type="button" className="ml-2 underline" onClick={onRetry}>重試儲存同一作答</button>}<button type="button" className="ml-2 underline" onClick={onReload}>重新載入練習</button></div>;
+}
 
 /** Both modes share session mastery; only their official-review policy differs. */
 export default function DailyStudySession({repository,deckId,mode="daily",onExit}:{repository:StudyRepository;deckId:string;mode?:SessionMode;onExit:()=>void}) {
@@ -12,6 +19,8 @@ export default function DailyStudySession({repository,deckId,mode="daily",onExit
   const sessionId=useRef<string|null>(null),active=useRef(true),busy=useRef(false);
   const actionId=useRef(crypto.randomUUID());
   const opening=useRef<Promise<StudySession>|null>(null);
+  const pendingAttempt=useRef<Parameters<StudyRepository["rateSession"]>[0]|null>(null);
+  const [hasAttempt,setHasAttempt]=useState(false);
   const load=useCallback(async()=>{
     if(!sessionId.current)return;
     const next=await repository.readSession(sessionId.current);
@@ -34,10 +43,13 @@ export default function DailyStudySession({repository,deckId,mode="daily",onExit
   const interval=state?freezingInterval(state):null;
   const mark=async(rating:Grade)=>{
     if(!session || !card || !state || !revealed || busy.current)return;
-    busy.current=true;setSaving(true);setError("");
+    busy.current=true;setSaving(true);setHasAttempt(true);setError("");
     try{
-      await repository.rateSession({sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating,actionId:actionId.current,now:Date.now()});
+      pendingAttempt.current??={sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating,actionId:actionId.current,now:Date.now()};
+      await repository.rateSession(pendingAttempt.current);
       await load();
+      pendingAttempt.current=null;
+      if(active.current)setHasAttempt(false);
     }catch(e){if(active.current)setError(e instanceof Error?e.message:String(e));}
     finally{busy.current=false;if(active.current)setSaving(false);}
   };
@@ -46,12 +58,10 @@ export default function DailyStudySession({repository,deckId,mode="daily",onExit
     try{const next=await repository.startSession(deckId,mode);sessionId.current=next.id;await load();}
     catch(e){setError(String(e));}finally{busy.current=false;setSaving(false);}
   };
-  return <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 py-6">
+  return <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 px-2 pt-6" style={{paddingBottom:"max(1.5rem, env(safe-area-inset-bottom))"}}>
     <h2 className="text-lg font-semibold">{mode==="daily"?"每日學習":"單字複習"}・英 → 中</h2>
     {session&&<p className="text-sm opacity-60">完成 {session.targets.filter(t=>t.easy_at!=null).length} / {session.targets.length} 字・已作答 {session.answers} 次{mode==="daily"?`・批次 ${session.day}`:""}</p>}
     <p className="text-xs leading-5 opacity-60">{mode==="daily"?"本輪每張卡都取得 Easy 才完成。新字首次學會後成為待複習的新卡；重練不改排程。":"每張卡本輪第一次評分更新 FSRS；Good／Easy 完成並退出本輪，Again／Hard 留在本輪。後續評分不改第一次決定的冷凍時間。"}</p>
-    {saving&&<p role="status" className="text-sm">正在儲存作答…</p>}
-    {error&&<div role="alert" className="rounded border border-red-400 p-3 text-sm text-red-600">{error}<button disabled={saving} className="ml-2 underline" onClick={()=>{setError("");void (sessionId.current?load():restart()).catch(e=>setError(String(e)));}}>重新載入練習</button></div>}
     {card&&state&&target?<>
       <div className="w-full rounded-2xl border p-8 text-center" style={{borderColor:"var(--color-border)",background:"var(--color-sidebar-bg)"}}>
         <p className="whitespace-pre-wrap break-words text-2xl font-medium" lang="en">{card.front}</p>
@@ -67,11 +77,15 @@ export default function DailyStudySession({repository,deckId,mode="daily",onExit
         </div>
         <p className="text-xs opacity-60">忘記＝沒想起來或答錯；困難＝成功但吃力；記得＝正常回想；簡單＝立即想起。</p>
         {mode==="free"&&!official&&<p className="text-sm">本輪練習，不變更排程。冷凍時間：{interval==null?"尚未排程":intervalLabel(interval,0)}</p>}
+        <CardDictionaryPanel key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front}/>
       </>}
     </>:<div className="space-y-3 py-8 text-center">
       <p>{!session?"正在恢復練習…":session.targets.length?(mode==="daily"?"本次練習完成，每張字卡都已取得 Easy。":"本次複習完成，每張字卡都已取得 Good 或 Easy。"):mode==="daily"?"今日批次沒有可學的新字。":"目前沒有已學字卡，請先完成每日學習中的 Easy。"}</p>
       {session&&<button disabled={saving} className="rounded border px-4 py-2" onClick={()=>void restart()}>再練一次</button>}
     </div>}
+    <AnswerSaveNotice saving={saving&&hasAttempt} error={error}
+      onRetry={hasAttempt?()=>{if(pendingAttempt.current)void mark(pendingAttempt.current.rating);}:undefined}
+      onReload={()=>{pendingAttempt.current=null;setHasAttempt(false);setError("");void (sessionId.current?load():restart()).catch(e=>setError(String(e)));}}/>
     <button disabled={saving} onClick={onExit} className="text-sm underline opacity-70">返回全部預覽</button>
   </div>;
 }

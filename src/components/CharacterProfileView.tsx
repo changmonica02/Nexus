@@ -1,4 +1,5 @@
 "use client";
+import { useMenuDismiss } from "./useMenuDismiss";
 import React, { useEffect, useState, useRef } from "react";
 import { nanoid } from "nanoid";
 import type {
@@ -81,15 +82,7 @@ export default function CharacterProfileView({
   const currentSections = activeTab ? activeTab.sections : (charData.sections || []);
   const layoutMode = charData.layout || "single";
 
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setIsMoreMenuOpen(false);
-      }
-    };
-    if (isMoreMenuOpen) document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [isMoreMenuOpen]);
+  useMenuDismiss(isMoreMenuOpen,[moreMenuRef],()=>setIsMoreMenuOpen(false));
 
   const updateData = (patch: Partial<CharacterProfileData>) => {
     const next = { ...charData, ...patch };

@@ -1,4 +1,5 @@
 "use client";
+import ToolbarDropdown from "./ToolbarDropdown";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import type { Page, NovelSettings, NovelChapter } from "../lib/types";
 import { emptyNovelDocument } from "../lib/novelChapters";
@@ -426,6 +427,10 @@ export default function NovelReaderView({
                 </nav>
               );
 
+  const moreMenu = <ToolbarDropdown label="更多操作" variant="menu" items={[
+    {id:"continue",icon:"",label:"繼續編輯",onClick:()=>setMode("edit")},
+    ...(onDeleteNovel?[{id:"delete",icon:"",label:"刪除小說",onClick:()=>{if(window.confirm(`確定將小說「${page.title || "未命名小說"}」移至垃圾桶？`))onDeleteNovel();}}]:[])
+  ]}/>;
   if (mode === "overview") {
     return (
       <div className="flex flex-1 flex-col overflow-y-auto" style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}>
@@ -434,6 +439,7 @@ export default function NovelReaderView({
             {onBackToNovelList && <button onClick={onBackToNovelList} className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold hover:opacity-75" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }}>← 小說</button>}
             <span className="truncate text-sm font-semibold">小說作品總覽</span>
           </div>
+          {moreMenu}
         </header>
 
         <div className="mx-auto w-full max-w-6xl px-5 py-7 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-8">
@@ -750,6 +756,7 @@ export default function NovelReaderView({
             )}
           </div>
         </div>
+        {moreMenu}
       </header>
 
       {dialog}
@@ -766,6 +773,7 @@ export default function NovelReaderView({
         <div className="min-w-0 flex-1 truncate px-1 text-xs font-semibold">{page.title || "未命名小說"}</div>
         <span className={`shrink-0 text-[10px] ${saveStatus === "saving" ? "text-amber-600" : "text-emerald-600"}`} title={saveStatus === "saving" ? "正在儲存" : "已自動儲存"}>{saveStatus === "saving" ? "儲存中" : "已儲存"}</span>
         <button onClick={() => setMode(mode === "edit" ? "read" : "edit")} className="rounded-md border px-2 py-1.5 text-xs font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={mode === "edit" ? "查看閱讀結果" : "回到編輯"}>{mode === "edit" ? "閱讀" : "編輯"}</button>
+        {moreMenu}
       </header>
 
       {chapterError && <p role="alert" className="p-3 text-red-600">{chapterError}</p>}

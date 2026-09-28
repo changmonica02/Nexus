@@ -49,7 +49,7 @@ test('editor contains complete multiline content and explicit save/cancel, witho
   assert.equal((html.match(/<textarea/g) || []).length, 2);
   assert.match(html, /<dialog/);
   assert.match(html, /type="submit"[^>]*>儲存/);
-  assert.match(html, />取消<\/button>/);
+  assert.match(html, />關閉<\/button>/);
   assert.equal(saves, 0);
 });
 
