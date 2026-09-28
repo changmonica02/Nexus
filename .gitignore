@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.local/etymology/
 
 # next.js
 /.next/

@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import QuizSession from "../quiz/QuizSession";
 import type { StudyRepository } from "../StudyRepository";
-import { State, type StudyCard, type StudySnapshot } from "../studyFSRS";
+import { type StudyCard, type StudySnapshot } from "../studyFSRS";
 import { displayStudyCards, hasLearningData, isLearned } from "../studySessions";
 import DailyStudySession from "./DailyStudySession";
+import StudyCardEditor from "./StudyCardEditor";
 import type { Page } from "../../../lib/types";
 import { useLanguage } from "../../../lib/LanguageContext";
 
@@ -44,128 +45,45 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-function CardText({value,label,onCommit}:{value:string;label:string;onCommit:(text:string)=>void}) {
-  const [draft,setDraft]=useState(value);
-  useEffect(()=>setDraft(value),[value]);
-  return <textarea aria-label={label} value={draft} onChange={event=>setDraft(event.target.value)} onBlur={()=>{if(draft!==value)onCommit(draft);}} rows={2} placeholder={label}
-    className="min-w-0 w-full resize-y rounded bg-transparent px-1 py-1 text-sm leading-5 outline-none focus:ring-1 focus:ring-blue-500" />;
-}
-
 /* ============ Card Management ============ */
 
-function CardManageList({ studyItems, onAddCard, onUpdateCard, onDeleteCard, onImportCsv, onReorder, onCopy, statuses, customSort }: {
-  studyItems: StudyCard[]; onAddCard: () => void; onUpdateCard: (id: string, patch: Partial<StudyCard>) => void;
-  onDeleteCard: (id: string) => void; onImportCsv: () => void; onReorder: (items: StudyCard[]) => void;
-  onCopy: (item: StudyCard) => void; statuses: Record<string,string>; customSort: boolean;
+export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard, onImportCsv }: {
+  studyItems: StudyCard[]; onAddCard: () => void; onEditCard: (card: StudyCard) => void;
+  onDeleteCard: (id: string) => void; onImportCsv: () => void;
 }) {
   const { t } = useLanguage();
-  const listRef = useRef<HTMLDivElement>(null);
-  const pointer = useRef<{ id: string; x: number; y: number; target: string } | null>(null);
-  const [drag, setDrag] = useState<{ id: string; target: string } | null>(null);
-  const [announcement, setAnnouncement] = useState("");
-
-  const moveCard = (id: string, target: string) => {
-    if (!customSort) return;
-    const from = studyItems.findIndex((item) => item.id === id);
-    const to = studyItems.findIndex((item) => item.id === target);
-    if (from < 0 || to < 0 || from === to) return;
-    const reordered = [...studyItems];
-    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
-    onReorder(reordered);
-    setAnnouncement(`已移至第 ${to + 1} 張`);
-  };
-
-  const isDragging = drag !== null;
-
-  // Only the handle captures touch gestures; the rest of the list scrolls normally.
-  useEffect(() => {
-    if (!isDragging) return;
-    let frame: number;
-    const tick = () => {
-      const current = pointer.current;
-      const container = listRef.current?.closest("main");
-      if (current && container) {
-        const bounds = container.getBoundingClientRect();
-        const speed = current.y < bounds.top + 56 ? -10 : current.y > bounds.bottom - 56 ? 10 : 0;
-        if (speed) container.scrollTop += speed;
-        const rows = Array.from(listRef.current!.querySelectorAll<HTMLElement>("[data-study-card]"));
-        const nearest = rows.reduce<HTMLElement | null>((best, row) => {
-          const rect = row.getBoundingClientRect();
-          const previous = best?.getBoundingClientRect();
-          return !previous || Math.abs(current.y - (rect.top + rect.height / 2)) < Math.abs(current.y - (previous.top + previous.height / 2)) ? row : best;
-        }, null);
-        const target = nearest?.dataset.studyCard;
-        if (target && target !== current.target) {
-          current.target = target;
-          setDrag({ id: current.id, target });
-        }
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [isDragging]);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm opacity-60">{t("studySet.cardCount", { count: studyItems.length })}</div>
-        <div className="flex gap-1.5">
-          <button onClick={onImportCsv} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.importCsv")}</button>
-          <button onClick={onAddCard} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--color-border)" }}>{t("studySet.addCard")}</button>
-        </div>
+  return <div className="min-w-0 space-y-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="text-sm opacity-60">{t("studySet.cardCount", { count: studyItems.length })} · A–Z</div>
+      <div className="flex gap-1.5">
+        <button onClick={onImportCsv} className="rounded-md border px-3 py-1.5 text-sm">{t("studySet.importCsv")}</button>
+        <button onClick={onAddCard} className="rounded-md border px-3 py-1.5 text-sm">{t("studySet.addCard")}</button>
       </div>
-
-      {customSort&&<p className="text-xs opacity-50">拖曳左側把手調整順序；也可以聚焦把手後按 ↑／↓ 移動。</p>}
-      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
-      {studyItems.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-12 text-center text-sm opacity-50">{t("studySet.emptyCards")}</div>
-      ) : (
-        <div ref={listRef} className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-          <div className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] gap-2 px-2 py-2 text-xs opacity-60" style={{ background: "var(--color-sidebar-bg)" }}>
-            <span>#</span><span>英文</span><span>中文</span><span />
-          </div>
-          {studyItems.map((item, index) => (
-            <div key={item.id} data-study-card={item.id}
-              className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-2 border-t px-2 py-1.5"
-              style={{ borderColor: "var(--color-border)", opacity: drag?.id === item.id ? 0.5 : 1,
-                boxShadow: drag?.target === item.id ? `inset 0 ${studyItems.findIndex((card) => card.id === drag.id) < index ? '-3' : '3'}px #3b82f6` : undefined }}>
-              {customSort?<button type="button" aria-label={`拖曳第 ${index + 1} 張字卡排序`} title="拖曳排序，或按上下方向鍵"
-                className="flex min-h-11 touch-none cursor-grab flex-col items-center justify-center rounded text-xs focus-visible:ring-2 focus-visible:ring-blue-500 active:cursor-grabbing"
-                onPointerDown={(event) => {
-                  if (event.button !== 0) return;
-                  event.preventDefault();
-                  event.currentTarget.focus();
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                  pointer.current = { id: item.id, target: item.id, x: event.clientX, y: event.clientY };
-                  setDrag({ id: item.id, target: item.id });
-                }}
-                onPointerMove={(event) => { if (pointer.current) { pointer.current.x = event.clientX; pointer.current.y = event.clientY; } }}
-                onPointerUp={() => { if (pointer.current) moveCard(pointer.current.id, pointer.current.target); pointer.current = null; setDrag(null); }}
-                onPointerCancel={() => { pointer.current = null; setDrag(null); }}
-                onLostPointerCapture={() => { pointer.current = null; setDrag(null); }}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") { pointer.current = null; setDrag(null); }
-                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-                  event.preventDefault();
-                  const target = studyItems[index + (event.key === "ArrowUp" ? -1 : 1)];
-                  if (target) moveCard(item.id, target.id);
-                }}>
-                <span aria-hidden="true" className="text-base leading-4 opacity-50">⠿</span><span>{index + 1}</span>
-              </button>:<span className="text-center text-xs opacity-50">{index+1}</span>}
-              <CardText key={`${item.id}-front-${item.front}`} value={item.front} label={`英文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{front:value})} />
-              <CardText key={`${item.id}-back-${item.back}`} value={item.back} label={`中文 ${index+1}`} onCommit={value=>onUpdateCard(item.id,{back:value})} />
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] opacity-60" title={statuses[item.id]}>{statuses[item.id]}</span>
-                <button onClick={()=>onCopy(item)} aria-label={`複製卡片 ${index+1}`} title="複製為新卡" className="text-xs">＋</button>
-                <button onClick={() => onDeleteCard(item.id)} aria-label={`${t("studySet.deleteCard")} ${index + 1}`} title={t("studySet.deleteCard")} className="h-8 w-8 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
-  );
+    {studyItems.length === 0 ? <div className="rounded-xl border border-dashed py-12 text-center text-sm opacity-50">{t("studySet.emptyCards")}</div> :
+      <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
+        <table aria-label="單字列表" className="w-full table-fixed text-left text-sm">
+          <colgroup><col style={{ width: "40%" }} /><col style={{ width: "60%" }} /></colgroup>
+          <thead style={{ background: "var(--color-sidebar-bg)" }}><tr><th scope="col" className="px-3 py-2 font-medium">英文</th><th scope="col" className="px-3 py-2 font-medium">中文</th></tr></thead>
+          <tbody>{displayStudyCards(studyItems, "az").map(item => <tr key={item.id} data-study-card={item.id} tabIndex={0}
+            aria-label={`編輯單字 ${item.front}`} onClick={() => onEditCard(item)}
+            onKeyDown={event => {
+              if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault(); onEditCard(item);
+              }
+            }}
+            className="cursor-pointer border-t hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-blue-500" style={{ borderColor: "var(--color-border)" }}>
+            <td className="px-3 py-1"><span className="block truncate" title={item.front}>{item.front}</span></td>
+            <td className="px-3 py-1"><div className="flex min-w-0 items-center gap-1">
+              <span className="min-w-0 flex-1 truncate" title={item.back}>{item.back}</span>
+              <button type="button" aria-label={`${t("studySet.deleteCard")} ${item.front}`} title={t("studySet.deleteCard")}
+                onClick={event => { event.stopPropagation(); onDeleteCard(item.id); }}
+                className="h-8 w-8 shrink-0 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>
+            </div></td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
+  </div>;
 }
 
 /* ============ Flashcard Practice ============ */
@@ -266,8 +184,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
   const [showCsvImport,setShowCsvImport]=useState(false);
   const [error,setError]=useState("");
   const [historyLimit,setHistoryLimit]=useState(50);
-  const [editorVersion,setEditorVersion]=useState(0);
-  const [editingEnglish,setEditingEnglish]=useState<{id:string;value:string}|null>(null);
+  const [editingCard,setEditingCard]=useState<(Pick<StudyCard,"front"|"back"> & {id?:string})|null>(null);
   const refresh=useRef(()=>{});
   useEffect(()=>{
     let active=true;
@@ -276,20 +193,15 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
     return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
   },[repository,page]);
   const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(e instanceof Error?e.message:String(e));}};
-  const sortMode=snapshot?.settings.sort_mode??"custom";
-  const cards=displayStudyCards(snapshot?.cards.filter(card=>!card.deleted_at)??[],sortMode);
-  const statuses=Object.fromEntries((snapshot?.states??[]).map(state=>[state.id,state.conflict?"衝突":state.fsrs?({[State.New]:"新卡",[State.Learning]:"學習",[State.Review]:"複習",[State.Relearning]:"重學"}[state.fsrs.state]):state.legacy_due_at!=null?"待接續":"新卡"]));
-  const updateCard=(id:string,patch:Partial<StudyCard>)=>{
-    if(patch.front!=null) {
-      const state=snapshot?.states.find(s=>s.id===id);
-      if(hasLearningData(state,snapshot?.sessions)) setEditingEnglish({id,value:patch.front});
-      else void act(()=>repository.updateCard(id,{front:patch.front}));
-    }
-    else void act(()=>repository.updateCard(id,{back:patch.back}));
+  const cards=snapshot?.cards.filter(card=>!card.deleted_at)??[];
+  const saveCard=async(values:{front:string;back:string},reset:boolean)=>{
+    if(!editingCard)return;
+    if(editingCard.id)await repository.updateCard(editingCard.id,values,reset);
+    else await repository.addCards(page.id,[values]);
+    refresh.current();
   };
-  const changeEnglish=(reset:boolean)=>{const edit=editingEnglish;if(!edit)return;void act(async()=>{await repository.updateCard(edit.id,{front:edit.value},reset);setEditingEnglish(null);});};
   if(!snapshot)return <main className="flex-1 p-8">{error||"正在載入字卡…"}</main>;
-  return <main className="flex flex-1 flex-col overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
+  return <main className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
     <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
         <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label="回到功能介面">←</button>}<span>字卡・英 → 中</span></div>
@@ -309,10 +221,9 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
         {snapshot.states.filter(state=>state.conflict).map(state=><div key={state.id} className="mb-2 rounded border border-amber-400 p-3 text-sm">「{cards.find(card=>card.id===state.id)?.front}」排程衝突，兩邊紀錄均保留。<button className="ml-2 underline" onClick={()=>{if(confirm("保留所有歷史，但將這張卡重新設為 New？"))void act(()=>repository.updateCard(state.id,{},true));}}>保留歷史並重新學習</button></div>)}
         <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
           <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
-          <label>排序 <select aria-label="字卡排序" value={sortMode} onChange={event=>void act(()=>repository.configure(page.id,{sort_mode:event.target.value as "az"|"custom"}))} className="rounded border bg-transparent px-2 py-1"><option value="custom">自訂排序</option><option value="az">A–Z</option></select></label>
           <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>
         </div>
-        <CardManageList customSort={sortMode==="custom"} key={`${editorVersion}-${sortMode}`} studyItems={cards} statuses={statuses} onAddCard={()=>void act(()=>repository.addCards(page.id,[{front:"",back:""}]))} onUpdateCard={updateCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)} onReorder={items=>void act(()=>repository.reorder(page.id,items.map(item=>item.id)))} onCopy={item=>void act(()=>repository.addCards(page.id,[{front:item.front,back:item.back}]))}/>
+        <CardManageList studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
       {mode==="daily"&&<DailyStudySession key="daily" mode="daily" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
       {mode==="all"&&<DailyStudySession key="free" mode="free" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
@@ -324,7 +235,9 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
       </div>}
     </div>
     {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}
-    {editingEnglish&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"><div role="dialog" aria-modal="true" aria-label="修改英文題面" className="max-w-md rounded-xl p-5 shadow-xl" style={{background:"var(--color-bg)"}}><p>英文題面已修改。要保留原排程，還是重新設為 New？兩者都保留歷史。</p><div className="mt-4 flex flex-wrap gap-2"><button className="rounded border p-2" onClick={()=>changeEnglish(false)}>保留排程</button><button className="rounded border p-2" onClick={()=>changeEnglish(true)}>重設為新卡</button><button className="rounded border p-2" onClick={()=>{setEditingEnglish(null);setEditorVersion(n=>n+1);refresh.current();}}>取消修改</button></div></div></div>}
+    {editingCard&&<StudyCardEditor key={editingCard.id??"new"} card={editingCard}
+      requiresScheduleChoice={!!editingCard.id&&hasLearningData(snapshot.states.find(state=>state.id===editingCard.id),snapshot.sessions)}
+      onSave={saveCard} onClose={()=>setEditingCard(null)} onCopy={()=>setEditingCard({front:editingCard.front,back:editingCard.back})}/>}
   </main>;
 }
 

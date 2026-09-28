@@ -10,6 +10,7 @@ export default function FeatureOverview({
   pages,
   onCreate,
   onSelectPage,
+  relatedLink,
 }: {
   title: string;
   description: string;
@@ -18,6 +19,7 @@ export default function FeatureOverview({
   pages: Page[];
   onCreate: () => void;
   onSelectPage: (id: string) => void;
+  relatedLink?: { href: string; label: string };
 }) {
   const orderedPages = [...pages].sort((a, b) => b.updated_at - a.updated_at);
 
@@ -29,6 +31,7 @@ export default function FeatureOverview({
             <div className="mb-2 text-3xl">{icon}</div>
             <h1 className="text-3xl font-semibold" style={{ color: "var(--color-text)" }}>{title}</h1>
             <p className="mt-2 text-sm opacity-60" style={{ color: "var(--color-text)" }}>{description}</p>
+            {relatedLink && <a href={relatedLink.href} className="mt-3 inline-block text-sm underline" style={{ color: "var(--color-text)" }}>{relatedLink.label}</a>}
           </div>
           <button type="button" onClick={onCreate} className="rounded-full px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-transform hover:-translate-y-0.5" style={{ backgroundColor: "#1a73e8" }}>
             + {actionLabel}

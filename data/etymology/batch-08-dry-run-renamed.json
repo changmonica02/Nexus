@@ -1,0 +1,1938 @@
+{
+  "mode": "dry-run",
+  "status": "valid",
+  "imported": 0,
+  "skipped": 0,
+  "failed": 0,
+  "pending_review": 150,
+  "record_counts_available": true,
+  "database_writes": 0,
+  "files": [
+    {
+      "path": "INDEX.md",
+      "status": "ready",
+      "source_id": "batch08-source-869681e91b579045b050182aa62d5540dee68a37b57658b3ecc399d958b733f8",
+      "structured": false
+    },
+    {
+      "path": "prefixes/a-negative.md",
+      "status": "ready",
+      "source_id": "batch08-source-e69f91ea283e5a3bffc459cc9806f3272da181f5e515dcd48304e0738eef2de7",
+      "id": "prefix-a-negative",
+      "structured": true
+    },
+    {
+      "path": "prefixes/ad.md",
+      "status": "ready",
+      "source_id": "batch08-source-127a2f41ee20d2e673ec30aa9b6f47c641cae517a635528c1b9844275e250f2e",
+      "id": "prefix-ad",
+      "structured": true
+    },
+    {
+      "path": "prefixes/anti.md",
+      "status": "ready",
+      "source_id": "batch08-source-9dede336238c3d01ea3c2435c581340fac866fdb737dfcee6f18d93a6e32c64c",
+      "id": "prefix-anti",
+      "structured": true
+    },
+    {
+      "path": "prefixes/auto.md",
+      "status": "ready",
+      "source_id": "batch08-source-e1d92d4341b475b043a7b6de0150990fcfe73911d35b38c0c98225256049f38c",
+      "id": "prefix-auto",
+      "structured": true
+    },
+    {
+      "path": "prefixes/bene.md",
+      "status": "ready",
+      "source_id": "batch08-source-14ab1e6efc04134e6e803e95378ac1be64035488478d47cde4af89b2ca83e377",
+      "id": "prefix-bene",
+      "structured": true
+    },
+    {
+      "path": "prefixes/bi.md",
+      "status": "ready",
+      "source_id": "batch08-source-9c0b35ad688a4bd95baccd3d6d4f942fc6b4e7cfae17ae2f3fbd03462330e0f3",
+      "id": "prefix-bi",
+      "structured": true
+    },
+    {
+      "path": "prefixes/bon.md",
+      "status": "ready",
+      "source_id": "batch08-source-bb27504def57af296f3bd61ff962e07ed705c866d29ea62999a6fe70ec0d3220",
+      "id": "prefix-bon",
+      "structured": true
+    },
+    {
+      "path": "prefixes/cent.md",
+      "status": "ready",
+      "source_id": "batch08-source-778d52745faefb756e6cb01ae2ce3fc6996ded3c008e6a9ce27b0104198156e5",
+      "id": "prefix-cent",
+      "structured": true
+    },
+    {
+      "path": "prefixes/circum.md",
+      "status": "ready",
+      "source_id": "batch08-source-6946e8153150ff171e897809b23cdaa626ad5693405cc389c99b103986882fb6",
+      "id": "prefix-circum",
+      "structured": true
+    },
+    {
+      "path": "prefixes/con-prefix.md",
+      "status": "ready",
+      "source_id": "batch08-source-f070d5cf48986ccf0bb6b1c7ac5db952173157a71b59a23fa08660d6b432f2af",
+      "id": "prefix-con",
+      "structured": true
+    },
+    {
+      "path": "prefixes/contra.md",
+      "status": "ready",
+      "source_id": "batch08-source-80e911b40743048364d834297c256556fd4f47d2a43b7de37dcbeff663b7ff98",
+      "id": "prefix-contra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/counter.md",
+      "status": "ready",
+      "source_id": "batch08-source-6ef4a8fdbf4308632073081afd2fe74e4212afad89bf9db5cccff26c368838b7",
+      "id": "prefix-counter",
+      "structured": true
+    },
+    {
+      "path": "prefixes/de.md",
+      "status": "ready",
+      "source_id": "batch08-source-af5fba95a5175098a5bbe2013678ee0e2d60fc8821e87df7371e5e35a8c96b58",
+      "id": "prefix-de",
+      "structured": true
+    },
+    {
+      "path": "prefixes/dec.md",
+      "status": "ready",
+      "source_id": "batch08-source-e7ed0fe89a520a9bf03f60689cabe9a5c8369a2d3d45e3f685b47cf6493dbb81",
+      "id": "prefix-dec",
+      "structured": true
+    },
+    {
+      "path": "prefixes/di-separate.md",
+      "status": "ready",
+      "source_id": "batch08-source-3910a22d620f1f185b57b41aaa61f87419b3e307ba92b02e96ad0cc1ff3473af",
+      "id": "prefix-di-separate",
+      "structured": true
+    },
+    {
+      "path": "prefixes/di-two.md",
+      "status": "ready",
+      "source_id": "batch08-source-1ca863b6ceb442396a27b38daa975f9dc1c283cde78e9266f9064a72b69a2d2b",
+      "id": "prefix-di-two",
+      "structured": true
+    },
+    {
+      "path": "prefixes/dia.md",
+      "status": "ready",
+      "source_id": "batch08-source-bb58911455a72d61e4cf5ce235769d0bc67dbc34b93745e60bf3827848ae8b9f",
+      "id": "prefix-dia",
+      "structured": true
+    },
+    {
+      "path": "prefixes/dis.md",
+      "status": "ready",
+      "source_id": "batch08-source-ae336f57f4c332f54dd22aaafcd958d534cd5c1db0c46dbc1e8f7cff6f896234",
+      "id": "prefix-dis",
+      "structured": true
+    },
+    {
+      "path": "prefixes/dys.md",
+      "status": "ready",
+      "source_id": "batch08-source-fd4cb6257f78e697572b5ea92ad3f5540b451845b038dad85c407852af4a2a9b",
+      "id": "prefix-dys",
+      "structured": true
+    },
+    {
+      "path": "prefixes/en.md",
+      "status": "ready",
+      "source_id": "batch08-source-af8f1c17b181a63767ad189a95d1f8069616ec4454539096a50d56c18dd40571",
+      "id": "prefix-en",
+      "structured": true
+    },
+    {
+      "path": "prefixes/endo.md",
+      "status": "ready",
+      "source_id": "batch08-source-f16e9ff37f43ffd4b71dfa723e41d66ac4ac589ccd6781ea9d4809a1cf364b7f",
+      "id": "prefix-endo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/ex.md",
+      "status": "ready",
+      "source_id": "batch08-source-a87d38ce3b337695d4f4a33bb978bfcc8387fc173686badeb81ae4661e58f58c",
+      "id": "prefix-ex",
+      "structured": true
+    },
+    {
+      "path": "prefixes/exo.md",
+      "status": "ready",
+      "source_id": "batch08-source-e0a205b230043efc24feb9015ec903c3e5b51ab2ee58b230b545f197a15ce638",
+      "id": "prefix-exo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/extra.md",
+      "status": "ready",
+      "source_id": "batch08-source-376836c170929fba954763fd1eb5bac71ed488dd7dcfde537c1398b064996f4d",
+      "id": "prefix-extra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/fore.md",
+      "status": "ready",
+      "source_id": "batch08-source-21c0966b6748120521e74ef6a451da9818a0243414d2700fe43f7302c753eeb0",
+      "id": "prefix-fore",
+      "structured": true
+    },
+    {
+      "path": "prefixes/hemi.md",
+      "status": "ready",
+      "source_id": "batch08-source-c1b9c2b425475ca77cf4cd00d824f988ad861b3e3f3436876c8c80a67dc63cf3",
+      "id": "prefix-hemi",
+      "structured": true
+    },
+    {
+      "path": "prefixes/hepta.md",
+      "status": "ready",
+      "source_id": "batch08-source-a9a51b968f6eb79c17fb27c9a39c6b19097adaf5568c124261f30292ddd31ff0",
+      "id": "prefix-hepta",
+      "structured": true
+    },
+    {
+      "path": "prefixes/hex.md",
+      "status": "ready",
+      "source_id": "batch08-source-fa159046c485900956e6969fa0c1cf107569733e51a5869cb396cdb8efaf2693",
+      "id": "prefix-hex",
+      "structured": true
+    },
+    {
+      "path": "prefixes/hyper.md",
+      "status": "ready",
+      "source_id": "batch08-source-7e153adf7d135486a138039e83db8b6b90e2a01c10cb89ed2a6c40ae3c06bc3e",
+      "id": "prefix-hyper",
+      "structured": true
+    },
+    {
+      "path": "prefixes/hypo.md",
+      "status": "ready",
+      "source_id": "batch08-source-7467de697dd87a9b1e0caa3bf1de4ef60c882b50118639578567ee7dd30e6fc0",
+      "id": "prefix-hypo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/in-inside.md",
+      "status": "ready",
+      "source_id": "batch08-source-7ab61ab68441f0b8eac6d799cfcdfc4296e11c3685a11ecf0d11e298334f8013",
+      "id": "prefix-in-inside",
+      "structured": true
+    },
+    {
+      "path": "prefixes/in-negative.md",
+      "status": "ready",
+      "source_id": "batch08-source-e405e226d80547072fb832aa3058578eb30ff8297cd56f0e43f4748a99460df7",
+      "id": "prefix-in-negative",
+      "structured": true
+    },
+    {
+      "path": "prefixes/infer.md",
+      "status": "ready",
+      "source_id": "batch08-source-5922a279a4807a64cd2e91d58706253400178b153d82c69d2a5c161eb623f375",
+      "id": "prefix-infer",
+      "structured": true
+    },
+    {
+      "path": "prefixes/infra.md",
+      "status": "ready",
+      "source_id": "batch08-source-0f0bd0e94aec5b7ce1896ed38dc2bf826fc8daa6b4a5aec82a0353b87b6e3ca3",
+      "id": "prefix-infra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/inter.md",
+      "status": "ready",
+      "source_id": "batch08-source-83b0e7e6a518e9219589cc7b0f9158c61e9d1941265db906b600f6c778e61c50",
+      "id": "prefix-inter",
+      "structured": true
+    },
+    {
+      "path": "prefixes/intra.md",
+      "status": "ready",
+      "source_id": "batch08-source-d4fc587d9728016eb3efc34939e0c3c7105e2ded26a1d87ee269853ac80b9a7f",
+      "id": "prefix-intra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/intro.md",
+      "status": "ready",
+      "source_id": "batch08-source-618cf117ed5edc868762378dfc2e5c6c696f8e27456a3cbc556e1c6911db8c3b",
+      "id": "prefix-intro",
+      "structured": true
+    },
+    {
+      "path": "prefixes/kilo.md",
+      "status": "ready",
+      "source_id": "batch08-source-c8ea8e88072e678f3ab759f3d3e4089bdab3556b6c2461dbe94d32569503a1b9",
+      "id": "prefix-kilo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/macro.md",
+      "status": "ready",
+      "source_id": "batch08-source-7829bd6bee9e69f2f7a478192ac1a75f04a15fcf278cfd89cfbec3f7e8a01038",
+      "id": "prefix-macro",
+      "structured": true
+    },
+    {
+      "path": "prefixes/mal.md",
+      "status": "ready",
+      "source_id": "batch08-source-c4221bc93f0b9c75b5a8802fa83d9a208f5ad8ae63a7bf0175ddcf310a163128",
+      "id": "prefix-mal",
+      "structured": true
+    },
+    {
+      "path": "prefixes/micro.md",
+      "status": "ready",
+      "source_id": "batch08-source-37e76f03169045d6203042ee0e7ca88308cd3868ea694ffbdce175f4214d8b69",
+      "id": "prefix-micro",
+      "structured": true
+    },
+    {
+      "path": "prefixes/mill.md",
+      "status": "ready",
+      "source_id": "batch08-source-cf7c0dfbc60a63ff65151ff550e812e7d07d0fb4ac384b4f60d472497cdbdc79",
+      "id": "prefix-mill",
+      "structured": true
+    },
+    {
+      "path": "prefixes/mis.md",
+      "status": "ready",
+      "source_id": "batch08-source-e139c0c63977dc4c85d4155b7932c42ffe7c19dc90e94e232c0a9c8448a18909",
+      "id": "prefix-mis",
+      "structured": true
+    },
+    {
+      "path": "prefixes/mono.md",
+      "status": "ready",
+      "source_id": "batch08-source-ad2dee1a7b0a627c31ccb4949efcdcdf9866c4aefc339ca5274eb3dfcf2e88c7",
+      "id": "prefix-mono",
+      "structured": true
+    },
+    {
+      "path": "prefixes/multi.md",
+      "status": "ready",
+      "source_id": "batch08-source-3be1843684adf7c5a4ab83a4436ecd59d07d9c4ff6e20c7f3cdb96fa34cd1cc9",
+      "id": "prefix-multi",
+      "structured": true
+    },
+    {
+      "path": "prefixes/nano.md",
+      "status": "ready",
+      "source_id": "batch08-source-f838eaafc3ff4af3382b3e7dd6ba07afa4de03ce00f5d9dd31549105c64c2a26",
+      "id": "prefix-nano",
+      "structured": true
+    },
+    {
+      "path": "prefixes/neo.md",
+      "status": "ready",
+      "source_id": "batch08-source-16190468ae783113726623a192610a4d34d19a003a0c295c2fa50225c4d118b5",
+      "id": "prefix-neo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/non.md",
+      "status": "ready",
+      "source_id": "batch08-source-a1fbff5e5c30fec5a10c3d7d196a4a69e4ab228f794dc336d9db7d49c7b2ed14",
+      "id": "prefix-non",
+      "structured": true
+    },
+    {
+      "path": "prefixes/ob.md",
+      "status": "ready",
+      "source_id": "batch08-source-d030c60e3ad2fdce9122df7dd1e222bfd89eaaf33fe3111eb9841e6abe7b11cb",
+      "id": "prefix-ob",
+      "structured": true
+    },
+    {
+      "path": "prefixes/oct.md",
+      "status": "ready",
+      "source_id": "batch08-source-a84390e3cd798883b0e7a61b668322c9600c1eb99d309f21a32a79408401cd8e",
+      "id": "prefix-oct",
+      "structured": true
+    },
+    {
+      "path": "prefixes/omni.md",
+      "status": "ready",
+      "source_id": "batch08-source-a2638977b19a4fd8b00e7b7be66bfdb18158167b4d10e69d924cf8f1bb869811",
+      "id": "prefix-omni",
+      "structured": true
+    },
+    {
+      "path": "prefixes/out.md",
+      "status": "ready",
+      "source_id": "batch08-source-1fbe97dc07d8b8ae6f7b5ae2562d370d9db436daba4e54143cfeb94f50f6216b",
+      "id": "prefix-out",
+      "structured": true
+    },
+    {
+      "path": "prefixes/over.md",
+      "status": "ready",
+      "source_id": "batch08-source-ccc713f45a9ed962b18fab6141063636ffdd25fe5356bae873a1fe5816fb5585",
+      "id": "prefix-over",
+      "structured": true
+    },
+    {
+      "path": "prefixes/para.md",
+      "status": "ready",
+      "source_id": "batch08-source-086da6001ee343f271dc500a3de8e1c5f6bd61af3ff532b6ff77e52928723954",
+      "id": "prefix-para",
+      "structured": true
+    },
+    {
+      "path": "prefixes/pent.md",
+      "status": "ready",
+      "source_id": "batch08-source-68bed41bc9f7cae09bfaddb35cf53b9f24989f9374bbe7937f50cf0864d3b993",
+      "id": "prefix-pent",
+      "structured": true
+    },
+    {
+      "path": "prefixes/peri.md",
+      "status": "ready",
+      "source_id": "batch08-source-6930c884955f474e203de470b7187807dcc504b0d2611133360401f4d2bc6a55",
+      "id": "prefix-peri",
+      "structured": true
+    },
+    {
+      "path": "prefixes/poly.md",
+      "status": "ready",
+      "source_id": "batch08-source-7abd96fee9189e634f9ce1b8a95d53c2ffb7306c1ddadc312f6bef2905e0f3fd",
+      "id": "prefix-poly",
+      "structured": true
+    },
+    {
+      "path": "prefixes/post.md",
+      "status": "ready",
+      "source_id": "batch08-source-3d27c15f343e9a5c429f78445b4acc32b2624ad7dbd330b223c1fb55f1f02505",
+      "id": "prefix-post",
+      "structured": true
+    },
+    {
+      "path": "prefixes/pre.md",
+      "status": "ready",
+      "source_id": "batch08-source-3d0d53d4d8671368d6e6007838d8390e12cfa0ee79fca92882d30cf44925c276",
+      "id": "prefix-pre",
+      "structured": true
+    },
+    {
+      "path": "prefixes/pro.md",
+      "status": "ready",
+      "source_id": "batch08-source-ac999a84ace87a4897986e6ede7d06f429a3cf30a99587d66ff4be00d25d445b",
+      "id": "prefix-pro",
+      "structured": true
+    },
+    {
+      "path": "prefixes/prox.md",
+      "status": "ready",
+      "source_id": "batch08-source-61c2f6b1b1fdb9119e44c1cb3ab05f5a24bf43748ed919e96888ab4457a57e14",
+      "id": "prefix-prox",
+      "structured": true
+    },
+    {
+      "path": "prefixes/pseudo.md",
+      "status": "ready",
+      "source_id": "batch08-source-43ec711620a35a3598168ba836d96c63963398af9c7634715377992605895cd8",
+      "id": "prefix-pseudo",
+      "structured": true
+    },
+    {
+      "path": "prefixes/quadr.md",
+      "status": "ready",
+      "source_id": "batch08-source-b1df2ec9a76feafb40799591df1ad275c2533d8c0d0d07713785f896a12846a6",
+      "id": "prefix-quadr",
+      "structured": true
+    },
+    {
+      "path": "prefixes/re.md",
+      "status": "ready",
+      "source_id": "batch08-source-4c6a4081b8bfd8ceb3a74000164e1379f5d8366bf9bb0ce375b6fd86204eba2c",
+      "id": "prefix-re",
+      "structured": true
+    },
+    {
+      "path": "prefixes/retro.md",
+      "status": "ready",
+      "source_id": "batch08-source-b025ad1eb89f3af571cbc34bc84005fa3800ba63bc303683baa85b7cd7146af3",
+      "id": "prefix-retro",
+      "structured": true
+    },
+    {
+      "path": "prefixes/semi.md",
+      "status": "ready",
+      "source_id": "batch08-source-8a2db2457bcc758ab4f00e42b4db7fce6112d75501cd8d8f1f5d39ed204de8b3",
+      "id": "prefix-semi",
+      "structured": true
+    },
+    {
+      "path": "prefixes/sept.md",
+      "status": "ready",
+      "source_id": "batch08-source-7cd7e525d4ab5e049b485ee353e58c75ed65967385f62aad1927fff90d20a899",
+      "id": "prefix-sept",
+      "structured": true
+    },
+    {
+      "path": "prefixes/sub.md",
+      "status": "ready",
+      "source_id": "batch08-source-3aaa47a70fdb4259acaaad92e2c425eb2d54e4e8450b01bf4030db9e5ca0b32a",
+      "id": "prefix-sub",
+      "structured": true
+    },
+    {
+      "path": "prefixes/super.md",
+      "status": "ready",
+      "source_id": "batch08-source-7060b9eb8d940f809a24f511dfffa46813d001aebe627ba943aef919a9307d15",
+      "id": "prefix-super",
+      "structured": true
+    },
+    {
+      "path": "prefixes/supra.md",
+      "status": "ready",
+      "source_id": "batch08-source-12970dde1c81a1d84ba8c2070c44dbe3949c876b6c5c7173d08bb36c30df0f73",
+      "id": "prefix-supra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/sur-over.md",
+      "status": "ready",
+      "source_id": "batch08-source-8ce20787f25fd61f15c359609088f75f3b956ff9eac3267f5965cd9cad86fe7f",
+      "id": "prefix-sur-over",
+      "structured": true
+    },
+    {
+      "path": "prefixes/tele.md",
+      "status": "ready",
+      "source_id": "batch08-source-f0e358732f8f447e9f511f19718540e513d94ad78fa72d9fdf189a2a07ce3276",
+      "id": "prefix-tele",
+      "structured": true
+    },
+    {
+      "path": "prefixes/tetra.md",
+      "status": "ready",
+      "source_id": "batch08-source-ac916642b403f912405b03851b566e4d619fea0abb7dbddbc2586c7a7134f202",
+      "id": "prefix-tetra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/trans.md",
+      "status": "ready",
+      "source_id": "batch08-source-283d01519f3658a5ec4b8e3ccd47a46ca6c363ea563b0fb47eaa33949d659ee6",
+      "id": "prefix-trans",
+      "structured": true
+    },
+    {
+      "path": "prefixes/tri.md",
+      "status": "ready",
+      "source_id": "batch08-source-e171be7791d6ed65988a709bb1a4834dcb5e31b9ca1e8cb035ad62e0f58df2a2",
+      "id": "prefix-tri",
+      "structured": true
+    },
+    {
+      "path": "prefixes/ultra.md",
+      "status": "ready",
+      "source_id": "batch08-source-9963afac98b5ce0dc8e66215ad612cf20512c808d46f56cd98ce763f93e1a0d3",
+      "id": "prefix-ultra",
+      "structured": true
+    },
+    {
+      "path": "prefixes/un.md",
+      "status": "ready",
+      "source_id": "batch08-source-a3441f5ba5e16a64601846540b1cf34dc29ec459dde182251d3f3bd9ac5f707b",
+      "id": "prefix-un",
+      "structured": true
+    },
+    {
+      "path": "prefixes/under.md",
+      "status": "ready",
+      "source_id": "batch08-source-06b9c5aa8acb1da5e491dab05bc9a37a45bb4dcadfb0c9d928c5c50fa170be7d",
+      "id": "prefix-under",
+      "structured": true
+    },
+    {
+      "path": "prefixes/uni.md",
+      "status": "ready",
+      "source_id": "batch08-source-9ca2d5e30e55a2f09d96d55fbb4742f2d2106ded364c9fe58aefadc9760f3f45",
+      "id": "prefix-uni",
+      "structured": true
+    },
+    {
+      "path": "README.md",
+      "status": "ready",
+      "source_id": "batch08-source-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5",
+      "structured": false
+    },
+    {
+      "path": "review/raw/source-01.md",
+      "status": "ready",
+      "source_id": "batch08-source-b4f4ff0e540bc72fef8ccaa160328b16d7197066fa9d3263387f6def000110af",
+      "structured": false
+    },
+    {
+      "path": "review/raw/source-02.md",
+      "status": "ready",
+      "source_id": "batch08-source-2ecbd4504493ee7b79ae06bf1bdc3c9d8119f3b47394626ca5d684ba160e8e3f",
+      "structured": false
+    },
+    {
+      "path": "review/raw/source-03.md",
+      "status": "ready",
+      "source_id": "batch08-source-7395e433f4021cca4ee911239a925ed7186b82db7c29f3f8234e28f3c211e3fa",
+      "structured": false
+    },
+    {
+      "path": "review/raw/source-04.md",
+      "status": "ready",
+      "source_id": "batch08-source-cbdb2c74745aac0209e99d69a6dc271fb10b678bda6c0e2199f3b78e57ad7bae",
+      "structured": false
+    },
+    {
+      "path": "review/字根逐字完整紀錄/README.md",
+      "status": "ready",
+      "source_id": "batch08-source-21e560d05201ae5569549efc6e3d708382488fde70bec272116eb9690add3d9b",
+      "structured": false
+    },
+    {
+      "path": "review/字根逐字完整紀錄/root-source-01.md",
+      "status": "ready",
+      "source_id": "batch08-source-f1bfe3d6af08768205972339f21e553c837b96c54de4ab9f1da80450cc4b74f8",
+      "structured": false
+    },
+    {
+      "path": "review/字根逐字完整紀錄/root-source-02.md",
+      "status": "ready",
+      "source_id": "batch08-source-53277b1ac6cd514375d737df7bf3ccdd68cf577e40ec031466ce1cdf43591c39",
+      "structured": false
+    },
+    {
+      "path": "review/字首草稿校訂與保留.md",
+      "status": "ready",
+      "source_id": "batch08-source-2f32ed71c4b0fd47aebb994583f4dbd0868b0c900dd87799ecd0c13f44844128",
+      "structured": false
+    },
+    {
+      "path": "review/歷史紀錄_待確認清單.md",
+      "status": "ready",
+      "source_id": "batch08-source-858ae3f03c6b8637eade74156ec0e9ea4603e7e740b1e21703dc84c2844ba5b8",
+      "structured": false
+    },
+    {
+      "path": "review/歷史紀錄_第二批查證與待確認.md",
+      "status": "ready",
+      "source_id": "batch08-source-9004f051a1f98f8a96fbe34c64b2d2cb7b86d725089b63f9c41e252c4239c10a",
+      "structured": false
+    },
+    {
+      "path": "review/目前待辦與處理決策.md",
+      "status": "ready",
+      "source_id": "batch08-source-4fe8a70150ae6f3710b6e015d34b0555386111774485eae91da98c18a1e6c008",
+      "structured": false
+    },
+    {
+      "path": "review/第七批_第二階段新增與核對.md",
+      "status": "ready",
+      "source_id": "batch08-source-a5dac75441b85b780b096fb4e877739bb2f43325a32ea53bc032f6e40a575335",
+      "structured": false
+    },
+    {
+      "path": "review/第五批_字首在單字中的適用性.md",
+      "status": "ready",
+      "source_id": "batch08-source-49dcf55559b53bfa930a5bc5320a2ca16eb09738fcdaa928e32f836a8cd5066d",
+      "structured": false
+    },
+    {
+      "path": "review/第八批_第三階段多義與變體修訂.md",
+      "status": "ready",
+      "source_id": "batch08-source-fb2219ee42c7132f7a7e3198bc7b896152ab523c69bd88b27294f9a351af7e25",
+      "structured": false
+    },
+    {
+      "path": "review/第六批_新增字首與核對界線.md",
+      "status": "ready",
+      "source_id": "batch08-source-ff99b74346c22c202d68b47f80cd83cbffc80fcad929f49f503bdcdef30f9a74",
+      "structured": false
+    },
+    {
+      "path": "review/第四批進度.md",
+      "status": "ready",
+      "source_id": "batch08-source-751b3f2ad1c0af6cf10e133e7feaa8a90ca58e2ccad24517c94a7423eaa7a4fc",
+      "structured": false
+    },
+    {
+      "path": "roots/fin.md",
+      "status": "ready",
+      "source_id": "batch08-source-a0cb806e2a9955bdf41f12037e3bc7cffccc9fe1dc710009d8365a7bfc1914d1",
+      "id": "root-fin",
+      "structured": true
+    },
+    {
+      "path": "roots/grat.md",
+      "status": "ready",
+      "source_id": "batch08-source-ac687c734f1e0d8e80814a806d4849429519697f9998e56be06c81fcd04d9f42",
+      "id": "root-grat",
+      "structured": true
+    },
+    {
+      "path": "roots/pan-bread.md",
+      "status": "ready",
+      "source_id": "batch08-source-2cc32a82ea1a477b4895b47577b8421892059b547dde6aa4fdf72384c5576538",
+      "id": "root-pan-bread",
+      "structured": true
+    },
+    {
+      "path": "roots/path-feeling.md",
+      "status": "ready",
+      "source_id": "batch08-source-e2a1c89ef9d161a5fec3ad52facb48849de9dc0b89a1e7032ffac5bd6eb21cae",
+      "id": "root-path-feeling",
+      "structured": true
+    },
+    {
+      "path": "roots/pos.md",
+      "status": "ready",
+      "source_id": "batch08-source-593a65d7520aecad47e379c83ec51a37fa4d915750c6ff57b159b0c33b26fd1d",
+      "id": "root-pos",
+      "structured": true
+    },
+    {
+      "path": "roots/pose-french.md",
+      "status": "ready",
+      "source_id": "batch08-source-8caa9ad66911b1dbf0394a981070b6f460711afa46f6a5df8c7255b32fec3115",
+      "id": "root-pose-french",
+      "structured": true
+    },
+    {
+      "path": "roots/rend.md",
+      "status": "ready",
+      "source_id": "batch08-source-5a8e336ef48d17f969c326eec791427861b2233b42b2b69c1694a3a6d49d6ac4",
+      "id": "root-rend",
+      "structured": true
+    },
+    {
+      "path": "roots/render.md",
+      "status": "ready",
+      "source_id": "batch08-source-1f16a20c1a76dd634bc0db5ea40b2440423c7c13317fd471df5af091ba5d649a",
+      "id": "root-render",
+      "structured": true
+    },
+    {
+      "path": "roots/sed.md",
+      "status": "ready",
+      "source_id": "batch08-source-533715e15b2ca3a97d286fe11725db06e1bd235a3c49e5159e2816cb5bcdf95a",
+      "id": "root-sed",
+      "structured": true
+    },
+    {
+      "path": "roots/ten.md",
+      "status": "ready",
+      "source_id": "batch08-source-b7941ceafcc9511fbbdfa27ab397d0127dca09fb28c759efaa2f0cc62d9508d6",
+      "id": "root-ten",
+      "structured": true
+    },
+    {
+      "path": "roots/ton.md",
+      "status": "ready",
+      "source_id": "batch08-source-4b126fb86fe0e570808c491e85cc74ddf7df0ae4b1405beff1bffe99564a4d64",
+      "id": "root-ton",
+      "structured": true
+    },
+    {
+      "path": "roots/ultim.md",
+      "status": "ready",
+      "source_id": "batch08-source-6d1fef1c388b8808889d2e28ec8c4f88afdb56cf23c6df5dc5d0f38b58fe916a",
+      "id": "root-ultim",
+      "structured": true
+    },
+    {
+      "path": "roots/urb.md",
+      "status": "ready",
+      "source_id": "batch08-source-5fabdcd973c32a8200aabe45f18318b13f29043d28c10eb0bdb4186a337aba53",
+      "id": "root-urb",
+      "structured": true
+    },
+    {
+      "path": "roots/vari.md",
+      "status": "ready",
+      "source_id": "batch08-source-4fa1990fae9f15c2989fbd8321a1ca19ce23842ac9ae86c743892a4f06439716",
+      "id": "root-vari",
+      "structured": true
+    },
+    {
+      "path": "words/agree.md",
+      "status": "ready",
+      "source_id": "batch08-source-b7b8de775d587549c17bab1da89df2be11eed95b87e5eb129a3a0153cbcd07fe",
+      "id": "word-agree",
+      "structured": true
+    },
+    {
+      "path": "words/astonish.md",
+      "status": "ready",
+      "source_id": "batch08-source-d1b3dc80624f14cfda4b8febb7c19d1bc0f743d3749659697fd013e27fadb6b1",
+      "id": "word-astonish",
+      "structured": true
+    },
+    {
+      "path": "words/astonishment.md",
+      "status": "ready",
+      "source_id": "batch08-source-645bae3fd5ee249adaaf3484606028c5366c73ee72f33aa9b1856a659cd0f619",
+      "id": "word-astonishment",
+      "structured": true
+    },
+    {
+      "path": "words/astound.md",
+      "status": "ready",
+      "source_id": "batch08-source-abe9f37688d1a8a199c336c15aec331ac55fea8174f5b51432ab78227c183923",
+      "id": "word-astound",
+      "structured": true
+    },
+    {
+      "path": "words/companion.md",
+      "status": "ready",
+      "source_id": "batch08-source-184148cb736564fc2b84a13ca3b2ae72bddf639ffbc5a86b23add10bb7fa5a84",
+      "id": "word-companion",
+      "structured": true
+    },
+    {
+      "path": "words/component.md",
+      "status": "ready",
+      "source_id": "batch08-source-9e9607fb6d3b8d9c1fbc0cb54bc370b5f272e92ac2047ca75983afeeab8aa97f",
+      "id": "word-component",
+      "structured": true
+    },
+    {
+      "path": "words/contain.md",
+      "status": "ready",
+      "source_id": "batch08-source-d8d8509b8b08f1e95d2230697b41bd54785cbe910a0e98afd1f923d59c5d13bc",
+      "id": "word-contain",
+      "structured": true
+    },
+    {
+      "path": "words/continue.md",
+      "status": "ready",
+      "source_id": "batch08-source-94fc90ab0358cf60de7f6117bcae7693af05a3d0dfee72857c4989e380e140e0",
+      "id": "word-continue",
+      "structured": true
+    },
+    {
+      "path": "words/detonate.md",
+      "status": "ready",
+      "source_id": "batch08-source-e4f2003768fdd5c51c8b137c8b0382d44ffb59545b78cb13dad17c40b77c2f3a",
+      "id": "word-detonate",
+      "structured": true
+    },
+    {
+      "path": "words/gratitude.md",
+      "status": "ready",
+      "source_id": "batch08-source-cb4416422b7b2f443342a314eeb4811e56ed08a379a2efa57ed879a26809ff07",
+      "id": "word-gratitude",
+      "structured": true
+    },
+    {
+      "path": "words/gratuitous.md",
+      "status": "ready",
+      "source_id": "batch08-source-037f941b68c55312cc7a933e0e592d9217105f96201d0fd4a3d662e3c068a2fe",
+      "id": "word-gratuitous",
+      "structured": true
+    },
+    {
+      "path": "words/ingrate.md",
+      "status": "ready",
+      "source_id": "batch08-source-81588179c2ff5c54f9b9a577b0aa99043304bd5dc335fcb95091baddc2d5f0b1",
+      "id": "word-ingrate",
+      "structured": true
+    },
+    {
+      "path": "words/ingratiate.md",
+      "status": "ready",
+      "source_id": "batch08-source-3f3a0028da3520eb47aa2a5f47cb25c204c1377391217d6af501d250428c956b",
+      "id": "word-ingratiate",
+      "structured": true
+    },
+    {
+      "path": "words/ingratitude.md",
+      "status": "ready",
+      "source_id": "batch08-source-2d60574b682d73fedc1c027f2287c90a50181fdb51f881cced355c7d8e234994",
+      "id": "word-ingratitude",
+      "structured": true
+    },
+    {
+      "path": "words/odd.md",
+      "status": "ready",
+      "source_id": "batch08-source-edb71bcef91c3238fe6c730212ff725994777f6f66644bb0217554f70ea5401f",
+      "id": "word-odd",
+      "structured": true
+    },
+    {
+      "path": "words/pathos.md",
+      "status": "ready",
+      "source_id": "batch08-source-934d575c952626a4a7622dc44c894496c077ddd0aef572aed4f5a871c9b2328a",
+      "id": "word-pathos",
+      "structured": true
+    },
+    {
+      "path": "words/posit.md",
+      "status": "ready",
+      "source_id": "batch08-source-160f582e91a94e413dc107987900ee6027596e68efbd2f6f0df28a8e47eb9e29",
+      "id": "word-posit",
+      "structured": true
+    },
+    {
+      "path": "words/postpone.md",
+      "status": "ready",
+      "source_id": "batch08-source-88c54c1528c6ba15897e1e3a0970f754aeb48e49e84c06b70ff6e410206379c7",
+      "id": "word-postpone",
+      "structured": true
+    },
+    {
+      "path": "words/precede.md",
+      "status": "ready",
+      "source_id": "batch08-source-058965555e7dbeb484b4fd710e776da9ff045bb9e2681f200a92ec23f16b7771",
+      "id": "word-precede",
+      "structured": true
+    },
+    {
+      "path": "words/precess.md",
+      "status": "ready",
+      "source_id": "batch08-source-9b7341728c84ea4568356cb06f69140916c641d9736d5294e0d147d705cbc76a",
+      "id": "word-precess",
+      "structured": true
+    },
+    {
+      "path": "words/precession.md",
+      "status": "ready",
+      "source_id": "batch08-source-00498b0b9a08315764e06c79db3038748d16fb4877a631ddf757c81b53c80ce2",
+      "id": "word-precession",
+      "structured": true
+    },
+    {
+      "path": "words/propose.md",
+      "status": "ready",
+      "source_id": "batch08-source-34c540b971c689e47bd7165446628c29477757782e222c9d61535dbbed7d244a",
+      "id": "word-propose",
+      "structured": true
+    },
+    {
+      "path": "words/rend.md",
+      "status": "ready",
+      "source_id": "batch08-source-dc1ced1b5cecf8db2e247b76951798c640dcad870ff66bb0f67dfd6223e2ce1e",
+      "id": "word-rend",
+      "structured": true
+    },
+    {
+      "path": "words/render.md",
+      "status": "ready",
+      "source_id": "batch08-source-05e30460b92ae72f2f50000ee2693b9573ca1609657b7c23735fb67adae499a2",
+      "id": "word-render",
+      "structured": true
+    },
+    {
+      "path": "words/rent-payment.md",
+      "status": "ready",
+      "source_id": "batch08-source-5a6dbd191132468c6862ca74b0b9b81df1a3a3d0bc48aeba390ba66bf93ad975",
+      "id": "word-rent-payment",
+      "structured": true
+    },
+    {
+      "path": "words/rent-tear.md",
+      "status": "ready",
+      "source_id": "batch08-source-1e844d524fca7acc7bed68278913f6b447daeb886262b1174d61fe2795157a6d",
+      "id": "word-rent-tear",
+      "structured": true
+    },
+    {
+      "path": "words/reside.md",
+      "status": "ready",
+      "source_id": "batch08-source-e4c00e419d0544da8b9cf819746952cf639a854b6270e5b3c0a8cb24fe8ec7fd",
+      "id": "word-reside",
+      "structured": true
+    },
+    {
+      "path": "words/residence.md",
+      "status": "ready",
+      "source_id": "batch08-source-2e654da53a512e985949ad4645b8c1b67e77c80b1a263d3c2061ce04d29165ab",
+      "id": "word-residence",
+      "structured": true
+    },
+    {
+      "path": "words/resident.md",
+      "status": "ready",
+      "source_id": "batch08-source-446ebd6b499a3bc358477a80fd7b879017ea44d650c04833225a7fc109f6b923",
+      "id": "word-resident",
+      "structured": true
+    },
+    {
+      "path": "words/retain.md",
+      "status": "ready",
+      "source_id": "batch08-source-473609c4fb0534c2f29c2cc9ff1b117af44d397d5b85d1ef12f7d63573c3a3d3",
+      "id": "word-retain",
+      "structured": true
+    },
+    {
+      "path": "words/stun.md",
+      "status": "ready",
+      "source_id": "batch08-source-258a50933d459f7212fee4ab8cace0fea83954867b45d2d47f78fa19d89ce376",
+      "id": "word-stun",
+      "structured": true
+    },
+    {
+      "path": "words/suppose.md",
+      "status": "ready",
+      "source_id": "batch08-source-9f0717bf2096b15cc112966ba77733ff75eda3d09212850ae27831dbaf43bdae",
+      "id": "word-suppose",
+      "structured": true
+    },
+    {
+      "path": "words/tornado.md",
+      "status": "ready",
+      "source_id": "batch08-source-25e28311162c7d0392132c2000f026a1911193bf6c6202683d4f8c6dab1c8226",
+      "id": "word-tornado",
+      "structured": true
+    },
+    {
+      "path": "words/ultimate.md",
+      "status": "ready",
+      "source_id": "batch08-source-ae98de7bca9fd090ad1e71413fdd3fab78c89329cd0d97b84365f5af428d7082",
+      "id": "word-ultimate",
+      "structured": true
+    },
+    {
+      "path": "words/ultimately.md",
+      "status": "ready",
+      "source_id": "batch08-source-7eb9c2f120102fda3256d65892643f077503870160b37aa688b1d7db81b1800b",
+      "id": "word-ultimately",
+      "structured": true
+    },
+    {
+      "path": "words/variable.md",
+      "status": "ready",
+      "source_id": "batch08-source-78c5ab6967c8a263675267449629dccc560575ca97a44b5d6f69ede388a1fb3d",
+      "id": "word-variable",
+      "structured": true
+    },
+    {
+      "path": "words/variety.md",
+      "status": "ready",
+      "source_id": "batch08-source-7fcb37ec5c8e7898ed2aaf5ba83618cda07557262f28741d1d234b9afb1c657e",
+      "id": "word-variety",
+      "structured": true
+    },
+    {
+      "path": "words/various.md",
+      "status": "ready",
+      "source_id": "batch08-source-e86423f2216231d4c232d57aa6b2b17088291560e7516fc7dd1bed6a45f85546",
+      "id": "word-various",
+      "structured": true
+    },
+    {
+      "path": "words/vary.md",
+      "status": "ready",
+      "source_id": "batch08-source-98d1bed3c2cfd522e9d12030fd61147009d56afd8beadc81608ad23e4b04c15c",
+      "id": "word-vary",
+      "structured": true
+    }
+  ],
+  "errors": [],
+  "review": [
+    {
+      "path": "INDEX.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "prefixes/a-negative.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/ad.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/anti.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/auto.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/auto.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/bene.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/bene.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/bi.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/bon.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/bon.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/cent.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/cent.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/circum.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/circum.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/con-prefix.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/contra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/counter.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/de.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/dec.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/dec.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/di-separate.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/di-two.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/dia.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/dia.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/dis.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/dis.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/dys.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/en.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/endo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/ex.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/exo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/extra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/fore.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/fore.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/hemi.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/hemi.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/hepta.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/hex.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/hex.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/hyper.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/hypo.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/hypo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/in-inside.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/in-negative.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/infer.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/infer.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/infra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/inter.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/intra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/intro.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/kilo.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/kilo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/macro.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/mal.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/micro.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/mill.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/mill.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/mis.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/mono.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/multi.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/nano.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/neo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/non.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/ob.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/oct.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/oct.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/omni.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/omni.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/out.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/over.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/para.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/para.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/pent.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/pent.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/peri.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/poly.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/post.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/pre.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/pro.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/prox.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/prox.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/pseudo.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/quadr.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/quadr.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/re.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/retro.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/semi.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/sept.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/sub.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/sub.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/super.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/super.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/supra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/sur-over.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/tele.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/tetra.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/tetra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/trans.md",
+      "code": "NO_STABLE_SENSES",
+      "message": "原稿未提供 senses / 穩定義項 ID；不從正文自行補建義項。"
+    },
+    {
+      "path": "prefixes/trans.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/tri.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/ultra.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/un.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/under.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "prefixes/uni.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "README.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/raw/source-01.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/raw/source-02.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/raw/source-03.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/raw/source-04.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/字根逐字完整紀錄/README.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/字根逐字完整紀錄/root-source-01.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/字根逐字完整紀錄/root-source-02.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/字首草稿校訂與保留.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/歷史紀錄_待確認清單.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/歷史紀錄_第二批查證與待確認.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/目前待辦與處理決策.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/第七批_第二階段新增與核對.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/第五批_字首在單字中的適用性.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/第八批_第三階段多義與變體修訂.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/第六批_新增字首與核對界線.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "review/第四批進度.md",
+      "code": "RAW_PRESERVED",
+      "message": "原始筆記／審核文件完整保存，不產生推測的條目或義項。"
+    },
+    {
+      "path": "roots/fin.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/grat.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/pan-bread.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/path-feeling.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/pos.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/pose-french.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/rend.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/render.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/sed.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/ten.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/ton.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/ultim.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/urb.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "roots/vari.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/agree.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/astonish.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/astonishment.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/astound.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/companion.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/component.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/contain.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/continue.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/detonate.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/gratitude.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/gratuitous.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/ingrate.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/ingratiate.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/ingratitude.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/odd.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/pathos.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/posit.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/postpone.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/precede.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/precess.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/precession.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/propose.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/rend.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/render.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/rent-payment.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/rent-tear.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/reside.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/residence.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/resident.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/retain.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/stun.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/suppose.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/tornado.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/ultimate.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/ultimately.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/variable.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/variety.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/various.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    },
+    {
+      "path": "words/vary.md",
+      "code": "SOURCE_AUDIT",
+      "message": "完整正文、舊版內容與未映射欄位保留於來源；需依原稿界線人工審核。"
+    }
+  ],
+  "counts": {
+    "sources": 150,
+    "entries": 93,
+    "senses": 82,
+    "categories": 10,
+    "entry_categories": 68,
+    "words": 39,
+    "word_senses": 42,
+    "claims": 237
+  },
+  "would_import": 150,
+  "rows": {
+    "inserted": 0,
+    "would_insert": 721,
+    "skipped": 0
+  }
+}

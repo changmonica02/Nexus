@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { SyncState } from "../infrastructure/sync/syncEngine";
 import PreferencesMenu from "./PreferencesMenu";
+import DeleteAccount from "./DeleteAccount";
 import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
 
 
@@ -96,6 +97,7 @@ export default function AccountSettingsRow({
                 <button onClick={handleSignOut} className="mt-4 w-full rounded-lg border px-3 py-2 text-sm font-medium hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors" style={{ borderColor: "var(--color-border)" }}>
                   登出帳號
                 </button>
+                <DeleteAccount email={accountEmail} />
               </div>
             ) : (
               <div className="space-y-3">

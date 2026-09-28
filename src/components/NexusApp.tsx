@@ -1974,6 +1974,7 @@ function NexusAppInner({
         <FeatureOverview
           title="字卡"
           description="建立、整理並練習你的學習卡片。"
+          relatedLink={{ href: "/etymology", label: "開啟字源百科" }}
           icon="🗂️"
           actionLabel="建立字卡集"
           pages={pages.filter((p) => p.kind === "study_set" && !p.deleted_at)}
