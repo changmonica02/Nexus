@@ -30,7 +30,7 @@ test('admin bundle: preview rollback, atomic import, replay/conflict, revisions,
     await pg.query('insert into auth.users values($1),($2)',[id(1),id(2)]);await pg.query('insert into dictionary_admins(user_id) values($1)',[id(1)]);
     await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);
     const client={rpc:async(name,args)=>{try{return{data:(await pg.query('select apply_dictionary_bundle($1,$2,$3) as result',[args.bundle,args.preview,args.allow_edits])).rows[0].result,error:null};}catch(e){return{data:null,error:{message:e.message}};}}};
-    const bundle=await parseDictionaryImport(csv,'csv');
+    const bundle=await parseDictionaryImport(JSON.stringify(await parseDictionaryImport(csv,'csv')),'json');
     assert.equal((await applyBundle(client,bundle)).inserted,4);
     assert.equal((await pg.query('select * from dictionary_entries')).rows.length,0);
     assert.equal((await pg.query('select * from dictionary_audit')).rows.length,0);
@@ -74,4 +74,25 @@ test('admin bundle: preview rollback, atomic import, replay/conflict, revisions,
     await pg.exec('reset role;set role anon');
     await assert.rejects(applyBundle(client,bundle,false),/permission denied/);
   }finally{await pg.close();}
+});
+
+ test('JSON bundle rejects invalid structure, fields, UUIDs, duplicate IDs and verification',async()=>{
+  const original=await parseDictionaryImport(csv,'csv');
+  assert.deepEqual(await parseDictionaryImport(JSON.stringify(original),'json'),original);
+  const invalid=[null,[],{}, {dictionary_entries:{}},{dictionary_admins:[]},
+    {dictionary_entries:[null]}, {dictionary_entries:[{id:id(1)}]},
+    {dictionary_entries:[{...original.dictionary_entries[0],id:'bad'}]},
+    {dictionary_entries:[{...original.dictionary_entries[0],status:'published'}]},
+    {dictionary_entries:[{...original.dictionary_entries[0],kind:'private'}]},
+    {dictionary_sources:[{...original.dictionary_sources[0],verification:'invented'}]},
+    {dictionary_sources:[{...original.dictionary_sources[0],verification:'verified'}]},
+    {dictionary_entries:[{...original.dictionary_entries[0],revision:0}]},
+    {dictionary_senses:[{...original.dictionary_senses[0],gloss_zh_tw:42}]},
+    {dictionary_entries:[original.dictionary_entries[0],original.dictionary_entries[0]]}];
+  for(const value of invalid)await assert.rejects(parseDictionaryImport(JSON.stringify(value),'json'));
+  await assert.rejects(parseDictionaryImport('{','json'),/JSON 格式/);
+  const uppercase={...original.dictionary_entries[0],id:'abcdefab-abcd-4abc-8abc-abcdefabcdef'};
+  await assert.rejects(parseDictionaryImport(JSON.stringify({dictionary_entries:[uppercase,{...uppercase,id:uppercase.id.toUpperCase()}]}),'json'),/重複 ID/);
+  const notes={dictionary_learning_notes:[{id:id(90),entry_id:id(10),source_id:original.dictionary_sources[0].id,kind:'mnemonic_scenario',body:'完整記憶情境\n保留原文',sense_id:null}]};
+  assert.deepEqual(await parseDictionaryImport(JSON.stringify(notes),'json'),notes);
 });

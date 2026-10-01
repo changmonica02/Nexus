@@ -32,7 +32,8 @@ async function source(raw:string,citation:string,license:string) {
   return {id:sid,citation,license,raw_text:raw,verification:'unverified',verification_note:'',source_url:null,license_note:''};
 }
 /** Strict documented interchange, not a converter for legacy etymology notes. */
-export async function parseDictionaryImport(raw:string,format:'csv'|'md'):Promise<Bundle> {
+export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json'):Promise<Bundle> {
+  if(format==='json')return parseJSONBundle(raw);
   const bundle:Bundle={dictionary_sources:[],dictionary_entries:[],dictionary_senses:[],dictionary_etymologies:[],dictionary_learning_notes:[]};
   if(format==='csv') {
     const entries=new Map<string,Record<string,unknown>>(),senses=new Set<string>();
@@ -79,5 +80,51 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'):Promis
       bundle.dictionary_learning_notes.push({...record,kind:meta.kind});
     }
   }
+  return bundle;
+}
+
+/** Only the existing RPC input contract; database-owned fields cannot be imported. */
+export function parseJSONBundle(raw:string):Bundle {
+  let value:unknown;
+  try{value=JSON.parse(raw.replace(/^\uFEFF/,''));}catch{throw new Error('JSON 格式錯誤，請檢查引號、逗號及括號');}
+  const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+  if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
+  const schemas:Record<string,{required:string[];optional:string[]}>= {
+    dictionary_sources:{required:['id','citation','license','raw_text'],optional:['source_url','license_note','verification','verification_note']},
+    dictionary_entries:{required:['id','kind','headword','source_id'],optional:['revision']},
+    dictionary_senses:{required:['id','entry_id','gloss_zh_tw','source_id'],optional:['part_of_speech','revision']},
+    dictionary_relations:{required:['id','entry_id','sense_id','target_entry_id','target_sense_id','relation_kind','source_id'],optional:['verification','verification_note','revision']},
+    dictionary_etymologies:{required:['id','entry_id','body','source_id'],optional:['sense_id','verification','verification_note','revision']},
+    dictionary_learning_notes:{required:['id','entry_id','kind','body','source_id'],optional:['sense_id','revision']},
+  };
+  const bundle:Bundle={};let count=0;
+  for(const [table,rows] of Object.entries(value)) {
+    if(!Object.hasOwn(schemas,table))throw new Error(`未知資料表 ${table}`);
+    if(!Array.isArray(rows))throw new Error(`${table} 必須為陣列`);
+    const schema=schemas[table],seen=new Set<string>();
+    bundle[table]=rows.map((row,index)=>{
+      const fail=(message:string):never=>{throw new Error(`${table} 第 ${index+1} 筆：${message}`);};
+      if(!object(row))return fail('資料必須為物件');
+      for(const key of schema.required)if(!Object.hasOwn(row,key))fail(`缺少 ${key}`);
+      for(const [key,v]of Object.entries(row)) {
+        if(!schema.required.includes(key)&&!schema.optional.includes(key))fail(`不允許欄位 ${key}（僅匯入草稿內容）`);
+        if(key==='revision'){if(!Number.isSafeInteger(v)||Number(v)<1)fail('revision 必須為正整數');continue;}
+        if(v===null&&['sense_id','part_of_speech','source_url'].includes(key)&&!schema.required.includes(key))continue;
+        if(typeof v!=='string')fail(`${key} 必須為文字`);
+        const text=v as string;
+        if(key==='id'||key.endsWith('_id')){if(!uuid.test(text))fail(`${key} 必須為穩定 UUID`);row[key]=text.toLowerCase();}
+        else if(key!=='raw_text'&&(schema.required.includes(key)||key==='part_of_speech')&&!text.trim())fail(`缺少 ${key}`);
+      }
+      const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
+      const enums:Record<string,string[]>={verification:['unverified','pending','verified','disputed'],relation_kind:['historical_etymology','learning_decomposition']};
+      if(table==='dictionary_entries')enums.kind=['word','prefix','root'];
+      if(table==='dictionary_learning_notes')enums.kind=['learning_decomposition','mnemonic_scenario'];
+      for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
+      if(row.verification==='verified'&&!String(row.verification_note??'').trim())fail('已查證內容必須填寫查證說明');
+      count++;return row;
+    });
+  }
+  if(!count)throw new Error('JSON Bundle 沒有資料');
+  // References may point to existing database rows; the RPC preview validates all FKs.
   return bundle;
 }
