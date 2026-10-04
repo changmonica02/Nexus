@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {useEffect,useState} from 'react';
 import {getSupabase} from '../../infrastructure/supabase/client';
-import {primaryCategories} from './grouping';
+import {primaryCategories,prefixCategories,searchGrouping,type GroupedDictionaryPage,type GroupedDictionaryItem} from './grouping';
 import type {DictionaryKind} from './dictionary';
 import {readPublishedEntry,searchDictionary,sourceUrl,type DictionaryPage,type PublishedDetail} from './reader';
 const box='rounded-xl border p-4';
@@ -28,22 +28,26 @@ export function DictionaryArticle({data}:{data:PublishedDetail}){
     <section className={box}><h2 className="mb-3 text-lg font-semibold">來源與授權資訊</h2>{data.sources.map(s=><div className="mb-4" id={`source-${s.id}`} key={s.id}><p>{s.citation}</p>{sourceUrl(s.source_url)&&<a className="underline text-sm" href={sourceUrl(s.source_url)!} target="_blank" rel="noopener noreferrer">原始來源網站</a>}<p className="text-sm">授權：{s.license} · 來源查證：{verification[s.verification]}</p><details className="mt-1 text-xs"><summary>來源識別</summary><p className="break-all">SHA-256：{s.sha256}</p></details></div>)}</section>
   </article>;
 }
-function GroupPage({kind,query,category}:{kind:DictionaryKind;query:string;category:string}){
+export function GroupedResult({item}:{item:GroupedDictionaryItem}){
+  return <Link href={`/dictionary/${item.id}${item.sense_id?`#sense-${item.sense_id}`:''}`} className="block rounded border border-[var(--color-border)] p-3"><span>{item.headword}</span>{item.sense_id&&<p className="mt-1 text-sm">{item.gloss_zh_tw}</p>}</Link>;
+}
+function GroupPage({kind,query,category}:{kind:'prefix'|'root';query:string;category:string}){
   const [page,setPage]=useState(0),[retry,setRetry]=useState(0);
-  const [result,setResult]=useState<DictionaryPage|null>(null),[error,setError]=useState('');
+  const [result,setResult]=useState<GroupedDictionaryPage|null>(null),[error,setError]=useState('');
   useEffect(()=>{let active=true;setResult(null);setError('');
-    void Promise.resolve(getSupabase()!.rpc('search_grouped_dictionary',{category:kind,query_text:query,page_number:page,primary_category_filter:category})).then(({data,error})=>{if(active){if(error)setError('分類暫時無法讀取，請稍後重試或確認分類資料服務已啟用。');else setResult(data);}}).catch(()=>{if(active)setError('分類讀取失敗，請重試。');});
+    void searchGrouping(getSupabase()!,kind,query,page,category).then(data=>{if(active)setResult(data);}).catch(e=>{if(active)setError(e instanceof Error?e.message:'分類讀取失敗，請重試。');});
     return()=>{active=false;};
   },[kind,query,category,page,retry]);
   return <div className="space-y-3 p-3">{error?<p role="alert">{error}<button className="ml-2 underline" onClick={()=>setRetry(n=>n+1)}>重試</button></p>:!result?<p role="status">讀取中…</p>:<>
-    {!result.items.length?<p>此分類沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2">{result.items.map(e=><li key={e.id}><Link href={`/dictionary/${e.id}`} className="block rounded border border-[var(--color-border)] p-3">{e.headword}</Link></li>)}</ul>}
+    {!result.items.length?<p>此分類沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2">{result.items.map(e=><li key={e.sense_id??e.id}><GroupedResult item={e}/></li>)}</ul>}
     <nav aria-label="分類分頁" className="flex justify-between gap-2"><button disabled={!page} onClick={()=>setPage(p=>p-1)}>上一頁</button><span>第 {page+1} 頁</span><button disabled={!result.has_more} onClick={()=>setPage(p=>p+1)}>下一頁</button></nav>
   </>}</div>;
 }
-export function DictionaryGroups({kind,query}:{kind:DictionaryKind;query:string}){
+export function DictionaryGroups({kind,query}:{kind:'prefix'|'root';query:string}){
   const [open,setOpen]=useState<string|null>(null);
-  return <div className="space-y-3">{[...primaryCategories,'未分類'].map((label,i)=>{
-    const category=i===primaryCategories.length?'__ungrouped__':label;
+  const categories=kind==='prefix'?prefixCategories:primaryCategories;
+  return <div className="space-y-3">{[...categories,'未分類'].map((label,i)=>{
+    const category=i===categories.length?'__ungrouped__':label;
     return <section key={category} className="rounded border border-[var(--color-border)]"><button className="w-full p-3 text-left" aria-expanded={open===category} onClick={()=>setOpen(open===category?null:category)}>{open===category?'▾':'▸'} {label}</button>{open===category&&<GroupPage key={`${kind}:${query}:${category}`} kind={kind} query={query} category={category}/>}</section>;
   })}</div>;
 }

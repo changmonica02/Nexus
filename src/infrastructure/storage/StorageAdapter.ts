@@ -1,4 +1,5 @@
 import type { StudyRepository } from "../../features/study/StudyRepository";
+import type { WorkspacePersistence } from "../sync/workspacePersistence";
 import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "../../lib/types";
 
 // H3 fix (方案 A): QuickNote/TodoItem 獨立 store 介面已廢棄；
@@ -7,6 +8,7 @@ import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup 
 export interface StorageAdapter {
   init(): Promise<void>;
   getStudyRepository(): StudyRepository;
+  getWorkspacePersistence(): WorkspacePersistence;
   /** Selects the local workspace visible through list/create operations. */
   setWorkspaceOwner?(ownerId: ID | null): void;
   /** One-time migration of the legacy anonymous workspace after explicit authorization. */
@@ -40,6 +42,7 @@ export interface StorageAdapter {
   getAttachment(id: ID): Promise<Attachment | null>;
   saveAttachment(attachment: Attachment): Promise<Attachment>;
   deleteAttachment(id: ID): Promise<void>;
+  restoreAttachment(id: ID): Promise<Attachment>;
   /** Permanently removes an attachment and its local binary. */
   permanentDeleteAttachment?(id: ID): Promise<void>;
   attachBinary(attachmentId: ID, blob: Blob): Promise<void>;

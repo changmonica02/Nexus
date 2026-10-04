@@ -1,3 +1,5 @@
+import { flushWorkspace, pullWorkspace, remoteResult } from "./workspaceSync";
+import type { EntityType } from "./workspacePersistence";
 import { syncStudy } from "../../features/study/studySync";
 /**
  * Nexus Sync Engine ??Shared Workspace
@@ -33,6 +35,11 @@ export class SyncEngine {
   private studySyncTimer: ReturnType<typeof setTimeout> | null = null;
   private studyError: string | null = null;
   private studyOnline = () => { void this.syncStudyNow(); };
+  private workspaceTimer: ReturnType<typeof setTimeout> | null = null;
+  private workspaceChanged = () => {
+    if (this.destroyed || this.workspaceTimer) return;
+    this.workspaceTimer = setTimeout(() => { this.workspaceTimer = null; void this.fullSync(); }, 300);
+  };
   private studyChanged = () => {
     if (this.destroyed || this.studySyncTimer) return;
     this.studySyncTimer = setTimeout(() => {
@@ -98,446 +105,108 @@ export class SyncEngine {
     this.onRemoteChange = callback;
   }
 
-  /** Start realtime subscriptions + periodic sync */
+  /** Realtime starts after the initial tombstone/data/outbox pass. */
   startRealtime(): void {
-    if (typeof window !== "undefined") { window.addEventListener("nexus-study-changed", this.studyChanged); window.addEventListener("online", this.studyOnline); }
-    // Subscribe to page changes
-    this.realtimeChannel = this.supabase
-      .channel(`nexus-${this.userId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
-        const data = payload.new as Record<string, unknown> | null;
-        console.log("[Sync] Remote page change:", payload.eventType, data?.id);
-        this.handleRemotePageChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
+    if (this.destroyed || this.realtimeChannel) return;
+    if (typeof window !== "undefined") {
+      window.addEventListener("nexus-study-changed", this.studyChanged);
+      window.addEventListener("nexus-workspace-changed", this.workspaceChanged);
+      window.addEventListener("online", this.studyOnline);
+      window.addEventListener("online", this.workspaceChanged);
+    }
+    this.realtimeChannel = this.supabase.channel(`nexus-${this.userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, payload => {
+        void this.handleRemoteChange("pages", payload);
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
-        const data = payload.new as Record<string, unknown> | null;
-        console.log("[Sync] Remote attachment change:", payload.eventType, data?.id);
-        this.handleRemoteAttachmentChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
+      .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `owner_id=eq.${this.userId}` }, payload => {
+        void this.handleRemoteChange("attachments", payload);
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, (payload: Record<string, unknown>) => {
-        const data = payload.new as Record<string, unknown> | null;
-        console.log("[Sync] Remote binary change:", payload.eventType, data?.id);
-        this.handleRemoteBinaryChange(payload as unknown as { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null });
-      })
-      .subscribe((status) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "workspace_tombstones", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
+      .on("postgres_changes", { event: "*", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
+      .subscribe(status => {
         if (status === "SUBSCRIBED") {
-          this.setState({ status: "connected" });
+          // Catch changes between initial pull and subscription (also on reconnect).
+          this.workspaceChanged();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           this.setState({ status: "error", error: "Realtime connection failed" });
         }
       });
-
-    // Also do periodic pull as backup (every 60 seconds)
-    this.syncInterval = setInterval(() => { void this.pullChanges().then(() => this.syncStudyNow()); }, 60000);
+    this.syncInterval = setInterval(() => { void this.fullSync(); }, 60000);
   }
 
-  private async handleRemotePageChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
-    const data = payload.new;
-    if (!data || !data.id) return;
-    // Skip if this change came from this device
-    if (data.device_id === this.deviceId) return;
-
-    const localPages = (await this.storage.listPages({ includeDeleted: true }))
-      .filter((page) => page.workspace_owner_id === this.userId);
-    const localPage = localPages.find((p) => p.id === data.id);
-
-    // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
-    if (localPage?.deleted_at && !data.deleted_at && localPage.updated_at >= (data.updated_at as number)) {
-      return;
-    }
-    if (!localPage || (data.updated_at as number) > localPage.updated_at) {
-      const page: Page = this.cloudRowToPage(data);
-      await this.storage.savePage(page);
-      this.onRemoteChange?.();
-    }
-  }
-
-  private async handleRemoteAttachmentChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
-    const data = payload.new;
-    if (!data || !data.id) return;
-    if (data.device_id === this.deviceId) return;
-
-    const localAttachments = (await this.storage.listAttachments(true))
-      .filter((attachment) => attachment.workspace_owner_id === this.userId);
-    const localAtt = localAttachments.find((a) => a.id === data.id);
-
-    if (!localAtt || (data.updated_at as number) > localAtt.updated_at) {
-      const att: Attachment = {
-        id: data.id as string,
-        kind: ((data.kind as string) || "file") as Attachment["kind"],
-        name: (data.name as string) || "",
-        mime_type: (data.mime_type as string) || "application/octet-stream",
-        size_bytes: (data.size_bytes as number) || 0,
-        storage_key: (data.storage_key as string) || "",
-        created_at: data.created_at as number,
-        updated_at: data.updated_at as number,
-        deleted_at: (data.deleted_at as number) || null,
-        device_id: (data.device_id as string) || "",
-        page_count: (data.page_count as number) ?? undefined,
-        workspace_owner_id: this.userId,
-      };
-      await this.storage.saveAttachment(att);
-      this.onRemoteChange?.();
-    }
-  }
-
-  /**
-   * M4-1: Realtime handler for binaries table.
-   * When another device pushes a PDF/image binary, download it to local IndexedDB.
-   * Note: binaries table has no device_id, so self-pushes also trigger this;
-   * the `!localBin` guard makes it a no-op for binaries we already have (idempotent).
-   */
-  private async handleRemoteBinaryChange(payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }): Promise<void> {
-    const data = payload.new;
-    if (!data || !data.id) return;
-    if (payload.eventType === "DELETE") return;
-
-    const localBin = await this.storage.readBinary(data.id as string);
-    if (localBin) return; // already have it (own push or already synced)
-
-    if (data.data) {
-      try {
-        const binary = atob(data.data as string);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const att = await this.storage.getAttachment(data.id as string);
-        const blob = new Blob([bytes], { type: att?.mime_type || "application/octet-stream" });
-        await this.storage.attachBinary(data.id as string, blob);
-        this.onRemoteChange?.();
-      } catch (err) {
-        console.error("[SyncEngine] handleRemoteBinaryChange error:", err);
+  private async handleRemoteChange(type: EntityType, payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }): Promise<void> {
+    if (this.destroyed) return;
+    const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+    if (!row?.id) return;
+    try {
+      if (payload.eventType === "DELETE") {
+        // DELETE may only contain the primary key. Fetch authoritative, owner-scoped
+        // tombstone rather than trusting a missing payload.new or a client timestamp.
+        const { data, error } = await this.supabase.from("workspace_tombstones").select("*")
+          .eq("owner_id", this.userId).eq("entity_type", type).eq("entity_id", row.id).maybeSingle();
+        if (error) throw new Error(error.message);
+        if (data && !this.destroyed) await this.storage.getWorkspacePersistence().merge(this.userId, [{
+          entity_type: type, entity_id: String(row.id), revision: Number(data.revision), deleted_at: Number(data.deleted_at), hard_deleted: true,
+        }]);
+        // A legacy/admin DELETE without a tombstone is not evidence to invent one.
+        // New server operations always create it atomically; periodic pull retries.
+      } else if (row.owner_id === this.userId) {
+        await this.storage.getWorkspacePersistence().merge(this.userId, [remoteResult(type, row)]);
       }
+      if (!this.destroyed) this.onRemoteChange?.();
+      this.workspaceChanged();
+    } catch (error) {
+      if (!this.destroyed) this.setState({ status: "error", error: String(error) });
     }
   }
 
-  private cloudRowToPage(row: Record<string, unknown>): Page {
-    return {
-      id: row.id as string,
-      title: (row.title as string) || "",
-      content_json: (row.content_json as object) || {},
-      content_text: (row.content_text as string) || "",
-      default_mode: (row.default_mode as "note") || "note",
-      created_at: row.created_at as number,
-      updated_at: row.updated_at as number,
-      deleted_at: (row.deleted_at as number) || null,
-      revision: (row.revision as number) || 1,
-      device_id: (row.device_id as string) || "",
-      tags: (row.tags as string[]) || [],
-      folder: (row.folder as string) || null,
-      links: (row.links as string[]) || [],
-      attachment_ids: (row.attachment_ids as string[]) || [],
-      primary_attachment_id: (row.primary_attachment_id as string) || null,
-      kind: (row.kind as string as Page["kind"]) || "note",
-      study_items: (row.study_items as Page["study_items"]) || undefined,
-      presentation_data: (row.presentation_data as Page["presentation_data"]) || undefined,
-      is_favorite: (row.is_favorite as boolean) || false,
-      format: (row.format as string as Page["format"]) || "flow",
-      sort_order: (row.sort_order as number) ?? undefined,
-      parent_id: (row.parent_id as string) || null,
-      margins: (row.margins as Page["margins"]) || undefined,
-      // M4-1: todo / quick_note fields
-      due_date: (row.due_date as number) ?? null,
-      priority: (row.priority as "low" | "medium" | "high" | null) || null,
-      completed: (row.completed as boolean) || false,
-      color: (row.color as string) || null,
-      creative_type: (row.creative_type as Page["creative_type"]) || undefined,
-      character_data: (row.character_data as Page["character_data"]) || undefined,
-      novel_settings: (row.novel_settings as Page["novel_settings"]) || undefined,
-      assistant_blocks: (row.assistant_blocks as Page["assistant_blocks"]) || undefined,
-      workspace_owner_id: this.userId,
-    };
-  }
-
-  /** Initial full sync: pull everything from cloud */
   async fullSync(): Promise<void> {
     if (this.isSyncing || this.destroyed) return;
     this.isSyncing = true;
     this.setState({ status: "syncing", error: null });
-
+    const local = this.storage.getWorkspacePersistence();
     try {
-      const { data: cloudPages, error: pagesError } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId);
-      if (pagesError) throw new Error(`Pages pull failed: ${pagesError.message}`);
-
-      const { data: cloudAttachments, error: attachmentsError } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId);
-      if (attachmentsError) throw new Error(`Attachments pull failed: ${attachmentsError.message}`);
-
-      const { data: cloudBinaries, error: binariesError } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId);
-      if (binariesError) throw new Error(`Binaries pull failed: ${binariesError.message}`);
-
-      const localPages = (await this.storage.listPages({ includeDeleted: true }))
-        .filter((page) => page.workspace_owner_id === this.userId);
-      const localAttachments = (await this.storage.listAttachments(true))
-        .filter((attachment) => attachment.workspace_owner_id === this.userId);
-      const localPageMap = new Map(localPages.map((p) => [p.id, p]));
-      let maxUpdatedAt = this.lastSyncAt;
-
-      // Pull cloud pages ??local (if cloud is newer)
-      for (const cloudPage of (cloudPages || [])) {
-        const localPage = localPageMap.get(cloudPage.id);
-        // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
-        if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
-          continue;
-        }
-        if (!localPage || cloudPage.updated_at > localPage.updated_at) {
-          await this.storage.savePage(this.cloudRowToPage(cloudPage as unknown as Record<string, unknown>));
-        }
-        if (cloudPage.updated_at > maxUpdatedAt) maxUpdatedAt = cloudPage.updated_at;
-      }
-
-      // Push all pending page records together, including offline chapter activation.
-      const pendingPages: Page[] = [];
-      for (const localPage of localPages) {
-        const cloudPage = (cloudPages || []).find((cp: { id: string }) => cp.id === localPage.id);
-        if (!cloudPage || localPage.updated_at > cloudPage.updated_at) {
-          pendingPages.push(localPage);
-        }
-        if (localPage.updated_at > maxUpdatedAt) maxUpdatedAt = localPage.updated_at;
-      }
-
-      await this.pushPages(pendingPages);
-
-      // Push local attachments ??cloud (if local is newer or doesn't exist on cloud)
-      // M4-1 fix: previously fullSync only pushed pages; attachments/binaries created
-      // during offline periods never reached the cloud (PDFs missing on other devices).
-      for (const localAtt of localAttachments) {
-        const cloudAtt = (cloudAttachments || []).find((ca: { id: string }) => ca.id === localAtt.id);
-        if (!cloudAtt || localAtt.updated_at > cloudAtt.updated_at) {
-          await this.pushAttachment(localAtt);
-        }
-      }
-
-      // Push local binaries ??cloud (if missing on cloud)
-      for (const localAtt of localAttachments) {
-        const cloudBin = (cloudBinaries || []).find((cb: { id: string }) => cb.id === localAtt.id);
-        if (!cloudBin) {
-          const bin = await this.storage.readBinary(localAtt.id);
-          if (bin) await this.pushBinary(localAtt.id, bin);
-        }
-      }
-
-      // Pull cloud attachments ??local
-      const localAttMap = new Map(localAttachments.map((a) => [a.id, a]));
-      for (const cloudAtt of (cloudAttachments || [])) {
-        const localAtt = localAttMap.get(cloudAtt.id);
-        if (!localAtt || cloudAtt.updated_at > localAtt.updated_at) {
-          const att: Attachment = {
-            id: cloudAtt.id, kind: cloudAtt.kind || "file", name: cloudAtt.name || "",
-            mime_type: cloudAtt.mime_type || "application/octet-stream", size_bytes: cloudAtt.size_bytes || 0,
-            storage_key: cloudAtt.storage_key || "", created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
-            deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
-            page_count: cloudAtt.page_count ?? undefined,
-            workspace_owner_id: this.userId,
-          };
-          await this.storage.saveAttachment(att);
-        }
-      }
-
-      // Pull cloud binaries ??local
-      for (const cloudBin of (cloudBinaries || [])) {
-        const localBin = await this.storage.readBinary(cloudBin.id);
-        if (!localBin && cloudBin.data) {
-          const binary = atob(cloudBin.data);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const att = (cloudAttachments || []).find((a: { id: string }) => a.id === cloudBin.id);
-          const blob = new Blob([bytes], { type: att?.mime_type || "application/octet-stream" });
-          await this.storage.attachBinary(cloudBin.id, blob);
-        }
-      }
-
+      await pullWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
       if (this.destroyed) return;
-      this.lastSyncAt = maxUpdatedAt;
-      this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
-      await this.syncStudyNow();
-      this.onRemoteChange?.();
-    } catch (err) {
-      // A superseded login sync is intentionally abandoned. Do not surface its
-      // teardown race as a user-facing synchronization failure.
+      await flushWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
       if (this.destroyed) return;
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error("[SyncEngine] fullSync error:", errorMsg);
-      this.setState({ status: "error", error: errorMsg });
+      this.lastSyncAt = Date.now();
+      this.setState({ status: "connected", lastSyncAt: this.lastSyncAt, error: null });
+    } catch (error) {
+      if (!this.destroyed) this.setState({ status: "error", error: error instanceof Error ? error.message : String(error) });
     } finally {
       this.isSyncing = false;
+      if (!this.destroyed) {
+        // A tombstone pull must refresh the UI even if a stale queued save conflicts.
+        this.onRemoteChange?.();
+        await this.syncStudyNow();
+        this.setState({ pendingPushes: this.state.pendingPushes + (await local.pending(this.userId)).length });
+      }
     }
   }
 
-  /** Pull only changes since last sync */
-  async pullChanges(): Promise<void> {
-    if (this.isSyncing || this.lastSyncAt === 0) return;
-    this.isSyncing = true;
-    this.setState({ status: "syncing" });
+  async pullChanges(): Promise<void> { await this.fullSync(); }
 
-    try {
-      const { data: cloudPages } = await this.supabase.from("pages").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
-      let maxUpdatedAt = this.lastSyncAt;
-      let changed = false;
-
-      for (const cloudPage of (cloudPages || [])) {
-        if (cloudPage.device_id === this.deviceId) continue; // Skip own changes
-        const localPages = (await this.storage.listPages({ includeDeleted: true }))
-          .filter((page) => page.workspace_owner_id === this.userId);
-        const localPage = localPages.find((p) => p.id === cloudPage.id);
-        // M4-1 fix: local soft-delete wins over a stale cloud copy (prevents resurrection)
-        if (localPage?.deleted_at && !cloudPage.deleted_at && localPage.updated_at >= (cloudPage.updated_at as number)) {
-          continue;
-        }
-        if (!localPage || cloudPage.updated_at > localPage.updated_at) {
-          await this.storage.savePage(this.cloudRowToPage(cloudPage as unknown as Record<string, unknown>));
-          changed = true;
-        }
-        if (cloudPage.updated_at > maxUpdatedAt) maxUpdatedAt = cloudPage.updated_at;
-      }
-
-      // M7 fix: pullChanges 原本只拉 pages，Realtime 斷線期間他機新增的附件/PDF 不會同步。
-      // 補上 attachments 與 binaries 的增量 pull。
-      const { data: cloudAttachments } = await this.supabase.from("attachments").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
-      for (const cloudAtt of (cloudAttachments || [])) {
-        if (cloudAtt.device_id === this.deviceId) continue;
-        const localAtt = (await this.storage.listAttachments(true))
-          .filter((attachment) => attachment.workspace_owner_id === this.userId)
-          .find((a) => a.id === cloudAtt.id);
-        if (!localAtt || (cloudAtt.updated_at as number) > localAtt.updated_at) {
-          await this.storage.saveAttachment({
-            id: cloudAtt.id, kind: ((cloudAtt.kind as string) || "file") as Attachment["kind"],
-            name: cloudAtt.name || "", mime_type: cloudAtt.mime_type || "application/octet-stream",
-            size_bytes: cloudAtt.size_bytes || 0, storage_key: cloudAtt.storage_key || "",
-            created_at: cloudAtt.created_at, updated_at: cloudAtt.updated_at,
-            deleted_at: cloudAtt.deleted_at || null, device_id: cloudAtt.device_id || "",
-            page_count: cloudAtt.page_count ?? undefined,
-            workspace_owner_id: this.userId,
-          });
-          changed = true;
-        }
-        if ((cloudAtt.updated_at as number) > maxUpdatedAt) maxUpdatedAt = cloudAtt.updated_at as number;
-      }
-
-      const { data: cloudBinaries } = await this.supabase.from("binaries").select("*").eq("owner_id", this.userId).gt("updated_at", this.lastSyncAt);
-      for (const cloudBin of (cloudBinaries || [])) {
-        const localBin = await this.storage.readBinary(cloudBin.id);
-        if (localBin) continue; // 本地已有（自己 push 或已同步）
-        if (cloudBin.data) {
-          try {
-            const binary = atob(cloudBin.data);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const att = (cloudAttachments || []).find((a: { id: string }) => a.id === cloudBin.id);
-            const blob = new Blob([bytes], { type: att?.mime_type || "application/octet-stream" });
-            await this.storage.attachBinary(cloudBin.id, blob);
-            changed = true;
-          } catch (err) { console.error("[SyncEngine] pullChanges binary error:", err); }
-        }
-      }
-
-      this.lastSyncAt = maxUpdatedAt;
-      this.setState({ status: "connected", lastSyncAt: maxUpdatedAt, error: null });
-      if (changed) this.onRemoteChange?.();
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.setState({ status: "error", error: errorMsg });
-    } finally {
-      this.isSyncing = false;
-    }
-  }
-
-  /** Push a single page to cloud */
-  async pushPage(page: Page): Promise<void> {
-    return this.pushPages([page]);
-  }
-
-  /** One upsert keeps chapter activation and its parent change atomic remotely. */
+  // Callers already persist their intent atomically through StorageAdapter. Never
+  // reconstruct upload intent from UI snapshots or from cloud absence here.
+  async pushPage(page: Page): Promise<void> { await this.pushPages([page]); }
   async pushPages(pages: Page[]): Promise<void> {
-    if (this.destroyed || !pages.length || pages.some((page) => page.workspace_owner_id !== this.userId)) return;
-    try {
-      const { error: upErr } = await this.supabase.from("pages").upsert(pages.map((page) => ({
-        id: page.id, owner_id: this.userId, title: page.title, content_json: page.content_json,
-        content_text: page.content_text, default_mode: page.default_mode,
-        created_at: page.created_at, updated_at: page.updated_at, deleted_at: page.deleted_at,
-        revision: page.revision, device_id: this.deviceId,
-        tags: page.tags || [], folder: page.folder || null, links: page.links || [],
-        attachment_ids: page.attachment_ids || [], primary_attachment_id: page.primary_attachment_id || null,
-        kind: page.kind || "note", study_items: page.study_items || null, presentation_data: page.presentation_data || null,
-        is_favorite: page.is_favorite || false, format: page.format || "flow",
-        sort_order: page.sort_order ?? null, parent_id: page.parent_id || null,
-        margins: page.margins ?? null,
-        // M4-1: todo / quick_note fields (were missing -> cross-device data loss)
-        due_date: page.due_date ?? null,
-        priority: page.priority ?? null,
-        completed: page.completed ?? false,
-        color: page.color ?? null,
-        // Creative data must travel with the page; otherwise novels reopen as
-        // generic creative pages and lose their overview/settings on another device.
-        creative_type: page.creative_type ?? null,
-        character_data: page.character_data ?? null,
-        novel_settings: page.novel_settings ?? null,
-        assistant_blocks: page.assistant_blocks ?? null,
-      })), { onConflict: "id" });
-      if (upErr) console.error("[SyncEngine] pushPage FAIL:", upErr.message, "| hint:", upErr.hint, "| code:", upErr.code);
-
-      const updatedAt = Math.max(...pages.map((page) => page.updated_at));
-      if (!upErr && updatedAt > this.lastSyncAt) this.setState({ lastSyncAt: updatedAt });
-    } catch (err) {
-      console.error("[SyncEngine] pushPage error:", err);
-    }
+    if (pages.length && pages.every(page => page.workspace_owner_id === this.userId)) await this.fullSync();
   }
-
   async pushAttachment(attachment: Attachment): Promise<void> {
-    if (this.destroyed || attachment.workspace_owner_id !== this.userId) return;
-    try {
-      await this.supabase.from("attachments").upsert({
-        id: attachment.id, owner_id: this.userId, kind: attachment.kind, name: attachment.name,
-        mime_type: attachment.mime_type, size_bytes: attachment.size_bytes,
-        storage_key: attachment.storage_key, created_at: attachment.created_at,
-        updated_at: attachment.updated_at, deleted_at: attachment.deleted_at,
-        device_id: this.deviceId, page_count: attachment.page_count ?? null,
-      }, { onConflict: "id" });
-    } catch (err) {
-      console.error("[SyncEngine] pushAttachment error:", err);
-    }
+    if (attachment.workspace_owner_id === this.userId) await this.fullSync();
   }
-
-  async pushBinary(attachmentId: string, blob: Blob): Promise<void> {
-    if (this.destroyed) return;
-    const attachment = await this.storage.getAttachment(attachmentId);
-    if (!attachment || attachment.workspace_owner_id !== this.userId) return;
-    try {
-      const buffer = await blob.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      const chunkSize = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSize) binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-      await this.supabase.from("binaries").upsert({
-        id: attachmentId, owner_id: this.userId, data: btoa(binary), updated_at: Date.now(),
-      }, { onConflict: "id" });
-    } catch (err) {
-      console.error("[SyncEngine] pushBinary error:", err);
-    }
-  }
-
-  async pushSetting(_key: string, _value: unknown): Promise<void> {
-    // Settings are local-only in shared workspace mode
-  }
-
-  async pushPermanentDeletePage(pageId: string): Promise<void> {
-    try {
-      await this.supabase.from("pages").delete().eq("id", pageId).eq("owner_id", this.userId);
-    } catch (err) {
-      console.error("[SyncEngine] pushPermanentDeletePage error:", err);
-    }
-  }
-
-  async pushPermanentDeleteAttachment(attachmentId: string): Promise<void> {
-    try {
-      await this.supabase.from("attachments").delete().eq("id", attachmentId).eq("owner_id", this.userId);
-      await this.supabase.from("binaries").delete().eq("id", attachmentId).eq("owner_id", this.userId);
-    } catch (err) {
-      console.error("[SyncEngine] pushPermanentDeleteAttachment error:", err);
-    }
-  }
+  async pushBinary(_attachmentId: string, _blob: Blob): Promise<void> { await this.fullSync(); }
+  async pushSetting(_key: string, _value: unknown): Promise<void> { /* Local-only settings. */ }
+  async pushPermanentDeletePage(_pageId: string): Promise<void> { await this.fullSync(); }
+  async pushPermanentDeleteAttachment(_attachmentId: string): Promise<void> { await this.fullSync(); }
 
   destroy(): void {
     if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }
     if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
+    if (this.workspaceTimer) clearTimeout(this.workspaceTimer);
+    if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceChanged);
+    if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceChanged);
     this.destroyed = true;
     this.stopPeriodicSync();
     if (this.realtimeChannel) {

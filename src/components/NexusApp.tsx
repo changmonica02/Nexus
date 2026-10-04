@@ -609,7 +609,7 @@ function NexusAppInner({
       const previousAttachment = attachments.find((item) => item.id === previousAttachmentId);
       if (previousAttachment && !isStillReferenced) {
         const removedAttachment = { ...previousAttachment, deleted_at: Date.now(), updated_at: Date.now() };
-        await storage.saveAttachment(removedAttachment);
+        await storage.deleteAttachment(previousAttachment.id);
         setAttachments((items) => items.filter((item) => item.id !== previousAttachmentId));
         await syncEngineRef.current?.pushAttachment(removedAttachment);
       }
@@ -648,7 +648,7 @@ function NexusAppInner({
     if (!attachment || isStillReferenced || !storageRef.current) return;
 
     const removedAttachment = { ...attachment, deleted_at: Date.now(), updated_at: Date.now() };
-    await storageRef.current.saveAttachment(removedAttachment);
+    await storageRef.current.deleteAttachment(attachment.id);
     setAttachments((items) => items.filter((item) => item.id !== attachmentId));
     await syncEngineRef.current?.pushAttachment(removedAttachment);
   }, [attachments, pages, patchPage]);

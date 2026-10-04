@@ -8,9 +8,10 @@ import type {
   WorkspaceBackup, WorkspaceBackupAttachmentEntry,
 } from "../../lib/types";
 import type { StorageAdapter } from "./StorageAdapter";
+import { WorkspacePersistence, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const BACKUP_SCHEMA_VERSION = 3;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
@@ -38,6 +39,10 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 
 export class IndexedDBAdapter implements StorageAdapter {
   private db: IDBPDatabase | null = null;
+  getWorkspacePersistence(): WorkspacePersistence {
+    if (!this.db) throw new Error("DB not initialized");
+    return new WorkspacePersistence(this.db);
+  }
   private studyRepository: StudyRepository | null = null;
   private studyRepositoryOwner: string | null | undefined;
   getStudyRepository(): StudyRepository {
@@ -67,7 +72,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     // This is intentionally a one-time, explicit migration: the user asked
     // for all current local data to belong to their account. Later anonymous
     // workspaces must not be silently claimed by whichever account signs in.
-    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readwrite");
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES, ...WORKSPACE_STORES], "readwrite");
     const pages = await tx.objectStore("pages").getAll();
     const attachments = await tx.objectStore("attachments").getAll();
     for (const page of pages) {
@@ -78,6 +83,19 @@ export class IndexedDBAdapter implements StorageAdapter {
     for (const attachment of attachments) {
       if ((attachment.workspace_owner_id ?? null) === null) {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
+      }
+    }
+    // Only explicit, post-upgrade offline intents are claimed for upload. Old cached
+    // rows without an outbox record never become inferred cloud creations.
+    for (const batch of await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]) {
+      if (batch.owner_id == null) await tx.objectStore("workspace_outbox").put({ ...batch, owner_id: ownerId,
+        operations: batch.operations.map(op => ({ ...op, ...(op.value ? { value: { ...op.value, workspace_owner_id: ownerId } } : {}) })) });
+    }
+    for (const meta of await tx.objectStore("workspace_sync_meta").getAll()) {
+      if (meta.id !== "sequence" && meta.owner_id == null) {
+        const [, type, id] = JSON.parse(meta.id);
+        await tx.objectStore("workspace_sync_meta").delete(meta.id);
+        await tx.objectStore("workspace_sync_meta").put({ ...meta, id: JSON.stringify([ownerId, type, id]), owner_id: ownerId });
       }
     }
     const claimStudy = (record: Record<string, unknown>): Record<string, unknown> => {
@@ -99,7 +117,7 @@ export class IndexedDBAdapter implements StorageAdapter {
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
-        for (const name of [...STUDY_STORES,...QUIZ_STORES]) {
+        for (const name of [...STUDY_STORES,...QUIZ_STORES,...WORKSPACE_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
@@ -144,16 +162,12 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
 
   async savePage(page: Page): Promise<Page> {
-    if (!this.db) throw new Error("DB not initialized");
-    await this.db.put("pages", page);
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "pages", kind: "save", value: page }]);
     return page;
   }
 
   async savePages(pages: Page[]): Promise<void> {
-    if (!this.db) throw new Error("DB not initialized");
-    const tx = this.db.transaction("pages", "readwrite");
-    await Promise.all(pages.map((page) => tx.store.put(page)));
-    await tx.done;
+    if (pages.length) await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, pages.map(value => ({ type: "pages", kind: "save", value })));
   }
 
   async createPage(input?: CreatePageInput): Promise<Page> {
@@ -183,7 +197,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       parent_id: input?.parent_id ?? null,
       workspace_owner_id: this.workspaceOwnerId,
     };
-    await this.db.put("pages", page);
+    await this.savePage(page);
     return page;
   }
 
@@ -194,7 +208,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     page.updated_at = Date.now();
     page.revision += 1;
     page.device_id = this.deviceId;
-    await this.savePage(page);
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "pages", kind: "soft_delete", value: page }]);
   }
 
   async restorePage(id: ID): Promise<Page> {
@@ -204,13 +218,14 @@ export class IndexedDBAdapter implements StorageAdapter {
     page.updated_at = Date.now();
     page.revision += 1;
     page.device_id = this.deviceId;
-    await this.savePage(page);
-    return page;
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "pages", kind: "restore", value: page }]);
+    return (await this.getPage(id))!;
   }
 
   async permanentDeletePage(id: ID): Promise<void> {
     if (!this.db) throw new Error("DB not initialized");
-    await this.db.delete("pages", id);
+    const page = await this.getPage(id);
+    if (page) await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "pages", kind: "hard_delete", value: page }]);
     const activeId = await this.getActivePageId();
     if (activeId === id) await this.setActivePageId(null);
   }
@@ -274,8 +289,7 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
 
   async saveAttachment(attachment: Attachment): Promise<Attachment> {
-    if (!this.db) throw new Error("DB not initialized");
-    await this.db.put("attachments", attachment);
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "attachments", kind: "save", value: attachment }]);
     return attachment;
   }
 
@@ -285,20 +299,28 @@ export class IndexedDBAdapter implements StorageAdapter {
     attachment.deleted_at = Date.now();
     attachment.updated_at = Date.now();
     attachment.device_id = this.deviceId;
-    await this.saveAttachment(attachment);
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "attachments", kind: "soft_delete", value: attachment }]);
+  }
+
+  async restoreAttachment(id: ID): Promise<Attachment> {
+    const attachment = await this.getAttachment(id);
+    if (!attachment) throw new Error("Attachment not found");
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "attachments", kind: "restore", value: attachment }]);
+    return (await this.getAttachment(id))!;
   }
 
   async permanentDeleteAttachment(id: ID): Promise<void> {
     if (!this.db) throw new Error("DB not initialized");
-    const tx = this.db.transaction(["attachments", "binaries"], "readwrite");
-    await tx.objectStore("attachments").delete(id);
-    await tx.objectStore("binaries").delete(id);
-    await tx.done;
+    const attachment = await this.getAttachment(id);
+    if (attachment) await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "attachments", kind: "hard_delete", value: attachment }]);
   }
 
   async attachBinary(attachmentId: ID, blob: Blob): Promise<void> {
     if (!this.db) throw new Error("DB not initialized");
-    await this.db.put("binaries", { id: attachmentId, blob, updated_at: Date.now() });
+    const attachment = await this.getAttachment(attachmentId);
+    if (!attachment) throw new Error("Attachment not found");
+    const data = await blobToBase64(blob);
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "attachments", kind: "binary", value: attachment, data, blob }]);
   }
 
   async readBinary(attachmentId: ID): Promise<Blob | null> {
@@ -324,7 +346,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       page_count: input.page_count,
       workspace_owner_id: this.workspaceOwnerId,
     };
-    await this.db.put("attachments", attachment);
+    await this.saveAttachment(attachment);
     return attachment;
   }
 
@@ -380,7 +402,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         }
       }
     }
-    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES], "readwrite", { durability: "strict" });
+    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES], "readwrite", { durability: "strict" });
     try {
     // Never erase review history when importing an older or partial backup.
     if (backup.study) {
@@ -418,18 +440,30 @@ export class IndexedDBAdapter implements StorageAdapter {
         }
       }
     }
+    // A backup is not an explicit restore of a deleted cloud object. Preserve
+    // delete barriers and unacknowledged local work even when replacing the cache.
+    const queued = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]).flatMap(batch => batch.operations);
+    const preservedPages = (await tx.objectStore("pages").getAll()).filter(row => row.deleted_at != null || queued.some(op => op.entity_type === "pages" && op.entity_id === row.id));
+    const preservedAttachments = (await tx.objectStore("attachments").getAll()).filter(row => row.deleted_at != null || queued.some(op => op.entity_type === "attachments" && op.entity_id === row.id));
+    const preservedBinaries = (await tx.objectStore("binaries").getAll()).filter(row => preservedAttachments.some(att => att.id === row.id));
+    const isHardDeleted = async (type: string, row: Page | Attachment) =>
+      (await tx.objectStore("workspace_sync_meta").get(JSON.stringify([row.workspace_owner_id ?? null, type, row.id])))?.hard_deleted;
     await tx.objectStore("pages").clear();
     await tx.objectStore("attachments").clear();
     await tx.objectStore("binaries").clear();
     await tx.objectStore("settings").clear();
-    for (const page of backup.pages) await tx.objectStore("pages").put(page);
+    for (const page of backup.pages) if (!await isHardDeleted("pages", page)) await tx.objectStore("pages").put(page);
     for (const entry of backup.attachments) {
+      if (await isHardDeleted("attachments", entry.attachment)) continue;
       await tx.objectStore("attachments").put(entry.attachment);
       if (entry.binary_base64) {
         const blob = base64ToBlob(entry.binary_base64, entry.attachment.mime_type || "application/octet-stream");
         await tx.objectStore("binaries").put({ id: entry.attachment.id, blob, updated_at: Date.now() });
       }
     }
+    for (const page of preservedPages) await tx.objectStore("pages").put(page);
+    for (const attachment of preservedAttachments) await tx.objectStore("attachments").put(attachment);
+    for (const binary of preservedBinaries) await tx.objectStore("binaries").put(binary);
     for (const setting of backup.settings) await tx.objectStore("settings").put(setting);
     await tx.done;
     } catch (error) {
