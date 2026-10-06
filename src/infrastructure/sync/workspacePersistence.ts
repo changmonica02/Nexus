@@ -1,5 +1,6 @@
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
+import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
 
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments";
@@ -34,6 +35,7 @@ interface Meta {
   owner_id: string | null;
   revision: number;
   hard_deleted?: boolean;
+  official_deck_deleted?:boolean;
 }
 const key = (owner: string | null, type: EntityType, id: string) => JSON.stringify([owner, type, id]);
 const notify = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-workspace-changed")); };
@@ -108,7 +110,7 @@ export class WorkspacePersistence {
   }
 
   async merge(owner: string, results: WorkspaceResult[], acknowledged?: string): Promise<void> {
-    const tx = this.db.transaction(stores, "readwrite", { durability: "strict" });
+    const tx = this.db.transaction([...stores,...OFFICIAL_CLEANUP_STORES.filter(name=>this.db.objectStoreNames.contains(name))], "readwrite", { durability: "strict" });
     try {
       if (acknowledged) await tx.objectStore("workspace_outbox").delete(acknowledged);
       const pending = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[])
@@ -119,11 +121,13 @@ export class WorkspacePersistence {
         if ((meta?.revision ?? -1) > result.revision) continue;
         const related = pending.filter(op => op.entity_type === result.entity_type && op.entity_id === result.entity_id);
         const hardDeleted = result.hard_deleted || !!meta?.hard_deleted;
-        await tx.objectStore("workspace_sync_meta").put({ id, owner_id: owner, revision: result.revision, hard_deleted: hardDeleted });
+        const nextMeta={...meta,id, owner_id: owner, revision: result.revision, hard_deleted: hardDeleted};
+        await tx.objectStore("workspace_sync_meta").put(nextMeta);
         const store = tx.objectStore(result.entity_type);
         const local = await store.get(result.entity_id);
         if (local && (local.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if (hardDeleted) {
+          if(result.hard_deleted&&result.entity_type==='pages'&&await purgeOfficialDeck(tx,owner,result.entity_id,!!local?.official_pack_id))await tx.objectStore('workspace_sync_meta').put({...nextMeta,official_deck_deleted:true});
           await store.delete(result.entity_id);
           if (result.entity_type === "attachments") await tx.objectStore("binaries").delete(result.entity_id);
         } else if (result.row && (!related.length || result.deleted_at != null)) {

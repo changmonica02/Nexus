@@ -162,6 +162,8 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
 
   async savePage(page: Page): Promise<Page> {
+    const current=await this.getPage(page.id);
+    if(current?.official_pack_id&&page.title!==current.title)throw new Error('官方單字集標題不可編輯。');
     await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, [{ type: "pages", kind: "save", value: page }]);
     return page;
   }
@@ -204,6 +206,7 @@ export class IndexedDBAdapter implements StorageAdapter {
   async deletePage(id: ID): Promise<void> {
     const page = await this.getPage(id);
     if (!page) return;
+    if(page.official_pack_id)throw new Error('請從官方單字集選單刪除，以一併移除學習進度。');
     page.deleted_at = Date.now();
     page.updated_at = Date.now();
     page.revision += 1;

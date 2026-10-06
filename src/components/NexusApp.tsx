@@ -41,6 +41,8 @@ import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
+import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
+import {deleteOfficialPack,packDeleteMessage} from "../features/study/officialPacks";
 import StudySetView from "../features/study/components/StudySetView";
 import QuizOfflinePrompt from "../features/study/quiz/QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
@@ -738,6 +740,15 @@ function NexusAppInner({
     await activatePage(id);
   }, [activatePage, flushSave]);
 
+  const openedStudyLink=useRef(false);
+  useEffect(()=>{
+    if(initialFeature!=="study"||openedStudyLink.current)return;
+    const id=new URLSearchParams(window.location.search).get("deck");
+    if(id&&pages.some(p=>p.id===id&&p.kind==='study_set'&&!p.deleted_at)){
+      openedStudyLink.current=true;void handleSelectPage(id);
+    }
+  },[initialFeature,pages,handleSelectPage]);
+
   const createAndOpenPage = useCallback(async (input: CreatePageInput) => {
     if (!storageRef.current) return;
     if (activePageRef.current) await flushSave(activePageRef.current);
@@ -1219,6 +1230,7 @@ function NexusAppInner({
     if (!storageRef.current) return;
     const source = pages.find((page) => page.id === id);
     if (!source) return;
+    if(source.official_pack_id){window.alert("官方單字集目前不支援建立副本。");return;}
     if (activePageRef.current) await flushSave(activePageRef.current);
     const duplicated = await storageRef.current.createPage({
       title: `${source.title || "Untitled"} copy`,
@@ -1515,6 +1527,12 @@ function NexusAppInner({
 
   const handleDeletePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
+    const official=pages.find(p=>p.id===id&&p.official_pack_id);
+    if(official){
+      if(!window.confirm(packDeleteMessage(official.title)))return;
+      try{await deleteOfficialPack(getSupabase()!,id);await syncEngineRef.current?.fullSync();setPages(await storageRef.current.listPages());handleShowStudySets();}
+      catch(error){window.alert(String(error));}return;
+    }
     const timer = saveTimersRef.current.get(id);
     if (timer) clearTimeout(timer);
     saveTimersRef.current.delete(id);
@@ -1559,6 +1577,7 @@ function NexusAppInner({
 
   const handleBulkDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
+    if(pages.some(p=>ids.includes(p.id)&&p.official_pack_id)){window.alert("請從官方單字集的更多選單逐集刪除，以確認移除學習進度。");return;}
     const idSet = new Set(ids);
     for (const id of ids) {
       const timer = saveTimersRef.current.get(id);
@@ -1962,16 +1981,10 @@ function NexusAppInner({
           />
         )
       ) : isStudySetMode ? (
-        <FeatureOverview
-          title="字卡"
-          description="建立、整理並練習你的學習卡片。"
-          relatedLink={{ href: "/dictionary", label: "字典／百科" }}
-          icon="🗂️"
-          actionLabel="建立字卡集"
-          pages={pages.filter((p) => p.kind === "study_set" && !p.deleted_at)}
-          onCreate={() => void handleCreateStudySet()}
-          onSelectPage={handleSelectPage}
-        />
+        <StudyHomeOverview pages={pages.filter(p=>p.kind==='study_set'&&!p.deleted_at)} repository={storageRef.current!.getStudyRepository()}
+          onCreate={()=>void handleCreateStudySet()} onSelectPage={handleSelectPage}
+          onChanged={async()=>{await syncEngineRef.current?.fullSync();if(storageRef.current)setPages(await storageRef.current.listPages());}}/>
+
       ) : isNovelMode ? (
         <FeatureOverview
           title="小說"

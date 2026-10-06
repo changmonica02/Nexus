@@ -34,6 +34,7 @@ export class StudyRepository {
     try {
     const existing = await tx.objectStore("study_settings").get(page.id);
     if (!existing) {
+      if(page.official_pack_id)throw new Error('正在同步官方學習集，請稍後再試。');
       const migrated = migrateStudyDeck(page, Date.now());
       for (const card of migrated.cards) {
         await tx.objectStore("study_cards").put(card);
@@ -82,7 +83,8 @@ export class StudyRepository {
   async addCards(deckId: string, pairs: {front: string; back: string}[]) {
     const tx = this.db.transaction(STUDY_STORES, "readwrite", {durability:"strict"});
     try {
-    this.owned(await tx.objectStore("study_settings").get(deckId));
+    const settings=await tx.objectStore("study_settings").get(deckId);this.owned(settings);
+    if(settings.official_pack_id)throw new Error('官方單字集不可直接新增或匯入字卡。');
     const existing: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(deckId);
     const first = Math.max(-1, ...existing.map(card => card.sort_order)) + 1;
     for (const [i, pair] of pairs.entries()) {
@@ -111,6 +113,7 @@ export class StudyRepository {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
     const card: StudyCard = await tx.objectStore("study_cards").get(id); this.owned(card);
+    if(card.official_pack_id&&Object.keys(patch).length)throw new Error('官方字卡內容不可直接編輯。');
     const updated = {...card,...patch,migration_only:false,content_revision:card.content_revision+1,updated_at:Math.max(Date.now(),card.updated_at+1)};
     await tx.objectStore("study_cards").put(updated);
     await this.enqueue(tx,{owner_id:this.owner(),kind:"card",value:updated});
@@ -323,8 +326,15 @@ export class StudyRepository {
   }
   /** Events are unioned by ID. Divergent heads are retained and marked, never overwritten silently. */
   async mergeRemote(data:StudyBackup) {
-    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
+    const hasWorkspace=this.db.objectStoreNames.contains('workspace_sync_meta');
+    const tx=this.db.transaction([...STUDY_STORES,...(hasWorkspace?['workspace_sync_meta']:[])],"readwrite",{durability:"strict"});
     try {
+    if(hasWorkspace){
+      const deleted=new Set<string>();
+      const officialDecks=new Set([...data.cards.filter(c=>c.official_pack_id).map(c=>c.deck_id),...data.settings.filter(s=>s.official_pack_id).map(s=>s.id)]);
+      for(const meta of await tx.objectStore('workspace_sync_meta').getAll())if(meta.owner_id===this.owner()&&meta.hard_deleted){const [,type,id]=JSON.parse(meta.id);if(type==='pages'&&(meta.official_deck_deleted||officialDecks.has(id)))deleted.add(id);}
+      data={cards:data.cards.filter(c=>!deleted.has(c.deck_id)),states:data.states.filter(s=>!deleted.has(s.deck_id)),events:data.events.filter(e=>!deleted.has(e.deck_id)),settings:data.settings.filter(s=>!deleted.has(s.id)),sessions:data.sessions?.filter(s=>!deleted.has(s.deck_id))};
+    }
     for(const event of data.events) {
       this.owned(event);
       const existing=await tx.objectStore("study_events").get(event.id);

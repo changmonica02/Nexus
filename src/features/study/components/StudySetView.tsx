@@ -47,7 +47,8 @@ function parseCsvLine(line: string, delimiter: string): string[] {
 
 /* ============ Card Management ============ */
 
-export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard, onImportCsv }: {
+export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard, onImportCsv, readOnly=false }: {
+  readOnly?:boolean;
   studyItems: StudyCard[]; onAddCard: () => void; onEditCard: (card: StudyCard) => void;
   onDeleteCard: (id: string) => void; onImportCsv: () => void;
 }) {
@@ -55,10 +56,10 @@ export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard
   return <div className="min-w-0 space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="text-sm opacity-60">{t("studySet.cardCount", { count: studyItems.length })} · A–Z</div>
-      <div className="flex gap-1.5">
+      {!readOnly&&<div className="flex gap-1.5">
         <button onClick={onImportCsv} className="rounded-md border px-3 py-1.5 text-sm">{t("studySet.importCsv")}</button>
         <button onClick={onAddCard} className="rounded-md border px-3 py-1.5 text-sm">{t("studySet.addCard")}</button>
-      </div>
+      </div>}
     </div>
     {studyItems.length === 0 ? <div className="rounded-xl border border-dashed py-12 text-center text-sm opacity-50">{t("studySet.emptyCards")}</div> :
       <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
@@ -66,9 +67,9 @@ export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard
           <colgroup><col style={{ width: "40%" }} /><col style={{ width: "60%" }} /></colgroup>
           <thead style={{ background: "var(--color-sidebar-bg)" }}><tr><th scope="col" className="px-3 py-2 font-medium">英文</th><th scope="col" className="px-3 py-2 font-medium">中文</th></tr></thead>
           <tbody>{displayStudyCards(studyItems, "az").map(item => <tr key={item.id} data-study-card={item.id} tabIndex={0}
-            aria-label={`編輯單字 ${item.front}`} onClick={() => onEditCard(item)}
+            aria-label={`${readOnly?"單字":"編輯單字"} ${item.front}`} onClick={() => {if(!readOnly)onEditCard(item);}}
             onKeyDown={event => {
-              if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+              if (!readOnly && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault(); onEditCard(item);
               }
             }}
@@ -76,9 +77,9 @@ export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard
             <td className="px-3 py-1"><span className="block truncate" title={item.front}>{item.front}</span></td>
             <td className="px-3 py-1"><div className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 flex-1 truncate" title={item.back}>{item.back}</span>
-              <button type="button" aria-label={`${t("studySet.deleteCard")} ${item.front}`} title={t("studySet.deleteCard")}
+              {!readOnly&&<button type="button" aria-label={`${t("studySet.deleteCard")} ${item.front}`} title={t("studySet.deleteCard")}
                 onClick={event => { event.stopPropagation(); onDeleteCard(item.id); }}
-                className="h-8 w-8 shrink-0 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>
+                className="h-8 w-8 shrink-0 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>}
             </div></td>
           </tr>)}</tbody>
         </table>
@@ -212,7 +213,8 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
           <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>複習紀錄</button>
         </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>返回全部預覽</button>}</div>
       </div>
-      <input aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
+      {page.official_pack_id&&<p className="mb-2 text-sm">官方單字集 · <a className="underline" href={`/study/official/${page.official_pack_id}`}>查看官方資訊</a> · 內容唯讀</p>}
+      <input readOnly={!!page.official_pack_id} aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
       {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
       {mode==="manage"&&<>
         {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用每日學習</button></div>}
@@ -223,7 +225,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
           <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
           <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>
         </div>
-        <CardManageList studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)}/>
+        <CardManageList readOnly={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
       {mode==="daily"&&<DailyStudySession key="daily" mode="daily" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
       {mode==="all"&&<DailyStudySession key="free" mode="free" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}

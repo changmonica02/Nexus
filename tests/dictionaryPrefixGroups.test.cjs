@@ -30,13 +30,13 @@ test('sense groups load by stable sense IDs, including empty/unclassified and er
 test('prefix editor renders independent per-meaning categories; root and word retain their own fields',()=>{
  const render=(kind,groups={})=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,entry:{...detail.entry,kind}},entries:[],senses:[],onSaved:async()=>{},initialGrouping:{...emptyGrouping(),primary_category:primaryCategories[0]},initialSenseGroups:groups}));
  const html=render('prefix',{one:prefixCategories[1],two:prefixCategories[2]});
- assert.equal((html.match(/aria-label="中文義項 [12] 的主要分類"/g)||[]).length,2);
+ assert.equal((html.match(/aria-label="義項 [12] 的分類"/g)||[]).length,2);
  for(const category of [prefixCategories[1],prefixCategories[2]])assert.ok(html.includes(`selected="">${category}</option>`));
- assert.ok(html.indexOf('上方')<html.indexOf('中文義項 1 的主要分類'));
+ assert.ok(html.indexOf('上方')<html.indexOf('義項 1 的分類'));
  assert.ok(!html.includes(primaryCategories[0]));assert.ok(!html.includes('Sense ID'));assert.ok(!html.includes('所屬義項'));
- assert.ok(html.includes('標籤'));assert.ok(html.includes('形態群／變體群'));
+ assert.ok(!html.includes('標籤'));assert.ok(!html.includes('主要分類'));assert.ok(!html.includes('構詞關聯'));assert.ok(html.includes('同字變體'));
  const root=render('root');assert.ok(root.includes(primaryCategories[0]));assert.ok(!root.includes(prefixCategories[0]));
- const word=render('word');assert.ok(!word.includes('主要分類'));assert.ok(!word.includes('形態群／變體群'));
+ const word=render('word');assert.ok(!word.includes('主要分類'));assert.ok(!word.includes('同字變體'));
  const locked=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,entry:{...detail.entry,status:'published'}},entries:[],senses:[],onSaved:async()=>{}}));assert.ok(locked.includes('<fieldset disabled'));
 });
 test('prefix and root browser use distinct categories and query contracts; prefix results carry meaning anchors',async()=>{

@@ -11,6 +11,10 @@ export type StoredFSRS = Omit<Card, "due" | "last_review"> & { due: number; last
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
+  official_pack_id?: string;
+  official_pack_version?: number;
+  dictionary_entry_id?: string;
+  official_level?: number;
   id: string; deck_id: string; owner_id: string | null;
   front: string; back: string; direction: "en-zh"; sort_order: number;
   content_revision: number; created_at: number; updated_at: number; deleted_at: number | null;
@@ -26,6 +30,8 @@ export interface StudyState {
   legacy_test_reset?: boolean;
 }
 export interface StudySettings {
+  official_pack_id?: string;
+  official_pack_version?: number;
   id: string; owner_id: string | null; new_limit: number;
   direction_confirmed: boolean; updated_at: number; schema: 2;
   configured?: boolean;

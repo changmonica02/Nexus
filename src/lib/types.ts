@@ -132,6 +132,8 @@ export interface PresentationData {
 }
 
 export interface Page {
+  official_pack_id?: string | null;
+  official_pack_version?: number | null;
   id: ID;
   title: string;
   content_json: object;

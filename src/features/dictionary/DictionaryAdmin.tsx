@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import {VariantEditor} from './variants';
 import {AIExport,AIImport} from './DictionaryAI';
 import {DictionaryModal} from './DictionaryModal';
 import {emptyGrouping,primaryCategories,prefixCategories,readGrouping,readSenseGroups,saveGroupedDraft,savePrefixDraft,type DictionaryGrouping,type SenseGroupMap} from './grouping';
@@ -58,9 +59,9 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       next.dictionary_sources=[{id:sid,citation,license,raw_text:JSON.stringify(bundle),verification:'unverified',verification_note:''}];
       if(detail.entry.kind==='word')await applyBundle(getSupabase()!,next,false,true);
       else {
-        const normalized={...grouping,tags:[...new Set(grouping.tags.map(t=>t.trim()).filter(Boolean))]};
-        if(detail.entry.kind==='prefix')await savePrefixDraft(getSupabase()!,next,normalized,senseGroups);
-        else await saveGroupedDraft(getSupabase()!,next,normalized);
+        // Hidden tags are preserved verbatim; editing other fields must not normalize them.
+        if(detail.entry.kind==='prefix')await savePrefixDraft(getSupabase()!,next,grouping,senseGroups);
+        else await saveGroupedDraft(getSupabase()!,next,grouping);
       }
       await onSaved(detail.entry.id);
     }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
@@ -81,27 +82,30 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       setMessage('義項已刪除。其他尚未儲存的修改仍保留在表單。');
     }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
   };
-  return <section className="space-y-4 rounded-xl border p-4">
-    <Link href="/dictionary/admin" className="underline">← 公共字典管理</Link>
-    <h2 className="font-semibold">{locked?'已發布 · 唯讀':'編輯草稿'}</h2>
+  return <section className="min-w-0 space-y-4 rounded-xl border p-3 sm:p-4">
+    <header className="sticky top-0 z-10 -mx-3 flex items-center gap-2 border-b bg-[var(--color-bg)] px-3 py-3 sm:-mx-4 sm:px-4">
+      <Link href="/dictionary/admin" aria-label="返回公共字典管理" className="shrink-0 rounded px-2 py-1 text-sm underline">← 返回</Link>
+      <h2 className="min-w-0 flex-1 truncate font-semibold">{locked?'已發布 · 唯讀':`${detail.entry.revision===0?'新增':'編輯'}${labels[detail.entry.kind]}`}</h2>
+      <button type="button" className={`${button} shrink-0`} disabled={busy||locked} onClick={()=>void save()}>{busy?'處理中…':'儲存'}</button>
+    </header>
+    {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
     {locked&&<p>已發布內容改版及撤回等待 A3 決策。</p>}
-    <fieldset disabled={busy||locked} className="space-y-4">
-      <Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
-      <section className="space-y-3"><h3 className="font-semibold">分類</h3>
+    <fieldset disabled={busy||locked} className="min-w-0 space-y-5">
+      <section className="space-y-2"><h3 className="font-semibold">基本資料</h3>
+        <Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
         {detail.entry.kind==='word'?bundle.dictionary_senses.map((row,i)=><Field key={String(row.id)} label={`分類 · ${String(row.gloss_zh_tw)||`中文義項 ${i+1}`}`} value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>):<>
-          {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select className={control} value={grouping.primary_category??''} onChange={e=>setGrouping(g=>({...g,primary_category:e.target.value||null}))}><option value="">未分類</option>{primaryCategories.map(c=><option key={c}>{c}</option>)}</select></label>}
-          <Field label="標籤（以逗號分隔）" value={grouping.tags.join(',')} onChange={v=>setGrouping(g=>({...g,tags:v.split(/[,，]/)}))}/>
-          <Field label="形態群／變體群（選填，例如 cap/cept/cip）" value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v||null}))}/>
+          {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+          <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
         </>}
       </section>
-      <section className="space-y-3"><h3 className="font-semibold">中文義項</h3>
-      {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} className="space-y-2 rounded border p-3">
-        <Field label={`繁體中文意思 ${i+1}`} value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/>
-        {detail.entry.kind==='prefix'&&<label className="block text-sm">主要分類<select className={control} aria-label={`中文義項 ${i+1} 的主要分類`} value={senseGroups[String(row.id)]??''} onChange={e=>setSenseGroups(g=>({...g,[String(row.id)]:e.target.value||null}))}><option value="">未分類</option>{prefixCategories.map(c=><option key={c}>{c}</option>)}</select></label>}
-        <button type="button" className={button} onClick={()=>void removeSense(row)}>刪除義項</button>
+      <section className="space-y-2"><h3 className="font-semibold">中文義項</h3>
+      {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} className="min-w-0 space-y-2 rounded border p-3">
+        <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-medium">義項 {i+1}</h4><button type="button" aria-label={`刪除義項 ${i+1}`} className="shrink-0 rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100" onClick={()=>void removeSense(row)}>刪除義項</button></div>
+        <Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/>
+        {detail.entry.kind==='prefix'&&<label className="block text-sm">分類<select className={control} aria-label={`義項 ${i+1} 的分類`} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">未分類</option>{prefixCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
       </div>)}
-      <button className={button} onClick={()=>add('dictionary_senses',{part_of_speech:detail.entry.kind==='word'?'noun':null,gloss_zh_tw:''})}>新增義項</button></section>
-      <section className="space-y-3"><h3 className="font-semibold">構詞關聯</h3>
+      <button type="button" className={button} onClick={()=>add('dictionary_senses',{part_of_speech:detail.entry.kind==='word'?'noun':null,gloss_zh_tw:''})}>＋新增中文義項</button></section>
+      {detail.entry.kind==='word'&&<section className="space-y-2"><h3 className="font-semibold">構詞關聯</h3>
         {!bundle.dictionary_senses.length&&<p className="text-sm opacity-70">先新增中文義項，再加入字首／字根。</p>}
         {bundle.dictionary_senses.map(s=><div key={String(s.id)} className="space-y-3 rounded border p-3">
           <p className="font-medium">{String(s.gloss_zh_tw)||'尚未填寫中文意思'}</p>
@@ -113,9 +117,9 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
           </div>)}
           <button className={button} disabled={detail.entry.kind!=='word'} onClick={()=>add('dictionary_relations',{sense_id:s.id,target_entry_id:'',target_sense_id:'',relation_kind:'learning_decomposition',verification:'unverified',verification_note:''})}>加入字首／字根</button>
         </div>)}
-      </section>
-      {([{table:'dictionary_etymologies',title:'歷史詞源',kind:null},{table:'dictionary_learning_notes',title:'記憶拆解',kind:'learning_decomposition'},{table:'dictionary_learning_notes',title:'記憶故事',kind:'mnemonic_scenario'}] as const).map(({table,title,kind})=><section key={title} className="space-y-3">
-        <h3 className="font-semibold">{title}</h3>{kind&&<p className="text-sm opacity-70">輔助記憶，不是經查證的歷史事實。</p>}
+      </section>}
+      {([{table:'dictionary_etymologies',title:'歷史詞源',kind:null},{table:'dictionary_learning_notes',title:'口訣',kind:'learning_decomposition'},{table:'dictionary_learning_notes',title:'記憶故事',kind:'mnemonic_scenario'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2">
+        <h3 className="font-semibold">{title}</h3>
         {bundle[table].map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)} className="space-y-2 rounded border p-3">
           {!!row.sense_id&&<p className="text-sm">{String(bundle.dictionary_senses.find(s=>s.id===row.sense_id)?.gloss_zh_tw??'')}</p>}
           <Field label="完整內容" multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
@@ -123,15 +127,13 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
         </div>)}
         <button className={button} onClick={()=>add(table,kind?{sense_id:null,body:'',kind}:{sense_id:null,body:'',verification:'unverified',verification_note:''})}>新增{title}</button>
       </section>)}
-      <h3 className="font-semibold">來源與授權</h3>
-      <Field label="本次草稿來源／作者" value={citation} onChange={setCitation}/><Field label="本次草稿授權說明" value={license} onChange={setLicense}/>
-      <button className={button} onClick={save}>儲存整份草稿</button>
+      <section className="space-y-2"><h3 className="font-semibold">來源與授權</h3>
+      <Field label="本次草稿來源／作者" value={citation} onChange={setCitation}/><Field label="本次草稿授權說明" value={license} onChange={setLicense}/></section>
     </fieldset>
     <button className={button} onClick={()=>setPreview(!preview)}>切換完整預覽</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
     {reviewDraft&&<p>這是已發布詞條的審核草稿；本版不提供取代發布，原 Published 保持不變。</p>}
     {!locked&&!reviewDraft&&detail.entry.revision>0&&<details><summary>首次發布</summary><p className="my-2 text-sm">只發布已儲存版本；尚未儲存的編輯不會發布。發布後暫不提供修改與撤回。</p><button className={button} disabled={busy||dirty} onClick={publish}>確認首次發布已儲存草稿</button></details>}
-    {message&&<p role="alert">{message}</p>}
   </section>;
 }
 

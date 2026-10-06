@@ -6,7 +6,7 @@ import {readPublishedEntry,searchDictionary,type DictionaryPage,type PublishedDe
 import {readCardDictionaryLink,setCardDictionaryLink} from './cardDictionary';
 
 /** No StudyRepository mutation or rating access: cloud information is supplementary. */
-export default function CardDictionaryPanel({cardId,front}:{cardId:string;front:string}){
+export default function CardDictionaryPanel({cardId,front,fixedEntryId}:{cardId:string;front:string;fixedEntryId?:string}){
   const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [linked,setLinked]=useState<string|null>(null),[detail,setDetail]=useState<PublishedDetail|null>(null);
   const [list,setList]=useState<DictionaryPage|null>(null),[query,setQuery]=useState(front.slice(0,120));
@@ -22,7 +22,7 @@ export default function CardDictionaryPanel({cardId,front}:{cardId:string;front:
   }
   async function search(text:string,page=0){await run(async valid=>{const result=await searchDictionary(getSupabase()!,'word',text,page);if(valid()){setList(result);setSearched(text);setDetail(null);setMissing(false);}});}
   async function load(){await run(async valid=>{
-    const client=getSupabase()!;const entryId=await readCardDictionaryLink(client,cardId);if(!valid())return;setLinked(entryId);
+    const client=getSupabase()!;const entryId=fixedEntryId??await readCardDictionaryLink(client,cardId);if(!valid())return;setLinked(entryId);
     if(entryId){const result=await readPublishedEntry(client,entryId);if(valid()){setDetail(result);setMissing(!result);setList(null);}}
     else{const result=await searchDictionary(client,'word',front.slice(0,120));if(valid()){setList(result);setSearched(front.slice(0,120));setDetail(null);setMissing(false);}}
   });}
@@ -32,7 +32,7 @@ export default function CardDictionaryPanel({cardId,front}:{cardId:string;front:
     <button type="button" aria-expanded={open} className="w-full text-left font-medium" onClick={()=>{if(open){generation.current++;setBusy(false);setOpen(false);}else{setOpen(true);void load();}}}>{open?'▾':'▸'} 字典詳情</button>
     {open&&<div className="space-y-4 break-words">
       <p className="text-xs opacity-70">公共百科僅提供補充資訊，不會改寫你的英文、中文或學習紀錄。連結需連線且字卡已同步。</p>
-      {linked&&<div className="flex flex-wrap gap-3 text-sm"><span>已依穩定詞條 ID 連結</span><button type="button" disabled={busy} className="underline" onClick={()=>void link(null)}>解除連結</button></div>}
+      {linked&&<div className="flex flex-wrap gap-3 text-sm"><span>已依穩定詞條 ID 連結</span>{!fixedEntryId&&<button type="button" disabled={busy} className="underline" onClick={()=>void link(null)}>解除連結</button>}</div>}
       {!linked&&<form className="flex gap-2" onSubmit={e=>{e.preventDefault();void search(query.trim());}}><input aria-label="搜尋此卡的公共單字" maxLength={120} className="min-w-0 flex-1 rounded border bg-transparent p-2" value={query} onChange={e=>setQuery(e.target.value)}/><button disabled={busy} className="rounded border px-3">搜尋</button></form>}
       {busy&&<p role="status">正在讀取／儲存百科連結…</p>}
       {error&&<div role="alert"><p>{error}</p><button type="button" disabled={busy} className="underline" onClick={()=>void load()}>重新讀取百科</button><p className="text-xs">連結失敗時可再次按「連結此詞條」；不影響評分。</p></div>}
