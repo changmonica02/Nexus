@@ -14,3 +14,9 @@ export async function deleteDraftSense(client:Pick<SupabaseClient,'rpc'>,entryId
   }
   return data as number;
 }
+
+export async function deleteDraftContent(client:Pick<SupabaseClient,'rpc'>,entryId:string,table:'dictionary_etymologies'|'dictionary_learning_notes',id:string,entryRevision:number,contentRevision:number):Promise<number>{
+  const {data,error}=await client.rpc('delete_dictionary_draft_content',{entry_uuid:entryId,content_table:table,content_uuid:id,expected_entry_revision:entryRevision,expected_content_revision:contentRevision});
+  if(error)throw new Error(`內容刪除失敗：${error.message}`);
+  return data as number;
+}

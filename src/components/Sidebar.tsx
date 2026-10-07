@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../lib/confirmDialog';
+
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { isCreativeCharacterPage, isNovelPage, type Page } from "../lib/types";
@@ -447,8 +449,8 @@ export default function Sidebar({
       icon: "📄",
       label: t("sidebar.page.moveToTrash"),
       danger: true,
-      onClick: () => {
-        if (confirm(t("sidebar.page.confirmDeleteOne", { title: page.title || t("common.untitled") }))) onDeletePage(page.id);
+      onClick: async () => {
+        if (await confirmDialog(t("sidebar.page.confirmDeleteOne", { title: page.title || t("common.untitled") }))) onDeletePage(page.id);
       },
     });
 
@@ -552,9 +554,9 @@ export default function Sidebar({
               </button>
               <button
                 className="opacity-100 px-2 py-1 hover:bg-red-100 rounded-md text-xs transition-all text-zinc-500 hover:text-red-700"
-                onClick={(event) => {
+                onClick={async (event) => {
                   event.stopPropagation();
-                  if (confirm(t("sidebar.page.confirmPermanentDeleteOne", { title: page.title || t("common.untitled") }))) onPermanentDeletePage(page.id);
+                  if (await confirmDialog(t("sidebar.page.confirmPermanentDeleteOne", { title: page.title || t("common.untitled") }))) onPermanentDeletePage(page.id);
                 }}
                 title={t("sidebar.page.deleteTitle")}
               >
@@ -789,12 +791,12 @@ export default function Sidebar({
                 <button disabled={selectedIds.size === 0} onClick={() => { onBulkRestorePages(Array.from(selectedIds)); setSelectedIds(new Set()); }} className="rounded px-2 py-1 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 text-green-700" style={{ border: "1px solid var(--color-border)" }}>
                   {t("sidebar.bulk.restore")}
                 </button>
-                <button disabled={selectedIds.size === 0} onClick={() => { if (confirm(t("sidebar.bulk.confirmPermanentDelete", { count: selectedIds.size }))) { onBulkPermanentDeletePages(Array.from(selectedIds)); setSelectedIds(new Set()); } }} className="rounded px-2 py-1 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 text-red-700" style={{ border: "1px solid var(--color-border)" }}>
+                <button disabled={selectedIds.size === 0} onClick={async () => { if (await confirmDialog(t("sidebar.bulk.confirmPermanentDelete", { count: selectedIds.size }))) { onBulkPermanentDeletePages(Array.from(selectedIds)); setSelectedIds(new Set()); } }} className="rounded px-2 py-1 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 text-red-700" style={{ border: "1px solid var(--color-border)" }}>
                   {t("sidebar.bulk.delete")}
                 </button>
               </>
             ) : (
-              <button disabled={selectedIds.size === 0} onClick={() => { if (confirm(t("sidebar.bulk.confirmSoftDelete", { count: selectedIds.size }))) { onBulkDeletePages(Array.from(selectedIds)); setSelectedIds(new Set()); } }} className="rounded px-2 py-1 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 text-red-700" style={{ border: "1px solid var(--color-border)" }}>
+              <button disabled={selectedIds.size === 0} onClick={async () => { if (await confirmDialog(t("sidebar.bulk.confirmSoftDelete", { count: selectedIds.size }))) { onBulkDeletePages(Array.from(selectedIds)); setSelectedIds(new Set()); } }} className="rounded px-2 py-1 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 text-red-700" style={{ border: "1px solid var(--color-border)" }}>
                 {t("sidebar.bulk.delete")}
               </button>
             )}

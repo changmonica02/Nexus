@@ -1,4 +1,6 @@
 "use client";
+import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
+
 
 import {
   useState,
@@ -1230,7 +1232,7 @@ function NexusAppInner({
     if (!storageRef.current) return;
     const source = pages.find((page) => page.id === id);
     if (!source) return;
-    if(source.official_pack_id){window.alert("官方單字集目前不支援建立副本。");return;}
+    if(source.official_pack_id){await notifyDialog("官方單字集目前不支援建立副本。");return;}
     if (activePageRef.current) await flushSave(activePageRef.current);
     const duplicated = await storageRef.current.createPage({
       title: `${source.title || "Untitled"} copy`,
@@ -1282,7 +1284,7 @@ function NexusAppInner({
   const importMarkdownFile = useCallback(async (file: File) => {
     const lowerName = file.name.toLowerCase();
     const isMarkdown = lowerName.endsWith(".md") || lowerName.endsWith(".markdown") || lowerName.endsWith(".txt") || file.type === "text/markdown" || file.type === "text/plain";
-    if (!isMarkdown) { alert(t("app.chooseMarkdownFile")); return; }
+    if (!isMarkdown) { await notifyDialog(t("app.chooseMarkdownFile")); return; }
     const storage = storageRef.current;
     if (!storage) return;
     try {
@@ -1309,7 +1311,7 @@ function NexusAppInner({
       setActivePageId(importedPage.id);
       await storage.setActivePageId(importedPage.id);
       syncEngineRef.current?.pushPage(importedPage);
-    } catch (error) { console.error(error); alert(t("app.markdownImportFailed")); }
+    } catch (error) { console.error(error); await notifyDialog(t("app.markdownImportFailed")); }
   }, [flushSave, storageRef, t]);
 
   const importMarkdownFileRef = useRef(importMarkdownFile);
@@ -1324,14 +1326,14 @@ function NexusAppInner({
 
   const handleExportPageMarkdown = useCallback(async (id: string) => {
     const page = id === activePageRef.current?.id ? activePageRef.current : pages.find((p) => p.id === id);
-    if (!page) { alert(t("app.noActivePageToExport")); return; }
+    if (!page) { await notifyDialog(t("app.noActivePageToExport")); return; }
     if (activePageRef.current && activePageRef.current.id === id) await flushSave(activePageRef.current);
     downloadTextFile(`${safeFileName(page.title)}.md`, pageToMarkdown(page), "text/markdown;charset=utf-8");
   }, [flushSave, pages, t]);
 
   const handleExportPageAsNexusJson = useCallback(async (id: string) => {
     const page = id === activePageRef.current?.id ? activePageRef.current : pages.find((p) => p.id === id);
-    if (!page) { alert(t("app.noActivePageToExport")); return; }
+    if (!page) { await notifyDialog(t("app.noActivePageToExport")); return; }
     if (activePageRef.current && activePageRef.current.id === id) await flushSave(activePageRef.current);
     downloadJsonFile(`${safeFileName(page.title)}.nexus.json`, { schema_version: 1, exported_at: Date.now(), page });
   }, [flushSave, pages, t]);
@@ -1355,12 +1357,12 @@ function NexusAppInner({
 
   const handleExportBackup = useCallback(async () => {
     const storage = storageRef.current;
-    if (!storage || !storage.exportWorkspaceBackup) { alert(t("app.backupNotAvailable")); return; }
+    if (!storage || !storage.exportWorkspaceBackup) { await notifyDialog(t("app.backupNotAvailable")); return; }
     if (activePageRef.current) await flushSave(activePageRef.current);
     try {
       const backup = await storage.exportWorkspaceBackup();
       downloadJsonFile(formatBackupFileName(), backup);
-    } catch (error) { console.error(error); alert(t("app.backupExportFailed")); }
+    } catch (error) { console.error(error); await notifyDialog(t("app.backupExportFailed")); }
   }, [flushSave, storageRef, t]);
 
   const handleImportBackupClick = useCallback(() => backupInputRef.current?.click(), []);
@@ -1369,14 +1371,14 @@ function NexusAppInner({
     event.target.value = "";
     if (!file) return;
     const storage = storageRef.current;
-    if (!storage || !storage.importWorkspaceBackup) { alert(t("app.backupNotAvailable")); return; }
-    if (!confirm(t("app.confirmImportBackup"))) return;
+    if (!storage || !storage.importWorkspaceBackup) { await notifyDialog(t("app.backupNotAvailable")); return; }
+    if (!await confirmDialog(t("app.confirmImportBackup"))) return;
     try {
       const text = await file.text();
       await storage.importWorkspaceBackup(JSON.parse(text) as WorkspaceBackup);
-      alert(t("app.backupImportedReload"));
+      await notifyDialog(t("app.backupImportedReload"));
       window.location.reload();
-    } catch (error) { console.error(error); alert(t("app.backupImportFailed")); }
+    } catch (error) { console.error(error); await notifyDialog(t("app.backupImportFailed")); }
   }, [storageRef, t]);
 
   const handleImportPdfFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1384,9 +1386,9 @@ function NexusAppInner({
     event.target.value = "";
     if (!file) return;
     const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf) { alert(t("app.choosePdfFile")); return; }
+    if (!isPdf) { await notifyDialog(t("app.choosePdfFile")); return; }
     const storage = storageRef.current;
-    if (!storage || !storage.createAttachment) { alert(t("app.attachmentNotAvailable")); return; }
+    if (!storage || !storage.createAttachment) { await notifyDialog(t("app.attachmentNotAvailable")); return; }
     try {
       if (activePageRef.current) await flushSave(activePageRef.current);
       const attachment = await storage.createAttachment({ kind: "pdf", name: file.name, mime_type: file.type || "application/pdf", size_bytes: file.size });
@@ -1409,13 +1411,13 @@ function NexusAppInner({
       syncEngineRef.current?.pushAttachment(attachment);
       syncEngineRef.current?.pushBinary(attachment.id, file);
       syncEngineRef.current?.pushPage(researchPage);
-    } catch (error) { console.error(error); alert(t("app.pdfImportFailed")); }
+    } catch (error) { console.error(error); await notifyDialog(t("app.pdfImportFailed")); }
   }, [flushSave, storageRef, t]);
 
   const handleSelectPageByTitle = useCallback(async (targetTitle: string) => {
     const exists = pages.find((p) => p.title.trim().toLowerCase() === targetTitle.trim().toLowerCase());
     if (exists) { await handleSelectPage(exists.id); return; }
-    if (confirm(t("app.confirmCreatePageFromLink", { title: targetTitle }))) {
+    if (await confirmDialog(t("app.confirmCreatePageFromLink", { title: targetTitle }))) {
       const newPage = await createAndOpenPage({ title: targetTitle });
       if (newPage) syncEngineRef.current?.pushPage(newPage);
     }
@@ -1529,9 +1531,9 @@ function NexusAppInner({
     if (!storageRef.current) return;
     const official=pages.find(p=>p.id===id&&p.official_pack_id);
     if(official){
-      if(!window.confirm(packDeleteMessage(official.title)))return;
+      if(!await confirmDialog(packDeleteMessage(official.title)))return;
       try{await deleteOfficialPack(getSupabase()!,id);await syncEngineRef.current?.fullSync();setPages(await storageRef.current.listPages());handleShowStudySets();}
-      catch(error){window.alert(String(error));}return;
+      catch(error){await notifyDialog(String(error));}return;
     }
     const timer = saveTimersRef.current.get(id);
     if (timer) clearTimeout(timer);
@@ -1577,7 +1579,7 @@ function NexusAppInner({
 
   const handleBulkDeletePages = useCallback(async (ids: string[]) => {
     if (!storageRef.current || ids.length === 0) return;
-    if(pages.some(p=>ids.includes(p.id)&&p.official_pack_id)){window.alert("請從官方單字集的更多選單逐集刪除，以確認移除學習進度。");return;}
+    if(pages.some(p=>ids.includes(p.id)&&p.official_pack_id)){await notifyDialog("請從官方單字集的更多選單逐集刪除，以確認移除學習進度。");return;}
     const idSet = new Set(ids);
     for (const id of ids) {
       const timer = saveTimersRef.current.get(id);

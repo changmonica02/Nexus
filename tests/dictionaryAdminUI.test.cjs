@@ -21,7 +21,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
   assert.ok(admin.includes('h-dvh overflow-y-auto'));
   assert.ok(admin.includes("entryId||newKind?'/dictionary/admin':'/dictionary'"));
   assert.ok(admin.includes('useUnsavedDraft(dirty,busy)'));
-  assert.ok(admin.includes('window.confirm('));
+  assert.ok(admin.includes('confirmDialog('));
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
   assert.ok(fs.readFileSync('src/app/study/page.tsx','utf8').includes('initialFeature="study"'));
 });
@@ -35,7 +35,7 @@ test('JSON import shares preview and explicit draft confirmation with existing f
   for(const format of ['csv','md','json'])assert.ok(ui.includes(`option value="${format}"`));
   assert.ok(ui.includes('accept=".csv,.md,.json"'));
   assert.ok(ui.includes('setResult(await applyBundle(getSupabase()!,parsed,true))'));
-  assert.ok(ui.includes('if(!window.confirm("確定匯入目前預覽的草稿？'));
+  assert.ok(ui.includes('if(!await confirmDialog("確定匯入目前預覽的草稿？'));
   assert.ok(ui.includes('applyBundle(getSupabase()!,candidate!,false)'));
 });
 
@@ -199,4 +199,24 @@ test('return sits beside page title and shared copyright information is reachabl
  assert.match(source,/<header[^>]*><Link[^>]*>← 返回上一頁<\/Link><h1[^>]*>公共字典管理/);
  const settings=fs.readFileSync('src/components/SettingsDialog.tsx','utf8');assert.ok(settings.includes('"關於 Nexus"'));assert.ok(settings.includes('<DataSourcesAndCopyright/>'));
  const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));
+});
+
+test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
+ const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
+ try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','learning_decomposition','口訣'],['dictionary_learning_notes','mnemonic_scenario','記憶故事']]){
+  let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
+  const row={id:'content',entry_id:'entry',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{verification:'unverified',verification_note:''})};
+  const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
+  for(const saved of [false,true])await withEditorState({detail:{...detail,[key]:[{...row,...(saved?{revision:1}:{})}]},entries:[],senses:[],onSaved:async()=>{}},async render=>{
+   let tree=render();pick(tree,n=>n.props.label==='中文意思').props.onChange('待補');tree=render();
+   pick(tree,n=>n.props['aria-label']===`刪除${title}`).props.onClick();
+   if(saved){assert.ok(dialogs.currentDialog());dialogs.finishDialog(dialogs.currentDialog().id,false);await new Promise(r=>setImmediate(r));tree=render();assert.ok(nodes(tree).some(n=>n.props['aria-label']===`刪除${title}`));assert.equal(calls,0);pick(tree,n=>n.props['aria-label']===`刪除${title}`).props.onClick();dialogs.finishDialog(dialogs.currentDialog().id,true);}
+   await new Promise(r=>setImmediate(r));tree=render();assert.ok(!nodes(tree).some(n=>n.props['aria-label']===`刪除${title}`));assert.equal(pick(tree,n=>n.props.label==='中文意思').props.value,'待補');assert.equal(calls,saved?1:0);
+  });
+ }}finally{supabase.getSupabase=original;}
+});
+test('empty classification uses unset placeholder and empty composition hides sense placeholder headings',()=>{
+ const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
+ assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>歷史詞源</h3>'));assert.ok(section.includes('加入字首／字根'));assert.ok(!section.includes('待補'));
 });

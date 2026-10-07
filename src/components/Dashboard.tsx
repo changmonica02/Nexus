@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../lib/confirmDialog';
+
 import { useMemo, useState } from "react";
 import { isNovelPage, type Page, type PageFormat } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -126,7 +128,7 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border p-2" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg)" }}>
               <button type="button" onClick={() => onPinPages([...selectedIds])} className="rounded-md border px-2.5 py-1.5 text-xs" style={{ borderColor: "var(--color-border)" }}>📌 {allSelectedPinned ? "取消置頂" : "置頂"}</button>
               <button type="button" onClick={() => { const name = window.prompt("資料夾名稱（留白代表未分類）", ""); if (name !== null) onSetFolder([...selectedIds], name.trim() || null); }} className="rounded-md border px-2.5 py-1.5 text-xs" style={{ borderColor: "var(--color-border)" }}>📁 分類</button>
-              <button type="button" onClick={() => { if (window.confirm(`將 ${selectedIds.size} 個檔案移至垃圾桶？`)) { onDeletePages([...selectedIds]); finishSelection(); } }} className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs text-red-600">移至垃圾桶</button>
+              <button type="button" onClick={async () => { if (await confirmDialog(`將 ${selectedIds.size} 個檔案移至垃圾桶？`)) { onDeletePages([...selectedIds]); finishSelection(); } }} className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs text-red-600">移至垃圾桶</button>
             </div>
           )}
           {folderGroups.length === 0 ? (

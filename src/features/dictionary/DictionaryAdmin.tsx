@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../../lib/confirmDialog';
+
 import {deleteDictionaryDrafts} from './deleteDrafts';
 
 import { useEffect, useRef, useState } from 'react';
@@ -10,15 +12,15 @@ import {emptyGrouping,primaryCategories,prefixCategories,readGrouping,readSenseG
 import { getSupabase } from '../../infrastructure/supabase/client';
 import { getDictionaryEntry, publishDictionaryEntry, type DictionaryDetail, type DictionaryEntry, type DictionarySense } from './dictionary';
 import { applyBundle, parseDictionaryImport, type Bundle, type BundleResult } from './adminImport';
-import {deleteDraftSense,withoutSense} from './draftEditing';
+import {deleteDraftSense,deleteDraftContent,withoutSense} from './draftEditing';
 import {useUnsavedDraft} from './useUnsavedDraft';
 
 const control='w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm text-[var(--color-text)]';
 const button='rounded border border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-2 text-sm text-[var(--color-text)] disabled:opacity-40';
 const labels={word:'單字',prefix:'字首',root:'字根'};
 type Row=Record<string,unknown>;
-function Field({label,value,onChange,multiline=false}:{label:string;value:unknown;onChange:(v:string)=>void;multiline?:boolean}) {
-  return <label className="block text-sm">{label}{multiline?<textarea className={control} rows={4} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input className={control} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
+function Field({label,value,onChange,multiline=false,placeholder}:{label:string;value:unknown;onChange:(v:string)=>void;multiline?:boolean;placeholder?:string}) {
+  return <label className="block text-sm">{label}{multiline?<textarea className={control} rows={4} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
 }
 function Verification({row,change}:{row:Row;change:(key:string,value:string)=>void}){
   return <><label className="block text-sm">查證狀態<select className={control} value={String(row.verification)} onChange={e=>change('verification',e.target.value)}>{Object.entries({unverified:'未查證',pending:'待審核',verified:'已查證',disputed:'有爭議'}).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><Field label="查證說明（已查證必填）" value={row.verification_note} onChange={v=>change('verification_note',v)}/></>;
@@ -70,12 +72,23 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       const next=withoutSense(bundle,String(row.id));
       const saved=baseline.dictionary_senses.find(s=>s.id===row.id&&Number(s.revision)>0);
       if(!saved){setBundle(next);return;}
-      if(!window.confirm('永久刪除此已儲存的草稿義項？其他義項及構詞資料不會刪除。此操作立即儲存。'))return;
+      if(!await confirmDialog('永久刪除此已儲存的草稿義項？其他義項及構詞資料不會刪除。此操作立即儲存。'))return;
       setBusy(true);
       const revision=await deleteDraftSense(getSupabase()!,detail.entry.id,String(row.id),Number(baseline.dictionary_entries[0].revision),Number(saved.revision));
       setBundle({...next,dictionary_entries:next.dictionary_entries.map(e=>({...e,revision}))});
       setBaseline(b=>({...b,dictionary_entries:b.dictionary_entries.map(e=>({...e,revision})),dictionary_senses:b.dictionary_senses.filter(s=>s.id!==row.id)}));
       setMessage('義項已刪除。其他尚未儲存的修改仍保留在表單。');
+    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+  };
+  const removeContent=async(table:'dictionary_etymologies'|'dictionary_learning_notes',row:Row,title:string)=>{
+    if(busy||locked)return;
+    const id=String(row.id),saved=baseline[table].find(r=>r.id===id&&Number(r.revision)>0);
+    const remove=(b:Bundle)=>({...b,[table]:b[table].filter(r=>r.id!==id)});
+    if(!saved){setBundle(remove);return;}
+    if(!await confirmDialog({title:`刪除${title}`,message:'永久刪除此已儲存的草稿內容？此操作立即儲存，其他內容與尚未儲存的修改會保留。',confirmLabel:'刪除',danger:true}))return;
+    setBusy(true);setMessage('');
+    try{const revision=await deleteDraftContent(getSupabase()!,detail.entry.id,table,id,Number(baseline.dictionary_entries[0].revision),Number(saved.revision));
+      const apply=(b:Bundle)=>({...remove(b),dictionary_entries:b.dictionary_entries.map(e=>({...e,revision}))});setBundle(apply);setBaseline(apply);setMessage(`${title}已刪除。`);
     }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
   };
   return <section className="min-w-0 space-y-4 rounded-xl border p-3 sm:p-4">
@@ -88,7 +101,7 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
     <fieldset disabled={busy||locked} className="min-w-0 space-y-5">
       <section className="space-y-2"><h3 className="font-semibold">基本資料</h3>
         <Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
-        {detail.entry.kind==='word'?bundle.dictionary_senses.map((row,i)=><Field key={String(row.id)} label={`分類 · ${String(row.gloss_zh_tw)||`中文義項 ${i+1}`}`} value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>):<>
+        {detail.entry.kind==='word'?bundle.dictionary_senses.map((row,i)=><Field key={String(row.id)} label={`分類 · 義項 ${i+1}`} placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>):<>
           {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
           <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
         </>}
@@ -103,7 +116,7 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       {detail.entry.kind==='word'&&<section className="space-y-2"><h3 className="font-semibold">構詞關聯</h3>
         {!bundle.dictionary_senses.length&&<p className="text-sm opacity-70">先新增中文義項，再加入字首／字根。</p>}
         {bundle.dictionary_senses.map(s=><div key={String(s.id)} className="space-y-3 rounded border p-3">
-          <p className="font-medium">{String(s.gloss_zh_tw)||'尚未填寫中文意思'}</p>
+          {bundle.dictionary_relations.some(r=>r.sense_id===s.id)&&<p className="font-medium">{String(s.gloss_zh_tw)}</p>}
           {bundle.dictionary_relations.map((row,i)=>row.sense_id===s.id&&<div key={String(row.id)} className="space-y-2">
             <span className="block text-center opacity-60">＋</span>
             <label className="block text-sm">字首／字根<select className={control} value={String(row.target_sense_id??'')} onChange={e=>{const target=senses.find(s=>s.id===e.target.value);change('dictionary_relations',i,'target_entry_id',target?.entry_id??'');change('dictionary_relations',i,'target_sense_id',target?.id??'');}}><option value="">請選擇字首／字根與中文義</option>{senses.filter(s=>entries.some(e=>e.id===s.entry_id&&e.kind!=='word')).map(s=><option key={s.id} value={s.id}>{entries.find(e=>e.id===s.entry_id)?.headword}　{s.gloss_zh_tw}</option>)}</select></label>
@@ -116,6 +129,7 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       {([{table:'dictionary_etymologies',title:'歷史詞源',kind:null},{table:'dictionary_learning_notes',title:'口訣',kind:'learning_decomposition'},{table:'dictionary_learning_notes',title:'記憶故事',kind:'mnemonic_scenario'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2">
         <h3 className="font-semibold">{title}</h3>
         {bundle[table].map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)} className="space-y-2 rounded border p-3">
+          <div className="flex justify-end"><button type="button" aria-label={`刪除${title}`} className="rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100" onClick={()=>void removeContent(table,row,title)}>刪除</button></div>
           {!!row.sense_id&&<p className="text-sm">{String(bundle.dictionary_senses.find(s=>s.id===row.sense_id)?.gloss_zh_tw??'')}</p>}
           <Field label="完整內容" multiline value={row.body} onChange={v=>{change(table,i,'body',v);if(!kind)change(table,i,'verification','pending');}}/>
           {!kind&&<Field label="資料來源" multiline value={row.verification_note} onChange={v=>{change(table,i,'verification_note',v);change(table,i,'verification','pending');}}/>}
@@ -159,7 +173,7 @@ function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['
   const [grouping,setGrouping]=useState<DictionaryGrouping>(emptyGrouping);
   const [senseGroups,setSenseGroups]=useState<SenseGroupMap>({});
   const [reviewDraft,setReviewDraft]=useState(false);
-  const closeModal=()=>{if(!busy&&(!fileText||window.confirm('有尚未匯入的內容，確定關閉？'))){setModal(null);setFileText('');setCandidate(null);setResult(null);}};
+  const closeModal=async ()=>{if(!busy&&(!fileText||await confirmDialog('有尚未匯入的內容，確定關閉？'))){setModal(null);setFileText('');setCandidate(null);setResult(null);}};
   async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d?.entry.kind==='prefix'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
   useUnsavedDraft(!detail&&!!fileText,busy);
   async function refresh(id?:string){const client=getSupabase()!;const [e,s]=await Promise.all([client.from('dictionary_entries').select('*').order('headword'),client.from('dictionary_senses').select('*')]);if(e.error||s.error)throw new Error(e.error?.message||s.error?.message);setEntries(e.data);setSenses(s.data);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
@@ -171,7 +185,7 @@ function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['
   if(detail)return <DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh}/>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
-    <DictionaryListActions selectedCount={visibleSelected.length} allSelected={visible.length>0&&visibleSelected.length===visible.length} empty={!visible.length} busy={busy} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')} onSelectAll={()=>setSelected(toggleVisibleSelection(visible,selected))} onDelete={()=>void action(async()=>{const count=await deleteDictionaryDrafts(getSupabase()!,visibleSelected,message=>window.confirm(message));if(count===null)return;setSelected([]);setMessage(`已刪除 ${count} 筆草稿。`);await refresh();})} onPublish={()=>void action(async()=>{if(!window.confirm(`發布目前選取的 ${visibleSelected.length} 筆詞條？已發布詞條會略過。`))return;let count=0;try{for(const entry of visibleSelected){if(entry.status==='published')continue;await publishDictionaryEntry(getSupabase()!,entry.id);count++;}setSelected([]);setMessage(`已發布 ${count} 筆詞條。`);}finally{await refresh();}})}/>
+    <DictionaryListActions selectedCount={visibleSelected.length} allSelected={visible.length>0&&visibleSelected.length===visible.length} empty={!visible.length} busy={busy} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')} onSelectAll={()=>setSelected(toggleVisibleSelection(visible,selected))} onDelete={()=>void action(async()=>{const count=await deleteDictionaryDrafts(getSupabase()!,visibleSelected,async message=>await confirmDialog(message));if(count===null)return;setSelected([]);setMessage(`已刪除 ${count} 筆草稿。`);await refresh();})} onPublish={()=>void action(async()=>{if(!await confirmDialog(`發布目前選取的 ${visibleSelected.length} 筆詞條？已發布詞條會略過。`))return;let count=0;try{for(const entry of visibleSelected){if(entry.status==='published')continue;await publishDictionaryEntry(getSupabase()!,entry.id);count++;}setSelected([]);setMessage(`已發布 ${count} 筆詞條。`);}finally{await refresh();}})}/>
     {modal==='export'&&<DictionaryModal title="匯出 AI Dictionary JSON" onClose={closeModal} busy={busy}><AIExport initialKind={kinds.length===1?kinds[0]:'all'} query={query} selected={visibleSelected.map(e=>e.id)} onBusy={setBusy}/></DictionaryModal>}
     {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
     <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setSelected([]);}}/>
@@ -188,7 +202,7 @@ function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['
       <button className={button} disabled={busy||!fileText} onClick={()=>action(async()=>{setCandidate(null);setResult(null);const parsed=await parseDictionaryImport(fileText,format as 'csv'|'md'|'json');setCandidate(parsed);setResult(await applyBundle(getSupabase()!,parsed,true));})}>驗證並預覽，不寫入</button>
       {candidate&&<DictionaryPreview bundle={candidate}/>}
       {!!result?.warnings?.length&&<aside role="status" className="rounded border border-amber-500 p-3 text-sm"><h3 className="font-semibold">疑似重複內容，請人工確認</h3><p>同類同拼寫詞條可能是同形異源，義項或正文相同也不一定是重複。本次不會自動合併或改寫不同 ID。每筆最多列出 5 個相似 ID。</p><ul className="mt-2 space-y-2">{result.warnings.map(w=><li key={`${w.table}:${w.id}`} className="break-all">{w.table==='dictionary_entries'?'同類同拼寫詞條':w.table==='dictionary_senses'?'同詞條、詞性與釋義':'同詞條義項的相同內容'}：{w.id}<br/>相似 ID：{w.similar_ids.join('、')}</li>)}</ul></aside>}
-      {result&&<><p>預計新增 {result.inserted} 筆；跳過 {result.skipped} 筆。包含來源及關聯資料列。</p><button className={button} disabled={busy||!candidate} onClick={()=>action(async()=>{if(!window.confirm("確定匯入目前預覽的草稿？不會覆蓋既有衝突或已發布內容。"))return;const saved=await applyBundle(getSupabase()!,candidate!,false);setMessage(`匯入完成：新增 ${saved.inserted}，跳過 ${saved.skipped}`);setCandidate(null);setResult(null);setFileText('');await refresh();})}>確認匯入草稿</button></>}
+      {result&&<><p>預計新增 {result.inserted} 筆；跳過 {result.skipped} 筆。包含來源及關聯資料列。</p><button className={button} disabled={busy||!candidate} onClick={()=>action(async()=>{if(!await confirmDialog("確定匯入目前預覽的草稿？不會覆蓋既有衝突或已發布內容。"))return;const saved=await applyBundle(getSupabase()!,candidate!,false);setMessage(`匯入完成：新增 ${saved.inserted}，跳過 ${saved.skipped}`);setCandidate(null);setResult(null);setFileText('');await refresh();})}>確認匯入草稿</button></>}
     </>}
     </section>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}</DictionaryModal>}</>
     {modal!=='import'&&message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}

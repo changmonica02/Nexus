@@ -1,4 +1,6 @@
 "use client";
+import {notifyDialog} from '../lib/confirmDialog';
+
 
 import { useState } from "react";
 import { getSupabase } from "../infrastructure/supabase/client";
@@ -31,7 +33,7 @@ export default function DeleteAccount({ email }: { email: string }) {
       try {
         await clearAccountCache(data.user.id);
       } catch {
-        window.alert("帳號已刪除，但此裝置的離線快取未能清除。請在瀏覽器設定中清除此網站的資料。");
+        await notifyDialog("帳號已刪除，但此裝置的離線快取未能清除。請在瀏覽器設定中清除此網站的資料。");
       }
       window.location.replace("/");
     } catch (error) {

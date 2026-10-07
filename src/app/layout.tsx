@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ConfirmDialogHost from "../components/ConfirmDialog";
 
 export const metadata: Metadata = {
   title: "Nexus",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-TW">
-      <body className="h-full antialiased">{children}</body>
+      <body className="h-full antialiased">{children}<ConfirmDialogHost/></body>
     </html>
   );
 }

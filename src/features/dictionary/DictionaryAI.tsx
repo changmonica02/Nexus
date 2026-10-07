@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../../lib/confirmDialog';
+
 import {useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {getSupabase} from '../../infrastructure/supabase/client';
@@ -66,8 +68,8 @@ export function AIImport({raw,onBusy,onSaved}:{raw:string;onBusy:(b:boolean)=>vo
  <p className="text-xs opacity-70">下方為原資料與 AI 提案；提案缺少的內容不代表刪除，會保留原資料。</p>
  {row.plan.changes.map((d,j)=><div key={j} className="space-y-1"><h4>{d.kind} · {labels[d.label]??d.label}</h4><div className="grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap break-all rounded bg-[var(--color-panel-bg)] p-2 text-xs">原：{JSON.stringify(d.before,null,2)}</pre><pre className="overflow-auto whitespace-pre-wrap break-all rounded bg-[var(--color-panel-bg)] p-2 text-xs">新：{JSON.stringify(d.after,null,2)}</pre></div></div>)}
  </>}
- {!row.status&&<div className="flex flex-wrap gap-2"><button className={button} disabled={busy||!row.plan||row.plan.conflict||!row.plan.changes.some(c=>c.kind!=='缺少')} onClick={()=>void run(async()=>{if(!window.confirm('接受這筆 AI 修改並寫入草稿？不會發布或刪除原資料。'))return;try{await submitAI(getSupabase()!,row.plan!,false);replace(i,{...row,status:'accepted'});await onSaved();}catch(e){replace(i,{...row,error:`儲存未確認：${e instanceof Error?e.message:String(e)}。請刷新或重新產生 Diff 後確認。`});}})}>接受這筆修改</button><button className={button} disabled={busy} onClick={()=>replace(i,{...row,status:'ignored'})}>忽略</button>
- <button className={button} disabled={busy} onClick={()=>void run(async()=>{if(!window.confirm('重新讀取目前版本並產生新的 Diff？仍須再次接受才寫入。'))return;replace(i,{input:row.input,plan:await build(row.input,true)});})}>重新對目前版本產生 Diff</button></div>}
+ {!row.status&&<div className="flex flex-wrap gap-2"><button className={button} disabled={busy||!row.plan||row.plan.conflict||!row.plan.changes.some(c=>c.kind!=='缺少')} onClick={()=>void run(async()=>{if(!await confirmDialog('接受這筆 AI 修改並寫入草稿？不會發布或刪除原資料。'))return;try{await submitAI(getSupabase()!,row.plan!,false);replace(i,{...row,status:'accepted'});await onSaved();}catch(e){replace(i,{...row,error:`儲存未確認：${e instanceof Error?e.message:String(e)}。請刷新或重新產生 Diff 後確認。`});}})}>接受這筆修改</button><button className={button} disabled={busy} onClick={()=>replace(i,{...row,status:'ignored'})}>忽略</button>
+ <button className={button} disabled={busy} onClick={()=>void run(async()=>{if(!await confirmDialog('重新讀取目前版本並產生新的 Diff？仍須再次接受才寫入。'))return;replace(i,{input:row.input,plan:await build(row.input,true)});})}>重新對目前版本產生 Diff</button></div>}
  </section>)}
  </div>;
 }

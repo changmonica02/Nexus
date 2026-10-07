@@ -1,4 +1,6 @@
 "use client";
+import {notifyDialog} from '../lib/confirmDialog';
+
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { PageFormat, PageMargins } from "../lib/types";
 import { DEFAULT_PAGE_MARGINS } from "../lib/types";
@@ -315,8 +317,8 @@ export default function PaginatedEditorView({
     setActivePage(Math.min(idx, pagesBlocks.length));
   }, [blocks, pagesBlocks, persistPages]);
 
-  const handleDeletePage = useCallback((idx: number) => {
-    if (pagesBlocks.length <= 1) { alert("至少保留一頁"); return; }
+  const handleDeletePage = useCallback(async (idx: number) => {
+    if (pagesBlocks.length <= 1) { await notifyDialog("至少保留一頁"); return; }
     const pageBlocks = pagesBlocks[idx] || [];
     const newBlocks = [...blocks];
     const [start, end] = findPageRange(newBlocks, pageBlocks);

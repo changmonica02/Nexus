@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../../../lib/confirmDialog';
+
 import { useEffect, useId, useRef, useState } from "react";
 import type { StudyCard } from "../studyFSRS";
 import CardDictionaryPanel from "../../dictionary/CardDictionaryPanel";
@@ -18,8 +20,8 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
   const [choice, setChoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const confirmDiscard=()=>front===card.front&&back===card.back||window.confirm("有尚未儲存的修改，確定關閉並捨棄修改？");
-  const close=()=>{if(!saving.current&&confirmDiscard())onClose();};
+  const confirmDiscard=async ()=>front===card.front&&back===card.back||await confirmDialog("有尚未儲存的修改，確定關閉並捨棄修改？");
+  const close=async()=>{if(!saving.current&&await confirmDiscard())onClose();};
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
@@ -69,7 +71,7 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
           <button type="button" disabled={busy} className="rounded border p-2" onClick={close}>取消修改</button>
         </div>
       </div> : <div className="mt-5 flex flex-wrap justify-end gap-2">
-        {card.id && <button type="button" disabled={busy} onClick={()=>{if(confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
+        {card.id && <button type="button" disabled={busy} onClick={async()=>{if(await confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
       </div>}
     </form>
     {card.id&&<div className="mt-5"><p className="mb-2 text-xs opacity-60">百科連結獨立、立即儲存，不受上方字卡關閉按鈕影響。</p><CardDictionaryPanel key={card.id} cardId={card.id} front={card.front}/></div>}

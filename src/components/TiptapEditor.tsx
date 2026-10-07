@@ -1,4 +1,6 @@
 "use client";
+import {notifyDialog} from '../lib/confirmDialog';
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LessonBlock, LessonToc, AnswerSpace, LessonParagraph, LESSON_INDEX_EVENT } from "../lib/lessonExtensions";
@@ -844,11 +846,11 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     setTextMenu(null);
   };
 
-  const handleSetLink = () => {
+  const handleSetLink = async () => {
     const ed = editorRef.current;
     if (!ed) return;
     const prevUrl = ed.getAttributes("link").href as string | undefined;
-    if (ed.state.selection.empty && !prevUrl) { alert(t("tiptap.linkSelectFirst")); return; }
+    if (ed.state.selection.empty && !prevUrl) { await notifyDialog(t("tiptap.linkSelectFirst")); return; }
     const url = window.prompt(t("tiptap.linkPrompt"), prevUrl || "https://");
     if (url === null) return;
     if (url.trim() === "") { ed.chain().focus().extendMarkRange("link").unsetLink().run(); return; }

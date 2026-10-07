@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../lib/confirmDialog';
+
 import ToolbarDropdown from "./ToolbarDropdown";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import type { Page, NovelSettings, NovelChapter } from "../lib/types";
@@ -429,7 +431,7 @@ export default function NovelReaderView({
 
   const moreMenu = <ToolbarDropdown label="更多操作" variant="menu" items={[
     {id:"continue",icon:"",label:"繼續編輯",onClick:()=>setMode("edit")},
-    ...(onDeleteNovel?[{id:"delete",icon:"",label:"刪除小說",onClick:()=>{if(window.confirm(`確定將小說「${page.title || "未命名小說"}」移至垃圾桶？`))onDeleteNovel();}}]:[])
+    ...(onDeleteNovel?[{id:"delete",icon:"",label:"刪除小說",onClick:async ()=>{if(await confirmDialog(`確定將小說「${page.title || "未命名小說"}」移至垃圾桶？`))onDeleteNovel();}}]:[])
   ]}/>;
   if (mode === "overview") {
     return (

@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../../../lib/confirmDialog';
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import QuizSession from "../quiz/QuizSession";
 import type { StudyRepository } from "../StudyRepository";
@@ -220,7 +222,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
         {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用每日學習</button></div>}
         <div className="mb-4 flex flex-wrap items-center gap-3 text-sm"><label>每日新字上限 <input key={snapshot.settings.new_limit} aria-label="每日新字上限" type="number" min={0} max={10000} defaultValue={snapshot.settings.new_limit} onBlur={event=>{if(event.target.value!==String(snapshot.settings.new_limit))void act(()=>repository.configure(page.id,{new_limit:event.target.value===""?NaN:Number(event.target.value)}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label><span className="text-xs opacity-60">首次進入時固定當日批次；調整數量不影響已建立的批次。</span></div>
         <p className="mb-3 text-xs leading-5 opacity-60">每日學習先把新字練到 Easy；單字複習使用已學字卡，每卡每輪首次評分更新 FSRS。測驗獨立，不影響排程或學習進度。</p>
-        {snapshot.states.filter(state=>state.conflict).map(state=><div key={state.id} className="mb-2 rounded border border-amber-400 p-3 text-sm">「{cards.find(card=>card.id===state.id)?.front}」排程衝突，兩邊紀錄均保留。<button className="ml-2 underline" onClick={()=>{if(confirm("保留所有歷史，但將這張卡重新設為 New？"))void act(()=>repository.updateCard(state.id,{},true));}}>保留歷史並重新學習</button></div>)}
+        {snapshot.states.filter(state=>state.conflict).map(state=><div key={state.id} className="mb-2 rounded border border-amber-400 p-3 text-sm">「{cards.find(card=>card.id===state.id)?.front}」排程衝突，兩邊紀錄均保留。<button className="ml-2 underline" onClick={async ()=>{if(await confirmDialog("保留所有歷史，但將這張卡重新設為 New？"))void act(()=>repository.updateCard(state.id,{},true));}}>保留歷史並重新學習</button></div>)}
         <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
           <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
           <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>

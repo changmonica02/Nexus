@@ -1,4 +1,6 @@
 "use client";
+import {confirmDialog} from '../lib/confirmDialog';
+
 import React, { useState, useMemo, useEffect } from "react";
 import { isCreativeCharacterPage, type Page } from "../lib/types";
 import CharacterTemplateManager from "./CharacterTemplateManager";
@@ -325,9 +327,9 @@ export default function CreativeView({
                       {/* 刪除按鈕 */}
                       {onDeletePage && (
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm(`確定要刪除角色「${p.title || "此創作"}」嗎？`)) {
+                            if (await confirmDialog(`確定要刪除角色「${p.title || "此創作"}」嗎？`)) {
                               onDeletePage(p.id);
                             }
                           }}
@@ -403,9 +405,9 @@ export default function CreativeView({
                       {/* 刪除按鈕 */}
                       {onDeletePage && (
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                            if (await confirmDialog(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
                               onDeletePage(p.id);
                             }
                           }}
@@ -485,9 +487,9 @@ export default function CreativeView({
                     {/* 刪除按鈕 */}
                     {onDeletePage && (
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                          if (await confirmDialog(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
                             onDeletePage(p.id);
                           }
                         }}
@@ -621,9 +623,9 @@ export default function CreativeView({
                           <td className="py-2.5 px-3 text-right">
                             {onDeletePage && (
                               <button
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  if (confirm(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
+                                  if (await confirmDialog(`確定要刪除「${p.title || "此創作"}」嗎？`)) {
                                     onDeletePage(p.id);
                                   }
                                 }}
