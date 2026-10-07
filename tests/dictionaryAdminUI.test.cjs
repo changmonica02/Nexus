@@ -8,10 +8,10 @@ const detail={entry:{id:'entry',headword:'test',kind:'word',source_id:'source',s
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','中文義項','歷史詞源','記憶故事','構詞關聯','儲存','確認首次發布'])assert.ok(html.includes(text),text);
+  for(const text of ['單字','中文義項','歷史詞源','記憶故事','構詞關聯','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
-  assert.ok(html.includes('href="/dictionary/admin"'));
+  assert.ok(!html.includes('← 返回'));
   const locked=render({...detail,entry:{...detail.entry,status:'published',published_at:'2026-01-01'}});
   assert.ok(locked.includes('<fieldset disabled'));
   assert.ok(!locked.includes('確認首次發布已儲存草稿'));
@@ -19,7 +19,7 @@ test('admin editor exposes independent sense/history/memory sections and locks p
 test('admin route owns scrolling and return links use fixed destinations',()=>{
   const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(admin.includes('h-dvh overflow-y-auto'));
-  assert.ok(admin.includes('href="/dictionary"'));
+  assert.ok(admin.includes("entryId||newKind?'/dictionary/admin':'/dictionary'"));
   assert.ok(admin.includes('useUnsavedDraft(dirty,busy)'));
   assert.ok(admin.includes('window.confirm('));
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
@@ -44,16 +44,16 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資料','中文義項','構詞關聯','歷史詞源','口訣','記憶故事','來源與授權']){
+  for(const label of ['基本資料','中文義項','構詞關聯','歷史詞源','口訣','記憶故事']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
-  assert.equal((html.match(/←/g)||[]).length,1);
+  assert.equal((html.match(/←/g)||[]).length,0);
   const rootHtml=render(root);for(const label of ['主要分類','同字變體','空間、位置與環境','時間、狀態、數量與邏輯'])assert.ok(rootHtml.includes(label));
   assert.ok(rootHtml.includes('var(--color-editor-bg)'));
   assert.ok(!rootHtml.includes('標籤'));assert.ok(!rootHtml.includes('構詞關聯'));
   const header=html.match(/<header[\s\S]*?<\/header>/)[0];
-  assert.ok(header.includes('sticky top-0'));assert.ok(header.includes('返回'));assert.ok(header.includes('儲存'));
+  assert.ok(header.includes('sticky top-0'));assert.ok(!header.includes('返回'));assert.ok(header.includes('儲存'));
   assert.ok(!html.includes('儲存整份草稿'));
   assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
   assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>中文義項</h3>'));
@@ -117,8 +117,6 @@ test('Prefix selection snapshots DOM value, saves current sense_groups, preserve
       const newTarget={value:prefixCategories[3]};
       pick(tree,n=>n.props['aria-label']==='義項 3 的分類').props.onChange({currentTarget:newTarget,target:newTarget});
       newTarget.value='';tree=render();
-      pick(tree,n=>n.props.label==='本次草稿來源／作者').props.onChange('Self-authored');
-      pick(tree,n=>n.props.label==='本次草稿授權說明').props.onChange('Test');
       tree=render();buttonNamed(tree,'儲存').props.onClick();
       await new Promise(resolve=>setImmediate(resolve));render();
     });
@@ -145,11 +143,60 @@ test('Root category snapshots selection and saves unchanged tags via existing gr
       const target={value:primaryCategories[2]};select.props.onChange({currentTarget:target,target});target.value='';
       tree=render();assert.equal(pick(tree,n=>n.type==='select').props.value,primaryCategories[2]);
       pick(tree,n=>n.type?.name==='VariantEditor').props.onChange('cap/cept/cip');
-      pick(tree,n=>n.props.label==='本次草稿來源／作者').props.onChange('Author');
-      pick(tree,n=>n.props.label==='本次草稿授權說明').props.onChange('Test');
       tree=render();buttonNamed(tree,'儲存').props.onClick();await new Promise(resolve=>setImmediate(resolve));render();
     });
     assert.equal(calls[0].name,'save_dictionary_grouped_draft');
     assert.deepEqual(calls[0].args.group_data,{primary_category:primaryCategories[2],tags:[' old ','old'],variant_group:'cap/cept/cip'});
   }finally{supabase.getSupabase=original;}
+});
+
+const {visibleAdminEntries,toggleVisibleSelection,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
+test('list select-all toggles only rendered search/type results and excludes hidden selections',()=>{
+ const entries=[{id:'a',headword:'alpha',kind:'word'},{id:'b',headword:'beta',kind:'word'},{id:'c',headword:'alpha-',kind:'prefix'}];
+ const visible=visibleAdminEntries(entries,'word','ALP');assert.deepEqual(visible.map(e=>e.id),['a']);
+ assert.deepEqual(toggleVisibleSelection(visible,['c']),['a']);assert.deepEqual(toggleVisibleSelection(visible,['a','c']),[]);
+ assert.deepEqual(toggleVisibleSelection([],['c']),[]);
+ assert.deepEqual(toggleVisibleSelection(entries,[]),['a','b','c']);
+});
+test('list toolbar always shows ordered actions with disabled empty selection and wrapping layout',()=>{
+ const props={selectedCount:0,allSelected:false,empty:false,busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{},onDelete:()=>{},onPublish:()=>{},onSelectAll:()=>{}};
+ const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
+ const html=render({});let last=-1;for(const label of ['新增','匯入','匯出','刪除','發布','全選']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
+ for(const label of ['刪除','發布']){assert.match(html,new RegExp('<button[^>]*disabled=""[^>]*>'+label));assert.ok(!new RegExp('<button[^>]*disabled=""[^>]*>'+label).test(render({selectedCount:1})));}
+ assert.match(render({allSelected:true}),/aria-pressed="true"/);assert.match(html,/flex-wrap/);assert.match(html,/disabled:opacity-40/);
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));
+});
+
+test('multi-select types and statuses intersect with search; empty groups impose no restriction',()=>{
+ const rows=[{id:'a',kind:'word',status:'draft',headword:'alpha'},{id:'b',kind:'prefix',status:'published',headword:'alpha-'},{id:'c',kind:'root',status:'draft',headword:'cap'},{id:'d',kind:'word',status:'published',headword:'beta'}];
+ assert.deepEqual(visibleAdminEntries(rows,[],'',[]),rows);
+ assert.deepEqual(visibleAdminEntries(rows,['word','prefix'],'ALP',['draft','published']).map(r=>r.id),['a','b']);
+ const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(toggleVisibleSelection(visible,['b']),['a','c']);
+ assert.deepEqual(visibleAdminEntries(rows,['prefix'],'',['draft']),[]);
+ const {DictionaryListFilters}=require('../src/features/dictionary/DictionaryAdmin.tsx');
+ const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
+ assert.equal((html.match(/type="checkbox"/g)||[]).length,5);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
+});
+test('history source is optional, changing verified history downgrades metadata without requiring attribution',async()=>{
+ const d={...detail,etymologies:[{id:'history',entry_id:'entry',source_id:'source',sense_id:null,body:'old',verification:'verified',verification_note:'old source',revision:1}]};
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
+ assert.ok(html.includes('資料來源'));for(const text of ['查證狀態','已查證必填','本次草稿來源','來源與授權','首次發布','← 返回'])assert.ok(!html.includes(text),text);
+ const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;let payload;
+ supabase.getSupabase=()=>({rpc:async(name,args)=>{payload=args.bundle;return {error:null,data:{}};}});
+ try{await withEditorState({detail:d,entries:[],senses:[],onSaved:async()=>{}},async render=>{
+  let tree=render();pick(tree,n=>n.props.label==='資料來源').props.onChange('');tree=render();buttonNamed(tree,'儲存').props.onClick();await new Promise(r=>setImmediate(r));
+ });assert.equal(payload.dictionary_etymologies[0].verification,'pending');assert.equal(payload.dictionary_etymologies[0].verification_note,'');assert.equal(payload.dictionary_etymologies[0].source_id,'source');assert.equal(payload.dictionary_sources,undefined);
+ }finally{supabase.getSupabase=original;}
+});
+test('new manual drafts satisfy legacy source contract without asserting a license; edits preserve sources',()=>{
+ const {prepareEditorBundle}=require('../src/features/dictionary/DictionaryAdmin.tsx');
+ const bundle={dictionary_entries:[{id:'entry',source_id:'source'}],dictionary_senses:[{id:'sense',source_id:'source'}]};
+ const prepared=prepareEditorBundle(bundle,true);assert.equal(prepared.dictionary_sources[0].id,'source');assert.match(prepared.dictionary_sources[0].license,/未指定/);assert.equal(prepared.dictionary_sources[0].verification,'unverified');assert.equal(bundle.dictionary_sources,undefined);
+ assert.deepEqual(prepareEditorBundle(bundle,false),bundle);
+});
+test('return sits beside page title and shared copyright information is reachable under About',()=>{
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('僅管理員可編輯。公共字典不會覆寫任何人的字卡或學習紀錄。'));
+ assert.match(source,/<header[^>]*><Link[^>]*>← 返回上一頁<\/Link><h1[^>]*>公共字典管理/);
+ const settings=fs.readFileSync('src/components/SettingsDialog.tsx','utf8');assert.ok(settings.includes('"關於 Nexus"'));assert.ok(settings.includes('<DataSourcesAndCopyright/>'));
+ const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));
 });

@@ -1,4 +1,5 @@
 "use client";
+import {deleteDictionaryDrafts} from './deleteDrafts';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -42,21 +43,17 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(clean),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean)}));
   const [grouping,setGrouping]=useState(initialGrouping);
   const [senseGroups,setSenseGroups]=useState(initialSenseGroups);
-  const [citation,setCitation]=useState('');const [license,setLicense]=useState('');
   const [baseline,setBaseline]=useState(bundle);
   const [preview,setPreview]=useState(false);const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
   const locked=detail.entry.status==='published';
-  const dirty=!locked&&(detail.entry.revision===0||JSON.stringify(bundle)!==JSON.stringify(baseline)||!!citation||!!license||JSON.stringify(grouping)!==JSON.stringify(initialGrouping)||bundle.dictionary_senses.some(row=>(senseGroups[String(row.id)]??null)!==(initialSenseGroups[String(row.id)]??null)));
+  const dirty=!locked&&(detail.entry.revision===0||JSON.stringify(bundle)!==JSON.stringify(baseline)||JSON.stringify(grouping)!==JSON.stringify(initialGrouping)||bundle.dictionary_senses.some(row=>(senseGroups[String(row.id)]??null)!==(initialSenseGroups[String(row.id)]??null)));
   useUnsavedDraft(dirty,busy);
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
   const add=(table:string,values:Row)=>setBundle(b=>({...b,[table]:[...b[table],{id:crypto.randomUUID(),entry_id:detail.entry.id,source_id:detail.entry.source_id,...values}]}));
   const save=async()=>{
     setBusy(true);setMessage('');
     try{
-      if(!citation.trim()||!license.trim())throw new Error('請填寫本次草稿的來源及授權說明');
-      const sid=crypto.randomUUID();const next:Bundle={};
-      for(const [t,rows]of Object.entries(bundle))next[t]=rows.map(r=>({...r,source_id:sid}));
-      next.dictionary_sources=[{id:sid,citation,license,raw_text:JSON.stringify(bundle),verification:'unverified',verification_note:''}];
+      const next=prepareEditorBundle(bundle,detail.entry.revision===0);
       if(detail.entry.kind==='word')await applyBundle(getSupabase()!,next,false,true);
       else {
         // Hidden tags are preserved verbatim; editing other fields must not normalize them.
@@ -66,7 +63,6 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
       await onSaved(detail.entry.id);
     }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
   };
-  const publish=async()=>{setBusy(true);try{await publishDictionaryEntry(getSupabase()!,detail.entry.id);await onSaved(detail.entry.id);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
   const removeSense=async(row:Row)=>{
     if(busy||locked)return;
     setMessage('');
@@ -84,7 +80,6 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
   };
   return <section className="min-w-0 space-y-4 rounded-xl border p-3 sm:p-4">
     <header className="sticky top-0 z-10 -mx-3 flex items-center gap-2 border-b bg-[var(--color-bg)] px-3 py-3 sm:-mx-4 sm:px-4">
-      <Link href="/dictionary/admin" aria-label="返回公共字典管理" className="shrink-0 rounded px-2 py-1 text-sm underline">← 返回</Link>
       <h2 className="min-w-0 flex-1 truncate font-semibold">{locked?'已發布 · 唯讀':`${detail.entry.revision===0?'新增':'編輯'}${labels[detail.entry.kind]}`}</h2>
       <button type="button" className={`${button} shrink-0`} disabled={busy||locked} onClick={()=>void save()}>{busy?'處理中…':'儲存'}</button>
     </header>
@@ -122,21 +117,33 @@ export function DictionaryEditor({detail,entries,senses,onSaved,initialGrouping=
         <h3 className="font-semibold">{title}</h3>
         {bundle[table].map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)} className="space-y-2 rounded border p-3">
           {!!row.sense_id&&<p className="text-sm">{String(bundle.dictionary_senses.find(s=>s.id===row.sense_id)?.gloss_zh_tw??'')}</p>}
-          <Field label="完整內容" multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
-          {!kind&&<Verification row={row} change={(key,value)=>change(table,i,key,value)}/>}
+          <Field label="完整內容" multiline value={row.body} onChange={v=>{change(table,i,'body',v);if(!kind)change(table,i,'verification','pending');}}/>
+          {!kind&&<Field label="資料來源" multiline value={row.verification_note} onChange={v=>{change(table,i,'verification_note',v);change(table,i,'verification','pending');}}/>}
         </div>)}
         <button className={button} onClick={()=>add(table,kind?{sense_id:null,body:'',kind}:{sense_id:null,body:'',verification:'unverified',verification_note:''})}>新增{title}</button>
       </section>)}
-      <section className="space-y-2"><h3 className="font-semibold">來源與授權</h3>
-      <Field label="本次草稿來源／作者" value={citation} onChange={setCitation}/><Field label="本次草稿授權說明" value={license} onChange={setLicense}/></section>
     </fieldset>
     <button className={button} onClick={()=>setPreview(!preview)}>切換完整預覽</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
     {reviewDraft&&<p>這是已發布詞條的審核草稿；本版不提供取代發布，原 Published 保持不變。</p>}
-    {!locked&&!reviewDraft&&detail.entry.revision>0&&<details><summary>首次發布</summary><p className="my-2 text-sm">只發布已儲存版本；尚未儲存的編輯不會發布。發布後暫不提供修改與撤回。</p><button className={button} disabled={busy||dirty} onClick={publish}>確認首次發布已儲存草稿</button></details>}
   </section>;
 }
 
+export function prepareEditorBundle(bundle:Bundle,isNew:boolean):Bundle {
+  const next:Bundle=structuredClone(bundle);
+  // Preserve existing source references. New drafts need a compatibility record while
+  // source_id remains required; this records absence of attribution, not a license grant.
+  if(isNew)next.dictionary_sources=[{id:String(next.dictionary_entries[0].source_id),citation:'Nexus 管理介面新增；未提供外部來源',license:'未指定（不代表取得授權）',raw_text:JSON.stringify(bundle),verification:'unverified',verification_note:''}];
+  return next;
+}
+export function visibleAdminEntries(entries:DictionaryEntry[],kinds:string[]|string,query:string,statuses:string[]=[]){const types=Array.isArray(kinds)?kinds:kinds==='all'?[]:[kinds];return entries.filter(e=>(!types.length||types.includes(e.kind))&&(!statuses.length||statuses.includes(e.status))&&e.headword.toLowerCase().includes(query.toLowerCase()));}
+export function DictionaryListFilters({kinds,statuses,onKinds,onStatuses}:{kinds:string[];statuses:string[];onKinds:(values:string[])=>void;onStatuses:(values:string[])=>void}){
+  return <div className="flex min-w-0 flex-wrap gap-4">{[{title:'類型',values:kinds,options:labels,change:onKinds},{title:'狀態',values:statuses,options:{draft:'草稿',published:'已發布'},change:onStatuses}].map(group=><fieldset key={group.title} className="min-w-0"><legend className="mb-2 text-sm">{group.title}</legend><div className="flex flex-wrap gap-3">{Object.entries(group.options).map(([value,label])=><label key={value} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={group.values.includes(value)} onChange={e=>group.change(e.target.checked?[...group.values,value]:group.values.filter(v=>v!==value))}/>{label}</label>)}</div></fieldset>)}</div>;
+}
+export function toggleVisibleSelection(entries:DictionaryEntry[],selected:string[]){return entries.length>0&&entries.every(e=>selected.includes(e.id))?[]:entries.map(e=>e.id);}
+export function DictionaryListActions({selectedCount,allSelected,empty,busy,onNew,onImport,onExport,onDelete,onPublish,onSelectAll}:{selectedCount:number;allSelected:boolean;empty:boolean;busy:boolean;onNew:()=>void;onImport:()=>void;onExport:()=>void;onDelete:()=>void;onPublish:()=>void;onSelectAll:()=>void}){
+  return <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>新增</button><button className={button} disabled={busy} onClick={onImport}>匯入</button><button className={button} disabled={busy} onClick={onExport}>匯出</button></div><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||!selectedCount} onClick={onDelete}>刪除</button><button className={button} disabled={busy||!selectedCount} onClick={onPublish}>發布</button><button className={button} disabled={busy||empty} aria-pressed={allSelected} onClick={onSelectAll}>全選</button></div></div>;
+}
 function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['kind']}){
   const [entries,setEntries]=useState<DictionaryEntry[]>([]),[senses,setSenses]=useState<DictionarySense[]>([]);
   const [detail,setDetail]=useState<DictionaryDetail|null>(()=>{
@@ -144,7 +151,7 @@ function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['
     const id=crypto.randomUUID(),source=crypto.randomUUID();
     return {entry:{id,kind:newKind,headword:'',source_id:source,status:'draft',published_at:null,revision:0,updated_at:''},senses:[{id:crypto.randomUUID(),entry_id:id,source_id:source,part_of_speech:newKind==='word'?'noun':null,gloss_zh_tw:'',revision:0,updated_at:''}],relations:[],etymologies:[],learning_notes:[]};
   }),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
-  const [kind,setKind]=useState('all'),[query,setQuery]=useState('');
+  const [kinds,setKinds]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[query,setQuery]=useState('');
   const [candidate,setCandidate]=useState<Bundle|null>(null),[result,setResult]=useState<BundleResult|null>(null),[format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('csv');
   const [fileText,setFileText]=useState('');
   const [selected,setSelected]=useState<string[]>([]);
@@ -159,15 +166,17 @@ function Workspace({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['
   useEffect(()=>{let active=true;const client=getSupabase()!;Promise.all([client.from('dictionary_entries').select('*').order('headword'),client.from('dictionary_senses').select('*')]).then(([e,s])=>{if(!active)return;if(e.error||s.error)setMessage(e.error?.message||s.error?.message||'讀取失敗');else{setEntries(e.data);setSenses(s.data);}});return()=>{active=false;};},[]);
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
+  const visible=visibleAdminEntries(entries,kinds,query,statuses);
+  const visibleSelected=visible.filter(e=>selected.includes(e.id));
   if(detail)return <DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh}/>;
-  if(entryId)return <div><Link href="/dictionary/admin" className="underline">← 公共字典管理</Link><p role="status">{message||'正在讀取詞條…'}</p></div>;
+  if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
-    <Link href="/dictionary" className="inline-block underline">← 字典首頁</Link>
-    <div className="flex flex-wrap gap-2"><button className={button} onClick={()=>setModal('new')}>新增</button><button className={button} onClick={()=>{setMessage('');setModal('import');}}>匯入</button><button className={button} onClick={()=>setModal('export')}>匯出</button></div>
-    {modal==='export'&&<DictionaryModal title="匯出 AI Dictionary JSON" onClose={closeModal} busy={busy}><AIExport initialKind={kind} query={query} selected={selected} onBusy={setBusy}/></DictionaryModal>}
+    <DictionaryListActions selectedCount={visibleSelected.length} allSelected={visible.length>0&&visibleSelected.length===visible.length} empty={!visible.length} busy={busy} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')} onSelectAll={()=>setSelected(toggleVisibleSelection(visible,selected))} onDelete={()=>void action(async()=>{const count=await deleteDictionaryDrafts(getSupabase()!,visibleSelected,message=>window.confirm(message));if(count===null)return;setSelected([]);setMessage(`已刪除 ${count} 筆草稿。`);await refresh();})} onPublish={()=>void action(async()=>{if(!window.confirm(`發布目前選取的 ${visibleSelected.length} 筆詞條？已發布詞條會略過。`))return;let count=0;try{for(const entry of visibleSelected){if(entry.status==='published')continue;await publishDictionaryEntry(getSupabase()!,entry.id);count++;}setSelected([]);setMessage(`已發布 ${count} 筆詞條。`);}finally{await refresh();}})}/>
+    {modal==='export'&&<DictionaryModal title="匯出 AI Dictionary JSON" onClose={closeModal} busy={busy}><AIExport initialKind={kinds.length===1?kinds[0]:'all'} query={query} selected={visibleSelected.map(e=>e.id)} onBusy={setBusy}/></DictionaryModal>}
     {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
-    <div className="flex gap-2"><input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="詞條分類" className={control} value={kind} onChange={e=>setKind(e.target.value)}><option value="all">全部類別</option>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></div>
-    <ul className="max-h-64 overflow-auto rounded border">{entries.filter(e=>(kind==='all'||e.kind===kind)&&e.headword.toLowerCase().includes(query.toLowerCase())).map(e=><li key={e.id} className="flex items-center gap-2 px-2"><input type="checkbox" aria-label={`勾選 ${e.headword}`} checked={selected.includes(e.id)} onChange={event=>setSelected(ids=>event.target.checked?[...ids,e.id]:ids.filter(id=>id!==e.id))}/><Link className="block w-full p-3 text-left hover:bg-[var(--color-panel-bg)]" href={`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.status==='draft'?'草稿':'已發布'}</Link></li>)}</ul>
+    <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setSelected([]);}}/>
+    <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setSelected([]);}} onStatuses={values=>{setStatuses(values);setSelected([]);}}/>
+    <ul className="min-w-0 divide-y divide-[var(--color-border)]">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2"><input className="shrink-0" disabled={busy} type="checkbox" aria-label={`勾選 ${e.headword}`} checked={selected.includes(e.id)} onChange={event=>setSelected(ids=>event.target.checked?[...ids,e.id]:ids.filter(id=>id!==e.id))}/><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.status==='draft'?'草稿':'已發布'}</Link></li>)}</ul>
     <>{modal==='import'&&<DictionaryModal title="匯入字典" onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">匯入預覽（只建立草稿，不覆寫衝突內容）</h2>
       <details><summary>檔案格式</summary><p className="my-2 text-sm">JSON Bundle：頂層為物件，支援 dictionary_sources、dictionary_entries、dictionary_senses、dictionary_relations、dictionary_etymologies、dictionary_learning_notes 陣列。每筆須有穩定 UUID；不接受 status、SHA 或其他資料庫管理欄位。來源須含 citation、license、raw_text；詞條須含 kind、headword、source_id；義項須含 entry_id、gloss_zh_tw、source_id。關聯可指向本批或既有資料，預覽會驗證完整關聯及顯示疑似重複警告。</p><p className="my-2 break-words text-sm">CSV 欄名：entry_id,sense_id,headword,part_of_speech,gloss_zh_tw,citation,license。ID 使用固定 UUID；一列一義項，相同單字可共用 entry_id。</p><pre className="whitespace-pre-wrap text-xs">{'Markdown：\n---\nid: 內容 UUID\nentry_id: 既有詞條 UUID\nsense_id: 可省略的義項 UUID\nkind: historical_etymology / learning_decomposition / mnemonic_scenario\ncitation: 來源\nlicense: 授權說明\nverification: unverified（僅歷史詞源）\nverification_note: 查證說明\n---\n完整正文（原文保存）'}</pre><p className="text-xs">Frontmatter 使用單行 key: value，含特殊字元可用 JSON 雙引號字串。不接受未知欄位，不自動轉換舊百科筆記。</p></details>
       <fieldset disabled={busy} className="space-y-3">
@@ -191,5 +200,5 @@ export default function DictionaryAdmin({entryId,newKind}:{entryId?:string;newKi
   useEffect(()=>{const client=getSupabase();if(!client)return;let generation=0;let mounted=true;
     const check=async()=>{const run=++generation;setAccess(null);const {data:{user},error:authError}=await client.auth.getUser();if(!mounted||run!==generation)return;if(authError||!user){setError('請先從 Nexus 登入。');return;}const {data,error}=await client.rpc('is_dictionary_admin');if(!mounted||run!==generation)return;if(error){setError('無法確認管理權限，請確認 M7-9／M7-10 migration 已套用。');return;}setError('');ownerRef.current=user.id;setAccess({owner:user.id,allowed:data===true});};
     void check();const {data:{subscription}}=client.auth.onAuthStateChange((event,session)=>{if(event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED'||(session?.user.id===ownerRef.current))return;generation++;ownerRef.current=null;setAccess(null);setTimeout(()=>{if(mounted)void check();},0);});return()=>{mounted=false;generation++;subscription.unsubscribe();};},[]);
-  return <main className="h-dvh overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]">{!access?.allowed&&<Link href="/dictionary" className="underline">← 字典首頁</Link>}<h1 className="text-2xl font-semibold">公共字典管理</h1><p className="text-sm">僅管理員可編輯。公共字典不會覆寫任何人的字卡或學習紀錄。</p>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<Workspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有公共字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
+  return <main className="h-dvh overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><header className="flex min-w-0 flex-wrap items-center gap-3"><Link href={entryId||newKind?'/dictionary/admin':'/dictionary'} className="shrink-0 text-sm underline">← 返回上一頁</Link><h1 className="text-2xl font-semibold">公共字典管理</h1></header>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<Workspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有公共字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
 }

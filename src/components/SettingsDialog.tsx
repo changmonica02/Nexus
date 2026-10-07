@@ -5,13 +5,15 @@ import type { PreferencesProps } from "./PreferencesMenu";
 import { useLanguage } from "../lib/LanguageContext";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
 import { DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
+import DataSourcesAndCopyright from "./DataSourcesAndCopyright";
 import HelpGuide from "./HelpGuide";
 
-const sections = ["一般", "功能排序", "使用建議", "使用說明", "備份"] as const;
+const sections = ["一般", "功能排序", "使用建議", "使用說明", "備份", "關於 Nexus"] as const;
 export default function SettingsDialog({ theme, onThemeChange, onExportBackup, onImportBackup, onClose }: PreferencesProps & { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { language, setLanguage } = useLanguage();
   const [section, setSection] = useState<typeof sections[number]>("一般");
+  const [showSources,setShowSources]=useState(false);
   const [orderMode, setOrderMode] = useState(getStoredFeatureOrderMode);
   const [order, setOrder] = useState(getStoredCustomFeatureOrder);
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
             <div><h4 className="font-semibold">保存常用創作結構</h4><p className="opacity-75">角色卡的組件與背景範文可存成自訂模板，之後建立角色時直接選用。世界觀與角色卡可分開管理。</p></div>
             <div><h4 className="font-semibold">備份與同步</h4><p className="opacity-75">帳號入口位於側欄底部，可查看同步狀態；也可從「備份」匯出工作區，保留一份獨立副本。</p></div>
           </div>}
+          {section === "關於 Nexus" && (showSources?<div className="space-y-4"><button type="button" className={control} onClick={()=>setShowSources(false)}>← 關於 Nexus</button><DataSourcesAndCopyright/></div>:<button type="button" className={control} onClick={()=>setShowSources(true)}>資料來源與版權</button>)}
           {section === "使用說明" && <HelpGuide />}
           {section === "備份" && <div className="space-y-4 text-sm leading-7"><p className="opacity-75">匯出工作區備份，或選擇先前保存的 JSON 備份檔匯入。</p><div className="flex flex-wrap gap-3"><button type="button" className={control} onClick={() => { onClose(); onExportBackup(); }}>匯出備份</button><button type="button" className={control} onClick={() => { onClose(); onImportBackup(); }}>匯入備份</button></div></div>}
         </section>
