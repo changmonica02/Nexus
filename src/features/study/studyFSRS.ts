@@ -28,6 +28,8 @@ export interface StudyState {
   conflict: boolean;
   learned_at?: number | null;
   legacy_test_reset?: boolean;
+  resolution_id?:string;
+  ambiguity?: {device:StudyState|null;cloud:StudyState|null;candidates:StudyState[];event_version:number;state_version:number;pending?:boolean};
 }
 export interface StudySettings {
   official_pack_id?: string;
@@ -58,6 +60,7 @@ export function sameStudyRecord(a:unknown,b:unknown):boolean {
   return JSON.stringify(a,canonical) === JSON.stringify(b,canonical);
 }
 export type StudyOperation = (
+  | { id:string;owner_id:string|null;kind:'resolution';value:{id:string;owner_id:string|null;card_id:string;event_version:number;state_version:number;choice:StudyState|null;relearn:boolean} }
   | { id: string; owner_id: string | null; kind: "card"; value: StudyCard }
   | { id: string; owner_id: string | null; kind: "settings"; value: StudySettings }
   | { id: string; owner_id: string | null; kind: "seed"; value: StudyState }

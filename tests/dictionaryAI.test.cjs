@@ -30,34 +30,34 @@ test('Word/Prefix/Root AI projections preserve meanings and category levels with
 });
 test('AI parser rejects identity/verification/delete/unknown fields and invalid classification',()=>{
  const base=toAI(word,targets);
- for(const changed of [{...base,type:'invalid'},{...base,revision:0},{...base,delete:true},{...base,sources:[{...base.sources[0],verification:'verified'}]},{...base,meanings:[{id:'bad',zh_tw:'x'}]},{...toAI(prefix,new Map()),grouping:{primary_category:primaryCategories[0]}}])assert.throws(()=>parseAI(document([changed])));
+ for(const changed of [{...base,type:'invalid'},{...base,revision:0},{...base,delete:true},{...base,sources:[{id:id(1),citation:'old',license:'old',url:null,verification:'verified'}]},{...base,meanings:[{id:'bad',zh_tw:'x'}]},{...toAI(prefix,new Map()),grouping:{primary_category:primaryCategories[0]}}])assert.throws(()=>parseAI(document([changed])));
  assert.throws(()=>parseAI(document([base,base])),/重複/);
  assert.throws(()=>parseAI('{'));
 });
-test('draft Diff updates only a draft, keeps omissions and creates pending immutable source snapshots',()=>{
- const input={id:id(10),revision:2,type:'word',headword:'propose anew',meanings:[],components:[],etymology:[],story:[],sources:[{id:id(1),citation:'AI 新來源',license:'test-only',url:null}]};
+test('draft Diff updates only a draft, keeps omissions without creating source snapshots',()=>{
+ const input={id:id(10),revision:2,type:'word',headword:'propose anew',meanings:[],components:[],etymology:[],story:[]};
  const plan=planAI(parseAI(document([input])).entries[0],word,targets,generator());
  assert.equal(plan.target_id,id(10));assert.equal(plan.bundle.dictionary_entries[0].revision,2);
  assert.equal(plan.bundle.dictionary_senses.length,1);assert.equal(plan.bundle.dictionary_relations.length,1);assert.equal(plan.bundle.dictionary_etymologies.length,1);assert.equal(plan.bundle.dictionary_learning_notes.length,1);
  assert.ok(plan.warnings.some(w=>w.includes('保留原資料')));assert.ok(plan.changes.some(d=>d.label==='headword'&&d.kind==='修改'));
- assert.ok(plan.bundle.dictionary_sources.every(s=>s.verification==='pending'&&s.id!==id(1)));assert.equal(source.verification,'verified');
+ assert.equal(plan.bundle.dictionary_sources,undefined);assert.equal(source.verification,'verified');
  assert.equal(word.detail.entry.headword,'propose');assert.equal(plan.conflict,false);
 });
-test('published changes clone every original child into a linked review draft; published IDs/content are untouched',()=>{
+test('published changes retain canonical IDs in a separate review snapshot; public content stays untouched',()=>{
  const published=structuredClone(word);published.detail.entry.status='published';
  const input={...toAI(published,targets),headword:'changed'};
  const before=structuredClone(published),plan=planAI(input,published,targets,generator());
- assert.notEqual(plan.target_id,id(10));assert.equal(plan.published_entry_id,id(10));assert.equal(plan.origin_ids[id(10)],plan.target_id);
- for(const table of ['dictionary_senses','dictionary_relations','dictionary_etymologies','dictionary_learning_notes'])for(const r of plan.bundle[table]){assert.equal(r.entry_id,plan.target_id);assert.ok(!('revision' in r));}
- assert.equal(plan.bundle.dictionary_relations[0].sense_id,plan.origin_ids[id(11)]);assert.deepEqual(published,before);
+ assert.equal(plan.target_id,id(10));assert.equal(plan.published_entry_id,id(10));assert.deepEqual(plan.origin_ids,{});
+ for(const table of ['dictionary_senses','dictionary_relations','dictionary_etymologies','dictionary_learning_notes'])for(const r of plan.bundle[table]){assert.equal(r.entry_id,plan.target_id);assert.ok('revision' in r);}
+ assert.equal(plan.bundle.dictionary_relations[0].sense_id,id(11));assert.deepEqual(published,before);
  assert.ok(!('status' in plan.bundle.dictionary_entries[0]));assert.ok(plan.warnings.some(w=>w.includes('審核草稿')));
 });
 test('new entries generate IDs and remain draft-only; revision conflicts cannot submit',async()=>{
- const input=parseAI(document([{type:'root',headword:'new',grouping:{primary_category:primaryCategories[0],tags:[],variant_group:null},meanings:[{zh_tw:'自建'}],sources:[{citation:'自建',license:'test-only',url:null}]}])).entries[0];
- const plan=planAI(input,null,new Map(),generator());assert.ok(plan.target_id);assert.ok(!('status' in plan.bundle.dictionary_entries[0]));assert.ok(plan.bundle.dictionary_sources.every(s=>s.verification==='pending'));
+ const input=parseAI(document([{type:'root',headword:'new',grouping:{primary_category:primaryCategories[0],tags:[],variant_group:null},meanings:[{zh_tw:'自建'}]}])).entries[0];
+ const plan=planAI(input,null,new Map(),generator());assert.ok(plan.target_id);assert.ok(!('status' in plan.bundle.dictionary_entries[0]));assert.equal(plan.bundle.dictionary_sources,undefined);
  const stale=planAI({...toAI(word,targets),revision:1},word,targets,generator());assert.equal(stale.conflict,true);
  let calls=0;await assert.rejects(submitAI({rpc:async()=>{calls++;}},stale,false),/版本衝突/);assert.equal(calls,0);
- const client={rpc:async(name,args)=>{calls++;assert.equal(name,'apply_dictionary_ai_change');assert.equal(args.preview,true);assert.equal(args.entry_uuid,null);return {data:{preview:true},error:null};}};await submitAI(client,plan,true);assert.equal(calls,1);
+ const client={rpc:async(name,args)=>{calls++;assert.equal(name,'apply_dictionary_drafts');assert.equal(args.preview,true);assert.equal(args.drafts[0].ai.entry_uuid,null);return {data:{preview:true},error:null};}};await submitAI(client,plan,true);assert.equal(calls,1);
 });
 test('classification edits, content omissions, ambiguous components and unknown IDs are handled explicitly',()=>{
  const input=toAI(word,targets);input.classification='noun';const plan=planAI(input,word,targets,generator());assert.equal(plan.bundle.dictionary_senses[0].part_of_speech,'noun');

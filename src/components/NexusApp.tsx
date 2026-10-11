@@ -1,8 +1,10 @@
 "use client";
+import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
 import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
 
 
 import {
+  Fragment,
   useState,
   useEffect,
   useRef,
@@ -45,6 +47,7 @@ import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
 import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
 import {deleteOfficialPack,packDeleteMessage} from "../features/study/officialPacks";
+import DictionaryAddRequest from '../features/dictionary/DictionaryAddRequest';
 import StudySetView from "../features/study/components/StudySetView";
 import QuizOfflinePrompt from "../features/study/quiz/QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
@@ -148,7 +151,7 @@ function NexusAppInner({
   const [isDocumentMode, setIsDocumentMode] = useState(false);
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
-  const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | null>(null);
+  const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | "score" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
   const [characterTemplatePicker, setCharacterTemplatePicker] = useState(false);
@@ -728,6 +731,7 @@ function NexusAppInner({
     setIsNoteMode(false);
     setIsPresentationMode(false);
     const target = pages.find((p) => p.id === id);
+    setUtilityMode(mode=>mode === "score" && target?.kind !== "score" ? null : mode);
     if (target?.kind === "creative") {
       setIsCreativeMode(true);
     } else {
@@ -755,7 +759,7 @@ function NexusAppInner({
     if (!storageRef.current) return;
     if (activePageRef.current) await flushSave(activePageRef.current);
     const newPage = await storageRef.current.createPage(input);
-    setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" ? input.kind : null);
+    setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" || input.kind === "score" ? input.kind : null);
     setIsTrashMode(false);
     setIsHomeMode(false);
     setIsQuickNoteMode(false);
@@ -939,11 +943,11 @@ function NexusAppInner({
       finally { sidebarCreateInFlightRef.current = false; }
       return;
     }
-    if (["novel", "world", "web", "counter", "draw", "quick_note", "todo"].includes(type)) {
+    if (["score", "novel", "world", "web", "counter", "draw", "quick_note", "todo"].includes(type)) {
       if (sidebarCreateInFlightRef.current) return;
       sidebarCreateInFlightRef.current = true;
       try {
-        const titles: Record<string, string> = { novel: "新小說作品", world: "新世界觀", web: "新網頁", counter: "新計數", draw: "新抽選", quick_note: "隨手記", todo: "新事項" };
+        const titles: Record<string, string> = { score: "新樂譜", novel: "新小說作品", world: "新世界觀", web: "新網頁", counter: "新計數", draw: "新抽選", quick_note: "隨手記", todo: "新事項" };
         const page = await createAndOpenPage({ kind: type === "novel" || type === "world" ? "creative" : type as PageKind, format: "flow", title: titles[type] });
         if (page && type === "novel") patchPage(page.id, { creative_type: "novel", novel_settings: { chaptersEnabled: true, theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
         if (page && type === "world") { const data = createBlankTemplate(); data.basic.name = titles.world; data.basic.role = "世界觀設定"; patchPage(page.id, { creative_type: "world", character_data: data }); }
@@ -1158,12 +1162,12 @@ function NexusAppInner({
   const handleShowDocuments = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
   const handleShowNotesOverview = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
   const handleShowPresentations = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
-  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
+  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
 
   useEffect(() => {
     const openUtility = (event: Event) => {
-      const kind = (event as CustomEvent<"web" | "counter" | "draw">).detail;
-      if (kind === "web" || kind === "counter" || kind === "draw") handleShowUtility(kind);
+      const kind = (event as CustomEvent<"web" | "counter" | "draw" | "score">).detail;
+      if (kind === "web" || kind === "counter" || kind === "draw" || kind === "score") handleShowUtility(kind);
     };
     window.addEventListener("nexus-open-utility", openUtility);
     return () => window.removeEventListener("nexus-open-utility", openUtility);
@@ -1729,12 +1733,13 @@ function NexusAppInner({
                   ["▱", "文檔", handleShowDocuments],
                   ["▰", "簡報", handleShowPresentations],
                   ["⌘", "網頁", () => handleShowUtility("web")],
+                  ["♫", "製譜", () => handleShowUtility("score")],
                   ["＋", "計數", () => handleShowUtility("counter")],
                   ["⤨", "抽選", () => handleShowUtility("draw")],
                 ].map(([icon, label, action]) => (
-                  <button key={label as string} type="button" onClick={() => { (action as () => void)(); setIsAppLauncherOpen(false); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                  <Fragment key={label as string}>{label === "計數" && <div className="col-span-2 border-t px-3 pt-2 text-xs opacity-60">工具</div>}<button type="button" onClick={() => { (action as () => void)(); setIsAppLauncherOpen(false); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                     <span className="text-lg">{icon as string}</span><span>{label as string}</span>
-                  </button>
+                  </button></Fragment>
                 ))}
               </div>
             )}
@@ -1968,6 +1973,10 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
+      ) : activePage?.kind === "score" ? (
+        <ScoreWorkspace key={activePage.id} page={activePage} onChange={patch=>patchPage(activePage.id,patch)} onSave={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);}} onBack={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);if(utilityMode)setActivePageId(null);else handleShowHome();}}/>
+      ) : utilityMode === "score" ? (
+        <ScoreOverview pages={pages.filter(p=>p.kind==='score'&&!p.deleted_at)} onCreate={()=>void createAndOpenPage({kind:'score',title:'新樂譜'})} onOpen={handleSelectPage}/>
       ) : utilityMode ? (
         activePage?.kind === utilityMode ? (
           <UtilityView page={activePage} onBack={() => { setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
@@ -2286,6 +2295,7 @@ function NexusAppInner({
       )}
       </div>
 
+      {initialFeature==='study'&&isAuthenticated&&storageRef.current&&<DictionaryAddRequest storage={storageRef.current} onChanged={async()=>{setPages(await storageRef.current!.listPages());}}/>}
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
       {isDevicePreviewOpen && <DevicePreview onClose={() => setIsDevicePreviewOpen(false)} />}
 

@@ -42,19 +42,19 @@ test('catalog/download/update/delete use scoped RPCs; failed download can retry 
   assert.deepEqual(calls[1].args,{pack_id:pack});
   assert.equal(api.packDeleteMessage('學測單字 1–2 級'),'刪除「學測單字 1–2 級」？\n\n這會移除此單字集與此單字集的學習進度。\n公共字典內容不會被刪除，你之後可以再次下載。');
 });
-test('official cards cannot be edited/imported but daily learning works unchanged',async t=>{
+test('official private text can be edited while source identity/import protection and daily learning remain unchanged',async t=>{
   const {repo}=await fixture(t),card=await installLocal(repo);
   await assert.rejects(repo.addCards('deck',[{front:'fake',back:'test'}]),/不可直接/);
-  await assert.rejects(repo.updateCard(card.id,{front:'changed'}),/不可直接/);
+  await repo.updateCard(card.id,{front:'changed',back:'私人義'});const edited=(await repo.readDeck('deck')).cards[0];assert.equal((await repo.readDeck('deck')).cards[0].front,'changed');await assert.rejects(repo.updateCard(card.id,{dictionary_entry_id:'other'}),/只能修改/);
   const session=await repo.startSession('deck','daily',1000);
   const {snapshot}=await repo.readSession(session.id);
-  await repo.rateSession({sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:1,expectedHead:snapshot.states[0].head,rating:4,actionId:'daily-easy',now:1100});
-  const after=await repo.readDeck('deck');assert.equal(after.states[0].learned_at,1100);assert.equal(after.states[0].fsrs,null);
+  await repo.rateSession({sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:snapshot.cards[0].content_revision,expectedHead:snapshot.states[0].head,rating:4,actionId:'daily-easy',now:1100});
+  const after=await repo.readDeck('deck',true);assert.equal(after.states[0].learned_at,1100);assert.equal(after.states[0].fsrs,null);
   assert.equal(after.events[0].kind,'introduce');assert.equal(after.events[0].source,'daily_learning');
   const review=await repo.startSession('deck','free',1200);
-  await repo.rateSession({sessionId:review.id,cardId:card.id,revision:review.revision,contentRevision:1,expectedHead:after.states[0].head,rating:3,actionId:'review-good',now:1201});
-  const reviewed=await repo.readDeck('deck');assert.ok(reviewed.states[0].fsrs);assert.equal(reviewed.events.filter(e=>e.kind==='review').length,1);
-  assert.deepEqual(reviewed.cards[0],card);
+  await repo.rateSession({sessionId:review.id,cardId:card.id,revision:review.revision,contentRevision:edited.content_revision,expectedHead:after.states[0].head,rating:3,actionId:'review-good',now:1201});
+  const reviewed=await repo.readDeck('deck',true);assert.ok(reviewed.states[0].fsrs);assert.equal(reviewed.events.filter(e=>e.kind==='review').length,1);
+  assert.deepEqual(reviewed.cards[0],edited);
 });
 test('incremental remote install adds cards without changing existing progress or removing old entries',async t=>{
   const {repo,db}=await fixture(t),old=await installLocal(repo);

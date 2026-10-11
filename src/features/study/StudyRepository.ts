@@ -1,5 +1,6 @@
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import { QuizRepository, QUIZ_STORES } from "./quiz/quizPersistence";
+import {chooseSchedule, cleanState, getSchedulePolicy, reliableEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
 import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
 import { localStudyDay, Rating } from "./studyFSRS";
@@ -7,7 +8,7 @@ import { createStudyEvent, emptyStudyState, migrateStudyDeck, nextDailyCard, sam
   type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
   type StudySettings, type StudySnapshot, type StudyState } from "./studyFSRS";
 
-export const STUDY_STORES = ["study_cards", "study_states", "study_events", "study_settings", "study_sessions", "study_outbox"];
+export const STUDY_STORES = ["study_cards", "study_states", "study_events", "study_settings", "study_sessions", "study_outbox", "study_sync_meta"];
 type Write = IDBPTransaction<unknown, string[], "readwrite">;
 const newId = () => crypto.randomUUID();
 
@@ -59,45 +60,51 @@ export class StudyRepository {
       }
     }
     await tx.done;
-    return this.readDeck(page.id);
+    return this.readDeck(page.id,false);
     } catch (error) {
       try { tx.abort(); } catch {}
       await tx.done.catch(() => undefined);
       throw error;
     }
   }
-  async readDeck(deckId: string): Promise<StudySnapshot> {
+  async readDeck(deckId: string, includeHistory = false): Promise<StudySnapshot> {
     const tx = this.db.transaction(STUDY_STORES, "readonly");
     const settings: StudySettings = await tx.objectStore("study_settings").get(deckId);
     this.owned(settings);
     const [cards, states, events, sessions] = await Promise.all([
       tx.objectStore("study_cards").index("deck").getAll(deckId),
       tx.objectStore("study_states").index("deck").getAll(deckId),
-      tx.objectStore("study_events").index("deck").getAll(deckId),
+      includeHistory ? tx.objectStore("study_events").index("deck").getAll(deckId) : Promise.resolve([]),
       tx.objectStore("study_sessions").getAll(),
     ]);
     await tx.done;
     return { settings, sessions: sessions.filter(s=>s.owner_id===this.owner() && s.deck_id===deckId), cards: cards.filter(c => c.owner_id === this.owner()).sort((a,b) => a.sort_order - b.sort_order),
       states: states.filter(s => s.owner_id === this.owner()), events: events.filter(e => e.owner_id === this.owner()).sort((a,b) => a.at - b.at || a.id.localeCompare(b.id)) };
   }
-  async addCards(deckId: string, pairs: {front: string; back: string}[]) {
+  async addCards(deckId: string, pairs: {front: string; back: string; dictionary_entry_id?:string}[], requestId = newId()) {
     const tx = this.db.transaction(STUDY_STORES, "readwrite", {durability:"strict"});
     try {
     const settings=await tx.objectStore("study_settings").get(deckId);this.owned(settings);
     if(settings.official_pack_id)throw new Error('官方單字集不可直接新增或匯入字卡。');
+    const receiptKey=JSON.stringify([this.owner(),"create",requestId]);
+    const receipt=await tx.objectStore("study_sync_meta").get(receiptKey);
+    if(receipt){if(receipt.deckId!==deckId || !sameStudyRecord(receipt.pairs,pairs))throw new Error("建立請求 ID 的內容不一致。");const result=await Promise.all(receipt.ids.map((id:string)=>tx.objectStore("study_cards").get(id)));if(result.some(c=>!c||c.deleted_at))throw new Error('此建立請求的字卡已刪除，請開始新的建立操作。');await tx.done;return result as StudyCard[];}
     const existing: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(deckId);
     const first = Math.max(-1, ...existing.map(card => card.sort_order)) + 1;
+    const added:StudyCard[]=[];
     for (const [i, pair] of pairs.entries()) {
       const now = Date.now();
       const card: StudyCard = { id: newId(), deck_id: deckId, owner_id: this.owner(), front: pair.front, back: pair.back,
-        direction: "en-zh", sort_order: first + i, content_revision: 1, created_at: now, updated_at: now, deleted_at: null };
+        direction: "en-zh", sort_order: first + i, content_revision: 1, created_at: now, updated_at: now, deleted_at: null, ...(pair.dictionary_entry_id?{dictionary_entry_id:pair.dictionary_entry_id}:{}) };
+      added.push(card);
       const state = emptyStudyState(card);
       await tx.objectStore("study_cards").add(card);
       await tx.objectStore("study_states").add(state);
       await this.enqueue(tx, {owner_id: this.owner(),kind:"card",value:card});
       await this.enqueue(tx, {owner_id: this.owner(),kind:"seed",value:state});
     }
-    await tx.done; this.changed();
+    await tx.objectStore("study_sync_meta").put({id:receiptKey,owner_id:this.owner(),deckId,pairs,ids:added.map(c=>c.id)});
+    await tx.done; this.changed();return added;
     } catch (error) {
       try { tx.abort(); } catch {}
       await tx.done.catch(() => undefined);
@@ -109,11 +116,11 @@ export class StudyRepository {
     await tx.objectStore("study_states").put(event.after);
     await this.enqueue(tx, {owner_id:this.owner(),kind:"event",value:event});
   }
-  async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at">>, reset = false) {
+  async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at"|"dictionary_entry_id">>, reset = false) {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
     const card: StudyCard = await tx.objectStore("study_cards").get(id); this.owned(card);
-    if(card.official_pack_id&&Object.keys(patch).length)throw new Error('官方字卡內容不可直接編輯。');
+    if(card.official_pack_id&&Object.keys(patch).some(k=>k!=='front'&&k!=='back'))throw new Error('官方字卡只能修改私人英文與中文內容。');
     const updated = {...card,...patch,migration_only:false,content_revision:card.content_revision+1,updated_at:Math.max(Date.now(),card.updated_at+1)};
     await tx.objectStore("study_cards").put(updated);
     await this.enqueue(tx,{owner_id:this.owner(),kind:"card",value:updated});
@@ -169,8 +176,18 @@ export class StudyRepository {
       throw error;
     }
   }
+  private async dayIntroductions(deckId:string,now:number,transaction?:Write):Promise<StudyEvent[]> {
+    const tx=transaction??this.db.transaction(['study_events']);const store=tx.objectStore('study_events');
+    const day=localStudyDay(now);
+    if(store.indexNames.contains('deck_day'))return (await store.index('deck_day').getAll([deckId,day])).filter((e:StudyEvent)=>e.owner_id===this.owner()&&e.kind==='introduce');
+    // Compatibility for old external/test adapters; current IndexedDB uses the day index.
+    const values:StudyEvent[]=[];let cursor=await store.index('deck').openCursor(deckId);
+    while(cursor){const e=cursor.value;if(e.owner_id===this.owner()&&e.local_day===day&&e.kind==='introduce')values.push(e);cursor=await cursor.continue();}
+    return values;
+  }
   async peekNext(deckId:string,now:number):Promise<{card:StudyCard;state:StudyState}|null> {
-    const snapshot=await this.readDeck(deckId);
+    const snapshot=await this.readDeck(deckId,false);
+    snapshot.events=await this.dayIntroductions(deckId,now);
     const card=nextDailyCard(snapshot,now);
     return card?{card,state:snapshot.states.find(state=>state.id===card.id)!}:null;
   }
@@ -181,7 +198,7 @@ export class StudyRepository {
     const settings:StudySettings=await tx.objectStore("study_settings").get(deckId);this.owned(settings);
     const cards=await tx.objectStore("study_cards").index("deck").getAll(deckId);
     const states=await tx.objectStore("study_states").index("deck").getAll(deckId);
-    const events=await tx.objectStore("study_events").index("deck").getAll(deckId);
+    const events=await this.dayIntroductions(deckId,now,tx);
     const card=nextDailyCard({cards,states,events,settings},now);
     if(expectedId && card?.id!==expectedId) throw new Error("待練習清單已變更，請重新載入題目。");
     if (!card) {await tx.done;return null;}
@@ -204,7 +221,7 @@ export class StudyRepository {
     const existing:StudyEvent|undefined=await tx.objectStore("study_events").get(eventId);
     if (existing) {
       this.owned(existing);
-      if(existing.card_id!==id || existing.rating!==rating) throw new Error("重複事件 ID 的內容不一致。");
+      if(existing.card_id!==id || existing.rating!==rating || existing.parent!==expectedHead || existing.content_revision!==contentRevision || existing.at!==now) throw new Error("重複事件 ID 的內容不一致。");
       await tx.done;return existing;
     }
     const card:StudyCard=await tx.objectStore("study_cards").get(id);this.owned(card);
@@ -226,7 +243,8 @@ export class StudyRepository {
   }
   private async snapshotIn(tx: Write, deckId: string): Promise<StudySnapshot> {
     const settings:StudySettings=await tx.objectStore("study_settings").get(deckId); this.owned(settings);
-    const [cards,states,events]=await Promise.all(["study_cards","study_states","study_events"].map(name=>tx.objectStore(name).index("deck").getAll(deckId)));
+    const [cards,states]=await Promise.all(["study_cards","study_states"].map(name=>tx.objectStore(name).index("deck").getAll(deckId)));
+    const events:StudyEvent[]=[];
     return {settings,cards,states,events};
   }
   private async saveSession(tx: Write, session: StudySession, event?: StudyEvent) {
@@ -236,6 +254,12 @@ export class StudyRepository {
   private async reconciled(tx: Write, session: StudySession, snapshot: StudySnapshot, now: number) {
     this.owned(session);
     if(session.conflict) throw new Error("此練習有跨裝置進度衝突，已保留本機進度，請先同步處理。");
+    for(const target of session.targets) {
+      if(target.official_rating===undefined && target.official_event_id) {
+        const event=await tx.objectStore("study_events").get(target.official_event_id);
+        if(event)snapshot.events.push(event);
+      }
+    }
     const next=reconcileSession(session,snapshot,now);
     if(!sameStudyRecord(next,session)) {
       next.revision++; next.updated_at=Math.max(now,session.updated_at+1);
@@ -315,6 +339,26 @@ export class StudyRepository {
       return session;
     });
   }
+  async syncCursor():Promise<number>{return (await this.db.get('study_sync_meta',JSON.stringify([this.owner(),'cursor'])))?.sequence??0;}
+  async resolveSchedule(id:string,choice:'device'|'cloud'|'relearn') {
+    return this.sessionWrite(async tx=>{
+      const state:StudyState=await tx.objectStore('study_states').get(id);this.owned(state);
+      const ambiguity=state.ambiguity;if(!ambiguity)throw new Error('請先同步取得最新候選排程。');
+      const selected=choice==='device'?ambiguity.device:choice==='cloud'?ambiguity.cloud:null;
+      if(choice!=='relearn'&&(!selected||!ambiguity.candidates.some(s=>sameStudyRecord(cleanState(s),cleanState(selected)))))throw new Error('此候選狀態尚未通過驗證。');
+      await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value:{id:newId(),owner_id:this.owner(),card_id:id,event_version:ambiguity.event_version,state_version:ambiguity.state_version,choice:selected,relearn:choice==='relearn'}});
+      // Remain blocked until the guarded server transaction succeeds.
+    });
+  }
+  async readHistory(deckId:string,limit=50):Promise<StudyEvent[]> {
+    const setting=await this.db.get('study_settings',deckId);this.owned(setting);
+    const tx=this.db.transaction('study_events');const store=tx.store;
+    const indexed=store.indexNames.contains('deck_at');
+    let cursor=await (indexed?store.index('deck_at'):store.index('deck')).openCursor(indexed?IDBKeyRange.bound([deckId,-Infinity],[deckId,Infinity]):IDBKeyRange.only(deckId),'prev');
+    const events:StudyEvent[]=[];
+    while(cursor&&events.length<limit){if(cursor.value.owner_id===this.owner()&&cursor.value.kind==='review')events.push(cursor.value);cursor=await cursor.continue();}
+    await tx.done;return events;
+  }
   async pending():Promise<StudyOperation[]> {
     return (await this.db.getAll("study_outbox")).filter(op=>op.owner_id===this.owner());
   }
@@ -325,21 +369,42 @@ export class StudyRepository {
     await tx.done;return {cards,states,events,settings,sessions};
   }
   /** Events are unioned by ID. Divergent heads are retained and marked, never overwritten silently. */
-  async mergeRemote(data:StudyBackup) {
+  async mergeRemote(data:StudyBackup, changes?:StudyChange[]) {
     const hasWorkspace=this.db.objectStoreNames.contains('workspace_sync_meta');
     const tx=this.db.transaction([...STUDY_STORES,...(hasWorkspace?['workspace_sync_meta']:[])],"readwrite",{durability:"strict"});
     try {
+    const receivedCursor=changes?.length?Math.max(...changes.map(c=>c.sequence)):0;
+    if(changes){
+      const latest=new Map<string,StudyChange>();
+      for(const change of changes){
+        if(change.owner_id!==this.owner())throw new Error('同步帳號不符。');
+        const key=JSON.stringify([this.owner(),change.entity,change.id]);
+        if(!latest.has(key)||latest.get(key)!.sequence<change.sequence)latest.set(key,change);
+      }
+      const fresh:StudyChange[]=[];
+      for(const [key,change] of latest){const known=await tx.objectStore('study_sync_meta').get(key);if(!known||known.sequence<change.sequence)fresh.push(change);}
+      changes=fresh;
+      const ids=(entity:string)=>new Set(fresh.filter(c=>c.entity===entity&&!c.deleted).map(c=>c.id));
+      const cards=ids('study_cards'),states=ids('study_card_states'),events=ids('study_review_events'),settings=ids('study_deck_settings');
+      data={...data,cards:data.cards.filter(c=>cards.has(c.id)),states:data.states.filter(c=>states.has(c.id)),events:data.events.filter(c=>events.has(c.id)),settings:data.settings.filter(c=>settings.has(c.id))};
+    }
     if(hasWorkspace){
       const deleted=new Set<string>();
       const officialDecks=new Set([...data.cards.filter(c=>c.official_pack_id).map(c=>c.deck_id),...data.settings.filter(s=>s.official_pack_id).map(s=>s.id)]);
       for(const meta of await tx.objectStore('workspace_sync_meta').getAll())if(meta.owner_id===this.owner()&&meta.hard_deleted){const [,type,id]=JSON.parse(meta.id);if(type==='pages'&&(meta.official_deck_deleted||officialDecks.has(id)))deleted.add(id);}
       data={cards:data.cards.filter(c=>!deleted.has(c.deck_id)),states:data.states.filter(s=>!deleted.has(s.deck_id)),events:data.events.filter(e=>!deleted.has(e.deck_id)),settings:data.settings.filter(s=>!deleted.has(s.id)),sessions:data.sessions?.filter(s=>!deleted.has(s.deck_id))};
     }
+    if(changes)for(const change of changes.filter(c=>c.deleted&&c.entity==='study_cards')){
+      if(change.owner_id!==this.owner())throw new Error('同步帳號不符。');
+      const card=await tx.objectStore('study_cards').get(change.id);
+      if(card&&card.owner_id===this.owner())await tx.objectStore('study_cards').put({...card,deleted_at:card.deleted_at??Date.now()});
+    }
+    const affected=new Set(data.states.map(s=>s.id));
     for(const event of data.events) {
       this.owned(event);
       const existing=await tx.objectStore("study_events").get(event.id);
       if(existing && !sameStudyRecord(existing,event)) throw new Error("同一事件 ID 出現不同內容，已停止同步並保留本地紀錄。");
-      if(!existing) await tx.objectStore("study_events").add(event);
+      if(!existing){await tx.objectStore("study_events").add(event);affected.add(event.card_id);}
     }
     for(const [store,values] of [["study_cards",data.cards],["study_settings",data.settings]] as const) {
       for(const value of values) {
@@ -348,20 +413,70 @@ export class StudyRepository {
         if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);
       }
     }
+    const eventCache=new Map<string,StudyEvent|undefined>(data.events.map(e=>[e.id,e]));
+    const findEvent=async(id:string)=>{if(!eventCache.has(id))eventCache.set(id,await tx.objectStore('study_events').get(id));return eventCache.get(id);};
     const descends = async (head:string|null, ancestor:string|null) => {
       const seen=new Set<string>();
       while(head && head!==ancestor && !seen.has(head)) {
-        seen.add(head);const event:StudyEvent|undefined=await tx.objectStore("study_events").get(head);
+        seen.add(head);const event=await findEvent(head);
         if(!event) return false;head=event.parent;
       }
       return head===ancestor;
     };
-    for(const remote of data.states) {
-      this.owned(remote);
-      const local:StudyState|undefined=await tx.objectStore("study_states").get(remote.id);
-      if(!local || await descends(remote.head,local.head)) await tx.objectStore("study_states").put(remote);
-      else if(!await descends(local.head,remote.head) || remote.conflict) await tx.objectStore("study_states").put({...remote,conflict:true});
+    if(changes)for(const change of changes){
+      if(change.owner_id!==this.owner())throw new Error("同步帳號不符。");
+      await tx.objectStore("study_sync_meta").put({id:JSON.stringify([this.owner(),change.entity,change.id]),owner_id:this.owner(),sequence:change.sequence,order_sequence:change.historical?0:change.sequence});
+      if(change.decision)await tx.objectStore('study_sync_meta').put({id:JSON.stringify([this.owner(),'decision',change.decision.id]),owner_id:this.owner(),state:change.decision.state});
+      if(change.entity==='study_review_events'){
+        const key=JSON.stringify([this.owner(),'event-version',change.card_id]);
+        const old=await tx.objectStore('study_sync_meta').get(key);
+        await tx.objectStore('study_sync_meta').put({id:key,owner_id:this.owner(),sequence:Math.max(old?.sequence??0,change.sequence)});
+      }
     }
+    const unsent:StudyOperation[]=await tx.objectStore("study_outbox").getAll();
+    for(const id of affected) {
+      const remote=data.states.find(s=>s.id===id);
+      if(remote)this.owned(remote);
+      const local:StudyState|undefined=await tx.objectStore("study_states").get(id);
+      const cardFacts=data.events.filter(e=>e.card_id===id);
+      const parents=new Set(cardFacts.map(e=>e.parent));
+      const facts=cardFacts.filter(e=>!parents.has(e.id));
+      if(changes&&unsent.some(op=>op.kind==="event"&&op.value.card_id===id))continue;
+      if(!changes){
+        // Backup/legacy merge retains its conservative compatibility behavior.
+        if(remote){if(!local || await descends(remote.head,local.head))await tx.objectStore('study_states').put(remote);
+        else if(!await descends(local.head,remote.head)||remote.conflict)await tx.objectStore('study_states').put({...remote,conflict:true});}
+        continue;
+      }
+      for(const head of [local?.head,remote?.head])if(head&&!facts.some(e=>e.id===head)){const event=await findEvent(head);if(event)facts.push(event);}
+      const candidates:ScheduleCandidate[]=[];
+      for(const [state,source] of [[local,'device'],[remote,'cloud'],...(local?.ambiguity?.candidates??[]).map(s=>[s,'event']),...facts.filter(e=>![local,remote].some(s=>s?.resolution_id&&s.head===e.id)).map(e=>[e.after,'event'])] as [StudyState|undefined,ScheduleCandidate['source']][]){
+        if(!state)continue;
+        const proof=state.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',state.resolution_id])):null;
+        const trustedDecision=proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state));
+        if(state.head&&!trustedDecision){const event=await findEvent(state.head);if(!event||!reliableEvent(event)||!sameStudyRecord(cleanState(state),cleanState(event.after)))continue;}
+        const meta=state.head?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_review_events',state.head])):null;
+        if(!candidates.some(c=>sameStudyRecord(cleanState(c.state),cleanState(state))))candidates.push({state:cleanState(state),sequence:meta?.order_sequence??0,source});
+      }
+      const tips:ScheduleCandidate[]=[];
+      for(const c of candidates)if(!await Promise.all(candidates.map(d=>d.state.head!==c.state.head?descends(d.state.head,c.state.head):false)).then(r=>r.some(Boolean)))tips.push(c);
+      const evMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'event-version',id]));
+      const stateMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_card_states',id]));
+      // A non-conflicted server checkpoint can include a previous explicit decision.
+      const decisionCheckpoint=remote && !remote.conflict && !!remote.resolution_id && candidates.some(c=>sameStudyRecord(c.state,cleanState(remote))) && (!local || local.head===remote.head || !await descends(local.head,remote.head));
+      let next=decisionCheckpoint?cleanState(remote!):tips.length===1?cleanState(tips[0].state):null;
+      const ambiguous=tips.length>1 && !decisionCheckpoint;
+
+      if(ambiguous)next=chooseSchedule(tips,getSchedulePolicy());
+      const decisionNeeded=!!next && (ambiguous || !!remote?.conflict || (!!remote&&!sameStudyRecord(cleanState(remote),next)));
+      if(decisionNeeded){
+        const value={id:newId(),owner_id:this.owner(),card_id:id,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0,choice:next,relearn:false};
+        await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value});
+      }
+      const base=next??local??remote;
+      if(base)await tx.objectStore('study_states').put((next&&!decisionNeeded)?next:{...cleanState(base),conflict:true,ambiguity:{pending:decisionNeeded,device:local?cleanState(local):null,cloud:remote?cleanState(remote):null,candidates:tips.map(c=>c.state),event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0}});
+    }
+    if(receivedCursor){const key=JSON.stringify([this.owner(),'cursor']);const previous=await tx.objectStore('study_sync_meta').get(key);await tx.objectStore('study_sync_meta').put({id:key,owner_id:this.owner(),sequence:Math.max(previous?.sequence??0,receivedCursor)});}
     const pending:StudyOperation[]=await tx.objectStore("study_outbox").getAll();
     for(const remote of data.sessions??[]) {
       this.owned(remote);
@@ -389,3 +504,5 @@ export class StudyRepository {
     }
   }
 }
+
+export interface StudyChange {owner_id:string;entity:string;id:string;card_id:string|null;sequence:number;deleted:boolean;historical?:boolean;decision?:{id:string;state:StudyState}|null;payload:unknown}

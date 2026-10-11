@@ -10,7 +10,8 @@ export type FeatureFilter =
   | "novels"
   | "web"
   | "counter"
-  | "draw";
+  | "draw"
+  | "score";
 
 export type FeatureOrderMode = "recent" | "default" | "custom";
 
@@ -23,6 +24,7 @@ export const DEFAULT_FEATURE_ITEMS: { id: FeatureFilter; icon: string; label: st
   { id: "creative", icon: "✦", label: "創作" },
   { id: "novels", icon: "◫", label: "小說" },
   { id: "web", icon: "⌘", label: "網頁" },
+  { id: "score", icon: "♫", label: "製譜" },
   { id: "counter", icon: "＋", label: "計數" },
   { id: "draw", icon: "⤨", label: "抽選" },
 ];
@@ -94,3 +96,6 @@ export function setStoredCustomFeatureOrder(order: FeatureFilter[]): void {
   } catch {}
 }
 
+
+/** Navigation only: tools keep their existing direct destinations. */
+export const TOOL_FEATURES: readonly FeatureFilter[]=["counter","draw"];

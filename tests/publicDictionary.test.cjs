@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
-const { getDictionaryEntry, publishDictionaryEntry, saveDictionaryDraft, addDictionarySource } = require('../src/features/dictionary/dictionary.ts');
+const { getDictionaryEntry, publishDictionaryEntry, saveDictionaryDraft } = require('../src/features/dictionary/dictionary.ts');
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 
 test('public dictionary: UUID authority, draft isolation, publishing, provenance, relations and Study isolation', async () => {
@@ -102,13 +102,10 @@ test('public dictionary: UUID authority, draft isolation, publishing, provenance
   } finally { await pg.close(); }
 });
 
-test('dictionary writes reuse Supabase tables and propagate authorization errors',async()=>{
-  const calls=[];
-  const client={from:table=>({upsert:async(row,options)=>{calls.push({table,row,options});return{error:null};},insert:async row=>{calls.push({table,row});return{error:null};}})};
-  await saveDictionaryDraft(client,'dictionary_entries',{id:uuid(1),kind:'word',headword:'draft',source_id:uuid(10)});
-  await addDictionarySource(client,{id:uuid(10),citation:'test',license:'test',raw_text:'raw'});
-  assert.equal(calls[0].table,'dictionary_entries');
-  assert.equal(calls[0].row.status,undefined);
-  assert.equal(calls[1].table,'dictionary_sources');
-  await assert.rejects(saveDictionaryDraft({from:()=>({upsert:async()=>({error:{message:'denied'}})})},'dictionary_entries',{}),/denied/);
+test('dictionary writes use canonical RPC and propagate authorization errors',async()=>{
+ const calls=[],client={rpc:async(name,args)=>{calls.push({name,args});return {data:{},error:null};}};
+ const row={id:uuid(1),kind:'word',headword:'draft'};
+ await saveDictionaryDraft(client,'dictionary_entries',row);
+ assert.equal(calls[0].name,'apply_dictionary_drafts');assert.equal(calls[0].args.drafts[0].bundle.dictionary_entries[0].status,undefined);
+ await assert.rejects(saveDictionaryDraft({rpc:async()=>({error:{message:'denied'}})},'dictionary_entries',row),/denied/);
 });

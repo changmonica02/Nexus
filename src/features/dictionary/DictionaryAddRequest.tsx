@@ -1,0 +1,30 @@
+"use client";
+import {useEffect,useRef,useState} from 'react';
+import Link from 'next/link';
+import type {StorageAdapter} from '../../infrastructure/storage/StorageAdapter';
+import type {Page} from '../../lib/types';
+import {getSupabase} from '../../infrastructure/supabase/client';
+import {syncStudy} from '../study/studySync';
+import {flushWorkspace,pullWorkspace} from '../../infrastructure/sync/workspaceSync';
+import {readPublishedEntry,type PublishedDetail} from './reader';
+import {basicMeaning,linkedPrivateCards,createDictionaryFlashcard,type LinkedPrivateCard} from './flashcardLinks';
+import {setCardDictionaryLink} from './cardDictionary';
+import {linkedCardHref} from './DictionaryFlashcardActions';
+import {DictionaryModal} from './DictionaryModal';
+/** Runs in the existing Study workspace so creation uses its storage, outboxes and account scope. */
+export default function DictionaryAddRequest({storage,onChanged}:{storage:StorageAdapter;onChanged:()=>Promise<void>}){
+ const [entryId,setEntryId]=useState(''),[detail,setDetail]=useState<PublishedDetail|null>(null),[pages,setPages]=useState<Page[]>([]),[deck,setDeck]=useState(''),[title,setTitle]=useState('我的單字'),[front,setFront]=useState(''),[back,setBack]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[existing,setExisting]=useState<LinkedPrivateCard[]>([]),[done,setDone]=useState<LinkedPrivateCard|null>(null);
+ const attempt=useRef<LinkedPrivateCard|null>(null),owner=useRef('');
+ useEffect(()=>{const id=new URLSearchParams(window.location.search).get('dictionary');if(!id)return;setEntryId(id);let active=true;void(async()=>{const client=getSupabase();if(!client)throw Error('請先登入');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');owner.current=user.id;const [d,cards]=await Promise.all([readPublishedEntry(client,id),linkedPrivateCards(client,id)]);if(!d||d.entry.kind!=='word')throw Error('只能加入已發布的 Word 詞條。');await pullWorkspace(client,storage.getWorkspacePersistence(),user.id,()=>active);const p=(await storage.listPages()).filter(p=>p.kind==='study_set'&&!p.deleted_at&&!p.official_pack_id&&p.workspace_owner_id===user.id);const {data:{user:current}}=await client.auth.getUser();if(active&&current?.id===user.id&&owner.current===user.id){setDetail(d);setFront(d.entry.headword);setBack(basicMeaning(d));setExisting(cards);setPages(p);setDeck(p[0]?.id??'');}})().catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[storage]);
+ useEffect(()=>{const client=getSupabase();if(!client)return;const {data}=client.auth.onAuthStateChange((_event,session)=>{if(owner.current&&session?.user.id!==owner.current){owner.current='';attempt.current=null;setDetail(null);setExisting([]);setDone(null);setPages([]);setFront('');setBack('');setError('帳號已變更，請重新從字典開啟加入字卡。');}});return()=>data.subscription.unsubscribe();},[]);
+ const close=()=>{setEntryId('');const url=new URL(window.location.href);url.searchParams.delete('dictionary');window.history.replaceState(window.history.state,'',url.pathname+url.search);};
+ const save=async()=>{if(busy||!detail)return;setBusy(true);setError('');try{const client=getSupabase()!;const {data:{user}}=await client.auth.getUser();if(!user||user.id!==owner.current)throw Error('帳號已變更，請重新開啟加入字卡。');const repository=storage.getStudyRepository();
+  if(!attempt.current){const duplicates=await linkedPrivateCards(client,entryId);for(const p of await storage.listPages()){if(p.kind!=='study_set'||p.deleted_at)continue;try{const s=await repository.readDeck(p.id);duplicates.push(...s.cards.filter(c=>!c.deleted_at&&c.dictionary_entry_id===entryId));}catch{/* No local deck has been initialized. */}}if(duplicates.length){setExisting([...new Map(duplicates.map(c=>[c.id,c])).values()]);return;}
+   const page=deck?await storage.getPage(deck):await storage.createPage({kind:'study_set',title:title.trim()||'我的單字'});if(!page||page.deleted_at||page.official_pack_id||page.workspace_owner_id!==user.id)throw Error('請選擇自己的可用學習集。');const {card}=await createDictionaryFlashcard(repository,page,detail,{front,back});attempt.current=card;
+  }
+  await flushWorkspace(client,storage.getWorkspacePersistence(),user.id);await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,attempt.current.id,entryId);setDone(attempt.current);await onChanged();
+ }catch(e){setError(`${String(e)}${attempt.current?'；私人字卡已保留，重試不會再建立一張。':''}`);}finally{setBusy(false);}};
+ if(!entryId)return null;
+ return <DictionaryModal title="加入字卡" busy={busy} onClose={close}><div className="min-w-0 space-y-3"><Link className="text-sm underline" href={`/dictionary/${entryId}`}>返回字典詞條</Link>{error&&<p role="alert" className="break-words">{error}</p>}{done?<p>已加入。<Link className="underline" href={linkedCardHref(done)}>開啟私人字卡</Link></p>:existing.length?<><p>已有連結此詞條的字卡，不會重複新增。</p>{existing.map(c=><Link className="block break-words underline" key={c.id} href={linkedCardHref(c)}>{c.front} · {c.back}</Link>)}</>:detail?<><label className="block">學習集<select disabled={busy||!!attempt.current} className="block w-full rounded border bg-[var(--color-bg)] p-2" value={deck} onChange={e=>setDeck(e.target.value)}>{pages.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}<option value="">建立新學習集</option></select></label>{!deck&&<input aria-label="新學習集名稱" disabled={busy||!!attempt.current} className="w-full rounded border bg-transparent p-2" value={title} onChange={e=>setTitle(e.target.value)}/>}
+ <label className="block">英文<textarea disabled={busy||!!attempt.current} className="block w-full rounded border bg-transparent p-2" value={front} onChange={e=>setFront(e.target.value)}/></label><label className="block">中文<textarea disabled={busy||!!attempt.current} className="block w-full rounded border bg-transparent p-2" rows={4} value={back} onChange={e=>setBack(e.target.value)}/></label><p className="text-xs">儲存為你的私人內容，字典更新不會覆寫；保留穩定字典連結。</p><button className="rounded border px-3 py-2" disabled={busy||!front.trim()||!back.trim()} onClick={()=>void save()}>{busy?'加入中…':attempt.current?'重試連結同步':'確認加入字卡'}</button></>:<p>正在讀取字典及學習集…</p>}</div></DictionaryModal>;
+}

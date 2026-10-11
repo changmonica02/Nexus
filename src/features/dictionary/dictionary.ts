@@ -1,3 +1,4 @@
+import {applyBundle} from './adminImport';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DictionaryKind = "word" | "prefix" | "root";
@@ -6,7 +7,6 @@ export interface DictionaryEntry {
   id: string;
   kind: DictionaryKind;
   headword: string;
-  source_id: string;
   status: "draft" | "published";
   published_at: string | null;
   revision: number;
@@ -15,7 +15,6 @@ export interface DictionaryEntry {
 interface ContentRow {
   id: string;
   entry_id: string;
-  source_id: string;
   revision: number;
   updated_at: string;
 }
@@ -42,18 +41,12 @@ export interface DictionaryLearningNote extends ContentRow {
   kind: "learning_decomposition" | "mnemonic_scenario";
   body: string;
 }
-export interface DictionarySource {
-  id: string;
-  citation: string;
-  source_url: string | null;
-  license: string;
-  license_note: string;
-  raw_text: string;
-  sha256: string;
-  verification: DictionaryVerification;
-  verification_note: string;
-}
+export interface DictionaryExtra extends ContentRow {sense_id:string|null;body:string;sort_order:number;kind?:"source_forms"|"relation_hint"}
+export interface DictionaryPronunciation extends ContentRow {sense_id:string|null;locale:string|null;ipa:string;note:string|null;sort_order:number}
 export interface DictionaryDetail {
+  pronunciations?:DictionaryPronunciation[];
+  examples?:DictionaryExtra[];
+  lexical_annotations?:DictionaryExtra[];
   entry: DictionaryEntry;
   senses: DictionarySense[];
   relations: DictionaryRelation[];
@@ -86,20 +79,13 @@ type DraftRow<T> = Omit<T, "revision" | "updated_at">;
 export interface DictionaryDraftTables {
   dictionary_entries: Omit<DictionaryEntry, "status" | "published_at" | "revision" | "updated_at">;
   dictionary_senses: DraftRow<DictionarySense>;
+  dictionary_pronunciations: DraftRow<DictionaryPronunciation>;
   dictionary_relations: DraftRow<DictionaryRelation>;
   dictionary_etymologies: DraftRow<DictionaryEtymology>;
   dictionary_learning_notes: DraftRow<DictionaryLearningNote>;
 }
 export async function saveDictionaryDraft<T extends keyof DictionaryDraftTables>(
-  client: Pick<SupabaseClient, "from">, table: T, row: DictionaryDraftTables[T],
+  client: Pick<SupabaseClient, "rpc">, table: T, row: DictionaryDraftTables[T],
 ): Promise<void> {
-  const { error } = await client.from(table).upsert(row, { onConflict: "id" });
-  if (error) throw new Error(`無法儲存字典草稿：${error.message}`);
-}
-
-export async function addDictionarySource(
-  client: Pick<SupabaseClient, "from">, source: Omit<DictionarySource, "sha256">,
-): Promise<void> {
-  const { error } = await client.from("dictionary_sources").insert(source);
-  if (error) throw new Error(`無法儲存字典來源：${error.message}`);
+  await applyBundle(client,{[table]:[row as unknown as Record<string,unknown>]},false,true);
 }

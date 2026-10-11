@@ -27,10 +27,10 @@ test('daily Good still stays in session without graduating or writing a review',
  const good=await rate(f.repo,session.id,3,day+1);
  assert.equal(good.session.completed_at,null);assert.equal(good.session.targets[0].easy_at,null);
  assert.deepEqual(good.session.queue,session.queue);
- let snapshot=await f.repo.readDeck('deck');
+ let snapshot=await f.repo.readDeck('deck',true);
  assert.equal(snapshot.events.length,0);assert.equal(isLearned(snapshot.states[0]),false);
  await rate(f.repo,session.id,4,day+2);
- snapshot=await f.repo.readDeck('deck');
+ snapshot=await f.repo.readDeck('deck',true);
  assert.equal(snapshot.events[0].kind,'introduce');assert.equal(snapshot.states[0].fsrs,null);
  assert.equal((await f.repo.readSession(session.id)).session.completed_at,day+2);
  }finally{await f.close();}
@@ -43,11 +43,11 @@ test('old unfinished Good session remains resumable without rewriting its offici
  // Persist the representation produced by the previous Easy-only completion rule.
  graded.targets[0].easy_at=null;graded.completed_at=null;graded.queue=[graded.targets[0].card_id];
  await f.db.put('study_sessions',graded);
- const before=await f.repo.readDeck('deck');
+ const before=await f.repo.readDeck('deck',true);
  const reopened=new StudyRepository(f.db,()=>null,'reopened');
  assert.equal((await reopened.startSession('deck','free',day+2)).id,session.id);
  await rate(reopened,session.id,3,day+3);
- const after=await reopened.readDeck('deck');
+ const after=await reopened.readDeck('deck',true);
  assert.deepEqual(after.states,before.states);assert.deepEqual(after.events,before.events);
  assert.equal((await reopened.readSession(session.id)).session.completed_at,day+3);
  }finally{await f.close();}
@@ -57,9 +57,9 @@ for(const firstRating of [1,2])test('first '+firstRating+' remains official thro
  const f=await fixture(1);try{
  await learnAll(f.repo);
  const session=await f.repo.startSession('deck','free',day+1);
- const before=(await f.repo.readDeck('deck')).states[0];
+ const before=(await f.repo.readDeck('deck',true)).states[0];
  const first=await rate(f.repo,session.id,firstRating,day+1);
- const official=(await f.repo.readDeck('deck')).states[0];
+ const official=(await f.repo.readDeck('deck',true)).states[0];
  assert.deepEqual(official.fsrs,expectedFSRS(before,firstRating,day+1));
  assert.equal(first.session.completed_at,null);assert.equal(first.session.queue.length,1);
  assert.equal(first.session.targets[0].official_rating,firstRating);
@@ -71,7 +71,7 @@ for(const firstRating of [1,2])test('first '+firstRating+' remains official thro
  const pendingBefore=await reopened.pending();
  for(const rating of [1,2,3]){
   const result=await rate(reopened,session.id,rating,day+rating+2);
-  const snapshot=await reopened.readDeck('deck');
+  const snapshot=await reopened.readDeck('deck',true);
   assert.equal(reviews(snapshot).length,1);assert.deepEqual(snapshot.states[0],official);
   assert.equal(result.session.targets[0].official_rating,firstRating);
   assert.equal(result.session.targets[0].official_event_id,official.head);
@@ -87,11 +87,11 @@ for(const firstRating of [1,2])test('first '+firstRating+' remains official thro
 
 for(const firstRating of [3,4])test('first '+firstRating+' writes official scheduler result and immediately completes',async()=>{
  const f=await fixture(1);try{
- await learnAll(f.repo);const before=(await f.repo.readDeck('deck')).states[0];
+ await learnAll(f.repo);const before=(await f.repo.readDeck('deck',true)).states[0];
  const session=await f.repo.startSession('deck','free',day+1);
  const result=await rate(f.repo,session.id,firstRating,day+1);
  await f.repo.rateSession(result.input);
- const snapshot=await f.repo.readDeck('deck');
+ const snapshot=await f.repo.readDeck('deck',true);
  assert.equal(reviews(snapshot).length,1);assert.equal(reviews(snapshot)[0].rating,firstRating);
  assert.deepEqual(snapshot.states[0].fsrs,expectedFSRS(before,firstRating,day+1));
  assert.equal(result.session.targets[0].official_rating,firstRating);
@@ -106,17 +106,17 @@ test('Due Review Again uses real scheduler; reaching due again does not duplicat
  const f=await fixture(1);try{
  await learnAll(f.repo);const initial=await f.repo.startSession('deck','free',day+1);
  await rate(f.repo,initial.id,4,day+1);
- const before=(await f.repo.readDeck('deck')).states[0],now=before.fsrs.due;
+ const before=(await f.repo.readDeck('deck',true)).states[0],now=before.fsrs.due;
  const session=await f.repo.startSession('deck','free',now);
  await rate(f.repo,session.id,1,now);
- const official=(await f.repo.readDeck('deck')).states[0];
+ const official=(await f.repo.readDeck('deck',true)).states[0];
  assert.deepEqual(official.fsrs,expectedFSRS(before,1,now));
- const count=reviews(await f.repo.readDeck('deck')).length;assert.equal(count,2);
+ const count=reviews(await f.repo.readDeck('deck',true)).length;assert.equal(count,2);
  const resumed=await f.repo.startSession('deck','free',official.fsrs.due);
  assert.equal(resumed.id,session.id);assert.equal(resumed.targets.length,1);assert.equal(resumed.queue.length,1);
  await rate(f.repo,session.id,3,official.fsrs.due);
  assert.equal((await f.repo.readSession(session.id)).session.targets[0].official_rating,1);
- const after=await f.repo.readDeck('deck');
+ const after=await f.repo.readDeck('deck',true);
  assert.equal(reviews(after).length,count);assert.deepEqual(after.states[0],official);
  const next=await f.repo.startSession('deck','free',official.fsrs.due+2);
  assert.notEqual(next.id,session.id);assert.equal(next.targets[0].card_id,official.id);
@@ -127,11 +127,11 @@ test('not-due filler receives an official FSRS rating from its current state',as
  const f=await fixture(1);try{
  await learnAll(f.repo);const initial=await f.repo.startSession('deck','free',day+1);
  await rate(f.repo,initial.id,4,day+1);
- const before=(await f.repo.readDeck('deck')).states[0],now=day+60000;
+ const before=(await f.repo.readDeck('deck',true)).states[0],now=day+60000;
  assert.ok(before.fsrs.due>now);
  const session=await f.repo.startSession('deck','free',now);
  const result=await rate(f.repo,session.id,2,now);
- const snapshot=await f.repo.readDeck('deck');
+ const snapshot=await f.repo.readDeck('deck',true);
  assert.equal(reviews(snapshot).length,2);assert.deepEqual(snapshot.states[0].fsrs,expectedFSRS(before,2,now));
  assert.equal(result.session.targets[0].official_rating,2);
  assert.equal(reviews(snapshot).find(e=>e.id===result.session.targets[0].official_event_id).parent,before.head);
@@ -154,7 +154,7 @@ test('20-target session resumes only unfinished cards after mixed Good/Easy; com
  progress=(await reopened.readSession(session.id)).session;
  assert.equal(progress.answers,28);assert.equal(progress.completed_at,day+5);
  assert.ok(progress.targets.every(t=>t.easy_at!=null));assert.deepEqual(progress.queue,[]);
- assert.equal(reviews(await reopened.readDeck('deck')).length,20);
+ assert.equal(reviews(await reopened.readDeck('deck',true)).length,20);
  }finally{await f.close();}
 });
 
@@ -167,7 +167,7 @@ test('old session recovers first rating from its real event without writing anot
  const restored=await f.repo.readSession(session.id,day+2);
  assert.equal(restored.session.targets[0].official_rating,2);
  await rate(f.repo,session.id,4,day+3);
- assert.equal(reviews(await f.repo.readDeck('deck')).length,1);
+ assert.equal(reviews(await f.repo.readDeck('deck',true)).length,1);
  assert.equal((await f.repo.readSession(session.id)).session.targets[0].official_rating,2);
  }finally{await f.close();}
 });
@@ -181,7 +181,7 @@ test('free first rating atomically rolls back session, FSRS event/state and outb
  finally{Object.defineProperty(crypto,'randomUUID',{configurable:true,value:original});}
  assert.deepEqual(await f.repo.exportData(),before);assert.deepEqual(await f.repo.pending(),pending);
  await rate(f.repo,session.id,3,day+1);
- assert.equal(reviews(await f.repo.readDeck('deck')).length,1);
+ assert.equal(reviews(await f.repo.readDeck('deck',true)).length,1);
  }finally{await f.close();}
 });
 
@@ -210,20 +210,20 @@ test('daily fixed batch survives midnight/reopen, quota edits, Easy introduces w
  const f=await fixture();try{
  await f.repo.configure('deck',{new_limit:2});let session=await f.repo.startSession('deck','daily',day);
  const ids=session.targets.map(t=>t.card_id);await rate(f.repo,session.id,2);await rate(f.repo,session.id,3);
- assert.equal((await f.repo.readDeck('deck')).events.length,0);
+ assert.equal((await f.repo.readDeck('deck',true)).events.length,0);
  await f.repo.configure('deck',{new_limit:3});const reopened=new StudyRepository(f.db,()=>null,'other');
  assert.equal((await reopened.startSession('deck','daily',day+600000)).id,session.id);
- const first=await rate(reopened,session.id,4);let snapshot=await reopened.readDeck('deck');
+ const first=await rate(reopened,session.id,4);let snapshot=await reopened.readDeck('deck',true);
  assert.equal(snapshot.states.filter(isLearned).length,1);assert.equal(snapshot.events.length,1);
  assert.equal(snapshot.events[0].kind,'introduce');assert.equal(snapshot.events[0].rating,null);
  assert.equal(snapshot.events[0].log,null);assert.equal(snapshot.events[0].source,'daily_learning');
  assert.equal(snapshot.events[0].after.learned_at,day);assert.equal(snapshot.events[0].after.fsrs,null);
  assert.equal(freezingInterval(snapshot.events[0].after),null);
- await reopened.rateSession(first.input);assert.equal((await reopened.readDeck('deck')).events.length,1);
+ await reopened.rateSession(first.input);assert.equal((await reopened.readDeck('deck',true)).events.length,1);
  await rate(reopened,session.id,4);session=await reopened.startSession('deck','daily',day+1000);
  assert.deepEqual(session.targets.map(t=>t.card_id),ids);assert.ok(session.targets.every(t=>t.easy_at===null));
- await rate(reopened,session.id,4);await rate(reopened,session.id,4);assert.equal((await reopened.readDeck('deck')).events.length,2);
- assert.equal((await reopened.readDeck('deck')).events.filter(e=>e.kind==='review').length,0);
+ await rate(reopened,session.id,4);await rate(reopened,session.id,4);assert.equal((await reopened.readDeck('deck',true)).events.length,2);
+ assert.equal((await reopened.readDeck('deck',true)).events.filter(e=>e.kind==='review').length,0);
  const tomorrow=await reopened.startSession('deck','daily',day+600000);assert.equal(tomorrow.targets.length,1);
  }finally{await f.close();}
 });
@@ -232,12 +232,12 @@ test('free selects only learned cards, permits early review, first Hard stays of
  const empty=await f.repo.startSession('deck','free',day);assert.equal(empty.targets.length,0);
  await f.repo.configure('deck',{new_limit:1});const daily=await f.repo.startSession('deck','daily',day);await rate(f.repo,daily.id,4);
  const free=await f.repo.startSession('deck','free',day+1000);assert.equal(free.targets.length,1);
- await rate(f.repo,free.id,2,day+1000);const official=(await f.repo.readDeck('deck')).states.find(s=>s.id===free.queue[0]);
+ await rate(f.repo,free.id,2,day+1000);const official=(await f.repo.readDeck('deck',true)).states.find(s=>s.id===free.queue[0]);
  assert.equal(freezingInterval(official),900000);
  await rate(f.repo,free.id,3,day+2000);
- const after=await f.repo.readDeck('deck');assert.deepEqual(after.states.find(s=>s.id===official.id),official);assert.equal(after.events.filter(e=>e.source==='free_review').length,1);
+ const after=await f.repo.readDeck('deck',true);assert.deepEqual(after.states.find(s=>s.id===official.id),official);assert.equal(after.events.filter(e=>e.source==='free_review').length,1);
  assert.ok((await f.repo.readSession(free.id)).session.completed_at);
- const next=await f.repo.startSession('deck','free',day+4000);await rate(f.repo,next.id,4,day+4000);assert.equal((await f.repo.readDeck('deck')).events.filter(e=>e.source==='free_review').length,2);
+ const next=await f.repo.startSession('deck','free',day+4000);await rate(f.repo,next.id,4,day+4000);assert.equal((await f.repo.readDeck('deck',true)).events.filter(e=>e.source==='free_review').length,2);
  }finally{await f.close();}
 });
 test('session official event, state, mastery and outbox all roll back on persistence failure',async()=>{
@@ -245,8 +245,8 @@ test('session official event, state, mastery and outbox all roll back on persist
  const session=await f.repo.startSession('deck','daily',day);const before=await f.repo.readSession(session.id);const original=crypto.randomUUID;
  Object.defineProperty(crypto,'randomUUID',{configurable:true,value:()=>()=>{}});
  try{await assert.rejects(()=>rate(f.repo,session.id,4));}finally{Object.defineProperty(crypto,'randomUUID',{configurable:true,value:original});}
- assert.deepEqual(await f.repo.readSession(session.id),before);assert.equal((await f.repo.readDeck('deck')).events.length,0);
- await rate(f.repo,session.id,4);assert.equal((await f.repo.readDeck('deck')).events.length,1);
+ assert.deepEqual(await f.repo.readSession(session.id),before);assert.equal((await f.repo.readDeck('deck',true)).events.length,0);
+ await rate(f.repo,session.id,4);assert.equal((await f.repo.readDeck('deck',true)).events.length,1);
  }finally{await f.close();}
 });
 test('delete and reset remove stale generation targets; reset can relearn in a fresh daily session',async()=>{
@@ -254,16 +254,16 @@ test('delete and reset remove stale generation targets; reset can relearn in a f
  const daily=await f.repo.startSession('deck','daily',day);await rate(f.repo,daily.id,4);const id=daily.queue[0];
  const free=await f.repo.startSession('deck','free',day);await f.repo.updateCard(id,{},true);
  assert.equal((await f.repo.readSession(free.id)).session.targets.length,0);
- assert.equal((await f.repo.readDeck('deck')).states.find(s=>s.id===id).learned_at,null);
+ assert.equal((await f.repo.readDeck('deck',true)).states.find(s=>s.id===id).learned_at,null);
  await f.repo.updateCard(daily.queue[1],{deleted_at:Date.now()});assert.ok((await f.repo.readSession(daily.id)).session.completed_at);
  const repeat=await f.repo.startSession('deck','daily',day);assert.equal(repeat.targets.length,1);assert.equal(repeat.targets[0].generation,1);
- await rate(f.repo,repeat.id,4);const snapshot=await f.repo.readDeck('deck');assert.equal(snapshot.events.filter(e=>e.source==='daily_learning').length,2);
+ await rate(f.repo,repeat.id,4);const snapshot=await f.repo.readDeck('deck',true);assert.equal(snapshot.events.filter(e=>e.source==='daily_learning').length,2);
  }finally{await f.close();}
 });
 test('A–Z is live and independent of custom order; blank New state has no edit warning',async()=>{
  const f=await fixture();try{
- let snapshot=await f.repo.readDeck('deck');assert.equal(hasLearningData(snapshot.states[0]),false);
- await f.repo.configure('deck',{sort_mode:'az'});await f.repo.addCards('deck',[{front:'banana',back:'蕉'}]);snapshot=await f.repo.readDeck('deck');
+ let snapshot=await f.repo.readDeck('deck',true);assert.equal(hasLearningData(snapshot.states[0]),false);
+ await f.repo.configure('deck',{sort_mode:'az'});await f.repo.addCards('deck',[{front:'banana',back:'蕉'}]);snapshot=await f.repo.readDeck('deck',true);
  assert.deepEqual(displayStudyCards(snapshot.cards,'az').map(c=>c.front),['apple','banana','pear','zebra']);
  assert.deepEqual(displayStudyCards(snapshot.cards,'custom').map(c=>c.front),['zebra','apple','pear','banana']);
  await assert.rejects(()=>f.repo.reorder('deck',snapshot.cards.map(c=>c.id)),/A–Z/);
@@ -272,7 +272,7 @@ test('A–Z is live and independent of custom order; blank New state has no edit
 test('only four authorized legacy IDs reset, keeping snapshot/history without fabricated reviews',async()=>{
  const f=await fixture(0);try{
  const page={id:'page_kXB_pon1cdluNzbAk2EBJ',study_items:[{id:'item_da626310-0b85-4ecd-88d0-dee59e00599d',front:'raise',back:'升起',review_count:99,mastery:'mastered',daily_due_at:day+100000,daily_introduced_at:day-1000}]};
- await f.repo.ensureDeck(page);await f.repo.ensureDeck(page);const snapshot=await f.repo.readDeck(page.id);
+ await f.repo.ensureDeck(page);await f.repo.ensureDeck(page);const snapshot=await f.repo.readDeck(page.id,true);
  assert.equal(isLearned(snapshot.states[0]),false);assert.equal(snapshot.states[0].legacy_due_at,null);assert.equal(snapshot.cards[0].legacy.item.review_count,99);
  assert.equal(snapshot.events.length,1);assert.equal(snapshot.events[0].kind,'reset');assert.equal(snapshot.events[0].source,'legacy_test_reset');
  }finally{await f.close();}
@@ -284,7 +284,7 @@ test('free fills not-due cards by nearest due, respects limit and freezes its ta
  const initial=await f.repo.startSession('deck','free',day+1);
  await rate(f.repo,initial.id,3,day+1);await rate(f.repo,initial.id,2,day+2);await rate(f.repo,initial.id,4,day+3);
  while((await f.repo.readSession(initial.id)).session.completed_at==null)await rate(f.repo,initial.id,4,day+4);
- await f.repo.configure('deck',{review_limit:2});const snapshot=await f.repo.readDeck('deck');
+ await f.repo.configure('deck',{review_limit:2});const snapshot=await f.repo.readDeck('deck',true);
  const next=await f.repo.startSession('deck','free',day+5);assert.equal(next.targets.length,2);
  assert.equal(next.targets[0].card_id,initial.targets[1].card_id,'15-minute Hard outranks both day intervals');
  assert.equal(freezingInterval(snapshot.states.find(s=>s.id===next.targets[0].card_id)),900000);
@@ -301,7 +301,7 @@ test('v3 backup restores unfinished sessions and official IDs; old backups do no
  const backup=await adapter.exportWorkspaceBackup();assert.equal(backup.study.sessions.length,3);
  await adapter.close();await deleteDB('nexus');adapter=new IndexedDBAdapter();await adapter.init();await adapter.importWorkspaceBackup(backup);repo=adapter.getStudyRepository();
  assert.equal((await repo.startSession(page.id,'free',day+2)).id,free.id);await rate(repo,free.id,4,day+2);
- assert.equal((await repo.readDeck(page.id)).events.length,2);
+ assert.equal((await repo.readDeck(page.id,true)).events.length,2);
  const old=structuredClone(backup);old.schema_version=2;delete old.study.sessions;await adapter.importWorkspaceBackup(old);
  assert.equal((await repo.exportData()).sessions.length,3);
  }finally{await adapter.close();await deleteDB('nexus');}
@@ -312,10 +312,10 @@ test('a cloud session cannot outrun its event/state snapshot; partial pulls roll
  const daily=await source.repo.startSession('deck','daily',day);const before=await source.repo.exportData();
  await rate(source.repo,daily.id,4);const complete=await source.repo.exportData();
  await assert.rejects(()=>target.repo.mergeRemote({...complete,states:before.states}),/不完整進度/);
- assert.equal((await target.repo.readDeck('deck')).events.length,0);
+ assert.equal((await target.repo.readDeck('deck',true)).events.length,0);
  assert.equal((await target.repo.exportData()).sessions.length,0);
- await target.repo.mergeRemote(complete);assert.equal((await target.repo.readDeck('deck')).events.length,1);
+ await target.repo.mergeRemote(complete);assert.equal((await target.repo.readDeck('deck',true)).events.length,1);
  const repeat=await target.repo.startSession('deck','daily',day+1);await rate(target.repo,repeat.id,4,day+1);
- assert.equal((await target.repo.readDeck('deck')).events.length,1);
+ assert.equal((await target.repo.readDeck('deck',true)).events.length,1);
  }finally{await source.close();await target.close();}
 });

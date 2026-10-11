@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
-const {searchDictionary,readPublishedEntry,sourceUrl}=require('../src/features/dictionary/reader.ts');
+const {searchDictionary,readPublishedEntry}=require('../src/features/dictionary/reader.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('published reader: database pagination, literal case-insensitive search, kinds, draft/API isolation and source projection',async()=>{
   const pg=new PGlite();
@@ -51,7 +51,6 @@ test('published reader: database pagination, literal case-insensitive search, ki
     await assert.rejects(readPublishedEntry(client,id(10)),/無法讀取/);
   }finally{await pg.close();}
 });
-test('source links permit only http/https',()=>{assert.equal(sourceUrl('javascript:alert(1)'),null);assert.equal(sourceUrl('https://example.com'),'https://example.com/');assert.equal(sourceUrl(null),null);});
 
 const ts=require('typescript');
 require.extensions['.tsx']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
@@ -60,6 +59,6 @@ test('reader detail renders senses, related links, safe source attribution and s
   const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
   const data={entry:{id:id(10),headword:'Test',kind:'word',source_id:id(3)},senses:[{id:id(110),part_of_speech:'noun',gloss_zh_tw:'測試',source_id:id(3)}],relations:[{id:id(200),sense_id:id(110),target_sense_id:id(133),relation_kind:'learning_decomposition',verification:'pending',source_id:id(3)}],related:[{id:id(33),sense_id:id(133),headword:'pre-',gloss_zh_tw:'前'}],etymologies:[{id:id(201),sense_id:null,body:'Unverified claim',verification:'unverified',source_id:id(3)}],learning_notes:[{id:id(202),sense_id:null,body:'<script>fake</script>',kind:'mnemonic_scenario',source_id:id(3)}],sources:[{id:id(3),citation:'自建來源',license:'test-only',source_url:'javascript:alert(1)',sha256:'a'.repeat(64),verification:'unverified'}]};
   const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data}));
-  for(const text of ['noun','測試','不是已確認的詞源事實','記憶情境','test-only',`/dictionary/${id(33)}?from=${encodeURIComponent(`/dictionary/${id(10)}`)}#sense-${id(133)}`])assert.ok(html.includes(text),text);
-  assert.ok(!html.includes('<script>'));assert.ok(!html.includes('javascript:'));
+  for(const text of ['noun','測試','不是已確認的詞源事實','記憶情境',`/dictionary/${id(33)}?from=${encodeURIComponent(`/dictionary/${id(10)}`)}#sense-${id(133)}`])assert.ok(html.includes(text),text);
+  assert.ok(!html.includes('來源與授權'));assert.ok(!html.includes('test-only'));assert.ok(!html.includes('<script>'));assert.ok(!html.includes('javascript:'));
 });

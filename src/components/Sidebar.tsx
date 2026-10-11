@@ -1,4 +1,5 @@
 "use client";
+import {TOOL_FEATURES} from "../lib/featurePreferences";
 import {confirmDialog} from '../lib/confirmDialog';
 
 
@@ -49,7 +50,7 @@ type SidebarProps = {
   isDocumentMode?: boolean;
   isNoteMode?: boolean;
   isPresentationMode?: boolean;
-  utilityMode?: "web" | "counter" | "draw" | null;
+  utilityMode?: "web" | "counter" | "draw" | "score" | null;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onSelectTag: (tag: string | null) => void;
@@ -197,7 +198,7 @@ export default function Sidebar({
     : currentPage.kind === "presentation" ? "presentations"
     : currentPage.kind === "quick_note" ? "quicknotes"
     : currentPage.kind === "todo" ? "calendar"
-    : currentPage.kind === "web" || currentPage.kind === "counter" || currentPage.kind === "draw" ? currentPage.kind
+    : currentPage.kind === "web" || currentPage.kind === "counter" || currentPage.kind === "draw" || currentPage.kind === "score" ? currentPage.kind
     : "notes";
   const modeFeatureFilter: FeatureFilter = utilityMode ?? (isQuickNoteMode ? "quicknotes"
     : isTodoMode ? "calendar"
@@ -222,6 +223,7 @@ export default function Sidebar({
     creative: "尚無創作項目",
     novels: "尚無小說",
     web: "尚無網頁項目",
+    score: "尚無樂譜",
     counter: "尚無計數項目",
     draw: "尚無抽選項目",
   };
@@ -329,7 +331,7 @@ export default function Sidebar({
     if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
     if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
     if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
-    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw") return page.kind === activeFeatureFilter && matchQuery && matchTag;
+    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw" || activeFeatureFilter === "score") return page.kind === activeFeatureFilter && matchQuery && matchTag;
     return matchQuery && matchTag;
   });
 
@@ -694,6 +696,7 @@ export default function Sidebar({
             { id: "creative" as const, icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
             { id: "novels" as const, icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
             { id: "web" as const, icon: "⌘", label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
+            { id: "score" as const, icon: "♫", label: "製譜", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "score" })) },
             { id: "counter" as const, icon: "＋", label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
             { id: "draw" as const, icon: "⤨", label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
           ];
@@ -711,11 +714,13 @@ export default function Sidebar({
             })
             : others;
           return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
-            {[...fixed, ...orderedOthers].map((item) => (
-              <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); }} onDoubleClick={item.onOpen} className="flex h-11 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
+            {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id))].map((item) => (
+              <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id === "score")item.onOpen(); }} onDoubleClick={item.onOpen} className="flex h-11 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
                 <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">{item.icon}</span><span className="truncate">{item.label}</span>
               </button>
             ))}
+            <div className="col-span-2 border-t px-2 pt-2 text-xs opacity-60">工具</div>
+            {orderedOthers.filter(item=>TOOL_FEATURES.includes(item.id)).map(item=><button key={item.id} type="button" className="flex min-w-0 items-center gap-2 rounded p-2 text-left text-xs hover:bg-zinc-500/10" onClick={()=>{setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse(item.id);item.onOpen();}}><span>{item.icon}</span>{item.label}</button>)}
           </div>;
         })()}
       </nav>

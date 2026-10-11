@@ -1,0 +1,41 @@
+require('./loadStudy.cjs');require('fake-indexeddb/auto');
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.tsx']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,f);
+const {openDB,deleteDB}=require('idb'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{PGlite}=require('@electric-sql/pglite');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {createDictionaryFlashcard,suggestDictionaryLink,searchCandidates,linkedPrivateCards}=require('../src/features/dictionary/flashcardLinks.ts');
+const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const detail=(n=10,gloss='銀行')=>({entry:{id:id(n),kind:'word',headword:'bank',status:'published'},senses:[{id:id(n+1),entry_id:id(n),part_of_speech:'noun',gloss_zh_tw:gloss}],relations:[],related:[],etymologies:[],learning_notes:[],examples:[],lexical_annotations:[]});
+test('dictionary creates a private card with stable link; duplicates reuse it; public edits never overwrite private content or FSRS',async()=>{
+ const name=crypto.randomUUID(),db=await openDB(name,1,{upgrade(db){for(const n of STUDY_STORES){const store=db.createObjectStore(n,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(n))store.createIndex('deck','deck_id');}}});
+ try{const repo=new StudyRepository(db,()=>id(1),'device'),page={id:'deck',workspace_owner_id:id(1),kind:'study_set',title:'private',study_items:[],created_at:1,updated_at:1};
+ const d=detail(),first=await createDictionaryFlashcard(repo,page,d);assert.ok(first.created);assert.equal(first.card.front,'bank');assert.equal(first.card.back,'銀行');assert.equal(first.card.dictionary_entry_id,id(10));
+ const before=(await repo.readDeck('deck')).states;await repo.updateCard(first.card.id,{front:'my bank',back:'我自己的答案'});d.senses[0].gloss_zh_tw='新版字典中文';const again=await createDictionaryFlashcard(repo,page,d);assert.equal(again.created,false);assert.equal(again.card.id,first.card.id);assert.equal(again.card.back,'我自己的答案');assert.deepEqual((await repo.readDeck('deck')).states,before);assert.equal((await repo.readDeck('deck')).events.length,0);
+ await assert.rejects(createDictionaryFlashcard(repo,page,{...d,entry:{...d.entry,status:'draft'}}),/已發布/);await assert.rejects(createDictionaryFlashcard(repo,{...page,workspace_owner_id:id(2)},d),/帳號/);
+ }finally{db.close();await deleteDB(name);}
+});
+test('normalized candidates use meanings to rank, never write links, and retain homographs as distinct readable choices',async()=>{
+ const a=detail(),b=detail(20,'河岸');let docs=[a],calls=[];
+ const client={rpc:async(name,args)=>{calls.push(name);if(name==='search_published_dictionary')return {data:{items:docs.map(d=>d.entry),page:args.page_number,has_more:false}};if(name==='get_published_dictionary_entry')return {data:docs.find(d=>d.entry.id===args.entry_uuid)};throw Error('Unexpected mutation');}};
+ assert.equal((await suggestDictionaryLink(client,' BANK ','銀行')).status,'high');assert.equal((await suggestDictionaryLink(client,'bank','自寫解釋')).status,'multiple');
+ docs=[a,b];const result=await suggestDictionaryLink(client,'bank','銀行');assert.equal(result.status,'multiple');assert.equal(result.items.length,2);assert.ok(result.items[1].summary.includes('河岸'));assert.ok(result.items[0].summary.includes('noun'));assert.ok(!result.items[0].summary.includes(id(10)));
+ docs=[];assert.equal((await suggestDictionaryLink(client,'missing','')).status,'none');assert.ok(calls.every(n=>n.startsWith('get_')||n.startsWith('search_')));
+});
+test('All search reuses the three paginated published queries, without GSAT/level filters',async()=>{
+ const categories=[];const client={rpc:async(name,args)=>{if(name==='search_published_dictionary'){categories.push(args.category);assert.equal(args.page_number,2);assert.equal(args.query_text,'bank');return {data:{items:[],has_more:args.category==='root',page:2}};}throw Error(name);}};
+ const r=await searchCandidates(client,'bank',2,'all');assert.deepEqual(categories,['word','prefix','root']);assert.equal(r.has_more,true);
+});
+test('linked-card counts are explicitly owner scoped and exclude deleted cards or deleted sets',async()=>{
+ const seen=[];const client={auth:{getUser:async()=>({data:{user:{id:id(1)}}})},from(table){const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},order(){return q;},range(){return q;},in(k,v){filters.push([k,v]);return q;},then(resolve){assert.ok(filters.some(([k,v])=>k==='owner_id'&&v===id(1)),table);seen.push(table);let data=[];if(table==='study_card_dictionary_links')data=[{card_id:'card'}];else if(table==='study_cards')data=[{payload:{id:'card',deck_id:'deck',front:'my bank',back:'own'}},{payload:{id:'deleted',deck_id:'deck',deleted_at:1}},{payload:{id:'orphan',deck_id:'removed'}}];else if(table==='pages')data=[{id:'deck',deleted_at:null},{id:'removed',deleted_at:5}];return Promise.resolve(resolve({data}));}};return q;}};
+ const result=await linkedPrivateCards(client,id(10));assert.deepEqual(result.map(c=>c.id),['card']);assert.ok(seen.includes('study_card_dictionary_links'));
+});
+test('full detail accordion omits empty sections, escapes content and uses mobile wrapping; rating layout remains independent',()=>{
+ const d=detail();d.etymologies=[{id:id(30),sense_id:null,body:'<history>',verification:'pending'}];d.examples=[{id:id(31),sense_id:null,body:'bank account',sort_order:0}];d.learning_notes=[{id:id(32),kind:'mnemonic_scenario',sense_id:null,body:'my story'}];
+ const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data:d,accordion:true}));for(const title of ['中文義項','歷史詞源','例詞','記憶故事'])assert.ok(html.includes(title));assert.equal((html.match(/<details /g)||[]).length,4);assert.ok(!html.includes('<summary class="cursor-pointer font-semibold">口訣'));assert.ok(!html.includes('尚無'));assert.ok(html.includes('&lt;history&gt;'));assert.ok(html.includes('overflow-wrap:anywhere'));
+ const daily=fs.readFileSync('src/features/study/components/DailyStudySession.tsx','utf8');assert.ok(daily.indexOf('<CardDictionaryPanel')<daily.indexOf('<AnswerSaveNotice'));assert.ok(daily.includes('card.back'));
+ const picker=fs.readFileSync('src/features/dictionary/DictionaryLinkPicker.tsx','utf8');assert.ok(picker.includes('確認連結此詞條'));assert.ok(!picker.includes('setCardDictionaryLink'));assert.ok(picker.includes('min-w-0 flex-1'));const editor=fs.readFileSync('src/features/study/components/StudyCardEditor.tsx','utf8');assert.ok(editor.includes('dictionaryEntryId===undefined'));assert.ok(editor.includes('max-h-[90dvh]'));
+});
+test('minimal official guard migration allows only private front/back changes and retains uninstall protection',async()=>{
+ const pg=new PGlite();try{await pg.exec('create table official_study_pack_downloads(owner_id uuid,deck_id text,deleted_at bigint);create table study_cards(owner_id uuid,id text,payload jsonb);');await pg.exec(fs.readFileSync('supabase/migrations/20261015_official_private_card_edit.sql','utf8'));await pg.exec('create trigger official_guard before insert or update on study_cards for each row execute function guard_official_study_content();');const card={id:'card',deck_id:'deck',official_pack_id:'gsat-1-2',dictionary_entry_id:id(10),front:'bank',back:'銀行',content_revision:1};await pg.query('insert into official_study_pack_downloads values($1,\'deck\',null)',[id(1)]);await pg.query('insert into study_cards values($1,\'card\',$2)',[id(1),JSON.stringify(card)]);await pg.query('update study_cards set payload=$1',[JSON.stringify({...card,front:'private',back:'私有',content_revision:2})]);await assert.rejects(pg.query('update study_cards set payload=$1',[JSON.stringify({...card,dictionary_entry_id:id(20)})]),/immutable/);await pg.exec('update official_study_pack_downloads set deleted_at=1');await assert.rejects(pg.query('update study_cards set payload=$1',[JSON.stringify({...card,front:'restore'})]),/deleted/);}finally{await pg.close();}
+});

@@ -35,7 +35,7 @@ export interface Attachment {
   workspace_owner_id?: ID | null;
 }
 
-export type PageKind = "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "novel_chapter" | "web" | "counter" | "draw";
+export type PageKind = "score" | "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "novel_chapter" | "web" | "counter" | "draw";
 export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /**

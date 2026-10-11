@@ -65,7 +65,7 @@ test('add, batch import, edit and delete immediately derive A–Z without changi
     const repo = new StudyRepository(db, () => null, 'test');
     await repo.ensureDeck({ id: 'deck', study_items: [] });
     await repo.configure('deck', { sort_mode: 'custom' });
-    const read = () => repo.readDeck('deck');
+    const read = () => repo.readDeck('deck',true);
     const words = snapshot => order(snapshot.cards.filter(card => !card.deleted_at)).map(id => snapshot.cards.find(card => card.id === id).front);
     await repo.addCards('deck', [{ front: 'zebra', back: '斑馬' }]);
     await repo.addCards('deck', [{ front: 'apple', back: '蘋果' }]);
@@ -87,6 +87,6 @@ test('add, batch import, edit and delete immediately derive A–Z without changi
     await repo.updateCard(zebra.id, { deleted_at: Date.now() });
     assert.deepEqual(words(await read()), ['apple', 'Banana', 'pear']);
     const reopened = new StudyRepository(db, () => null, 'reopened');
-    assert.deepEqual(words(await reopened.readDeck('deck')), ['apple', 'Banana', 'pear']);
+    assert.deepEqual(words(await reopened.readDeck('deck',true)), ['apple', 'Banana', 'pear']);
   } finally { db.close(); await deleteDB(name); }
 });

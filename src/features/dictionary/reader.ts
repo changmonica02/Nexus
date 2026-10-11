@@ -1,15 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { DictionaryDetail, DictionaryEntry, DictionaryKind, DictionarySource } from './dictionary';
+import type { DictionaryDetail, DictionaryEntry, DictionaryKind } from './dictionary';
 type Client=Pick<SupabaseClient,'rpc'>;
 export interface DictionaryPage { items: Pick<DictionaryEntry,'id'|'kind'|'headword'>[]; has_more:boolean; page:number }
 type PublicRow<T> = Omit<T,'revision'|'updated_at'|'verification_note'>;
 export interface PublishedDetail {
+  pronunciations?:PublicRow<NonNullable<DictionaryDetail['pronunciations']>[number]>[];
+  examples?:{id:string;sense_id:string|null;body:string;sort_order:number}[];
+  lexical_annotations?:{id:string;sense_id:string|null;body:string;sort_order:number;kind:string}[];
   entry: PublicRow<DictionaryDetail['entry']>;
   senses: PublicRow<DictionaryDetail['senses'][number]>[];
   relations: PublicRow<DictionaryDetail['relations'][number]>[];
-  etymologies: PublicRow<DictionaryDetail['etymologies'][number]>[];
+  etymologies: (PublicRow<DictionaryDetail['etymologies'][number]> & {data_source?:string})[];
   learning_notes: PublicRow<DictionaryDetail['learning_notes'][number]>[];
-  sources: Pick<DictionarySource,'id'|'citation'|'source_url'|'license'|'sha256'|'verification'>[];
   related: {id:string;kind:DictionaryKind;headword:string;sense_id:string;gloss_zh_tw:string}[];
 }
 export async function searchDictionary(client:Client,kind:DictionaryKind,query:string,page=0):Promise<DictionaryPage>{
@@ -22,7 +24,4 @@ export async function readPublishedEntry(client:Client,id:string):Promise<Publis
   const {data,error}=await client.rpc('get_published_dictionary_entry',{entry_uuid:id});
   if(error)throw new Error('詞條目前無法讀取，請稍後重試。');
   return data as PublishedDetail|null;
-}
-export function sourceUrl(value:string|null):string|null {
-  try {const url=new URL(value??'');return ['https:','http:'].includes(url.protocol)?url.href:null;}catch{return null;}
 }

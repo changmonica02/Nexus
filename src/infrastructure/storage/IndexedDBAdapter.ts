@@ -1,3 +1,4 @@
+import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
 import { QUIZ_STORES } from "../../features/study/quiz/quizPersistence";
 import { StudyRepository, STUDY_STORES } from "../../features/study/StudyRepository";
@@ -11,7 +12,7 @@ import type { StorageAdapter } from "./StorageAdapter";
 import { WorkspacePersistence, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 const BACKUP_SCHEMA_VERSION = 3;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
@@ -107,7 +108,14 @@ export class IndexedDBAdapter implements StorageAdapter {
     };
     for (const name of STUDY_STORES) {
       for (const record of await tx.objectStore(name).getAll()) {
-        if (record.owner_id == null) await tx.objectStore(name).put(claimStudy(record));
+        if (record.owner_id == null) {
+          const claimed=claimStudy(record);
+          if(name==='study_sync_meta'){
+            const key=JSON.parse(record.id);key[0]=ownerId;claimed.id=JSON.stringify(key);
+            await tx.objectStore(name).delete(record.id);
+          }
+          await tx.objectStore(name).put(claimed);
+        }
       }
     }
     await tx.objectStore("settings").put({ key: claimKey, value: ownerId });
@@ -116,13 +124,16 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         for (const name of [...STUDY_STORES,...QUIZ_STORES,...WORKSPACE_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
           }
         }
+        const events=transaction.objectStore('study_events');
+        if(!events.indexNames.contains('deck_at'))events.createIndex('deck_at',['deck_id','at']);
+        if(!events.indexNames.contains('deck_day'))events.createIndex('deck_day',['deck_id','local_day']);
         if (!db.objectStoreNames.contains("pages")) {
           const store = db.createObjectStore("pages", { keyPath: "id" });
           store.createIndex("by_updated", "updated_at");
@@ -177,8 +188,8 @@ export class IndexedDBAdapter implements StorageAdapter {
     const now = Date.now();
     const page: Page = {
       id: newPageId(),
-      title: input?.title ?? "Untitled",
-      content_json: { type: "doc", content: [{ type: "paragraph", attrs: { id: newBlockId() } }] },
+      title: input?.title ?? (input?.kind === "score" ? "新樂譜" : "Untitled"),
+      content_json: input?.kind === "score" ? createScore(input.title ?? "新樂譜", "numbered", now) : { type: "doc", content: [{ type: "paragraph", attrs: { id: newBlockId() } }] },
       content_text: "",
       tags: input?.tags ?? [],
       folder: input?.folder ?? null,

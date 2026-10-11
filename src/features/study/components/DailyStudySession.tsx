@@ -77,7 +77,7 @@ export default function DailyStudySession({repository,deckId,mode="daily",onExit
         </div>
         <p className="text-xs opacity-60">忘記＝沒想起來或答錯；困難＝成功但吃力；記得＝正常回想；簡單＝立即想起。</p>
         {mode==="free"&&!official&&<p className="text-sm">本輪練習，不變更排程。冷凍時間：{interval==null?"尚未排程":intervalLabel(interval,0)}</p>}
-        <CardDictionaryPanel key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.official_pack_id?card.dictionary_entry_id:undefined}/>
+        <CardDictionaryPanel key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.dictionary_entry_id}/>
       </>}
     </>:<div className="space-y-3 py-8 text-center">
       <p>{!session?"正在恢復練習…":session.targets.length?(mode==="daily"?"本次練習完成，每張字卡都已取得 Easy。":"本次複習完成，每張字卡都已取得 Good 或 Easy。"):mode==="daily"?"今日批次沒有可學的新字。":"目前沒有已學字卡，請先完成每日學習中的 Easy。"}</p>

@@ -6,10 +6,10 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {primaryCategories,prefixCategories} from './grouping';
 import type {DictionaryEntry} from './dictionary';
-import {parseAI,readAI,readAll,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
+import {matchAIEntry,parseAI,readAI,readAll,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
 const control='w-full rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2';
 const button='rounded border border-[var(--color-border)] px-3 py-2 disabled:opacity-40';
-const labels:Record<string,string>={headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',learning_decomposition:'口訣',story:'記憶故事',sources:'來源與授權'};
+const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',learning_decomposition:'口訣',story:'記憶故事'};
 async function targetsFor(client:SupabaseClient,s:AISnapshot|null,input?:AIEntry){
  const ids=new Set([...(s?.detail.relations.map(r=>r.target_entry_id)??[]),...(input?.components?.map(c=>c.target_id)??[])]);
  return new Map(await Promise.all([...ids].map(async id=>[id,await readAI(client,id)] as const)));
@@ -41,17 +41,12 @@ interface Row {input:AIEntry;plan?:AIPlan;error?:string;status?:'accepted'|'igno
 export function AIImport({raw,onBusy,onSaved}:{raw:string;onBusy:(b:boolean)=>void;onSaved:()=>Promise<void>}){
  const [rows,setRows]=useState<Row[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  async function build(input:AIEntry,rebase=false):Promise<AIPlan>{
-  const client=getSupabase()!;let adjusted=structuredClone(input),current=input.id?await readAI(client,input.id):null,redirected=false;
-  if(current?.detail.entry.status==='published'){
-   const {data,error}=await client.from('dictionary_ai_metadata').select('*').eq('published_entry_id',input.id!).maybeSingle();if(error)throw Error(error.message);
-   if(data){const map=data.origin_ids as Record<string,string>;const remap=(v:unknown):unknown=>Array.isArray(v)?v.map(remap):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,value])=>[k,(k==='id'||k==='meaning_id')&&typeof value==='string'?(map[value]??value):remap(value)])):v;
-    adjusted=remap(adjusted) as AIEntry;adjusted.id=data.entry_id;current=await readAI(client,data.entry_id);redirected=true;
-   }
-  }
+  const client=getSupabase()!;const match=await matchAIEntry(client,structuredClone(input));let adjusted=match.input;const current=match.current;
   if(rebase&&current)adjusted.revision=current.detail.entry.revision;
   const plan=planAI(adjusted,current,await targetsFor(client,current,adjusted));
-  if(redirected&&!rebase){plan.conflict=true;plan.warnings.push('此 Published 已有審核草稿；請重新對目前草稿產生 Diff。');}
-  if(!plan.conflict){const result=await submitAI(client,plan,true) as {result?:{warnings?:unknown[]}};if(result?.result?.warnings?.length)plan.warnings.push('發現同拼寫或相似內容，請人工確認；不會自動合併不同 ID。');}
+  if(match.matched)plan.warnings.push('同類同拼寫已存在：使用既有 Entry，新增語義保存為新義項，請確認 Diff。');
+
+  if(!plan.conflict){const result=await submitAI(client,plan,true) as {warnings?:unknown[]};if(result?.warnings?.length)plan.warnings.push('發現同拼寫或相似內容，請人工確認；同類同拼寫不能建立第二 Entry。');}
   return plan;
  }
  async function run(work:()=>Promise<void>){setBusy(true);onBusy(true);setError('');try{await work();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);onBusy(false);}}

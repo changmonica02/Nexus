@@ -14,6 +14,7 @@ export interface CreatableDefinition {
 }
 
 export const CREATABLE_REGISTRY: Record<PageKind, CreatableDefinition> = {
+  score: { kind:"score",icon:"♫",label:"Score",labelZh:"樂譜",desc:"Music score",descZh:"簡譜、五線譜與吉他共用樂曲",defaultFormat:"flow",isCreatableFromSidebar:true,isProject:true },
   novel_chapter: {
     kind: "novel_chapter", icon: "📖", label: "Novel chapter", labelZh: "小說章節",
     desc: "Chapter within a novel", descZh: "小說作品的獨立章節", defaultFormat: "flow",

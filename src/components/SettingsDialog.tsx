@@ -6,6 +6,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
 import { DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
 import DataSourcesAndCopyright from "./DataSourcesAndCopyright";
+import {getSchedulePolicy,setSchedulePolicy,type SchedulePolicy} from '../features/study/studyReliability';
 import HelpGuide from "./HelpGuide";
 
 const sections = ["一般", "功能排序", "使用建議", "使用說明", "備份", "關於 Nexus"] as const;
@@ -13,6 +14,7 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
   const ref = useRef<HTMLDialogElement>(null);
   const { language, setLanguage } = useLanguage();
   const [section, setSection] = useState<typeof sections[number]>("一般");
+  const [schedulePolicy,updateSchedulePolicy]=useState(getSchedulePolicy);
   const [showSources,setShowSources]=useState(false);
   const [orderMode, setOrderMode] = useState(getStoredFeatureOrderMode);
   const [order, setOrder] = useState(getStoredCustomFeatureOrder);
@@ -43,6 +45,8 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
           {section === "一般" && <div className="space-y-6 text-sm">
             <label className="flex flex-wrap items-center justify-between gap-3">主題<select className={control} value={theme} onChange={(e) => onThemeChange(e.target.value as "light" | "dark")}><option value="light">淺色</option><option value="dark">深色</option></select></label>
             <label className="flex flex-wrap items-center justify-between gap-3">語言<select className={control} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>{SUPPORTED_LANGUAGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className="flex flex-wrap items-center justify-between gap-3">排程無法判定時<select className={control} value={schedulePolicy} onChange={e=>{const value=e.target.value as SchedulePolicy;setSchedulePolicy(value);updateSchedulePolicy(value);}}><option value="latest">採用最新可靠狀態（預設）</option><option value="conservative">採用較保守排程</option><option value="ask">每次詢問我</option></select></label>
+            <p className="text-xs opacity-60">此裝置所有學習集適用。只有事件順序無法判定才使用；較保守會選可信候選中到期時間較早的完整排程。</p>
             <p className="text-xs leading-6 opacity-60">設定變更會立即套用。主題和語言也可以從側欄的偏好選單快速切換。</p>
           </div>}
           {section === "功能排序" && <div className="space-y-4 text-sm">

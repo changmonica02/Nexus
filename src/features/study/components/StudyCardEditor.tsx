@@ -3,12 +3,13 @@ import {confirmDialog} from '../../../lib/confirmDialog';
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { StudyCard } from "../studyFSRS";
-import CardDictionaryPanel from "../../dictionary/CardDictionaryPanel";
+import DictionaryLinkPicker from "../../dictionary/DictionaryLinkPicker";
 
-export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, onClose, onCopy }: {
+export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, onClose, onCopy, fixedEntryId }: {
   card: Pick<StudyCard, "front" | "back"> & { id?: string };
   requiresScheduleChoice: boolean;
-  onSave: (values: { front: string; back: string }, reset: boolean) => Promise<void>;
+  fixedEntryId?:string;
+  onSave: (values: { front: string; back: string; dictionaryEntryId?:string|null }, reset: boolean) => Promise<void>;
   onClose: () => void;
   onCopy: () => void;
 }) {
@@ -17,10 +18,11 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
   const saving = useRef(false);
   const [front, setFront] = useState(card.front);
   const [back, setBack] = useState(card.back);
+  const [dictionaryEntryId,setDictionaryEntryId]=useState<string|null|undefined>(undefined);
   const [choice, setChoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const confirmDiscard=async ()=>front===card.front&&back===card.back||await confirmDialog("有尚未儲存的修改，確定關閉並捨棄修改？");
+  const confirmDiscard=async ()=>front===card.front&&back===card.back&&dictionaryEntryId===undefined||await confirmDialog("有尚未儲存的修改，確定關閉並捨棄修改？");
   const close=async()=>{if(!saving.current&&await confirmDiscard())onClose();};
   useEffect(() => {
     const element = dialog.current!;
@@ -33,7 +35,7 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
     setBusy(true);
     setError("");
     try {
-      await onSave({ front, back }, reset);
+      await onSave({ front, back, ...(dictionaryEntryId!==undefined?{dictionaryEntryId}:{}) }, reset);
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -71,9 +73,9 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
           <button type="button" disabled={busy} className="rounded border p-2" onClick={close}>取消修改</button>
         </div>
       </div> : <div className="mt-5 flex flex-wrap justify-end gap-2">
-        {card.id && <button type="button" disabled={busy} onClick={async()=>{if(await confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
+        {card.id && !fixedEntryId && <button type="button" disabled={busy} onClick={async()=>{if(await confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
       </div>}
     </form>
-    {card.id&&<div className="mt-5"><p className="mb-2 text-xs opacity-60">百科連結獨立、立即儲存，不受上方字卡關閉按鈕影響。</p><CardDictionaryPanel key={card.id} cardId={card.id} front={card.front}/></div>}
+    <div className="mt-5">{fixedEntryId?<p className="text-sm">官方字卡保留字典連結；私人英文與中文可自行修改。</p>:<DictionaryLinkPicker cardId={card.id} front={front} back={back} disabled={busy||choice} onChange={setDictionaryEntryId}/>}</div>
   </dialog>;
 }

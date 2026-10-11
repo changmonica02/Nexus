@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncQuiz } from "./quiz/quizSync";
-import type { StudyRepository } from "./StudyRepository";
+import type { StudyRepository, StudyChange } from "./StudyRepository";
 import type { StudyBackup, StudyOperation } from "./studyFSRS";
 
 /** Keep each event's predecessor before it, including equal-timestamp answers. */
@@ -20,10 +20,13 @@ export function orderStudyOperations(operations: StudyOperation[]): StudyOperati
     if(index < 0) throw new Error("複習事件存在循環，已保留本地資料並停止同步。");
     result.push(pending.splice(index, 1)[0]);
   }
-  return result;
+  return [...result,...operations.filter(op=>op.kind==='resolution')];
 }
 
-export async function syncStudy(repository:StudyRepository,client:SupabaseClient,owner:string,stillActive:()=>boolean=()=>true) {
+async function runStudySync(repository:StudyRepository,client:SupabaseClient,owner:string,stillActive:()=>boolean=()=>true) {
+  let staleDecision=false;
+  // A bounded second pass submits derived decisions from the first pull.
+  for(let round=0;round<2;round++) {
   const operations=orderStudyOperations(await repository.pending());
   for(const operation of operations) {
     if(!stillActive())return;
@@ -31,25 +34,41 @@ export async function syncStudy(repository:StudyRepository,client:SupabaseClient
     // Older outboxes may carry a session envelope. Sessions remain local.
     const cloudOperation={...operation};
     delete cloudOperation.session;
-    const {error}=await client.rpc("apply_study_operation",{operation:cloudOperation});
+    const {data:result,error}=await client.rpc(operation.kind==='resolution'?"apply_study_resolution":"apply_study_operation",{operation:cloudOperation});
     if(error) throw new Error(`字卡同步未完成，本地紀錄已保留：${error.message}`);
+    if(operation.kind==='resolution'&&result===false)staleDecision=true;
     // A dropped response leaves the operation queued. Server event IDs make retries safe.
     await repository.acknowledge(operation.id);
   }
   const data:StudyBackup={cards:[],states:[],events:[],settings:[],sessions:[]};
-  for(const [table,key] of [["study_cards","cards"],["study_card_states","states"],["study_review_events","events"],["study_deck_settings","settings"]] as const) {
-    let offset=0;
+  const changes:StudyChange[]=[];
+  let cursor=await repository.syncCursor();
+  const keys:Record<string,'cards'|'states'|'events'|'settings'>={study_cards:'cards',study_card_states:'states',study_review_events:'events',study_deck_settings:'settings'};
     for(;;) {
       if(!stillActive())return;
-      const {data:rows,error}=await client.from(table).select("payload").eq("owner_id",owner).order("id").range(offset,offset+499);
+      const {data:rows,error}=await client.rpc('pull_study_changes',{after_sequence:cursor});
       if(error) throw new Error(`字卡同步未完成，本地紀錄已保留：${error.message}`);
-      // Each entity is validated/scoped before its transaction in mergeRemote.
-      data[key]!.push(...(rows??[]).map(row=>row.payload));
+      for(const row of (rows??[]) as StudyChange[]){
+        if(row.owner_id!==owner || row.sequence<=cursor)throw new Error('無效 Study 同步游標。');
+        changes.push(row);cursor=row.sequence;
+        if(!row.deleted&&row.payload&&keys[row.entity]) (data[keys[row.entity]] as unknown[]).push(row.payload);
+      }
       if(!rows || rows.length<500) break;
-      offset+=rows.length;
     }
+  // A record can change again while paging; use its final server-sequence snapshot.
+  const unique=<T extends {id:string}>(values:T[])=>[...new Map(values.map(v=>[v.id,v])).values()];
+  data.cards=unique(data.cards);data.states=unique(data.states);data.events=unique(data.events);data.settings=unique(data.settings);
+  if(stillActive()&&changes.length)await repository.mergeRemote(data,changes);
   }
-  if(stillActive())await repository.mergeRemote(data);
   const quiz=repository.getQuizRepository();
   if(quiz && stillActive())await syncQuiz(quiz,client,owner,stillActive);
+  if(staleDecision)throw new Error('排程自選擇後已變更，已保留全部事件並同步最新資料，請重新確認。');
+}
+
+// Avoid two UI/background callers racing the same durable cursor/outbox.
+const activeSyncs=new WeakMap<StudyRepository,Promise<void>>();
+export function syncStudy(repository:StudyRepository,client:SupabaseClient,owner:string,stillActive:()=>boolean=()=>true):Promise<void>{
+  const active=activeSyncs.get(repository);if(active)return active;
+  const task=runStudySync(repository,client,owner,stillActive).finally(()=>{if(activeSyncs.get(repository)===task)activeSyncs.delete(repository);});
+  activeSyncs.set(repository,task);return task;
 }

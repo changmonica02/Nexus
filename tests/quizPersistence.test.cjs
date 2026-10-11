@@ -17,8 +17,8 @@ async function fixture(){
  const repo=new StudyRepository(db,()=>owner,'device');
  await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});
  await repo.addCards('deck',[{front:'word',back:'字'}]);
- const card=(await repo.readDeck('deck')).cards[0];
- const daily=await repo.startSession('deck','daily',1000),state=(await repo.readDeck('deck')).states[0];
+ const card=(await repo.readDeck('deck',true)).cards[0];
+ const daily=await repo.startSession('deck','daily',1000),state=(await repo.readDeck('deck',true)).states[0];
  await repo.rateSession({sessionId:daily.id,cardId:card.id,revision:daily.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:4,actionId:crypto.randomUUID(),now:1000});
  const quiz=repo.getQuizRepository();
  return {name,db,repo,quiz,card,record:(correct=false,batchId='batch',eventId=crypto.randomUUID())=>quiz.record({cardId:card.id,correct,batchId,eventId,now:2000}),
@@ -29,6 +29,7 @@ async function server(f){
  await pg.exec("create schema auth; create role authenticated; create role anon; create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema public,auth to authenticated,anon;");
  await pg.exec(fs.readFileSync('supabase/migrations/20260922_study_fsrs.sql','utf8'));
  await pg.exec(fs.readFileSync('supabase/migrations/20260925_study_quiz_persistence.sql','utf8'));
+ await pg.exec(fs.readFileSync('supabase/migrations/20261016_study_reliability.sql','utf8'));
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
  await pg.query('insert into study_cards values($1,$2,$3)',[owner,f.card.id,JSON.stringify(f.card)]);
  const rpc=async attempt=>{
@@ -36,7 +37,9 @@ async function server(f){
   catch(e){return {data:null,error:{message:e.message,code:e.code}};}
  };
  const tables=['study_cards','study_card_states','study_review_events','study_deck_settings','study_card_quiz_states'];
- const client={rpc:async(name,{attempt,operation})=>{
+ const client={rpc:async(name,{attempt,operation,after_sequence})=>{
+  if(name==='pull_study_changes')return {data:(await pg.query('select pull_study_changes($1) as changes',[after_sequence])).rows[0].changes,error:null};
+  if(name==='apply_study_resolution')return {data:(await pg.query('select apply_study_resolution($1) as ok',[JSON.stringify(operation)])).rows[0].ok,error:null};
   if(name==='apply_study_quiz_operation')return rpc(attempt);
   assert.equal(name,'apply_study_operation');
   try{await pg.query('select apply_study_operation($1::jsonb)',[JSON.stringify(operation)]);return {error:null};}
@@ -84,15 +87,15 @@ test('confirmation requires successful API health, excludes authorized, and disc
 test('deck quiz direction persists on reload and syncs to another device without touching FSRS',async()=>{
  const f=await fixture(),computer=await fixture(),s=await server(f);try{
  const {DEFAULT_QUIZ_DIRECTION}=require('../src/features/study/quiz/quizQuestions.ts');
- assert.equal((await f.repo.readDeck('deck')).settings.quiz_direction??DEFAULT_QUIZ_DIRECTION,'zh-en');
+ assert.equal((await f.repo.readDeck('deck',true)).settings.quiz_direction??DEFAULT_QUIZ_DIRECTION,'zh-en');
  const before=await f.repo.exportData();
  await f.repo.configure('deck',{quiz_direction:'en-zh'});
  const reopened=new StudyRepository(f.db,()=>owner,'reload');
- assert.equal((await reopened.readDeck('deck')).settings.quiz_direction,'en-zh');
+ assert.equal((await reopened.readDeck('deck',true)).settings.quiz_direction,'en-zh');
  await syncStudy(f.repo,s.client,owner);
  const settings=(await s.pg.query('select payload from study_deck_settings')).rows.map(r=>r.payload);
  await computer.repo.mergeRemote({cards:[],states:[],events:[],settings,sessions:[]});
- assert.equal((await computer.repo.readDeck('deck')).settings.quiz_direction,'en-zh');
+ assert.equal((await computer.repo.readDeck('deck',true)).settings.quiz_direction,'en-zh');
  const after=await f.repo.exportData();
  for(const field of ['states','events','sessions'])assert.deepEqual(after[field],before[field]);
  await assert.rejects(()=>f.repo.configure('deck',{quiz_direction:'bad'}),/無效/);
@@ -101,7 +104,7 @@ test('deck quiz direction persists on reload and syncs to another device without
 
 test('ordinary sync never uploads awaiting attempts; approved attempts sync and pull leaves FSRS untouched',async()=>{
  const f=await fixture(),s=await server(f);try{
- const review=await f.repo.startSession('deck','free',1500),state=(await f.repo.readDeck('deck')).states[0];
+ const review=await f.repo.startSession('deck','free',1500),state=(await f.repo.readDeck('deck',true)).states[0];
  await f.repo.rateSession({sessionId:review.id,cardId:f.card.id,revision:review.revision,contentRevision:f.card.content_revision,expectedHead:state.head,rating:3,actionId:crypto.randomUUID(),now:1500});
  await syncStudy(f.repo,s.client,owner);
  const before=await f.repo.exportData();
@@ -160,7 +163,7 @@ test('event identity rejects collisions; two-device wrongs apply once and proces
 test('second device pulls revisions; pending answers never replace shared aggregate',async()=>{
  const f=await fixture(),computer=await fixture(),s=await server(f);try{
  await computer.db.put('study_cards',f.card);
- await computer.db.put('study_states',(await f.repo.readDeck('deck')).states[0]);
+ await computer.db.put('study_states',(await f.repo.readDeck('deck',true)).states[0]);
  const a=await f.record();await syncQuiz(f.quiz,s.client,owner);
  computer.quiz.setReachable(false);
  await computer.quiz.record({cardId:f.card.id,correct:false,batchId:'offline',eventId:crypto.randomUUID(),now:3000});
@@ -221,7 +224,7 @@ test('receipt insertion failure rolls back aggregate; local outbox failure rolls
  }finally{await s.pg.close();await f.close();}
 });
 
-test('IndexedDB v5 upgrades to v6 retaining existing records',async()=>{
+test('IndexedDB v5 upgrades to v8 retaining existing records',async()=>{
  await deleteDB('nexus');
  const old=await openDB('nexus',5,{upgrade(db){
   for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');}
@@ -230,7 +233,7 @@ test('IndexedDB v5 upgrades to v6 retaining existing records',async()=>{
  const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts'),adapter=new IndexedDBAdapter();
  try{
  await adapter.init();const db=await openDB('nexus');
- assert.equal(db.version,6);assert.ok(QUIZ_STORES.every(s=>db.objectStoreNames.contains(s)));
+ assert.equal(db.version,8);assert.ok(QUIZ_STORES.every(s=>db.objectStoreNames.contains(s)));
  assert.equal((await db.get('study_settings','preserved')).id,'preserved');db.close();
  }finally{await adapter.close();await deleteDB('nexus');}
 });
