@@ -122,32 +122,7 @@
 
 ## 3. 功能範圍與規格索引
 
-### 3.1 核心內容功能
-
-| ID | 功能 | 產品提供的能力 | 規格狀態 |
-| --- | --- | --- | --- |
-| F-NOTE | 筆記 | 富文字、區塊編輯、流動／分頁排版、標籤、反向連結與內容匯出 | 需求已記錄；互動細節待審 |
-| F-LESSON | 講義 | 講義樣式、教學區塊、目錄、題號、頁首頁尾及 A4 分頁 | 需求已記錄；互動細節待審 |
-| F-DOCUMENT | 文檔 | 純文字與 Markdown 導向的文件編修和匯入匯出 | 需求已記錄；互動細節待審 |
-| F-PDF | PDF 研究 | PDF 匯入、檢視、附檔及關聯研究筆記；進階 PDF 工作空間待細化 | 部分待規劃 |
-| F-STUDY | 學習集 | 私人字卡、FSRS-6 每日學習／複習、四選一測驗、字典資訊展開 | 需求已記錄；互動細節待審 |
-| F-DICTIONARY | 公共字典 | 全站唯一字典、Word／Prefix／Root、Sense、搜尋、管理員編修與匯入、私人字卡連結 | 需求已記錄；互動細節待審 |
-| F-PRESENTATION | 簡報 | 投影片畫布、物件移動與縮放、旋轉、圖層排序、圖表與投影片導覽 | 部分待規劃 |
-| F-QUICKNOTE | 隨手記 | 卡片式快速筆記與整理 | 需求已記錄；互動細節待審 |
-| F-TODO | 待辦 | 月曆檢視、待辦事項管理；多分類日曆另行設計 | 部分待規劃 |
-| F-NOVEL | 小說 | 作品總覽、章節、閱讀模式及閱讀設定 | 需求已記錄；互動細節待審 |
-| F-CHARACTER | 角色卡 | 結構化區塊、混合內容、分頁及自訂模板 | 需求已記錄；互動細節待審 |
-| F-WORLD | 世界觀 | 結構化世界觀資料，角色可歸屬世界觀或獨立建立 | 需求已記錄；互動細節待審 |
-| F-WEB | 網頁收藏 | 介紹資訊與連結清單編輯；公開展示另行設計 | 部分待規劃 |
-| F-COUNTER | 計數 | 項目計數、依群組名稱彙總；階層群組設計待確認 | 部分待規劃 |
-| F-DRAW | 抽選 | 項目庫、標籤篩選與抽選指定數量 | 需求已記錄；互動細節待審 |
-| F-CREATIVE | 創作入口 | 角色卡及世界觀等創作工具入口，小說有獨立入口 | 需求已記錄；互動細節待審 |
-| F-SCORE | 製譜 | 作品管理、簡譜、五線譜與吉他譜的預覽及編輯工作流 | 部分待規劃 |
-| F-CANVAS | 視覺畫布 | 以 Page／Block 引用組織視覺化內容 | 待規劃 |
-| F-WEBSITE | 網站發布 | 分享頁面、連結頁及網站發布流程 | 待規劃 |
-| F-SHARE | 唯讀分享 | 可控的唯讀連結、存取與撤回管理 | 部分待規劃 |
-
-### 3.2 系統檢視
+### 3.1 系統檢視
 
 | 檢視 | 目標行為 |
 | --- | --- |
@@ -181,6 +156,8 @@
 
 ### F-NOTE — Rich Note
 
+- **筆記（F-NOTE）**：富文字、區塊編輯、流動／分頁排版、標籤、反向連結與內容匯出。
+
 
 - **目的**：提供不受完整 Markdown 限制的原生筆記體驗。
 - **正文真相**：`content_json`；`content_text` 僅作衍生用途。
@@ -191,6 +168,8 @@
 
 ### F-DOCUMENT — Plain Document
 
+- **文檔（F-DOCUMENT）**：純文字與 Markdown 導向的文件編修和匯入匯出。
+
 
 - **目的**：適合文章、報告、正式文字與 Markdown 工作流。
 - **編輯模式**：`plain` editor variant；不承擔 Note 的 rich typography 工具列。
@@ -199,6 +178,8 @@
 - **定位**：Document 為純文字／Markdown 導向的獨立編輯流程，Note 為富文字筆記編輯流程。
 
 ### F-PDF — PDF Research Note 與未來 GoodNotes-like PDF Import
+
+- **PDF 研究（F-PDF）**：PDF 匯入、檢視、附檔及關聯研究筆記；進階 PDF 工作空間待細化。
 
 #### PDF 匯入與 Research Note
 
@@ -224,6 +205,8 @@
 
 ### F-STUDY — Study Set / Flashcard【修改，程式碼推導；對話中無紀錄】
 
+- **學習集（F-STUDY）**：私人字卡、FSRS-6 每日學習／複習、四選一測驗、字典資訊展開。
+
 
 - **資料方向**：Deck = Page（設定另存）；Card = 使用者擁有的獨立 `study_cards` 記錄＋`study_states`（個人排程狀態）＋`study_events`（個人 append-only 事件）＋`study_settings`（每學習集設定）。字卡的英文／中文及個人編輯內容與公共百科相互獨立；未來可選擇連結公共字典的穩定詞條 ID 取得補充資訊，**公共字典不能覆寫個人字卡，也不持有個人 FSRS 排程**。
 - **演算法**：固定 `ts-fsrs 5.4.2`（FSRS-6）；`request_retention = 0.90`；`learning_steps = ['10m']`；`relearning_steps = ['10m']`；`enable_fuzz = false`；`maximum_interval = 36500`；完整參數存入每筆事件。按鈕間隔取 `scheduler.repeat`，提交用 `scheduler.next`，不覆寫 `due`。
@@ -239,6 +222,8 @@
 - **離線資料邊界**：系統在一般重新整理與離線期間持續保留已寫入的本地學習資料；備份和跨裝置同步依帳號設定與備份流程執行。
 
 ### F-DICTIONARY — 全站共用公共字典
+
+- **公共字典（F-DICTIONARY）**：全站唯一字典、Word／Prefix／Root、Sense、搜尋、管理員編修與匯入、私人字卡連結。
 
 - **資料及角色**：全站有一套共用公共字典，含 Word、Prefix、Root 三種詞條。管理員管理、編輯、審核、發布及匯入；一般登入使用者可以閱讀已發布的內容。使用者個人字卡獨立擁有，可透過穩定 Entry ID 連結公共詞條。
 - **義項**：一個詞條可以包含多個 Sense，記錄詞性、繁體中文義項以及義項專屬的例句、讀音、詞源等。構詞關聯能連到指定的義項。
@@ -415,10 +400,14 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-SCORE — 製譜
 
+- **製譜（F-SCORE）**：作品管理、簡譜、五線譜與吉他譜的預覽及編輯工作流。
+
 - **C2 已確認先前順序**：先作品管理＋快速簡譜，再各自開發五線譜與吉他譜；三者不強制互轉，也不預設共用同一完整音樂資料模型。正式譜面 preview 優先，進入「編輯」才顯示文字源碼；桌面可探索分割畫面，手機以預覽／編輯切換為主。
 - **候選簡譜草案（未最終確認）**：`_6`／`^6` 表八度、`#5`／`b7` 升降、`6•` 附點、`5/`／`5//` 時值、`0` 休止、`|` 小節；標頭 `@title`／`@key`／`@time`／`@tempo`，註解 `//` 屬草案，不直接當 parser 合約。播放與完整 MusicXML／MIDI 互轉非首版承諾。
 
 ### F-PRESENTATION — Presentation
+
+- **簡報（F-PRESENTATION）**：投影片畫布、物件移動與縮放、旋轉、圖層排序、圖表與投影片導覽。
 
 
 - **資料方向**：Presentation → Slides → PresentationBlocks；block 使用 x/y/w/h%、z-index、rotation。PresentationBlock 新增 `rotation?: number`。ChartData 新增 `sortOrder?`、`showDataLabels?`、`showGrid?`、`showTitleNumber?`。
@@ -429,11 +418,15 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-QUICKNOTE — Quick Notes
 
+- **隨手記（F-QUICKNOTE）**：卡片式快速筆記與整理。
+
 
 - **資料**：隨手記是獨立內容類型，卡片可設定顏色，搜尋、備份與帳號同步涵蓋其內容。
 - **資料可用性**：隨手記納入搜尋、備份與帳號同步。
 
 ### F-TODO — Todo／日曆
+
+- **待辦（F-TODO）**：月曆檢視、待辦事項管理；多分類日曆另行設計。
 
 
 - **資料**：待辦可設定到期日期、優先順序及完成狀態；內容納入搜尋、備份與帳號同步。
@@ -448,12 +441,16 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-CREATIVE — Creative 入口
 
+- **創作入口（F-CREATIVE）**：角色卡及世界觀等創作工具入口，小說有獨立入口。
+
 
 - **資料方向**：Page shell + `kind: "creative"`；以 `creative_type` 區分 `novel`／`character`／`world`。
 - **入口**：小說設有獨立功能入口；創作入口提供角色卡與世界觀，相關範本以「模板」命名。
 - **判斷函式**（`types.ts`）：`isCreativeCharacterPage`＝creative 且（`character`／`world`／有 `character_data`）；`isNovelPage`＝creative 且非角色類。早期沒有 `creative_type` 的舊小說以此相容。
 
 ### F-NOVEL — 小說
+
+- **小說（F-NOVEL）**：作品總覽、章節、閱讀模式及閱讀設定。
 
 
 - **入口與總覽**：`creative_type: novel` 開啟時先進入作品總覽：封面（PNG／JPEG／WebP，≤ 3 MB，實際附件保存與同步）、可編輯作品名稱、獨立概述（`NovelSettings.synopsis`，不得由正文自動推導）、字數／章節統計、完整目錄。
@@ -470,6 +467,8 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **驗收**：`tests/novelChapters.test.cjs`；隔離瀏覽器測試（桌面與 390×844）通過；正式帳號同步未測。
 
 ### F-CHARACTER — 角色卡
+
+- **角色卡（F-CHARACTER）**：結構化區塊、混合內容、分頁及自訂模板。
 
 
 - **資料真相**：`Page.character_data`（`CharacterProfileData`）；`basic`（姓名、別名、頭像、性別、年齡、角色、所屬、名言、自訂欄位）＋`sections[]`＋`tabs[]`。
@@ -489,6 +488,8 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-WORLD — 世界觀
 
+- **世界觀（F-WORLD）**：結構化世界觀資料，角色可歸屬世界觀或獨立建立。
+
 
 - **規格**：`creative_type: "world"`，沿用角卡的區塊／內容／分頁／模板機制，可進行設定與描寫。
 - **歸屬**：角色以 `character_data.world_id` 歸屬某世界觀，或為空表示獨立角色。
@@ -496,6 +497,10 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **待確認**：使用者原話為「類似角卡，也可以進行設定與描寫」；現況是否已足夠、是否需要世界觀專用內建模板，尚無明確要求。
 
 ### F-UTILITY — 網頁／計數／抽選
+
+- **網頁收藏（F-WEB）**：介紹資訊與連結清單編輯；公開展示另行設計。
+- **計數（F-COUNTER）**：項目計數、依群組名稱彙總；階層群組設計待確認。
+- **抽選（F-DRAW）**：項目庫、標籤篩選與抽選指定數量。
 
 三者共用 `UtilityView`，資料存在 `Page.content_json`（D-218），皆為**基礎版**。
 
@@ -505,6 +510,8 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **新增選單**：三個功能各有對應新增項（網頁／計數項目／抽選資料庫）。
 
 ### F-EDITOR — Editor Blocks 與內容插入
+
+- **視覺畫布（F-CANVAS）**：以 Page／Block 引用組織視覺化內容。
 
 | 元件 | 預期行為 |
 | --- | --- |
@@ -527,6 +534,8 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-LESSON — 筆記講義排版與目錄
 
+- **講義（F-LESSON）**：講義樣式、教學區塊、目錄、題號、頁首頁尾及 A4 分頁。
+
 
 - **使用者目標（09-19）**：在筆記中製作類似課本與講義的排版與內容。AI 提出四項建議，使用者要求繼續實作，但**教師／學生版 PDF 不做**（D-204）。
 - **資料（D-214）**：設定存於 `content_json.lessonLayout`，沿用既有 JSON 儲存、同步與備份，無需資料庫遷移；編輯器更新正文時保留這份設定。
@@ -542,6 +551,9 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **手機**：修正了流動筆記重複套用左右邊距造成正文過窄；手機「更多」選單提供教學區塊／圖說入口（各一份）。
 
 ### F-NAVIGATION — Home、Sidebar、File Menu、Dual Pane
+
+- **網站發布（F-WEBSITE）**：分享頁面、連結頁及網站發布流程。
+- **唯讀分享（F-SHARE）**：可控的唯讀連結、存取與撤回管理。
 
 - Home 是預設入口；Nexus logo 可回 Home。
 - Sidebar 支援 folders、favorites、sort、type grouping、drag/drop、同類子頁、rename、bulk select。
