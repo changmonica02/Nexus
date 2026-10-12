@@ -109,3 +109,11 @@ Backup/Sync 核對界線：
 - Mobile 介面採遮罩浮層，內容不能被側欄擠壓；仍須以真實設備測試 focus、IME、selection、剪貼簿與閱讀捲動。
 - 複雜 Tiptap NodeView／ProseMirror 不能只測純函式；必要時使用 jsdom 真實 editor、browser interaction／列印驗證。
 - 正式驗證至少區分 TypeScript、production build、自動化測試、瀏覽器行為及實際帳號／多裝置測試，且不可互相取代。
+
+
+## 10. 2026-10-12 實際程式碼核對修正
+- `src/infrastructure/storage/IndexedDBAdapter.ts` 現定義 `DB_VERSION = 8`、`BACKUP_SCHEMA_VERSION = 3`；先前第 8 節提到的 DB_VERSION=6 只可作舊 Canon 歷史資料，不可作現行實作說明。
+- `src/features/study/studyFSRS.ts` 實際明列 FSRS-6、retention 0.90、learning/relearning 10m。
+- `src/features/dictionary/entryIdentity.ts` 使用 kind + lowercase(trim ASCII spaces)；應查核資料庫 btrim 與 Unicode 空白一致性。
+- `src/features/score/ScoreWorkspace.tsx` 已存在可用元件程式碼，不應再說成完全未開發。
+- 完整的契約／證據位置及驗證等級參考 `CANON-CROSSWALK.md`。以上僅為讀碼核對，未執行本機測試或 production 稽核。
