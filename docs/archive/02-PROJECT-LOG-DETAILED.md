@@ -998,6 +998,7 @@ Track A2 完成、協作模式改為工作區直接維護代碼後，使用者�
 2. 複習進度追蹤要做到什麼程度？→ 使用者選擇：簡單的熟悉/不熟悉分類，不做完整 SRS。
 3. CSV/TSV 匯入要和 v0 一起做嗎？→ 使用者選擇：v0 先手動建立，匯入後續再做。
 ```
+
 進一步確認 Deck 開啟後的畫面型態，使用者選擇「專屬編輯/練習畫面」（不保留 Tiptap 編輯器），並詢問「這個後續可以改嗎」，助理確認可以，因為 UI 呈現方式與底層資料（study_items）分離，日後調整風險低。
 
 最後確認翻頁練習的抽卡順序：優先練習「還不熟」的卡，並隨機排序；卡片欄位採用通用 Front / Back，不綁定特定語言。
@@ -1997,6 +1998,7 @@ Toolbar UX polish Page actions polish Editor empty state / placeholder polish Ma
 src/components/NexusApp.tsx src/lib/StorageAdapter.ts src/lib/IndexedDBAdapter.ts
 
 ```
+
 StorageAdapter：
 
 ```
@@ -2995,7 +2997,8 @@ MVP-1 Step 4：Tags first（實作標籤系統資料模型與 UI）。
 
 ### 執行的動作
 
-1. 執行 `cd C:\Users\user\Projects\nexus` 與 `npm.cmd run dev` 確認 Next.js 16.2.9 伺服器與 `localhost:3000` 啟動正常。2. 透過 `type` 指令逐一印出 `TiptapEditor.tsx` / `NexusApp.tsx` / `IndexedDBAdapter.ts` / `types.ts` 進行代碼稽核。
+1. 執行 `cd C:\Users\user\Projects\nexus` 與 `npm.cmd run dev` 確認 Next.js 16.2.9 伺服器與 `localhost:3000` 啟動正常。
+2. 透過 `type` 指令逐一印出 `TiptapEditor.tsx` / `NexusApp.tsx` / `IndexedDBAdapter.ts` / `types.ts` 進行代碼稽核。
 3. 確認底層 IndexedDB 軟刪除與 revision 機制健康。
 4. 開立處方箋替換 `TiptapEditor.tsx` 與 `NexusApp.tsx`，收斂 MVP-0。
 5. 在確認「重整保存成功」後，進一步實作 MVP-1 Step 2：Search v0 全域字串搜尋。
@@ -3994,7 +3997,8 @@ content_json 完整 JSON 儲存已被回報完成 頁面刪除 / soft delete UI 
 
 `​``text MVP-1：
 
-1.實作全域搜尋 Search2.優化 Sidebar 視覺與互動
+1.實作全域搜尋 Search
+2.優化 Sidebar 視覺與互動
 3.實作資料夾 Folders 或標籤 Tags
 4.後續接雙向連結 Backlinks
 
@@ -4994,6 +4998,7 @@ PowerShell 顯示：
 
 
 ## 2026-06-27 — 建立 Projects 資料夾
+
 ### 類型
 
 `​text 本機資料夾準備 `​``
@@ -5992,6 +5997,7 @@ Tiptap list 資料結構已正確產生，但 Tailwind reset / editor CSS 沒有
 ```
 
 拆檔 hooks 重構 PDF annotation / highlight SQLite / Drizzle
+
 ```
 
 ---
@@ -6991,6 +6997,7 @@ src/components/StudySetView.tsx — 卡片管理畫面（新增/編輯/刪除卡
 修改檔案：
 
 ```
+
 src/lib/types.ts（新增 PageKind / StudyItem 型別，Page / CreatePageInput 擴充欄位） src/lib/IndexedDBAdapter.ts（createPage 支援 kind 參數） src/components/NexusApp.tsx（Sidebar 新增「New Study Set」入口， 依 activePage.kind 判斷渲染 StudySetView 或一般 Editor）
 
 ```
@@ -7990,6 +7997,7 @@ MVP-1 實作順序已全數完成：
 Step 0：健康檢查           ✅ Step 1：Verify + 收斂修復  ✅（content_json 真相、閉包雷、白屏、beforeunload） Step 2：Search v0          ✅（記憶體子字串過濾） Step 3：Sidebar polish     ✅（active indicator、clear button、focus ring） Step 4：Tags first         ✅（含復活連動 Bug 修復） Step 5：Lightweight Folders ✅（含字體 14~16px 升級） Step 6：Backlinks          ✅（Wikilink 解析 + Right Panel + 點擊跳轉/自動建立）
 
 ```
+
 後續方向（已更新）：
 
 ```
@@ -8989,7 +8997,8 @@ MVP-0：本地筆記原型（已完工） MVP-1：個人筆記系統（已完工
 | --- | --- | --- |
 | 程式經驗 | 幾乎沒有 | 必須逐步引導；不能一次大量指令 |
 | 裝置 | Windows + iPad + Android，無 iPhone | 先 Windows Web，後續 Tauri / Capacitor |
-| 主場景 | 學習、研究、論文閱讀 | PDF / LaTeX / Backlinks 後續重要 || 痛點 | Obsidian 同步/UI、Notion 慢/封閉、Goodnotes 生態限制 | local-first、漂亮 UI、開放格式 |
+| 主場景 | 學習、研究、論文閱讀 | PDF / LaTeX / Backlinks 後續重要 |
+| 痛點 | Obsidian 同步/UI、Notion 慢/封閉、Goodnotes 生態限制 | local-first、漂亮 UI、開放格式 |
 | UI 偏好 | 極簡、漂亮、直覺、多主題 | 預設黑白極簡，之後主題化 |
 | AI 態度 | 手動輔助，不深度自動化 | AI 後置，不阻塞 MVP-0/1 |
 | 決策方式 | 信任推薦，重大變更需確認 | 可主動建議，但架構變更先問 |
@@ -9988,6 +9997,7 @@ Sidebar.tsx       — 側邊欄 EditorPane.tsx    — 筆記編輯畫面（原�
 只拆純函式與純 UI component。 NexusApp.tsx 仍保留 Root App 的 state 管理、所有 handler、資料存取邏輯，不拆 hooks， 避免對新手手動維護造成過大抽象負擔。 拆檔不改變任何既有行為與資料流；所有拆出的函式簽章與呼叫方式維持不變。
 
 ```
+
 驗證方式：
 
 ```
@@ -10987,6 +10997,7 @@ authors year source / venue doi url citation_key abstract
 決策：MVP-2 規格層承認 PDF 屬於 Page Mode 長期方向，但第一版實作可先落地為與 Page 關聯的 PDF viewer。
 
 理由：降低首版整合風險；先完成研究工作流，再決定是否在後續把 PDF mode 進一步架構化。
+
 #### D-53 — Annotation / highlight 不列入 MVP-2 主完成條件，延後至後續子階段評估
 
 決策：
@@ -11986,6 +11997,7 @@ D-93 已把 Sync 降級為 Backup first。r15 再次確認：隨著 pages / atta
 #### D-90 — Web Clipper 後續需要
 
 決策：Web Clipper 後續需要，但早期可先支援貼 URL / 手動匯入 web content；真正 browser extension 延後。
+
 #### D-91 — File / Asset Library 近期需要
 
 決策：File / Asset Library 近期需要但不立刻。Asset 是獨立資源，Page / Presentation / Canvas / Website 只引用 Asset。
@@ -12986,6 +12998,7 @@ jsPDF、pdf-lib 等），是因為： a. 避免額外的大型依賴增加打包
 #### D-165 — 圖表分區：數據圖表與文字圖表，11種圖表類型
 
 決策：ChartTypeMenu 重構為點擊開合，分兩大區：
+
 數據圖表（灰底標題）：
 - 長條圖 5 變體：長條圖、類別長條圖、群組長條圖、堆疊長條圖、堆疊比例長條圖，皆可一鍵轉直/橫（orientation toggle）
 - 折線圖、圓餅圖、環狀圖、甘特圖、金字塔、雷達圖
@@ -13985,6 +13998,7 @@ Q-{序號}：跨階段工程／品質任務，例如 Q-0。
 
 ~~~~markdown
 ## 3. 功能總覽與狀態矩陣
+
 ### 3.1 Core Creatables
 
 | ID | 功能 | 狀態 | 一句話規格 | 對應任務容器 | | --- | --- | --- | --- | --- | | F-NOTE | Note | ✅ | rich native editor 的核心內容 Page | MVP-0／1 基線 | | F-DOCUMENT | Document | ✅ | plain text／Markdown 導向的獨立 Page kind | MVP-1 基線 | | F-PDF | PDF Research Note | 🟡 | PDF import + attachment + research note；GoodNotes-like workspace 為未來 | MVP-2／6 | | F-STUDY | Study Set | 🟡 | cards、CSV/TSV、quiz 基線；Review Queue 未完成 | MVP-7 | | F-PRESENTATION | Presentation | 🟡 | 自由畫布簡報；拖曳/縮放/旋轉/對齊/縮圖鏡像已實作；吸附線/Master/undo 未完成 | MVP-3 | | F-QUICKNOTE | Quick Notes | 🟡 | Google Keep 風格快速筆記；獨立 store 已廢棄（H3 方案A），統一 pages kind | MVP-7 | | F-TODO | Todo | 🟡 | 日曆優先 UI；獨立 store 已廢棄（H3 方案A），統一 pages kind | MVP-7 | | F-CREATIVE | Creative | 🟡 | 小說閱讀格式、角色簡介表；CreativeView 入口頁 + 兩種範本 | 待分類 | | F-CANVAS | Canvas | ⏳ | Page／Block reference 的視覺組織能力 | MVP-5 | | F-WEBSITE | Website / Publish Project | ⏳ | Share Page → Link Page → Publish Site | MVP-8 |
@@ -14983,7 +14997,8 @@ GSAT `levels` 保留用於 Official Study Pack manifest，不加入公共字典�
 - `20261017_dictionary_entry_identity.sql`
 
 其中 `20261017` 的行為經人工審查：
-- migration 先鎖定 `dictionary_entries`；- 掃描 `(kind, lower(btrim(headword)))` 既有重複；
+- migration 先鎖定 `dictionary_entries`；
+- 掃描 `(kind, lower(btrim(headword)))` 既有重複；
 - 有重複就 exception，要求人工處理；
 - 不自動 merge／delete／改 stable ID；
 - 無重複才建立 unique index。
