@@ -520,3 +520,8 @@ ID：M{MVP}-{序號}；Q-{序號}。
 ### Codex 文件與程式盤點要求
 - 對照最新 SPEC 需求，搜尋所有舊公共字典頁、重複管理員確認、詞條底部返回全部單字及碎片化來源卡片；規劃對應移除／整併，並核對資料與權限。
 - 現存較早 Canon 的進度圖示與 Task ID 屬歷史追溯，不能把其中的「未完成」當作最新程式碼事實；按 main、Issues、測試與實際部署核實並更新 HANDOFF。
+
+## 2026-10-12 SPEC 文書層級整改補充
+- 將 Windows/PowerShell、workspace 覆寫交付、資料真相、migration 先核可等工程執行要求留給 AGENTS／ARCHITECTURE；SPEC §1.2 只留產品使用性要求。
+- 將 Workspace Backup、Supabase Sync、i18n、Template System 的「本機版本」「測試狀態」「未完成」與特定歷史評價從產品摘要抽離；實際工程狀態以 HANDOFF、GitHub Issues 與程式碼查證為準。
+- SPEC 中具真正安全與資料一致性的負面限制（例如阻止未授權資料修改、避免匯入污染與 FSRS 假事件）保留為必要的產品／安全契約，不視為過時操作敘述。
