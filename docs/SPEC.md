@@ -506,15 +506,15 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-EDITOR — Editor Blocks 與內容插入
 
-| Block / 能力 | 狀態 | 規格／限制 |
-| --- | --- | --- |
-| Paragraph、Heading、Bullet／Ordered List、Quote、Code | ✅ | 基礎 Tiptap content；保存於 `content_json` |
-| Link、TaskList | ✅ | 真實 node／mark；編輯模式下 link 不自動跳轉 |
-| Table | ✅ | 8×10 picker、resize、右鍵選單、合併／拆分／平均選取範圍 |
-| Callout | 🟡 | variant、icon、Markdown；真實瀏覽器 icon menu 問題未解、低優先 |
-| Inline / Block Math | ✅ | Obsidian `$...$`／`$$...$$` 風格；舊 `$$/$$$` Markdown 不自動遷移 |
-| MultiColumn / WritingMode / PageBreak | ✅ | 2／3 欄、直排、手動分頁能力；與自動 A4 分頁關係見 F-PAGEFORMAT |
-| **Image Insert** | ▶️ | **對應 `M3-8`。圖片為插入內容，不是獨立匯入 Page。** 應走 Asset／Attachment，不能把 binary 塞進 `content_json`；允許哪些 page kinds、alt text、尺寸／裁切、backup／sync 規則需先定義 |
+| 元件 | 預期行為 |
+| --- | --- |
+| Paragraph、Heading、Bullet／Ordered List、Quote、Code | 基礎 Tiptap content；保存於 `content_json` |
+| Link、TaskList | 真實 node／mark；編輯模式下 link 不自動跳轉 |
+| Table | 8×10 picker、resize、右鍵選單、合併／拆分／平均選取範圍 |
+| Callout | variant、icon、Markdown；可設定圖示與樣式 |
+| Inline / Block Math | Obsidian `$...$`／`$$...$$` 風格 |
+| MultiColumn / WritingMode / PageBreak | 2／3 欄、直排、手動分頁能力；與自動 A4 分頁關係見 F-PAGEFORMAT |
+| Image Insert | **對應 `M3-8`。圖片以編輯區塊插入。** 應走 Asset／Attachment，透過資產儲存管理，包含替代文字、尺寸及裁切等可設定欄位（細節待核准） |
 
 ### F-PAGEFORMAT — Flow、A4 與簡報格式
 
