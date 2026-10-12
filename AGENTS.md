@@ -21,3 +21,9 @@
 - 當前進度、阻塞、下一步 → 更新並精簡 `docs/HANDOFF.md`，不要把它當成永久追加的流水帳。
 - 保持這些文件無敏感憑證；在 public repo 中不可寫入 token、密碼、私密資料。
 - 不捏造驗收、部署或變更日期；文件內容若與原始碼衝突，標示待核對，而非自行宣布完成。
+
+
+## 歷史封存與遷移完整性
+- `docs/archive/00-HANDOFF-STATUS-AND-AI-RULES.md`、`01-CANON-SPEC-AND-DECISIONS.md`、`02-PROJECT-LOG-DETAILED.md` 是舊交接檔的**只讀歷史快照**；平常不再修改，也不比新規格更具權威。
+- 開發中遇到現行規格缺漏、爭議、歷史相容性問題或未解釋的決策理由時，應按關鍵字查閱相關封存段落、Issues 與實際程式碼，先報告差異，再修訂核心文件；**不得直接照搬過時指令**。
+- `SPEC.md` 與 `ARCHITECTURE.md` 優先作為現行目標契約；`HISTORY.md` 提供決策原因；`HANDOFF.md` 只保存最新狀態。功能已否決或仍待 Discovery 的項目不可默默升級成已確認需求。
