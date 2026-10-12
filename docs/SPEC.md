@@ -116,7 +116,6 @@
 | Document | 獨立於 Note；偏文字／Markdown 工作流 |
 | PDF | 現行為匯入後關聯 Research Note；未來要增加 GoodNotes-like PDF import workspace |
 | Image | **作為內容插入（insert block）**，不是獨立匯入頁面類型；小說封面與角色卡相冊為受限的專用用途 |
-| Audio / Video | 🚫 暫時不考慮添加（角色卡「音樂」組件只保存外部連結，不是音訊功能） |
 | AI | 後期輔助層，不作早期內容資料模型或必要依賴 |
 | Web Clipper | 後期能力；先不做完整 browser extension |
 | 帳號／權限【修改】 | **登入必須制**（D-203）：未登入只顯示登入／註冊；登入後才使用該帳號的本機快取與雲端同步（D-198、D-200）。無匿名工作區。共編不在範圍 |
@@ -242,17 +241,15 @@
 - **資料方向**：Deck = Page（設定另存）；Card = 使用者擁有的獨立 `study_cards` 記錄＋`study_states`（個人排程狀態）＋`study_events`（個人 append-only 事件）＋`study_settings`（每學習集設定）。字卡的英文／中文及個人編輯內容與公共百科相互獨立；未來可選擇連結公共字典的穩定詞條 ID 取得補充資訊，**公共字典不能覆寫個人字卡，也不持有個人 FSRS 排程**。實際關聯欄位及既有字卡回填方案待 repo/schema 查證，不預設自動連結。舊 `Page.study_items` **原樣保留**作遷移來源，不刪改。
 - **演算法**：固定 `ts-fsrs 5.4.2`（FSRS-6）；`request_retention = 0.90`；`learning_steps = ['10m']`；`relearning_steps = ['10m']`；`enable_fuzz = false`；`maximum_interval = 36500`；完整參數存入每筆事件。按鈕間隔取 `scheduler.repeat`，提交用 `scheduler.next`，不覆寫 `due`。
 - **每日練習**：僅英→中主動回想；先只顯示英文，「顯示答案」後才顯示中文與 Again／Hard／Good／Easy。每個學習集預設每天 20 張新字（可設 0–10000），裝置當地 00:00 換日。題面掛載後以交易確認首次顯示才扣額度，交易完成前不能揭露答案或評分。**當日新字批次首次實際學習才建立，固定且跨重新整理持久化；每張新字必須 Easy 才完成，僅建立 `kind: introduce, source: daily_learning` 管理事件及 `learned_at`，不可捏造 Again review event 或正式 due。** 舊「到期優先 → 新卡」敘述只適用更早的排程版本，勿套用於此新字批次。
-- **正式單字複習（新決策取代舊「自由複習」）**：固定持久化 session，預設目標 20 張；New 優先（隨機）→ Due 隨機 → Not-due 按最近到期補位。每張卡**本輪首次評分**才寫正式 FSRS review event／due，後續重練只更新 session mastery。Again／Hard 重排；Good／Easy 均完成出箱。`easy_at` 暫保留作相容性完成標記。
+- **正式單字複習**：固定持久化 session，預設目標 20 張；New 優先（隨機）→ Due 隨機 → Not-due 按最近到期補位。每張卡**本輪首次評分**才寫正式 FSRS review event／due，後續重練只更新 session mastery。Again／Hard 重排；Good／Easy 均完成出箱。`easy_at` 暫保留作相容性完成標記。
 - **四選一測驗（新決策）**：預設中→英，可切換英→中，方向持久化；只用已學習卡，必須至少 4 個相異且修剪後不重複的選項。加權公式 `min(3, 1 + memory_bonus + 0.25 * mistake_score)`；New 加成 0.5，FSRS 加成 `1 - retrievability`（只讀），錯題分數 0–4（錯 +1、對 −1）；測驗不寫 FSRS。離線作答待連線後由使用者決定上傳／捨棄／稍後，固定快照及事件 ID，重試冪等。
 - **舊卡遷移**：需在預覽確認左欄英文、右欄中文後啟用每日練習；未填完整的卡保留但不出題；舊 `daily_due_at` 只作首次新版複習的資格門檻；**不得**把舊 `review_count`、三段評分、`daily_phase` 冒充 FSRS 歷史或記憶參數。
 - **編輯與複製**：中文修改保留排程；英文修改提供保留／重設／取消（重設以新 generation＋`reset` 事件，歷史仍保留）；單卡與整個學習集複製只複製內容並建立 New 卡；刪除為 soft delete。
 - **雙裝置衝突**：兩台裝置離線回答同一張卡時，保留所有事件，標記 `conflict` 並停止該卡正式排程；使用者須明確選擇「保留歷史並重新學習」。不自動推測語義合併。
 - **仍保留**：CSV/TSV 匯入基線（沿用舊規格）。
-- **未完成／已決方向**：全站公共字典、管理端、搜尋與底部詳情已有確認契約（§4 F-DICTIONARY／F-STUDY；Task `M7-9～M7-12`），但尚未實作。近義詞群組練習（`M7-8` 的殘餘需求）、雙向拼寫與容錯（`M7-2`）、SRS 個人化和真實雙裝置驗收另待規劃。
-- **字卡編輯列表（已要求，最新實作狀態待按原碼核實）**：以英文 A–Z 呈現兩欄 English／Chinese；長文字單行省略，點選整列開編輯，顯示完整內容；列表呈現排序不可覆寫資料中的自訂 order。
-- **翻面後資訊及儲存提示（已確認、尚未實作）**：僅每日學習／正式複習背面顯示展開字典詳情；順序為四個評分按鈕 → 詳情面板 → **詳情內容末端隨捲動顯示**的儲存狀態提示（B2）。不在單字卡上方，也不承諾 sticky 常駐固定條。只有真正在儲存時顯示；成功消失，失敗同位置提示／重試；展開詳情不更動 FSRS。
-- **現行實作檔路徑**：`src/features/study/studyFSRS.ts`、`studySessions.ts`、`StudyRepository.ts`。使用者本機已 `git rm` 舊 `src/lib/` 重複模組，兩組指定測試 21/21 與 4/4、build 成功；清理的 commit/push 尚未獨立確認。
-- **限制**：使用者清除瀏覽器資料不屬於離線／重整的保存保證。
+- **字卡編輯列表**：以英文 A–Z 呈現兩欄 English／Chinese；長文字單行省略，點選整列開編輯，顯示完整內容；列表呈現排序不可覆寫資料中的自訂 order。
+- **翻面後資訊及儲存提示**：僅每日學習／正式複習背面顯示展開字典詳情；順序為四個評分按鈕 → 詳情面板 → **詳情內容末端隨捲動顯示**的儲存狀態提示（B2）。不在單字卡上方，也不承諾 sticky 常駐固定條。只有真正在儲存時顯示；成功消失，失敗同位置提示／重試；展開詳情不更動 FSRS。
+- **離線資料邊界**：系統在一般重新整理與離線期間持續保留已寫入的本地學習資料；備份和跨裝置同步依帳號設定與備份流程執行。
 
 ### F-DICTIONARY — 全站共用公共字典
 
@@ -354,9 +351,8 @@ Word 不使用上述學習分類作主要分類。
 - 刪除使用者下載實例只刪個人 Study Set／進度，不刪公共字典或 official manifest；可重新下載。
 - pack 更新以新增內容為主，不重建／刪除使用者既有字卡。
 
-### F-DICTIONARY｜2026-10-11 最終 identity／pronunciation／bulk import 契約
+### F-DICTIONARY｜Entry Identity、讀音與大量匯入契約
 
-> 本節覆蓋較早「同形異義拆成多 Entry」「公共字典尚未實作」「source retirement 尚未 production」等舊敘述。舊內容只作歷史追溯。
 
 #### 1. Entry / Sense identity
 
@@ -365,7 +361,6 @@ Word 不使用上述學習分類作主要分類。
 - Word／Prefix／Root 是不同 kind，因此可使用相同拼寫而各自存在 Entry。
 - stable Entry／Sense IDs 必須保留；importer 遇到既有同 identity 不建立第二 Entry。
 - 新 semantic sense → 新 Sense；若無法可靠判斷是否對應既有 Sense → Review。
-- `20261017_dictionary_entry_identity.sql` 已由使用者回報 production 套用成功，DB unique index 正式保護此 identity。
 
 #### 2. Sense-specific content 與污染防護
 
@@ -384,7 +379,6 @@ Word 不使用上述學習分類作主要分類。
 - 支援多讀音與 locale。
 - 第一版**不做 TTS／音檔**；IPA 語言學正確性驗證不由 schema 自動保證。
 - pronunciation 已接入 DraftInput、JSON Bundle、AI round-trip、Safe/Review、Admin、Reader、Published revision snapshot／Diff、Draft delete／audit。
-- `20261018_dictionary_pronunciations.sql` 已審查可執行，但本版文件更新時**尚未收到 production 成功回報**；前端也未確認部署。
 
 #### 4. Inflection / derivation
 
@@ -420,7 +414,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - 依 part 編號順序 Preview；Preview 仍以既有 Safe／Review／Invalid 語義為準。
 - Safe 可以寫入；Review 不得靜默寫入。若 Review／Invalid 比例異常高，先停止並查 matching／schema。
 - Apply 時需重新驗證 snapshot／revision／state／ID ownership；Preview 不是永久授權。
-- **Import Batch ID 不做**；既有 operation receipts／audit 足夠。
+- **匯入記錄**：每次匯入寫入操作收據與稽核事件供追蹤與冪等重試。
 - 拆成 13 份是傳輸／負載措施，不取代 Safe/Review 架構。
 
 #### 7. Data Sources / Copyright
@@ -428,17 +422,14 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - 全站一般資料來源與版權統一放在「設定 → 關於 Nexus → 資料來源與版權」。
 - 不恢復 per-entry general `source_id/citation/license`。
 - historical etymology 自己的資料來源文字仍屬內容，可保留。
-- DataSourcesAndCopyright UI 已由 Codex 回報實作；具體第三方版本／授權清單仍需依實際採用來源維護。
 
 #### 8. 管理與資料驗收
 
-- migration production 狀態與前端 deployment 必須分開記錄。
 
-### F-SCORE — 製譜（基礎框架 Codex 指令已發出；尚無完成回報）
+### F-SCORE — 製譜
 
 - **C2 已確認先前順序**：先作品管理＋快速簡譜，再各自開發五線譜與吉他譜；三者不強制互轉，也不預設共用同一完整音樂資料模型。正式譜面 preview 優先，進入「編輯」才顯示文字源碼；桌面可探索分割畫面，手機以預覽／編輯切換為主。
 - **候選簡譜草案（未最終確認）**：`_6`／`^6` 表八度、`#5`／`b7` 升降、`6•` 附點、`5/`／`5//` 時值、`0` 休止、`|` 小節；標頭 `@title`／`@key`／`@time`／`@tempo`，註解 `//` 屬草案，不直接當 parser 合約。播放與完整 MusicXML／MIDI 互轉非首版承諾。
-- **目前狀態**：已向 Codex 發出基礎框架實作指令（統一 Score core model、簡譜／五線譜／吉他 adapter、基本 measure/note/rest 編輯），但尚未收到完成回報；不得視為已實作或已部署。
 
 ### F-PRESENTATION — Presentation
 
@@ -468,14 +459,14 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **現況**：程式碼中沒有排班、記帳、日記相關實作，只有待辦月曆。
 - **必須先決定**：分類的資料模型（每分類一種資料形狀？共用事件？）、與 `todo` kind 的關係、自訂分類的儲存位置與同步、多分類同時顯示的 UI、記帳與排班是否需要專用欄位（金額、班別）。對應 `M10-6`，並與 `M7-4` 一併規劃。**先 discovery，不可直接實作。**
 
-### F-CREATIVE — Creative 入口【修改】
+### F-CREATIVE — Creative 入口
 
 - **狀態**：🟡。創作功能入口頁 `CreativeView`，提供角色卡與世界觀的建立與清單。
 - **資料方向**：Page shell + `kind: "creative"`；以 `creative_type` 區分 `novel`／`character`／`world`。
 - **注意**：舊版曾把「小說閱讀格式」與「角色簡介表」視為創作入口的兩種範本；現在**小說是獨立功能入口**（F-NOVEL），創作入口只含角色卡與世界觀，「範本」一詞已改稱「模板」。
 - **判斷函式**（`types.ts`）：`isCreativeCharacterPage`＝creative 且（`character`／`world`／有 `character_data`）；`isNovelPage`＝creative 且非角色類。早期沒有 `creative_type` 的舊小說以此相容。
 
-### F-NOVEL — 小說【新增】
+### F-NOVEL — 小說
 
 - **狀態**：✅ 本機；遠端章節同步需套用 `20260916_novel_chapters.sql`（見 00 §12）。
 - **入口與總覽**：`creative_type: novel` 開啟時先進入作品總覽：封面（PNG／JPEG／WebP，≤ 3 MB，實際附件保存與同步）、可編輯作品名稱、獨立概述（`NovelSettings.synopsis`，不得由正文自動推導）、字數／章節統計、完整目錄。
@@ -491,7 +482,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **手機**：目錄為覆蓋式面板；閱讀／編輯主區獨立垂直捲動。
 - **驗收**：`tests/novelChapters.test.cjs`；隔離瀏覽器測試（桌面與 390×844）通過；正式帳號同步未測。
 
-### F-CHARACTER — 角色卡【新增】
+### F-CHARACTER — 角色卡
 
 - **狀態**：✅ 本機；正式帳號同步未測。
 - **資料真相**：`Page.character_data`（`CharacterProfileData`）；`basic`（姓名、別名、頭像、性別、年齡、角色、所屬、名言、自訂欄位）＋`sections[]`＋`tabs[]`。
@@ -509,7 +500,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
   - 從模板建立時複製區塊與分頁結構並產生新 ID（`instantiateCharacterTemplate`）。
 - **驗收**：`tests/characterWorkspace.test.cjs`；隔離瀏覽器：混合區塊、統計加總、長文收合、分頁管理、存模板／建角色、重新載入保留。
 
-### F-WORLD — 世界觀【新增】
+### F-WORLD — 世界觀
 
 - **狀態**：🟡 可建立與編輯；歸屬機制完成。
 - **規格**：`creative_type: "world"`，沿用角卡的區塊／內容／分頁／模板機制，可進行設定與描寫。
@@ -537,7 +528,6 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 | Inline / Block Math | ✅ | Obsidian `$...$`／`$$...$$` 風格；舊 `$$/$$$` Markdown 不自動遷移 |
 | MultiColumn / WritingMode / PageBreak | ✅ | 2／3 欄、直排、手動分頁能力；與自動 A4 分頁關係見 F-PAGEFORMAT |
 | **Image Insert** | ▶️ | **對應 `M3-8`。圖片為插入內容，不是獨立匯入 Page。** 應走 Asset／Attachment，不能把 binary 塞進 `content_json`；允許哪些 page kinds、alt text、尺寸／裁切、backup／sync 規則需先定義 |
-| Audio / Video | 🚫 | 暫時不考慮添加 |
 
 ### F-PAGEFORMAT — Flow、A4 與簡報格式
 
@@ -564,7 +554,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **穩定 ID**：`stableBlockIdExtension` 已延伸到新節點與圖片。
 - **手機**：修正了流動筆記重複套用左右邊距造成正文過窄；手機「更多」選單提供教學區塊／圖說入口（各一份）。
 
-### F-NAVIGATION — Home、Sidebar、File Menu、Dual Pane【修改】
+### F-NAVIGATION — Home、Sidebar、File Menu、Dual Pane
 
 - Home 是預設入口；Nexus logo 可回 Home。
 - Sidebar 支援 folders、favorites、sort、type grouping、drag/drop、同類子頁、rename、bulk select。
@@ -578,7 +568,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **新註冊帳號**不再自動建立 `Untitled` 空白文件。
 - **手機**：側欄／輔助欄以浮層開啟、不擠壓編輯器，有遮罩；手機寬度下左側面板預設收合為零寬（原 01 §14.1，見 02 存檔）。使用者要求「開啟時不能編輯、點擊編輯器後兩欄自動收回」——浮層與遮罩已有，**鍵盤焦點完整禁用與點背景收合仍待驗收**。平板輔助頁的開合鍵位置已調整（原被右上角帳號擋住；右上角帳號入口之後已移除），待不同寬度實機檢查。
 
-### F-PREFERENCES — i18n、Settings、Theme【修改】
+### F-PREFERENCES — i18n、Settings、Theme
 
 - English／繁體中文；偏好保存在 settings store。
 - 所有可見 UI 字串、alert／confirm、tooltip 應納入 i18n。**現況：`creationOptions.ts`、`featurePreferences.ts`、`UtilityView.tsx` 等新程式的標籤直接寫死中文，待 Q-6 補齊。**
@@ -606,7 +596,7 @@ Notion-like power + Obsidian-like ownership。
 - Table 編輯選項只在右鍵選單，不回到工具列。
 - 平均欄寬僅針對 CellSelection；沒有選取多格時要有明確提示。
 
-### 6.3 行動裝置 UI 標準 ▶️【修改】
+### 6.3 行動裝置 UI 標準
 
 - **使用者要求**：mobile UI standard 是未來任務，不應在現階段要求以行動裝置優先重構 Web UI。
 - **已落地的規則**：
@@ -620,7 +610,7 @@ Notion-like power + Obsidian-like ownership。
 - **尚未定義**：table editing、presentation canvas、offline editing、手勢、PDF workspace 規則。
 - **待答**：手機／iPad 插入組件是否需要包成 App（`M9-5`；程式碼中沒有 PWA manifest 與 service worker）。
 
-### 6.4 下拉刷新、右鍵與文字操作【新增】
+### 6.4 下拉刷新、右鍵與文字操作
 
 - **下拉刷新（D-212）**：只在首頁與功能總覽清單啟用。參考 Ionic Refresher（依捲動容器判斷手勢、拉動倍率與門檻）與 Chrome `overscroll-behavior`（避免與瀏覽器原生下拉刷新同時觸發）。規則：清單須已捲到頂，且手勢起點在清單頂部 80px 內；24px 緩衝、0.35 倍阻力、80px 指示距離、至少拉動 500ms、**放手才刷新**；略過按鈕、編輯區、文字選取、側欄與內層捲動；換方向、多指、取消事件會取消手勢；刷新前等待待儲存及進行中的儲存，儲存失敗則保留內容並中止刷新。
   - 歷程：使用者於 09-16 與 09-19 兩度回報「太容易觸發」，第一次把門檻提高到 120px；第二次改為參考主流做法的完整策略。**仍待實機手感驗證。**
@@ -678,9 +668,6 @@ Notion-like power + Obsidian-like ownership。
 | 手機／iPad 插入組件方案【新增】 | ⚠️ | 是否需要 App、PWA 是否足夠 | `M9-5` |
 | 大量資料效能【新增】 | ▶️ | 壓力測試、整批載入、分頁實例 | `Q-7` |
 | Mobile UI Standard | 🟡 | 部分落地，缺實機 | `M9-0` |
-| 世界觀／人物／地點與小說關聯 | 🚫 | 使用者明確排除 | 不排程 |
-| 教師／學生版 PDF | 🚫 | 使用者明確排除（D-204） | 不排程 |
-| Audio / Video | 🚫 | 暫時不考慮添加 | 不排程 |
 
 ---
 
