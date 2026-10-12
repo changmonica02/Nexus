@@ -50,7 +50,6 @@
 
 - **文檔（F-DOCUMENT）**：純文字與 Markdown 導向的文件編修和匯入匯出。
 
-
 - **目的**：適合文章、報告、正式文字與 Markdown 工作流。
 - **編輯模式**：`plain` editor variant；不承擔 Note 的 rich typography 工具列。
 - **格式**：以 flow／A4／custom 為主；Document 預設 A4 的目前規則見 F-PAGEFORMAT。
@@ -84,7 +83,6 @@
 
 - **使用者要求**：PDF 應以「匯入」形式進入 Nexus，形成類似 GoodNotes 的 PDF 文件工作空間，而不是把 PDF 視為一般 rich-text insert。
 
-
 - **相容性**：PDF 文件工作空間與 Attachment／Research Note 的既有資料及操作流程相容。
 
 #### PDF 匯入與文件整理
@@ -93,14 +91,13 @@
 
 ### F-STUDY — 學習集與字卡
 
-- **學習集（F-STUDY）**：私人字卡、FSRS-6 每日學習／複習、四選一測驗、字典資訊展開。
-
+- **學習集（F-STUDY）**：私人字卡、FSRS-6 每日學習／複習、字典資訊展開。
 
 - **資料方向**：Deck = Page（設定另存）；Card = 使用者擁有的獨立 `study_cards` 記錄＋`study_states`（個人排程狀態）＋`study_events`（個人 append-only 事件）＋`study_settings`（每學習集設定）。字卡的英文／中文及個人編輯內容與公共百科相互獨立；未來可選擇連結公共字典的穩定詞條 ID 取得補充資訊，**公共字典不能覆寫個人字卡，也不持有個人 FSRS 排程**。
 - **演算法**：固定 `ts-fsrs 5.4.2`（FSRS-6）；`request_retention = 0.90`；`learning_steps = ['10m']`；`relearning_steps = ['10m']`；`enable_fuzz = false`；`maximum_interval = 36500`；完整參數存入每筆事件。按鈕間隔取 `scheduler.repeat`，提交用 `scheduler.next`，不覆寫 `due`。
 - **每日練習**：僅英→中主動回想；先只顯示英文，「顯示答案」後才顯示中文與 Again／Hard／Good／Easy。每個學習集預設每天 20 張新字（可設 0–10000），裝置當地 00:00 換日。題面掛載後以交易確認首次顯示才扣額度，交易完成前不能揭露答案或評分。**當日新字批次首次實際學習才建立，固定且跨重新整理持久化；每張新字必須 Easy 才完成，僅建立 `kind: introduce, source: daily_learning` 管理事件及 `learned_at`，不可捏造 Again review event 或正式 due。** 
 - **正式單字複習**：固定持久化 session，預設目標 20 張；New 優先（隨機）→ Due 隨機 → Not-due 按最近到期補位。每張卡**本輪首次評分**才寫正式 FSRS review event／due，後續重練只更新 session mastery。Again／Hard 重排；Good／Easy 均完成出箱。`easy_at` 暫保留作相容性完成標記。
-- **四選一測驗（新決策）**：預設中→英，可切換英→中，方向持久化；只用已學習卡，必須至少 4 個相異且修剪後不重複的選項。加權公式 `min(3, 1 + memory_bonus + 0.25 * mistake_score)`；New 加成 0.5，FSRS 加成 `1 - retrievability`（只讀），錯題分數 0–4（錯 +1、對 −1）；測驗不寫 FSRS。離線作答待連線後由使用者決定上傳／捨棄／稍後，固定快照及事件 ID，重試冪等。
+
 - **既有卡片資料相容**：使用者可預覽、確認字卡英文與中文內容，再啟用每日練習；欄位不完整的字卡仍可保存，且僅內容完整的卡片進入出題。
 - **編輯與複製**：中文修改保留排程；英文修改提供保留／重設／取消（重設以新 generation＋`reset` 事件，歷史仍保留）；單卡與整個學習集複製只複製內容並建立 New 卡；刪除為 soft delete。
 - **雙裝置衝突**：兩台裝置離線回答同一張卡時，保留所有事件，標記 `conflict` 並停止該卡正式排程；使用者須明確選擇「保留歷史並重新學習」。不自動推測語義合併。
@@ -112,7 +109,7 @@
 #### 學習集與練習入口
 
 - 從 CSV／TSV 匯入個人字卡內容，提供欄位對應及資料錯誤提示。
-- 每日學習、正式複習與四選一測驗使用各自的操作流程與進度記錄。
+- 每日學習與正式複習使用各自的操作流程及進度紀錄。
 - 近義詞群組、雙向拼寫及容錯練習的題型與設定待核准。
 
 ### F-DICTIONARY — 字典
@@ -177,9 +174,7 @@ Word 使用自身的詞條與義項分類方式。
 - 使用者可刪除及重新下載自己的學習包；個人進度與公共字典資料分別管理。
 - 官方包更新以新增內容方式供應，使用者既有字卡與學習進度保持完整。
 
-
 ### F-DICTIONARY｜Entry Identity、讀音與大量匯入契約
-
 
 #### 1. Entry / Sense identity
 
@@ -252,7 +247,6 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 #### 8. 管理與資料驗收
 
-
 ### F-SCORE — 製譜
 
 - **製譜（F-SCORE）**：作品管理、簡譜、五線譜與吉他譜的預覽及編輯工作流。
@@ -260,11 +254,9 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **C2 已確認先前順序**：先作品管理＋快速簡譜，再各自開發五線譜與吉他譜；三者不強制互轉，也不預設共用同一完整音樂資料模型。正式譜面 preview 優先，進入「編輯」才顯示文字源碼；桌面可探索分割畫面，手機以預覽／編輯切換為主。
 - **候選簡譜草案（未最終確認）**：`_6`／`^6` 表八度、`#5`／`b7` 升降、`6•` 附點、`5/`／`5//` 時值、`0` 休止、`|` 小節；標頭 `@title`／`@key`／`@time`／`@tempo`，註解 `//` 屬草案，不直接當 parser 合約。播放與完整 MusicXML／MIDI 互轉非首版承諾。
 
-
 ### F-PRESENTATION — 簡報
 
 - **簡報（F-PRESENTATION）**：投影片畫布、物件移動與縮放、旋轉、圖層排序、圖表與投影片導覽。
-
 
 - **資料方向**：Presentation → Slides → PresentationBlocks；block 使用 x/y/w/h%、z-index、rotation。PresentationBlock 新增 `rotation?: number`。ChartData 新增 `sortOrder?`、`showDataLabels?`、`showGrid?`、`showTitleNumber?`。
 - **待細化能力**：對齊吸附、旋轉物件縮放、群組與鎖定、母片、圖表、復原與重做。
@@ -280,14 +272,11 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 - **隨手記（F-QUICKNOTE）**：卡片式快速筆記與整理。
 
-
 - **資料**：隨手記是獨立內容類型，卡片可設定顏色，搜尋、備份與帳號同步涵蓋其內容。
-
 
 ### F-TODO — Todo／日曆
 
 - **待辦（F-TODO）**：月曆檢視、待辦事項管理；多分類日曆另行設計。
-
 
 - **資料**：待辦可設定到期日期、優先順序及完成狀態；內容納入搜尋、備份與帳號同步。
 - **新增選單**：切換到日曆功能時，新增選單顯示「日曆事項」。
@@ -311,16 +300,13 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 - **創作入口（F-CREATIVE）**：角色卡及世界觀等創作工具入口，小說有獨立入口。
 
-
 - **資料方向**：Page shell + `kind: "creative"`；以 `creative_type` 區分 `novel`／`character`／`world`。
 - **入口**：小說設有獨立功能入口；創作入口提供角色卡與世界觀，相關範本以「模板」命名。
 - **判斷函式**（`types.ts`）：`isCreativeCharacterPage`＝creative 且（`character`／`world`／有 `character_data`）；`isNovelPage`＝creative 且非角色類。早期沒有 `creative_type` 的舊小說以此相容。
 
-
 ### F-NOVEL — 小說
 
 - **小說（F-NOVEL）**：作品總覽、章節、閱讀模式及閱讀設定。
-
 
 - **入口與總覽**：`creative_type: novel` 開啟時先進入作品總覽：封面（PNG／JPEG／WebP，≤ 3 MB，實際附件保存與同步）、可編輯作品名稱、獨立概述（`NovelSettings.synopsis`，不得由正文自動推導）、字數／章節統計、完整目錄。
 - **內容邊界（D-201）**：只有段落、H1、H2 與基本 inline 文字樣式；貼上一律轉純文字；不含表格、圖片、清單、提示框、程式碼、LaTeX。
@@ -335,11 +321,9 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **手機**：目錄為覆蓋式面板；閱讀／編輯主區獨立垂直捲動。
 - **驗收**：`tests/novelChapters.test.cjs`；隔離瀏覽器測試（桌面與 390×844）通過；正式帳號同步未測。
 
-
 ### F-CHARACTER — 角色卡
 
 - **角色卡（F-CHARACTER）**：結構化區塊、混合內容、分頁及自訂模板。
-
 
 - **資料真相**：`Page.character_data`（`CharacterProfileData`）；`basic`（姓名、別名、頭像、性別、年齡、角色、所屬、名言、自訂欄位）＋`sections[]`＋`tabs[]`。
 - **區塊與內容（D-210）**：使用者可加「區塊」（`type: "group"`），區塊內可放多筆「內容」（`contents[]`），每筆內容有標題與一種資料類型。舊的單一類型區塊（葉節點）維持可讀可編輯。
@@ -365,12 +349,10 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 - **世界觀（F-WORLD）**：結構化世界觀資料，角色可歸屬世界觀或獨立建立。
 
-
 - **規格**：`creative_type: "world"`，沿用角卡的區塊／內容／分頁／模板機制，可進行設定與描寫。
 - **歸屬**：角色以 `character_data.world_id` 歸屬某世界觀，或為空表示獨立角色。
 - **邊界**：世界觀／人物／地點與**小說**的關聯明確不做（D-201）。
 - **待確認**：使用者原話為「類似角卡，也可以進行設定與描寫」；現況是否已足夠、是否需要世界觀專用內建模板，尚無明確要求。
-
 
 ### F-UTILITY — 網頁／計數／抽選
 
@@ -416,7 +398,6 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 - 圖片可由支援的編輯器插入，提供替代文字與尺寸調整；內容附件與媒體資產庫的分類、引用及保存細節待核准。
 
-
 #### 筆記通用題目工具
 
 - 插入內容選單提供題目／自動題號、選項、答案／解析與作答空間等工具，與一般段落、表格及數學式共同使用。
@@ -431,7 +412,6 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **Document**：偏 A4；可依既有格式規則選擇 flow／A4／custom。
 - **Custom**：⚠️ 有型別預留，但尺寸、行為與列印規格尚未形成完整 contract。
 - **已知限制**：目前自動分頁仍有估算高度啟發式；表格、圖片、複雜內容需未來 DOM measurement 改善。
-
 
 ### F-NAVIGATION — Home、Sidebar、File Menu、Dual Pane
 
