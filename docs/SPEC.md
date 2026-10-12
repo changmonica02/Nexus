@@ -168,84 +168,21 @@ Root 共九類：
 
 Word 使用自身的詞條與義項分類方式。
 
+#### 詞條識別、義項與匯入規則
+
+- 同一詞條類型（Word／Prefix／Root）中，忽略英文大小寫及詞頭、詞尾空白後，相同拼寫對應同一 Entry；不同類型可以存在相同拼寫的詞條。
+- 一個 Entry 可包含多個 Sense，依詞性、繁體中文義項、歷史詞源與語意差異區分；字卡連結採穩定的 Entry ID，編輯及匯入時保留 Entry／Sense 識別。
+- 詞性、中文釋義及僅適用特定意思的讀音、例句、詞源和記憶內容，歸屬相應 Sense；整個詞條通用的資訊可由 Entry 共用，管理端能辨別兩者。
+- 支援一個詞條具有多筆 IPA 讀音、語言／地區標記，以及 Entry 共用或 Sense 專屬的讀音。
+- 匯入時，系統檢查重複詞條、義項對應、欄位與關聯有效性；無法確定的更新交由管理員審查，並保留其他義項內容。
+- 匯入預覽提供可直接套用、需審查及無效資料的辨識結果；正式套用時重新核對資料版本、管理權限及衝突，並保留匯入紀錄與可安全重試能力。
+- 詞形變化（例如 write／wrote／written）與構詞衍生（例如 act／action／active）屬不同關聯性質；細部呈現、編輯方式及匯入格式待核准。
+
 #### Official Study Packs
 - 提供學測單字 **1–2 級、3–4 級、5–6 級**官方學習包。
 - 官方包以 manifest 引用已發布的公共 Word；使用者下載後建立自己擁有的 Study Set。
 - 使用者可刪除及重新下載自己的學習包；個人進度與公共字典資料分別管理。
 - 官方包更新以新增內容方式供應，使用者既有字卡與學習進度保持完整。
-
-### F-DICTIONARY｜Entry Identity、讀音與大量匯入契約
-
-#### 1. Entry / Sense identity
-
-- **同 `kind` + `lower(btrim(headword))` = 同一 Entry。**
-- 不同詞性、中文義項、歷史來源／詞源、語義差異 → **不同 Sense**，不另建同 kind 的第二個 Entry。
-- Word／Prefix／Root 是不同 kind，因此可使用相同拼寫而各自存在 Entry。
-- stable Entry／Sense IDs 必須保留；importer 遇到既有同 identity 不建立第二 Entry。
-- 新 semantic sense → 新 Sense；若無法可靠判斷是否對應既有 Sense → Review。
-
-#### 2. Sense-specific content 與污染防護
-
-- POS／gloss 屬 Sense。
-- historical etymology、example、learning content、pronunciation 等若只適用特定義項，應可綁 Sense；未指定 Sense 的舊內容保留為 Entry 共用並在管理端明示。
-- AI／Importer 不得因更新一個 Sense 而覆蓋其他 Sense 的 POS／gloss／Sense-specific content。
-- 同形 Entry 合併後，不可用 Entry-level 單值欄位把不同 Sense 的內容互相污染。
-
-#### 3. Pronunciation
-
-- 正式 model 為 Sense-aware：
-  `id, entry_id, sense_id nullable, locale nullable, ipa, note nullable, sort_order`
-  （DB 另保留技術用 `revision / updated_at`）。
-- `sense_id = null`：Entry 共用讀音；指定 Sense：義項專用讀音。
-- `(entry_id, sense_id)` 必須屬同一 Entry，禁止跨 Entry 綁定 Sense。
-- 支援多讀音與 locale。
-- 第一版**不做 TTS／音檔**；IPA 語言學正確性驗證不由 schema 自動保證。
-- pronunciation 已接入 DraftInput、JSON Bundle、AI round-trip、Safe/Review、Admin、Reader、Published revision snapshot／Diff、Draft delete／audit。
-
-#### 4. Inflection / derivation
-
-- Inflection（如 write → wrote → written）**本輪不新增固定欄位／專表**；未來視為詞形／詞條關聯設計。
-- Derivation（act → action → active 等）繼續沿用既有 relation／構詞架構；不得和 inflection 混為同一概念。
-- pronunciation、usage/register、完整例句、synonym/antonym、inflection 都**不再阻塞第一次正式大量匯入**。
-
-#### 5. Final canonical master
-
-Canonical CSV v1 維持 12 欄：
-
-```csv
-kind,entry_id,sense_id,headword,part_of_speech,gloss_zh_tw,category,etymology,example_words,source_forms,relation_hint,mnemonic_story
-```
-
-最新正式資料：
-- **6301 Entries / 6304 Sense rows**
-- Word：6163 / 6163
-- Prefix：79 Entries / 82 Senses
-- Root：59 / 59
-- `in-`／`di-`／`sub-`：各 1 Entry + 2 Senses
-- 新增 `part-` Root
-- `levels` 不進公共 Dictionary；Official Study Pack manifest 獨立為 **6151 memberships**
-- pronunciation 不加入 CSV v1，改由 JSON／AI／Admin 等通道後補
-- `relation_hint` 只是 raw candidate，不自動升格正式 relation
-- `source_forms` 是 lexical annotation，不是 attribution/source
-
-final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Prefix 4 類、Root 9 類、非空 headword/gloss 驗證，0 errors。
-
-#### 6. Bulk import / Preview
-
-- final master 因單次 Supabase／importer payload 限制拆成 **13 份**，約 500 Entries／檔；同一 Entry 的所有 Sense 必須留在同一檔。
-- 依 part 編號順序 Preview；Preview 仍以既有 Safe／Review／Invalid 語義為準。
-- Safe 可以寫入；Review 不得靜默寫入。若 Review／Invalid 比例異常高，先停止並查 matching／schema。
-- Apply 時需重新驗證 snapshot／revision／state／ID ownership；Preview 不是永久授權。
-- **匯入記錄**：每次匯入寫入操作收據與稽核事件供追蹤與冪等重試。
-- 拆成 13 份是傳輸／負載措施，不取代 Safe/Review 架構。
-
-#### 7. Data Sources / Copyright
-
-- 全站一般資料來源與版權統一放在「設定 → 關於 Nexus → 資料來源與版權」。
-- 不恢復 per-entry general `source_id/citation/license`。
-- historical etymology 自己的資料來源文字仍屬內容，可保留。
-
-#### 8. 管理與資料驗收
 
 ### F-SCORE — 製譜
 
