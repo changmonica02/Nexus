@@ -415,3 +415,42 @@ ID：M{MVP}-{序號}；Q-{序號}。
 2. 對已定案模組審查 ARCHITECTURE 與 migration 設計；不讓過時 code 偷換產品需求。
 3. 用 CANON-CROSSWALK、GitHub Issues 和 main 實際程式做 Gap Analysis，核對測試與 production 環境後才排實作。
 4. GitHub PR #40 尚未合併 main。未完成 CI / E2E / Vercel / production Supabase 核查前，不宣稱正式部署。
+
+
+## Canon §10 原始規格與任務交叉索引（移入本檔；以最新 GitHub Issues 核實）
+
+## 10. 與 00 任務規劃的關係
+
+### 10.0 現行功能規格與任務對照（唯一交叉索引）
+
+| 功能卡／領域 | 00 對應任務 | 規格成熟度與注意事項 |
+| --- | --- | --- |
+| F-NOTE／F-DOCUMENT、核心編輯器與導覽 | MVP-0／1、`Q-1`、`Q-6` | 核心基線；跨裝置及大型資料回歸另計 |
+| F-PDF（Research／未來匯入工作空間） | MVP-2、`M6-5`／`M6-6` | 現有附件基線；完整 PDF workspace 仍屬 discovery |
+| F-STUDY（Daily、Review、Quiz） | `M7-0`／`M7-1`／`M7-2`／`M7-7` | 本機指定測試 25 項通過；正式雙裝置及雲端 quiz migration 仍待驗證 |
+| F-DICTIONARY（唯一公共百科、管理、搜尋、個人字卡連結與翻面） | `Q-0`／`Q-9` → `M7-9`～`M7-12` | 核心資料層、Admin／Reader、revision、identity、Official Packs、字卡連結已實作並多輪套 migration；前端部署與正式大量匯入仍待驗收 |
+| F-SCORE（製譜） | 待編正式 Task ID | C2 階段順序確認；音樂語法／最小輸出仍在草案 |
+| F-PRESENTATION | `M3-*` | 有本機基線；吸附／群組／Undo 等仍待完成 |
+| F-QUICKNOTE／F-TODO／多分類日曆 | `M7-0`／`M7-6`／`M10-6` | 月曆基線；C3 多分類資料模型再議 |
+| F-NOVEL／F-CHARACTER／F-WORLD／Creative | `M10-1`～`M10-5` | 部分本機完成；遠端新增 kind 約束仍待查 |
+| F-UTILITY（網頁／計數／抽選） | `M10-7`～`M10-9` | 計數 C4 大組由小組派生；抽選 C5 細節未回覆 |
+| F-LESSON（講義） | `M10-10` | 本機基線；C8 交互參照明確暫緩 |
+| F-NAVIGATION／F-PREFERENCES／Mobile | `M10-11`／`M9-0`／`Q-6` | 既有 UI，Mobile C6 仍再議，真實裝置驗收不足 |
+| F-SHARE／網站發布 | `M8-0`～`M8-2` | A1 確定另設唯讀分享；C1 匿名、撤權、附件尚未決定 |
+| 同步／備份／資料安全 | `M4-*`／`Q-0`／`Q-9` | 遠端 ledger 有衝突；B3 備份版本依最新 source 待核 |
+| Stable Block ID／Canvas／Graph／Asset | `M5-*`／`M6-*` | 保留未完成能力，不虛構完整技術契約 |
+
+
+01 定義功能與契約；00 定義任務、依賴與估算。
+
+- 目前正式任務 ID：`M0-*`～`M10-*`、`Q-*`；格式見 00 §10.1。
+- 不在本節重複工作量；以 `00` §10 與任務附件為準。
+- 新功能加入 01 時，必須同時記錄：功能規格卡、資料契約、限制、驗收條件、對應 Task ID。
+
+---
+
+## 2026-10-12 遷移驗收狀態
+- 已完成三份舊資料共 **239 個 Markdown 二級章節**的去向／處置台帳：`docs/CANON-CROSSWALK.md`。來源與新文件直接可查。
+- 已將 02 中的有日期重要事件（81 筆）、早期 D 編號決策章節、01 的正式產品／技術契約，以及 00 的交接工作矩陣分流進新核心文件。
+- **仍需注意**：239 節是結構層級追蹤，不是逐字逐句的語義完整性證明；02 中重複的操作、過時規格副本、原始除錯逐行記錄仍以只讀 archive 保存，不能宣稱這些內容全部出現在四份核心文件。
+- **不以此驗收替代** 現行程式碼、CI、Vercel 或 production Supabase 的驗證。
