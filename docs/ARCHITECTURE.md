@@ -26,7 +26,7 @@
 - Schema 修改不得無計畫破壞正式資料、既有 Entry/Sense ID、外鍵連結或使用者學習紀錄。先評估 migration、回滾和測試。
 
 ## 4. 帳號與刪除資料
-- 帳號隔離相關 migration：`20260913_account_isolation.sql`；帳號刪除方案見 `docs/account-deletion.md` 及 `20260929_account_deletion.sql`。
+- 帳號隔離相關 migration：`20260913_account_isolation.sql`；帳號刪除方案詳見本檔下方的技術規則及 `20260929_account_deletion.sql`。
 - 離線快取、同步、刪除及多裝置一致性的實際狀態，應以測試與環境配置驗證，不能只憑文件宣稱。
 
 ## 5. 部署與操作邊界
@@ -36,3 +36,33 @@
 
 ## 6. 待補齊的設計
 完整資料表清單、API 契約、模組依賴圖、離線同步衝突規則、環境變數索引（僅名稱，不含值）與部署拓撲，須依現行原始碼及正式環境資訊補齊。
+
+
+### 帳號刪除：原專項文件完整技術規則（移入本檔）
+> 原始來源：`docs/account-deletion.md`（已移入本檔）；原始文件描述的是當時設計與本機驗證，**不得推論正式環境已啟用**。
+
+**部署／啟用前提**
+- 由管理者審核後依時序套用 `supabase/migrations/20260929_account_deletion.sql`；新增的 Quiz／字源百科 migration 應先於此 migration。
+- 舊報告明確表示該次開發未套用 production migration、未刪除真實帳號、未部署；目前 production 是否啟用須另行驗證。
+- `delete_own_account` RPC 尚未安裝時 UI 應提示伺服器尚未啟用；不得靠用戶端模擬成功。
+
+**認證與刪除交易**
+- RPC `delete_own_account(confirmation_email, confirmation_text)` 只允許 `authenticated` 呼叫。
+- 帳號 ID 只由已驗證 JWT 的 `auth.uid()` 取得，禁止傳入客戶端指定 owner ID。
+- RPC 鎖定當前 `auth.users` 列，驗證電子郵件及確認字串後刪除該使用者。
+- 函式固定空 `search_path`、使用 schema-qualified 物件；不可在前端配置 service-role key。
+- owner 外鍵連接 `auth.users` 並採 `ON DELETE CASCADE`，涵蓋筆記、附件、二進位附件、Study、Quiz 和**已安裝**的舊字源百科資料。
+- 整體操作為一個資料庫交易；任一外鍵、constraint 或 trigger 失敗必須完整回滾，不繞過未知外鍵。由既有 Supabase Auth 關聯處理登入 session 的移除。
+
+**相容性、共享資料與離線限制**
+- 新增 owner 外鍵採 `NOT VALID` 保留既有孤兒資料，同時約束新增／修改操作，以避免刪除帳號後未過期 JWT 再建立 owner 資料。
+- 此流程不清理 `owner = null` 的共用舊資料，也不修改已部署的舊 migration。
+- 目前附件存放於 `public.binaries`，沒有呼叫 Supabase Storage API；將來若引入 Storage bucket，必須另設實體物件清理流程。
+- 成功後，應依 owner 清除 IndexedDB 紀錄和附件二進位快取、登出並返回首頁；其他帳號與一般偏好不受影響，不修改 IndexedDB version。
+- 其他裝置上的既有離線副本無法遠端抹除，但伺服器會拒絕被刪除 owner 的新寫入。
+- 如網路中斷且成功回覆遺失，須要求使用者重新登入確認結果，不能先清掉本機資料或宣稱成功。
+
+**驗證證據與界線**
+- 本機測試命令：`node --test tests/accountDeletion.test.cjs`。
+- 該測試使用本機 PGlite 及 `fake-indexeddb`，涵蓋確認字串、匿名拒絕、他人隔離、完整 cascade、失敗回滾、刪除後寫入拒絕及只清除目前 owner 本地快取。
+- 測試不連 Supabase；通過本機測試不等於正式系統已安裝或驗收。
