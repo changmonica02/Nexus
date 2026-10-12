@@ -495,3 +495,28 @@ ID：M{MVP}-{序號}；Q-{序號}。
 
 
 </details>
+
+## 2026-10-12 SPEC 清理第二批：歷史狀態、舊需求與移除指令
+
+- **公共字典歷史版本與狀態**：舊 F-DICTIONARY 曾混雜「尚未實作」、不同權限策略、一般來源欄位及舊匯入介面等敘述；最終產品依 SPEC §六及新 F-DICTIONARY，Codex 實作前確認與現行前後端的差異。
+
+### 從 SPEC 轉出的歷史／實作描述
+- **未完成／已決方向**：全站公共字典、管理端、搜尋與底部詳情已有確認契約（§4 F-DICTIONARY／F-STUDY；Task `M7-9～M7-12`），但尚未實作。近義詞群組練習（`M7-8` 的殘餘需求）、雙向拼寫與容錯（`M7-2`）、SRS 個人化和真實雙裝置驗收另待規劃。
+- **現行實作檔路徑**：`src/features/study/studyFSRS.ts`、`studySessions.ts`、`StudyRepository.ts`。使用者本機已 `git rm` 舊 `src/lib/` 重複模組，兩組指定測試 21/21 與 4/4、build 成功；清理的 commit/push 尚未獨立確認。
+- > 本節覆蓋較早「同形異義拆成多 Entry」「公共字典尚未實作」「source retirement 尚未 production」等舊敘述。舊內容只作歷史追溯。
+- `20261017_dictionary_entry_identity.sql` 已由使用者回報 production 套用成功，DB unique index 正式保護此 identity。
+- `20261018_dictionary_pronunciations.sql` 已審查可執行，但本版文件更新時**尚未收到 production 成功回報**；前端也未確認部署。
+- DataSourcesAndCopyright UI 已由 Codex 回報實作；具體第三方版本／授權清單仍需依實際採用來源維護。
+- migration production 狀態與前端 deployment 必須分開記錄。
+- **目前狀態**：已向 Codex 發出基礎框架實作指令（統一 Score core model、簡譜／五線譜／吉他 adapter、基本 measure/note/rest 編輯），但尚未收到完成回報；不得視為已實作或已部署。
+
+### 已取消／不列入產品目標的舊需求
+- Audio / Video | 🚫 暫時不考慮添加（角色卡「音樂」組件只保存外部連結，不是音訊功能）
+- Audio / Video | 🚫 | 暫時不考慮添加
+- 世界觀／人物／地點與小說關聯 | 🚫 | 使用者明確排除 | 不排程
+- 教師／學生版 PDF | 🚫 | 使用者明確排除（D-204） | 不排程
+- Audio / Video | 🚫 | 暫時不考慮添加 | 不排程
+
+### Codex 文件與程式盤點要求
+- 對照最新 SPEC 需求，搜尋所有舊公共字典頁、重複管理員確認、詞條底部返回全部單字及碎片化來源卡片；規劃對應移除／整併，並核對資料與權限。
+- 現存較早 Canon 的進度圖示與 Task ID 屬歷史追溯，不能把其中的「未完成」當作最新程式碼事實；按 main、Issues、測試與實際部署核實並更新 HANDOFF。
