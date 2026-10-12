@@ -557,3 +557,93 @@ ID：M{MVP}-{序號}；Q-{序號}。
 - [ ] 驗收：無測驗入口及測驗計算；每日學習／正式複習／FSRS 事件正常，舊備份可安全處理，兩帳號權限和同步保持正常。
 
 **範圍界線**：筆記編輯器 `F-NOTE` 的題目、題號、選項、答案與解析是**一般筆記編輯能力**，並非 Study 四選一測驗，不在本次取消範圍內。
+
+## 2026-10-12 公共字典 Entry Identity／大量匯入舊契約審查結論
+
+**結論**：移除 SPEC 中整個獨立 `F-DICTIONARY｜Entry Identity、讀音與大量匯入契約` 章節。保留仍有產品價值的 Entry／Sense 唯一性、內容歸屬、讀音、預覽驗證、稽核等規則，併回 `F-DICTIONARY — 字典`。資料表欄位、匯入 runtime 格式及冪等保護移至 ARCHITECTURE；舊批次、已完成報告屬歷史參考。
+
+**保留在交接中以供後續核實的舊批次快照（並非目前發布資料的保證）**：原 Canon 提及 6,301 Entries／6,304 Senses（Word 6,163、Prefix 79 Entries／82 Senses、Root 59），Official Study Pack 6,151 memberships；當時資料拆成 13 份、每份約 500 Entries，驗證報告記錄 0 errors。實際倉庫與正式資料庫狀態需重新核實。
+
+**待 Codex 核對**：
+- [ ] 查證 Entry identity 約束、Sense 關聯與讀音 schema 是否和產品規格一致。
+- [ ] 釐清管理 UI 僅 CSV 匯入，與歷史 JSON／Markdown／AI 資料管道、五欄 runtime、十二欄母檔之關係；核實 UI 能否正確處理 Prefix／Root。
+- [ ] 確認匯入 Safe／Review／Invalid、操作收據、衝突回滾以及備份／同步保護的現行實作。
+- [ ] 維護過去批次資料的存檔與來源，不把當時完成回報當作現行產品需求。
+
+<details><summary>移出的原始契約（歷史快照）</summary>
+
+### F-DICTIONARY｜Entry Identity、讀音與大量匯入契約
+
+#### 1. Entry / Sense identity
+
+- **同 `kind` + `lower(btrim(headword))` = 同一 Entry。**
+- 不同詞性、中文義項、歷史來源／詞源、語義差異 → **不同 Sense**，不另建同 kind 的第二個 Entry。
+- Word／Prefix／Root 是不同 kind，因此可使用相同拼寫而各自存在 Entry。
+- stable Entry／Sense IDs 必須保留；importer 遇到既有同 identity 不建立第二 Entry。
+- 新 semantic sense → 新 Sense；若無法可靠判斷是否對應既有 Sense → Review。
+
+#### 2. Sense-specific content 與污染防護
+
+- POS／gloss 屬 Sense。
+- historical etymology、example、learning content、pronunciation 等若只適用特定義項，應可綁 Sense；未指定 Sense 的舊內容保留為 Entry 共用並在管理端明示。
+- AI／Importer 不得因更新一個 Sense 而覆蓋其他 Sense 的 POS／gloss／Sense-specific content。
+- 同形 Entry 合併後，不可用 Entry-level 單值欄位把不同 Sense 的內容互相污染。
+
+#### 3. Pronunciation
+
+- 正式 model 為 Sense-aware：
+  `id, entry_id, sense_id nullable, locale nullable, ipa, note nullable, sort_order`
+  （DB 另保留技術用 `revision / updated_at`）。
+- `sense_id = null`：Entry 共用讀音；指定 Sense：義項專用讀音。
+- `(entry_id, sense_id)` 必須屬同一 Entry，禁止跨 Entry 綁定 Sense。
+- 支援多讀音與 locale。
+- 第一版**不做 TTS／音檔**；IPA 語言學正確性驗證不由 schema 自動保證。
+- pronunciation 已接入 DraftInput、JSON Bundle、AI round-trip、Safe/Review、Admin、Reader、Published revision snapshot／Diff、Draft delete／audit。
+
+#### 4. Inflection / derivation
+
+- Inflection（如 write → wrote → written）**本輪不新增固定欄位／專表**；未來視為詞形／詞條關聯設計。
+- Derivation（act → action → active 等）繼續沿用既有 relation／構詞架構；不得和 inflection 混為同一概念。
+- pronunciation、usage/register、完整例句、synonym/antonym、inflection 都**不再阻塞第一次正式大量匯入**。
+
+#### 5. Final canonical master
+
+Canonical CSV v1 維持 12 欄：
+
+```csv
+kind,entry_id,sense_id,headword,part_of_speech,gloss_zh_tw,category,etymology,example_words,source_forms,relation_hint,mnemonic_story
+```
+
+最新正式資料：
+- **6301 Entries / 6304 Sense rows**
+- Word：6163 / 6163
+- Prefix：79 Entries / 82 Senses
+- Root：59 / 59
+- `in-`／`di-`／`sub-`：各 1 Entry + 2 Senses
+- 新增 `part-` Root
+- `levels` 不進公共 Dictionary；Official Study Pack manifest 獨立為 **6151 memberships**
+- pronunciation 不加入 CSV v1，改由 JSON／AI／Admin 等通道後補
+- `relation_hint` 只是 raw candidate，不自動升格正式 relation
+- `source_forms` 是 lexical annotation，不是 attribution/source
+
+final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Prefix 4 類、Root 9 類、非空 headword/gloss 驗證，0 errors。
+
+#### 6. Bulk import / Preview
+
+- final master 因單次 Supabase／importer payload 限制拆成 **13 份**，約 500 Entries／檔；同一 Entry 的所有 Sense 必須留在同一檔。
+- 依 part 編號順序 Preview；Preview 仍以既有 Safe／Review／Invalid 語義為準。
+- Safe 可以寫入；Review 不得靜默寫入。若 Review／Invalid 比例異常高，先停止並查 matching／schema。
+- Apply 時需重新驗證 snapshot／revision／state／ID ownership；Preview 不是永久授權。
+- **匯入記錄**：每次匯入寫入操作收據與稽核事件供追蹤與冪等重試。
+- 拆成 13 份是傳輸／負載措施，不取代 Safe/Review 架構。
+
+#### 7. Data Sources / Copyright
+
+- 全站一般資料來源與版權統一放在「設定 → 關於 Nexus → 資料來源與版權」。
+- 不恢復 per-entry general `source_id/citation/license`。
+- historical etymology 自己的資料來源文字仍屬內容，可保留。
+
+#### 8. 管理與資料驗收
+
+
+</details>
