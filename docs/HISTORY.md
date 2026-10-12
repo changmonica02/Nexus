@@ -206,3 +206,9 @@
 - 合併舊交接資料的現行有效產品規則至 SPEC，技術／安全限制至 ARCHITECTURE；過去取捨、已否決項與重大工作線於本檔追溯；當前狀態至 HANDOFF。
 - 三份舊文件的完整原文保留在 `docs/archive/`，不作日常權威、不另維護；細碎修復記錄只保存於原始歷史與 Git commit，避免 HISTORY 重複膨脹。
 - 因未直接取得 production Vercel SHA / Supabase ledger，不能從歷史回報宣稱線上已通過。
+
+
+## 帳號刪除與文件整合決策（日期依歷史來源）
+- 登入者僅能透過已驗證 `auth.uid()` 刪除自己的帳號；要求電子郵件、確認字串與交易式回滾，避免前端偽造 owner 或誤刪其他帳號。owner 外鍵、RLS、離線快取及已刪帳號未過期 JWT 防護均須驗證。
+- 為保留既有孤兒資料使用 `NOT VALID`，不刪除 `owner=null` 共用舊資料；現有本機 PGlite 測試不等於正式 Supabase RPC 已部署。
+- 原 `docs/account-deletion.md` 已在本 PR 分流產品流程至 SPEC、技術規則至 ARCHITECTURE；原文保留 Git 歷史，避免永久多份文件重複維護。
