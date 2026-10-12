@@ -222,3 +222,8 @@ offline / reconnect / delete / attachment / backup import 行為
 ## 六、技術查證依據
 - 正式 SQL schema 以 `supabase/migrations/` 與 production migration ledger 交叉核對；僅有 migration 不代表已套用。
 - 參見 [CANON-CROSSWALK.md](CANON-CROSSWALK.md)，逐項查驗缺口不得假設通過。
+
+## 公共字典管理權限與 UI 的責任分離（2026-10-12）
+- UI 的管理入口只對已有管理權限的使用者顯示；登入工作階段已能確認身分，不設重複的管理員確認步驟。
+- **入口可見性不是授權控制**。公共字典新增、修改、發布、匯入等受保護操作仍需在後端依經核實的 Auth UUID／管理員角色逐次驗權；直接發出 API/RPC 請求的普通使用者必須被拒絕。
+- 規劃 RLS／RPC／API 權限設計與雙帳號測試時以此作硬性安全前提，避免只靠前端按鈕顯示條件保護公共資料。
