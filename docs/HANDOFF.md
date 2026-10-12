@@ -704,3 +704,11 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - [ ] 對每個候選附上「理由、引用證據、搬遷去向、影響範圍、回復方式」；先執行 build／lint／tsc／測試，若移除後必須全部通過，再供使用者核准刪除清單。
 - [ ] 刪除舊 Quiz 與舊 owner-scoped etymology 功能前，確認現有客戶端快取、遠端 schema、舊備份還原及遷移策略，避免破壞使用者資料。
 - **截至此紀錄：未刪除任何檔案，未變更程式碼與 SQL。**
+
+
+## 2026-10-12 舊交接來源退休決策
+
+- 使用者要求將仍有效的產品規則、資料契約、技術風險、歷史決策與工作任務分別歸入 SPEC、ARCHITECTURE、HISTORY、HANDOFF，不新增任何彙整檔，並刪除舊 00／01／02 原文檔。
+- 原始舊檔 Git blob SHA：00 `5f6bf2bae2bc0d84540aba016d276c943e63fd45`、01 `9fc287faccbf87de799e57fd6899bfe392019315`、02 `58df7a850369cf2b00cf12525438fc5bbbf17b6e`。刪除工作樹檔案不會刪除已提交的 Git 歷史。
+- 有效規格依最新版 SPEC；技術架構依 ARCHITECTURE；歷史決策依 HISTORY；Codex 後續工作依 HANDOFF；開發規則依 AGENTS。舊版四選一 Quiz、獨立講義模式、私人字源百科等舊規劃不因歷史資料而恢復。
+- 曾存在的歷史交接內容並非逐字轉錄；一次性操作、過時程式碼快照、重複文字與舊進度不另保存成現行規格。若後續發現具體有效內容漏列，請從 Git 歷史復查，再補回相應的新文件。
