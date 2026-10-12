@@ -66,3 +66,15 @@
 - 本機測試命令：`node --test tests/accountDeletion.test.cjs`。
 - 該測試使用本機 PGlite 及 `fake-indexeddb`，涵蓋確認字串、匿名拒絕、他人隔離、完整 cascade、失敗回滾、刪除後寫入拒絕及只清除目前 owner 本地快取。
 - 測試不連 Supabase；通過本機測試不等於正式系統已安裝或驗收。
+
+
+## 7. 由 Canonical Spec 移入的跨模組資料契約
+- Nexus 基本模型為 Page／Block／Property／Workspace View／Page Mode；`pages.content_json` 是 TipTap JSON 正文唯一真相，`content_text`、search index、outline、links、tasks/events projection 為可重建衍生資料，**不可**反向覆寫正文真相。
+- 內容統一由 `StorageAdapter` 讀寫，擴充以 kind + mode-specific 欄位保留資料語義；附件／binary 獨立保存，以 storage key 關聯。復原、備份、同步和刪除須保留 soft-delete 與關聯完整性。
+- 同步以帳號為邊界，`SyncEngine` 僅在登入後執行；pages、attachments、binaries 的查詢／更新／Realtime 應帶 owner 篩選，本機再驗 owner；切換帳號或登出必須取消舊同步 token，避免跨帳號 UI 洩漏。
+- 學習資料需分 Deck/Page 與獨立 `study_cards`、`study_states`、append-only `study_events`、`study_settings`；舊 `Page.study_items` 是遷移來源，不能直接刪除或覆寫。字卡寫入由 RPC、事件 ID、outbox／receipt 保護冪等，不允許直接刪除歷史事件。
+- Quiz 經 `apply_study_quiz_operation` 與 operation receipts 防止重送重複計分；離線答題需經使用者確認才上傳。雙裝置衝突要保留事件，不得以簡單 last-write-wins 蓋過正式學習歷史；頁面同步的 B2 conflict／version history 仍未完成。
+- `quick_note` 和 `todo` 都是 pages kind；不要復活已廢棄的獨立 stores。Novel 設定／角色區塊與講義 `content_json.lessonLayout` 等是 kind-specific contract，變動前先核對 `src/lib/types.ts` 和 migration。
+- Presentation block 保存相對座標 `x/y/w/h`、`rotation`、z-index；Chart options 與實際 renderer 尚可能有落差；須驗證 reload、縮放、旋轉、匯出與同步。
+- 製譜統一核心、簡譜／五線譜／吉他譜 adapters 為待驗證／規劃，不應假定某種文字語法已穩定。PDF workspace 對 annotation、page anchor、asset/reference 的 schema 仍需 Discovery。
+- 注意來源層級：舊 2026-09-25 快照與交接報告只反映當時狀態；以當前 repo + schema + test 為實作證據，正式產品行為以最近確認的 SPEC 為目標。
