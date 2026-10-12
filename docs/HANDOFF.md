@@ -647,3 +647,35 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 
 </details>
+
+
+## 2026-10-12 F-DICTIONARY 最新目標架構對照與 Codex 執行工作包
+
+> **權威來源**：產品畫面與操作看 `docs/SPEC.md → F-DICTIONARY`；資料／服務／安全架構看 `docs/ARCHITECTURE.md → F-DICTIONARY｜正式目標架構與資料契約`。本節是實作任務和驗收追蹤，舊 M7-9～M7-12 任務及歷史快照需依本節重新盤點，不得直接按舊步驟重做。
+
+### 已查得的程式基礎（僅倉庫程式碼／migration 存在，不表示正式部署）
+
+- `src/features/dictionary/DictionaryBrowser.tsx` 包含 Reader 清單、詳情與 `is_dictionary_admin` 權限檢查；`DictionaryAdmin.tsx` 包含管理清單、編輯與匯入面板。
+- `src/features/dictionary/dictionary.ts` 有 Word／Prefix／Root、Entry／Sense、pronunciation 與 Draft 資料型別；`reader.ts`、`draftPipeline.ts`、`revisionLifecycle.ts`、`adminImport.ts`、`dictionaryCSV.ts`、`entryIdentity.ts` 分別處理讀取、草稿、修訂、匯入、CSV 與識別。
+- `supabase/migrations/20260930_public_dictionary.sql` 以 Auth UUID 建立管理員驗證／RLS；`20261017_dictionary_entry_identity.sql` 建立 identity 唯一性約束；`20261018_dictionary_pronunciations.sql` 定義 Sense-aware 讀音和匯入 RPC 修改。其他 dictionary、Study link、Official Pack migration 都要一併檢查依賴和遠端版本。
+- **已知差異**：現行 `DictionaryAdmin.tsx` 仍提供 Markdown／JSON／AI 相容匯入 UI 和 AI JSON 匯出；`dictionaryCSV.ts` 對含讀音或複雜多義項資料的 CSV 匯出會報錯以避免資料遺失。最新管理產品規格則為 CSV-only 匯入且有「匯出」功能。
+
+### Codex 任務順序與完成條件
+
+- [ ] **DIC-A｜現況矩陣（前置）**：逐一核對 SPEC 每項 UI、資料欄位、RPC、RLS、migration、Study link 與 Official Pack；產出「已具備／需修改／需新 migration／待使用者決策／待遠端驗證」對照表。先查 main 與 PR 差異，再選實作分支，不以 docs PR 當已上線。
+- [ ] **DIC-B｜資料模型及權限**：核對 identity 唯一索引、Sense FK、pronunciation Sense 親屬關係、來源註釋、版本、稽核與刪除外鍵；補缺時採**新增 migration**，避免改寫可能已套用的舊 migration。普通用戶只能讀已發布，直接寫 RPC 必須拒絕。
+- [ ] **DIC-C｜CSV 決策及可逆性**：提出可完整保存三類詞條及多義項、讀音、變體、詞源關係的 CSV 設計／多檔方案，與目前 12 欄／5 欄相容策略；標明確實無法表達的欄位，等待使用者核准才變更格式。匯出 CSV 的驗收必須確認不會靜默遺失內容。
+- [ ] **DIC-D｜匯入 UI 與 service 收斂**：管理字典「匯入」浮窗僅允許 CSV；保留必要的非 UI 內部兼容前先盤點調用端；檔案驗證→預覽 Safe/Review/Invalid→選擇套用→Draft→發布。確保批次重試／版本衝突可回復。
+- [ ] **DIC-E｜Reader UI**：字卡→字典，標頭三項（管理入口僅管理員）、英文／中文搜尋、三類全選浮動篩選、清單卡片、詞條詳情與來源註釋分組。符合桌面、平板、手機並處理空結果／載入／錯誤。
+- [ ] **DIC-F｜詳情導覽及直接編輯**：上一筆／下一筆依來源清單上下文，手機／平板左右滑動，返回來源及保留搜尋／捲動；管理員詳情右上角直接編輯，沿用同一 Draft／Review／Publish service，檢查未儲存編輯的離開情境。
+- [ ] **DIC-G｜管理工具列及內容編輯**：新增、匯入、匯出、刪除、發布、全選，單一新增面板下拉 Word／Prefix／Root；編輯包含詞條、讀音、變體、種類、義項、口訣、記憶、詞源、構詞關聯；Prefix 四類與 Root 九類保留 Sense 分類語義。
+- [ ] **DIC-H｜刪除與引用保護**：清點 Draft／Published、私人字卡 Entry link、Official Pack manifest 的 FK 與刪除路徑；提出刪除／退役策略，取得使用者確認再涉及已發布資料的破壞性改動。
+- [ ] **DIC-I｜驗收及交付**：新增／更新資料層及 UI 自動化測試；雙帳號與直呼 RPC、草稿隔離、版本衝突、CSV 輸入輸出資料保真、前後切換首末筆、來源返回、手機手勢、多資料來源群組、官方學習包／個人卡片回歸測試；執行 tsc／lint／build 並提供未驗收項目。需要在 Supabase 執行的新 migration，必須逐檔列明供使用者批准，不自動部署。
+
+### 開工前應先定案（避免 Codex 自行猜測）
+
+1. CSV-only 管理 UI 的「匯出」是否必須涵蓋完整詞條所有細節；如果是，應採單一 CSV 複合編碼還是多檔壓縮包（但後者與 CSV-only 操作契約須明確區分）。
+2. 已發布詞條「刪除」如何處理已連結個人字卡／官方包；是否允許撤銷發布與保留引用的停用狀態。
+3. 詞條詳情由無來源的直接連結開啟時的返回目的地、左右滑動方向與未儲存修改警告；控件精確尺寸及響應式斷點。
+
+**本次交付範圍**：只更新 ARCHITECTURE／HANDOFF 文件；未執行 SQL、未修改應用程式，也沒有核實遠端 production migration。
