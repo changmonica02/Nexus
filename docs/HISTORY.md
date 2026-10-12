@@ -476,6 +476,1370 @@ annotation / highlight 複雜 PDF.js annotation layer citation parser SQLite / D
 
 ## 2026-07
 
+
+### 2026-07-02 — 舊決策登記原文補充（D-01 及其後續 Track）
+
+> 下方內容來自 02 所封存的早期決策登記，保留當時的背景與取捨；被後續日期替代者不可視為現行規格。為避免重要理由只留在封存檔，將原始決策段落納入 HISTORY；排版層級由原標題轉成歷史附錄子節。
+
+#### 13. 決策 D-01～D-43
+
+##### 13.1 決策總覽
+
+| ID | 決策 | 狀態 / 說明 |
+| --- | --- | --- |
+| D-01 | Nexus 是個人 local-first all-in-one workspace | 維持 |
+| D-02 | 使用者是新手 | 維持 |
+| D-03 | 平台先 Windows Web，再跨平台 | 維持 |
+| D-04 | Next.js + React + TypeScript + Tailwind + Tiptap | 維持 / 已採用 |
+| D-05 | 分階段 MVP | 維持 |
+| D-06 | 統一 Page/Block 架構 | 維持 |
+| D-07 | 圖層系統支援手寫/PDF | 後續 |
+| D-08 | MVP 範圍分期 | 維持 |
+| D-09 | Inbox 是重要入口 | MVP-1+ |
+| D-10 | 同步是單人跨裝置，不做多人共編 | 後續 |
+| D-11 | AI 是手動輔助，不深度自動化 | 後續 |
+| D-12 | UI 極簡漂亮 | 維持 |
+| D-13 | 預設新增行為 | 維持 |
+| D-14 | 檔案 / 資料儲存策略：hybrid / JSON 真相 | 維持 |
+| D-15 | Memo / 簡記 | 後續 |
+| D-16 | Inbox 觸發方式 | 後續 |
+| D-17 | Sidebar 組織方式 | MVP-1 |
+| D-18 | Command Palette | 長期核心；不做太早 |
+| D-19 | UI 參考圖只作風格 | 維持 |
+| D-20 | Right Panel 行為 | 後續 |
+| D-21 | Inbox 整理方式 | 後續 |
+| D-22 | Properties 系統深度 | MVP-1+ |
+| D-23 | 五概念模型 | 核心 |
+| D-24 | Markdown / Source / Preview | 後續 |
+| D-25 | `content_json` 是正文唯一真相 | 核心 |
+| D-26 | StorageAdapter 抽象 | 已實作 |
+| D-27 | 只同步真相，衍生資料本機重建 | 後續 |
+| D-28 | MVP-0 用 IndexedDBAdapter | 已實作 |
+| D-29 | 字體策略：系統 sans-serif | 已採用 |
+| D-30 | Block node 從 MVP-0 起 stable ID | 暫緩；MVP-1 採 Page 層 backlinks，未強制 block ID |
+| D-31 | Page title 獨立於 `content_json` | 已採用 |
+| D-32 | Soft delete，不硬刪 | 已採用 |
+| D-33 | UI / Editor 只依賴 StorageAdapter | 已採用 |
+| D-34 | MVP-0 嚴格限能寫能存 | 已完成 |
+| D-35 | 堅持 TS/JS 生態 | 維持 |
+| D-36 | 完整 JSON 儲存 | ✅ 已驗證完成 |
+| D-37 | Soft delete 優先於硬刪除 | 已採用 |
+| D-38 | Windows debug 指令採 PowerShell 語法 | 維持 |
+| D-39 | MVP-1 early 延續 IndexedDB，不提前遷移 SQLite | 新增 |
+| D-40 | 文件狀態區分「回報完成」與「已驗證完成」 | 新增 |
+| D-41 | modules / active docs 不取代 source archive | 新增（⚠️ 99 已於 2026-07-31 刪除，重要內容併入 02） |
+| D-42 | Project Log 應保留最大詳細度版本 | 新增 |
+| D-43 | 最終交接採 3 active docs（原計劃含 99，已刪除） | 新增（⚠️ 已簡化為 3 文件） |
+| D-44 | MVP-1 採 Page 層 Wikilink Backlinks，不阻塞於 block-level stable ID | 新增 |
+| D-45 | Auto-save 必須含 beforeunload 緊急存檔與 useRef(onChange) 防閉包雷 | 新增 |
+| D-46 | Soft delete 流程須在刪除前清 debounce timer 並切斷 activePageRef，避免「F5 復活」 | 新增 |
+| D-47 | Tags 為一級組織系統，搜尋與標籤過濾以交集 (AND) 套用 | 新增 |
+| D-48 | Folders 採單層字串欄位，未分類固定置頂；多層樹狀延後評估 | 新增 |
+| D-49 | MVP-2 以「attachments + PDF viewer + research note + citation metadata + LaTeX」為正式範圍 | 新增 |
+| D-50 | Research metadata 優先走 Property 系統，不硬塞大量 Page 固定欄位 | 新增 |
+| D-51 | MVP-2 UX 可先提供「一篇 PDF 對應一篇主研究筆記」，但資料模型不寫死一對一 | 新增 |
+| D-52 | PDF 第一版可先做成與 Page 關聯的 viewer，不強迫第一版就完成完整 Page Mode 架構化重構 | 新增 |
+| D-53 | Annotation / highlight 不列入 MVP-2 主完成條件，延後至後續子階段評估 | 新增 |
+| D-54 | Attachment record 與 binary payload 分離，透過抽象 storage API 存取 | 新增 |
+| D-55 | LaTeX 以結構化 equation node 為底層，`$...$` / `$$...$$` 僅作輸入捷徑 | 新增 |
+
+---
+
+##### 13.2 不可推翻決策
+
+#### content_json 唯一真相（D-25 / D-36）
+
+不可退回只存純文字。
+
+理由：
+
+```
+
+heading、list、blockquote、code、link、block id 都需要 JSON 結構。 content_text 只能是衍生資料。
+
+```
+
+#### StorageAdapter 抽象（D-26 / D-33）
+
+UI / Editor 不可直接綁 IndexedDB。
+
+理由：
+
+```
+
+後續 SQLite / Drizzle / Tauri / Supabase 才能換底層。
+
+```
+
+#### Soft delete（D-32 / D-37）
+
+不直接 hard delete。
+
+理由：
+
+```
+
+使用者安全 Trash / restore 未來 sync tombstone
+
+```
+
+#### 分階段 MVP（D-05 / D-08 / D-34）
+
+不要因 all-in-one 願景提前做 PDF / Calendar / AI / Sync。
+
+理由：
+
+```
+
+先穩住本地筆記核心，避免過度複雜。
+
+```
+
+---
+
+##### 13.3 D-39～D-43 補強決策
+
+#### D-39 — MVP-1 early 延續 IndexedDB，不提前遷移 SQLite
+
+決策：MVP-1 早期繼續使用 IndexedDBAdapter，先完成 Search、Sidebar polish、Tags/Folders、Backlinks 的最小可用版。SQLite + Drizzle 保留為後續升級，不為 substring Search 提前遷移。
+
+理由：降低新手實作難度，避免在功能尚未穩定前切換底層 DB；StorageAdapter 已保留遷移能力。
+
+#### D-40 — 文件狀態區分「回報完成」與「已驗證完成」
+
+決策：凡是使用者或前輪文件回報完成但尚未由當前接手者檢查 code，標為「✅ 回報完成；🟡 需 verify」。只有實際檢查程式或跑 QA 後，才標為「✅ 已驗證完成」。
+
+理由：避免新 AI 重做已完成項目，也避免未驗證功能被當作完全可靠。
+
+#### D-41 — Active docs / modules 不取代 source archive
+
+> ⚠️ **2026-07-31 更新**：99 文件已刪除，其重要歷史內容（changelog r0-r18）已併入 02 文件。原本的「零遺漏追溯層」功能現由 02 文件的詳細日誌承擔。此決策的核心原則（active docs 不取代歷史記錄）仍然有效。
+
+決策：Active docs 與 modules 是閱讀導向；02 project log 是歷史追溯層。若有任何爭議，以 02 中的詳細日誌回查原文。
+
+理由：防止之後誤把整理文件視為唯一原文，造成「零遺漏」概念混淆。
+
+#### D-42 — Project Log 應保留最大詳細度版本
+
+決策：工作日誌應優先保留 active log，並同步保留 archive 中更長版本的 Project Log source。
+
+理由：使用者明確希望歷史紀錄非常詳細，包含動作、問題、解決方式、結果與文件治理過程。
+
+#### D-43 — 最終交接採 3 active docs（原計劃含 99，已刪除）
+
+> ⚠️ **2026-07-31 更新**：99 文件已刪除，其重要歷史內容（changelog r0-r18）已併入 02 文件。交接包已簡化為 3 文件結構，不再包含 99。此決策的核心原則（文件分工明確）仍然有效。
+
+決策：最終交接包採用以下結構：
+
+```
+
+00-HANDOFF-STATUS-AND-AI-RULES.md 01-CANON-SPEC-AND-DECISIONS.md 02-PROJECT-LOG-DETAILED.md
+
+```
+
+理由：
+
+```
+
+00 負責最新狀態、任務、AI 限制與交接。 01 負責目前專案設定、規劃、技術規格與決策。 02 負責完整歷史、行動、問題、解法、結果、決策演變與 changelog。
+
+```
+
+此結構兼顧：
+
+```
+
+好讀 好交接 狀態清楚 決策清楚 歷史完整 可追溯
+
+```
+
+---
+
+##### 13.4 D-44～D-48 MVP-1 完工補強決策
+
+#### D-44 — MVP-1 採 Page 層 Wikilink Backlinks，不阻塞於 block-level stable ID
+
+決策：MVP-1 的 Backlinks 以 Page 為單位，使用 `extractWikilinks` 正規表達式 `/\[\[([^\]]+)\]\]/g` 從 `content_text` 抽出標題，存入 `pages.links: string[]`，並透過全站比對產生反向連結清單。Block-level stable ID 補強延後到需要 block reference 或多人協作時再啟動。
+
+理由：避免為了未來能力阻塞當期可用價值；既有方案已足以支撐個人筆記網狀化。
+
+#### D-45 — Auto-save 必須含 beforeunload 緊急存檔與 useRef(onChange) 防閉包雷
+
+決策：
+
+```
+
+TiptapEditor 內部以 useRef 保存最新的 onChange 函式，避免 mount 時被舊閉包鎖死。 NexusApp 於 mount 註冊 window beforeunload，將 debounce 中尚未寫入的內容同步刷盤。
+
+```
+
+理由：800ms debounce 與 React 閉包是 MVP-1 verify 階段最大兩個坑，必須以 canon 形式記錄，避免未來重構時退化。
+
+#### D-46 — Soft delete 流程須在刪除前清 debounce timer 並切斷 activePageRef
+
+決策：執行 `deletePage` 前必須：
+
+```
+
+1.clearTimeout(saveTimerRef.current)
+2.activePageRef.current = null
+3.再呼叫 StorageAdapter.deletePage
+
+```
+
+理由：避免「刪除後 800ms 內快取仍寫回」導致筆記在 F5 後復活。
+
+#### D-47 — Tags 為一級組織系統，搜尋與標籤過濾以交集 (AND) 套用
+
+決策：
+
+```
+
+搜尋字串條件與已選 tag 條件以 AND 套用，避免結果稀釋。 tag 為單純 string[]，避免提前引入 multi_select property 複雜度。
+
+```
+
+#### D-48 — Folders 採單層字串欄位，未分類固定置頂
+
+決策：
+
+```
+
+Page.folder 為 string | null。 Sidebar 以 groupedPages + sortedFolderNames 呈現分組；null/未分類固定置頂。 多層 nested tree、drag-drop 延後到使用者實際提出需求時再做。
+
+```
+
+理由：對齊 D-39 不過早增複雜度；單層 folder 已能涵蓋個人筆記絕大多數場景。
+
+---
+
+##### 13.5 D-49～D-55 MVP-2 規格定稿決策
+
+#### D-49 — MVP-2 以「attachments + PDF viewer + research note + citation metadata + LaTeX」為正式範圍
+
+決策：MVP-2 正式範圍限定為：
+
+```
+
+attachments 基礎能力 PDF 匯入 PDF 閱讀 viewer research note 與 PDF 關聯 citation / paper metadata LaTeX equation（inline + block）
+
+```
+
+理由：先完成研究工作流的「可閱讀、可記錄、可關聯」，避免過早擴張為完整論文管理器或 PDF annotation 系統。
+
+#### D-50 — Research metadata 優先走 Property 系統，不硬塞大量 Page 固定欄位
+
+決策：
+
+```
+
+authors year source / venue doi url citation_key abstract
+
+```
+
+上述欄位在 MVP-2 優先走 Property 系統，而不是新增為大量 Page schema 固定欄位。
+
+理由：維持 Page 模型通用性，避免把 Page 硬特化成 paper page，符合 Everything is a Page / Property 的既有架構。
+
+#### D-51 — MVP-2 UX 可先提供「一篇 PDF 對應一篇主研究筆記」，但資料模型不寫死一對一
+
+決策：
+
+```
+
+一個 Page 可關聯 0~N 個 attachments 一個 attachment 可被 0~N 個 pages 關聯
+
+```
+
+但 MVP-2 UX 可先提供：
+
+```
+
+匯入 PDF 時自動建立一篇主研究筆記 並將該 PDF 設為 primary_attachment_id
+
+```
+
+理由：兼顧起步流程簡單與長期資料模型彈性，避免之後被一對一綁死。
+
+#### D-52 — PDF 第一版可先做成與 Page 關聯的 viewer，不強迫第一版就完成完整 Page Mode 架構化重構
+
+決策：MVP-2 規格層承認 PDF 屬於 Page Mode 長期方向，但第一版實作可先落地為與 Page 關聯的 PDF viewer。
+
+理由：降低首版整合風險；先完成研究工作流，再決定是否在後續把 PDF mode 進一步架構化。
+
+#### D-53 — Annotation / highlight 不列入 MVP-2 主完成條件，延後至後續子階段評估
+
+決策：
+
+```
+
+不將 highlight / annotation 納入 MVP-2 主完成條件 後續若要做，作為獨立子階段評估
+
+```
+
+理由：annotation 會帶來頁面座標、viewport、anchor、excerpt、re-render 對位等複雜度，不應阻塞研究工作流最小可用版。
+
+#### D-54 — Attachment record 與 binary payload 分離，透過抽象 storage API 存取
+
+決策：Attachment metadata 與實際 binary payload 分離；UI 不直接依賴底層 blob 儲存細節。
+
+理由：方便在 IndexedDB early stage 與未來底層遷移之間維持抽象一致性，避免 UI 與儲存實作綁死。
+
+#### D-55 — LaTeX 以結構化 equation node 為底層，`$...$` / `$$...$$` 僅作輸入捷徑
+
+決策：MVP-2 的 equation 支援：
+
+```
+
+inline equation block equation
+
+```
+
+底層以結構化 node 保存進 `content_json`；`$...$` / `$$...$$` 只作使用者輸入捷徑。
+
+理由：符合 `content_json` 唯一真相與結構化編輯器路線，避免把研究公式退回純文字 hacks。
+
+---
+
+##### 13.6 D-56～D-57 文件治理與 Step 3 續接決策
+
+#### D-56 — 文件更新採保守保留全部歷史痕跡
+
+決策：文件同步時採使用者指定的「D：保守保留全部歷史痕跡」。
+
+> ⚠️ **2026-07-31 更新**：99 文件已刪除，其重要歷史內容已併入 02。原本寫入 99 的「來源與稽核」現統一寫入 02。
+
+執行規則：
+
+```
+
+不刪除歷史紀錄。 不以新狀態覆寫歷史紀錄原文。 新狀態寫入 00 / 01 作 current authority。 歷史變更與錯誤判斷寫入 02 作 project log。 若舊段落與最新狀態衝突，保留舊段落並加註「歷史紀錄，以 00 / 01 為準」。
+
+```
+
+理由：使用者重視交接文件與 workspace 一致性，也明確要求「確保不要有任何資料遺失」。
+
+#### D-57 — MVP-2 Step 3 patch 前必須對齊 NexusApp.tsx 與 types.ts
+
+決策：PDF import flow patch 會碰到 UI/state flow 與型別，因此在提供精準手動 patch 前，必須先檢視或取得：
+
+```
+
+src/components/NexusApp.tsx src/lib/types.ts
+
+```
+
+理由：
+
+```
+
+NexusApp.tsx 是 active page、pages state、storageRef、create/select/save flow 的實際集中點。 types.ts 是 Attachment、Page、CreatePageInput 的型別權威。 未檢視前直接輸出 patch 容易與目前程式結構不符，增加新手手動修改風險。
+
+```
+
+#### D-58 — MVP-2 PDF viewer 最小版採 attachment blob URL + iframe
+
+決策：MVP-2 Step 4 的 PDF viewer 最小版採用既有 StorageAdapter attachment data layer：
+
+```
+
+activePage.primary_attachment_id → activeAttachment → StorageAdapter.readBinary(activeAttachment.id) → URL.createObjectURL(blob) → iframe src={pdfUrl}
+
+```
+
+理由：
+
+```
+
+1.延續 D-54 Attachment record 與 binary payload 分離。
+2.UI 不直接依賴 IndexedDB。
+3.不引入過早的 PDF.js annotation / highlight 複雜度。
+4.可立即提供「可閱讀 PDF + 可寫 research note」的核心研究流程。
+
+```
+
+限制：
+
+```
+
+annotation / highlight 不屬於此決策範圍。 若瀏覽器內建 PDF viewer 表現不足，再評估 PDF.js viewer layer。
+
+```
+
+#### D-59 — PDF viewer polish 先做低風險閱讀輔助，annotation 延後
+
+決策：MVP-2 Step 4-C 先加入低風險 viewer polish：
+
+```
+
+PDF Preview header 的 Open 按鈕 window.open(pdfUrl, "_blank", "noopener,noreferrer") iframe key={attachment.id}
+
+```
+
+理由：
+
+```
+
+Open 按鈕可讓使用者用瀏覽器內建 PDF 工具列閱讀大 PDF。 iframe key 可避免切換不同 PDF research note 時 iframe 狀態不穩。 這些 polish 不改變資料模型、不增加儲存風險，也不提前啟動 annotation 系統。
+
+```
+
+下一步：
+
+```
+
+Step 5 可做 PDF research note layout polish。 仍不把 annotation / highlight 當 MVP-2 主完成條件。
+
+```
+
+#### D-60 — PDF viewer layout polish 先採 Editor local UI state，不進資料模型
+
+決策：Step 5 的 PDF viewer 高度與收合狀態先採 Editor local state：
+
+```
+
+isPdfCollapsed pdfViewerHeight
+
+```
+
+理由：
+
+```
+
+1.這是 UI preference，不是研究資料真相。
+2.目前不需要為 viewer 高度 / 收合狀態擴充 Page schema。
+3.降低資料模型複雜度，避免 prematurely persistence。
+4.若未來使用者明確需要每篇 PDF 記住 layout，再評估放入 property 或 local UI settings。
+
+```
+
+#### D-61 — PDF viewer 必須有 loading / unavailable / normal preview 三態
+
+決策：PDF viewer 不應在 binary 缺失或讀取失敗時永久顯示 Loading。
+
+最低狀態：
+
+```
+
+normal preview：pdfUrl 存在，顯示 iframe。 loading：pdfUrl 與 pdfLoadError 都不存在，顯示 Loading PDF preview...。 unavailable：pdfLoadError 存在，顯示 PDF preview unavailable 與錯誤原因。
+
+```
+
+理由：
+
+```
+
+1.local-first app 可能遇到 attachment metadata 存在但 binary 不存在的資料不一致狀態。
+2.明確錯誤訊息有利於新手回報問題。
+3.不需改 StorageAdapter 或資料模型即可改善 debug 與 UX。
+
+```
+
+#### D-62 — Trash / Restore UI 採既有 soft delete，不做永久刪除、不改 schema
+
+決策：Basic Notes Foundation Step 7 的 Trash / Restore UI 使用既有 soft delete 資料層。
+
+```
+
+listPages({ includeDeleted: true }) filter page.deleted_at !== null restorePage(id)
+
+```
+
+不新增資料模型，不做 permanent delete。
+
+理由：
+
+```
+
+1.既有 soft delete 已保留歷史刪除 pages。
+2.使用者已驗證過去刪除的檔案可在 Trash 中看到。
+3.對新手與真實使用而言，Restore 比永久刪除更重要。
+4.permanent delete 風險較高，應等明確需求後再做。
+
+```
+
+#### D-63 — NexusApp.tsx 超過 1000 行後，優先拆純 UI component，再拆 hooks
+
+決策：`NexusApp.tsx` 超過 1000 行在原型階段可接受，但後續應開始安全拆檔。
+
+建議順序：
+
+```
+
+1.Sidebar.tsx
+2.RightPanel.tsx
+3.EditorPane.tsx / NexusEditor.tsx
+4.usePages / usePdfAttachment / useAutoSave hooks
+
+```
+
+理由：
+
+```
+
+純 UI component 拆分風險低，最能先降低單檔長度。 hooks 重構抽象度較高，對新手手動修改與 debug 風險較大，應延後。
+
+```
+
+#### D-64 — Permanent delete 只允許從 Trash 觸發，第一版只刪 page record
+
+決策：永久刪除只在 Trash UI 中提供，一般 Notes 模式 delete 仍是 soft delete。
+
+```
+
+Notes Delete = soft delete Trash Delete = permanent delete
+
+```
+
+第一版 permanent delete 只刪除 page record，不自動刪 attachment / binary。
+
+理由：
+
+```
+
+1.避免一般誤觸造成不可復原資料遺失。
+2.Attachment / binary 可能被其他 page 共用。
+3.自動清理 orphan attachments 需要額外 reference check，延後實作較安全。
+
+```
+
+#### D-65 — Duplicate page 複製內容與關聯，但建立新 page id
+
+決策：Duplicate page 會建立新的 Page id，並複製目前頁面的內容與組織資訊。
+
+複製內容：
+
+```
+
+title + " copy" content_json content_text tags folder links attachment_ids primary_attachment_id
+
+```
+
+理由：
+
+```
+
+Duplicate 是基本筆記工作流常用操作。 對 PDF research note 而言，copy 共用 attachment 較安全，不重複寫入 binary。
+
+```
+
+#### D-66 — Tiptap toolbar 採 editor command chain，並維持 onChangeRef 防閉包雷
+
+決策：Editor toolbar 使用 Tiptap command chain：
+
+```
+
+editor.chain().focus().toggleBold().run() editor.chain().focus().toggleHeading({ level }).run() editor.chain().focus().toggleBulletList().run() ...
+
+```
+
+並維持既有 `onChangeRef`，避免 React closure 導致 onChange 指向舊 callback。
+
+理由：
+
+```
+
+Tiptap command chain 是官方互動方式。 onMouseDown preventDefault 可避免 toolbar click 造成 selection 遺失。 onChangeRef 已被前序驗證可避免 auto-save / editor onChange 閉包雷。
+
+```
+
+#### D-67 — Editor list marker / heading / quote / code 樣式需在 editor scope 明確定義
+
+決策：Tiptap editor 內的基礎排版樣式需在 `.nexus-tiptap-editor` scope 明確定義。
+
+最低要求：
+
+```
+
+ul list-style-type: disc ol list-style-type: decimal li / li p margin reset blockquote left border pre / code readable background h1 / h2 / h3 font size / margin
+
+```
+
+理由：
+
+```
+
+Tailwind reset 可能移除 list marker。 若不明確定義，資料格式已是 list，但畫面看不到 bullet / number。
+
+```
+
+#### D-68 — Markdown import / export 先做 v0 基本語法，不引入完整 parser
+
+決策：Markdown import / export 先做 v0 基本語法支援，不引入完整 Markdown parser。
+
+v0 支援：
+
+```
+
+heading paragraph bullet list ordered list blockquote code block inline code bold italic horizontal rule
+
+```
+
+暫不保證：
+
+```
+
+table image nested list task list link syntax frontmatter footnote HTML block
+
+```
+
+理由：
+
+```
+
+1.先滿足個人筆記基本匯入 / 匯出。
+2.避免過早引入 parser 套件與複雜 mapping。
+3.保持 content_json 為正文唯一真相，Markdown 是 import / export 格式。
+
+```
+
+#### D-69 — Markdown v0.1 link / task list 先保留語意，不啟用完整 Tiptap extensions
+
+決策：Markdown v0.1 對 link syntax 與 task list 先採語意保留策略。
+
+```
+
+[label](url) 保留為文字。
+
+- [ ] 轉為 ☐。
+- [x] 轉為 ☑。
+
+Export 時再轉回 Markdown task list。
+
+```
+
+理由：
+
+```
+
+1.不額外引入 Tiptap Link / TaskList / TaskItem extension，降低當前風險。
+2.使用者目前需要 import/export 不遺失資訊，而非完整互動 task system。
+3.真正可點擊 link 與 checkbox task 可作為後續 editor enhancement。
+
+```
+
+---
+
+
+
+#### 14. vNext Architecture & Feature Decisions（2026-07-02 最新產品 / 架構共識）
+
+> 本節是 2026-07-02 使用者要求「現在確定大部分功能與架構，避免未來大功能導致重做」後新增。若本文件前文仍以較寬泛的 all-in-one workspace 描述 Nexus，以本節修正後定位為準：Nexus 是 **local-first 個人學習與知識生成 workspace**，支援多種高層級生成物，但早期不追求完整企業 workspace / Wix / Notion / Canva clone。
+
+##### 14.1 產品定位修正
+
+最新定位：
+
+```
+
+Nexus = local-first 個人學習與知識生成 workspace
+
+```
+
+Nexus 可以吸收 Obsidian、Notion、Canvas、Gamma、Canva、Quizlet 的部分優點，但產品核心仍是：
+
+```
+
+學習 研究 筆記 閱讀 整理 生成 複習 分享 / 發布
+
+```
+
+重要原則：
+
+```
+
+1.Note（筆記）是最重要核心。
+2.Note 優先追求舒服、多元、完整的 native editor 體驗。
+3.Note 不被完整 Markdown 相容綁死；Markdown export 是 best-effort。
+4.Document（文檔）獨立於 Note。
+5.Study Set / Quiz（學習集 / 測驗 / 字卡）獨立於 Note。
+6.高層級生成物可弱聯動，不要求所有內容 live sync。
+
+```
+
+##### 14.2 Creatables / Views / Tools 最終分類
+
+#### Core Creatables（核心可建立項目）
+
+```
+
+1.Note（筆記）
+2.Document（文檔）
+3.Study Set（學習集 / 字卡組）
+4.PDF Research Note（PDF 研究筆記）
+5.Presentation（簡報）
+6.Canvas（畫布）
+
+```
+
+優先級補充：
+
+```
+
+Note / Document / Study Set / PDF Research Note = 優先。 Presentation / Canvas = 保留架構，分階段做。
+
+```
+
+#### Extended Creatables（延伸可建立項目）
+
+```
+
+1.Website / Publish Project（網站 / 發布專案）
+2.Project / Study Plan（專案 / 學習計畫）
+3.Library Item（資料庫項目 / 閱讀來源項目）
+4.Reference Item（文獻 / 來源項目）
+5.Link Page / Landing Page（連結頁 / 單頁網站）— Website 的早期子型態
+
+```
+
+降級項目：
+
+```
+
+Learning Path / Curriculum（學習路線 / 課程路徑） → 不獨立。 → 由 Todo / Project / Review Queue / Collection 組合。
+
+Course / Class Workspace（課程 / 班級工作區） → 不列為核心功能。 → 未來可作 Template（模板）或 Collection（集合）的使用情境。
+
+```
+
+#### System Views（系統視圖）
+
+```
+
+1.Dashboard / Home（儀表板 / 首頁）
+2.Search（搜尋）
+3.Graph（知識圖譜）
+4.Tasks / Todo（任務 / 待辦）
+5.Calendar（行事曆）
+6.Review Queue（複習佇列）
+7.Reading List / Library（閱讀清單 / 資料庫）
+8.Asset Library（素材庫）
+9.Inbox / Capture（收件匣 / 快速收集）
+
+```
+
+#### Tools（工具）
+
+```
+
+1.Create Center（建立中心）
+2.Import Center（匯入中心）
+3.Export Center（匯出中心）
+4.Template System（模板系統）
+5.AI Assistant / AI Tutor（AI 助理 / AI 學習導師）
+6.Web Clipper（網頁剪藏）
+7.Command Palette / Quick Actions（命令面板 / 快速操作）
+8.Sync / Backup / Version History（同步 / 備份 / 版本歷史）
+
+```
+
+#### Core Infrastructure（核心底層能力）
+
+```
+
+1.Page Shell + Mode-specific Data（Page 外殼 + 模式專屬資料）
+2.Attachment / Asset System（附件 / 素材系統）
+3.Optional Source References（可選來源引用）
+4.Block Reference / Transclusion（區塊引用 / 嵌入引用）
+5.Annotation / Highlight（標註 / 劃線）
+6.Collection / Properties（集合 / 屬性）
+7.Searchable Text Index（可搜尋文字索引）
+8.Schema Version / Migration（資料結構版本 / 遷移）
+9.Soft Delete / Restore（軟刪除 / 還原）
+10.Workspace Backup（工作區備份）
+
+```
+
+##### 14.3 Page Shell + Mode-specific Data
+
+正式採用：
+
+```
+
+Page Shell + Mode-specific Data
+
+```
+
+意思是：
+
+```
+
+所有主要內容共享 Page shell：id、title、tags、folder、created_at、updated_at、deleted_at、links、attachments 等。 但不同 creatable 可以有自己的 mode-specific data，不把所有東西硬塞進 content_json。
+
+```
+
+範例：
+
+```
+
+Note Page default_mode: note content_json: Tiptap JSON
+
+Document Page default_mode: document content_json: Tiptap JSON document_settings: source / preview / reading mode / markdown options
+
+PDF Research Note default_mode: pdf_research content_json: research note primary_attachment_id: PDF attachment
+
+Study Set Page default_mode: study_set study_items: cards / questions review_state / attempts 後續擴充
+
+Presentation Page default_mode: presentation presentation_data: slides / layout / theme source_refs?: optional
+
+Canvas Page default_mode: canvas canvas_data: nodes / edges / viewport
+
+Website / Publish Project default_mode: website / publish_project publish_project_data: routes / nav / theme / source_page_ids / custom_sections
+
+```
+
+##### 14.4 Note（筆記）與 Document（文檔）邊界
+
+Note（筆記）：
+
+```
+
+最重要核心。 Native editor 體驗優先。 支援多元 block：image、table、task、callout、LaTeX、link、asset embed 等。 不被 Markdown 完整相容限制。 Markdown export 是 best-effort。 完整保真未來靠 .nexus.json / workspace backup。
+
+```
+
+Document（文檔）：
+
+```
+
+獨立 creatable。 偏正式寫作、Markdown source / preview、普通閱讀模式、匯入 / 匯出。 不一定需要圖片。 適合文章、報告、正式文稿、可發布內容。
+
+```
+
+##### 14.5 Study Set / Quiz（學習集 / 測驗 / 字卡）
+
+Study Set 是獨立 creatable。
+
+基本需求：
+
+```
+
+手動輸入中文 / 英文。 翻頁字卡模式。 四選一測驗，可選英文或中文翻譯。 拼寫模式。 CSV / TSV / 試算表 / Quizlet-like table 匯入。 後續可從 Note / PDF / Document 生成。 AI 可後續加入，但不作早期依賴。
+
+```
+
+資料模型方向：
+
+```
+
+Deck = Page Card = StudyItem Quiz mode = StudyItem 的不同練習模式 StudyAttempt = 練習紀錄 ReviewState = 複習排程 / 熟練度
+
+```
+
+##### 14.6 Presentation（簡報）
+
+Presentation 保留為 Core Creatable，但早期 scope 降級：
+
+```
+
+早期：Gamma-like outline / document-to-slides。 中期：slide layout / theme / table / simple visual blocks。 後期：才考慮 Canva-like free design。
+
+```
+
+避免早期做：
+
+```
+
+完整自由拖拉 圖層 動畫 多人協作 完整 Canva-like 設計器
+
+```
+
+##### 14.7 Canvas（畫布）
+
+Canvas 保留為 Core Creatable，但早期 scope 降級：
+
+```
+
+nodes edges 文字卡片 引用 Page / Block / Attachment / Study Set 簡單 layout
+
+```
+
+避免早期做：
+
+```
+
+完整白板 自由繪圖 多人協作 Canva-like design tools
+
+```
+
+##### 14.8 Website / Publish Project（網站 / 發布專案）
+
+Website / Publish Project 是需要保留的重要方向。使用者最初想像接近 Wix / Linktree / 可分享網站頁，但目前沒有完全明確細節。
+
+正式決策：
+
+```
+
+Website / Publish Project 是 Extended Creatable。 它是獨立或弱聯動的高層級分享 / 發布模組。 它不是純 export tool，也不是早期完整 Wix / Webflow / Framer clone。
+
+```
+
+安全邊界：
+
+```
+
+Note / Document 可以分享成網頁。 Note 不變成完整網站編輯器。 Website 可以引用 Note / Document / Asset / Collection。 Website 可有少量網站專屬內容：homepage intro、footer、buttons、link cards、custom sections。 Website 不要求和來源強同步。 Website layout / routes / theme / sections 不塞進 Note content_json。
+
+```
+
+分階段：
+
+```
+
+Phase 0：Export HTML Phase 1：Share Page（分享頁） Phase 2：Link Page / Landing Page（連結頁 / 單頁網站） Phase 3：Publish Site（多頁發布網站） Phase 4：Visual Website Editor（視覺網站編輯器）
+
+```
+
+結論：
+
+```
+
+使用者現在沒有完全明確的 Website 想法沒關係。 只要目前確定 Website 是獨立 / 弱聯動模組，不混進 Note / Document 核心資料模型，後續完善 Website 不會導致整個 App 重做。 最多是升級 / 重做 Website 模組內部。
+
+```
+
+##### 14.9 Quick Capture / Inbox（快速收集 / 收件匣）
+
+Quick Capture / Inbox 需要提高優先級。
+
+正確定位：
+
+```
+
+Inbox（收件匣）= System View Quick Capture（快速收集）= Capture Flow / Tool
+
+```
+
+早期可簡化：
+
+```
+
+folder = "Inbox" tag = "inbox" default_mode = "note"
+
+```
+
+未來可支援：
+
+```
+
+text → Note URL → Library Item / Web Capture PDF → PDF Research Note image → Asset + Note task → Task vocabulary → Study Set item quote / excerpt → Note block / Annotation
+
+```
+
+##### 14.10 Reading / Library / Reference / Asset 邊界
+
+需要避免混淆：
+
+```
+
+Library Item（資料庫項目 / 閱讀來源項目） = 學習來源或閱讀材料，例如書、文章、影片、課程、PDF、網頁。
+
+Reference Item（文獻 / 來源項目） = 可引用的文獻 metadata，例如 authors、year、DOI、URL、publisher、citation key。
+
+Asset（素材 / 附件） = 實際檔案，例如 PDF、image、audio、video、binary file。
+
+```
+
+關係：
+
+```
+
+Library Item 可連到 Reference Item。 Library Item / Reference Item 可連到 Asset。 Page / Document / Presentation / Website / Canvas 只引用 Asset，不直接塞 blob。
+
+```
+
+##### 14.11 Task / Todo / Calendar / Learning Path
+
+使用者確認：
+
+```
+
+Learning Path / Curriculum（學習路線 / 課程路徑）可以由 Todo List 搞定。 Course / Class Workspace（課程 / 班級工作區）必要性不高。
+
+```
+
+因此：
+
+```
+
+Learning Path 不獨立。 Course Workspace 不獨立。 兩者由 Project / Task / Todo / Review Queue / Template / Collection 組合。
+
+```
+
+Task / Todo 重要性提高：
+
+```
+
+Todo 不是獨立 todo app。 但 Todo / Task 是 Nexus 的重要 system view / projection。
+
+```
+
+未來任務來源：
+
+```
+
+Note checkbox Project task Study plan task Review task Reading task PDF reading task Manual task
+
+```
+
+##### 14.12 Source Reference / Provenance（來源引用 / 生成來源追蹤）
+
+本功能保留，但降級為 optional metadata。
+
+```
+
+Source Reference 不是早期 live sync 系統。 Generated outputs 可記錄來源，但不要求自動同步。
+
+```
+
+最小方向：
+
+```
+
+source_refs: [ { source_type: "page" | "block" | "attachment" | "annotation", source_id: "...", created_at: "..." } ]
+
+```
+
+不早期做：
+
+```
+
+自動同步 來源更新提醒 複雜差異比對 雙向 merge regeneration tree
+
+```
+
+##### 14.13 Editor Block Roadmap（筆記編輯器區塊路線）
+
+Note 是核心，因此 editor block roadmap 需要正式保留。
+
+核心 block 方向：
+
+```
+
+Paragraph（段落） Heading（標題） Bullet List（項目清單） Ordered List（編號清單） Task List（待辦清單） Quote（引用） Code Block（程式碼區塊） Callout / Admonition（提示框 / 重點框） Image Block（圖片區塊） Table（表格） Equation / LaTeX（公式） Link（連結） PDF / Asset Embed（附件嵌入） Annotation Reference（標註引用）
+
+```
+
+##### 14.14 Backup / Migration / Search Scope
+
+近期需要正式規劃：
+
+```
+
+Workspace Backup（工作區備份） Export entire workspace Import workspace backup Schema Version / Migration（資料結構版本 / 遷移） Search Index Scope（搜尋範圍）
+
+```
+
+原因：
+
+```
+
+Nexus local-first 最大風險是 IndexedDB / 瀏覽器資料遺失。 Backup / Export Package 應比完整 cloud sync 更早。 未來資料模型會新增 StudyItem、Annotation、Asset、Collection、PresentationData、CanvasData、WebsiteData，必須有 schema version / migration 意識。 Search 未來不只搜尋 Page.content_text，也要搜尋 Study cards、annotations、library items、reference items、asset names、presentation slides、canvas nodes 等。
+
+```
+
+---
+
+##### 14.15 r15 Deep Review：Page kind vs default view mode
+
+r15 深度稽核發現，舊文件中 `default_mode` 的語意與 r14 Page Shell + Mode-specific Data 的用法開始混淆。
+
+舊語意：
+
+```
+
+default_mode = 打開 Page 時的顯示偏好，不是硬性 Page type。
+
+```
+
+r14 新語意中又出現：
+
+```
+
+default_mode: note / document / pdf_research / study_set / presentation / canvas / website
+
+```
+
+這會讓 `default_mode` 同時承擔「頁面種類」與「顯示模式」，長期不健康。
+
+最佳化方向：
+
+```
+
+type PageKind = | "note" | "document" | "pdf_research" | "study_set" | "presentation" | "canvas" | "website" | "project" | "library_item" | "reference_item";
+
+type PageViewMode = | "edit" | "read" | "markdown_source" | "markdown_preview" | "pdf_split" | "study" | "slides" | "canvas";
+
+interface Page { kind: PageKind; default_view_mode?: PageViewMode; }
+
+```
+
+過渡策略：
+
+```
+
+短期：保留 default_mode，主要為相容舊資料與現有程式。 中期：新增 kind / creatable_type 作為真正 Page 種類。 長期：default_mode 改名為 default_view_mode 或 view_preference。
+
+```
+
+##### 14.16 r15 Deep Review：MVP-2 re-baseline / vNext tracks
+
+舊 MVP-2 寫法以：
+
+```
+
+attachments + PDF viewer + research note + citation metadata + LaTeX
+
+```
+
+為主，當時合理；但 r14 之後，使用者重新確認 Quick Capture / Inbox、Study Set、Workspace Backup、Editor Block Roadmap 等也很重要。
+
+因此不建議繼續把所有新功能都塞進單一 MVP-2。近期應改以 tracks 管理：
+
+```
+
+Track A — Editor Blocks Foundation Link / TaskList / Image / Table / Callout / LaTeX
+
+Track B — Capture & Inbox Quick Capture / Inbox v0
+
+Track C — Learning Core Study Set / Flashcard v0 + CSV / TSV import
+
+Track D — Research PDF viewer polish / citation metadata / annotation later
+
+Track E — Safety Workspace Backup / Export package v0 + schema migration metadata
+
+Track F — Creatable Registry / Create Center 為 Note / Document / Study Set / PDF Research Note / Presentation / Canvas / Website 建立低風險入口
+
+```
+
+##### 14.17 r15 Deep Review：Stable Block ID 補齊策略
+
+D-30 曾要求 Block node 從 MVP-0 起 stable ID，但後續 D-44 為了不阻塞 MVP-1 Backlinks，允許先採 Page-level Wikilink Backlinks。
+
+目前判斷：
+
+```
+
+Page-level backlinks 可繼續使用。 但 Block Reference / Transclusion / Annotation / Highlight 未來會依賴 stable block id。
+
+```
+
+因此 stable block id 應列為近期底層修補，但不阻塞目前 Page-level backlinks。
+
+建議策略：
+
+```
+
+短期：維持 Page-level backlinks。 近期：加入 Tiptap extension 或 normalizeContentJson()，確保主要 block node 都有 attrs.id。 未來：Block Reference / Transclusion / Annotation / Highlight 才依賴 block id。
+
+```
+
+##### 14.18 r15 Deep Review：Attachment storage_key v0 語意
+
+目前 `IndexedDBAdapter.createAttachment()` 會產生：
+
+```
+
+storage_key: `bin_${nanoid()}`
+
+```
+
+但 `attachBinary()` 與 `readBinary()` 實際使用的是：
+
+```
+
+binaries.id = attachmentId
+
+```
+
+因此目前 v0 的真實 binary key 是 `attachment.id`，不是 `attachment.storage_key`。
+
+短期判斷：
+
+```
+
+功能可正常運作，不需立刻重寫。 storage_key 暫時視為未來 OPFS / filesystem adapter / migration 預留欄位。
+
+```
+
+若未來要嚴格化，可以二選一：
+
+```
+
+方案 A：文件明確記錄 IndexedDB v0 使用 attachment.id 作 binary key。 方案 B：調整 API，讓 binary store 改用 attachment.storage_key。
+
+```
+
+##### 14.19 r15 Deep Review：Backup before Sync
+
+D-93 已把 Sync 降級為 Backup first。r15 再次確認：隨著 pages / attachments / binaries 增加，Workspace Backup / Export package v0 應提早到近期。
+
+建議 v0：
+
+```
+
+先支援 export workspace backup JSON。 包含 pages、attachments metadata、settings、schema_version。 PDF / image binary 可先不含，或第二階段以 base64 / separate files 支援。 先 export，不急著做完整 restore / import。
+
+```
+
+
+
+
+#### 15. 決策 D-70～D-106（vNext Architecture + r15 Deep Review）
+
+#### D-70 — Nexus 定位修正為 local-first 個人學習與知識生成 workspace
+
+決策：Nexus 最新定位為 local-first 個人學習與知識生成 workspace。它可以吸收 Obsidian / Notion / Canvas / Gamma / Canva / Quizlet 的優點，但不追求早期成為完整企業 all-in-one。
+
+#### D-71 — Core Creatables 可單獨建立，但共享 Page shell
+
+決策：Note、Document、Study Set、PDF Research Note、Presentation、Canvas 都可以單獨建立。它們共享 Page shell，但可有 mode-specific data。
+
+#### D-72 — Note Priority
+
+決策：Note 是最重要核心。Note 優先最佳 native editor 體驗，不被 Markdown 完整相容限制。Markdown export 是 best-effort；完整保真未來靠 `.nexus.json` / workspace backup。
+
+#### D-73 — Document 獨立於 Note
+
+決策：Document 是獨立 creatable，偏正式寫作、Markdown source / preview、普通閱讀模式、匯入 / 匯出。Document 不一定需要圖片。
+
+#### D-74 — Study Set / Quiz 獨立
+
+決策：Study Set 是獨立 creatable。Deck = Page，Card = StudyItem。支援手動中文 / 英文、翻頁、四選一、拼寫、CSV / TSV 匯入。AI 生成為後續加值，不是早期依賴。
+
+#### D-75 — Presentation 分階段
+
+決策：Presentation 是 core creatable，可單獨建立，也可從 Note / Document / Canvas 生成。早期偏 Gamma-like outline-to-slides，後期再評估 Canva-like free design。
+
+#### D-76 — Canvas 分階段
+
+決策：Canvas 是 core creatable。早期做 nodes / edges / references，不做完整白板或設計工具。
+
+#### D-77 — PDF Research Note 維持 Page + Attachment
+
+決策：PDF Research Note 是 Page + PDF Attachment + research note。PDF binary 一律走 Attachment / Asset，不放進 content_json。
+
+#### D-78 — Website / Publish Project 是獨立或弱聯動模組
+
+決策：Website / Publish Project 是 Extended Creatable，是高層級分享 / 發布模組。它不是純 export tool，也不是早期完整 Wix-like builder。
+
+#### D-79 — Note 可分享，但 Note 不變成網站編輯器
+
+決策：Note / Document 可透過 Share Settings（分享設定）變成分享頁，但 Note editor 不承擔完整網站 layout / routing / RWD / animation。
+
+#### D-80 — Website 分階段：Share Page → Link Page → Publish Site → Visual Editor
+
+決策：Website 功能從 Export HTML / Share Page 開始，再到 Link Page / Landing Page、多頁 Publish Site，最後才評估 Visual Website Editor。
+
+#### D-81 — 高層級生成物採弱聯動
+
+決策：Document、Presentation、Website、Study Set 等高層級生成物可以記錄來源，但不要求和來源強同步。來源變更後不自動覆蓋生成物，後續可提供手動 update / regenerate。
+
+#### D-82 — Optional Source Reference
+
+決策：Source Reference / Provenance 是 optional metadata，不是早期 live sync / diff / merge 系統。
+
+#### D-83 — Learning Path 不獨立
+
+決策：Learning Path / Curriculum 不做獨立 creatable，由 Todo / Project / Review Queue / Collection / Template 組合完成。
+
+#### D-84 — Course Workspace 不獨立
+
+決策：Course / Class Workspace 不列為核心功能，未來可作 Template 或 Collection 使用情境。
+
+#### D-85 — Quick Capture / Inbox 提高為前期重要能力
+
+決策：Quick Capture / Inbox 不是很後期小功能。Inbox 是 System View，Quick Capture 是 Capture Flow / Tool。早期可簡化為 folder/tag 實作。
+
+#### D-86 — Reading List / Library 是核心系統能力
+
+決策：Reading List / Library 需要保留，管理書籍、PDF、網頁、文章、影片、課程等學習來源。
+
+#### D-87 — Import / Export Center 必須集中管理
+
+決策：Import Center 負責 PDF、Markdown、CSV、TSV、圖片、未來網頁剪藏、BibTeX / CSL 等。Export Center 負責 Markdown、HTML、PDF、Presentation、Study Set CSV、workspace backup、`.nexus.json`。
+
+#### D-88 — Template System 是正式工具
+
+決策：Template System 支援 Note、Document、Study Set、Presentation、Project、PDF Research Note、Website / Link Page 等模板。模板可包含 target_mode、default content_json、properties、tags、folder、mode-specific defaults。
+
+#### D-89 — AI Assistant / AI Tutor 是後續需要的輔助層
+
+決策：AI Assistant / AI Tutor 後續需要，但 AI 是 generation / intelligence layer，不是內容資料模型本身，也不是早期必要依賴。
+
+#### D-90 — Web Clipper 後續需要
+
+決策：Web Clipper 後續需要，但早期可先支援貼 URL / 手動匯入 web content；真正 browser extension 延後。
+
+#### D-91 — File / Asset Library 近期需要
+
+決策：File / Asset Library 近期需要但不立刻。Asset 是獨立資源，Page / Presentation / Canvas / Website 只引用 Asset。
+
+#### D-92 — Citation / Bibliography 近期需要但先做 metadata
+
+決策：Citation / Bibliography 近期需要但不做完整 Zotero clone。先支援 Reference metadata：title、authors、year、url、doi、source type、attachment、notes。
+
+#### D-93 — Sync 降級為 Backup first
+
+決策：Sync / Backup / Version History 近期需要但不立刻做完整 sync。順序：workspace export/import → local backup snapshots → version history → cloud sync → conflict resolution。
+
+#### D-94 — Annotation / Highlight 與筆記功能一同完善
+
+決策：Annotation / Highlight 是獨立 object，不塞進 content_json。它可連到 PDF、Page、Block、Attachment、Web Capture，並與筆記 / PDF / 閱讀功能一起完善。
+
+#### D-95 — Database / Collection / Properties 與筆記功能一同完善
+
+決策：Database / Collection / Properties 是重要底層能力，但不做完整 Notion clone。早期做 Page properties、basic collection、filter / sort / table view。
+
+#### D-96 — Task / Todo 是重要 system view / projection，不做獨立 todo app
+
+決策：Todo / Task 不先做獨立 app，但因 Learning Path 降級到 Todo 組合，Task / Todo 的重要性提高。Task 來源可為 Note checkbox、Project task、Review task、Reading task、manual task。
+
+#### D-97 — Review Queue / Progress Tracking 是學習核心
+
+決策：Review Queue 是系統視圖；Study Set 需要 StudyAttempt / ReviewState / mastery 等資料方向，避免 Quiz 功能只像玩具。
+
+#### D-98 — Create Center / Creatable Registry 需要預留
+
+決策：未來 New 不只 New Note，應有 Create Center。每種 creatable 需有 mode、default data、default editor、default template、icon、actions。
+
+#### D-99 — Workspace Backup / Schema Migration 需要正式預留
+
+決策：local-first app 必須重視 Workspace Backup、Export package、Schema Version / Migration，避免 IndexedDB 資料遺失與未來 schema 擴充痛苦。
+
+#### D-100 — Editor Block Roadmap 是近期核心
+
+決策：Note 是核心，因此 image、table、task、callout、LaTeX、link、asset embed 等 editor blocks 應作為近期路線，而不是一直延後。
+
+#### D-101 — 不做正式 plugin marketplace，先做 internal extension points
+
+決策：Plugin / Extension Architecture 不早期做正式第三方插件。先在內部模組化 importers、exporters、editor extensions、AI providers、study modes、templates、views。
+
+
+#### D-102 — Page kind 與 default view mode 必須拆分
+
+決策：`default_mode` 不應長期同時代表「頁面種類」與「顯示模式」。短期可保留相容；中期應新增 `kind` / `creatable_type` 表示 Page 種類，並以 `default_view_mode` / `view_preference` 表示 UI 顯示偏好。
+
+#### D-103 — MVP-2 改以 vNext tracks 管理，避免無限膨脹
+
+決策：舊 MVP-2 的 PDF / research 範圍仍保留，但近期開發不再把所有新功能塞進單一 MVP-2。改以 Editor Blocks、Capture & Inbox、Learning Core、Research、Safety Backup、Creatable Registry 等 tracks 管理。
+
+#### D-104 — Stable Block ID 是近期底層修補，不阻塞 Page-level backlinks
+
+決策：MVP-1 Page-level Wikilink Backlinks 繼續有效；但 Block Reference / Transclusion / Annotation / Highlight 需要 stable block id，因此近期需補 Tiptap extension 或 content normalization，確保主要 block node 有 `attrs.id`。
+
+#### D-105 — IndexedDB v0 binary key 暫用 attachment.id，storage_key 保留給未來 adapter / migration
+
+決策：目前 IndexedDB v0 的 `attachBinary()` / `readBinary()` 使用 `attachment.id` 作 `binaries` store key。`storage_key` 暫時保留，未來若引入 OPFS / filesystem adapter 或正式 asset storage migration，再決定是否改用 `storage_key`。
+
+#### D-106 — Workspace Backup v0 應早於 Sync / Version History 完整化
+
+決策：local-first app 在資料量增加後，必須優先提供 Workspace Backup / Export package v0。Sync / Version History 可後續做；Backup v0 先保障使用者資料可攜與可救援。
+
+---
+
+
+
 ### 2026-07-02 — Editor Blocks Foundation：Callout 完成（含已知未解問題），建立 jsdom 真實 Editor 排查方法
 
 **背景：** Table 完成後，依既定分批順序推進 Callout。動工前確認範圍：variant（顏色類型）與 icon（圖示） 分開設定，比照 Notion 做法；5 種顏色類型（info/warning/success/danger/note）；圖示可挑選或移除。
@@ -1029,6 +2393,79 @@ D-153: 子頁類型選擇
 D-154: 自訂雙擊間隔（350ms）
 D-155: 工具列「字樣」改為 select 樣式
 D-156: ColorPaletteButton 色票選色器
+
+
+### 2026-07-31 — 使用者決策原文補充
+
+#### 1W. 2026-07-31 使用者決策確認（下一個 AI 必讀）
+
+> 本節記錄使用者對下一個 AI 提出的問題所做的決策確認。所有決策已反映在 01 文件中。
+
+### B. 同步、安全性與資料衝突
+
+**B1. Supabase 共享工作區模式**
+- **決策**：保留現行「無登入、所有開啟頁面者共用同一工作區、RLS allow all」模式。
+- **理由**：符合「任何進入同一網址即可共同更新」的需求。
+- **未來考量**：若需加入最低限度的存取保護（共享密碼、invite token、登入），需先徵詢使用者。
+
+**B2. 同步衝突策略**
+- **決策**：**不接受** last-write-wins 作為正式 v0 行為。
+- **要求**：需在近期優先實作衝突處理：
+  - 新增 `revision` 衝突檢測（當 remote revision > local revision 時提示使用者）
+  - 實作簡單的合併策略（保留兩者版本，讓使用者手動選擇）
+  - 引入版本歷史功能（每次存檔保留歷史快照）
+- **優先級**：此為近期優先工作，應在 Track D 之前完成。
+
+**B3. Binary 儲存策略**
+- **決策**：接受短期沿用 base64 儲存於 PostgreSQL 資料表（約 33% 膨脹）。
+- **未來考量**：預留改用 Supabase Storage 或其他 asset storage 的升級路徑。
+
+### C. 架構語意與資料模型
+
+**C1. `kind` 欄位語意**
+- **決策**：`kind` 作為 **creatable discriminator**，用於區分不同類型的內容，但不建立完全割裂的資料模型。
+- **實作**：所有 creatable 共享 Page shell，但可依 `kind` 分流不同的功能集合與匯出策略。
+- **已反映於**：01 文件 §8.3 Page schema。
+
+**C2. `default_mode` 欄位變更**
+- **決策**：未來變更需先徵詢使用者，不可逕行移除或改名。
+- **理由**：目前寫死為 `"note"` 字面型別，無實際分支邏輯依賴，但與 `kind` / view mode 有舊語意重疊。
+- **已反映於**：01 文件 §8.3 Page schema 註解。
+
+**C3. Stable Block ID**
+- **決策**：列為**近期優先底層工作**。
+- **理由**：未來的 block reference、annotation、transclusion、精細同步都會依賴它。
+- **已反映於**：01 文件 §16 表格。
+
+**C4. PDF Research Note 語意**
+- **決策**：保留「普通 Note + attachment」語意（`primary_attachment_id` 判斷）。
+- **不升級**為獨立 `kind: "pdf_research"`。
+- **已反映於**：01 文件 §8.3 Page schema 註解。
+
+### D. 功能邊界與產品決策
+
+**D1. Callout 圖示選單點擊無效**
+- **決策**：維持低優先。
+- **理由**：使用者判斷不急迫。
+
+**D2. PageFormat 排版引擎**
+- **決策**：近期優先實作各種格式排版（16:9 簡報預覽、A4 列印分頁等）。
+- **已反映於**：01 文件 §8.3 Page schema 註解。
+
+**D3. Study Set 拼寫模式**
+- **決策**：期待是雙向拼寫、容錯比對、提示機制，但**優先度低**，可先不做。
+
+**D4. Track D Research 優先範圍**
+- **決策**：保留，未具體收斂。
+
+**D5. Track F Creatable Registry 具體目標**
+- **決策**：保留，未具體收斂。
+
+---
+
+
+---
+
 
 
 ## 2026-08
