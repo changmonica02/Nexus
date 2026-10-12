@@ -34,3 +34,8 @@
 - 39 個既有工作 Issues（及工程補充 Issue）可作任務追蹤；Issue 題目／草稿不可自動視為產品已定案或功能已完成。
 - 請繼續執行**逐項追蹤矩陣**：原 Canon 各 F-* 模組／決策 → SPEC 章節、ARCHITECTURE 規則、對應 Issue；尤其 IMPORT/EXPORT 格式矩陣、各種 JSON 子欄位、細部觸控與同步狀態尚未逐條複製。
 - 尚需核對 `main` 近期 commit、Vercel SHA、production Supabase ledger、正式 CSV 與測試數據，不可將檔名、過往回報或 Issue 自動判為部署完成。
+
+## 歷史封存驗證（2026-10-12）
+- 三份原始交接檔已複製到 `docs/archive/`，**不作現行規格權威**，僅用於原文稽核。GitHub 封存檔大小與來源檔相符：00 = 44,939 bytes；01 = 77,340 bytes；02 = 694,409 bytes。
+- 常態只維護六份核心文件，歷史封存不再隨日常開發逐次修改。
+- 已保留所有原始文字供追溯；新 SPEC／ARCHITECTURE 是重整與摘要，不代表每一個歷史細節都已轉成現行需求。正式合併前仍應核對重要矩陣、決策覆蓋與實作狀態。
