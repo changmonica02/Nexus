@@ -413,7 +413,7 @@ ID：M{MVP}-{序號}；Q-{序號}。
 ## 三、接下來的程序（由使用者決定）
 1. 使用者編修 SPEC；AI 審查矛盾、權限、資料風險及過度設計，討論後確認各模組 Approved。
 2. 對已定案模組審查 ARCHITECTURE 與 migration 設計；不讓過時 code 偷換產品需求。
-3. 用 CANON-CROSSWALK、GitHub Issues 和 main 實際程式做 Gap Analysis，核對測試與 production 環境後才排實作。
+3. 用現行產品／技術文件、GitHub Issues 和 main 實際程式做 Gap Analysis，核對測試與 production 環境後才排實作。
 4. GitHub PR #40 尚未合併 main。未完成 CI / E2E / Vercel / production Supabase 核查前，不宣稱正式部署。
 
 
@@ -450,7 +450,7 @@ ID：M{MVP}-{序號}；Q-{序號}。
 ---
 
 ## 2026-10-12 遷移驗收狀態
-- 已完成三份舊資料共 **239 個 Markdown 二級章節**的去向／處置台帳：`docs/CANON-CROSSWALK.md`。來源與新文件直接可查。
+- 已完成三份舊資料共 **239 個 Markdown 二級章節**的去向／處置台帳：`docs/CANON-CROSSWALK.md`。舊對照表已移出工作樹，必要時可由 Git 歷史查閱。
 - 已將 02 中的有日期重要事件（81 筆）、早期 D 編號決策章節、01 的正式產品／技術契約，以及 00 的交接工作矩陣分流進新核心文件。
 - **仍需注意**：239 節是結構層級追蹤，不是逐字逐句的語義完整性證明；02 中重複的操作、過時規格副本、原始除錯逐行記錄仍以只讀 archive 保存，不能宣稱這些內容全部出現在四份核心文件。
 - **不以此驗收替代** 現行程式碼、CI、Vercel 或 production Supabase 的驗證。
@@ -686,7 +686,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 ### 第一階段：整併核對結論
 
 - 已讀取 `docs/CANON-CROSSWALK.md`、舊 00／01／02 三份封存及現行 SPEC／ARCHITECTURE／HISTORY／HANDOFF／AGENTS 的文件資訊。Crosswalk 明確指出：目前完成的是**章節層級的來源追蹤與主要需求分流**，並非逐條、逐決策完全驗收；舊 02 的技術操作、歷史相容性、錯誤修復細節與重複歷史副本仍可能只有 archive 保存。
-- **尚未通過「舊文件所有仍有效內容均已承接」門檻**。不得據此刪除 `docs/archive/00-...`、`01-...`、`02-...`。必須先就各章建立「已承接且一致／歷史僅留 archive／仍有效但缺漏／有衝突待決」四類逐項矩陣，修復缺漏後才能決定是否移除封存；即使通過也應留 Git 歷史與可追溯的 tag。
+- **尚未通過「舊文件所有仍有效內容均已承接」門檻**。舊檔已依使用者新指示移出工作樹；後續仍可由 Git 歷史做缺漏查證。必須先就各章建立「已承接且一致／歷史僅留 archive／仍有效但缺漏／有衝突待決」四類逐項矩陣，修復缺漏後才能決定是否移除封存；即使通過也應留 Git 歷史與可追溯的 tag。
 
 ### 第二階段：檔案樹預盤點（尚未授權實際刪除）
 
