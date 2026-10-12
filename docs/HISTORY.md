@@ -21,87 +21,85 @@
 
 ### 2026-06-20 ~ 2026-06-21 — 產品與架構規劃
 
-## 2026-06-20 ~ 2026-06-21 — 產品與架構規劃
-
 ### 類型
 
-`​text 產品規劃 / 架構決策 `​``
+`text 產品規劃 / 架構決策 ```
 
 ### 完成內容摘要
 
 建立 Nexus 的核心方向：
 
-`​text 個人化 local-first 跨平台 all-in-one digital workspace 核心場景：學習 / 研究 `​``
+`text 個人化 local-first 跨平台 all-in-one digital workspace 核心場景：學習 / 研究 ```
 
 確認三大設計原則：
 
-`​text Everything is a Page / Block Everything is Linkable Local-first, Cloud-optional `​``
+`text Everything is a Page / Block Everything is Linkable Local-first, Cloud-optional ```
 
 確立五概念模型：
 
-`​text Page Block Property Workspace View Page Mode `​``
+`text Page Block Property Workspace View Page Mode ```
 
 確認 MVP 分期：
 
-`​text MVP-0：本地筆記原型 MVP-1：個人筆記系統 MVP-2：學習 / 研究工具 MVP-3：時間管理整合 MVP-4：同步與打包 `​``
+`text MVP-0：本地筆記原型 MVP-1：個人筆記系統 MVP-2：學習 / 研究工具 MVP-3：時間管理整合 MVP-4：同步與打包 ```
 
 ### 2026-06-21 — 開工前規格補完
 
 **形成決策：** 新增並確認 D-28~D-34：
 
-`​text D-28 MVP-0 使用 IndexedDBAdapter D-29 預設 sans-serif，serif 作未來主題 D-30 block node 從 MVP-0 起穩定 ID D-31 title 獨立存在 pages.title D-32 soft delete D-33 UI / Editor 只能依賴 StorageAdapter D-34 MVP-0 嚴格限於能寫能存 `​``
+`text D-28 MVP-0 使用 IndexedDBAdapter D-29 預設 sans-serif，serif 作未來主題 D-30 block node 從 MVP-0 起穩定 ID D-31 title 獨立存在 pages.title D-32 soft delete D-33 UI / Editor 只能依賴 StorageAdapter D-34 MVP-0 嚴格限於能寫能存 ```
 
 # 後續更新模板
 
 之後每完成一件事，請追加：
 
-`​``md
+```md
 
 ### 2026-06-27 — Next.js dev server 確認與 MVP-0 第一輪實作
 
 **背景：** 使用者在交接後表示：
 
-`​text 我準備好了。 下一步是引導你執行 cd / dir / npm.cmd run dev。 如果需求定義不完整，或有更好的執行方式，可以向我提問。 檔案多經其他 AI 修飾，許多定稿內容可再次更動，請依整體方案最佳化。 `​``
+`text 我準備好了。 下一步是引導你執行 cd / dir / npm.cmd run dev。 如果需求定義不完整，或有更好的執行方式，可以向我提問。 檔案多經其他 AI 修飾，許多定稿內容可再次更動，請依整體方案最佳化。 ```
 
 此段重要，代表後續 AI 可以在不背離核心願景的前提下主動提出更佳做法，而不是僵硬照舊文件執行。
 
-**結果判斷：** `​text Next.js 專案可正常啟動 ✅ 實際有 src/ 目錄 ✅ localhost:3000 可開 ✅ 進入 MVP-0 實作條件成立 ✅ `​``
+**結果判斷：** `text Next.js 專案可正常啟動 ✅ 實際有 src/ 目錄 ✅ localhost:3000 可開 ✅ 進入 MVP-0 實作條件成立 ✅ ```
 
 原先文件中「可能沒有 src/」的疑慮已解除。實際結構後續確認為：
 
-`​text src/app ├── favicon.ico ├── globals.css ├── layout.tsx └── page.tsx `​``
+`text src/app ├── favicon.ico ├── globals.css ├── layout.tsx └── page.tsx ```
 
 **實作決策：移除 Google Font 與 Vercel 預設頁：** 說明給使用者：
 
-`​text Deploy Now / Documentation 是 create-next-app 預設推廣連結 不屬於 Nexus 功能 MVP-0 local-first 不需要 Vercel deployment 入口 保留會干擾極簡三欄 App Shell `​``
+`text Deploy Now / Documentation 是 create-next-app 預設推廣連結 不屬於 Nexus 功能 MVP-0 local-first 不需要 Vercel deployment 入口 保留會干擾極簡三欄 App Shell ```
 
 使用者選擇：
 
-`​text 手動貼程式碼 問題三：是否備份原 page.tsx 沒有意見 `​``
+`text 手動貼程式碼 問題三：是否備份原 page.tsx 沒有意見 ```
 
 **最終測試結果：** 使用者刷新瀏覽器並測試：
 
-`​``text
+```text
 
 # + 空白
 
-`​``
+```
 
 結果：
 
-`​text 成功 ✅ `​``
+`text 成功 ✅ ```
 
 ### 2026-06-27 — Node.js 初次檢查失敗
 
 **結果：** 出現錯誤：
 
-`​text 無法辨識 'node' 詞彙是否為 Cmdlet、函數、指令檔或可執行程式的名稱。 `​``
+`text 無法辨識 'node' 詞彙是否為 Cmdlet、函數、指令檔或可執行程式的名稱。 ```
 
 ### 2026-06-27 — npm PowerShell 執行政策問題
 
 **結果：** 使用者執行：
 
-`​powershell npm.cmd `​``
+`powershell npm.cmd ```
 
 成功顯示 npm usage，確認 npm 可執行。
 
@@ -109,33 +107,33 @@
 
 **背景：** 使用者要求在刪除原對話前，助理最後徹底確認所有檔案與資訊的完整性、準確性與合理性。助理先前回覆稱 final package 已可安全轉移，但使用者進一步指出：
 
-`​text 00-NEXUS-HANDOFF-START-HERE.md 中的「2.1 修正後的實際權威順序」 與目前 nexus-handoff-final/ 的既有文件結構產生衝突。 `​``
+`text 00-NEXUS-HANDOFF-START-HERE.md 中的「2.1 修正後的實際權威順序」 與目前 nexus-handoff-final/ 的既有文件結構產生衝突。 ```
 
 使用者因此明確表達對助理工作準確性的疑慮。
 
 **重新檢查結果：** 重新檢查 active docs 後：
 
-`​text README.md 00-NEXUS-HANDOFF-START-HERE.md 01-NEXUS-CANON.md 03-PROJECT-LOG.md 04-FINAL-REVIEW-2026-06-27.md 99-ZERO-LOSS-AUDIT.md `​``
+`text README.md 00-NEXUS-HANDOFF-START-HERE.md 01-NEXUS-CANON.md 03-PROJECT-LOG.md 04-FINAL-REVIEW-2026-06-27.md 99-ZERO-LOSS-AUDIT.md ```
 
 確認：
 
-`​text active docs 之間的權威順序已一致 最新進度已一致 錯誤舊引用已修正 歷史引用已標示為歷史 archive 與 audit 已重新生成 `​``
+`text active docs 之間的權威順序已一致 最新進度已一致 錯誤舊引用已修正 歷史引用已標示為歷史 archive 與 audit 已重新生成 ```
 
 最新 audit 結果：
 
-`​text Markdown files audited: 23 Image asset audited: yes Overall result: ✅ PASS `​``
+`text Markdown files audited: 23 Image asset audited: yes Overall result: ✅ PASS ```
 
 **結果：** 此問題已修正，並已將本次資訊紕漏與修正過程記錄於本日誌。
 
 目前 final package 仍以：
 
-`​text nexus-handoff-final/ `​``
+`text nexus-handoff-final/ ```
 
 為準。
 
 目前下一步已更新為：
 
-`​text MVP-0 收斂與驗證：修正 content_json 保存、檢查檔案/依賴狀態、建立 manual QA checklist。 `​``
+`text MVP-0 收斂與驗證：修正 content_json 保存、檢查檔案/依賴狀態、建立 manual QA checklist。 ```
 
 <!-- END SOURCE: ALL-SOURCES-FULL-ARCHIVE.md | SOURCE 5 nexus-handoff-updated-2026-06-27/03-PROJECT-LOG.md -->
 
@@ -143,11 +141,11 @@
 
 **結果：** 使用者貼出成功訊息：
 
-`​text Success! Created nexus at C:\\Users\\user\\Projects\\nexus `​``
+`text Success! Created nexus at C:\\Users\\user\\Projects\\nexus ```
 
 安裝過程顯示：
 
-`​``text Installing dependencies:
+```text Installing dependencies:
 
 - next
 - react
@@ -164,43 +162,43 @@ Installing devDependencies:
 - tailwindcss
 - typescript
 
-`​``
+```
 
 ### 2026-06-27 — 建立 Projects 資料夾
 
 **結果：** 成功建立並進入：
 
-`​text C:\\Users\\user\\Projects `​``
+`text C:\\Users\\user\\Projects ```
 
 ### 2026-06-27 — 文件交接包檢查與重整
 
 **背景：** 使用者整理出一批最終 canon 文件，並詢問：
 
-`​text 裡面資訊是否有被遺漏？ 最新進度是否有被記錄？ `​``
+`text 裡面資訊是否有被遺漏？ 最新進度是否有被記錄？ ```
 
 當時檢查的主要文件包括以下使用者整理檔名。注意：這是歷史工作記錄，不是目前 final package 的 active 文件結構：
 
-`​text 00-NEXUS-HANDOFF-START-HERE.md 01-PRODUCT-ARCHITECTURE-ROADMAP-CANON.md 02-IMPLEMENTATION-CANON.md 03-DECISION-LOG.md 04-GLOSSARY.md 05-DESIGN-SYSTEM.md 06-BEGINNER-OPERATION-GUIDE.md 90-PROJECT-REVIEW-2026-06-21.md 99-ZERO-LOSS-AUDIT.md 00-AI-HANDOFF.md `​``
+`text 00-NEXUS-HANDOFF-START-HERE.md 01-PRODUCT-ARCHITECTURE-ROADMAP-CANON.md 02-IMPLEMENTATION-CANON.md 03-DECISION-LOG.md 04-GLOSSARY.md 05-DESIGN-SYSTEM.md 06-BEGINNER-OPERATION-GUIDE.md 90-PROJECT-REVIEW-2026-06-21.md 99-ZERO-LOSS-AUDIT.md 00-AI-HANDOFF.md ```
 
 **結果：** 完成初版修正，但後續使用者要求：
 
-`​text 將所有文件都確認一次，將紕漏處理掉，重新生成最高效率文檔。 `​``
+`text 將所有文件都確認一次，將紕漏處理掉，重新生成最高效率文檔。 ```
 
 ### 2026-06-27 — 新增本工作進度日誌
 
 **背景：** 使用者詢問是否已有：
 
-`​text 日誌這個內容 做了什麼事之類的詳細日誌 `​``
+`text 日誌這個內容 做了什麼事之類的詳細日誌 ```
 
 確認目前已有：
 
-`​text 決策日誌 審視報告 零遺漏稽核 `​``
+`text 決策日誌 審視報告 零遺漏稽核 ```
 
 但缺少：
 
-`​text 實際操作 / 工作進度日誌 `​``
+`text 實際操作 / 工作進度日誌 ```
 
-**命名原因：** `​text 03：放在 00 入口、01 canon、02 source archive 之後，作為交接包中的第三類主動維護文件。 PROJECT-LOG：表示這是專案工作日誌，記錄實際做了什麼。 不是 CHANGELOG：因為目前還沒有正式產品版本 release。 不是 DECISION-LOG：因為決策原因已由 03-DECISION-LOG / archive 保留。 `​``
+**命名原因：** `text 03：放在 00 入口、01 canon、02 source archive 之後，作為交接包中的第三類主動維護文件。 PROJECT-LOG：表示這是專案工作日誌，記錄實際做了什麼。 不是 CHANGELOG：因為目前還沒有正式產品版本 release。 不是 DECISION-LOG：因為決策原因已由 03-DECISION-LOG / archive 保留。 ```
 
 **結果：** 本文件建立，用於後續持續記錄實際進度。
 
@@ -210,45 +208,45 @@ Installing devDependencies:
 
 **稽核結果：** `99-ZERO-LOSS-AUDIT.md` 顯示：
 
-`​text Markdown files audited: 18 Overall result: ✅ PASS Image copied: ✅ PASS `​``
+`text Markdown files audited: 18 Overall result: ✅ PASS Image copied: ✅ PASS ```
 
 **結果：** 目前最終交接包應以：
 
-`​text nexus-handoff-final/ `​``
+`text nexus-handoff-final/ ```
 
 為準。
 
 ### 2026-06-27 — 確認 Node / npm / Git 版本
 
-**結果：** `​text node -v       → v24.18.0 npm.cmd -v    → 11.16.0 git --version → git version 2.54.0.windows.1 `​``
+**結果：** `text node -v       → v24.18.0 npm.cmd -v    → 11.16.0 git --version → git version 2.54.0.windows.1 ```
 
 ### 2026-06-27 — 確認編輯器
 
-**結果：** `​text Visual Studio Code ✅ `​``
+**結果：** `text Visual Studio Code ✅ ```
 
 ### 2026-06-27 晚間 — MVP-0 完工後更新：content_json 持久化、頁面刪除與交接文件再整理
 
 **背景：** 使用者回報：在前一輪完成三欄 App Shell、IndexedDB、Tiptap 與 Markdown shortcut 後，又做了一批補充整理與實作，並要求：
 
-`​text 日誌須包含詳細過程：執行的動作、遇到的問題、解決方式等等。 剛剛做了一些事，請也歸入檔案。 `​``
+`text 日誌須包含詳細過程：執行的動作、遇到的問題、解決方式等等。 剛剛做了一些事，請也歸入檔案。 ```
 
 本段將使用者提供的新狀態整理為新的最新日誌。若此段與較早日誌衝突，以本段時間序較新者為準。
 
 **2. MVP-0 構建與環境驗證回顧：** #### 執行的動作
 
-`​text 驗證 Next.js 16.2.9 成功啟動於 port 3000。 確認 localhost:3000 可開。 清理 create-next-app 預設畫面。 移除 Deploy Now / Documentation 等預設 Vercel 連結。 建立 Nexus 三欄式佈局。 `​``
+`text 驗證 Next.js 16.2.9 成功啟動於 port 3000。 確認 localhost:3000 可開。 清理 create-next-app 預設畫面。 移除 Deploy Now / Documentation 等預設 Vercel 連結。 建立 Nexus 三欄式佈局。 ```
 
 #### 遇到的問題
 
-`​text layout.tsx 原本使用 next/font/google 的 Geist 字體。 這與 local-first / 不依賴外部字體資源的方向不完全一致。 `​``
+`text layout.tsx 原本使用 next/font/google 的 Geist 字體。 這與 local-first / 不依賴外部字體資源的方向不完全一致。 ```
 
 #### 解決方式
 
-`​text 移除 Google Fonts 外部依賴。 改用系統字體 stack。 globals.css 改為 Nexus 極簡 design tokens。 `​``
+`text 移除 Google Fonts 外部依賴。 改用系統字體 stack。 globals.css 改為 Nexus 極簡 design tokens。 ```
 
 #### 結果
 
-`​text 三欄 layout 成功顯示。 Sidebar / Editor / Right Panel 結構成為 MVP-0 UI 基礎。 `​``
+`text 三欄 layout 成功顯示。 Sidebar / Editor / Right Panel 結構成為 MVP-0 UI 基礎。 ```
 
 ### 2026-06-28 — MVP-0 健康檢查、Code Verify 收斂修復 與 MVP-1 Search v0 實作
 
@@ -1307,8 +1305,6 @@ D-197 — 新增 PageKind "creative"：側邊欄獨立類別，CreativeView 入�
 
 ### 2026-09-14 帳號、同步與小說收尾日誌
 
-## 2026-09-14 帳號、同步與小說收尾日誌
-
 ### 資料庫與帳號
 
 - 使用者已在 Supabase SQL Editor 執行 `20260914_creative_sync_fields.sql`；同步所需的創作欄位已存在於 `public.pages`。
@@ -1375,8 +1371,6 @@ D-197 — 新增 PageKind "creative"：側邊欄獨立類別，CreativeView 入�
 
 ### 2026-09-28 — Git Windows 保留檔名修復、VS Code 儲存衝突、FSRS 測試與 UI 補充（增量記錄）
 
-## 2026-09-28 — Git Windows 保留檔名修復、VS Code 儲存衝突、FSRS 測試與 UI 補充（增量記錄）
-
 > 證據來自使用者提供的 PowerShell stdout、VS Code 截圖與匯入報告；本次沒有直接執行使用者本機 repo 命令、取得新的遠端 Supabase 資訊、部署或實機操作。依 00 §15 與 01 §18 判斷最新狀態與契約。
 
 ### 事件一：Git `con.md` 無法加入索引
@@ -1393,8 +1387,6 @@ D-197 — 新增 PageKind "creative"：側邊欄獨立類別，CreativeView 入�
 3. 使用者隨後 commit 這兩檔成功：`fe54098`，2 files changed／206 insertions，主旨「新增學習排程相關檔案」；尚未取得後續新
 
 ### 2026-09-28 — 三份交接文件主章節一致性整合（本次增量）
-
-## 2026-09-28 — 三份交接文件主章節一致性整合（本次增量）
 
 **背景**：使用者詢問 `01` 是否涵蓋所有產品／任務規格、`00` 是否列出下一步，並要求正式整合。舊版 `00` §0 仍保留早期「字卡 UI → 製譜」順序，最新公共字典規劃只出現在後段；`00` §10 的 `M7-8` 仍寫「字典未決」；`01` §3、§4、§12 也有類似過時描述，容易讓下一個 AI 只讀主章節就誤判。歷史資訊不刪除，以主章節的最新狀態和交叉引用解決。
 
@@ -1629,7 +1621,7 @@ Inflection 決策：
 
 **範圍：** Markdown 文件，未執行部署、線上 migration 或正式字典資料匯入。
 
-## 帳號刪除與文件整合決策（日期依歷史來源）
+**帳號刪除與文件整合決策（歷史來源）**
 - 登入者僅能透過已驗證 `auth.uid()` 刪除自己的帳號；要求電子郵件、確認字串與交易式回滾，避免前端偽造 owner 或誤刪其他帳號。owner 外鍵、RLS、離線快取及已刪帳號未過期 JWT 防護均須驗證。
 - 為保留既有孤兒資料使用 `NOT VALID`，不刪除 `owner=null` 共用舊資料；現有本機 PGlite 測試不等於正式 Supabase RPC 已部署。
 - 原 `docs/account-deletion.md` 已在本 PR 分流產品流程至 SPEC、技術規則至 ARCHITECTURE；原文保留 Git 歷史，避免永久多份文件重複維護。
