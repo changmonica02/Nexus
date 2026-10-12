@@ -78,3 +78,34 @@
 - Presentation block 保存相對座標 `x/y/w/h`、`rotation`、z-index；Chart options 與實際 renderer 尚可能有落差；須驗證 reload、縮放、旋轉、匯出與同步。
 - 製譜統一核心、簡譜／五線譜／吉他譜 adapters 為待驗證／規劃，不應假定某種文字語法已穩定。PDF workspace 對 annotation、page anchor、asset/reference 的 schema 仍需 Discovery。
 - 注意來源層級：舊 2026-09-25 快照與交接報告只反映當時狀態；以當前 repo + schema + test 為實作證據，正式產品行為以最近確認的 SPEC 為目標。
+
+
+## 8. 類型、Local Store、Backup、Sync 基線（原 Canon §5～§8）
+| 類別 | 資料真相 | 備註 |
+| --- | --- | --- |
+| Note／Document | Page + `content_json` | Note 富文字、Document Markdown |
+| PDF Research | Note Page + Attachment | 不另建立 pdf_research kind |
+| Study | Deck/Page + `study_cards`／`study_states`／`study_events`／`study_settings` | 舊 `study_items` 保留作遷移 |
+| Presentation | Page + `presentation_data` | Slide / Block |
+| Quick Note | `pages.kind=quick_note` + `color` | 無獨立 store |
+| Todo | `pages.kind=todo` + `due_date/priority/completed` | 無獨立 store |
+| Character／World | `pages.kind=creative` + `creative_type` + `character_data` | 模板也為 pages，應從一般清單過濾 |
+| Novel | creative Page + `novel_settings`；章節為 `novel_chapter` + `parent_id`／`sort_order` | 封面附件化 |
+| Web／Counter／Draw | pages kind + `content_json` 中的 intro/links、counters、draws | `content_text` 不應成為 JSON 正文真相 |
+| Lesson | `content_json.lessonLayout` + lessonBlock／answerSpace／lessonToc | 講義設定不得在正文更新中流失 |
+
+原 Canon 記錄 IndexedDB 名為 `nexus`，其當時 `DB_VERSION=6`，stores 包含 `pages`、`attachments`、`binaries`、`settings`、`study_cards`、`study_states`、`study_events`、`study_settings`、`study_sessions`、`study_outbox`、`quiz_attempts`、`quiz_states`、`quiz_outbox`。**這是歷史 snapshot；實際當前版本必須讀取 adapter 的 upgrade 程式碼**。早期 quick_notes/todos store 可能仍存在但不再使用。
+
+Backup/Sync 核對界線：
+- pages（含子頁、章節、模板）、attachments、binaries 一般應納入備份及 owner-scoped 同步；語言／夜間等本機偏好需與雲端帳號資料區分。
+- 功能排序與最近使用存在 localStorage，不隨帳號同步。
+- Study 卡片、狀態、事件、設定、session 與 outbox；Quiz attempts、states、outbox 的備份／遠端覆蓋應逐項檢查。
+- 舊文件有 backup schema v2 與測試提到 v3 的差異；**不要預設目前版本**。還原時應檢查 schema_version、atomic transaction、事件去重、缺失歷史與整體回滾。
+- `workspace_owner_id` 本地欄位與遠端 owner_id RLS 是兩層不同邊界；binaries 本地隔離曾列為風險，需重新核驗。
+- 頁面層 last-write-wins 不能作為已核准的完整 B2 衝突解法；正式設計須能檢出版本衝突、保留雙版本並支援手動解決。
+
+## 9. UI／互動技術注意事項
+- 選單浮層須避免被 toolbar overflow 裁切；表格的複雜操作在右鍵選單而非擠滿工具列；平均欄寬操作需有多 CellSelection。
+- Mobile 介面採遮罩浮層，內容不能被側欄擠壓；仍須以真實設備測試 focus、IME、selection、剪貼簿與閱讀捲動。
+- 複雜 Tiptap NodeView／ProseMirror 不能只測純函式；必要時使用 jsdom 真實 editor、browser interaction／列印驗證。
+- 正式驗證至少區分 TypeScript、production build、自動化測試、瀏覽器行為及實際帳號／多裝置測試，且不可互相取代。
