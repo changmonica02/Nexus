@@ -39,3 +39,10 @@
 - 三份原始交接檔已複製到 `docs/archive/`，**不作現行規格權威**，僅用於原文稽核。GitHub 封存檔大小與來源檔相符：00 = 44,939 bytes；01 = 77,340 bytes；02 = 694,409 bytes。
 - 常態只維護六份核心文件，歷史封存不再隨日常開發逐次修改。
 - 已保留所有原始文字供追溯；新 SPEC／ARCHITECTURE 是重整與摘要，不代表每一個歷史細節都已轉成現行需求。正式合併前仍應核對重要矩陣、決策覆蓋與實作狀態。
+
+
+## Canon 規格逐項對照（2026-10-12）
+- 新增 `docs/CANON-CROSSWALK.md`：將 2026-10-11 Canon §1–§13 及 F-* 功能卡，對應新規格章節、GitHub main 原始碼／測試／migration 路徑，並標註 A/B/C/E 證據等級。
+- 已抽樣讀碼確認 IndexedDB v8 與備份 schema v3、FSRS-6 參數、Entry identity、Import Review、製譜元件、owner-filtered SyncEngine。
+- **關鍵更正**：舊 Canon 中 IndexedDB v6 不再是目前 main 的實作；須以 v8、backup schema v3 為準。
+- **未完成**：執行測試、型別檢查、build、lint；全 RPC/RLS、真實瀏覽器和多裝置 QA；Vercel SHA 與 production Supabase ledger。此處的「程式存在」不是「驗收成功」。
