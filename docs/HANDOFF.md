@@ -6,7 +6,7 @@
 - `main` 是預設分支；儲存庫含 Next.js 應用程式、`src/`、`tests/`、`scripts/`、`data/` 及 Supabase migration。
 - 專案目前已有字典、etymology、study 路由及多份字典修訂／匯入相關 migration。
 - 本次工作建立文件架構及基本索引，**未修改正式資料庫，也未驗證線上部署**。
-- 原有 `docs/account-deletion.md` 和 `NEXUS_ETYMOLOGY_IMPLEMENTATION_REPORT.md` 保留為專項／歷史資料。
+- 舊字源驗收報告 `NEXUS_ETYMOLOGY_IMPLEMENTATION_REPORT.md` 仍保留；帳號刪除專項內容已整合到核心文件。
 
 ## 尚未確認
 - 本地未推送的程式碼／交接檔內容，以及最新完整 Canonical Spec 是否都已進入 GitHub。
@@ -21,3 +21,8 @@
 
 ## 工作交接規則
 本檔保持短小、僅保留**現況和下一步**；過期項目移除，不在此累積每日歷史。正式產品規格看 `SPEC.md`，技術設計看 `ARCHITECTURE.md`，重大歷史看 `HISTORY.md`。
+
+
+## 帳號刪除遷移備註
+- 原 `docs/account-deletion.md` 的產品流程、安全及資料庫約束、離線限制與本機測試已分別整理進 `SPEC.md`、`ARCHITECTURE.md`、`HISTORY.md`，原獨立文件不再維護。
+- **仍待驗證：** `20260929_account_deletion.sql` 是否已套用正式 Supabase；不要把舊文件的本機測試當成正式部署驗收。
