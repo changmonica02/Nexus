@@ -24,7 +24,6 @@ export function DictionaryConnections({data,from}:{data:PublishedDetail;from:str
   },[data.entry.id,data.entry.kind,data.senses,retry]);
   const current=groups?.id===data.entry.id?groups:null;
   return <section className="space-y-3" aria-label="關聯瀏覽">
-    <Link className={chip} href={browseHref(data.entry.kind,{},from)}>全部{data.entry.kind==='word'?'單字':data.entry.kind==='prefix'?'字首':'字根'}</Link>
     {data.entry.kind!=='word'&&<Link className={`${chip} ml-2`} href={browseHref('word',{component:data.entry.id},from)}>使用此{data.entry.kind==='prefix'?'字首':'字根'}的單字</Link>}
     {data.senses.length>1&&<nav className="flex flex-wrap gap-2" aria-label="切換義項">{data.senses.map((s,i)=><a className={chip} key={s.id} href={`#sense-${s.id}`}>{i+1}. {s.gloss_zh_tw}</a>)}</nav>}
     {current&&<>

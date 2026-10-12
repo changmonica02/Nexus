@@ -3,10 +3,11 @@ import {confirmDialog} from '../../lib/confirmDialog';
 
 import {useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {literalSearch} from './adminQueries';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {primaryCategories,prefixCategories} from './grouping';
 import type {DictionaryEntry} from './dictionary';
-import {matchAIEntry,parseAI,readAI,readAll,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
+import {matchAIEntry,parseAI,readAI,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
 const control='w-full rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2';
 const button='rounded border border-[var(--color-border)] px-3 py-2 disabled:opacity-40';
 const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',learning_decomposition:'口訣',story:'記憶故事'};
@@ -20,10 +21,27 @@ export function AIExport({query,selected,onBusy,initialKind='all'}:{initialKind?
  const reset=()=>{setOutput('');setError('');};
  async function generate(){setBusy(true);onBusy(true);reset();try{
   const client=getSupabase()!;
-  const [entries,meta]=await Promise.all([readAll<DictionaryEntry>(client,'dictionary_entries'),readAll<AIMeta>(client,'dictionary_ai_metadata','entry_id')]);
-  const chosen=chooseExport(entries,meta,scope,kind,subset==='search'?query:'',subset==='selected'?selected:null);
   const exported:AIEntry[]=[];
-  for(const e of chosen){const s=await readAI(client,e.id);if((scope==='all'||s.detail.entry.status===scope)&&categoryMatches(s,category))exported.push(toAI(s,await targetsFor(client,s)));}
+  // Explicit exports stream only their requested server-filtered scope. List/editor never preload the catalog.
+  let selectedIds=selected;
+  if(subset==='selected'&&selected.length){const {data,error}=await client.from('dictionary_ai_metadata').select('entry_id,published_entry_id').or(`entry_id.in.(${selected.join(',')}),published_entry_id.in.(${selected.join(',')})`);if(error)throw Error(error.message);selectedIds=[...new Set([...selected,...(data??[]).flatMap(m=>[m.entry_id,m.published_entry_id].filter(Boolean))])];}
+  for(let offset=0;;offset+=100){
+    let request=client.from('dictionary_entries').select('id,kind,headword,status,published_at,revision,updated_at');
+    if(scope!=='all')request=request.eq('status',scope);
+    if(kind!=='all')request=request.eq('kind',kind);
+    if(subset==='search'&&query)request=request.ilike('headword',`%${literalSearch(query)}%`);
+    if(subset==='selected')request=request.in('id',selectedIds);
+    const {data,error}=await request.order('headword').order('id').range(offset,offset+99);if(error)throw Error(error.message);
+    const entries=data as DictionaryEntry[];if(!entries.length)break;
+    const ids=entries.map(e=>e.id);
+    const {data:meta,error:metaError}=await client.from('dictionary_ai_metadata').select('entry_id,published_entry_id').or(`entry_id.in.(${ids.join(',')}),published_entry_id.in.(${ids.join(',')})`);if(metaError)throw Error(metaError.message);
+    const companionIds=(meta??[]).filter(m=>m.published_entry_id&&ids.includes(m.published_entry_id)&&!ids.includes(m.entry_id)).map(m=>m.entry_id);
+    let companions:DictionaryEntry[]=[];
+    if(scope==='all'&&companionIds.length){const {data,error}=await client.from('dictionary_entries').select('id,kind,headword,status,published_at,revision,updated_at').in('id',companionIds);if(error)throw Error(error.message);companions=data;}
+    const chosen=chooseExport([...entries,...companions],meta as AIMeta[],scope,kind,subset==='search'?query:'',subset==='selected'?selectedIds:null).filter(e=>ids.includes(e.id));
+    for(const e of chosen){const s=await readAI(client,e.id);if((scope==='all'||s.detail.entry.status===scope)&&categoryMatches(s,category))exported.push(toAI(s,await targetsFor(client,s)));}
+    if(entries.length<100)break;
+  }
   if(!exported.length)throw Error('此範圍沒有符合的詞條');
   setOutput(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:exported},null,2));
  }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);onBusy(false);}}
