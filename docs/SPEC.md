@@ -101,24 +101,22 @@
 
 > 核心為筆記、文檔、PDF 研究、學習集、簡報、快速收集、待辦、閱讀／資料整理與未來發布；不是早期完整 Notion、Canva、Wix 或企業協作平台 clone。
 
-### 1.2 使用者與交付約束
-
 - Nexus 的操作流程應兼顧初學者，提供清晰、可理解的提示與確認方式。
 
 ### 1.3 明確產品邊界【修改】
 
-| 類別 | 現行邊界 |
+| 類別 | 產品規格 |
 | --- | --- |
 | Note | 最重要核心；native rich editor 優先，不保證完整 Markdown 保真；含講義排版能力（F-LESSON） |
 | Document | 獨立於 Note；偏文字／Markdown 工作流 |
 | PDF | 現行為匯入後關聯 Research Note；未來要增加 GoodNotes-like PDF import workspace |
 | Image | **作為內容插入（insert block）**，不是獨立匯入頁面類型；小說封面與角色卡相冊為受限的專用用途 |
 | AI | 後期輔助層，不作早期內容資料模型或必要依賴 |
-| Web Clipper | 後期能力；先不做完整 browser extension |
-| 帳號／權限【修改】 | **登入必須制**（D-203）：未登入只顯示登入／註冊；登入後才使用該帳號的本機快取與雲端同步（D-198、D-200）。無匿名工作區。共編不在範圍 |
+| Web Clipper | 網頁內容擷取與整理能力（具體介面與匯入模型待規劃） |
+| 帳號／權限【修改】 | **登入必須制**（D-203）：未登入只顯示登入／註冊；登入後才使用該帳號的本機快取與雲端同步（D-198、D-200）。無匿名工作區。使用者可於帳號專屬工作區編輯 |
 | Mobile UI | 桌面、平板與手機提供符合裝置特性的響應式版面與操作規則（詳 §6.3） |
-| 創作【新增】 | 小說（受限純文字，D-201）、角色卡／世界觀（結構化區塊）為獨立功能；不做世界觀／人物／地點與小說的關聯 |
-| 個人工具【新增】 | 隨手記、日曆待辦、網頁、計數、抽選；目前為基礎版，範圍見 §4 各卡 |
+| 創作【新增】 | 小說提供文字編輯，角色卡與世界觀提供獨立結構化區塊管理 |
+| 個人工具【新增】 | 隨手記、日曆待辦、網頁、計數、抽選；具體功能與操作見 §4 各模組 |
 
 ---
 
@@ -185,26 +183,26 @@
 
 ### F-NOTE — Rich Note
 
-- **狀態**：✅ 核心完成。
+
 - **目的**：提供不受完整 Markdown 限制的原生筆記體驗。
 - **正文真相**：`content_json`；`content_text` 僅作衍生用途。
 - **編輯能力**：完整 rich toolbar、Editor Blocks、drag handle、tags、folder、backlinks、attachments。
-- **匯出**：Note 不再提供 Markdown 作為保真匯出；使用 Print/PDF 與 `.nexus.json`。
-- **限制**：格式保真以 Nexus JSON／Backup 為準，Markdown 不作 Note 的完整 round-trip 承諾。
+- **匯出**：Note 提供 Print／PDF 與 `.nexus.json` 格式保存完整筆記排版。
+- **格式保真**：完整 Note 排版與資料由 Nexus JSON／Backup 保存；Markdown 作為文字交換格式。
 - **驗收**：重新開啟、refresh、backup restore 後格式與內容仍存在。
 
 ### F-DOCUMENT — Plain Document
 
-- **狀態**：✅ 基線完成。
+
 - **目的**：適合文章、報告、正式文字與 Markdown 工作流。
 - **編輯模式**：`plain` editor variant；不承擔 Note 的 rich typography 工具列。
 - **格式**：以 flow／A4／custom 為主；Document 預設 A4 的目前規則見 F-PAGEFORMAT。
 - **匯出**：Markdown；需在 export 前 flush save。
-- **限制**：Document 不等於 Note 的降級版；兩者有不同用途與保真策略。
+- **定位**：Document 為純文字／Markdown 導向的獨立編輯流程，Note 為富文字筆記編輯流程。
 
 ### F-PDF — PDF Research Note 與未來 GoodNotes-like PDF Import
 
-#### 現行 PDF Import 基線 ✅
+#### PDF 匯入與 Research Note
 
 ```
 選擇本地 PDF
@@ -219,27 +217,27 @@
 - 一篇 PDF 對一篇主 research note 是起步 UX，不是資料模型硬限制。
 - Viewer 現有 Open、Small/Medium/Large、Hide/Show、loading/unavailable/normal 三態。
 
-#### 未來要求：GoodNotes-like PDF Import Workspace ▶️
+#### PDF 文件工作空間（待定案）
 
 - **使用者要求**：PDF 應以「匯入」形式進入 Nexus，形成類似 GoodNotes 的 PDF 文件工作空間，而不是把 PDF 視為一般 rich-text insert。
-- **目前不假設的內容**：手寫、annotation、highlight、頁面縮圖、頁面重排、跨 PDF 引用的具體 UX 尚未確認，不可自行補做。
-- **對應任務**：`M6-5` GoodNotes-like PDF workspace discovery，確認後才可啟動 `M6-6` implementation；需先定義 page-centric PDF workspace、annotation anchor 與 asset/reference 關係。
-- **驗收前提**：未來功能必須不破壞目前 attachment + Research Note 工作流。
+
+
+- **相容性**：PDF 文件工作空間與 Attachment／Research Note 的既有資料及操作流程相容。
 
 ### F-STUDY — Study Set / Flashcard【修改，程式碼推導；對話中無紀錄】
 
-- **狀態**：🟡 FSRS 每日練習、自由複習、四選一測驗已寫入程式碼並有自動化測試；FSRS migration 已由使用者確認部署；雙裝置、iOS 實機端到端**未驗證**。
-- **資料方向**：Deck = Page（設定另存）；Card = 使用者擁有的獨立 `study_cards` 記錄＋`study_states`（個人排程狀態）＋`study_events`（個人 append-only 事件）＋`study_settings`（每學習集設定）。字卡的英文／中文及個人編輯內容與公共百科相互獨立；未來可選擇連結公共字典的穩定詞條 ID 取得補充資訊，**公共字典不能覆寫個人字卡，也不持有個人 FSRS 排程**。實際關聯欄位及既有字卡回填方案待 repo/schema 查證，不預設自動連結。舊 `Page.study_items` **原樣保留**作遷移來源，不刪改。
+
+- **資料方向**：Deck = Page（設定另存）；Card = 使用者擁有的獨立 `study_cards` 記錄＋`study_states`（個人排程狀態）＋`study_events`（個人 append-only 事件）＋`study_settings`（每學習集設定）。字卡的英文／中文及個人編輯內容與公共百科相互獨立；未來可選擇連結公共字典的穩定詞條 ID 取得補充資訊，**公共字典不能覆寫個人字卡，也不持有個人 FSRS 排程**。
 - **演算法**：固定 `ts-fsrs 5.4.2`（FSRS-6）；`request_retention = 0.90`；`learning_steps = ['10m']`；`relearning_steps = ['10m']`；`enable_fuzz = false`；`maximum_interval = 36500`；完整參數存入每筆事件。按鈕間隔取 `scheduler.repeat`，提交用 `scheduler.next`，不覆寫 `due`。
-- **每日練習**：僅英→中主動回想；先只顯示英文，「顯示答案」後才顯示中文與 Again／Hard／Good／Easy。每個學習集預設每天 20 張新字（可設 0–10000），裝置當地 00:00 換日。題面掛載後以交易確認首次顯示才扣額度，交易完成前不能揭露答案或評分。**當日新字批次首次實際學習才建立，固定且跨重新整理持久化；每張新字必須 Easy 才完成，僅建立 `kind: introduce, source: daily_learning` 管理事件及 `learned_at`，不可捏造 Again review event 或正式 due。** 舊「到期優先 → 新卡」敘述只適用更早的排程版本，勿套用於此新字批次。
+- **每日練習**：僅英→中主動回想；先只顯示英文，「顯示答案」後才顯示中文與 Again／Hard／Good／Easy。每個學習集預設每天 20 張新字（可設 0–10000），裝置當地 00:00 換日。題面掛載後以交易確認首次顯示才扣額度，交易完成前不能揭露答案或評分。**當日新字批次首次實際學習才建立，固定且跨重新整理持久化；每張新字必須 Easy 才完成，僅建立 `kind: introduce, source: daily_learning` 管理事件及 `learned_at`，不可捏造 Again review event 或正式 due。** 
 - **正式單字複習**：固定持久化 session，預設目標 20 張；New 優先（隨機）→ Due 隨機 → Not-due 按最近到期補位。每張卡**本輪首次評分**才寫正式 FSRS review event／due，後續重練只更新 session mastery。Again／Hard 重排；Good／Easy 均完成出箱。`easy_at` 暫保留作相容性完成標記。
 - **四選一測驗（新決策）**：預設中→英，可切換英→中，方向持久化；只用已學習卡，必須至少 4 個相異且修剪後不重複的選項。加權公式 `min(3, 1 + memory_bonus + 0.25 * mistake_score)`；New 加成 0.5，FSRS 加成 `1 - retrievability`（只讀），錯題分數 0–4（錯 +1、對 −1）；測驗不寫 FSRS。離線作答待連線後由使用者決定上傳／捨棄／稍後，固定快照及事件 ID，重試冪等。
-- **既有卡片資料相容**：使用者可預覽、確認字卡英文與中文內容，再啟用每日練習；欄位不完整的字卡仍可保存，且僅內容完整的卡片進入出題。既有資料的遷移及 FSRS 資料完整性由技術契約維護。
+- **既有卡片資料相容**：使用者可預覽、確認字卡英文與中文內容，再啟用每日練習；欄位不完整的字卡仍可保存，且僅內容完整的卡片進入出題。
 - **編輯與複製**：中文修改保留排程；英文修改提供保留／重設／取消（重設以新 generation＋`reset` 事件，歷史仍保留）；單卡與整個學習集複製只複製內容並建立 New 卡；刪除為 soft delete。
 - **雙裝置衝突**：兩台裝置離線回答同一張卡時，保留所有事件，標記 `conflict` 並停止該卡正式排程；使用者須明確選擇「保留歷史並重新學習」。不自動推測語義合併。
-- **仍保留**：CSV/TSV 匯入基線（沿用舊規格）。
-- **字卡編輯列表**：以英文 A–Z 呈現兩欄 English／Chinese；長文字單行省略，點選整列開編輯，顯示完整內容；列表呈現排序不可覆寫資料中的自訂 order。
-- **翻面後資訊及儲存提示**：僅每日學習／正式複習背面顯示展開字典詳情；順序為四個評分按鈕 → 詳情面板 → **詳情內容末端隨捲動顯示**的儲存狀態提示（B2）。不在單字卡上方，也不承諾 sticky 常駐固定條。只有真正在儲存時顯示；成功消失，失敗同位置提示／重試；展開詳情不更動 FSRS。
+- **匯入**：支援 CSV／TSV 格式的學習集資料匯入。
+- **字卡編輯列表**：以英文 A–Z 呈現兩欄 English／Chinese；長文字單行省略，點選整列開編輯，顯示完整內容；列表依英文排序展示，使用者儲存的自訂順序獨立保留。
+- **翻面後資訊及儲存提示**：僅每日學習／正式複習背面顯示展開字典詳情；順序為四個評分按鈕 → 詳情面板 → **詳情內容末端隨捲動顯示**的儲存狀態提示（B2）。儲存進行中顯示；成功消失，失敗同位置提示／重試；展開詳情維持 FSRS 評分與排程狀態。
 - **離線資料邊界**：系統在一般重新整理與離線期間持續保留已寫入的本地學習資料；備份和跨裝置同步依帳號設定與備份流程執行。
 
 ### F-DICTIONARY — 全站共用公共字典
@@ -424,7 +422,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-PRESENTATION — Presentation
 
-- **狀態**：🟡 2026-08-23 大幅升級完成。pointer events + setPointerCapture 拖曳、絕對座標模式、邊緣 resize、旋轉（Shift 15°）、多選對齊、縮圖即時鏡像、圖表編輯（Gamma 風格分頁：上半部三欄 類型｜細項設定｜預覽 + 下半部資料表格）、投影片右鍵選單、placeholder 字影、浮動工具列、z-index 歸一化、resize 邊界 clamp、圖層拖曳排序、文字/圖表/版面三個下拉選單、面板開合按鈕。
+
 - **資料方向**：Presentation → Slides → PresentationBlocks；block 使用 x/y/w/h%、z-index、rotation。PresentationBlock 新增 `rotation?: number`。ChartData 新增 `sortOrder?`、`showDataLabels?`、`showGrid?`、`showTitleNumber?`。
 - **待完成**：拖曳吸附線、旋轉後 resize 方向修正、群組/鎖定、Slide Master、Mermaid/recharts、簡報 undo/redo。
 - **邊界**：不在近期做完整 Canva、動畫或多人協作。
@@ -433,13 +431,13 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-QUICKNOTE — Quick Notes
 
-- **狀態**：🟡 Google Keep-like 快速輸入、色彩卡片、刪除基線已存在。
+
 - **資料方向**：**已廢棄獨立 store（D-186）**。quick_note 為 `pages` 的 kind（`color` 欄位保存卡片顏色）。IndexedDBAdapter 已不建立也不讀寫 `quick_notes` store；舊 DB 若殘留該 store，程式碼忽略它。
 - **覆蓋**：因統一 pages store，Search／Backup／Sync 天然涵蓋，仍需 `Q-0` 核對。
 
 ### F-TODO — Todo／日曆【修改】
 
-- **狀態**：🟡 月曆優先 UI（`TodoView`）、快速新增、完成狀態與總覽基線已存在。側欄「日曆」固定在功能格第一列。
+
 - **資料方向**：**已廢棄獨立 store（D-186）**。todo 為 `pages` 的 kind（`due_date`、`priority`、`completed`）。
 - **新增選單**：切換到日曆功能時，新增選單顯示「日曆事項」。
 - **未完成**：多分類日曆（見下方 F-CALENDAR-PLANNED）；Note tasks／Projects／Review 的 Task projection；Board。
@@ -452,14 +450,14 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-CREATIVE — Creative 入口
 
-- **狀態**：🟡。創作功能入口頁 `CreativeView`，提供角色卡與世界觀的建立與清單。
+
 - **資料方向**：Page shell + `kind: "creative"`；以 `creative_type` 區分 `novel`／`character`／`world`。
 - **注意**：舊版曾把「小說閱讀格式」與「角色簡介表」視為創作入口的兩種範本；現在**小說是獨立功能入口**（F-NOVEL），創作入口只含角色卡與世界觀，「範本」一詞已改稱「模板」。
 - **判斷函式**（`types.ts`）：`isCreativeCharacterPage`＝creative 且（`character`／`world`／有 `character_data`）；`isNovelPage`＝creative 且非角色類。早期沒有 `creative_type` 的舊小說以此相容。
 
 ### F-NOVEL — 小說
 
-- **狀態**：✅ 本機；遠端章節同步需套用 `20260916_novel_chapters.sql`（見 00 §12）。
+
 - **入口與總覽**：`creative_type: novel` 開啟時先進入作品總覽：封面（PNG／JPEG／WebP，≤ 3 MB，實際附件保存與同步）、可編輯作品名稱、獨立概述（`NovelSettings.synopsis`，不得由正文自動推導）、字數／章節統計、完整目錄。
 - **內容邊界（D-201）**：只有段落、H1、H2 與基本 inline 文字樣式；貼上一律轉純文字；不含表格、圖片、清單、提示框、程式碼、LaTeX。
 - **章節（D-209）**：
@@ -475,7 +473,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-CHARACTER — 角色卡
 
-- **狀態**：✅ 本機；正式帳號同步未測。
+
 - **資料真相**：`Page.character_data`（`CharacterProfileData`）；`basic`（姓名、別名、頭像、性別、年齡、角色、所屬、名言、自訂欄位）＋`sections[]`＋`tabs[]`。
 - **區塊與內容（D-210）**：使用者可加「區塊」（`type: "group"`），區塊內可放多筆「內容」（`contents[]`），每筆內容有標題與一種資料類型。舊的單一類型區塊（葉節點）維持可讀可編輯。
 - **資料類型（程式碼型別 `CharacterComponentType`）**：`group`、`key_value`、`rich_text`、`tags`、`stats`、`rating`、`relations`、`radar`、`palette`、`tendency`、`statistics`、`gallery`、`links`、`music`。對應使用者所稱的長文（`rich_text`，檢視時預設收合，可點三角形展開）、雷達圖（可新增細項，實際繪圖）、評分、偏向、統計、色票（可新增細項）、相冊、連結、音樂（只存外部連結）；「短文」與 `key_value` 的對應**未核實**。
@@ -493,7 +491,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-WORLD — 世界觀
 
-- **狀態**：🟡 可建立與編輯；歸屬機制完成。
+
 - **規格**：`creative_type: "world"`，沿用角卡的區塊／內容／分頁／模板機制，可進行設定與描寫。
 - **歸屬**：角色以 `character_data.world_id` 歸屬某世界觀，或為空表示獨立角色。
 - **邊界**：世界觀／人物／地點與**小說**的關聯明確不做（D-201）。
@@ -531,7 +529,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 ### F-LESSON — 筆記講義排版與目錄【新增】
 
-- **狀態**：✅ 本機（`tests/lesson-workspace.md`：14 項測試通過、隔離介面測試；**實體列印、各瀏覽器 PDF 分頁差異、遠端同步未測**）。
+
 - **使用者目標（09-19）**：在筆記中製作類似課本與講義的排版與內容。AI 提出四項建議，使用者要求繼續實作，但**教師／學生版 PDF 不做**（D-204）。
 - **資料（D-214）**：設定存於 `content_json.lessonLayout`，沿用既有 JSON 儲存、同步與備份，無需資料庫遷移；編輯器更新正文時保留這份設定。
 - **樣式**：原有／課本／講義三種；正文字級、行距、標題比例、頁首頁尾；分頁筆記可顯示頁碼。段落支援圖說與重點樣式。
@@ -664,12 +662,12 @@ Notion-like power + Obsidian-like ownership。
 
 ## 六、公共字典介面與操作規格
 
-> **規格寫法**：本節只描述最終應呈現的畫面及行為。具體舊介面移除、取代、修改工作列於 `HANDOFF.md`。尺寸、手勢門檻、精確間距仍須產品負責人確認。
+
 
 ### 6.A 角色、頁面入口與管理操作
 
 - Nexus 有一套全站共用公共字典；一般登入使用者瀏覽已發布詞條，管理員可管理公共詞條。私人字卡由建立者自行擁有，並可連結公共詞條補充資料。
-- **管理入口只對管理員顯示**。管理員在既有登入工作階段直接進入管理介面；登入帳號的權限由系統判定。
+- **管理入口只對管理員顯示**。管理員在既有登入工作階段直接進入管理介面；系統依登入工作階段判定管理角色。
 - 管理介面有同一層級的「新增」與「匯入」操作入口：「新增」開啟共用詞條編輯面板，透過類型下拉選擇 Word／Prefix／Root；「匯入」開啟浮動匯入視窗。
 - 普通使用者瀏覽詞條詳情，管理員在同一詳情頁的**右上角**直接使用「編輯」按鈕，進入該詞條的編輯狀態。編輯仍在詞條上下文中完成。
 
@@ -686,14 +684,6 @@ Notion-like power + Obsidian-like ownership。
 - 同一個內容來源的注釋、補充說明及關聯敘述整合在**同一個視覺區塊／容器**，區塊內以小標、段落、清單等層次分隔內容。
 - 不同來源可以形成不同區塊；來源名稱、內容與必要參考資訊在同一區塊中可辨識。
 - 在桌面、平板與手機上維持一致的來源分組語義，僅調整容器寬度、留白、欄數與文字換行規則。具體設計 token 與尺寸待核准。
-
-### 6.D 介面規格待確認清單
-
-- 管理員工具列、右上角編輯按鈕、上一筆／下一筆控制項的精確位置與尺寸。
-- 上一筆／下一筆遇到搜尋結果更動、權限變更、草稿、末筆時的行為。
-- 手機／平板滑動方向、閾值與衝突手勢處理細節。
-- 深層連結返回預設頁；編輯中返回、儲存／取消與導覽上下文保留。
-- 注釋來源區塊的視覺間距、寬度、標題格式及超長內容折疊規則。
 
 ## 七、帳號刪除產品操作（專項整合）
 ## 帳號刪除：使用者行為
