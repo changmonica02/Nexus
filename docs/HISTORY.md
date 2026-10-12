@@ -477,6 +477,864 @@ annotation / highlight 複雜 PDF.js annotation layer citation parser SQLite / D
 ## 2026-07
 
 
+### 2026-07-02 — 歷史決策 D 編號完整補錄
+
+> 以下為當日或前後工作階段原決策登記；若日期是依該 Track 所屬工作階段歸檔，精確建立日請回查原始紀錄。
+
+#### 15.1 決策 D-107～D-108（Track A：Link / TaskList / TaskItem）
+
+#### D-107 — Link extension 採 openOnClick: false，並停用 StarterKit 內建 Link 避免衝突
+
+決策：啟用獨立的 `@tiptap/extension-link`，設定 `openOnClick: false`、`autolink: true`、`linkOnPaste: true`；同時透過 `StarterKit.configure({ link: false })` 關閉 StarterKit v3 內建的 Link mark，避免同名 extension 重複註冊衝突。連結在編輯模式下顯示為可點擊樣式（底線、手指游標）但點擊不跳轉，為刻意設計，非 bug。
+
+理由：
+
+```
+
+1.編輯內容時若連結點擊即跳轉，容易誤觸導致使用者意外離開編輯畫面。
+2.StarterKit v3 已內建 Link，若同時引入獨立 Link extension 且未關閉內建版本，會因同名 extension 報錯。
+3.未來如需點擊直接開啟，只需將 openOnClick 改為 true 或改用 Ctrl/Cmd + 點擊開啟，屬於一行設定調整，不是架構變更。
+
+```
+
+#### D-108 — TaskList / TaskItem 採真實互動節點，取代 v0.1 的文字符號保留策略
+
+決策：啟用 `@tiptap/extension-task-list` 與 `@tiptap/extension-task-item`（`nested: true`），Markdown import/export 同步升級為 v0.2：import 直接產生真正的 `taskList` / `taskItem` 節點與 `link` mark，export 對應輸出回 Markdown 語法。v0.1 時期已存在的舊資料（`☐` / `☑` 文字符號）維持原有 `listItemToMarkdown()` 偵測與 export 邏輯，不受影響，新舊資料可並存。
+
+理由：
+
+```
+
+1.v0.1 的文字符號保留策略只是過渡，使用者已明確表示需要真正互動的 checkbox 與可點擊連結樣式。
+2.向後相容是文件治理的核心原則（D-56 保守保留全部歷史痕跡），因此舊資料的 export 路徑不可破壞。
+3.此為 r15 提出的 vNext tracks 中 Track A（Editor Blocks Foundation）的第一批項目，風險低、範圍集中在 TiptapEditor.tsx 與 NexusApp.tsx 的 Markdown 轉換函式。
+
+```
+
+---
+
+
+
+#### 15.2 決策 D-109～D-110（Track E：Workspace Backup / Export package v0）
+
+#### D-109 — Workspace Backup v0 一併包含 attachment binary（base64），僅支援完全覆蓋式 import
+
+決策：Track E 的 Workspace Backup / Export package v0 匯出單一 JSON 檔案，內含所有 pages（含已軟刪除）、所有 attachments metadata、attachment binary（以 base64 編碼一併打包）、settings。Import v0 僅支援「完全覆蓋」策略：清空並重寫 pages / attachments / binaries / settings 四個 store，不支援與現有資料合併。
+
+理由：
+
+```
+
+1.使用者確認希望還原後資料完整可用，不需要額外重新匯入 PDF，因此接受備份檔案較大的代價。
+2.合併式 import 需要處理 id 衝突、重複判斷等複雜邏輯，v0 先用完全覆蓋降低風險與實作複雜度，符合分階段 MVP 精神（D-05 / D-08）。
+3.完全覆蓋策略明確對應「換電腦 / 災難恢復」的使用情境，符合 D-106 Backup before Sync 的定位。
+
+```
+
+#### D-110 — Workspace Backup import 必須具原子性並經二次確認
+
+決策：`IndexedDBAdapter.importWorkspaceBackup()` 的清空與重寫動作必須包在同一個 IndexedDB transaction 內；UI 層在呼叫 import 前必須顯示二次確認，明確告知會覆蓋目前所有資料且無法復原；import 成功後自動 reload 頁面。
+
+理由：
+
+```
+
+1.local-first app 的最大風險是資料遺失（呼應 r15 / D-106），因此覆蓋性操作必須具原子性，避免清一半寫一半的損毀狀態。
+2.二次確認是防止誤觸的最低限度保護措施，對新手使用者尤其重要（呼應 00 文件中「使用者幾乎沒有程式經驗」的產品約束）。
+3.reload 頁面可確保所有 React state（pages / attachments / activePdfUrl 等）重新從 IndexedDB 讀取，避免匯入後畫面與實際資料不同步。
+
+```
+
+---
+
+
+
+#### 15.3 決策 D-111（Track A2：Bulk Select）與 D-112（協作模式：工作區直接維護代碼）
+
+#### D-111 — Bulk Select 批次操作透過迴圈呼叫既有單筆方法，不新增資料模型；批次 Restore 不自動切回 Notes
+
+決策：Notes / Trash 的多選刪除、批次 Restore、批次永久刪除，一律透過迴圈呼叫既有的 `deletePage()` / `restorePage()` / `permanentDeletePage()` 單筆方法實作，不新增 StorageAdapter 介面方法，不新增資料模型。批次 Restore 完成後刻意停留在 Trash 視圖，不像單筆 Restore 一樣自動切回 Notes 並選中該頁。
+
+理由：
+
+```
+
+1.批次操作本質上是既有單筆能力的 UI 層編排，不需要底層資料模型或介面變更，符合分階段 MVP 精神。
+2.一次復原多篇時無法明確判斷該選中哪一篇，因此不強行自動跳轉，交由使用者自行決定。
+3.此為使用者主動提出的需求（測試 Track B 後詢問「可否新增多選功能」），判斷為低風險、高實用性，
+
+可插隊在既定 tracks 節奏中先做，不影響 Track C 的排程。
+
+```
+
+#### D-112 — 協作模式改為工作區直接維護代碼並實際編譯驗證，取代 patch 說明文件模式
+
+決策：自 Track A2 起，助理在 Arena workspace 的 `project/` 目錄下維護一份完整的 Nexus 專案鏡像，之後功能異動直接修改鏡像中的實際檔案，並於交付前實際執行 `npm install` / `npx tsc --noEmit` / `npx next build` 驗證可編譯通過，取代先前逐次輸出「找這段換那段」patch 說明文件的模式。使用者仍需手動下載 `project/src/` 內容並覆蓋回本機專案，助理無法直接讀寫使用者本機檔案系統。
+
+理由：
+
+```
+
+1.降低使用者手動比對 patch 片段、逐段貼上造成的出錯風險，對應「使用者幾乎沒有程式經驗」的產品約束（00 文件第 2 節）。
+2.讓助理能在交付前實際跑 TypeScript 型別檢查與 Next.js production build 驗證，而不僅是閱讀程式碼判斷正確性，
+
+提高每次交付的可靠度。
+
+1.此變更只影響開發交付方式，不影響任何產品 / 架構決策；StorageAdapter 抽象、content_json 唯一真相、
+
+soft delete 等核心決策維持不變。
+
+```
+
+---
+
+
+
+#### 15.4 決策 D-113（Track C：Study Set kind 欄位）與 D-114（NexusApp.tsx 拆檔）
+
+#### D-113 — Study Set 採 Page.kind 欄位落地 r15 的 Page kind / default_view_mode 拆分方向，且採簡化熟悉度分類而非完整 SRS
+
+決策：Track C 新增 `Page.kind?: "note" | "study_set"`（optional，缺省視為 `"note"`），作為 r15（D-102）提出「Page kind 與 default view mode 必須拆分」的第一次實際落地，而不是繼續把新語意塞進 `default_mode`。Study Set 的複習進度採簡化三段熟悉度分類（`new` / `learning` / `mastered`），不實作完整間隔重複（SRS）演算法。
+
+理由：
+
+```
+
+1.Track C 是第一個真正需要區分「頁面種類」的 creatable（PDF research note 仍是 Page + attachment，
+
+沒有真正需要 kind 欄位），是實踐 D-102 過渡策略的合適時機。
+
+1.kind 為 optional，舊資料視為 "note"，完全向後相容，不需要 migration script。
+2.完整 SRS 演算法（如 SM-2）複雜度高，v0 階段簡化分類已能達成「優先練習不熟的卡」的核心價值，
+
+符合分階段 MVP 精神（D-05 / D-08），避免過度設計。
+
+1.Study Set 專屬畫面（StudySetView）與底層資料（study_items）分離，UI 呈現方式可低風險調整，
+
+不視為架構限制。
+
+```
+
+#### D-114 — NexusApp.tsx 拆檔延續 D-63，只拆純函式與純 UI component，不拆 hooks
+
+決策：NexusApp.tsx 由 2301 行拆分為多個純函式模組（`src/lib/blockId.ts`、`wikilinks.ts`、`pdfNote.ts`、`inbox.ts`、`markdown.ts`、`fileDownload.ts`）與純 UI 元件模組（`src/components/Sidebar.tsx`、`EditorPane.tsx`、`RightPanel.tsx`），NexusApp.tsx 保留為 864 行的 Root App，仍集中管理 state 與所有 handler，不拆 hooks。原 `Editor` 元件更名為 `EditorPane`，避免與 Tiptap 套件的 `Editor` class 同名造成混淆。
+
+理由：
+
+```
+
+1.延續既有決策 D-63：優先拆純 UI component，暫緩拆 hooks，避免對新手手動維護造成過大抽象負擔。
+2.使用者在 Track C 驗證通過、應用基本架構（Note / PDF Research / Study Set 三種 Page 類型）已跑穩後
+
+主動提出拆檔建議，屬於合適時機，非助理片面決定提前拆檔。
+
+1.拆檔不改變任何既有行為與資料流，透過乾淨環境重新編譯驗證（npm install → tsc --noEmit → next build）
+
+兩輪確認，並由使用者完整回歸測試「沒有破壞任何行為」後才視為完成。
+
+```
+
+---
+
+
+
+#### 15.5 決策 D-115（Table block）與 D-116（package.json 交付規則）
+
+#### D-115 — Editor Blocks Foundation 分批推進，第一批為 Table，Image 依使用者要求擱置
+
+決策：Editor Blocks Foundation（Image / Table / Callout / LaTeX）不一次全做，依複雜度分批：Table → Callout → LaTeX。Table 採 `@tiptap/extension-table`（TableKit）並開啟 `resizable: true`；Markdown export 新增基本版 `tableToMarkdown()`（純文字 cell，不處理 colspan/rowspan）。Image block 依使用者明確要求擱置，待後續討論範圍（本機上傳 vs URL vs 兩者皆支援）後再排入。
+
+理由：
+
+```
+
+1.Table 有 Tiptap 官方成熟的 extension 可用，風險低、範圍集中，適合先做。
+2.Image 涉及儲存方式的產品決策（是否沿用 Attachment/binary 機制），需要額外討論，
+
+使用者也明確表示迫切性較低，因此擱置不阻塞其他 block 的進度。
+
+1.Callout 官方無現成 extension，需自行實作 custom node；LaTeX 依 D-55 需結構化 equation node
+
+並引入額外渲染套件（如 KaTeX），複雜度最高，因此排在最後。
+
+```
+
+#### D-116 — package.json 層級異動的交付規則：必須明確提醒重新 npm install，且優先排查命名空間污染
+
+決策：日後若功能異動涉及 `package.json`（新增或修改依賴套件），交付訊息必須明確、獨立列出「需要更新 package.json 並重新執行 npm.cmd install」，不能只用「工作區已是最新版本」概括帶過。若使用者回報 npm install 出現 404 / 找不到套件等錯誤，優先排查是否為套件名稱被貼上污染（例如 `@tiptap` 被誤植為 `@types`），而不是預設套件本身有問題；排查到問題後，直接提供完整、確認正確的檔案內容供整份覆蓋。
+
+理由：
+
+```
+
+1.package.json 位於專案根目錄，不屬於使用者慣常覆蓋的 src/ 資料夾範圍，容易被交付訊息忽略，
+
+實際案例已證實此落差會直接導致使用者本機出現型別錯誤（TS 2339）。
+
+1.本次對話已多次發生貼上造成的符號 / 命名空間污染（HTML escape、多餘 ** 等），
+
+套件名稱被誤植的可能性同樣存在，應列為 404 錯誤的優先排查方向。
+
+1.提供完整檔案內容整份覆蓋，比僅指出「哪一行打錯」更能降低新手使用者
+
+（00 文件第 2 節：幾乎沒有程式經驗）再次手動修改時出錯的風險。
+
+```
+
+---
+
+
+
+#### 15.6 決策 D-117（Callout isolating 修正）與 D-118（jsdom 真實 Editor 驗證方法）
+
+#### D-117 — Custom Tiptap Node 不應預設加上 isolating: true，需以真實 Editor 驗證 toggle 開關流程
+
+決策：Callout node 移除 `isolating: true`（保留 `defining: true`）。原因是 `isolating: true` 會阻擋 ProseMirror 的 `lift` 指令，導致 Callout 一旦插入就無法透過 Toolbar 再次點擊解開。未來若有其他 custom node 考慮使用 `isolating` 屬性，必須先用真實 Editor 實例測試完整的「插入 → 解開」toggle 流程，不能只驗證插入方向的行為。
+
+理由：
+
+```
+
+1.isolating 屬性的實際效果比表面描述（阻止一般編輯操作跨越節點邊界）更廣泛，
+
+會連帶影響 lift 等『解開包裹』類型的指令，容易在只測試『插入』情境時被忽略。
+
+1.Callout 是本次 Editor Blocks 中複雜度最高的自訂實作，此教訓應沉澱為可重用的實作檢查點，
+
+避免未來的 custom node（例如更複雜的 block）重蹈覆轍。
+
+```
+
+#### D-118 — 複雜自訂 Tiptap Node 的驗證應包含 jsdom + 真實 Editor 實例層級的測試
+
+決策：對於複雜度較高、涉及 ProseMirror 底層行為的自訂實作（例如帶 `addNodeView` 互動元件的 custom node），除了標準的 `tsc --noEmit` / `next build` 編譯驗證，額外採用 jsdom + 真實 `@tiptap/core` Editor 實例的自動化測試，模擬使用者操作並檢查底層文件狀態變化。測試用套件（jsdom、tsx）僅在驗證階段暫裝，驗證完畢即移除，不寫入 `package.json`。
+
+理由：
+
+```
+
+1.純閱讀程式碼或憑經驗判斷容易遺漏 ProseMirror 層級的邊界情況
+
+（本次案例：isolating 阻擋 lift 指令，純靠閱讀程式碼不易察覺）。
+
+1.用真實 Editor 實例重現問題，比起純推測更可靠，能在使用者測試前先抓到部分問題
+
+（Markdown round-trip 的多段落合併 bug即在此階段被抓到並修正）。
+
+1.不寫入 package.json 是為了避免將僅供開發期驗證用的測試工具，
+
+誤植入使用者實際運行所需的依賴清單，維持交付內容的乾淨。
+
+```
+
+補充說明（誠實記錄限制）：
+
+```
+
+jsdom 測試並非萬能——本次案例中，圖示選單的 mousedown 修正在 jsdom 測試裡邏輯正確， 但使用者於真實瀏覽器環境測試後仍回報失敗，代表 jsdom 無法完全模擬真實瀏覽器的 所有行為（可能與事件時序、CSS 實際渲染、或 ProseMirror 部分瀏覽器專屬邏輯有關）。 因此 jsdom 測試通過應視為「必要但不充分」的驗證層級，仍須以使用者的真實環境測試為最終判準。
+
+```
+
+---
+
+
+
+#### 15.7 決策 D-119（updateBlockMath/deleteBlockMath 必須傳 pos）、D-120（Table import 補齊）、D-121（模糊回報需先確認現象）
+
+#### D-119 — 呼叫 updateBlockMath / deleteBlockMath 必須明確傳入 pos，不依賴 setNodeSelection 後省略 pos 的寫法
+
+決策：`BlockMath.configure({ onClick })` 的編輯 / 刪除邏輯，一律透過官方回呼提供的 `pos` 明確傳入 `updateBlockMath({ latex, pos })` / `deleteBlockMath({ pos })`，不透過 `editor.chain().setNodeSelection(pos).updateBlockMath({ latex })`（省略 pos）的寫法。
+
+理由：
+
+```
+
+1.實測證實（jsdom + 真實 Editor 實例）：省略 pos 時指令改讀
+
+editor.state.selection.$from.pos，但 setNodeSelection 產生的 NodeSelection 語意與此不一致，導致指令回傳 false、實際未執行。
+
+1.此教訓具有可重用性：未來若使用其他官方或第三方 extension 的類似指令，
+
+應優先查看原始碼實作或用真實 Editor 測試驗證，不要憑經驗類比其他 Tiptap 指令的用法。
+
+```
+
+#### D-120 — 補齊 Table Markdown 匯入功能（先前僅有匯出）
+
+決策：`createMarkdownContent()` 新增表格偵測邏輯，辨識標準 Markdown table 語法（表頭列 + 分隔線 + 資料列），還原為 `table` / `tableRow` / `tableHeader` / `tableCell` 節點。基本版不支援欄位對齊語法或 colspan / rowspan。
+
+理由：
+
+```
+
+1.此為 Table block 交付時（8.20 節）遺漏的一半功能，在 LaTeX 混合 block 迴歸測試中
+
+意外發現；修正使 Table 具備完整的匯出/匯入雙向能力，維持一致性。
+
+1.混合多種 block 型別的迴歸測試（而非只測試單一新功能）更容易發現此類跨功能缺口，
+
+應作為未來新增 Editor Block 後的標準驗證習慣之一。
+
+```
+
+#### D-121 — 使用者以模糊描述回報問題時，應先確認具體現象再排查
+
+決策：當使用者用「跟之前一樣的問題」「標紅」等模糊描述回報狀況時，助理應先詢問具體現象（例如「是完全沒反應，還是程式碼標紅？」「是否已重新 npm install？」），不應直接假設是同一類型問題並跳去做深度邏輯排查。
+
+理由：
+
+```
+
+1.本次實際案例：使用者回報「deleteBlockMath 出現跟剛剛一樣的問題」，助理誤判為
+
+功能邏輯問題並投入 jsdom 深度測試（結果邏輯完全正確），後續才確認是使用者 看漏了 package.json 更新提醒（助理已依 D-116 提醒過），屬於部署問題而非邏輯問題。
+
+1.先確認現象可避免在錯誤方向上消耗不必要的排查時間，尤其當助理已遵循 D-116
+
+規則提醒過 package.json 異動時，更應優先懷疑是否為部署問題。
+
+```
+
+---
+
+
+
+#### 15.8 決策 D-122（transaction 位置計算須用 tr.doc）、D-123（插入空節點 + selectNode 取代 window.prompt）
+
+> 本節對應 8.23 節「Editor Blocks Foundation — LaTeX 改版：Obsidian 風格原地編輯公式」。完整背景、實作細節與 jsdom 驗證結果見 8.23 節與 00 文件 1S 節，本節只記錄可重用的決策本體與理由。
+
+#### D-122 — 同一 transaction 內若對 tr 做過變更，後續位置計算必須用 tr.doc，不可用變更前的 state.doc
+
+決策：在任何自訂 ProseMirror 邏輯（`handleTextInput`、自訂 command 等）中，若已經對同一個 `transaction`（`tr`）呼叫過 `replaceWith` / `insert` / `delete` 等會改變文件內容的方法，之後所有需要 `resolve()` 的位置計算（尤其是要塞進 `setSelection()` 的位置），一律改用該 `tr.doc`（變更後的最新文件），不可沿用呼叫當下傳入的 `state.doc`（變更前的舊文件快照）。並用 `Selection.near($pos)` 包裹結果，而非硬選一個固定位置。
+
+理由：
+
+```
+
+1.此教訓源自使用者帶入的另一個獨立 AI 對話串的真實崩潰事故：該串在 replaceWith
+
+之後用 state.doc 去 resolve 新游標位置，導致 resolve 出的位置已不屬於目前文件 版本，setSelection() 直接拋出 "Selection passed to setSelection must point at the current document" 例外，使編輯器崩潰。
+
+1.本次重新實作 obsidianMathInput.ts 時嚴格套用此原則（tr.doc.resolve(...) +
+
+TextSelection.near($pos)），jsdom 測試中打字觸發公式轉換全數正常，未再重現此類崩潰。
+
+1.此教訓具有高度可重用性：未來任何一次 transaction 內對 tr 做過內容變更、
+
+接著又要設定 selection 的場景，都應優先檢查是否誤用了變更前的 state.doc， 不限於本次的公式輸入功能。
+
+```
+
+#### D-123 — Toolbar「插入」類按鈕改用「插入空節點 + setNodeSelection 觸發 NodeView selectNode()」，取代 window.prompt()
+
+決策：需要「插入後立即讓使用者輸入內容」的自訂 NodeView（例如本次的 inlineMath / blockMath），Toolbar 按鈕不應使用 `window.prompt()` 詢問內容，應改為：先用 `insertContentAt(pos, { type, attrs: { ...空值 } })` 插入一個內容為空的節點，再對同一個 `pos` 呼叫 `setNodeSelection(pos)` 建立 `NodeSelection`，這會觸發該 NodeView 的 `selectNode()` 回呼，由 NodeView 自行決定如何進入可編輯狀態（例如本次的 `enterEdit()` 展開輸入框並 focus）。
+
+理由：
+
+```
+
+1.window.prompt() 是瀏覽器原生對話框，樣式無法客製、體驗生硬，且與 Obsidian 風格
+
+「原地編輯」的整體互動不一致，使用者本次明確要求移除所有跳窗互動。
+
+1.已用 jsdom + 真實 Editor 實例驗證此串接方式：insertContentAt 插入節點後，對同一個
+
+pos 呼叫 setNodeSelection(pos)，確實會觸發 NodeView 的 selectNode()， 且該函式內部呼叫的 enterEdit() 會正確顯示編輯框（見 00 文件 1S.3 測試 8）。
+
+1.此模式可重用於未來任何「插入後立即進入編輯狀態」的自訂 NodeView 需求
+
+（例如未來若要做其他需要原地編輯的 block 類型），不需要每次都重新設計互動方式。
+
+```
+
+---
+
+
+
+#### 15.9 決策 D-124（Track G：Command Palette）與 D-125（Track G：Dashboard / Home v0 提前落地）
+
+> 本節對應 00 文件 1T 節。完整背景、實作細節與驗證結果見 00 文件 1T 節，本節只記錄可重用的決策本體與理由。
+
+#### D-124 — Command Palette 採「Actions + Pages 合併鍵盤導覽清單」設計，不依賴額外資料模型
+
+決策：Command Palette（`Ctrl/Cmd+K`）內部把可執行項目分成 Actions（固定的常用動作，例如新增筆記、切換視圖、匯入匯出）與 Pages（依標題模糊比對現有頁面）兩類，合併成一份可用上下鍵導覽、Enter 執行的清單。Actions 清單直接呼叫既有的 NexusApp handler，不重複實作任何邏輯；Pages 清單只比對標題（不含正文全文搜尋），刻意與 Sidebar 既有的全文搜尋範圍不同，以維持面板回應輕量。
+
+理由：
+
+```
+
+1.使用者是新手，鍵盤操作應同時提供滑鼠可點擊的視覺清單，而非只支援打字指令，
+
+降低學習成本；因此採用「輸入框 + 篩選清單」的形式，而非純指令列。
+
+1.Actions 直接呼叫既有 handler，不新增任何重複邏輯或平行的資料流，
+
+維持「Command Palette 是既有功能的快速入口」而非「新的功能實作層」的定位。
+
+1.Pages 只比對標題是刻意的範圍控制：命令面板應快速、低延遲，
+
+全文搜尋已有 Sidebar 既有入口可用，不需要在此重複。
+
+```
+
+#### D-125 — Dashboard / Home 提前於 vNext tracks A~F 之外落地為 v0，採「輕量統計 + 快速入口」而非完整聚合視圖
+
+決策：Dashboard / Home 原先在 1M/1N 節因「需要彙整多種 creatable 的摘要視圖，過早做容易受限於當時尚未完成的其他模組」而判斷暫緩。本次使用者主動指名要做，且此時 Note / PDF Research / Study Set 三種 Page 類型皆已跑穩（呼應 8.19 節的拆檔時機判斷邏輯），因此以「v0 輕量版」方式提前落地：只做前端即時計算的統計卡片（全部頁面 / 筆記 / PDF 研究 / Study Set 四類）、最近編輯清單（依 updated_at 排序）、與三個快速建立按鈕，不新增任何後端聚合查詢或新的資料模型欄位。
+
+理由：
+
+```
+
+1.使用者的優先順序判斷應優先於既定的 track 規劃順序；當使用者明確指名要做
+
+一項先前判斷「暫緩」的功能時，應重新評估是否仍然合理暫緩，而非機械式地 照搬舊決策不做調整。
+
+1.「v0 輕量版」策略與 Study Set v0（8.18 節）、Workspace Backup v0（15.2 節）
+
+等先前 track 的一貫作法一致：先用最小可行範圍落地，避免因為想一次做完整 聚合視圖而卡住，之後有需要再擴充統計卡片種類或加入更多 System View 能力 （例如未來可能需要的 Calendar / Board 摘要）。
+
+1.純前端即時計算（不新增資料模型）降低了「提前做」的風險：若未來 Page kind
+
+或 creatable 種類擴充，只需要調整 Dashboard 內的分類判斷函式， 不需要 migration，符合 D-102 / D-113 一貫的向後相容原則。
+
+```
+
+---
+
+
+
+#### 15.10 決策 D-126（Import 選單維持獨立於「新增」入口）與 D-128（重新命名採原地輸入框互動）
+
+> 本節與以下 15.11～15.15 節，是 2026-07-30 深度審核（見 00 文件第 12 節）時
+> 回補的決策記錄，對應 Track H～M（詳細背景、實作內容與驗證結果見 00 文件
+> 1U 節）。這些決策編號（D-126～D-146）先前只存在於程式碼註解中，本次
+> 才正式寫入決策清單，是本次審核發現並修正的最主要文件治理缺口。
+> D-127 / D-129 / D-134 / D-137 這四個編號在程式碼中未被使用，經核對程式碼
+> 與過程記錄後確認：沒有找到對應的決策內容，也沒有發現任何因此遺漏的
+> 功能或資料——判斷是命名時的跳號或規劃調整後的殘留空缺，不強行回填
+> 虛構內容湊數，誠實記錄為「保留但未使用」。
+
+#### D-126 — Sidebar「新增」入口移除後，「匯入」維持原有的獨立點擊展開選單
+
+決策：Track L 把「新增」（New）從 Sidebar 移除、統一收斂到 Home 的
+NewPageDialog 後，「匯入」（Import：PDF / Markdown）不受影響，繼續維持
+原本 ToolbarDropdown 點擊展開選單的形式，不一併收斂到 Home。
+
+理由：
+
+```
+
+1.「新增」與「匯入」是語意不同的操作：「新增」是從零建立一個新頁面，
+
+使用者已經在 Home 有明確的建立流程入口；「匯入」是把既有的外部檔案 帶進 workspace，屬於「資料搬遷」而非「內容創作」，使用者更可能在 瀏覽 Sidebar 既有筆記時臨時想到要匯入一份檔案，把它留在 Sidebar 比強迫使用者先跳去 Home 才能匯入更符合直覺。
+
+1.避免過度收斂：使用者的原始需求（九點需求第 3 點）明確只針對「新增」
+
+要求整合，沒有要求連「匯入」也一併搬移，不應該自行擴大解讀範圍。
+
+```
+
+#### D-128 — 頁面重新命名採「原地將標題文字換成輸入框」的互動模式
+
+決策：Sidebar 中每篇頁面的重新命名（Track I 新增）不彈出對話框，而是
+把清單項目原本顯示標題的 `<span>` 原地替換成一個 autofocus 的
+`<input>`，Enter 確認、Escape 取消、失焦（onBlur）自動確認。
+
+理由：
+
+```
+
+1.與既有的資料夾編輯（handleSaveFolder）互動模式一致，維持 Nexus
+
+目前「行內編輯優先於彈出對話框」的一貫 UI 語言，降低使用者的 學習成本。
+
+1.重新命名是高頻率的小動作，彈出對話框（需要額外一次點擊「確認」）
+
+對這類小動作而言互動成本偏高；原地編輯讓使用者能用最少的點擊 次數完成操作。
+
+```
+
+---
+
+
+
+#### 15.11 決策 D-130（PageItemMenu 選單邊界防呆）與 D-131（工具列「插入內容」統整為單一下拉選單）
+
+#### D-130 — PageItemMenu 選單定位需同時鉗制視窗左右邊界，不能只防右側溢出
+
+決策：`PageItemMenu` 的選單定位邏輯（`openMenu`）計算左側座標時，
+不能只用 `Math.max(8, rect.right - width)` 防止選單左側溢出視窗，
+還必須額外用 `window.innerWidth` 計算 `maxLeft` 並取兩者夾在中間，
+確保選單的左右兩側都與視窗邊緣、以及觸發按鈕所在容器的邊緣之間，
+永遠保留至少 `EDGE_MARGIN`（10px）的視覺呼吸空間。
+
+理由：
+
+```
+
+1.已知問題修正：先前版本只做了「選單右緣對齊按鈕右緣」與左側下限
+
+防呆，沒有對右側做上限防呆，導致觸發按鈕本身就貼近 Sidebar 右側 邊界時，選單的右邊緣會跟著貼齊、甚至略微超出可視範圍，視覺上 看起來像「貼邊」，體感不精緻。
+
+1.這類「只防一側、沒防另一側」的邊界計算疏漏，是 UI 定位邏輯中
+
+容易重複發生的一類錯誤，記錄下來供未來寫類似的浮動選單元件 （例如本次 Track M 新增的 AccountSettingsRow 齒輪選單）時參考、 複用同樣「雙側鉗制」的計算邏輯，而不是每次重新發明。
+
+```
+
+#### D-131 — Tiptap 工具列「插入內容」統整為單一 ToolbarDropdown，取代並排的多個獨立按鈕
+
+決策：把原本並排在工具列上的 Table / Callout / Inline Math / Block Math
+四顆獨立按鈕，改用與 Sidebar「新增」「匯入」相同的 `ToolbarDropdown`
+共用元件收斂成一個「➕ 插入內容」下拉選單。
+
+理由：
+
+```
+
+1.隨著 Editor Blocks Foundation 三批陸續完成（Table、Callout、
+
+LaTeX），工具列並排的按鈕數量持續增加，視覺上開始擁擠，尤其是 本輪 Track M 又要新增字體/字級/顏色/對齊/螢光筆等一整組富文字 按鈕，若不先收斂既有的「插入類」按鈕，工具列會變得難以閱讀。
+
+1.複用既有的 ToolbarDropdown 元件（而非重新設計一個新的下拉選單）
+
+維持元件庫的一致性，且 ToolbarDropdown 已支援 "inline" variant （比照 ToolbarButton 的緊湊尺寸），本身就是為了這類場景設計。
+
+1.之後若有更多「可插入的內容類型」，只需要在呼叫端的 items 陣列
+
+擴充，不需要修改 ToolbarDropdown 元件本身或工具列版面配置。
+
+```
+
+---
+
+
+
+#### 15.12 決策 D-132（Notion 風格 Drag Handle：NodeRange 依賴順序）與 D-133（帳號系統範圍維持既有原則）
+
+#### D-132 — DragHandle 依賴 NodeRange 提供的 Selection 型別，註冊順序必須是 NodeRange 在前
+
+決策：Track J 新增段落拖曳重排功能時，`extensions` 陣列中 `NodeRange`
+必須註冊在 `DragHandle` 之前；`DragHandle` 只啟用頂層 block 拖曳
+（不啟用 nested，例如清單項目內部）。
+
+理由：
+
+```
+
+1.NodeRange 負責「拖曳範圍選取」的底層 Selection 型別，DragHandle
+
+依賴它才能正確選取「整個 block」而非只選到文字游標，這是官方套件 的既定依賴順序，記錄下來避免未來重構 extensions 陣列順序時 不小心破壞這個依賴關係（Tiptap 的 extensions 陣列順序在某些情況 下會影響行為，不是單純的無序列表）。
+
+1.只啟用頂層拖曳是刻意的範圍收斂：允許拖曳巢狀清單項目容易讓
+
+新手使用者不小心把內容拖到結構混亂的位置（例如把清單項目拖到 清單外面變成獨立段落，或反過來），在使用者還不熟悉這個新功能時， 先限制在最安全、最容易理解的頂層 block 拖曳。
+
+```
+
+#### D-133 — 帳號系統維持「完全 local-first、無真正登入驗證」的既有原則，本輪只調整 UI 位置不調整範圍
+
+決策：Track M 把帳號/設定從獨立的浮動橫欄（BottomLeftPanel）移入
+Sidebar 內部（AccountSettingsRow）時，帳號區塊本身的功能範圍不變：
+點擊帳號只顯示「帳號登入功能尚未開放」的提示文字，不做任何真正的
+使用者驗證、雲端同步或後端 API 串接。
+
+理由：
+
+```
+
+1.這是既有原則的延續，不是本輪新決策：Nexus 的核心定位是
+
+local-first（見第 3 節三大原則），目前沒有後端伺服器、沒有使用者 資料庫，帳號系統若要做，需要先確立雲端同步的整體架構（屬於 MVP-4 範疇，見第 1 節 MVP 路線），不應該在還沒有後端的情況下 先做一個「看起來能登入但實際上什麼都不做」的介面，那樣反而會 誤導使用者以為資料已經雲端備份。
+
+1.本輪需求的重點（見九點需求第 8 點）是「位置」不對，不是「功能」
+
+不足，因此範圍嚴格限制在 UI 位置調整，避免不小心把範圍蔓延到 使用者這次沒有要求的帳號系統實作。
+
+```
+
+---
+
+
+
+#### 15.13 決策 D-135（ResizablePanel 抽出為獨立容器）與 D-136（收合觸發點回歸標頭列，取代浮動邊緣按鈕）
+
+#### D-135 — Sidebar / RightPanel 的可拉伸寬度邏輯抽出為獨立的 ResizablePanel 容器元件
+
+決策：新增 `src/components/ResizablePanel.tsx`，把「依 `isCollapsed`
+決定寬度」「拖曳調整寬度」這兩項職責從 Sidebar / RightPanel 元件本身
+抽離，改為外層包裝容器，Sidebar / RightPanel 內部不再管理自己的寬度
+或拖曳邏輯。
+
+理由：
+
+```
+
+1.Sidebar 與 RightPanel 都需要「可拖曳調整寬度 + 可收合」的能力，
+
+若各自實作一份，未來任何拖曳手感或收合邏輯的調整都要改兩個地方， 容易出現不一致；抽成共用容器後兩者共用同一套邏輯與手感。
+
+1.符合既有的元件拆分原則（延續 D-63 NexusApp.tsx 拆檔時「只拆純
+
+函式與純 UI component」的判斷邏輯）：ResizablePanel 是純粹的版面 容器邏輯，不涉及 Sidebar / RightPanel 各自的業務邏輯（頁面清單、 Backlinks 等），適合獨立成元件。
+
+```
+
+#### D-136 — 收合切換按鈕從浮動邊緣按鈕改回固定在標頭列，Inbox/Trash 移到側邊欄底部固定
+
+決策：先前版本的收合/展開由 ResizablePanel 自己管理狀態，並在面板
+邊緣浮出一顆獨立的箭頭按鈕；改為「受控」模式後，收合狀態改由外層
+（NexusApp）管理，觸發按鈕移進 Sidebar / RightPanel 自己的標頭列
+（取代原本「多選」按鈕的位置），「多選」按鈕改移到 Notes 導覽列右側。
+同時 Inbox / Trash 導覽按鈕移到 Sidebar 最下方並固定，不隨筆記清單
+捲動。
+
+理由：
+
+```
+
+1.使用者回報浮動邊緣按鈕的位置「卡手」、體感不一致——面板邊緣的
+
+拖曳把手與收合按鈕擠在同一塊窄小區域，容易誤觸或難以精準點擊。 固定在標頭列的位置更符合使用者對「工具列按鈕應該在固定、可預期 的位置」的直覺。
+
+1.Inbox / Trash 是使用者需要隨時能點到的固定功能入口（類似
+
+應用程式選單中的系統層級選項），不應該隨著筆記數量增加、清單 變長而被捲動出視野範圍之外，因此固定在側邊欄底部。
+
+1.修正過程中發現並修復了一個真實 flex 版面 bug：flex-1
+
+overflow-y-auto 的可捲動子區塊（筆記清單）若沒有 min-h-0， 預設的 min-height: auto 會讓內容溢出容器、被外層 overflow-hidden 裁切，而不是正確地讓 overflow-y-auto 產生捲動軸，導致 Inbox/Trash 被完全遮住。這個教訓已寫入 00 文件的 AI 協作規則，供未來寫類似的 flex 版面時參考。
+
+```
+
+---
+
+
+
+#### 15.14 決策 D-138（Sidebar 底部留白說明性註解）與 D-139（ResizablePanel 新增 bottomInset prop）
+
+> ⚠️ 本節記錄的 D-138 / D-139 決策在提出當下（Track K/L 時期）是合理的，
+> 但其設計前提（存在一個 position: fixed 的 BottomLeftPanel 浮動橫欄）
+> 已於 Track M 被推翻——BottomLeftPanel 已刪除，改用內嵌在 Sidebar 內部
+> 的 AccountSettingsRow。這代表 D-139 引入的 `bottomInset` prop 呼叫
+> （`bottomInset={64}`）在 Track M 之後已經失去存在理由，變成死代碼，
+> 已記錄為本次深度審核的問題 2 與待辦 R-1（見 00 文件第 12 節），
+> 本節保留原始決策內容供歷史對照，不覆寫或刪除，但明確標註「前提已
+> 不成立，需要後續修正」，避免下一個接手的 AI 誤以為這仍是有效設計。
+
+#### D-138 — Sidebar 底部固定區塊需註解說明與（當時的）BottomLeftPanel 的視覺關係
+
+決策（歷史）：Sidebar 最下方的 Inbox / Trash 固定區塊程式碼中加入
+註解，說明底部保留額外留白是為了避開 BottomLeftPanel（當時畫面左下角
+的帳號/設定橫欄，position: fixed、z-index 高於一般內容）造成的視覺
+重疊。
+
+現況：BottomLeftPanel 已於 Track M 刪除，此註解描述的前提已不成立，
+但註解文字尚未同步移除（見 R-1）。
+
+#### D-139 — ResizablePanel 新增 bottomInset prop，用「縮短面板高度」而非「內部 padding」避開浮動元件遮擋
+
+決策（歷史）：`ResizablePanel` 新增 `bottomInset`（單位 px）prop，
+外層呼叫端可以傳入一個數值，讓面板整體高度縮短這麼多，藉此避開
+畫面底部固定的浮動元件（當時是 BottomLeftPanel）的視覺遮擋。刻意
+選擇「縮短外層高度」（`marginBottom`）而不是「面板內部加 padding」，
+因為內部加 padding 只會把內容往上推、超出容器後被 overflow-hidden
+裁掉，並不會真正避開下方浮動元件的視覺遮擋；縮短外層高度才能讓
+flex-1 的內容區塊（如 min-h-0 的筆記清單）正確按比例收縮。
+
+現況：這個 prop 的設計本身（縮短外層高度而非加 padding）在技術上
+仍然是正確、可重用的解法，如果未來又出現需要避開畫面固定元件的
+場景，這個 prop 仍然可以繼續使用；問題只在於「Sidebar 呼叫端目前
+傳入的 `bottomInset={64}` 這個具體數值」已經沒有對應的浮動元件需要
+避開，應該歸零或移除該次呼叫，而不是移除整個 `bottomInset` 這個
+prop 設計本身（見 R-1 的具體修正建議）。
+
+---
+
+
+
+#### 15.15 決策 D-140～D-146（Track L/M：Document kind、新建入口收斂、Note 富文字排版分級、匯出範圍分級、帳號設定移入 Sidebar、拖曳把手觸發範圍）
+
+> 本節對應使用者提出的「九點需求」（完整原文見 00 文件 1U.7 節）。
+> D-140 到 D-146 是這批需求落地時建立的決策，完整實作細節、驗證方式
+> 與 Playwright 測試結果見 00 文件 1U.6～1U.8 節，本節聚焦決策本體與
+> 理由，避免與 00 文件重複過多實作細節。
+
+#### D-140 — PageKind 新增 "document"，作為 D-102 拆分方向（kind vs default_mode）的延伸落地
+
+決策：`PageKind` 從 `"note" | "study_set"` 擴充為
+`"note" | "document" | "study_set"`，新增的 "document" 代表一種
+以純文字為主、概念類似記事本或 VS Code 的內容類型，與 Note 的差異
+在於不啟用富文字排版工具列，因此支援 Markdown 匯出（Note 則不）。
+「記事本」經 `ask_user` 向使用者確認後，判斷不是獨立的第四種類型，
+只是 Note 的別稱，因此沒有新增對應的 kind 字面值。
+
+理由：
+
+```
+
+1.呼應 r15 深度稽核（D-102）的既定拆分方向：default_mode 不應同時
+
+代表「頁面種類」與「顯示模式」，kind 欄位是實踐這個方向的機制， Track C 已用 kind: "study_set" 開了第一槍，Track L 的 "document" 是同一個機制的第二次驗證與延伸，證明這個拆分方向可以持續擴充 而不需要大改資料模型。
+
+1.kind 為 optional、缺省視為 "note"，維持向後相容——舊 IndexedDB
+
+中沒有 kind 欄位的資料不會因為這次擴充而被誤判類型。
+
+```
+
+#### D-141 — 新增 PageFormat 型別，本次只記錄使用者選擇不實作排版引擎
+
+決策：新增 `PageFormat = "flow" | "a4" | "16:9" | "4:3" | "custom"`
+型別，`Page` 與 `CreatePageInput` 新增 `format?: PageFormat` 欄位。
+本次範圍明確收斂為「只記錄使用者建立頁面時選擇的格式」，不實作
+對應的排版引擎（A4 分頁計算、簡報模式預覽等），這個範圍收斂已透過
+`ask_user` 向使用者確認並取得同意。
+
+理由：
+
+```
+
+1.排版引擎（分頁計算、簡報模式預覽）是一個獨立、複雜度高的功能，
+
+若在本輪與其他八點需求混在一起做，容易造成範圍蔓延、拖慢其他 相對單純的需求的驗證與交付節奏；先落地資料欄位、UI 選擇流程， 排版引擎留給下一輪獨立處理，是更穩健的分階段做法。
+
+1.format 為 optional、缺省視為 "flow"，向後相容既有資料，且不會
+
+因為欄位存在但暫時不生效而造成任何顯示錯誤（因為目前所有頁面 不分 format 值一律採用同一種流動版面渲染）。
+
+```
+
+#### D-142 — 新建入口統一收斂到 Home 的 NewPageDialog，Sidebar 不再提供獨立建立入口
+
+決策：Sidebar 移除獨立的「新增」`ToolbarDropdown`；Dashboard（Home）
+新增單一「➕ New」按鈕，點擊開啟兩步驟的 `NewPageDialog`（選類型 →
+選格式）。Nexus logo 從純文字改為可點擊的按鈕，點擊直接跳轉首頁；
+`isHomeMode` 初始值改為 `true`，Home 成為預設進入畫面；Sidebar 移除
+原本獨立的「🏠 Home」按鈕。
+
+理由：
+
+```
+
+1.使用者明確指出「新增」功能重複（Sidebar 與 Home 各有一套建立
+
+入口），統一收斂到單一入口可以降低使用者对「該用哪一個新增按鈕」 的選擇困擾，也降低未來新增頁面類型時需要同步維護兩套 UI 的成本。
+
+1.Home 作為預設畫面 + logo 可點擊回首頁，是常見的應用程式導覽
+
+慣例（類似瀏覽器點擊網站 Logo 回首頁），降低新手使用者的學習 成本，不需要另外提供一個獨立的「Home」按鈕造成介面選項冗餘。
+
+```
+
+#### D-143 — 帳號 / 設定移入 Sidebar 底部固定區塊，取代獨立的畫面浮動橫欄
+
+決策：新增 `AccountSettingsRow`，取代刪除的 `BottomLeftPanel`
+（position: fixed 的畫面角落浮動橫欄）。新元件內嵌在 Sidebar 最底部
+（Inbox / Trash 固定區塊之後），屬於 Sidebar 內部 flex 容器的一部分，
+不再是獨立於整個 App 畫面角落的浮動元件；設定齒輪按鈕的定位邏輯
+比照 `PageItemMenu`（觸發點偏右側）。
+
+理由：
+
+```
+
+1.使用者明確指出正確的位置認知：帳號與設定應該與 Inbox、Trash
+
+一樣，屬於側邊欄固定區塊的一部分，而不是畫面角落的獨立浮動 元件——這是使用者對資訊架構歸屬的直接回饋，不是單純的視覺調整。
+
+1.移除獨立的 position: fixed 浮動元件，也一併移除了過去為了避開
+
+它而在 ResizablePanel / Sidebar 引入的間接複雜度（bottomInset、 z-index 協調等），理論上讓版面邏輯更單純；但實際上因為 bottomInset 呼叫沒有同步移除，反而留下了死代碼（見 D-139 現況 說明與 R-1），這是本次審核提醒未來做「移除舊機制」類型的重構時， 務必連同所有間接依賴（不只是直接引用）一起檢查清除的一個實例。
+
+```
+
+#### D-144 — 拖曳把手觸發範圍用「負外距 + 對稱內距」技巧向左擴大
+
+決策：`.nexus-tiptap-editor` 加上 `margin-left: -56px; padding-left:
+56px;`，讓編輯器內容元素的可偵測滑鼠事件範圍向左擴大 56px，文字視覺
+位置因為 margin 負值與 padding 正值互相抵銷而完全不變。
+
+理由：
+
+```
+
+1.根因是 @tiptap/extension-drag-handle 的 mousemove 偵測只綁定在
+
+編輯器內容本身的 DOM 元素上，文字左側的視覺留白其實屬於外層 容器 EditorPane.tsx 的 padding，不屬於這個元素，因此需要在不 改變外層版面配置的前提下，讓編輯器內容元素本身的「可偵測範圍」 涵蓋到這塊區域。
+
+1.「負外距 + 對稱內距」是解決「視覺位置不變但可互動範圍擴大」這類
+
+需求的通用 CSS 技巧，不需要修改第三方套件原始碼、也不需要改變 任何其他元素的版面配置，是風險最低的修正方式。
+
+1.已用 Playwright 精確計算文字行的 bounding box 並驗證修正生效，
+
+不是只憑理論推導就假設修正成功。
+
+```
+
+#### D-145 — Note 富文字排版分級，透過 TiptapEditor 的 variant prop 控制
+
+決策：`TiptapEditor` 新增 `variant?: "rich" | "plain"` prop，`"rich"`
+（Note 使用）啟用字體/字級/顏色/對齊/螢光筆完整工具列，`"plain"`
+（Document 使用）維持純文字書寫體驗。範圍已透過 `ask_user` 向使用者
+確認縮小為「Tiptap 官方擴充套件可以直接做的部分」，分欄、圖表等
+更複雜的排版功能明確不列入本次範圍。新增套件均為精確版本 `3.27.1`：
+`@tiptap/extension-text-style`（提供 `TextStyleKit`，一次涵蓋
+TextStyle/Color/FontFamily/FontSize/LineHeight/BackgroundColor 六種
+能力）、`@tiptap/extension-text-align`、`@tiptap/extension-highlight`。
+
+理由：
+
+```
+
+1.使用者以 Word、Google 文件、Gamma 為參考提出的需求原本範圍很廣
+
+（含分欄、圖表等版面配置），透過 ask_user 提前收斂範圍到「Tiptap 官方擴充套件可以直接做的部分」，避免在本輪就一次做進複雜度高、 風險高的自訂排版引擎，是延續 R-1（見 15.9 節同類型判斷）一貫的 分階段落地原則。
+
+1.variant prop 搭配 EditorPane.tsx 用 key 強制重新掛載 TiptapEditor
+
+（因為 Tiptap 的 extensions 陣列只在元件掛載當下的 useEffect 決定 一次），是目前專案沒有使用 @tiptap/react 官方 React 綁定套件的 情況下，簡潔可靠地做到「依頁面種類切換完全不同的擴充套件組合」 的方式，不需要重新設計整個 Editor 生命週期管理邏輯。
+
+1.TextStyleKit 一次啟用多種能力、只用 configure 關掉不需要的部分
+
+（backgroundColor、lineHeight），比起逐一安裝 @tiptap/extension-color、@tiptap/extension-font-family 等個別 套件更精簡——後兩者其實只是從 TextStyleKit 所在套件 re-export， 安裝了也是多餘的重複依賴，這個發現已記錄供未來評估其他 Tiptap 擴充套件時參考（先確認官方是否已經有整合套件，再考慮逐一安裝）。
+
+```
+
+#### D-146 — Note 匯出範圍改為僅 PDF / Nexus JSON，Document 維持 Markdown
+
+決策：Note（`kind === "note"`，含 PDF research note）的匯出選項從
+「匯出為 Markdown」改為「匯出為 PDF」與「匯出為 Nexus 頁面
+（`.nexus.json`）」兩項，不再提供 Markdown 匯出；Document
+（`kind === "document"`）維持既有的 Markdown 匯出，不受影響。
+PDF 匯出透過瀏覽器原生 `window.print()` 搭配 `@media print` CSS
+規則實現，不引入額外的 PDF 產生函式庫依賴。
+
+理由：
+
+```
+
+1.Note 在 D-145 新增字體/字級/顏色/對齊/螢光筆等排版資訊後，這些
+
+資訊無法用純 Markdown 語法完整表示（Markdown 沒有內建的字體、 顏色、對齊語法），若仍提供「匯出為 Markdown」，會讓使用者匯出後 發現排版資訊全部遺失，屬於會誤導使用者的功能，因此主動下修範圍， 這個判斷已透過 ask_user 向使用者確認並取得同意（使用者選擇 「筆記僅支援 PDF/自家格式匯出」而非「保留部分相容的 Markdown」）。
+
+1.Document 維持 Markdown 匯出的理由則相反：Document 的定位是
+
+「以純文字為主的內容類型」（呼應九點需求第 7 點：概念類似記事本 或 VS Code），本來就不啟用富文字排版工具列，因此 Markdown 可以 完整還原其內容，沒有理由限制其匯出格式。
+
+1.選擇瀏覽器原生列印功能而非引入 PDF 產生函式庫（例如
+
+jsPDF、pdf-lib 等），是因為： a. 避免額外的大型依賴增加打包體積與潛在的版本相容性風險 （呼應既有的 Tiptap 版本鎖定教訓，任何新依賴都有機會引發 類似的深層依賴衝突）。 b. 瀏覽器原生列印本身就能正確渲染 CSS 樣式（字體、顏色、對齊 等），不需要額外實作一套「把 HTML/CSS 轉換成 PDF 座標系統」 的邏輯，維護成本更低。 c. 使用者可以在瀏覽器列印對話框自行選擇紙張大小、邊界等列印 選項，比起完全由程式碼決定 PDF 版面更有彈性。
+
+```
+
+---
+
+
+
+
+
 ### 2026-07-02 — 舊決策登記原文補充（D-01 及其後續 Track）
 
 > 下方內容來自 02 所封存的早期決策登記，保留當時的背景與取捨；被後續日期替代者不可視為現行規格。為避免重要理由只留在封存檔，將原始決策段落納入 HISTORY；排版層級由原標題轉成歷史附錄子節。
@@ -2345,6 +3203,84 @@ tsc / build / Playwright 驗證後，才開始本次審核工作。
   架構原則（Page/Block 統一模型、content_json 真相、StorageAdapter、
   soft delete、local-first）維持健康。
 
+### 2026-07-31 — 歷史決策 D 編號完整補錄
+
+> 以下為當日或前後工作階段原決策登記；若日期是依該 Track 所屬工作階段歸檔，精確建立日請回查原始紀錄。
+
+#### 15.16 決策 D-147～D-156（Supabase 雲端同步 + UI 改善）
+
+#### D-147 — Supabase 共享工作區同步（無登入，即時同步）
+
+決策：使用 Supabase 實現共享工作區同步。無登入機制，所有使用者看到同一份資料。啟動時 fullSync（雙向合併，last-write-wins），之後 Realtime 訂閱即時更新。每次本機存檔同步 push 到雲端，遠端變更時自動 reload 本機 state。備用每 60 秒 pullChanges。
+
+理由：使用者要求「任何進入該頁面的人都可以即時更新」，不需要登入機制。Supabase 免費額度（500MB DB + 1GB Storage）對個人使用足夠。
+
+#### D-148 — 環境變數管理 Supabase 連線
+
+決策：使用 `.env.local` 管理 `NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY`。`supabase.ts` 提供 `getSupabase()` 單例和 `isSupabaseConfigured()` 檢查。
+
+#### D-149 — SyncEngine 架構
+
+決策：SyncEngine 類別封裝所有同步邏輯。提供 `fullSync()`、`pullChanges()`、`pushPage()`、`pushAttachment()`、`pushBinary()`、`pushPermanentDeletePage()`、`startRealtime()` 方法。透過 `subscribe()` 提供狀態訂閱，`setOnRemoteChange()` 提供遠端變更回調。
+
+#### D-150 — 側邊欄「+」按鈕顯示格式選擇對話框
+
+決策：側邊欄「+」按鈕點擊「新建筆記」或「新建文檔」時，跳出 NewPageDialog 格式選擇對話框（流動/A4/16:9/4:3）。NewPageDialog 新增 `initialKind` prop 支援預選類型。資料夾和學習集仍直接建立。
+
+#### D-151 — 排序下拉新增「依照項目類型」勾選框
+
+決策：排序下拉選單新增「☐ 依照項目類型」勾選框，可與「最近編輯」或「自訂排序」同時使用。勾選後項目按 kind 分組顯示（📝 筆記 / 📄 文檔 / 🗂 學習集），各組內維持所選排序模式。
+
+#### D-152 — 隨時拖拽 + 位置感知 drop zones
+
+決策：所有側邊欄項目隨時可拖拽（不限於自訂排序模式）。拖拽時根據游標在目標項目中的 Y 位置判斷 drop zone：上方 30% = above（藍色上線），下方 30% = below（藍色下線），中間 40% = child（藍色背景，變成子頁）。拖拽可改變 parent_id 和同級排序。
+
+理由：使用者要求「要把子頁拉出或放入」，且「受排序影響只有最後同級項目的排序」。
+
+#### D-153 — 子頁類型選擇
+
+決策：hover 到頁面項目時，右邊「+」按鈕彈出類型選單（📝筆記 / 📄文檔 / 🗂學習集）。新建的子頁繼承父頁的 folder 和 tags，parent_id 設為父頁 ID。
+
+#### D-154 — 自訂雙擊間隔（350ms）
+
+決策：使用自訂雙擊偵測（350ms 間隔）取代瀏覽器原生 onDoubleClick（~500ms）。透過 lastClickTimeRef 和 lastClickIdRef 追蹤點擊時間和項目 ID。
+
+理由：使用者反映「常常誤觸」，縮短間隔可減少誤觸。
+
+#### D-155 — 工具列「字樣」改為 select 樣式
+
+決策：工具列的標題樣式（¶/H1/H2/H3）從 ToolbarDropdown 改為 `<select>` 元素，與字型下拉同區同樣式。中文顯示「字樣」，選項為「內文 / 標題1 / 標題2 / 標題3」。
+
+#### D-156 — ColorPaletteButton 色票選色器
+
+決策：新增 `ColorPaletteButton` 元件，提供 50 色常用色票 + 最近使用顏色（localStorage 儲存，最多 10 色）+ 自訂色（原生 color picker）。用於工具列的字色和螢光筆。
+
+
+#### 同步行為補充說明
+
+**同步衝突策略（待實作）**：
+目前的 last-write-wins 行為**不作為正式 v0**，需在近期優先實作衝突處理：
+- 新增 `revision` 衝突檢測（當 remote revision > local revision 時提示使用者）
+- 實作簡單的合併策略（保留兩者版本，讓使用者手動選擇）
+- 引入版本歷史功能（每次存檔保留歷史快照）
+此為近期優先工作，應在 Track D 之前完成。
+
+**離線模式 UX**：
+當網路斷線時，使用者仍可正常編輯筆記（所有資料存在本地 IndexedDB）。
+重新連線後，SyncEngine 會自動觸發 `pullChanges()` 拉取遠端變更，
+同時本機的編輯會在下次存檔時 push 到雲端。
+目前無離線指示器 UI，未來可考慮在 AccountSettingsRow 顯示連線狀態。
+
+**Binary 儲存策略**：
+目前接受短期沿用 base64 儲存於 PostgreSQL 資料表（約 33% 膨脹），
+預留未來改用 Supabase Storage 或其他 asset storage 的升級路徑。
+
+
+
+---
+
+
+
 ### 2026-07-31 — Supabase 雲端同步 + UI 改善（側邊欄拖拽、格式選擇、字樣、色票、學習集測驗）
 
 **背景：** 使用者要求：
@@ -2469,6 +3405,181 @@ D-156: ColorPaletteButton 色票選色器
 
 
 ## 2026-08
+
+### 2026-08-01 — 歷史決策 D 編號完整補錄
+
+> 以下為當日或前後工作階段原決策登記；若日期是依該 Track 所屬工作階段歸檔，精確建立日請回查原始紀錄。
+
+#### 15.17 決策 D-157~D-172（本次 5任務+8點+簡報直觀+圖表分區+優化）
+
+#### D-157 — PageFormat 引擎：kind 決定預設，任何分頁可還原為流動
+
+決策：Document 預設 a4（有分頁，可還原），Note 預設 flow（保持不改）。流動原本不改，僅有分頁的格式（a4/16:9/4:3/custom）可一鍵還原為流動。實作：PageFormatView 容器，a4 為 210mm 白紙灰底，16:9/4:3 為黑底簡報預覽，flow 為 820px 居中。format 為 ViewMode，非本質。
+
+#### D-158 — FileMenu 在工具列同一行最左邊（Google Docs 風格）
+
+決策：檔案下拉選單移至格式化工具列同一行最左邊，左側第一個按鈕。內含新建（筆記流動預設、文檔A4預設、簡報16:9）、匯入（PDF/Markdown）、簡報轉換、格式（流動/A4/16:9/4:3，可還原邏輯）、匯出/列印。取代標題右側舊格式切換UI。
+
+#### D-159 — 單一上欄與標題，內頁分頁（A4 分頁時）
+
+決策：A4 分頁時，只出現一個上欄（File+標題+工具列），不同的是內頁（紙張區域）。標題與工具列固定，僅紙張區域捲動，避免每張紙重複標題。
+
+#### D-160 — 工具列右邊分頁按鈕指左右雙開分頁，非 A4 分頁符
+
+決策：釐清使用者回饋「工具欄右邊應該要有的分頁按鈕是指的是開啟另一分項目時會出現左右分頁的那個分頁」。因此工具列最右側改為左右雙開控制：雙開中顯示雙開中/交換/關閉右側，未雙開顯示 Ctrl+點擊提示。中間分隔條僅視覺線。A4 的新增頁面按鈕移至 A4 紙張下方 sticky bottom。
+
+#### D-161 — 標題右側 +設定資料夾、+新增子頁移除，側邊欄更多操作左側 + 恢復
+
+決策：依使用者要求，標題右側的 +設定資料夾與 +新增子頁按鈕刪除，僅保留標籤。側邊欄每項 hover 時左側 + 按鈕恢復，位於 ⋮ 更多操作左邊，點擊彈出同類型子頁選單。
+
+#### D-162 — 只有同類型能成為子頁，簡報無子頁概念
+
+決策：`renderSubPageTypeMenu` 僅顯示與 parent 同類型選項：文檔→文檔，筆記→筆記，學習集→學習集；presentation 回傳 null 無子頁。`handleMovePage` 在 position===child 時檢查：若 target kind === presentation 則拒絕，若 dragged kind !== target kind 則拒絕，同類型才允許。深度限制 <2 保留。
+
+#### D-163 — 偏好設定加入使用說明
+
+決策：AccountSettingsRow 齒輪下拉新增 📖 使用說明按鈕，點擊開啟 HelpGuide 模態框（6節：檔案選單、分頁排版、側邊欄、雙開、簡報、其他）。HelpGuide Esc 關閉，點擊外部關閉。
+
+#### D-164 — 子頁與重新排列功能嚴禁自行刪減，已恢復
+
+決策：使用者嚴厲制止自行刪減功能。從原始 693 行完整版 Sidebar 恢復，清理亂碼：childMap、expandedIds、dragOverId/dragOverPosition、handleDragStart/Over/Drop、folderedGroups、groupByType、toggleExpand、renderPageItem depth 遞迴等全部恢復。
+
+#### D-165 — 圖表分區：數據圖表與文字圖表，11種圖表類型
+
+決策：ChartTypeMenu 重構為點擊開合，分兩大區：
+
+數據圖表（灰底標題）：
+- 長條圖 5 變體：長條圖、類別長條圖、群組長條圖、堆疊長條圖、堆疊比例長條圖，皆可一鍵轉直/橫（orientation toggle）
+- 折線圖、圓餅圖、環狀圖、甘特圖、金字塔、雷達圖
+
+文字圖表（米黃底標題，新增類別）：
+- 時間軸、文字欄、文字清單、引言卡，屬於簡易文字方塊，類似時間軸/文字欄
+
+資料模型：ChartData 擴充 `type: bar|line|pie|donut|gantt|pyramid|radar|timeline|text-columns|text-list|text-quote`, `variant?: single|category|grouped|stacked|stacked-percent`, `orientation?: vertical|horizontal`, `data: {label, value, series?, start?, end?}[]`
+
+渲染器 ChartRenderer 支援全部11種：群組並排、堆疊、堆疊比例、折線 SVG、圓餅/環狀扇形、金字塔梯形、甘特橫條、雷達極座標、時間軸垂直線+圓點卡片、文字欄兩欄、文字清單/引言卡。
+
+#### D-166 — 主題切換內頁文字變灰修復
+
+決策：原因為 `.ProseMirror p { color: var(--color-text) }` 在 dark 模式下淺灰，於 A4 白紙上呈灰色。修復：globals.css 強制 `.nexus-format-a4-page .ProseMirror p, h1, h2, h3, li, ul, ol { color: #1a1a1a !important }`，16:9/4:3 同理。
+
+#### D-167 — 分頁新增頁按鈕被重疊文字框監聽，無法點擊修復
+
+決策：PageFormatView A4 底部按鈕改為 `sticky bottom-4 z-20 shadow-lg backdrop-blur`，確保高於紙張內容。點擊 dispatch `nexus-insert-page-break` 事件，TiptapEditor 監聽後執行 `setPageBreak()`。避免被 .nexus-tiptap-editor 的 mousemove 監聽遮擋。
+
+#### D-168 — PPT/Canva/Gamma 整合分析
+
+決策：已完成分析文件 `PPT-CANVA-GAMMA-INTEGRATED-ANALYSIS.md` 與 `CANVA-ANALYSIS-DETAILED.md`，引用 12+ 來源：
+
+- PPT：Slide Master 階層 View→Slide Master，Master 改動級聯所有 Layout [1][3][4]，多母片 [3]
+- Canva：拖拉編輯器簡單控制 [1]，瀏覽器運行側邊欄分類 [3]，bounding box 把手 [2]，紫色對齊線 [2]，圖層面板拖曳 [3]，定位工具 [4]，群組 Cmd+G 群組的群組 [5]，文字框獨立物件 Forward/Backward [6]
+- Gamma：Liquid Canvas 卡片自適應 [7]，Blocks 可拖曳重排，左總覽中工作區右工具面板，slash 指令插入 [8]，AI 選版型 [9]，固定尺寸選項 [9]
+
+整合建議：三層架構 Presentation > Master > Layouts > Slides.blocks[]，頂部檔案最左、中格式化、右雙開控制，自由/流體雙模式，對齊線、縮放把手、群組鎖定、Slide Master、Mermaid 即時渲染、recharts。
+
+#### D-169 — 隨手記與 To-Do List 獨立於項目，獨立 Store
+
+決策：依使用者要求 8 點，側邊欄首頁之下新增 隨手記、To-Do List 兩區塊，獨立於項目。
+
+- PageKind 新增 quick_note, todo
+- DB_VERSION 2→3，新增 quick_notes 與 todos objectStore，by_updated / by_due index
+- StorageAdapter 新增 listQuickNotes/saveQuickNote/deleteQuickNote/listTodos/saveTodo/deleteTodo
+- IndexedDBAdapter 實作 + 遷移：將舊 pages 中 kind===quick_note 或 folder===QuickNotes 的搬至 quick_notes，kind===todo 搬至 todos
+- Sidebar filteredPages：若 isQuickNoteMode 僅 quick_note，若 isTodoMode 僅 todo，否則排除兩者
+- QuickNotesView：Google Keep 風格，頂部快速輸入，網格卡片，顏色圓點，hover 刪除
+- TodoView：日曆優先（42天網格），快速新增任務到選中日，右側總覽 今天/即將到來/已完成，checkbox 完成
+
+#### D-170 — 側邊欄筆記改成項目，文檔、簡報、筆記、學習集統稱項目
+
+決策：i18n `sidebar.nav.notes` zh-TW 改為「項目」，en 改為「Projects」。`isProjectKind()` 定義 note/document/study_set/presentation 為 project，quick_note/todo 非 project。`getProjectKinds()` 回傳 4 種。Dashboard 統計、Sidebar 項目按鈕 active 條件更新為 `!isTrashMode && !isHomeMode && !isQuickNoteMode && !isTodoMode`。
+
+#### D-171 — 垃圾桶多選時再次點擊垃圾桶可退回項目
+
+決策：垃圾桶按鈕改 toggle：若已在垃圾桶（isTrashMode true），點擊呼叫 onShowNotes() 回到項目，useEffect 監聽 isTrashMode 變化自動 setIsSelectMode(false) 清除多選。
+
+#### D-172 — 代碼分析與優化，5項大結構已確認
+
+決策：使用者確認分析報告中的 5 項大結構優化：
+
+1. NexusApp 1198 行拆分為 useUiModes, usePagesStorage 等 hooks（已創建 src/hooks/useUiModes.ts, usePagesStorage.ts）
+2. 引入 @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities（已 npm install，15KB）
+3. default_mode 標記 @deprecated，僅向後相容，文件註明未來移除（C2 決策）
+4. Creatable Registry 導入（新增 src/lib/creatableRegistry.ts，統一 icon/label/defaultFormat/isProject）
+5. QuickNotes/Todo 獨立 Store 並遷移（已實作，DB_VERSION 3）
+
+小範圍安全重構（Phase A）已識別：重複 Page 更新邏輯合併為工廠、Sidebar 過濾抽 hook、TiptapEditor 工具列拆分子元件、PDF 載入重複抽 usePdfBinary、卡片 UI 共用、console.log 移除、i18n 硬編碼替換、globals.css 重複合併。
+
+
+---
+
+
+
+#### 15.18 決策 D-173~D-185（工具列置頂、排版同格、真正分頁、夜間適配、表格右鍵、空白頁刪除等）
+
+#### D-173 — 工具列選單改為 Portal 固定定位最上層覆蓋
+
+決策：ColorPaletteButton、ToolbarDropdown、FileMenu、ChartTypeMenu 原本 absolute 在 relative 容器內，父層 toolbarPortalRef 有 overflow-x-auto 導致被裁切。改為 createPortal 到 document.body，fixed 定位，z-[9999]，依按鈕 getBoundingClientRect() 計算 top/left，避開視窗邊界，監聽 mousedown 外部關閉與 resize/scroll 重定位。
+
+#### D-174 — 對齊、分欄、文字排列同一格
+
+決策：排版群組同一 bordered 容器內：
+- 對齊：select 下拉 向左/置中/向右/兩端對齊，setTextAlign
+- 分欄：select 下拉 單欄/2欄/3欄，multiColumnExtension，支援 2-3欄，grid 佈局，虛線邊框
+- 文字排列：WritingModeExtension，按鈕 ↕️ toggleWritingMode vertical-rl，主要用於儲存格，保存於 content_json
+
+#### D-175 — 表格自由度與右鍵選單
+
+決策：TableGridPicker 8x10 網格自由選大小，Portal 覆蓋。表格工具列僅保留右鍵選單，不在工具列（使用者要求）。右鍵選單包含：
+- 上方/下方插入列，左側/右側插入欄，刪除列/欄，合併儲存格（需選多格）、與上下左右合併（TableMap+CellSelection 實現垂直合併）、拆分、切換標題列/欄、平均僅選取範圍、刪除表格
+
+#### D-176 — 真正分頁固定 A4 尺寸且底部可編寫
+
+決策：PaginatedEditorView 重寫為真正分頁：
+- A4 固定 210mm×297mm 1122px，內文高度 971px，ProseMirror min-height 971px 使底部可編輯
+- splitIntoPages(blocks, innerHeight) 依 estimateBlockHeight 分頁，超出自動加頁
+- 頁面置中 flex items-center，右上角保留 第X頁/共Y頁，底部提示已刪除
+- 快速輸入防抖：handlePageChange 立即合併保存，800ms 後檢查溢出 +150px buffer 才搬移最後 block，避免跳行
+
+#### D-177 — 夜間適配切換
+
+決策：工具列清除格式右側新增切換鍵 原文字顏色/適配夜晚模式。EditorPane 管理 isPageNightAdapt，PaginatedEditorView 背景 var(--color-editor-bg) 文字 var(--color-text)，globals.css 新增 .nexus-paged-adapt 覆蓋強制黑字。
+
+#### D-178 — 側邊欄單擊展開/收合，雙擊重新命名改回
+
+決策：Sidebar 原雙擊展開父子頁，改回單擊展開/收合 + 選中頁面，雙擊重新命名，350ms 間隔保留。
+
+#### D-179 — 表格編輯僅右鍵，不在工具列
+
+決策：移除 TiptapEditor 中 toolbarState.table && (<> +C/-C 等) 整段工具列，僅保留右鍵選單，符合使用者「表格編輯選項僅出現在右鍵選單」要求。
+
+#### D-180 — 檔案選單刪除空白頁
+
+決策：FileMenu 新增 頁面管理 → 刪除空白頁。EditorPane 實作 handleDeleteBlankPages，過濾空白 paragraph/heading/list/table（getTextFromNode trim 空），保留一空段落避免空文件。
+
+#### D-181 — 平均分配欄寬僅框選範圍
+
+決策：平均分配改為僅框選範圍，不整體平均。右鍵選單 CellSelection.forEachCell 收集選取格，TableMap 找到選取欄位集合，計算選取欄位總寬度平均，僅對欄位在選取集合內的所有儲存格 setNodeMarkup colwidth=[avgWidth]，保持總寬不變，無需橫向拉動。
+
+#### D-182 — 快速輸入跳行 BUG 修復
+
+決策：PaginatedEditorView 原 setPagesBlocks updater 內呼叫 onContentChange 導致 Cannot update component while rendering。改為 useMemo 衍生 pagesBlocks，handlePageChange 立即合併保存，debounce 800ms + 150px buffer 後才搬移最後 block，避免游標跳動。移除 pagesBlocks state，避免 loop。
+
+#### D-183 — 重複 underline 擴充
+
+決策：StarterKit v3 已內建 underline，與獨立 Underline 重複，警告 Duplicate extension names。改 StarterKit.configure({link:false, underline:false})。
+
+#### D-184 — 固定 A4 底部可編寫
+
+決策：PaginatedEditorView 每頁固定高度 1122px，ProseMirror min-height 971px，底部可編寫，解決底部大塊留白無法編寫（底部位置太高）問題，保留固定 A4 尺寸。
+
+#### D-185 — 側邊欄與分頁居中與頁碼保留
+
+決策：頁碼右上角保留，第X頁/共Y頁，opacity 20。分頁容器 flex flex-col items-center，頁面置中，解決內頁跑掉問題。底部提示 已刪除。
+
+
+---
+
+
 
 ### 2026-08-01 — 5點回饋之圖表分區與子頁恢復（嚴禁刪減）
 
@@ -2629,6 +3740,138 @@ D-156: ColorPaletteButton 色票選色器
 新的 01 已重整為「現行功能／實作要求／規格」文件；原 01 中未直接列為現行功能卡的歷史決策、舊資料模型快照、技術細節與完整 D-01～D-185 決策原文，不應另留第四份 legacy handoff 檔，也不能因可讀性重整而遺失。
 
 **比較結果：** 原 01：明確包含 D-01～D-185 共 185 個決策編號。 原 02：文字中明確提及 101 個決策編號。 在原 02 中未明確出現的原 01 決策編號數：84。 未明確出現的 ID：D-2, D-3, D-4, D-5, D-6, D-7, D-8, D-9, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19, D-20, D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-36, D-37, D-40, D-45, D-46, D-47, D-49, D-50, D-51, D-52, D-53, D-54, D-55, D-71, D-72, D-73, D-74, D-75, D-76, D-77, D-78, D-79, D-80, D-81, D-82, D-83, D-84, D-85, D-86, D-87, D-88, D-89, D-90, D-91, D-92, D-93, D-94, D-95, D-96, D-97, D-98, D-99, D-100, D-157, D-158, D-159, D-160, D-161, D-162, D-163, D-164, D-165, D-166, D-167, D-168, D-169, D-170, D-171。
+
+### 2026-08-23 — 歷史決策 D 編號完整補錄
+
+> 以下為當日或前後工作階段原決策登記；若日期是依該 Track 所屬工作階段歸檔，精確建立日請回查原始紀錄。
+
+#### 15.19 決策 D-186～D-197（2026-08-23 代碼審計 + Bug 修復 + 簡報功能改造 + 創作類別）
+
+> 本節是 2026-08-23 兩輪工作的決策記錄。完整背景、排查過程與驗證結果見上方
+> `## 2026-08-23` 兩則日期日誌；本節聚焦可重用的決策本體與理由。對應代碼審計
+> 見 `nexus-code-audit.md`（22 項發現，修復 15 項：H1-H4、M1-M7、L1-L2、L6、L9-L10）。
+
+#### D-186 — H3/H4 採方案 A：quick_note / todo 廢棄獨立 store，統一為 pages store 的 kind
+
+決策：2026-08-01（D-169）建立的 quick_note / todo 獨立 store 被廢棄。quick_note 與
+todo 改為單純的 `PageKind`，與其他頁面種類一樣存在 pages store。移除
+`IndexedDBAdapter` 的 `quick_notes` / `todos` store 建立、migration 與 6 個方法；
+移除 `StorageAdapter` 的 `QuickNote` / `TodoItem` 介面與 6 個方法宣告。
+
+理由：
+
+```
+1.獨立 store 造成 backup / sync 必須各自處理，實際上這兩種內容本質就是 Page，
+  獨立 store 是過度設計（H3/H4 審計發現 backup 覆蓋缺口、sync pullChanges 漏拉）。
+2.廢棄後 backup / sync 自然涵蓋（pages store 已涵蓋），移除約 200 行重複資料層代碼。
+3.既有 IndexedDB 中已建立的空 quick_notes / todos store 物理保留（不主動刪除），
+  未來 DB_VERSION 升至 4 時再清理，避免現在為了清空舊 store 引入額外 migration 風險。
+4.此決策推翻 D-169 的「獨立 store」方向，已透過 ask_user 取得使用者確認（方案 A）。
+```
+
+#### D-187 — PresentationBlock 新增 rotation?: number 欄位
+
+決策：簡報區塊型別 `PresentationBlock` 新增 `rotation?: number`（單位：度），
+支援任意角度旋轉；未設定或缺省視為 0。
+
+#### D-188 — 簡報 drag 架構：pointer events + setPointerCapture + 絕對座標模式
+
+決策：簡報畫布的拖曳 / 縮放互動改採現代 Pointer Events API（`onPointerDown` /
+`onPointerMove` / `onPointerUp` + `setPointerCapture`），確保所有 pointer 事件
+都送往被擷取的元素。物件本體負責所有事件判斷：中心區域 = drag，邊緣 9px = resize；
+把手圓點降級為純視覺（`pointer-events: none`，獨立 10px 定位）。`selBoxStyle()`
+函式**必須**包含 `position: "absolute"`。
+
+理由：
+
+```
+1.這是 drag bug 經十幾輪排查後定案的最終架構（根因見 D-188 補充說明）。
+2.沒有 position:absolute，CSS 會靜默忽略 left / top / z-index，但 outline /
+  transform / width / height 不受影響——這正是「resize/rotate 正常、只有 drag 壞」
+  的症狀來源，極具迷惑性，記錄此 canon 避免未來重蹈。
+3.setPointerCapture 確保即使游標移出元素也能持續收到事件，比傳統 document-level
+  mousemove 監聽更可靠，且 cleanup 更乾淨。
+```
+
+#### D-189 — z-index 歸一化：每次改層級後重新分配連續值（間距 10）
+
+決策：簡報圖層順序變更後，一律執行 `blocks.map((b, i) => ({ ...b, z: (i + 1) * 10 }))`
+重新分配 z-index，避免長期編輯後 z-index 數值無限增長或出現間隙。
+
+#### D-190 — resize 邊界 clamp：物件不超出畫布
+
+決策：拖曳縮放時對座標做邊界鉗制：`x ≥ 0, y ≥ 0, w ≤ 100 - x, h ≤ 100 - y`
+（座標皆為相對畫布的百分比），確保物件不會被拖出畫布範圍或變成負寬高。
+
+#### D-191 — patchPage helper：統一的 page 更新函式，更新欄位時同步 refresh updated_at
+
+決策：新增 `patchPage` helper，所有 page 更新 handler（content / title / folder /
+tags / format / margins / presentation / study_items / favorite / rename）統一改用，
+確保任何欄位變更都同步更新 `updated_at: Date.now()`。`revision` 維持「持久化版本」
+語意（不是每次編輯都 +1），由 `flushSave` 實際寫入 IndexedDB 時 +1。
+
+理由：
+
+```
+1.審計 M1 發現：多數 handler 更新欄位時未同步刷新 updated_at，導致排序與 sync
+  的「最近編輯」判斷失準。統一用 patchPage 從根本消除此類漏刷。
+2.revision 與 updated_at 語意分離：updated_at 是「內容何時被改」，revision 是
+  「何時被持久化」，兩者不應混淆。
+```
+
+#### D-192 — 圖表編輯面板 Gamma 風格：上半部三欄 + 下半部資料表格
+
+決策：簡報圖表編輯改為 Gamma 風格的浮動面板，位於編輯區底部，與畫布共用編輯區：
+上半部三欄（類型選擇 icon 網格｜細項設定 checkbox + 方向 + 變體｜240×140 即時預覽），
+下半部為資料表格（標籤 + 數值兩欄，移除「系列」欄位）。`ChartData` 型別擴充
+`sortOrder?` / `showDataLabels?` / `showGrid?` / `showTitleNumber?`。
+
+> 補充：上述四個 ChartData 選項已加入型別與編輯面板，但 `ChartRenderer` 尚未
+> 完整尊重這些選項的渲染行為，屬已知待完成項（見第 16 節）。
+
+#### D-193 — 圖表類型下拉選單：取代單一按鈕，7 種圖表類型可選
+
+決策：簡報工具列「📊 圖表」從單一按鈕改為下拉選單，提供長條圖 / 折線圖 /
+圓餅圖 / 環圖 / 甘特圖 / 金字塔 / 雷達圖共 7 種，每種帶預設資料。
+
+#### D-194 — 文字下拉選單：取代單一按鈕，含標題層級 / 方塊 / 清單等預設樣式
+
+決策：簡報工具列「＋ 文字」改為下拉選單，提供標題 / H1-H4 / 一般文字 /
+區塊引述 / 方塊（備註 / 資訊 / 警告 / 錯誤 / 成功 / 問題）/ 清單（項目符號 /
+編號 / 代辦）等預設樣式方塊。
+
+#### D-195 — 版面下拉選單取代形狀：目錄 / 雙欄 / 三欄 / 引言卡 / 時間軸 / 文字清單
+
+決策：簡報工具列原「⬜ 形狀」刪除，改為「📐 版面」下拉選單，提供目錄 /
+雙欄 / 三欄 / 引言卡 / 時間軸 / 文字清單六種版面範本。
+
+#### D-196 — 圖層拖曳排序：HTML5 drag-and-drop，拖曳後 z-index 歸一化
+
+決策：簡報圖層面板支援 HTML5 拖曳排序（`onDragStart` / `onDragOver` / `onDrop`），
+拖曳中的項目顯示 `opacity-40`，左側有「⠿」拖曳把手圖示；拖放完成後套用 D-189
+的 z-index 歸一化。
+
+#### D-197 — 新增 PageKind "creative"：側邊欄獨立類別，CreativeView 入口頁
+
+決策：`PageKind` 新增 `"creative"`（與 note / document / study_set / presentation /
+quick_note / todo 並列）。Sidebar 新增「✍️ 創作」獨立分類按鈕；`NexusApp` 新增
+`isCreativeMode` state + `handleShowCreative`（與其他模式互斥）。新增 `CreativeView.tsx`
+入口頁，初步提供兩種範本：📖 小說閱讀格式、🎭 角色詳細簡介表。創作頁面使用
+`kind: "creative"`，以標準 EditorPane 編輯。`creatableRegistry` 新增 creative
+定義（`isProject: false`）；Sidebar 的 `filteredPages` 排除 creative（不在「項目」清單顯示）。
+
+理由：
+
+```
+1.使用者要求新增「創作」類別，與筆記 / 文檔 / 學習集 / 簡報並列為一級內容種類。
+2.沿用 D-102 / D-113 / D-140 一貫的 kind 機制擴充，optional、向後相容，
+  不需 migration。creative 不屬於 project（isProject: false），獨立顯示。
+```
+
+
+---
+
+
 
 ### 2026-08-23 — 代碼審計 + Bug 修復 15 項 + 簡報功能重大改造 + drag 深度調試
 
