@@ -26,3 +26,11 @@
 ## 帳號刪除遷移備註
 - 原 `docs/account-deletion.md` 的產品流程、安全及資料庫約束、離線限制與本機測試已分別整理進 `SPEC.md`、`ARCHITECTURE.md`、`HISTORY.md`，原獨立文件不再維護。
 - **仍待驗證：** `20260929_account_deletion.sql` 是否已套用正式 Supabase；不要把舊文件的本機測試當成正式部署驗收。
+
+
+## 2026-10-12 交接來源核對摘要
+- 已找到交接雲端資料：`00-HANDOFF-STATUS-AND-AI-RULES.md`（約 592 行）、`01-CANON-SPEC-AND-DECISIONS(6).md`（2026-10-11 版，約 909 行）、`02-PROJECT-LOG-DETAILED(6).md`（約 15,182 行）。後兩者也有歷史版本；以較新的 Canon 而非舊附錄作規格基線。
+- 已將產品與資料契約的**關鍵章節摘要**轉移至 `SPEC.md`、`ARCHITECTURE.md`，重大歷史索引與否決決策至 `HISTORY.md`。這不等於逐字完整遷移；來源檔不能在全文逐條稽核完成前刪除。
+- 39 個既有工作 Issues（及工程補充 Issue）可作任務追蹤；Issue 題目／草稿不可自動視為產品已定案或功能已完成。
+- 請繼續執行**逐項追蹤矩陣**：原 Canon 各 F-* 模組／決策 → SPEC 章節、ARCHITECTURE 規則、對應 Issue；尤其 IMPORT/EXPORT 格式矩陣、各種 JSON 子欄位、細部觸控與同步狀態尚未逐條複製。
+- 尚需核對 `main` 近期 commit、Vercel SHA、production Supabase ledger、正式 CSV 與測試數據，不可將檔名、過往回報或 Issue 自動判為部署完成。
