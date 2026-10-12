@@ -906,3 +906,4 @@ offline / reconnect / delete / attachment / backup import 行為
 - 任何資料模型新發現，都應先更新 §5／§8 的 current contract，再把舊內容保留於 02 歷史，而非直接覆寫不留痕跡。
 
 ---
+
