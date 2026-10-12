@@ -679,3 +679,28 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 3. 詞條詳情由無來源的直接連結開啟時的返回目的地、左右滑動方向與未儲存修改警告；控件精確尺寸及響應式斷點。
 
 **本次交付範圍**：只更新 ARCHITECTURE／HANDOFF 文件；未執行 SQL、未修改應用程式，也沒有核實遠端 production migration。
+
+
+## 2026-10-12 舊文件完整性與儲存庫清理審核（刪除前置門檻）
+
+### 第一階段：整併核對結論
+
+- 已讀取 `docs/CANON-CROSSWALK.md`、舊 00／01／02 三份封存及現行 SPEC／ARCHITECTURE／HISTORY／HANDOFF／AGENTS 的文件資訊。Crosswalk 明確指出：目前完成的是**章節層級的來源追蹤與主要需求分流**，並非逐條、逐決策完全驗收；舊 02 的技術操作、歷史相容性、錯誤修復細節與重複歷史副本仍可能只有 archive 保存。
+- **尚未通過「舊文件所有仍有效內容均已承接」門檻**。不得據此刪除 `docs/archive/00-...`、`01-...`、`02-...`。必須先就各章建立「已承接且一致／歷史僅留 archive／仍有效但缺漏／有衝突待決」四類逐項矩陣，修復缺漏後才能決定是否移除封存；即使通過也應留 Git 歷史與可追溯的 tag。
+
+### 第二階段：檔案樹預盤點（尚未授權實際刪除）
+
+- 已掃描分支 `docs/six-core-docs-20261012` 的完整 Git tree：**440 個 tree entries**（含目錄）；主要位於 `data/`、`src/`、`tests/`。未將名稱含 old／draft／test 的檔案當作垃圾直接刪除。
+- **高信心候選**：`nexus-codebase-current.md` 為零內容檔案。須再確認沒有外部交接流程要求存在，可在確認後刪除。
+- **歸檔候選**：`NEXUS_ETYMOLOGY_IMPLEMENTATION_REPORT.md` 為 2026-09-28 舊字源百科本機匯入報告；可考慮將其歸入歷史封存而非直接刪除，先對照 HISTORY／ARCHITECTURE 保留獨有執行證據。
+- **待依賴驗證的清理候選**：`data/etymology/batch-08-*.json`（本機 dry-run／import／repeat 報告）、`data/etymology/batch-08/review/`（原始查證與評審）、`scripts/etymology/` 和 `scripts/import-etymology.mjs`、`tests/etymology*.test.cjs`。此群含原始資料及對應測試，必須先定來源真相、引用、法規／版權與備份策略，禁止整批直接刪除。
+- **低風險視覺資產候選**：`public/next.svg`、`public/vercel.svg` 等 Next.js 範例 SVG。清理前以實際程式全文搜尋引用及部署設定核對。
+- **產品退場候選**：`src/features/study/quiz/` 及對應測試與 SQL，因四選一功能已取消；惟現存資料、備份格式、RLS／RPC 與歷史 migration 都需要相容性分析，不得直接刪除 migration 或資料庫物件。
+
+### Codex 刪除前作業與驗收
+
+- [ ] 完成三份封存原始檔逐項需求／決策覆蓋矩陣，針對仍有效但遺漏的項目補回新文件，明確保留原文引用與差異判定。
+- [ ] 在 **main 與實際欲清理的功能分支** 上重新掃描完整檔案樹，使用檔名／程式匯入／動態引用／配置檔／CI／測試／SQL 依賴圖區分無引用、測試專用、資料來源及正式執行檔。
+- [ ] 對每個候選附上「理由、引用證據、搬遷去向、影響範圍、回復方式」；先執行 build／lint／tsc／測試，若移除後必須全部通過，再供使用者核准刪除清單。
+- [ ] 刪除舊 Quiz 與舊 owner-scoped etymology 功能前，確認現有客戶端快取、遠端 schema、舊備份還原及遷移策略，避免破壞使用者資料。
+- **截至此紀錄：未刪除任何檔案，未變更程式碼與 SQL。**
