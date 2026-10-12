@@ -1,6 +1,6 @@
-# Nexus — 正式產品規格（完整 Canon 遷移版）
+# Nexus — 產品規格（目標功能與互動契約）
 
-> 遷移基準：2026-10-11 Canon + 2026-09-28 最新交接增量。章節保留原始精細條款，僅依文件職責分流；2026-10-12 後的使用者決策優先。任何標記 IMPLEMENTED_LOCAL 都不代表正式部署。舊來源在 [歷史封存](archive/)；專屬追溯見 [對照表](CANON-CROSSWALK.md)。
+> 本文件定義 Nexus 應提供的產品功能、介面、導覽、設定與可驗收行為。以最新確認的產品決策為準；尚待討論的細節標示「待定」。開發進度、舊設計的移除工作、實際程式碼狀態與驗收工作由 [HANDOFF](HANDOFF.md) 管理，決策沿革由 [HISTORY](HISTORY.md) 記錄。
 
 ## 零、產品互動規格的強制編寫標準（2026-10-12）
 
@@ -127,64 +127,64 @@
 
 ---
 
-## 3. 功能總覽與狀態矩陣【修改】
+## 3. 功能範圍與規格索引
 
 ### 3.1 Core Creatables
 
-| ID | 功能 | 狀態 | 一句話規格 | 對應任務容器 |
-| --- | --- | --- | --- | --- |
-| F-NOTE | Note | ✅ | rich native editor 的核心內容 Page；流動／分頁兩種版面 | MVP-0／1 基線 |
-| F-LESSON | 筆記講義排版【新增】 | ✅（本機） | 樣式、教學區塊、自動目錄／題號、頁首頁尾、依 A4 整理分頁 | M10-10 |
-| F-DOCUMENT | Document | ✅ | plain text／Markdown 導向的獨立 Page kind | MVP-1 基線 |
-| F-PDF | PDF Research Note | 🟡 | PDF import + attachment + research note；GoodNotes-like workspace 為未來 | MVP-2／6 |
-| F-STUDY | Study Set【現行】 | 🟡 | FSRS-6 固定每日新字批次＋首次評分的正式複習＋四選一；共用字典方向已確認但尚未實作，近義詞群組練習待定 | MVP-7 |
-| F-DICTIONARY | 唯一全站共用字典與管理端 | 🟡 | 管理員維護唯一共用百科、一般登入者查閱；每位使用者的個人字卡可連結百科補充資訊，不另開發私人字源百科；舊 owner-scoped 表僅作保護／未來資料處置。含三類詞條、草稿／發布、管理端匯入、搜尋、翻面詳情 | `M7-9～M7-12` |
-| F-PRESENTATION | Presentation | 🟡 | 自由畫布簡報；拖曳/縮放/旋轉/對齊/縮圖鏡像已實作；吸附線/Master/undo 未完成 | MVP-3 |
-| F-QUICKNOTE | Quick Notes | 🟡 | Google Keep 風格；統一 pages kind（D-186） | MVP-7 |
-| F-TODO | Todo／日曆 | 🟡 | 月曆待辦；多分類日曆未做 | MVP-7／M10-6 |
-| F-NOVEL | 小說【新增】 | ✅（本機） | 作品總覽、獨立章節記錄、上下翻頁、閱讀設定 | M10-1 |
-| F-CHARACTER | 角色卡【新增】 | ✅（本機） | 區塊→混合內容、分頁、自訂模板與範文 | M10-2～4 |
-| F-WORLD | 世界觀【新增】 | 🟡 | 沿用角卡結構；角色可歸屬世界觀或獨立 | M10-5 |
-| F-WEB | 網頁【新增】 | 🟡 | 介紹＋連結清單編輯；公開展示頁未做 | M10-7 |
-| F-COUNTER | 計數【新增】 | 🟡 | 項目依「群組名稱」加總；正式大組／小組模型待定 | M10-8 |
-| F-DRAW | 抽選【新增】 | 🟡 | 每項目一個資料庫，多標籤，篩選後抽 N 個 | M10-9 |
-| F-CREATIVE | Creative 入口【修改】 | 🟡 | 創作功能入口（角色卡、世界觀）；小說已獨立成單獨功能入口 | MVP-10 |
-| F-SCORE | 製譜【C2 順序確認】 | ⏳ | 同級功能，先作品管理＋快速簡譜，之後五線譜／吉他譜；語法草案未核准 | 待編 Task ID |
-| F-CANVAS | Canvas | ⏳ | Page／Block reference 的視覺組織能力 | MVP-5 |
-| F-WEBSITE | Website / Publish Project | ⏳ | Share Page → Link Page → Publish Site | MVP-8 |
-| F-SHARE | 唯讀分享連結【獨立機制】 | ⚠️ | A1 已確認分享另設，不混入登入共用字典；匿名、撤權、附件細則尚未決定 | M8-0 |
+| ID | 功能 | 目標功能 | 規格成熟度 |
+| --- | --- | --- | --- |
+| F-NOTE | Note | rich native editor 的核心內容 Page；流動／分頁兩種版面 | 既有需求（待完整 UI 契約審查） |
+| F-LESSON | 筆記講義排版 | 樣式、教學區塊、自動目錄／題號、頁首頁尾、依 A4 整理分頁 | 既有需求（待完整 UI 契約審查） |
+| F-DOCUMENT | Document | plain text／Markdown 導向的獨立 Page kind | 既有需求（待完整 UI 契約審查） |
+| F-PDF | PDF Research Note | PDF import + attachment + research note；GoodNotes-like workspace 為未來 | 既有需求（待完整 UI 契約審查） |
+| F-STUDY | Study Set | FSRS-6 固定每日新字批次＋首次評分的正式複習＋四選一；共用字典方向已確認但尚未實作，近義詞群組練習待定 | 待規劃 |
+| F-DICTIONARY | 唯一全站共用字典與管理端 | 管理員維護唯一共用百科、一般登入者查閱；每位使用者的個人字卡可連結百科補充資訊，不另開發私人字源百科；舊 owner-scoped 表僅作保護／未來資料處置。含三類詞條、草稿／發布、管理端匯入、搜尋、翻面詳情 | 既有需求（待完整 UI 契約審查） |
+| F-PRESENTATION | Presentation | 自由畫布簡報；拖曳/縮放/旋轉/對齊/縮圖鏡像已實作；吸附線/Master/undo 未完成 | 既有需求（待完整 UI 契約審查） |
+| F-QUICKNOTE | Quick Notes | Google Keep 風格；統一 pages kind（D-186） | 既有需求（待完整 UI 契約審查） |
+| F-TODO | Todo／日曆 | 月曆待辦；多分類日曆未做 | 既有需求（待完整 UI 契約審查） |
+| F-NOVEL | 小說 | 作品總覽、獨立章節記錄、上下翻頁、閱讀設定 | 既有需求（待完整 UI 契約審查） |
+| F-CHARACTER | 角色卡 | 區塊→混合內容、分頁、自訂模板與範文 | 既有需求（待完整 UI 契約審查） |
+| F-WORLD | 世界觀 | 沿用角卡結構；角色可歸屬世界觀或獨立 | 既有需求（待完整 UI 契約審查） |
+| F-WEB | 網頁 | 介紹＋連結清單編輯；公開展示頁未做 | 既有需求（待完整 UI 契約審查） |
+| F-COUNTER | 計數 | 項目依「群組名稱」加總；正式大組／小組模型待定 | 待規劃 |
+| F-DRAW | 抽選 | 每項目一個資料庫，多標籤，篩選後抽 N 個 | 既有需求（待完整 UI 契約審查） |
+| F-CREATIVE | Creative 入口 | 創作功能入口（角色卡、世界觀）；小說已獨立成單獨功能入口 | 既有需求（待完整 UI 契約審查） |
+| F-SCORE | 製譜 | 同級功能，先作品管理＋快速簡譜，之後五線譜／吉他譜；語法草案未核准 | 待規劃 |
+| F-CANVAS | Canvas | Page／Block reference 的視覺組織能力 | 既有需求（待完整 UI 契約審查） |
+| F-WEBSITE | Website / Publish Project | Share Page → Link Page → Publish Site | 既有需求（待完整 UI 契約審查） |
+| F-SHARE | 唯讀分享連結 | A1 已確認分享另設，不混入登入共用字典；匿名、撤權、附件細則尚未決定 | 待規劃 |
 
 ### 3.2 System Views
 
-| 功能 | 狀態 | 規格摘要 |
-| --- | --- | --- |
-| Home / Dashboard | ✅ | 統計、最近編輯、快速入口；不承擔資料真相 |
-| Sidebar / Projects | ✅ | 分組、排序、拖拉、同類子頁、Favorites、Rename、Select mode |
-| 功能兩欄格與新增選單【新增】 | ✅（本機） | 見 F-NAVIGATION |
-| 下拉刷新【新增】 | ✅（待實機） | 見 §6.4 |
-| Search | ✅ v0 | 目前以 title／`content_text` 為主；章節與模板頁被過濾不列入一般清單 |
-| Inbox / Quick Capture | ✅ | Quick Capture 建立 Inbox item，且不打斷目前編輯 |
-| Trash | ✅ | soft delete、restore、permanent delete、bulk actions |
-| Right Panel | ✅ | Backlinks / Outgoing Links；Home 時不顯示 |
-| Command Palette | ✅ | Actions + title-based Pages 導覽 |
-| Quick Notes View | ✅ 基線 | Google Keep-like 卡片 |
-| Todo View | ✅ 基線 | 月曆優先；完整 task system 與多分類日曆未完成 |
-| Review Queue | 🟡【最新】 | Daily 固定當日新字批次、Easy 引入不寫正式 review；獨立正式 Review 首次評分寫 FSRS，後續重練僅更新 session mastery |
-| Calendar / Board | ⏳ | 多分類日曆見 M10-6；Board 未開始 |
-| Graph | ⏳ | 已規劃，尚無正式最小規格 |
-| Reading / Asset Library | ⏳ | 深度研究與資產管理未來視圖 |
+| 功能 | 目標行為 |
+| --- | --- |
+| Home / Dashboard | 統計、最近編輯、快速入口；不承擔資料真相 |
+| Sidebar / Projects | 分組、排序、拖拉、同類子頁、Favorites、Rename、Select mode |
+| 功能兩欄格與新增選單 | 見 F-NAVIGATION |
+| 下拉刷新 | 見 §6.4 |
+| Search | 目前以 title／`content_text` 為主；章節與模板頁被過濾不列入一般清單 |
+| Inbox / Quick Capture | Quick Capture 建立 Inbox item，且不打斷目前編輯 |
+| Trash | soft delete、restore、permanent delete、bulk actions |
+| Right Panel | Backlinks / Outgoing Links；Home 時不顯示 |
+| Command Palette | Actions + title-based Pages 導覽 |
+| Quick Notes View | Google Keep-like 卡片 |
+| Todo View | 月曆優先；完整 task system 與多分類日曆未完成 |
+| Review Queue | Daily 固定當日新字批次、Easy 引入不寫正式 review；獨立正式 Review 首次評分寫 FSRS，後續重練僅更新 session mastery |
+| Calendar / Board | 多分類日曆見 M10-6；Board 未開始 |
+| Graph | 已規劃，尚無正式最小規格 |
+| Reading / Asset Library | 深度研究與資產管理未來視圖 |
 
 ### 3.3 Tools 與基礎服務
 
 | 功能 | 狀態 | 規格摘要 |
 | --- | --- | --- |
-| New / File Menu | ✅ | 建立、匯入、格式、轉簡報、頁面管理、匯出／列印 |
-| Import / Export | ✅／🟡 | 現行格式見 §7 |
-| Workspace Backup【版本待最新源碼確認】 | 🟡 | 單一 JSON；測試檔涉及 v3，舊表涉及 v2，**實際最新 schema version 必須 B3 源碼實查**；完全覆蓋 import 需二次確認；舊版匯入不得刪除既存 FSRS 歷史 |
-| Supabase Sync【修改】 | 🟡 | 帳號 workspace（owner_id RLS）；字卡走獨立資料表＋RPC；B2 衝突／版本歷史未完成 |
-| Preferences / i18n【修改】 | ✅ | English／繁中；偏好第一層＋詳細設定對話框；新功能字串部分為寫死中文 |
-| Theme / Night Adapt | ✅ 基線 | Page night adaptation 已持久化 |
-| Template System【修改】 | 🟡 | **角色卡模板已完成**（D-210）；通用模板系統（筆記／簡報等）仍未定義 |
+| New / File Menu | 建立、匯入、格式、轉簡報、頁面管理、匯出／列印 |
+| Import / Export | 現行格式見 §7 |
+| Workspace Backup | 單一 JSON；測試檔涉及 v3，舊表涉及 v2，**實際最新 schema version 必須 B3 源碼實查**；完全覆蓋 import 需二次確認；舊版匯入不得刪除既存 FSRS 歷史 |
+| Supabase Sync | 帳號 workspace（owner_id RLS）；字卡走獨立資料表＋RPC；B2 衝突／版本歷史未完成 |
+| Preferences / i18n | English／繁中；偏好第一層＋詳細設定對話框；新功能字串部分為寫死中文 |
+| Theme / Night Adapt | Page night adaptation 已持久化 |
+| Template System | **角色卡模板已完成**（D-210）；通用模板系統（筆記／簡報等）仍未定義 |
 
 ---
 
@@ -243,7 +243,7 @@
 - **每日練習**：僅英→中主動回想；先只顯示英文，「顯示答案」後才顯示中文與 Again／Hard／Good／Easy。每個學習集預設每天 20 張新字（可設 0–10000），裝置當地 00:00 換日。題面掛載後以交易確認首次顯示才扣額度，交易完成前不能揭露答案或評分。**當日新字批次首次實際學習才建立，固定且跨重新整理持久化；每張新字必須 Easy 才完成，僅建立 `kind: introduce, source: daily_learning` 管理事件及 `learned_at`，不可捏造 Again review event 或正式 due。** 舊「到期優先 → 新卡」敘述只適用更早的排程版本，勿套用於此新字批次。
 - **正式單字複習**：固定持久化 session，預設目標 20 張；New 優先（隨機）→ Due 隨機 → Not-due 按最近到期補位。每張卡**本輪首次評分**才寫正式 FSRS review event／due，後續重練只更新 session mastery。Again／Hard 重排；Good／Easy 均完成出箱。`easy_at` 暫保留作相容性完成標記。
 - **四選一測驗（新決策）**：預設中→英，可切換英→中，方向持久化；只用已學習卡，必須至少 4 個相異且修剪後不重複的選項。加權公式 `min(3, 1 + memory_bonus + 0.25 * mistake_score)`；New 加成 0.5，FSRS 加成 `1 - retrievability`（只讀），錯題分數 0–4（錯 +1、對 −1）；測驗不寫 FSRS。離線作答待連線後由使用者決定上傳／捨棄／稍後，固定快照及事件 ID，重試冪等。
-- **舊卡遷移**：需在預覽確認左欄英文、右欄中文後啟用每日練習；未填完整的卡保留但不出題；舊 `daily_due_at` 只作首次新版複習的資格門檻；**不得**把舊 `review_count`、三段評分、`daily_phase` 冒充 FSRS 歷史或記憶參數。
+- **既有卡片資料相容**：使用者可預覽、確認字卡英文與中文內容，再啟用每日練習；欄位不完整的字卡仍可保存，且僅內容完整的卡片進入出題。既有資料的遷移及 FSRS 資料完整性由技術契約維護。
 - **編輯與複製**：中文修改保留排程；英文修改提供保留／重設／取消（重設以新 generation＋`reset` 事件，歷史仍保留）；單卡與整個學習集複製只複製內容並建立 New 卡；刪除為 soft delete。
 - **雙裝置衝突**：兩台裝置離線回答同一張卡時，保留所有事件，標記 `conflict` 並停止該卡正式排程；使用者須明確選擇「保留歷史並重新學習」。不自動推測語義合併。
 - **仍保留**：CSV/TSV 匯入基線（沿用舊規格）。
@@ -638,11 +638,11 @@ Notion-like power + Obsidian-like ownership。
 
 ---
 
-## 五、未定事項／未來模組與使用者決策補充
+## 五、待細化的產品功能
 
-## 12. 已知需求缺口與未來功能清單【修改】
+## 12. 待細化功能列表
 
-> 以下不是自行新增需求；它們是目前已有方向、使用者新確認的要求，或尚未形成完整 contract 的能力。
+> 本節列出預計提供但仍需使用者審查細節的功能；具體實作優先序與現況見 HANDOFF。
 
 | 功能 | 狀態 | 現行要求／缺口 | 建議容器 |
 | --- | --- | --- | --- |
@@ -671,14 +671,14 @@ Notion-like power + Obsidian-like ownership。
 
 ---
 
-## 六、公共字典最新介面與操作規格（2026-10-12 使用者決策）
+## 六、公共字典介面與操作規格
 
 > **規格寫法**：本節只描述最終應呈現的畫面及行為。具體舊介面移除、取代、修改工作列於 `HANDOFF.md`。尺寸、手勢門檻、精確間距仍須產品負責人確認。
 
 ### 6.A 角色、頁面入口與管理操作
 
 - Nexus 有一套全站共用公共字典；一般登入使用者瀏覽已發布詞條，管理員可管理公共詞條。私人字卡由建立者自行擁有，並可連結公共詞條補充資料。
-- **管理入口只對管理員顯示**。管理員在既有登入工作階段直接進入管理介面，不需另外執行一次管理員身分確認；登入帳號的權限由系統判定。
+- **管理入口只對管理員顯示**。管理員在既有登入工作階段直接進入管理介面；登入帳號的權限由系統判定。
 - 管理介面有同一層級的「新增」與「匯入」操作入口：「新增」開啟共用詞條編輯面板，透過類型下拉選擇 Word／Prefix／Root；「匯入」開啟浮動匯入視窗。
 - 普通使用者瀏覽詞條詳情，管理員在同一詳情頁的**右上角**直接使用「編輯」按鈕，進入該詞條的編輯狀態。編輯仍在詞條上下文中完成。
 
