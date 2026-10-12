@@ -126,62 +126,56 @@
 
 ## 3. 功能範圍與規格索引
 
-### 3.1 Core Creatables
+### 3.1 核心內容功能
 
-| ID | 功能 | 目標功能 | 規格成熟度 |
+| ID | 功能 | 產品提供的能力 | 規格狀態 |
 | --- | --- | --- | --- |
-| F-NOTE | Note | rich native editor 的核心內容 Page；流動／分頁兩種版面 | 既有需求（待完整 UI 契約審查） |
-| F-LESSON | 筆記講義排版 | 樣式、教學區塊、自動目錄／題號、頁首頁尾、依 A4 整理分頁 | 既有需求（待完整 UI 契約審查） |
-| F-DOCUMENT | Document | plain text／Markdown 導向的獨立 Page kind | 既有需求（待完整 UI 契約審查） |
-| F-PDF | PDF Research Note | PDF import + attachment + research note；GoodNotes-like workspace 為未來 | 既有需求（待完整 UI 契約審查） |
-| F-STUDY | Study Set | FSRS-6 固定每日新字批次＋首次評分的正式複習＋四選一；共用字典方向已確認但尚未實作，近義詞群組練習待定 | 待規劃 |
-| F-DICTIONARY | 唯一全站共用字典與管理端 | 管理員維護唯一共用百科、一般登入者查閱；每位使用者的個人字卡可連結百科補充資訊，不另開發私人字源百科；舊 owner-scoped 表僅作保護／未來資料處置。含三類詞條、草稿／發布、管理端匯入、搜尋、翻面詳情 | 既有需求（待完整 UI 契約審查） |
-| F-PRESENTATION | Presentation | 自由畫布簡報；拖曳/縮放/旋轉/對齊/縮圖鏡像已實作；吸附線/Master/undo 未完成 | 既有需求（待完整 UI 契約審查） |
-| F-QUICKNOTE | Quick Notes | Google Keep 風格；統一 pages kind（D-186） | 既有需求（待完整 UI 契約審查） |
-| F-TODO | Todo／日曆 | 月曆待辦；多分類日曆未做 | 既有需求（待完整 UI 契約審查） |
-| F-NOVEL | 小說 | 作品總覽、獨立章節記錄、上下翻頁、閱讀設定 | 既有需求（待完整 UI 契約審查） |
-| F-CHARACTER | 角色卡 | 區塊→混合內容、分頁、自訂模板與範文 | 既有需求（待完整 UI 契約審查） |
-| F-WORLD | 世界觀 | 沿用角卡結構；角色可歸屬世界觀或獨立 | 既有需求（待完整 UI 契約審查） |
-| F-WEB | 網頁 | 介紹＋連結清單編輯；公開展示頁未做 | 既有需求（待完整 UI 契約審查） |
-| F-COUNTER | 計數 | 項目依「群組名稱」加總；正式大組／小組模型待定 | 待規劃 |
-| F-DRAW | 抽選 | 每項目一個資料庫，多標籤，篩選後抽 N 個 | 既有需求（待完整 UI 契約審查） |
-| F-CREATIVE | Creative 入口 | 創作功能入口（角色卡、世界觀）；小說已獨立成單獨功能入口 | 既有需求（待完整 UI 契約審查） |
-| F-SCORE | 製譜 | 同級功能，先作品管理＋快速簡譜，之後五線譜／吉他譜；語法草案未核准 | 待規劃 |
-| F-CANVAS | Canvas | Page／Block reference 的視覺組織能力 | 既有需求（待完整 UI 契約審查） |
-| F-WEBSITE | Website / Publish Project | Share Page → Link Page → Publish Site | 既有需求（待完整 UI 契約審查） |
-| F-SHARE | 唯讀分享連結 | A1 已確認分享另設，不混入登入共用字典；匿名、撤權、附件細則尚未決定 | 待規劃 |
+| F-NOTE | 筆記 | 富文字、區塊編輯、流動／分頁排版、標籤、反向連結與內容匯出 | 需求已記錄；互動細節待審 |
+| F-LESSON | 講義 | 講義樣式、教學區塊、目錄、題號、頁首頁尾及 A4 分頁 | 需求已記錄；互動細節待審 |
+| F-DOCUMENT | 文檔 | 純文字與 Markdown 導向的文件編修和匯入匯出 | 需求已記錄；互動細節待審 |
+| F-PDF | PDF 研究 | PDF 匯入、檢視、附檔及關聯研究筆記；進階 PDF 工作空間待細化 | 部分待規劃 |
+| F-STUDY | 學習集 | 私人字卡、FSRS-6 每日學習／複習、四選一測驗、字典資訊展開 | 需求已記錄；互動細節待審 |
+| F-DICTIONARY | 公共字典 | 全站唯一字典、Word／Prefix／Root、Sense、搜尋、管理員編修與匯入、私人字卡連結 | 需求已記錄；互動細節待審 |
+| F-PRESENTATION | 簡報 | 投影片畫布、物件移動與縮放、旋轉、圖層排序、圖表與投影片導覽 | 部分待規劃 |
+| F-QUICKNOTE | 隨手記 | 卡片式快速筆記與整理 | 需求已記錄；互動細節待審 |
+| F-TODO | 待辦 | 月曆檢視、待辦事項管理；多分類日曆另行設計 | 部分待規劃 |
+| F-NOVEL | 小說 | 作品總覽、章節、閱讀模式及閱讀設定 | 需求已記錄；互動細節待審 |
+| F-CHARACTER | 角色卡 | 結構化區塊、混合內容、分頁及自訂模板 | 需求已記錄；互動細節待審 |
+| F-WORLD | 世界觀 | 結構化世界觀資料，角色可歸屬世界觀或獨立建立 | 需求已記錄；互動細節待審 |
+| F-WEB | 網頁收藏 | 介紹資訊與連結清單編輯；公開展示另行設計 | 部分待規劃 |
+| F-COUNTER | 計數 | 項目計數、依群組名稱彙總；階層群組設計待確認 | 部分待規劃 |
+| F-DRAW | 抽選 | 項目庫、標籤篩選與抽選指定數量 | 需求已記錄；互動細節待審 |
+| F-CREATIVE | 創作入口 | 角色卡及世界觀等創作工具入口，小說有獨立入口 | 需求已記錄；互動細節待審 |
+| F-SCORE | 製譜 | 作品管理、簡譜、五線譜與吉他譜的預覽及編輯工作流 | 部分待規劃 |
+| F-CANVAS | 視覺畫布 | 以 Page／Block 引用組織視覺化內容 | 待規劃 |
+| F-WEBSITE | 網站發布 | 分享頁面、連結頁及網站發布流程 | 待規劃 |
+| F-SHARE | 唯讀分享 | 可控的唯讀連結、存取與撤回管理 | 部分待規劃 |
 
-### 3.2 System Views
+### 3.2 系統檢視
+
+| 檢視 | 目標行為 |
+| --- | --- |
+| Home / Dashboard | 顯示統計、最近編輯及快速入口 |
+| Sidebar / Projects | 提供群組、排序、拖曳、子頁、我的最愛、重新命名與多選 |
+| Search | 搜尋標題與內容，依內容類型篩選結果 |
+| Inbox / Quick Capture | 快速建立收集項目，同時保留目前編輯內容 |
+| Trash | 提供回收、還原、永久刪除與批次操作 |
+| Right Panel | 顯示反向連結及外向連結 |
+| Command Palette | 搜尋頁面並執行命令 |
+| Quick Notes / Todo | 提供卡片式筆記與月曆待辦檢視 |
+| Review Queue | 提供每日學習與正式複習的各自流程 |
+| Calendar / Board / Graph | 提供獨立的日曆、看板或關係檢視，細節待核准 |
+
+### 3.3 通用工具及服務
 
 | 功能 | 目標行為 |
 | --- | --- |
-| Home / Dashboard | 統計、最近編輯、快速入口；不承擔資料真相 |
-| Sidebar / Projects | 分組、排序、拖拉、同類子頁、Favorites、Rename、Select mode |
-| 功能兩欄格與新增選單 | 見 F-NAVIGATION |
-| 下拉刷新 | 見 §6.4 |
-| Search | 目前以 title／`content_text` 為主；章節與模板頁被過濾不列入一般清單 |
-| Inbox / Quick Capture | Quick Capture 建立 Inbox item，且不打斷目前編輯 |
-| Trash | soft delete、restore、permanent delete、bulk actions |
-| Right Panel | Backlinks / Outgoing Links；Home 時不顯示 |
-| Command Palette | Actions + title-based Pages 導覽 |
-| Quick Notes View | Google Keep-like 卡片 |
-| Todo View | 月曆優先；完整 task system 與多分類日曆未完成 |
-| Review Queue | Daily 固定當日新字批次、Easy 引入不寫正式 review；獨立正式 Review 首次評分寫 FSRS，後續重練僅更新 session mastery |
-| Calendar / Board | 多分類日曆見 M10-6；Board 未開始 |
-| Graph | 已規劃，尚無正式最小規格 |
-| Reading / Asset Library | 深度研究與資產管理未來視圖 |
-
-### 3.3 Tools 與基礎服務
-
-| 功能 | 規格摘要 |
-| --- | --- |
-| New / File Menu | 建立、匯入、格式、轉簡報、頁面管理、匯出／列印 |
-| Import / Export | 現行格式見 §7 |
-| Workspace Backup | 使用單一 JSON 保存工作區資料，支援完整覆蓋還原與舊版本相容驗證；遇歷史事件或 ID 衝突時提供錯誤及保護流程 |
-| Supabase Sync | 以帳號擁有的工作區資料同步；字卡使用專用資料表與 RPC，資料衝突有可追溯的處理流程 |
-| Preferences / i18n | 支援英文與繁體中文切換，偏好第一層及詳細設定對話框適用一致的翻譯規則 |
-| Theme / Night Adapt | Page night adaptation 已持久化 |
-| Template System | 角色卡提供模板；通用模板系統依各模組的已核准設計擴充 |
+| File Menu | 提供新建、匯入、格式、頁面操作、匯出及列印 |
+| Import / Export | 支援各內容類型所規定的匯入匯出格式 |
+| Workspace Backup | 提供工作區備份與還原、相容性驗證及資料完整性保護 |
+| 帳號同步 | 使用者登入後同步其私有工作區、個人字卡與學習紀錄 |
+| Preferences / i18n | 提供繁體中文／英文、主題、詳細設定與備份入口 |
+| Template System | 提供角色卡模板；其他內容類型模板的操作依各模組核准規格 |
 
 ---
 
