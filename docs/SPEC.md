@@ -103,7 +103,7 @@
 
 - Nexus 的操作流程應兼顧初學者，提供清晰、可理解的提示與確認方式。
 
-### 1.3 明確產品邊界【修改】
+### 1.3 產品能力與使用範圍
 
 | 類別 | 產品規格 |
 | --- | --- |
@@ -113,12 +113,10 @@
 | Image | **作為內容插入（insert block）**，不是獨立匯入頁面類型；小說封面與角色卡相冊為受限的專用用途 |
 | AI | 後期輔助層，不作早期內容資料模型或必要依賴 |
 | Web Clipper | 網頁內容擷取與整理能力（具體介面與匯入模型待規劃） |
-| 帳號／權限【修改】 | **登入必須制**（D-203）：未登入只顯示登入／註冊；登入後才使用該帳號的本機快取與雲端同步（D-198、D-200）。無匿名工作區。使用者可於帳號專屬工作區編輯 |
+| 帳號／權限 | **登入必須制**（D-203）：未登入只顯示登入／註冊；登入後才使用該帳號的本機快取與雲端同步（D-198、D-200）。無匿名工作區。使用者可於帳號專屬工作區編輯 |
 | Mobile UI | 桌面、平板與手機提供符合裝置特性的響應式版面與操作規則（詳 §6.3） |
-| 創作【新增】 | 小說提供文字編輯，角色卡與世界觀提供獨立結構化區塊管理 |
-| 個人工具【新增】 | 隨手記、日曆待辦、網頁、計數、抽選；具體功能與操作見 §4 各模組 |
-
----
+| 創作 | 小說提供文字編輯，角色卡與世界觀提供獨立結構化區塊管理 |
+| 個人工具 | 隨手記、日曆待辦、網頁、計數、抽選；具體功能與操作見 §4 各模組 |
 
 ---
 
@@ -424,35 +422,35 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 
 
 - **資料方向**：Presentation → Slides → PresentationBlocks；block 使用 x/y/w/h%、z-index、rotation。PresentationBlock 新增 `rotation?: number`。ChartData 新增 `sortOrder?`、`showDataLabels?`、`showGrid?`、`showTitleNumber?`。
-- **待完成**：拖曳吸附線、旋轉後 resize 方向修正、群組/鎖定、Slide Master、Mermaid/recharts、簡報 undo/redo。
-- **邊界**：不在近期做完整 Canva、動畫或多人協作。
+- **待細化能力**：對齊吸附、旋轉物件縮放、群組與鎖定、母片、圖表、復原與重做。
+
 - **驗收**：畫布物件 reload/sync 後位置與內容正確，且真實瀏覽器互動通過。
-- **關鍵技術要點**：（1）`selBoxStyle` 必須含 `position: "absolute"`，否則 `left/top` 被 CSS 靜默忽略——此為 drag bug 根因。（2）pointer events + `setPointerCapture`。（3）物件本體負責所有事件（點中心=drag、點邊緣 9px=resize），把手圓點降級為純視覺。（4）圖層拖曳排序用 HTML5 drag-and-drop + z-index 歸一化。（5）ChartData 選項欄位已加入但 ChartRenderer 尚未根據它們改變渲染（待 M3-4）。
+- **畫布互動**：物件中心可拖曳移動，邊緣可調整大小；圖層可排序，圖表可調整顯示選項。
 
 ### F-QUICKNOTE — Quick Notes
 
 
-- **資料方向**：**已廢棄獨立 store（D-186）**。quick_note 為 `pages` 的 kind（`color` 欄位保存卡片顏色）。IndexedDBAdapter 已不建立也不讀寫 `quick_notes` store；舊 DB 若殘留該 store，程式碼忽略它。
-- **覆蓋**：因統一 pages store，Search／Backup／Sync 天然涵蓋，仍需 `Q-0` 核對。
+- **資料**：隨手記是獨立內容類型，卡片可設定顏色，搜尋、備份與帳號同步涵蓋其內容。
+- **資料可用性**：隨手記納入搜尋、備份與帳號同步。
 
-### F-TODO — Todo／日曆【修改】
+### F-TODO — Todo／日曆
 
 
-- **資料方向**：**已廢棄獨立 store（D-186）**。todo 為 `pages` 的 kind（`due_date`、`priority`、`completed`）。
+- **資料**：待辦可設定到期日期、優先順序及完成狀態；內容納入搜尋、備份與帳號同步。
 - **新增選單**：切換到日曆功能時，新增選單顯示「日曆事項」。
-- **未完成**：多分類日曆（見下方 F-CALENDAR-PLANNED）；Note tasks／Projects／Review 的 Task projection；Board。
+- **相關視圖**：多分類日曆、筆記任務投影、專案任務檢視與看板的具體操作需分別規劃。
 
-### F-CALENDAR-PLANNED — 多分類日曆【新增，⚠️ 尚未決策，未實作】
+### F-CALENDAR — 多分類日曆（待細化）
 
 - **使用者原話（09-16）**：「可以同時顯示，或單獨顯示：特殊日、排班表、記帳、日記1、日記2、要事、todolist。可能要再規劃一下，讓用戶也能自訂分類。」
-- **現況**：程式碼中沒有排班、記帳、日記相關實作，只有待辦月曆。
-- **必須先決定**：分類的資料模型（每分類一種資料形狀？共用事件？）、與 `todo` kind 的關係、自訂分類的儲存位置與同步、多分類同時顯示的 UI、記帳與排班是否需要專用欄位（金額、班別）。對應 `M10-6`，並與 `M7-4` 一併規劃。**先 discovery，不可直接實作。**
+
+- **待定**：各分類的欄位與顯示方式、自訂分類的設定介面、同時顯示與單獨顯示的操作，以及記帳／排班的資料需求。
 
 ### F-CREATIVE — Creative 入口
 
 
 - **資料方向**：Page shell + `kind: "creative"`；以 `creative_type` 區分 `novel`／`character`／`world`。
-- **注意**：舊版曾把「小說閱讀格式」與「角色簡介表」視為創作入口的兩種範本；現在**小說是獨立功能入口**（F-NOVEL），創作入口只含角色卡與世界觀，「範本」一詞已改稱「模板」。
+- **入口**：小說設有獨立功能入口；創作入口提供角色卡與世界觀，相關範本以「模板」命名。
 - **判斷函式**（`types.ts`）：`isCreativeCharacterPage`＝creative 且（`character`／`world`／有 `character_data`）；`isNovelPage`＝creative 且非角色類。早期沒有 `creative_type` 的舊小說以此相容。
 
 ### F-NOVEL — 小說
@@ -497,7 +495,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **邊界**：世界觀／人物／地點與**小說**的關聯明確不做（D-201）。
 - **待確認**：使用者原話為「類似角卡，也可以進行設定與描寫」；現況是否已足夠、是否需要世界觀專用內建模板，尚無明確要求。
 
-### F-UTILITY — 網頁／計數／抽選【新增】
+### F-UTILITY — 網頁／計數／抽選
 
 三者共用 `UtilityView`，資料存在 `Page.content_json`（D-218），皆為**基礎版**。
 
@@ -527,7 +525,7 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **Custom**：⚠️ 有型別預留，但尺寸、行為與列印規格尚未形成完整 contract。
 - **已知限制**：目前自動分頁仍有估算高度啟發式；表格、圖片、複雜內容需未來 DOM measurement 改善。
 
-### F-LESSON — 筆記講義排版與目錄【新增】
+### F-LESSON — 筆記講義排版與目錄
 
 
 - **使用者目標（09-19）**：在筆記中製作類似課本與講義的排版與內容。AI 提出四項建議，使用者要求繼續實作，但**教師／學生版 PDF 不做**（D-204）。
@@ -554,17 +552,17 @@ final master 已通過 UUID、Sense uniqueness、Entry identity、Word POS、Pre
 - **排序模式**：`recent`（預設，最新使用）／`default`（固定順序）／`custom`（自訂）。`recordFeatureUsage` 不記錄 `all` 與 `calendar`。偏好存在瀏覽器 localStorage（`nexus-feature-order-mode`、`nexus-recent-features`、`nexus-custom-feature-order`），**屬裝置本機偏好，不隨帳號同步**。設定入口在「詳細設定 → 功能排序」。
 - **新增選單隨功能切換【新增，D-208】**（`creationOptions.ts`）：全部項目→筆記／文檔／字卡集／簡報／角色卡／世界觀／小說／網頁／計數／抽選／資料夾；筆記→流動筆記／分頁筆記；創作→世界觀／角色卡；小說→小說作品；文檔→文檔；簡報→簡報；字卡→字卡集；日曆→日曆事項；隨手記→隨手記；網頁→網頁；計數→計數項目；抽選→抽選資料庫。
 - **首頁與清單捲動**：首頁在檔案數量多時曾無法上下滑動，已調整捲動容器與高度限制，**待大量檔案與實機驗證**。
-- **新註冊帳號**不再自動建立 `Untitled` 空白文件。
+- **新註冊帳號**：註冊後進入專屬空白工作區，可自行建立第一份內容。
 - **手機**：側欄／輔助欄以浮層開啟、不擠壓編輯器，有遮罩；手機寬度下左側面板預設收合為零寬（原 01 §14.1，見 02 存檔）。使用者要求「開啟時不能編輯、點擊編輯器後兩欄自動收回」——浮層與遮罩已有，**鍵盤焦點完整禁用與點背景收合仍待驗收**。平板輔助頁的開合鍵位置已調整（原被右上角帳號擋住；右上角帳號入口之後已移除），待不同寬度實機檢查。
 
 ### F-PREFERENCES — i18n、Settings、Theme
 
 - English／繁體中文；偏好保存在 settings store。
-- 所有可見 UI 字串、alert／confirm、tooltip 應納入 i18n。**現況：`creationOptions.ts`、`featurePreferences.ts`、`UtilityView.tsx` 等新程式的標籤直接寫死中文，待 Q-6 補齊。**
+- 所有可見 UI 字串、提示、確認對話框及工具提示支援繁體中文與英文切換。
 - Night adaptation 可持久化；一般主題系統可後續擴充。
 - **偏好層級【新增，D-206】**：偏好第一層只有「主題、語言、設定、備份（匯出／匯入）」；主題與語言以**右側浮動子面板**呈現，並限制在視窗內（390px 下實測未超出）。
 - **詳細設定**：類似 GPT 設定的分類對話框（原生模態），分類為一般、功能排序、使用建議、使用說明、備份。功能排序沿用原有儲存與通知事件；備份沿用原有回呼。
-- **帳號入口【取代舊描述，D-205】**：右上角常駐帳號入口已移除；側欄保留帳號入口（`AccountSettingsRow`）。`AccountButton` 只作為「未登入全頁登入／註冊畫面」（`required`）使用。
+- **帳號入口**：登入者從側邊欄開啟帳號設定；訪客先看到全頁登入／註冊畫面。
 
 ---
 
@@ -594,7 +592,7 @@ Notion-like power + Obsidian-like ownership。
   - 小說目錄為覆蓋式面板；閱讀／編輯主區獨立捲動。
   - 講義：手機「更多」選單集中教學區塊與圖說入口；390px 下正文可用寬度約 345px。
   - 偏好右側子面板、模板選單皆限制在視窗內（390px 實測）。
-- **使用者已提出但未完成驗收**：開啟側欄時禁止編輯（含鍵盤焦點）、點擊編輯器後兩欄自動收回。
+- **手機側欄**：側欄開啟時焦點留在浮層，編輯區暫停操作；使用者返回編輯區後，浮層收合並恢復編輯。
 - **對應任務**：`M9-0`；**所有手機／iPad 規則都尚未在實機驗證**（`Q-8`）。
 - **尚未定義**：table editing、presentation canvas、offline editing、手勢、PDF workspace 規則。
 - **待答**：手機／iPad 插入組件是否需要包成 App（`M9-5`；程式碼中沒有 PWA manifest 與 service worker）。
@@ -610,20 +608,19 @@ Notion-like power + Obsidian-like ownership。
 
 ## 四、資料交換及匯入匯出契約
 
-## 7. Import / Export / Interoperability Matrix
+## 7. 匯入、匯出與資料互通
 
-| 流程 | 現行規格 | 狀態 | 限制／未來 |
-| --- | --- | --- | --- |
-| PDF Import | 匯入 PDF → Attachment binary → 自動 Research Note → viewer | ✅ | 未來 GoodNotes-like PDF workspace 見 F-PDF |
-| Markdown Import | `.md/.markdown/.txt` → Document，folder = Imports | ✅ | 保留支援範圍，非完整 parser |
-| Document Markdown Export | Document → Markdown | ✅ | 需 flush save；複雜 block 為 best-effort |
-| Note Export | Print/PDF + `.nexus.json` | ✅ | Note 不提供完整保真 Markdown export |
-| Workspace Backup【修改】 | 單一 JSON、pages/attachments/binaries/settings＋`study`（備份 schema v2）、完全覆蓋 import | ✅ | 匯入 v1 不刪除既存 FSRS 歷史；缺歷史、重複 ID 或事件 ID 內容衝突會停止還原；測驗資料是否入備份待 Q-0 核對 |
-| Study CSV/TSV | CSV/TSV → Study Items | ✅ | 拼寫／Review Queue 未完成 |
-| Image Insert | 編輯器內插入 Asset／Attachment | ▶️ | 非獨立 import Page；格式與 editor scope 待定 |
-| Audio/Video | 不支援 | 🚫 | 暫時不列入任務 |
-| Presentation Export | 未形成完整規格 | ⏳ | 未來需決定 PDF／PPTX／Web 等範圍 |
-| Website Publish | 未形成完整規格 | ⏳ | MVP-8 分階段處理 |
+| 流程 | 使用者操作與結果 |
+| --- | --- |
+| PDF 匯入 | 選擇 PDF 檔，建立附件並開啟相應的研究筆記及 PDF 檢視畫面 |
+| Markdown 匯入 | 選擇 .md、.markdown 或 .txt，建立可編修的 Document |
+| Document 匯出 | 將文檔匯出為 Markdown；匯出前完成當前編輯內容保存 |
+| Note 匯出 | 可列印、輸出 PDF，或以 Nexus JSON 保存富文字內容 |
+| Workspace 備份 | 將工作區與學習資料輸出為備份；匯入前提供相容性及完整性檢查與覆蓋確認 |
+| Study 匯入 | 從 CSV／TSV 將字詞資料加入學習集，提供欄位對應與錯誤提示 |
+| 圖片插入 | 在支援的編輯器中選擇圖片並插入內容，附件與正文保有正確關聯 |
+| 簡報匯出 | 匯出格式及操作流程待產品審核 |
+| 網站發布 | 公開網址、可見範圍及發布操作待產品審核 |
 
 ---
 
@@ -631,32 +628,30 @@ Notion-like power + Obsidian-like ownership。
 
 ## 12. 待細化功能列表
 
-> 本節列出預計提供但仍需使用者審查細節的功能；具體實作優先序與現況見 HANDOFF。
+> 本節保留已有產品方向、但需要進一步核准的功能。任務編號、實作優先順序與目前差異另見 HANDOFF。
 
-| 功能 | 狀態 | 現行要求／缺口 | 建議容器 |
-| --- | --- | --- | --- |
-| Image Insert | ▶️ | 圖片作為 editor insert；需定 editor scope、Asset storage、尺寸、alt text、backup/sync | `M3-8` |
-| GoodNotes-like PDF Workspace | ▶️ | PDF 以匯入文件形式使用；不自行假設手寫／annotation 細節 | `M6-5`／`M6-6` |
-| Citation Metadata | 🟡 | MVP-2 必要結案項；需正式 schema/UI | MVP-2 |
-| Stable Block ID | ▶️ | C3；`stableBlockIdExtension` 已存在，contract／backfill／測試未做 | MVP-5 |
-| Annotation / Highlight | ⏳ | 需 anchor model | MVP-6 |
-| Asset / Image Library | ⏳ | 需 asset metadata、reference、view 規格 | MVP-6 |
-| 通用 Template System | ⏳ | 角色卡模板已完成；筆記／簡報等模板未定義 | 待分類 |
-| Graph | ⏳ | 無最小資料與互動規格 | 待分類 |
-| Universal Search | 🟡 | 現有 Search v0；多 record 搜尋範圍未定 | MVP-6／7 |
-| Board／Task projection | ⏳ | 需 projection contract | MVP-7 |
-| 多分類日曆【新增】 | ⚠️ | 特殊日、排班、記帳、日記1／2、要事、todolist；自訂分類；同時／單獨顯示 | `M10-6` |
-| 網頁公開展示（lit.link 類）【新增】 | ⚠️ | 對外頁面、版面、公開網址 | `M10-7`／`M8-0`／`M8-1` |
-| 計數大組／小組模型【新增】 | ⚠️ | C4：大組由小組派生，小組可獨立；編輯與聚合細節待設計 | `M10-8` |
-| 抽選進階規則【新增】 | ▶️ | 各標籤各抽 N 個、標籤配對／組合 | `M10-9` |
-| 唯讀分享連結【新增】 | ⚠️ | 小說／角卡／筆記可分享，知道連結者可檢視；暫不做共編 | `M8-0` |
-| 全站共用字典【已決策／待實作】 | ▶️ | 權威規格見 §4 F-DICTIONARY／F-STUDY，四階段 `M7-9～M7-12`；不把 owner-scoped `etymology_*` 當公共資料；CEEC 匯入暫緩 | `M7-9～M7-12` |
-| 近義詞群組練習【仍待細化】 | ⚠️ | 與已確認的公共字典分離，不擅自假設近義詞分組、題型或 FSRS 寫入語義 | `M7-8` 後續 |
-| 雙向拼寫／容錯【新增】 | ⏳ | 目前只做英→中 | `M7-2` |
-| 講義交互參照【新增】 | ⏳ | 圖表編號與跨區塊引用 | `M10-10` 後續 |
-| 手機／iPad 插入組件方案【新增】 | ⚠️ | 是否需要 App、PWA 是否足夠 | `M9-5` |
-| 大量資料效能【新增】 | ▶️ | 壓力測試、整批載入、分頁實例 | `Q-7` |
-| Mobile UI Standard | 🟡 | 部分落地，缺實機 | `M9-0` |
+| 功能 | 預期能力 | 待確認事項 |
+| --- | --- | --- |
+| 圖片插入 | 編輯器內插入圖片 | 支援的內容類型、尺寸、替代文字 |
+| 進階 PDF 工作空間 | 匯入 PDF 作為可閱讀與整理的文件 | 手寫、註解、頁面操作 |
+| 引用資料 | 儲存引用來源並於內容呈現 | 資料欄位與介面 |
+| 穩定區塊識別 | 為內容區塊提供可持續引用的識別 | 匯入、複製及連結規則 |
+| 標記與註解 | 對內容建立標記並定位原文 | 錨點、跨裝置同步 |
+| 媒體資產庫 | 管理圖片及附件 | 分類、來源及內容引用 |
+| 通用模板 | 為筆記、簡報等提供模板 | 模板建立、套用與管理 |
+| Graph | 顯示內容間的連結關係 | 節點、互動及篩選 |
+| 全域搜尋 | 搜尋不同類型的內容 | 搜尋範圍、權重及篩選 |
+| Board／任務投影 | 使用看板查看任務與內容 | 狀態欄及資料同步關係 |
+| 多分類日曆 | 自訂分類並同時或分別顯示排班、重要日、日記、待辦及記帳資訊 | 分類欄位、設定及顯示 |
+| 網頁公開展示 | 建立可公開檢視的個人展示頁 | 權限、網址及編輯流程 |
+| 計數階層群組 | 由子群組彙總大群組計數 | 群組操作及加總邏輯 |
+| 進階抽選 | 各標籤分別抽選或指定標籤組合 | 抽選權重及去重 |
+| 唯讀分享 | 透過連結分享指定內容 | 存取、撤回及附件權限 |
+| 近義詞群組練習 | 將語義相關字詞用於練習 | 分組、題型與排程影響 |
+| 雙向拼寫／容錯 | 支援不同方向的拼寫練習 | 字詞判定及錯誤容忍 |
+| 講義交互參照 | 引用圖表、題號與其他區塊 | 編號與連結操作 |
+| 手機／平板編輯組件 | 在觸控裝置操作內容插入工具 | 浮層、工具列與鍵盤位置 |
+| 大量資料操作 | 大型清單保持搜尋及導覽可用 | 分頁、虛擬清單及效能 |
 
 ---
 
