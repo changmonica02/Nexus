@@ -1,6 +1,6 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-> 遷移基準：2026-10-11 Canon + 2026-09-28 最新交接增量。章節保留原始精細條款，僅依文件職責分流；2026-10-12 後的使用者決策優先。任何標記 IMPLEMENTED_LOCAL 都不代表正式部署。舊來源在 [歷史封存](archive/)；專屬追溯見 [對照表](CANON-CROSSWALK.md)。
+> 現行技術架構以本文件為準；使用者後續核准的產品決策以 SPEC 為準。已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
 ## 一、不可推翻的架構與權限原則
@@ -221,7 +221,7 @@ offline / reconnect / delete / attachment / backup import 行為
 
 ## 六、技術查證依據
 - 正式 SQL schema 以 `supabase/migrations/` 與 production migration ledger 交叉核對；僅有 migration 不代表已套用。
-- 參見 [CANON-CROSSWALK.md](CANON-CROSSWALK.md)，逐項查驗缺口不得假設通過。
+- 技術驗收需對照現行 SPEC、已存在的 migration、測試及正式環境，未實際核對者不得宣稱通過。
 
 ## 公共字典管理權限與 UI 的責任分離（2026-10-12）
 - UI 的管理入口只對已有管理權限的使用者顯示；登入工作階段已能確認身分，不設重複的管理員確認步驟。
