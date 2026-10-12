@@ -83,3 +83,21 @@ Nexus 是整合學習、知識與創作工具的模組化 Web 平台。模組需
 - 一般頁面刪除採 Trash 軟刪除與恢復；永久刪除限 Trash 操作。清除頁面不能無條件連帶清除可能共用附件。
 - 下拉刷新限定首頁／清單且需在頂部放手才刷新，先等待正在進行的儲存；禁止干擾文字選取或編輯。編輯器右鍵、表格操作需維持剪貼簿功能；小說貼上轉純文字。
 - 實作驗收要分清「程式碼存在」「本機測試」「部署前端」「production migration 已套用」「正式帳號與實機驗收」；不能混用完成標籤。
+
+
+## 12. 匯入／匯出相容矩陣（依 2026-10-11 Canon）
+| 流程 | 產品契約 | 邊界 |
+| --- | --- | --- |
+| PDF Import | PDF → Attachment/binary → Research Note + viewer | 未來 GoodNotes-like PDF workspace 須另定 |
+| Markdown Import | .md/.markdown/.txt → Document，放入 Imports | 不承諾完整 Markdown parser |
+| Document Export | Document → Markdown | 匯出前 flush save；複雜區塊 best-effort |
+| Note Export | Print/PDF + .nexus.json | 不承諾 Note 的 Markdown 完整保真 |
+| Workspace Backup | JSON 含 pages、attachments、binaries、settings、study；完全覆蓋需二次確認 | 舊 v1 import 不得刪掉 FSRS 事件；重複 ID / 事件衝突應中止；Quiz 是否納入待核對 |
+| Study CSV/TSV | 匯入學習項目 | 語義、欄位和測試以正式 Study 模組為準 |
+| Image Insert | 透過內容中的 Asset／Attachment | 非獨立 Page import |
+| Audio/Video | 不支援 | 暫不規劃 |
+| Presentation Export／Website Publish | 尚未有完整契約 | 不得推定 PDF/PPTX 或公開連結功能已完成 |
+
+## 13. 目前不等於完成的規格
+- 按不同文件來源的最新資料契約描述目標行為；任何功能「✅ 本機」仍需驗證最新 Git commit、正式 DB migrations、Vercel deployment SHA、實際使用者與手機／平板驗收。
+- 不允許將 Issue 的待辦、已發出的 Codex 指令或舊 02 日誌中的「完成」當成現行 production 完成證據。
