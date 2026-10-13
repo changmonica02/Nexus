@@ -1,3 +1,4 @@
+import {compositionRow} from './composition';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {AISnapshot} from './aiDictionary';
 import type {DictionaryDetail} from './dictionary';
@@ -13,13 +14,13 @@ export async function createDictionaryReview(client:Client,snapshot:AISnapshot,d
 }
 export function reviewSnapshot(review:DictionaryReview):AISnapshot{
  const c=review.candidate,b=c.bundle;
- const detail={entry:{...review.base_snapshot.detail.entry,...b.dictionary_entries[0],status:'draft',revision:review.revision},senses:b.dictionary_senses,relations:b.dictionary_relations,etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections??[],pronunciations:c.pronunciations??[],examples:c.examples,lexical_annotations:c.annotations} as unknown as DictionaryDetail;
+ const detail={entry:{...review.base_snapshot.detail.entry,...b.dictionary_entries[0],status:'draft',revision:review.revision},senses:b.dictionary_senses,relations:b.dictionary_relations.map(compositionRow),etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections??[],pronunciations:c.pronunciations??[],examples:c.examples,lexical_annotations:c.annotations} as unknown as DictionaryDetail;
  return {detail,grouping:c.group_data??emptyGrouping(),sense_groups:Object.fromEntries(c.sense_groups.map(g=>[g.sense_id,g.primary_category??null])),metadata:review.base_snapshot.metadata};
 }
 export interface RevisionDifference {section:string;label:string;kind:'added'|'modified'|'removed'|'unchanged';before:unknown;after:unknown}
 const content=(v:unknown):unknown=>Array.isArray(v)?v.map(content):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).filter(([k])=>!['id','entry_id','sense_id','target_entry_id','target_sense_id','revision','status','published_at','updated_at','source_id'].includes(k)).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,content(x)])):v;
 export function diffDictionaryReview(review:DictionaryReview,targets:{entries:{id:string;headword:string}[];senses:{id:string;gloss_zh_tw:string}[]}={entries:[],senses:[]}):RevisionDifference[]{
- const before=review.base_snapshot,after=reviewSnapshot(review),result:RevisionDifference[]=[];
+ const before={...review.base_snapshot,detail:{...review.base_snapshot.detail,relations:review.base_snapshot.detail.relations.map(r=>compositionRow({...r}))}},after=reviewSnapshot(review),result:RevisionDifference[]=[];
  for(const key of ['entry','inflections','pronunciations','senses','relations','etymologies','learning_notes','examples','lexical_annotations'] as const){
   const a=(key==='entry'?[before.detail.entry]:before.detail[key]??[]) as unknown as Record<string,unknown>[];
   const b=(key==='entry'?[after.detail.entry]:after.detail[key]??[]) as unknown as Record<string,unknown>[];

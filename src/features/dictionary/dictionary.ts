@@ -23,12 +23,9 @@ export interface DictionarySense extends ContentRow {
   gloss_zh_tw: string;
 }
 export interface DictionaryRelation extends ContentRow {
-  sense_id: string;
+  sense_id: string | null;
   target_entry_id: string;
   target_sense_id: string;
-  relation_kind: "historical_etymology" | "learning_decomposition";
-  verification: DictionaryVerification;
-  verification_note: string;
 }
 export interface DictionaryEtymology extends ContentRow {
   sense_id: string | null;
@@ -72,7 +69,7 @@ export async function getDictionaryEntry(client: RpcClient, id: string): Promise
 
 /** Uses the existing Supabase client; all authority is checked by database RLS. */
 export async function publishDictionaryEntry(client: RpcClient, id: string): Promise<DictionaryEntry> {
-  const { data, error } = await client.rpc("publish_dictionary_entry", { entry_uuid: id });
+  const { data, error } = await client.rpc("publish_dictionary_entry", { entry_uuid: id, content_verified: true });
   if (error) throw new Error(`無法發布公共字典：${error.message}`);
   return data as DictionaryEntry;
 }

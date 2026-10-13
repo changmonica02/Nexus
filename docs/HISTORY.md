@@ -175,3 +175,8 @@
 - 新增回歸重現部分字典匯入把 `component_order` 送為空陣列、重設既有構詞順序的問題；一般 adapter 省略排序，完整 Editor 儲存才送排序。補測多義項、並行首次儲存、helper/RPC 權限及刪除稽核。
 - 全站 ESLint 原設定在 CommonJS 測試檔套用未載入的 React 插件，已在未修改 main 重現。依 TypeScript／Next 插件適用類型修正設定，保留 React Hook 安全規則並新增 regression；未 skip 測試或降低應用程式檢查。
 - 在隔離 PGlite 與本機 PostgreSQL 15.19 驗證 Migration；後者是無網路 Docker／fixture Auth，不能當作正式 Supabase staging／JWT 驗收。正式環境未操作，遠端 staging／部署與真實帳號驗收仍待授權。
+
+
+## 2026-10-13 #42 正式驗收修正的相容決策
+
+依 SPEC／Issue #42 新決策，構詞不再使用種類與逐列查證欄位，來源義項預設詞條共用。既有 SQL 欄位、有效關聯 ID、明確 Sense、排序與版本原文暫留，採新 Migration 更新投影／寫入與可空來源，而非刪欄或重寫舊資料。舊因種類不同而共存的有效列保持不變，新建／改綁則按簡化 scope 去重。查證責任在人工發布前確認，以受保護 RPC／交易 capability 和稽核記錄形成可測試門檻，不追溯將舊 Published 宣稱已查證。正式 Migration／部署／驗收尚未執行，Issue 維持 Open。

@@ -31,8 +31,8 @@ test('reverse component query keeps specific sense, published status, stable pag
  const rows=Array.from({length:21},(_,i)=>({id:String(i),kind:'word',headword:'word'+i,senses:[{}]})),db=client(rows);
  const result=await searchRelations(db,'word','%_',2,{component:'prefix-id',sense:'sense-id'});
  assert.equal(result.items.length,20);assert.equal(result.has_more,true);assert.deepEqual(Object.keys(result.items[0]),['id','kind','headword']);
- assert.ok(db.calls.some(c=>c[0]==='select'&&c[1].includes('dictionary_relations_entry_id_sense_id_fkey!inner')));
- for(const call of [['eq','status','published'],['eq','senses.relations.target_entry_id','prefix-id'],['eq','senses.relations.target_sense_id','sense-id'],['range',40,60],['ilike','headword','%\\%\\_%']])assert.ok(db.calls.some(c=>JSON.stringify(c)===JSON.stringify(call)),JSON.stringify(call));
+ assert.ok(db.calls.some(c=>c[0]==='select'&&c[1].includes('dictionary_relations_source_entry_fkey!inner')));
+ for(const call of [['eq','status','published'],['eq','relations.target_entry_id','prefix-id'],['eq','relations.target_sense_id','sense-id'],['range',40,60],['ilike','headword','%\\%\\_%']])assert.ok(db.calls.some(c=>JSON.stringify(c)===JSON.stringify(call)),JSON.stringify(call));
  await assert.rejects(searchRelations(client(null,{message:'offline'}),'word','',0,{component:'x'}),/無法讀取/);
 });
 test('variant discovery uses existing grouping and exact published same-kind candidates, never creates entries',async()=>{
