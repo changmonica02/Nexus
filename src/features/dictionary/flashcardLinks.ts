@@ -9,9 +9,9 @@ export const candidateSummary=(entry:PublishedDetail)=>entry.senses.map(s=>`${s.
 export interface DictionaryCandidate {detail:PublishedDetail;summary:string}
 type Client=Pick<SupabaseClient,'rpc'>;
 export async function searchCandidates(client:Client,query:string,page=0,kind:DictionaryKind|'all'='word'){
- const results=await Promise.all((kind==='all'?['word','prefix','root'] as const:[kind]).map(k=>searchDictionary(client,k,query,page)));
+ const results=[await searchDictionary(client,kind,query,page)];
  const details=await Promise.all(results.flatMap(r=>r.items).map(row=>readPublishedEntry(client,row.id)));
- return {items:details.filter((d):d is PublishedDetail=>!!d).map(detail=>({detail,summary:candidateSummary(detail)})),has_more:results.some(r=>r.has_more),page};
+ return {items:details.filter((d):d is PublishedDetail=>!!d).map(detail=>({detail,summary:candidateSummary(detail)})),has_more:results.some(r=>r.has_more),page,...(results[0].total!==undefined?{total:results[0].total}:{})};
 }
 export async function suggestDictionaryLink(client:Client,front:string,back:string){
  const exact:DictionaryCandidate[]=[];let hasMore=false;

@@ -14,6 +14,14 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "pagination.previous": "Previous",
+  "pagination.next": "Next",
+  "pagination.prefix": "Page",
+  "pagination.suffix": "",
+  "pagination.total": "/ {{pages}} pages",
+  "pagination.input": "Page number",
+  "pagination.edit": "Edit page {{page}}",
+  "pagination.label": "List pagination",
   "common.untitled": "Untitled",
   "common.loading": "Loading Nexus...",
   "preferences.title": "Preferences",
@@ -359,6 +367,14 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "pagination.previous": "上一頁",
+  "pagination.next": "下一頁",
+  "pagination.prefix": "第",
+  "pagination.suffix": "頁",
+  "pagination.total": "/ 共 {{pages}} 頁",
+  "pagination.input": "頁碼",
+  "pagination.edit": "編輯第 {{page}} 頁",
+  "pagination.label": "列表分頁",
   "common.untitled": "未命名",
   "common.loading": "Nexus 載入中...",
   "preferences.title": "偏好設定",

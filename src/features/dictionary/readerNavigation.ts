@@ -4,7 +4,7 @@ import {searchGrouping} from './grouping';
 import {searchDictionaryWithInflections} from './reader';
 import type {DictionaryKind} from './dictionary';
 export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
-export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number}
+export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number;total?:number}
 type Client=Pick<SupabaseClient,'from'|'rpc'>;
 export function browseContext(from:string|null):string|null{
  let value=from;
