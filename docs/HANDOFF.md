@@ -16,14 +16,16 @@
 | --- | --- | --- |
 | [#41](https://github.com/changmonica02/Nexus/issues/41) Published 編輯 | 權限、Review Draft、版本衝突及 Published 保護的自動測試通過；**舊 Review Draft 不覆寫較新 Published 尚未人工驗證** | 依使用者決定暫保留自動測試證據，若要完整人工驗收再補做；不得誤記為通過 |
 | [#49](https://github.com/changmonica02/Nexus/issues/49) 共用分頁 | 新版已合併，三項正式人工驗收已回報通過，Issue 仍開啟 | 核對 Issue 驗收範圍後決定結案；不要把 #41 的待驗項混作 #49 未完成 |
-| [#47](https://github.com/changmonica02/Nexus/issues/47) 學習 Session | 待開發 | 與 #48 合併規劃；每 Session 最多 50 張不同字卡（New＋Learning＋Review 合計）、每日 New 上限 20、可重開 Session |
-| [#48](https://github.com/changmonica02/Nexus/issues/48) 偏好設定 | 待開發 | 與 #47 整合實作學習控制 |
+| [#47](https://github.com/changmonica02/Nexus/issues/47) 學習 Session | 統一 scheduled／獨立 practice 已開發，本機測試完成；**未部署／未實機驗收** | 整合分支 `feat/unified-study-preferences`，審查 PR 後授權合併；正式驗收名額／等待／下一批及無盡隔離 |
+| [#48](https://github.com/changmonica02/Nexus/issues/48) 偏好設定 | 功能化分類及每集學習設定已開發／本機測試；**未部署／未實機驗收** | 與 #47 同一 PR；正式確認設定重開保存及裝置同步 |
 | [#44](https://github.com/changmonica02/Nexus/issues/44) 大量匯入／匯出 | 延後 | 無損完整交換、預覽、批次套用；不預設改為 GitHub CSV 雙向同步 |
 
 ## 開發與部署注意事項
 
 - 一人使用、單一正式 Supabase、資料現為測試資料；優先精簡開發流程，維持必要的權限、版本安全與 Schema 相容檢查。
 - 新需求先對照 Issue／SPEC。Codex 從最新 `main` 建分支，完成實作、測試後更新 ARCHITECTURE／必要進度文件，使用 PR；**合併至 main 會觸發 Vercel 正式部署**。
+- #47／#48 交付測試：單元／整合93/93、桌面／平板／手機瀏覽器1/1，TypeScript／Build 通過，ESLint 0 errors／467既有 warnings；未正式部署或實機驗收。
+- #47／#48 不需 Migration；正式四表／RLS／RPC 已唯讀核對，隔離 SQL 測試通過。兩台同時離線的新卡配額仍受既有同步邊界限制，勿宣稱全域原子配額；舊分頁更新後再使用新流程。
 - 新增正式 Supabase Migration 先核對既有遠端 ledger 及依賴，取得使用者授權後才套用；涉及前端依賴時依序先 SQL、後部署。
 - Issue 須按實際正式環境驗收狀況人工結案；PR 請使用 `Refs #...`，不要以 `Closes/Fixes` 自動關閉。
 - 不要依照舊 HANDOFF 快照重新執行 13 份詞庫匯入或歷史 migration；後續以正式資料庫現況及最新 Issue 為準。
