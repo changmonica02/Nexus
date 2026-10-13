@@ -158,3 +158,20 @@
 
 
 
+
+
+## 2026-10-13 — #41／#42 直接編輯與附屬詞形相容方案
+
+- 需求：已發布 Entry 開始編輯前不再要求人工建立 Review Draft；儲存仍是審核草稿，人工發布仍是唯一切換公開內容的操作。以首次儲存原子 RPC 及 revision 衝突檢查避免空草稿／並行重複草稿；不直接改寫 Published。
+- 現行模型只允許 Word → Prefix／Root，無法表示 unhappy → happy；擴充現有關聯 guard 允許 Word 成分，保留 ID、目標 Sense、學習拆解／歷史詞源查證與 component_order，而非另建關聯表。原批次 Draft 成分先後發布安全規則仍保留。
+- `source_forms` 是文字註釋，與 went／gone 等語法形式不是同一契約。新增 Entry／Sense 附屬 `dictionary_inflections` 並接入原 canonical draft／review／history／import；舊註釋不刪除、不轉義。相同拼寫的過去式／過去分詞等合法情況以類型／Sense 區分。
+- 未採用不確定規則推導，也未自行擴充待核准的 CSV schema；人工形式可索引搜尋，完整資料用 JSON／AI roundtrip，CSV v1 的有損匯出明確拒絕。舊 Review 只在比較時正規化缺少的附屬欄位，歷史快照原文不重寫。
+- 新增 `20261020_dictionary_edit_inflections.sql`；此交付是程式／Migration 檔與可審查 PR，無正式 Migration、資料清理、Vercel／Supabase 設定變更或部署。正式 schema、真實裝置與帳號驗收另行追蹤於 HANDOFF。
+
+
+## 2026-10-13 — PR #46 合併前回歸修正
+
+- 同步 main 的 `28c5050`／`85f3f57`／`7cba01b`，保留正式驗收後人工關閉政策、自動詞形推導暫緩與 Workspace Sync v8 斷言；PR 只使用 Refs，未合併或關閉 Issues。
+- 新增回歸重現部分字典匯入把 `component_order` 送為空陣列、重設既有構詞順序的問題；一般 adapter 省略排序，完整 Editor 儲存才送排序。補測多義項、並行首次儲存、helper/RPC 權限及刪除稽核。
+- 全站 ESLint 原設定在 CommonJS 測試檔套用未載入的 React 插件，已在未修改 main 重現。依 TypeScript／Next 插件適用類型修正設定，保留 React Hook 安全規則並新增 regression；未 skip 測試或降低應用程式檢查。
+- 在隔離 PGlite 與本機 PostgreSQL 15.19 驗證 Migration；後者是無網路 Docker／fixture Auth，不能當作正式 Supabase staging／JWT 驗收。正式環境未操作，遠端 staging／部署與真實帳號驗收仍待授權。

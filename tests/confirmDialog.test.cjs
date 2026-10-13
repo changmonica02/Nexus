@@ -15,5 +15,5 @@ test('shared dialog supports labels, danger, theme, mobile sizing and cancel-fir
 });
 test('src has no native confirm/alert call left; unload keeps browser-required protection',()=>{
  const path=require('node:path');function scan(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())scan(file);else if(/\.tsx?$/.test(file))assert.ok(!/\b(?:window\.)?(?:confirm|alert)\s*\(/.test(fs.readFileSync(file,'utf8')),file);}}scan('src');
- const hook=fs.readFileSync('src/features/dictionary/useUnsavedDraft.ts','utf8');assert.ok(hook.includes('beforeunload'));assert.ok(hook.includes('event.preventDefault();event.stopPropagation()'));assert.ok(hook.includes('active&&accepted'));assert.ok(hook.includes('link.click()'));
+ const hook=fs.readFileSync('src/features/dictionary/useUnsavedDraft.ts','utf8');assert.ok(hook.includes('beforeunload'));assert.ok(hook.includes('event.preventDefault();event.stopPropagation()'));assert.ok(hook.includes('active&&ok'));assert.ok(hook.includes('link.click()'));
 });

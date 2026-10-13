@@ -59,7 +59,7 @@ interface Row {input:AIEntry;plan?:AIPlan;error?:string;status?:'accepted'|'igno
 export function AIImport({raw,onBusy,onSaved}:{raw:string;onBusy:(b:boolean)=>void;onSaved:()=>Promise<void>}){
  const [rows,setRows]=useState<Row[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  async function build(input:AIEntry,rebase=false):Promise<AIPlan>{
-  const client=getSupabase()!;const match=await matchAIEntry(client,structuredClone(input));let adjusted=match.input;const current=match.current;
+  const client=getSupabase()!;const match=await matchAIEntry(client,structuredClone(input));const adjusted=match.input;const current=match.current;
   if(rebase&&current)adjusted.revision=current.detail.entry.revision;
   const plan=planAI(adjusted,current,await targetsFor(client,current,adjusted));
   if(match.matched)plan.warnings.push('同類同拼寫已存在：使用既有 Entry，新增語義保存為新義項，請確認 Diff。');

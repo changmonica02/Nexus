@@ -1,3 +1,4 @@
+import {inflectionLabels} from './inflections';
 import {createDictionaryReview} from './revisionLifecycle';
 import {draftsFromBundle,saveDictionaryDraft} from './draftPipeline';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -8,7 +9,8 @@ export interface AIMeaning {id?:string;zh_tw?:string;classification?:string|null
 export interface AIText {id?:string;text?:string;meaning_id?:string|null;data_source?:string;order?:number}
 export interface AIComponent {target_id:string;headword:string;zh_tw:string;order:number;meaning_id?:string;relation?:'historical_etymology'|'learning_decomposition'}
 export interface AIPronunciation {id?:string;meaning_id?:string|null;locale?:string|null;ipa?:string;note?:string|null;sort_order?:number}
-export interface AIEntry {pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root';headword?:string;classification?:string|null;grouping?:Partial<DictionaryGrouping>;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];learning_decomposition?:AIText[];story?:AIText[];examples?:AIText[];source_forms?:AIText[];relation_hints?:AIText[]}
+export interface AIInflection {id?:string;meaning_id?:string|null;form_kind?:import('./inflections').InflectionKind;form?:string;sort_order?:number}
+export interface AIEntry {inflections?:AIInflection[];pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root';headword?:string;classification?:string|null;grouping?:Partial<DictionaryGrouping>;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];learning_decomposition?:AIText[];story?:AIText[];examples?:AIText[];source_forms?:AIText[];relation_hints?:AIText[]}
 export interface AIDocument {format:'nexus-dictionary-ai';version:1;entries:AIEntry[]}
 export interface AIMeta {entry_id:string;published_entry_id:string|null;origin_ids:Record<string,string>;component_order:string[]}
 export interface AISnapshot {detail:DictionaryDetail;grouping:DictionaryGrouping|null;sense_groups:SenseGroupMap;metadata:AIMeta|null}
@@ -25,7 +27,7 @@ export function parseAI(raw:string):AIDocument{
  const ids=new Set<string>();
  for(const e of v.entries){
   if(object(e)&&('sources' in e||'source_ids' in e))throw Error('AI sources / source_ids 已淘汰，請移除舊來源欄位');
-  keys(e,['id','revision','type','headword','classification','grouping','meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations'],'詞條');optionalID(e);
+  keys(e,['id','revision','type','headword','classification','grouping','meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations','inflections'],'詞條');optionalID(e);
   if(!['word','prefix','root'].includes(String(e.type)))throw Error('未知 type');
   if(e.id){if(ids.has(String(e.id)))throw Error('重複詞條 ID');ids.add(String(e.id));if(!Number.isSafeInteger(e.revision)||Number(e.revision)<1)throw Error('既有詞條須保留 revision');}
   else if(e.revision!==undefined)throw Error('新增詞條不應有 revision');
@@ -36,14 +38,21 @@ export function parseAI(raw:string):AIDocument{
    if(e.grouping.variant_group!==undefined)text(e.grouping.variant_group,'variant_group',true);
    if(e.grouping.primary_category!==undefined&&e.grouping.primary_category!==null&&!primaryCategories.includes(e.grouping.primary_category as typeof primaryCategories[number]))throw Error('未知 Root 分類');
   }
-  for(const field of ['meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations']){
+  for(const field of ['meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations','inflections']){
    if(e[field]===undefined)continue;if(!Array.isArray(e[field]))throw Error(`${field} 必須為陣列`);
    const seen=new Set<string>();
    for(const row of e[field] as unknown[]){
-    const allowed=field==='pronunciations'?['id','meaning_id','locale','ipa','note','sort_order']:field==='meanings'?['id','zh_tw','classification','grouping']:field==='components'?['target_id','headword','zh_tw','order','meaning_id','relation']:field==='etymology'?['id','text','meaning_id','data_source']:[ 'id','text','meaning_id','order'];
+    const allowed=field==='inflections'?['id','meaning_id','form_kind','form','sort_order']:field==='pronunciations'?['id','meaning_id','locale','ipa','note','sort_order']:field==='meanings'?['id','zh_tw','classification','grouping']:field==='components'?['target_id','headword','zh_tw','order','meaning_id','relation']:field==='etymology'?['id','text','meaning_id','data_source']:[ 'id','text','meaning_id','order'];
     keys(row,allowed,field);optionalID(row);if(row.order!==undefined&&(!Number.isSafeInteger(row.order)||Number(row.order)<0))throw Error('order 必須為非負整數');
     if(row.id){if(seen.has(String(row.id)))throw Error(`${field} 重複 ID`);seen.add(String(row.id));}
-    if(field==='pronunciations'){
+    if(field==='inflections'){
+     if(e.type!=='word')throw Error('詞形僅適用 Word');
+     if(!row.id&&(!row.form||!row.form_kind))throw Error('新增詞形需 form / form_kind');
+     if(row.form!==undefined)text(row.form,'form');
+     if(row.form_kind!==undefined&&!Object.hasOwn(inflectionLabels,String(row.form_kind)))throw Error('未知詞形類型');
+     if(row.sort_order!==undefined&&(!Number.isSafeInteger(row.sort_order)||Number(row.sort_order)<0))throw Error('sort_order 必須為非負整數');
+     if(row.meaning_id!==undefined&&row.meaning_id!==null)identifier(row.meaning_id,'meaning_id');
+    }else if(field==='pronunciations'){
      if(row.ipa!==undefined)text(row.ipa,'ipa');else if(!row.id)throw Error('新增讀音缺少 ipa');
      if(row.locale!==undefined)text(row.locale,'locale',true);
      if(row.note!==undefined&&row.note!==null&&typeof row.note!=='string')throw Error('note 必須為文字或 null');
@@ -80,6 +89,7 @@ export function toAI(s:AISnapshot,targets:Map<string,AISnapshot>):AIEntry{
  ...(e.kind==='word'?{...(d.senses.length===1?{classification:d.senses[0]?.part_of_speech??null}:{})}: {grouping:e.kind==='prefix'?{tags:s.grouping?.tags??[],variant_group:s.grouping?.variant_group??null}:s.grouping??emptyGrouping()}),
  meanings:d.senses.map(r=>({id:r.id,zh_tw:r.gloss_zh_tw,...(e.kind==='word'?{classification:r.part_of_speech}:e.kind==='prefix'?{grouping:{primary_category:s.sense_groups[r.id]??null}}:{})})),
  ...(e.kind==='word'?{components:[...d.relations].sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999)||a.id.localeCompare(b.id)).map((r,i)=>{const t=targets.get(r.target_entry_id)?.detail;const sense=t?.senses.find(x=>x.id===r.target_sense_id);if(!t||!sense)throw Error('構詞目標無法讀取，已停止匯出');return {target_id:r.target_entry_id,headword:t.entry.headword,zh_tw:sense.gloss_zh_tw,order:i,meaning_id:r.sense_id,relation:r.relation_kind};})}:{}),
+ inflections:(d.inflections??[]).map(p=>({id:p.id,meaning_id:p.sense_id,form_kind:p.form_kind,form:p.form,sort_order:p.sort_order})),
  pronunciations:(d.pronunciations??[]).map(p=>({id:p.id,meaning_id:p.sense_id,locale:p.locale,ipa:p.ipa,note:p.note,sort_order:p.sort_order})),
  examples:(d.examples??[]).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),source_forms:(d.lexical_annotations??[]).filter(r=>r.kind==='source_forms').map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),relation_hints:(d.lexical_annotations??[]).filter(r=>r.kind==='relation_hint').map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),
  etymology:content('etymology'),learning_decomposition:content('learning_decomposition'),story:content('mnemonic_scenario'),
@@ -95,17 +105,17 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
  const published=current?.detail.entry.status==='published',origin:Record<string,string>={};
  const map=(id:string)=>id; // Review snapshots preserve canonical child identity.
  const target=current?map(current.detail.entry.id):makeID();
- const bundle:Bundle={dictionary_pronunciations:[],dictionary_entries:[],dictionary_senses:[],dictionary_relations:[],dictionary_etymologies:[],dictionary_learning_notes:[],dictionary_examples:[],dictionary_lexical_annotations:[]};
+ const bundle:Bundle={dictionary_inflections:[],dictionary_pronunciations:[],dictionary_entries:[],dictionary_senses:[],dictionary_relations:[],dictionary_etymologies:[],dictionary_learning_notes:[],dictionary_examples:[],dictionary_lexical_annotations:[]};
  const changes:AIChange[]=[],warnings:string[]=[];
  if((current?.detail.senses.length??0)>1&&input.classification!==undefined)warnings.push('多義詞的 classification 僅作新義項預設；既有義項的詞性請在 meanings 中逐筆修改。');
  const before=current?toAI(current,targets):null;
- for(const field of ['headword','classification','grouping','meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations'] as const){
+ for(const field of ['headword','classification','grouping','meanings','components','etymology','learning_decomposition','story','examples','source_forms','relation_hints','pronunciations','inflections'] as const){
   if(input[field]===undefined&&before?.[field]!==undefined){warnings.push(`缺少 ${field}：保留原資料`);changes.push({label:field,before:before[field],after:before[field],kind:'缺少'});}
   else if(input[field]!==undefined&&JSON.stringify(input[field])!==JSON.stringify(before?.[field]))changes.push({label:field,before:before?.[field]??null,after:input[field],kind:before?.[field]===undefined?'新增':'修改'});
  }
  if(current){
   bundle.dictionary_entries=[clean(current.detail.entry)];
-  for(const [key,rows] of [['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]],['dictionary_lexical_annotations',current.detail.lexical_annotations??[]]] as const)bundle[key]=rows.map(clean);
+  for(const [key,rows] of [['dictionary_inflections',current.detail.inflections??[]],['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]],['dictionary_lexical_annotations',current.detail.lexical_annotations??[]]] as const)bundle[key]=rows.map(clean);
  }
  const entry=bundle.dictionary_entries[0]??{id:target,kind:input.type};bundle.dictionary_entries=[{...entry,headword:input.headword??entry.headword}];
  const group={...(current?.grouping??emptyGrouping()),...input.grouping};
@@ -153,9 +163,17 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
   if(p.sort_order!==undefined)row.sort_order=p.sort_order;
   if(!rows.includes(row))rows.push(row);
  }
+ checkMissing(input.inflections,before?.inflections??[],'詞形');
+ for(const p of input.inflections??[]){
+  const old=p.id?current?.detail.inflections?.find(r=>r.id===p.id):null;if(p.id&&!old)throw Error('inflection id 不屬於此詞條');
+  const rid=p.id??makeID(),rows=bundle.dictionary_inflections,row=rows.find(r=>r.id===rid)??{id:rid,entry_id:target,sense_id:null,sort_order:rows.length};
+  if(p.form!==undefined)row.form=p.form;if(p.form_kind!==undefined)row.form_kind=p.form_kind;
+  if(p.meaning_id!==undefined)row.sense_id=ownSense(p.meaning_id);if(p.sort_order!==undefined)row.sort_order=p.sort_order;
+  if(!rows.includes(row))rows.push(row);
+ }
  const ordered:string[]=[];
  for(const c of [...(input.components??[])].sort((a,b)=>a.order-b.order)){
-  const t=targets.get(c.target_id)?.detail;if(!t||t.entry.kind==='word'||t.entry.headword!==c.headword)throw Error('構詞目標 ID／拼寫不符，請重新選擇字首或字根');
+  const t=targets.get(c.target_id)?.detail;if(!t||t.entry.id===target||t.entry.headword!==c.headword)throw Error('構詞目標 ID／拼寫不符，請重新選擇字首或字根');
   const options=t.senses.filter(s=>s.gloss_zh_tw===c.zh_tw);if(options.length!==1)throw Error('構詞中文義不存在或有多個候選，不能自動配對');
   const own=ownSense(c.meaning_id)??(bundle.dictionary_senses.length===1?String(bundle.dictionary_senses[0].id):null);if(!own)throw Error('多義單字的 components 需提供 meaning_id');
   const relation=c.relation??'learning_decomposition';let r=bundle.dictionary_relations.find(r=>r.sense_id===own&&r.target_sense_id===options[0].id&&r.relation_kind===relation);
