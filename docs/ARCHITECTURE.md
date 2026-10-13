@@ -318,9 +318,17 @@ offline / reconnect / delete / attachment / backup import 行為
 - PublishedWorkspace 讀取完整 Published snapshot 與 active reviews，立即提供可編輯表單。未修改不建草稿；單筆 active review 直接續編，多筆要求明選。首次儲存用 `create_dictionary_edit_review` 在同一鎖／交易中檢查 active review、建立並儲存完整 candidate；後續以 `save_dictionary_review` 核對 revision。發布只呼叫既有人工核准 RPC。版本錯誤保留輸入，提供編輯備份及受離開保護的重新載入。
 - `useUnsavedDraft` 對站內連結、編輯區的版本操作及瀏覽器 history navigation 提供儲存／放棄／繼續編輯；原生 beforeunload 保護重新整理／離站。對話框使用 native dialog 並還原觸發控件焦點。公開閱讀端返回仍沿用原來源 URL。
 - 新增 `dictionary_inflections(id,entry_id,sense_id?,form_kind,form,sort_order,revision,updated_at)`。它是 Entry 附屬記錄，沒有公開 Entry 身分；同 Entry／Sense／類型／正規化詞形防重，相同拼寫可屬不同類型或不同 Sense。詞性對應與 Sense 所屬關係由 TypeScript、FK 和伺服器驗證；直接資料表寫入未授權。此版只儲存人工指定的形式，不做規則猜測。
-- 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
+- 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料與構詞順序：一般 `mapDictionaryDraft` 不傳 `component_order`，完整 Editor save／Review save 才明確傳入排序。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
 - `dictionary_relations` 保留所有 ID／Sense FK／查證狀態，擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
 - 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 JSON Bundle／AI JSON。本次不自行變更既有 CSV schema，後續完整大量交換依 #44 規劃。
 - `search_dictionary_with_inflections` 合併 headword／中文義項及**索引可確認的 exact 詞形**，結果帶 `inflection_matches`，保留原形與同形詞；Reader 標示匹配原因，詞形以文字而非新 Entry 連結顯示。既有反向構詞及分類篩選仍用原查詢。
 - 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。本次只在隔離 PGlite 執行；**正式 Supabase 未執行**。部署前先核對遠端 ledger、備份並在 staging 套用／驗證；需要手動執行此檔案且須另外授權。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。
 - 自動化：`tests/dictionaryEditInflections.test.cjs` 驗證升級舊 review、ID／Sense／詞形 roundtrip、衝突、隔離、發布／歷史與權限；`tests/dictionaryEditor.browser.test.cjs` 以模擬 RPC 和 Chromium 驗證桌面／390px 手機的編輯、焦點、返回及保存／發布。瀏覽器測試需 `npx playwright install chromium` 或設定 `BROWSER_EXECUTABLE`；所有 fixture 僅在臨時 HTTP server 運作，無正式資料服務。
+
+
+#### #46 合併前驗證補充（已實作／隔離測試通過，Supabase staging 未驗證）
+
+- 部分匯入的排序相容回歸測試可重現原候選以空排序覆蓋 metadata；只在完整編輯器存檔附帶 `component_order` 後，既有 Review overlay 保留原順序。Migration SQL 無新增改寫，正式 DB 未操作。
+- 同一 `dictionaryEditInflections.test.cjs` 可用 PGlite 或 `NEXUS_TEST_POSTGRES_CONTAINER` 指定的本機 PostgreSQL 執行。`postgresContainer.cjs` 只接受 `nexus46-*` 名稱、`nexus.test=pr46-local` 標籤且 `network=none` 的本機 Docker；固定 local Unix socket、不接受外部 DB URL，測試資料庫隨測試建立／清除。驗證 PostgreSQL 15.19 的舊 snapshot 相容、第一次儲存 race（兩個真實連線僅一個 active review）、草稿／Published 隔離、FK／詞性／多義项、RLS／helper execute 權限及刪除稽核。
+- Docker 測試使用獨立 tmpfs、無 host port；bootstrap `auth.users`／`auth.uid()` 是 fixture。此結果不等同 Supabase Auth、PostgREST schema cache、真實使用者 JWT 或遠端 staging migration ledger 驗證；正式套用前仍須以獨立 Supabase staging、實際角色／帳號及代表性資料驗收。
+- ESLint TypeScript 設定只適用 TypeScript 檔，React override 適用 Next.js 插件支援的 source extensions，避免掃描 CommonJS fixtures 時找不到插件。未降低應用程式規則嚴重程度；`eslintConfig.test.cjs` 確認條件式 Hook 仍報 error。全站既有 warnings 保留揭露。

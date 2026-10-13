@@ -4,14 +4,15 @@ import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
-  ...nextTs,
+  ...nextTs.map(config => ({ ...config, files: config.files ?? ["**/*.{ts,tsx,mts,cts}"] })),
+  { files: ["**/*.{ts,tsx,mts,cts}"], rules: { "@typescript-eslint/no-explicit-any": "warn" } },
   {
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     // This workspace predates React Compiler rules and uses Tiptap's dynamic
     // command API. Keep migration debt visible without turning a working
     // production build into a blocked commit. New code should still avoid
     // these patterns unless an adapter boundary requires them.
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
       "react-hooks/refs": "warn",
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/purity": "warn",

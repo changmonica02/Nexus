@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {PGlite}=require('@electric-sql/pglite');
-const {mapDictionaryDraft,draftsFromBundle,validateDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
+const {PGlite}=process.env.NEXUS_TEST_POSTGRES_CONTAINER?require('./fixtures/postgresContainer.cjs'):require('@electric-sql/pglite');
+const {mapDictionaryDraft,draftsFromBundle,validateDictionaryDraft,saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts');
 const {toAI,parseAI,planAI}=require('../src/features/dictionary/aiDictionary.ts');
 const {diffDictionaryReview,reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
@@ -21,13 +21,20 @@ test('attached inflection validation and JSON / AI roundtrip preserve IDs, sense
  assert.throws(()=>exportDictionaryCSV([d]),/詞形/);
  const candidate=mapDictionaryDraft(d);candidate.inflections[0].form='changed';const review={base_snapshot:snapshot,candidate,revision:2};assert.equal(reviewSnapshot(review).detail.inflections[0].form,'changed');assert.ok(diffDictionaryReview(review).some(x=>x.section==='inflections'&&x.kind==='modified'));
 });
+test('partial imports omit component order; only full editor saves explicitly replace the order',async()=>{
+ const d=draft(10,'go');d.revision=1;
+ assert.equal(Object.hasOwn(mapDictionaryDraft(d),'component_order'),false);
+ let request;const client={rpc:async(name,args)=>{request={name,args};return {data:{inserted:0,updated:0,skipped:1}};}};
+ await saveDictionaryDraft(client,[d],false,true);assert.equal(Object.hasOwn(request.args.drafts[0],'component_order'),false);
+ await saveDictionaryDraft(client,[d],false,true,undefined,true);assert.deepEqual(request.args.drafts[0].component_order,[]);assert.equal(request.args.drafts[0].replace_editor_children,true);
+});
 test('isolated PostgreSQL: additive upgrade, exact first edit, active/stale conflicts, draft isolation, publication/history, relation IDs/order, search and permissions',async()=>{
  const pg=new PGlite();try{
  await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;`);
  for(const f of migrations)await pg.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
  await pg.query('insert into auth.users values($1),($2)',[id(1),id(2)]);await pg.query('insert into dictionary_admins(user_id) values($1)',[id(1)]);await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);
  const sql=async(q,a=[])=>(await pg.query(q,a)).rows[0]?.v;
- const save=async d=>sql('select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(d)])]);
+ const save=async d=>sql('select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([{...mapDictionaryDraft(d),component_order:d.relations.map(r=>r.id)}])]);
  const snap=n=>sql('select get_dictionary_ai_snapshot($1) v',[id(n)]);
  // Existing active review and old source_forms survive schema upgrade.
  const go=draft(10,'go');go.lexical_annotations=[{id:id(15),sense_id:null,kind:'source_forms',body:'OLD FORM',sort_order:0}];await save(go);await sql('select publish_dictionary_entry($1) v',[id(10)]);const before=await snap(10);const oldReview=await sql("select create_dictionary_review($1,$2,null,'manual',false) v",[id(10),JSON.stringify(before)]);
@@ -51,15 +58,30 @@ test('isolated PostgreSQL: additive upgrade, exact first edit, active/stale conf
  // Explicit irregular, regular forms and legitimate homographs coexist; no automatic new public entries.
  for(const d of [draft(30,'walk'),draft(40,'book','noun'),draft(50,'went','noun'),draft(60,'happy','adjective'),draft(70,'un-',null,'prefix')]){if(d.headword==='walk')d.inflections=[form(32,'past','walked'),form(33,'past_participle','walked')];if(d.headword==='book')d.inflections=[form(42,'plural','books')];await save(d);await sql('select publish_dictionary_entry($1) v',[d.entry_id]);}
  const unhappy=draft(80,'unhappy','adjective');unhappy.relations=[{id:id(82),sense_id:id(81),target_entry_id:id(70),target_sense_id:id(71),relation_kind:'learning_decomposition',verification:'unverified',verification_note:''},{id:id(83),sense_id:id(81),target_entry_id:id(60),target_sense_id:id(61),relation_kind:'learning_decomposition',verification:'unverified',verification_note:''}];await save(unhappy);let u=await snap(80);unhappy.revision=u.detail.entry.revision;unhappy.relations=u.detail.relations.reverse();await save(unhappy);await sql('select publish_dictionary_entry($1) v',[id(80)]);let pub=await sql('select get_published_dictionary_entry($1) v',[id(80)]);assert.deepEqual(pub.relations.map(x=>x.target_entry_id),[id(60),id(70)]);assert.equal(pub.related.length,2);
+ const currentU=await snap(80);const partial=draft(80,'unhappy','adjective');const partialReview=await sql("select create_dictionary_review($1,$2,$3,'json',false) v",[id(80),JSON.stringify(currentU),JSON.stringify(mapDictionaryDraft(partial))]);assert.deepEqual(partialReview.candidate.component_order,currentU.metadata.component_order,'partial import must retain component ordering');await sql('select discard_dictionary_review($1,$2) v',[partialReview.id,partialReview.revision]);
  const targets=await sql('select search_dictionary_relation_targets($1,0) v',['happy中文']);assert.ok(targets.items.some(x=>x.id===id(60)));
  const search=q=>sql('select search_dictionary_with_inflections($1,$2,0) v',['all',q]);assert.equal((await search('walked')).items[0].headword,'walk');assert.equal((await search('walked')).items[0].inflection_matches.length,2);assert.equal((await search('books')).items[0].headword,'book');assert.equal((await search('gone')).items.length,0);
  // Restore go's two forms with another manually approved review for homograph search.
  s=await snap(10);const back=structuredClone(updated.candidate);back.inflections=r.candidate.inflections;const rr=await sql("select create_dictionary_review($1,$2,$3,'manual',false) v",[id(10),JSON.stringify(s),JSON.stringify(back)]);await sql('select approve_dictionary_review($1,$2) v',[rr.id,rr.revision]);assert.deepEqual(new Set((await search('went')).items.map(x=>x.headword)),new Set(['go','went']));
+ // Real container backend runs these first-save attempts on separate PostgreSQL sessions.
+ const raceDraft=draft(120,'race');await save(raceDraft);await sql('select publish_dictionary_entry($1) v',[id(120)]);const raceBase=await snap(120);
+ const raceRequest=()=>sql('select create_dictionary_edit_review($1,$2,$3) v',[id(120),JSON.stringify(raceBase),JSON.stringify(mapDictionaryDraft(raceDraft))]);
+ const attempts=await Promise.allSettled([raceRequest(),raceRequest()]);assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);assert.match(String(attempts.find(r=>r.status==='rejected').reason),/Active Review/);
+ assert.equal(await sql("select count(*)::int v from dictionary_review_drafts where entry_id=$1 and state='active'",[id(120)]),1);
+ const scopes=draft(130,'record');scopes.senses.push({id:id(132),part_of_speech:'noun',gloss_zh_tw:'紀錄'});scopes.inflections=[form(133,'third_person_singular','records',id(131)),form(134,'plural','records',id(132))];await save(scopes);await sql('select publish_dictionary_entry($1) v',[id(130)]);
+ const scopedResult=await search('records');assert.equal(scopedResult.items.length,1);assert.equal(scopedResult.items[0].inflection_matches.length,2);assert.deepEqual(new Set(scopedResult.items[0].inflection_matches.map(r=>r.sense_id)),new Set([id(131),id(132)]));
+ const scopeBase=await snap(130),scopeCandidate=mapDictionaryDraft({...scopes,inflections:[{...scopes.inflections[0],sense_id:id(132)},scopes.inflections[1]]});
+ await assert.rejects(sql('select create_dictionary_edit_review($1,$2,$3) v',[id(130),JSON.stringify(scopeBase),JSON.stringify(scopeCandidate)]),/POS/);
+ assert.equal(await sql('select count(*)::int v from dictionary_review_drafts where entry_id=$1',[id(130)]),0,'failed first save must roll back its empty review');assert.deepEqual((await snap(130)).detail.inflections,scopeBase.detail.inflections);
+ for(const signature of ['public.dictionary_materialize_review(uuid,jsonb)','public.dictionary_normalize_snapshot(jsonb)','public.guard_dictionary_inflection()'])assert.equal(await sql('select has_function_privilege($1,$2,$3) v',['authenticated',signature,'EXECUTE']),false,signature);
+ await assert.rejects(pg.query("update dictionary_entries set headword='unsafe direct write' where id=$1",[id(10)]),/Review approval/);
+ const hidden=draft(110,'hidden');hidden.inflections=[form(112,'past','hidden-form',id(111))];await save(hidden);const hiddenBase=await snap(110);await assert.rejects(sql('select delete_dictionary_draft_sense($1,$2,$3,$4) v',[id(110),id(111),hiddenBase.detail.entry.revision,hiddenBase.detail.senses[0].revision]),/inflections/);
  // Draft-only forms, duplicates, sense ownership, permissions and direct Published writes.
  const privateDraft=draft(90,'private');privateDraft.inflections=[form(92,'past','secretwent')];await save(privateDraft);assert.equal((await search('secretwent')).items.length,0);let pd=await snap(90);privateDraft.revision=pd.detail.entry.revision;privateDraft.inflections=[];await sql('select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([{...mapDictionaryDraft(privateDraft),replace_editor_children:true}])]);assert.equal((await snap(90)).detail.inflections.length,0);
  for(const invalid of [[form(93,'plural','bad')],[form(93,'past','bad',id(11))],[form(93,'past','bad'),form(94,'past','bad')]]){privateDraft.inflections=invalid;privateDraft.revision=(await snap(90)).detail.entry.revision;await assert.rejects(save(privateDraft));assert.equal((await snap(90)).detail.inflections.length,0);}
  const self=draft(100,'self','noun');self.relations=[{...unhappy.relations[0],id:id(102),target_entry_id:id(100),target_sense_id:id(101),sense_id:id(101)}];await assert.rejects(save(self),/itself/);
- await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal((await search('went')).items.length,2);assert.equal(await sql('select count(*)::int v from dictionary_inflections where entry_id=$1',[id(90)]),0);await assert.rejects(sql('select create_dictionary_edit_review($1,$2,$3) v',[id(10),JSON.stringify(s),JSON.stringify(back)]),/admin/);await assert.rejects(sql('select approve_dictionary_review($1,$2) v',[rr.id,rr.revision]),/admin/);await assert.rejects(pg.query('insert into dictionary_inflections(id,entry_id,form_kind,form) values($1,$2,$3,$4)',[id(99),id(10),'past','unsafe']),/permission/);
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal((await search('went')).items.length,2);assert.equal(await sql('select count(*)::int v from dictionary_inflections where entry_id=$1',[id(110)]),0);assert.equal(await sql('select get_dictionary_entry($1) v',[id(110)]),null);assert.equal((await search('hidden-form')).items.length,0);assert.equal((await sql('select search_dictionary_relation_targets($1,0) v',[''])).items.length,0);assert.equal(await sql('select count(*)::int v from dictionary_inflections where entry_id=$1',[id(90)]),0);await assert.rejects(sql('select create_dictionary_edit_review($1,$2,$3) v',[id(10),JSON.stringify(s),JSON.stringify(back)]),/admin/);await assert.rejects(sql('select approve_dictionary_review($1,$2) v',[rr.id,rr.revision]),/admin/);await assert.rejects(pg.query('insert into dictionary_inflections(id,entry_id,form_kind,form) values($1,$2,$3,$4)',[id(99),id(10),'past','unsafe']),/permission/);
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);await sql('select delete_dictionary_drafts($1) v',[JSON.stringify([{id:id(110),revision:hiddenBase.detail.entry.revision}])]);assert.equal(await sql('select count(*)::int v from dictionary_inflections where entry_id=$1',[id(110)]),0);assert.equal(await sql("select count(*)::int v from dictionary_audit where table_name='dictionary_inflections' and record_id=$1 and operation='DELETE'",[id(112)]),1);
  await pg.exec('reset role;set role anon');await assert.rejects(pg.query('select * from dictionary_inflections'),/permission/);await assert.rejects(search('went'),/permission/);
  }finally{await pg.close();}
 });

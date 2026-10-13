@@ -84,7 +84,7 @@ export function mapDictionaryDraft(d:DictionaryDraftInput){
   const own=(rows:DraftRow[])=>rows.map(r=>({...strip(r),entry_id:d.entry_id}));
   const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
   return {origin:{row:d.row??1,kind:d.kind},bundle,group_data:d.grouping??null,sense_groups:d.senses.filter(s=>s.category!==undefined).map(s=>({sense_id:s.id,primary_category:s.category})),
-    component_order:d.relations.map(r=>r.id),inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.lexical_annotations.map(r=>({...r,kind:'source_forms'})),...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
+    inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.lexical_annotations.map(r=>({...r,kind:'source_forms'})),...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
 }
 type Client=Pick<SupabaseClient,'rpc'>;
 /** Resolve explicit IDs only. Freeze revisions in the candidate used by preview and apply. */
@@ -105,7 +105,7 @@ export async function prepareDictionaryDrafts(client:Client,drafts:DictionaryDra
 }
 export async function saveDictionaryDraft(client:Client,drafts:DictionaryDraftInput[],preview=false,allowEdits=false,ai?:Record<string,unknown>,replaceEditorChildren=false):Promise<BundleResult>{
   const errors=validateDictionaryDraft(drafts);if(errors.length)throw new DraftValidationError(errors);
-  const {data,error}=await client.rpc('apply_dictionary_drafts',{drafts:drafts.map(d=>({...mapDictionaryDraft(d),...(ai?{ai}:{}),...(replaceEditorChildren&&d.revision?{replace_editor_children:true}:{})})),preview,allow_edits:allowEdits});
+  const {data,error}=await client.rpc('apply_dictionary_drafts',{drafts:drafts.map(d=>({...mapDictionaryDraft(d),...(ai?{ai}:{}),...(replaceEditorChildren?{component_order:d.relations.map(r=>r.id),...(d.revision?{replace_editor_children:true}:{})}:{})})),preview,allow_edits:allowEdits});
   if(error){
     if(error.message.includes('dictionary_entries_unique_kind_headword'))throw new Error('同類同拼寫已有詞條，請開啟既有 Entry 新增義項，或重新產生匯入審核。');
     let origin:unknown;try{origin=JSON.parse(error.details??'');}catch{}

@@ -2,9 +2,12 @@
 
 ## 本次 #41／#42 交付（2026-10-13；程式已實作，正式環境未部署）
 
-- 功能分支：`feat/dictionary-edit-inflections`，從 main `d179567763277781f0181693152c7def7fcefe25` 建立。Published 直接編輯、同頁審核儲存／人工發布、實質 dirty／還原判定與三選項離開保護已接入原 revision 流程。
+- 功能分支：`feat/dictionary-edit-inflections`，從 main `d179567763277781f0181693152c7def7fcefe25` 建立；合併前已同步至 main `7cba01b`，包含 `28c5050`（正式部署驗收後才人工關閉）與 `85f3f57`（自動詞形推導暫緩）。Published 直接編輯、同頁審核儲存／人工發布、實質 dirty／還原判定與三選項離開保護已接入原 revision 流程。
 - 構詞選取公開 Entry／Sense ID，支援 Word 成分、去重、更換／移除、鍵盤上下排序及失效目標提示。詞形為附屬記錄，支援動詞、名詞、形容詞／副詞合理類型與 Sense；不新增 went／gone／walked／books 等公開 Entry。舊原始字形保留，JSON／AI roundtrip 納入詞形，CSV v1 遇詞形拒絕有損匯出。
-- 自動化工具驗證：TypeScript／Build 通過；字典及 confirm 回歸通過。全專案回歸另有既有 `workspaceSync.test.cjs:287` 版本斷言失敗（預期 7、main 實際 8），在未修改 main 工作樹已重現。隔離介面測試：Chromium 桌面 1280×900／行動 390×844 通過。使用者驗證：真實裝置、正式帳號／雙裝置與 production schema 驗收未執行。
+- 自動化工具驗證：Workspace Sync 19/19、字典相關 94/94、修正後全專案 228/228（0 skip）、TypeScript／Production Build 通過；全站 ESLint 0 errors／473 warnings。原 IndexedDB 7/8 斷言已由 main `7cba01b` 修正。隔離介面測試：Chromium 桌面 1280×900／行動 390×844 通過。使用者驗證：真實裝置、正式帳號／雙裝置與 production schema 驗收未執行。
+- 最終審查修正：部分匯入不再送出空 `component_order`，避免清空已發布關聯順序；完整編輯器儲存仍顯式更新順序。修正 ESLint 插件／檔案類型適用範圍，新增 regression 證明 React Hooks 與 TypeScript 安全規則仍開啟，未刪除／skip 測試。
+- 隔離資料庫驗證：相同 Migration／權限／並行儲存／多義項／刪除稽核測試在 PGlite 與 Docker PostgreSQL 15.19 都通過。Docker 使用 `network=none`、無 host port、tmpfs，Auth 是測試 schema／角色；**不是 Supabase staging、PostgREST 或真實 JWT 驗收**。未提供獨立 Supabase staging 專案／憑證，這些仍待提供與授權。
+- PR #46 維持 `Refs #41`／`Refs #42`，本輪不合併、不關閉 Issues；程式與隔離驗證已完成，GitHub 審核及部署前核對由管理者決定。
 - **需要手動在 Supabase 執行的新增檔案**：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，須先核對既有字典 migrations 至 20261019、備份及 staging 驗證，再另行授權執行。本次沒有在正式 DB 執行 SQL、修改 Vercel／Production Supabase 設定或部署。
 - 未完成的遠端工作：staging／production Migration、正式部署及真實帳號驗收。自動詞形推導未採用，現版採人工明確維護； #44 大量交換／完整 CSV schema 與已發布刪除策略屬既有獨立工作，不在本次變更範圍。
 - Vercel GitHub HTTP 403 連接問題仍待既有部署工作處理；不因本 PR 修改設定。Issues #6／#14 保持獨立追蹤。
