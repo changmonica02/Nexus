@@ -18,7 +18,7 @@
 | [#49](https://github.com/changmonica02/Nexus/issues/49) 共用分頁 | 新版已合併，三項正式人工驗收已回報通過，Issue 仍開啟 | 核對 Issue 驗收範圍後決定結案；不要把 #41 的待驗項混作 #49 未完成 |
 | [#47](https://github.com/changmonica02/Nexus/issues/47) 學習 Session | PR #54 完成統一學習／正式排程／無盡練習，相關自動測試通過；使用者決定本次不另做人工驗收 | 合併 #54 後以本次測試證據結案；Session 本機保存，跨裝置不接續相同進度 |
 | [#48](https://github.com/changmonica02/Nexus/issues/48) 偏好設定 | PR #54 完成功能化分類與各學習集同步設定；相關自動測試通過；使用者決定本次不另做人工驗收 | 與 #47 同步合併、結案 |
-| [#44](https://github.com/changmonica02/Nexus/issues/44) 大量匯入／匯出 | #44 已開發完整JSON交換、批次匯入／發布與本機恢復；111項自動case通過，**未部署／正式驗收** | 審查整合PR；先批准本次SQL、再批准合併／部署，正式驗收後人工結案 |
+| [#44](https://github.com/changmonica02/Nexus/issues/44) 大量匯入／匯出 | #44 已開發完整JSON交換、批次匯入／發布與本機恢復；115項自動case通過，**未部署／正式驗收** | 審查PR #56（已修正完整匯出戳及本機儲存失敗恢復）；先批准本次SQL、再批准合併／部署，正式驗收後人工結案 |
 
 ## 開發與部署注意事項
 

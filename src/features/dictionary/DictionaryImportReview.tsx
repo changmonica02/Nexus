@@ -20,9 +20,10 @@ export function DictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;f
   const [previewProgress,setPreviewProgress]=useState({done:0,total:0}),[reviewPage,setReviewPage]=useState(0);
   const [owner,setOwner]=useState(''),[session,setSession]=useState<ImportSession|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[onlyPending,setOnlyPending]=useState(true);
   useEffect(()=>{let active=true;void(async()=>{try{const {data,error}=await getSupabase()!.auth.getUser();if(error||!data.user)throw Error('請重新登入');const stored=await loadImportSession(data.user.id);if(active){setOwner(data.user.id);setSession(stored);}}catch(e){if(active)setMessage(String(e));}})();return()=>{active=false;controller.current?.abort();};},[]);
-  const persist=async(s:ImportSession,changed?:ImportItem[])=>{await persistImportSession(s,changed);setSession({...s,items:[...s.items]});};
+  const persist=async(s:ImportSession,changed?:ImportItem[])=>{await persistImportSession(s,changed);setSession(structuredClone(s));};
   const run=async(fn:()=>Promise<void>)=>{setBusy(true);onBusy(true);setMessage('');try{await fn();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);onBusy(false);}};
   async function preview(){
+    if(session?.items.some(i=>i.operation&&['pending','failed'].includes(i.status)))throw Error(t('exchange.pendingReply'));
     if(session&&session.items.some(i=>!['applied','unchanged','skipped'].includes(i.status))&&!await confirmDialog({title:t('exchange.preview'),message:t('exchange.replacePreview'),confirmLabel:t('exchange.preview')}))return;
     if(format==='json'&&JSON.parse(raw.replace(/^\uFEFF/,''))?.format===exchangeFormat){setReviewPage(0);const next=await previewExchange(getSupabase()!,owner,parseExchange(raw),(done,total)=>setPreviewProgress({done,total}));await persist(next);return;}
     let drafts:DictionaryDraftInput[]=[],issues:DraftIssue[]=[];

@@ -68,10 +68,12 @@ export async function continueExport(
       data.records.length > 100 ||
       !Number.isSafeInteger(data.total) ||
       typeof data.scope_version !== "string" ||
+      (job.scope_version !== null &&
+        data.scope_version !== job.scope_version) ||
       (data.has_more &&
         (!data.cursor || data.cursor === job.cursor || !data.records.length))
     )
-      throw Error("Invalid export page response");
+      throw Error("Invalid or changed export page; restart export");
     const next = {
       ...job,
       cursor: data.cursor ?? job.cursor,
@@ -88,18 +90,26 @@ export async function continueExport(
       const tx = db.transaction(["jobs", "export_pages"], "readwrite", {
         durability: "strict",
       });
-      await tx
-        .objectStore("export_pages")
-        .put({
+      const done = tx.done;
+      void done.catch(() => {});
+      try {
+        await tx.objectStore("export_pages").put({
           key: JSON.stringify([job.owner_id, job.id, job.pages]),
           job_id: JSON.stringify([job.owner_id, job.id]),
           page: job.pages,
           records: data.records,
         });
-      await tx
-        .objectStore("jobs")
-        .put({ key: JSON.stringify([job.owner_id, "export"]), value: next });
-      await tx.done;
+        await tx
+          .objectStore("jobs")
+          .put({ key: JSON.stringify([job.owner_id, "export"]), value: next });
+        await done;
+      } catch (error) {
+        try {
+          tx.abort();
+        } catch {}
+        await done.catch(() => {});
+        throw error;
+      }
     } finally {
       db.close();
     }

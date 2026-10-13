@@ -138,6 +138,43 @@ test(
             { exact: true },
           )
           .waitFor();
+        // Real browser IndexedDB quota failure: no operation may reach the server.
+        await page.evaluate(() => {
+          const put = IDBObjectStore.prototype.put;
+          IDBObjectStore.prototype.put = function (...args) {
+            if (this.name === "items") {
+              IDBObjectStore.prototype.put = put;
+              throw new DOMException(
+                "fixture quota exceeded",
+                "QuotaExceededError",
+              );
+            }
+            return put.apply(this, args);
+          };
+        });
+        await page
+          .getByRole("button", {
+            name: "一次套用安全項目／恢復作業",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("dialog", { name: "確認匯入" })
+          .getByRole("button", { name: "確認匯入", exact: true })
+          .click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: "fixture quota exceeded" })
+          .waitFor();
+        assert.equal(
+          await page.evaluate(
+            () =>
+              window.calls.filter(
+                (c) => c.name === "apply_dictionary_import_batch",
+              ).length,
+          ),
+          0,
+        );
         await page
           .getByRole("button", {
             name: "一次套用安全項目／恢復作業",
@@ -168,6 +205,58 @@ test(
             exact: true,
           })
           .waitFor();
+        // Server commits, then local receipt checkpoint fails: UI must retain durable progress.
+        await page.evaluate(() => {
+          const before = window.calls.filter(
+            (c) => c.name === "apply_dictionary_import_batch",
+          ).length;
+          const put = IDBObjectStore.prototype.put;
+          IDBObjectStore.prototype.put = function (...args) {
+            if (
+              this.name === "items" &&
+              window.calls.filter(
+                (c) => c.name === "apply_dictionary_import_batch",
+              ).length > before
+            ) {
+              IDBObjectStore.prototype.put = put;
+              throw new DOMException(
+                "fixture receipt quota exceeded",
+                "QuotaExceededError",
+              );
+            }
+            return put.apply(this, args);
+          };
+        });
+        await page
+          .getByRole("button", {
+            name: "一次套用安全項目／恢復作業",
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: "fixture receipt quota exceeded" })
+          .waitFor();
+        await page
+          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
+            exact: true,
+          })
+          .waitFor();
+        const uncertain = await page.evaluate(() =>
+          window.calls
+            .filter((c) => c.name === "apply_dictionary_import_batch")
+            .at(-1)
+            .operations.map((op) => op.operation_id),
+        );
+        await page.reload();
+        await page
+          .getByRole("button", { name: "匯入資料", exact: true })
+          .click();
+        await page
+          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
+            exact: true,
+          })
+          .waitFor();
         await page
           .getByRole("button", {
             name: "一次套用安全項目／恢復作業",
@@ -180,6 +269,16 @@ test(
         assert.equal(
           await page.getByRole("dialog", { name: "確認匯入" }).count(),
           0,
+        );
+        const batches = await page.evaluate(() =>
+          window.calls
+            .filter((c) => c.name === "apply_dictionary_import_batch")
+            .map((c) => c.operations.map((op) => op.operation_id)),
+        );
+        assert.deepEqual(
+          batches.at(-2),
+          uncertain,
+          "reload retries the exact committed operation UUIDs",
         );
         const reportPromise = page.waitForEvent("download");
         await page

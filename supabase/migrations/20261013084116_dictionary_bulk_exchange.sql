@@ -5,6 +5,11 @@ begin;
 do $$begin
  if to_regprocedure('public.apply_dictionary_import_operation(jsonb)') is null
  or to_regprocedure('public.publish_dictionary_bulk(text[],text,text,boolean)') is null
+ or to_regprocedure('public.get_dictionary_ai_snapshot(uuid)') is null
+ or to_regprocedure('public.dictionary_import_context(jsonb)') is null
+ or to_regclass('public.dictionary_import_operations') is null
+ or to_regclass('public.dictionary_review_drafts') is null
+ or to_regclass('public.dictionary_bulk_publish_previews') is null
  or to_regclass('public.dictionary_inflections') is null then raise exception 'Dictionary #41/#42 prerequisites missing';end if;
 end$$;
 create function public.dictionary_exchange_record(eid uuid) returns jsonb
@@ -18,16 +23,41 @@ begin
 end$$;
 revoke all on function public.dictionary_exchange_record(uuid) from public,anon,authenticated;
 
+-- Cover every exchange JSON source, including children, metadata and active Reviews.
+-- Raw rows conservatively include retired fields. No export write lock is acquired.
+create function public.dictionary_exchange_scope_version(entry_ids uuid[]) returns text
+language plpgsql stable security definer set search_path='' as $$
+declare t text; row_key text; predicate text; digest text; digests text[]:='{}';
+begin
+ if not public.is_dictionary_admin() then raise exception 'Dictionary admin required';end if;
+ foreach t in array array['dictionary_entries','dictionary_senses','dictionary_relations',
+  'dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations',
+  'dictionary_pronunciations','dictionary_inflections','dictionary_entry_groups',
+  'dictionary_sense_groups','dictionary_ai_metadata','dictionary_review_drafts'] loop
+  row_key:=case when t='dictionary_sense_groups' then 'sense_id' when t='dictionary_ai_metadata' then 'entry_id' else 'id' end;
+  predicate:=case when t in ('dictionary_entries','dictionary_entry_groups') then 'x.id=any($1)'
+   when t='dictionary_sense_groups' then 'exists(select 1 from public.dictionary_senses s where s.id=x.sense_id and s.entry_id=any($1))'
+   when t='dictionary_review_drafts' then 'x.entry_id=any($1) and x.state=''active'''
+   else 'x.entry_id=any($1)' end;
+  execute format('select md5(coalesce(string_agg(md5(to_jsonb(x)::text),'''' order by x.%I),'''')) from public.%I x where %s',row_key,t,predicate)
+   into digest using entry_ids;
+  digests:=array_append(digests,digest);
+ end loop;
+ return 'content-v2:'||md5(to_jsonb(digests)::text);
+end$$;
+revoke all on function public.dictionary_exchange_scope_version(uuid[]) from public,anon,authenticated;
+
 create function public.export_dictionary_exchange_page(kind_filters text[] default '{}',status_filters text[] default '{}',query_text text default '',after_id uuid default null,expected_scope text default null)
 returns jsonb language plpgsql stable security definer set search_path='' as $$
-declare ids uuid[]; total integer; stamp text; result jsonb; cursor uuid;
+declare ids uuid[]; scope_ids uuid[]; total integer; stamp text; result jsonb; cursor uuid;
 begin
  if not public.is_dictionary_admin() then raise exception 'Dictionary admin required';end if;
  if exists(select 1 from unnest(kind_filters) k where k not in ('word','prefix','root') or k is null)
  or exists(select 1 from unnest(status_filters) s where s not in ('draft','published') or s is null) then raise exception 'Invalid exchange scope';end if;
- select count(*),md5(coalesce(jsonb_agg(jsonb_build_array(id,revision,status) order by id),'[]')::text)
- into total,stamp from public.dictionary_entries where (cardinality(kind_filters)=0 or kind=any(kind_filters))
+ select count(*),coalesce(array_agg(id order by id),'{}'::uuid[])
+ into total,scope_ids from public.dictionary_entries where (cardinality(kind_filters)=0 or kind=any(kind_filters))
  and (cardinality(status_filters)=0 or status=any(status_filters)) and position(lower(btrim(coalesce(query_text,''))) in lower(headword))>0;
+ stamp:=public.dictionary_exchange_scope_version(scope_ids);
  if expected_scope is not null and expected_scope<>stamp then raise exception 'Export scope changed; restart export';end if;
  select array_agg(id order by id) into ids from (select id from public.dictionary_entries
  where (cardinality(kind_filters)=0 or kind=any(kind_filters)) and (cardinality(status_filters)=0 or status=any(status_filters))

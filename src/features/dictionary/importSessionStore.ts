@@ -11,16 +11,23 @@ export async function loadImportSession(owner:string):Promise<ImportSession|null
  const db=await dictionaryJobDatabase();try{const saved=await db.get('sessions',owner);if(!saved)return null;
  // v1 sessions survive upgrade without changing operation UUIDs or historical progress.
  if(Array.isArray(saved.items))return saved;
- const rows=await db.getAllFromIndex('items','session',JSON.stringify([owner,saved.id]));return {...saved,items:rows.sort((a,b)=>a.order-b.order).map(r=>r.item)};
+ const rows=await db.getAllFromIndex('items','session',JSON.stringify([owner,saved.id]));
+ if(saved.item_count!==undefined&&saved.item_count!==rows.length)throw Error('Import checkpoint is incomplete; do not start a replacement import');
+ const {item_count,...metadata}=saved;void item_count;
+ return {...metadata,items:rows.sort((a,b)=>a.order-b.order).map(r=>r.item)};
  }finally{db.close();}
 }
 export async function persistImportSession(session:ImportSession,changed?:ImportItem[]):Promise<void>{
  const db=await dictionaryJobDatabase();try{const tx=db.transaction(['sessions','items'],'readwrite',{durability:'strict'});
+ // Observe transaction rejection immediately, including failures before tx.done is awaited.
+ const done=tx.done;void done.catch(()=>{});
+ try{
  const previous=await tx.objectStore('sessions').get(session.owner_id);
- const {items,...metadata}=session;await tx.objectStore('sessions').put(metadata);
+ const {items,...metadata}=session;await tx.objectStore('sessions').put({...metadata,item_count:items.length});
  const order=new Map(items.map((item,index)=>[item.id,index]));
- for(const item of Array.isArray(previous?.items)?items:changed??items)await tx.objectStore('items').put({key:JSON.stringify([session.owner_id,session.id,item.id]),session_key:JSON.stringify([session.owner_id,session.id]),order:order.get(item.id),item});
- await tx.done;
+ for(const item of !previous||previous.id!==session.id||Array.isArray(previous.items)?items:changed??items)await tx.objectStore('items').put({key:JSON.stringify([session.owner_id,session.id,item.id]),session_key:JSON.stringify([session.owner_id,session.id]),order:order.get(item.id),item});
+ await done;
+ }catch(error){try{tx.abort();}catch{}await done.catch(()=>{});throw error;}
  }finally{db.close();}
 }
 export async function loadDictionaryJob<T>(owner:string,type:string):Promise<T|null>{const db=await dictionaryJobDatabase();try{return (await db.get('jobs',JSON.stringify([owner,type])))?.value??null;}finally{db.close();}}
