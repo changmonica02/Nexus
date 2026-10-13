@@ -1,0 +1,25 @@
+require('./loadStudy.cjs');require('fake-indexeddb/auto');
+const {PGlite}=require('@electric-sql/pglite'),{openDB,deleteDB}=require('idb');
+const fs=require('node:fs'),test=require('node:test'),assert=require('node:assert/strict');
+const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
+const {syncStudy}=require('../src/features/study/studySync.ts');
+const {dailyNewUsed}=require('../src/features/study/scheduledStudy.ts');
+const {reliableEvent}=require('../src/features/study/studyReliability.ts');
+const owner='11111111-1111-4111-8111-111111111111',now=new Date(2026,9,13,12).getTime();
+test('existing SQL/RPC accepts additive settings and every genuine review; offline replay/lost response and synchronized device share daily allowance; RLS rejects another owner',{timeout:60000},async()=>{
+ const pg=new PGlite(),dbs=[];
+ try{
+ await pg.exec(`create schema auth;create role authenticated;create role anon;create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;`);
+ for(const file of ['20260922_study_fsrs.sql','20261016_study_reliability.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ async function device(id){const name=crypto.randomUUID(),db=await openDB(name,1,{upgrade(db){for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name)){s.createIndex('deck','deck_id');if(name==='study_events')s.createIndex('deck_day',['deck_id','local_day']);}}}});dbs.push(db);const repo=new StudyRepository(db,()=>owner,id);await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});return repo;}
+ const first=await device('one');await first.addCards('deck',Array.from({length:30},(_,i)=>({front:'word'+i,back:'字'+i})));await first.configure('deck',{study_mode:'endless',review_limit:50,card_order:'mixed',review_order:'retrievability'});
+ const session=await first.startSession('deck','scheduled',now);
+ for(let i=0;i<20;i++){const data=await first.presentScheduled(session.id,now),card=data.snapshot.cards.find(c=>c.id===data.session.queue[0]),state=data.snapshot.states.find(s=>s.id===card.id);await first.rateSession({sessionId:session.id,cardId:card.id,revision:data.session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:3,actionId:crypto.randomUUID(),now});}
+ let lose=true;const client={rpc:async(name,args)=>{try{if(name==='pull_study_changes')return {data:(await pg.query('select pull_study_changes($1) changes',[args.after_sequence])).rows[0].changes,error:null};if(name==='apply_study_resolution')return {data:(await pg.query('select apply_study_resolution($1) ok',[JSON.stringify(args.operation)])).rows[0].ok,error:null};assert.equal(name,'apply_study_operation');assert.equal('session' in args.operation,false);await pg.query('select apply_study_operation($1)',[JSON.stringify(args.operation)]);if(lose&&args.operation.kind==='event'&&args.operation.value.kind==='review'){lose=false;return {error:{message:'response lost'}};}return {error:null};}catch(e){return {error:{message:e.message}};}}};
+ await assert.rejects(()=>syncStudy(first,client,owner),/response lost/);await syncStudy(first,client,owner);assert.equal((await first.pending()).length,0);
+ const stored=(await pg.query('select payload from study_review_events')).rows.map(r=>r.payload);assert.equal(stored.filter(e=>e.kind==='introduce').length,20);assert.equal(stored.filter(e=>e.kind==='review').length,20);assert.ok(stored.every(reliableEvent));
+ const second=await device('two');await syncStudy(second,client,owner);const snapshot=await second.readScheduledDeck('deck',now);assert.equal(snapshot.settings.study_mode,'endless');assert.equal(snapshot.settings.review_order,'retrievability');assert.equal(snapshot.settings.review_limit,50);assert.equal(dailyNewUsed(snapshot,now),20);assert.equal((await second.startSession('deck','scheduled',now)).targets.length,0);assert.equal((await second.startSession('deck','scheduled',now+86400000)).targets.length,10);
+ await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",['22222222-2222-4222-8222-222222222222']);for(const table of ['study_cards','study_card_states','study_review_events','study_deck_settings']){assert.equal((await pg.query('select * from '+table)).rows.length,0);await assert.rejects(()=>pg.exec('delete from '+table),/permission denied/);}await assert.rejects(()=>pg.query('select apply_study_operation($1)',[JSON.stringify({kind:'event',value:stored[0]})]),/owner/i);await pg.exec('reset role');await pg.exec('set role anon');await assert.rejects(()=>pg.query('select apply_study_operation($1)',[JSON.stringify({kind:'event',value:stored[0]})]),/permission denied/);
+ }finally{for(const db of dbs){const name=db.name;db.close();await deleteDB(name);}await pg.close();}
+});

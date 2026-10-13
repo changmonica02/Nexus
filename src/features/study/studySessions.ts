@@ -1,26 +1,30 @@
-import { localStudyDay, type Grade, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
+import { State, localStudyDay, type Grade, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
 
-export type SessionMode = "daily" | "free";
+export type SessionMode = "daily" | "free" | "scheduled";
 export interface SessionTarget {
   card_id: string;
   generation: number;
-  // Persisted completion timestamp: daily requires Easy; free review accepts Good or Easy.
+  // Legacy mastery marker; scheduled uses actual future FSRS state as completion.
   easy_at: number | null;
   official_event_id: string | null;
   // Optional only for sessions saved before this field existed.
   official_rating?: Grade | null;
-  // Reserved on creation; a retry/another device cannot mint a second official event.
+  // Legacy first-rating ID. Scheduled ratings are independently idempotent by session action ID.
   event_id: string;
   attempts: number;
+  counts_toward_limit?: boolean;
+  skipped?: boolean;
 }
 export interface StudySession {
   id: string; owner_id: string | null; deck_id: string;
-  mode: SessionMode | "batch"; day: string; batch_id?: string;
+  mode: SessionMode | "batch" | "practice"; day: string; batch_id?: string;
   targets: SessionTarget[]; queue: string[];
   started_at: number; completed_at: number | null;
   revision: number; updated_at: number; answers: number;
   last_action_id?: string;
   conflict?: boolean;
+  study_mode?: "scheduled" | "endless";
+  quota_limit?: number;
 }
 // Only these explicitly authorized test records are reset, never cards matched by text.
 const testItems = new Set([
@@ -31,8 +35,8 @@ export function isLegacyTestCard(card: StudyCard) {
   return card.deck_id === "page_kXB_pon1cdluNzbAk2EBJ" && !!card.legacy && testItems.has(card.legacy.item.id);
 }
 export function isLearned(state: StudyState) {
-  // Existing real FSRS states remain usable. Legacy counts/exposures/due grant no eligibility.
-  return state.learned_at != null || (state.learned_at === undefined && state.fsrs != null);
+  // Graduation follows real FSRS; retain legacy explicit mastery without inventing history.
+  return state.learned_at != null || state.fsrs?.state === State.Review || state.fsrs?.state === State.Relearning;
 }
 export function freezingInterval(state: StudyState): number | null {
   const fsrs = state.fsrs;

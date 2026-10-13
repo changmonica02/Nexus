@@ -1,3 +1,4 @@
+import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import { QuizRepository, QUIZ_STORES } from "./quiz/quizPersistence";
 import {chooseSchedule, cleanState, getSchedulePolicy, reliableEvent, type ScheduleCandidate} from "./studyReliability";
@@ -158,10 +159,13 @@ export class StudyRepository {
       throw error;
     }
   }
-  async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"sort_mode"|"quiz_direction">>) {
+  async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"sort_mode"|"quiz_direction"|"study_mode"|"card_order"|"review_order">>) {
+    if (patch.study_mode != null && !["scheduled","endless"].includes(patch.study_mode)) throw new Error("無效學習模式。");
+    if (patch.card_order != null && !["new-first","mixed","review-first"].includes(patch.card_order)) throw new Error("無效出卡順序。");
+    if (patch.review_order != null && !["due","retrievability","random"].includes(patch.review_order)) throw new Error("無效複習排序。");
     if (patch.quiz_direction != null && !["zh-en","en-zh"].includes(patch.quiz_direction)) throw new Error("無效測驗方向。");
     if (patch.new_limit != null && (!Number.isInteger(patch.new_limit) || patch.new_limit < 0 || patch.new_limit > 10000)) throw new Error("每日新字數須為 0–10000 的整數。");
-    if (patch.review_limit != null && (!Number.isInteger(patch.review_limit) || patch.review_limit < 1 || patch.review_limit > 10000)) throw new Error("自由複習數量須為 1–10000 的整數。");
+    if (patch.review_limit != null && (!Number.isInteger(patch.review_limit) || patch.review_limit < 1 || patch.review_limit > 10000)) throw new Error("單次複習數量須為 1–10000 的整數。");
     if (patch.sort_mode != null && !["custom","az"].includes(patch.sort_mode)) throw new Error("無效排序模式。");
     const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
@@ -184,6 +188,11 @@ export class StudyRepository {
     const values:StudyEvent[]=[];let cursor=await store.index('deck').openCursor(deckId);
     while(cursor){const e=cursor.value;if(e.owner_id===this.owner()&&e.local_day===day&&e.kind==='introduce')values.push(e);cursor=await cursor.continue();}
     return values;
+  }
+  async readScheduledDeck(deckId:string, now=Date.now()):Promise<StudySnapshot> {
+    const snapshot=await this.readDeck(deckId,false);
+    snapshot.events=await this.dayIntroductions(deckId,now);
+    return snapshot;
   }
   async peekNext(deckId:string,now:number):Promise<{card:StudyCard;state:StudyState}|null> {
     const snapshot=await this.readDeck(deckId,false);
@@ -260,7 +269,8 @@ export class StudyRepository {
         if(event)snapshot.events.push(event);
       }
     }
-    const next=reconcileSession(session,snapshot,now);
+    if(session.mode==="scheduled") snapshot.events=await this.dayIntroductions(session.deck_id,now,tx);
+    const next=session.mode==="scheduled"?refreshScheduled(session,snapshot,now):reconcileSession(session,snapshot,now);
     if(!sameStudyRecord(next,session)) {
       next.revision++; next.updated_at=Math.max(now,session.updated_at+1);
       await this.saveSession(tx,next);
@@ -274,6 +284,12 @@ export class StudyRepository {
       const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
       const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0];
       if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
+      if(mode==="scheduled") {
+        snapshot.events=await this.dayIntroductions(deckId,now,tx);
+        const session=makeScheduled(snapshot,now,newId());
+        await this.saveSession(tx,session);
+        return session;
+      }
       let batch:StudySession|undefined;
       let cards:StudyCard[];
       if(mode==="daily") {
@@ -299,6 +315,28 @@ export class StudyRepository {
       return {session,snapshot};
     },false);
   }
+  async presentScheduled(sessionId:string, now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+    let introduced=false;
+    const result=await this.sessionWrite(async tx=>{
+      const saved:StudySession=await tx.objectStore("study_sessions").get(sessionId);this.owned(saved);
+      if(saved.mode!=="scheduled")throw new Error("非正式排程 Session。");
+      const snapshot=await this.snapshotIn(tx,saved.deck_id);
+      const session=await this.reconciled(tx,saved,snapshot,now);
+      const id=session.queue[0];
+      const card=snapshot.cards.find(c=>c.id===id), state=snapshot.states.find(s=>s.id===id);
+      if(card && state && isUnintroduced(state)) {
+        if(dailyNewUsed(snapshot,now)>=snapshot.settings.new_limit)throw new Error("今日新卡額度已用完。");
+        const event=createStudyEvent(card,state,"introduce",now,this.device,newId(),null,"scheduled");
+        event.session_id=session.id;
+        await this.persistEvent(tx,event);introduced=true;
+        snapshot.states=snapshot.states.map(s=>s.id===id?event.after:s);
+        snapshot.events.push(event);
+      }
+      return {session,snapshot};
+    },false);
+    if(introduced)this.changed();
+    return result;
+  }
   async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number}):Promise<StudySession> {
     return this.sessionWrite(async tx=>{
       const {sessionId,cardId,rating,actionId,now}=input;
@@ -307,13 +345,28 @@ export class StudyRepository {
       if(saved.last_action_id===actionId) return saved;
       const snapshot=await this.snapshotIn(tx,saved.deck_id);
       const session=await this.reconciled(tx,saved,snapshot,now);
-      if(session.mode==="batch" || session.completed_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
+      if((session.mode==="batch" || session.mode==="practice") || session.completed_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
       const card=snapshot.cards.find(c=>c.id===cardId)!;
       const state=snapshot.states.find(s=>s.id===cardId)!;
       if(state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
       const target=session.targets.find(t=>t.card_id===cardId)!;
       target.attempts=(target.attempts??0)+1;
       let event:StudyEvent|undefined;
+      if(session.mode==="scheduled") {
+        if(isUnintroduced(state))throw new Error("請先正式呈現新卡。");
+        if(dueAt(state,now)>now)throw new Error("此卡尚未到期。");
+        event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled");
+        event.session_id=session.id;event.session_rating=rating;
+        target.official_event_id=event.id;target.official_rating=rating;
+        // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
+        if(!isShortStep(event.after,now))target.easy_at=now;
+        session.answers++;session.revision++;session.last_action_id=actionId;
+        session.updated_at=Math.max(now,session.updated_at+1);
+        snapshot.states=snapshot.states.map(s=>s.id===cardId?event!.after:s);
+        const next=refreshScheduled(session,snapshot,now);
+        await this.saveSession(tx,next,event);
+        return next;
+      }
       if(session.mode==="free" && !isLearned(state)) throw new Error("此卡尚未學會，請先完成每日學習。");
       if(session.mode==="free" && !target.official_event_id) {
         event=createStudyEvent(card, state, "review", now, this.device, target.event_id, rating);
@@ -337,6 +390,31 @@ export class StudyRepository {
       if(!session.queue.length) session.completed_at=now;
       await this.saveSession(tx,session,event);
       return session;
+    });
+  }
+  async startPractice(formalSessionId:string, now=Date.now()):Promise<StudySession> {
+    return this.sessionWrite(async tx=>{
+      const formal:StudySession=await tx.objectStore("study_sessions").get(formalSessionId);this.owned(formal);
+      if(formal.mode!=="scheduled" || formal.completed_at==null || formal.study_mode!=="endless")throw new Error("請先完成無盡模式的正式學習批次。");
+      const snapshot=await this.snapshotIn(tx,formal.deck_id);
+      const existing:StudySession|undefined=(await tx.objectStore("study_sessions").getAll()).find(s=>s.owner_id===this.owner()&&s.deck_id===formal.deck_id&&s.mode==="practice"&&s.completed_at==null);
+      if(existing)return this.reconciled(tx,existing,snapshot,now);
+      const session=makeSession(snapshot,"practice",practiceCards(snapshot),now,newId());
+      await this.saveSession(tx,session);return session;
+    });
+  }
+  /** Isolated durable practice state: no event, state or outbox write. */
+  async ratePractice(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;rating:Grade;actionId:string;now:number}):Promise<StudySession> {
+    return this.sessionWrite(async tx=>{
+      const session:StudySession=await tx.objectStore("study_sessions").get(input.sessionId);this.owned(session);
+      if(session.last_action_id===input.actionId)return session;
+      if(session.mode!=="practice" || session.revision!==input.revision || session.queue[0]!==input.cardId || ![1,2,3,4].includes(input.rating))throw new Error("額外練習已變更，請重新載入。");
+      const card:StudyCard=await tx.objectStore("study_cards").get(input.cardId);this.owned(card);
+      if(card.deleted_at || card.content_revision!==input.contentRevision)throw new Error("字卡內容已變更，請重新載入。");
+      session.targets.find(t=>t.card_id===input.cardId)!.attempts++;
+      session.queue=[...session.queue.slice(1),input.cardId];session.answers++;session.revision++;
+      session.last_action_id=input.actionId;session.updated_at=Math.max(input.now,session.updated_at+1);
+      await this.saveSession(tx,session);return session;
     });
   }
   async syncCursor():Promise<number>{return (await this.db.get('study_sync_meta',JSON.stringify([this.owner(),'cursor'])))?.sequence??0;}

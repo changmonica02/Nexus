@@ -94,17 +94,17 @@ Page / Presentation / Canvas / Website 應引用資源，不直接把 blob 塞�
 | Attachments／binaries | `attachments`／`binaries` | 有 | 有 | 🟡 binaries 本機未按帳號分區（D-200） |
 | Settings（語言、夜間適配） | `settings` | 依 backup settings 策略 | 本機偏好，不同步 | 🟡 |
 | 功能排序、最近使用 | **localStorage** | 否 | 否 | 裝置本機偏好 |
-| 字卡／狀態／事件／設定／session | `study_cards`、`study_states`、`study_events`、`study_settings`、`study_sessions` | 備份 schema v2 的 `study` 欄位 | `study_*` 四表＋RPC `apply_study_operation`；本機 `study_outbox` | ⚠️ 遠端 migration 狀態未知 |
+| 字卡／狀態／事件／設定／session | `study_cards`、`study_states`、`study_events`、`study_settings`、`study_sessions` | 備份 schema v3 的 `study`（含 sessions） | `study_*` 四表＋RPC `apply_study_operation`；本機 `study_outbox`，sessions 僅本機 | 2026-10-13 唯讀核對正式四表／RLS／RPC；#47／#48 前端待部署 |
 | 測驗答題與分數 | `quiz_attempts`、`quiz_states`、`quiz_outbox` | ⚠️ 是否進備份需 Q-0 核對 | `study_card_quiz_states`、`study_quiz_attempt_receipts`＋RPC `apply_study_quiz_operation` | ⚠️ 遠端 migration 狀態未知 |
 | Quick Notes／Todos | 統一在 `pages` | 有（同 pages） | 有（同 pages） | 🟡 |
 
 ### 5.5 IndexedDB 結構【新增】
 
-- 資料庫 `nexus`，`DB_VERSION = 6`（**舊文件寫 3／4 已過期**）。
-- Stores：`pages`、`attachments`、`binaries`、`settings`、`study_cards`、`study_states`、`study_events`、`study_settings`、`study_sessions`、`study_outbox`、`quiz_attempts`、`quiz_states`、`quiz_outbox`。
+- 資料庫 `nexus`，`DB_VERSION = 8`、`BACKUP_SCHEMA_VERSION = 3`（本輪不升版）。
+- Stores：`pages`、`attachments`、`binaries`、`settings`、`study_cards`、`study_states`、`study_events`、`study_settings`、`study_sessions`、`study_outbox`、`study_sync_meta`、`workspace_outbox`、`workspace_sync_meta`、`quiz_attempts`、`quiz_states`、`quiz_outbox`。
 - `pages` 與 `attachments` 使用本機欄位 `workspace_owner_id` 做帳號快取邊界（不上傳雲端）。
 - 舊 DB 可能殘留 `quick_notes`／`todos` store：程式碼不再讀寫，未清理。
-- v3→v4 新增字卡 stores、v5／v6 各版新增內容的對應，文件未記載；**以 source 的 `upgrade` 為準**。
+- v7 workspace 持久化與 v8 Study 索引已有程式與測試；更早版本的遷移仍以 source `upgrade` 為準。
 
 ### 5.6 內嵌於 content_json／JSON 欄位的資料契約【新增】
 
@@ -364,3 +364,22 @@ Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261
 - #41 核心流程沿用 PR #46／#51，沒有另建發布流程。使用者本輪回報兩 PR 已正式部署且核心操作已實機驗收；本輪技術核對另涵蓋 admin／普通角色、Draft／Review／Published 隔離、查證確認、stale base／revision、重新開啟與失敗恢復。普通角色的自動化測試不是正式第二帳號實機測試；依單人測試階段的精簡標準記錄為「等待正式部署與最終驗收」，不自動關閉 Issue。
 
 - 本輪交付驗證：字典＋分頁 100/100（無 skip）、TypeScript／Production Build 通過、ESLint 0 errors／468 warnings；桌面 1280×900 與手機 390×844 隔離 Chromium 驗證 7 個實際元件場景（分類共用 Prefix／Root 元件）、頁碼／條件／焦點／連續請求／錯誤重試／資料縮減。PGlite 測試新 SQL 的總筆數／頁面條件一致、普通角色隔離及函式 ACL 保持不變；正式 DB 僅唯讀核對 #41 已部署權限，沒有正式 Migration／帳號寫入。
+
+
+## #47／#48 統一排程 Session 與功能化偏好（2026-10-13）
+
+**已實作及本機驗證，尚未正式部署／實機驗收。**
+
+- `scheduledStudy.ts` 為可測試的選卡／可用性資料流。`planScheduled` 使用各集 `review_limit ?? 50`、每日 introduction distinct ID＋state 作新卡額度；新卡優先／混合／複習優先及最早 due／低 FSRS retrievability／隨機排序。New＋跨日 Learning／Relearning＋Review 才計批次名額；當日已開始短間隔用 `last_review`／`due` 當地日界判斷，優先到期插入且不再扣名額。未選入的卡不寫 state，也不提前拿未到期卡補位。
+- `StudySession.mode = scheduled` 增量保存在既有 `study_sessions`，每 target 保留 generation、`counts_toward_limit`、完成標記，批次凍結 quota_limit／study_mode。`refreshScheduled` 以真正 due 建立 ready／waiting／blocked 狀態，保留未完成批次與不同卡名額；刪除／重設 generation 排除失效目標，排程衝突則阻擋完成並引導返回處理。跨日仍未到期的 learning 留給後續批次，不提前評分。
+- `StudyRepository.presentScheduled` 在交易中確認新卡呈現，建立 `kind=introduce, source=scheduled`；純選卡不扣每日額度。`rateSession` 對 scheduled 的**每次真實作答**建立 `kind=review, source=scheduled`，原參數／engine／完整 before、after、log／parent 保留。Session、state、事件及 outbox 原子寫入，action ID 可安全重試；不捏造 Again／補造舊歷史、不覆寫 FSRS due。學會判斷依 Review／Relearning 或既有 learned_at，取消 Easy-only gate。
+- 舊 daily／free／batch Session 及事件保持原文與相容讀取，不能以新規格重新解釋舊日學 introduce；新正式 review 的 state transition 維持既有引擎語義，不新增會讓舊可靠性驗證器失配的排程欄位。舊元件不再是使用入口；取消的 Quiz 入口移除，但 Quiz stores／歷史／同步相容程式未刪除。
+- `startPractice` 只能由已完成且選無盡的正式批次進入。獨立 `mode=practice` Session 保存本機 queue／answers／revision，`ratePractice` **只寫 Session**，不寫 StudyState、StudyEvent 或 outbox；可停止、再次進入及恢復，空集合明確呈現。仍保存在 v3 backup 中，既有 owner／generation 與備份衝突保護沿用；不把額外練習同步成正式評分。
+- `ScheduledStudySession` 翻面／正式間隔預覽、名額／進度、剩餘到期卡、短步等待與額外練習用同一入口。等待到期／當地換日才重新查詢；不每秒掃描整個正常學習集。每張題目／head 變更才清除翻面，錯誤留題並提供相同作答重試／重載；按鈕有焦點管理及 zh-TW／en 翻譯。字典詳情仍放在評分後，儲存提示放在詳情後。線上開始先沿用 `syncStudy` 同步每日 introduction 與 state；離線仍保留本機批次及 outbox。
+- `StudyPreferencesProvider` 傳遞目前帳號 Repository／學習集清單；SettingsDialog 字卡與學習分類選集後使用同一 `study_settings`。增量可選 JSON 欄位 `study_mode`、`card_order`、`review_order`；數量仍為 `review_limit`／`new_limit`，保留既有有效值。Repository 驗證選項及整數範圍、原 settings outbox／LWW 更新同步；一般主題／語言、功能排序及備份入口保留，沒有新增空的筆記／簡報設定分類。
+- **資料庫**：無新 Migration、表／RPC／RLS／權限變更。2026-10-13 唯讀核對 Nexus 正式四表為 JSON payload、review kind 原允許 review／introduce／reset，RLS SELECT 為 owner_id=auth.uid()；外層 apply_study_operation 固定空 search_path、有 owner 同步鎖，authenticated 可執行、anon 與內部函式不可直接執行。隔離 PGlite 用原 20260922／20261016 SQL 驗證增量 settings、正式事件、掉回覆重試、owner／匿名拒絕與跨裝置額度；正式環境未寫入／未做 JWT 實機驗收。
+- **限制**：正式 Session／額外練習進度仍採既有本機 Session，不新增雲端 Session 表。另一裝置經同步後根據正式事件／due 延續學習，不會複習尚未再到期卡，但不會取得另一台相同 Session ID／練習 queue。兩台同時離線無法原子共享新卡額度；合併保留全部事實，線上開始先同步已知用量。不同裝置時區沿用裝置當地日界，不自行新增帳號時區契約。切換新版前先更新／重新整理舊分頁，避免舊 UI 繼續舊規則。
+
+**測試結果**：相關單元／整合 **93/93**；瀏覽器 **1/1**（桌面1280、平板820、手機390，zh-TW／en，真正元件／本機 IndexedDB）；TypeScript／Production Build 通過；全站 ESLint **0 errors／467 warnings**（main 原有468，沒有新增警告）。
+
+**重跑指令**：`node --test --test-isolation=none tests/scheduledStudy.test.cjs tests/unifiedStudySync.test.cjs tests/studyFSRS.test.cjs tests/studyPractice.test.cjs tests/studyRepository.test.cjs tests/studySessions.test.cjs tests/studyReliability.test.cjs tests/studySync.test.cjs tests/studyCardManagement.test.cjs tests/officialStudyPacks.test.cjs tests/studyDictionary.test.cjs tests/workspaceSync.test.cjs`；瀏覽器 `node --test --test-isolation=none tests/unifiedStudy.browser.test.cjs` 使用真正 Repository／IndexedDB／React 元件與樣式，Supabase 僅隔離掉外部連線，不冒充真實帳號／正式驗收。Node 24 的 process isolation 顯示檔案級總數，本輪採 isolation=none 保留個別 case 的實際數量。

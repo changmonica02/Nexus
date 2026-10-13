@@ -1,4 +1,5 @@
 "use client";
+import { StudyPreferencesProvider } from "../features/study/components/StudyPreferences";
 import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
 import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
 
@@ -7,6 +8,7 @@ import {
   Fragment,
   useState,
   useEffect,
+  useMemo,
   useRef,
   useCallback,
   type MutableRefObject,
@@ -1695,6 +1697,8 @@ function NexusAppInner({
     { id: "device-preview", label: "裝置預覽", icon: "▣", keywords: "responsive device mobile tablet preview", run: () => setIsDevicePreviewOpen(true) },
   ];
 
+  const studyPreferenceDecks=useMemo(()=>pages.filter(p=>p.kind==='study_set'&&!p.deleted_at),[pages]);
+
   if (!isReady || !isAuthResolved) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
   }
@@ -1705,6 +1709,7 @@ function NexusAppInner({
 
   const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
+    <StudyPreferencesProvider key={accountEmail} getRepository={()=>storageRef.current!.getStudyRepository()} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
       <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
@@ -2317,5 +2322,6 @@ function NexusAppInner({
       )}
 
     </div>
+    </StudyPreferencesProvider>
   );
 }

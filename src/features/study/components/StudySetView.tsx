@@ -1,13 +1,12 @@
 "use client";
-import {confirmDialog} from '../../../lib/confirmDialog';
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import QuizSession from "../quiz/QuizSession";
 import type { StudyRepository } from "../StudyRepository";
 import { type StudyCard, type StudySnapshot } from "../studyFSRS";
-import { displayStudyCards, hasLearningData, isLearned } from "../studySessions";
+import { displayStudyCards, hasLearningData } from "../studySessions";
 import ScheduleConflict from "./ScheduleConflict";
-import DailyStudySession from "./DailyStudySession";
+import ScheduledStudySession from "./ScheduledStudySession";
+import { planScheduled } from "../scheduledStudy";
 import {getSupabase} from '../../../infrastructure/supabase/client';
 import {syncStudy} from '../studySync';
 import {setCardDictionaryLink} from '../../dictionary/cardDictionary';
@@ -187,9 +186,11 @@ function CsvImportDialog({ onImport, onClose }: {
 function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface }: {
   page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
 }) {
+  const {t}=useLanguage();
   const [historyEvents,setHistoryEvents]=useState<import("../studyFSRS").StudyEvent[]>([]);
+  const [planningAt,setPlanningAt]=useState(()=>Date.now());
   const [snapshot,setSnapshot]=useState<StudySnapshot|null>(null);
-  const [mode,setMode]=useState<"manage"|"daily"|"all"|"quiz"|"history">("manage");
+  const [mode,setMode]=useState<"manage"|"scheduled"|"history">("manage");
   const [showCsvImport,setShowCsvImport]=useState(false);
   const [showLinkSuggestions,setShowLinkSuggestions]=useState(false);
   const [error,setError]=useState("");
@@ -200,7 +201,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
   useEffect(()=>{if(openedCard.current||!snapshot)return;const id=new URLSearchParams(window.location.search).get('card');const card=snapshot.cards.find(c=>c.id===id&&!c.deleted_at);if(card){openedCard.current=true;setEditingCard(card);}},[snapshot]);
   useEffect(()=>{
     let active=true;
-    const read=()=>{void repository.ensureDeck(page).then(data=>{if(active)setSnapshot(data);}).catch(e=>{if(active)setError(String(e));});};
+    const read=()=>{void repository.ensureDeck(page).then(()=>repository.readScheduledDeck(page.id)).then(data=>{if(active){setSnapshot(data);setPlanningAt(Date.now());}}).catch(e=>{if(active)setError(String(e));});};
     refresh.current=read;read();window.addEventListener("nexus-study-changed",read);
     return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
   },[repository,page]);
@@ -223,37 +224,29 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
     if(values.dictionaryEntryId!==undefined){const client=getSupabase();if(!client)throw Error('字卡已保存在本機，連結需要登入與網路；請重試。');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,id!,values.dictionaryEntryId);}
     refresh.current();
   };
-  if(!snapshot)return <main className="flex-1 p-8">{error||"正在載入字卡…"}</main>;
+  if(!snapshot)return <main className="flex-1 p-8">{error||t("study.loadingCards")}</main>;
   return <main className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
     <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
-        <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label="回到功能介面">←</button>}<span>字卡・英 → 中</span></div>
+        <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label={t("study.backToStudySets")}>←</button>}<span>{t("study.cards")} · {t("study.direction")}</span></div>
         <div className="flex flex-wrap gap-2">{mode==="manage"?<>
-          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("daily")}>每日學習</button>
-          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("all")}>單字複習</button>
-          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" onClick={()=>setMode("quiz")}>測驗</button>
-          <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>複習紀錄</button>
-        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>返回全部預覽</button>}</div>
+          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("scheduled")}>{t("study.start")}</button>
+          <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>{t("study.history")}</button>
+        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>{t("study.back")}</button>}</div>
       </div>
       {page.official_pack_id&&<p className="mb-2 text-sm">官方單字集 · <a className="underline" href={`/study/official/${page.official_pack_id}`}>查看官方資訊</a> · 私人卡片可編輯</p>}
       <input readOnly={!!page.official_pack_id} aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
       {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
       {mode==="manage"&&<>
-        {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用每日學習</button></div>}
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm"><label>每日新字上限 <input key={snapshot.settings.new_limit} aria-label="每日新字上限" type="number" min={0} max={10000} defaultValue={snapshot.settings.new_limit} onBlur={event=>{if(event.target.value!==String(snapshot.settings.new_limit))void act(()=>repository.configure(page.id,{new_limit:event.target.value===""?NaN:Number(event.target.value)}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label><span className="text-xs opacity-60">首次進入時固定當日批次；調整數量不影響已建立的批次。</span></div>
-        <p className="mb-3 text-xs leading-5 opacity-60">每日學習先把新字練到 Easy；單字複習使用已學字卡，每卡每輪首次評分更新 FSRS。測驗獨立，不影響排程或學習進度。</p>
+        {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用學習</button></div>}
+        <p className="mb-3 text-sm">{t("study.planned",{n:planScheduled(snapshot,planningAt).cards.length})}</p>
+        <p className="mb-3 text-xs leading-6 opacity-70">{t("study.preferencesHint")}</p>
         {snapshot.states.filter(state=>state.conflict).map(state=><ScheduleConflict key={state.id} repository={repository} state={state} label={cards.find(card=>card.id===state.id)?.front??'字卡'}/>)}
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-          <label>單字複習數量 <input key={snapshot.settings.review_limit??20} aria-label="自由複習數量" type="number" min={1} max={10000} defaultValue={snapshot.settings.review_limit??20} onBlur={event=>{const value=Number(event.target.value);if(value!==(snapshot.settings.review_limit??20))void act(()=>repository.configure(page.id,{review_limit:value}));}} className="w-20 rounded border bg-transparent px-2 py-1"/></label>
-          <span className="text-xs opacity-60">已學 {snapshot.states.filter(isLearned).filter(s=>cards.some(c=>c.id===s.id)).length} 字</span>
-        </div>
         {!page.official_pack_id&&<button className="mb-3 rounded border px-3 py-2 text-sm" onClick={()=>setShowLinkSuggestions(true)}>建議字典連結</button>}
         <CardManageList official={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
-      {mode==="daily"&&<DailyStudySession key="daily" mode="daily" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
-      {mode==="all"&&<DailyStudySession key="free" mode="free" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
-      {mode==="quiz"&&<QuizSession repository={repository} snapshot={snapshot} onExit={()=>setMode("manage")}/>}
-      {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">正式複習紀錄</h2><p className="mb-3 text-xs opacity-60">正式複習記錄第一次實際評分。舊資料不補造歷史。</p>
+      {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
+      {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">{t("study.history")}</h2><p className="mb-3 text-xs opacity-60">{t("study.historyHint")}</p>
         {historyEvents.slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","記得","簡單"][event.rating!]}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(event.after.fsrs!.due).toLocaleString()}</span></div>)}
         {historyEvents.length>historyLimit&&<button className="mt-3 underline" onClick={()=>setHistoryLimit(n=>n+50)}>顯示更多紀錄</button>}
         <details className="mt-5"><summary>遷移前的學習摘要</summary>{cards.filter(card=>card.legacy).map(card=><p key={card.id} className="py-2 text-sm">{card.front}：舊複習次數 {card.legacy!.item.review_count}，原到期時間 {card.legacy!.item.daily_due_at?new Date(card.legacy!.item.daily_due_at).toLocaleString():"未排程"}</p>)}</details>

@@ -38,6 +38,9 @@ export interface StudySettings {
   direction_confirmed: boolean; updated_at: number; schema: 2;
   configured?: boolean;
   review_limit?: number;
+  study_mode?: "scheduled" | "endless";
+  card_order?: "new-first" | "mixed" | "review-first";
+  review_order?: "due" | "retrievability" | "random";
   sort_mode?: "custom" | "az";
   quiz_direction?: "zh-en" | "en-zh";
 }
@@ -49,7 +52,7 @@ export interface StudyEvent {
   engine: typeof STUDY_ENGINE; parameters: typeof STUDY_PARAMETERS;
   content_revision: number; question: string; answer: string;
   session_id?: string;
-  source?: "daily_initialization" | "daily_learning" | "free_review" | "legacy_test_reset";
+  source?: "daily_initialization" | "daily_learning" | "free_review" | "legacy_test_reset" | "scheduled";
   session_rating?: Grade;
 }
 export interface StudySnapshot { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings; sessions?: StudySession[] }
