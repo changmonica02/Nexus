@@ -20,7 +20,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
   const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(admin.includes('h-dvh overflow-y-auto'));
   assert.ok(admin.includes("entryId||newKind?'/dictionary/admin':'/dictionary'"));
-  assert.ok(admin.includes('useUnsavedDraft(dirty,busy)'));
+  assert.ok(admin.includes('useUnsavedDraft(dirty,busy||publicationBusy,()=>save())'));
   assert.ok(admin.includes('confirmDialog('));
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
   assert.ok(fs.readFileSync('src/app/study/page.tsx','utf8').includes('initialFeature="study"'));
@@ -79,16 +79,16 @@ test('dictionary modal is bounded, scrollable and cancels through the guarded cl
 // Defer functional updaters as React may do after a controlled select's DOM value
 // is restored. This catches retaining the event/DOM node instead of its value.
 async function withEditorState(props,run){
-  const originalState=React.useState,originalEffect=React.useEffect;
+  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef;
   const values=[],pending=[];let cursor=0;
   React.useState=initial=>{
     const index=cursor++;
     if(index>=values.length)values.push(typeof initial==='function'?initial():initial);
     return [values[index],value=>pending.push(()=>{values[index]=typeof value==='function'?value(values[index]):value;})];
   };
-  React.useEffect=()=>{};
+  React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
   const render=()=>{while(pending.length)pending.shift()();cursor=0;return DictionaryEditor(props);};
-  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;}
+  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;}
 }
 function nodes(root){
   if(Array.isArray(root))return root.flatMap(nodes);
@@ -217,5 +217,5 @@ test('all three editor content types remove new items locally and confirm persis
 test('empty classification uses unset placeholder and empty composition hides sense placeholder headings',()=>{
  const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
- assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>歷史詞源</h3>'));assert.ok(section.includes('加入字首／字根'));assert.ok(!section.includes('待補'));
+ assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>歷史詞源</h3>'));assert.ok(section.includes('新增構詞關聯'));assert.ok(!section.includes('待補'));
 });

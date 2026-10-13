@@ -77,6 +77,7 @@ export function parseJSONBundle(raw:string):Bundle {
   const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
   const schemas:Record<string,{required:string[];optional:string[]}>= {
+    dictionary_inflections:{required:['id','entry_id','form_kind','form'],optional:['sense_id','sort_order','revision']},
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision']},
@@ -107,6 +108,7 @@ export function parseJSONBundle(raw:string):Bundle {
       }
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
       const enums:Record<string,string[]>={verification:['unverified','pending','verified','disputed'],relation_kind:['historical_etymology','learning_decomposition']};
+      if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root'];
       if(table==='dictionary_learning_notes')enums.kind=['learning_decomposition','mnemonic_scenario'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);

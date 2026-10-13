@@ -48,6 +48,7 @@ export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInpu
 /** Export the imported projection with permanent Entry/Sense IDs; never flatten ambiguous content. */
 export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
   const rows:string[][]=[];
+  if(drafts.some(d=>d.inflections?.length))throw Error('CSV v1 無詞形欄位，請使用完整 JSON 匯出；不會省略詞形。');
   if(drafts.some(d=>d.pronunciations?.length))throw Error('CSV v1 不含讀音欄位，請使用 AI JSON 完整匯出，避免讀音遺失。');
   for(const d of drafts)for(const sense of d.senses){
     const content=(items:typeof d.examples)=>{

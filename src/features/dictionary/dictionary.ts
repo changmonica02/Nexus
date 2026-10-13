@@ -43,7 +43,9 @@ export interface DictionaryLearningNote extends ContentRow {
 }
 export interface DictionaryExtra extends ContentRow {sense_id:string|null;body:string;sort_order:number;kind?:"source_forms"|"relation_hint"}
 export interface DictionaryPronunciation extends ContentRow {sense_id:string|null;locale:string|null;ipa:string;note:string|null;sort_order:number}
+export interface DictionaryInflection extends ContentRow {sense_id:string|null;form_kind:import('./inflections').InflectionKind;form:string;sort_order:number}
 export interface DictionaryDetail {
+  inflections?:DictionaryInflection[];
   pronunciations?:DictionaryPronunciation[];
   examples?:DictionaryExtra[];
   lexical_annotations?:DictionaryExtra[];

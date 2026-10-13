@@ -158,3 +158,12 @@
 
 
 
+
+
+## 2026-10-13 — #41／#42 直接編輯與附屬詞形相容方案
+
+- 需求：已發布 Entry 開始編輯前不再要求人工建立 Review Draft；儲存仍是審核草稿，人工發布仍是唯一切換公開內容的操作。以首次儲存原子 RPC 及 revision 衝突檢查避免空草稿／並行重複草稿；不直接改寫 Published。
+- 現行模型只允許 Word → Prefix／Root，無法表示 unhappy → happy；擴充現有關聯 guard 允許 Word 成分，保留 ID、目標 Sense、學習拆解／歷史詞源查證與 component_order，而非另建關聯表。原批次 Draft 成分先後發布安全規則仍保留。
+- `source_forms` 是文字註釋，與 went／gone 等語法形式不是同一契約。新增 Entry／Sense 附屬 `dictionary_inflections` 並接入原 canonical draft／review／history／import；舊註釋不刪除、不轉義。相同拼寫的過去式／過去分詞等合法情況以類型／Sense 區分。
+- 未採用不確定規則推導，也未自行擴充待核准的 CSV schema；人工形式可索引搜尋，完整資料用 JSON／AI roundtrip，CSV v1 的有損匯出明確拒絕。舊 Review 只在比較時正規化缺少的附屬欄位，歷史快照原文不重寫。
+- 新增 `20261020_dictionary_edit_inflections.sql`；此交付是程式／Migration 檔與可審查 PR，無正式 Migration、資料清理、Vercel／Supabase 設定變更或部署。正式 schema、真實裝置與帳號驗收另行追蹤於 HANDOFF。

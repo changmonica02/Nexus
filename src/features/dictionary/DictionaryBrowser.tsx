@@ -1,4 +1,5 @@
 "use client";
+import {inflectionLabels} from './inflections';
 import Link from 'next/link';
 import {useRouter,useSearchParams} from 'next/navigation';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
@@ -25,13 +26,15 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
     {sections.map(scope=>{
       const belongs=(row:{sense_id:string|null})=>row.sense_id===scope.id;
       const pronunciations=(data.pronunciations??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id));
+      const forms=(data.inflections??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order);
       const relations=data.relations.filter(belongs),histories=data.etymologies.filter(belongs),examples=(data.examples??[]).filter(belongs),annotations=(data.lexical_annotations??[]).filter(belongs),notes=data.learning_notes.filter(belongs);
-      if(scope.id===null&&!pronunciations.length&&!relations.length&&!histories.length&&!examples.length&&!annotations.length&&!notes.length)return null;
+      if(scope.id===null&&!forms.length&&!pronunciations.length&&!relations.length&&!histories.length&&!examples.length&&!annotations.length&&!notes.length)return null;
       return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection accordion={accordion} title={scope.id?`${scope.pos?`(${scope.pos}) `:''}${scope.title}`:scope.title}>
         <div className="min-w-0 space-y-4">
         {scope.id&&<div><h3 className="text-sm opacity-60">中文義</h3><p className="whitespace-pre-wrap">{scope.title}</p></div>}
         {!!pronunciations.length&&section('讀音',pronunciations.map(p=><div key={p.id}><p>{p.locale&&<span className="mr-2 text-sm">{p.locale}</span>}{p.ipa}</p>{p.note&&<p className="whitespace-pre-wrap text-sm">{p.note}</p>}</div>))}
-        {!!relations.length&&section('構詞',relations.map(r=>{const target=data.related.find(t=>t.sense_id===r.target_sense_id);return <div key={r.id}>{target?<><Link className="underline" href={entryHref(target.id,from,target.sense_id)}>{target.headword} · {target.gloss_zh_tw}</Link><Link className="ml-2 text-sm underline" href={browseHref('word',{component:target.id,sense:target.sense_id},from)}>查看使用 {target.headword} 的單字</Link></>:<p>相關詞條尚未提供。</p>}<p className="text-sm opacity-70">{r.relation_kind==='historical_etymology'?'歷史詞源關聯':'學習用拆解（不代表歷史詞源）'} · {verification[r.verification]}</p></div>;}))}
+        {!!relations.length&&section('構詞',relations.map(r=>{const target=data.related.find(t=>t.sense_id===r.target_sense_id);return <div key={r.id}>{target?<><Link className="underline" href={entryHref(target.id,from,target.sense_id)}>{target.headword} · {kinds[target.kind]} · {target.gloss_zh_tw}</Link><Link className="ml-2 text-sm underline" href={browseHref('word',{component:target.id,sense:target.sense_id},from)}>查看使用 {target.headword} 的單字</Link></>:<p>相關詞條尚未提供。</p>}<p className="text-sm opacity-70">{r.relation_kind==='historical_etymology'?'歷史詞源關聯':'學習用拆解（不代表歷史詞源）'} · {verification[r.verification]}</p></div>;}))}
+        {!!forms.length&&section('詞形變化',<dl className="grid gap-2 sm:grid-cols-2">{forms.map(f=><div key={f.id}><dt className="inline">{inflectionLabels[f.form_kind]}：</dt><dd className="inline">{f.form}</dd></div>)}</dl>)}
         {!!histories.length&&section('歷史詞源',histories.map(h=><div key={h.id}><p className="text-sm">{verification[h.verification]}{h.verification!=='verified'?'（不是已確認的詞源事實）':''}</p><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：{h.data_source}</p>}</div>))}
         {!!examples.length&&section('例詞',[...examples].sort((a,b)=>a.sort_order-b.sort_order).map(x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>))}
         {!!annotations.length&&section('字形與待解析提示',annotations.map(x=><div key={x.id}><h4 className="text-sm">{x.kind==='source_forms'?'原始字形':'待解析構詞提示（尚非確認關聯）'}</h4><p className="whitespace-pre-wrap">{x.body}</p></div>))}
@@ -96,7 +99,7 @@ function Content({path,admin}:{path:string[];admin:boolean}){
       {(component||variant||category)&&<div className="mb-4 flex flex-wrap gap-2 text-sm">{component&&<Link className="underline" href={entryHref(component,from,sense)}>目前條件：使用此字首／字根{ sense?'義項':''}的單字</Link>}{variant&&<span>同字變體：{variant}</span>}{category&&<span>分類：{category==='__ungrouped__'?'未分類':category}</span>}<button className="underline" onClick={()=>change({component:'',sense:'',variant:'',category:'',page:''})}>清除條件</button></div>}
     </>}
     {!id&&(kind==='prefix'||kind==='root')&&!variant?(category?<GroupPage key={`${kind}:${query}:${category}`} kind={kind} query={query} category={category} from={from}/>:<DictionaryGroups key={`${kind}:${query}`} kind={kind} query={query} from={from}/>):!current?<p role="status">讀取中…</p>:current.error?<div role="alert"><p>{current.error}</p><button onClick={()=>setRetry(n=>n+1)}>重試</button></div>:id?<ReaderEntry key={id} id={id} data={current.detail??null} from={from} admin={admin}/>:current.list&&<>
-      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id}><Link className={`${box} block`} href={entryHref(e.id,from)}>{e.headword}<p className="mt-1 text-sm opacity-70">{current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
+      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id}><Link className={`${box} block`} href={entryHref(e.id,from)}>{e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 text-sm opacity-70">{current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
       <nav aria-label="搜尋結果分頁" className="mt-5 flex justify-between gap-3"><button disabled={!page} onClick={()=>change({page:String(page-1)})}>上一頁</button><span>第 {page+1} 頁</span><button disabled={!current.list.has_more} onClick={()=>change({page:String(page+1)})}>下一頁</button></nav>
     </>}
   </>;

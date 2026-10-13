@@ -1,7 +1,7 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {Bundle} from './adminImport';
 export function withoutSense(bundle:Bundle,id:string):Bundle {
-  if(['dictionary_pronunciations','dictionary_relations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations'].some(table=>bundle[table]?.some(row=>row.sense_id===id||row.target_sense_id===id)))throw new Error('此義項已被目前表單的構詞關聯、詞源或記憶內容引用，不能直接刪除。');
+  if(['dictionary_inflections','dictionary_pronunciations','dictionary_relations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations'].some(table=>bundle[table]?.some(row=>row.sense_id===id||row.target_sense_id===id)))throw new Error('此義項已被目前表單的構詞關聯、詞源或記憶內容引用，不能直接刪除。');
   return {...bundle,dictionary_senses:bundle.dictionary_senses.filter(row=>row.id!==id)};
 }
 export async function deleteDraftSense(client:Pick<SupabaseClient,'rpc'>,entryId:string,senseId:string,entryRevision:number,senseRevision:number):Promise<number>{

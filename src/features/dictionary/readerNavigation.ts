@@ -1,9 +1,9 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
 import {searchGrouping} from './grouping';
-import {literalSearch} from './adminQueries';
+import {searchDictionaryWithInflections} from './reader';
 import type {DictionaryKind} from './dictionary';
-export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;gloss_zh_tw?:string}
+export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
 export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number}
 type Client=Pick<SupabaseClient,'from'|'rpc'>;
 export function browseContext(from:string|null):string|null{
@@ -21,10 +21,7 @@ export async function loadBrowsePage(client:Client,context:string,pageOverride?:
  const page=pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)),q=p.get('q')??'';
  if((kind==='prefix'||kind==='root')&&p.get('category')&&!p.get('variant'))return searchGrouping(client,kind,q,page,p.get('category')!);
  if(kind!=='all'&&(p.get('component')||p.get('variant')))return searchRelations(client,kind,q,page,{component:kind==='word'?p.get('component')??'':'',sense:p.get('sense')??'',variant:kind!=='word'?p.get('variant')??'':''});
- let r=client.from('dictionary_entries').select('id,kind,headword').eq('status','published').ilike('headword',`%${literalSearch(q)}%`);
- if(kind!=='all')r=r.eq('kind',kind);
- const {data,error}=await r.order('headword').order('id').range(page*20,page*20+20);
- if(error)throw Error(error.message);return {items:(data??[]).slice(0,20),has_more:(data??[]).length>20,page};
+ return searchDictionaryWithInflections(client,kind,q,page);
 }
 export async function readerNeighbours(client:Client,id:string,headword:string,from:string|null,sense?:string){
  const context=browseContext(from);
