@@ -19,7 +19,7 @@
 - **開發前核對**：Codex 應閱讀對應 Issue、SPEC 和現有程式碼，標明規格與實作差距；若重要行為／資料設計仍待核准，先提出選項，不得自行當成已定案。
 - **開發與驗證**：依 SPEC 作為目標行為；測試需覆蓋 Issue 驗收及資料相容、安全、錯誤恢復。未經授權不得操作 production。不能將 main 的程式存在誤寫成已部署／已驗收。
 - **實作完成時**：Codex 必須同步補充／校正 `docs/ARCHITECTURE.md` 的**實際**模組、schema／RPC、資料流、狀態與技術取捨，並明確區分設計中、已實作、測試通過、production 已套用／待驗證；只有實作時確實改變或新增的技術內容才應寫入，不可把未實作方案敘述成現況。
-- **交付與關閉 Issue 前**：確認 Issue 與 SPEC 行為一致、ARCHITECTURE 與程式碼一致、相關測試及未執行測試已記錄；重要決策與原因歸 HISTORY，進度／阻塞歸 HANDOFF。未符合驗收不得僅因有 Commit 就關閉 Issue。
+- **交付與關閉 Issue 前**：確認 Issue 與 SPEC 行為一致、ARCHITECTURE 與程式碼一致、相關測試及未執行測試已記錄；重要決策與原因歸 HISTORY，進度／阻塞歸 HANDOFF。**Issue 一律等正式部署完成且依 Issue 範圍完成正式環境／真實帳號或裝置驗收後，才能人工關閉；PR 合併、CI 通過與 migration 建立都不是關閉條件。PR 描述使用 `Refs #N`，不得使用導致自動關閉的 `Closes/Fixes/Resolves #N`。** 未符合驗收不得僅因有 Commit 就關閉 Issue。
 - 已有功能的問題修正亦應檢查是否影響產品規格或技術架構；若不影響，無須形式上改寫文件。
 
 ## 文件維護
