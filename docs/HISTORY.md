@@ -13,12 +13,10 @@
 
 現行產品目標只看 `SPEC.md`，技術目標只看 `ARCHITECTURE.md`，目前工作只看 `HANDOFF.md`。
 
-## 2026-10-13｜#41＋#49 上線與分頁人工驗收紀錄
+## 2026-10-13｜字典欄位刪減、頁碼系統更新
 
-- **部署／資料庫**：合併 PR #52（`3d4bfaa`），正式 Supabase 套用 `20261013064759_dictionary_pagination_totals.sql`（ledger `20261013072108`）；搜尋 RPC 支援可靠 `total`。GitHub Vercel check 成功；使用者回報正式網站分頁驗收成功，Vercel API 未獨立核對 Production Ready。
-- **#49**：字典相關分頁共用 Pagination／usePagedList，使用者完成總頁數、有效跳頁及無效輸入／篩選保留三項人工驗收；Codex 回報相關測試 100/100。
-- **#41**：權限、Review Draft、版本衝突及 Published 保護之自動測試通過；舊 Review Draft 阻止覆寫較新 Published 尚未人工驗證，依使用者決定先保留為待驗事項。
-- **進度界線**：更新 HANDOFF／HISTORY 與 GitHub Issues #41／#49；不把自動測試記為人工驗收、不因程式合併自動關閉 Issues。
+-- **#49**：字典相關分頁共用 Pagination／usePagedList，完成總頁數、有效跳頁及無效輸入／篩選
+- **管理改善**：編輯詞條時不需再建立新草稿而是直接編輯，並製作未儲存退出、儲存後發布等流程。
 
 ## 2026-10-12｜公共字典閱覽、管理效能與批次發布
 
