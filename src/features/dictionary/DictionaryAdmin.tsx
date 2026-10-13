@@ -1,4 +1,7 @@
 "use client";
+import {Pagination} from '../../components/pagination/Pagination';
+import {usePagedList} from '../../components/pagination/usePagedList';
+
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
 import {listAdminEntries,adminPageSize} from './adminQueries';
@@ -233,8 +236,8 @@ export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:Dicti
   </section>;
 }
 export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:string;newKind?:DictionaryEntry['kind'];embedded?:boolean}){
-  const [entries,setEntries]=useState<DictionaryEntry[]>([]);const senses:DictionarySense[]=[];
-  const [page,setPage]=useState(0),[total,setTotal]=useState(0),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
+  const senses:DictionarySense[]=[];
+  const [page,setPage]=useState(0),[reload,setReload]=useState(0);
   const [detail,setDetail]=useState<DictionaryDetail|null>(()=>{
     if(!newKind)return null;
     const id=crypto.randomUUID();
@@ -251,10 +254,12 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   const closeModal=async ()=>{if(!busy&&(!fileText||await confirmDialog('有尚未匯入的內容，確定關閉？'))){setModal(null);setFileText('');}};
   async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d?.entry.kind==='prefix'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
   useUnsavedDraft(!detail&&!!fileText,busy);
-  async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
-  useEffect(()=>{setSelected([]);if(entryId||newKind)return;let active=true;setLoading(true);setEntries([]);
-    void listAdminEntries(getSupabase()!,{kinds,statuses,query,page}).then(result=>{if(active){setEntries(result.items);setTotal(result.total);setMessage('');}}).catch(e=>{if(active)setMessage(String(e));}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};
-  },[kinds,statuses,query,page,reload,entryId,newKind]);
+  async function refresh(id?:string){setSelected([]);setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
+  const listing=usePagedList(JSON.stringify([kinds,statuses,query,reload,entryId,newKind]),page,adminPageSize,async p=>{
+    if(entryId||newKind)return {items:[],total:0,page:0};
+    return {...await listAdminEntries(getSupabase()!,{kinds,statuses,query,page:p}),page:p};
+  },p=>{setSelected([]);setPage(p);});
+  const entries=listing.data?.items??[],total=listing.data?.total??0,loading=listing.loading;
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
   const visible=entries;
@@ -266,11 +271,13 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
     <DictionaryListActions selectedCount={visibleSelected.length} allSelected={visible.length>0&&visibleSelected.length===visible.length} empty={!visible.length} busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')} onSelectAll={()=>setSelected(toggleVisibleSelection(visible,selected))} onDelete={()=>void action(async()=>{const count=await deleteDictionaryDrafts(getSupabase()!,visibleSelected,async message=>await confirmDialog(message));if(count===null)return;setSelected([]);setMessage(`已刪除 ${count} 筆草稿。`);await refresh();})} onPublish={()=>void action(async()=>{if(!await confirmDialog(`發布目前選取的 ${visibleSelected.length} 筆詞條？請確認所有內容及構詞依據已完成查證。已發布詞條會略過。`))return;let count=0;try{for(const entry of visibleSelected){if(entry.status==='published')continue;await publishDictionaryEntry(getSupabase()!,entry.id);count++;}setSelected([]);setMessage(`已發布 ${count} 筆詞條。`);}finally{await refresh();}})}/>
     <DictionaryBulkPublish kinds={kinds} query={query} disabled={busy||loading} onPublished={async()=>{setSelected([]);await refresh();}}/>
     <p role="status">{loading?'讀取中…':`共 ${total} 筆 · 第 ${page+1} 頁 · 全選僅限本頁`}</p>
-    <nav aria-label="管理詞條分頁" className="flex gap-4"><button disabled={loading||page===0} onClick={()=>{setSelected([]);setPage(p=>p-1);}}>上一頁</button><button disabled={loading||(page+1)*adminPageSize>=total} onClick={()=>{setSelected([]);setPage(p=>p+1);}}>下一頁</button></nav>
+    {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
+    <Pagination label="管理詞條分頁" page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setSelected([]);setPage(p);}}/>
+
     {modal==='export'&&<DictionaryModal title="匯出 AI Dictionary JSON" onClose={closeModal} busy={busy}><AIExport initialKind={kinds.length===1?kinds[0]:'all'} query={query} selected={visibleSelected.map(e=>e.id)} onBusy={setBusy}/></DictionaryModal>}
     {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
-    <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setPage(0);setSelected([]);setEntries([]);}}/>
-    <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setPage(0);setSelected([]);setEntries([]);}} onStatuses={values=>{setStatuses(values);setPage(0);setSelected([]);setEntries([]);}}/>
+    <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setPage(0);setSelected([]);}}/>
+    <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setPage(0);setSelected([]);}} onStatuses={values=>{setStatuses(values);setPage(0);setSelected([]);}}/>
     <ul className="min-w-0 divide-y divide-[var(--color-border)]">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2"><input className="shrink-0" disabled={busy} type="checkbox" aria-label={`勾選 ${e.headword}`} checked={selected.includes(e.id)} onChange={event=>setSelected(ids=>event.target.checked?[...ids,e.id]:ids.filter(id=>id!==e.id))}/><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.status==='draft'?'草稿':'已發布'}</Link></li>)}</ul>
     <>{modal==='import'&&<DictionaryModal title="匯入字典" onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">匯入預覽（只建立草稿，不覆寫衝突內容）</h2>
       <details><summary>匯入格式說明 · Dictionary CSV v1（12 欄）</summary><div className="space-y-2 text-sm">

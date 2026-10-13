@@ -1,5 +1,15 @@
 # Nexus — 最新交接、待驗證與下一步
 
+## 本輪 #41 收尾＋#49 共用分頁（2026-10-13；已測試／等待正式部署與最終驗收）
+
+- 從 main `80e1aac` 建立 `feat/shared-pagination-closeout`，本輪一個整合 PR，使用 Refs #41、Refs #49。不合併、不關閉 Issue、不執行正式 SQL／Production 部署。
+- 使用者本輪確認 PR #46／#51 已合併並正式部署、核心字典操作已實機驗收；下方過去交付／staging 紀錄是當時狀態，不能作為目前仍未部署的證據。本階段單一使用者／管理員、測試資料、單一 Production，以相關測試和必要權限／資料安全檢查為主，不要求另外建立付費 staging。
+- #41：核對原有 Review Draft／查證確認／Published／歷史／stale／並行安全，沒有發現需要改寫發布流程的缺陷。正式 DB 唯讀檢查確定 1 個管理員、Review／構詞 RLS、私有 materialize／舊 approve 禁止 client execute、新 verified approve 對 authenticated 開放但 anon 禁止；仍由函式內 admin 身分把關。沒有正式資料寫入／新增帳號。精簡技術驗收已通過，狀態為「等待正式部署與最終驗收」。
+- #49：共用 Pagination／usePagedList，原位數字輸入、Enter／手機完成、Esc、失焦取消、可靠 totals、0／0 空狀態、最後請求勝出、錯誤保留／重試、條件改變與資料縮減處理。8 類列表整合詳見 ARCHITECTURE；A4／簡報／角色卡頁不改。
+- **待另行授權手動套用 SQL**：`supabase/migrations/20261013064759_dictionary_pagination_totals.sql`，先確認至 20261021 已部署 schema，再套本檔；不能直接按新 timestamp 與舊 8 碼檔名排序重播。只補搜尋 total／候選 page 與 classic all，沒有新表／資料刪除／寫入權限變更，old UI 相容。先 SQL 後新前端；尚未正式執行。
+- 測試：交付集中執行字典＋分頁相關 100/100（0 fail／0 skip），含 #41 角色、版本衝突、並行、編輯／發布與離開保護，及分頁 model／SQL 3 項、Chromium 桌面 1280×900／手機 390×844 實際列表互動；TypeScript／Production Build 通過，ESLint 0 errors／468 warnings（main 基線 473）。測試曾失敗於原 select-all 原始碼字串斷言，已改成新分頁接口契約並增加實際勾選／翻頁清除的瀏覽器驗證；沒有刪除或跳過測試。#41 依既有相關測試重新核對，不把模擬 JWT／隔離瀏覽器寫成正式帳號驗收。
+- 最少正式驗收：桌面及手機各確認搜尋／篩選後跳頁、無效輸入不跳、上下頁邊界；管理列表／構詞／字卡候選總頁數正確；同一詞條的舊 Review 提示衝突且新版不被覆寫。其他 #41 核心操作已有使用者證據，僅作必要回歸，不重做全專案重複驗收。
+
 ## 本輪 #42 正式環境驗收修正（2026-10-13；待審查／部署）
 
 - 原始基底為 main `1070a24`，PR #51 本輪已同步最新 main `650d0a2`（#50 main／Vercel 正式部署規則），無合併衝突，分支 `feat/composition-shared-scope`。本輪僅 #42；未實作 #47／#48／#49，也未修改 SPEC 已確認的產品決策。

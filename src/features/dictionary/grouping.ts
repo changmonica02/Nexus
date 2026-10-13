@@ -29,7 +29,7 @@ export async function savePrefixDraft(client:Pick<SupabaseClient,'rpc'>,bundle:B
   await saveDictionaryDraft(client,draftsFromBundle(bundle,grouping,senses),false,true);
 }
 export interface GroupedDictionaryItem {id:string;kind:'prefix'|'root';headword:string;sense_id?:string;gloss_zh_tw?:string}
-export interface GroupedDictionaryPage {items:GroupedDictionaryItem[];has_more:boolean;page:number}
+export interface GroupedDictionaryPage {items:GroupedDictionaryItem[];has_more:boolean;page:number;total?:number}
 export async function searchGrouping(client:Pick<SupabaseClient,'rpc'>,kind:'prefix'|'root',query:string,page:number,category:string):Promise<GroupedDictionaryPage>{
   const args={query_text:query,page_number:page,primary_category_filter:category};
   const {data,error}=kind==='prefix'?await client.rpc('search_prefix_dictionary',args):await client.rpc('search_grouped_dictionary',{...args,category:'root'});

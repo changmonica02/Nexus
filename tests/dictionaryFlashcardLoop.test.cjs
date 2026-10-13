@@ -22,9 +22,9 @@ test('normalized candidates use meanings to rank, never write links, and retain 
  docs=[a,b];const result=await suggestDictionaryLink(client,'bank','銀行');assert.equal(result.status,'multiple');assert.equal(result.items.length,2);assert.ok(result.items[1].summary.includes('河岸'));assert.ok(result.items[0].summary.includes('noun'));assert.ok(!result.items[0].summary.includes(id(10)));
  docs=[];assert.equal((await suggestDictionaryLink(client,'missing','')).status,'none');assert.ok(calls.every(n=>n.startsWith('get_')||n.startsWith('search_')));
 });
-test('All search reuses the three paginated published queries, without GSAT/level filters',async()=>{
- const categories=[];const client={rpc:async(name,args)=>{if(name==='search_published_dictionary'){categories.push(args.category);assert.equal(args.page_number,2);assert.equal(args.query_text,'bank');return {data:{items:[],has_more:args.category==='root',page:2}};}throw Error(name);}};
- const r=await searchCandidates(client,'bank',2,'all');assert.deepEqual(categories,['word','prefix','root']);assert.equal(r.has_more,true);
+test('All search uses one globally paginated published query, without GSAT/level filters',async()=>{
+ const categories=[];const client={rpc:async(name,args)=>{if(name==='search_published_dictionary'){categories.push(args.category);assert.equal(args.page_number,2);assert.equal(args.query_text,'bank');return {data:{items:[],has_more:args.category==='all',page:2,total:41}};}throw Error(name);}};
+ const r=await searchCandidates(client,'bank',2,'all');assert.deepEqual(categories,['all']);assert.equal(r.has_more,true);assert.equal(r.total,41);
 });
 test('linked-card counts are explicitly owner scoped and exclude deleted cards or deleted sets',async()=>{
  const seen=[];const client={auth:{getUser:async()=>({data:{user:{id:id(1)}}})},from(table){const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,v]);return q;},order(){return q;},range(){return q;},in(k,v){filters.push([k,v]);return q;},then(resolve){assert.ok(filters.some(([k,v])=>k==='owner_id'&&v===id(1)),table);seen.push(table);let data=[];if(table==='study_card_dictionary_links')data=[{card_id:'card'}];else if(table==='study_cards')data=[{payload:{id:'card',deck_id:'deck',front:'my bank',back:'own'}},{payload:{id:'deleted',deck_id:'deck',deleted_at:1}},{payload:{id:'orphan',deck_id:'removed'}}];else if(table==='pages')data=[{id:'deck',deleted_at:null},{id:'removed',deleted_at:5}];return Promise.resolve(resolve({data}));}};return q;}};

@@ -39,7 +39,7 @@ test('non-admin has no edit action; sense containers keep shared content separat
 });
 test('select-all is page-only; editor uses shared draft/review flow and no table-wide senses load',()=>{
  const {toggleVisibleSelection}=require('../src/features/dictionary/DictionaryAdmin.tsx');const page=[{id:id(1)},{id:id(2)}];assert.deepEqual(toggleVisibleSelection(page,[]),[id(1),id(2)]);assert.deepEqual(toggleVisibleSelection(page,[id(1),id(2)]),[]);
- const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8'),reader=fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8');assert.ok(!admin.includes("from('dictionary_senses')"));assert.ok(admin.includes('listAdminEntries'));assert.ok(admin.includes('setSelected([]);if(entryId||newKind)return'));
+ const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8'),reader=fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8');assert.ok(!admin.includes("from('dictionary_senses')"));assert.ok(admin.includes('listAdminEntries'));assert.ok(admin.includes('setSelected([]);setPage(p)'));assert.ok(admin.includes('if(entryId||newKind)return {items:[],total:0,page:0}'));
  for(const name of ['create_dictionary_edit_review','save_dictionary_review','approve_dictionary_review','saveDictionaryDraft'])assert.ok(admin.includes(name));assert.ok(reader.includes('entryId={id} embedded'));assert.ok(reader.includes('if(editing)return'));
 });
 test('local PostgreSQL bulk publication preflight rollback, multi-round dependencies, mixed invalid/blocked, stale and authorization',async()=>{
