@@ -12,15 +12,15 @@ export interface ImportIssue {
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
   target?:{section:Section;id?:string;field?:string};batchKey?:string;proposedSenseID?:string;
 }
-export interface ImportContext {snapshot:AISnapshot|null;similar:{id:string;kind:string;headword:string;status:string;revision:number}[];identities:Record<string,DraftRow[]>}
-export interface ImportOperation {owner_id:string;session_id:string;operation_id:string;source_type:string;preview_at:string;observed:ReturnType<typeof mapDictionaryDraft>;candidate:ReturnType<typeof mapDictionaryDraft>;expected_context:ImportContext;effect:'write'|'unchanged'|'review'}
+export interface ImportContext {snapshot:AISnapshot|null;similar:{id:string;kind:string;headword:string;status:string;revision:number}[];identities:Record<string,DraftRow[]>;exchange?:{version:string|null;reviews:unknown[];targets:{entry_id:string;sense_id:string}[]}}
+export interface ImportOperation {owner_id:string;session_id:string;operation_id:string;source_type:string;preview_at:string;observed:ReturnType<typeof mapDictionaryDraft>;candidate:ReturnType<typeof mapDictionaryDraft>;expected_context:ImportContext;effect:'write'|'unchanged'|'review';exchange_version?:string|null}
 export interface ImportItem {
-  id:string;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
+  id:string;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
   bucket:'safe'|'review';safeAction:'new'|'unchanged'|'normalize';issues:ImportIssue[];
   status:'pending'|'applied'|'unchanged'|'skipped'|'stale'|'failed';message?:string;
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
-export interface ImportSession {id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
+export interface ImportSession {confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
 export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','lexical_annotations','relation_hints'] as const;
 const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',lexical_annotations:'dictionary_lexical_annotations',relation_hints:'dictionary_lexical_annotations'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
@@ -84,6 +84,8 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
       if(shared.length)addIssue(item,'shared_content_scope','sense_id',shared,null,'既有內容未限定義項；新增義項前請確認保留為詞條共用，或先在編輯器指定義項。',['keep','skip','later']);
     }
     compare('entry',undefined,'headword',current.detail.entry.headword,draft.headword);
+    if(draft.component_order!==undefined)compare('entry',undefined,'component_order',current.metadata?.component_order??[],draft.component_order);
+    if(draft.grouping)for(const field of ['tags','variant_group'] as const)compare('grouping',undefined,field,current.grouping?.[field]??(field==='tags'?[]:null),draft.grouping[field]);
     if(draft.grouping&&draft.kind==='root')compare('grouping',undefined,'primary_category',current.grouping?.primary_category,draft.grouping.primary_category);
     for(const section of contentSections)for(const row of draft[section]??[]){
       const old=storedRows(context,section).find(r=>r.id===row.id);
@@ -124,8 +126,8 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
     if(issue.selectedAction==='keep'){
-      if(t.section==='entry')d.headword=String(issue.existing);
-      else if(t.section==='grouping'&&d.grouping)d.grouping.primary_category=issue.existing as string|null;
+      if(t.section==='entry'){if(t.field==='component_order')d.component_order=issue.existing as string[];else d.headword=String(issue.existing);}
+      else if(t.section==='grouping'&&d.grouping){if(t.field==='tags')d.grouping.tags=issue.existing as string[];else if(t.field==='variant_group')d.grouping.variant_group=issue.existing as string|null;else d.grouping.primary_category=issue.existing as string|null;}
       else if(t.section!=='grouping'){
         const rows=d[t.section]??[];const row=rows.find(r=>r.id===t.id);
         if(t.field&&row)row[t.field]=issue.existing??null;
@@ -145,22 +147,28 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   const changed=!item.context?.snapshot||remaining.issues.some(i=>i.target);
   return {draft:d,effect:changed?(item.context?.snapshot?.detail.entry.status==='published'?'review':'write'):'unchanged'};
 }
-export async function inspectDrafts(client:Client,drafts:DictionaryDraftInput[]):Promise<ImportContext[]>{
-  const {data,error}=await client.rpc('inspect_dictionary_import',{drafts:drafts.map(mapDictionaryDraft)});if(error)throw Error(error.message);return data as ImportContext[];
+export async function inspectDrafts(client:Client,drafts:DictionaryDraftInput[],options:{exchange?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportContext[]>{
+  const contexts:ImportContext[]=[];
+  for(let offset=0;offset<drafts.length;offset+=25){
+    const {data,error}=await client.rpc(options.exchange?'inspect_dictionary_exchange':'inspect_dictionary_import',{drafts:drafts.slice(offset,offset+25).map(mapDictionaryDraft)});
+    if(error)throw Error(error.message);if(!Array.isArray(data)||data.length!==Math.min(25,drafts.length-offset))throw Error('Invalid import context response');
+    contexts.push(...data);options.onProgress?.(contexts.length,drafts.length);
+  }
+  return contexts;
 }
-export async function buildImportSession(client:Client,owner:string,source:ImportSession['source_type'],drafts:DictionaryDraftInput[],issues:DraftIssue[]=[],sessionID=crypto.randomUUID()):Promise<ImportSession>{
+export async function buildImportSession(client:Client,owner:string,source:ImportSession['source_type'],drafts:DictionaryDraftInput[],issues:DraftIssue[]=[],sessionID=crypto.randomUUID(),options:{exchange?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportSession>{
   const session:ImportSession={id:sessionID,owner_id:owner,source_type:source,preview_at:new Date().toISOString(),items:[]};
   const valid:DictionaryDraftInput[]=[];
   for(const d of drafts){const rows=new Set([d.row??1,...d.senses.map(s=>s.row??d.row??1)]);const errors=[...issues.filter(e=>rows.has(e.row)),...validateDictionaryDraft([d])];
     if(errors.length){const c:ImportContext={snapshot:null,similar:[],identities:{}};const item=classifyImport(d,c,errors);delete item.context;delete item.observed;session.items.push(item);}else valid.push(d);
   }
   if(valid.length){
-    let contexts=await inspectDrafts(client,valid);
+    let contexts=await inspectDrafts(client,valid,options);
     const matched=new Set<number>();
     const routed=valid.map((original,i)=>{
       const c=contexts[i];
       // Only a not-yet-persisted identity can be redirected. Never move an existing Entry.
-      if(c.snapshot||c.similar.length!==1)return original;
+      if(options.exchange||c.snapshot||c.similar.length!==1)return original;
       const d=structuredClone(original),old=d.entry_id;d.entry_id=c.similar[0].id;delete d.revision;
       d.headword=c.similar[0].headword;
       for(const section of contentSections)for(const row of d[section]??[])if(row.entry_id===old)row.entry_id=d.entry_id;
@@ -171,15 +179,16 @@ export async function buildImportSession(client:Client,owner:string,source:Impor
       for(const draft of routed)for(const relation of draft.relations){const target=redirects.get(String(relation.target_entry_id));if(target)relation.target_entry_id=target;}
       contexts=await inspectDrafts(client,routed);
     }
-    const reconciled=routed.map((d,i)=>reconcileProposedContent(d,contexts[i]));
-    const frozen=await inspectDrafts(client,reconciled);
+    const reconciled=routed.map((d,i)=>options.exchange?structuredClone(d):reconcileProposedContent(d,contexts[i]));
+    const frozen=options.exchange?contexts:await inspectDrafts(client,reconciled);
+    const grouped=new Map<string,DictionaryDraftInput[]>();for(const draft of reconciled){const key=entryKey(draft.kind,draft.headword);const list=grouped.get(key)??[];list.push(draft);grouped.set(key,list);}
     for(let i=0;i<reconciled.length;i++){
       // If content changed between inspection and normalization, the frozen revision must agree.
       const d=reconciled[i],c=frozen[i],item=classifyImport(d,c);
       if(!matched.has(i)&&valid[i].revision!==undefined&&valid[i].revision!==c.snapshot?.detail.entry.revision)addIssue(item,'revision_conflict','revision',c.snapshot?.detail.entry.revision,valid[i].revision,'匯入版本較舊；目前差異已依最新版本重新比對，請確認後再採用。',c.snapshot?.detail.entry.status==='draft'?['incoming','skip','later']:['skip','later']);
       if(d.revision!==undefined&&d.revision!==c.snapshot?.detail.entry.revision)addIssue(item,'preview_changed','revision',d.revision,c.snapshot?.detail.entry.revision,'讀取期間內容已改變，請重新審核。',['skip','later']);
       if(matched.has(i))addIssue(item,'matching_entry','entry_id',c.snapshot?.detail.entry.headword,valid[i].headword,'同類同拼寫使用既有 Entry；接受後新增義項，不建立第二詞條。',c.snapshot?.detail.entry.status==='published'?['review','skip','later']:['incoming','skip','later']);
-      const duplicates=reconciled.filter((other,j)=>j!==i&&entryKey(other.kind,other.headword)===entryKey(d.kind,d.headword));
+      const duplicates=(grouped.get(entryKey(d.kind,d.headword))??[]).filter(other=>other!==d);
       if(duplicates.length)addIssue(item,'batch_homograph','headword',duplicates.map(x=>x.entry_id),d.headword,'同一批次有多筆指向同一詞條，請合併為單一 Entry 的多個 Sense 後重新預覽。',['skip','later']);
       session.items.push(item);
     }
@@ -193,23 +202,38 @@ export function sessionCounts(s:ImportSession){return {
   reviewResolved:s.items.filter(i=>i.bucket==='review'&&(i.status==='skipped'||i.issues.every(x=>x.selectedAction&&x.selectedAction!=='later'))).length,
   stale:s.items.filter(i=>i.status==='stale').length,failed:s.items.filter(i=>i.status==='failed').length,
   affectedIDs:s.items.filter(i=>['applied','unchanged'].includes(i.status)).map(i=>i.appliedDraft?.entry_id??i.draft.entry_id)};}
-/** Persist the exact operation before dispatch. Lost responses retry the same request/UUID. */
-export async function applyImportItems(client:Client,session:ImportSession,includeReview:boolean,persist:(s:ImportSession)=>Promise<void>):Promise<ImportSession>{
+/** Preserve operation identity before any network dispatch. Batch RPC delegates to the same authority. */
+export async function applyImportItems(client:Client,session:ImportSession,includeReview:boolean,persist:(s:ImportSession,changed?:ImportItem[])=>Promise<void>,options:{batched?:boolean;signal?:AbortSignal}={}):Promise<ImportSession>{
   const next=structuredClone(session);
-  const ordered=[...next.items].sort((a,b)=>Number(a.draft.kind==='word')-Number(b.draft.kind==='word'));
-  for(const item of ordered){
-    if(!['pending','failed'].includes(item.status)||(!includeReview&&item.bucket==='review'))continue;
-    if(item.issues.some(i=>i.selectedAction==='skip')){item.status='skipped';await persist(next);continue;}
-    if(!item.operation){const resolved=resolveImportItem(item);if(!resolved||!item.context||!item.observed)continue;
-      const errors=validateDictionaryDraft([resolved.draft]);if(errors.length){item.status='failed';item.message=errors.map(e=>e.error).join('；');await persist(next);continue;}
+  const remaining=[...next.items].sort((a,b)=>Number(a.draft.kind==='word')-Number(b.draft.kind==='word'));
+  const ordered:ImportItem[]=[];
+  // Target records in this file precede users of them; cycles remain explicit server rejections.
+  while(remaining.length){const ids=new Set(remaining.map(i=>i.draft.entry_id));let index=remaining.findIndex(i=>!i.draft.relations.some(r=>ids.has(String(r.target_entry_id))));if(index<0)index=0;ordered.push(remaining.splice(index,1)[0]);}
+  const prepare=(item:ImportItem)=>{
+    if(!['pending','failed'].includes(item.status)||(!includeReview&&item.bucket==='review'))return false;
+    if(item.issues.some(i=>i.selectedAction==='skip')){item.status='skipped';return false;}
+    if(!item.operation){const resolved=resolveImportItem(item);if(!resolved||!item.context||!item.observed)return false;
+      const errors=validateDictionaryDraft([resolved.draft]);if(errors.length){item.status='failed';item.message=errors.map(e=>e.error).join('；');return false;}
       item.appliedDraft=resolved.draft;
-      item.operation={owner_id:next.owner_id,session_id:next.id,operation_id:crypto.randomUUID(),source_type:next.source_type,preview_at:item.preview_at??next.preview_at,observed:item.observed,candidate:mapDictionaryDraft(resolved.draft),expected_context:item.context,effect:resolved.effect};
-    }
-    await persist(next);
-    try{const {data,error}=await client.rpc('apply_dictionary_import_operation',{operation:item.operation});
-      if(error){item.status='failed';item.message=error.message;}else{item.status=data.status;item.message=data.message;if(data.status==='stale')item.bucket='review';}
-    }catch(e){item.status='failed';item.message=e instanceof Error?e.message:String(e);}
-    await persist(next);
+      item.operation={owner_id:next.owner_id,session_id:next.id,operation_id:crypto.randomUUID(),source_type:next.source_type,preview_at:item.preview_at??next.preview_at,observed:item.observed,candidate:mapDictionaryDraft(resolved.draft),expected_context:Object.fromEntries(Object.entries(item.context).filter(([key])=>key!=='exchange')) as unknown as ImportContext,effect:resolved.effect,...(item.exchange_version!==undefined?{exchange_version:item.exchange_version}:{})};
+    }return true;
+  };
+  const size=options.batched?25:1;
+  for(let start=0;start<ordered.length;start+=size){
+    if(options.signal?.aborted)break;
+    const chunk=ordered.slice(start,start+size),ready=chunk.filter(prepare);
+    await persist(next,chunk);
+    if(!ready.length)continue;
+    try{
+      const {data,error}=await client.rpc(options.batched?'apply_dictionary_import_batch':'apply_dictionary_import_operation',options.batched?{operations:ready.map(i=>i.operation)}:{operation:ready[0].operation});
+      if(error)throw Error(error.message);
+      const results=options.batched?data:[data];
+      if(!Array.isArray(results)||results.length!==ready.length||results.some((r,i)=>!r||!['applied','unchanged','stale','failed'].includes(r.status)||(options.batched&&r.operation_id!==ready[i].operation!.operation_id)))throw Error('Invalid import receipt response; retry the saved operations');
+      for(let i=0;i<ready.length;i++){ready[i].status=results[i].status;ready[i].message=results[i].message;if(ready[i].operation?.effect==='review'&&typeof results[i].result?.id==='string')ready[i].review_id=results[i].result.id;if(results[i].status==='stale')ready[i].bucket='review';}
+    }catch(e){for(const item of ready){item.status='failed';item.message=e instanceof Error?e.message:String(e);}}
+    await persist(next,ready);
+    // A transport failure must not launch the rest of thousands of requests.
+    if(ready.every(i=>i.status==='failed'))break;
   }
   return next;
 }

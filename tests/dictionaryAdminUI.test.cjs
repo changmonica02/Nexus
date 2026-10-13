@@ -36,7 +36,7 @@ test('JSON import shares preview and explicit draft confirmation with existing f
   assert.ok(ui.includes('accept=".csv,.md,.json"'));
   assert.ok(ui.includes('<DictionaryImportReview'));
   const workflow=fs.readFileSync('src/features/dictionary/DictionaryImportReview.tsx','utf8');
-  for(const text of ['normalizeDictionaryBundle','buildImportSession','confirmDialog','applyImportItems','直接寫入無誤項目','只看未處理'])assert.ok(workflow.includes(text),text);
+  for(const text of ['normalizeDictionaryBundle','buildImportSession','confirmDialog','applyImportItems','exchange.applySafe','exchange.onlyPending'])assert.ok(workflow.includes(text),text);
 });
 
 test('editor uses ordered sections, contextual meaning links, no Sense selector and themed grouping',()=>{
@@ -161,8 +161,8 @@ test('list select-all toggles only rendered search/type results and excludes hid
 test('list toolbar always shows ordered actions with disabled empty selection and wrapping layout',()=>{
  const props={selectedCount:0,allSelected:false,empty:false,busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{},onDelete:()=>{},onPublish:()=>{},onSelectAll:()=>{}};
  const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
- const html=render({});let last=-1;for(const label of ['新增','匯入','匯出','刪除','發布','全選']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
- for(const label of ['刪除','發布']){assert.match(html,new RegExp('<button[^>]*disabled=""[^>]*>'+label));assert.ok(!new RegExp('<button[^>]*disabled=""[^>]*>'+label).test(render({selectedCount:1})));}
+ const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料','刪除','本頁選取發布','全選']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
+ for(const label of ['刪除','本頁選取發布']){assert.match(html,new RegExp('<button[^>]*disabled=""[^>]*>'+label));assert.ok(!new RegExp('<button[^>]*disabled=""[^>]*>'+label).test(render({selectedCount:1})));}
  assert.match(render({allSelected:true}),/aria-pressed="true"/);assert.match(html,/flex-wrap/);assert.match(html,/disabled:opacity-40/);
  const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));
 });

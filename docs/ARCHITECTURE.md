@@ -383,3 +383,43 @@ Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261
 **測試結果**：相關單元／整合 **93/93**；瀏覽器 **1/1**（桌面1280、平板820、手機390，zh-TW／en，真正元件／本機 IndexedDB）；TypeScript／Production Build 通過；全站 ESLint **0 errors／467 warnings**（main 原有468，沒有新增警告）。
 
 **重跑指令**：`node --test --test-isolation=none tests/scheduledStudy.test.cjs tests/unifiedStudySync.test.cjs tests/studyFSRS.test.cjs tests/studyPractice.test.cjs tests/studyRepository.test.cjs tests/studySessions.test.cjs tests/studyReliability.test.cjs tests/studySync.test.cjs tests/studyCardManagement.test.cjs tests/officialStudyPacks.test.cjs tests/studyDictionary.test.cjs tests/workspaceSync.test.cjs`；瀏覽器 `node --test --test-isolation=none tests/unifiedStudy.browser.test.cjs` 使用真正 Repository／IndexedDB／React 元件與樣式，Supabase 僅隔離掉外部連線，不冒充真實帳號／正式驗收。Node 24 的 process isolation 顯示檔案級總數，本輪採 isolation=none 保留個別 case 的實際數量。
+
+
+## #44 公共字典完整交換與批次作業（2026-10-13）
+
+**已開發及隔離驗證；正式 Migration／部署未執行，HISTORY 依使用者要求不變更。**
+
+### 交換契約與範圍
+
+`dictionaryExchange.ts` 定義 `format: nexus-dictionary-exchange`、`schema_version: 1`、`exported_at`、`scope: {kinds, statuses, query}` 及 `records`。每筆包含 `version`（現況版本戳；新增為 null）、`snapshot: AISnapshot` 及 `reviews`（active Review 原文）。Snapshot 保留 Entry、Sense、pronunciations、inflections、relations、etymologies、learning_notes、examples、lexical_annotations、grouping、sense_groups、metadata；所有現行 ID、Entry／Sense scope、排序及文字原樣保留，不壓平多義項。完整 schema 僅接受現行 RPC 內容欄位，未知欄位／不合法內容明確列 Invalid。
+
+- `revision`／timestamp／Published status／provenance 與 active Review 是版本參照資訊；不能以交換檔直接發布、重設技術版本或還原審核歷史。active Review 編修仍用現有編輯器；未變更重新匯入會保留其原文。新增版version=null的檔案重匯時，若提供內容已一致則為Unchanged，若同ID已有不同內容則為Conflict，不默認覆寫。
+- 改內容保留 IDs／version；構詞使用 metadata.component_order。新 JSON record 使用穩定 UUID、version=null、metadata=null（或空provenance＋自己的component_order）、reviews=[]，或用既有 CSV preview 產生 proposed UUID。漏掉的詞條、子項目及 scope 之外資料不作刪除，省略構詞亦保留既有排序位置；交換不是資料庫／published revision history 或私人學習備份。
+- 發音以實際 `ipa`／locale／note／scope 保存；正式模型尚無 KK／IPA system 欄位，本輪不猜測系統或轉寫。已退場 source_id／來源授權及構詞查證屬性不重新加入可編輯模型；舊 Review 原文留在 read-only reviews。
+
+### 匯出／預覽／套用
+
+- `DictionaryExchangeExport` 和 `exchangeExport.ts` 使用 `export_dictionary_exchange_page`，每次最多100個完整 Entry，以 UUID keyset 接續；全部或當前種類／狀態／literal 搜尋交集，和管理列表語義一致。scope_version 固定成員及 Entry revision，變動時停止且要求重新匯出；每個 Entry／Review 內容另有 version 戳。多頁是依各頁 MVCC／詞條版本的交換，不宣稱整個資料庫單一交易快照。
+- 匯出 checkpoint 及分頁內容分開保存在 owner-scoped IndexedDB，失敗／停止／重開可以繼續，同一份完整 JSON 一次下載，完成前不產生誤導性完整檔案。單一上傳檔上限64MiB，交換 schema 上限50,000 records；已驗證6,300筆。
+- `DictionaryImportReview` 延用 CSV／legacy JSON／Markdown／AI 入口，JSON Exchange 自動辨識；`previewExchange` 複用 `buildImportSession`、分類、Diff、決策及 canonical Draft 映射。Exchange 保留明確 IDs，不自動轉向另一同形 Entry、不重寫匯入的分類標籤。Preview 每次25筆；完整版本一致且無歧義的修改可整批確認，Published 修改的 effect 仍是 Review。
+- 預覽顯示 New／Modified／Unchanged／Review／Invalid／Version conflict，差異列表使用共用分頁（50項）。分類、標籤、variant、sense category 和 component_order 皆參與比較。active Review、ID挪用、同形歧義、未知欄位、關聯錯誤及過期 version 不自動套用。
+- `applyImportItems` 準備既有 operation envelope，先持久化 UUID／candidate／observed／expected_context，再每批最多25筆呼叫新增 `apply_dictionary_import_batch`。**批次 RPC 每項委派原 apply_dictionary_import_operation**，保留 receipts、revision、人工 Review 及 SQL驗證；各項 subtransaction，單項失敗回滾其全部內容／audit，不汙染其他明確確認的有效項目。依檔案內構詞依賴排序；遇整批網路失敗停止未開始批次。
+- Receipt 查詢先於版本戳／active Review檢查，掉回覆的已提交操作可精確重試，不再建立 Entry／Sense／Review；未提交的 Exchange 必須匹配最新 version。所有 batch 來源包含CSV亦阻擋已有 active Review 再建重複草稿。stale 重新比對只刷新技術 revisions，保留提案及差異，要求明確再確認；未確認失敗回覆不得棄掉原 operation。
+- 已確認 scope（safe／reviewed）本機保存，刷新後點恢復不必再逐批確認；新預覽／改決策／rebase 使確認失效。結果 JSON 含成功／失敗／待審／未處理、Entry ID、operation UUID、effect 與 Review ID；建立Review後提供原詞條編輯器連結。
+
+### 本機 checkpoint 與批次發布
+
+獨立 `nexus-dictionary-import-review` IndexedDB 由v1升v2：保留舊 sessions、增加逐項 items、jobs、export_pages；Study `nexus` DB_VERSION=8 不變。v1 pending operation第一次遷移必須完整保存再轉成逐項寫入，防止只保存首批而遺失其他項目。Session metadata與25項變更同交易，避免每成功一筆重寫6,300項；每owner保留當前作業入口，跨裝置同一作業依#16，不宣稱本機進度是永久備份。
+
+`DictionaryBulkPublish` 延用 `20261019_dictionary_admin_bulk_publish.sql` 的每批200／依賴圖／24小時actor token，並保留20261021的 `content_verified` overload。首次確認保存token、scope、查證聲明及結果後自動續批；可停未開始批次、失敗／重開恢復相同token。新草稿或內容使原token過期時重新預覽且重新確認；不使用發布循環規避原authority。UI 明確區別「本頁選取發布」與「全部符合條件的草稿」；篩選排除Draft時停用後者。新增唯讀 `dictionary_bulk_publish_report` 每頁200取得actor自己的完整plan結果；沒有直接table權限或Review自動核准。
+
+### Migration 與驗證證據
+
+需要手動批准並套用 **`supabase/migrations/20261013084116_dictionary_bulk_exchange.sql`**，Supabase CLI產生。新增5個函式：private dictionary_exchange_record、admin export_dictionary_exchange_page／inspect_dictionary_exchange／apply_dictionary_import_batch／dictionary_bulk_publish_report。全部空search_path、逐次admin驗證；對外僅authenticated execute，anon／PUBLIC撤銷，helper亦不可直接execute。報告核對actor_id；匯入核對auth.uid與operation owner。無新表、RLS改寫、資料重寫／刪除、正式發布或獨立管線。
+
+正式唯讀核對了表欄位、既有RPC授權及ledger：20261013041717對應20261020、20261013060430對應20261021、20261013072108分頁；早期base由歷史手動套用，不在此ledger。先核對現有#41/#42（inflections、完整snapshot、四參數publish）依賴，再**僅追加本次SQL**、驗證服務後授權合併／Vercel發布。Repo歷史8位日期與實際ledger不同，不以盲目db reset／db push重播舊Migration。退回前端不需要刪掉新增RPC；未修改原endpoint，舊版仍可運作。
+
+- 相關回歸109/109（包含本次SQL、完整ID／多義項／Word-Prefix-Root、Draft／Review／版本／receipt、v1升級、單項回滾、字卡連結／官方包及既有閱讀／編輯）；單獨大量SQL1/1；桌面1280／平板820／手機390瀏覽器1/1（實際元件／IndexedDB，外部服務隔離；含篩選／全部匯出、錯誤重試、檔案輸入、暫停／刷新恢復、確認與報告下載、English）。總共111個case通過，沒有skip／cancel。
+- TypeScript／Production Build通過；ESLint 0 errors／467 warnings，與main基準一致，無新警告。舊toolbar／匯入標籤斷言依新規格更新，未刪除／跳過檢查。
+- 可重現大量測量：`node --test --test-isolation=none tests/dictionaryExchangeScale.test.cjs`，**隔離PGlite實際6,300 Word Draft＋各1 Sense**，JSON 4,194,868 bytes；seed 806ms；匯出63 requests／2,665ms；預覽252 requests／9,700ms；匯入含25項暫停與本機恢復、6,300 receipts，共252 requests／69,744ms；發布預覽257ms、全量32批／108,836ms、完整6,300項報告核對成功。這些不是正式Supabase網路／JWT／實機耗時，其他硬體及複雜詞條需以實測為準。
+- 正式資料庫僅唯讀盤點。未執行本次Migration、未部署／合併、未關Issue。正式最少驗收：匯出再原樣預覽不變；改一筆Draft及一筆Published→Review且公開內容保持；手機中途停／刷新恢復與一次批次發布＋查證確認。
