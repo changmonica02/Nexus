@@ -1,5 +1,15 @@
 # Nexus — 最新交接、待驗證與下一步
 
+## 2026-10-13｜PR #52 正式上線及驗收現況（最新）
+
+- **已執行**：PR #52 合併至 main（merge commit `3d4bfaa9914a8603a123cba5f9d78ce19835a406`）；Supabase migration `20261013064759_dictionary_pagination_totals.sql` 已正式套用，ledger `20261013072108 dictionary_pagination_totals_20261013`；正式 RPC 已包含可信總筆數 `total`。
+- **部署證據邊界**：該 Commit 的 GitHub Vercel check 為 success，使用者回報新版正式網站已完成下列人工分頁驗收；Vercel API 本身未獨立核實 Production Ready，勿將單一 check 擴張為 Production 證據。
+- **#49 人工驗收（使用者回報）**：總頁數顯示、點擊頁碼並按 Enter／手機完成跳頁、無效輸入留原頁並保留搜尋與篩選條件，三項通過；Codex 本輪相關測試 100/100，TypeScript、Build 通過，ESLint 0 errors／468 warnings。
+- **#41**：原有 Published 編輯、儲存草稿及同頁發布曾完成使用者實機驗收；本輪權限、Review Draft、版本衝突／Published 保護的自動測試通過。**過期 Review Draft 無法覆寫更新版 Published 尚未人工驗證**，使用者同意先採自動測試證據、清楚保留這項驗收缺口。
+- **Issues**：#41、#49 已各補充正式部署／驗收進度留言，暫維持 OPEN，不因 PR 合併自動結案；後續可針對 #49 確認結案、#41 保留待驗項。#42 已於前輪完成實機驗收並結案。
+- **後續工作**：#47 學習 session／#48 偏好控制可按已確認規格整合規劃；#44 無損大量交換仍屬後續任務。
+
+
 ## 本輪 #41 收尾＋#49 共用分頁（2026-10-13；已測試／等待正式部署與最終驗收）
 
 - 從 main `80e1aac` 建立 `feat/shared-pagination-closeout`，本輪一個整合 PR，使用 Refs #41、Refs #49。不合併、不關閉 Issue、不執行正式 SQL／Production 部署。
