@@ -22,6 +22,14 @@
 - **交付與關閉 Issue 前**：確認 Issue 與 SPEC 行為一致、ARCHITECTURE 與程式碼一致、相關測試及未執行測試已記錄；重要決策與原因歸 HISTORY，進度／阻塞歸 HANDOFF。**Issue 一律等正式部署完成且依 Issue 範圍完成正式環境／真實帳號或裝置驗收後，才能人工關閉；PR 合併、CI 通過與 migration 建立都不是關閉條件。PR 描述使用 `Refs #N`，不得使用導致自動關閉的 `Closes/Fixes/Resolves #N`。** 未符合驗收不得僅因有 Commit 就關閉 Issue。
 - 已有功能的問題修正亦應檢查是否影響產品規格或技術架構；若不影響，無須形式上改寫文件。
 
+## GitHub main 與 Vercel Production 的部署邊界
+- 目前 Nexus 的 GitHub `main` 已連接 Vercel Production：歷史 PR #46 合併後曾自動建立正式部署。**把任何 Commit（包含純 SPEC／文件）推送到 `main`，都應視為可能觸發正式部署**；若設定變動，須重新核對 Vercel Git 與最新部署記錄。
+- 新的產品決策或文件修訂先在**工作分支**修改 SPEC／文件並建立 PR，勿為了「先記錄需求」直接修改 `main`。開發中的 Codex 分支獨立，避免覆蓋其他工作；依任務需要同步最新 main 並解決衝突。
+- **PR 合併 = 同意可能觸發正式部署**。合併前檢查目標分支、測試與 Preview、SQL/RPC 相容性、產品決策、變更範圍及是否已獲使用者明確合併／上線授權。禁止把 GitHub 的 `mergeable` 誤認為可安全部署。
+- PR 涉及 Supabase migration 時，先核對目前正式 schema、資料保護、回復方法、舊版前端相容性，並明確安排資料庫與前端發布順序。**僅建立 migration 檔、合併 PR 或 Vercel Preview Ready，均不等於正式 migration 已套用或正式環境已驗收。** 正式資料庫寫入與合併仍各自需要明確授權。
+- 若僅編寫文件，應儘量以不影響 Production 為原則（PR + Preview）；是否合併文件 PR，仍按正式部署風險確認。遇到 Vercel 自動部署設定無法核實，應報告不確定性，不能擅自假定已停用。
+- Issue 的結案門檻不變：正式部署且依 Issue 範圍完成真實使用者／裝置驗收後才**人工**關閉，PR 僅使用 `Refs #N`。
+
 ## 文件維護
 - 產品需求改變 → 更新 `docs/SPEC.md`。
 - 技術設計改變 → 更新 `docs/ARCHITECTURE.md`，並標明「設計中／已實作／待驗證」。
