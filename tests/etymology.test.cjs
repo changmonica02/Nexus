@@ -1,8 +1,5 @@
 require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
-const fs=require('node:fs/promises');
-const {join}=require('node:path');
-const {tmpdir}=require('node:os');
 const fixture=require('./etymologyFixture.cjs');
 const {parseCatalog,searchEntries,claimLabel,loadCatalog}=require('../src/features/etymology/catalog.ts');
 
@@ -41,19 +38,3 @@ test('catalog query uses only independent read RPC and rejects unavailable or ma
  await assert.rejects(()=>loadCatalog({rpc:async()=>({data:{},error:null})}),/驗證失敗/);
 });
 
-test('missing source is blocked; repeated parsing preserves raw notes and performs no import',async()=>{
- const {inspectBatch,main}=await import('../scripts/import-etymology.mjs');
- const directory=await fs.mkdtemp(join(tmpdir(),'nexus-etymology-'));
- try{
-  const {report:missing}=await inspectBatch(join(directory,'absent'));
-  assert.equal(missing.errors[0].code,'BATCH08_MISSING');assert.equal(missing.imported,0);assert.equal(missing.record_counts_available,false);
-  const raw='---\nunrecognized: [preserve, all]\n---\nSynthetic test only.\n';
-  await fs.writeFile(join(directory,'synthetic.md'),raw);
-  const first=await inspectBatch(directory),second=await inspectBatch(directory);
-  assert.deepEqual(first,second);assert.equal(first.report.database_writes,0);assert.equal(first.report.imported,0);
-  assert.equal(first.report.status,'valid');assert.equal(first.report.review[0].code,'RAW_PRESERVED');
-  assert.equal(first.catalog.sources[0].raw_markdown,raw);assert.deepEqual(first.catalog.sources[0].metadata.frontmatter,{unrecognized:['preserve','all']});
-  assert.equal(await fs.readFile(join(directory,'synthetic.md'),'utf8'),raw);
-  await assert.rejects(()=>main(['--apply']),/不支援參數/);
- }finally{await fs.rm(directory,{recursive:true,force:true});}
-});

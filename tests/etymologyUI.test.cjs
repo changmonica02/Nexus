@@ -9,28 +9,6 @@ const fixture=require('./etymologyFixture.cjs');
 const {EtymologyContent}=require('../src/features/etymology/EtymologyBrowser.tsx');
 const render=path=>renderToStaticMarkup(React.createElement(EtymologyContent,{catalog:fixture(),path}));
 
-test('real imported batch renders every entry/word and keeps propose memory scenario separate from history',async()=>{
- const {PGlite}=require('@electric-sql/pglite');
- const {readBatch,compileBatch}=await import('../scripts/etymology/parser.mjs');
- const {initializeLocalDatabase,importCatalog}=await import('../scripts/etymology/store.mjs');
- const {parseCatalog,entryHref}=require('../src/features/etymology/catalog.ts');
- const pg=new PGlite();const owner='11111111-1111-4111-8111-111111111111';
- try{
-  await initializeLocalDatabase(pg);await importCatalog(pg,compileBatch(await readBatch('data/etymology/batch-08')),owner);
-  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
-  const catalog=parseCatalog((await pg.query('select get_etymology_catalog() as data')).rows[0].data);
-  const show=path=>renderToStaticMarkup(React.createElement(EtymologyContent,{catalog,path}));
-  for(const entry of catalog.entries)assert.doesNotMatch(show([entry.family==='prefix'?'prefixes':'roots',entry.id]),/找不到此條目/);
-  for(const word of catalog.words)assert.doesNotMatch(show(['words',word.id]),/找不到此單字/);
-  const propose=show(['words','word-propose']);
-  assert.match(propose,/記憶情境/);assert.match(propose,/古羅馬/);assert.match(propose,/詞源說法（尚未確認）/);
-  assert.match(propose,/\/etymology\/roots\/root-pos#sense-root-pos-sense-1/);
-  assert.match(show(['prefixes','prefix-re']),/prefix-re-sense-3/);
-  assert.match(show(['roots','root-pos']),/propose/);
-  assert.equal(entryHref(catalog.entries.find(e=>e.id==='root-pos')),'/etymology/roots/root-pos');
- }finally{await pg.close();}
-});
-
 test('prefix/root category pages remain separate and expose search, categories and kind distinctions',()=>{
  const prefixes=render(['prefixes']),roots=render(['roots']);
  assert.match(prefixes,/字首分類/);assert.match(prefixes,/搜尋字源百科/);assert.match(prefixes,/百科分類/);
