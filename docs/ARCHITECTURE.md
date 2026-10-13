@@ -343,3 +343,10 @@ offline / reconnect / delete / attachment / backup import 行為
 - 查證門檻放在**人工發布契約**：`publish_dictionary_entry`、`approve_dictionary_review`、`publish_dictionary_bulk` 新 overload 要求 `content_verified=true`，UI 的人工確認明示內容／構詞依據已完成查證。舊可公開呼叫的 signatures 撤銷 authenticated／anon／PUBLIC execute，僅作受保護內部實作；缺少或 false 確認不可發布。新增私有 RLS 表 `dictionary_publication_confirmation` 保存交易／actor capability，trigger 阻擋直接 Draft→Published；舊 Review 驗證仍用既有 approval capability，避免 preview 即發布或破壞 Review lifecycle。成功發布同交易寫 `dictionary_audit.operation=PUBLISH_VERIFIED`；批次紀錄對應 preview session 及本批數量。此為管理員的查證聲明及稽核，不能自動證明語言學真實性，也不回填宣稱所有舊 Published 已查證。
 - 部署需先備份、核對 ledger／函式 owner／RLS、在獨立 Supabase staging 套用 20261021，再驗證 PostgREST overload 與新 FK embed、真實 JWT／管理員及普通帳號。SQL 包含 `NOTIFY pgrst,'reload schema'`，仍需實測 schema cache。新版前端依賴新 schema／RPC；Migration 會阻止舊前端發布，應安排協調上線窗口。回退保留相容欄位、新表、資料與歷史，必要時暫停管理發布等待修正，不以刪表或降低發布門檻回滾。
 - 隔離測試覆蓋舊 active Review／版本原文、legacy 值與重複列保留、共用／指定來源 Sense、目標 FK、新重複拒絕、人工查證確認、直接寫入拒絕、批次發布與權限。最終全專案 230/230、TypeScript／Production Build 通過、ESLint 0 errors／473 既有 warnings；新增構詞測試 PGlite 2/2、本機 PostgreSQL 15.19 2/2。PGlite 及本機 PostgreSQL（Auth fixture）結果不是遠端 Supabase／PostgREST／正式帳號驗收；桌面及手機 Chromium 亦為隔離 RPC 測試，正式裝置驗收仍需另行完成。
+
+
+#### PR #51 同步後遠端核對（2026-10-13；僅唯讀）
+
+Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261020 功能表與舊發布 signatures 已存在，RLS 啟用；來源 Sense 尚不可空，20261021 的新 FK／查證 overload／capability 尚未套用。構詞當次查詢為 0 列。遠端 ledger 只記錄 `dictionary_edit_inflections_20261020`，較早 schema 缺完整重播紀錄；隔離 staging 的建立須核對基底與依賴，不能視分支初始化為完整 schema 的保證。沒有正式 DDL／資料寫入／ledger 修補。
+
+目前帳號只列一個正式專案且無開發分支，尚無遠端 staging 驗證結果。`supabase/tests/20261021_composition_staging_verify.sql` 是套用後的唯讀 catalog／權限檢查，不執行 Migration，也不替代真實 Auth JWT、PostgREST FK embed／RPC overload／cache 或帳號／UI 驗收。main 的正式部署規則已隨 `650d0a2` 同步至 PR 功能分支，PR 不合併，正式環境不部署。

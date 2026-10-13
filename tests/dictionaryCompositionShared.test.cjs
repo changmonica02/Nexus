@@ -57,5 +57,6 @@ test('additive migration preserves existing data/history/reviews; shared RPC, sc
  const bad=draft(40,'bad');bad.relations=[{...relation,id:id(42),entry_id:id(40),sense_id:id(11)}];await assert.rejects(save(bad),/foreign key/);
  await save(draft(50,'private draft'));await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal(await sql('select get_dictionary_entry($1) v',[id(50)]),null);assert.equal((await sql('select get_published_dictionary_entry($1) v',[id(30)])).relations[0].sense_id,null);await assert.rejects(save(draft(60,'unauthorized')),/admin/);
  assert.equal(await sql("select has_function_privilege('authenticated','public.guard_dictionary_composition_scope()','EXECUTE') v"),false);
+ await pg.exec(fs.readFileSync('supabase/tests/20261021_composition_staging_verify.sql','utf8'));
  }finally{await pg.close();}
 });
