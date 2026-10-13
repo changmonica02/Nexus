@@ -1,6 +1,6 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-> 現行技術架構以本文件為準；使用者後續核准的產品決策以 SPEC 為準。已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
+> 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 大量資料操作仍為待實作需求，資料交換格式及批次 RPC 的最終設計尚未核准。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
 ## 一、不可推翻的架構與權限原則
@@ -247,7 +247,7 @@ offline / reconnect / delete / attachment / backup import 行為
 
 ## F-DICTIONARY｜正式目標架構與資料契約（2026-10-12）
 
-> **適用邊界**：此節是 Codex 應對照現有程式碼實現的架構目標。既有資料庫 migrations 已存在（20260930～20261018）；本節不等於實際 production schema 已經逐項驗證，也不授權立即執行 SQL、刪表或批次匯入。產品畫面及文案以 `SPEC.md` 的 `F-DICTIONARY — 字典` 為唯一依據。
+> **適用邊界**：此節包含部分歷史技術目標；現行實作必須以最新 main 驗證，與 #44 不一致的 CSV-only 敘述以 SPEC 新決策為準。此節是 Codex 應對照現有程式碼實現的架構目標。既有資料庫 migrations 已存在（20260930～20261018）；本節不等於實際 production schema 已經逐項驗證，也不授權立即執行 SQL、刪表或批次匯入。產品畫面及文案以 `SPEC.md` 的 `F-DICTIONARY — 字典` 為唯一依據。
 
 ### A. 系統邊界與分層
 
@@ -282,12 +282,12 @@ offline / reconnect / delete / attachment / backup import 行為
 - **變更與發布**：已發布 Entry 的新修改進入 Draft／review，管理員確認才切換 Published；批次匯入也走相同生命週期，避免匯入即公開。
 - **刪除**：區分未發布草稿清除與已發布詞條處置；已發布詞條若存在私人字卡連結／官方包引用，必須先有引用完整性策略（限制刪除、退役或保留可查引用等）。**具體刪除語意尚待核准，不得任意 hard delete**。
 
-### D. CSV 匯入／匯出（產品 UI 入口僅 CSV）
+### D. CSV 匯入／匯出（現行舊介面與待改進交換格式）
 
-- **唯一使用者可見匯入入口**：管理字典 →「匯入」→浮動視窗 → 選擇 CSV → 解析／驗證 → 預覽（Safe、Review、Invalid）→ 確認寫入 Draft → 審核／發布。Word／Prefix／Root 均必須有可定義的 CSV 處理方式。
+- **管理端匯入操作（現行基線，#44 可改善格式）**：管理字典 →「匯入」→浮動視窗 → 選擇受支援的交換檔案 → 解析／驗證 → 預覽（Safe、Review、Invalid）→ 確認寫入 Draft → 審核／發布。Word／Prefix／Root 均必須有可定義的 CSV 處理方式。
 - **現有格式差異**：`dictionaryCSV.ts` 含 12 欄 Dictionary CSV v1 和 Word 舊五欄；`adminImport.ts`／DictionaryAdmin 仍含 Markdown／JSON／AI 相容路徑。Codex 必須先確認這些路徑是否被其他內部／migration／管理工具呼叫，再移除或封存不屬於管理 UI 的功能。
 - **資料無損要求**：CSV 欄位契約需可完整表達產品要求的多 Sense、Entry／Sense 讀音、變體、詞源及構詞關係，或明確定義 CSV 對這些內容僅部分支援並由管理 UI 防止不完整匯出／覆寫。**在使用者核准完整 CSV schema 前，不得聲稱 CSV 可以全量無損 round-trip**。
-- **匯出**：管理介面「匯出」提供 CSV；明確標示匯出範圍、選取項、草稿／正式內容範圍與資料完整性。若目前 CSV 無法無損保存完整詞條，需阻止誤導性的「完整備份」敘述並回報缺口；不得靜默丟失讀音或 Sense 關聯。
+- **匯出**：管理介面提供資料匯出；明確標示匯出範圍、選取項、草稿／正式內容範圍與資料完整性。若目前 CSV 無法無損保存完整詞條，需阻止誤導性的「完整備份」敘述並回報缺口；不得靜默丟失讀音或 Sense 關聯。
 - **批次安全**：檔案大小／列數／編碼、錯誤列提示、同 Entry 多 Sense 群組、預覽後來源版本變化與重試冪等需有驗證及測試；運輸分批大小屬效能參數，不應固定成舊歷史 13 批方案。
 
 ### E. 前端互動、狀態及邊界
@@ -303,8 +303,14 @@ offline / reconnect / delete / attachment / backup import 行為
 
 1. 先核對 migration ledger（20260930～20261018）、production 權限、既有 SQL/RPC、TypeScript model、Reader、Editor、Official Pack／Study link 與備份依賴；列出已符合、缺少、不一致與未驗證，不假設每一個 migration 已在遠端套用。
 2. 再提交 CSV 無損性及刪除語意、返回深連結等未決設計，取得核准後調整 schema／RPC 與 service adapter。
-3. 隨後整合 UI（入口、管理按鈕、搜尋與篩選、上一筆／下一筆、返回、右上直接編輯、按來源合併註釋）；管理頁 UI 僅 CSV 匯入。
+3. 隨後整合 UI（入口、管理按鈕、搜尋與篩選、上一筆／下一筆、返回、右上直接編輯、按來源合併註釋）；管理頁目前以 CSV 為主要操作格式；後續依 #44 的無損交換規格決定。
 4. 最後測試普通用戶與管理員、未授權直接 RPC、草稿隔離、匯入 Safe/Review/Invalid、發布、重複提交、CSV 匯出資料完整性、跨裝置字卡連結、窄螢幕與 7,000 筆搜尋；部署 SQL 與執行遠端寫入須另行取得批准。
+
+
+## 文件更新界線（Issue／SPEC／技術實作）
+- 已核准的產品行為在實作前由 `docs/SPEC.md` 記錄；此處不把 Issue 規劃自動當作現行技術實作。
+- Codex 開發並驗證後，依最新程式碼／migration／測試補寫實際資料表、RPC、模組、效能限制及回復策略；必須區分 repo 已實作與正式 Supabase 已套用。
+- #44 的大量資料匯入／匯出及自動續批需求，實作前以 SPEC 為準；本文件原本的「管理 UI 僅 CSV」敘述是舊決策，**已不再是新功能開發的限制**。可評估無損 CSV／JSON 等交換方案，但未選定前不宣稱已有完整 round-trip。
 
 
 ### G. #41／#42 相容實作（已實作；正式環境待驗證）
@@ -314,7 +320,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - 新增 `dictionary_inflections(id,entry_id,sense_id?,form_kind,form,sort_order,revision,updated_at)`。它是 Entry 附屬記錄，沒有公開 Entry 身分；同 Entry／Sense／類型／正規化詞形防重，相同拼寫可屬不同類型或不同 Sense。詞性對應與 Sense 所屬關係由 TypeScript、FK 和伺服器驗證；直接資料表寫入未授權。此版只儲存人工指定的形式，不做規則猜測。
 - 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
 - `dictionary_relations` 保留所有 ID／Sense FK／查證狀態，擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
-- 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 JSON Bundle／AI JSON。本次不自行變更既有 CSV schema。
+- 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 JSON Bundle／AI JSON。本次不自行變更既有 CSV schema，後續完整大量交換依 #44 規劃。
 - `search_dictionary_with_inflections` 合併 headword／中文義項及**索引可確認的 exact 詞形**，結果帶 `inflection_matches`，保留原形與同形詞；Reader 標示匹配原因，詞形以文字而非新 Entry 連結顯示。既有反向構詞及分類篩選仍用原查詢。
 - 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。本次只在隔離 PGlite 執行；**正式 Supabase 未執行**。部署前先核對遠端 ledger、備份並在 staging 套用／驗證；需要手動執行此檔案且須另外授權。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。
 - 自動化：`tests/dictionaryEditInflections.test.cjs` 驗證升級舊 review、ID／Sense／詞形 roundtrip、衝突、隔離、發布／歷史與權限；`tests/dictionaryEditor.browser.test.cjs` 以模擬 RPC 和 Chromium 驗證桌面／390px 手機的編輯、焦點、返回及保存／發布。瀏覽器測試需 `npx playwright install chromium` 或設定 `BROWSER_EXECUTABLE`；所有 fixture 僅在臨時 HTTP server 運作，無正式資料服務。

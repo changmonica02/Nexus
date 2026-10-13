@@ -1,16 +1,25 @@
 # Nexus — 最新交接、待驗證與下一步
 
-
 ## 本次 #41／#42 交付（2026-10-13；程式已實作，正式環境未部署）
 
 - 功能分支：`feat/dictionary-edit-inflections`，從 main `d179567763277781f0181693152c7def7fcefe25` 建立。Published 直接編輯、同頁審核儲存／人工發布、實質 dirty／還原判定與三選項離開保護已接入原 revision 流程。
 - 構詞選取公開 Entry／Sense ID，支援 Word 成分、去重、更換／移除、鍵盤上下排序及失效目標提示。詞形為附屬記錄，支援動詞、名詞、形容詞／副詞合理類型與 Sense；不新增 went／gone／walked／books 等公開 Entry。舊原始字形保留，JSON／AI roundtrip 納入詞形，CSV v1 遇詞形拒絕有損匯出。
 - 自動化工具驗證：TypeScript／Build 通過；字典及 confirm 回歸通過。全專案回歸另有既有 `workspaceSync.test.cjs:287` 版本斷言失敗（預期 7、main 實際 8），在未修改 main 工作樹已重現。隔離介面測試：Chromium 桌面 1280×900／行動 390×844 通過。使用者驗證：真實裝置、正式帳號／雙裝置與 production schema 驗收未執行。
 - **需要手動在 Supabase 執行的新增檔案**：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，須先核對既有字典 migrations 至 20261019、備份及 staging 驗證，再另行授權執行。本次沒有在正式 DB 執行 SQL、修改 Vercel／Production Supabase 設定或部署。
-- 未完成的遠端工作：staging／production Migration、正式部署及真實帳號驗收。自動詞形推導未採用，現版採人工明確維護；CSV-only UI／完整 CSV schema 與已發布刪除策略屬既有獨立工作，不在本次變更範圍。
+- 未完成的遠端工作：staging／production Migration、正式部署及真實帳號驗收。自動詞形推導未採用，現版採人工明確維護； #44 大量交換／完整 CSV schema 與已發布刪除策略屬既有獨立工作，不在本次變更範圍。
 - Vercel GitHub HTTP 403 連接問題仍待既有部署工作處理；不因本 PR 修改設定。Issues #6／#14 保持獨立追蹤。
 
+
+
 > 2026-10-12 文件遷移基線。以下舊交接卡片的進度與優先級為**2026-09-28 歷史快照**；2026-10-11 以後已有 GitHub Issues 和新提交，必須先核實，不可直接當成現況開工。
+
+## 2026-10-13 Issue 整理及文件同步（目前有效交接）
+- GitHub Issues 共 44 筆，其中 38 筆開啟、6 筆已關閉（#2、#3、#4、#5、#25、#33）。#1 吸收 #2；#26 吸收 #25；#32 吸收 #33；#3～#5 因已退場的第八批資料停止規劃。
+- #8 不再包含舊四選一 Quiz 恢復；#45 負責安全退場，保護 FSRS。#10 清除舊路徑；#12 改為核對既有 13 份字典資料，**使用者曾完成匯入，尚待原始檔與正式 Supabase 核對，不能盲目重新匯入**。#43 官方學測 pack manifest 需待來源檔及 Entry ID 配對。
+- #41 已發布詞條直接編輯與 #42 構詞 ID／詞形模型已規劃，Codex 開發與實際測試／部署狀態仍須核對。
+- #44 的產品目標已納入 SPEC：保留 Supabase 為正式字典來源，支援無損匯出、方便大量修改、一次上傳與預覽、自動安全續批及一次確認發布。**不預設新增 GitHub CSV 雙向同步或改造為直接讀 CSV**；完整交換格式待實作調查後決定，不代表已完成。
+- **固定協作規則**已更新 AGENTS.md：確定的產品需求先 Issue + SPEC；Codex 實作、測試後更新 ARCHITECTURE 的實際設計與部署邊界；完成驗收才結案。Discovery 和純工程待辦不硬寫成已確認產品規格。
+- 本次只更新 GitHub Issues／文件；未修改應用程式、未執行測試或 production 資料庫／部署。
 
 ## 一、舊交接工作線與狀態原始基線（待主分支及 Issue 核驗）
 
