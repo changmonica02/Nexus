@@ -1,3 +1,4 @@
+import {compositionRow} from './composition';
 import {availableInflections,inflectionIdentity,inflectionLabels} from './inflections';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {Bundle, BundleResult} from './adminImport';
@@ -56,7 +57,9 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
       if(field==='relations'){
         if(!uuid.test(String(r.target_entry_id))||!uuid.test(String(r.target_sense_id)))issue(field,'請選擇有效的詞條與義項');
         if(r.target_entry_id===d.entry_id)issue(field,'不可連結自身');
-        if(d.relations.filter(x=>x.sense_id===r.sense_id&&x.target_sense_id===r.target_sense_id&&x.relation_kind===r.relation_kind).length>1)issue(field,'重複構詞關聯');
+        const duplicates=d.relations.filter(x=>(x.sense_id??null)===(r.sense_id??null)&&x.target_sense_id===r.target_sense_id);
+        // Existing legacy rows can differ only by retired metadata. Preserve their IDs; SQL rejects new/moved duplicates.
+        if(duplicates.length>1&&duplicates.some(x=>!x.revision))issue(field,'重複構詞關聯');
       }
       if(field==='pronunciations'){
         if(typeof r.ipa!=='string'||!r.ipa.trim())issue(field,'ipa 必填');
@@ -76,13 +79,13 @@ export function draftsFromBundle(bundle:Bundle,grouping?:DictionaryGrouping,sens
     const rows=(table:string)=>(bundle[table]??[]).filter(r=>r.entry_id===e.id).map(r=>strip(r) as DraftRow);
     return {kind:e.kind as DictionaryKind,entry_id:String(e.id),headword:String(e.headword),...(e.revision!==undefined?{revision:Number(e.revision)}:{}),
       senses:rows('dictionary_senses').map(s=>({...s,part_of_speech:s.part_of_speech as string|null,gloss_zh_tw:String(s.gloss_zh_tw),...(s.id in senseGroups?{category:senseGroups[s.id]}:{})})),
-      inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:rows('dictionary_learning_notes'),relations:rows('dictionary_relations'),examples:rows('dictionary_examples'),
+      inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:rows('dictionary_learning_notes'),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
       lexical_annotations:rows('dictionary_lexical_annotations').filter(r=>r.kind==='source_forms'),relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint'),grouping};
   });
 }
 export function mapDictionaryDraft(d:DictionaryDraftInput){
   const own=(rows:DraftRow[])=>rows.map(r=>({...strip(r),entry_id:d.entry_id}));
-  const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
+  const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations.map(compositionRow)),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
   return {origin:{row:d.row??1,kind:d.kind},bundle,group_data:d.grouping??null,sense_groups:d.senses.filter(s=>s.category!==undefined).map(s=>({sense_id:s.id,primary_category:s.category})),
     inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.lexical_annotations.map(r=>({...r,kind:'source_forms'})),...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
 }

@@ -81,7 +81,7 @@ export function parseJSONBundle(raw:string):Bundle {
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision']},
-    dictionary_relations:{required:['id','entry_id','sense_id','target_entry_id','target_sense_id','relation_kind'],optional:['verification','verification_note','revision']},
+    dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','relation_kind','verification','verification_note','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','verification','verification_note','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
   };
@@ -112,7 +112,7 @@ export function parseJSONBundle(raw:string):Bundle {
       if(table==='dictionary_entries')enums.kind=['word','prefix','root'];
       if(table==='dictionary_learning_notes')enums.kind=['learning_decomposition','mnemonic_scenario'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
-      if(row.verification==='verified'&&!String(row.verification_note??'').trim())fail('已查證內容必須填寫查證說明');
+      if(table!=='dictionary_relations'&&row.verification==='verified'&&!String(row.verification_note??'').trim())fail('已查證內容必須填寫查證說明');
       count++;return row;
     });
   }

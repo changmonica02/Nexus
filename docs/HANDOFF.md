@@ -1,5 +1,14 @@
 # Nexus — 最新交接、待驗證與下一步
 
+## 本輪 #42 正式環境驗收修正（2026-10-13；待審查／部署）
+
+- 基底為最新 main `1070a24`，分支 `feat/composition-shared-scope`。本輪僅 #42；未實作 #47／#48／#49，也未修改 SPEC 已確認的產品決策。
+- 構詞退場三欄已移出 Editor／Reader／現行 TS／Draft／Review／AI 模型；單義項不顯示來源 Sense 選擇，多義項管理員預設詞條共用，可指定 Sense。既有明確 Sense、目標 Entry／必要 Sense ID、順序、legacy SQL 值及版本原文保留；一般讀者沒有管理義項控制。
+- 新發布 RPC 要求人工查證確認，保留原 Review Draft／revision／人工發布流程並記錄查證聲明；不將舊 Published 自動標示已查證。舊公開發布 signatures 撤銷 client execute；直接 Draft→Published 亦受交易 capability 保護。
+- **需要手動在 Supabase 執行的新檔案**：`supabase/migrations/20261021_dictionary_composition_shared.sql`，先確認 migrations 至 20261020、備份並在 staging 驗證。沒有 DROP COLUMN／資料回填；三個退場 SQL 欄位暫留無損相容，新模型不依賴。前端／Migration 需協調上線；未套用 SQL 不可部署新版 UI。舊前端在套用後不能發布，需另行安排窗口，不能用恢復弱權限當回退方案。
+- 最終自動化：全專案 230/230（0 skip）、TypeScript／Production Build 通過，ESLint 0 errors／473 既有 warnings；新增構詞測試 PGlite 2/2 與本機 PostgreSQL 15.19 2/2。隔離 Chromium 1280×900／390×844 通過單義項、多義項、共用／明確義項儲存重開、三欄撤除、一般 Reader 無管理控制與既有編輯／人工發布／離開保護。測試失敗曾涉及舊 schema／查詢斷言、fixture identity／發布後隔離預期及新增 helper 型別，已修正後全套重跑，沒有刪除或 skip 測試。遠端 Supabase staging、PostgREST 新 FK／RPC overload、真實 JWT／正式帳號、iOS Safari／Android 及正式網站版本核對未執行；隔離 PostgreSQL 與 Chromium 不能替代正式驗收。
+- 本輪不合併 PR、不關閉 #42，不執行正式 Migration／資料寫入／Vercel 部署；PR 使用 `Refs #42`。後續：審查 PR → 另行授權 staging 與 Migration → 授權協調正式部署 → 正式帳號與真實裝置驗收 → 人工關閉 Issue。
+
 ## 本次 #41／#42 交付（2026-10-13；程式已實作，正式環境未部署）
 
 - 功能分支：`feat/dictionary-edit-inflections`，從 main `d179567763277781f0181693152c7def7fcefe25` 建立；合併前已同步至 main `7cba01b`，包含 `28c5050`（正式部署驗收後才人工關閉）與 `85f3f57`（自動詞形推導暫緩）。Published 直接編輯、同頁審核儲存／人工發布、實質 dirty／還原判定與三選項離開保護已接入原 revision 流程。
@@ -383,6 +392,7 @@ ID：M{MVP}-{序號}；Q-{序號}。
 | `20260922_study_fsrs.sql` | `study_cards`、`study_card_states`、`study_review_events`、`study_deck_settings`＋RPC `apply_study_operation` | `study-workspace.md`：只在本機 PGlite 測試 | ✅ 使用者於後續對話確認已套用；尚未獨立查詢遠端 |
 | `20260925_study_quiz_persistence.sql` | `study_card_quiz_states`、`study_quiz_attempt_receipts`＋RPC `apply_study_quiz_operation` | 只有 SQL 與測試檔 | ⚠️ 尚未確認套用；**依賴已套用的 20260922** |
 | `20261020_dictionary_edit_inflections.sql` | #41 原子首次編輯儲存、#42 詞形附屬表／索引／RLS／revision／搜尋與 Word 構詞 | 此 PR 隔離 PGlite 測試；需既有字典 migrations 至 20261019 | 🟡 僅建立 SQL 檔，正式 DB 未執行，須另行授權 |
+| `20261021_dictionary_composition_shared.sql` | #42 共用來源 Sense、退場欄位相容 RPC、Entry FK／去重、人工查證發布門檻與稽核 | 依賴至 20261020；隔離資料庫驗證，詳見本輪交接 | 🟡 新增檔案；正式 DB 未執行，須另行授權 |
 
 **套用順序**：09-13 → 09-14 → 09-16 → 09-22 → 09-25。
 

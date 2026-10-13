@@ -25,7 +25,7 @@ test('Previous/Next preserve search filters and cross page boundaries with bound
  const g=await readerNeighbours(group,id(1),'p','/dictionary?kind=prefix&q=p&category=作用與變化&page=1',id(101));assert.ok(g.next.includes(id(2)));assert.equal(groupCalls[0].args.primary_category_filter,'作用與變化');
 });
 test('relation and variant browse filters remain server-side; swipe ignores edit/vertical/short/slow gestures',async()=>{
- const c=mock([]);await loadBrowsePage(c,'/dictionary?kind=word&component='+id(1)+'&sense='+id(2)+'&page=3');assert.ok(c.calls.some(x=>x[1]==='senses.relations.target_entry_id'&&x[2]===id(1)));assert.ok(c.calls.some(x=>x[1]==='senses.relations.target_sense_id'));
+ const c=mock([]);await loadBrowsePage(c,'/dictionary?kind=word&component='+id(1)+'&sense='+id(2)+'&page=3');assert.ok(c.calls.some(x=>x[1]==='relations.target_entry_id'&&x[2]===id(1)));assert.ok(c.calls.some(x=>x[1]==='relations.target_sense_id'));
  await loadBrowsePage(c,'/dictionary?kind=root&variant=cept&page=2');assert.ok(c.calls.some(x=>x[1]==='grouping.variant_group'));
  assert.equal(swipeDirection(-100,10,300,false),'next');assert.equal(swipeDirection(100,10,300,false),'previous');for(const args of [[-100,10,300,true],[-50,0,300,false],[-100,90,300,false],[-100,0,800,false]])assert.equal(swipeDirection(...args),null);
 });

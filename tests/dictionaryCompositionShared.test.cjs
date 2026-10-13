@@ -1,0 +1,61 @@
+require('./loadStudy.cjs');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {PGlite}=process.env.NEXUS_TEST_POSTGRES_CONTAINER?require('./fixtures/postgresContainer.cjs'):require('@electric-sql/pglite');
+const {mapDictionaryDraft,validateDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
+const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts');
+const {toAI,parseAI,planAI}=require('../src/features/dictionary/aiDictionary.ts');
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const draft=(n,word)=>({kind:'word',entry_id:id(n),headword:word,senses:[{id:id(n+1),part_of_speech:'noun',gloss_zh_tw:word}],relations:[],etymologies:[],learning_notes:[],examples:[],lexical_annotations:[],relation_hints:[]});
+const relation={id:id(22),entry_id:id(20),sense_id:null,target_entry_id:id(10),target_sense_id:id(11)};
+test('composition interchange defaults shared, keeps explicit Sense/target IDs and removes retired attributes',()=>{
+ const d=draft(20,'source');d.relations=[{...relation,relation_kind:'historical_etymology',verification:'verified',verification_note:'legacy'}];
+ const mapped=mapDictionaryDraft(d).bundle.dictionary_relations[0];assert.deepEqual(mapped,relation);assert.deepEqual(validateDictionaryDraft([d]),[]);
+ const parsed=parseJSONBundle(JSON.stringify({dictionary_relations:[relation]}));assert.deepEqual(parsed.dictionary_relations[0],relation);
+ const target={detail:{entry:{id:id(10),headword:'target',kind:'word'},senses:[{id:id(11),gloss_zh_tw:'target'}]}};
+ const snapshot={detail:{entry:{id:id(20),headword:'source',kind:'word',revision:1,status:'draft'},senses:[{id:id(21),part_of_speech:'noun',gloss_zh_tw:'source'}],relations:[relation],etymologies:[],learning_notes:[]},metadata:null,sense_groups:{},grouping:null};
+ const targets=new Map([[id(10),target]]),ai=toAI(snapshot,targets);assert.equal(ai.components[0].meaning_id,null);assert.equal('relation' in ai.components[0],false);
+ const input=parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[ai]})).entries[0];assert.equal(planAI(input,snapshot,targets).bundle.dictionary_relations[0].sense_id,null);
+ snapshot.detail.senses.push({id:id(23),part_of_speech:'verb',gloss_zh_tw:'another'});delete input.components[0].meaning_id;assert.equal(planAI(input,snapshot,targets).bundle.dictionary_relations[0].sense_id,null);
+ const duplicate=structuredClone(d);duplicate.relations.push({...relation,id:id(24)});assert.ok(validateDictionaryDraft([duplicate]).some(x=>/重複/.test(x.error)));duplicate.relations.forEach(r=>r.revision=1);assert.deepEqual(validateDictionaryDraft([duplicate]),[]);
+});
+test('additive migration preserves existing data/history/reviews; shared RPC, scope, publication, permissions',async()=>{
+ const pg=new PGlite();try {
+ await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;`);
+ const files=['20260922_study_fsrs.sql','20260930_public_dictionary.sql','20261001_dictionary_admin.sql','20261002_dictionary_reader.sql','20261004_dictionary_delete_draft_sense.sql','20261005_dictionary_grouping.sql','20261006_dictionary_prefix_sense_groups.sql','20261007_dictionary_ai_roundtrip.sql','20261010_dictionary_delete_drafts.sql','20261011_dictionary_delete_draft_content.sql','20261012_dictionary_retire_sources.sql','20261013_dictionary_draft_pipeline.sql','20261014_dictionary_revision_lifecycle.sql','20261017_dictionary_entry_identity.sql','20261018_dictionary_pronunciations.sql','20261019_dictionary_admin_bulk_publish.sql','20261020_dictionary_edit_inflections.sql'];
+ for(const f of files)await pg.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+ await pg.query('insert into auth.users values($1),($2)',[id(1),id(2)]);await pg.query('insert into dictionary_admins(user_id) values($1)',[id(1)]);await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);
+ const sql=async(q,args=[])=>(await pg.query(q,args)).rows[0]?.v;
+ const save=d=>sql('select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(d)])]);
+ const target=draft(10,'target'),source=draft(20,'source');await save(target);await sql('select publish_dictionary_entry($1) v',[id(10)]);
+ source.relations=[{...relation,sense_id:id(21),relation_kind:'historical_etymology',verification:'verified',verification_note:'legacy evidence'}];
+ source.relations.push({...source.relations[0],id:id(23),relation_kind:'learning_decomposition',verification:'unverified',verification_note:''});
+ const oldCandidate=mapDictionaryDraft(source);oldCandidate.bundle.dictionary_relations=source.relations;await sql('select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([oldCandidate])]);await sql('select publish_dictionary_entry($1) v',[id(20)]);
+ const old=await sql('select get_dictionary_ai_snapshot($1) v',[id(20)]),review=await sql("select create_dictionary_review($1,$2,null,'manual',false) v",[id(20),JSON.stringify(old)]);
+ await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261021_dictionary_composition_shared.sql','utf8'));await pg.exec('set role authenticated');
+ const current=await sql('select get_dictionary_ai_snapshot($1) v',[id(20)]);assert.equal(current.detail.relations[0].sense_id,id(21));assert.equal(current.detail.relations.length,2,'preserve old valid duplicate IDs');assert.equal('verification' in current.detail.relations[0],false);
+ // An active pre-migration review remains valid; its original historical payload stays intact.
+ await assert.rejects(sql('select approve_dictionary_review($1,$2,false) v',[review.id,review.revision]),/verification confirmation/);
+ await assert.rejects(sql('select approve_dictionary_review($1,$2) v',[review.id,review.revision]),/permission/);
+ await assert.rejects(sql("select publish_dictionary_bulk('{}'::text[],'','unused',false) v"),/verification confirmation/);
+ const updated=await sql('select save_dictionary_review($1,$2,$3) v',[review.id,review.revision,JSON.stringify(review.candidate)]);await sql('select approve_dictionary_review($1,$2,true) v',[updated.id,updated.revision]);
+ assert.equal(await sql('select verification_note v from dictionary_relations where id=$1',[id(22)]),'legacy evidence');
+ assert.deepEqual(await sql('select snapshot v from dictionary_published_revisions where entry_id=$1 and revision=$2',[id(20),old.detail.entry.revision]),old);
+ let base=await sql('select get_dictionary_ai_snapshot($1) v',[id(20)]);const candidate=structuredClone(updated.candidate);candidate.bundle.dictionary_relations[0].sense_id=null;candidate.component_order=[id(22)];
+ const shared=await sql('select create_dictionary_edit_review($1,$2,$3) v',[id(20),JSON.stringify(base),JSON.stringify(candidate)]);
+ assert.equal((await sql('select get_published_dictionary_entry($1) v',[id(20)])).relations[0].sense_id,id(21),'saving is not publication');await sql('select approve_dictionary_review($1,$2,true) v',[shared.id,shared.revision]);
+ const pub=await sql('select get_published_dictionary_entry($1) v',[id(20)]);assert.equal(pub.relations[0].sense_id,null);assert.equal(pub.related[0].sense_id,id(11));assert.equal('relation_kind' in pub.relations[0],false);
+ assert.equal(await sql('select count(*)::int v from dictionary_relations where entry_id=$1 and target_entry_id=$2',[id(20),id(10)]),2);
+ const fresh=draft(30,'new');fresh.senses.push({id:id(32),part_of_speech:'verb',gloss_zh_tw:'verb'});fresh.relations=[{...relation,id:id(33),entry_id:id(30)}];await save(fresh);
+ await assert.rejects(sql('select publish_dictionary_entry($1,false) v',[id(30)]),/verification confirmation/);
+ await assert.rejects(sql('select publish_dictionary_entry($1) v',[id(30)]),/permission/);
+ await assert.rejects(pg.query("update dictionary_entries set status='published' where id=$1",[id(30)]),/verification confirmation/);
+ assert.equal(await sql("select count(*)::int v from dictionary_audit where operation='PUBLISH_VERIFIED'"),2);
+ assert.equal(await sql("select has_table_privilege('authenticated','public.dictionary_publication_confirmation','INSERT') v"),false);
+ const invalid=structuredClone(fresh);invalid.relations.push({...invalid.relations[0],id:id(34)});invalid.revision=(await sql('select get_dictionary_entry($1) v',[id(30)])).entry.revision;await assert.rejects(save(invalid),/Duplicate composition/);
+ const preview=await sql("select preview_dictionary_bulk_publish(array['word'],'new') v");assert.equal(preview.ready,1);
+ const batch=await sql("select publish_dictionary_bulk(array['word'],'new',$1,true) v",[preview.signature]);assert.equal(batch.published,1);assert.equal((await sql('select get_published_dictionary_entry($1) v',[id(30)])).relations[0].sense_id,null);
+ const bad=draft(40,'bad');bad.relations=[{...relation,id:id(42),entry_id:id(40),sense_id:id(11)}];await assert.rejects(save(bad),/foreign key/);
+ await save(draft(50,'private draft'));await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal(await sql('select get_dictionary_entry($1) v',[id(50)]),null);assert.equal((await sql('select get_published_dictionary_entry($1) v',[id(30)])).relations[0].sense_id,null);await assert.rejects(save(draft(60,'unauthorized')),/admin/);
+ assert.equal(await sql("select has_function_privilege('authenticated','public.guard_dictionary_composition_scope()','EXECUTE') v"),false);
+ }finally{await pg.close();}
+});
