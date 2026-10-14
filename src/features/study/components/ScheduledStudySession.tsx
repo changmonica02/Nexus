@@ -72,13 +72,11 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
     }catch(e){if(alive.current)setError(e instanceof Error?e.message:String(e));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
-  async function change(kind:'batch'|'practice'|'stop'|'reload'){
+  async function change(kind:'batch'|'reload'){
     if(busy.current)return;busy.current=true;setSaving(true);setError('');
     try{
       attempt.current=null;setHasAttempt(false);
       if(kind==='batch'||(!current.current&&kind==='reload')){const next=await start();current.current=next.id;formal.current=next.id;}
-      else if(kind==='practice'){const next=await repository.startPractice(formal.current!);current.current=next.id;}
-      else if(kind==='stop')current.current=formal.current;
       await load();
     }catch(e){if(alive.current)setError(String(e));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
@@ -102,12 +100,11 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
       {!practice&&session?.completed_at!=null&&<>
         <p>{t('study.remaining',{n:status?.remainingDue??0})}</p>
-        <button type="button" disabled={saving||!!error} className="rounded-lg border px-4 py-2" onClick={()=>void change('batch')}>{t('study.start')}</button>
-        {session.study_mode==='endless'&&<button type="button" disabled={saving||!!error} className="ml-2 rounded-lg border px-4 py-2" onClick={()=>void change('practice')}>{t('study.enterPractice')}</button>}
+
       </>}
     </div>}
     {saving&&<p role="status" className="text-sm">{t('study.saving')}</p>}
     {error&&<div role="alert" className="w-full rounded border border-red-400 p-3 text-sm">{error}{hasAttempt&&<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void mark(attempt.current!.rating)}>{t('study.retryAnswer')}</button>}<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void change('reload')}>{t('study.reload')}</button></div>}
-    <button type="button" disabled={saving} className="text-sm underline opacity-70" onClick={()=>{if(practice)void change('stop');else onExit();}}>{t(practice?'study.stopPractice':'study.back')}</button>
+    <button type="button" disabled={saving} className="text-sm underline opacity-70" onClick={onExit}>{t(practice?'study.stopPractice':'study.back')}</button>
   </div>;
 }
