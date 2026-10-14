@@ -1,4 +1,5 @@
-import { State, localStudyDay, type Grade, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
+import type {StudyStyle} from './studyStyles';
+import {activeFixed, State, localStudyDay, type Grade, type StudyCard, type StudySnapshot, type StudyState } from "./studyFSRS";
 
 export type SessionMode = "daily" | "free" | "scheduled";
 export interface SessionTarget {
@@ -25,7 +26,7 @@ export interface StudySession {
   last_action_id?: string;
   conflict?: boolean;
   study_mode?: "scheduled" | "endless";
-  quota_limit?: number;
+  quota_limit?: number;settings_snapshot?:StudyStyle;compatibility_notice?:boolean;
 }
 // Only these explicitly authorized test records are reset, never cards matched by text.
 const testItems = new Set([
@@ -37,7 +38,7 @@ export function isLegacyTestCard(card: StudyCard) {
 }
 export function isLearned(state: StudyState) {
   // Graduation follows real FSRS; retain legacy explicit mastery without inventing history.
-  return state.learned_at != null || state.fsrs?.state === State.Review || state.fsrs?.state === State.Relearning;
+  return (activeFixed(state)&&(state.fixed?.state===State.Review||state.fixed?.state===State.Relearning))||state.learned_at != null || state.fsrs?.state === State.Review || state.fsrs?.state === State.Relearning;
 }
 export function freezingInterval(state: StudyState): number | null {
   const fsrs = state.fsrs;

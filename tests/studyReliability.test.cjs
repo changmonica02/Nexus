@@ -83,7 +83,7 @@ test('offline branches use server receipt fallback, preserve facts, and retry de
  const f=await fixture();try{
   const a=await f.a.repo.review(f.card.id,f.q.state.head,1,3,'A-review',now+1000);
   const b=await f.b.repo.review(f.card.id,f.q.state.head,1,1,'B-review',now-86400000);
-  await f.sync(f.a);f.stats.lose='apply_study_resolution';await assert.rejects(()=>f.sync(f.b),/response lost/);
+  await f.sync(f.a);await f.sync(f.b);assert.equal((await f.b.repo.readDeck('deck')).states[0].conflict,true);await f.b.repo.resolveSchedule(f.card.id,'device');f.stats.lose='apply_study_resolution';await assert.rejects(()=>f.sync(f.b),/response lost/);
   assert.equal((await f.b.repo.readDeck('deck')).states[0].conflict,true);
   await f.sync(f.b);const state=(await f.b.repo.readDeck('deck')).states[0];
   assert.equal(state.conflict,false);assert.deepEqual(state.fsrs,b.after.fsrs);assert.notDeepEqual(state.fsrs,a.after.fsrs);
@@ -109,10 +109,10 @@ test('ask persists ambiguity, device/cloud decisions and explicit relearn only c
   await f.sync(f.a);assert.equal((await f.a.repo.readDeck('deck')).states[0].fsrs,null);
  }finally{await f.close();}
 });
-test('conservative selects a whole trusted state with earlier due; never mixes FSRS fields',async()=>{
+test('stored conservative preference cannot bypass explicit conflict recovery; trusted whole states never mix fields',async()=>{
  policy='conservative';const f=await fixture();try{
-  const {a,b}=await branch(f),state=(await f.b.repo.readDeck('deck')).states[0];
-  const expected=a.after.fsrs.due<b.after.fsrs.due?a.after:b.after;
+  const {a,b}=await branch(f);let state=(await f.b.repo.readDeck('deck')).states[0];assert.equal(state.conflict,true);
+  const expected=a.after.fsrs.due<b.after.fsrs.due?a.after:b.after;await f.b.repo.resolveSchedule(f.card.id,expected.head===b.id?'device':'cloud');await f.sync(f.b);state=(await f.b.repo.readDeck('deck')).states[0];
   assert.deepEqual(state.fsrs,expected.fsrs);assert.equal(state.head,expected.head);assert.equal(state.conflict,false);
   assert.equal(chooseSchedule([{state:a.after,sequence:8,source:'device'},{state:b.after,sequence:9,source:'cloud'}],'ask'),null);
  }finally{await f.close();}
@@ -210,6 +210,6 @@ test('single-card UI offers four choices; automatic repairs show pending sync in
  const card={id:'one',owner_id:owner,deck_id:'deck'},state=emptyStudyState(card);
  const ambiguity={device:state,cloud:state,candidates:[state],event_version:1,state_version:2};
  const render=pending=>renderToStaticMarkup(React.createElement(Conflict,{repository:{},label:'word',state:{...state,conflict:true,ambiguity:{...ambiguity,pending}}}));
- for(const label of ['採用此裝置','採用雲端','重新學習','稍後處理'])assert.ok(render(false).includes(label));
+ for(const label of ['保留歷史並重新學習','稍後處理'])assert.ok(render(false).includes(label));assert.ok(!render(false).includes('採用此裝置'));assert.ok(!render(false).includes('採用雲端'));
  assert.ok(render(true).includes('等待同步確認'));assert.ok(!render(true).includes('無法可靠判定'));
 });

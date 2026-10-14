@@ -60,7 +60,7 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
   useEffect(()=>{if(cardId){if(revealed)firstRating.current?.focus();else revealButton.current?.focus();}},[cardId,head,revealed]);
   const status=session&&data?scheduledStatus(session,data.snapshot,now):null;
   useEffect(()=>{availability.current=status?{nextDue:status.nextDue,day:new Date().toDateString()}:null;},[status]);
-  const preview=!practice&&state&&revealed?previewStudy(state,now):null;
+  const preview=!practice&&state&&revealed?previewStudy(state,now,session?.settings_snapshot):null;
   async function mark(rating:Grade){
     if(!session||!card||!state||!revealed||busy.current)return;
     busy.current=true;setSaving(true);setError('');setHasAttempt(true);
@@ -81,11 +81,13 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
     }catch(e){if(alive.current)setError(String(e));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
-  const interval=(due:number)=>{const mins=Math.max(1,Math.round((due-now)/60000));return mins<60?t('study.minutes',{n:mins}):mins<1440?t('study.hours',{n:Math.round(mins/60)}):t('study.days',{n:Math.round(mins/1440)});};
+  const interval=(due:number)=>{if(session?.settings_snapshot?.scheduling_method==='fixed'){const seconds=Math.max(1,Math.round((due-now)/1000));const unit=[86400,3600,60,1].find(u=>seconds%u===0)!;return `${seconds/unit} ${t('styles.unit'+unit)}`;}const mins=Math.max(1,Math.round((due-now)/60000));return mins<60?t('study.minutes',{n:mins}):mins<1440?t('study.hours',{n:Math.round(mins/60)}):t('study.days',{n:Math.round(mins/1440)});};
+  if(!practice&&session?.completed_at!=null)return <div className="mx-auto space-y-5 py-8 text-center"><p role="status">{t('study.finished',{n:status?.completed??0})}</p><button type="button" className="text-sm underline opacity-70" onClick={onExit}>{t('study.back')}</button></div>;
   return <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 px-2 pt-6 pb-8">
-    <h2 className="text-lg font-semibold">{t(practice?'study.practice':'study.start')} · {t('study.direction')}</h2>
-    {session&&status&&<p aria-live="polite" className="text-sm opacity-70">{practice?t('study.practiceAnswers',{n:session.answers}):t('study.progress',{done:status.completed,total:session.targets.length,slots:status.slots,limit:session.quota_limit??50})}</p>}
+    <h2 className="text-lg font-semibold">{t(practice?'study.practice':'study.start')} · {t('study.direction')}{session&&!practice&&<> · {session.settings_snapshot?.scheduling_method==='fixed'?t('styles.fixed'):'FSRS-6'}</>}</h2>
+    {session&&status&&<p aria-live="polite" className="text-sm opacity-70">{practice?t('study.practiceAnswers',{n:session.answers}):t('study.progress',{done:status.completed,total:session.targets.length,slots:status.slots,limit:session.quota_limit??100})}</p>}
     <p className="text-xs leading-6 opacity-70">{t(practice?'study.endlessHint':'study.formalHint')}</p>
+    {session?.compatibility_notice&&<p role="status" className="text-xs">{t('styles.legacySession')}</p>}
     {typeof navigator!=='undefined'&&!navigator.onLine&&<p role="status" className="text-xs">{t('study.offlineHint')}</p>}
     {card&&state?<>
       <div className="w-full rounded-2xl border bg-[var(--color-sidebar-bg)] p-6 text-center sm:p-8">
@@ -93,15 +95,11 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
         {revealed&&<p className="mt-6 whitespace-pre-wrap break-words border-t pt-6 text-xl" lang="zh">{card.back}</p>}
       </div>
       {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
-        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
         <CardDictionaryPanel key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.dictionary_entry_id}/>
       </>}
     </>:<div className="space-y-3 py-8 text-center">
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
-      {!practice&&session?.completed_at!=null&&<>
-
-
-      </>}
     </div>}
     {saving&&<p role="status" className="text-sm">{t('study.saving')}</p>}
     {error&&<div role="alert" className="w-full rounded border border-red-400 p-3 text-sm">{error}{hasAttempt&&<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void mark(attempt.current!.rating)}>{t('study.retryAnswer')}</button>}<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void change('reload')}>{t('study.reload')}</button></div>}

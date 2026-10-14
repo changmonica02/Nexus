@@ -1,3 +1,4 @@
+import type {StudyStyle,FixedIntervals,ScheduleMethod} from './studyStyles';
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
 import type { Page, StudyItem } from "../../lib/types";
 import type { StudySession } from "./studySessions";
@@ -8,6 +9,7 @@ export const studyScheduler = fsrs(STUDY_PARAMETERS);
 export { Rating, State };
 export type { Grade };
 export type StoredFSRS = Omit<Card, "due" | "last_review"> & { due: number; last_review?: number };
+export interface FixedReviewLog {method:"fixed";rating:Grade;review:number;due:number;interval_seconds:number;state_before:State;state_after:State}
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
@@ -23,6 +25,8 @@ export interface StudyCard {
 }
 export interface StudyState {
   id: string; deck_id: string; owner_id: string | null;
+  scheduling_method?:ScheduleMethod;
+  fixed?:{state:State;due:number;last_review:number;generation:number};
   fsrs: StoredFSRS | null; legacy_due_at: number | null;
   introduced_at: number | null; head: string | null; generation: number;
   conflict: boolean;
@@ -36,6 +40,8 @@ export interface StudySettings {
   official_pack_version?: number;
   id: string; owner_id: string | null; new_limit: number;
   direction_confirmed: boolean; updated_at: number; schema: 2;
+  record_type?:"style";style?:StudyStyle;style_id?:string;style_version?:1;style_migration_notice?:boolean;
+  scheduling_method?:ScheduleMethod;fixed_intervals?:FixedIntervals;
   configured?: boolean;
   review_limit?: number;
   new_pause_threshold?: number;
@@ -49,8 +55,9 @@ export interface StudyEvent {
   id: string; card_id: string; deck_id: string; owner_id: string | null;
   kind: "review" | "introduce" | "reset"; at: number; local_day: string;
   device_id: string; parent: string | null; before: StudyState; after: StudyState;
-  rating: Grade | null; log: StoredReviewLog | null;
-  engine: typeof STUDY_ENGINE; parameters: typeof STUDY_PARAMETERS;
+  rating: Grade | null; log: StoredReviewLog | FixedReviewLog | null;
+  engine: typeof STUDY_ENGINE | "nexus-fixed@1"; parameters: typeof STUDY_PARAMETERS | {fixed_intervals:FixedIntervals};
+  scheduling_method?:ScheduleMethod;style_snapshot?:StudyStyle;method_transition?:string;
   content_revision: number; question: string; answer: string;
   session_id?: string;
   source?: "daily_initialization" | "daily_learning" | "free_review" | "legacy_test_reset" | "scheduled";
@@ -58,6 +65,7 @@ export interface StudyEvent {
 }
 export interface StudySnapshot { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings; sessions?: StudySession[] }
 export interface StudyBackup { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings[]; sessions?: StudySession[] }
+export function activeFixed(s:StudyState){return s.scheduling_method==="fixed"&&s.fixed?.generation===s.generation;}
 export function sameStudyRecord(a:unknown,b:unknown):boolean {
   const canonical = (_key:string,value:unknown) => value && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value).sort(([x],[y])=>x.localeCompare(y))) : value;
@@ -100,30 +108,43 @@ export function schedulerCard(state: StudyState, now: number): Card {
   // Legacy due is an eligibility gate, never invented FSRS memory/history.
   return state.fsrs ? { ...state.fsrs, due: new Date(state.fsrs.due), last_review: state.fsrs.last_review == null ? undefined : new Date(state.fsrs.last_review) } : createEmptyCard(new Date(now));
 }
-export function previewStudy(state: StudyState, now: number) {
+export function previewStudy(state: StudyState, now: number,style?:StudyStyle) {
+  if(style?.scheduling_method==="fixed")return Object.fromEntries([1,2,3,4].map(r=>{const event=createStudyEvent({id:state.id,deck_id:state.deck_id,owner_id:state.owner_id,front:"",back:"",content_revision:0} as StudyCard,state,"review",now,"preview","preview",r as Grade,"scheduled",style);return [r,{card:{due:new Date(event.after.fixed!.due)}}];})) as Record<Grade,{card:{due:Date}}>;
   return studyScheduler.repeat(schedulerCard(state, now), new Date(now));
 }
-export function createStudyEvent(card: StudyCard, state: StudyState, kind: StudyEvent["kind"], now: number, device: string, id: string, rating: Grade | null = null, source?: StudyEvent["source"]): StudyEvent {
+export function createStudyEvent(card: StudyCard, state: StudyState, kind: StudyEvent["kind"], now: number, device: string, id: string, rating: Grade | null = null, source?: StudyEvent["source"], style?:StudyStyle): StudyEvent {
   if (state.conflict) throw new Error("此卡有跨裝置排程衝突，紀錄已保留，請先處理衝突。");
+  const previousMethod=activeFixed(state)?"fixed":state.fsrs?"fsrs":undefined;
   let after: StudyState = { ...state, head: id };
-  let log: StoredReviewLog | null = null;
-  if (kind === "review") {
+  let log: StoredReviewLog | FixedReviewLog | null = null;
+  if (kind === "review" && style?.scheduling_method==="fixed") {
+    if (![1,2,3,4].includes(rating!))throw Error("Invalid fixed rating");
+    const phase=activeFixed(state)?state.fixed!.state:state.fsrs?.state??(state.learned_at!=null||state.legacy_due_at!=null?State.Review:State.New);
+    const group=phase===State.Review?"review":phase===State.Relearning?"relearning":"new";
+    const next=phase===State.Review?(rating===Rating.Again?State.Relearning:State.Review):(rating!>=Rating.Good?State.Review:phase===State.Relearning?State.Relearning:State.Learning);
+    after={...after,scheduling_method:"fixed",fixed:{state:next,due:now+style.fixed_intervals[group][rating!-1]*1000,last_review:now,generation:state.generation},legacy_due_at:null};
+    log={method:"fixed",rating:rating!,review:now,due:after.fixed!.due,interval_seconds:style.fixed_intervals[group][rating!-1],state_before:phase,state_after:next};
+    if(next===State.Review)after.learned_at??=now;
+  } else if (kind === "review") {
     if (![Rating.Again, Rating.Hard, Rating.Good, Rating.Easy].includes(rating!)) throw new Error("無效評分");
     const result = studyScheduler.next(schedulerCard(state, now), new Date(now), rating!);
     after = { ...after, fsrs: serializeFSRS(result.card), legacy_due_at: null };
+    if(style||state.scheduling_method)after.scheduling_method="fsrs";
     log = { ...result.log, due: result.log.due.getTime(), review: result.log.review.getTime() };
   } else if (kind === "introduce") {
     after.introduced_at = now;
     // Legacy exposure alone is not daily-learning graduation.
     if (source === "daily_learning") after.learned_at = now;
   } else {
+    delete after.fixed;delete after.scheduling_method;
     after = { ...after, fsrs: null, legacy_due_at: null, introduced_at: null, learned_at: null, generation: state.generation + 1 };
   }
   return { id, card_id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, kind, at: now,
     local_day: localStudyDay(now), device_id: device, parent: state.head, before: structuredClone(state), after,
-    rating, log, engine: STUDY_ENGINE, parameters: structuredClone(STUDY_PARAMETERS),
+    rating, log, engine: kind==="review"&&style?.scheduling_method==="fixed"?"nexus-fixed@1":STUDY_ENGINE, parameters: kind==="review"&&style?.scheduling_method==="fixed"?{fixed_intervals:structuredClone(style.fixed_intervals)}:structuredClone(STUDY_PARAMETERS),
     content_revision: card.content_revision, question: card.front, answer: card.back,
-    ...(source ? { source } : {}) };
+    ...(source ? { source } : {}),
+    ...(kind==="review"&&style?{scheduling_method:style.scheduling_method,style_snapshot:structuredClone(style),...(previousMethod&&previousMethod!==style.scheduling_method?{method_transition:style.scheduling_method==="fsrs"?(state.fsrs?"resume-preserved-fsrs-memory":"initialize-from-real-answer-without-estimated-memory"): "retain-fsrs-memory-use-fixed-state"}:{})}: {}) };
 }
 export function nextDailyCard(snapshot: StudySnapshot, now: number): StudyCard | null {
   if (!snapshot.settings.direction_confirmed) return null;

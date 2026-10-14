@@ -1,4 +1,5 @@
 "use client";
+import {dueAt} from '../scheduledStudy';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudyRepository } from "../StudyRepository";
@@ -230,7 +231,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
         <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label={t("study.backToStudySets")}>←</button>}<span>{t("study.cards")} · {t("study.direction")}</span></div>
         <div className="flex flex-wrap gap-2">{mode==="manage"?<>
-          <button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("scheduled")}>{t("study.start")}</button>
+          {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("scheduled")}>{t("study.start")}</button>}
           <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>{t("study.history")}</button>
         </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>{t("study.back")}</button>}</div>
       </div>
@@ -247,7 +248,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
       </>}
       {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
       {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">{t("study.history")}</h2><p className="mb-3 text-xs opacity-60">{t("study.historyHint")}</p>
-        {historyEvents.slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","記得","簡單"][event.rating!]}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(event.after.fsrs!.due).toLocaleString()}</span></div>)}
+        {historyEvents.slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","知道","熟記"][event.rating!]} · {event.scheduling_method==="fixed"?t("styles.fixed"):"FSRS-6"}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(dueAt(event.after,event.at)).toLocaleString()}</span></div>)}
         {historyEvents.length>historyLimit&&<button className="mt-3 underline" onClick={()=>setHistoryLimit(n=>n+50)}>顯示更多紀錄</button>}
         <details className="mt-5"><summary>遷移前的學習摘要</summary>{cards.filter(card=>card.legacy).map(card=><p key={card.id} className="py-2 text-sm">{card.front}：舊複習次數 {card.legacy!.item.review_count}，原到期時間 {card.legacy!.item.daily_due_at?new Date(card.legacy!.item.daily_due_at).toLocaleString():"未排程"}</p>)}</details>
       </div>}

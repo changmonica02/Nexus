@@ -1,7 +1,8 @@
+import {defaultStudyStyle,defaultStyleId,validateStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import { QuizRepository, QUIZ_STORES } from "./quiz/quizPersistence";
-import {chooseSchedule, cleanState, getSchedulePolicy, reliableEvent, type ScheduleCandidate} from "./studyReliability";
+import {cleanState, reliableEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
 import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
 import { localStudyDay, Rating } from "./studyFSRS";
@@ -159,6 +160,39 @@ export class StudyRepository {
       throw error;
     }
   }
+  private async styleRecord(tx:Write,style:StudyStyle,initial=false){
+    validateStudyStyle(style);
+    const old:StudySettings|undefined=await tx.objectStore('study_settings').get(style.id);if(old){this.owned(old);if(old.record_type!=="style")throw Error("Style identity belongs to a study set");}
+    const value:StudySettings={id:style.id,owner_id:this.owner(),schema:2,new_limit:20,direction_confirmed:true,configured:true,record_type:'style',style:structuredClone(style),updated_at:initial?0:Math.max(Date.now(),(old?.updated_at??0)+1)};
+    await tx.objectStore('study_settings').put(value);await this.enqueue(tx,{owner_id:this.owner(),kind:'settings',value,...(initial?{initial:true}:{})});
+  }
+  private async effectiveStyle(tx:Write,settings:StudySettings):Promise<StudyStyle>{
+    if(settings.record_type==='style')throw Error('Style record is not a study set');
+    let defaultRecord:StudySettings|undefined=await tx.objectStore('study_settings').get(defaultStyleId(this.owner()));
+    if(!defaultRecord){await this.styleRecord(tx,defaultStudyStyle(this.owner()),true);defaultRecord=await tx.objectStore('study_settings').get(defaultStyleId(this.owner()));}
+    this.owned(defaultRecord);
+    if(!settings.style_version&&hasLegacyOverrides(settings)){
+      const migrated=styleFromLegacy(settings);const existing:StudySettings|undefined=await tx.objectStore('study_settings').get(migrated.id);
+      if(!existing)await this.styleRecord(tx,migrated);else this.owned(existing);
+      const updated={...settings,style_id:migrated.id,style_version:1 as const,style_migration_notice:true,configured:true,updated_at:Math.max(Date.now(),settings.updated_at+1)};
+      await tx.objectStore('study_settings').put(updated);await this.enqueue(tx,{owner_id:this.owner(),kind:'settings',value:updated});Object.assign(settings,updated);
+    }
+    const selected:StudySettings|undefined=settings.style_id?await tx.objectStore('study_settings').get(settings.style_id):defaultRecord;
+    if(!selected?.style)throw Error('Assigned study style is missing; sync or restore it before learning');
+    this.owned(selected);validateStudyStyle(selected.style);return structuredClone(selected.style);
+  }
+  async listStyles():Promise<StudyStyle[]>{return this.sessionWrite(async tx=>{
+    const id=defaultStyleId(this.owner());if(!await tx.objectStore('study_settings').get(id))await this.styleRecord(tx,defaultStudyStyle(this.owner()),true);
+    return (await tx.objectStore('study_settings').getAll()).filter((s:StudySettings)=>s.owner_id===this.owner()&&s.record_type==='style').map((s:StudySettings)=>{validateStudyStyle(s.style!);return s.style!;});
+  },false);}
+  async saveStyle(style:StudyStyle){if(!style.id.startsWith('study-style:'))throw Error('Invalid style identity');return this.sessionWrite(tx=>this.styleRecord(tx,style));}
+  async styleForDeck(deckId:string){return this.sessionWrite(async tx=>{const settings:StudySettings=await tx.objectStore('study_settings').get(deckId);this.owned(settings);return {style:await this.effectiveStyle(tx,settings),notice:settings.style_migration_notice??false};},false);}
+  async assignStyle(deckId:string,styleId:string){return this.sessionWrite(async tx=>{
+    const settings:StudySettings=await tx.objectStore('study_settings').get(deckId);this.owned(settings);
+    const record:StudySettings=await tx.objectStore('study_settings').get(styleId);this.owned(record);validateStudyStyle(record.style!);
+    const value={...settings,style_id:styleId,style_version:1 as const,style_migration_notice:false,configured:true,updated_at:Math.max(Date.now(),settings.updated_at+1)};
+    await tx.objectStore('study_settings').put(value);await this.enqueue(tx,{owner_id:this.owner(),kind:'settings',value});
+  });}
   async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"new_pause_threshold"|"sort_mode"|"quiz_direction"|"study_mode"|"card_order"|"review_order">>) {
     if (patch.study_mode != null && !["scheduled","endless"].includes(patch.study_mode)) throw new Error("無效學習模式。");
     if (patch.card_order != null && !["new-first","mixed","review-first"].includes(patch.card_order)) throw new Error("無效出卡順序。");
@@ -172,6 +206,10 @@ export class StudyRepository {
     try {
     const setting:StudySettings=await tx.objectStore("study_settings").get(deckId);this.owned(setting);
     const updated={...setting,...patch,configured:true,updated_at:Math.max(Date.now(),setting.updated_at+1)};
+    if(['new_limit','review_limit','new_pause_threshold','study_mode','card_order','review_order'].some(k=>k in patch)){
+      const current=await this.effectiveStyle(tx,setting);const preserved={...current,...Object.fromEntries(Object.entries(patch).filter(([k])=>['new_limit','review_limit','new_pause_threshold','study_mode','card_order','review_order'].includes(k))),id:styleFromLegacy(updated).id,name:`移轉設定 · ${deckId}`} as StudyStyle;
+      await this.styleRecord(tx,preserved);Object.assign(updated,{style_id:preserved.id,style_version:1,style_migration_notice:true});
+    }
     await tx.objectStore("study_settings").put(updated);
     await this.enqueue(tx,{owner_id:this.owner(),kind:"settings",value:updated});
     await tx.done;this.changed();
@@ -191,9 +229,7 @@ export class StudyRepository {
     return values;
   }
   async readScheduledDeck(deckId:string, now=Date.now()):Promise<StudySnapshot> {
-    const snapshot=await this.readDeck(deckId,false);
-    snapshot.events=await this.dayIntroductions(deckId,now);
-    return snapshot;
+    return this.sessionWrite(async tx=>{const snapshot=await this.snapshotIn(tx,deckId);snapshot.events=await this.dayIntroductions(deckId,now,tx);return snapshot;},false);
   }
   async peekNext(deckId:string,now:number):Promise<{card:StudyCard;state:StudyState}|null> {
     const snapshot=await this.readDeck(deckId,false);
@@ -255,7 +291,7 @@ export class StudyRepository {
     const settings:StudySettings=await tx.objectStore("study_settings").get(deckId); this.owned(settings);
     const [cards,states]=await Promise.all(["study_cards","study_states"].map(name=>tx.objectStore(name).index("deck").getAll(deckId)));
     const events:StudyEvent[]=[];
-    return {settings,cards,states,events};
+    return {settings:applyStyle(settings,await this.effectiveStyle(tx,settings)),cards,states,events};
   }
   private async saveSession(tx: Write, session: StudySession, event?: StudyEvent) {
     await tx.objectStore("study_sessions").put(session);
@@ -269,6 +305,10 @@ export class StudyRepository {
         const event=await tx.objectStore("study_events").get(target.official_event_id);
         if(event)snapshot.events.push(event);
       }
+    }
+    if(session.mode==="scheduled"){
+      if(!session.settings_snapshot){const original:StudySettings=await tx.objectStore("study_settings").get(session.deck_id);session.settings_snapshot={...styleFromLegacy(original),review_limit:session.quota_limit??original.review_limit??50,study_mode:session.study_mode??original.study_mode??"scheduled",scheduling_method:"fsrs"};session.compatibility_notice=true;}
+      validateStudyStyle(session.settings_snapshot);snapshot.settings=applyStyle(snapshot.settings,session.settings_snapshot);
     }
     if(session.mode==="scheduled") snapshot.events=await this.dayIntroductions(session.deck_id,now,tx);
     const next=session.mode==="scheduled"?refreshScheduled(session,snapshot,now):reconcileSession(session,snapshot,now);
@@ -287,7 +327,7 @@ export class StudyRepository {
       if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
       if(mode==="scheduled") {
         snapshot.events=await this.dayIntroductions(deckId,now,tx);
-        const session=makeScheduled(snapshot,now,newId());
+        const session=makeScheduled(snapshot,now,newId());session.settings_snapshot=structuredClone(snapshot.settings.style!);
         await this.saveSession(tx,session);
         return session;
       }
@@ -355,8 +395,8 @@ export class StudyRepository {
       let event:StudyEvent|undefined;
       if(session.mode==="scheduled") {
         if(isUnintroduced(state))throw new Error("請先正式呈現新卡。");
-        if(dueAt(state,now)>now && !(session.study_mode==="endless" && target.early_review && !target.official_event_id && !isShortStep(state,now)))throw new Error("此卡尚未到期。");
-        event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled");
+        if(dueAt(state,now)>now && !(session.study_mode==="endless" && target.early_review && !target.official_event_id))throw new Error("此卡尚未到期。");
+        event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled",session.settings_snapshot);
         event.session_id=session.id;event.session_rating=rating;
         target.official_event_id=event.id;target.official_rating=rating;
         // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
@@ -488,6 +528,7 @@ export class StudyRepository {
     for(const [store,values] of [["study_cards",data.cards],["study_settings",data.settings]] as const) {
       for(const value of values) {
         this.owned(value);
+        if(store==='study_settings'&&(value as StudySettings).record_type==='style'){const record=value as StudySettings;validateStudyStyle(record.style!);if(record.style!.id!==record.id)throw Error('Style identity mismatch');}
         const local=await tx.objectStore(store).get(value.id);
         if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);
       }
@@ -539,6 +580,24 @@ export class StudyRepository {
       }
       const tips:ScheduleCandidate[]=[];
       for(const c of candidates)if(!await Promise.all(candidates.map(d=>d.state.head!==c.state.head?descends(d.state.head,c.state.head):false)).then(r=>r.some(Boolean)))tips.push(c);
+      // A recorded reset / guarded relearn begins an explicit epoch; old forks stay history,
+      // not competing schedules. Never infer epochs from clocks or unproven generation numbers.
+      if(new Set(tips.map(c=>c.state.generation)).size>1){
+        let proven=-1;
+        for(const candidate of tips){
+          const state=candidate.state;
+          const proof=state.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',state.resolution_id])):null;
+          if(proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state)))proven=Math.max(proven,state.generation);
+          let head=state.head;const seen=new Set<string>();
+          while(head&&!seen.has(head)){seen.add(head);const e=await findEvent(head);if(!e||!reliableEvent(e))break;
+            if(e.kind==='reset'&&e.after.generation===state.generation){proven=Math.max(proven,state.generation);break;}
+            const prior=e.before.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',e.before.resolution_id])):null;
+            if(prior?.state&&prior.state.generation===state.generation&&sameStudyRecord(cleanState(e.before),cleanState(prior.state))){proven=Math.max(proven,state.generation);break;}
+            head=e.parent;
+          }
+        }
+        if(proven>=0)for(let n=tips.length-1;n>=0;n--)if(tips[n].state.generation<proven)tips.splice(n,1);
+      }
       const evMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'event-version',id]));
       const stateMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_card_states',id]));
       // A non-conflicted server checkpoint can include a previous explicit decision.
@@ -546,7 +605,7 @@ export class StudyRepository {
       let next=decisionCheckpoint?cleanState(remote!):tips.length===1?cleanState(tips[0].state):null;
       const ambiguous=tips.length>1 && !decisionCheckpoint;
 
-      if(ambiguous)next=chooseSchedule(tips,getSchedulePolicy());
+      if(ambiguous)next=null; // New SPEC: divergent facts require explicit recovery, never automatic policy selection.
       const decisionNeeded=!!next && (ambiguous || !!remote?.conflict || (!!remote&&!sameStudyRecord(cleanState(remote),next)));
       if(decisionNeeded){
         const value={id:newId(),owner_id:this.owner(),card_id:id,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0,choice:next,relearn:false};

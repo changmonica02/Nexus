@@ -366,24 +366,38 @@ offline / reconnect / delete / attachment / backup import 行為
 - 本輪交付驗證：字典＋分頁 100/100（無 skip）、TypeScript／Production Build 通過、ESLint 0 errors／468 warnings；桌面 1280×900 與手機 390×844 隔離 Chromium 驗證 7 個實際元件場景（分類共用 Prefix／Root 元件）、頁碼／條件／焦點／連續請求／錯誤重試／資料縮減。PGlite 測試新 SQL 的總筆數／頁面條件一致、普通角色隔離及函式 ACL 保持不變；正式 DB 僅唯讀核對 #41 已部署權限，沒有正式 Migration／帳號寫入。
 
 
-## #47／#48 統一排程 Session 與功能化偏好（2026-10-13）
+## F-STUDY 字卡樣式與雙排程（#47；2026-10-14）
 
-**PR #54 已合併；本次核對實作／本機測試通過。GitHub #47／#48 已結案，沿用使用者不另做人工驗收的決定；不以此宣稱本次獨立查證 Production Ready。**
+**程式已實作、隔離測試通過；以 main `861a39e` 的 F-STUDY SPEC 為準。新版正式帳號／實機驗收尚未執行。舊 PR #54／#58 的已取代行為不作現行契約。**
 
-- `scheduledStudy.ts` 為可測試的選卡／可用性資料流。`planScheduled` 使用各集 `review_limit ?? 50`、每日 introduction distinct ID＋state 作新卡額度；新卡優先／混合／複習優先及最早 due／低 FSRS retrievability／隨機排序。New＋跨日 Learning／Relearning＋Review 才計批次名額；當日已開始短間隔用 `last_review`／`due` 當地日界判斷，優先到期插入且不再扣名額。未選入的卡不寫 state，也不提前拿未到期卡補位。
-- `StudySession.mode = scheduled` 增量保存在既有 `study_sessions`，每 target 保留 generation、`counts_toward_limit`、完成標記，批次凍結 quota_limit／study_mode。`refreshScheduled` 以真正 due 建立 ready／waiting／blocked 狀態，保留未完成批次與不同卡名額；刪除／重設 generation 排除失效目標，排程衝突則阻擋完成並引導返回處理。跨日仍未到期的 learning 留給後續批次，不提前評分。
-- `StudyRepository.presentScheduled` 在交易中確認新卡呈現，建立 `kind=introduce, source=scheduled`；純選卡不扣每日額度。`rateSession` 對 scheduled 的**每次真實作答**建立 `kind=review, source=scheduled`，原參數／engine／完整 before、after、log／parent 保留。Session、state、事件及 outbox 原子寫入，action ID 可安全重試；不捏造 Again／補造舊歷史、不覆寫 FSRS due。學會判斷依 Review／Relearning 或既有 learned_at，取消 Easy-only gate。
-- 舊 daily／free／batch Session 及事件保持原文與相容讀取，不能以新規格重新解釋舊日學 introduce；新正式 review 的 state transition 維持既有引擎語義，不新增會讓舊可靠性驗證器失配的排程欄位。舊元件不再是使用入口；取消的 Quiz 入口移除，但 Quiz stores／歷史／同步相容程式未刪除。
-- `startPractice` 只能由已完成且選無盡的正式批次進入。獨立 `mode=practice` Session 保存本機 queue／answers／revision，`ratePractice` **只寫 Session**，不寫 StudyState、StudyEvent 或 outbox；可停止、再次進入及恢復，空集合明確呈現。仍保存在 v3 backup 中，既有 owner／generation 與備份衝突保護沿用；不把額外練習同步成正式評分。
-- `ScheduledStudySession` 翻面／正式間隔預覽、名額／進度、剩餘到期卡、短步等待與額外練習用同一入口。等待到期／當地換日才重新查詢；不每秒掃描整個正常學習集。每張題目／head 變更才清除翻面，錯誤留題並提供相同作答重試／重載；按鈕有焦點管理及 zh-TW／en 翻譯。字典詳情仍放在評分後，儲存提示放在詳情後。線上開始先沿用 `syncStudy` 同步每日 introduction 與 state；離線仍保留本機批次及 outbox。
-- `StudyPreferencesProvider` 傳遞目前帳號 Repository／學習集清單；SettingsDialog 字卡與學習分類選集後使用同一 `study_settings`。增量可選 JSON 欄位 `study_mode`、`card_order`、`review_order`；數量仍為 `review_limit`／`new_limit`，保留既有有效值。Repository 驗證選項及整數範圍、原 settings outbox／LWW 更新同步；一般主題／語言、功能排序及備份入口保留，沒有新增空的筆記／簡報設定分類。
-- **資料庫**：無新 Migration、表／RPC／RLS／權限變更。2026-10-13 唯讀核對 Nexus 正式四表為 JSON payload、review kind 原允許 review／introduce／reset，RLS SELECT 為 owner_id=auth.uid()；外層 apply_study_operation 固定空 search_path、有 owner 同步鎖，authenticated 可執行、anon 與內部函式不可直接執行。隔離 PGlite 用原 20260922／20261016 SQL 驗證增量 settings、正式事件、掉回覆重試、owner／匿名拒絕與跨裝置額度；正式環境未寫入／未做 JWT 實機驗收。
-- **限制**：正式 Session／額外練習進度仍採既有本機 Session，不新增雲端 Session 表。另一裝置經同步後根據正式事件／due 延續學習，不會複習尚未再到期卡，但不會取得另一台相同 Session ID／練習 queue。兩台同時離線無法原子共享新卡額度；合併保留全部事實，線上開始先同步已知用量。不同裝置時區沿用裝置當地日界，不自行新增帳號時區契約。切換新版前先更新／重新整理舊分頁，避免舊 UI 繼續舊規則。
+### 設定、樣式與相容移轉
 
-**測試結果**：相關單元／整合 **93/93**；瀏覽器 **1/1**（桌面1280、平板820、手機390，zh-TW／en，真正元件／本機 IndexedDB）；TypeScript／Production Build 通過；全站 ESLint **0 errors／467 warnings**（main 原有468，沒有新增警告）。
+- `studyStyles.ts` 定義完整 `StudyStyle`：模式、排程方法、100 張單次名額、20 張每日新卡、200 張暫停門檻、出卡／複習排序、New／Relearning／Review 各四個固定間隔（正整數秒，最多十年）。自訂樣式完整替換、不逐欄混入預設。
+- 沿用 `study_settings`／Supabase `study_deck_settings`：以 `record_type=style`、`study-style:*` ID、完整 `style` JSON 儲存共享樣式；學習集 row 帶 `style_id`／`style_version`。這些 text IDs 沒有 deck FK，原 owner-scoped settings RPC 支援，無新表／RPC／RLS。預設 seed `updated_at=0, initial=true`，不覆蓋另一裝置已編輯的預設；正常編輯沿用單調 timestamp 與原 LWW 設定同步。
+- Repository `listStyles/saveStyle/styleForDeck/assignStyle` 使用既有嚴格 IndexedDB 交易及 outbox。舊已儲存數量／排序／模式完整保留成穩定 ID 的移轉樣式，顯示 `style_migration_notice`；包含無法分辨是否明確自訂的舊 50，均不默默改為 100。無舊覆寫值才使用新預設；選回預設樣式是明確操作。
+- `StudyPreferences` 在現有偏好分類提供共用樣式名稱／建立／編輯、學習集指定、全部排程設定與秒／分／時／天輸入；新增按鈕在最下方。更改共用樣式影響後續所有指定集的新 Session，不直接修改卡片。
 
-**重跑指令**：`node --test --test-isolation=none tests/scheduledStudy.test.cjs tests/unifiedStudySync.test.cjs tests/studyFSRS.test.cjs tests/studyPractice.test.cjs tests/studyRepository.test.cjs tests/studySessions.test.cjs tests/studyReliability.test.cjs tests/studySync.test.cjs tests/studyCardManagement.test.cjs tests/officialStudyPacks.test.cjs tests/studyDictionary.test.cjs tests/workspaceSync.test.cjs`；瀏覽器 `node --test --test-isolation=none tests/unifiedStudy.browser.test.cjs` 使用真正 Repository／IndexedDB／React 元件與樣式，Supabase 僅隔離掉外部連線，不冒充真實帳號／正式驗收。Node 24 的 process isolation 顯示檔案級總數，本輪採 isolation=none 保留個別 case 的實際數量。
+### 排程與正式事件
 
+- `scheduledStudy.ts` 依有效樣式選卡，先插入到期 Learning／Relearning，再套用新舊排序；全部不同 target 合計不超過單次上限。每日額度以當地日界的 introduce distinct IDs＋已引入 state 計算；`presentScheduled` 才在同交易建立 introduce，不因預選扣額度。到期舊卡達門檻即停止引入；低於門檻恢復但仍受當日額度約束。
+- 無盡只在正常候選不足時以最近 due 的尚未到期已學卡補位，第一次提前作答正常寫 review／due；不修改未選卡、不重複補同一卡。低可回想率排序僅計算具有 FSRS 記憶的卡，這組先依機率排序；無記憶組穩定依 due／ID 排序。
+- `studyFSRS.ts` 沿用 ts-fsrs 5.4.2／FSRS-6；新增 `nexus-fixed@1`，每次固定作答保存獨立 `fixed` state、真實 `FixedReviewLog`（method/rating/review/due/interval/state before-after）、固定參數與原始 before/after。不能用 null log（既有 SQL review 契約拒絕），也不偽造 FSRS log。Review Again 使用 Review 間隔並進 Relearning；下一次才用 Relearning 間隔。Learning 使用 New 的間隔組。
+- 每次新正式 review 帶 `scheduling_method`、`style_snapshot`；方法切換帶 `method_transition`。固定狀態與 FSRS 記憶分開，固定作答不更新穩定度／難度。回切 FSRS 有原記憶時用原狀態及實際時間，無記憶時於下一真實回答初始化；不估算歷史，不因選樣式就重設卡或 due。
+- `fixed.generation` 必須等於 state.generation 才生效：既有雲端 relearn RPC 保留未知 JSON 欄位，但新 generation 使過去固定狀態失效，舊值仍可追查。`studyReliability.ts` 按事件快照可重現驗證固定／FSRS 結果；無新增欄位的舊 FSRS 事件仍按原內容重播。
+
+### Session、同步與復原
+
+- 新 `StudySession.settings_snapshot` 深拷貝完整有效樣式；刷新／重開／樣式改動仍用凍結規則。舊 Session 無快照時保留已知原 FSRS、名額及模式，凍結可讀舊設定並設 `compatibility_notice`，不套用剛選的新固定方法。
+- `refreshScheduled` 只依真實 due 決定 ready/waiting/blocked；短步跨午夜仍等到期及完成必要作答。target 只占一次名額，重複 Again 不增加。Session／event／state／outbox 同交易；相同 action ID 重試不重複評分。完成畫面僅祝賀與返回導覽，沒有開始／下一批／額外練習續接。
+- 現行衝突不再按舊 latest／conservative 偏好自動選排程；UI 僅明確「保留歷史並重新學習」或稍後。保留原 guarded resolution RPC／版本 CAS。可靠 reset 事件／已驗證 resolution 可證明新 generation；其舊 generation 分支保留歷史但不再競爭目前排程，同 generation 分岔仍阻擋正式作答。不根據裝置時鐘或未證實的 generation 猜測合併。
+- IndexedDB DB_VERSION=8、workspace backup schema=3 不變；catalogue、固定狀態、事件及 Session 快照走原 JSON 序列化。匯入備份先驗證完整樣式、身份及 assignment 參照，失敗在任何寫入前拒絕；原 v3 備份無新欄位仍相容。舊 practice／Quiz stores、API、資料與原 Migration 只保留相容，不新增使用入口。
+- 正式 Supabase 僅唯讀查驗既有 RPC 定義；隔離 PGlite 實際執行原 `20260922_study_fsrs.sql`＋`20261016_study_reliability.sql`，驗證完整 style JSON、固定／FSRS 事件、掉回覆冪等重試、雙裝置樣式／記憶與固定 fork／relearn、owner／anon 隔離。**本次無新增或待執行 Migration，未寫入正式資料。**
+- 界線：Session ID／queue／快照依既有架構保存本裝置，第二台透過事件／state 重建學習，不宣稱取得同一 Session。兩台同時完全離線的每日新卡額度不能原子共享；同步保留全部引入事實，線上開始先拉取已知用量。裝置時區依 SPEC 當地日界。
+- 發布後所有舊裝置／分頁先重新整理再作答；舊客戶端無法理解固定事件，不能以舊可靠性檢查繼續操作。建議先匯出 workspace 備份；回退前端不會刪歷史，但回退舊版本不能安全繼續處理新固定排程資料。
+
+### 驗證
+
+相關學習／FSRS／固定／樣式／官方包／字典連結／Quiz 相容／Workspace Sync 單元整合與真正元件 Chromium 測試，以及 TypeScript、ESLint、Production Build，本輪 126/126；瀏覽器 1/1；TypeScript／Production Build 通過，ESLint 0 errors／467 既有 warnings。重跑命令見本次 PR。瀏覽器覆蓋桌面1280、平板820、手機390及 zh-TW／en；沒有替代真實帳號／裝置驗收。
 
 ## #44 公共字典完整交換與批次作業（2026-10-13）
 
@@ -434,7 +448,7 @@ PR #56 審查修正另新增4個安全case：逐一變更13種JSON來源（含cu
 
 `DictionaryEditor` 僅對 persisted Draft（revision>0、非Published／Review candidate）提供刪除草稿；使用原 `deleteDictionaryDrafts` adapter＋`delete_dictionary_drafts` RPC，單一{id,revision}，revision取目前已保存baseline（包括先前子項刪除回傳的revision）。顯示原詞條名稱及永久刪除義項／構詞／全部內容、未儲存修改的危險確認；取消不呼叫RPC，權限／stale／Published／外部参照由既有RPC強制執行。失敗保留表單，成功才以useUnsavedDraft.leave解除離開保護並返回 `/dictionary/admin` 重新讀取清單，embedded編輯亦返回管理清單，不留在已刪除的Entry路由。未儲存的新建表單沒有資料可刪，不顯示此按鈕。不改既有Review／Published版本歷史或DB邏輯。
 
-字卡核對對照SPEC與#47／#48：開始學習、scheduled／endless、review_limit未設定fallback50、新建settings.new_limit20、介紹事件distinct每日額度、短步到期優先且不重扣名額、三種出卡順序／Review排序、完成／剩餘到期／等待畫面、settings owner-scoped保存／同步均已有實作。本輪未發現需追加大型學習功能的差異，不修改學習程式。限制仍為同裝置Session、兩台同時離線非原子共享額度、各學習集設定／舊有效設定保留，與SPEC一致。
+字卡核對是 PR #57 當時的實作記錄；其舊學習規則已由上方 F-STUDY 字卡樣式與雙排程段落取代，不作現行契約。
 
 正式Supabase本輪只SELECT核對：delete RPC及全域preview／四參數publish／report已存在、空search_path、authenticated可execute而anon不可；舊三參數publish對authenticated已撤權。delete內含admin／revision／Published／參照guard；report核對actor。沒有正式刪除／發布／Migration。
 
