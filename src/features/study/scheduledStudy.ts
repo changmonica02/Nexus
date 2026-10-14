@@ -31,8 +31,10 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   const cards = eligible(snapshot);
   const limit = snapshot.settings.review_limit ?? 50;
   const short = cards.filter(c => isShortStep(states.get(c.id)!, now));
-  const fresh = cards.filter(c => isUnintroduced(states.get(c.id)!))
-    .slice(0, Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now)));
+  const dueBacklog = cards.filter(c => !isUnintroduced(states.get(c.id)!) && dueAt(states.get(c.id)!, now) <= now).length;
+  const canIntroduce = dueBacklog < (snapshot.settings.new_pause_threshold ?? 200);
+  const fresh = canIntroduce ? cards.filter(c => isUnintroduced(states.get(c.id)!))
+    .slice(0, Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now))) : [];
   const reviews = cards.filter(c => !isUnintroduced(states.get(c.id)!) && !isShortStep(states.get(c.id)!, now) && dueAt(states.get(c.id)!, now) <= now);
   const randomKeys = new Map(snapshot.settings.review_order === 'random' ? reviews.map(c => [c.id, random()]) : []);
   reviews.sort((a, b) => {
@@ -49,14 +51,22 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   else if (snapshot.settings.card_order === 'mixed') {
     combined = []; for (let i = 0; i < Math.max(fresh.length, reviews.length); i++) { if (fresh[i]) combined.push(fresh[i]); if (reviews[i]) combined.push(reviews[i]); }
   } else combined = [...fresh, ...reviews];
-  return { cards: [...short, ...combined.slice(0, limit)], shortIds: new Set(short.map(c => c.id)), dueCount: reviews.length, limit };
+  const planned = [...short, ...combined.slice(0, Math.max(0, limit - short.length))];
+  const earlyIds = new Set<string>();
+  if (snapshot.settings.study_mode === 'endless' && planned.length < limit) {
+    const selected = new Set(planned.map(c => c.id));
+    const future = cards.filter(c => !selected.has(c.id) && !isUnintroduced(states.get(c.id)!) && dueAt(states.get(c.id)!, now) > now && !isShortStep(states.get(c.id)!, now))
+      .sort((a,b) => dueAt(states.get(a.id)!,now) - dueAt(states.get(b.id)!,now));
+    for (const c of future.slice(0,limit-planned.length)) { planned.push(c); earlyIds.add(c.id); }
+  }
+  return { cards: planned, shortIds: new Set(short.map(c => c.id)), earlyIds, dueCount: reviews.length, limit };
 }
 export function makeScheduled(snapshot: StudySnapshot, now: number, id: string) {
   const plan = planScheduled(snapshot, now);
   const session = makeSession(snapshot, 'scheduled', plan.cards, now, id);
   session.study_mode = snapshot.settings.study_mode ?? 'scheduled';
   session.quota_limit = plan.limit;
-  for (const t of session.targets) t.counts_toward_limit = !plan.shortIds.has(t.card_id);
+  for (const t of session.targets) { t.counts_toward_limit = !plan.shortIds.has(t.card_id); t.early_review = plan.earlyIds.has(t.card_id); }
   return refreshScheduled(session, snapshot, now);
 }
 /** Derive availability from actual FSRS due, never a session-only mastery loop. */
@@ -82,6 +92,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
       else { t.skipped = true; t.easy_at = null; }
     } else if (dueAt(s, now) <= now) { t.easy_at = null; ready.push(t); }
     else if (isShortStep(s, now)) { t.easy_at = null; waiting.push(t); }
+    else if (t.early_review && !t.official_event_id) { t.easy_at = null; ready.push(t); }
     else t.easy_at ??= now;
   }
   ready.sort((a, b) => Number(isShortStep(states.get(b.card_id)!, now)) - Number(isShortStep(states.get(a.card_id)!, now))
