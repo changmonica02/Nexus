@@ -54,7 +54,7 @@ test('real PostgreSQL migration: retry after lost response, event deduplication,
  const branch=createStudyEvent(q.card,q.state,'review',now+1,'other-device','other-event',1);
  assert.equal((await rpc({kind:'event',value:branch})).error,null);
  await syncStudy(repo,client,owner);
- let snapshot=await repo.readDeck('deck',true);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);assert.equal(snapshot.states[0].conflict,false);assert.equal(snapshot.states[0].head,branch.id);
+ let snapshot=await repo.readDeck('deck',true);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);assert.equal(snapshot.states[0].conflict,true);assert.equal(snapshot.states[0].head,event.id);assert.equal(snapshot.states[0].ambiguity.candidates.length,2);
  await repo.updateCard(q.card.id,{},true);await syncStudy(repo,client,owner);
  snapshot=await repo.readDeck('deck',true);assert.equal(snapshot.states[0].conflict,false);assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);
  // The function cannot write another owner and clients cannot directly delete history.

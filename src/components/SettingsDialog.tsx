@@ -6,7 +6,6 @@ import { useLanguage } from "../lib/LanguageContext";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
 import { DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
 import DataSourcesAndCopyright from "./DataSourcesAndCopyright";
-import {getSchedulePolicy,setSchedulePolicy,type SchedulePolicy} from '../features/study/studyReliability';
 import StudyPreferences from "../features/study/components/StudyPreferences";
 import HelpGuide from "./HelpGuide";
 
@@ -15,7 +14,6 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
   const ref = useRef<HTMLDialogElement>(null);
   const { language, setLanguage, t } = useLanguage();
   const [section, setSection] = useState<typeof sections[number]>("一般");
-  const [schedulePolicy,updateSchedulePolicy]=useState(getSchedulePolicy);
   const [showSources,setShowSources]=useState(false);
   const [orderMode, setOrderMode] = useState(getStoredFeatureOrderMode);
   const [order, setOrder] = useState(getStoredCustomFeatureOrder);
@@ -48,9 +46,7 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
             <label className="flex flex-wrap items-center justify-between gap-3">{t("preferences.language")}<select aria-label={t("preferences.language")} className={control} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>{SUPPORTED_LANGUAGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <p className="text-xs leading-6 opacity-60">設定變更會立即套用。主題和語言也可以從側欄的偏好選單快速切換。</p>
           </div>}
-          {section === "字卡與學習" && <div className="space-y-6"><StudyPreferences />            <label className="flex flex-wrap items-center justify-between gap-3">{t("study.conflictPolicy")}<select className={control} value={schedulePolicy} onChange={e=>{const value=e.target.value as SchedulePolicy;setSchedulePolicy(value);updateSchedulePolicy(value);}}><option value="latest">{t("study.policyLatest")}</option><option value="conservative">{t("study.policyConservative")}</option><option value="ask">{t("study.policyAsk")}</option></select></label>
-            <p className="text-xs opacity-60">{t("study.policyHint")}</p>
-</div>}
+          {section === "字卡與學習" && <div className="space-y-6"><StudyPreferences /><p className="text-xs opacity-60">{t("styles.conflict")}</p></div>}
           {section === "功能與導覽" && <div className="space-y-4 text-sm">
             <p className="leading-6 opacity-70">「所有項目」與「日曆」固定在第一排，其他功能可依使用習慣排列。</p>
             <fieldset className="space-y-2"><legend className="mb-2 font-medium">排列方式</legend>{([['recent', '最新使用排列（預設）'], ['default', '預設排列'], ['custom', '自訂排列']] as const).map(([value, label]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-border)" }}><input type="radio" name="feature-order" value={value} checked={orderMode === value} onChange={() => changeMode(value)} />{label}</label>)}</fieldset>

@@ -1,3 +1,4 @@
+import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
 import { QUIZ_STORES } from "../../features/study/quiz/quizPersistence";
@@ -399,6 +400,10 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (backup.study) {
       const study = backup.study;
       if (![study.cards, study.states, study.events, study.settings].every(Array.isArray)) throw new Error("字卡備份格式不完整。");
+      for(const setting of study.settings){if(setting.record_type==='style'){validateStudyStyle(setting.style!);if(setting.id!==setting.style!.id)throw Error('Style identity mismatch');}}
+      const styles=new Set(study.settings.filter(s=>s.record_type==='style').map(s=>s.id));
+      for(const setting of study.settings)if(setting.style_id&&!styles.has(setting.style_id))throw Error('Backup is missing assigned study style');
+      for(const session of study.sessions??[])if(session.settings_snapshot)validateStudyStyle(session.settings_snapshot);
       const cards = new Map(study.cards.map(card => [card.id, card]));
       const events = new Map(study.events.map(event => [event.id, event]));
       if (events.size !== study.events.length || cards.size !== study.cards.length) throw new Error("備份有重複 ID。");
