@@ -15,7 +15,9 @@ import {deleteDictionaryDrafts} from './deleteDrafts';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {VariantEditor} from './variants';
-import {AIExport,AIImport} from './DictionaryAI';
+import DictionaryExchangeExport from './DictionaryExchangeExport';
+import {usePaginationLanguage} from '../../lib/LanguageContext';
+import {AIImport} from './DictionaryAI';
 import {DictionaryModal} from './DictionaryModal';
 import {emptyGrouping,primaryCategories,prefixCategories,readGrouping,readSenseGroups,type DictionaryGrouping,type SenseGroupMap} from './grouping';
 import { getSupabase } from '../../infrastructure/supabase/client';
@@ -193,7 +195,8 @@ export function DictionaryListFilters({kinds,statuses,onKinds,onStatuses}:{kinds
 }
 export function toggleVisibleSelection(entries:DictionaryEntry[],selected:string[]){return entries.length>0&&entries.every(e=>selected.includes(e.id))?[]:entries.map(e=>e.id);}
 export function DictionaryListActions({selectedCount,allSelected,empty,busy,onNew,onImport,onExport,onDelete,onPublish,onSelectAll}:{selectedCount:number;allSelected:boolean;empty:boolean;busy:boolean;onNew:()=>void;onImport:()=>void;onExport:()=>void;onDelete:()=>void;onPublish:()=>void;onSelectAll:()=>void}){
-  return <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>新增</button><button className={button} disabled={busy} onClick={onImport}>匯入</button><button className={button} disabled={busy} onClick={onExport}>匯出</button></div><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||!selectedCount} onClick={onDelete}>刪除</button><button className={button} disabled={busy||!selectedCount} onClick={onPublish}>發布</button><button className={button} disabled={busy||empty} aria-pressed={allSelected} onClick={onSelectAll}>全選</button></div></div>;
+  const {t}=usePaginationLanguage();
+  return <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>新增</button><button className={button} disabled={busy} onClick={onImport}>{t("exchange.import")}</button><button className={button} disabled={busy} onClick={onExport}>{t("exchange.export")}</button></div><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||!selectedCount} onClick={onDelete}>刪除</button><button className={button} disabled={busy||!selectedCount} onClick={onPublish}>{t("exchange.publishPage")}</button><button className={button} disabled={busy||empty} aria-pressed={allSelected} onClick={onSelectAll}>全選</button></div></div>;
 }
 export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
   const [reviews,setReviews]=useState<DictionaryReview[]>([]),[history,setHistory]=useState<{revision:number;snapshot:import('./aiDictionary').AISnapshot}[]>([]),[chosen,setChosen]=useState<DictionaryReview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -244,7 +247,8 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
     return {entry:{id,kind:newKind,headword:'',status:'draft',published_at:null,revision:0,updated_at:''},senses:[{id:crypto.randomUUID(),entry_id:id,part_of_speech:newKind==='word'?'noun':null,gloss_zh_tw:'',revision:0,updated_at:''}],relations:[],etymologies:[],learning_notes:[]};
   }),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const [kinds,setKinds]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[query,setQuery]=useState('');
-  const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('csv');
+  const {t}=usePaginationLanguage();
+  const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('json');
   const [fileText,setFileText]=useState('');
   const [selected,setSelected]=useState<string[]>([]);
   const [modal,setModal]=useState<'new'|'import'|'export'|null>(null),[createKind,setCreateKind]=useState<DictionaryEntry['kind']>('word');
@@ -269,17 +273,18 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
     <DictionaryListActions selectedCount={visibleSelected.length} allSelected={visible.length>0&&visibleSelected.length===visible.length} empty={!visible.length} busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')} onSelectAll={()=>setSelected(toggleVisibleSelection(visible,selected))} onDelete={()=>void action(async()=>{const count=await deleteDictionaryDrafts(getSupabase()!,visibleSelected,async message=>await confirmDialog(message));if(count===null)return;setSelected([]);setMessage(`已刪除 ${count} 筆草稿。`);await refresh();})} onPublish={()=>void action(async()=>{if(!await confirmDialog(`發布目前選取的 ${visibleSelected.length} 筆詞條？請確認所有內容及構詞依據已完成查證。已發布詞條會略過。`))return;let count=0;try{for(const entry of visibleSelected){if(entry.status==='published')continue;await publishDictionaryEntry(getSupabase()!,entry.id);count++;}setSelected([]);setMessage(`已發布 ${count} 筆詞條。`);}finally{await refresh();}})}/>
-    <DictionaryBulkPublish kinds={kinds} query={query} disabled={busy||loading} onPublished={async()=>{setSelected([]);await refresh();}}/>
+    <DictionaryBulkPublish kinds={kinds} query={query} statuses={statuses} disabled={busy||loading} onPublished={async()=>{setSelected([]);await refresh();}}/>
     <p role="status">{loading?'讀取中…':`共 ${total} 筆 · 第 ${page+1} 頁 · 全選僅限本頁`}</p>
     {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
     <Pagination label="管理詞條分頁" page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setSelected([]);setPage(p);}}/>
 
-    {modal==='export'&&<DictionaryModal title="匯出 AI Dictionary JSON" onClose={closeModal} busy={busy}><AIExport initialKind={kinds.length===1?kinds[0]:'all'} query={query} selected={visibleSelected.map(e=>e.id)} onBusy={setBusy}/></DictionaryModal>}
+    {modal==='export'&&<DictionaryModal title={t("exchange.export")} onClose={closeModal} busy={busy}><DictionaryExchangeExport scope={{kinds,statuses,query}} onBusy={setBusy}/></DictionaryModal>}
     {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
     <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setPage(0);setSelected([]);}}/>
     <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setPage(0);setSelected([]);}} onStatuses={values=>{setStatuses(values);setPage(0);setSelected([]);}}/>
     <ul className="min-w-0 divide-y divide-[var(--color-border)]">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2"><input className="shrink-0" disabled={busy} type="checkbox" aria-label={`勾選 ${e.headword}`} checked={selected.includes(e.id)} onChange={event=>setSelected(ids=>event.target.checked?[...ids,e.id]:ids.filter(id=>id!==e.id))}/><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.status==='draft'?'草稿':'已發布'}</Link></li>)}</ul>
-    <>{modal==='import'&&<DictionaryModal title="匯入字典" onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">匯入預覽（只建立草稿，不覆寫衝突內容）</h2>
+    <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
+      <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>
       <details><summary>匯入格式說明 · Dictionary CSV v1（12 欄）</summary><div className="space-y-2 text-sm">
 <p>共通必填：kind、headword、gloss_zh_tw。Word 另需 part_of_speech，category 必須留空。Prefix / Root 另需 category，part_of_speech 必須留空。Root 可使用 etymology。</p>
 <p>可選：entry_id、sense_id、example_words、source_forms、relation_hint、mnemonic_story。每列一義項；同 kind 與正規化拼寫共用 Entry，不同詞性／語義／詞源使用不同義項。既有內容更新須保留穩定 ID；空 ID 僅在預覽時產生一次 proposed UUID；本次寫入使用相同 ID。寫入後請下載含永久 ID 的 CSV，後續修改保留 ID。</p>
@@ -291,12 +296,12 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
 <p>Legacy Word CSV：仍接受舊五欄 entry_id,sense_id,headword,part_of_speech,gloss_zh_tw，視為 kind=word。JSON Bundle 與 Markdown 內容匯入保持相容。</p>
 </div></details>
       <fieldset disabled={busy} className="space-y-3">
-      <p className="text-sm">主要格式：Dictionary CSV v1</p>
-      <details><summary>進階格式／相容匯入</summary><select aria-label="匯入格式" className={control} value={format} onChange={e=>setFormat(e.target.value as 'csv'|'md'|'json'|'ai')}><option value="csv">Dictionary CSV v1（含 Legacy Word CSV 相容）</option><option value="md">Markdown 詞源／記憶內容</option><option value="json">JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></details>
-      <input aria-label="匯入檔案" type="file" accept=".csv,.md,.json" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void action(async()=>{setFileText(await file.text());});}}/>
-      <Field label="檔案內容（可貼上）" multiline value={fileText} onChange={v=>{setFileText(v);}}/>
+      <p className="text-sm">{t("exchange.formatHint")}</p>
+      <label>{t("exchange.inputFormat")}<select aria-label={t("exchange.inputFormat")} className={control} value={format} onChange={e=>setFormat(e.target.value as 'csv'|'md'|'json'|'ai')}><option value="csv">Dictionary CSV v1（含 Legacy Word CSV 相容）</option><option value="md">Markdown 詞源／記憶內容</option><option value="json">Nexus JSON Exchange v1 / Legacy JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></label>
+      <input aria-label={t("exchange.file")} type="file" accept=".csv,.md,.json" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void action(async()=>{if(file.size>64*1024*1024)throw Error("File exceeds 64 MiB");const text=await file.text();let nextFormat:typeof format=file.name.toLowerCase().endsWith(".csv")?"csv":file.name.toLowerCase().endsWith(".md")?"md":"json";if(nextFormat==="json"){try{if(JSON.parse(text.replace(/^\uFEFF/,'')).format==="nexus-dictionary-ai")nextFormat="ai";}catch{}}setFormat(nextFormat);setFileText(text);});}}/>
+      <Field label={t("exchange.pasteFile")} multiline value={fileText} onChange={v=>{setFileText(v);}}/>
       </fieldset>
-      {format==='ai'?<AIImport key={fileText} raw={fileText} onBusy={setBusy} onSaved={()=>refresh()}/>:<DictionaryImportReview raw={fileText} format={format} onBusy={setBusy} onSaved={()=>refresh()}/>}
+      {format==='ai'?<AIImport key={fileText} raw={fileText} onBusy={setBusy} onSaved={()=>refresh()}/>:<DictionaryImportReview raw={fileText} format={format} onBusy={setBusy} onSaved={()=>{setFileText('');return refresh();}}/>}
     </section>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}</DictionaryModal>}</>
     {modal!=='import'&&message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}
   </div>;

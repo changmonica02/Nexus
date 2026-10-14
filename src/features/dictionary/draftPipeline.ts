@@ -14,7 +14,7 @@ export interface DictionaryDraftInput {
   pronunciations?:DraftRow[]; inflections?:DraftRow[];
   etymologies:DraftRow[]; learning_notes:DraftRow[]; relations:DraftRow[];
   examples:DraftRow[]; lexical_annotations:DraftRow[]; relation_hints:DraftRow[];
-  grouping?:DictionaryGrouping; row?:number; proposed_ids?:string[];
+  component_order?:string[]; grouping?:DictionaryGrouping; row?:number; proposed_ids?:string[];
 }
 export interface DraftIssue {row:number;field:string;kind:string;error:string}
 export class DraftValidationError extends Error {
@@ -86,7 +86,7 @@ export function draftsFromBundle(bundle:Bundle,grouping?:DictionaryGrouping,sens
 export function mapDictionaryDraft(d:DictionaryDraftInput){
   const own=(rows:DraftRow[])=>rows.map(r=>({...strip(r),entry_id:d.entry_id}));
   const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations.map(compositionRow)),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
-  return {origin:{row:d.row??1,kind:d.kind},bundle,group_data:d.grouping??null,sense_groups:d.senses.filter(s=>s.category!==undefined).map(s=>({sense_id:s.id,primary_category:s.category})),
+  return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),origin:{row:d.row??1,kind:d.kind},bundle,group_data:d.grouping??null,sense_groups:d.senses.filter(s=>s.category!==undefined).map(s=>({sense_id:s.id,primary_category:s.category})),
     inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.lexical_annotations.map(r=>({...r,kind:'source_forms'})),...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
 }
 type Client=Pick<SupabaseClient,'rpc'>;
