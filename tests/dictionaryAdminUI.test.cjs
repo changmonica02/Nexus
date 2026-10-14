@@ -164,7 +164,8 @@ test('dictionary toolbar keeps only create, import and export without row select
  const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
  assert.ok(!html.includes('>全選</button>'));assert.ok(!html.includes('>刪除</button>'));assert.ok(!html.includes('>本頁選取發布</button>'));
  assert.match(render({busy:true}),/disabled=""/);
- const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));assert.ok(!source.includes('aria-label={\`勾選'));
+ const publishing=fs.readFileSync('src/features/dictionary/DictionaryBulkPublish.tsx','utf8');assert.match(publishing,/kind_filters:\[\],query_text:''/);assert.match(publishing,/kinds:\[\],query:''/);
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));assert.ok(!source.includes('aria-label={'+String.fromCharCode(96)+'勾選'));
 });
 test('multi-select types and statuses intersect with search; empty groups impose no restriction',()=>{
  const rows=[{id:'a',kind:'word',status:'draft',headword:'alpha'},{id:'b',kind:'prefix',status:'published',headword:'alpha-'},{id:'c',kind:'root',status:'draft',headword:'cap'},{id:'d',kind:'word',status:'published',headword:'beta'}];
