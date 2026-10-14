@@ -79,16 +79,16 @@ test('dictionary modal is bounded, scrollable and cancels through the guarded cl
 // Defer functional updaters as React may do after a controlled select's DOM value
 // is restored. This catches retaining the event/DOM node instead of its value.
 async function withEditorState(props,run){
-  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef;
+  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef,originalContext=React.useContext;
   const values=[],pending=[];let cursor=0;
   React.useState=initial=>{
     const index=cursor++;
     if(index>=values.length)values.push(typeof initial==='function'?initial():initial);
     return [values[index],value=>pending.push(()=>{values[index]=typeof value==='function'?value(values[index]):value;})];
   };
-  React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
+  React.useContext=()=>null;React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
   const render=()=>{while(pending.length)pending.shift()();cursor=0;return DictionaryEditor(props);};
-  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;}
+  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;React.useContext=originalContext;}
 }
 function nodes(root){
   if(Array.isArray(root))return root.flatMap(nodes);
@@ -150,13 +150,13 @@ test('Root category snapshots selection and saves unchanged tags via existing gr
   }finally{supabase.getSupabase=original;}
 });
 
-const {visibleAdminEntries,toggleVisibleSelection,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
-test('list select-all toggles only rendered search/type results and excludes hidden selections',()=>{
+const {visibleAdminEntries,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
+test('list filtering retains search/type behavior without selection controls',()=>{
  const entries=[{id:'a',headword:'alpha',kind:'word'},{id:'b',headword:'beta',kind:'word'},{id:'c',headword:'alpha-',kind:'prefix'}];
  const visible=visibleAdminEntries(entries,'word','ALP');assert.deepEqual(visible.map(e=>e.id),['a']);
- assert.deepEqual(toggleVisibleSelection(visible,['c']),['a']);assert.deepEqual(toggleVisibleSelection(visible,['a','c']),[]);
- assert.deepEqual(toggleVisibleSelection([],['c']),[]);
- assert.deepEqual(toggleVisibleSelection(entries,[]),['a','b','c']);
+ assert.deepEqual(visibleAdminEntries(entries,'prefix','ALP').map(e=>e.id),['c']);
+ assert.deepEqual(visibleAdminEntries(entries,[],'missing'),[]);
+ assert.deepEqual(visibleAdminEntries(entries,[],'').map(e=>e.id),['a','b','c']);
 });
 test('dictionary toolbar keeps only create, import and export without row selection actions',()=>{
  const props={busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{}};
@@ -171,7 +171,7 @@ test('multi-select types and statuses intersect with search; empty groups impose
  const rows=[{id:'a',kind:'word',status:'draft',headword:'alpha'},{id:'b',kind:'prefix',status:'published',headword:'alpha-'},{id:'c',kind:'root',status:'draft',headword:'cap'},{id:'d',kind:'word',status:'published',headword:'beta'}];
  assert.deepEqual(visibleAdminEntries(rows,[],'',[]),rows);
  assert.deepEqual(visibleAdminEntries(rows,['word','prefix'],'ALP',['draft','published']).map(r=>r.id),['a','b']);
- const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(toggleVisibleSelection(visible,['b']),['a','c']);
+ const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(visible.map(e=>e.id),['a','c']);
  assert.deepEqual(visibleAdminEntries(rows,['prefix'],'',['draft']),[]);
  const {DictionaryListFilters}=require('../src/features/dictionary/DictionaryAdmin.tsx');
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));

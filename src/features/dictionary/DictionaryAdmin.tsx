@@ -29,6 +29,7 @@ import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
 import {deleteDraftSense,deleteDraftContent,withoutSense} from './draftEditing';
+import {deleteDictionaryDrafts} from './deleteDrafts';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
 const control='w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm text-[var(--color-text)]';
@@ -55,7 +56,8 @@ export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technic
     </article>)}
   </section>)}</div>;
 }
-export function DictionaryEditor({detail,entries,onSaved,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onPublish?:()=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
+export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onDeleted?:()=>void;onPublish?:()=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
+  const {t}=usePaginationLanguage();
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:(detail.pronunciations??[]).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
   const [grouping,setGrouping]=useState(initialGrouping);
@@ -90,6 +92,15 @@ export function DictionaryEditor({detail,entries,onSaved,initialGrouping=emptyGr
     }catch(e){setMessage(e instanceof Error?e.message:String(e));return false;}finally{setBusy(false);}
   };
   const navigation=useUnsavedDraft(dirty,busy||publicationBusy,()=>save());
+  const removeDraft=async()=>{
+    if(busy||publicationBusy||!onDeleted||saveReview||detail.entry.status!=='draft'||detail.entry.revision===0)return;
+    setBusy(true);setMessage('');
+    try{
+      const removed=await deleteDictionaryDrafts(getSupabase()!,[{...detail.entry,revision:Number(baseline.dictionary_entries[0].revision)}],()=>confirmDialog({title:t('dictionary.deleteDraft'),message:t('dictionary.confirmDeleteDraft',{name:detail.entry.headword}),confirmLabel:t('dictionary.deleteDraft'),danger:true}));
+      if(removed===1)navigation.leave(onDeleted);
+      else if(removed!==null)throw Error('Invalid draft deletion response; reload before retrying');
+    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+  };
   const removeSense=async(row:Row)=>{
     if(busy||locked)return;
     setMessage('');
@@ -179,6 +190,7 @@ export function DictionaryEditor({detail,entries,onSaved,initialGrouping=emptyGr
     </fieldset>
     <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle),detail.entry.kind==='word'?undefined:grouping,senseGroups),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>切換完整預覽</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
+    {onDeleted&&!saveReview&&detail.entry.status==='draft'&&detail.entry.revision>0&&<button type="button" className={button} disabled={busy||publicationBusy} onClick={()=>void removeDraft()}>{t('dictionary.deleteDraft')}</button>}
     <details><summary>編輯內容備份與版本資訊</summary><p>儲存失敗時，可下載目前輸入，再重新載入比對；備份不會發布。</p><a className={button} download="dictionary-editor-backup.json" href={'data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify({format:'nexus-dictionary-editor-backup',version:1,draft:draftsFromBundle(prepareEditorBundle(bundle),grouping,senseGroups)[0]},null,2))}>下載目前編輯內容</a></details>
     {reviewDraft&&<p>這是舊版複製型審核草稿，沒有可靠的 base revision，不能直接核准。請從原 Published 建立新版 Review Draft 並重新比對；舊資料保留。</p>}
   </section>;
@@ -192,7 +204,6 @@ export function visibleAdminEntries(entries:DictionaryEntry[],kinds:string[]|str
 export function DictionaryListFilters({kinds,statuses,onKinds,onStatuses}:{kinds:string[];statuses:string[];onKinds:(values:string[])=>void;onStatuses:(values:string[])=>void}){
   return <div className="flex min-w-0 flex-wrap gap-4">{[{title:'類型',values:kinds,options:labels,change:onKinds},{title:'狀態',values:statuses,options:{draft:'草稿',published:'已發布'},change:onStatuses}].map(group=><fieldset key={group.title} className="min-w-0"><legend className="mb-2 text-sm">{group.title}</legend><div className="flex flex-wrap gap-3">{Object.entries(group.options).map(([value,label])=><label key={value} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={group.values.includes(value)} onChange={e=>group.change(e.target.checked?[...group.values,value]:group.values.filter(v=>v!==value))}/>{label}</label>)}</div></fieldset>)}</div>;
 }
-export function toggleVisibleSelection(entries:DictionaryEntry[],selected:string[]){return entries.length>0&&entries.every(e=>selected.includes(e.id))?[]:entries.map(e=>e.id);}
 export function DictionaryListActions({busy,onNew,onImport,onExport}:{busy:boolean;onNew:()=>void;onImport:()=>void;onExport:()=>void}){
  const {t}=usePaginationLanguage();
  return <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>新增</button><button className={button} disabled={busy} onClick={onImport}>{t("exchange.import")}</button><button className={button} disabled={busy} onClick={onExport}>{t("exchange.export")}</button></div>;
@@ -268,7 +279,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   const visible=entries;
 
   if(detail?.entry.status==='published')return <PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh}/>;
-  if(detail)return <DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh}/>;
+  if(detail)return <DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
     <DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/>
