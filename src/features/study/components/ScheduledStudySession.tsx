@@ -99,7 +99,7 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
     </>:<div className="space-y-3 py-8 text-center">
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
       {!practice&&session?.completed_at!=null&&<>
-        <p>{t('study.remaining',{n:status?.remainingDue??0})}</p>
+
 
       </>}
     </div>}
