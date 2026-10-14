@@ -30,7 +30,7 @@ test('cross-day Learning/Relearning counts toward 50; intraday steps interrupt w
  let p=planScheduled(s,now);assert.equal(p.cards.length,50);assert.equal(p.shortIds.size,0);
  s.states[0].fsrs.last_review=now-600000;s.states[0].fsrs.due=now;
  s.states[1].fsrs.last_review=now-600000;s.states[1].fsrs.due=now+600000;
- p=planScheduled(s,now);assert.equal(p.cards.length,52);assert.equal(p.shortIds.size,2);assert.equal(p.cards[0].id,'c0');assert.equal(isShortStep(s.states[1],now),true);
+ p=planScheduled(s,now);assert.equal(p.cards.length,50);assert.equal(p.shortIds.size,2);assert.equal(p.cards[0].id,'c0');assert.equal(isShortStep(s.states[1],now),true);
 });
 test('local midnight keeps unfinished card state and new usage follows introduction day',async()=>{
  const f=await fixture(2);try{await f.repo.configure('deck',{new_limit:1});const late=new Date(2026,9,13,23,55).getTime();const session=await f.repo.startSession('deck','scheduled',late);await grade(f.repo,session.id,1,late);const snapshot=await f.repo.readDeck('deck',true),due=snapshot.states.find(s=>s.fsrs).fsrs.due;assert.notEqual(localStudyDay(late),localStudyDay(due));assert.ok((await f.repo.readSession(session.id,late)).session.completed_at,'tomorrow’s step is not studied early');const next=await f.repo.startSession('deck','scheduled',due);assert.equal(next.targets.filter(t=>t.counts_toward_limit).length,2);assert.equal(dailyNewUsed(await f.repo.readScheduledDeck('deck',due),due),0);assert.deepEqual((await f.repo.readDeck('deck',true)).states,snapshot.states);}finally{await f.close();}
@@ -59,4 +59,27 @@ test('due Review Again enters true Relearning; repeated actual due grade returns
 });
 test('empty endless practice is a stable empty state with no formal history or scheduling writes',async()=>{
  const f=await fixture(0);try{await f.repo.configure('deck',{study_mode:'endless'});const formal=await f.repo.startSession('deck','scheduled',now),before=await f.repo.readDeck('deck',true);const practice=await f.repo.startPractice(formal.id,now);assert.equal(practice.targets.length,0);assert.ok(practice.completed_at);const after=await f.repo.readDeck('deck',true);assert.deepEqual(after.states,before.states);assert.deepEqual(after.events,before.events);}finally{await f.close();}
+});
+
+test('endless early formal reviews update FSRS due and stay inside batch cap',async()=>{
+ const f=await fixture(2);try{
+  await f.repo.configure('deck',{study_mode:'scheduled',new_limit:2});
+  const first=await f.repo.startSession('deck','scheduled',now);
+  await grade(f.repo,first.id,3,now);await grade(f.repo,first.id,3,now+1);
+  await f.repo.configure('deck',{study_mode:'endless',new_limit:0,review_limit:1});
+  const second=await f.repo.startSession('deck','scheduled',now+1000);
+  assert.equal(second.targets.length,1);assert.equal(second.targets[0].early_review,true);
+  const before=(await f.repo.readDeck('deck',true)).states.find(s=>s.id===second.targets[0].card_id).fsrs.due;
+  await grade(f.repo,second.id,3,now+1000);
+  const after=(await f.repo.readDeck('deck',true)).states.find(s=>s.id===second.targets[0].card_id).fsrs.due;
+  assert.notEqual(after,before);
+ }finally{await f.close();}
+});
+test('200 due cards suspend introducing new cards in either study mode',()=>{
+ const s=pure(200),newCard={...s.cards[0],id:'fresh',sort_order:200};s.cards.push(newCard);s.states.push(emptyStudyState(newCard));
+ s.settings.study_mode='endless';s.settings.new_limit=20;s.settings.review_limit=50;
+ assert.equal(planScheduled(s,now).cards.length,50);
+ assert.equal(planScheduled(s,now).cards.some(c=>c.id==='fresh'),false);
+ s.settings.study_mode='scheduled';assert.equal(planScheduled(s,now).cards.some(c=>c.id==='fresh'),false);
+ s.settings.new_pause_threshold=201;assert.equal(planScheduled(s,now).cards[0].id,'fresh');
 });
