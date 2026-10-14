@@ -159,12 +159,13 @@ export class StudyRepository {
       throw error;
     }
   }
-  async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"sort_mode"|"quiz_direction"|"study_mode"|"card_order"|"review_order">>) {
+  async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"new_pause_threshold"|"sort_mode"|"quiz_direction"|"study_mode"|"card_order"|"review_order">>) {
     if (patch.study_mode != null && !["scheduled","endless"].includes(patch.study_mode)) throw new Error("無效學習模式。");
     if (patch.card_order != null && !["new-first","mixed","review-first"].includes(patch.card_order)) throw new Error("無效出卡順序。");
     if (patch.review_order != null && !["due","retrievability","random"].includes(patch.review_order)) throw new Error("無效複習排序。");
     if (patch.quiz_direction != null && !["zh-en","en-zh"].includes(patch.quiz_direction)) throw new Error("無效測驗方向。");
     if (patch.new_limit != null && (!Number.isInteger(patch.new_limit) || patch.new_limit < 0 || patch.new_limit > 10000)) throw new Error("每日新字數須為 0–10000 的整數。");
+    if (patch.new_pause_threshold != null && (!Number.isInteger(patch.new_pause_threshold) || patch.new_pause_threshold < 1 || patch.new_pause_threshold > 10000)) throw new Error("暫停新卡門檻須為 1–10000 的整數。");
     if (patch.review_limit != null && (!Number.isInteger(patch.review_limit) || patch.review_limit < 1 || patch.review_limit > 10000)) throw new Error("單次複習數量須為 1–10000 的整數。");
     if (patch.sort_mode != null && !["custom","az"].includes(patch.sort_mode)) throw new Error("無效排序模式。");
     const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
@@ -354,7 +355,7 @@ export class StudyRepository {
       let event:StudyEvent|undefined;
       if(session.mode==="scheduled") {
         if(isUnintroduced(state))throw new Error("請先正式呈現新卡。");
-        if(dueAt(state,now)>now)throw new Error("此卡尚未到期。");
+        if(dueAt(state,now)>now && !(session.study_mode==="endless" && target.early_review && !target.official_event_id && !isShortStep(state,now)))throw new Error("此卡尚未到期。");
         event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled");
         event.session_id=session.id;event.session_rating=rating;
         target.official_event_id=event.id;target.official_rating=rating;

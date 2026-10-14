@@ -38,6 +38,7 @@ export interface StudySettings {
   direction_confirmed: boolean; updated_at: number; schema: 2;
   configured?: boolean;
   review_limit?: number;
+  new_pause_threshold?: number;
   study_mode?: "scheduled" | "endless";
   card_order?: "new-first" | "mixed" | "review-first";
   review_order?: "due" | "retrievability" | "random";
