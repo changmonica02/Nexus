@@ -14,6 +14,7 @@ export interface SessionTarget {
   attempts: number;
   counts_toward_limit?: boolean;
   skipped?: boolean;
+  early_review?: boolean;
 }
 export interface StudySession {
   id: string; owner_id: string | null; deck_id: string;
