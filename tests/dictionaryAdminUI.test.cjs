@@ -158,15 +158,14 @@ test('list select-all toggles only rendered search/type results and excludes hid
  assert.deepEqual(toggleVisibleSelection([],['c']),[]);
  assert.deepEqual(toggleVisibleSelection(entries,[]),['a','b','c']);
 });
-test('list toolbar always shows ordered actions with disabled empty selection and wrapping layout',()=>{
- const props={selectedCount:0,allSelected:false,empty:false,busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{},onDelete:()=>{},onPublish:()=>{},onSelectAll:()=>{}};
+test('dictionary toolbar keeps only create, import and export without row selection actions',()=>{
+ const props={busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{}};
  const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
- const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料','刪除','本頁選取發布','全選']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
- for(const label of ['刪除','本頁選取發布']){assert.match(html,new RegExp('<button[^>]*disabled=""[^>]*>'+label));assert.ok(!new RegExp('<button[^>]*disabled=""[^>]*>'+label).test(render({selectedCount:1})));}
- assert.match(render({allSelected:true}),/aria-pressed="true"/);assert.match(html,/flex-wrap/);assert.match(html,/disabled:opacity-40/);
- const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));
+ const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
+ assert.ok(!html.includes('>全選</button>'));assert.ok(!html.includes('>刪除</button>'));assert.ok(!html.includes('>本頁選取發布</button>'));
+ assert.match(render({busy:true}),/disabled=""/);
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));assert.ok(!source.includes('aria-label={\`勾選'));
 });
-
 test('multi-select types and statuses intersect with search; empty groups impose no restriction',()=>{
  const rows=[{id:'a',kind:'word',status:'draft',headword:'alpha'},{id:'b',kind:'prefix',status:'published',headword:'alpha-'},{id:'c',kind:'root',status:'draft',headword:'cap'},{id:'d',kind:'word',status:'published',headword:'beta'}];
  assert.deepEqual(visibleAdminEntries(rows,[],'',[]),rows);
