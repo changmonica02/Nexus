@@ -79,16 +79,16 @@ test('dictionary modal is bounded, scrollable and cancels through the guarded cl
 // Defer functional updaters as React may do after a controlled select's DOM value
 // is restored. This catches retaining the event/DOM node instead of its value.
 async function withEditorState(props,run){
-  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef;
+  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef,originalContext=React.useContext;
   const values=[],pending=[];let cursor=0;
   React.useState=initial=>{
     const index=cursor++;
     if(index>=values.length)values.push(typeof initial==='function'?initial():initial);
     return [values[index],value=>pending.push(()=>{values[index]=typeof value==='function'?value(values[index]):value;})];
   };
-  React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
+  React.useContext=()=>null;React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
   const render=()=>{while(pending.length)pending.shift()();cursor=0;return DictionaryEditor(props);};
-  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;}
+  try{await run(render);}finally{React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;React.useContext=originalContext;}
 }
 function nodes(root){
   if(Array.isArray(root))return root.flatMap(nodes);
@@ -150,28 +150,28 @@ test('Root category snapshots selection and saves unchanged tags via existing gr
   }finally{supabase.getSupabase=original;}
 });
 
-const {visibleAdminEntries,toggleVisibleSelection,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
-test('list select-all toggles only rendered search/type results and excludes hidden selections',()=>{
+const {visibleAdminEntries,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
+test('list filtering retains search/type behavior without selection controls',()=>{
  const entries=[{id:'a',headword:'alpha',kind:'word'},{id:'b',headword:'beta',kind:'word'},{id:'c',headword:'alpha-',kind:'prefix'}];
  const visible=visibleAdminEntries(entries,'word','ALP');assert.deepEqual(visible.map(e=>e.id),['a']);
- assert.deepEqual(toggleVisibleSelection(visible,['c']),['a']);assert.deepEqual(toggleVisibleSelection(visible,['a','c']),[]);
- assert.deepEqual(toggleVisibleSelection([],['c']),[]);
- assert.deepEqual(toggleVisibleSelection(entries,[]),['a','b','c']);
+ assert.deepEqual(visibleAdminEntries(entries,'prefix','ALP').map(e=>e.id),['c']);
+ assert.deepEqual(visibleAdminEntries(entries,[],'missing'),[]);
+ assert.deepEqual(visibleAdminEntries(entries,[],'').map(e=>e.id),['a','b','c']);
 });
-test('list toolbar always shows ordered actions with disabled empty selection and wrapping layout',()=>{
- const props={selectedCount:0,allSelected:false,empty:false,busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{},onDelete:()=>{},onPublish:()=>{},onSelectAll:()=>{}};
+test('dictionary toolbar keeps only create, import and export without row selection actions',()=>{
+ const props={busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{}};
  const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
- const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料','刪除','本頁選取發布','全選']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
- for(const label of ['刪除','本頁選取發布']){assert.match(html,new RegExp('<button[^>]*disabled=""[^>]*>'+label));assert.ok(!new RegExp('<button[^>]*disabled=""[^>]*>'+label).test(render({selectedCount:1})));}
- assert.match(render({allSelected:true}),/aria-pressed="true"/);assert.match(html,/flex-wrap/);assert.match(html,/disabled:opacity-40/);
- const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));
+ const html=render({});let last=-1;for(const label of ['新增','匯入資料','匯出資料']){const index=html.indexOf('>'+label+'</button>');assert.ok(index>last);last=index;}
+ assert.ok(!html.includes('>全選</button>'));assert.ok(!html.includes('>刪除</button>'));assert.ok(!html.includes('>本頁選取發布</button>'));
+ assert.match(render({busy:true}),/disabled=""/);
+ const publishing=fs.readFileSync('src/features/dictionary/DictionaryBulkPublish.tsx','utf8');assert.match(publishing,/kind_filters:\[\],query_text:''/);assert.match(publishing,/kinds:\[\],query:''/);
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('max-h-64 overflow-auto'));assert.ok(source.includes('{visible.map'));assert.ok(source.includes('overflow-wrap:anywhere'));assert.ok(!source.includes('aria-label={'+String.fromCharCode(96)+'勾選'));
 });
-
 test('multi-select types and statuses intersect with search; empty groups impose no restriction',()=>{
  const rows=[{id:'a',kind:'word',status:'draft',headword:'alpha'},{id:'b',kind:'prefix',status:'published',headword:'alpha-'},{id:'c',kind:'root',status:'draft',headword:'cap'},{id:'d',kind:'word',status:'published',headword:'beta'}];
  assert.deepEqual(visibleAdminEntries(rows,[],'',[]),rows);
  assert.deepEqual(visibleAdminEntries(rows,['word','prefix'],'ALP',['draft','published']).map(r=>r.id),['a','b']);
- const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(toggleVisibleSelection(visible,['b']),['a','c']);
+ const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(visible.map(e=>e.id),['a','c']);
  assert.deepEqual(visibleAdminEntries(rows,['prefix'],'',['draft']),[]);
  const {DictionaryListFilters}=require('../src/features/dictionary/DictionaryAdmin.tsx');
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));

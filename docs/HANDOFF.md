@@ -1,32 +1,27 @@
-# Nexus — 當前交接（2026-10-13）
+# Nexus — 當前交接（2026-10-14）
 
-> 只記錄**當前事實、待辦、阻礙及下一步**。產品需求看 `docs/SPEC.md`，已實作技術及資料契約看 `docs/ARCHITECTURE.md`，歷程及決策看 `docs/HISTORY.md`，開發規則看 `AGENTS.md`，任務細節及驗收清單以 GitHub Issues 為準。歷次報告、舊任務目錄及已退場方案不在此重述；需要溯源時查 Git 歷史。
+產品契約看 SPEC；已完成技術看 ARCHITECTURE；本頁只記錄現況與下一步。HISTORY本輪未查看／修改。
 
-## 已完成／已確認
+## 已確認
 
-- **main基準**：PR #46、#50、#51、#52、#54 已合併；#54僅核實Git合併，不由此推論獨立正式Ready／驗收；#52 merge commit `3d4bfaa9914a8603a123cba5f9d78ce19835a406`。GitHub 合併分支自動刪除已由使用者啟用。
-- **正式 Supabase**：已套用 `20261020_dictionary_edit_inflections.sql`、`20261021_dictionary_composition_shared.sql`、`20261013064759_dictionary_pagination_totals.sql`。最後一項遠端 ledger 為 `20261013072108 dictionary_pagination_totals_20261013`；搜尋 RPC 具有 `total`。套用後唯讀查得 6,301 Entries／6,305 Senses／4 Review Drafts（動態數字，非固定規格）。
-- **#42** 已完成使用者正式環境驗收並結案。#41 原有 Published 直接編輯、儲存 Review Draft、同頁發布等核心流程曾由使用者驗收。
-- **#49** 使用者回報正式網站以下三項人工驗收通過：總頁數呈現、點擊頁碼以 Enter／手機完成跳轉、無效輸入留在原頁且保留搜尋／篩選。Codex 本輪相關測試 100/100、TypeScript 與 Build 通過、ESLint 0 errors／468 warnings。
-- **證據界線**：#52 GitHub Commit 的 Vercel check 為 success，使用者亦回報正式網站功能已測；Vercel API 尚無法獨立查閱 Production Ready（連線 403）。不要把 Preview 或單一 CI check 當作獨立正式部署證據。
+- main基準 `8024ab2`：PR #54、#56已合併；PR #57仍為開發分支，未合併。合併main會觸發Vercel Production，不以Git合併或Preview推論正式Ready／人工驗收。
+- 正式Supabase **唯讀核對**：#41／#42、分頁及#44 ledger存在；#44遠端為 `20261014040405 dictionary_bulk_exchange_20261013084116`，對應repo `20261013084116_dictionary_bulk_exchange.sql`。刪除／全域發布／報告RPC及authenticated／anon ACL已核對。本輪沒有正式Migration、資料刪除／寫入／發布或部署。
+- #42已完成使用者實機驗收並結案。#49三項正式人工驗收已有回報，Issue仍開啟。#41核心直接編輯已驗收，舊Review不覆寫較新Published仍缺人工驗收證據。
+- GitHub #47／#48已結案；PR #54已合併，沿用使用者不另做人工驗收的決定。本輪逐項程式／測試核對符合SPEC，沒有重寫學習流程或將新功能混入#57。
 
-## 尚未完成／需追蹤
+## 当前交付與待辦
 
-| Issue | 目前狀態 | 下一步 |
+| 工作 | 實際狀態 | 下一步 |
 | --- | --- | --- |
-| [#41](https://github.com/changmonica02/Nexus/issues/41) Published 編輯 | 權限、Review Draft、版本衝突及 Published 保護的自動測試通過；**舊 Review Draft 不覆寫較新 Published 尚未人工驗證** | 依使用者決定暫保留自動測試證據，若要完整人工驗收再補做；不得誤記為通過 |
-| [#49](https://github.com/changmonica02/Nexus/issues/49) 共用分頁 | 新版已合併，三項正式人工驗收已回報通過，Issue 仍開啟 | 核對 Issue 驗收範圍後決定結案；不要把 #41 的待驗項混作 #49 未完成 |
-| [#47](https://github.com/changmonica02/Nexus/issues/47) 學習 Session | PR #54 完成統一學習／正式排程／無盡練習，相關自動測試通過；使用者決定本次不另做人工驗收 | 合併 #54 後以本次測試證據結案；Session 本機保存，跨裝置不接續相同進度 |
-| [#48](https://github.com/changmonica02/Nexus/issues/48) 偏好設定 | PR #54 完成功能化分類與各學習集同步設定；相關自動測試通過；使用者決定本次不另做人工驗收 | 與 #47 同步合併、結案 |
-| [#44](https://github.com/changmonica02/Nexus/issues/44) 大量匯入／匯出 | #44 已開發完整JSON交換、批次匯入／發布與本機恢復；115項自動case通過，**未部署／正式驗收** | 審查PR #56（已修正完整匯出戳及本機儲存失敗恢復）；先批准本次SQL、再批准合併／部署，正式驗收後人工結案 |
+| PR #57 管理字典 | 移除清單選取／全選／本頁發布／批次刪除；全域發布不受瀏覽條件影響；persisted Draft編輯頁安全單筆刪除已實作／測試 | 審查及另行批准合併；部署後最少確認：篩選／搜尋下全域預覽範圍不變，單筆刪除取消／成功返回刷新，Published無刪除入口 |
+| #44 大量交換 | PR #56已合併，正式SQL ledger與函式已核實；Issue仍開啟 | 確認正式完整匯出／匯入、Published只進Review及手機恢復的最終驗收；完成後人工結案，不重播Migration |
+| #41 Published編輯 | 既有權限／Review／衝突保護回歸通過 | 若要求完整人工驗收，補測舊Review遇較新Published；本輪未冒稱通過 |
+| #49 分頁 | 使用者正式三項驗收已回報，Issue仍開啟 | 依管理流程人工結案 |
 
-## 開發與部署注意事項
+## 本輪驗證與限制
 
-- 一人使用、單一正式 Supabase、資料現為測試資料；優先精簡開發流程，維持必要的權限、版本安全與 Schema 相容檢查。
-- 新需求先對照 Issue／SPEC。Codex 從最新 `main` 建分支，完成實作、測試後更新 ARCHITECTURE／必要進度文件，使用 PR；**合併至 main 會觸發 Vercel 正式部署**。
-- #47／#48 交付測試：單元／整合93/93、桌面／平板／手機瀏覽器1/1，TypeScript／Build 通過，ESLint 0 errors／467既有 warnings；依使用者決定本次略過人工驗收，正式部署仍由 PR 合併後的 Vercel 進行。
-- #47／#48 不需 Migration；正式四表／RLS／RPC 已唯讀核對，隔離 SQL 測試通過。兩台同時離線的新卡配額仍受既有同步邊界限制，勿宣稱全域原子配額；Session 進度僅本機保存。
-- #44待批准SQL：`20261013084116_dictionary_bulk_exchange.sql`（依賴現有#41/#42及四參數批次發布）。唯讀schema／ledger已核對；不重播歷史Migration。TypeScript／Build通過，ESLint 0 errors／467既有 warnings。最低正式確認：完整匯出原樣比對、Published修改只進Review、手機暫停／刷新恢復及確認發布。
-- 新增正式 Supabase Migration 先核對既有遠端 ledger 及依賴，取得使用者授權後才套用；涉及前端依賴時依序先 SQL、後部署。
-- Issue 須按實際正式環境驗收狀況人工結案；PR 請使用 `Refs #...`，不要以 `Closes/Fixes` 自動關閉。
-- 不要依照舊 HANDOFF 快照重新執行 13 份詞庫匯入或歷史 migration；後續以正式資料庫現況及最新 Issue 為準。
+- 字典116/116＋學習35/35單元／整合，瀏覽器3/3，共154項；TypeScript／Production Build通過，ESLint 0 errors／467既有warnings。詳細範圍與初次fixture修正見PR #57／ARCHITECTURE；沒有刪除、跳過測試。
+- 本次無新增Migration、權限或資料模型變更。普通使用者／Published／revision／外部關聯保護沿用既有RPC；Review及歷史保留。
+- 字卡既有界線：各學習集設定；舊有效上限保留，未設定fallback50／新集每日新卡20；同裝置Session，兩台同時離線不能原子共享新卡額度。均已在SPEC說明，不擴充本次UI PR。
+- #44作業仍只支援同裝置恢復；舊篩選發布作業不顯示為全域續作，原本機紀錄保留。
+- 正式環境／實機验收未由本輪隔離測試取代。PR使用Refs，不自動關Issue；正式Migration、合併與部署需另行授權。不要重播歷史SQL或13份舊詞庫匯入。

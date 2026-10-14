@@ -1,6 +1,6 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-> 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 完整 JSON 交換及批次操作已在 PR #56 實作／隔離測試，正式 Migration／部署／驗收仍待批准。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
+> 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 的管理 UI／單筆刪除已在分支實作與測試，尚未合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
 ## 一、不可推翻的架構與權限原則
@@ -282,12 +282,12 @@ offline / reconnect / delete / attachment / backup import 行為
 - **變更與發布**：已發布 Entry 的新修改進入 Draft／review，管理員確認才切換 Published；批次匯入也走相同生命週期，避免匯入即公開。
 - **刪除**：區分未發布草稿清除與已發布詞條處置；已發布詞條若存在私人字卡連結／官方包引用，必須先有引用完整性策略（限制刪除、退役或保留可查引用等）。**具體刪除語意尚待核准，不得任意 hard delete**。
 
-### D. CSV 匯入／匯出（現行舊介面與待改進交換格式）
+### D. CSV 相容匯入／匯出（完整交換見 #44）
 
-- **管理端匯入操作（現行基線，#44 可改善格式）**：管理字典 →「匯入」→浮動視窗 → 選擇受支援的交換檔案 → 解析／驗證 → 預覽（Safe、Review、Invalid）→ 確認寫入 Draft → 審核／發布。Word／Prefix／Root 均必須有可定義的 CSV 處理方式。
+- **CSV 相容匯入操作**：管理字典 →「匯入」→浮動視窗 → 選擇受支援的交換檔案 → 解析／驗證 → 預覽（Safe、Review、Invalid）→ 確認寫入 Draft → 審核／發布。Word／Prefix／Root 均必須有可定義的 CSV 處理方式。
 - **現有格式差異**：`dictionaryCSV.ts` 含 12 欄 Dictionary CSV v1 和 Word 舊五欄；`adminImport.ts`／DictionaryAdmin 仍含 Markdown／JSON／AI 相容路徑。Codex 必須先確認這些路徑是否被其他內部／migration／管理工具呼叫，再移除或封存不屬於管理 UI 的功能。
 - **資料無損要求**：CSV 欄位契約需可完整表達產品要求的多 Sense、Entry／Sense 讀音、變體、詞源及構詞關係，或明確定義 CSV 對這些內容僅部分支援並由管理 UI 防止不完整匯出／覆寫。**在使用者核准完整 CSV schema 前，不得聲稱 CSV 可以全量無損 round-trip**。
-- **匯出**：管理介面提供資料匯出；明確標示匯出範圍、選取項、草稿／正式內容範圍與資料完整性。若目前 CSV 無法無損保存完整詞條，需阻止誤導性的「完整備份」敘述並回報缺口；不得靜默丟失讀音或 Sense 關聯。
+- **匯出**：管理介面提供資料匯出；明確標示全部／篩選範圍、草稿／正式內容範圍與資料完整性。若目前 CSV 無法無損保存完整詞條，需阻止誤導性的「完整備份」敘述並回報缺口；不得靜默丟失讀音或 Sense 關聯。
 - **批次安全**：檔案大小／列數／編碼、錯誤列提示、同 Entry 多 Sense 群組、預覽後來源版本變化與重試冪等需有驗證及測試；運輸分批大小屬效能參數，不應固定成舊歷史 13 批方案。
 
 ### E. 前端互動、狀態及邊界
@@ -295,22 +295,22 @@ offline / reconnect / delete / attachment / backup import 行為
 - **進入字典**：字卡 →「字典」→公共字典；頂部「←返回字卡」「字典」「管理字典（僅管理員顯示）」。下方是搜尋框「查詢英文、中文」、「搜尋」、「篩選」，篩選浮層含 Word／Prefix／Root 三種，預設全選。
 - **詳情頁**：返回實際來源並保留 query、filters、scroll、順序上下文；上一筆／下一筆依來源結果排序，手機和平板支援左右滑動；管理員右上角「編輯此詞條」直接進入同一詞條編輯器。
 - **內容元件**：相同詞源的註釋由一個來源視覺容器承載，內部保留多段落／義項資訊；多詞源清楚分組。展示讀音、變體、種類、義項、口訣、記憶、詞源及構詞關聯。
-- **管理頁**：工具列提供「新增」「匯入」「匯出」「刪除」「發布」「全選」；新增以 Word／Prefix／Root 下拉切換同一編輯面板；批次操作使用選取集與安全結果回饋。
+- **管理頁**：工具列提供「新增」「匯入資料」「匯出資料」「發布全部草稿」；新增以 Word／Prefix／Root 下拉切換同一編輯面板。清單不再提供核取／全選／本頁選取發布／批次刪除；類型與狀態的篩選核取保留。單筆刪除移至已儲存 Draft 編輯頁，詳見 PR #57 章節。
 - **分頁／搜尋**：搜尋字面與繁中義項，並根據三類勾選組合篩選；需確認原有 Reader 分頁、索引及約 7,000 筆規模的效能，不在前端整批載入所有詞條。
-- **深連結與狀態**：詳細詞條若由書籤或公共 Entry 連結開啟且缺少來源清單，設計明確預設返回目的地（待產品核准）；編輯未保存時的返回提示、手勢閾值與控制項尺寸亦待核准。
+- **深連結與狀態**：詳細詞條若由書籤或公共 Entry 連結開啟且缺少來源清單，現行介面提供預設返回目的地；編輯未儲存時使用 useUnsavedDraft 的儲存／放棄／繼續編輯與原生 unload 保護。
 
 ### F. 實作先後與安全門檻
 
 1. 先核對 migration ledger（20260930～20261018）、production 權限、既有 SQL/RPC、TypeScript model、Reader、Editor、Official Pack／Study link 與備份依賴；列出已符合、缺少、不一致與未驗證，不假設每一個 migration 已在遠端套用。
 2. 再提交 CSV 無損性及刪除語意、返回深連結等未決設計，取得核准後調整 schema／RPC 與 service adapter。
-3. 隨後整合 UI（入口、管理按鈕、搜尋與篩選、上一筆／下一筆、返回、右上直接編輯、按來源合併註釋）；管理頁目前以 CSV 為主要操作格式；後續依 #44 的無損交換規格決定。
+3. 隨後整合 UI（入口、管理按鈕、搜尋與篩選、上一筆／下一筆、返回、右上直接編輯、按來源合併註釋）；管理頁完整交換使用 #44 JSON，CSV／Markdown／AI Diff 保持相容。
 4. 最後測試普通用戶與管理員、未授權直接 RPC、草稿隔離、匯入 Safe/Review/Invalid、發布、重複提交、CSV 匯出資料完整性、跨裝置字卡連結、窄螢幕與 7,000 筆搜尋；部署 SQL 與執行遠端寫入須另行取得批准。
 
 
 ## 文件更新界線（Issue／SPEC／技術實作）
 - 已核准的產品行為在實作前由 `docs/SPEC.md` 記錄；此處不把 Issue 規劃自動當作現行技術實作。
 - Codex 開發並驗證後，依最新程式碼／migration／測試補寫實際資料表、RPC、模組、效能限制及回復策略；必須區分 repo 已實作與正式 Supabase 已套用。
-- #44 的大量資料匯入／匯出及自動續批需求，實作前以 SPEC 為準；本文件原本的「管理 UI 僅 CSV」敘述是舊決策，**已不再是新功能開發的限制**。可評估無損 CSV／JSON 等交換方案，但未選定前不宣稱已有完整 round-trip。
+- #44 現行完整交換已採用 JSON Exchange v1，schema、往返及恢復契約見後段；CSV 為相容格式，不能標示為完整資料庫備份。
 
 
 ### G. #41／#42 相容實作（已實作；正式環境待驗證）
@@ -320,9 +320,9 @@ offline / reconnect / delete / attachment / backup import 行為
 - 新增 `dictionary_inflections(id,entry_id,sense_id?,form_kind,form,sort_order,revision,updated_at)`。它是 Entry 附屬記錄，沒有公開 Entry 身分；同 Entry／Sense／類型／正規化詞形防重，相同拼寫可屬不同類型或不同 Sense。詞性對應與 Sense 所屬關係由 TypeScript、FK 和伺服器驗證；直接資料表寫入未授權。此版只儲存人工指定的形式，不做規則猜測。
 - 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料與構詞順序：一般 `mapDictionaryDraft` 不傳 `component_order`，完整 Editor save／Review save 才明確傳入排序。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
 - `dictionary_relations` 保留所有 ID／目標 Sense FK，來源 `sense_id` 支援 null（詞條共用）；構詞模型不含關聯種類／查證狀態／查證說明。舊 SQL 欄位只供無損相容與歷史保留。擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
-- 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 JSON Bundle／AI JSON。本次不自行變更既有 CSV schema，後續完整大量交換依 #44 規劃。
+- 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 #44 JSON Exchange v1，JSON Bundle／AI JSON 亦保持原流程；CSV schema 不變。
 - `search_dictionary_with_inflections` 合併 headword／中文義項及**索引可確認的 exact 詞形**，結果帶 `inflection_matches`，保留原形與同形詞；Reader 標示匹配原因，詞形以文字而非新 Entry 連結顯示。反向構詞改用直接來源 Entry FK embed，涵蓋詞條共用及指定義項；分類篩選仍用原查詢。
-- 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。本次只在隔離 PGlite 執行；**正式 Supabase 未執行**。部署前先核對遠端 ledger、備份並在 staging 套用／驗證；需要手動執行此檔案且須另外授權。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。
+- 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。PR #46開發當時只在隔離PGlite執行；其後已由正式ledger `20261013041717 dictionary_edit_inflections_20261020` 核實套用，現不可當成待執行SQL重播。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。
 - 自動化：`tests/dictionaryEditInflections.test.cjs` 驗證升級舊 review、ID／Sense／詞形 roundtrip、衝突、隔離、發布／歷史與權限；`tests/dictionaryEditor.browser.test.cjs` 以模擬 RPC 和 Chromium 驗證桌面／390px 手機的編輯、焦點、返回及保存／發布。瀏覽器測試需 `npx playwright install chromium` 或設定 `BROWSER_EXECUTABLE`；所有 fixture 僅在臨時 HTTP server 運作，無正式資料服務。
 
 
@@ -347,20 +347,20 @@ offline / reconnect / delete / attachment / backup import 行為
 
 #### PR #51 同步後遠端核對（2026-10-13；僅唯讀）
 
-Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261020 功能表與舊發布 signatures 已存在，RLS 啟用；來源 Sense 尚不可空，20261021 的新 FK／查證 overload／capability 尚未套用。構詞當次查詢為 0 列。遠端 ledger 只記錄 `dictionary_edit_inflections_20261020`，較早 schema 缺完整重播紀錄；隔離 staging 的建立須核對基底與依賴，不能視分支初始化為完整 schema 的保證。沒有正式 DDL／資料寫入／ledger 修補。
+以下為當次套用20261021之前的歷史盤點，不能當作目前未套用狀態；其後已套用20261021／分頁／#44 ledger，最新狀態見 HANDOFF。當時 Supabase connector 讀取的 schema：PostgreSQL 17.6、20261020 功能表與舊發布 signatures 已存在，RLS 啟用；來源 Sense 尚不可空，20261021 的新 FK／查證 overload／capability 尚未套用。構詞當次查詢為 0 列。遠端 ledger 只記錄 `dictionary_edit_inflections_20261020`，較早 schema 缺完整重播紀錄；隔離 staging 的建立須核對基底與依賴，不能視分支初始化為完整 schema 的保證。沒有正式 DDL／資料寫入／ledger 修補。
 
 目前帳號只列一個正式專案且無開發分支，尚無遠端 staging 驗證結果。`supabase/tests/20261021_composition_staging_verify.sql` 是套用後的唯讀 catalog／權限檢查，不執行 Migration，也不替代真實 Auth JWT、PostgREST FK embed／RPC overload／cache 或帳號／UI 驗收。main 的正式部署規則已隨 `650d0a2` 同步至 PR 功能分支，PR 不合併，正式環境不部署。
 
 
-## #49 共用資料列表分頁與 #41 收尾（已開發；本輪尚未部署）
+## #49 共用資料列表分頁與 #41 收尾（已合併；驗收界線見 HANDOFF）
 
 - `src/components/pagination/model.ts` 集中 ceil 總頁數、整數頁碼驗證及資料變動時有效頁邊界；輸入驗證回傳 null 拒絕，不偷偷 clamp。內部及既有 URL／RPC 保持 zero-based，UI 顯示 one-based，空集合 0／0。
 - `Pagination.tsx` 為上一頁／中央原位頁碼／下一頁。text input＋numeric inputMode／done hint，Enter 提交、Esc 取消、失焦取消，焦點選取／還原；沒有額外確認按鈕或巢狀 form。以 Nexus Tailwind／theme tokens 排版。使用現有 LanguageContext／i18n；獨立字典路由無 provider 時沿用繁中預設。舊服務尚未提供 total 時只保留原導航，不捏造總頁數或開啟跳轉。
 - `usePagedList` 用查詢 key／page／retry 的請求識別管理最後成功資料，effect cleanup 忽略過期回應；載入／失敗不把確認頁數與資料混配。錯誤可重試，快速再跳頁允許最後請求勝出。搜尋／篩選不共用錯誤的舊結果；資料縮減讓頁面越界時依新 total 轉最後有效頁。
 - 套用：公共字典搜尋（含構詞反查／變體）、Prefix 義項分類、Root 分類、管理詞條清單、構詞候選 dialog、字卡編輯的手動字典連結、評分背面字典候選、批次字卡連結建議。A4 筆記、簡報及角色卡內容頁模型不變。
-- 管理清單及反向／變體查詢使用既有 Supabase select 的 exact count，在相同篩選、排序及 range 取回可信 root Entry 數；不做客戶端全字典掃描。管理選取仍僅本頁，翻頁／篩選／refresh 清除選取。批次建議以本地合乎條件字卡及 RLS 隔離的現有雲端連結 ID 建立確定 dataset，最多每批查 200 個 ID，再以每頁 10 筆並行載入建議；total 為實際未連結卡片數，不把已跳過卡片算進頁數。
+- 管理清單及反向／變體查詢使用既有 Supabase select 的 exact count，在相同篩選、排序及 range 取回可信 root Entry 數；不做客戶端全字典掃描。PR #57 已移除管理清單選取；搜尋／分頁保留，發布使用全域範圍。批次建議以本地合乎條件字卡及 RLS 隔離的現有雲端連結 ID 建立確定 dataset，最多每批查 200 個 ID，再以每頁 10 筆並行載入建議；total 為實際未連結卡片數，不把已跳過卡片算進頁數。
 - 新 SQL `20261013064759_dictionary_pagination_totals.sql` 由 CLI 產生，僅更新五個既有搜尋 RPC 的回應 `total`（構詞候選另補 page）；既有 predicate、Published／管理員限制、函式簽章及 ACL 保留。使用同一 matches CTE 計算完整 count 與頁面，Prefix 分類計 Sense 列、其餘計 Entry。classic `search_published_dictionary` 加入 all，字卡 All 搜尋改為單一全域排序分頁，不再把三種 kind 的獨立頁拼成一頁。舊客戶端可忽略新增 key。
-- **套用依賴**：正式 DB 需先具備字典 migrations 至 20261021，SQL 有前置 guard；本輪沒有套用正式 Migration。倉庫舊 migration 使用 8 碼歷史日期，不能將新 CLI timestamp 與那些檔名排序當作已核對的重播順序；本檔需在既有已部署 schema 上手動依核准流程套用。先 SQL（old UI 相容）再合併／發布新 UI；函式 owner／ACL、schema cache、結果 totals／普通使用者隔離一併核對。無新表、無資料清除、無寫入／發布權限變更。
+- **套用依賴**：正式 DB 需先具備字典 migrations 至 20261021，SQL 有前置 guard；當次開發未套用正式Migration，其後已核實遠端ledger `20261013072108 dictionary_pagination_totals_20261013`，現不需重播。倉庫舊migration使用8碼歷史日期，不能將CLI timestamp與舊檔名排序視為可靠重播順序；函式 owner／ACL、schema cache、結果 totals／普通使用者隔離一併核對。無新表、無資料清除、無寫入／發布權限變更。
 - #41 核心流程沿用 PR #46／#51，沒有另建發布流程。使用者本輪回報兩 PR 已正式部署且核心操作已實機驗收；本輪技術核對另涵蓋 admin／普通角色、Draft／Review／Published 隔離、查證確認、stale base／revision、重新開啟與失敗恢復。普通角色的自動化測試不是正式第二帳號實機測試；依單人測試階段的精簡標準記錄為「等待正式部署與最終驗收」，不自動關閉 Issue。
 
 - 本輪交付驗證：字典＋分頁 100/100（無 skip）、TypeScript／Production Build 通過、ESLint 0 errors／468 warnings；桌面 1280×900 與手機 390×844 隔離 Chromium 驗證 7 個實際元件場景（分類共用 Prefix／Root 元件）、頁碼／條件／焦點／連續請求／錯誤重試／資料縮減。PGlite 測試新 SQL 的總筆數／頁面條件一致、普通角色隔離及函式 ACL 保持不變；正式 DB 僅唯讀核對 #41 已部署權限，沒有正式 Migration／帳號寫入。
@@ -368,7 +368,7 @@ Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261
 
 ## #47／#48 統一排程 Session 與功能化偏好（2026-10-13）
 
-**已實作及本機驗證，尚未正式部署／實機驗收。**
+**PR #54 已合併；本次核對實作／本機測試通過。GitHub #47／#48 已結案，沿用使用者不另做人工驗收的決定；不以此宣稱本次獨立查證 Production Ready。**
 
 - `scheduledStudy.ts` 為可測試的選卡／可用性資料流。`planScheduled` 使用各集 `review_limit ?? 50`、每日 introduction distinct ID＋state 作新卡額度；新卡優先／混合／複習優先及最早 due／低 FSRS retrievability／隨機排序。New＋跨日 Learning／Relearning＋Review 才計批次名額；當日已開始短間隔用 `last_review`／`due` 當地日界判斷，優先到期插入且不再扣名額。未選入的卡不寫 state，也不提前拿未到期卡補位。
 - `StudySession.mode = scheduled` 增量保存在既有 `study_sessions`，每 target 保留 generation、`counts_toward_limit`、完成標記，批次凍結 quota_limit／study_mode。`refreshScheduled` 以真正 due 建立 ready／waiting／blocked 狀態，保留未完成批次與不同卡名額；刪除／重設 generation 排除失效目標，排程衝突則阻擋完成並引導返回處理。跨日仍未到期的 learning 留給後續批次，不提前評分。
@@ -413,13 +413,13 @@ Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261
 
 匯出page與job同交易／同樣abort處理。匯入RPC前必須保存operation UUID，失敗不dispatch；RPC提交後checkpoint失敗停止續批，reload以仍pending的原UUID取receipt，不改寫revision。React僅顯示成功持久化的deep-cloned狀態，不讓後續mutations誤顯已保存；有pending／failed operation不可用新preview覆蓋恢復入口。
 
-`DictionaryBulkPublish` 延用 `20261019_dictionary_admin_bulk_publish.sql` 的每批200／依賴圖／24小時actor token，並保留20261021的 `content_verified` overload。首次確認保存token、scope、查證聲明及結果後自動續批；可停未開始批次、失敗／重開恢復相同token。新草稿或內容使原token過期時重新預覽且重新確認；不使用發布循環規避原authority。UI 明確區別「本頁選取發布」與「全部符合條件的草稿」；篩選排除Draft時停用後者。新增唯讀 `dictionary_bulk_publish_report` 每頁200取得actor自己的完整plan結果；沒有直接table權限或Review自動核准。
+`DictionaryBulkPublish` 延用 `20261019_dictionary_admin_bulk_publish.sql` 的每批200／依賴圖／24小時actor token，並保留20261021的 `content_verified` overload。首次確認保存token、scope、查證聲明及結果後自動續批；可停未開始批次、失敗／重開恢復相同token。新草稿或內容使原token過期時重新預覽且重新確認；不使用發布循環規避原authority。PR #57 UI 僅提供「發布全部草稿」；preview／publish 固定 kind_filters=[]、query_text=空字串，完全不受清單搜尋／類型／狀態／分頁影響。舊篩選scope的checkpoint不顯示為全域恢復入口（保留原本機記錄）；全域token的確認／停止／刷新恢復／報告延用既有機制。新增唯讀 `dictionary_bulk_publish_report` 每頁200取得actor自己的完整plan結果；沒有直接table權限或Review自動核准。
 
 ### Migration 與驗證證據
 
-需要手動批准並套用 **`supabase/migrations/20261013084116_dictionary_bulk_exchange.sql`**，Supabase CLI產生。新增6個函式：private dictionary_exchange_record／dictionary_exchange_scope_version、admin export_dictionary_exchange_page／inspect_dictionary_exchange／apply_dictionary_import_batch／dictionary_bulk_publish_report。全部空search_path、逐次admin驗證；對外僅authenticated execute，anon／PUBLIC撤銷，helper亦不可直接execute。報告核對actor_id；匯入核對auth.uid與operation owner。無新表、RLS改寫、資料重寫／刪除、正式發布或獨立管線。
+PR #56 的增量 Migration 為 **`supabase/migrations/20261013084116_dictionary_bulk_exchange.sql`**，Supabase CLI產生；2026-10-14已唯讀核對正式ledger及相關RPC存在，本輪未套用或重播。新增6個函式：private dictionary_exchange_record／dictionary_exchange_scope_version、admin export_dictionary_exchange_page／inspect_dictionary_exchange／apply_dictionary_import_batch／dictionary_bulk_publish_report。全部空search_path、逐次admin驗證；對外僅authenticated execute，anon／PUBLIC撤銷，helper亦不可直接execute。報告核對actor_id；匯入核對auth.uid與operation owner。無新表、RLS改寫、資料重寫／刪除、正式發布或獨立管線。
 
-正式唯讀核對了表欄位、既有RPC授權及ledger：20261013041717對應20261020、20261013060430對應20261021、20261013072108分頁；早期base由歷史手動套用，不在此ledger。先核對現有#41/#42（inflections、完整snapshot、四參數publish）依賴，再**僅追加本次SQL**、驗證服務後授權合併／Vercel發布。Repo歷史8位日期與實際ledger不同，不以盲目db reset／db push重播舊Migration。退回前端不需要刪掉新增RPC；未修改原endpoint，舊版仍可運作。
+正式唯讀核對了表欄位、既有RPC授權及ledger：20261013041717對應20261020、20261013060430對應20261021、20261013072108分頁；早期base由歷史手動套用，不在此ledger。#44 SQL現已由正式ledger `20261014040405 dictionary_bulk_exchange_20261013084116` 唯讀核實（非本輪套用）；PR #57不新增Migration，也不重播本檔。需核對既有#41/#42及#44函式服務後另行授權合併／Vercel發布。Repo歷史8位日期與實際ledger不同，不以盲目db reset／db push重播舊Migration。退回前端不需要刪掉新增RPC；未修改原endpoint，舊版仍可運作。
 
 - 相關回歸113/113（包含本次SQL、完整ID／多義項／Word-Prefix-Root、Draft／Review／版本／receipt、v1升級、單項回滾、字卡連結／官方包及既有閱讀／編輯）；單獨大量SQL1/1；桌面1280／平板820／手機390瀏覽器1/1（實際元件／IndexedDB，外部服務隔離；含篩選／全部匯出、錯誤重試、檔案輸入、暫停／刷新恢復、RPC前與提交後IndexedDB quota失敗、畫面僅反映durable狀態、UUID replay、確認與報告下載、English）。總共115個case通過，沒有skip／cancel。
 - TypeScript／Production Build通過；ESLint 0 errors／467 warnings，與main基準一致，無新警告。舊toolbar／匯入標籤斷言依新規格更新，未刪除／跳過檢查。
@@ -427,3 +427,15 @@ Supabase connector 已可讀取正式 Nexus 的 schema：PostgreSQL 17.6、20261
 - 正式資料庫僅唯讀盤點。未執行本次Migration、未部署／合併、未關Issue。正式最少驗收：匯出再原樣預覽不變；改一筆Draft及一筆Published→Review且公開內容保持；手機中途停／刷新恢復與一次批次發布＋查證確認。
 
 PR #56 審查修正另新增4個安全case：逐一變更13種JSON來源（含cursor前／後及Review建立／修改／退出）要求重匯出、JSON與Nexus並行修改衝突、quota／DataClone完整abort與receipt刷新恢復、ACL／actor／RLS及缺依賴拒絕。最初回歸揭露storage item_count外漏至Session API，修正為儲存層專用；原相容測試保留並通過。上述為隔離測試，未執行正式Migration／帳號驗收。
+
+## PR #57 管理字典精簡與单筆草稿刪除（2026-10-14）
+
+已實作／本機驗證，PR尚未合併／本輪未部署。`DictionaryWorkspace` 不再有選取狀態或全選 helper；`DictionaryBulkPublish` preview、publish 均固定全字典草稿範圍，原token及admin／content_verified／版本／構詞檢查不變。既有篩選scope作業不誤當全域續作，報告仍只讀actor自己的plan。
+
+`DictionaryEditor` 僅對 persisted Draft（revision>0、非Published／Review candidate）提供刪除草稿；使用原 `deleteDictionaryDrafts` adapter＋`delete_dictionary_drafts` RPC，單一{id,revision}，revision取目前已保存baseline（包括先前子項刪除回傳的revision）。顯示原詞條名稱及永久刪除義項／構詞／全部內容、未儲存修改的危險確認；取消不呼叫RPC，權限／stale／Published／外部参照由既有RPC強制執行。失敗保留表單，成功才以useUnsavedDraft.leave解除離開保護並返回 `/dictionary/admin` 重新讀取清單，embedded編輯亦返回管理清單，不留在已刪除的Entry路由。未儲存的新建表單沒有資料可刪，不顯示此按鈕。不改既有Review／Published版本歷史或DB邏輯。
+
+字卡核對對照SPEC與#47／#48：開始學習、scheduled／endless、review_limit未設定fallback50、新建settings.new_limit20、介紹事件distinct每日額度、短步到期優先且不重扣名額、三種出卡順序／Review排序、完成／剩餘到期／等待畫面、settings owner-scoped保存／同步均已有實作。本輪未發現需追加大型學習功能的差異，不修改學習程式。限制仍為同裝置Session、兩台同時離線非原子共享額度、各學習集設定／舊有效設定保留，與SPEC一致。
+
+正式Supabase本輪只SELECT核對：delete RPC及全域preview／四參數publish／report已存在、空search_path、authenticated可execute而anon不可；舊三參數publish對authenticated已撤權。delete內含admin／revision／Published／參照guard；report核對actor。沒有正式刪除／發布／Migration。
+
+PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／離線同步核對35/35，瀏覽器3/3（字典全域發布／單筆刪除／恢復：桌面／平板／手機；Published直接編輯及離開保護：桌面／手機；字卡設定保存／Again等待／Good畢業／無盡隔離：桌面／平板／手機），合計154項；TypeScript／Production Build通過，ESLint 0 errors／467既有warnings。初次舊編輯器瀏覽器fixture缺Playwright預設binary，指定系統Chromium後完整通過；新加language hook的舊單元hook fixture補上useContext模擬，所有斷言保留。未重跑#44的6300筆效能（本轮未改SQL／分批算法），未宣稱正式帳號／實機驗收。

@@ -293,9 +293,27 @@ test(
         );
         assert.equal(new Set(report.items.map((i) => i.entry_id)).size, 52);
         await page.getByRole("button", { name: "關閉", exact: true }).click();
+        // Filters can even hide every row; global publication is independent of them.
+        await page
+          .getByLabel("搜尋管理詞條", { exact: true })
+          .fill("no-visible-match");
+        await page.getByRole("checkbox", { name: "字首", exact: true }).check();
+        await page
+          .getByRole("checkbox", { name: "已發布", exact: true })
+          .check();
+        assert.equal(
+          await page.getByRole("button", { name: "全選", exact: true }).count(),
+          0,
+        );
+        assert.equal(
+          await page
+            .getByRole("button", { name: "本頁選取發布", exact: true })
+            .count(),
+          0,
+        );
         await page
           .getByRole("button", {
-            name: "批次發布：全部符合條件的草稿",
+            name: "發布全部草稿",
             exact: true,
           })
           .click();
@@ -336,16 +354,96 @@ test(
           ),
           true,
         );
+        const publishCalls = await page.evaluate(() =>
+          window.calls.filter((c) => c.name === "publish_dictionary_bulk"),
+        );
+        assert.ok(publishCalls.length);
+        for (const call of publishCalls) {
+          assert.deepEqual(call.kind_filters, []);
+          assert.equal(call.query_text, "");
+          assert.equal(call.content_verified, true);
+        }
         await page.goto(url + "/?language=en");
         await page
           .getByRole("button", { name: "Export data", exact: true })
           .waitFor();
         await page
           .getByRole("button", {
-            name: "Bulk publish all matching drafts",
+            name: "Publish all drafts",
             exact: true,
           })
           .waitFor();
+        // Single persisted Draft deletion: cancel/failure preserve dirty input; success reloads list.
+        await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000001"+(viewport.width<500?"&embedded":""));
+        await page
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .waitFor();
+        await page.getByLabel("單字", { exact: true }).fill("unsaved item1");
+        await page
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .click();
+        const deletion = page.getByRole("dialog", {
+          name: "刪除草稿",
+          exact: true,
+        });
+        await deletion.getByText(/item1.*義項.*構詞.*內容/).waitFor();
+        await deletion
+          .getByRole("button", { name: "取消", exact: true })
+          .click();
+        assert.equal(
+          await page.getByLabel("單字", { exact: true }).inputValue(),
+          "unsaved item1",
+        );
+        assert.equal(
+          await page.evaluate(
+            () =>
+              window.calls.filter((c) => c.name === "delete_dictionary_drafts")
+                .length,
+          ),
+          0,
+        );
+        await page.evaluate(() => (window.failDelete = true));
+        await page
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .click();
+        await deletion
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .click();
+        await page
+          .getByRole("alert")
+          .filter({ hasText: "fixture referenced entry" })
+          .waitFor();
+        assert.equal(
+          await page.getByLabel("單字", { exact: true }).inputValue(),
+          "unsaved item1",
+        );
+        await page.evaluate(() => (window.failDelete = false));
+        await page
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .click();
+        await deletion
+          .getByRole("button", { name: "刪除草稿", exact: true })
+          .click();
+        await page.waitForURL(url + "/dictionary/admin");
+        await page.getByRole("link", { name: /item2/ }).waitFor();
+        assert.equal(
+          await page.getByRole("link", { name: /item1/ }).count(),
+          0,
+        );
+        assert.equal(
+          await page.getByRole("dialog", { name: "離開編輯" }).count(),
+          0,
+        );
+        await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000003");
+        await page
+          .getByText("目前 Published revision 1", { exact: false })
+          .waitFor();
+        assert.equal(
+          await page
+            .getByRole("button", { name: "刪除草稿", exact: true })
+            .count(),
+          0,
+        );
         await context.close();
       }
       assert.deepEqual(errors, []);

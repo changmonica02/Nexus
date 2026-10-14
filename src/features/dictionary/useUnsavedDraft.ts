@@ -40,5 +40,7 @@ export function useUnsavedDraft(dirty:boolean,busy=false,save?:()=>Promise<boole
   const cancel=()=>{queued.current=false;setPending(null);};
   const discard=()=>{if(state.current.busy)return;const leave=pending;cancel();bypass.current=true;leave?.();};
   const saveAndLeave=async()=>{if(state.current.busy)return;if(await state.current.save?.()){const leave=pending;cancel();bypass.current=true;leave?.();}};
-  return {pending,cancel,discard,saveAndLeave};
+  // Only after a successful terminal operation (e.g. confirmed deletion), bypass dirty/unload prompts.
+  const leave=(destination:()=>void)=>{cancel();bypass.current=true;destination();};
+  return {pending,cancel,discard,saveAndLeave,leave};
 }

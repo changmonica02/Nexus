@@ -70,13 +70,23 @@ window.dictionaryClient = {
     getUser: async () => ({ data: { user: { id: owner } }, error: null }),
   },
   from(table) {
-    let rows = server.records.map((r) => r.snapshot.detail.entry),
+    let rows =
+        table === "dictionary_entries"
+          ? server.records.map((r) => r.snapshot.detail.entry)
+          : [],
       count = false,
       range = [0, 99];
     const q = {
       select(_s, opts) {
         count = !!opts?.count;
         return q;
+      },
+      eq(k, v) {
+        rows = rows.filter((r) => r[k] === v);
+        return q;
+      },
+      maybeSingle() {
+        return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       in(k, v) {
         rows = rows.filter((r) => v.includes(r[k]));
@@ -104,6 +114,45 @@ window.dictionaryClient = {
   },
   async rpc(name, args = {}) {
     window.calls.push({ name, ...structuredClone(args) });
+    if (name === "get_dictionary_entry")
+      return {
+        data:
+          server.records.find(
+            (r) => r.snapshot.detail.entry.id === args.entry_uuid,
+          )?.snapshot.detail ?? null,
+        error: null,
+      };
+    if (name === "get_dictionary_ai_snapshot")
+      return {
+        data:
+          server.records.find(
+            (r) => r.snapshot.detail.entry.id === args.entry_uuid,
+          )?.snapshot ?? null,
+        error: null,
+      };
+    if (name === "delete_dictionary_drafts") {
+      if (window.failDelete)
+        return {
+          error: { message: "fixture referenced entry; deletion cancelled" },
+        };
+      const targets = args.targets;
+      if (targets.length !== 1)
+        return { error: { message: "Expected a single target" } };
+      const entry = server.records.find(
+        (r) => r.snapshot.detail.entry.id === targets[0].id,
+      )?.snapshot.detail.entry;
+      if (
+        !entry ||
+        entry.status !== "draft" ||
+        entry.revision !== targets[0].revision
+      )
+        return { error: { message: "Published or stale draft" } };
+      server.records = server.records.filter(
+        (r) => r.snapshot.detail.entry.id !== entry.id,
+      );
+      persist();
+      return { data: 1, error: null };
+    }
     if (name === "export_dictionary_exchange_page") {
       if (window.failExport) {
         window.failExport = false;
@@ -240,7 +289,10 @@ createRoot(document.getElementById("root")).render(
     }
   >
     <main className="mx-auto max-w-5xl p-4">
-      <DictionaryWorkspace />
+      <DictionaryWorkspace
+        embedded={new URLSearchParams(location.search).has("embedded")}
+        entryId={new URLSearchParams(location.search).get("entry") ?? undefined}
+      />
       <ConfirmDialogHost />
     </main>
   </LanguageProvider>,
