@@ -40,7 +40,7 @@ test('catalog/download/update/delete use scoped RPCs; failed download can retry 
   await api.deleteOfficialPack(client,'same-deck');
   assert.deepEqual(calls.at(-1),{name:'delete_official_study_pack',args:{deck_id:'same-deck'}});
   assert.deepEqual(calls[1].args,{pack_id:pack});
-  assert.equal(api.packDeleteMessage('學測單字 1–2 級'),'刪除「學測單字 1–2 級」？\n\n這會移除此單字集與此單字集的學習進度。\n公共字典內容不會被刪除，你之後可以再次下載。');
+  assert.equal(api.packDeleteMessage('學測單字 1–2 級'),'刪除「學測單字 1–2 級」？\n\n這會移除此單字集與此單字集的學習進度。\n字典內容不會被刪除，你之後可以再次下載。');
 });
 test('official private text can be edited while source identity/import protection and daily learning remain unchanged',async t=>{
   const {repo}=await fixture(t),card=await installLocal(repo);
