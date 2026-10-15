@@ -13,7 +13,7 @@ test('desktop/mobile pagination: inline Enter/Esc, validation, last-request wins
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:['--no-sandbox']});const errors=[];
  try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
  const context=await browser.newContext({viewport}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
- const number=()=>page.getByRole('button',{name:/編輯第 \d+ 頁/}),input=()=>page.getByLabel('頁碼',{exact:true});
+ const number=()=>page.getByRole('button',{name:/編輯第 \d+ 頁/}).first(),input=()=>page.getByLabel('頁碼',{exact:true});
  await number().waitFor();await page.getByText('/ 共 32 頁',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'上一頁',exact:true}).isDisabled(),true);
  const jump=async(value)=>{await number().click();assert.equal(await input().evaluate(el=>el===document.activeElement),true);assert.equal(await input().evaluate(el=>el.selectionStart===0&&el.selectionEnd===el.value.length),true);await input().fill(value);await input().press('Enter');};
  await jump('4');await page.getByTestId('rows').getByText('row 3',{exact:true}).waitFor();
@@ -26,7 +26,7 @@ test('desktop/mobile pagination: inline Enter/Esc, validation, last-request wins
  await page.getByLabel('篩選').selectOption('empty');await page.getByText('/ 共 0 頁',{exact:true}).waitFor();assert.equal(await number().innerText(),'0');assert.equal(await number().isDisabled(),true);
  for(const [fixture,total,target] of [['admin',3,2],['reader',13,3],['groups',13,2],['relations',13,2],['links',13,2],['card',13,2],['suggestions',3,2]]){
   await page.goto(base+'/?fixture='+fixture+(fixture==='groups'?'&kind=prefix&category=__ungrouped__':''));if(fixture==='links')await page.getByRole('button',{name:'搜尋',exact:true}).click();if(fixture==='card')await page.getByRole('button',{name:'▸ 字典詳情',exact:true}).click();
-  await page.getByText('/ 共 '+total+' 頁',{exact:true}).waitFor();if(fixture==='admin')await page.locator('input[aria-label^=勾選]').first().check();await jump(String(target));await page.getByRole('button',{name:'編輯第 '+target+' 頁',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.getByText('/ 共 '+total+' 頁',{exact:true}).first().waitFor();if(fixture==='admin'){assert.equal(await page.getByRole('navigation',{name:'管理詞條分頁'}).count(),2);assert.equal(await page.locator('input[aria-label^=勾選]').count(),0);}await jump(String(target));await page.getByRole('button',{name:'編輯第 '+target+' 頁',exact:true}).first().waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   if(fixture==='admin')assert.equal(await page.locator('input[aria-label^=勾選]:checked').count(),0);
   if(fixture==='reader')assert.equal(new URL(page.url()).searchParams.get('page'),'2');
  }

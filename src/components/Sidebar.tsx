@@ -1,5 +1,5 @@
 "use client";
-import {TOOL_FEATURES} from "../lib/featurePreferences";
+import {TOOL_FEATURES, getHiddenFeatures} from "../lib/featurePreferences";
 import {confirmDialog} from '../lib/confirmDialog';
 
 
@@ -161,6 +161,8 @@ export default function Sidebar({
   onOpenInSplit,
 }: SidebarProps) {
   const { t } = useLanguage();
+  const [hiddenFeatures,setHiddenFeatures]=useState<FeatureFilter[]>([]);
+  const [toolsExpanded,setToolsExpanded]=useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -213,6 +215,8 @@ export default function Sidebar({
   // editor (such as a study set) is open in a split pane.
   const activeFeatureFilter = hasManualFeatureFilter ? featureFilter : modeFeatureFilter;
   const emptyFeatureLabel: Record<FeatureFilter, string> = {
+    tools: "尚無工具項目",
+    dictionary: "",
     all: "尚無檔案",
     notes: "尚無筆記",
     documents: "尚無文檔",
@@ -230,6 +234,7 @@ export default function Sidebar({
 
   // 刷新功能排序快照（僅在載入時、偏好設定變更時、或重新展開側欄時觸發）
   const refreshFeatureOrderSnapshot = () => {
+    setHiddenFeatures(getHiddenFeatures());
     setFeatureOrderMode(getStoredFeatureOrderMode());
     setSnapshotRecentFeatureIds(getStoredRecentFeatureIds());
     setCustomFeatureOrder(getStoredCustomFeatureOrder());
@@ -323,6 +328,8 @@ export default function Sidebar({
     const matchQuery = !query || (page.title || "").toLowerCase().includes(query) || (page.content_text || "").toLowerCase().includes(query);
     const matchTag = !selectedTag || (page.tags || []).includes(selectedTag);
     // Every feature owns its list. The fallback is the explicit「所有項目」view.
+    if (activeFeatureFilter === "tools") return (page.kind === "counter" || page.kind === "draw") && matchQuery && matchTag;
+    if (activeFeatureFilter === "dictionary") return false;
     if (activeFeatureFilter === "quicknotes") return (page.kind as any) === "quick_note" && matchQuery && matchTag;
     if (activeFeatureFilter === "calendar") return (page.kind as any) === "todo" && matchQuery && matchTag;
     if (activeFeatureFilter === "study") return page.kind === "study_set" && matchQuery && matchTag;
@@ -656,7 +663,7 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
+    <aside className="flex min-h-0 flex-1 flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
       <div className="flex items-center justify-between px-4 py-3.5 border-b" style={{ borderColor: "var(--color-border)" }}>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
           ‹
@@ -668,7 +675,7 @@ export default function Sidebar({
       </div>
 
       {/* Google-style navigation: Home → Trash → collapsible Features, without dividers or card gaps. */}
-      <nav className="px-2 py-2" aria-label="功能導覽">
+      <nav className="max-h-[45dvh] shrink-0 overflow-y-auto px-2 py-2" aria-label="功能導覽">
         {[
           { id: "home", icon: "⌂", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
           { id: "trash", icon: "⌫", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
@@ -679,7 +686,7 @@ export default function Sidebar({
         ))}
         <div className="relative flex h-10 items-center">
           <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
-            <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>功能</span>
+            <span className="w-5 text-center text-sm" aria-hidden="true">{isFeaturesExpanded ? "⌄" : "›"}</span><span>{t("ui.overview")}</span>
           </button>
         </div>
         {isFeaturesExpanded && (() => {
@@ -697,6 +704,8 @@ export default function Sidebar({
             { id: "novels" as const, icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
             { id: "web" as const, icon: "⌘", label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
             { id: "score" as const, icon: "♫", label: "製譜", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "score" })) },
+            { id: "dictionary" as const, icon: "▥", label: t("ui.dictionary"), onOpen: () => window.dispatchEvent(new Event("nexus-open-dictionary")) },
+            { id: "tools" as const, icon: "⚒", label: t("ui.tools"), onOpen: () => setToolsExpanded(v=>!v) },
             { id: "counter" as const, icon: "＋", label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
             { id: "draw" as const, icon: "⤨", label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
           ];
@@ -714,18 +723,20 @@ export default function Sidebar({
             })
             : others;
           return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
-            {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id))].map((item) => (
-              <button key={item.id} type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id === "score")item.onOpen(); }} onDoubleClick={item.onOpen} className="flex h-11 min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: activeFeatureFilter === item.id ? "rgba(26,115,232,0.12)" : "transparent" }} title="單擊篩選項目；雙擊開啟功能介面">
-                <span className="w-4 shrink-0 text-center text-sm" aria-hidden="true">{item.icon}</span><span className="truncate">{item.label}</span>
-              </button>
+            {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id)&&!hiddenFeatures.includes(item.id))].map((item) => (
+              <div key={item.id} className="flex min-w-0 items-center">
+                <button type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id==='tools')setToolsExpanded(v=>!v); }} onDoubleClick={item.id==='tools'?()=>setToolsExpanded(true):item.onOpen} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();item.onOpen();}}} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10" aria-expanded={item.id==='tools'?toolsExpanded:undefined} style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
+                  <span className="w-4 shrink-0 text-center" aria-hidden="true">{item.icon}</span><span className="truncate">{t('ui.feature.'+item.id)}</span>
+                </button>
+                {item.id!=='tools'&&<button type="button" className="h-10 w-8 shrink-0 rounded hover:bg-zinc-500/10" aria-label={t('ui.open')+' '+t('ui.feature.'+item.id)} onClick={item.onOpen}>↗</button>}
+              </div>
             ))}
-            <div className="col-span-2 border-t px-2 pt-2 text-xs opacity-60">工具</div>
-            {orderedOthers.filter(item=>TOOL_FEATURES.includes(item.id)).map(item=><button key={item.id} type="button" className="flex min-w-0 items-center gap-2 rounded p-2 text-left text-xs hover:bg-zinc-500/10" onClick={()=>{setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse(item.id);item.onOpen();}}><span>{item.icon}</span>{item.label}</button>)}
+            {!hiddenFeatures.includes('tools')&&toolsExpanded&&<div className="col-span-2 grid grid-cols-2 border-t pl-3">{others.filter(item=>TOOL_FEATURES.includes(item.id)).map(item=><button key={item.id} type="button" className="flex min-h-11 items-center gap-2 rounded p-2 text-left text-xs hover:bg-zinc-500/10" onClick={()=>{setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse('tools');item.onOpen();}}>{item.icon} {t('ui.feature.'+item.id)}</button>)}</div>}
           </div>;
         })()}
       </nav>
 
-      <div className="p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
+      <div className="shrink-0 p-2 border-b flex items-center gap-1" style={{ borderColor: "var(--color-border)" }}>
         <div className="relative flex-1 min-w-0">
           <input
             type="text"

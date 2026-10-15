@@ -4,17 +4,18 @@ import { createPortal } from "react-dom";
 import type { PreferencesProps } from "./PreferencesMenu";
 import { useLanguage } from "../lib/LanguageContext";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
-import { DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
+import { getHiddenFeatures, setHiddenFeatures, DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
 import DataSourcesAndCopyright from "./DataSourcesAndCopyright";
 import StudyPreferences from "../features/study/components/StudyPreferences";
 import HelpGuide from "./HelpGuide";
 
-const sections = ["一般", "字卡與學習", "功能與導覽", "使用建議", "使用說明", "資料與備份", "關於 Nexus"] as const;
+const sections = ["一般", "字卡與學習", "使用建議", "使用說明", "資料與備份", "關於 Nexus"] as const;
 export default function SettingsDialog({ theme, onThemeChange, onExportBackup, onImportBackup, onClose }: PreferencesProps & { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { language, setLanguage, t } = useLanguage();
   const [section, setSection] = useState<typeof sections[number]>("一般");
   const [showSources,setShowSources]=useState(false);
+  const [hidden,setHidden]=useState(getHiddenFeatures);
   const [orderMode, setOrderMode] = useState(getStoredFeatureOrderMode);
   const [order, setOrder] = useState(getStoredCustomFeatureOrder);
   useEffect(() => {
@@ -44,14 +45,15 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
           {section === "一般" && <div className="space-y-6 text-sm">
             <label className="flex flex-wrap items-center justify-between gap-3">{t("preferences.theme")}<select aria-label={t("preferences.theme")} className={control} value={theme} onChange={(e) => onThemeChange(e.target.value as "light" | "dark")}><option value="light">{t("preferences.theme.light")}</option><option value="dark">{t("preferences.theme.dark")}</option></select></label>
             <label className="flex flex-wrap items-center justify-between gap-3">{t("preferences.language")}<select aria-label={t("preferences.language")} className={control} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>{SUPPORTED_LANGUAGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <p className="text-xs leading-6 opacity-60">設定變更會立即套用。主題和語言也可以從側欄的偏好選單快速切換。</p>
+            <p className="text-xs leading-6 opacity-60">{t("ui.settingsHint")}</p>
           </div>}
           {section === "字卡與學習" && <div className="space-y-6"><StudyPreferences /><p className="text-xs opacity-60">{t("styles.conflict")}</p></div>}
-          {section === "功能與導覽" && <div className="space-y-4 text-sm">
-            <p className="leading-6 opacity-70">「所有項目」與「日曆」固定在第一排，其他功能可依使用習慣排列。</p>
-            <fieldset className="space-y-2"><legend className="mb-2 font-medium">排列方式</legend>{([['recent', '最新使用排列（預設）'], ['default', '預設排列'], ['custom', '自訂排列']] as const).map(([value, label]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-border)" }}><input type="radio" name="feature-order" value={value} checked={orderMode === value} onChange={() => changeMode(value)} />{label}</label>)}</fieldset>
-            {orderMode === "custom" && <ol className="space-y-2">{order.map((id, index) => { const feature = DEFAULT_FEATURE_ITEMS.find((item) => item.id === id); if (!feature) return null; return <li key={id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--color-border)" }}><span>{index + 1}. {feature.label}</span><div className="flex gap-1"><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={`上移${feature.label}`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={`下移${feature.label}`} disabled={index === order.length - 1} onClick={() => move(index, 1)}>↓</button></div></li>; })}</ol>}
+          {section === "一般" && <div className="space-y-4 text-sm">
+            <h4 className="mt-6 font-medium">{t("ui.featureOrder")}</h4>
+            <fieldset className="space-y-2"><legend className="mb-2 font-medium">{t("ui.featureOrder")}</legend>{([['recent', '最新使用排列（預設）'], ['default', '預設排列'], ['custom', '自訂排列']] as const).map(([value]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-border)" }}><input type="radio" name="feature-order" value={value} checked={orderMode === value} onChange={() => changeMode(value)} />{t("ui.order."+value)}</label>)}</fieldset>
+            {orderMode === "custom" && <ol className="space-y-2">{order.map((id, index) => { const feature = DEFAULT_FEATURE_ITEMS.find((item) => item.id === id); if (!feature) return null; return <li key={id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--color-border)" }}><span>{index + 1}. {t("ui.feature."+feature.id)}</span><div className="flex gap-1"><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={t("ui.moveUp",{name:t("ui.feature."+feature.id)})} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button className="rounded px-2 py-1 hover:bg-zinc-500/10 disabled:opacity-30" type="button" aria-label={t("ui.moveDown",{name:t("ui.feature."+feature.id)})} disabled={index === order.length - 1} onClick={() => move(index, 1)}>↓</button></div></li>; })}</ol>}
           </div>}
+          {section === "一般" && <details className="mt-6 rounded-lg border p-4"><summary className="cursor-pointer text-sm font-medium">{t('ui.overview')}</summary><p className="my-3 text-xs opacity-70">{t('ui.visibilityHelp')}</p><div className="grid gap-2 sm:grid-cols-2">{DEFAULT_FEATURE_ITEMS.map(feature=><label key={feature.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={!hidden.includes(feature.id)} onChange={e=>{const next=e.target.checked?hidden.filter(id=>id!==feature.id):[...hidden,feature.id];setHidden(next);setHiddenFeatures(next);}}/>{t('ui.feature.'+feature.id)}</label>)}</div></details>}
           {section === "使用建議" && <div className="space-y-5 text-sm leading-7">
             <div><h4 className="font-semibold">選擇適合的功能排序</h4><p className="opacity-75">經常切換工作類型，可使用「最新使用排列」；希望位置保持一致，可選「預設排列」或「自訂排列」。</p></div>
             <div><h4 className="font-semibold">製作課本與講義</h4><p className="opacity-75">先用章標題與小節建立結構，再加入例題、練習與解答。完成內容後，從「講義排版與目錄」統一樣式；分頁筆記可使用「依 A4 整理分頁」。</p></div>

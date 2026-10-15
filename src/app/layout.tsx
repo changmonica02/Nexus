@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import WorkspaceRoot from "../components/WorkspaceRoot";
 import ConfirmDialogHost from "../components/ConfirmDialog";
 
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-TW">
-      <body className="h-full antialiased">{children}<ConfirmDialogHost/></body>
+      <body className="h-full antialiased"><WorkspaceRoot>{children}</WorkspaceRoot><ConfirmDialogHost/></body>
     </html>
   );
 }

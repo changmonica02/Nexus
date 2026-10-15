@@ -1,6 +1,7 @@
 "use client";
 import { useMenuDismiss } from "./useMenuDismiss";
-import { useRef, useState } from "react";
+import {createPortal} from "react-dom";
+import { useEffect, useRef, useState } from "react";
 
 export interface PageMenuItem {
   id: string;
@@ -15,17 +16,21 @@ const EDGE_MARGIN = 10;
 const ITEM_HEIGHT = 42;
 
 export default function PageItemMenu({ items, title }: { items: PageMenuItem[]; title: string }) {
+  const [portalRoot,setPortalRoot]=useState<Element|null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  useMenuDismiss(isOpen,[buttonRef,menuRef],()=>setIsOpen(false));
+  const close=()=>{setIsOpen(false);buttonRef.current?.focus();};
+  useMenuDismiss(isOpen,[buttonRef,menuRef],close);
+  useEffect(()=>{if(isOpen)menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();},[isOpen]);
 
   const openMenu = (event: React.MouseEvent) => {
     event.stopPropagation();
     if (!buttonRef.current) return;
     if (isOpen) { setIsOpen(false); return; }
+    setPortalRoot(buttonRef.current.closest("dialog"));
     const rect = buttonRef.current.getBoundingClientRect();
     const estimatedMenuHeight = items.length * ITEM_HEIGHT + 16;
     const openUpward = rect.bottom + estimatedMenuHeight > window.innerHeight - EDGE_MARGIN;
@@ -41,15 +46,19 @@ export default function PageItemMenu({ items, title }: { items: PageMenuItem[]; 
 
   return (
     <>
-      <button ref={buttonRef} onClick={openMenu} className="flex items-center justify-center w-9 h-9 hover:bg-zinc-300 rounded-md text-base transition-all text-zinc-500" title={title}>⋮</button>
-      {isOpen && position && (
-        <div ref={menuRef} className="fixed rounded-xl overflow-hidden shadow-2xl z-[9998]" style={{ top: `${position.top}px`, left: `${position.left}px`, width: `${MENU_WIDTH}px`, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <button type="button" ref={buttonRef} aria-label={title} aria-expanded={isOpen} aria-haspopup="menu" onClick={openMenu} className="flex shrink-0 items-center justify-center w-11 h-11 hover:bg-zinc-300 rounded-md text-base transition-all text-zinc-500" title={title}>⋯</button>
+      {isOpen && position && createPortal(
+        <div ref={menuRef} role="menu" aria-label={title} onKeyDown={e=>{
+          const keys=['ArrowDown','ArrowUp','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();
+          const buttons=Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('button')??[]);const index=buttons.indexOf(document.activeElement as HTMLButtonElement);
+          buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();
+        }} className="fixed rounded-xl overflow-hidden shadow-2xl z-[9998]" style={{ top: `${position.top}px`, left: `${position.left}px`, width: `${MENU_WIDTH}px`, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           {items.map((item) => (
-            <button key={item.id} onClick={() => { item.onClick(); setIsOpen(false); }} className={`w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-left transition-all ${item.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-zinc-200"}`} style={{ color: item.danger ? undefined : "var(--color-text)" }}>
+            <button type="button" role="menuitem" key={item.id} onClick={() => { close(); item.onClick(); }} className={`w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-left transition-all ${item.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-zinc-200"}`} style={{ color: item.danger ? undefined : "var(--color-text)" }}>
               <span>{item.icon}</span><span>{item.label}</span>
             </button>
           ))}
-        </div>
+        </div>, portalRoot ?? document.body
       )}
     </>
   );

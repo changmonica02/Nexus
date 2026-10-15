@@ -1,4 +1,5 @@
 "use client";
+import {CollectionItemMenu,type PageActions} from "./PageCollection";
 import {confirmDialog} from '../lib/confirmDialog';
 
 import { useMemo, useState } from "react";
@@ -6,7 +7,7 @@ import { isNovelPage, type Page, type PageFormat } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 
-export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateDocument, onCreateStudySet, onCreatePresentation, onImportPdf, onDeletePages, onPinPages, onReorderPages, onSetFolder, onRefresh }: {
+export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateDocument, onCreateStudySet, onCreatePresentation, onImportPdf, onDeletePages, onPinPages, onReorderPages, onSetFolder, onRefresh, ...itemActions }: PageActions & {
   pages: Page[]; onSelectPage: (id: string) => void; onCreatePage: (format: PageFormat) => void;
   onCreateDocument: (format: PageFormat) => void; onCreateStudySet: () => void; onCreatePresentation?: (format: PageFormat) => void; onImportPdf: () => void;
   onDeletePages: (ids: string[]) => void; onPinPages: (ids: string[]) => void; onReorderPages: (orderedIds: string[]) => void;
@@ -146,6 +147,7 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
                           <span className="flex min-w-0 items-center gap-2"><span className="text-base">{pageIcon(page)}</span><span className="min-w-0"><span className="block truncate text-sm">{page.title || t("common.untitled")}{(page.sort_order ?? 0) < 0 && <span className="ml-1 text-xs">📌</span>}</span>{viewMode === "grid" && <span className="mt-1 block text-xs opacity-50">{pageKindLabel(page)}</span>}</span></span>
                           <span className="shrink-0 text-xs opacity-40">{formatRelativeTime(page.updated_at)}</span>
                         </button>
+                        <CollectionItemMenu page={page} {...itemActions}/>
                         {sortMode === "custom" && !isSelecting && <span className="ml-1 flex shrink-0 flex-col"><button onClick={() => movePage(page.id, -1)} className="px-1 text-xs opacity-55 hover:opacity-100" title="上移">↑</button><button onClick={() => movePage(page.id, 1)} className="px-1 text-xs opacity-55 hover:opacity-100" title="下移">↓</button></span>}
                       </div>
                     ))}

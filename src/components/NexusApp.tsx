@@ -67,9 +67,10 @@ import FeatureOverview from "./FeatureOverview";
 import DevicePreview from "./DevicePreview";
 import { createFantasyTemplate, createModernTemplate, createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } from "../lib/characterTemplates";
 import AccountButton from "./AccountButton";
-import {useSidebarPreference} from "./useSidebarPreference";
+import FloatingSidebar from "./FloatingSidebar";
+import {navigateDictionary} from "../features/dictionary/useUnsavedDraft";
 
-export default function NexusApp({initialFeature="home"}:{initialFeature?:"home"|"study"}={}) {
+export default function NexusApp({initialFeature="home",externalContent,onLeaveExternal,onOpenDictionary}:{initialFeature?:"home"|"study";externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void}={}) {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const storageRef = useRef<StorageAdapter | null>(null);
@@ -92,6 +93,9 @@ export default function NexusApp({initialFeature="home"}:{initialFeature?:"home"
     <LanguageProvider initialLanguage={language} onLanguageChange={handleLanguageChange}>
       <NexusAppInner
         initialFeature={initialFeature}
+        externalContent={externalContent}
+        onLeaveExternal={onLeaveExternal}
+        onOpenDictionary={onOpenDictionary}
         storageRef={storageRef}
         onLanguageLoaded={setLanguage}
         theme={theme}
@@ -102,12 +106,14 @@ export default function NexusApp({initialFeature="home"}:{initialFeature?:"home"
 }
 
 function NexusAppInner({
+  externalContent, onLeaveExternal, onOpenDictionary,
   initialFeature,
   storageRef,
   onLanguageLoaded,
   theme,
   onThemeChange,
 }: {
+  externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void;
   initialFeature: "home"|"study";
   storageRef: MutableRefObject<StorageAdapter | null>;
   onLanguageLoaded: (lang: Language) => void;
@@ -126,10 +132,10 @@ function NexusAppInner({
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isDevicePreviewOpen, setIsDevicePreviewOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1440);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useSidebarPreference("nexus.sidebar.collapsed",false);
-  // Feature interfaces use a Google-style overlay drawer: it never consumes
-  // editor canvas width, and is closed by default.
-  const [isNavigationOpen, setIsNavigationOpen] = useSidebarPreference("nexus.navigation.open",false);
+
+  // Every workspace view uses one overlay drawer, closed by default.
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [launcherToolsOpen,setLauncherToolsOpen]=useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -197,10 +203,9 @@ function NexusAppInner({
     activePageRef.current = activePage;
   }, [activePage]);
 
-  const isFeatureInterface = isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
+  const isFeatureInterface = !!externalContent || isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
   const isTabletViewport = viewportWidth < 1024;
-  const isMobileViewport = viewportWidth < 768;
 
   useEffect(() => {
     const updateViewport = () => setViewportWidth(window.innerWidth);
@@ -215,12 +220,6 @@ function NexusAppInner({
     setSecondaryPdfUrl(null);
     setSecondaryPdfLoadError(null);
   }, [isTabletViewport, secondaryActivePageId]);
-
-  useEffect(() => {
-    // A narrow editor starts with its page switcher tucked away; users can
-    // still expand the rail with its own toggle when they need it.
-    if (isMobileViewport) setIsSidebarCollapsed(true);
-  }, [isMobileViewport]);
 
   useEffect(() => {
     // On tablets and phones the auxiliary panel is a drawer, never a second
@@ -1119,11 +1118,11 @@ function NexusAppInner({
   };
 
   const closeMobilePanelsWhenEditing = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isTabletViewport || isFeatureInterface || (isSidebarCollapsed && isRightPanelCollapsed)) return;
+    if (!isTabletViewport || isFeatureInterface || (!isNavigationOpen && isRightPanelCollapsed)) return;
     const target = event.target as HTMLElement;
     if (target.closest("[data-side-panel], [role='dialog'], dialog")) return;
     if (target.closest("[contenteditable='true'], textarea, input")) {
-      setIsSidebarCollapsed(true);
+      setIsNavigationOpen(false);
       setIsRightPanelCollapsed(true);
     }
   };
@@ -1159,21 +1158,34 @@ function NexusAppInner({
     closeFeatureOverviews();
     setActivePageId(null);
   }, []);
-  const handleShowStudySets = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsStudySetMode(true); setActivePageId(null); }, []);
-  const handleShowNovels = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsDocumentMode(false); setIsNovelMode(true); setActivePageId(null); }, []);
-  const handleShowDocuments = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
-  const handleShowNotesOverview = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
-  const handleShowPresentations = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
+  const handleShowStudySets = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsStudySetMode(true); setActivePageId(null); }, []);
+  const handleShowNovels = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsDocumentMode(false); setIsNovelMode(true); setActivePageId(null); }, []);
+  const handleShowDocuments = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
+  const handleShowNotesOverview = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
+  const handleShowPresentations = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
   const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
+
+  const navigate = useCallback((action:()=>void) => {
+    navigateDictionary(()=>{void (async()=>{
+      try {
+        await flushAllSaves();
+        action(); setIsNavigationOpen(false); onLeaveExternal?.();
+      } catch { setRefreshError(t("ui.saveFailed")); }
+    })();});
+  },[flushAllSaves,onLeaveExternal,t]);
 
   useEffect(() => {
     const openUtility = (event: Event) => {
       const kind = (event as CustomEvent<"web" | "counter" | "draw" | "score">).detail;
-      if (kind === "web" || kind === "counter" || kind === "draw" || kind === "score") handleShowUtility(kind);
+      if (kind === "web" || kind === "counter" || kind === "draw" || kind === "score") navigate(()=>handleShowUtility(kind));
     };
+    const study=()=>navigate(handleShowStudySets);
+    window.addEventListener("nexus-open-study",study);
+    const dictionary=()=>navigateDictionary(()=>{void flushAllSaves().then(()=>onOpenDictionary?onOpenDictionary():window.location.assign("/dictionary")).catch(()=>setRefreshError(t("ui.saveFailed")));});
+    window.addEventListener("nexus-open-dictionary",dictionary);
     window.addEventListener("nexus-open-utility", openUtility);
-    return () => window.removeEventListener("nexus-open-utility", openUtility);
-  }, [handleShowUtility]);
+    return () => {window.removeEventListener("nexus-open-study",study);window.removeEventListener("nexus-open-dictionary",dictionary);window.removeEventListener("nexus-open-utility", openUtility);};
+  }, [handleShowUtility,handleShowStudySets,navigate,flushAllSaves,t,onOpenDictionary]);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -1257,6 +1269,8 @@ function NexusAppInner({
       content_text: source.content_text,
       links: [...(source.links || [])],
       creative_type: source.creative_type,
+      color:source.color,
+      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? structuredClone(source.character_data) : undefined,
       study_items: source.kind === "study_set" ? [] : duplicated.study_items,
@@ -1272,7 +1286,7 @@ function NexusAppInner({
       const repository = storageRef.current.getStudyRepository();
       const original = await repository.ensureDeck(source);
       await repository.ensureDeck(pageToSave);
-      await repository.addCards(pageToSave.id, original.cards.filter(card => !card.deleted_at).map(card => ({ front: card.front, back: card.back })));
+      await repository.addCards(pageToSave.id, original.cards.filter(card => !card.deleted_at).map(card => ({ front: card.front, back: card.back, dictionary_entry_id:card.dictionary_entry_id })));
       await repository.configure(pageToSave.id, { direction_confirmed: original.settings.direction_confirmed });
     }
     setIsTrashMode(false);
@@ -1357,9 +1371,13 @@ function NexusAppInner({
     if (target) patchPage(id, { is_favorite: !target.is_favorite });
   }, [pages, patchPage]);
 
-  const handleRenamePage = useCallback((id: string, title: string) => {
-    patchPage(id, { title });
-  }, [patchPage]);
+  const handleRenamePage = useCallback(async (id: string, title: string) => {
+    const current=pages.find(page=>page.id===id);if(!current)throw new Error('Page not found');
+    const updated={...current,title,updated_at:Date.now()};
+    pendingSavesRef.current.set(id,updated);
+    setPages(previous=>previous.map(page=>page.id===id?updated:page));
+    await flushSave(updated);
+  },[pages,flushSave]);
 
   const handleExportBackup = useCallback(async () => {
     const storage = storageRef.current;
@@ -1699,17 +1717,17 @@ function NexusAppInner({
 
   const studyPreferenceDecks=useMemo(()=>pages.filter(p=>p.kind==='study_set'&&!p.deleted_at),[pages]);
 
-  if (!isReady || !isAuthResolved) {
+  if ((!isReady || !isAuthResolved) && !externalContent) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !externalContent) {
     return <AccountButton required />;
   }
 
   const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
-    <StudyPreferencesProvider key={accountEmail} getRepository={()=>storageRef.current!.getStudyRepository()} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
+    <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
       <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
@@ -1718,45 +1736,37 @@ function NexusAppInner({
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
 
-      {isFeatureInterface && (
+      {(
         <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="開啟導覽" title="開啟導覽">☰</button>
-          <button type="button" onClick={handleShowHome} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
+          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}>☰</button>
+          <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
           <div className="flex-1" />
           <div className="relative">
-            <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="功能總覽" title="功能總覽">
+            <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.overview")} title={t("ui.overview")}>
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
             </button>
             {isAppLauncherOpen && (
               <div className="absolute right-0 top-12 grid w-72 grid-cols-2 gap-1 rounded-2xl border p-2 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
                 {[
-                  ["▣", "日曆", handleShowTodoList],
-                  ["▤", "字卡", handleShowStudySets],
-                  ["✦", "創作", handleShowCreative],
-                  ["📖", "小說", handleShowNovels],
-                  ["✎", "筆記", handleShowNotesOverview],
-                  ["▱", "文檔", handleShowDocuments],
-                  ["▰", "簡報", handleShowPresentations],
-                  ["⌘", "網頁", () => handleShowUtility("web")],
-                  ["♫", "製譜", () => handleShowUtility("score")],
-                  ["＋", "計數", () => handleShowUtility("counter")],
-                  ["⤨", "抽選", () => handleShowUtility("draw")],
-                ].map(([icon, label, action]) => (
-                  <Fragment key={label as string}>{label === "計數" && <div className="col-span-2 border-t px-3 pt-2 text-xs opacity-60">工具</div>}<button type="button" onClick={() => { (action as () => void)(); setIsAppLauncherOpen(false); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                    <span className="text-lg">{icon as string}</span><span>{label as string}</span>
-                  </button></Fragment>
-                ))}
+                  {id:'calendar',icon:'▣',action:handleShowTodoList},
+                  {id:'study',icon:'▤',action:handleShowStudySets},
+                  {id:'dictionary',icon:'▥',action:()=>window.dispatchEvent(new Event('nexus-open-dictionary'))},
+                  {id:'creative',icon:'✦',action:handleShowCreative},
+                  {id:'novels',icon:'📖',action:handleShowNovels},
+                  {id:'notes',icon:'✎',action:handleShowNotesOverview},
+                  {id:'documents',icon:'▱',action:handleShowDocuments},
+                  {id:'presentations',icon:'▰',action:handleShowPresentations},
+                  {id:'web',icon:'⌘',action:()=>handleShowUtility('web')},
+                  {id:'score',icon:'♫',action:()=>handleShowUtility('score')},
+                  {id:'tools',icon:'⚒',action:()=>setLauncherToolsOpen(v=>!v)},
+                ].map(item=><Fragment key={item.id}><button type="button" aria-expanded={item.id==='tools'?launcherToolsOpen:undefined} onClick={()=>{if(item.id==='tools')item.action();else if(item.id==='dictionary'){item.action();setIsAppLauncherOpen(false);}else {navigate(item.action);setIsAppLauncherOpen(false);}}} className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-500/10"><span aria-hidden="true">{item.icon}</span>{t('ui.feature.'+item.id)}</button>{item.id==='tools'&&launcherToolsOpen&&<div className="col-span-2 grid grid-cols-2 border-t pl-3">{(['counter','draw'] as const).map(kind=><button key={kind} type="button" className="min-h-11 rounded p-2 text-left text-sm hover:bg-zinc-500/10" onClick={()=>{navigate(()=>handleShowUtility(kind));setIsAppLauncherOpen(false);}}>{t('ui.feature.'+kind)}</button>)}</div>}</Fragment>)}
               </div>
             )}
           </div>
         </header>
       )}
 
-      {isNavigationOpen && (
-        <>
-          <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/20" onClick={() => setIsNavigationOpen(false)} aria-label="關閉導覽" />
-          <div className="fixed inset-y-0 left-0 z-50 flex h-screen w-[min(360px,100vw)] shadow-2xl [&>div]:h-full">
-      <ResizablePanel side="left" defaultWidth={360} minWidth={220} maxWidth={480} isCollapsed={false}>
+      <FloatingSidebar open={isNavigationOpen} onClose={() => setIsNavigationOpen(false)}>
         <Sidebar
           pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
           activePageId={isTrashMode || isHomeMode ? null : activePageId}
@@ -1766,12 +1776,12 @@ function NexusAppInner({
           isCollapsed={false}
           onToggleCollapse={() => setIsNavigationOpen(false)}
           onSelectTag={setSelectedTag}
-          onSelectPage={handleSelectPage}
+          onSelectPage={(id)=>navigate(()=>void handleSelectPage(id))}
           onImportPdf={handleImportPdfClick}
           onImportMarkdown={handleImportMarkdownClick}
-          onShowHome={handleShowHome}
-          onShowNotes={handleShowNotes}
-          onShowTrash={handleShowTrash}
+          onShowHome={()=>navigate(handleShowHome)}
+          onShowNotes={()=>navigate(handleShowNotes)}
+          onShowTrash={()=>navigate(handleShowTrash)}
           onDeletePage={handleDeletePage}
           onRestorePage={handleRestorePage}
           onPermanentDeletePage={handlePermanentDeletePage}
@@ -1781,7 +1791,7 @@ function NexusAppInner({
           onBulkPermanentDeletePages={handleBulkPermanentDeletePages}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleFavorite={handleToggleFavorite}
-          onRenamePage={handleRenamePage}
+          onRenamePage={(id,title)=>{void handleRenamePage(id,title).catch(()=>setRefreshError(t("ui.saveFailed")));}}
           onExportPageMarkdown={handleExportPageMarkdown}
           onExportPageAsPdf={handleExportPageAsPdf}
           onExportPageAsNexusJson={handleExportPageAsNexusJson}
@@ -1797,11 +1807,11 @@ function NexusAppInner({
           onClearPendingRename={handleClearPendingRename}
           onCancelNewPage={handleCancelNewPage}
           utilityMode={utilityMode}
-          onCreateItem={handleCreateItem}
+          onCreateItem={type=>navigate(()=>void handleCreateItem(type))}
           syncState={syncState}
           accountEmail={accountEmail}
           onMovePage={handleMovePage}
-          onOpenInSplit={handleOpenInSplit}
+          onOpenInSplit={id=>navigate(()=>void handleOpenInSplit(id))}
           isQuickNoteMode={isQuickNoteMode}
           isTodoMode={isTodoMode}
           isCreativeMode={isCreativeMode}
@@ -1810,111 +1820,21 @@ function NexusAppInner({
           isDocumentMode={isDocumentMode}
           isNoteMode={isNoteMode}
           isPresentationMode={isPresentationMode}
-          onShowQuickNotes={handleShowQuickNotes}
-          onShowTodoList={handleShowTodoList}
-          onShowCreative={handleShowCreative}
-          onShowStudySets={handleShowStudySets}
-          onShowNovels={handleShowNovels}
-          onShowDocuments={handleShowDocuments}
-          onShowNotesOverview={handleShowNotesOverview}
-          onShowPresentations={handleShowPresentations}
+          onShowQuickNotes={()=>navigate(handleShowQuickNotes)}
+          onShowTodoList={()=>navigate(handleShowTodoList)}
+          onShowCreative={()=>navigate(handleShowCreative)}
+          onShowStudySets={()=>navigate(handleShowStudySets)}
+          onShowNovels={()=>navigate(handleShowNovels)}
+          onShowDocuments={()=>navigate(handleShowDocuments)}
+          onShowNotesOverview={()=>navigate(handleShowNotesOverview)}
+          onShowPresentations={()=>navigate(handleShowPresentations)}
         />
-      </ResizablePanel>
-          </div>
-        </>
-      )}
-
-      {/* Editors keep a local, collapsible switcher. It is separate from the
-          Google-style interface drawer and lets users change pages or open a
-          second editor without leaving their current editing context. */}
-      {!isFeatureInterface && (
-        <>
-        {isMobileViewport && !isSidebarCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsSidebarCollapsed(true)} aria-label="關閉左側面板" />}
-        <ResizablePanel side="left" defaultWidth={300} minWidth={220} maxWidth={480} collapsedWidth={isMobileViewport ? 0 : 56} isCollapsed={isSidebarCollapsed} overlay={isMobileViewport}>
-          <Sidebar
-            pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
-            activePageId={activePageId}
-            selectedTag={selectedTag}
-            isTrashMode={false}
-            isHomeMode={false}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
-            onSelectTag={setSelectedTag}
-            onSelectPage={handleSelectPage}
-            onImportPdf={handleImportPdfClick}
-            onImportMarkdown={handleImportMarkdownClick}
-            onShowHome={handleShowHome}
-            onShowNotes={handleShowNotes}
-            onShowTrash={handleShowTrash}
-            onDeletePage={handleDeletePage}
-            onRestorePage={handleRestorePage}
-            onPermanentDeletePage={handlePermanentDeletePage}
-            onDuplicatePage={handleDuplicatePage}
-            onBulkDeletePages={handleBulkDeletePages}
-            onBulkRestorePages={handleBulkRestorePages}
-            onBulkPermanentDeletePages={handleBulkPermanentDeletePages}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-            onToggleFavorite={handleToggleFavorite}
-            onRenamePage={handleRenamePage}
-            onExportPageMarkdown={handleExportPageMarkdown}
-            onExportPageAsPdf={handleExportPageAsPdf}
-            onExportPageAsNexusJson={handleExportPageAsNexusJson}
-            onAddSubPage={handleAddSubPage}
-            theme={theme}
-            onThemeChange={onThemeChange}
-            onExportBackup={handleExportBackup}
-            onImportBackup={handleImportBackupClick}
-            sortMode={sortMode}
-            onSortModeChange={setSortMode}
-            onReorderPages={handleReorderPages}
-            pendingRenameId={pendingRenameId}
-            onClearPendingRename={handleClearPendingRename}
-            onCancelNewPage={handleCancelNewPage}
-            utilityMode={utilityMode}
-          onCreateItem={handleCreateItem}
-            syncState={syncState}
-            accountEmail={accountEmail}
-            onMovePage={handleMovePage}
-            onOpenInSplit={handleOpenInSplit}
-            isQuickNoteMode={isQuickNoteMode}
-            isTodoMode={isTodoMode}
-            isCreativeMode={isCreativeMode}
-            isStudySetMode={isStudySetMode}
-            isNovelMode={isNovelMode}
-            isDocumentMode={isDocumentMode}
-            isNoteMode={isNoteMode}
-            isPresentationMode={isPresentationMode}
-            onShowQuickNotes={handleShowQuickNotes}
-            onShowTodoList={handleShowTodoList}
-            onShowCreative={handleShowCreative}
-            onShowStudySets={handleShowStudySets}
-            onShowNovels={handleShowNovels}
-            onShowDocuments={handleShowDocuments}
-            onShowNotesOverview={handleShowNotesOverview}
-            onShowPresentations={handleShowPresentations}
-          />
-        </ResizablePanel>
-        </>
-      )}
-
-      {/* 手機版不保留縮起後的垂直軌道；開關直接固定在編輯器最上方左側。 */}
-      {!isFeatureInterface && isMobileViewport && isSidebarCollapsed && (
-        <button
-          type="button"
-          onClick={() => { setIsRightPanelCollapsed(true); setIsSidebarCollapsed(false); }}
-          className="absolute left-2 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-lg shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-          aria-label="開啟左側面板"
-          title="開啟左側面板"
-        >
-          ☰
-        </button>
-      )}
+      </FloatingSidebar>
 
       {!isFeatureInterface && isTabletViewport && !isActiveNovel && (
         <button
           type="button"
-          onClick={() => { setIsSidebarCollapsed(true); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
+          onClick={() => { setIsNavigationOpen(false); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
           className="absolute right-3 top-2 z-30 flex h-10 w-10 items-center justify-center rounded-lg border text-base shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
           style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
           aria-label="開啟輔助頁"
@@ -1924,11 +1844,11 @@ function NexusAppInner({
         </button>
       )}
 
-      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFeatureInterface ? "mt-16 h-[calc(100dvh-4rem)]" : ""}`}>
-      {isHomeMode ? (
-        <Dashboard pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden mt-14 h-[calc(100dvh-3.5rem)]`}>
+      {externalContent ?? (isHomeMode ? (
+        <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
       ) : isQuickNoteMode ? (
-        <QuickNotesView
+        <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(txt) => {
             const title = txt.slice(0, 30) || "隨手記";
@@ -1954,7 +1874,7 @@ function NexusAppInner({
           onSelectPage={handleSelectPage}
         />
       ) : isTodoMode ? (
-        <TodoView
+        <TodoView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           onCreate={(title, due) => {
             void createAndOpenPage({ title, kind: "todo" as any }).then((p) => {
@@ -1981,68 +1901,68 @@ function NexusAppInner({
       ) : activePage?.kind === "score" ? (
         <ScoreWorkspace key={activePage.id} page={activePage} onChange={patch=>patchPage(activePage.id,patch)} onSave={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);}} onBack={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);if(utilityMode)setActivePageId(null);else handleShowHome();}}/>
       ) : utilityMode === "score" ? (
-        <ScoreOverview pages={pages.filter(p=>p.kind==='score'&&!p.deleted_at)} onCreate={()=>void createAndOpenPage({kind:'score',title:'新樂譜'})} onOpen={handleSelectPage}/>
+        <ScoreOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter(p=>p.kind==='score'&&!p.deleted_at)} onCreate={()=>void createAndOpenPage({kind:'score',title:'新樂譜'})} onOpen={handleSelectPage}/>
       ) : utilityMode ? (
         activePage?.kind === utilityMode ? (
           <UtilityView page={activePage} onBack={() => { setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
         ) : (
-          <FeatureOverview
-            title={utilityMode === "web" ? "網頁" : utilityMode === "counter" ? "計數" : "抽選"}
-            description={utilityMode === "web" ? "建立可整理與公開的個人連結頁。" : utilityMode === "counter" ? "用項目與合計追蹤數值。" : "以標籤篩選你的抽選資料庫。"}
+          <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
+            title={t("ui.feature."+utilityMode)}
+            description={t("ui.description."+utilityMode)}
             icon={utilityMode === "web" ? "⌘" : utilityMode === "counter" ? "＋" : "⤨"}
-            actionLabel={utilityMode === "web" ? "建立網頁" : utilityMode === "counter" ? "建立計數" : "建立抽選"}
+            actionLabel={t("ui.create."+utilityMode)}
             pages={pages.filter((page) => page.kind === utilityMode && !page.deleted_at)}
             onCreate={() => { const kind = utilityMode; void createAndOpenPage({ kind, title: kind === "web" ? "新網頁" : kind === "counter" ? "新計數" : "新抽選", format: "flow" }); }}
             onSelectPage={handleSelectPage}
           />
         )
       ) : isStudySetMode ? (
-        <StudyHomeOverview pages={pages.filter(p=>p.kind==='study_set'&&!p.deleted_at)} repository={storageRef.current!.getStudyRepository()}
+        <StudyHomeOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter(p=>p.kind==='study_set'&&!p.deleted_at)} repository={storageRef.current!.getStudyRepository()}
           onCreate={()=>void handleCreateStudySet()} onSelectPage={handleSelectPage}
           onChanged={async()=>{await syncEngineRef.current?.fullSync();if(storageRef.current)setPages(await storageRef.current.listPages());}}/>
 
       ) : isNovelMode ? (
-        <FeatureOverview
-          title="小說"
-          description="管理小說作品、章節閱讀與沉浸式寫作。"
+        <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
+          title={t("ui.feature.novels")}
+          description={t("ui.description.novels")}
           icon="📖"
-          actionLabel="建立小說"
+          actionLabel={t("ui.create.novels")}
           pages={pages.filter((p) => isNovelPage(p) && !p.deleted_at)}
           onCreate={() => void handleCreateItem("novel")}
           onSelectPage={handleSelectPage}
         />
       ) : isDocumentMode ? (
-        <FeatureOverview
-          title="文檔"
-          description="以流動式閱讀與撰寫為主的獨立文檔空間。"
+        <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
+          title={t("ui.feature.documents")}
+          description={t("ui.description.documents")}
           icon="📄"
-          actionLabel="建立文檔"
+          actionLabel={t("ui.create.documents")}
           pages={pages.filter((p) => p.kind === "document" && !p.deleted_at)}
           onCreate={() => void handleCreateDocument("flow")}
           onSelectPage={handleSelectPage}
         />
       ) : isNoteMode ? (
-        <FeatureOverview
-          title="筆記"
-          description="以流動式書寫、頁面連結與輔助頁為核心的筆記空間。"
+        <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
+          title={t("ui.feature.notes")}
+          description={t("ui.description.notes")}
           icon="📝"
-          actionLabel="建立筆記"
+          actionLabel={t("ui.create.notes")}
           pages={pages.filter((p) => (!p.kind || p.kind === "note") && !p.parent_id && !p.deleted_at)}
           onCreate={() => setCreateDialog({ open: true, initialKind: "note" })}
           onSelectPage={handleSelectPage}
         />
       ) : isPresentationMode ? (
-        <FeatureOverview
-          title="簡報"
-          description="使用圖層、自由文字方塊與圖表建立投影片。"
+        <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
+          title={t("ui.feature.presentations")}
+          description={t("ui.description.presentations")}
           icon="📊"
-          actionLabel="建立簡報"
+          actionLabel={t("ui.create.presentations")}
           pages={pages.filter((p) => p.kind === "presentation" && !p.deleted_at)}
           onCreate={() => setCreateDialog({ open: true, initialKind: "presentation" })}
           onSelectPage={handleSelectPage}
         />
       ) : isCreativeMode && (!activePage || activePage.kind !== "creative") ? (
-        <CreativeView
+        <CreativeView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           templates={pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at)}
           onRenameTemplate={(id, title) => patchPage(id, { title })}
@@ -2282,7 +2202,7 @@ function NexusAppInner({
                 onCloseSplit={handleCloseSplit}
                 onSwapSplit={handleSwapSplit}
               />
-      )}
+      ))}
 
       {!isFeatureInterface && isTabletViewport && (
         <>

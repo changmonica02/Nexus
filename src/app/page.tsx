@@ -1,5 +1,1 @@
-import NexusApp from "../components/NexusApp";
-
-export default function Home() {
-  return <NexusApp />;
-}
+export default function Page() { return null; }

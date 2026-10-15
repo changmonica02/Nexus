@@ -298,9 +298,7 @@ test(
           .getByLabel("搜尋管理詞條", { exact: true })
           .fill("no-visible-match");
         await page.getByRole("checkbox", { name: "字首", exact: true }).check();
-        await page
-          .getByRole("checkbox", { name: "已發布", exact: true })
-          .check();
+        assert.equal(await page.getByRole("checkbox", { name: "已發布", exact: true }).count(),0, "legacy publication-state checkboxes are replaced by work status");
         assert.equal(
           await page.getByRole("button", { name: "全選", exact: true }).count(),
           0,

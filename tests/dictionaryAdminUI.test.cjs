@@ -18,12 +18,13 @@ test('admin editor exposes independent sense/history/memory sections and locks p
 });
 test('admin route owns scrolling and return links use fixed destinations',()=>{
   const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
-  assert.ok(admin.includes('h-dvh overflow-y-auto'));
+  assert.ok(admin.includes('h-full min-w-0 flex-1 overflow-y-auto'));
+  assert.ok(fs.readFileSync('src/components/NexusApp.tsx','utf8').includes('h-[calc(100dvh-3.5rem)]'));
   assert.ok(admin.includes("entryId||newKind?'/dictionary/admin':'/dictionary'"));
   assert.ok(admin.includes('useUnsavedDraft(dirty,busy||publicationBusy,()=>save())'));
   assert.ok(admin.includes('confirmDialog('));
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
-  assert.ok(fs.readFileSync('src/app/study/page.tsx','utf8').includes('initialFeature="study"'));
+  assert.match(fs.readFileSync('src/components/WorkspaceRoot.tsx','utf8'), /initialFeature=\{pathname\s*===\s*["']\/study["']\s*\?\s*["']study["']\s*:\s*["']home["']\}/);
 });
 test('import preview escapes Markdown and distinguishes mnemonic from historical content',()=>{
   const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{dictionary_etymologies:[{id:'h',body:'Unverified history',verification:'pending'}],dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],dictionary_sources:[{id:'s',citation:'Self authored',license:'test-only',raw_text:'raw original'}]}}));
