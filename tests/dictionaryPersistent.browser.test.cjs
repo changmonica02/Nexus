@@ -146,7 +146,7 @@ test(
         page.on("pageerror", (e) => errors.push(e.message));
         const base = "http://127.0.0.1:" + server.address().port;
         await page.goto(base);
-        await page.getByRole("link", { name: /throw.*已發布・最新/ }).waitFor();
+        await page.getByRole("link", { name: /throw.*新發布/ }).waitFor();
       assert.equal(await page.locator("ul").first().evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(" ").length),width>=1280?3:width>=768?2:1);
         await page
           .getByRole("button", { name: "匯入資料", exact: true })

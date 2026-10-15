@@ -179,9 +179,9 @@ test("one shared compact control includes mode icons and sort direction in the s
       }),
     ),
   );
-  assert.ok(html.includes("title:asc"));
-  assert.ok(html.includes("title:desc"));
-  assert.equal((html.match(/<button/g) || []).length, 2);
+  assert.ok(html.includes('aria-haspopup="menu"'));
+  assert.ok(!html.includes("<select"));
+  assert.equal((html.match(/<button/g) || []).length, 3);
   assert.ok(html.includes('aria-pressed="true"'));
   assert.ok(!html.includes("rounded border"));
 });

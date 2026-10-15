@@ -104,6 +104,7 @@ test(
       ]) {
         const context = await browser.newContext({
             viewport: { width, height },
+            hasTouch: width !== 1440,
           }),
           page = await context.newPage();
         page.on("pageerror", (e) => errors.push(e.message));
@@ -113,6 +114,45 @@ test(
           exact: true,
         });
         await opener.waitFor();
+        if (width === 1440) {
+          await page.evaluate(() => {
+            localStorage.setItem(
+              "nexus-dashboard-view:sort",
+              JSON.stringify({ sort: "custom", ascending: false }),
+            );
+            window.dispatchEvent(new Event("nexus-view-changed"));
+          });
+          await page.getByRole("button", { name: "排序", exact: true }).click();
+          const manualMenu = page.getByRole("dialog", {
+            name: "排序",
+            exact: true,
+          });
+          await manualMenu
+            .getByRole("menuitemradio", {
+              name: "自訂順序 · 遞增",
+              exact: true,
+            })
+            .click();
+          assert.equal(await manualMenu.isVisible(), true);
+          await manualMenu
+            .getByRole("menuitemradio", {
+              name: "自訂順序 · 遞減",
+              exact: true,
+            })
+            .click();
+          await manualMenu
+            .getByRole("menuitemradio", { name: "最近編輯", exact: true })
+            .click();
+          await page.keyboard.press("Escape");
+          assert.equal(
+            await page.evaluate(
+              () =>
+                JSON.parse(localStorage.getItem("nexus-dashboard-view:sort"))
+                  .version,
+            ),
+            2,
+          );
+        }
         const mainWidth = await page
           .locator("main")
           .first()
@@ -147,6 +187,71 @@ test(
             .evaluate((e) => e.getBoundingClientRect().width),
           mainWidth,
         );
+        assert.equal(
+          await drawer
+            .getByRole("button", { name: /^開啟 (筆記|字卡|創作)$/ })
+            .count(),
+          0,
+        );
+        const beforeTrash = await page.locator("main").first().textContent();
+        const trashNav = drawer.getByRole("button", {
+          name: "垃圾桶",
+          exact: true,
+        });
+        await trashNav.click();
+        await drawer.getByText("Trash restore", { exact: true }).waitFor();
+        assert.equal(
+          await page.locator("main").first().textContent(),
+          beforeTrash,
+        );
+        await trashNav.dblclick();
+        await page.waitForURL("**/trash?from=*");
+        await page
+          .getByRole("heading", { name: "垃圾桶", exact: true })
+          .waitFor();
+        const restoreRow = page
+          .locator("li")
+          .filter({ hasText: "Trash restore" });
+        await restoreRow
+          .getByRole("button", { name: "復原", exact: true })
+          .click();
+        await until(page, async () =>
+          (await window.fixtureStorage.listPages()).some(
+            (p) => p.title === "Trash restore" && !p.deleted_at,
+          ),
+        );
+        const permanent = page.getByRole("button", {
+          name: "永久刪除",
+          exact: true,
+        });
+        await permanent.click();
+        await page
+          .getByRole("dialog", { name: "永久刪除", exact: true })
+          .getByRole("button", { name: "取消", exact: true })
+          .click();
+        assert.equal(
+          await page
+            .locator("li")
+            .filter({ hasText: "Trash permanent" })
+            .count(),
+          1,
+        );
+        await permanent.click();
+        await page
+          .getByRole("dialog", { name: "永久刪除", exact: true })
+          .getByRole("button", { name: "永久刪除", exact: true })
+          .click();
+        await until(page, async () =>
+          (
+            await window.fixtureStorage.listPages({ includeDeleted: true })
+          ).every((p) => p.title !== "Trash permanent"),
+        );
+        await page.reload();
+        await page.getByText("垃圾桶是空的。", { exact: true }).waitFor();
+        await page.getByRole("button", { name: "← 返回", exact: true }).click();
+        await page.waitForURL("**/");
+        await opener.click();
+        await drawer.waitFor();
         await drawer.getByTitle("新建", { exact: true }).click();
         await page.getByRole("dialog", { name: "建立", exact: true }).waitFor();
         await page.keyboard.press("Escape");
@@ -194,11 +299,34 @@ test(
           .click();
         assert.equal(
           await drawer
-            .getByRole("button", { name: "開啟 網頁", exact: true })
+            .getByRole("button", { name: "網頁", exact: true })
             .count(),
           0,
         );
-        await drawer.getByRole("button", { name: "工具", exact: true }).click();
+        const toolsNav = drawer.getByRole("button", {
+          name: "工具",
+          exact: true,
+        });
+        if (width !== 1440) {
+          await page.evaluate(() => {
+            window.toolOpenEvents = 0;
+            window.addEventListener(
+              "nexus-open-tools",
+              () => window.toolOpenEvents++,
+            );
+          });
+          const handle = await toolsNav.elementHandle();
+          await handle.dispatchEvent("pointerdown", {
+            pointerType: "touch",
+            clientX: 10,
+            clientY: 10,
+          });
+          await page
+            .getByRole("heading", { name: "工具", exact: true })
+            .waitFor();
+          await handle.dispatchEvent("contextmenu");
+          assert.equal(await page.evaluate(() => window.toolOpenEvents), 1);
+        } else await toolsNav.dblclick();
         await page
           .getByRole("heading", { name: "工具", exact: true })
           .waitFor();
@@ -274,6 +402,22 @@ test(
         });
         if ((await features.getAttribute("aria-expanded")) === "false")
           await features.click();
+        const allItems = drawer.getByRole("button", {
+          name: "所有項目",
+          exact: true,
+        });
+        await allItems.click();
+        await page.waitForTimeout(330);
+        assert.equal(await page.locator("[data-workspace-header]").count(), 0);
+        await allItems.dblclick();
+        await page
+          .getByRole("heading", { name: "歡迎回來 🙌", exact: true })
+          .waitFor();
+        assert.equal(
+          await page.getByText("沒有選擇頁面", { exact: true }).count(),
+          0,
+        );
+        await opener.click();
         await drawer
           .getByRole("button", { name: "筆記", exact: true })
           .dblclick();
@@ -291,9 +435,22 @@ test(
         );
 
         await page.getByRole("button", { name: "列表", exact: true }).click();
-        await page
-          .getByRole("combobox", { name: "排序", exact: true })
-          .selectOption("title:asc");
+        await page.getByRole("button", { name: "排序", exact: true }).click();
+        const sortPanel = page.getByRole("dialog", {
+          name: "排序",
+          exact: true,
+        });
+        assert.equal(await sortPanel.getByRole("menuitemradio").count(), 5);
+        await sortPanel
+          .getByRole("menuitemradio", { name: "名稱", exact: true })
+          .click();
+        assert.equal(await sortPanel.isVisible(), true);
+        assert.equal(
+          await sortPanel
+            .getByRole("menuitemradio", { name: "名稱 · 遞增", exact: true })
+            .getAttribute("aria-checked"),
+          "true",
+        );
         const rows = page.locator('[data-collection-row="list"]');
         assert.equal(await rows.count(), 4);
         const titles = ["A note", "Z note", "😀 Custom note", "Sample note"];
@@ -304,14 +461,50 @@ test(
           actual,
           titles.sort((a, b) => a.localeCompare(b)),
         );
-        await page
-          .getByRole("combobox", { name: "排序", exact: true })
-          .selectOption("title:desc");
+        await sortPanel
+          .getByRole("menuitemradio", { name: "名稱 · 遞增", exact: true })
+          .click();
+        assert.equal(await sortPanel.isVisible(), true);
         assert.deepEqual(
           await rows.evaluateAll((es) =>
             es.map((e) => e.querySelector("span.truncate")?.textContent),
           ),
           [...actual].reverse(),
+        );
+        await page.keyboard.press("Escape");
+        await page.reload();
+        await opener.waitFor();
+        await opener.click();
+        const reloadedFeatures = drawer.getByRole("button", {
+          name: "功能總覽",
+          exact: true,
+        });
+        if ((await reloadedFeatures.getAttribute("aria-expanded")) === "false")
+          await reloadedFeatures.click();
+        await drawer
+          .getByRole("button", { name: "筆記", exact: true })
+          .press("Enter");
+        await page.locator('[data-collection-row="list"]').first().waitFor();
+        assert.deepEqual(
+          await rows.evaluateAll((es) =>
+            es.map((e) => e.querySelector("span.truncate")?.textContent),
+          ),
+          [...actual].reverse(),
+        );
+        await page.getByRole("button", { name: "排序", exact: true }).click();
+        assert.equal(
+          await sortPanel
+            .getByRole("menuitemradio", { name: "名稱 · 遞減", exact: true })
+            .getAttribute("aria-checked"),
+          "true",
+        );
+        await page.keyboard.press("ArrowDown");
+        await page.keyboard.press("Escape");
+        assert.equal(
+          await page
+            .getByRole("button", { name: "排序", exact: true })
+            .evaluate((e) => e === document.activeElement),
+          true,
         );
         assert.equal(
           await rows.first().evaluate((e) => getComputedStyle(e).borderWidth),
@@ -395,8 +588,19 @@ test(
           );
           await opener.click();
           await drawer
-            .getByRole("button", { name: "開啟 筆記", exact: true })
+            .getByRole("button", { name: "垃圾桶", exact: true })
             .click();
+          await page.waitForTimeout(330);
+          assert.equal(
+            await page.locator("[data-workspace-header]").count(),
+            0,
+          );
+          assert.equal(await back.isVisible(), true);
+          await page.keyboard.press("Escape");
+          await opener.click();
+          await drawer
+            .getByRole("button", { name: "筆記", exact: true })
+            .press("Enter");
           await page
             .getByRole("button", { name: "＋ 建立筆記", exact: true })
             .click();
@@ -421,8 +625,8 @@ test(
           assert.notEqual(copy.id, sourceId);
           await opener.click();
           await drawer
-            .getByRole("button", { name: "開啟 筆記", exact: true })
-            .click();
+            .getByRole("button", { name: "筆記", exact: true })
+            .press("Enter");
           await page
             .getByRole("button", {
               name: "更多操作 Renamed note copy",
@@ -473,8 +677,8 @@ test(
           );
           await opener.click();
           await drawer
-            .getByRole("button", { name: "開啟 字卡", exact: true })
-            .click();
+            .getByRole("button", { name: "字卡", exact: true })
+            .press("Enter");
           await page
             .getByRole("button", {
               name: "更多操作 Sample study_set",
@@ -554,8 +758,8 @@ test(
           assert.deepEqual(unchanged.states, original.snapshot.states);
           await opener.click();
           await drawer
-            .getByRole("button", { name: "開啟 創作", exact: true })
-            .click();
+            .getByRole("button", { name: "創作", exact: true })
+            .press("Enter");
           assert.equal(
             await page
               .getByRole("button", {
@@ -624,8 +828,8 @@ test(
           );
           await opener.click();
           await drawer
-            .getByRole("button", { name: "開啟 小說", exact: true })
-            .click();
+            .getByRole("button", { name: "小說", exact: true })
+            .press("Enter");
           assert.equal(
             await page
               .getByRole("button", {
@@ -659,8 +863,8 @@ test(
         );
         await opener.click();
         await drawer
-          .getByRole("button", { name: "開啟 字典", exact: true })
-          .click();
+          .getByRole("button", { name: "字典", exact: true })
+          .press("Enter");
         await page
           .getByRole("heading", { name: "字典管理", exact: true })
           .waitFor();
@@ -672,7 +876,7 @@ test(
           `http://127.0.0.1:${server.address().port}/dictionary/admin`,
         );
         await page
-          .getByRole("checkbox", { name: "🔴 匯入待審核", exact: true })
+          .getByRole("checkbox", { name: "🔴 待審核", exact: true })
           .waitFor();
         const navs = page.getByRole("navigation", { name: "管理詞條分頁" });
         assert.equal(await navs.count(), 2);
@@ -682,10 +886,10 @@ test(
           .getByRole("button", { name: "編輯第 2 頁", exact: true })
           .waitFor();
         await page
-          .getByRole("checkbox", { name: "🔴 匯入待審核", exact: true })
+          .getByRole("checkbox", { name: "🔴 待審核", exact: true })
           .check();
         await page
-          .getByRole("checkbox", { name: "🟢 已發布・最新", exact: true })
+          .getByRole("checkbox", { name: "🟢 新發布", exact: true })
           .check();
         await page.waitForFunction(
           () =>
@@ -707,9 +911,23 @@ test(
             ),
           width >= 1180 ? 3 : width >= 820 ? 2 : 1,
         );
+        const filter = page.locator("[data-dictionary-filters]");
+        assert.ok(
+          await filter.evaluate(
+            (e) =>
+              e.previousElementSibling.tagName === "INPUT" &&
+              e.nextElementSibling.tagName === "NAV",
+          ),
+        );
+        if (width >= 820) {
+          const boxes = await filter
+            .locator("fieldset")
+            .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().top));
+          assert.ok(Math.abs(boxes[0] - boxes[1]) < 3);
+        }
         assert.ok(
           (await page.locator("[data-dictionary-list]").textContent()).includes(
-            "匯入待審核",
+            "待審核",
           ),
         );
         await navs
@@ -731,7 +949,7 @@ test(
         );
         assert.equal(
           await page
-            .getByRole("checkbox", { name: "🔴 匯入待審核", exact: true })
+            .getByRole("checkbox", { name: "🔴 待審核", exact: true })
             .isChecked(),
           true,
         );
@@ -768,7 +986,7 @@ test(
           await page.keyboard.press("Escape");
           await page
             .getByRole("checkbox", {
-              name: "🔴 Import review pending",
+              name: "🔴 Pending review",
               exact: true,
             })
             .waitFor();

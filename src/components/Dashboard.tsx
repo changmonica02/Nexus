@@ -33,7 +33,7 @@ export default function Dashboard({ pages, onSelectPage, onCreatePage, onCreateD
       const aPinned = (a.sort_order ?? 0) < 0;
       const bPinned = (b.sort_order ?? 0) < 0;
       if (aPinned !== bPinned) return aPinned ? -1 : 1;
-      return sortMode === "updated" ? (ascending?1:-1)*(a.updated_at-b.updated_at) : (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER);
+      return sortMode === "updated" ? (ascending?1:-1)*(a.updated_at-b.updated_at) : (ascending?1:-1)*((a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER));
     });
     const groups = new Map<string, Page[]>();
     sorted.forEach((page) => {

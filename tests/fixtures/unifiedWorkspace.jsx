@@ -131,6 +131,7 @@ if (!(await storage.listPages()).length) {
         character_data: { basic: { name: "Sample world" }, sections: [] },
       });
   }
+  for(const title of ['Trash restore','Trash permanent']){const p=await storage.createPage({kind:'counter',title,format:'flow'});await storage.deletePage(p.id);}
   for(const [title,age] of [['A note',4],['Z note',2],['😀 Custom note',0]]){
     const p=await storage.createPage({kind:'note',title,format:'flow'});await storage.savePage({...p,content_text:'🌍 user content',updated_at:Date.now()-age*86400000});
   }

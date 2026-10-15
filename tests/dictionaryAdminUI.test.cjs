@@ -45,7 +45,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資料','中文義項','構詞關聯','歷史詞源','口訣','記憶故事']){
+  for(const label of ['基本資訊','義項','詞形變化','構詞關聯','補充資料','歷史詞源','口訣','記憶故事']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
@@ -57,7 +57,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(header.includes('sticky top-0'));assert.ok(!header.includes('返回'));assert.ok(header.includes('儲存'));
   assert.ok(!html.includes('儲存整份草稿'));
   assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
-  assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>中文義項</h3>'));
+  assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>義項</h3>'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增中文義項'));
   assert.ok(!html.includes('grid-cols-2'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
@@ -97,7 +97,7 @@ function nodes(root){
   return [root,...nodes(root.props.children)];
 }
 function pick(root,predicate){const result=nodes(root).find(predicate);assert.ok(result,'expected editor control');return result;}
-const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&node.props.children===text);
+const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&(node.props.children===text||node.props['aria-label']===text));
 
 test('Prefix selection snapshots DOM value, saves current sense_groups, preserves hidden tags, and reloads',async()=>{
   const {prefixCategories,readSenseGroups}=require('../src/features/dictionary/grouping.ts');

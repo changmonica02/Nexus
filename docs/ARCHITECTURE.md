@@ -492,7 +492,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 - `WorkspaceRoot` 在根layout維持同一個`NexusApp`；首頁／study route為空route marker，字典／官方單字集作為既有工作區的外部內容。從外部功能回私人功能沿用已載入的編輯器與私人工作區；字典公開閱讀不被私人登入門檻攔截，未登入不讀私人頁面。`/study`直達及返回以共用study導覽事件開啟學習集。
 - 所有路徑共用一個`FloatingSidebar`與一份`Sidebar`。原生modal dialog覆蓋主區、不占版寬；關閉仍保留子元件／檔案清單狀態，Esc／遮罩／關閉鈕收合並回復入口焦點。頂部、中間可捲動區與底部帳號／偏好共用，使用dvh、安全區及短視窗導覽高度限制。右側輔助頁沿用原模型。偏好與項目選單portal掛在所屬dialog，避免落到原生modal的不可互動背景。
-- 一般設定整合功能排序及預設收合的顯示勾選；`nexus-hidden-features`僅為裝置本機偏好，只影響側欄，首頁launcher與資料不變。保留舊排序key；讀取舊counter／draw次序時去重對應tools，頂層工具開啟`ToolsOverview`，內部切換既有counter／draw清單；鍵盤Enter、獨立開啟鈕與工具單擊均可進入。
+- 一般設定整合功能排序及預設收合的顯示勾選；`nexus-hidden-features`僅為裝置本機偏好，只影響側欄，首頁launcher與資料不變。保留舊排序key；讀取舊counter／draw次序時去重對應tools，頂層工具開啟`ToolsOverview`，內部切換既有counter／draw清單；功能項目雙擊、長按／右鍵或鍵盤Enter可開啟；單擊僅篩選，不再有獨立箭頭鈕。
 - Web不能切換的根因為部分功能handler未清除utilityMode；所有目標功能先清除其他overview旗標。共用導覽先`flushAllSaves`，包含非目前頁與輔助頁的pending／in-flight寫入；失敗留在目前介面，字典另沿用`navigateDictionary`離開保護。
 - `PageCollection`提供卡片／列表、排序、摘要與`CollectionItemMenu`。`PageItemMenu`沿用並加鍵盤移動、焦點回復及正確portal。筆記、文檔、簡報、小說、創作、網頁、計數、抽選、私人學習集及製譜共用列表；Dashboard共用模式／排序控制；隨手記／日曆事項及官方學習集清單也接入`PageCollection`，保留顏色、完成控制與官方專屬操作。官方學習集保留官方資訊／重新同步／刪除，避免不適用的複製。創作只在主建立鈕後選世界觀／角色卡，再沿用原模板；未實作角色組件重構或#62。
 - 重新命名透過原`flushSave`即時確認落盤，保留Page ID；失敗不關閉改名對話框。刪除先確認後沿用soft-delete／官方權限與回收桶；複製沿用工作區內容複製：新Page／章節／Study Card ID，私人學習集只複製front／back／dictionary_entry_id與方向確認，不帶FSRS狀態、事件、Session或官方身分。隨手記保留顏色，日曆副本保留日期／優先級並清除完成狀態。單一筆記建立視窗沿用流動／手動分頁初始化，改用原生dialog支援Esc與焦點。
@@ -513,3 +513,17 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 本輪只改前端、顯示偏好與回歸測試，沒有Migration、RPC或正式資料寫入。工具進階規則、角色卡組件改版與#62仍不在範圍；隔離瀏覽器不等於真實iPad／正式帳號驗收，留常駐#60。
 
 驗證：保留原109項範圍並新增5項時間／分類／圖示／控制測試，共114/114通過；原6組隔離Chromium回歸全數通過，工作區新增測試後再獨立重跑通過（1440×900、820×1180、1180×820、390×844）。TypeScript／Production Build通過；ESLint 0 errors／464既有warnings。真實Safari、正式登入同步及裝置觸控仍由#60人工確認。
+
+
+### PR #64 後第三輪 UI（2026-10-15，#34）
+
+- 管理清單維持原`listAdminWork`、紅＞黃＞綠、精確統計與上下同步分頁；DOM順序改為搜尋、同列可換行類型／狀態、上分頁、列表、下分頁。僅翻譯標籤改為「狀態／待審核／有草稿／新發布」；綠色沒有新增日期判斷，3／2／1容器欄數及全域發布scope不變。
+- `EditorSection`以原生details共用基本資訊／義項／詞形／構詞／補充資料五區，收合不卸載輸入。詞形使用響應式grid表格式編輯列：sm以上類型／詞形／Sense／44px刪除，窄版標籤堆疊。Stable ID／sort_order、來源、例詞、讀音、歷史詞源、記憶內容及舊註釋仍沿原Bundle與驗證管線；新增與刪除控制縮小視覺但維持可點擊區、確認與既有RPC。sticky操作列保留dirty、先存後發布、人工批准及衝突保護。
+- `PublishedWorkspace`只顯示日常最新版本／草稿；有active Review才顯示切換，最新預覽取Published base snapshot，草稿編輯器在切換時僅hidden、保持掛載及離開保護。一般編輯頁不再查詢或呈現Published版本歷史；歷史資料表、Audit、revision與RPC完全保留。多份舊active Review仍須明確選擇，不自動合併；選單立即快照review ID，離開確認後才使用該ID切換，避免Safari受控欄位還原選取值；stale提示、備份、重新載入、捨棄草稿及人工查證確認不變。
+- `PersistentReviewPanel.compact`只供一般詞條頁：零工作不渲染，有未決／阻擋工作只顯示提示及管理審核連結，錯誤可重試。完整決策仍在原管理入口／同一常駐RPC，不因切換或隱藏面板刪除決策。
+- `SidebarNavigationButton`將單擊篩選延遲300ms，雙擊取消單擊；Enter、600ms長按／contextmenu可開啟，移動超過10px取消長按。長按與contextmenu去重，首頁仍即時單擊。所有項目雙擊開Home；工具也改回單擊只篩選。垃圾桶快看只變側欄資料，不清除主區模式、不插入頂欄。
+- `/trash`是受既有工作區登入門檻保護的route marker；`WorkspaceRoot`保持同一NexusApp，`TrashPage`使用原trashPages／restore／permanentDelete及Workspace Tombstone，沒有第二個資料模型。URL保存本地from路徑／query／hash，`trashReturn`拒絕外站、反斜線、控制字元及循環返回；直接開啟／刷新會重新讀原本機owner資料。復原不跳出清單，永久刪除須確認，失敗保留項目並可重試；原章節／附件清理與同步語意保留。
+- `CollectionControls`由native select改為共用modal menu，每個方法唯一menuitemradio，選中勾號與方向圖示／無障礙方向名稱。選取或重點選只呼叫onSort、保持浮窗，外側／Esc／觸發鈕才關閉；方向鍵／Home／End管理焦點，關閉回原入口。新方法預設日期／內容長度遞減，名稱／類型／due／自訂遞增。舊自訂排序未曾提供方向且固定按sort_order正序；讀舊無version偏好時解讀為遞增以保持原顯示，首次操作寫version2。其他方法原方向不變，且不重寫Page或sort_order。
+- 本輪沒有SQL／RPC／RLS／備份或同步格式變更，無Migration與正式資料操作。Chromium尺寸／本機SQL測試不等於真實iPad Safari或正式帳號人工驗收，留#60。
+
+驗證：119/119相關單元／整合（保留前輪114項，新增5項本輪契約），6/6隔離Chromium組通過。最後自訂順序無障礙修正後重跑34項UI回歸與工作區四尺寸組通過；TypeScript／Production Build通過、ESLint 0 errors／464既有warnings。垃圾桶／詞條／排序的真實iPad Safari與正式帳號驗收仍留#60，沒有執行正式SQL或字典資料操作。

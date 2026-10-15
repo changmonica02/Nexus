@@ -51,7 +51,10 @@ export function useCollectionPreferences(key: string, initial: Preferences) {
       typeof parsed.ascending === "boolean"
     ) {
       sort = parsed.sort;
-      ascending = parsed.ascending;
+      ascending =
+        parsed.sort === "custom" && parsed.version !== 2
+          ? true
+          : parsed.ascending;
     }
   } catch {}
   const view = raw
@@ -67,7 +70,11 @@ export function useCollectionPreferences(key: string, initial: Preferences) {
       localStorage.setItem(key, next.view === "cards" ? "icons" : "list");
       localStorage.setItem(
         key + ":sort",
-        JSON.stringify({ sort: next.sort, ascending: next.ascending }),
+        JSON.stringify({
+          version: 2,
+          sort: next.sort,
+          ascending: next.ascending,
+        }),
       );
       window.dispatchEvent(new Event("nexus-view-changed"));
     } catch {

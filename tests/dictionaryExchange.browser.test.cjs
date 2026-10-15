@@ -433,9 +433,9 @@ test(
           0,
         );
         await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000003");
-        await page
-          .getByText("目前 Published revision 1", { exact: false })
-          .waitFor();
+        await page.getByRole('button',{name:'儲存',exact:true}).waitFor();
+        assert.equal(await page.getByLabel('單字',{exact:true}).inputValue(),'item3');
+        assert.equal(await page.getByText(/Published revision/).count(),0);
         assert.equal(
           await page
             .getByRole("button", { name: "刪除草稿", exact: true })
