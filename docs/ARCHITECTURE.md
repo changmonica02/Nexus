@@ -519,7 +519,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 - 管理清單維持原`listAdminWork`、紅＞黃＞綠、精確統計與上下同步分頁；DOM順序改為搜尋、同列可換行類型／狀態、上分頁、列表、下分頁。僅翻譯標籤改為「狀態／待審核／有草稿／新發布」；綠色沒有新增日期判斷，3／2／1容器欄數及全域發布scope不變。
 - `EditorSection`以原生details共用基本資訊／義項／詞形／構詞／補充資料五區，收合不卸載輸入。詞形使用響應式grid表格式編輯列：sm以上類型／詞形／Sense／44px刪除，窄版標籤堆疊。Stable ID／sort_order、來源、例詞、讀音、歷史詞源、記憶內容及舊註釋仍沿原Bundle與驗證管線；新增與刪除控制縮小視覺但維持可點擊區、確認與既有RPC。sticky操作列保留dirty、先存後發布、人工批准及衝突保護。
-- `PublishedWorkspace`只顯示日常最新版本／草稿；有active Review才顯示切換，最新預覽取Published base snapshot，草稿編輯器在切換時僅hidden、保持掛載及離開保護。一般編輯頁不再查詢或呈現Published版本歷史；歷史資料表、Audit、revision與RPC完全保留。多份舊active Review仍須明確選擇，不自動合併；stale提示、備份、重新載入、捨棄草稿及人工查證確認不變。
+- `PublishedWorkspace`只顯示日常最新版本／草稿；有active Review才顯示切換，最新預覽取Published base snapshot，草稿編輯器在切換時僅hidden、保持掛載及離開保護。一般編輯頁不再查詢或呈現Published版本歷史；歷史資料表、Audit、revision與RPC完全保留。多份舊active Review仍須明確選擇，不自動合併；選單立即快照review ID，離開確認後才使用該ID切換，避免Safari受控欄位還原選取值；stale提示、備份、重新載入、捨棄草稿及人工查證確認不變。
 - `PersistentReviewPanel.compact`只供一般詞條頁：零工作不渲染，有未決／阻擋工作只顯示提示及管理審核連結，錯誤可重試。完整決策仍在原管理入口／同一常駐RPC，不因切換或隱藏面板刪除決策。
 - `SidebarNavigationButton`將單擊篩選延遲300ms，雙擊取消單擊；Enter、600ms長按／contextmenu可開啟，移動超過10px取消長按。長按與contextmenu去重，首頁仍即時單擊。所有項目雙擊開Home；工具也改回單擊只篩選。垃圾桶快看只變側欄資料，不清除主區模式、不插入頂欄。
 - `/trash`是受既有工作區登入門檻保護的route marker；`WorkspaceRoot`保持同一NexusApp，`TrashPage`使用原trashPages／restore／permanentDelete及Workspace Tombstone，沒有第二個資料模型。URL保存本地from路徑／query／hash，`trashReturn`拒絕外站、反斜線、控制字元及循環返回；直接開啟／刷新會重新讀原本機owner資料。復原不跳出清單，永久刪除須確認，失敗保留項目並可重試；原章節／附件清理與同步語意保留。
