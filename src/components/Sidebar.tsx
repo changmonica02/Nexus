@@ -1,5 +1,6 @@
 "use client";
 import FeatureIcon from "./FeatureIcon";
+import SidebarNavigationButton from "./SidebarNavigationButton";
 import FloatingPanel from "./FloatingPanel";
 import {TOOL_FEATURES, getHiddenFeatures} from "../lib/featurePreferences";
 import {confirmDialog} from '../lib/confirmDialog';
@@ -53,6 +54,8 @@ type SidebarProps = {
   onShowHome: () => void;
   onShowNotes: () => void;
   onShowTrash: () => void;
+  onOpenTrash?: () => void;
+  onExitTrash?: () => void;
   onShowQuickNotes?: () => void;
   onShowTodoList?: () => void;
   onShowCreative?: () => void;
@@ -106,7 +109,7 @@ export default function Sidebar({
   onImportMarkdown,
   onShowHome,
   onShowNotes,
-  onShowTrash,
+  onShowTrash, onOpenTrash, onExitTrash,
   onShowQuickNotes,
   onShowTodoList,
   onShowCreative,
@@ -666,11 +669,11 @@ export default function Sidebar({
       <nav className="max-h-[45dvh] shrink-0 overflow-y-auto px-2 py-2" aria-label="功能導覽">
         {[
           { id: "home", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
-          { id: "trash", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
+          { id: "trash", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onExitTrash?.(); else onShowTrash(); } },
         ].map((item) => (
-          <button key={item.id} type="button" onClick={item.onClick} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
+          <SidebarNavigationButton key={item.id} immediate={item.id==='home'} onFilter={item.onClick} onOpen={item.id==='trash'?()=>onOpenTrash?.():onShowHome} title={t('ui.filterOrOpen')} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
             <FeatureIcon feature={item.id}/><span>{item.label}</span>
-          </button>
+          </SidebarNavigationButton>
         ))}
         <div className="relative flex h-10 items-center">
           <button type="button" onClick={() => setIsFeaturesExpanded((expanded) => !expanded)} className="flex h-10 min-w-0 flex-1 items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }} aria-expanded={isFeaturesExpanded}>
@@ -679,7 +682,7 @@ export default function Sidebar({
         </div>
         {isFeaturesExpanded && (() => {
           const fixed = [
-            { id: "all" as const, label: "所有項目", onOpen: onShowNotes },
+            { id: "all" as const, label: "所有項目", onOpen: onShowHome },
             { id: "calendar" as const, label: "日曆", onOpen: () => onShowTodoList?.() },
           ];
           const others = [
@@ -713,10 +716,9 @@ export default function Sidebar({
           return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
             {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id)&&!hiddenFeatures.includes(item.id))].map((item) => (
               <div key={item.id} className="flex min-w-0 items-center">
-                <button type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id==='tools')item.onOpen(); }} onDoubleClick={item.onOpen} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();item.onOpen();}}} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10"  style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
+                <SidebarNavigationButton onFilter={() => {onExitTrash?.();setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse(item.id);}} onOpen={item.onOpen} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10" style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
                   <FeatureIcon feature={item.id} size={18}/><span className="truncate">{t('ui.feature.'+item.id)}</span>
-                </button>
-                {<button type="button" className="h-10 w-8 shrink-0 rounded hover:bg-zinc-500/10" aria-label={t('ui.open')+' '+t('ui.feature.'+item.id)} onClick={item.onOpen}>↗</button>}
+                </SidebarNavigationButton>
               </div>
             ))}
 

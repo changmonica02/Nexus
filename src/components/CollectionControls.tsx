@@ -1,6 +1,12 @@
 "use client";
-import { List, LayoutGrid } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { List, LayoutGrid, Check, ArrowUp, ArrowDown } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
+import FloatingPanel from "./FloatingPanel";
+/** Field default directions: date/size descending; names/types/due ascending. */
+export function defaultSortAscending(key: string) {
+  return ["title", "kind", "due_date", "custom"].includes(key);
+}
 export default function CollectionControls({
   view,
   onView,
@@ -17,6 +23,15 @@ export default function CollectionControls({
   sortOptions?: string[];
 }) {
   const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open)
+      menu.current
+        ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
+        ?.focus();
+  }, [open]);
+  const direction = t(ascending ? "ui.ascending" : "ui.descending");
   return (
     <div
       aria-label={t("ui.viewSort")}
@@ -43,28 +58,87 @@ export default function CollectionControls({
           );
         })}
       </div>
-      <span aria-hidden="true" className="h-4 w-px bg-[var(--color-border)]" />
-      <select
+      <span aria-hidden className="h-4 w-px bg-[var(--color-border)]" />
+      <button
+        type="button"
         aria-label={t("ui.sort")}
-        value={sort + ":" + (ascending && sort !== "custom" ? "asc" : "desc")}
-        onChange={(e) => {
-          const [key, direction] = e.target.value.split(":");
-          onSort(key, direction === "asc");
-        }}
-        className="h-10 min-w-0 max-w-[50vw] border-0 bg-transparent px-2 text-xs outline-none"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={t("ui.sort." + sort) + " · " + direction}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-10 min-w-0 items-center gap-2 px-2 text-xs"
       >
-        {sortOptions.flatMap((key) =>
-          (key === "custom" ? ["desc"] : ["desc", "asc"]).map((direction) => (
-            <option key={key + direction} value={key + ":" + direction}>
-              {t("ui.sort." + key)}
-              {key !== "custom"
-                ? " · " +
-                  t(direction === "asc" ? "ui.ascending" : "ui.descending")
-                : ""}
-            </option>
-          )),
-        )}
-      </select>
+        <span className="truncate">{t("ui.sort." + sort)}</span>
+        {ascending ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+      </button>
+      {open && (
+        <FloatingPanel open onClose={() => setOpen(false)} label={t("ui.sort")}>
+          <button
+            type="button"
+            aria-label={t("ui.sort")}
+            aria-expanded="true"
+            onClick={() => setOpen(false)}
+            className="mb-2 flex min-h-11 w-full items-center justify-between text-sm font-medium"
+          >
+            {t("ui.sort")}
+            <span aria-hidden>×</span>
+          </button>
+          <div
+            ref={menu}
+            role="menu"
+            aria-label={t("ui.sort")}
+            onKeyDown={(e) => {
+              const buttons = Array.from(
+                e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  '[role="menuitemradio"]',
+                ),
+              );
+              let index = buttons.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              if (e.key === "ArrowDown") index = (index + 1) % buttons.length;
+              else if (e.key === "ArrowUp")
+                index = (index - 1 + buttons.length) % buttons.length;
+              else if (e.key === "Home") index = 0;
+              else if (e.key === "End") index = buttons.length - 1;
+              else return;
+              e.preventDefault();
+              buttons[index]?.focus();
+            }}
+          >
+            {[...new Set(sortOptions)].map((key) => (
+              <button
+                type="button"
+                key={key}
+                role="menuitemradio"
+                aria-checked={key === sort}
+                aria-label={
+                  t("ui.sort." + key) +
+                  (key === sort ? " · " + direction : "")
+                }
+                onClick={() =>
+                  onSort(
+                    key,
+                    key === sort ? !ascending : defaultSortAscending(key),
+                  )
+                }
+                className="flex min-h-11 w-full items-center gap-2 rounded px-3 text-left text-sm hover:bg-zinc-500/10"
+              >
+                <span className="w-4">
+                  {key === sort && <Check size={16} aria-hidden />}
+                </span>
+                <span className="flex-1">{t("ui.sort." + key)}</span>
+                {key === sort &&
+                  (ascending ? (
+                    <ArrowUp size={16} aria-hidden />
+                  ) : (
+                    <ArrowDown size={16} aria-hidden />
+                  ))}
+              </button>
+            ))}
+          </div>
+        </FloatingPanel>
+      )}
     </div>
   );
 }

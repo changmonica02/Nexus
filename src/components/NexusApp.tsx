@@ -46,6 +46,7 @@ import {WorkspaceNavigationProvider} from "./WorkspaceNavigation";
 import FloatingPanel from "./FloatingPanel";
 import ToolsOverview from "./ToolsOverview";
 import FeatureIcon from "./FeatureIcon";
+import TrashPage from "./TrashPage";
 import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
@@ -73,7 +74,7 @@ import AccountButton from "./AccountButton";
 import FloatingSidebar from "./FloatingSidebar";
 import {navigateDictionary} from "../features/dictionary/useUnsavedDraft";
 
-export default function NexusApp({initialFeature="home",externalContent,onLeaveExternal,onOpenDictionary}:{initialFeature?:"home"|"study";externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void}={}) {
+export default function NexusApp({initialFeature="home",externalContent,onLeaveExternal,onOpenDictionary,trashRoute=false,onOpenTrash,onLeaveTrash}:{initialFeature?:"home"|"study";externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void;trashRoute?:boolean;onOpenTrash?:()=>void;onLeaveTrash?:()=>void}={}) {
   const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const storageRef = useRef<StorageAdapter | null>(null);
@@ -98,7 +99,7 @@ export default function NexusApp({initialFeature="home",externalContent,onLeaveE
         initialFeature={initialFeature}
         externalContent={externalContent}
         onLeaveExternal={onLeaveExternal}
-        onOpenDictionary={onOpenDictionary}
+        onOpenDictionary={onOpenDictionary} trashRoute={trashRoute} onOpenTrash={onOpenTrash} onLeaveTrash={onLeaveTrash}
         storageRef={storageRef}
         onLanguageLoaded={setLanguage}
         theme={theme}
@@ -109,14 +110,14 @@ export default function NexusApp({initialFeature="home",externalContent,onLeaveE
 }
 
 function NexusAppInner({
-  externalContent, onLeaveExternal, onOpenDictionary,
+  externalContent, onLeaveExternal, onOpenDictionary, trashRoute=false,onOpenTrash,onLeaveTrash,
   initialFeature,
   storageRef,
   onLanguageLoaded,
   theme,
   onThemeChange,
 }: {
-  externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void;
+  externalContent?:React.ReactNode;onLeaveExternal?:()=>void;onOpenDictionary?:()=>void;trashRoute?:boolean;onOpenTrash?:()=>void;onLeaveTrash?:()=>void;
   initialFeature: "home"|"study";
   storageRef: MutableRefObject<StorageAdapter | null>;
   onLanguageLoaded: (lang: Language) => void;
@@ -207,9 +208,9 @@ function NexusAppInner({
     activePageRef.current = activePage;
   }, [activePage]);
 
-  const isFeatureInterface = isToolsMode || !!externalContent || isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
+  const isFeatureInterface = isToolsMode || !!externalContent || isHomeMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
-  const showWorkspaceHeader = isFeatureInterface && !externalContent && !(utilityMode && activePage);
+  const showWorkspaceHeader = !trashRoute && isFeatureInterface && !externalContent && !(utilityMode && activePage);
   const isTabletViewport = viewportWidth < 1024;
 
   useEffect(() => {
@@ -1174,11 +1175,11 @@ function NexusAppInner({
   const handleShowPresentations = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
   const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => {setIsToolsMode(false); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
 
-  const navigate = useCallback((action:()=>void) => {
+  const navigate = useCallback((action:()=>void,leaveExternal=true) => {
     navigateDictionary(()=>{void (async()=>{
       try {
         await flushAllSaves();
-        action(); setIsNavigationOpen(false); onLeaveExternal?.();
+        action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
       } catch { setRefreshError(t("ui.saveFailed")); }
     })();});
   },[flushAllSaves,onLeaveExternal,t]);
@@ -1197,16 +1198,10 @@ function NexusAppInner({
     window.addEventListener("nexus-open-utility", openUtility);
     return () => {window.removeEventListener("nexus-open-tools",tools);window.removeEventListener("nexus-open-study",study);window.removeEventListener("nexus-open-dictionary",dictionary);window.removeEventListener("nexus-open-utility", openUtility);};
   }, [handleShowUtility,handleShowTools,handleShowStudySets,navigate,flushAllSaves,t,onOpenDictionary]);
-  const handleShowTrash = useCallback(async () => {
-    if (activePageRef.current) await flushSave(activePageRef.current);
-    await loadTrashPages();
-    setIsTrashMode(true);
-    setIsHomeMode(false);
-    setIsQuickNoteMode(false);
-    setIsTodoMode(false);
-    setIsCreativeMode(false);
-    closeFeatureOverviews();
-  }, [flushSave, loadTrashPages]);
+  const [trashError,setTrashError]=useState(''),[trashLoading,setTrashLoading]=useState(false);
+  const refreshTrash=useCallback(async()=>{setTrashLoading(true);setTrashError('');try{await loadTrashPages();}catch(e){setTrashError(String(e));}finally{setTrashLoading(false);}},[loadTrashPages]);
+  useEffect(()=>{if(trashRoute&&isReady&&isAuthenticated)void refreshTrash();},[trashRoute,isReady,isAuthenticated,refreshTrash]);
+  const handleShowTrash = useCallback(async () => {await refreshTrash();setIsTrashMode(true);},[refreshTrash]);
 
   const handleRestorePage = useCallback(async (id: string) => {
     if (!storageRef.current) return;
@@ -1710,7 +1705,7 @@ function NexusAppInner({
   const commandPaletteActions: CommandPaletteAction[] = [
     { id: "go-home", label: t("commandPalette.goHome"), icon: "??", keywords: "dashboard home", run: handleShowHome },
     { id: "go-notes", label: t("commandPalette.goNotes"), icon: "??", keywords: "notes", run: handleShowNotes },
-    { id: "go-trash", label: t("commandPalette.goTrash"), icon: "??", keywords: "trash", run: () => void handleShowTrash() },
+    { id: "go-trash", label: t("commandPalette.goTrash"), icon: "??", keywords: "trash", run: () => navigate(()=>onOpenTrash?.(),false) },
     { id: "new-document", label: t("commandPalette.newDocument"), icon: "??", keywords: "new create document", run: () => void handleCreateDocument() },
     { id: "new-note", label: t("commandPalette.newNote"), icon: "??", keywords: "new create note", run: () => setCreateDialog({ open: true, initialKind: "note" }) },
     { id: "new-study-set", label: t("commandPalette.newStudySet"), icon: "??", keywords: "study set flashcard", run: () => void handleCreateStudySet() },
@@ -1781,11 +1776,11 @@ function NexusAppInner({
 
       <FloatingSidebar open={isNavigationOpen} onClose={() => setIsNavigationOpen(false)}>
         <Sidebar
-          pages={(isTrashMode ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
-          activePageId={isTrashMode || isHomeMode ? null : activePageId}
+          pages={((isTrashMode||trashRoute) ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
+          activePageId={trashRoute || isTrashMode || isHomeMode ? null : activePageId}
           selectedTag={selectedTag}
-          isTrashMode={isTrashMode}
-          isHomeMode={isHomeMode}
+          isTrashMode={isTrashMode||trashRoute}
+          isHomeMode={!trashRoute&&isHomeMode}
           isCollapsed={false}
           onToggleCollapse={() => setIsNavigationOpen(false)}
           onSelectTag={setSelectedTag}
@@ -1794,7 +1789,7 @@ function NexusAppInner({
           onImportMarkdown={handleImportMarkdownClick}
           onShowHome={()=>navigate(handleShowHome)}
           onShowNotes={()=>navigate(handleShowNotes)}
-          onShowTrash={()=>navigate(handleShowTrash)}
+          onShowTrash={()=>void handleShowTrash()} onExitTrash={()=>setIsTrashMode(false)} onOpenTrash={()=>navigate(()=>onOpenTrash?.(),false)}
           onDeletePage={handleDeletePage}
           onRestorePage={handleRestorePage}
           onPermanentDeletePage={handlePermanentDeletePage}
@@ -1858,7 +1853,7 @@ function NexusAppInner({
       )}
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
-      {externalContent ?? (isHomeMode ? (
+      {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
         <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
