@@ -113,6 +113,7 @@ window.dictionaryClient = {
     return q;
   },
   async rpc(name, args = {}) {
+    if(["dictionary_import_review_capabilities","list_dictionary_admin_work"].includes(name))return {error:{code:"42883",message:"function does not exist (pre-migration fixture)"}};
     window.calls.push({ name, ...structuredClone(args) });
     if (name === "get_dictionary_entry")
       return {

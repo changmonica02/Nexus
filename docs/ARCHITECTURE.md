@@ -453,3 +453,34 @@ PR #56 審查修正另新增4個安全case：逐一變更13種JSON來源（含cu
 正式Supabase本輪只SELECT核對：delete RPC及全域preview／四參數publish／report已存在、空search_path、authenticated可execute而anon不可；舊三參數publish對authenticated已撤權。delete內含admin／revision／Published／參照guard；report核對actor。沒有正式刪除／發布／Migration。
 
 PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／離線同步核對35/35，瀏覽器3/3（字典全域發布／單筆刪除／恢復：桌面／平板／手機；Published直接編輯及離開保護：桌面／手機；字卡設定保存／Again等待／Good畢業／無盡隔離：桌面／平板／手機），合計154項；TypeScript／Production Build通過，ESLint 0 errors／467既有warnings。初次舊編輯器瀏覽器fixture缺Playwright預設binary，指定系統Chromium後完整通過；新加language hook的舊單元hook fixture補上useContext模擬，所有斷言保留。未重跑#44的6300筆效能（本轮未改SQL／分批算法），未宣稱正式帳號／實機驗收。
+
+
+## #16 安全自動部分匯入與常駐審核（2026-10-15）
+
+**已實作／隔離驗證；正式 SQL 未套用。此段取代 #44 舊「整筆完成決策才套用、只本機待審」的實作界線；完整交換格式與人工發布契約不變。**
+
+- `importSource.ts` 重用 Exchange／CSV／Markdown 解析與有界 inspect；舊格式單 Entry 無法映射時保留原 bundle，其他有效 Entry 不受阻擋。未知欄位／無法映射的原始候選常駐保存，要求修正原檔，不能以空白 placeholder 當成成功轉換。新增 `strictIdentity` 不影響舊 API；新流程不將明確外來 Entry ID 自動路由至另一同形詞條。
+- `persistentImport.ts` 重用 classify／map／resolve／validate：以現在 Published 及唯一 active Review 的完整候選作比較。只接受可驗證的新增／補值；同 ID 內容差異、重複 Sense／詞形、未明共用範圍等留待決策，不能將 new_content 一律當安全。詞形依類型／詞性／Sense scope／同槽既有資料判斷，不自動推導或聲稱語義已外部查證。
+- `partialImportPlan` 把未決欄位投影為保留現有，暫緩的 Sense 與依賴子項一起保留；只回報真正包含在候選或明確保留的 handled issue IDs。初次自動套用只處理未選擇且安全的內容；保存的 keep／later 不會被自動恢復覆蓋。手動「套用已決策項目」只接受完整決策，不把未決差異視為同意。硬性 identity／版本／無效結構不提供強制接受。
+- 新增單一 `dictionary_import_review_items`，保存既有 ImportItem＋不可變原候選、來源檔名／時間／舊 Session/item/operation ID、Entry 目標、版本、差異／決策／applied flag、結果及 actor。proposal_key 對去除技術 revision／行號、正規化 proposed IDs 的候選雜湊，重匯同來源不複製工作項；保留實際 Entry／Sense／內容 ID，不用該雜湊取代 Stable ID。不是另一套字典或 Import Batch ID。
+- 全部寫入只走 admin RPC；表僅 authenticated SELECT＋is_dictionary_admin RLS，無直接 DML 權限，anon 無 execute。沿用 `dictionary_audit` trigger 記錄 before／after／actor，沒有另建平行發布、audit 或 receipt 管線。entry_id 為 text 且沒有 Entry FK，允許保存尚未建立或非法目標的阻擋紀錄，避免為了保存紅色工作而編造公開 Entry。
+- 每批最多25項：`stage_dictionary_import_reviews` 冪等保存；`decide_dictionary_import_review` CAS 保存選擇（不寫字典）；`save_dictionary_import_review` CAS 重新比對且禁止捏造決策／已套用旗標；`apply_dictionary_import_reviews` 鎖定、重新驗證完整 Published／子項／metadata／active Review 版本與 ID owner，再委派原 apply_dictionary_import_operation 或 save_dictionary_review。active Review 只 overlay 增量且核對 base snapshot，保留 Review ID 與人工核准；無直接 Published 寫入。
+- 套用 operation UUID 由常駐 item ID＋預期 revision 穩定產生，與原 receipts 同交易提交；掉回覆精確重試不新增 Sense／Review。人工 new_sense 的新 Sense／子項 UUID 在決策時一次分配保存，不在重試時重生。單筆失敗 subtransaction 回滾字典與 receipt，不阻擋其他合法項；失敗／版本變動記錄為紅色阻擋，需要重新比對。舊不適用決策保留 previousDecision，不能以舊 incoming 繞過新硬阻擋。
+- `list_dictionary_admin_work` 依唯一目標 Entry 聚合三色優先 red > yellow > green，紅色差異另計；包含未能建立 Entry 的阻擋提案。狀態統計依相同種類／底層狀態／literal 搜尋範圍，工作顏色再篩選，100筆分頁。同步 main `b90b53c` 的清單規格，桌面3／平板2／手機1欄，不改查詢、排序或每頁筆數。Published 有 active Review 為黃；有任何未決／失敗為紅；公開閱讀仍讀原 Published。`get_dictionary_import_reviews` 50筆分頁，管理員跨裝置讀取同一份決策與 CAS revision。
+- `PersistentImportReview` 一次摘要／確認後自動保存及套用，進度、暫停、恢復、結果下載；`PersistentReviewPanel` 提供來源／現有與候選／原因／相依資訊、決策／已套用區別、重新比對、套用獨立決策及整個已保存範圍的安全續作。真實 Next/React 元件、IndexedDB、SQL 已用隔離 Chromium 驗證，zh-TW／en 不改 Exchange schema_version 1。
+- 沿用本機 dictionary job DB v2／原 item stores：新預覽先嚴格持久化，保存失敗不送新 RPC；舊 Session 的 metadata 另以既有 job store 封存，原 item rows 不刪除，可選取／下載／重新載入。沒有新 IndexedDB store 或清除舊作業。新 Session 未開始項仍可從同裝置恢復，已 stage 的未決／未處理資料可跨裝置續作。
+- 舊作業轉移不重新執行 applied／unchanged／skipped；未確認回覆的 operation 沿用原 UUID 精確重試 receipt，保留 Review ID、原選擇與原始檔。結構不足時保留 raw_candidate、封存或下載原 Session JSON 再匯入核對，不推測已完成數量。不把使用者背景中的 6,301／6,273／28 寫成程式常數或正式 DB 事實。
+
+### Migration ledger 與啟用順序
+
+| 檔案 | 依賴 | 本輪狀態 |
+| --- | --- | --- |
+| `20261015020759_dictionary_persistent_import_review.sql` | 現有 draft pipeline／revision lifecycle／identity／pronunciations／inflections／composition shared，以及 `20261013084116_dictionary_bulk_exchange.sql` 的 inspect／exchange version | CLI產生增量檔；新增一表、索引、RLS、audit trigger、7個管理API＋1個內部pending helper；隔離測試通過；**正式未套用、待使用者授權** |
+
+前端以 `dictionary_import_review_capabilities` 版本1偵測；只有 PostgreSQL missing function／PostgREST PGRST202 才安全退回原匯入及管理清單，不將權限或網路錯誤偽裝成未啟用。正式唯讀核對依賴 RPC／ACL 已存在而 capability 未存在。可先發布相容前端，正式授權後一次套用本增量 SQL、確認 API schema cache 與版本回傳後功能自動啟用；不重播歷史 SQL，不變更 Supabase／Vercel 設定。回退前端不得清理新表／audit／receipt，也不要用舊 UI 重跑新常駐作業。
+
+### 驗證與界線
+
+相關回歸133/133；最後依賴群組修正核心12/12（與回歸重疊）；瀏覽器3/3（新常駐審核、原大量交換及Published編輯，桌面／平板／手機適用範圍依各測試）。TypeScript／Production Build通過、ESLint 0 errors／467既有warnings，詳見本輪PR。新增具體 throw／shoot／do、部分義項與詞形、Stable ID、版本、Review 保護、決策 CAS、跨瀏覽器、舊 operation／本機封存測試。6,301筆實際 PGlite preview/stage/apply 加掉回覆／fresh-client 續作：最終獨立執行67.7秒（preview＋stage 13.7秒）；與Build／回歸並行的另一輪約140.5秒（preview＋stage 50.5秒）；沒有刪除或跳過測試。PGlite 不是遠端 staging／正式 Auth JWT 測試，真實操作與 SQL 授權見常駐 #60。
+
+一般 Schema／POS／Stable ID 檢查不能證明語義查證；仍須人工發布。所有已 stage 記錄可跨裝置審核，尚未 stage 的原始檔／Session 沿用本機保存或使用者備份檔，不宣稱檔案本身跨裝置。舊必要資料不足或硬衝突只保留並提示，沒有自動破壞性資料修復。

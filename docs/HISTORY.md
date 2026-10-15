@@ -180,3 +180,11 @@
 
 
 
+
+
+## 2026-10-15｜安全自動部分匯入與常駐審核（#16）
+
+- 調整：依 SPEC `823445a`，取消整筆所有差異先決策才套用的限制；可驗證的獨立內容先進 Draft／Review Draft，疑義持久保存供日後決策，不直接發布。
+- 新增：擴充現有 Import Review／receipt／Review服務，新增單一管理員工作項表、版本化RPC及三色唯一Entry工作狀態。選擇以現有Review模型疊加候選，避免另建公共字典、Import Batch ID或發布管線。
+- 修復：新Sense相依子項共同驗證、重試保留既有operation／內容ID、manual new_sense分配一次clone IDs；舊Session先封存，不因新介面或checkpoint替換遺失舊資料。
+- 注意：增量 `20261015020759_dictionary_persistent_import_review.sql` 僅提交／隔離驗證，正式套用待明確授權。相容前端以 capability 缺少時保留舊流程；不能以合併或Build通過宣稱正式功能已啟用。功能開發Issue可依本輪使用者授權結案，正式人工驗收集中常駐#60。

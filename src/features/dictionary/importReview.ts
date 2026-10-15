@@ -10,17 +10,17 @@ type Section='entry'|'grouping'|'senses'|'etymologies'|'examples'|'learning_note
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
-  target?:{section:Section;id?:string;field?:string};batchKey?:string;proposedSenseID?:string;
+  target?:{section:Section;id?:string;field?:string};batchKey?:string;proposedSenseID?:string;proposedChildIDs?:Record<string,string>;
 }
 export interface ImportContext {snapshot:AISnapshot|null;similar:{id:string;kind:string;headword:string;status:string;revision:number}[];identities:Record<string,DraftRow[]>;exchange?:{version:string|null;reviews:unknown[];targets:{entry_id:string;sense_id:string}[]}}
 export interface ImportOperation {owner_id:string;session_id:string;operation_id:string;source_type:string;preview_at:string;observed:ReturnType<typeof mapDictionaryDraft>;candidate:ReturnType<typeof mapDictionaryDraft>;expected_context:ImportContext;effect:'write'|'unchanged'|'review';exchange_version?:string|null}
 export interface ImportItem {
-  id:string;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
+  id:string;raw_candidate?:unknown;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
   bucket:'safe'|'review';safeAction:'new'|'unchanged'|'normalize';issues:ImportIssue[];
   status:'pending'|'applied'|'unchanged'|'skipped'|'stale'|'failed';message?:string;
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
-export interface ImportSession {confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
+export interface ImportSession {durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
 export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','lexical_annotations','relation_hints'] as const;
 const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',lexical_annotations:'dictionary_lexical_annotations',relation_hints:'dictionary_lexical_annotations'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
@@ -140,14 +140,14 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   for(const issue of item.issues)if(issue.selectedAction==='new_sense'&&issue.target?.id){
     const oldID=issue.target.id,newID=issue.proposedSenseID!;
     const sense=d.senses.find(s=>s.id===oldID);if(sense){sense.id=newID;delete sense.revision;}
-    for(const section of contentSections.filter(s=>s!=='senses'))for(const row of d[section]??[])if(row.sense_id===oldID){row.sense_id=newID;row.id=crypto.randomUUID();delete row.revision;}
+    for(const section of contentSections.filter(s=>s!=='senses'))for(const row of d[section]??[])if(row.sense_id===oldID){row.sense_id=newID;row.id=issue.proposedChildIDs?.[row.id]??crypto.randomUUID();delete row.revision;}
   }
   // Reclassify the resolved patch: only actual incoming differences require a write.
   const remaining=classifyImport(d,item.context!);
   const changed=!item.context?.snapshot||remaining.issues.some(i=>i.target);
   return {draft:d,effect:changed?(item.context?.snapshot?.detail.entry.status==='published'?'review':'write'):'unchanged'};
 }
-export async function inspectDrafts(client:Client,drafts:DictionaryDraftInput[],options:{exchange?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportContext[]>{
+export async function inspectDrafts(client:Client,drafts:DictionaryDraftInput[],options:{exchange?:boolean;strictIdentity?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportContext[]>{
   const contexts:ImportContext[]=[];
   for(let offset=0;offset<drafts.length;offset+=25){
     const {data,error}=await client.rpc(options.exchange?'inspect_dictionary_exchange':'inspect_dictionary_import',{drafts:drafts.slice(offset,offset+25).map(mapDictionaryDraft)});
@@ -156,7 +156,7 @@ export async function inspectDrafts(client:Client,drafts:DictionaryDraftInput[],
   }
   return contexts;
 }
-export async function buildImportSession(client:Client,owner:string,source:ImportSession['source_type'],drafts:DictionaryDraftInput[],issues:DraftIssue[]=[],sessionID=crypto.randomUUID(),options:{exchange?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportSession>{
+export async function buildImportSession(client:Client,owner:string,source:ImportSession['source_type'],drafts:DictionaryDraftInput[],issues:DraftIssue[]=[],sessionID=crypto.randomUUID(),options:{exchange?:boolean;strictIdentity?:boolean;onProgress?:(done:number,total:number)=>void}={}):Promise<ImportSession>{
   const session:ImportSession={id:sessionID,owner_id:owner,source_type:source,preview_at:new Date().toISOString(),items:[]};
   const valid:DictionaryDraftInput[]=[];
   for(const d of drafts){const rows=new Set([d.row??1,...d.senses.map(s=>s.row??d.row??1)]);const errors=[...issues.filter(e=>rows.has(e.row)),...validateDictionaryDraft([d])];
@@ -168,7 +168,7 @@ export async function buildImportSession(client:Client,owner:string,source:Impor
     const routed=valid.map((original,i)=>{
       const c=contexts[i];
       // Only a not-yet-persisted identity can be redirected. Never move an existing Entry.
-      if(options.exchange||c.snapshot||c.similar.length!==1)return original;
+      if(options.exchange||c.snapshot||c.similar.length!==1||options.strictIdentity&&!original.proposed_ids?.includes(original.entry_id))return original;
       const d=structuredClone(original),old=d.entry_id;d.entry_id=c.similar[0].id;delete d.revision;
       d.headword=c.similar[0].headword;
       for(const section of contentSections)for(const row of d[section]??[])if(row.entry_id===old)row.entry_id=d.entry_id;

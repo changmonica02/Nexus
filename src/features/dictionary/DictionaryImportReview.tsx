@@ -1,4 +1,6 @@
 "use client";
+import {PersistentImportReview} from './PersistentImportReview';
+import {persistentImportAvailable} from './persistentImport';
 import {useEffect,useRef,useState} from 'react';
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePaginationLanguage} from '../../lib/LanguageContext';
@@ -15,7 +17,7 @@ const button='rounded border border-[var(--color-border)] bg-[var(--color-panel-
 const control='w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm';
 const value=(v:unknown)=>v===undefined||v===null?'（空白）':typeof v==='string'?v:JSON.stringify(v,null,2);
 
-export function DictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;format:'csv'|'json'|'md';onSaved:()=>Promise<unknown>;onBusy:(busy:boolean)=>void}){
+function LegacyDictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;format:'csv'|'json'|'md';onSaved:()=>Promise<unknown>;onBusy:(busy:boolean)=>void}){
   const {t}=usePaginationLanguage();const controller=useRef<AbortController|null>(null);
   const [previewProgress,setPreviewProgress]=useState({done:0,total:0}),[reviewPage,setReviewPage]=useState(0);
   const [owner,setOwner]=useState(''),[session,setSession]=useState<ImportSession|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[onlyPending,setOnlyPending]=useState(true);
@@ -86,4 +88,12 @@ export function DictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;f
     </>}
     {message&&<p role="alert" className="whitespace-pre-wrap break-words">{message}</p>}
   </section>;
+}
+
+export function DictionaryImportReview(props:Parameters<typeof PersistentImportReview>[0]){
+ const [available,setAvailable]=useState<boolean|null>(null),[error,setError]=useState('');
+ useEffect(()=>{let active=true;const client=getSupabase();if(client)void persistentImportAvailable(client).then(v=>{if(active)setAvailable(v);}).catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[]);
+ if(error)return <p role="alert">{error}</p>;
+ if(available===null)return <p role="status">…</p>;
+ return available?<PersistentImportReview {...props}/>:<><p>新版常駐審核尚未啟用，目前保留原匯入流程。 / Persistent review is not enabled; the existing import remains available.</p><LegacyDictionaryImportReview {...props}/></>;
 }
