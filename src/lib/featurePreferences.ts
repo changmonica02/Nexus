@@ -11,7 +11,9 @@ export type FeatureFilter =
   | "web"
   | "counter"
   | "draw"
-  | "score";
+  | "score"
+  | "tools"
+  | "dictionary";
 
 export type FeatureOrderMode = "recent" | "default" | "custom";
 
@@ -25,8 +27,8 @@ export const DEFAULT_FEATURE_ITEMS: { id: FeatureFilter; icon: string; label: st
   { id: "novels", icon: "◫", label: "小說" },
   { id: "web", icon: "⌘", label: "網頁" },
   { id: "score", icon: "♫", label: "製譜" },
-  { id: "counter", icon: "＋", label: "計數" },
-  { id: "draw", icon: "⤨", label: "抽選" },
+  { id: "tools", icon: "⚒", label: "工具" },
+  { id: "dictionary", icon: "▥", label: "字典" },
 ];
 
 export function getStoredFeatureOrderMode(): FeatureOrderMode {
@@ -52,7 +54,7 @@ export function getStoredRecentFeatureIds(): FeatureFilter[] {
     const raw = window.localStorage.getItem("nexus-recent-features");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter((id): id is FeatureFilter => typeof id === "string");
+      if (Array.isArray(parsed)) return [...new Set(parsed.filter((id): id is FeatureFilter => typeof id === "string").map(id=>TOOL_FEATURES.includes(id)?"tools" as const:id))];
     }
   } catch {}
   return [];
@@ -61,6 +63,7 @@ export function getStoredRecentFeatureIds(): FeatureFilter[] {
 export function recordFeatureUsage(id: FeatureFilter): void {
   if (typeof window === "undefined" || id === "all" || id === "calendar") return;
   try {
+    if(TOOL_FEATURES.includes(id))id="tools";
     const prev = getStoredRecentFeatureIds();
     const next = [id, ...prev.filter((item) => item !== id)].slice(0, 20);
     window.localStorage.setItem("nexus-recent-features", JSON.stringify(next));
@@ -74,8 +77,9 @@ export function getStoredCustomFeatureOrder(): FeatureFilter[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        const set = new Set(parsed);
-        const valid = parsed.filter((id): id is FeatureFilter =>
+        const migrated = [...new Set(parsed.map((id: string) => TOOL_FEATURES.includes(id as FeatureFilter) ? "tools" : id))];
+        const set = new Set(migrated);
+        const valid = migrated.filter((id): id is FeatureFilter =>
           DEFAULT_FEATURE_ITEMS.some((item) => item.id === id)
         );
         DEFAULT_FEATURE_ITEMS.forEach((item) => {
@@ -99,3 +103,12 @@ export function setStoredCustomFeatureOrder(order: FeatureFilter[]): void {
 
 /** Navigation only: tools keep their existing direct destinations. */
 export const TOOL_FEATURES: readonly FeatureFilter[]=["counter","draw"];
+
+/** A separate key: filtering the drawer never changes the home launcher or ordering. */
+export function getHiddenFeatures(): FeatureFilter[] {
+  if(typeof window==='undefined')return [];
+  try { const ids=JSON.parse(localStorage.getItem('nexus-hidden-features')??'[]');return Array.isArray(ids)?ids.filter(id=>DEFAULT_FEATURE_ITEMS.some(item=>item.id===id)):[]; } catch {return [];}
+}
+export function setHiddenFeatures(ids:FeatureFilter[]) {
+  try {localStorage.setItem('nexus-hidden-features',JSON.stringify(ids));window.dispatchEvent(new Event('nexus-feature-order-changed'));} catch { /* Keep existing preferences if storage is unavailable. */ }
+}

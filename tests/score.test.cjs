@@ -56,6 +56,7 @@ test('workspace and overview expose accessible controls and responsive layout',(
  const html=renderToStaticMarkup(React.createElement(Editor,{page,onChange(){},async onSave(){},async onBack(){}}));
  for(const label of ['新增小節','休止符','音符','儲存','返回','拍號單位','新增時值'])assert.ok(html.includes(label),label);
  assert.ok(html.includes('flex-wrap'));assert.ok(html.includes('overflow-y-auto'));
- const empty=renderToStaticMarkup(React.createElement(ScoreOverview,{pages:[],onCreate(){},onOpen(){}}));assert.ok(empty.includes('尚無樂譜'));
- const listing=renderToStaticMarkup(React.createElement(ScoreOverview,{pages:[page],onCreate(){},onOpen(){}}));assert.ok(listing.includes('120'));assert.ok(listing.includes('簡譜'));
+ const wrap=node=>React.createElement(require('../src/lib/LanguageContext.tsx').LanguageProvider,{initialLanguage:'zh-TW'},node);
+ const empty=renderToStaticMarkup(wrap(React.createElement(ScoreOverview,{pages:[],onCreate(){},onOpen(){}})));assert.ok(empty.includes('尚未建立任何項目'));
+ const listing=renderToStaticMarkup(wrap(React.createElement(ScoreOverview,{pages:[page],onCreate(){},onOpen(){}})));assert.ok(listing.includes('120'));assert.ok(listing.includes('簡譜'));
 });

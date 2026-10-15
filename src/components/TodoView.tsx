@@ -1,4 +1,5 @@
 "use client";
+import {CollectionItemMenu,type PageActions} from "./PageCollection";
 import { useState, useMemo } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -13,7 +14,8 @@ export default function TodoView({
   onUpdate,
   onDelete,
   onSelectPage,
-}: {
+  onRenamePage,onDuplicatePage,
+}: PageActions & {
   pages: Page[];
   onCreate: (title: string, dueDate?: number) => void;
   onUpdate: (id: string, patch: Partial<Page>) => void;
@@ -117,7 +119,7 @@ export default function TodoView({
                     <div key={td.id} className="flex items-center gap-2 rounded-lg border p-3 hover:shadow-sm" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
                       <input type="checkbox" checked={!!td.completed} onChange={(e) => onUpdate(td.id, { completed: e.target.checked })} />
                       <span className={`flex-1 text-sm ${td.completed ? "line-through opacity-50" : ""}`} onClick={() => onSelectPage(td.id)}>{td.title}</span>
-                      <button onClick={() => onDelete(td.id)} className="text-xs opacity-40 hover:text-red-600">×</button>
+                      <CollectionItemMenu page={td} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete}/>
                     </div>
                   ))}
                 </div>

@@ -1,12 +1,16 @@
 "use client";
+import FeatureOverview from "../../components/FeatureOverview";
+import {type PageActions} from "../../components/PageCollection";
+import {useLanguage} from "../../lib/LanguageContext";
 import {useState} from 'react';
 import type {Page} from '../../lib/types';
 import {addEvent,addMeasure,deleteEvent,durations,notationTypes,readScore,setDuration,updateMetadata,type Duration,type Score,type Tone} from './score';
 import {notationAdapters} from './notation';
 const control='min-w-0 rounded border bg-[var(--color-bg)] p-2';
 const durationLabels:Record<Duration,string>={whole:'全音符',half:'二分',quarter:'四分',eighth:'八分',sixteenth:'十六分'};
-export function ScoreOverview({pages,onCreate,onOpen}:{pages:Page[];onCreate:()=>void;onOpen:(id:string)=>void}){
- return <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-8" style={{color:'var(--color-text)',background:'var(--color-editor-bg)'}}><div className="mx-auto max-w-5xl"><header className="mb-5 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">製譜</h1><button className={control} onClick={onCreate}>＋新樂譜</button></header>{!pages.length?<p className="rounded border border-dashed p-8">尚無樂譜，建立第一份樂譜開始編輯。</p>:<div className="grid gap-3 sm:grid-cols-2">{[...pages].sort((a,b)=>b.updated_at-a.updated_at).map(p=>{const s=readScore(p.content_json);return <button key={p.id} className={`${control} text-left`} onClick={()=>onOpen(p.id)}><h2 className="break-words font-medium">{p.title}</h2><p className="text-sm opacity-70">{s?`${notationAdapters[s.metadata.notationType].label} · ♩ ${s.metadata.tempo} · ${s.metadata.timeSignature.beats}/${s.metadata.timeSignature.beatUnit} · ${s.metadata.keySignature}`:'資料格式需確認'}</p><p className="text-xs opacity-60">更新：{new Date(p.updated_at).toLocaleString()}</p></button>;})}</div>}</div></main>;
+export function ScoreOverview({pages,onCreate,onOpen,...actions}:PageActions&{pages:Page[];onCreate:()=>void;onOpen:(id:string)=>void}){
+ const {t}=useLanguage();
+ return <FeatureOverview title={t('ui.feature.score')} description={t('ui.description.score')} icon="♫" actionLabel={t('ui.create.score')} pages={pages.map(p=>{const score=readScore(p.content_json);return {...p,content_text:score?`${notationAdapters[score.metadata.notationType].label} · ♩ ${score.metadata.tempo} · ${score.metadata.timeSignature.beats}/${score.metadata.timeSignature.beatUnit} · ${score.metadata.keySignature}`:p.content_text};})} onCreate={onCreate} onSelectPage={onOpen} {...actions}/>;
 }
 export default function ScoreWorkspace({page,onChange,onSave,onBack}:{page:Page;onChange:(patch:Partial<Page>)=>void;onSave:()=>Promise<void>;onBack:()=>Promise<void>}){
  const score=readScore(page.content_json);

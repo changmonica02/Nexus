@@ -16,14 +16,14 @@ export function StudyPreferencesProvider({
   activeDeckId,
   children,
 }: {
-  getRepository: () => StudyRepository;
+  getRepository: () => StudyRepository | null;
   decks: Page[];
   activeDeckId?: string;
   children: React.ReactNode;
 }) {
   const [repository] = useState(getRepository);
   const value = useMemo(
-    () => ({ repository, decks, activeDeckId }),
+    () => repository ? ({ repository, decks, activeDeckId }) : null,
     [repository, decks, activeDeckId],
   );
   return (

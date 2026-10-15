@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../lib/LanguageContext";
 import type { PageFormat, PageKind } from "../lib/types";
 
@@ -26,6 +26,8 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   initialKind?: PageKind | null;
 }) {
   const { t } = useLanguage();
+  const dialog=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{if(isOpen){const trigger=document.activeElement as HTMLElement|null;dialog.current?.showModal();return()=>{dialog.current?.close();trigger?.focus();};}},[isOpen]);
   const [step, setStep] = useState<"kind" | "noteMode" | "format">("kind");
   const [selectedKind, setSelectedKind] = useState<NewPageKindChoice | null>(null);
 
@@ -104,7 +106,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+    <dialog ref={dialog} aria-label={t("newPage.title")} onCancel={handleClose} className="m-auto w-[min(94vw,448px)] max-h-[90dvh] overflow-y-auto rounded-2xl border-0 bg-transparent p-0 backdrop:bg-black/30" onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
@@ -138,6 +140,6 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
         </div>
 
       </div>
-    </div>
+    </dialog>
   );
 }

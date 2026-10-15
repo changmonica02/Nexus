@@ -1,4 +1,5 @@
 "use client";
+import {CollectionItemMenu,type PageActions} from "./PageCollection";
 import { useState, useMemo } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -9,7 +10,8 @@ export default function QuickNotesView({
   onUpdate,
   onDelete,
   onSelectPage,
-}: {
+  onRenamePage,onDuplicatePage,
+}: PageActions & {
   pages: Page[];
   onCreate: (text: string) => void;
   onUpdate: (id: string, patch: Partial<Page>) => void;
@@ -47,7 +49,7 @@ export default function QuickNotesView({
               <div key={note.id} className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-all group" style={{ backgroundColor: note.color || "var(--color-bg)", borderColor: "var(--color-border)" }}>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="font-medium text-sm truncate flex-1 cursor-pointer" onClick={() => onSelectPage(note.id)}>{note.title || "未命名"}</h3>
-                  <button onClick={() => onDelete(note.id)} className="opacity-0 group-hover:opacity-100 text-xs hover:text-red-600">×</button>
+                  <CollectionItemMenu page={note} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete}/>
                 </div>
                 <p className="text-xs opacity-70 line-clamp-4 whitespace-pre-wrap cursor-pointer" onClick={() => onSelectPage(note.id)}>{note.content_text || ""}</p>
                 <div className="flex gap-1 mt-3">

@@ -1,6 +1,6 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-> 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 的管理 UI／單筆刪除已在分支實作與測試，尚未合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
+> 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 管理 UI／單筆刪除與 PR #61 常駐審核均已合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
 ## 一、不可推翻的架構與權限原則
@@ -295,7 +295,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - **進入字典**：字卡 →「字典」→字典；頂部「←返回字卡」「字典」「管理字典（僅管理員顯示）」。下方是搜尋框「查詢英文、中文」、「搜尋」、「篩選」，篩選浮層含 Word／Prefix／Root 三種，預設全選。
 - **詳情頁**：返回實際來源並保留 query、filters、scroll、順序上下文；上一筆／下一筆依來源結果排序，手機和平板支援左右滑動；管理員右上角「編輯此詞條」直接進入同一詞條編輯器。
 - **內容元件**：相同詞源的註釋由一個來源視覺容器承載，內部保留多段落／義項資訊；多詞源清楚分組。展示讀音、變體、種類、義項、口訣、記憶、詞源及構詞關聯。
-- **管理頁**：工具列提供「新增」「匯入資料」「匯出資料」「發布全部草稿」；新增以 Word／Prefix／Root 下拉切換同一編輯面板。清單不再提供核取／全選／本頁選取發布／批次刪除；類型與狀態的篩選核取保留。單筆刪除移至已儲存 Draft 編輯頁，詳見 PR #57 章節。
+- **管理頁**：工具列提供「新增」「匯入資料」「匯出資料」「發布全部草稿」；新增以 Word／Prefix／Root 下拉切換同一編輯面板。清單不再提供項目核取／全選／本頁選取發布／批次刪除；類型篩選保留，原Draft／Published篩選由紅／黃／綠工作狀態多選取代。單筆刪除移至已儲存 Draft 編輯頁，詳見 PR #57 章節。
 - **分頁／搜尋**：搜尋字面與繁中義項，並根據三類勾選組合篩選；需確認原有 Reader 分頁、索引及約 7,000 筆規模的效能，不在前端整批載入所有詞條。
 - **深連結與狀態**：詳細詞條若由書籤或公共 Entry 連結開啟且缺少來源清單，現行介面提供預設返回目的地；編輯未儲存時使用 useUnsavedDraft 的儲存／放棄／繼續編輯與原生 unload 保護。
 
@@ -358,7 +358,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - `Pagination.tsx` 為上一頁／中央原位頁碼／下一頁。text input＋numeric inputMode／done hint，Enter 提交、Esc 取消、失焦取消，焦點選取／還原；沒有額外確認按鈕或巢狀 form。以 Nexus Tailwind／theme tokens 排版。使用現有 LanguageContext／i18n；獨立字典路由無 provider 時沿用繁中預設。舊服務尚未提供 total 時只保留原導航，不捏造總頁數或開啟跳轉。
 - `usePagedList` 用查詢 key／page／retry 的請求識別管理最後成功資料，effect cleanup 忽略過期回應；載入／失敗不把確認頁數與資料混配。錯誤可重試，快速再跳頁允許最後請求勝出。搜尋／篩選不共用錯誤的舊結果；資料縮減讓頁面越界時依新 total 轉最後有效頁。
 - 套用：字典搜尋（含構詞反查／變體）、Prefix 義項分類、Root 分類、管理詞條清單、構詞候選 dialog、字卡編輯的手動字典連結、評分背面字典候選、批次字卡連結建議。A4 筆記、簡報及角色卡內容頁模型不變。
-- 管理清單及反向／變體查詢使用既有 Supabase select 的 exact count，在相同篩選、排序及 range 取回可信 root Entry 數；不做客戶端全字典掃描。PR #57 已移除管理清單選取；搜尋／分頁保留，發布使用全域範圍。批次建議以本地合乎條件字卡及 RLS 隔離的現有雲端連結 ID 建立確定 dataset，最多每批查 200 個 ID，再以每頁 10 筆並行載入建議；total 為實際未連結卡片數，不把已跳過卡片算進頁數。
+- 管理清單及反向／變體查詢使用既有 Supabase select 的 exact count，在相同篩選、排序及 range 取回可信 root Entry 數。新版管理工作狀態透過既有RPC取數；雙色聯集的相容查詢見下方UI一致性章節。PR #57 已移除管理清單選取；搜尋／分頁保留，發布使用全域範圍。批次建議以本地合乎條件字卡及 RLS 隔離的現有雲端連結 ID 建立確定 dataset，最多每批查 200 個 ID，再以每頁 10 筆並行載入建議；total 為實際未連結卡片數，不把已跳過卡片算進頁數。
 - 新 SQL `20261013064759_dictionary_pagination_totals.sql` 由 CLI 產生，僅更新五個既有搜尋 RPC 的回應 `total`（構詞候選另補 page）；既有 predicate、Published／管理員限制、函式簽章及 ACL 保留。使用同一 matches CTE 計算完整 count 與頁面，Prefix 分類計 Sense 列、其餘計 Entry。classic `search_published_dictionary` 加入 all，字卡 All 搜尋改為單一全域排序分頁，不再把三種 kind 的獨立頁拼成一頁。舊客戶端可忽略新增 key。
 - **套用依賴**：正式 DB 需先具備字典 migrations 至 20261021，SQL 有前置 guard；當次開發未套用正式Migration，其後已核實遠端ledger `20261013072108 dictionary_pagination_totals_20261013`，現不需重播。倉庫舊migration使用8碼歷史日期，不能將CLI timestamp與舊檔名排序視為可靠重播順序；函式 owner／ACL、schema cache、結果 totals／普通使用者隔離一併核對。無新表、無資料清除、無寫入／發布權限變更。
 - #41 核心流程沿用 PR #46／#51，沒有另建發布流程。使用者本輪回報兩 PR 已正式部署且核心操作已實機驗收；本輪技術核對另涵蓋 admin／普通角色、Draft／Review／Published 隔離、查證確認、stale base／revision、重新開啟與失敗恢復。普通角色的自動化測試不是正式第二帳號實機測試；依單人測試階段的精簡標準記錄為「等待正式部署與最終驗收」，不自動關閉 Issue。
@@ -475,7 +475,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 | 檔案 | 依賴 | 本輪狀態 |
 | --- | --- | --- |
-| `20261015020759_dictionary_persistent_import_review.sql` | 現有 draft pipeline／revision lifecycle／identity／pronunciations／inflections／composition shared，以及 `20261013084116_dictionary_bulk_exchange.sql` 的 inspect／exchange version | CLI產生增量檔；新增一表、索引、RLS、audit trigger、7個管理API＋1個內部pending helper；隔離測試通過；**正式未套用、待使用者授權** |
+| `20261015020759_dictionary_persistent_import_review.sql` | 現有 draft pipeline／revision lifecycle／identity／pronunciations／inflections／composition shared，以及 `20261013084116_dictionary_bulk_exchange.sql` 的 inspect／exchange version | CLI產生增量檔；新增一表、索引、RLS、audit trigger、7個管理API＋1個內部pending helper；隔離測試通過；**使用者於2026-10-15回報已正式套用；本輪UI開發未另查正式ledger或執行SQL** |
 
 前端以 `dictionary_import_review_capabilities` 版本1偵測；只有 PostgreSQL missing function／PostgREST PGRST202 才安全退回原匯入及管理清單，不將權限或網路錯誤偽裝成未啟用。正式唯讀核對依賴 RPC／ACL 已存在而 capability 未存在。可先發布相容前端，正式授權後一次套用本增量 SQL、確認 API schema cache 與版本回傳後功能自動啟用；不重播歷史 SQL，不變更 Supabase／Vercel 設定。回退前端不得清理新表／audit／receipt，也不要用舊 UI 重跑新常駐作業。
 
@@ -484,3 +484,18 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 相關回歸133/133；最後依賴群組修正核心12/12（與回歸重疊）；瀏覽器3/3（新常駐審核、原大量交換及Published編輯，桌面／平板／手機適用範圍依各測試）。TypeScript／Production Build通過、ESLint 0 errors／467既有warnings，詳見本輪PR。新增具體 throw／shoot／do、部分義項與詞形、Stable ID、版本、Review 保護、決策 CAS、跨瀏覽器、舊 operation／本機封存測試。6,301筆實際 PGlite preview/stage/apply 加掉回覆／fresh-client 續作：最終獨立執行67.7秒（preview＋stage 13.7秒）；與Build／回歸並行的另一輪約140.5秒（preview＋stage 50.5秒）；沒有刪除或跳過測試。PGlite 不是遠端 staging／正式 Auth JWT 測試，真實操作與 SQL 授權見常駐 #60。
 
 一般 Schema／POS／Stable ID 檢查不能證明語義查證；仍須人工發布。所有已 stage 記錄可跨裝置審核，尚未 stage 的原始檔／Session 沿用本機保存或使用者備份檔，不宣稱檔案本身跨裝置。舊必要資料不足或硬衝突只保留並提示，沒有自動破壞性資料修復。
+
+
+## 全站UI一致性：共用工作區、導覽與列表（#34／#32，2026-10-15）
+
+本輪已實作，實機驗收留#60；合併與預覽結果記錄於PR。沒有新增或執行Migration，也未對正式字典匯入、發布或批次寫入。
+
+- `WorkspaceRoot` 在根layout維持同一個`NexusApp`；首頁／study route為空route marker，字典／官方單字集作為既有工作區的外部內容。從外部功能回私人功能沿用已載入的編輯器與私人工作區；字典公開閱讀不被私人登入門檻攔截，未登入不讀私人頁面。`/study`直達及返回以共用study導覽事件開啟學習集。
+- 所有路徑共用一個`FloatingSidebar`與一份`Sidebar`。原生modal dialog覆蓋主區、不占版寬；關閉仍保留子元件／檔案清單狀態，Esc／遮罩／關閉鈕收合並回復入口焦點。頂部、中間可捲動區與底部帳號／偏好共用，使用dvh、安全區及短視窗導覽高度限制。右側輔助頁沿用原模型。偏好與項目選單portal掛在所屬dialog，避免落到原生modal的不可互動背景。
+- 一般設定整合功能排序及預設收合的顯示勾選；`nexus-hidden-features`僅為裝置本機偏好，只影響側欄，首頁launcher與資料不變。保留舊排序key；讀取舊counter／draw次序時去重對應tools，頂層工具展開直接進既有子功能。鍵盤Enter、獨立開啟鈕與工具單擊均可取代雙擊。
+- Web不能切換的根因為部分功能handler未清除utilityMode；所有目標功能先清除其他overview旗標。共用導覽先`flushAllSaves`，包含非目前頁與輔助頁的pending／in-flight寫入；失敗留在目前介面，字典另沿用`navigateDictionary`離開保護。
+- `PageCollection`提供卡片／列表、排序、摘要與`CollectionItemMenu`。`PageItemMenu`沿用並加鍵盤移動、焦點回復及正確portal。筆記、文檔、簡報、小說、創作、網頁、計數、抽選、私人學習集及製譜共用列表；Dashboard／隨手記／日曆清單沿用原版面接入同一操作選單。官方學習集保留官方資訊／重新同步／刪除，避免不適用的複製。創作只在主建立鈕後選世界觀／角色卡，再沿用原模板；未實作角色組件重構或#62。
+- 重新命名透過原`flushSave`即時確認落盤，保留Page ID；失敗不關閉改名對話框。刪除先確認後沿用soft-delete／官方權限與回收桶；複製沿用工作區內容複製：新Page／章節／Study Card ID，私人學習集只複製front／back／dictionary_entry_id與方向確認，不帶FSRS狀態、事件、Session或官方身分。隨手記保留顏色，日曆副本保留日期／優先級並清除完成狀態。單一筆記建立視窗沿用流動／手動分頁初始化，改用原生dialog支援Esc與焦點。
+- 管理字典使用container query：內容容器<560px一欄、560–899px二欄、>=900px三欄。建立／匯入／匯出左側，未審核詞條／全域發布右側；上下`Pagination`共用同一`usePagedList`，搜尋／篩選重置並校正頁數。移除額外總數行與舊單選工作狀態。保留紅色待審數、每列三色與匯出進度總數。
+- `listAdminWork`沿用正式單色RPC；零色或三色不限、單色直接查詢。雙色以每次100筆讀取同條件的伺服器排序stream前綴，收集到目標offset+pageSize後停止，total為原scope兩色stats之和；不是篩選當頁，也不在JS重新排序。頁間total／stats改變時要求重試。最差可能讀完整scope（6,301筆最多64次有界請求）；這是避免UI改動要求正式RPC／Migration的相容取捨。既有`usePagedList`最後請求優先、載入／錯誤／重試機制保持。
+- Published／Draft／Review Draft、常駐審核、Stable ID與人工批准資料契約不變；「發布全部草稿」仍固定全字典scope，不受任何管理清單條件影響。匯出依原kind／status／query交換契約，工作狀態並未加入交換RPC；確認面板需明示這項範圍，避免與工作佇列篩選混淆。

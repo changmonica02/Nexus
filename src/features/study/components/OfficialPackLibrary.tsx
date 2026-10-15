@@ -21,7 +21,7 @@ export default function OfficialPackLibrary({packId}:{packId?:string}) {
   useEffect(()=>{void load();},[]);
   async function download(id:string){if(busy)return;setBusy(id);setFailures(f=>({...f,[id]:''}));try{await downloadOfficialPack(getSupabase()!,id);setPacks(await listOfficialPacks(getSupabase()!));}catch(e){setFailures(f=>({...f,[id]:e instanceof Error?e.message:String(e)}));}finally{setBusy(null);}}
   const pack=packs.find(p=>p.id===packId),info=OFFICIAL_PACKS.find(p=>p.id===packId);
-  return <main className="h-dvh overflow-y-auto bg-[var(--color-bg)] text-[var(--color-text)]"><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-8">
+  return <main className="h-full min-w-0 flex-1 overflow-y-auto bg-[var(--color-bg)] text-[var(--color-text)]"><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-8">
     <Link className="underline" href={packId?'/study/official':'/study'}>← {packId?'官方單字集':'我的學習集'}</Link>
     <h1 className="text-2xl font-semibold">{packId?pack?.name??'官方包詳情':'官方單字集'}</h1>
     {loading&&<p role="status">正在讀取…</p>}{error&&<div role="alert">{error}<button className={`${button} ml-2`} onClick={()=>void load()}>重試</button></div>}
