@@ -1,10 +1,14 @@
 "use client";
+import CollectionControls from "./CollectionControls";
+import EditedTime from "./EditedTime";
+import FeatureIcon, { featureForPage } from "./FeatureIcon";
+import { useCollectionPreferences } from "./useCollectionPreferences";
 import { useState } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import { confirmDialog } from "../lib/confirmDialog";
-import PageItemMenu from "./PageItemMenu";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
+import { useEffect, useRef } from "react";
 
 export interface PageActions {
   onRenamePage?: (id: string, title: string) => void | Promise<void>;
@@ -17,7 +21,8 @@ export function CollectionItemMenu({
   onRenamePage,
   onDuplicatePage,
   onDeletePage,
-}: PageActions & { page: Page }) {
+  extraItems = [],
+}: PageActions & { page: Page; extraItems?: PageMenuItem[] }) {
   const { t } = useLanguage();
   const [rename, setRename] = useState(false),
     [name, setName] = useState(page.title);
@@ -38,6 +43,7 @@ export function CollectionItemMenu({
     } else dialog.current?.close();
   }, [rename]);
   const items = [
+    ...extraItems,
     ...(onRenamePage
       ? [
           {
@@ -182,9 +188,15 @@ export function pagePreview(page: Page): string {
 export default function PageCollection({
   pages,
   onSelectPage,
-  icon = "▱",
   previews,
   viewStorageKey,
+  extraMenuItems,
+  renderCardFooter,
+  leadingControl,
+  initialView = "cards",
+  initialSort = "updated_at",
+  initialAscending = false,
+  sortOptions,
   ...actions
 }: PageActions & {
   pages: Page[];
@@ -192,95 +204,49 @@ export default function PageCollection({
   icon?: string;
   previews?: Record<string, string>;
   viewStorageKey?: string;
+  extraMenuItems?: (page: Page) => PageMenuItem[];
+  renderCardFooter?: (page: Page) => React.ReactNode;
+  leadingControl?: (page: Page) => React.ReactNode;
+  initialView?: "cards" | "list";
+  initialSort?: string;
+  initialAscending?: boolean;
+  sortOptions?: string[];
 }) {
-  const { t, language } = useLanguage();
-  const [view, setView] = useState<"cards" | "list">("cards");
-  const [sort, setSort] = useState("updated_at"),
-    [ascending, setAscending] = useState(false);
-  const storedView = useSyncExternalStore(
-    (cb) => {
-      window.addEventListener("storage", cb);
-      window.addEventListener("nexus-view-changed", cb);
-      return () => {
-        window.removeEventListener("storage", cb);
-        window.removeEventListener("nexus-view-changed", cb);
-      };
-    },
-    () => {
-      try {
-        return viewStorageKey ? localStorage.getItem(viewStorageKey) : null;
-      } catch {
-        return null;
-      }
-    },
-    () => null,
-  );
-  const visibleView = storedView
-    ? storedView === "icons"
-      ? "cards"
-      : "list"
-    : view;
+  const { t } = useLanguage();
+  const [{ view: visibleView, sort, ascending }, setPreferences] =
+    useCollectionPreferences(
+      viewStorageKey ??
+        "nexus-" + (pages[0] ? featureForPage(pages[0]) : "items") + "-view",
+      { view: initialView, sort: initialSort, ascending: initialAscending },
+    );
   const ordered = [...pages].sort((a, b) => {
     const result =
-      sort === "title"
-        ? a.title.localeCompare(b.title)
-        : sort === "kind"
-          ? (a.creative_type ?? a.kind ?? "").localeCompare(
-              b.creative_type ?? b.kind ?? "",
-            )
-          : sort === "created_at"
-            ? a.created_at - b.created_at
-            : sort === "size"
-              ? (a.content_text ?? "").length - (b.content_text ?? "").length
-              : a.updated_at - b.updated_at;
+      sort === "due_date"
+        ? (a.due_date ?? 0) - (b.due_date ?? 0)
+        : sort === "title"
+          ? a.title.localeCompare(b.title)
+          : sort === "kind"
+            ? (a.creative_type ?? a.kind ?? "").localeCompare(
+                b.creative_type ?? b.kind ?? "",
+              )
+            : sort === "created_at"
+              ? a.created_at - b.created_at
+              : sort === "size"
+                ? (a.content_text ?? "").length - (b.content_text ?? "").length
+                : a.updated_at - b.updated_at;
     return ascending ? result : -result;
   });
   return (
     <section aria-label={t("ui.items")} className="space-y-3">
-      <div className="flex flex-wrap justify-end gap-2">
-        <select
-          aria-label={t("ui.sort")}
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="min-h-10 rounded border bg-transparent px-2 text-sm"
-        >
-          {["updated_at", "title", "kind", "created_at", "size"].map((key) => (
-            <option key={key} value={key}>
-              {t("ui.sort." + key)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="min-h-10 rounded border px-2"
-          onClick={() => setAscending((v) => !v)}
-          aria-label={t(ascending ? "ui.ascending" : "ui.descending")}
-        >
-          {ascending ? "↑" : "↓"}
-        </button>
-        {(["cards", "list"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={visibleView === mode}
-            className="min-h-10 rounded border px-3 text-sm"
-            onClick={() => {
-              setView(mode);
-              if (viewStorageKey)
-                try {
-                  localStorage.setItem(
-                    viewStorageKey,
-                    mode === "cards" ? "icons" : "list",
-                  );
-                  window.dispatchEvent(new Event("nexus-view-changed"));
-                } catch {
-                  /* Keep in-memory mode. */
-                }
-            }}
-          >
-            {t("ui." + mode)}
-          </button>
-        ))}
+      <div className="flex justify-end">
+        <CollectionControls
+          view={visibleView}
+          onView={(view) => setPreferences({ view })}
+          sort={sort}
+          onSort={(sort, ascending) => setPreferences({ sort, ascending })}
+          ascending={ascending}
+          sortOptions={sortOptions}
+        />
       </div>
       {!pages.length ? (
         <p className="rounded-xl border border-dashed p-10 text-center text-sm opacity-60">
@@ -297,15 +263,33 @@ export default function PageCollection({
           {ordered.map((page) => (
             <article
               key={page.id}
-              className="flex min-w-0 items-start gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-[var(--color-text)]"
+              style={
+                visibleView === "cards" && page.kind === "quick_note"
+                  ? { backgroundColor: page.color || undefined }
+                  : undefined
+              }
+              data-collection-row={visibleView}
+              className={
+                visibleView === "cards"
+                  ? "flex flex-wrap min-w-0 items-start gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-[var(--color-text)]"
+                  : "flex min-h-14 min-w-0 items-center gap-2 px-2 text-[var(--color-text)] hover:bg-zinc-500/10"
+              }
             >
+              {leadingControl?.(page)}
               <button
                 type="button"
                 onClick={() => onSelectPage(page.id)}
-                className="min-w-0 flex-1 text-left"
+                className={
+                  visibleView === "cards"
+                    ? "min-w-0 flex-1 text-left"
+                    : "flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                }
               >
-                <span className="block truncate font-medium">
-                  {icon} {page.title || t("common.untitled")}
+                <span className="flex min-w-0 items-center gap-2 font-medium">
+                  <FeatureIcon page={page} />
+                  <span className="truncate">
+                    {page.title || t("common.untitled")}
+                  </span>
                 </span>
                 {visibleView === "cards" && (
                   <span className="my-3 block min-h-12 whitespace-pre-wrap break-words text-sm opacity-70 line-clamp-3">
@@ -314,11 +298,19 @@ export default function PageCollection({
                       t("ui.noPreview")}
                   </span>
                 )}
-                <span className="mt-2 block text-xs opacity-50">
-                  {new Date(page.updated_at).toLocaleDateString(language)}
-                </span>
+                <EditedTime
+                  timestamp={page.updated_at}
+                  className="shrink-0 text-xs opacity-50"
+                />
               </button>
-              <CollectionItemMenu page={page} {...actions} />
+              <CollectionItemMenu
+                page={page}
+                {...(page.official_pack_id ? {} : actions)}
+                extraItems={extraMenuItems?.(page)}
+              />
+              {visibleView === "cards" && renderCardFooter && (
+                <div className="basis-full">{renderCardFooter(page)}</div>
+              )}
             </article>
           ))}
         </div>

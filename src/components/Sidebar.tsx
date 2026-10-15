@@ -1,4 +1,6 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
+import FloatingPanel from "./FloatingPanel";
 import {TOOL_FEATURES, getHiddenFeatures} from "../lib/featurePreferences";
 import {confirmDialog} from '../lib/confirmDialog';
 
@@ -10,16 +12,7 @@ import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
 import AccountSettingsRow from "./AccountSettingsRow";
 import type { SyncState } from "../infrastructure/sync/syncEngine";
 
-function getPageIcon(page: Page): string {
-  if (page.kind === "study_set") return "🗂️";
-  if (page.kind === "document") return "📄";
-  if (page.kind === "presentation") return "📊";
-  if (page.kind === "creative") {
-    return isCreativeCharacterPage(page) ? "🎭" : "📖";
-  }
-  if (page.primary_attachment_id) return "📑";
-  return "📝";
-}
+
 
 import {
   getStoredFeatureOrderMode,
@@ -162,7 +155,6 @@ export default function Sidebar({
 }: SidebarProps) {
   const { t } = useLanguage();
   const [hiddenFeatures,setHiddenFeatures]=useState<FeatureFilter[]>([]);
-  const [toolsExpanded,setToolsExpanded]=useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -412,14 +404,14 @@ export default function Sidebar({
     const kind = page.kind || "note";
     if (kind === "presentation") return null;
     const options = kind === "document"
-      ? [{ k: "document", icon: "📄", label: "文檔" }]
+      ? [{ k: "document", label: "文檔" }]
       : kind === "study_set"
-        ? [{ k: "study_set", icon: "🗂️", label: "學習集" }]
-        : [{ k: "note", icon: "📝", label: "筆記" }];
+        ? [{ k: "study_set", label: "學習集" }]
+        : [{ k: "note", label: "筆記" }];
     return (
       <div ref={subPageMenuRef} className="absolute right-0 top-full mt-1 w-40 rounded-lg overflow-hidden shadow-xl z-40" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         {options.map((opt) => (
-          <button key={opt.k} onClick={() => { onAddSubPage(page.id, opt.k); setSubPageMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>{opt.icon}</span> {opt.label}</button>
+          <button key={opt.k} onClick={() => { onAddSubPage(page.id, opt.k); setSubPageMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><FeatureIcon feature={opt.k}/> {opt.label}</button>
         ))}
       </div>
     );
@@ -438,24 +430,23 @@ export default function Sidebar({
 
     const menuItems: PageMenuItem[] = [
       page.is_favorite
-        ? { id: "unfavorite", icon: "📄", label: t("sidebar.page.removeFavorite"), onClick: () => onToggleFavorite(page.id) }
-        : { id: "favorite", icon: "📄", label: t("sidebar.page.addFavorite"), onClick: () => onToggleFavorite(page.id) },
-      { id: "rename", icon: "📄", label: t("sidebar.page.rename"), onClick: () => startRename(page) },
-      { id: "copy", icon: "📋", label: t("sidebar.page.copy"), onClick: () => onDuplicatePage(page.id) },
+        ? { id: "unfavorite", label: t("sidebar.page.removeFavorite"), onClick: () => onToggleFavorite(page.id) }
+        : { id: "favorite", label: t("sidebar.page.addFavorite"), onClick: () => onToggleFavorite(page.id) },
+      { id: "rename", label: t("sidebar.page.rename"), onClick: () => startRename(page) },
+      { id: "copy", label: t("sidebar.page.copy"), onClick: () => onDuplicatePage(page.id) },
     ];
 
     if (page.kind === "document") {
-      menuItems.push({ id: "export-md", icon: "?", label: t("sidebar.page.exportMarkdown"), onClick: () => onExportPageMarkdown(page.id) });
+      menuItems.push({ id: "export-md", label: t("sidebar.page.exportMarkdown"), onClick: () => onExportPageMarkdown(page.id) });
     } else {
       menuItems.push(
-        { id: "export-pdf", icon: "📄", label: t("sidebar.page.exportPdf"), onClick: () => onExportPageAsPdf(page.id) },
-        { id: "export-nexus", icon: "📄", label: t("sidebar.page.exportNexusJson"), onClick: () => onExportPageAsNexusJson(page.id) },
+        { id: "export-pdf", label: t("sidebar.page.exportPdf"), onClick: () => onExportPageAsPdf(page.id) },
+        { id: "export-nexus", label: t("sidebar.page.exportNexusJson"), onClick: () => onExportPageAsNexusJson(page.id) },
       );
     }
 
     menuItems.push({
       id: "delete",
-      icon: "📄",
       label: t("sidebar.page.moveToTrash"),
       danger: true,
       onClick: async () => {
@@ -550,7 +541,7 @@ export default function Sidebar({
             />
           ) : (
             <span className="truncate flex-1 px-0.5 flex items-center gap-1">
-              <span className="shrink-0 text-sm">{getPageIcon(page)}</span>
+              <span className="shrink-0 text-sm"><FeatureIcon page={page}/></span>
               {page.is_favorite && <span className="shrink-0 text-xs"></span>}
               <span className="truncate">{page.title || t("common.untitled")}</span>
             </span>
@@ -593,16 +584,16 @@ export default function Sidebar({
   };
 
   const renderCreateMenu = () => (
-    <div className="absolute left-0 top-full mt-1 w-60 max-h-[65dvh] rounded-xl overflow-y-auto shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+    <FloatingPanel open={showCreateMenu} onClose={()=>setShowCreateMenu(false)} label={t("ui.create")}><div>
       <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">新建</div>
-      {creationOptions[activeFeatureFilter].map((option) => <button key={option.type} onClick={() => { onCreateItem(option.type); setShowCreateMenu(false); }} className="w-full px-3 py-2.5 text-sm text-left hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }}>{option.label}</button>)}
+      {creationOptions[activeFeatureFilter].map((option) => <button key={option.type} onClick={() => { onCreateItem(option.type); setShowCreateMenu(false); }} className="w-full px-3 py-2.5 text-sm text-left hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)" }}><FeatureIcon feature={option.type} className="mr-2"/>{t("ui.createType."+option.type)}</button>)}
       {(["all", "notes", "documents"] as string[]).includes(activeFeatureFilter) && <>
       <div className="my-1 border-t" style={{ borderColor: "var(--color-border)" }} />
       <div className="px-3 pt-1 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase select-none">匯入</div>
-      <button onClick={() => { onImportPdf(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📥</span><span>{t("sidebar.import.pdf")}</span></button>
-      <button onClick={() => { onImportMarkdown(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><span>📄</span><span>{t("sidebar.import.markdown")}</span></button>
+      <button onClick={() => { onImportPdf(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><FeatureIcon feature="import"/><span>{t("sidebar.import.pdf")}</span></button>
+      <button onClick={() => { onImportMarkdown(); setShowCreateMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left hover:bg-zinc-200" style={{ color: "var(--color-text)" }}><FeatureIcon feature="documents"/><span>{t("sidebar.import.markdown")}</span></button>
       </>}
-    </div>
+    </div></FloatingPanel>
   );
 
 
@@ -619,7 +610,6 @@ export default function Sidebar({
         document: t("sidebar.sort.group.document"),
         study_set: t("sidebar.sort.group.studySet"),
       };
-      const kindIcons: Record<string, string> = { note: "??", document: "??", study_set: "??" };
       const allFlatPages = [...unfoldered, ...folderedGroups.flatMap((group) => group.pages)];
 
       return kindOrder.map((kind) => {
@@ -628,7 +618,7 @@ export default function Sidebar({
         return (
           <div key={kind} className="space-y-0.5">
             <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold tracking-wider text-zinc-400 uppercase select-none">
-              <span>{kindIcons[kind]}</span><span>{kindLabels[kind]}</span><span className="opacity-50">({groupPages.length})</span>
+              <FeatureIcon feature={kind}/><span>{kindLabels[kind]}</span><span className="opacity-50">({groupPages.length})</span>
             </div>
             {groupPages.map((page) => renderPageItem(page, 0))}
           </div>
@@ -653,7 +643,7 @@ export default function Sidebar({
 
   if (isCollapsed) {
     return (
-      <aside className="flex flex-col items-center pt-3.5 gap-3 border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
+      <aside className="flex flex-col items-center pt-3.5 gap-3 select-none overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ color: "var(--color-text)" }} title={t("sidebar.expand")}>
           ›
         </button>
@@ -663,11 +653,9 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
+    <aside className="flex min-h-0 flex-1 flex-col select-none overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-sidebar-bg)", borderColor: "var(--color-border)" }}>
       <div className="flex items-center justify-between px-4 py-3.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={onToggleCollapse} className="flex items-center justify-center w-9 h-9 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.collapse")}>
-          ‹
-        </button>
+        <button onClick={onToggleCollapse} autoFocus aria-label={t("ui.closeNavigation")} className="flex items-center justify-center w-11 h-11 hover:bg-zinc-500/10 text-lg" style={{color:"var(--color-text)"}} title={t("ui.closeNavigation")}><FeatureIcon feature="closeSidebar"/></button>
         <button onClick={onShowHome} className="flex items-center gap-2 rounded-md px-1 py-1 -mr-1 transition-all hover:bg-zinc-200" title={t("sidebar.logoGoHome")}>
           <div className="w-2.5 h-2.5 rounded-full bg-zinc-400" />
           <span className="text-base font-semibold tracking-wide" style={{ color: "var(--color-text)" }}>Nexus</span>
@@ -677,11 +665,11 @@ export default function Sidebar({
       {/* Google-style navigation: Home → Trash → collapsible Features, without dividers or card gaps. */}
       <nav className="max-h-[45dvh] shrink-0 overflow-y-auto px-2 py-2" aria-label="功能導覽">
         {[
-          { id: "home", icon: "⌂", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
-          { id: "trash", icon: "⌫", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
+          { id: "home", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
+          { id: "trash", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onShowNotes(); else onShowTrash(); } },
         ].map((item) => (
           <button key={item.id} type="button" onClick={item.onClick} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
-            <span className="w-5 text-center text-base" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
+            <FeatureIcon feature={item.id}/><span>{item.label}</span>
           </button>
         ))}
         <div className="relative flex h-10 items-center">
@@ -691,23 +679,23 @@ export default function Sidebar({
         </div>
         {isFeaturesExpanded && (() => {
           const fixed = [
-            { id: "all" as const, icon: "▦", label: "所有項目", onOpen: onShowNotes },
-            { id: "calendar" as const, icon: "▣", label: "日曆", onOpen: () => onShowTodoList?.() },
+            { id: "all" as const, label: "所有項目", onOpen: onShowNotes },
+            { id: "calendar" as const, label: "日曆", onOpen: () => onShowTodoList?.() },
           ];
           const others = [
-            { id: "notes" as const, icon: "✎", label: "筆記", onOpen: () => onShowNotesOverview?.() },
-            { id: "documents" as const, icon: "▱", label: "文檔", onOpen: () => onShowDocuments?.() },
-            { id: "presentations" as const, icon: "▰", label: "簡報", onOpen: () => onShowPresentations?.() },
-            { id: "study" as const, icon: "▤", label: "字卡", onOpen: () => onShowStudySets?.() },
-            { id: "quicknotes" as const, icon: "▧", label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
-            { id: "creative" as const, icon: "✦", label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
-            { id: "novels" as const, icon: "◫", label: "小說", onOpen: () => onShowNovels?.() },
-            { id: "web" as const, icon: "⌘", label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
-            { id: "score" as const, icon: "♫", label: "製譜", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "score" })) },
-            { id: "dictionary" as const, icon: "▥", label: t("ui.dictionary"), onOpen: () => window.dispatchEvent(new Event("nexus-open-dictionary")) },
-            { id: "tools" as const, icon: "⚒", label: t("ui.tools"), onOpen: () => setToolsExpanded(v=>!v) },
-            { id: "counter" as const, icon: "＋", label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
-            { id: "draw" as const, icon: "⤨", label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
+            { id: "notes" as const, label: "筆記", onOpen: () => onShowNotesOverview?.() },
+            { id: "documents" as const, label: "文檔", onOpen: () => onShowDocuments?.() },
+            { id: "presentations" as const, label: "簡報", onOpen: () => onShowPresentations?.() },
+            { id: "study" as const, label: "字卡", onOpen: () => onShowStudySets?.() },
+            { id: "quicknotes" as const, label: t("sidebar.nav.quickNote"), onOpen: () => onShowQuickNotes?.() },
+            { id: "creative" as const, label: t("sidebar.nav.creative"), onOpen: () => onShowCreative?.() },
+            { id: "novels" as const, label: "小說", onOpen: () => onShowNovels?.() },
+            { id: "web" as const, label: "網頁", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "web" })) },
+            { id: "score" as const, label: "製譜", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "score" })) },
+            { id: "dictionary" as const, label: t("ui.dictionary"), onOpen: () => window.dispatchEvent(new Event("nexus-open-dictionary")) },
+            { id: "tools" as const, label: t("ui.tools"), onOpen: () => window.dispatchEvent(new Event("nexus-open-tools")) },
+            { id: "counter" as const, label: "計數", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "counter" })) },
+            { id: "draw" as const, label: "抽選", onOpen: () => window.dispatchEvent(new CustomEvent("nexus-open-utility", { detail: "draw" })) },
           ];
           const orderedOthers = featureOrderMode === "recent"
             ? [...others].sort((a, b) => {
@@ -725,13 +713,13 @@ export default function Sidebar({
           return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
             {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id)&&!hiddenFeatures.includes(item.id))].map((item) => (
               <div key={item.id} className="flex min-w-0 items-center">
-                <button type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id==='tools')setToolsExpanded(v=>!v); }} onDoubleClick={item.id==='tools'?()=>setToolsExpanded(true):item.onOpen} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();item.onOpen();}}} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10" aria-expanded={item.id==='tools'?toolsExpanded:undefined} style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
-                  <span className="w-4 shrink-0 text-center" aria-hidden="true">{item.icon}</span><span className="truncate">{t('ui.feature.'+item.id)}</span>
+                <button type="button" onClick={() => { setFeatureFilter(item.id); setHasManualFeatureFilter(true); rememberFeatureUse(item.id); if(item.id==='tools')item.onOpen(); }} onDoubleClick={item.onOpen} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();item.onOpen();}}} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10"  style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
+                  <FeatureIcon feature={item.id} size={18}/><span className="truncate">{t('ui.feature.'+item.id)}</span>
                 </button>
-                {item.id!=='tools'&&<button type="button" className="h-10 w-8 shrink-0 rounded hover:bg-zinc-500/10" aria-label={t('ui.open')+' '+t('ui.feature.'+item.id)} onClick={item.onOpen}>↗</button>}
+                {<button type="button" className="h-10 w-8 shrink-0 rounded hover:bg-zinc-500/10" aria-label={t('ui.open')+' '+t('ui.feature.'+item.id)} onClick={item.onOpen}>↗</button>}
               </div>
             ))}
-            {!hiddenFeatures.includes('tools')&&toolsExpanded&&<div className="col-span-2 grid grid-cols-2 border-t pl-3">{others.filter(item=>TOOL_FEATURES.includes(item.id)).map(item=><button key={item.id} type="button" className="flex min-h-11 items-center gap-2 rounded p-2 text-left text-xs hover:bg-zinc-500/10" onClick={()=>{setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse('tools');item.onOpen();}}>{item.icon} {t('ui.feature.'+item.id)}</button>)}</div>}
+
           </div>;
         })()}
       </nav>

@@ -38,16 +38,7 @@ export default function FloatingSidebar({
       }}
       className="m-0 h-dvh max-h-dvh w-[min(360px,100vw)] max-w-none border-0 bg-transparent p-0 text-[var(--color-text)] backdrop:bg-black/30"
     >
-      <div className="flex h-full min-h-0 flex-col bg-[var(--color-sidebar-bg)] pb-[env(safe-area-inset-bottom)] shadow-2xl">
-        <button
-          autoFocus
-          type="button"
-          onClick={onClose}
-          aria-label={t("ui.closeNavigation")}
-          className="absolute right-3 top-3 z-10 h-9 w-9 rounded-lg bg-[var(--color-sidebar-bg)]"
-        >
-          ×
-        </button>
+      <div className="flex h-full min-h-0 flex-col bg-[var(--color-sidebar-bg)] pb-[env(safe-area-inset-bottom)]">
         {children}
       </div>
     </dialog>

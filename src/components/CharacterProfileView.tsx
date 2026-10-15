@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "./WorkspaceNavigation";
 import { useMenuDismiss } from "./useMenuDismiss";
 import React, { useEffect, useState, useRef } from "react";
 import { nanoid } from "nanoid";
@@ -1065,7 +1066,7 @@ export default function CharacterProfileView({
         }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          {onBackToCreativeOverview && (
+          <SidebarToggle/>{onBackToCreativeOverview && (
             <button
               onClick={onBackToCreativeOverview}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm shrink-0"

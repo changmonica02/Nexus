@@ -1,5 +1,6 @@
 "use client";
-import {CollectionItemMenu,type PageActions} from "./PageCollection";
+import FeatureIcon from "./FeatureIcon";
+import PageCollection,{type PageActions} from "./PageCollection";
 import { useState, useMemo } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -65,12 +66,12 @@ export default function TodoView({
 
   return (
     <main className="flex flex-col flex-1 overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
         {/* Calendar */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="min-w-0 flex-1 p-3 sm:p-6 lg:overflow-y-auto">
           <div className="max-w-[700px] mx-auto">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-2xl font-semibold">✅ {t("todo.title")}</h1>
+              <h1 className="text-2xl font-semibold"><FeatureIcon feature="calendar"/> {t("todo.title")}</h1>
               <div className="flex items-center gap-2">
                 <button onClick={() => setCurrentMonth(addDays(startOfMonth(currentMonth), -30))} className="rounded border px-2 py-1 text-xs hover:bg-zinc-100">←</button>
                 <span className="text-sm font-medium">{currentMonth.getFullYear()} / {currentMonth.getMonth() + 1}</span>
@@ -110,26 +111,15 @@ export default function TodoView({
             </div>
 
             <div className="mt-6">
-              <h3 className="text-sm font-semibold mb-2">📅 {selectedDate.toLocaleDateString()} 的任務</h3>
-              {todos.filter((td) => td.due_date && new Date(td.due_date).toDateString() === selectedDate.toDateString()).length === 0 ? (
-                <div className="text-xs opacity-40 py-4 text-center">此日無任務</div>
-              ) : (
-                <div className="space-y-2">
-                  {todos.filter((td) => td.due_date && new Date(td.due_date).toDateString() === selectedDate.toDateString()).map((td) => (
-                    <div key={td.id} className="flex items-center gap-2 rounded-lg border p-3 hover:shadow-sm" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-                      <input type="checkbox" checked={!!td.completed} onChange={(e) => onUpdate(td.id, { completed: e.target.checked })} />
-                      <span className={`flex-1 text-sm ${td.completed ? "line-through opacity-50" : ""}`} onClick={() => onSelectPage(td.id)}>{td.title}</span>
-                      <CollectionItemMenu page={td} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete}/>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <h3 className="text-sm font-semibold mb-2"><FeatureIcon feature="calendar"/> {selectedDate.toLocaleDateString()} 的任務</h3>
+              <PageCollection pages={todos.filter(td=>td.due_date&&new Date(td.due_date).toDateString()===selectedDate.toDateString())} initialView="list" initialSort="due_date" initialAscending viewStorageKey="nexus-calendar-items-view" sortOptions={['due_date','updated_at','title','created_at']} onSelectPage={onSelectPage} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete} leadingControl={td=><input aria-label={t('ui.completeTask',{name:td.title})} type="checkbox" checked={!!td.completed} onChange={e=>onUpdate(td.id,{completed:e.target.checked})}/>}/>
+
             </div>
           </div>
         </div>
 
         {/* Right: Todo list overview */}
-        <div className="w-[280px] border-l overflow-y-auto p-4 space-y-4" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
+        <div className="w-full shrink-0 border-t p-4 space-y-4 lg:w-[280px] lg:border-t-0 lg:border-l lg:overflow-y-auto" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
           <div>
             <h4 className="text-xs font-semibold uppercase opacity-60 mb-2">今天</h4>
             {todos.filter((td) => td.due_date && new Date(td.due_date).toDateString() === new Date().toDateString() && !td.completed).length === 0 ? <div className="text-xs opacity-40">無</div> :

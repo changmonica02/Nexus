@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "./WorkspaceNavigation";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Page, Slide, PresentationData, PresentationBlock, SlideLayout } from "../lib/types";
 import { createSlide } from "../lib/presentation";
@@ -502,7 +503,7 @@ export default function PresentationView({
       {/* ===== 全寬上欄（加高） ===== */}
       <div className="shrink-0 border-b" style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
         <div className="flex items-center gap-2 px-4 py-6 flex-wrap">
-          {onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-2 py-1 text-sm hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}
+          <SidebarToggle/>{onBackToInterface && <button type="button" onClick={onBackToInterface} className="rounded px-2 py-1 text-sm hover:bg-zinc-200 dark:hover:bg-zinc-800" title="回到功能介面" aria-label="回到功能介面">←</button>}
           <input value={page.title} onChange={(e) => onTitleChange(e.target.value)} placeholder="簡報標題" className="bg-transparent font-semibold outline-none text-sm min-w-[120px]" />
           <span className="text-[10px] opacity-50">{slides.length} 張</span>
           <div className="h-5 w-px bg-zinc-300 mx-1" />

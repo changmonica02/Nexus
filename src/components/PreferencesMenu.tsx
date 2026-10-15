@@ -1,4 +1,5 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SUPPORTED_LANGUAGES } from "../lib/i18n";
@@ -52,7 +53,7 @@ export default function PreferencesMenu(props: PreferencesProps) {
   const buttonClass = "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-500/10";
   const surface = { backgroundColor: "var(--color-bg)", color: "var(--color-text)", borderColor: "var(--color-border)" };
   return <>
-    <button ref={anchor} type="button" title={t("preferences.title")} aria-label={t("preferences.title")} aria-expanded={open} onClick={() => { setPortalRoot(anchor.current?.closest("dialog")??null); setPanel(null); setOpen(!open); }} className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-zinc-500/10" style={surface}>⚙</button>
+    <button ref={anchor} type="button" title={t("preferences.title")} aria-label={t("preferences.title")} aria-expanded={open} onClick={() => { setPortalRoot(anchor.current?.closest("dialog")??null); setPanel(null); setOpen(!open); }} className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-zinc-500/10" style={surface}><FeatureIcon feature="settings"/></button>
     {open && createPortal(<div ref={popup} role="dialog" aria-label={t("preferences.title")} className="fixed z-[1100] flex items-end gap-2" style={{ left: position.left, bottom: Math.max(8, position.bottom) }}>
       <div className="rounded-xl border p-1.5 shadow-xl" style={{ ...surface, width: position.width }}>
         <div className="px-3 py-2 text-xs font-semibold opacity-60">{t("preferences.title")}</div>

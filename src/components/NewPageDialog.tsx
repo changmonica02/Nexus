@@ -1,4 +1,5 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../lib/LanguageContext";
 import type { PageFormat, PageKind } from "../lib/types";
@@ -12,9 +13,9 @@ export type NewPageKindChoice = PageKind;
 const FORMAT_OPTIONS_BY_KIND: Record<string, PageFormat[]> = {
   presentation: ["16:9", "4:3"],
 };
-const NOTE_MODE_OPTIONS: { value: PageFormat; icon: string }[] = [
-  { value: "flow", icon: "📄" },
-  { value: "paged", icon: "📑" },
+const NOTE_MODE_OPTIONS: { value: PageFormat }[] = [
+  { value: "flow" },
+  { value: "paged" },
 ];
 const DEFAULT_FORMAT_BY_KIND: Record<string, PageFormat> = {
   document: "flow",
@@ -57,10 +58,10 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   if (!isOpen) return null;
 
   const kindOptions = [
-    { id: "document" as const, icon: "📄", label: t("newPage.kind.document"), desc: t("newPage.kind.document.desc") },
-    { id: "note" as const, icon: "📝", label: t("newPage.kind.note"), desc: t("newPage.kind.note.desc") },
-    { id: "study_set" as const, icon: "🗂️", label: t("newPage.kind.studySet"), desc: t("newPage.kind.studySet.desc") },
-    { id: "presentation" as const, icon: "📊", label: "簡報", desc: "投影片：圖表/版面/示圖/目錄" },
+    { id: "document" as const, label: t("newPage.kind.document"), desc: t("newPage.kind.document.desc") },
+    { id: "note" as const, label: t("newPage.kind.note"), desc: t("newPage.kind.note.desc") },
+    { id: "study_set" as const, label: t("newPage.kind.studySet"), desc: t("newPage.kind.studySet.desc") },
+    { id: "presentation" as const, label: t("ui.feature.presentations"), desc: t("ui.description.presentations") },
   ];
 
   const formatLabel = (f: PageFormat) => {
@@ -117,13 +118,13 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
         <div className="p-4 space-y-2">
           {showKindStep && kindOptions.map((option) => (
             <button key={option.id} onClick={() => handleSelectKind(option.id)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
-              <span className="text-2xl">{option.icon}</span>
+              <FeatureIcon feature={"id" in option?String(option.id):"notes"} size={24}/>
               <span><span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{option.label}</span><span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>{option.desc}</span></span>
             </button>
           ))}
           {showNoteModeStep && NOTE_MODE_OPTIONS.map((option) => (
             <button key={option.value} onClick={() => handleSelectNoteMode(option.value)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
-              <span className="text-2xl">{option.icon}</span>
+              <FeatureIcon feature={"id" in option?String(option.id):"notes"} size={24}/>
               <span>
                 <span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{formatLabel(option.value)}</span>
                 <span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>

@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "./WorkspaceNavigation";
 import {confirmDialog} from '../lib/confirmDialog';
 
 import ToolbarDropdown from "./ToolbarDropdown";
@@ -511,7 +512,7 @@ export default function NovelReaderView({
       >
         {/* 左側：標題與章節目錄按鈕、新增章節與字數 */}
         <div className="flex items-center gap-2 min-w-0">
-          {onBackToNovelList && (
+          <SidebarToggle/>{onBackToNovelList && (
             <button
               onClick={onBackToNovelList}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all cursor-pointer shadow-sm shrink-0"
@@ -768,7 +769,7 @@ export default function NovelReaderView({
         className="relative z-40 md:hidden flex shrink-0 items-center gap-1 border-b px-2 py-2 shadow-sm"
         style={{ backgroundColor: currentTheme.barBg, borderColor: currentTheme.border, color: currentTheme.text }}
       >
-        {onBackToNovelList && (
+        <SidebarToggle/>{onBackToNovelList && (
           <button onClick={onBackToNovelList} className="rounded-md border px-2 py-1.5 text-sm font-semibold" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title="返回小說列表">←</button>
         )}
         <button onClick={() => setTocOpen((value) => !value)} className="rounded-md border px-2 py-1.5 text-sm" style={{ borderColor: currentTheme.border, backgroundColor: currentTheme.bg }} title={tocOpen ? "收合目錄" : "開啟目錄"}>📑</button>

@@ -1,14 +1,16 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import { useMenuDismiss } from "./useMenuDismiss";
 import {createPortal} from "react-dom";
 import { useEffect, useRef, useState } from "react";
 
 export interface PageMenuItem {
   id: string;
-  icon: string;
+  icon?: string;
   label: string;
   onClick: () => void;
   danger?: boolean;
+  disabled?:boolean;
 }
 
 const MENU_WIDTH = 208;
@@ -54,8 +56,8 @@ export default function PageItemMenu({ items, title }: { items: PageMenuItem[]; 
           buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();
         }} className="fixed rounded-xl overflow-hidden shadow-2xl z-[9998]" style={{ top: `${position.top}px`, left: `${position.left}px`, width: `${MENU_WIDTH}px`, backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           {items.map((item) => (
-            <button type="button" role="menuitem" key={item.id} onClick={() => { close(); item.onClick(); }} className={`w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-left transition-all ${item.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-zinc-200"}`} style={{ color: item.danger ? undefined : "var(--color-text)" }}>
-              <span>{item.icon}</span><span>{item.label}</span>
+            <button type="button" role="menuitem" disabled={item.disabled} key={item.id} onClick={() => { close(); item.onClick(); }} className={`w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-left transition-all ${item.danger ? "text-red-600 hover:bg-red-50" : "hover:bg-zinc-200"}`} style={{ color: item.danger ? undefined : "var(--color-text)" }}>
+              <FeatureIcon feature={item.id}/><span>{item.label}</span>
             </button>
           ))}
         </div>, portalRoot ?? document.body
