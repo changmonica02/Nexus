@@ -481,6 +481,6 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 ### 驗證與界線
 
-相關回歸133/133；最後依賴群組修正核心12/12（與回歸重疊）；瀏覽器3/3（新常駐審核、原大量交換及Published編輯，桌面／平板／手機適用範圍依各測試）。TypeScript／Production Build通過、ESLint 0 errors／467既有warnings，詳見本輪PR。新增具體 throw／shoot／do、部分義項與詞形、Stable ID、版本、Review 保護、決策 CAS、跨瀏覽器、舊 operation／本機封存測試。6,301筆實際 PGlite preview/stage/apply 加掉回覆／fresh-client 續作：獨立執行約61秒；與Build／回歸並行的最終測試約141秒（preview＋stage 50.5秒）；沒有刪除或跳過測試。PGlite 不是遠端 staging／正式 Auth JWT 測試，真實操作與 SQL 授權見常駐 #60。
+相關回歸133/133；最後依賴群組修正核心12/12（與回歸重疊）；瀏覽器3/3（新常駐審核、原大量交換及Published編輯，桌面／平板／手機適用範圍依各測試）。TypeScript／Production Build通過、ESLint 0 errors／467既有warnings，詳見本輪PR。新增具體 throw／shoot／do、部分義項與詞形、Stable ID、版本、Review 保護、決策 CAS、跨瀏覽器、舊 operation／本機封存測試。6,301筆實際 PGlite preview/stage/apply 加掉回覆／fresh-client 續作：最終獨立執行67.7秒（preview＋stage 13.7秒）；與Build／回歸並行的另一輪約140.5秒（preview＋stage 50.5秒）；沒有刪除或跳過測試。PGlite 不是遠端 staging／正式 Auth JWT 測試，真實操作與 SQL 授權見常駐 #60。
 
 一般 Schema／POS／Stable ID 檢查不能證明語義查證；仍須人工發布。所有已 stage 記錄可跨裝置審核，尚未 stage 的原始檔／Session 沿用本機保存或使用者備份檔，不宣稱檔案本身跨裝置。舊必要資料不足或硬衝突只保留並提示，沒有自動破壞性資料修復。

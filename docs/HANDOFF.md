@@ -7,7 +7,7 @@
 - 基於 SPEC `823445a`、已同步 main `b90b53c`，分支 `feat/dictionary-persistent-review`。已實作部分安全匯入、常駐來源／差異／版本／決策／結果、跨裝置審核、管理三色／總數／差異數與搜尋篩選分頁、既有Review安全增量更新；不直接修改Published。
 - 新增 `supabase/migrations/20261015020759_dictionary_persistent_import_review.sql`：一張管理工作項表、索引／RLS／audit及管理RPC，復用原receipt／草稿／Review／人工發布。**正式未套用，待使用者明確授權。** 正式僅唯讀核對依賴RPC／權限；無正式資料匯入／修改。
 - 前端缺capability時維持既有匯入與管理功能。可先合併相容前端；SQL獲授權套用後自動啟用新版，不能把Vercel Ready當作Migration已套用。
-- 相關回歸133/133、最後修正核心12/12（重疊）、瀏覽器3/3；TypeScript／Build通過，ESLint 0 errors／467既有warnings，範圍見PR。6,301筆實際隔離測試包含掉回覆／重新載入／續作：獨立約61秒，與Build／回歸並行最終約141秒，沒有重複新增。
+- 相關回歸133/133、最後修正核心12/12（重疊）、瀏覽器3/3；TypeScript／Build通過，ESLint 0 errors／467既有warnings，範圍見PR。6,301筆實際隔離測試包含掉回覆／重新載入／續作：最終獨立67.7秒，另一輪與Build／回歸並行約140.5秒，沒有重複新增。
 
 ## 舊待審核工作
 
