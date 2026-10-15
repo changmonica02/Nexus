@@ -62,7 +62,7 @@ export interface StudyCardDictionaryLink {
 type RpcClient = Pick<SupabaseClient, "rpc">;
 export async function getDictionaryEntry(client: RpcClient, id: string): Promise<DictionaryDetail | null> {
   const { data, error } = await client.rpc("get_dictionary_entry", { entry_uuid: id });
-  if (error) throw new Error(`無法讀取公共字典：${error.message}`);
+  if (error) throw new Error(`無法讀取字典：${error.message}`);
   // RLS intentionally gives the same null result for hidden drafts and missing IDs.
   return data as DictionaryDetail | null;
 }
@@ -70,7 +70,7 @@ export async function getDictionaryEntry(client: RpcClient, id: string): Promise
 /** Uses the existing Supabase client; all authority is checked by database RLS. */
 export async function publishDictionaryEntry(client: RpcClient, id: string): Promise<DictionaryEntry> {
   const { data, error } = await client.rpc("publish_dictionary_entry", { entry_uuid: id, content_verified: true });
-  if (error) throw new Error(`無法發布公共字典：${error.message}`);
+  if (error) throw new Error(`無法發布字典：${error.message}`);
   return data as DictionaryEntry;
 }
 
