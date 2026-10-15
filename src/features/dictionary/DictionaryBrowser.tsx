@@ -140,7 +140,7 @@ export default function DictionaryBrowser({path}:{path:string[]}){
   const [admin,setAdmin]=useState<{owner:string;allowed:boolean}|null>(null);
   useEffect(()=>{if(!client)return;const {data}=client.auth.onAuthStateChange((_event,session)=>setOwner(session?.user.id??null));return()=>data.subscription.unsubscribe();},[client]);
   useEffect(()=>{if(!client||!owner)return;let active=true;void client.rpc('is_dictionary_admin').then(({data,error})=>{if(active)setAdmin({owner,allowed:!error&&data===true});});return()=>{active=false;};},[client,owner]);
-  return <main className="h-dvh overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><nav className="mb-6 flex flex-wrap justify-between gap-3 border-b pb-4"><Link href={back}>{back==='/study'?"← 字卡首頁":"← 返回上一頁"}</Link>{owner&&admin?.owner===owner&&admin.allowed&&<Link href="/dictionary/admin" className="underline">管理公共字典</Link>}</nav>
-    {!client?<p>資料服務尚未設定，字典目前無法讀取。</p>:owner===undefined?<p role="status">正在確認登入…</p>:!owner?<p>請先回到 Nexus 登入，再搜尋公共字典。</p>:<Content key={owner} path={path} admin={!!(admin?.owner===owner&&admin.allowed)}/>}
+  return <main className="h-dvh overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><nav className="mb-6 flex flex-wrap justify-between gap-3 border-b pb-4"><Link href={back}>{back==='/study'?"← 字卡首頁":"← 返回上一頁"}</Link>{owner&&admin?.owner===owner&&admin.allowed&&<Link href="/dictionary/admin" className="underline">管理字典</Link>}</nav>
+    {!client?<p>資料服務尚未設定，字典目前無法讀取。</p>:owner===undefined?<p role="status">正在確認登入…</p>:!owner?<p>請先回到 Nexus 登入，再搜尋字典。</p>:<Content key={owner} path={path} admin={!!(admin?.owner===owner&&admin.allowed)}/>}
   </div></main>;
 }
