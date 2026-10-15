@@ -1,10 +1,11 @@
 "use client";
+import {PersistentReviewPanel} from './PersistentImportReview';
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
 
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
-import {listAdminEntries,adminPageSize} from './adminQueries';
+import {listAdminEntries,listAdminWork,adminPageSize} from './adminQueries';
 import {inflectionLabels,availableInflections} from './inflections';
 import {RelationTargetPicker,RelationSelectionDialog} from './RelationTargetPicker';
 import {DictionaryBulkPublish} from './DictionaryBulkPublish';
@@ -250,7 +251,7 @@ export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:Dicti
 }
 export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:string;newKind?:DictionaryEntry['kind'];embedded?:boolean}){
   const senses:DictionarySense[]=[];
-  const [page,setPage]=useState(0),[reload,setReload]=useState(0);
+  const [page,setPage]=useState(0),[reload,setReload]=useState(0),[work,setWork]=useState(''),[reviewTarget,setReviewTarget]=useState<string|null>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('review')?new URLSearchParams(window.location.search).get('review')==='all'?'*':new URLSearchParams(window.location.search).get('review'):null);
   const [detail,setDetail]=useState<DictionaryDetail|null>(()=>{
     if(!newKind)return null;
     const id=crypto.randomUUID();
@@ -259,7 +260,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   const [kinds,setKinds]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[query,setQuery]=useState('');
   const {t}=usePaginationLanguage();
   const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('json');
-  const [fileText,setFileText]=useState('');
+  const [fileText,setFileText]=useState(''),[sourceName,setSourceName]=useState('');
 
   const [modal,setModal]=useState<'new'|'import'|'export'|null>(null),[createKind,setCreateKind]=useState<DictionaryEntry['kind']>('word');
   const [grouping,setGrouping]=useState<DictionaryGrouping>(emptyGrouping);
@@ -269,19 +270,20 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d?.entry.kind==='prefix'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
   useUnsavedDraft(!detail&&!!fileText,busy);
   async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
-  const listing=usePagedList(JSON.stringify([kinds,statuses,query,reload,entryId,newKind]),page,adminPageSize,async p=>{
-    if(entryId||newKind)return {items:[],total:0,page:0};
-    return {...await listAdminEntries(getSupabase()!,{kinds,statuses,query,page:p}),page:p};
+  const listing=usePagedList(JSON.stringify([kinds,statuses,query,work,reload,entryId,newKind]),page,adminPageSize,async p=>{
+    if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false};
+    return {...await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p}),page:p};
   },p=>{setPage(p);});
   const entries=listing.data?.items??[],total=listing.data?.total??0,loading=listing.loading;
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
   const visible=entries;
 
-  if(detail?.entry.status==='published')return <PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh}/>;
-  if(detail)return <DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/>;
+  if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id}/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh}/></>;
+  if(detail)return <><PersistentReviewPanel entryId={detail.entry.id}/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/></>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
+    {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
     <DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/>
      <DictionaryBulkPublish disabled={busy||loading} onPublished={async()=>{await refresh();}}/>
      <p role="status">{loading?'讀取中…':`共 ${total} 筆 · 第 ${page+1} 頁`}</p>
@@ -292,7 +294,8 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
     {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
     <input aria-label="搜尋管理詞條" placeholder="搜尋詞條" className={control} value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}/>
     <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setPage(0);}} onStatuses={values=>{setStatuses(values);setPage(0);}}/>
-    <ul className="min-w-0 divide-y divide-[var(--color-border)]">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.status==='draft'?'草稿':'已發布'}</Link></li>)}</ul>
+    {listing.data?.workAvailable&&<><p role="status">{t('persistent.stats',{red:listing.data.stats!.red,yellow:listing.data.stats!.yellow,green:listing.data.stats!.green})}</p><select aria-label={t('persistent.workFilter')} className={control} value={work} onChange={e=>{setWork(e.target.value);setPage(0);}}><option value="">{t('persistent.all')}</option>{(['red','yellow','green'] as const).map(v=><option key={v} value={v}>{t('persistent.'+v)}</option>)}</select><button className={button} onClick={()=>setReviewTarget('*')}>{t('persistent.openQueue')}</button></>}
+    <ul className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin?review=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {labels[e.kind]} · {e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}</Link>{e.work_status==='red'&&<button className={button} onClick={()=>setReviewTarget(e.id)}>{t('persistent.pending',{n:e.pending_count??0})}</button>}</li>)}</ul>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
       <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>
       <details><summary>匯入格式說明 · Dictionary CSV v1（12 欄）</summary><div className="space-y-2 text-sm">
@@ -308,10 +311,10 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
       <fieldset disabled={busy} className="space-y-3">
       <p className="text-sm">{t("exchange.formatHint")}</p>
       <label>{t("exchange.inputFormat")}<select aria-label={t("exchange.inputFormat")} className={control} value={format} onChange={e=>setFormat(e.target.value as 'csv'|'md'|'json'|'ai')}><option value="csv">Dictionary CSV v1（含 Legacy Word CSV 相容）</option><option value="md">Markdown 詞源／記憶內容</option><option value="json">Nexus JSON Exchange v1 / Legacy JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></label>
-      <input aria-label={t("exchange.file")} type="file" accept=".csv,.md,.json" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void action(async()=>{if(file.size>64*1024*1024)throw Error("File exceeds 64 MiB");const text=await file.text();let nextFormat:typeof format=file.name.toLowerCase().endsWith(".csv")?"csv":file.name.toLowerCase().endsWith(".md")?"md":"json";if(nextFormat==="json"){try{if(JSON.parse(text.replace(/^\uFEFF/,'')).format==="nexus-dictionary-ai")nextFormat="ai";}catch{}}setFormat(nextFormat);setFileText(text);});}}/>
+      <input aria-label={t("exchange.file")} type="file" accept=".csv,.md,.json" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void action(async()=>{if(file.size>64*1024*1024)throw Error("File exceeds 64 MiB");const text=await file.text();setSourceName(file.name);let nextFormat:typeof format=file.name.toLowerCase().endsWith(".csv")?"csv":file.name.toLowerCase().endsWith(".md")?"md":"json";if(nextFormat==="json"){try{if(JSON.parse(text.replace(/^\uFEFF/,'')).format==="nexus-dictionary-ai")nextFormat="ai";}catch{}}setFormat(nextFormat);setFileText(text);});}}/>
       <Field label={t("exchange.pasteFile")} multiline value={fileText} onChange={v=>{setFileText(v);}}/>
       </fieldset>
-      {format==='ai'?<AIImport key={fileText} raw={fileText} onBusy={setBusy} onSaved={()=>refresh()}/>:<DictionaryImportReview raw={fileText} format={format} onBusy={setBusy} onSaved={()=>{setFileText('');return refresh();}}/>}
+      {format==='ai'?<AIImport key={fileText} raw={fileText} onBusy={setBusy} onSaved={()=>refresh()}/>:<DictionaryImportReview sourceName={sourceName} raw={fileText} format={format} onBusy={setBusy} onSaved={()=>{setFileText('');return refresh();}}/>}
     </section>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}</DictionaryModal>}</>
     {modal!=='import'&&message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}
   </div>;

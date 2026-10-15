@@ -19,7 +19,7 @@
 - **開發前核對**：Codex 應閱讀對應 Issue、SPEC 和現有程式碼，標明規格與實作差距；若重要行為／資料設計仍待核准，先提出選項，不得自行當成已定案。
 - **開發與驗證**：依 SPEC 作為目標行為；測試需覆蓋 Issue 驗收及資料相容、安全、錯誤恢復。未經授權不得操作 production。不能將 main 的程式存在誤寫成已部署／已驗收。
 - **實作完成時**：Codex 必須同步補充／校正 `docs/ARCHITECTURE.md` 的**實際**模組、schema／RPC、資料流、狀態與技術取捨，並明確區分設計中、已實作、測試通過、production 已套用／待驗證；只有實作時確實改變或新增的技術內容才應寫入，不可把未實作方案敘述成現況。
-- **交付與關閉 Issue 前**：確認 Issue 與 SPEC 行為一致、ARCHITECTURE 與程式碼一致、相關測試及未執行測試已記錄；重要決策與原因歸 HISTORY，進度／阻塞歸 HANDOFF。**Issue 一律等正式部署完成且依 Issue 範圍完成正式環境／真實帳號或裝置驗收後，才能人工關閉；PR 合併、CI 通過與 migration 建立都不是關閉條件。PR 描述使用 `Refs #N`，不得使用導致自動關閉的 `Closes/Fixes/Resolves #N`。** 未符合驗收不得僅因有 Commit 就關閉 Issue。
+- **交付與關閉 Issue 前**：確認 Issue 與 SPEC 行為一致、ARCHITECTURE 與程式碼一致、相關測試及未執行測試已記錄；重要決策與原因歸 HISTORY，進度／阻塞歸 HANDOFF。**依使用者 2026-10-15 更新授權，功能開發 Issue 在程式、測試與交付完成後可結案；正式部署／真實帳號與裝置驗收項目集中保留於常駐 Issue #60。未套用 Migration 必須明示，不能宣稱功能已正式啟用。PR 描述使用 `Refs #N`，不得使用導致自動關閉的 `Closes/Fixes/Resolves #N`。** 未符合驗收不得僅因有 Commit 就關閉 Issue。
 - 已有功能的問題修正亦應檢查是否影響產品規格或技術架構；若不影響，無須形式上改寫文件。
 
 ## GitHub main 與 Vercel Production 的部署邊界
@@ -28,7 +28,7 @@
 - **PR 合併 = 同意可能觸發正式部署**。合併前檢查目標分支、測試與 Preview、SQL/RPC 相容性、產品決策、變更範圍及是否已獲使用者明確合併／上線授權。禁止把 GitHub 的 `mergeable` 誤認為可安全部署。
 - PR 涉及 Supabase migration 時，先核對目前正式 schema、資料保護、回復方法、舊版前端相容性，並明確安排資料庫與前端發布順序。**僅建立 migration 檔、合併 PR 或 Vercel Preview Ready，均不等於正式 migration 已套用或正式環境已驗收。** 正式資料庫寫入與合併仍各自需要明確授權。
 - 若僅編寫文件，應儘量以不影響 Production 為原則（PR + Preview）；是否合併文件 PR，仍按正式部署風險確認。遇到 Vercel 自動部署設定無法核實，應報告不確定性，不能擅自假定已停用。
-- Issue 的結案門檻不變：正式部署且依 Issue 範圍完成真實使用者／裝置驗收後才**人工**關閉，PR 僅使用 `Refs #N`。
+- 功能開發 Issue 可依完成證據結案；未完成的正式啟用／人工驗收移交常駐 #60。PR 僅使用 `Refs #N`，不自動關閉常駐驗收 Issue。
 
 ## 文件維護
 - 產品需求改變 → 更新 `docs/SPEC.md`。

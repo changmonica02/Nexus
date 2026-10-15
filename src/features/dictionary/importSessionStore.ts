@@ -32,3 +32,15 @@ export async function persistImportSession(session:ImportSession,changed?:Import
 }
 export async function loadDictionaryJob<T>(owner:string,type:string):Promise<T|null>{const db=await dictionaryJobDatabase();try{return (await db.get('jobs',JSON.stringify([owner,type])))?.value??null;}finally{db.close();}}
 export async function saveDictionaryJob(owner:string,type:string,value:unknown){const db=await dictionaryJobDatabase();try{await db.put('jobs',{key:JSON.stringify([owner,type]),value});}finally{db.close();}}
+/** Archive only metadata: item rows retain their original IDs and are never removed on replacement. */
+export async function archiveImportSession(session:ImportSession){
+ await persistImportSession(session);const {items,...metadata}=session;
+ await saveDictionaryJob(session.owner_id,'import-archive:'+session.id,{...metadata,item_count:items.length});
+}
+export async function listArchivedImportSessions(owner:string):Promise<(Omit<ImportSession,'items'>&{item_count:number})[]>{
+ const db=await dictionaryJobDatabase();try{return (await db.getAll('jobs')).filter(row=>{const key=JSON.parse(row.key);return key[0]===owner&&String(key[1]).startsWith('import-archive:');}).map(row=>row.value).sort((a,b)=>b.preview_at.localeCompare(a.preview_at));}finally{db.close();}
+}
+export async function loadArchivedImportSession(owner:string,id?:string):Promise<ImportSession|null>{
+ const saved=(await listArchivedImportSessions(owner)).find(s=>!id||s.id===id);if(!saved)return null;
+ const db=await dictionaryJobDatabase();try{const rows=await db.getAllFromIndex('items','session',JSON.stringify([owner,saved.id]));if(rows.length!==saved.item_count)throw Error('Archived import is incomplete; keep the original file');const {item_count,...metadata}=saved;void item_count;return {...metadata,items:rows.sort((a,b)=>a.order-b.order).map(r=>r.item)};}finally{db.close();}
+}

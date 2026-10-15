@@ -38,7 +38,7 @@ test('non-admin has no edit action; sense containers keep shared content separat
  const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data:d,accordion:true}));assert.ok(html.indexOf('IPA')<html.indexOf('STORY'));assert.ok(html.indexOf('STORY')<html.indexOf('詞條共用'));assert.equal((html.match(/SHARED HISTORY/g)||[]).length,1);
 });
 test('list selection is removed; editor retains shared draft/review flow and bounded senses loading',()=>{
- const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8'),reader=fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8');assert.ok(!admin.includes("from('dictionary_senses')"));assert.ok(admin.includes('listAdminEntries'));assert.ok(!admin.includes('setSelected'));assert.ok(!admin.includes('toggleVisibleSelection'));assert.ok(admin.includes('if(entryId||newKind)return {items:[],total:0,page:0}'));
+ const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8'),reader=fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8');assert.ok(!admin.includes("from('dictionary_senses')"));assert.ok(admin.includes('listAdminEntries'));assert.ok(!admin.includes('setSelected'));assert.ok(!admin.includes('toggleVisibleSelection'));assert.ok(admin.includes('if(entryId||newKind)return {items:[],total:0,page:0,'));
  for(const name of ['create_dictionary_edit_review','save_dictionary_review','approve_dictionary_review','saveDictionaryDraft'])assert.ok(admin.includes(name));assert.ok(reader.includes('entryId={id} embedded'));assert.ok(reader.includes('if(editing)return'));
 });
 test('local PostgreSQL bulk publication preflight rollback, multi-round dependencies, mixed invalid/blocked, stale and authorization',async()=>{
