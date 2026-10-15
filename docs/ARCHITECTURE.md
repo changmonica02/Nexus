@@ -223,9 +223,9 @@ offline / reconnect / delete / attachment / backup import 行為
 - 正式 SQL schema 以 `supabase/migrations/` 與 production migration ledger 交叉核對；僅有 migration 不代表已套用。
 - 技術驗收需對照現行 SPEC、已存在的 migration、測試及正式環境，未實際核對者不得宣稱通過。
 
-## 公共字典管理權限與 UI 的責任分離（2026-10-12）
+## 字典管理權限與 UI 的責任分離（2026-10-12）
 - UI 的管理入口只對已有管理權限的使用者顯示；登入工作階段已能確認身分，不設重複的管理員確認步驟。
-- **入口可見性不是授權控制**。公共字典新增、修改、發布、匯入等受保護操作仍需在後端依經核實的 Auth UUID／管理員角色逐次驗權；直接發出 API/RPC 請求的普通使用者必須被拒絕。
+- **入口可見性不是授權控制**。字典新增、修改、發布、匯入等受保護操作仍需在後端依經核實的 Auth UUID／管理員角色逐次驗權；直接發出 API/RPC 請求的普通使用者必須被拒絕。
 - 規劃 RLS／RPC／API 權限設計與雙帳號測試時以此作硬性安全前提，避免只靠前端按鈕顯示條件保護公共資料。
 
 ## F-STUDY 四選一測驗取消後的技術退場邊界（2026-10-12）
@@ -233,7 +233,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - 保留相容性與資料安全：任何移除 Quiz 資料表、RPC、IndexedDB stores 或修改既有 migration，均需先核對實際部署與資料量、備份／還原、同步與帳號刪除依賴，再取得獨立批准；不得讓退場影響 FSRS 學習歷史。
 - 筆記編輯器的題目與選項為獨立的通用內容工具，與被取消的 Study 測驗分開。
 
-## 公共字典 Entry／Sense 與匯入資料契約（由 SPEC 分流；2026-10-12）
+## 字典 Entry／Sense 與匯入資料契約（由 SPEC 分流；2026-10-12）
 
 > 以下描述已規劃的技術資料模型與匯入保護，**不是產品 UI 規格，也不代表已核實目前部署狀態**。使用者目前確認的管理頁匯入視窗只接受 CSV；歷史 JSON／AI 等處理途徑是否仍需要保留，必須以程式碼、API 與後續產品決策核對。
 
@@ -242,7 +242,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - Sense-aware pronunciation 原候選欄位：`id, entry_id, sense_id nullable, locale nullable, ipa, note nullable, sort_order`，另含 revision／updated_at；`sense_id` 必須屬相同 Entry。實際 migration 與 schema 仍須查證。
 - 匯入階段先預覽及驗證，區分 Safe／Review／Invalid；Apply 重新確認 snapshot／revision／狀態／權限；保留稽核收據及冪等性；批次切分不能拆散同一 Entry 的 Sense。
 - Word CSV runtime 曾採五欄：`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw`。Canonical master CSV v1 曾採十二欄：`kind,entry_id,sense_id,headword,part_of_speech,gloss_zh_tw,category,etymology,example_words,source_forms,relation_hint,mnemonic_story`。二者用途不同，**最終匯入 UI 格式與轉換流程仍須核定**。
-- `relation_hint` 為候選關聯，`source_forms` 為字形註解；`levels` 供 Official Study Pack manifest 使用，與公共字典內容分類分離。
+- `relation_hint` 為候選關聯，`source_forms` 為字形註解；`levels` 供 Official Study Pack manifest 使用，與字典內容分類分離。
 - Inflection／Derivation 應具不同語義；如何建立欄位或關聯模型，待產品規格確認。
 
 ## F-DICTIONARY｜正式目標架構與資料契約（2026-10-12）
@@ -252,7 +252,7 @@ offline / reconnect / delete / attachment / backup import 行為
 ### A. 系統邊界與分層
 
 - **Public Dictionary**：全站單一公共資料域，包含 Word／Prefix／Root。一般登入使用者透過 Reader 僅取得已發布內容；管理員可建立 Draft、編輯、匯入、預覽、審查、發布與刪除。字典資料不以使用者 owner_id 建立私人複本。
-- **Private Study**：個人字卡及其 FSRS 狀態、學習事件、設定、學習集均由使用者持有；卡片透過穩定 Entry ID 指向公共字典。字典更新只能影響字典詳情的顯示，不可自動覆寫私人卡片文字或排程。
+- **Private Study**：個人字卡及其 FSRS 狀態、學習事件、設定、學習集均由使用者持有；卡片透過穩定 Entry ID 指向字典。字典更新只能影響字典詳情的顯示，不可自動覆寫私人卡片文字或排程。
 - **前端呈現**：DictionaryBrowser 負責公共清單、搜尋、篩選、詳情及來源上下文；DictionaryAdmin 負責管理清單及批次操作；DictionaryEditor／相關編輯模型供管理頁和詳情頁右上角「編輯此詞條」共用，避免兩套存檔實作。
 - **資料服務**：Reader RPC／query 層、Draft／Revision／Publish 層、CSV import/export adapter、Study entry link adapter 各自有明確契約。畫面只呼叫服務層，不自行直接更新受保護資料表。
 
@@ -268,7 +268,7 @@ offline / reconnect / delete / attachment / backup import 行為
 | Draft／Revision／Publication | Entry ID、修訂版本、內容快照、發布狀態 | 編輯正式詞條先建立 Draft／revision；審查後主動發布；舊版本完整保護 |
 | `dictionary_audit`／操作收據 | actor、action、target、版本、操作時間／冪等標記 | 新增、編輯、匯入、刪除與發布可追溯；只由受保護服務寫入 |
 | 私人字卡詞條關聯 | user／card ID、public `entry_id` | FK／存取權與刪除語意先核對現有 `study_*`；不改寫私人排程 |
-| 官方學習包 manifest | pack、published Word Entry ID、順序／級別 | 學測 1–2、3–4、5–6 級；下載建立用戶私人 Study Set，不建立第二份公共字典 |
+| 官方學習包 manifest | pack、published Word Entry ID、順序／級別 | 學測 1–2、3–4、5–6 級；下載建立用戶私人 Study Set，不建立第二份字典 |
 
 **Entry identity**：`kind + lower(btrim(headword))` 相同即同一 Entry，並以 Sense 區分詞性、釋義、不同詞源與語義；匯入新詞／編輯既有詞時先解析既有 Entry 與 Sense，對無法確定的對應給 Review，不能自動破壞不同義項的資料。
 
@@ -292,7 +292,7 @@ offline / reconnect / delete / attachment / backup import 行為
 
 ### E. 前端互動、狀態及邊界
 
-- **進入字典**：字卡 →「字典」→公共字典；頂部「←返回字卡」「字典」「管理字典（僅管理員顯示）」。下方是搜尋框「查詢英文、中文」、「搜尋」、「篩選」，篩選浮層含 Word／Prefix／Root 三種，預設全選。
+- **進入字典**：字卡 →「字典」→字典；頂部「←返回字卡」「字典」「管理字典（僅管理員顯示）」。下方是搜尋框「查詢英文、中文」、「搜尋」、「篩選」，篩選浮層含 Word／Prefix／Root 三種，預設全選。
 - **詳情頁**：返回實際來源並保留 query、filters、scroll、順序上下文；上一筆／下一筆依來源結果排序，手機和平板支援左右滑動；管理員右上角「編輯此詞條」直接進入同一詞條編輯器。
 - **內容元件**：相同詞源的註釋由一個來源視覺容器承載，內部保留多段落／義項資訊；多詞源清楚分組。展示讀音、變體、種類、義項、口訣、記憶、詞源及構詞關聯。
 - **管理頁**：工具列提供「新增」「匯入資料」「匯出資料」「發布全部草稿」；新增以 Word／Prefix／Root 下拉切換同一編輯面板。清單不再提供核取／全選／本頁選取發布／批次刪除；類型與狀態的篩選核取保留。單筆刪除移至已儲存 Draft 編輯頁，詳見 PR #57 章節。
@@ -357,7 +357,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - `src/components/pagination/model.ts` 集中 ceil 總頁數、整數頁碼驗證及資料變動時有效頁邊界；輸入驗證回傳 null 拒絕，不偷偷 clamp。內部及既有 URL／RPC 保持 zero-based，UI 顯示 one-based，空集合 0／0。
 - `Pagination.tsx` 為上一頁／中央原位頁碼／下一頁。text input＋numeric inputMode／done hint，Enter 提交、Esc 取消、失焦取消，焦點選取／還原；沒有額外確認按鈕或巢狀 form。以 Nexus Tailwind／theme tokens 排版。使用現有 LanguageContext／i18n；獨立字典路由無 provider 時沿用繁中預設。舊服務尚未提供 total 時只保留原導航，不捏造總頁數或開啟跳轉。
 - `usePagedList` 用查詢 key／page／retry 的請求識別管理最後成功資料，effect cleanup 忽略過期回應；載入／失敗不把確認頁數與資料混配。錯誤可重試，快速再跳頁允許最後請求勝出。搜尋／篩選不共用錯誤的舊結果；資料縮減讓頁面越界時依新 total 轉最後有效頁。
-- 套用：公共字典搜尋（含構詞反查／變體）、Prefix 義項分類、Root 分類、管理詞條清單、構詞候選 dialog、字卡編輯的手動字典連結、評分背面字典候選、批次字卡連結建議。A4 筆記、簡報及角色卡內容頁模型不變。
+- 套用：字典搜尋（含構詞反查／變體）、Prefix 義項分類、Root 分類、管理詞條清單、構詞候選 dialog、字卡編輯的手動字典連結、評分背面字典候選、批次字卡連結建議。A4 筆記、簡報及角色卡內容頁模型不變。
 - 管理清單及反向／變體查詢使用既有 Supabase select 的 exact count，在相同篩選、排序及 range 取回可信 root Entry 數；不做客戶端全字典掃描。PR #57 已移除管理清單選取；搜尋／分頁保留，發布使用全域範圍。批次建議以本地合乎條件字卡及 RLS 隔離的現有雲端連結 ID 建立確定 dataset，最多每批查 200 個 ID，再以每頁 10 筆並行載入建議；total 為實際未連結卡片數，不把已跳過卡片算進頁數。
 - 新 SQL `20261013064759_dictionary_pagination_totals.sql` 由 CLI 產生，僅更新五個既有搜尋 RPC 的回應 `total`（構詞候選另補 page）；既有 predicate、Published／管理員限制、函式簽章及 ACL 保留。使用同一 matches CTE 計算完整 count 與頁面，Prefix 分類計 Sense 列、其餘計 Entry。classic `search_published_dictionary` 加入 all，字卡 All 搜尋改為單一全域排序分頁，不再把三種 kind 的獨立頁拼成一頁。舊客戶端可忽略新增 key。
 - **套用依賴**：正式 DB 需先具備字典 migrations 至 20261021，SQL 有前置 guard；當次開發未套用正式Migration，其後已核實遠端ledger `20261013072108 dictionary_pagination_totals_20261013`，現不需重播。倉庫舊migration使用8碼歷史日期，不能將CLI timestamp與舊檔名排序視為可靠重播順序；函式 owner／ACL、schema cache、結果 totals／普通使用者隔離一併核對。無新表、無資料清除、無寫入／發布權限變更。
@@ -399,7 +399,7 @@ offline / reconnect / delete / attachment / backup import 行為
 
 相關學習／FSRS／固定／樣式／官方包／字典連結／Quiz 相容／Workspace Sync 單元整合與真正元件 Chromium 測試，以及 TypeScript、ESLint、Production Build，本輪 126/126；瀏覽器 1/1；TypeScript／Production Build 通過，ESLint 0 errors／467 既有 warnings。重跑命令見本次 PR。瀏覽器覆蓋桌面1280、平板820、手機390及 zh-TW／en；沒有替代真實帳號／裝置驗收。
 
-## #44 公共字典完整交換與批次作業（2026-10-13）
+## #44 字典完整交換與批次作業（2026-10-13）
 
 **已開發及隔離驗證；正式 Migration／部署未執行，HISTORY 依使用者要求不變更。**
 
