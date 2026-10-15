@@ -34,6 +34,7 @@ export default function SidebarNavigationButton({
   return (
     <button
       {...props}
+      style={{touchAction:"manipulation",...props.style}}
       type="button"
       onClick={(e) => {
         if (held.current) {

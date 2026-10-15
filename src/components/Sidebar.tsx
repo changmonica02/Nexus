@@ -713,7 +713,7 @@ export default function Sidebar({
               return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
             })
             : others;
-          return <div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
+          return <><p className="px-3 py-1 text-[10px] opacity-60">{t("ui.filterOrOpen")}</p><div className="grid max-h-[176px] grid-cols-2 overflow-y-auto overscroll-contain border-t p-1" style={{ borderColor: "var(--color-border)" }} aria-label="功能篩選清單">
             {[...fixed, ...orderedOthers.filter(item=>!TOOL_FEATURES.includes(item.id)&&!hiddenFeatures.includes(item.id))].map((item) => (
               <div key={item.id} className="flex min-w-0 items-center">
                 <SidebarNavigationButton onFilter={() => {onExitTrash?.();setFeatureFilter(item.id);setHasManualFeatureFilter(true);rememberFeatureUse(item.id);}} onOpen={item.onOpen} className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs font-medium hover:bg-zinc-500/10" style={{backgroundColor:activeFeatureFilter===item.id?'rgba(26,115,232,0.12)':undefined}} title={t('ui.filterOrOpen')}>
@@ -722,7 +722,7 @@ export default function Sidebar({
               </div>
             ))}
 
-          </div>;
+          </div></>;
         })()}
       </nav>
 
