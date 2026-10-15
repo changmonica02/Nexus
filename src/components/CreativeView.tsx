@@ -1,6 +1,7 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import { useState } from "react";
-import type { Page } from "../lib/types";
+import {isCreativeCharacterPage,type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import CharacterTemplateManager from "./CharacterTemplateManager";
 import CreationChoiceDialog from "./CreationChoiceDialog";
@@ -35,7 +36,7 @@ export default function CreativeView({
       <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold">
-            ✦ {t("ui.feature.creative")}
+            <FeatureIcon feature="creative"/> {t("ui.feature.creative")}
           </h1>
           <div className="flex gap-2">
             <button
@@ -58,12 +59,11 @@ export default function CreativeView({
           viewStorageKey="nexus_creative_view_mode"
           pages={pages.filter(
             (p) =>
-              p.kind === "creative" &&
+              isCreativeCharacterPage(p) &&
               !p.deleted_at &&
               !p.character_data?.isTemplate,
           )}
           onSelectPage={onSelectPage}
-          icon="✦"
           {...actions}
         />
         {choice && (

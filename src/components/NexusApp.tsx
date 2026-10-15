@@ -5,7 +5,6 @@ import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
 
 
 import {
-  Fragment,
   useState,
   useEffect,
   useMemo,
@@ -43,6 +42,10 @@ import { SyncEngine, type SyncState } from "../infrastructure/sync/syncEngine";
 import { measureRefreshPull } from "../lib/pullToRefresh";
 import type { CreateItemType } from "../lib/creationOptions";
 import CreationChoiceDialog from "./CreationChoiceDialog";
+import {WorkspaceNavigationProvider} from "./WorkspaceNavigation";
+import FloatingPanel from "./FloatingPanel";
+import ToolsOverview from "./ToolsOverview";
+import FeatureIcon from "./FeatureIcon";
 import Sidebar, { type SortMode } from "./Sidebar";
 import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
@@ -135,7 +138,6 @@ function NexusAppInner({
 
   // Every workspace view uses one overlay drawer, closed by default.
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
-  const [launcherToolsOpen,setLauncherToolsOpen]=useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -159,6 +161,8 @@ function NexusAppInner({
   const [isDocumentMode, setIsDocumentMode] = useState(false);
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [isToolsMode,setIsToolsMode]=useState(false);
+  const [toolKind,setToolKind]=useState<"counter"|"draw">("counter");
   const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | "score" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
@@ -203,8 +207,9 @@ function NexusAppInner({
     activePageRef.current = activePage;
   }, [activePage]);
 
-  const isFeatureInterface = !!externalContent || isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
+  const isFeatureInterface = isToolsMode || !!externalContent || isHomeMode || isTrashMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
+  const showWorkspaceHeader = isFeatureInterface && !externalContent && !(utilityMode && activePage);
   const isTabletViewport = viewportWidth < 1024;
 
   useEffect(() => {
@@ -732,7 +737,9 @@ function NexusAppInner({
     setIsNoteMode(false);
     setIsPresentationMode(false);
     const target = pages.find((p) => p.id === id);
-    setUtilityMode(mode=>mode === "score" && target?.kind !== "score" ? null : mode);
+    setIsToolsMode(false);
+    setUtilityMode(target?.kind==='web'||target?.kind==='counter'||target?.kind==='draw'||target?.kind==='score'?target.kind:null);
+    if(target?.kind==='counter'||target?.kind==='draw')setToolKind(target.kind);
     if (target?.kind === "creative") {
       setIsCreativeMode(true);
     } else {
@@ -760,6 +767,8 @@ function NexusAppInner({
     if (!storageRef.current) return;
     if (activePageRef.current) await flushSave(activePageRef.current);
     const newPage = await storageRef.current.createPage(input);
+    setIsToolsMode(false);
+    if(input.kind==='counter'||input.kind==='draw')setToolKind(input.kind);
     setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" || input.kind === "score" ? input.kind : null);
     setIsTrashMode(false);
     setIsHomeMode(false);
@@ -1135,7 +1144,7 @@ function NexusAppInner({
     setTrashPages(allPages.filter((page) => page.deleted_at !== null));
   }, [storageRef]);
 
-  const closeFeatureOverviews = () => { setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(null); };
+  const closeFeatureOverviews = () => { setIsToolsMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(null); };
   const handleShowNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
 
   // Q-7: night adapt is a global preference, persisted via StorageAdapter (settings store)
@@ -1163,7 +1172,7 @@ function NexusAppInner({
   const handleShowDocuments = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
   const handleShowNotesOverview = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsPresentationMode(false); setIsNoteMode(true); setActivePageId(null); }, []);
   const handleShowPresentations = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(true); setActivePageId(null); }, []);
-  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
+  const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => {setIsToolsMode(false); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
 
   const navigate = useCallback((action:()=>void) => {
     navigateDictionary(()=>{void (async()=>{
@@ -1174,18 +1183,20 @@ function NexusAppInner({
     })();});
   },[flushAllSaves,onLeaveExternal,t]);
 
+  const handleShowTools=useCallback(()=>{closeFeatureOverviews();setIsTrashMode(false);setIsHomeMode(false);setIsQuickNoteMode(false);setIsTodoMode(false);setIsCreativeMode(false);setActivePageId(null);setIsToolsMode(true);},[]);
   useEffect(() => {
     const openUtility = (event: Event) => {
       const kind = (event as CustomEvent<"web" | "counter" | "draw" | "score">).detail;
       if (kind === "web" || kind === "counter" || kind === "draw" || kind === "score") navigate(()=>handleShowUtility(kind));
     };
+    const tools=()=>navigate(handleShowTools);window.addEventListener("nexus-open-tools",tools);
     const study=()=>navigate(handleShowStudySets);
     window.addEventListener("nexus-open-study",study);
     const dictionary=()=>navigateDictionary(()=>{void flushAllSaves().then(()=>onOpenDictionary?onOpenDictionary():window.location.assign("/dictionary")).catch(()=>setRefreshError(t("ui.saveFailed")));});
     window.addEventListener("nexus-open-dictionary",dictionary);
     window.addEventListener("nexus-open-utility", openUtility);
-    return () => {window.removeEventListener("nexus-open-study",study);window.removeEventListener("nexus-open-dictionary",dictionary);window.removeEventListener("nexus-open-utility", openUtility);};
-  }, [handleShowUtility,handleShowStudySets,navigate,flushAllSaves,t,onOpenDictionary]);
+    return () => {window.removeEventListener("nexus-open-tools",tools);window.removeEventListener("nexus-open-study",study);window.removeEventListener("nexus-open-dictionary",dictionary);window.removeEventListener("nexus-open-utility", openUtility);};
+  }, [handleShowUtility,handleShowTools,handleShowStudySets,navigate,flushAllSaves,t,onOpenDictionary]);
   const handleShowTrash = useCallback(async () => {
     if (activePageRef.current) await flushSave(activePageRef.current);
     await loadTrashPages();
@@ -1728,6 +1739,7 @@ function NexusAppInner({
   const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
     <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
+    <WorkspaceNavigationProvider open={()=>{setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
       <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
@@ -1736,32 +1748,33 @@ function NexusAppInner({
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
 
-      {(
-        <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}>☰</button>
+      {showWorkspaceHeader && (
+        <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
           <div className="flex-1" />
           <div className="relative">
             <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.overview")} title={t("ui.overview")}>
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
             </button>
-            {isAppLauncherOpen && (
-              <div className="absolute right-0 top-12 grid w-72 grid-cols-2 gap-1 rounded-2xl border p-2 shadow-xl" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+            <FloatingPanel open={isAppLauncherOpen} onClose={()=>setIsAppLauncherOpen(false)} label={t('ui.overview')} corner>
+              <button type="button" aria-label={t('ui.overview')} aria-expanded="true" onClick={()=>setIsAppLauncherOpen(false)} className="fixed right-3 top-2 grid h-10 w-10 grid-cols-2 gap-1 p-2"><i className="bg-current"/><i className="bg-current"/><i className="bg-current"/><i className="bg-current"/></button>
+              <div className="absolute right-3 top-14 grid max-h-[calc(100dvh-5rem)] w-[min(320px,calc(100vw-24px))] grid-cols-2 gap-1 overflow-y-auto rounded-xl bg-[var(--color-bg)] p-3">
                 {[
-                  {id:'calendar',icon:'▣',action:handleShowTodoList},
-                  {id:'study',icon:'▤',action:handleShowStudySets},
-                  {id:'dictionary',icon:'▥',action:()=>window.dispatchEvent(new Event('nexus-open-dictionary'))},
-                  {id:'creative',icon:'✦',action:handleShowCreative},
-                  {id:'novels',icon:'📖',action:handleShowNovels},
-                  {id:'notes',icon:'✎',action:handleShowNotesOverview},
-                  {id:'documents',icon:'▱',action:handleShowDocuments},
-                  {id:'presentations',icon:'▰',action:handleShowPresentations},
-                  {id:'web',icon:'⌘',action:()=>handleShowUtility('web')},
-                  {id:'score',icon:'♫',action:()=>handleShowUtility('score')},
-                  {id:'tools',icon:'⚒',action:()=>setLauncherToolsOpen(v=>!v)},
-                ].map(item=><Fragment key={item.id}><button type="button" aria-expanded={item.id==='tools'?launcherToolsOpen:undefined} onClick={()=>{if(item.id==='tools')item.action();else if(item.id==='dictionary'){item.action();setIsAppLauncherOpen(false);}else {navigate(item.action);setIsAppLauncherOpen(false);}}} className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm hover:bg-zinc-500/10"><span aria-hidden="true">{item.icon}</span>{t('ui.feature.'+item.id)}</button>{item.id==='tools'&&launcherToolsOpen&&<div className="col-span-2 grid grid-cols-2 border-t pl-3">{(['counter','draw'] as const).map(kind=><button key={kind} type="button" className="min-h-11 rounded p-2 text-left text-sm hover:bg-zinc-500/10" onClick={()=>{navigate(()=>handleShowUtility(kind));setIsAppLauncherOpen(false);}}>{t('ui.feature.'+kind)}</button>)}</div>}</Fragment>)}
+                  {id:'calendar',action:handleShowTodoList},
+                  {id:'study',action:handleShowStudySets},
+                  {id:'dictionary',action:()=>window.dispatchEvent(new Event('nexus-open-dictionary'))},
+                  {id:'creative',action:handleShowCreative},
+                  {id:'novels',action:handleShowNovels},
+                  {id:'notes',action:handleShowNotesOverview},
+                  {id:'documents',action:handleShowDocuments},
+                  {id:'presentations',action:handleShowPresentations},
+                  {id:'web',action:()=>handleShowUtility('web')},
+                  {id:'score',action:()=>handleShowUtility('score')},
+                  {id:'tools',action:handleShowTools},
+                ].map(item=><button key={item.id} type="button" onClick={()=>{if(item.id==='dictionary')item.action();else navigate(item.action);setIsAppLauncherOpen(false);}} className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-zinc-500/10"><FeatureIcon feature={item.id}/>{t('ui.feature.'+item.id)}</button>)}
               </div>
-            )}
+            </FloatingPanel>
           </div>
         </header>
       )}
@@ -1844,7 +1857,7 @@ function NexusAppInner({
         </button>
       )}
 
-      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden mt-14 h-[calc(100dvh-3.5rem)]`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
       {externalContent ?? (isHomeMode ? (
         <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
       ) : isQuickNoteMode ? (
@@ -1898,18 +1911,20 @@ function NexusAppInner({
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
+      ) : isToolsMode ? (
+        <ToolsOverview kind={toolKind} onKind={setToolKind} pages={pages} onOpen={handleSelectPage} onCreate={kind=>void handleCreateItem(kind)} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}/>
       ) : activePage?.kind === "score" ? (
         <ScoreWorkspace key={activePage.id} page={activePage} onChange={patch=>patchPage(activePage.id,patch)} onSave={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);}} onBack={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);if(utilityMode)setActivePageId(null);else handleShowHome();}}/>
       ) : utilityMode === "score" ? (
         <ScoreOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter(p=>p.kind==='score'&&!p.deleted_at)} onCreate={()=>void createAndOpenPage({kind:'score',title:'新樂譜'})} onOpen={handleSelectPage}/>
       ) : utilityMode ? (
         activePage?.kind === utilityMode ? (
-          <UtilityView page={activePage} onBack={() => { setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
+          <UtilityView page={activePage} onBack={() => { if(utilityMode==='counter'||utilityMode==='draw')handleShowTools();else setActivePageId(null); }} onUpdate={(patch) => patchPage(activePage.id, patch)} />
         ) : (
           <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
             title={t("ui.feature."+utilityMode)}
             description={t("ui.description."+utilityMode)}
-            icon={utilityMode === "web" ? "⌘" : utilityMode === "counter" ? "＋" : "⤨"}
+            feature={utilityMode}
             actionLabel={t("ui.create."+utilityMode)}
             pages={pages.filter((page) => page.kind === utilityMode && !page.deleted_at)}
             onCreate={() => { const kind = utilityMode; void createAndOpenPage({ kind, title: kind === "web" ? "新網頁" : kind === "counter" ? "新計數" : "新抽選", format: "flow" }); }}
@@ -1925,7 +1940,7 @@ function NexusAppInner({
         <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
           title={t("ui.feature.novels")}
           description={t("ui.description.novels")}
-          icon="📖"
+          feature="novels"
           actionLabel={t("ui.create.novels")}
           pages={pages.filter((p) => isNovelPage(p) && !p.deleted_at)}
           onCreate={() => void handleCreateItem("novel")}
@@ -1935,7 +1950,7 @@ function NexusAppInner({
         <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
           title={t("ui.feature.documents")}
           description={t("ui.description.documents")}
-          icon="📄"
+          feature="documents"
           actionLabel={t("ui.create.documents")}
           pages={pages.filter((p) => p.kind === "document" && !p.deleted_at)}
           onCreate={() => void handleCreateDocument("flow")}
@@ -1945,7 +1960,7 @@ function NexusAppInner({
         <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
           title={t("ui.feature.notes")}
           description={t("ui.description.notes")}
-          icon="📝"
+          feature="notes"
           actionLabel={t("ui.create.notes")}
           pages={pages.filter((p) => (!p.kind || p.kind === "note") && !p.parent_id && !p.deleted_at)}
           onCreate={() => setCreateDialog({ open: true, initialKind: "note" })}
@@ -1955,7 +1970,7 @@ function NexusAppInner({
         <FeatureOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}
           title={t("ui.feature.presentations")}
           description={t("ui.description.presentations")}
-          icon="📊"
+          feature="presentations"
           actionLabel={t("ui.create.presentations")}
           pages={pages.filter((p) => p.kind === "presentation" && !p.deleted_at)}
           onCreate={() => setCreateDialog({ open: true, initialKind: "presentation" })}
@@ -2242,6 +2257,7 @@ function NexusAppInner({
       )}
 
     </div>
+    </WorkspaceNavigationProvider>
     </StudyPreferencesProvider>
   );
 }

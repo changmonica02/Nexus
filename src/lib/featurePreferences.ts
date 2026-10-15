@@ -17,18 +17,18 @@ export type FeatureFilter =
 
 export type FeatureOrderMode = "recent" | "default" | "custom";
 
-export const DEFAULT_FEATURE_ITEMS: { id: FeatureFilter; icon: string; label: string }[] = [
-  { id: "notes", icon: "✎", label: "筆記" },
-  { id: "documents", icon: "▱", label: "文檔" },
-  { id: "presentations", icon: "▰", label: "簡報" },
-  { id: "study", icon: "▤", label: "字卡" },
-  { id: "quicknotes", icon: "▧", label: "隨手記" },
-  { id: "creative", icon: "✦", label: "創作" },
-  { id: "novels", icon: "◫", label: "小說" },
-  { id: "web", icon: "⌘", label: "網頁" },
-  { id: "score", icon: "♫", label: "製譜" },
-  { id: "tools", icon: "⚒", label: "工具" },
-  { id: "dictionary", icon: "▥", label: "字典" },
+export const DEFAULT_FEATURE_ITEMS: { id: FeatureFilter; label: string }[] = [
+  { id: "notes", label: "筆記" },
+  { id: "documents", label: "文檔" },
+  { id: "presentations", label: "簡報" },
+  { id: "study", label: "字卡" },
+  { id: "quicknotes", label: "隨手記" },
+  { id: "creative", label: "創作" },
+  { id: "novels", label: "小說" },
+  { id: "web", label: "網頁" },
+  { id: "score", label: "製譜" },
+  { id: "tools", label: "工具" },
+  { id: "dictionary", label: "字典" },
 ];
 
 export function getStoredFeatureOrderMode(): FeatureOrderMode {

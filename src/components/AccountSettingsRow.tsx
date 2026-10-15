@@ -1,4 +1,5 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import {useLanguage} from "../lib/LanguageContext";
 import { useState } from "react";
 import type { SyncState } from "../infrastructure/sync/syncEngine";
@@ -66,7 +67,7 @@ export default function AccountSettingsRow({
           style={{ color: "var(--color-text)" }}
           title={accountEmail ? `${t("ui.account")}: ${accountEmail}` : t("ui.account")}
         >
-          <span className="text-sm">👤</span>
+          <FeatureIcon feature="account"/>
           <div className="flex flex-col items-start min-w-0 text-left">
             <span className="truncate w-full font-semibold">{accountEmail ? accountEmail.split("@")[0] : t("auth.signIn")}</span>
             <span className="text-[10px] opacity-60 leading-none">{syncLabel}</span>

@@ -1,4 +1,5 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -54,7 +55,7 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
     <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-[12vh]" style={{ backgroundColor: "rgba(0, 0, 0, 0.25)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg rounded-xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--color-border)" }}>
-          <span className="opacity-40 text-sm">🔍</span>
+          <FeatureIcon feature="search"/>
           <input ref={inputRef} type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleKeyDown} placeholder={t("commandPalette.placeholder")} className="w-full bg-transparent outline-none text-sm" style={{ color: "var(--color-text)" }} />
           <button onClick={onClose} className="text-xs opacity-40 hover:opacity-100 px-1.5 py-0.5 rounded" style={{ border: "1px solid var(--color-border)" }}>{t("commandPalette.esc")}</button>
         </div>
@@ -65,16 +66,15 @@ export default function CommandPalette({ isOpen, onClose, pages, actions, onSele
             {filteredActions.length > 0 && <div className="px-2 pt-1.5 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase">{t("commandPalette.actions")}</div>}
             {filteredActions.map((action, index) => (
               <button key={action.id} onMouseEnter={() => setActiveIndex(index)} onClick={() => runItem({ type: "action", action })} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-left transition-all" style={{ backgroundColor: index === activeIndex ? "var(--color-border)" : "transparent", color: "var(--color-text)" }}>
-                <span>{action.icon}</span><span className="truncate">{action.label}</span>
+                <FeatureIcon feature={action.id.replace(/^go-/,'')}/><span className="truncate">{action.label}</span>
               </button>
             ))}
             {filteredPages.length > 0 && <div className="px-2 pt-2.5 pb-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase">{t("commandPalette.pages")}</div>}
             {filteredPages.map((page, index) => {
               const gi = filteredActions.length + index;
-              const pageIcon = page.kind === "study_set" ? "🗂️" : page.kind === "document" ? "📄" : page.primary_attachment_id ? "📑" : "📝";
               return (
                 <button key={page.id} onMouseEnter={() => setActiveIndex(gi)} onClick={() => runItem({ type: "page", page })} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-left transition-all" style={{ backgroundColor: gi === activeIndex ? "var(--color-border)" : "transparent", color: "var(--color-text)" }}>
-                  <span>{pageIcon}</span><span className="truncate">{page.title || t("common.untitled")}</span>
+                  <FeatureIcon page={page}/><span className="truncate">{page.title || t("common.untitled")}</span>
                 </button>
               );
             })}

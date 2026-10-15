@@ -492,10 +492,24 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 - `WorkspaceRoot` 在根layout維持同一個`NexusApp`；首頁／study route為空route marker，字典／官方單字集作為既有工作區的外部內容。從外部功能回私人功能沿用已載入的編輯器與私人工作區；字典公開閱讀不被私人登入門檻攔截，未登入不讀私人頁面。`/study`直達及返回以共用study導覽事件開啟學習集。
 - 所有路徑共用一個`FloatingSidebar`與一份`Sidebar`。原生modal dialog覆蓋主區、不占版寬；關閉仍保留子元件／檔案清單狀態，Esc／遮罩／關閉鈕收合並回復入口焦點。頂部、中間可捲動區與底部帳號／偏好共用，使用dvh、安全區及短視窗導覽高度限制。右側輔助頁沿用原模型。偏好與項目選單portal掛在所屬dialog，避免落到原生modal的不可互動背景。
-- 一般設定整合功能排序及預設收合的顯示勾選；`nexus-hidden-features`僅為裝置本機偏好，只影響側欄，首頁launcher與資料不變。保留舊排序key；讀取舊counter／draw次序時去重對應tools，頂層工具展開直接進既有子功能。鍵盤Enter、獨立開啟鈕與工具單擊均可取代雙擊。
+- 一般設定整合功能排序及預設收合的顯示勾選；`nexus-hidden-features`僅為裝置本機偏好，只影響側欄，首頁launcher與資料不變。保留舊排序key；讀取舊counter／draw次序時去重對應tools，頂層工具開啟`ToolsOverview`，內部切換既有counter／draw清單；鍵盤Enter、獨立開啟鈕與工具單擊均可進入。
 - Web不能切換的根因為部分功能handler未清除utilityMode；所有目標功能先清除其他overview旗標。共用導覽先`flushAllSaves`，包含非目前頁與輔助頁的pending／in-flight寫入；失敗留在目前介面，字典另沿用`navigateDictionary`離開保護。
-- `PageCollection`提供卡片／列表、排序、摘要與`CollectionItemMenu`。`PageItemMenu`沿用並加鍵盤移動、焦點回復及正確portal。筆記、文檔、簡報、小說、創作、網頁、計數、抽選、私人學習集及製譜共用列表；Dashboard／隨手記／日曆清單沿用原版面接入同一操作選單。官方學習集保留官方資訊／重新同步／刪除，避免不適用的複製。創作只在主建立鈕後選世界觀／角色卡，再沿用原模板；未實作角色組件重構或#62。
+- `PageCollection`提供卡片／列表、排序、摘要與`CollectionItemMenu`。`PageItemMenu`沿用並加鍵盤移動、焦點回復及正確portal。筆記、文檔、簡報、小說、創作、網頁、計數、抽選、私人學習集及製譜共用列表；Dashboard共用模式／排序控制；隨手記／日曆事項及官方學習集清單也接入`PageCollection`，保留顏色、完成控制與官方專屬操作。官方學習集保留官方資訊／重新同步／刪除，避免不適用的複製。創作只在主建立鈕後選世界觀／角色卡，再沿用原模板；未實作角色組件重構或#62。
 - 重新命名透過原`flushSave`即時確認落盤，保留Page ID；失敗不關閉改名對話框。刪除先確認後沿用soft-delete／官方權限與回收桶；複製沿用工作區內容複製：新Page／章節／Study Card ID，私人學習集只複製front／back／dictionary_entry_id與方向確認，不帶FSRS狀態、事件、Session或官方身分。隨手記保留顏色，日曆副本保留日期／優先級並清除完成狀態。單一筆記建立視窗沿用流動／手動分頁初始化，改用原生dialog支援Esc與焦點。
 - 管理字典使用container query：內容容器<560px一欄、560–899px二欄、>=900px三欄。建立／匯入／匯出左側，未審核詞條／全域發布右側；上下`Pagination`共用同一`usePagedList`，搜尋／篩選重置並校正頁數。移除額外總數行與舊單選工作狀態。保留紅色待審數、每列三色與匯出進度總數。
 - `listAdminWork`沿用正式單色RPC；零色或三色不限、單色直接查詢。雙色以每次100筆讀取同條件的伺服器排序stream前綴，收集到目標offset+pageSize後停止，total為原scope兩色stats之和；不是篩選當頁，也不在JS重新排序。頁間total／stats改變時要求重試。最差可能讀完整scope（6,301筆最多64次有界請求）；這是避免UI改動要求正式RPC／Migration的相容取捨。既有`usePagedList`最後請求優先、載入／錯誤／重試機制保持。
 - Published／Draft／Review Draft、常駐審核、Stable ID與人工批准資料契約不變；「發布全部草稿」仍固定全字典scope，不受任何管理清單條件影響。匯出依原kind／status／query交換契約，工作狀態並未加入交換RPC；確認面板需明示這項範圍，避免與工作佇列篩選混淆。
+
+
+### PR #63 後續 UI 修正（2026-10-15，#34／#32）
+
+- `WorkspaceNavigationProvider`／`SidebarToggle`把同一側欄入口注入原有編輯器標題列（返回鍵左側）；內頁不再插入額外全站頂欄，功能首頁保留首頁導覽。`FloatingSidebar`是無框、無圓角、無陰影的單層平面，只保留Sidebar左上無框關閉鍵；原生dialog維持遮罩、Esc與焦點還原。
+- `FloatingPanel`以原生modal共用功能總覽與純類型選擇；功能總覽在固定位置保留同一四宮格關閉入口。modal top layer避免背景可操作，點空白遮罩或Esc關閉並回復焦點。純選擇無取消鈕；改名等有輸入表單不以遮罩直接丟棄輸入，原有確認／儲存機制保留。
+- `ToolsOverview`是真正頂層工具首頁，僅在內部選counter／draw並使用原PageCollection與建立流程；`NexusApp.toolKind`保留編輯後返回的子功能。資料kind／ID、既有直達連結不改。`activatePage`依目標重設utilityMode，避免跨功能跳轉殘留Web模式。
+- `CollectionControls`整合列表／卡片圖示及同一排序選單中的升降冪；`useCollectionPreferences`沿用原localStorage view key、兼容icons／list／details，新增同key的`:sort`設定，無法儲存時本次記憶體仍可操作。這是裝置顯示偏好，不改動帳號或同步資料契約。
+- `PageCollection`列表為無框水平列、右側共用時間及獨立選單，不渲染摘要；卡片繼續多欄、摘要與外框。官方專屬動作由extraMenuItems注入，不開放一般複製；隨手記顏色與日曆完成控制亦透過小型插槽保留。
+- `EditedTime`／`formatEditedTime`共用當地日曆日判斷，三天內相對時間、超過三天YYYY/MM/DD；使用local date components避免DST及UTC邊界，未來時間超過一分鐘顯示日期。共用單一分鐘timer更新，SSR先顯示中性佔位再hydration套用瀏覽器當地時區，不產生每列獨立timer。
+- `FeatureIcon`集中Lucide單色線條圖示與`featureForPage`對應，可由中央替換SVG；只替換系統預設功能圖示，標題／內容中的使用者Emoji及照片不改。明確creative_type優先於舊character_data欄位；缺type的歷史角色與小說沿原相容判斷，創作／小說清單互斥，不搬移或改寫記錄。
+- 本輪只改前端、顯示偏好與回歸測試，沒有Migration、RPC或正式資料寫入。工具進階規則、角色卡組件改版與#62仍不在範圍；隔離瀏覽器不等於真實iPad／正式帳號驗收，留常駐#60。
+
+驗證：保留原109項範圍並新增5項時間／分類／圖示／控制測試，共114/114通過；原6組隔離Chromium回歸全數通過，工作區新增測試後再獨立重跑通過（1440×900、820×1180、1180×820、390×844）。TypeScript／Production Build通過；ESLint 0 errors／464既有warnings。真實Safari、正式登入同步及裝置觸控仍由#60人工確認。

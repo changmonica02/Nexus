@@ -84,6 +84,8 @@ if (!(await storage.listPages()).length) {
     "draw",
     "study_set",
     "novel",
+    "quick_note",
+    "todo",
   ]) {
     const page = await storage.createPage({
       kind: kind === "novel" ? "creative" : kind,
@@ -110,6 +112,7 @@ if (!(await storage.listPages()).length) {
         Date.now(),
       );
     }
+    if(kind==='todo')await storage.savePage({...page,due_date:Date.now(),completed:false});
     if (kind === "web")
       await storage.savePage({
         ...page,
@@ -128,6 +131,11 @@ if (!(await storage.listPages()).length) {
         character_data: { basic: { name: "Sample world" }, sections: [] },
       });
   }
+  for(const [title,age] of [['A note',4],['Z note',2],['😀 Custom note',0]]){
+    const p=await storage.createPage({kind:'note',title,format:'flow'});await storage.savePage({...p,content_text:'🌍 user content',updated_at:Date.now()-age*86400000});
+  }
+  const explicit=await storage.createPage({kind:'creative',title:'Explicit novel',format:'flow'});await storage.savePage({...explicit,creative_type:'novel',character_data:{basic:{name:''},sections:[]},novel_settings:{chaptersEnabled:true}});
+  const character=await storage.createPage({kind:'creative',title:'Sample character',format:'flow'});await storage.savePage({...character,creative_type:'character',character_data:{basic:{name:'Character😀'},sections:[]}});
 }
 window.fixtureStorage = storage;
 createRoot(document.getElementById("root")).render(

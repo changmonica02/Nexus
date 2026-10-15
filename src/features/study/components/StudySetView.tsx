@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "../../../components/WorkspaceNavigation";
 import {dueAt} from '../scheduledStudy';
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -225,11 +226,11 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
     if(values.dictionaryEntryId!==undefined){const client=getSupabase();if(!client)throw Error('字卡已保存在本機，連結需要登入與網路；請重試。');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,id!,values.dictionaryEntryId);}
     refresh.current();
   };
-  if(!snapshot)return <main className="flex-1 p-8">{error||t("study.loadingCards")}</main>;
+  if(!snapshot)return <main className="flex-1 p-8"><SidebarToggle/>{error||t("study.loadingCards")}</main>;
   return <main className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
     <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
-        <div className="flex items-center gap-2">{onBackToInterface&&<button onClick={onBackToInterface} aria-label={t("study.backToStudySets")}>←</button>}<span>{t("study.cards")} · {t("study.direction")}</span></div>
+        <div className="flex items-center gap-2"><SidebarToggle/>{onBackToInterface&&<button onClick={onBackToInterface} aria-label={t("study.backToStudySets")}>←</button>}<span>{t("study.cards")} · {t("study.direction")}</span></div>
         <div className="flex flex-wrap gap-2">{mode==="manage"?<>
           {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("scheduled")}>{t("study.start")}</button>}
           <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>{t("study.history")}</button>

@@ -1,11 +1,12 @@
 "use client";
+import FeatureIcon from "./FeatureIcon";
 import type { Page } from "../lib/types";
 import PageCollection, { type PageActions } from "./PageCollection";
 import { useLanguage } from "../lib/LanguageContext";
 export default function FeatureOverview({
   title,
   description,
-  icon,
+  feature="notes",
   actionLabel,
   pages,
   onCreate,
@@ -15,7 +16,8 @@ export default function FeatureOverview({
 }: PageActions & {
   title: string;
   description: string;
-  icon: string;
+  icon?: string;
+  feature?:string;
   actionLabel: string;
   pages: Page[];
   onCreate: () => void;
@@ -31,7 +33,7 @@ export default function FeatureOverview({
       <section className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-10">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="mb-2 text-3xl">{icon}</div>
+            <div className="mb-2"><FeatureIcon feature={feature} size={28}/></div>
             <h1 className="text-3xl font-semibold">{title}</h1>
             <p className="mt-2 text-sm opacity-60">{description}</p>
             {relatedLink && (
@@ -54,7 +56,7 @@ export default function FeatureOverview({
         <PageCollection
           pages={pages}
           onSelectPage={onSelectPage}
-          icon={icon}
+          viewStorageKey={"nexus-"+feature+"-view"}
           {...actions}
         />
       </section>

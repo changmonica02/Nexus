@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "../../components/WorkspaceNavigation";
 import FeatureOverview from "../../components/FeatureOverview";
 import {type PageActions} from "../../components/PageCollection";
 import {useLanguage} from "../../lib/LanguageContext";
@@ -10,18 +11,18 @@ const control='min-w-0 rounded border bg-[var(--color-bg)] p-2';
 const durationLabels:Record<Duration,string>={whole:'全音符',half:'二分',quarter:'四分',eighth:'八分',sixteenth:'十六分'};
 export function ScoreOverview({pages,onCreate,onOpen,...actions}:PageActions&{pages:Page[];onCreate:()=>void;onOpen:(id:string)=>void}){
  const {t}=useLanguage();
- return <FeatureOverview title={t('ui.feature.score')} description={t('ui.description.score')} icon="♫" actionLabel={t('ui.create.score')} pages={pages.map(p=>{const score=readScore(p.content_json);return {...p,content_text:score?`${notationAdapters[score.metadata.notationType].label} · ♩ ${score.metadata.tempo} · ${score.metadata.timeSignature.beats}/${score.metadata.timeSignature.beatUnit} · ${score.metadata.keySignature}`:p.content_text};})} onCreate={onCreate} onSelectPage={onOpen} {...actions}/>;
+ return <FeatureOverview title={t('ui.feature.score')} description={t('ui.description.score')} feature="score" actionLabel={t('ui.create.score')} pages={pages.map(p=>{const score=readScore(p.content_json);return {...p,content_text:score?`${notationAdapters[score.metadata.notationType].label} · ♩ ${score.metadata.tempo} · ${score.metadata.timeSignature.beats}/${score.metadata.timeSignature.beatUnit} · ${score.metadata.keySignature}`:p.content_text};})} onCreate={onCreate} onSelectPage={onOpen} {...actions}/>;
 }
 export default function ScoreWorkspace({page,onChange,onSave,onBack}:{page:Page;onChange:(patch:Partial<Page>)=>void;onSave:()=>Promise<void>;onBack:()=>Promise<void>}){
  const score=readScore(page.content_json);
  const [trackId,setTrack]=useState(score?.tracks[0].id??''),[measureId,setMeasure]=useState(score?.tracks[0].measures[0].id??''),[eventId,setEvent]=useState<string|null>(null);
  const [tone,setTone]=useState<Tone>(notationAdapters[score?.metadata.notationType??'numbered'].defaultTone),[duration,chooseDuration]=useState<Duration>('quarter'),[error,setError]=useState(''),[saving,setSaving]=useState(false);
  const persist=async(back=false)=>{setSaving(true);setError('');try{if(back)await onBack();else await onSave();}catch(e){setError(String(e));}finally{setSaving(false);}};
- if(!score)return <main className="flex-1 overflow-auto p-6"><button onClick={()=>void persist(true)}>← 返回</button><p role="alert">樂譜格式不支援或資料無效；原始內容保留，未覆寫。</p>{error&&<p>{error}</p>}</main>;
+ if(!score)return <main className="flex-1 overflow-auto p-6"><SidebarToggle/><button onClick={()=>void persist(true)}>← 返回</button><p role="alert">樂譜格式不支援或資料無效；原始內容保留，未覆寫。</p>{error&&<p>{error}</p>}</main>;
  const adapter=notationAdapters[score.metadata.notationType],track=score.tracks.find(t=>t.id===trackId)??score.tracks[0],measure=track.measures.find(m=>m.id===measureId)??track.measures[0];
  const apply=(fn:()=>Score)=>{try{const next=fn();onChange({title:next.metadata.title,content_json:next,content_text:`${next.metadata.title} ${notationAdapters[next.metadata.notationType].label}`});setError('');}catch(e){setError(String(e));}};
  return <main className="min-w-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" style={{color:'var(--color-text)',background:'var(--color-editor-bg)'}}>
- <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b p-3" style={{background:'var(--color-bg)'}}><button disabled={saving} className={control} onClick={()=>void persist(true)}>← 返回</button><h1 className="min-w-0 flex-1 truncate font-semibold">製譜 · {page.title}</h1><button disabled={saving} className={control} onClick={()=>void persist()}>{saving?'儲存中…':'儲存'}</button></header>
+ <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b p-3" style={{background:'var(--color-bg)'}}><SidebarToggle/><button disabled={saving} className={control} onClick={()=>void persist(true)}>← 返回</button><h1 className="min-w-0 flex-1 truncate font-semibold">製譜 · {page.title}</h1><button disabled={saving} className={control} onClick={()=>void persist()}>{saving?'儲存中…':'儲存'}</button></header>
  <div className="mx-auto max-w-5xl space-y-5 p-4">{error&&<p role="alert">{error}</p>}
  <section aria-label="樂譜基本資料" className="grid gap-3 sm:grid-cols-2"><label>標題<input className={`${control} block w-full`} value={score.metadata.title} onChange={e=>apply(()=>updateMetadata(score,{title:e.target.value}))}/></label>
  <label>記譜方式<select className={`${control} block w-full`} value={score.metadata.notationType} onChange={e=>{const type=e.target.value as Score['metadata']['notationType'];apply(()=>updateMetadata(score,{notationType:type}));setTone(notationAdapters[type].defaultTone);}}>{notationTypes.map(t=><option key={t} value={t}>{notationAdapters[t].label}</option>)}</select></label>

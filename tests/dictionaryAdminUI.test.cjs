@@ -196,7 +196,7 @@ test('manual drafts strip legacy attribution and never create placeholder source
 });
 test('return sits beside page title and shared copyright information is reachable under About',()=>{
  const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('僅管理員可編輯。字典不會覆寫任何人的字卡或學習紀錄。'));
- assert.match(source,/<header[^>]*><Link[^>]*>← 返回上一頁<\/Link><h1[^>]*>字典管理/);
+ assert.match(source,/<header[^>]*><SidebarToggle\/><Link[^>]*>← 返回上一頁<\/Link><h1[^>]*>字典管理/);
  const settings=fs.readFileSync('src/components/SettingsDialog.tsx','utf8');assert.ok(settings.includes('"關於 Nexus"'));assert.ok(settings.includes('<DataSourcesAndCopyright/>'));
  const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));
 });

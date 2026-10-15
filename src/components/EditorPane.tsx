@@ -1,4 +1,5 @@
 "use client";
+import {SidebarToggle} from "./WorkspaceNavigation";
 import { type CSSProperties, useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -277,7 +278,7 @@ export default function EditorPane({
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
-          {onBackToInterface && (
+          <SidebarToggle/>{onBackToInterface && (
             <button
               type="button"
               onClick={onBackToInterface}

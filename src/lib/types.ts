@@ -189,7 +189,7 @@ export type CreativeType = "novel" | "character" | "world";
  * belong to the independent Novel entrance.
  */
 export function isCreativeCharacterPage(page: Page): boolean {
-  return page.kind === "creative" && (page.creative_type === "character" || page.creative_type === "world" || !!page.character_data);
+  return page.kind === "creative" && (page.creative_type === "character" || page.creative_type === "world" || (!page.creative_type && !!page.character_data));
 }
 
 export function isNovelPage(page: Page): boolean {

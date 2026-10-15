@@ -124,11 +124,36 @@ test(
         });
         await drawer.waitFor();
         assert.equal(
+          await drawer
+            .getByRole("button", { name: "關閉導覽", exact: true })
+            .count(),
+          1,
+        );
+        assert.equal(
+          await drawer.getByRole("button", { name: "×", exact: true }).count(),
+          0,
+        );
+        assert.equal(
+          await drawer
+            .locator("aside")
+            .evaluate((e) => getComputedStyle(e).borderRadius),
+          "0px",
+        );
+
+        assert.equal(
           await page
             .locator("main")
             .first()
             .evaluate((e) => e.getBoundingClientRect().width),
           mainWidth,
+        );
+        await drawer.getByTitle("新建", { exact: true }).click();
+        await page.getByRole("dialog", { name: "建立", exact: true }).waitFor();
+        await page.keyboard.press("Escape");
+        await drawer.waitFor();
+        assert.equal(
+          await page.getByRole("dialog", { name: "建立", exact: true }).count(),
+          0,
         );
         const settings = drawer.getByRole("button", {
           name: "偏好設定",
@@ -141,7 +166,10 @@ test(
         await opener.click();
         assert.equal(await search.inputValue(), "Sample");
         await search.fill("");
-        const preference = drawer.locator("button").filter({ hasText: "⚙" });
+        const preference = drawer.getByRole("button", {
+          name: "偏好設定",
+          exact: true,
+        });
         await preference.click();
         await page.getByRole("button", { name: "設定", exact: true }).click();
         const dialog = page.getByRole("dialog", { name: "設定", exact: true });
@@ -171,12 +199,57 @@ test(
           0,
         );
         await drawer.getByRole("button", { name: "工具", exact: true }).click();
-        await drawer
-          .getByRole("button", { name: "＋ 計數", exact: true })
-          .click();
         await page
-          .getByRole("heading", { name: "計數", exact: true })
+          .getByRole("heading", { name: "工具", exact: true })
           .waitFor();
+        const launcher = page.getByRole("button", {
+          name: "功能總覽",
+          exact: true,
+        });
+        await launcher.click();
+        const launcherPanel = page.getByRole("dialog", {
+          name: "功能總覽",
+          exact: true,
+        });
+        await launcherPanel.waitFor();
+        assert.equal(
+          await launcherPanel
+            .getByRole("button", { name: "計數", exact: true })
+            .count(),
+          0,
+        );
+        assert.equal(
+          await launcherPanel
+            .getByRole("button", { name: "抽選", exact: true })
+            .count(),
+          0,
+        );
+        await launcherPanel
+          .getByRole("button", { name: "功能總覽", exact: true })
+          .click();
+        await launcherPanel.waitFor({ state: "hidden" });
+        await launcher.click();
+        await page.mouse.click(6, height - 6);
+        await launcherPanel.waitFor({ state: "hidden" });
+        await launcher.click();
+        await page.keyboard.press("Escape");
+        await launcherPanel.waitFor({ state: "hidden" });
+
+        await page.getByRole("button", { name: "計數", exact: true }).click();
+        await page.getByRole("button", { name: /^Sample counter/ }).waitFor();
+        await page.getByRole("button", { name: "抽選", exact: true }).click();
+        await page.getByRole("button", { name: /^Sample draw/ }).click();
+        assert.equal(await page.locator("[data-workspace-header]").count(), 0);
+        await page.getByRole("button", { name: "← 返回", exact: true }).click();
+        await page
+          .getByRole("heading", { name: "工具", exact: true })
+          .waitFor();
+        assert.equal(
+          await page
+            .getByRole("button", { name: "抽選", exact: true })
+            .getAttribute("aria-pressed"),
+          "true",
+        );
         await opener.click();
         await page.keyboard.press("Escape");
         await drawer.waitFor({ state: "hidden" });
@@ -191,7 +264,7 @@ test(
         await page
           .getByRole("heading", { name: "網頁", exact: true })
           .waitFor();
-        await page.getByRole("button", { name: /^⌘ Sample web/ }).click();
+        await page.getByRole("button", { name: /^Sample web/ }).click();
         const title = page.locator("input").filter({ visible: true }).first();
         await title.fill("Saved web");
         await opener.click();
@@ -216,6 +289,58 @@ test(
           ),
           "Saved web",
         );
+
+        await page.getByRole("button", { name: "列表", exact: true }).click();
+        await page
+          .getByRole("combobox", { name: "排序", exact: true })
+          .selectOption("title:asc");
+        const rows = page.locator('[data-collection-row="list"]');
+        assert.equal(await rows.count(), 4);
+        const titles = ["A note", "Z note", "😀 Custom note", "Sample note"];
+        const actual = await rows.evaluateAll((es) =>
+          es.map((e) => e.querySelector("span.truncate")?.textContent),
+        );
+        assert.deepEqual(
+          actual,
+          titles.sort((a, b) => a.localeCompare(b)),
+        );
+        await page
+          .getByRole("combobox", { name: "排序", exact: true })
+          .selectOption("title:desc");
+        assert.deepEqual(
+          await rows.evaluateAll((es) =>
+            es.map((e) => e.querySelector("span.truncate")?.textContent),
+          ),
+          [...actual].reverse(),
+        );
+        assert.equal(
+          await rows.first().evaluate((e) => getComputedStyle(e).borderWidth),
+          "0px",
+        );
+        assert.equal(
+          await rows.first().evaluate((e) => getComputedStyle(e).borderRadius),
+          "0px",
+        );
+        assert.equal(await rows.first().locator(".line-clamp-3").count(), 0);
+        assert.equal(
+          await page.evaluate(
+            () =>
+              JSON.parse(localStorage.getItem("nexus-notes-view:sort"))
+                .ascending,
+          ),
+          false,
+        );
+        await page
+          .getByRole("button", { name: "卡片預覽", exact: true })
+          .click();
+        assert.ok(
+          (await page
+            .locator('[data-collection-row="cards"] [data-feature-icon="note"]')
+            .count()) > 0,
+        );
+        assert.ok(
+          (await page.locator("main").textContent()).includes("😀 Custom note"),
+        );
         const more = page.getByRole("button", {
           name: "更多操作 Sample note",
           exact: true,
@@ -235,7 +360,7 @@ test(
         );
         await more.click();
         await page
-          .getByRole("menuitem", { name: "✎ 重新命名", exact: true })
+          .getByRole("menuitem", { name: "重新命名", exact: true })
           .click();
         await page
           .getByRole("textbox", { name: "名稱", exact: true })
@@ -251,6 +376,27 @@ test(
                 (p) => p.title === "Renamed note",
               ).id,
           );
+          await page.getByRole("button", { name: /^Renamed note/ }).click();
+          const back = page.getByRole("button", {
+            name: "回到功能介面",
+            exact: true,
+          });
+          await back.waitFor();
+          assert.equal(
+            await page.locator("[data-workspace-header]").count(),
+            0,
+          );
+          assert.ok(
+            await back.evaluate(
+              (e) =>
+                e.previousElementSibling?.getAttribute("aria-label") ===
+                "開啟導覽",
+            ),
+          );
+          await opener.click();
+          await drawer
+            .getByRole("button", { name: "開啟 筆記", exact: true })
+            .click();
           await page
             .getByRole("button", { name: "＋ 建立筆記", exact: true })
             .click();
@@ -260,7 +406,7 @@ test(
             .getByRole("button", { name: "更多操作 Renamed note", exact: true })
             .click();
           await page
-            .getByRole("menuitem", { name: "⧉ 複製", exact: true })
+            .getByRole("menuitem", { name: "複製", exact: true })
             .click();
           await until(page, async () =>
             (await window.fixtureStorage.listPages()).some(
@@ -284,7 +430,7 @@ test(
             })
             .click();
           await page
-            .getByRole("menuitem", { name: "⌫ 刪除", exact: true })
+            .getByRole("menuitem", { name: "刪除", exact: true })
             .click();
           await page
             .getByRole("dialog", { name: "刪除", exact: true })
@@ -305,7 +451,7 @@ test(
             })
             .click();
           await page
-            .getByRole("menuitem", { name: "⌫ 刪除", exact: true })
+            .getByRole("menuitem", { name: "刪除", exact: true })
             .click();
           await page
             .getByRole("dialog", { name: "刪除", exact: true })
@@ -353,7 +499,7 @@ test(
             })
             .click();
           await page
-            .getByRole("menuitem", { name: "⧉ 複製", exact: true })
+            .getByRole("menuitem", { name: "複製", exact: true })
             .click();
           await until(page, async () => {
             const p = (await window.fixtureStorage.listPages()).find(
@@ -412,6 +558,33 @@ test(
             .click();
           assert.equal(
             await page
+              .getByRole("button", {
+                name: "更多操作 Explicit novel",
+                exact: true,
+              })
+              .count(),
+            0,
+          );
+          assert.equal(
+            await page
+              .getByRole("button", {
+                name: "更多操作 Sample novel",
+                exact: true,
+              })
+              .count(),
+            0,
+          );
+          assert.equal(
+            await page
+              .getByRole("button", {
+                name: "更多操作 Sample character",
+                exact: true,
+              })
+              .count(),
+            1,
+          );
+          assert.equal(
+            await page
               .getByRole("button", { name: "世界觀", exact: true })
               .count(),
             0,
@@ -422,7 +595,64 @@ test(
           await page
             .getByRole("button", { name: "世界觀", exact: true })
             .waitFor();
-          await page.getByRole("button", { name: "取消", exact: true }).click();
+          assert.equal(
+            await page
+              .getByRole("dialog", { name: "建立", exact: true })
+              .getByRole("button", { name: "取消", exact: true })
+              .count(),
+            0,
+          );
+          await page.keyboard.press("Escape");
+          const countBefore = await page.evaluate(
+            async () => (await window.fixtureStorage.listPages()).length,
+          );
+          await page
+            .getByRole("button", { name: "＋ 建立", exact: true })
+            .click();
+          await page.mouse.click(2, 2);
+          assert.equal(
+            await page
+              .getByRole("dialog", { name: "建立", exact: true })
+              .count(),
+            0,
+          );
+          assert.equal(
+            await page.evaluate(
+              async () => (await window.fixtureStorage.listPages()).length,
+            ),
+            countBefore,
+          );
+          await opener.click();
+          await drawer
+            .getByRole("button", { name: "開啟 小說", exact: true })
+            .click();
+          assert.equal(
+            await page
+              .getByRole("button", {
+                name: "更多操作 Explicit novel",
+                exact: true,
+              })
+              .count(),
+            1,
+          );
+          assert.equal(
+            await page
+              .getByRole("button", {
+                name: "更多操作 Sample novel",
+                exact: true,
+              })
+              .count(),
+            1,
+          );
+          assert.equal(
+            await page
+              .getByRole("button", {
+                name: "更多操作 Sample character",
+                exact: true,
+              })
+              .count(),
+            0,
+          );
         }
         await page.evaluate(
           () => (window.fixtureMountToken = "same-workspace"),
@@ -521,7 +751,9 @@ test(
           await drawer
             .getByRole("button", { name: "帳號與同步", exact: true })
             .waitFor();
-          await drawer.locator("button").filter({ hasText: "⚙" }).click();
+          await drawer
+            .getByRole("button", { name: "偏好設定", exact: true })
+            .click();
           await page.getByRole("button", { name: "設定", exact: true }).click();
           const settingsDialog = page.getByRole("dialog", {
             name: "設定",
