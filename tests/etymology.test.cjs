@@ -17,18 +17,17 @@ test('duplicate IDs, missing fields, unknown verification, wrong senses and cycl
  const invalid=[
   d=>d.senses.push({...d.senses[0]}),d=>delete d.entries[0].label,
   d=>d.claims[0].verification='assume-verified',d=>d.word_senses[0].sense_id='sense-root',
-  d=>d.claims[2].verification_note='',d=>d.entries[3].variant_of='test-variant',
+  d=>delete d.claims[2].data_source,d=>d.entries[3].variant_of='test-variant',
   d=>d.word_senses[0].word_id='missing',d=>d.claims[0].word_id='test-word',
  ];
  for(const mutate of invalid){const data=fixture();mutate(data);assert.throws(()=>parseCatalog(data),/驗證失敗/);}
 });
 
-test('only verified historical scenes can be presented as history',()=>{
- for(const status of ['unverified','pending','disputed'])assert.equal(claimLabel('historical_scene',status),'記憶情境');
- assert.equal(claimLabel('historical_scene','verified'),'歷史場景（已查證）');
- assert.equal(claimLabel('historical_etymology','pending'),'詞源說法（尚未確認）');
- assert.equal(claimLabel('learning_decomposition','verified'),'學習用構詞拆解');
- assert.equal(claimLabel('mnemonic_story','verified'),'記憶故事');
+test('claim labels depend on content kind, with no verification state or inferred upgrade',()=>{
+ assert.equal(claimLabel('historical_scene'),'場景說明');
+ assert.equal(claimLabel('historical_etymology'),'歷史詞源');
+ assert.equal(claimLabel('learning_decomposition'),'學習用構詞拆解');
+ assert.equal(claimLabel('mnemonic_story'),'記憶故事');
 });
 
 test('catalog query uses only independent read RPC and rejects unavailable or malformed data',async()=>{

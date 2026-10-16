@@ -130,7 +130,7 @@ test("existing latest single-target RPC: cancellation, revisions, admin, externa
     full.examples = [
       { id: id(34), sense_id: null, body: "example", sort_order: 0 },
     ];
-    full.lexical_annotations = [
+    full.relation_hints = [
       { id: id(35), sense_id: null, body: "annotation", sort_order: 0 },
     ];
     full.etymologies = [
@@ -138,8 +138,7 @@ test("existing latest single-target RPC: cancellation, revisions, admin, externa
         id: id(36),
         sense_id: null,
         body: "origin",
-        verification: "pending",
-        verification_note: "",
+        data_source: "",
       },
     ];
     full.learning_notes = [

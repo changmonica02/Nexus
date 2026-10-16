@@ -25,13 +25,14 @@ const files = [
   "20261021_dictionary_composition_shared.sql",
   "20261013084116_dictionary_bulk_exchange.sql",
 ];
-async function database() {
+async function database(options={}) {
   const pg = new PGlite();
   await pg.exec(
     `create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;`,
   );
   for (const f of files)
     await pg.exec(fs.readFileSync("supabase/migrations/" + f, "utf8"));
+  if(!options.legacy)await pg.exec(fs.readFileSync("supabase/migrations/20261016060000_dictionary_retire_verification_state.sql","utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, id(900001)]);
   await pg.query("insert into dictionary_admins values($1)", [owner]);
   await pg.exec("set role authenticated");

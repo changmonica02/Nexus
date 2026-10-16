@@ -48,6 +48,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
         if(typeof r.body!=='string'||!r.body.trim())issue(field,'內容必填');
         if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
       }
+      if(field==='etymologies'&&('verification' in r||'verification_note' in r))issue(field,'審核狀態欄位已移除；來源請使用 data_source。');
       if(field==='inflections'){
         if(d.kind!=='word')issue(field,'詞形僅適用單字');
         if(typeof r.form!=='string'||!r.form.trim())issue(field,'詞形必填');

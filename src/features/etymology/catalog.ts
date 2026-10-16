@@ -1,6 +1,4 @@
 // Internal encyclopedia contract, not a claim about the missing batch-08 Markdown format.
-export const VERIFICATIONS = ["unverified", "pending", "verified", "disputed"] as const;
-export type Verification = typeof VERIFICATIONS[number];
 export type Family = "prefix" | "root";
 export type ClaimKind = "historical_etymology" | "learning_decomposition" | "mnemonic_story" | "historical_scene";
 export interface Source { id: string; path: string; raw_markdown: string; sha256: string; metadata: Record<string, unknown> }
@@ -8,27 +6,22 @@ export interface Entry { id: string; label: string; family: Family; kind: "prefi
 export interface Sense { id: string; entry_id: string; gloss: string; source_id: string }
 export interface Category { id: string; label: string; source_id: string }
 export interface Word { id: string; lemma: string; definition: string; source_id: string }
-export interface WordSense { word_id: string; entry_id: string; sense_id: string; relation_kind: "historical_etymology" | "learning_decomposition"; verification: Verification; verification_note: string; source_id: string }
-export interface Claim { id: string; entry_id: string | null; sense_id: string | null; word_id: string | null; kind: ClaimKind; body: string; verification: Verification; verification_note: string; review_note: string; source_id: string }
+export interface WordSense { word_id: string; entry_id: string; sense_id: string; relation_kind: "historical_etymology" | "learning_decomposition"; data_source: string; source_id: string }
+export interface Claim { id: string; entry_id: string | null; sense_id: string | null; word_id: string | null; kind: ClaimKind; body: string; data_source: string; review_note: string; source_id: string }
 export interface Catalog {
   sources: Source[]; entries: Entry[]; senses: Sense[]; categories: Category[];
   entry_categories: { entry_id: string; category_id: string }[];
   words: Word[]; word_senses: WordSense[]; claims: Claim[];
 }
 
-export const verificationLabel: Record<Verification, string> = {
-  verified: "已查證", unverified: "未查證", pending: "待審核", disputed: "有爭議",
-};
 export const kindLabel: Record<Entry["kind"], string> = { prefix: "一般字首", root: "字根", combining_form: "構詞形式", variant: "變體" };
-export function claimLabel(kind: ClaimKind, verification: Verification): string {
-  if (kind === "historical_scene") return verification === "verified" ? "歷史場景（已查證）" : "記憶情境";
-  if (kind === "historical_etymology") return verification === "verified" ? "已查證詞源" : "詞源說法（尚未確認）";
-  return kind === "learning_decomposition" ? "學習用構詞拆解" : "記憶故事";
+export function claimLabel(kind: ClaimKind): string {
+  return {historical_scene:'場景說明',historical_etymology:'歷史詞源',learning_decomposition:'學習用構詞拆解',mnemonic_story:'記憶故事'}[kind];
 }
 export const entryHref = (entry: Entry) => `/etymology/${entry.family === "prefix" ? "prefixes" : "roots"}/${encodeURIComponent(entry.id)}`;
 export const wordHref = (word: Word) => `/etymology/words/${encodeURIComponent(word.id)}`;
 
-/** Reject malformed/unknown states instead of upgrading them to verified or hiding broken links. */
+/** Validate stable relationships and source data without content review-state fields. */
 export function parseCatalog(value: unknown): Catalog {
   const fail = (message: string): never => { throw new Error(`字源資料驗證失敗：${message}`); };
   const object = (value: unknown): Record<string, unknown> => {
@@ -88,8 +81,8 @@ export function parseCatalog(value: unknown): Catalog {
   for (const row of rows.words) { string(row,"lemma"); string(row,"definition",true); }
   for (const row of rows.entry_categories) { ref(row,"entry_id","entries"); ref(row,"category_id","categories"); }
   for (const row of [...rows.claims,...rows.word_senses]) {
-    oneOf(row,"verification",VERIFICATIONS);
-    string(row,"verification_note",row.verification!=="verified");
+    if("verification" in row)fail("審核狀態欄位已移除");
+    string(row,"data_source",true);
   }
   for (const row of rows.word_senses) {
     ref(row,"word_id","words"); ref(row,"entry_id","entries"); ref(row,"sense_id","senses");

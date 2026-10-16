@@ -51,7 +51,6 @@ export function reconcileProposedContent(draft:DictionaryDraftInput,context:Impo
           if(exact.length===1)old=exact[0];else if(slots.length===1)old=slots[0];
           if(old){proposed.delete(incoming.id);const {updated_at,entry_id,...content}=old;void updated_at;void entry_id;
             const replacement=section==='pronunciations'?{...content,...incoming,id:old.id}:{...content,body:incoming.body} as DraftRow;
-            if(section==='etymologies'&&old.body!==incoming.body)replacement.verification='pending';
             d[section]![i]=replacement as never;
           }
         }

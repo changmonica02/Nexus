@@ -3,6 +3,14 @@
 > 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 管理 UI／單筆刪除與 PR #61 常駐審核均已合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
+## 2026-10-16：逐筆內容審核狀態退場（已實作／隔離測試，正式套用另見 HANDOFF）
+
+- DictionaryEtymology／閱讀／編輯／AI／CSV／Markdown／JSON 交換不再含 verification；詞源來源改用 data_source。舊字源入口同樣改為內容種類與來源，不依狀態決定顯示分類；集中版權說明不再要求審核標示。
+- 20261016060000_dictionary_retire_verification_state.sql 實體移除 dictionary_sources、dictionary_relations、dictionary_etymologies.verification，詞源 verification_note 改名 data_source。未刪來源、內文、ID、結構化詞形、Sense、關聯、公開版本或學習紀錄。若歷史私人字源表存在，一併退場同欄位。
+- 沿用現有 get_published_dictionary_entry／apply_dictionary_bundle／dictionary_normalize_snapshot，沒有新公開寫入 API。既有 ACL、RLS、管理員驗證、Published 保護及人工發布 content_verified 保留。新增 cleaner 為不可由應用角色執行的 invoker。
+- active Review 的候選／baseline 移除舊欄位並遞增 revision，舊頁面必須重載；已完成歷史、Audit、operation receipt、raw_candidate 原樣保留。常駐匯入工作保留 ID／決策／operation，只移除專屬 verification 的差異，來源欄位決策移轉至 data_source；受影響項重算 pending_count、標記 stale 後重新比對，不重新套用既有成功內容。
+- 遷移先鎖定及建立非公開 dictionary_verification_backup 回復資料，受限 schema 無 anon／authenticated 存取權；交易內逐列比較剩餘欄位，非預期變更立即回滾。這是移除內容狀態欄位，不是刪除 Draft／Review Draft／匯入疑義工作流程。部署、舊檔處理與回復界線見 docs/operations/DICTIONARY-VERIFICATION-RETIREMENT.md。
+
 ## 一、不可推翻的架構與權限原則
 
 ## 2. 不可推翻的架構原則
@@ -319,7 +327,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - `useUnsavedDraft` 對站內連結、編輯區的版本操作及瀏覽器 history navigation 提供儲存／放棄／繼續編輯；原生 beforeunload 保護重新整理／離站。對話框使用 native dialog 並還原觸發控件焦點。公開閱讀端返回仍沿用原來源 URL。
 - 新增 `dictionary_inflections(id,entry_id,sense_id?,form_kind,form,sort_order,revision,updated_at)`。它是 Entry 附屬記錄，沒有公開 Entry 身分；同 Entry／Sense／類型／正規化詞形防重，相同拼寫可屬不同類型或不同 Sense。詞性對應與 Sense 所屬關係由 TypeScript、FK 和伺服器驗證；直接資料表寫入未授權。此版只儲存人工指定的形式，不做規則猜測。
 - 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料與構詞順序：一般 `mapDictionaryDraft` 不傳 `component_order`，完整 Editor save／Review save 才明確傳入排序。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
-- `dictionary_relations` 保留所有 ID／目標 Sense FK，來源 `sense_id` 支援 null（詞條共用）；構詞模型不含關聯種類／查證狀態／查證說明。舊 SQL 欄位只供無損相容與歷史保留。擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
+- `dictionary_relations` 保留所有 ID／目標 Sense FK，來源 `sense_id` 支援 null（詞條共用）；構詞模型不含關聯種類／查證狀態／查證說明。舊關聯種類／說明只供無損相容與歷史保留；逐筆 verification 狀態已由本輪增量 Migration 移除。擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
 - 舊 `source_forms` 已從有效模型及編輯器移除，不轉換為詞形；資料庫以本輪安全退場 Migration 清理，備份與不可變歷史不提供產品編輯入口。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 #44 JSON Exchange v1，JSON Bundle／AI JSON 亦保持原流程；現行 CSV 移除 source_forms 欄，舊格式明確拒絕，不靜默丟棄。
 - `search_dictionary_with_inflections` 合併 headword／中文義項及**索引可確認的 exact 詞形**，結果帶 `inflection_matches`，保留原形與同形詞；Reader 標示匹配原因，詞形以文字而非新 Entry 連結顯示。反向構詞改用直接來源 Entry FK embed，涵蓋詞條共用及指定義項；分類篩選仍用原查詢。
 - 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。PR #46開發當時只在隔離PGlite執行；其後已由正式ledger `20261013041717 dictionary_edit_inflections_20261020` 核實套用，現不可當成待執行SQL重播。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。

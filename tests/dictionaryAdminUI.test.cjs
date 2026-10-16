@@ -178,15 +178,15 @@ test('multi-select types and statuses intersect with search; empty groups impose
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
  assert.equal((html.match(/type="checkbox"/g)||[]).length,5);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
 });
-test('history source is optional, changing verified history downgrades metadata without requiring attribution',async()=>{
- const d={...detail,etymologies:[{id:'00000000-0000-4000-8000-000000000004',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',sense_id:null,body:'old',verification:'verified',verification_note:'old source',revision:1}]};
+test('history source is optional; edits retain source content without recreating review-state metadata',async()=>{
+ const d={...detail,etymologies:[{id:'00000000-0000-4000-8000-000000000004',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',sense_id:null,body:'old',data_source:'old source',revision:1}]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
  assert.ok(html.includes('資料來源'));for(const text of ['查證狀態','已查證必填','本次草稿來源','來源與授權','首次發布','← 返回'])assert.ok(!html.includes(text),text);
  const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;let payload;
  supabase.getSupabase=()=>({rpc:async(name,args)=>{payload=args.drafts[0].bundle;return {error:null,data:{}};}});
  try{await withEditorState({detail:d,entries:[],senses:[],onSaved:async()=>{}},async render=>{
   let tree=render();pick(tree,n=>n.props.label==='資料來源').props.onChange('');tree=render();buttonNamed(tree,'儲存').props.onClick();await new Promise(r=>setImmediate(r));
- });assert.equal(payload.dictionary_etymologies[0].verification,'pending');assert.equal(payload.dictionary_etymologies[0].verification_note,'');assert.equal(payload.dictionary_etymologies[0].source_id,undefined);assert.equal(payload.dictionary_sources,undefined);
+ });assert.equal(payload.dictionary_etymologies[0].verification,undefined);assert.equal(payload.dictionary_etymologies[0].verification_note,undefined);assert.equal(payload.dictionary_etymologies[0].data_source,'');assert.equal(payload.dictionary_etymologies[0].source_id,undefined);assert.equal(payload.dictionary_sources,undefined);
  }finally{supabase.getSupabase=original;}
 });
 test('manual drafts strip legacy attribution and never create placeholder sources',()=>{
@@ -198,14 +198,14 @@ test('return sits beside page title and shared copyright information is reachabl
  const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('僅管理員可編輯。字典不會覆寫任何人的字卡或學習紀錄。'));
  assert.match(source,/<header[^>]*><SidebarToggle\/><Link[^>]*>← 返回上一頁<\/Link><h1[^>]*>字典管理/);
  const settings=fs.readFileSync('src/components/SettingsDialog.tsx','utf8');assert.ok(settings.includes('"關於 Nexus"'));assert.ok(settings.includes('<DataSourcesAndCopyright/>'));
- const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));
+ const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));assert.ok(!/查證狀態|待審核標示/.test(html));
 });
 
 test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
  const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
  try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','learning_decomposition','口訣'],['dictionary_learning_notes','mnemonic_scenario','記憶故事']]){
   let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
-  const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{verification:'unverified',verification_note:''})};
+  const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{data_source:''})};
   const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
   for(const saved of [false,true])await withEditorState({detail:{...detail,[key]:[{...row,...(saved?{revision:1}:{})}]},entries:[],senses:[],onSaved:async()=>{}},async render=>{
    let tree=render();pick(tree,n=>n.props.label==='中文意思').props.onChange('待補');tree=render();

@@ -16,7 +16,12 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
  const errors=[];
  try{
  for(const viewport of [{width:1280,height:900},{width:820,height:1180},{width:390,height:844}]){
-  const context=await browser.newContext({viewport});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.getByRole('button',{name:'儲存',exact:true}).waitFor();
+  const context=await browser.newContext({viewport});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/?etymology');await page.getByRole('button',{name:'儲存',exact:true}).waitFor();
+  assert.equal(await page.getByText(/不是已確認的詞源事實|未查證|已查證|有爭議/).count(),0);
+  assert.equal(await page.getByLabel('資料來源',{exact:true}).inputValue(),'https://example.test/source');
+  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');
+  await page.getByLabel('完整內容',{exact:true}).fill('Updated etymology');
+  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/source');await page.getByLabel('完整內容',{exact:true}).fill('Synthetic etymology');
   const save=()=>page.getByRole('button',{name:'儲存',exact:true}),publish=()=>page.getByRole('button',{name:'發布',exact:true}),word=()=>page.getByLabel('單字',{exact:true});
   assert.equal(await page.getByRole('complementary',{name:'匯入待審核',exact:true}).count(),0);assert.equal(await page.getByRole('tablist').count(),0);
   assert.equal(await save().isDisabled(),true);assert.equal(await publish().isDisabled(),true);assert.equal(await page.evaluate(()=>window.fixture.reviews.length),0);
@@ -28,7 +33,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   const senseSection=page.locator('[data-editor-section="義項"]');await senseSection.locator('summary').first().click();await senseSection.locator('summary').first().click();
   assert.equal(await senseRow.getAttribute('data-word-sense-row'),senseId);assert.equal(await senseRow.getByLabel('中文意思',{exact:true}).inputValue(),'詞性與意思一起編輯');
   await senseRow.getByLabel('詞性',{exact:true}).fill('verb');await senseRow.getByLabel('中文意思',{exact:true}).fill('go');
-  await page.getByRole('button',{name:'＋新增義項',exact:true}).click();assert.equal(await page.locator('[data-word-sense-row]').count(),2);
+  await page.getByRole('button',{name:'＋新增義項',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'確認',exact:true}).click();assert.equal(await page.locator('[data-word-sense-row]').count(),2);
   const added=page.locator('[data-word-sense-row]').nth(1);assert.notEqual(await added.getAttribute('data-word-sense-row'),senseId);assert.equal(await added.getByLabel('詞性',{exact:true}).count(),1);assert.equal(await added.getByLabel('中文意思',{exact:true}).inputValue(),'');
   await added.getByRole('button',{name:'刪除義項 2',exact:true}).click();assert.equal(await save().isDisabled(),true);
 
@@ -37,7 +42,10 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   await word().fill('history draft');await page.evaluate(()=>{window.history.pushState(null,'','?history=1');window.history.back();});await page.getByRole('dialog').getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'history draft');await word().fill('go');
   // Empty sections have no form inputs; adding/removing and reverting clears dirty.
   assert.equal(await page.getByLabel('詞形',{exact:true}).count(),0);await page.getByRole('button',{name:'＋新增詞形變化'}).click();await page.getByLabel('變化類型').selectOption('past');await page.getByLabel('詞形',{exact:true}).fill('went');await page.getByRole('button',{name:'＋新增詞形變化'}).click();await page.getByLabel('變化類型').nth(1).selectOption('past_participle');await page.getByLabel('詞形',{exact:true}).nth(1).fill('gone');
+  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');await page.getByLabel('完整內容',{exact:true}).fill('Updated etymology');
   await save().click();await page.getByRole('tab',{name:'草稿',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.reviews[0].revision),2);assert.equal(await save().isDisabled(),true);assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);assert.equal(await publish().isEnabled(),true);
+  assert.deepEqual(await page.evaluate(()=>{const e=window.fixture.reviews[0].candidate.bundle.dictionary_etymologies[0];return {body:e.body,source:e.data_source,status:'verification' in e,note:'verification_note' in e};}),{body:'Updated etymology',source:'https://example.test/updated',status:false,note:false});
+  assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.etymologies[0].body),'Synthetic etymology');
   // Subsequent changes do not publish the older saved draft, and reverting clears dirty.
   await page.getByLabel('詞形',{exact:true}).first().fill('not-saved');await publish().click();await page.getByRole('alert').filter({hasText:'請先儲存'}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);await page.getByLabel('詞形',{exact:true}).first().fill('went');assert.equal(await save().isDisabled(),true);
   await page.getByLabel('詞形',{exact:true}).first().fill('retained on tab');

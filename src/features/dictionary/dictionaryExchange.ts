@@ -86,7 +86,7 @@ export function parseExchange(raw: string): ExchangeDocument {
 const rowFields: Record<string, string[]> = {
   senses: ["part_of_speech", "gloss_zh_tw"],
   relations: ["sense_id", "target_entry_id", "target_sense_id"],
-  etymologies: ["sense_id", "body", "verification", "verification_note"],
+  etymologies: ["sense_id", "body", "data_source"],
   learning_notes: ["sense_id", "kind", "body"],
   pronunciations: ["sense_id", "locale", "ipa", "note", "sort_order"],
   inflections: ["sense_id", "form_kind", "form", "sort_order"],
@@ -192,24 +192,11 @@ export function draftFromExchange(
           else if (typeof value !== "string")
             throw Error(`${section}: ${field} must be text`);
         }
-        if (
-          section === "etymologies" &&
-          r.verification === "verified" &&
-          !String(r.verification_note).trim()
-        )
-          throw Error("Verified etymology needs evidence notes");
         for (const field of fields.filter((f) =>
           ["body", "form", "ipa", "gloss_zh_tw"].includes(f),
         ))
           if (typeof r[field] !== "string" || !String(r[field]).trim())
             throw Error(`${section}: invalid ${field}`);
-        if (
-          section === "etymologies" &&
-          !["unverified", "pending", "verified", "disputed"].includes(
-            String(r.verification),
-          )
-        )
-          throw Error("Invalid etymology verification");
         if (
           section === "lexical_annotations" &&
           !["relation_hint"].includes(String(r.kind))
