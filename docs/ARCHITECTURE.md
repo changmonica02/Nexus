@@ -541,3 +541,8 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - `dashboardGroups` 純函式從既有頂層、未刪除頁面建立 none／folder／feature 顯示群組，搜尋標題與文字並沿用置頂及原排序。創作／小說沿用 isNovelPage，計數／抽選歸 tools，不改實體 kind／folder／Stable ID。單一 renderItems 保留列表／卡片及項目選單。
 - `useDashboardGrouping` 使用 device-local `nexus-dashboard-grouping`，無設定或無效值預設 none；useSyncExternalStore 提供 SSR 與 storage 相容，儲存失敗時保留當次操作。原資料夾欄位不遷移、不重寫；原 view／sort 儲存鍵不變。folder／feature 使用各自原生 details，預設全收合，獨立操作；切換分類保留選取集合。
 - 自動化涵蓋 320／390／768／820／1180／1440px Chromium、英繁語系、分類與選取同排、展開／排序／持久化及原工作區回歸。此為隔離測試，非實體 iPad Safari 驗收。
+
+### 2026-10-16 Word Sense 編輯列
+
+- `DictionaryEditor` 將 Word 的 `part_of_speech` 與 `gloss_zh_tw` 在各穩定 Sense ID 的編輯列顯示，基本資訊只留 Entry。640px 起詞性／中文／刪除並排，窄版在同列內換行；沿用 Field、EditorSection、原 addSense／removeSense 與 PublishedWorkspace。
+- 無資料遷移或過濾空義項；prepareEditorBundle 仍只清理既有非交換 metadata，不改 Sense ID 或內容。Prefix／Root、關聯依賴、CAS／Review／發布 RPC 不變。

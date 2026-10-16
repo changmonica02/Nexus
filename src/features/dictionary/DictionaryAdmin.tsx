@@ -148,15 +148,16 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
     <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-5">
       <EditorSection title="基本資訊">
         <Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
-        {detail.entry.kind==='word'?bundle.dictionary_senses.map((row,i)=><Field key={String(row.id)} label={`分類 · 義項 ${i+1}`} placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>):<>
+        {detail.entry.kind!=='word'&&<>
           {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
           <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
         </>}
       </EditorSection>
-      <EditorSection title="義項" count={bundle.dictionary_senses.length}><div className="flex flex-wrap items-center justify-between gap-2"><button type="button" className={addButton} onClick={()=>void addSense()} aria-label="＋新增中文義項">＋新增</button></div>
+      <EditorSection title="義項" count={bundle.dictionary_senses.length}><div className="flex flex-wrap items-center justify-between gap-2"><button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?'＋新增義項':'＋新增中文義項'}>{detail.entry.kind==='word'?'＋新增義項':'＋新增'}</button></div>
       {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3">
-        <div className="flex items-center justify-between gap-2"><h4 className="text-sm font-medium">義項 {i+1}</h4><button type="button" aria-label={`刪除義項 ${i+1}`} className="min-h-11 shrink-0 rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100" onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
-        <Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/>
+        <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={detail.entry.kind==='word'?"grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]":"flex items-center justify-between gap-2"}><h4 className={detail.entry.kind==='word'?"sr-only":"text-sm font-medium"}>義項 {i+1}</h4>
+        {detail.entry.kind==='word'&&<><Field label="詞性" placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/><div className="col-start-1 sm:col-start-auto"><Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div></>}<button type="button" aria-label={`刪除義項 ${i+1}`} className={(detail.entry.kind==='word'?'col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto ':'')+"min-h-11 shrink-0 rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100"} onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
+        {detail.entry.kind!=='word'&&<Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/>}
         {detail.entry.kind==='prefix'&&<label className="block text-sm">分類<select className={control} aria-label={`義項 ${i+1} 的分類`} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">未分類</option>{prefixCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
       </div>)}
       </EditorSection>

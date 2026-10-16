@@ -15,11 +15,23 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
  const errors=[];
  try{
- for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
+ for(const viewport of [{width:1280,height:900},{width:820,height:1180},{width:390,height:844}]){
   const context=await browser.newContext({viewport});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.getByRole('button',{name:'儲存',exact:true}).waitFor();
   const save=()=>page.getByRole('button',{name:'儲存',exact:true}),publish=()=>page.getByRole('button',{name:'發布',exact:true}),word=()=>page.getByLabel('單字',{exact:true});
   assert.equal(await page.getByRole('complementary',{name:'匯入待審核',exact:true}).count(),0);assert.equal(await page.getByRole('tablist').count(),0);
   assert.equal(await save().isDisabled(),true);assert.equal(await publish().isDisabled(),true);assert.equal(await page.evaluate(()=>window.fixture.reviews.length),0);
+  const senseRow=page.locator('[data-word-sense-row]').first(),senseId=await senseRow.getAttribute('data-word-sense-row');
+  assert.equal(await page.locator('[data-editor-section="基本資訊"]').getByLabel('詞性',{exact:true}).count(),0);
+  const pos=await senseRow.getByLabel('詞性',{exact:true}).boundingBox(),gloss=await senseRow.getByLabel('中文意思',{exact:true}).boundingBox();
+  if(viewport.width>=640)assert.ok(Math.abs(pos.y-gloss.y)<2,'Word POS and meaning share a row');else assert.ok(gloss.y>pos.y,'mobile keeps fields in one Sense');
+  await senseRow.getByLabel('詞性',{exact:true}).fill('noun');await senseRow.getByLabel('中文意思',{exact:true}).fill('詞性與意思一起編輯');
+  const senseSection=page.locator('[data-editor-section="義項"]');await senseSection.locator('summary').first().click();await senseSection.locator('summary').first().click();
+  assert.equal(await senseRow.getAttribute('data-word-sense-row'),senseId);assert.equal(await senseRow.getByLabel('中文意思',{exact:true}).inputValue(),'詞性與意思一起編輯');
+  await senseRow.getByLabel('詞性',{exact:true}).fill('verb');await senseRow.getByLabel('中文意思',{exact:true}).fill('go');
+  await page.getByRole('button',{name:'＋新增義項',exact:true}).click();assert.equal(await page.locator('[data-word-sense-row]').count(),2);
+  const added=page.locator('[data-word-sense-row]').nth(1);assert.notEqual(await added.getAttribute('data-word-sense-row'),senseId);assert.equal(await added.getByLabel('詞性',{exact:true}).count(),1);assert.equal(await added.getByLabel('中文意思',{exact:true}).inputValue(),'');
+  await added.getByRole('button',{name:'刪除義項 2',exact:true}).click();assert.equal(await save().isDisabled(),true);
+
   await word().fill('go-edited');assert.equal(await save().isEnabled(),true);await word().fill('go');assert.equal(await save().isDisabled(),true);
   // History navigation is guarded before a router can unmount the editor.
   await word().fill('history draft');await page.evaluate(()=>{window.history.pushState(null,'','?history=1');window.history.back();});await page.getByRole('dialog').getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'history draft');await word().fill('go');
