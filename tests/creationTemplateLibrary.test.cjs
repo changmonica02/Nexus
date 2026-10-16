@@ -1,0 +1,47 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const base=require('./fixtures/dictionaryExchangeDatabase.cjs');
+const clean=()=>({isTemplate:true,blocks_version:1,basic:{name:'',age:'',gender:'',race:'',avatarUrl:''},basicBlock:{id:'basic',enabled:true},sections:[{id:'block',type:'group',title:'背景',contents:[{id:'story',type:'rich_text',title:'故事',richText:''}]}],tabs:[]});
+test('isolated PostgreSQL creation library: private drafts, immutable versions, publication CAS/retry, latest-only download, owner/admin/RLS and derivative license snapshots',async()=>{
+ const pg=await base.database();try{
+ await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261016040000_creation_template_library.sql','utf8'));await pg.exec('set role authenticated');
+ const scalar=async(q,args=[]) => (await pg.query(q,args)).rows[0]?.v;
+ const actor=async(id)=>pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);
+ const action=(a,x)=>scalar('select creation_template_mutate($1,$2::jsonb) v',[a,JSON.stringify(x)]);
+ assert.equal(await scalar("select prosecdef v from pg_proc where oid='public.creation_template_mutate(text,jsonb)'::regprocedure"),false);
+ assert.equal(await scalar("select prosecdef v from pg_proc where oid='nexus_private.creation_template_mutate(text,jsonb)'::regprocedure"),true);
+ assert.equal(await scalar("select has_function_privilege('anon','public.creation_template_mutate(text,jsonb)','EXECUTE') v"),false);
+ const id=base.id(501),other=base.id(900001);
+ const headerStructure=clean();headerStructure.sections[0].contents.push({id:'table',type:'statistics',title:'Inventory',statisticHeaders:{label:'Item',description:'Description',value:'Weight',unit:'Unit'},statistics:[]});
+ let d=await action('save',{id,revision:0,title:'模板',author_name:'Author',kind:'character',structure:headerStructure});assert.equal(d.revision,1);
+ assert.equal((await action('save',{id,revision:0,title:'模板',author_name:'Author',kind:'character',structure:headerStructure})).revision,1,'lost initial response retries the same draft');
+ await actor(other);assert.equal(await scalar('select count(*)::int v from creation_templates'),0);assert.equal(await scalar('select count(*)::int v from creation_template_drafts'),0);
+ await assert.rejects(action('publish',{id,revision:1,latest_version:0}),/Owner/);await assert.rejects(action('official',{id,value:true}),/Admin/);
+ await actor(base.owner);await action('publish',{id,revision:1,latest_version:0});await action('publish',{id,revision:1,latest_version:0});
+ assert.equal(await scalar('select count(*)::int v from creation_template_versions'),1);
+ const privateEdit=clean();privateEdit.sections[0].title='未發布改名';d=await action('save',{id,revision:1,title:'新標題',structure:privateEdit});
+ await assert.rejects(action('save',{id,revision:1,title:'stale',structure:clean()}),/revision conflict/);
+ await actor(other);assert.equal(await scalar('select title v from creation_templates'),'模板');assert.equal(await scalar('select count(*)::int v from creation_template_drafts'),0);
+ const download=await action('download',{id,version:1});assert.equal(download.structure.sections[0].title,'背景');
+ assert.equal((await action('download',{id,version:1})).page_id,download.page_id);assert.equal(await scalar('select downloads::int v from creation_templates'),1);
+ await assert.rejects(action('save',{id:base.id(502),revision:0,title:'改編',kind:'character',author_name:'Other',source_id:id,structure:clean()}),/does not allow/);
+ await actor(base.owner);await action('license',{id,value:true});await action('publish',{id,revision:d.revision,latest_version:1});
+ await actor(other);await assert.rejects(action('download',{id,version:1}),/Latest/);const newer=await action('download',{id,version:2});assert.equal(newer.page_id,download.page_id);assert.equal(newer.title,'新標題');
+ const derivative=base.id(502);await action('save',{id:derivative,revision:0,title:'改編',author_name:'Other',kind:'character',source_id:id,structure:clean()});await action('publish',{id:derivative,revision:1,latest_version:0});
+ await actor(base.owner);await action('license',{id,value:false});await actor(other);
+ let derived=await action('save',{id:derivative,revision:1,title:'合法既有投稿新版',structure:clean()});await action('publish',{id:derivative,revision:derived.revision,latest_version:1});
+ assert.equal(await scalar("select license_snapshot->'source'->>'allow_derivatives' v from creation_template_versions where template_id=$1 and version=2",[derivative]),'true');
+ await action('report',{id,operation_id:base.id(700),reason:'檢舉測試'});await action('report',{id,operation_id:base.id(700),reason:'retry'});assert.equal(await scalar('select count(*)::int v from creation_template_reports'),1);
+ await actor(base.owner);await action('official',{id,value:true});assert.equal(await scalar('select official v from creation_templates where id=$1',[id]),true);
+ await action('visibility',{id,value:'delisted'});await actor(other);await assert.rejects(action('download',{id,version:2}),/Published/);
+ await actor(base.owner);await action('visibility',{id,value:'published'});await action('takedown',{id:derivative});
+ await actor(other);await assert.rejects(action('visibility',{id:derivative,value:'published'}),/Invalid visibility/);await assert.rejects(action('publish',{id:derivative,revision:derived.revision+1,latest_version:2}),/takedown/);
+ await actor(base.owner);await assert.rejects(action('delete',{id,confirmation:'no'}),/confirmation/);
+ await action('derive',{id,version:1,revision:2});assert.equal(await scalar('select revision v from creation_template_drafts where template_id=$1',[id]),3);
+ await action('discard',{id,revision:3});assert.equal(await scalar('select revision v from creation_template_drafts where template_id=$1',[id]),4);
+ await assert.rejects(pg.query('update creation_templates set title=\'forged\''),/permission/);
+ for(const invalid of [{}, {...clean(),sections:[{id:'x',type:'forged',title:'bad'}]}, {...clean(),legacyCharacterSnapshot:{name:'secret'}},{...clean(),basic:{name:'secret'}},{...clean(),sections:[{id:'same',type:'rich_text',title:'a',richText:''},{id:'same',type:'rich_text',title:'b',richText:''}]},{...clean(),sections:[{id:'s',type:'rich_text',title:'story',richText:'private prose'}]}]) await assert.rejects(action('save',{id,revision:4,title:'Invalid',structure:invalid}));
+ assert.equal(await scalar('select revision v from creation_template_drafts where template_id=$1',[id]),4,'invalid save transaction rolls back');
+ await action('delete',{id,confirmation:id});assert.equal(await scalar('select count(*)::int v from creation_template_versions where template_id=$1',[id]),0);assert.equal(download.structure.sections[0].title,'背景','downloaded copy remains independent after source deletion');
+ await pg.exec('set role anon');await assert.rejects(pg.query('select creation_template_capabilities()'),/permission/);await assert.rejects(pg.query('select * from creation_templates'),/permission/);
+ }finally{await pg.close();}
+});

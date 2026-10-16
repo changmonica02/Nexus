@@ -288,6 +288,7 @@ export interface CharacterPageTab {
 }
 
 export interface CharacterProfileData {
+  resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
   blocks_version?: 1;
   basicBlock?: { id: string; enabled: boolean };
   legacyCharacterSnapshot?: unknown;

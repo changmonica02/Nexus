@@ -59,6 +59,8 @@ import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
+import {installCreationTemplate} from "../features/creation/installTemplate";
+import {creationTemplateLibrary, type CreationDownload} from "../features/creation/templateLibrary";
 import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
@@ -156,6 +158,7 @@ function NexusAppInner({
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isCreativeMode, setIsCreativeMode] = useState(false);
+  const [creationTemplateTarget,setCreationTemplateTarget]=useState<string|null>(null);
   const [isStudySetMode, setIsStudySetMode] = useState(initialFeature==="study");
   const [isNovelMode, setIsNovelMode] = useState(false);
   const [isDocumentMode, setIsDocumentMode] = useState(false);
@@ -587,8 +590,8 @@ function NexusAppInner({
     if (!storage) throw new Error("Storage unavailable");
     const now = Date.now();
     const template: Page = {
-      id: `template_${nanoid()}`, title, kind: "creative", creative_type: "character",
-      character_data: snapshotCharacterTemplate(data), content_json: emptyNovelDocument(), content_text: "",
+      id: `template_${nanoid()}`, title, kind: "creative", creative_type: source.creative_type === "world" ? "world" : "character",
+      character_data: {...snapshotCharacterTemplate(data),resourceSource:data.resourceSource}, content_json: emptyNovelDocument(), content_text: "",
       default_mode: "note", created_at: now, updated_at: now, deleted_at: null, revision: 1,
       device_id: await storage.getDeviceId(), workspace_owner_id: source.workspace_owner_id,
       attachment_ids: [],
@@ -597,6 +600,16 @@ function NexusAppInner({
     setPages((prev) => [template, ...prev]);
     void syncEngineRef.current?.pushPage(template);
   }, []);
+
+  const downloadCreationTemplate = useCallback(async (data: CreationDownload) => {
+    const storage=storageRef.current;
+    const owner=await creationTemplateLibrary.owner();
+    if (!storage || storage.getWorkspaceOwner?.()!==owner) throw Error("帳號已切換，請重新開啟資源庫。");
+    const pending=pendingSavesRef.current.get(data.page_id);if(pending)await flushSave(pending);
+    const saved=await installCreationTemplate(storage,data,owner);
+    setPages(previous=>[...previous.filter(p=>p.id!==saved.id),saved]);
+    void syncEngineRef.current?.pushPage(saved);
+  },[flushSave,storageRef]);
 
   const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
     return storageRef.current?.readBinary(attachmentId) || null;
@@ -1159,6 +1172,13 @@ function NexusAppInner({
     closeFeatureOverviews();
     setActivePageId(null);
   }, []);
+  useEffect(()=>{
+    if(!isReady || !isAuthenticated)return;
+    const target=new URLSearchParams(window.location.search).get("creation-template");
+    let active=true;
+    if(target && /^[0-9a-f-]{36}$/i.test(target)){void Promise.resolve().then(()=>{if(active){setCreationTemplateTarget(target);handleShowCreative();}});}
+    return()=>{active=false};
+  },[isReady,isAuthenticated,handleShowCreative]);
   const handleShowStudySets = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsStudySetMode(true); setActivePageId(null); }, []);
   const handleShowNovels = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsDocumentMode(false); setIsNovelMode(true); setActivePageId(null); }, []);
   const handleShowDocuments = useCallback(() => { closeFeatureOverviews(); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(true); setActivePageId(null); }, []);
@@ -1269,7 +1289,7 @@ function NexusAppInner({
       color:source.color,
       ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
-      character_data: source.character_data ? (source.character_data.isTemplate ? snapshotCharacterTemplate(source.character_data) : structuredClone(source.character_data)) : undefined,
+      character_data: source.character_data ? (source.character_data.isTemplate ? {...snapshotCharacterTemplate(source.character_data),resourceSource:source.character_data.resourceSource} : structuredClone(source.character_data)) : undefined,
       study_items: source.kind === "study_set" ? [] : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
@@ -1964,6 +1984,8 @@ function NexusAppInner({
         <CreativeView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
           templates={pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at)}
+          initialLibraryPost={creationTemplateTarget}
+          onDownloadTemplate={downloadCreationTemplate}
           onRenameTemplate={(id, title) => patchPage(id, { title })}
           onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
           onCreateCharacter={handleCreateCharacter}

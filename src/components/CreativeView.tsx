@@ -1,4 +1,6 @@
 "use client";
+import CreationTemplateLibraryView from "./CreationTemplateLibrary";
+import type { CreationDownload } from "../features/creation/templateLibrary";
 import FeatureIcon from "./FeatureIcon";
 import { useState } from "react";
 import {isCreativeCharacterPage,type Page } from "../lib/types";
@@ -14,6 +16,8 @@ export default function CreativeView({
   onSelectPage,
   onCreateTemplate,
   onRenameTemplate,
+  onDownloadTemplate,
+  initialLibraryPost,
   ...actions
 }: PageActions & {
   pages: Page[];
@@ -23,11 +27,14 @@ export default function CreativeView({
   onSelectPage: (id: string) => void;
   onCreateTemplate: () => void;
   onRenameTemplate: (id: string, title: string) => void;
+  initialLibraryPost?: string|null;
+  onDownloadTemplate: (data: CreationDownload) => Promise<void>;
 }) {
   const { t } = useLanguage();
   const [choice, setChoice] = useState(false),
     [character, setCharacter] = useState(false),
-    [manager, setManager] = useState(false);
+    [manager, setManager] = useState(false), [library,setLibrary]=useState(Boolean(initialLibraryPost)),[resourcePost,setResourcePost]=useState(initialLibraryPost);
+  if (library) return <CreationTemplateLibraryView templates={templates} onClose={()=>setLibrary(false)} onDownload={onDownloadTemplate} initialPostId={resourcePost}/>;
   if (manager) return (
           <CharacterTemplateManager
             templates={templates}
@@ -37,6 +44,7 @@ export default function CreativeView({
             onRename={onRenameTemplate}
             onDelete={(id) => actions.onDeletePage?.(id)}
             onUse={onCreateCharacter}
+            onOpenResource={id=>{setResourcePost(id);setManager(false);setLibrary(true)}}
             onCopy={(id)=>actions.onDuplicatePage?.(id)}
           />
   );
@@ -50,7 +58,8 @@ export default function CreativeView({
           <h1 className="text-2xl font-semibold">
             <FeatureIcon feature="creative"/> {t("ui.feature.creative")}
           </h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded border px-4 py-2 text-sm" onClick={()=>setLibrary(true)}>創作資源庫 / Creation library</button>
             <button
               type="button"
               onClick={() => setManager(true)}

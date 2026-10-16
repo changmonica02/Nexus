@@ -121,6 +121,7 @@ export function instantiateCharacterTemplate(
   return {
     ...clean,
     isTemplate: false,
+    resourceSource:source.resourceSource,
     templateSourceId: sourceId,
     world_id: null,
     basicBlock: clean.basicBlock

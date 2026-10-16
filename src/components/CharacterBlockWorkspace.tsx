@@ -81,7 +81,7 @@ export default function CharacterBlockWorkspace({
     () =>
       normalizeCharacterBlocks(
         page.character_data?.isTemplate
-          ? snapshotCharacterTemplate(page.character_data)
+          ? {...snapshotCharacterTemplate(page.character_data),resourceSource:page.character_data.resourceSource}
           : (page.character_data ?? createBlankTemplate()),
         page.id,
       ),
@@ -136,7 +136,7 @@ export default function CharacterBlockWorkspace({
     setBusy(true);
     setError("");
     try {
-      if (data.isTemplate) next = snapshotCharacterTemplate(next);
+      if (data.isTemplate) next = {...snapshotCharacterTemplate(next),resourceSource:data.resourceSource};
       validateCharacterBlocks(next);
       setPreview(next);
       await onCommit(next);
@@ -372,7 +372,7 @@ export default function CharacterBlockWorkspace({
           tab,
         );
       }
-      if (data.isTemplate) next = snapshotCharacterTemplate(next);
+      if (data.isTemplate) next = {...snapshotCharacterTemplate(next),resourceSource:data.resourceSource};
       if (await persist(next)) {
         if (close) setEditing(null);
         else {
