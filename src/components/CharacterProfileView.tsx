@@ -1,4 +1,5 @@
 "use client";
+import CharacterBlockWorkspace from "./CharacterBlockWorkspace";
 import {SidebarToggle} from "./WorkspaceNavigation";
 import { useMenuDismiss } from "./useMenuDismiss";
 import React, { useEffect, useState, useRef } from "react";
@@ -49,7 +50,7 @@ function GalleryAttachment({ attachmentId, getBlob }: { attachmentId: string; ge
   return url ? <img src={url} alt="相冊圖片" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs opacity-45">載入中…</div>;
 }
 
-export default function CharacterProfileView({
+export function CharacterContentEditor({
   page,
   onTitleChange,
   onUpdateCharacterData,
@@ -58,7 +59,11 @@ export default function CharacterProfileView({
   getAttachmentBlob,
   onUploadGalleryImage,
   onSaveTemplate,
+  sectionOnly,
+  sectionMode,
 }: {
+  sectionOnly?: CharacterSection;
+  sectionMode?: "edit" | "card";
   page: Page;
   onTitleChange: (title: string) => void;
   onUpdateCharacterData: (data: CharacterProfileData) => void;
@@ -69,7 +74,7 @@ export default function CharacterProfileView({
   onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
 }) {
   const { askText, askConfirm, dialog } = useWorkspaceDialog();
-  const [viewMode, setViewMode] = useState<"edit" | "card">("edit");
+  const [viewMode, setViewMode] = useState<"edit" | "card">(sectionMode??"edit");
   const [templateStatus, setTemplateStatus] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [expandedLongSections, setExpandedLongSections] = useState<Set<string>>(new Set());
@@ -301,7 +306,7 @@ export default function CharacterProfileView({
             )}
           </div>
 
-          {viewMode === "edit" && (
+          {viewMode === "edit" && !sectionOnly && (
             <div className="flex shrink-0 items-center gap-1">
               {sec.type !== "group" && currentSections.some((item) => item.id === sec.id) && (
                 <button
@@ -930,6 +935,7 @@ export default function CharacterProfileView({
           <div>
             {viewMode === "edit" ? (
               <textarea
+                aria-label={sec.title+" 內容"}
                 value={sec.richText || ""}
                 onChange={(e) => updateSection(sec.id, { richText: e.target.value })}
                 placeholder={sec.example?.richText || "填寫背景身世、轉折經歷或故事細節..."}
@@ -939,7 +945,7 @@ export default function CharacterProfileView({
               />
             ) : (
               <div>
-                <button
+                {(!sectionOnly||(sec.richText?.length??0)>240)&&<button
                   type="button"
                   onClick={() =>
                     setExpandedLongSections((current) => {
@@ -952,10 +958,10 @@ export default function CharacterProfileView({
                   className="flex w-full items-center gap-2 text-left text-xs font-medium opacity-80 hover:opacity-100"
                 >
                   <span>{expandedLongSections.has(sec.id) ? "▾ 收合長文" : "▸ 展開長文"}</span>
-                </button>
-                {expandedLongSections.has(sec.id) && (
+                </button>}
+                {(expandedLongSections.has(sec.id)||!!sectionOnly) && (
                   <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed opacity-85 border-t pt-2" style={{ borderColor: "var(--color-border)" }}>
-                    {sec.richText || "尚無內容"}
+                    {(sectionOnly&&!expandedLongSections.has(sec.id)?sec.richText?.slice(0,240):sec.richText) || "尚無內容"}
                   </p>
                 )}
               </div>
@@ -1052,6 +1058,8 @@ export default function CharacterProfileView({
         )}
       </div>
     ));
+
+  if(sectionOnly)return <>{dialog}{renderSections([sectionOnly])}</>;
 
   return (
     <div className="flex flex-col flex-1 h-full overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
@@ -1493,4 +1501,11 @@ export default function CharacterProfileView({
       </footer>
     </div>
   );
+}
+
+
+export type CharacterProfileProps=Parameters<typeof CharacterContentEditor>[0]&{onCommitCharacterData?:(data:CharacterProfileData)=>Promise<void>;readOnly?:boolean};
+export default function CharacterProfileView(props:CharacterProfileProps){
+ if(props.page.creative_type==='world')return <CharacterContentEditor {...props}/>;
+ return <CharacterBlockWorkspace page={props.page} readOnly={props.readOnly} onBack={props.onBackToCreativeOverview} onSaveTemplate={props.onSaveTemplate} onCommit={async data=>{if(props.onCommitCharacterData)await props.onCommitCharacterData(data);else await props.onUpdateCharacterData(data);}} renderComponent={(section,mode,change)=><CharacterContentEditor {...props} page={{...props.page,character_data:{...props.page.character_data??createBlankTemplate(),sections:[section],tabs:[]}}} sectionOnly={section} sectionMode={mode} onUpdateCharacterData={next=>change(next.sections[0])}/>}/>;
 }

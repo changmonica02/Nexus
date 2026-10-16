@@ -253,6 +253,8 @@ export interface CharacterStatisticItem {
 export interface CharacterExternalLink { label: string; url: string; }
 
 export interface CharacterSection {
+  size?: { span: number; height?: number };
+  legacy_id?: string;
   id: string;
   type: CharacterComponentType;
   title: string;
@@ -284,6 +286,9 @@ export interface CharacterPageTab {
 }
 
 export interface CharacterProfileData {
+  blocks_version?: 1;
+  basicBlock?: { id: string; enabled: boolean };
+  legacyCharacterSnapshot?: unknown;
   isTemplate?: boolean;
   templateSourceId?: ID;
   basicExamples?: Partial<CharacterProfileData["basic"]>;
@@ -295,6 +300,7 @@ export interface CharacterProfileData {
     avatarUrl?: string;
     gender?: string;
     age?: string;
+    race?: string;
     role?: string;
     affiliation?: string;
     quote?: string;
