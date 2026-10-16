@@ -93,8 +93,7 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
         id: id(23),
         sense_id: null,
         body: "origin",
-        verification: "unverified",
-        verification_note: "",
+        data_source: "",
       },
     ];
     word.learning_notes = [

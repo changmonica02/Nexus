@@ -2,6 +2,12 @@
 
 產品規格以 SPEC 為準；技術契約見 ARCHITECTURE，人工驗收集中 #60。
 
+## 本輪：完整移除內容審核狀態
+
+- 已實作：閱讀／編輯／AI／JSON／CSV／Markdown／舊字源入口不含逐筆 verification；詞源來源改為 data_source，集中資料來源說明一併校正。
+- SQL 20261016060000_dictionary_retire_verification_state.sql 已具備受限備份、來源／Stable ID 完整性比對、active Review 與常駐工作 revision 遷移、交易回滾與權限測試；**正式已套用**（ledger 20261016150215 dictionary_retire_verification_state）。public verification=0；來源／詞源／關聯剩餘欄位逐列差異=0，Entry 6,304／Sense 11,524／詞源 68／active Review 925／匯入工作 28 保留；2 份 Review revision 前進，常駐工作無需改寫。原 RLS／ACL 保留、備份／cleaner 無 app 權限，security advisor 與前一致。部署／回復／舊檔說明見 operations/DICTIONARY-VERIFICATION-RETIREMENT.md。
+- 驗證：129/129 字典／字源單元整合、49/49 學習與同步、5/5 隔離瀏覽器組（桌面／平板／手機尺寸）；新增來源衝突拒絕／舊決策移轉測試亦通過。TypeScript／Production Build 通過，ESLint 0 errors／456 既有 warnings。PR #78，Preview／Checks 已通過；最終合併與 Vercel Production 狀態由 PR／交付回報記錄。實機 Safari 保留 #60。今天實作整理已置 HISTORY 頂部。
+
 ## 新增修復：一般 Draft 發布按鈕（Refs #34）
 
 - 已補 Word／Prefix／Root 的共用單筆發布入口；初次未儲存停用、dirty 先儲存、人工查證、伺服器版本前置比對、失敗保留／提示、成功重讀 Published 與清單失效。

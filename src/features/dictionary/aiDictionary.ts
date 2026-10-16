@@ -87,7 +87,7 @@ export function categoryMatches(s:AISnapshot,category:string){return !category||
 export function toAI(s:AISnapshot,targets:Map<string,AISnapshot>):AIEntry{
  const d=s.detail,e=d.entry,order=s.metadata?.component_order??[];
  if((d.lexical_annotations??[]).some(r=>r.kind!=='relation_hint'))throw Error('資料仍含已淘汰的字形註釋；請完成資料庫遷移後重新匯出，不會靜默省略。');
- const content=(kind:string)=> (kind==='etymology'?d.etymologies:d.learning_notes.filter(n=>n.kind===kind)).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,...(kind==='etymology'?{data_source:'verification_note' in r?r.verification_note:''}:{})}));
+ const content=(kind:string)=> (kind==='etymology'?d.etymologies:d.learning_notes.filter(n=>n.kind===kind)).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,...(kind==='etymology'?{data_source:'data_source' in r?r.data_source:''}:{})}));
  return {id:e.id,revision:e.revision,type:e.kind,headword:e.headword,
  ...(e.kind==='word'?{...(d.senses.length===1?{classification:d.senses[0]?.part_of_speech??null}:{})}: {grouping:e.kind==='prefix'?{tags:s.grouping?.tags??[],variant_group:s.grouping?.variant_group??null}:s.grouping??emptyGrouping()}),
  meanings:d.senses.map(r=>({id:r.id,zh_tw:r.gloss_zh_tw,...(e.kind==='word'?{classification:r.part_of_speech}:e.kind==='prefix'?{grouping:{primary_category:s.sense_groups[r.id]??null}}:{})})),
@@ -141,9 +141,9 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
  for(const [field,table,kind] of [['etymology','dictionary_etymologies',null],['learning_decomposition','dictionary_learning_notes','learning_decomposition'],['story','dictionary_learning_notes','mnemonic_scenario']] as const){
   checkMissing(input[field],before?.[field]??[],field);
   for(const item of input[field]??[]){const old=item.id?(field==='etymology'?current?.detail.etymologies:current?.detail.learning_notes.filter(n=>n.kind===kind))?.find(r=>r.id===item.id):null;if(item.id&&!old)throw Error(`${field} id 不屬於此內容區`);
-   const id=item.id?map(item.id):makeID(),rows=bundle[table],r=rows.find(r=>r.id===id)??{id,entry_id:target,sense_id:ownSense(newScope(item)),...(kind?{kind}:{verification:'pending',verification_note:''})};
-   if(item.text!==undefined&&item.text!==r.body){r.body=item.text;if(!kind){r.verification='pending';}}
-   if(!kind&&item.data_source!==undefined&&item.data_source!==r.verification_note){r.verification_note=item.data_source;r.verification='pending';}
+   const id=item.id?map(item.id):makeID(),rows=bundle[table],r=rows.find(r=>r.id===id)??{id,entry_id:target,sense_id:ownSense(newScope(item)),...(kind?{kind}:{data_source:''})};
+   if(item.text!==undefined&&item.text!==r.body){r.body=item.text;}
+   if(!kind&&item.data_source!==undefined&&item.data_source!==r.data_source){r.data_source=item.data_source;}
    if(item.meaning_id!==undefined)r.sense_id=ownSense(item.meaning_id);if(!rows.includes(r))rows.push(r);
   }
  }

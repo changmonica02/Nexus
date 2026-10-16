@@ -50,7 +50,7 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
       let value=pair[2];if(value.startsWith('"')){value=JSON.parse(value);if(typeof value!=='string')throw new Error('欄位須為文字');}
       meta[pair[1]]=value;
     }
-    const allowed=['id','entry_id','sense_id','kind','verification','verification_note','data_source'];
+    const allowed=['id','entry_id','sense_id','kind','data_source'];
     if('citation' in meta||'license' in meta||'source_id' in meta)throw new Error('citation / license / source_id 已淘汰，請移除這些欄位');
     if(Object.keys(meta).some(k=>!allowed.includes(k)))throw new Error('未知 Markdown 欄位，請保留原檔並人工確認');
     for(const key of ['id','entry_id','kind'])required(meta,key);
@@ -58,12 +58,9 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
     if(!['historical_etymology','learning_decomposition','mnemonic_scenario'].includes(meta.kind))throw new Error('未知內容種類');
     const record={id:meta.id,entry_id:meta.entry_id,sense_id:meta.sense_id||null,body:match[2]};
     if(meta.kind==='historical_etymology') {
-      const verification=meta.verification||'unverified';
-      if(!['unverified','pending','verified','disputed'].includes(verification))throw new Error('未知查證狀態');
-      if(verification==='verified'&&!(meta.data_source??meta.verification_note)?.trim())throw new Error('已查證詞源必須填寫查證說明');
-      bundle.dictionary_etymologies.push({...record,verification,verification_note:meta.data_source??meta.verification_note??''});
+      bundle.dictionary_etymologies.push({...record,data_source:meta.data_source??''});
     }else{
-      if(meta.verification||meta.verification_note||meta.data_source)throw new Error('記憶／構詞聯想不可標記成歷史查證');
+      if(meta.data_source)throw new Error('記憶／構詞聯想不可標記成歷史查證');
       bundle.dictionary_learning_notes.push({...record,kind:meta.kind});
     }
   }
@@ -81,8 +78,8 @@ export function parseJSONBundle(raw:string):Bundle {
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision']},
-    dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','relation_kind','verification','verification_note','revision']},
-    dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','verification','verification_note','revision']},
+    dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','relation_kind','revision']},
+    dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
   };
   const bundle:Bundle={};let count=0;
@@ -107,12 +104,11 @@ export function parseJSONBundle(raw:string):Bundle {
         else if(key!=='raw_text'&&(schema.required.includes(key)||key==='part_of_speech')&&!text.trim())fail(`缺少 ${key}`);
       }
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
-      const enums:Record<string,string[]>={verification:['unverified','pending','verified','disputed'],relation_kind:['historical_etymology','learning_decomposition']};
+      const enums:Record<string,string[]>={relation_kind:['historical_etymology','learning_decomposition']};
       if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root'];
       if(table==='dictionary_learning_notes')enums.kind=['learning_decomposition','mnemonic_scenario'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
-      if(table!=='dictionary_relations'&&row.verification==='verified'&&!String(row.verification_note??'').trim())fail('已查證內容必須填寫查證說明');
       count++;return row;
     });
   }

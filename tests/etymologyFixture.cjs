@@ -14,8 +14,8 @@ module.exports=()=>{
   categories:[{id:'test-category',label:'測試分類',source_id:'test-source'}],
   entry_categories:[{entry_id:'test-prefix',category_id:'test-category'},{entry_id:'test-root',category_id:'test-category'}],
   words:[{id:'test-word',lemma:'TEST-WORD',definition:'測試用字，並非真實詞源資料',source_id:'test-source'}],
-  word_senses:[{word_id:'test-word',entry_id:'test-prefix',sense_id:'sense-two',relation_kind:'learning_decomposition',verification:'pending',verification_note:'',source_id:'test-source'},
-   {word_id:'test-word',entry_id:'test-root',sense_id:'sense-root',relation_kind:'historical_etymology',verification:'unverified',verification_note:'',source_id:'test-source'}],
-  claims:['unverified','pending','verified','disputed'].map((verification,i)=>({id:`claim-${i}`,entry_id:'test-prefix',sense_id:null,word_id:null,kind:'historical_scene',body:`合成場景 ${i}`,verification,verification_note:verification==='verified'?'合成測試用查證說明':'',review_note:'測試審核資訊',source_id:'test-source'})),
+  word_senses:[{word_id:'test-word',entry_id:'test-prefix',sense_id:'sense-two',relation_kind:'learning_decomposition',data_source:'',source_id:'test-source'},
+   {word_id:'test-word',entry_id:'test-root',sense_id:'sense-root',relation_kind:'historical_etymology',data_source:'',source_id:'test-source'}],
+  claims:[0,1,2,3].map((i)=>({id:`claim-${i}`,entry_id:'test-prefix',sense_id:null,word_id:null,kind:'historical_scene',body:`合成場景 ${i}`,data_source:i===2?'合成來源說明':'',review_note:'測試審核資訊',source_id:'test-source'})),
  };
 };

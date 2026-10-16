@@ -11,14 +11,15 @@ test('CSV/Markdown validation preserves original text, stable IDs and history se
   await assert.rejects(parseDictionaryImport(csv.replace(id(12),id(11)),'csv'),/重複/);
   await assert.rejects(parseDictionaryImport(csv.replace(',verb,',',,'),'csv'),/part_of_speech/);
   assert.throws(()=>parseCSV(csv+'"'),/引號/);
-  const md=`---\nid: ${id(20)}\nentry_id: ${id(10)}\nsense_id: ${id(11)}\nkind: historical_etymology\nverification: pending\n---\n## 未查證測試\n原始正文\n`;
+  const md=`---\nid: ${id(20)}\nentry_id: ${id(10)}\nsense_id: ${id(11)}\nkind: historical_etymology\ndata_source: https://example.test/source\n---\n## 未查證測試\n原始正文\n`;
   const doc=await parseDictionaryImport(md,'md');assert.equal(doc.dictionary_etymologies[0].body,'## 未查證測試\n原始正文\n');assert.equal(doc.dictionary_sources,undefined);
-  await assert.rejects(parseDictionaryImport(md.replace('pending','verified'),'md'),/查證說明/);
-  await assert.rejects(parseDictionaryImport(md.replace('pending','fake'),'md'),/未知查證/);
+  assert.equal(doc.dictionary_etymologies[0].data_source,'https://example.test/source');
+  assert.equal('verification' in doc.dictionary_etymologies[0],false);
+  await assert.rejects(parseDictionaryImport(md.replace('data_source: https://example.test/source','verification: pending'),'md'),/未知|不支援/);
   await assert.rejects(parseDictionaryImport(md.replace('historical_etymology','mnemonic_scenario'),'md'),/不可標記/);
-  const memory=await parseDictionaryImport(md.replace('historical_etymology','mnemonic_scenario').replace('verification: pending\n',''),'md');
+  const memory=await parseDictionaryImport(md.replace('historical_etymology','mnemonic_scenario').replace('data_source: https://example.test/source\n',''),'md');
   assert.equal(memory.dictionary_etymologies.length,0);assert.equal(memory.dictionary_learning_notes.length,1);
-  await assert.rejects(parseDictionaryImport(md.replace('verification: pending','verification: pending\nverification: pending'),'md'),/重複欄位/);
+  await assert.rejects(parseDictionaryImport(md.replace('data_source: https://example.test/source','data_source: a\ndata_source: b'),'md'),/重複欄位/);
 });
 test('admin bundle: preview rollback, atomic import, replay/conflict, revisions, RLS and audit rollback',async()=>{
   const pg=new PGlite();

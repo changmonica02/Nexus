@@ -44,18 +44,18 @@ const addButton='min-h-11 rounded px-2 py-1 text-sm hover:bg-zinc-500/10 disable
 const labels={word:'單字',prefix:'字首',root:'字根'};
 type Row=Record<string,unknown>;
 function Field({label,value,onChange,multiline=false,placeholder,compact=false}:{label:string;value:unknown;onChange:(v:string)=>void;multiline?:boolean;placeholder?:string;compact?:boolean}) {
-  return <label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{label}</span>{multiline?<textarea className={control} rows={4} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
+  return <label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{label}</span>{multiline?<textarea aria-label={label} className={control} rows={4} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input aria-label={label} className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
 }
 
 function clean(row:object):Row { const result={...row} as Row;for(const key of ['updated_at','published_at','status','source_id'])delete result[key];return result; }
 export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technical?:boolean}) {
   return <div className="space-y-4" aria-label="字典預覽">{Object.entries(bundle).map(([table,rows])=><section key={table}>
-    <h3 className="font-semibold">{{dictionary_entries:'詞條',dictionary_inflections:'詞形變化',dictionary_pronunciations:'讀音',dictionary_senses:'義項',dictionary_relations:'義項構詞關聯',dictionary_etymologies:'歷史詞源（以查證狀態為準）',dictionary_learning_notes:'學習拆解／記憶情境（不是歷史事實）'}[table]??table}</h3>
+    <h3 className="font-semibold">{{dictionary_entries:'詞條',dictionary_inflections:'詞形變化',dictionary_pronunciations:'讀音',dictionary_senses:'義項',dictionary_relations:'義項構詞關聯',dictionary_etymologies:'歷史詞源',dictionary_learning_notes:'學習拆解／記憶情境（不是歷史事實）'}[table]??table}</h3>
     {rows.map(row=><article key={String(row.id)} className="my-2 space-y-2 whitespace-pre-wrap break-words rounded border p-3 text-sm">
       {<>
         {!!row.kind&&<p>類型：{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??'義項關聯')}</p>
         {!!row.part_of_speech&&<p>分類：{String(row.part_of_speech)}</p>}
-        {table!=='dictionary_relations'&&!!row.verification&&<p>查證：{String(row.verification)} {String(row.verification_note??'')}</p>}
+        {table==='dictionary_etymologies'&&!!row.data_source&&<p>資料來源：{String(row.data_source)}</p>}
         {technical&&!!row.target_sense_id&&<p>目標義項：{String(row.target_sense_id)}</p>}
         {row.kind==='mnemonic_scenario'&&<p>記憶情境，不是歷史事實</p>}
       </>}
@@ -195,12 +195,12 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
         <Field label="排序" value={row.sort_order} onChange={v=>change('dictionary_pronunciations',i,'sort_order',Number(v))}/>
       </div>)}</section>
       {([{table:'dictionary_etymologies',title:'歷史詞源',kind:null},{table:'dictionary_learning_notes',title:'口訣',kind:'learning_decomposition'},{table:'dictionary_learning_notes',title:'記憶故事',kind:'mnemonic_scenario'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button className={addButton} onClick={()=>add(table,kind?{sense_id:newContentSense(),body:'',kind}:{sense_id:newContentSense(),body:'',verification:'unverified',verification_note:''})} aria-label={`新增${title}`}>＋新增</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button className={addButton} onClick={()=>add(table,kind?{sense_id:newContentSense(),body:'',kind}:{sense_id:newContentSense(),body:'',data_source:''})} aria-label={`新增${title}`}>＋新增</button></div>
         {bundle[table].map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)} className="space-y-2 border-t border-[var(--color-border)] py-3">
           <div className="flex justify-end"><button type="button" aria-label={`刪除${title}`} className="rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100" onClick={()=>void removeContent(table,row,title)}><FeatureIcon feature="delete" size={16}/></button></div>
           {contentSense(table,i,row)}
-          <Field label="完整內容" multiline value={row.body} onChange={v=>{change(table,i,'body',v);if(!kind)change(table,i,'verification','pending');}}/>
-          {!kind&&<Field label="資料來源" multiline value={row.verification_note} onChange={v=>{change(table,i,'verification_note',v);change(table,i,'verification','pending');}}/>}
+          <Field label="完整內容" multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
+          {!kind&&<Field label="資料來源" multiline value={row.data_source} onChange={v=>change(table,i,'data_source',v)}/>}
         </div>)}
       </section>)}
       {([{table:'dictionary_examples',title:'例詞',kind:null},{table:'dictionary_lexical_annotations',title:'待解析構詞提示',kind:'relation_hint'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2"><h3 className="font-semibold">{title}</h3>{(bundle[table]??[]).map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)}><button type="button" className={button} onClick={()=>void removeContent(table,row,title)} aria-label={`刪除${title}`}><FeatureIcon feature="delete" size={16}/></button>{contentSense(table,i,row)}<Field label={title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/><Field label="排序" value={row.sort_order} onChange={v=>change(table,i,'sort_order',Number(v))}/></div>)}<button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',sort_order:(bundle[table]??[]).length,...(kind?{kind}:{})})} aria-label={`新增${title}`}>＋新增</button></section>)}

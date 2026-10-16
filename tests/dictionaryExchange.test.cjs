@@ -109,8 +109,7 @@ test(
           id: id(27),
           sense_id: null,
           body: "歷史詞源",
-          verification: "verified",
-          verification_note: "可追溯依據",
+          data_source: "可追溯依據",
         },
       ];
       word.learning_notes = [

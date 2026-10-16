@@ -31,7 +31,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     }
     d.senses.push({id:sense_id,part_of_speech:r.part_of_speech||null,gloss_zh_tw:r.gloss_zh_tw,row,...(kind==='prefix'?{category:r.category}:{})});
     for(const [field,list,extra] of [
-      ['etymology',d.etymologies,{verification:'pending',verification_note:''}],
+      ['etymology',d.etymologies,{data_source:''}],
       ['example_words',d.examples,{sort_order:0}],
       ['relation_hint',d.relation_hints,{kind:'relation_hint',sort_order:0}],
       ['mnemonic_story',d.learning_notes,{kind:'mnemonic_scenario'}],

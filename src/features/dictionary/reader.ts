@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DictionaryDetail, DictionaryEntry, DictionaryKind } from './dictionary';
 type Client=Pick<SupabaseClient,'rpc'>;
 export interface DictionaryPage { items: (Pick<DictionaryEntry,'id'|'kind'|'headword'>&{inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]})[]; has_more:boolean; page:number; total?:number }
-type PublicRow<T> = Omit<T,'revision'|'updated_at'|'verification_note'>;
+type PublicRow<T> = Omit<T,'revision'|'updated_at'>;
 export interface PublishedDetail {
   inflections?:PublicRow<NonNullable<DictionaryDetail['inflections']>[number]>[];
   pronunciations?:PublicRow<NonNullable<DictionaryDetail['pronunciations']>[number]>[];

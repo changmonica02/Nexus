@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSupabase } from "../../infrastructure/supabase/client";
-import { claimLabel, entryHref, kindLabel, loadCatalog, searchEntries, verificationLabel, wordHref, type Catalog, type Claim, type Family } from "./catalog";
+import { claimLabel, entryHref, kindLabel, loadCatalog, searchEntries, wordHref, type Catalog, type Claim, type Family } from "./catalog";
 
 const panel = "mb-4 rounded-xl border p-4";
 const border = { borderColor: "var(--color-border)" };
@@ -18,11 +18,10 @@ function SourceNote({ catalog, id }: { catalog: Catalog; id: string }) {
 
 function Claims({ catalog, claims }: { catalog: Catalog; claims: Claim[] }) {
   return <>{claims.map(claim=><section key={claim.id} className={panel} style={border}>
-    <h3 className="font-semibold">{claimLabel(claim.kind,claim.verification)}</h3>
-    <p className="mt-1 text-xs opacity-65">{verificationLabel[claim.verification]} · {claim.id}</p>
+    <h3 className="font-semibold">{claimLabel(claim.kind)}</h3>
     <p className="mt-3 whitespace-pre-wrap break-words">{claim.body}</p>
-    {claim.verification_note&&<p className="mt-2 whitespace-pre-wrap text-sm">查證說明：{claim.verification_note}</p>}
-    {claim.review_note&&<p className="mt-2 whitespace-pre-wrap text-sm">待審核資訊：{claim.review_note}</p>}
+    {claim.data_source&&<p className="mt-2 whitespace-pre-wrap text-sm">資料來源：{claim.data_source}</p>}
+    {claim.review_note&&<p className="mt-2 whitespace-pre-wrap text-sm">補充說明：{claim.review_note}</p>}
     <SourceNote catalog={catalog} id={claim.source_id}/>
   </section>)}</>;
 }
@@ -45,8 +44,8 @@ export function EtymologyContent({ catalog, path = [] }: { catalog: Catalog; pat
         const sense=catalog.senses.find(sense=>sense.id===link.sense_id)!;
         return <section key={`${link.sense_id}-${link.relation_kind}`} className={panel} style={border}>
           <Link className="underline" href={`${entryHref(entry)}#${encodeURIComponent(`sense-${sense.id}`)}`}>{entry.label} — {sense.gloss}</Link>
-          <p className="text-sm">{kindLabel[entry.kind]} · {claimLabel(link.relation_kind,link.verification)} · {verificationLabel[link.verification]}</p>
-          {link.verification_note&&<p className="whitespace-pre-wrap text-sm">查證說明：{link.verification_note}</p>}
+          <p className="text-sm">{kindLabel[entry.kind]} · {claimLabel(link.relation_kind)}</p>
+          {link.data_source&&<p className="whitespace-pre-wrap text-sm">資料來源：{link.data_source}</p>}
           <SourceNote catalog={catalog} id={link.source_id}/>
         </section>;
       })}
@@ -74,7 +73,7 @@ export function EtymologyContent({ catalog, path = [] }: { catalog: Catalog; pat
         <ul className="space-y-2">{catalog.word_senses.filter(link=>link.sense_id===sense.id).map(link=>{
           const word=catalog.words.find(word=>word.id===link.word_id)!;
           return <li key={`${link.word_id}-${link.relation_kind}`}><Link href={wordHref(word)} className="underline">{word.lemma}</Link>
-            <span className="ml-2 text-xs opacity-70">{claimLabel(link.relation_kind,link.verification)} · {verificationLabel[link.verification]}</span></li>;
+            <span className="ml-2 text-xs opacity-70">{claimLabel(link.relation_kind)}</span></li>;
         })}</ul>
         <SourceNote catalog={catalog} id={sense.source_id}/>
       </section>)}
@@ -127,7 +126,7 @@ export default function EtymologyBrowser({path}: {path: string[]}) {
       <nav aria-label="字源百科導覽" className="mb-6 flex flex-wrap gap-4 border-b pb-4" style={border}>
         <Link href="/">← Nexus</Link><Link href="/etymology/prefixes">字首</Link><Link href="/etymology/roots">字根</Link><Link href="/etymology/words">衍生單字</Link>
       </nav>
-      <p className="mb-5 text-sm opacity-65">字源百科 · 學習拆解與記憶故事不等同詞源史實；未查證的歷史場景標為「記憶情境」。字根原文保留，不表示均已核對。</p>
+      <p className="mb-5 text-sm opacity-65">字源百科 · 學習拆解與記憶故事不等同詞源史實。字根原文保留，不表示均已核對。</p>
       {!client?<p>未設定資料服務，百科目前無法讀取。</p>:owner===undefined?<p role="status">正在確認帳號…</p>:!owner?<p>請回到 Nexus 使用既有帳號登入，再開啟百科。</p>:current?.catalog?<EtymologyContent key={JSON.stringify(path)} path={path} catalog={current.catalog}/>:current?.error?<div role="alert"><p>{current.error}</p><button className="mt-3 rounded border px-3 py-2" onClick={()=>{setResult(null);setRetry(value=>value+1);}}>重試</button></div>:<p role="status">正在讀取百科…</p>}
     </div>
   </main>;

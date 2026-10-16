@@ -19,7 +19,6 @@ import {DictionaryConnections} from './DictionaryConnections';
 import {browseHref,dictionaryReturn,entryHref} from './browseRelations';
 const box='rounded-xl border p-4';
 const kinds={word:'單字',prefix:'字首',root:'字根'};
-const verification={unverified:'未查證',pending:'待審核',verified:'已查證',disputed:'有爭議'};
 function DetailSection({title,children,accordion=false}:{title:string;children:ReactNode;accordion?:boolean}){return accordion?<details className={`${box} min-w-0`}><summary className="cursor-pointer font-semibold">{title}</summary><div className="mt-3 min-w-0 space-y-3 [overflow-wrap:anywhere]">{children}</div></details>:<section className={box}><h2 className="mb-3 text-lg font-semibold">{title}</h2>{children}</section>;}
 export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,accordion=false}:{data:PublishedDetail;from?:string;accordion?:boolean}){
   const sections=[...data.senses.map(s=>({id:s.id,title:s.gloss_zh_tw,pos:s.part_of_speech})),{id:null,title:'詞條共用',pos:null}];
@@ -39,7 +38,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
         {!!pronunciations.length&&section('讀音',pronunciations.map(p=><div key={p.id}><p>{p.locale&&<span className="mr-2 text-sm">{p.locale}</span>}{p.ipa}</p>{p.note&&<p className="whitespace-pre-wrap text-sm">{p.note}</p>}</div>))}
         {!!relations.length&&section('構詞',relations.map(r=>{const target=data.related.find(t=>t.sense_id===r.target_sense_id);return <div key={r.id}>{target?<><Link className="underline" href={entryHref(target.id,from,target.sense_id)}>{target.headword} · {kinds[target.kind]} · {target.gloss_zh_tw}</Link><Link className="ml-2 text-sm underline" href={browseHref('word',{component:target.id,sense:target.sense_id},from)}>查看使用 {target.headword} 的單字</Link></>:<p>相關詞條尚未提供。</p>}</div>;}))}
         {!!forms.length&&section('詞形變化',<dl className="grid gap-2 sm:grid-cols-2">{forms.map(f=><div key={f.id}><dt className="inline">{inflectionLabels[f.form_kind]}：</dt><dd className="inline">{f.form}</dd></div>)}</dl>)}
-        {!!histories.length&&section('歷史詞源',histories.map(h=><div key={h.id}><p className="text-sm">{verification[h.verification]}{h.verification!=='verified'?'（不是已確認的詞源事實）':''}</p><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：{h.data_source}</p>}</div>))}
+        {!!histories.length&&section('歷史詞源',histories.map(h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：{h.data_source}</p>}</div>))}
         {!!examples.length&&section('例詞',[...examples].sort((a,b)=>a.sort_order-b.sort_order).map(x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>))}
         {!!annotations.length&&section('待解析構詞提示',annotations.map(x=><div key={x.id}><h4 className="text-sm">待解析構詞提示（尚非確認關聯）</h4><p className="whitespace-pre-wrap">{x.body}</p></div>))}
         {([{kind:'learning_decomposition',title:'口訣'},{kind:'mnemonic_scenario',title:'記憶故事'}] as const).map(({kind,title})=>notes.some(n=>n.kind===kind)&&<div key={kind}>{section(title,<div aria-label={kind==='mnemonic_scenario'?'記憶情境':title}>{notes.filter(n=>n.kind===kind).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</div>)}</div>)}

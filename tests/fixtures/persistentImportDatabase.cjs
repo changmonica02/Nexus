@@ -2,8 +2,8 @@ require("../loadStudy.cjs");
 const base = require("./dictionaryExchangeDatabase.cjs"),
   fs = require("node:fs");
 const migration = "20261015020759_dictionary_persistent_import_review.sql";
-async function database() {
-  const db = await base.database();
+async function database(options) {
+  const db = await base.database(options);
   await db.exec("reset role");
   await db.exec(fs.readFileSync("supabase/migrations/" + migration, "utf8"));
   await db.exec("set role authenticated");

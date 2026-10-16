@@ -2,7 +2,6 @@ import {applyBundle} from './adminImport';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DictionaryKind = "word" | "prefix" | "root";
-export type DictionaryVerification = "unverified" | "pending" | "verified" | "disputed";
 export interface DictionaryEntry {
   id: string;
   kind: DictionaryKind;
@@ -30,8 +29,7 @@ export interface DictionaryRelation extends ContentRow {
 export interface DictionaryEtymology extends ContentRow {
   sense_id: string | null;
   body: string;
-  verification: DictionaryVerification;
-  verification_note: string;
+  data_source: string;
 }
 export interface DictionaryLearningNote extends ContentRow {
   sense_id: string | null;
