@@ -76,6 +76,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
 }
 const strip=(r:Record<string,unknown>)=>Object.fromEntries(Object.entries(r).filter(([k])=>!['updated_at','published_at','status','row','category'].includes(k)));
 export function draftsFromBundle(bundle:Bundle,grouping?:DictionaryGrouping,senseGroups:Record<string,string|null>={}):DictionaryDraftInput[]{
+  if(bundle.dictionary_lexical_annotations?.some(r=>r.kind!=='relation_hint'))throw Error('舊字形註釋已淘汰；請備份原檔並移除舊欄位後重新比對，不會自動轉成詞形。');
   return (bundle.dictionary_entries??[]).map(e=>{
     const rows=(table:string)=>(bundle[table]??[]).filter(r=>r.entry_id===e.id).map(r=>strip(r) as DraftRow);
     return {kind:e.kind as DictionaryKind,entry_id:String(e.id),headword:String(e.headword),...(e.revision!==undefined?{revision:Number(e.revision)}:{}),

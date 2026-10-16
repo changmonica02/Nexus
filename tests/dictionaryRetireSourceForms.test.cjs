@@ -50,6 +50,8 @@ test(
         [id(10), JSON.stringify(snapshot)],
       );
       const item = {
+      raw_candidate:{source_forms:["original archive"]},
+      operation:{operation_id:id(50),candidate:{annotations:[{kind:"source_forms",body:"original request"}]}},
         draft: { ...d, lexical_annotations: [{ id: id(20), body: "old raw" }] },
         status: "pending",
         issues: [
@@ -106,6 +108,8 @@ test(
         [id(30)],
       );
       assert.equal(pending.pending_count, 1);
+    assert.deepEqual(pending.item.raw_candidate,item.raw_candidate);
+    assert.deepEqual(pending.item.operation,item.operation);
       assert.equal(pending.item.status, "stale");
       assert.equal(pending.item.issues[0].selectedAction, "keep");
       await pg.exec("begin");
