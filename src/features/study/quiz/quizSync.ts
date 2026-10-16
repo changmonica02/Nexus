@@ -1,3 +1,4 @@
+/** Legacy compatibility only; not imported by product entry points. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QuizRepository, QuizState } from "./quizPersistence";
 

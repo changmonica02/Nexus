@@ -1,7 +1,7 @@
 import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
-import { QUIZ_STORES } from "../../features/study/quiz/quizPersistence";
+import { QUIZ_STORES } from "../../features/study/legacyQuiz";
 import { StudyRepository, STUDY_STORES } from "../../features/study/StudyRepository";
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";

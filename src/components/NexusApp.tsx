@@ -55,7 +55,6 @@ import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
 import {deleteOfficialPack,packDeleteMessage} from "../features/study/officialPacks";
 import DictionaryAddRequest from '../features/dictionary/DictionaryAddRequest';
 import StudySetView from "../features/study/components/StudySetView";
-import QuizOfflinePrompt from "../features/study/quiz/QuizOfflinePrompt";
 import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
@@ -1731,14 +1730,12 @@ function NexusAppInner({
     return <AccountButton required />;
   }
 
-  const quizRepository=storageRef.current?.getStudyRepository().getQuizRepository();
   return (
     <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
     <WorkspaceNavigationProvider open={()=>{setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
       <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
-      {quizRepository&&<QuizOfflinePrompt key={accountEmail} repository={quizRepository}/>}
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
       <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
       <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />

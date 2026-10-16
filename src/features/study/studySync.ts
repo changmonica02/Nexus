@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncQuiz } from "./quiz/quizSync";
 import type { StudyRepository, StudyChange } from "./StudyRepository";
 import type { StudyBackup, StudyOperation } from "./studyFSRS";
 
@@ -60,8 +59,6 @@ async function runStudySync(repository:StudyRepository,client:SupabaseClient,own
   data.cards=unique(data.cards);data.states=unique(data.states);data.events=unique(data.events);data.settings=unique(data.settings);
   if(stillActive()&&changes.length)await repository.mergeRemote(data,changes);
   }
-  const quiz=repository.getQuizRepository();
-  if(quiz && stillActive())await syncQuiz(quiz,client,owner,stillActive);
   if(staleDecision)throw new Error('排程自選擇後已變更，已保留全部事件並同步最新資料，請重新確認。');
 }
 

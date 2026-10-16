@@ -1,7 +1,6 @@
 import {defaultStudyStyle,defaultStyleId,validateStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
-import { QuizRepository, QUIZ_STORES } from "./quiz/quizPersistence";
 import {cleanState, reliableEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
 import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
@@ -16,11 +15,6 @@ const newId = () => crypto.randomUUID();
 
 /** Durable, account-scoped study operations. No React/debounce/page save dependency. */
 export class StudyRepository {
-  private quizRepository?: QuizRepository;
-  getQuizRepository(): QuizRepository | null {
-    if (!QUIZ_STORES.every(name=>this.db.objectStoreNames.contains(name))) return null;
-    return this.quizRepository ??= new QuizRepository(this.db,this.owner);
-  }
   constructor(private db: IDBPDatabase, private owner: () => string | null, private device: string) {}
   private owned(value: { owner_id: string | null } | undefined) {
     if (!value || value.owner_id !== this.owner()) throw new Error("字卡不存在或不屬於目前帳號。");
