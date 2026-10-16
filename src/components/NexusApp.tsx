@@ -591,7 +591,7 @@ function NexusAppInner({
       character_data: snapshotCharacterTemplate(data), content_json: emptyNovelDocument(), content_text: "",
       default_mode: "note", created_at: now, updated_at: now, deleted_at: null, revision: 1,
       device_id: await storage.getDeviceId(), workspace_owner_id: source.workspace_owner_id,
-      attachment_ids: [...(source.attachment_ids || [])],
+      attachment_ids: [],
     };
     await storage.savePage(template);
     setPages((prev) => [template, ...prev]);
@@ -930,7 +930,7 @@ function NexusAppInner({
       patchPage(p.id, {
         creative_type: "character",
         character_data: initialData,
-        attachment_ids: [...(customTemplate?.attachment_ids || [])],
+        attachment_ids: [],
       });
     }
 
@@ -1253,7 +1253,7 @@ function NexusAppInner({
       title: `${source.title || "Untitled"} copy`,
       tags: [...(source.tags || [])],
       folder: source.folder ?? null,
-      attachment_ids: [...(source.attachment_ids || [])],
+      attachment_ids: [],
       primary_attachment_id: source.primary_attachment_id ?? null,
       parent_id: source.parent_id ?? null,
       kind: source.kind ?? "note",
@@ -1269,7 +1269,7 @@ function NexusAppInner({
       color:source.color,
       ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
-      character_data: source.character_data ? structuredClone(source.character_data) : undefined,
+      character_data: source.character_data ? (source.character_data.isTemplate ? snapshotCharacterTemplate(source.character_data) : structuredClone(source.character_data)) : undefined,
       study_items: source.kind === "study_set" ? [] : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),

@@ -28,6 +28,18 @@ export default function CreativeView({
   const [choice, setChoice] = useState(false),
     [character, setCharacter] = useState(false),
     [manager, setManager] = useState(false);
+  if (manager) return (
+          <CharacterTemplateManager
+            templates={templates}
+            onClose={() => setManager(false)}
+            onCreate={onCreateTemplate}
+            onEdit={onSelectPage}
+            onRename={onRenameTemplate}
+            onDelete={(id) => actions.onDeletePage?.(id)}
+            onUse={onCreateCharacter}
+            onCopy={(id)=>actions.onDuplicatePage?.(id)}
+          />
+  );
   return (
     <main
       data-pull-refresh
@@ -97,17 +109,7 @@ export default function CreativeView({
             onClose={() => setCharacter(false)}
           />
         )}
-        {manager && (
-          <CharacterTemplateManager
-            templates={templates}
-            onClose={() => setManager(false)}
-            onCreate={onCreateTemplate}
-            onEdit={onSelectPage}
-            onRename={onRenameTemplate}
-            onDelete={(id) => actions.onDeletePage?.(id)}
-            onUse={onCreateCharacter}
-          />
-        )}
+
       </div>
     </main>
   );
