@@ -501,6 +501,14 @@ function NexusAppInner({
     try { await operation; }
     finally { if (activeSavesRef.current.get(latestPage.id) === operation) activeSavesRef.current.delete(latestPage.id); }
   }, [storageRef]);
+  const commitCharacterData = useCallback(async (page: Page, data: CharacterProfileData) => {
+    const storage=storageRef.current;if(!storage)throw new Error("Storage unavailable");
+    const current=pendingSavesRef.current.get(page.id)??await storage.getPage(page.id)??page;
+    const next={...current,character_data:data,title:data.isTemplate?current.title:data.basic.name||current.title};
+    pendingSavesRef.current.set(page.id,next);
+    await flushSave(next);
+    const persisted=await storage.getPage(page.id);if(persisted)setPages(previous=>previous.map(item=>item.id===page.id?persisted:item));
+  },[flushSave,storageRef]);
   const flushAllSaves = useCallback(async () => {
     do {
       const pending = [...pendingSavesRef.current.values()];
@@ -1981,6 +1989,7 @@ function NexusAppInner({
               activePage.creative_type === "character" || !!activePage.character_data ? (
                 <CharacterProfileView
                   key={activePage.id}
+                  onCommitCharacterData={data=>commitCharacterData(activePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
                   page={activePage}
                   worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
@@ -2060,6 +2069,7 @@ function NexusAppInner({
               secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
                 <CharacterProfileView
                   key={secondaryActivePage.id}
+                  onCommitCharacterData={data=>commitCharacterData(secondaryActivePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(secondaryActivePage, name, data)}
                   page={secondaryActivePage}
                   worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
@@ -2132,6 +2142,7 @@ function NexusAppInner({
         activePage.creative_type === "character" || !!activePage.character_data ? (
           <CharacterProfileView
             key={activePage.id}
+                  onCommitCharacterData={data=>commitCharacterData(activePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
                   page={activePage}
             worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}

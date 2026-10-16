@@ -558,3 +558,10 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - `useDictionaryAdminAccess` 抽出原 DictionaryAdmin 的 auth generation／owner／RPC 管理權限檢查，管理頁與 CardDictionaryPanel 共用。字卡翻面後且面板展開、有有效連結與 Published detail 才顯示編輯入口；一般使用者與未連結卡不顯示。所有實際寫入仍由原字典 RPC 驗權／CAS，無新權限或 SQL。
 - 完整 DictionaryWorkspace 按需 lazy 載入於 DictionaryModal，保留 PR A 詞性／中文列、PublishedWorkspace、Review Draft、儲存／人工發布及原 useUnsavedDraft。關閉／Esc／遮罩走 navigateDictionary，失敗或取消保留編輯。浮窗專用 onCommitted 在成功儲存／發布後返回原卡，管理頁未傳回呼時仍留在原編輯器；關閉後只重讀 published detail，不把草稿或公開更新寫入私人 Front／Back。
 - ScheduledStudySession 以穩定編輯回呼同步鎖住 mark 與評分按鈕、暫停 study-changed／到期 timer 的背景讀取；原 Session／卡／翻面與 panel 展開保留。沒有新增評分／intro／FSRS 事件。native dialog 管理焦點與背景不可操作。
+
+### 2026-10-16｜角色卡區塊工作區（第五輪 D，已實作）
+
+- `CharacterBlockWorkspace` 是角色卡預設預覽；沿用 `CharacterContentEditor` 的既有組件欄位渲染，世界觀維持原流程。扳手開啟共用 FloatingPanel，遮罩／Escape／儲存均等待 durable commit；失敗保留視窗及輸入。基本資料固定頂部五欄，可刪除／重新加入，不可拖曳縮放。
+- `characterBlocks` 提供純函式正規化、移動、排序、尺寸與 ID 驗證。舊頂層組件包成區塊，巢狀區塊展平且保留原始 `legacyCharacterSnapshot`；舊基本資料額外欄位移至可見「原基本資料」，原值及附件 metadata 不刪除。正規化在實際儲存前不寫入。
+- 現有 `pages.character_data` JSON 增量加入 `blocks_version`、`basicBlock`、組件 `size`；無 Migration。12／8／4 格限制最多三／二／一欄，不改文字大小；長按跨區塊移動、區塊排序暫時隱藏內容，另有鍵盤可達的移動／尺寸控制。空白區塊保留。
+- NexusApp 透過既有 WorkspacePersistence 的 page＋outbox 原子交易提交，保留最新附件及 pending edits；交易失敗不宣告成功。已驗證 IndexedDB 寫入中止、重試、備份及 owner 同步相容。自動化瀏覽器不代表真實 iPad Safari 驗收。私人模板與資源庫仍由後續 E–G 完成。
