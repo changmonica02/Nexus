@@ -1,5 +1,7 @@
 "use client";
+import {officialPrivateCardsAvailable} from '../officialPacks';
 import {SidebarToggle} from "../../../components/WorkspaceNavigation";
+import {confirmDialog} from '../../../lib/confirmDialog';
 import {dueAt} from '../scheduledStudy';
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -55,8 +57,8 @@ function parseCsvLine(line: string, delimiter: string): string[] {
 
 /* ============ Card Management ============ */
 
-export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard, onImportCsv, readOnly=false, official=false }: {
-  readOnly?:boolean; official?:boolean;
+export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard, onImportCsv, readOnly=false, official=false, allowOfficialDelete=false }: {
+  readOnly?:boolean; official?:boolean; allowOfficialDelete?:boolean;
   studyItems: StudyCard[]; onAddCard: () => void; onEditCard: (card: StudyCard) => void;
   onDeleteCard: (id: string) => void; onImportCsv: () => void;
 }) {
@@ -85,7 +87,7 @@ export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard
             <td className="px-3 py-1"><span className="block truncate" title={item.front}>{item.front}</span></td>
             <td className="px-3 py-1"><div className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 flex-1 truncate" title={item.back}>{item.back}</span>
-              {!readOnly&&!official&&<button type="button" aria-label={`${t("studySet.deleteCard")} ${item.front}`} title={t("studySet.deleteCard")}
+              {!readOnly&&(!official||allowOfficialDelete)&&<button type="button" aria-label={`${t("studySet.deleteCard")} ${item.front}`} title={t("studySet.deleteCard")}
                 onClick={event => { event.stopPropagation(); onDeleteCard(item.id); }}
                 className="h-8 w-8 shrink-0 rounded opacity-50 hover:bg-red-100 hover:text-red-700 hover:opacity-100">×</button>}
             </div></td>
@@ -192,6 +194,9 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
   const [historyEvents,setHistoryEvents]=useState<import("../studyFSRS").StudyEvent[]>([]);
   const [planningAt,setPlanningAt]=useState(()=>Date.now());
   const [snapshot,setSnapshot]=useState<StudySnapshot|null>(null);
+  const [privateOfficialStatus,setPrivateOfficialStatus]=useState<{pack:string;available:boolean}|null>(null);
+  const privateOfficialEditing=privateOfficialStatus?.pack===page.official_pack_id&&privateOfficialStatus?.available===true;
+  useEffect(()=>{let active=true;const client=getSupabase(),pack=page.official_pack_id;if(pack&&client)void officialPrivateCardsAvailable(client).then(available=>{if(active)setPrivateOfficialStatus({pack,available});});return()=>{active=false;};},[page.official_pack_id]);
   const [mode,setMode]=useState<"manage"|"scheduled"|"history">("manage");
   const [showCsvImport,setShowCsvImport]=useState(false);
   const [showLinkSuggestions,setShowLinkSuggestions]=useState(false);
@@ -245,7 +250,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
         <p className="mb-3 text-xs leading-6 opacity-70">{t("study.preferencesHint")}</p>
         {snapshot.states.filter(state=>state.conflict).map(state=><ScheduleConflict key={state.id} repository={repository} state={state} label={cards.find(card=>card.id===state.id)?.front??'字卡'}/>)}
         {!page.official_pack_id&&<button className="mb-3 rounded border px-3 py-2 text-sm" onClick={()=>setShowLinkSuggestions(true)}>建議字典連結</button>}
-        <CardManageList official={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(()=>repository.updateCard(id,{deleted_at:Date.now()}))} onImportCsv={()=>setShowCsvImport(true)}/>
+        <CardManageList allowOfficialDelete={privateOfficialEditing} official={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(async()=>{if(await confirmDialog('刪除這張私人字卡？字典詞條與其他學習集不受影響。'))await repository.updateCard(id,{deleted_at:Date.now()});})} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
       {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
       {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">{t("study.history")}</h2><p className="mb-3 text-xs opacity-60">{t("study.historyHint")}</p>
@@ -256,7 +261,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
     </div>
     {showLinkSuggestions&&<StudyLinkSuggestions cards={cards} onClose={()=>setShowLinkSuggestions(false)} onEdit={card=>{setShowLinkSuggestions(false);setEditingCard(card);}} onLink={async(card,id)=>{const client=getSupabase();if(!client)throw Error('請先登入');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,card.id,id);await repository.updateCard(card.id,{dictionary_entry_id:id});refresh.current();}}/>}
     {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}
-    {editingCard&&<StudyCardEditor key={editingCard.id??"new"} card={editingCard} fixedEntryId={page.official_pack_id?cards.find(c=>c.id===editingCard.id)?.dictionary_entry_id:undefined}
+    {editingCard&&<StudyCardEditor key={editingCard.id??"new"} card={editingCard} officialSource={!!page.official_pack_id} lockDictionaryLink={!!page.official_pack_id&&!privateOfficialEditing}
       requiresScheduleChoice={!!editingCard.id&&hasLearningData(snapshot.states.find(state=>state.id===editingCard.id),snapshot.sessions)}
       onSave={saveCard} onClose={()=>setEditingCard(null)} onCopy={()=>setEditingCard({front:editingCard.front,back:editingCard.back})}/>}
   </main>;
