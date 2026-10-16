@@ -1,5 +1,5 @@
 "use client";
-import {observeDictionaryInvalidation} from './dictionaryInvalidation';
+import {invalidateDictionary,observeDictionaryInvalidation} from './dictionaryInvalidation';
 import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import EditorSection from "./EditorSection";
 import FeatureIcon from "../../components/FeatureIcon";
@@ -26,7 +26,7 @@ import {AIImport} from './DictionaryAI';
 import {DictionaryModal} from './DictionaryModal';
 import {emptyGrouping,primaryCategories,prefixCategories,readGrouping,readSenseGroups,type DictionaryGrouping,type SenseGroupMap} from './grouping';
 import { getSupabase } from '../../infrastructure/supabase/client';
-import { getDictionaryEntry, type DictionaryDetail, type DictionaryEntry, type DictionarySense } from './dictionary';
+import { getDictionaryEntry, publishDictionaryEntry, type DictionaryDetail, type DictionaryEntry, type DictionarySense } from './dictionary';
 import {dictionaryCSVExample,dictionaryCSVHeaders} from './dictionaryCSV';
 import {draftsFromBundle,saveDictionaryDraft,previewDictionaryDraft,validateDictionaryDraft,DraftValidationError} from './draftPipeline';
 import {type Bundle} from './adminImport';
@@ -63,7 +63,7 @@ export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technic
     </article>)}
   </section>)}</div>;
 }
-export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onDeleted?:()=>void;onPublish?:()=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
+export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
   const {t}=usePaginationLanguage();
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:(detail.pronunciations??[]).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
@@ -140,7 +140,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
     <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b bg-[var(--color-bg)] py-2">
       <h2 className="min-w-0 flex-1 truncate font-semibold">{headword||'新增詞條'} <span className="ml-2 text-xs font-normal opacity-60">{labels[detail.entry.kind]} · {locked?'最新版本':dirty?'未儲存':detail.entry.status==='published'?'已發布':'草稿'}</span></h2>
       <button type="button" className={`${button} shrink-0`} disabled={busy||publicationBusy||locked||!dirty} onClick={()=>void save()}>{busy?'儲存中…':'儲存'}</button>
-      {onPublish&&<button type="button" className={button} disabled={busy||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage('尚有未儲存變更，請先儲存後再發布。');return;}void onPublish();}}>{publicationBusy?'處理中…':'發布'}</button>}
+      {onPublish&&<button type="button" className={button} disabled={busy||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage('尚有未儲存變更，請先儲存後再發布。');return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?'處理中…':'發布'}</button>}
     </header>
     {navigation.pending&&<DictionaryModal title="離開編輯" onClose={navigation.cancel} busy={busy||publicationBusy}><p>有尚未儲存的修改。</p><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||publicationBusy} onClick={()=>void navigation.saveAndLeave()}>儲存變更</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.discard}>放棄變更</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.cancel}>繼續編輯</button></div></DictionaryModal>}
     {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
@@ -300,8 +300,18 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
   const visible=entries;
 
+  const publishDraft=(expectedRevision=detail?.entry.revision)=>action(async()=>{
+    if(!detail||detail.entry.status!=='draft'||detail.entry.revision<1||reviewDraft)return;
+    if(!await confirmDialog({title:'發布詞條',message:`我已完成「${detail.entry.headword}」的內容與構詞依據查證，確認發布已儲存的草稿。`,confirmLabel:'發布'}))return;
+    const current=await getDictionaryEntry(getSupabase()!,detail.entry.id);
+    if(!current||current.entry.status!=='draft'||current.entry.revision!==expectedRevision)throw Error('草稿版本已變更，請先備份目前內容並重新載入後比對；本次未發布。');
+    await publishDictionaryEntry(getSupabase()!,detail.entry.id);
+    invalidateDictionary();
+    await refresh(detail.entry.id);
+    onCommitted?.();
+  });
   if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh} onCommitted={onCommitted}/></>;
-  if(detail)return <><PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/></>;
+  if(detail)return <>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}<PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onPublish={reviewDraft?undefined:publishDraft} canPublish={detail.entry.revision>0&&!reviewDraft} publicationBusy={busy} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/></>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
     {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
