@@ -4,7 +4,7 @@
 
 ## 2026-10-16｜今日交付整理與內容審核狀態退場
 
-- **最新產品決策**：所有位置移除逐筆內容的審核／查證狀態欄位，不只隱藏「待審核」。保留詞源、資料來源、Stable ID、版本歷史與發布／權限保護；本次實作與正式 Migration 結果於交付時補齊，不將進行中寫成已部署。
+- **最新產品決策**：所有位置移除逐筆內容的審核／查證狀態欄位，不只隱藏「待審核」。保留詞源、資料來源、Stable ID、版本歷史與發布／權限保護；PR #78 完成前端、型別、交換與舊字源依賴移除，詞源來源改名 data_source。正式 SQL 已套用（ledger 20261016150215）；public verification 欄位 3→0，來源／詞源／關聯逐列差異皆 0，Entry 6,304／Sense 11,524／詞源 68／active Review 925／匯入工作 28 保留。2 份受影響 Review 僅遷移欄位並增加 revision，未重匯或發布內容。129/129 字典字源、49/49 學習同步、5/5 隔離瀏覽器組與 TypeScript／Build 通過；ESLint 0 errors／456 既有 warnings。前端合併／Vercel 結果由 PR #78 記錄，實機驗收留 #60。
 - **PR #77 已合併並部署**：補回 Word／Prefix／Root 一般草稿的發布按鈕，保留先儲存、人工查證、錯誤／版本檢查、成功重讀與清單失效；main `ccf51914ef656e11c66559449bcae234a046c116`。23/23 單元／整合、2/2 隔離瀏覽器組、TypeScript／Build 通過，ESLint 0 errors／456 既有 warnings，無正式字典內容寫入。
 - **PR #76 已合併並部署**：學習字典詳情 Modal、save／discard Review RPC 參數修復、舊 source_forms 功能退場；main `aed48a1a67f03d6177eee9837b02bd8cc828943b`。正式 ledger `20261016072304 dictionary_retire_source_forms` 已套用，舊註釋 6,199→0；13 組指紋、Entry 6,301／Sense 11,518／結構化詞形 7,135／有效提示 67／active Review 927／匯入工作 28 保留，回復副本受限。5 組隔離瀏覽器、相關 SQL／學習同步回歸與 TypeScript／Build 通過。
 - **今天第五輪 A–G**：PR #69～#75 已合併，涵蓋 Word 義項緊湊列、官方下載私人字卡與來源識別、學習中管理員編輯、角色區塊／組件、純結構私人模板、創作資源庫及同來源安全更新。逐項技術與測試見下方當時紀錄。

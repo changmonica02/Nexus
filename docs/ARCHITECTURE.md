@@ -3,7 +3,7 @@
 > 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 管理 UI／單筆刪除與 PR #61 常駐審核均已合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
-## 2026-10-16：逐筆內容審核狀態退場（已實作／隔離測試，正式套用另見 HANDOFF）
+## 2026-10-16：逐筆內容審核狀態退場（PR #78，程式／隔離測試完成、SQL 正式已套用）
 
 - DictionaryEtymology／閱讀／編輯／AI／CSV／Markdown／JSON 交換不再含 verification；詞源來源改用 data_source。舊字源入口同樣改為內容種類與來源，不依狀態決定顯示分類；集中版權說明不再要求審核標示。
 - 20261016060000_dictionary_retire_verification_state.sql 實體移除 dictionary_sources、dictionary_relations、dictionary_etymologies.verification，詞源 verification_note 改名 data_source。未刪來源、內文、ID、結構化詞形、Sense、關聯、公開版本或學習紀錄。若歷史私人字源表存在，一併退場同欄位。

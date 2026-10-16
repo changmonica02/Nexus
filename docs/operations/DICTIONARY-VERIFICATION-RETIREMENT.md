@@ -31,3 +31,7 @@ dictionary_verification_backup 保存受影響完整原始列、active Review／
 ## 驗證證據
 
 測試覆蓋實體欄位退場、來源／ID／內容保存、交易回滾、active Review CAS、人工發布、非管理員拒絕、private backup／cleaner 存取拒絕、常駐決策／operation／原始候選保留及舊私人字源表相容性。隔離 Chromium 覆蓋桌面／平板／手機尺寸；實際 iPad Safari 與正式帳號仍由使用者驗收（Issue #60）。
+
+## 2026-10-16 正式執行結果
+
+ledger 20261016150215 dictionary_retire_verification_state，一次套用成功。public verification 欄位 3→0；來源／關聯／詞源對 private backup 扣除目標欄位後逐列差異均為 0。Entry 6,304、Sense 11,524、詞源 68、active Review 925、常駐工作 28 保留，沒有遺失 Review／工作 ID。2 份 active Review 遷移並遞增版本，常駐工作沒有需修改的舊欄位（0 份）。RLS／3 個既有函式 ACL 與 definer 屬性維持原狀；app 無 backup schema／cleaner 權限。Security advisors 與套用前相同（7 INFO、43 既有 SECURITY DEFINER 提醒、1 既有密碼保護提醒），未新增問題。沒有字典內容匯入／發布、私人卡片或學習資料寫入。前端部署由 PR #78 追蹤。
