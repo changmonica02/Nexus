@@ -533,3 +533,11 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - `dictionaryInvalidation` 只發出無內容的失效通知：同頁 CustomEvent、其他分頁 storage、focus／pageshow／visibilitychange 合併為一次重新取數。localStorage 不可用時仍支援本頁與頁面生命週期。
 - `DictionaryBulkPublish` 的正常／恢復工作共用 finally 通知；即使部分發布後暫停、網路錯誤或本機 checkpoint 失敗也重新讀取，不假設整批未寫入。原批次進度、確認與結果報告不變。
 - 管理頁沿用 `usePagedList.retry` 與 `listAdminWork`，整體重取詞條、三色、精確總數、統計。保留搜尋／篩選／頁碼；僅總數縮減時 clamp。舊請求 cleanup 不可覆蓋新回應；active Review Draft 仍由伺服器決定黃色，沒有前端強制轉綠。無 SQL／RPC／schema 變更。
+
+### 2026-10-16 首頁整列工具列與顯示分組
+
+- Dashboard 不再掛載 NewPageDialog／首頁 PDF 入口／獨立最近編輯刷新。其他 FeatureOverview 的建立視窗、匯入與附件不變；共用 CollectionControls 的單項方向切換、保持浮窗及 version 2 排序偏好不變。
+- 左側分類 select 與選取按鈕使用不可拆行的 flex 控制群；右側檢視／排序整組依可用寬度換行。容器使用響應式 padding，320px 起無水平溢出。
+- `dashboardGroups` 純函式從既有頂層、未刪除頁面建立 none／folder／feature 顯示群組，搜尋標題與文字並沿用置頂及原排序。創作／小說沿用 isNovelPage，計數／抽選歸 tools，不改實體 kind／folder／Stable ID。單一 renderItems 保留列表／卡片及項目選單。
+- `useDashboardGrouping` 使用 device-local `nexus-dashboard-grouping`，無設定或無效值預設 none；useSyncExternalStore 提供 SSR 與 storage 相容，儲存失敗時保留當次操作。原資料夾欄位不遷移、不重寫；原 view／sort 儲存鍵不變。folder／feature 使用各自原生 details，預設全收合，獨立操作；切換分類保留選取集合。
+- 自動化涵蓋 320／390／768／820／1180／1440px Chromium、英繁語系、分類與選取同排、展開／排序／持久化及原工作區回歸。此為隔離測試，非實體 iPad Safari 驗收。

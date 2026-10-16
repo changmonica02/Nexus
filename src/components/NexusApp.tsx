@@ -48,7 +48,7 @@ import ToolsOverview from "./ToolsOverview";
 import FeatureIcon from "./FeatureIcon";
 import TrashPage from "./TrashPage";
 import Sidebar, { type SortMode } from "./Sidebar";
-import { createEmptyPresentation, noteToPresentation } from "../lib/presentation";
+import { noteToPresentation } from "../lib/presentation";
 import EditorPane from "./EditorPane";
 import RightPanel from "./RightPanel";
 import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
@@ -805,22 +805,6 @@ function NexusAppInner({
   const handleCreateStudySet = useCallback(async () => {
     await createAndOpenPage({ title: "Untitled Study Set", kind: "study_set" });
   }, [createAndOpenPage]);
-
-  const handleCreatePresentation = useCallback(async (format: PageFormat = "16:9") => {
-    if (!storageRef.current) return;
-    if (activePageRef.current) await flushSave(activePageRef.current);
-    const emptyData = createEmptyPresentation("Untitled Presentation");
-    const created = await storageRef.current.createPage({ title: "Untitled Presentation", kind: "presentation", format });
-    const pageToSave = { ...created, presentation_data: emptyData, updated_at: Date.now(), revision: created.revision + 1 };
-    await storageRef.current.savePage(pageToSave);
-    setIsTrashMode(false);
-    setIsHomeMode(false);
-    setPages((prev) => [pageToSave, ...prev]);
-    setActivePageId(pageToSave.id);
-    await storageRef.current.setActivePageId(pageToSave.id);
-    syncEngineRef.current?.pushPage(pageToSave);
-    return pageToSave;
-  }, [createAndOpenPage, flushSave]);
 
   const handleUpdatePresentation = useCallback((data: any) => {
     if (activePageId) patchPage(activePageId, { presentation_data: data });
@@ -1851,7 +1835,7 @@ function NexusAppInner({
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
-        <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onCreatePage={handleCreatePage} onCreateDocument={handleCreateDocument} onCreateStudySet={handleCreateStudySet} onImportPdf={handleImportPdfClick} onCreatePresentation={handleCreatePresentation} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} onRefresh={reloadWorkspace} />
+        <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
