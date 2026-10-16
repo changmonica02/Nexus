@@ -1,4 +1,5 @@
 "use client";
+import {observeDictionaryInvalidation} from './dictionaryInvalidation';
 import EditorSection from "./EditorSection";
 import FeatureIcon from "../../components/FeatureIcon";
 import {SidebarToggle} from "../../components/WorkspaceNavigation";
@@ -290,6 +291,9 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
     if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false};
     return {...await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p}),page:p};
   },p=>{setPage(p);});
+  const revalidate=useRef(listing.retry);
+  useEffect(()=>{revalidate.current=listing.retry;});
+  useEffect(()=>{if(entryId||newKind)return;return observeDictionaryInvalidation(()=>revalidate.current());},[entryId,newKind]);
   const entries=listing.data?.items??[],loading=listing.loading;
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
@@ -301,7 +305,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   return <div className="space-y-5">
     {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
     <div className="flex flex-wrap items-center justify-between gap-3"><DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/><div className="flex flex-wrap items-center gap-2">{listing.data?.workAvailable&&<button className={button} onClick={()=>setReviewTarget('*')}>{t('persistent.openQueue')}</button>}
-     <DictionaryBulkPublish disabled={busy||loading} onPublished={async()=>{await refresh();}}/></div></div>
+     <DictionaryBulkPublish disabled={busy||loading}/></div></div>
      {loading&&<p role="status">{t('common.loading')}</p>}
     {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
 

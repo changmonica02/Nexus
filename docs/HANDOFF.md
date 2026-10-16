@@ -4,8 +4,10 @@
 
 ## 本輪：第四輪 UI（#34／#45）
 
-- Quiz：已移除產品掛載、Repository factory、正式同步串接及背景重試／計數；保留舊三個 store、佇列、歷史 RPC／migration 與離線安全測試。不做資料刪除或正式 SQL。首頁與字典刷新尚待本輪後續 PR。
+- Quiz：已移除產品掛載、Repository factory、正式同步串接及背景重試／計數；保留舊三個 store、佇列、歷史 RPC／migration 與離線安全測試。不做資料刪除或正式 SQL。首頁尚待本輪後續 PR。
 - Quiz PR：77/77 單元／整合、1/1 正式學習瀏覽器組通過；TypeScript／Build 通過，ESLint 0 errors／459 既有 warnings。真實 iPad／Safari 的舊 Quiz 提示消失與正式學習操作仍由 #60 人工驗收。
+
+- 字典：批次發布／恢復、返回／焦點與跨分頁後重取完整管理清單、精確分頁及審核統計，保留條件與 active Review Draft；無 Migration／正式資料操作。38/38 相關單元／整合、3/3 瀏覽器組（含刷新／跨分頁專用組）及 TypeScript／Build 通過；ESLint 0 errors／459 既有 warnings。
 
 ## 前輪：PR #65 已合併（#34）
 

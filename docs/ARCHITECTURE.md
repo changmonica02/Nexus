@@ -527,3 +527,9 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 本輪沒有SQL／RPC／RLS／備份或同步格式變更，無Migration與正式資料操作。Chromium尺寸／本機SQL測試不等於真實iPad Safari或正式帳號人工驗收，留#60。
 
 驗證：119/119相關單元／整合（保留前輪114項，新增5項本輪契約），6/6隔離Chromium組通過。最後自訂順序無障礙修正後重跑34項UI回歸與工作區四尺寸組通過；TypeScript／Production Build通過、ESLint 0 errors／464既有warnings。垃圾桶／詞條／排序的真實iPad Safari與正式帳號驗收仍留#60，沒有執行正式SQL或字典資料操作。
+
+### 2026-10-16 字典發布後的管理清單重新驗證
+
+- `dictionaryInvalidation` 只發出無內容的失效通知：同頁 CustomEvent、其他分頁 storage、focus／pageshow／visibilitychange 合併為一次重新取數。localStorage 不可用時仍支援本頁與頁面生命週期。
+- `DictionaryBulkPublish` 的正常／恢復工作共用 finally 通知；即使部分發布後暫停、網路錯誤或本機 checkpoint 失敗也重新讀取，不假設整批未寫入。原批次進度、確認與結果報告不變。
+- 管理頁沿用 `usePagedList.retry` 與 `listAdminWork`，整體重取詞條、三色、精確總數、統計。保留搜尋／篩選／頁碼；僅總數縮減時 clamp。舊請求 cleanup 不可覆蓋新回應；active Review Draft 仍由伺服器決定黃色，沒有前端強制轉綠。無 SQL／RPC／schema 變更。
