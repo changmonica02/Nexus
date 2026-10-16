@@ -65,7 +65,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(source.includes("modal==='import'&&<DictionaryModal"));
   assert.ok(source.includes("modal==='new'&&<DictionaryModal"));
   assert.ok(source.includes('download="dictionary_master_v1.csv"'));
-  assert.ok(source.includes("session?.user.id===ownerRef.current"));
+  assert.ok(fs.readFileSync('src/features/dictionary/useDictionaryAdminAccess.ts','utf8').includes("session?.user.id===ownerRef.current"));
   assert.ok(!source.includes('本次修訂'));
 });
 test('dictionary modal is bounded, scrollable and cancels through the guarded close handler',()=>{
