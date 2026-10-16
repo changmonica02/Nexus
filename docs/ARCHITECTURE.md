@@ -572,3 +572,10 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - `snapshotCharacterTemplate` 改為結構白名單，僅保留節點名稱／ID／類型、欄位定義、順序與尺寸；清空所有內容值及相簿／附件，不傳播 `example`、`basicExamples`、legacy snapshot、來源或個人資料。既有來源角色不修改；舊模板在使用／複製／編輯時套用安全邊界，無批次清除。
 - `instantiateCharacterTemplate` 產生新區塊／組件／分頁 ID，保留 `template_node_id` 對應及 `templateBinding.sourceId/baseline`（純結構），供後續同來源更新；不同實例互不共用可寫物件。模板與新角色的 attachment_ids 為空。
 - 模板沿用區塊移動／尺寸／新增刪除，`CharacterTemplateStructureEditor` 只暴露結構名稱與欄位，不提供角色內容輸入。650ms debounce 自動儲存使用既有 Workspace 原子交易；失敗停止自動重試、保留輸入並可手動重試，遮罩關閉仍等待成功。無 Migration，公開資源庫及安全更新尚在後續 F／G。
+
+### 2026-10-16｜創作模板資源庫（第五輪 F，已實作／正式 SQL 待授權）
+
+- `features/creation/templateLibrary` 封裝 owner／capability、精確總數 24 筆分頁與搜尋分類、20 筆版本頁及既有 Supabase client；`CreationTemplateLibrary` 提供獨立於學習集的角色卡／世界觀資源庫、投稿、私人草稿、明確發布、歷史預覽／衍生、檢舉及作者／管理員操作。固定連結使用 `/?creation-template=<穩定投稿 UUID>`，登入後進入同一資源庫。私人與公開預覽共用 `TemplateStructurePreview`。
+- 新 Migration ledger：`20261016040000_creation_template_library.sql` **僅已編寫與隔離測試，正式未套用**。新增 creation_templates／drafts／versions／downloads／reports 五表及 RLS；public capability 和 invoker mutate wrapper，privileged mutate 留在 non-exposed `nexus_private`。無既有表／FSRS／字典內容修改。來源授權首次發布重查並凍結快照；immutable 版本、草稿 CAS、首次保存／發布重試及同 owner 下載 receipt 保護。
+- `installCreationTemplate` 以 server receipt 固定 page ID 寫入既有 owner Workspace transaction；失敗整筆回滾，重試同 ID，檢查帳號、來源及 Tombstone。下載來源保存在既有 character_data JSON 的 `resourceSource`，不新增未同步的頂層 Page 欄位；私人修改／複製及實例保留來源追溯，公開 sanitizer 排除私人 metadata。共用樣式／字典／學習資料不修改。
+- 私人模板 `TemplateResourceStatus` 只查詢可用更新，不自動套用；使用者在資源庫確認後更新同一私人模板。已建立角色仍保持原狀，安全套用屬後續 G。缺少 capability 或離線安全停用新資源庫，原私人管理仍可使用。完整部署、RLS 與非破壞回復說明見 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。

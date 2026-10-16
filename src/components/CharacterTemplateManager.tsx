@@ -1,25 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useWorkspaceDialog } from "./WorkspaceDialog";
-import type { Page, CharacterSection } from "../lib/types";
+import type { Page } from "../lib/types";
 import { snapshotCharacterTemplate } from "../lib/characterWorkspace";
+import TemplateStructurePreview from "./TemplateStructurePreview";
+import TemplateResourceStatus from "./TemplateResourceStatus";
 import FloatingPanel from "./FloatingPanel";
 import PageItemMenu from "./PageItemMenu";
 import { SidebarToggle } from "./WorkspaceNavigation";
-function Structure({ sections }: { sections: CharacterSection[] }) {
-  return (
-    <ul className="space-y-2 border-l pl-3">
-      {sections.map((s) => (
-        <li key={s.id}>
-          <span>
-            {s.title} <small className="opacity-60">{s.type}</small>
-          </span>
-          {s.contents && <Structure sections={s.contents} />}
-        </li>
-      ))}
-    </ul>
-  );
-}
 export default function CharacterTemplateManager({
   templates,
   onClose,
@@ -28,6 +16,7 @@ export default function CharacterTemplateManager({
   onDelete,
   onUse,
   onCopy,
+  onOpenResource,
 }: {
   templates: Page[];
   onClose: () => void;
@@ -37,6 +26,7 @@ export default function CharacterTemplateManager({
   onDelete: (id: string) => void;
   onUse: (id: string) => void;
   onCopy: (id: string) => void;
+  onOpenResource?: (id:string)=>void;
 }) {
   const { askText, askConfirm, dialog } = useWorkspaceDialog();
   const [preview, setPreview] = useState<Page | null>(null);
@@ -118,6 +108,7 @@ export default function CharacterTemplateManager({
                   ]}
                 />
               </div>
+              {template.character_data?.resourceSource && onOpenResource && <TemplateResourceStatus source={template.character_data.resourceSource} onOpen={onOpenResource}/>}
               <button
                 className="mt-3 text-sm text-blue-600"
                 onClick={() => onUse(template.id)}
@@ -134,13 +125,7 @@ export default function CharacterTemplateManager({
           label={`預覽 ${preview.title}`}
           onClose={() => setPreview(null)}
         >
-          <Structure sections={clean.sections} />
-          {clean.tabs?.map((tab) => (
-            <section key={tab.id}>
-              <h2>{tab.title}</h2>
-              <Structure sections={tab.sections} />
-            </section>
-          ))}
+          <TemplateStructurePreview data={clean}/>
         </FloatingPanel>
       )}
     </main>

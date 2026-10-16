@@ -62,6 +62,8 @@ export class IndexedDBAdapter implements StorageAdapter {
   // cached pages or attachments.
   private workspaceOwnerId: ID | null = null;
 
+  getWorkspaceOwner(): ID | null { return this.workspaceOwnerId; }
+
   setWorkspaceOwner(ownerId: ID | null): void {
     this.workspaceOwnerId = ownerId;
   }

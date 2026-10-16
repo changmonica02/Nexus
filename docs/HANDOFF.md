@@ -8,8 +8,9 @@
 - PR B #70 已合併，已實作官方來源／私人連結分離，增量 SQL `20261016030000_official_private_card_identity.sql` 未套用正式環境；capability 缺少時保留既有功能。隔離驗證與交付狀態見 PR。
 - PR C #71 已合併，已實作展開字典後的管理員完整編輯浮窗、未儲存保護與 Session 評分鎖，無新 SQL；交付驗證見 PR。
 - PR D #72 已合併：角色卡預覽／五欄基本資料、長按移動排序、尺寸、浮窗耐久儲存及舊資料快照已實作，驗證與交付見 PR。無新 SQL。
-- PR E：私人模板結構白名單、獨立管理頁及結構自動儲存已實作，無新 SQL；驗證／交付見 PR。
-- 接續：投稿資源庫 → 同來源模板安全更新；未開發項不得視為已完成。
+- PR E #73 已合併：私人模板結構白名單、獨立管理頁及結構自動儲存已實作，無新 SQL；驗證／交付見 PR。
+- PR F：創作模板資源庫、公開／私人版本、RLS／RPC 與同 ID 下載已實作；新 SQL `20261016040000_creation_template_library.sql` 正式未套用，capability 缺少時停用新資源庫。部署順序見 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。
+- 接續 G：同來源模板安全更新；未交付前不得視為已完成。
 - 正式 Supabase Migration／資料寫入未授權；新能力須以 capability 安全隔離，SQL 先隔離驗證、待授權套用。
 
 ## 前輪 UI（#34／#45）

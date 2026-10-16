@@ -10,6 +10,7 @@ export interface StorageAdapter {
   getStudyRepository(): StudyRepository;
   getWorkspacePersistence(): WorkspacePersistence;
   /** Selects the local workspace visible through list/create operations. */
+  getWorkspaceOwner?(): ID | null;
   setWorkspaceOwner?(ownerId: ID | null): void;
   /** One-time migration of the legacy anonymous workspace after explicit authorization. */
   claimAnonymousWorkspace?(ownerId: ID): Promise<void>;
