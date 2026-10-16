@@ -1,5 +1,10 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
+import CharacterTemplateManager from "../../src/components/CharacterTemplateManager";
+import {
+  snapshotCharacterTemplate,
+  instantiateCharacterTemplate,
+} from "../../src/lib/characterWorkspace";
 import CharacterProfileView from "../../src/components/CharacterProfileView";
 import { IndexedDBAdapter } from "../../src/infrastructure/storage/IndexedDBAdapter";
 import ConfirmDialogHost from "../../src/components/ConfirmDialog";
@@ -66,9 +71,62 @@ if (!page) {
   };
   await storage.savePage(page);
 }
+if (new URLSearchParams(location.search).has("template")) {
+  page = {
+    ...page,
+    character_data: { ...page.character_data, isTemplate: true },
+  };
+}
 window.characterStorage = storage;
 window.failSave = false;
 window.commits = 0;
+function Manager() {
+  const [items, setItems] = useState([
+    {
+      ...page,
+      title: "私人模板",
+      character_data: snapshotCharacterTemplate(page.character_data),
+    },
+  ]);
+  window.instances = [];
+  return (
+    <CharacterTemplateManager
+      templates={items}
+      onClose={() => {}}
+      onCreate={() => {}}
+      onEdit={() => {}}
+      onRename={async (id, title) => {
+        const next = items.map((p) => (p.id === id ? { ...p, title } : p));
+        await storage.savePage(next.find((p) => p.id === id));
+        setItems(next);
+      }}
+      onCopy={async (id) => {
+        const source = items.find((p) => p.id === id),
+          next = {
+            ...source,
+            id: "copy-" + Date.now(),
+            title: source.title + " copy",
+            character_data: snapshotCharacterTemplate(source.character_data),
+          };
+        await storage.savePage(next);
+        setItems([...items, next]);
+      }}
+      onDelete={async (id) => {
+        const p = items.find((p) => p.id === id);
+        await storage.deletePage(p.id);
+        setItems(items.filter((p) => p.id !== id));
+      }}
+      onUse={(id) =>
+        window.instances.push(
+          instantiateCharacterTemplate(
+            items.find((p) => p.id === id).character_data,
+            id,
+          ),
+        )
+      }
+    />
+  );
+}
 function App() {
   const [current, setCurrent] = useState(page);
   return (
@@ -97,4 +155,6 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  new URLSearchParams(location.search).has("manager") ? <Manager /> : <App />,
+);

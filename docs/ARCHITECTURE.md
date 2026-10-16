@@ -565,3 +565,10 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - `characterBlocks` 提供純函式正規化、移動、排序、尺寸與 ID 驗證。舊頂層組件包成區塊，巢狀區塊展平且保留原始 `legacyCharacterSnapshot`；舊基本資料額外欄位移至可見「原基本資料」，原值及附件 metadata 不刪除。正規化在實際儲存前不寫入。
 - 現有 `pages.character_data` JSON 增量加入 `blocks_version`、`basicBlock`、組件 `size`；無 Migration。12／8／4 格限制最多三／二／一欄，不改文字大小；長按跨區塊移動、區塊排序暫時隱藏內容，另有鍵盤可達的移動／尺寸控制。空白區塊保留。
 - NexusApp 透過既有 WorkspacePersistence 的 page＋outbox 原子交易提交，保留最新附件及 pending edits；交易失敗不宣告成功。已驗證 IndexedDB 寫入中止、重試、備份及 owner 同步相容。自動化瀏覽器不代表真實 iPad Safari 驗收。私人模板與資源庫仍由後續 E–G 完成。
+
+### 2026-10-16｜私人角色卡模板（第五輪 E，已實作）
+
+- 沿用 owner-scoped creative pages 的 `character_data.isTemplate`，模板管理為創作內獨立全頁工作區，支援結構預覽、改名、複製、軟刪除及建立角色；未新增平行模板 store 或資料表。新模板由既有角色的更多選單產生。
+- `snapshotCharacterTemplate` 改為結構白名單，僅保留節點名稱／ID／類型、欄位定義、順序與尺寸；清空所有內容值及相簿／附件，不傳播 `example`、`basicExamples`、legacy snapshot、來源或個人資料。既有來源角色不修改；舊模板在使用／複製／編輯時套用安全邊界，無批次清除。
+- `instantiateCharacterTemplate` 產生新區塊／組件／分頁 ID，保留 `template_node_id` 對應及 `templateBinding.sourceId/baseline`（純結構），供後續同來源更新；不同實例互不共用可寫物件。模板與新角色的 attachment_ids 為空。
+- 模板沿用區塊移動／尺寸／新增刪除，`CharacterTemplateStructureEditor` 只暴露結構名稱與欄位，不提供角色內容輸入。650ms debounce 自動儲存使用既有 Workspace 原子交易；失敗停止自動重試、保留輸入並可手動重試，遮罩關閉仍等待成功。無 Migration，公開資源庫及安全更新尚在後續 F／G。

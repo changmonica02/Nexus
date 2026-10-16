@@ -255,6 +255,7 @@ export interface CharacterExternalLink { label: string; url: string; }
 export interface CharacterSection {
   size?: { span: number; height?: number };
   legacy_id?: string;
+  template_node_id?: string;
   id: string;
   type: CharacterComponentType;
   title: string;
@@ -280,6 +281,7 @@ export interface CharacterSection {
 }
 
 export interface CharacterPageTab {
+  template_node_id?: string;
   id: ID;
   title: string;
   sections: CharacterSection[];
@@ -289,6 +291,7 @@ export interface CharacterProfileData {
   blocks_version?: 1;
   basicBlock?: { id: string; enabled: boolean };
   legacyCharacterSnapshot?: unknown;
+  templateBinding?: { sourceId: string; baseline: CharacterProfileData };
   isTemplate?: boolean;
   templateSourceId?: ID;
   basicExamples?: Partial<CharacterProfileData["basic"]>;

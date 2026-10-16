@@ -24,6 +24,8 @@ import {
   newCharacterComponent,
   validateCharacterBlocks,
 } from "../lib/characterBlocks";
+import CharacterTemplateStructureEditor from "./CharacterTemplateStructureEditor";
+import { snapshotCharacterTemplate } from "../lib/characterWorkspace";
 import { createBlankTemplate } from "../lib/characterTemplates";
 import { confirmDialog } from "../lib/confirmDialog";
 import { SidebarToggle } from "./WorkspaceNavigation";
@@ -78,7 +80,9 @@ export default function CharacterBlockWorkspace({
   const normalized = useMemo(
     () =>
       normalizeCharacterBlocks(
-        page.character_data ?? createBlankTemplate(),
+        page.character_data?.isTemplate
+          ? snapshotCharacterTemplate(page.character_data)
+          : (page.character_data ?? createBlankTemplate()),
         page.id,
       ),
     [page.character_data, page.id],
@@ -132,6 +136,7 @@ export default function CharacterBlockWorkspace({
     setBusy(true);
     setError("");
     try {
+      if (data.isTemplate) next = snapshotCharacterTemplate(next);
       validateCharacterBlocks(next);
       setPreview(next);
       await onCommit(next);
@@ -326,7 +331,7 @@ export default function CharacterBlockWorkspace({
       ]?.id,
     });
   };
-  const saveEditor = async () => {
+  const saveEditor = async (close = true) => {
     if (!editing || busy) return;
     let next = data;
     try {
@@ -367,11 +372,43 @@ export default function CharacterBlockWorkspace({
           tab,
         );
       }
-      if (await persist(next)) setEditing(null);
+      if (data.isTemplate) next = snapshotCharacterTemplate(next);
+      if (await persist(next)) {
+        if (close) setEditing(null);
+        else {
+          const savedValue =
+            editing.kind === "basic"
+              ? next.basic
+              : characterBlocks(next, tab)
+                  .flatMap((b) => b.contents ?? [])
+                  .find((c) => c.id === editing.value.id)!;
+          setEditing(
+            (current) =>
+              current &&
+              ({
+                ...current,
+                value: savedValue,
+                baseline: JSON.stringify(savedValue),
+                ...(current.kind === "component" ? { isNew: false } : {}),
+              } as ComponentEdit | BasicEdit),
+          );
+        }
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
   };
+  const autoSaveRef = useRef(saveEditor);
+  useEffect(() => {
+    autoSaveRef.current = saveEditor;
+  });
+  useEffect(() => {
+    if (!data.isTemplate || !editing || busy || error) return;
+    const current = editing.value;
+    if (JSON.stringify(current) === editing.baseline) return;
+    const timer = setTimeout(() => void autoSaveRef.current(false), 650);
+    return () => clearTimeout(timer);
+  }, [editing, data.isTemplate, busy, error]);
   const removeBlock = async (block: CharacterSection) => {
     if (
       block.contents?.length &&
@@ -942,32 +979,38 @@ export default function CharacterBlockWorkspace({
             <fieldset disabled={busy} className="min-w-0 space-y-4">
               {editing.kind === "basic" ? (
                 <>
-                  {(
-                    [
-                      ["avatarUrl", "照片網址"],
-                      ["name", "名字"],
-                      ["age", "年齡"],
-                      ["gender", "性別"],
-                      ["race", "種族"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label key={key} className="block text-sm">
-                      {label}
-                      <input
-                        className={input}
-                        value={String(editing.value[key] ?? "")}
-                        onChange={(event) =>
-                          setEditing({
-                            ...editing,
-                            value: {
-                              ...editing.value,
-                              [key]: event.target.value,
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  ))}
+                  {data.isTemplate && (
+                    <p>
+                      固定五欄：照片、名字、年齡、性別、種族。模板不儲存個人內容。
+                    </p>
+                  )}
+                  {!data.isTemplate &&
+                    (
+                      [
+                        ["avatarUrl", "照片網址"],
+                        ["name", "名字"],
+                        ["age", "年齡"],
+                        ["gender", "性別"],
+                        ["race", "種族"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="block text-sm">
+                        {label}
+                        <input
+                          className={input}
+                          value={String(editing.value[key] ?? "")}
+                          onChange={(event) =>
+                            setEditing({
+                              ...editing,
+                              value: {
+                                ...editing.value,
+                                [key]: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
                   <button
                     className={control}
                     onClick={async () => {
@@ -990,8 +1033,15 @@ export default function CharacterBlockWorkspace({
                 </>
               ) : (
                 <>
-                  {renderComponent(editing.value, "edit", (value) =>
-                    setEditing({ ...editing, value }),
+                  {data.isTemplate ? (
+                    <CharacterTemplateStructureEditor
+                      value={editing.value}
+                      onChange={(value) => setEditing({ ...editing, value })}
+                    />
+                  ) : (
+                    renderComponent(editing.value, "edit", (value) =>
+                      setEditing({ ...editing, value }),
+                    )
                   )}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="text-sm">
