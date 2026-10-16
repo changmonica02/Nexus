@@ -97,7 +97,7 @@ export function CardManageList({ studyItems, onAddCard, onEditCard, onDeleteCard
 
 /* ============ Flashcard Practice ============ */
 
-/* ============ Quiz Mode (Four-Choice) ============ */
+
 
 /* ============ CSV Import Dialog ============ */
 

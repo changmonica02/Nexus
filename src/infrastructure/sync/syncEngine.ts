@@ -46,9 +46,6 @@ export class SyncEngine {
       this.studySyncTimer = null;
       void this.storage.getStudyRepository().pending().then(pending => {
         if (pending.length) void this.syncStudyNow();
-        else void this.storage.getStudyRepository().getQuizRepository()?.pending().then(quiz=>{
-          if(quiz.length)void this.syncStudyNow();
-        });
       });
     }, 300);
   };
@@ -62,16 +59,15 @@ export class SyncEngine {
           const previousError = this.studyError;
           this.studyError = null;
           const repository=this.storage.getStudyRepository();
-          const pendingPushes = (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length;
+          const pendingPushes = (await repository.pending()).length;
           this.setState({ pendingPushes, ...(previousError && this.state.error === previousError ? { status: "connected" as const, error: null } : {}) });
           if (pendingPushes) this.studyChanged();
         }
       } catch (error) {
-        this.storage.getStudyRepository().getQuizRepository()?.setReachable(false);
         if (!this.destroyed) {
           this.studyError = error instanceof Error ? error.message : String(error);
           const repository=this.storage.getStudyRepository();
-          this.setState({ status: "error", error: this.studyError, pendingPushes: (await repository.pending()).length + (await repository.getQuizRepository()?.pending() ?? []).length });
+          this.setState({ status: "error", error: this.studyError, pendingPushes: (await repository.pending()).length });
         }
       }
     })();

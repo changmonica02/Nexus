@@ -1,9 +1,11 @@
+/** Legacy recovery contract: not instantiated by the product. Never auto-upload old queues. */
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import { isLearned } from "../studySessions";
 
 // Mirrored by apply_study_quiz_operation; the integration test checks both boundaries.
 export const QUIZ_SCORE = { min: 0, max: 4, wrong: 1, correct: 1 } as const;
-export const QUIZ_STORES = ["quiz_attempts", "quiz_states", "quiz_outbox"];
+import { QUIZ_STORES } from "../legacyQuiz";
+export { QUIZ_STORES } from "../legacyQuiz";
 export interface QuizPayload {
   event_id: string; owner_id: string; card_id: string; correct: boolean;
   answered_at: number; batch_id: string; local_sequence: number;

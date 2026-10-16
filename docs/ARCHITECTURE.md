@@ -137,7 +137,7 @@ Page / Presentation / Canvas / Website 應引用資源，不直接把 blob 塞�
 - 舊 B1（無登入、共享 workspace、RLS allow all）已被 D-198／D-203 取代：**登入必須制，資料按 owner_id 隔離**。
 - **頁面同步**：`SyncEngine` 取得登入 user_id 後才啟動；pages／attachments／binaries 的查詢、Realtime、upsert、delete 皆帶 owner 篩選；本機資料亦再次篩選 user_id（防禦性）。`pages` 推送欄位含 `kind`、`study_items`、`presentation_data`、`sort_order`、`parent_id`、`due_date`、`creative_type`、`character_data`、`novel_settings`、`assistant_blocks`、`margins` 等。
 - **字卡同步**：`syncStudy` 走 Supabase RPC，事件先按前序送出，以事件 ID 去重；雲端確認後才移除本機 outbox；遺失回應可安全重送；舊裝置首次遷移寫入為 insert-only，不能覆蓋新版內容。伺服端權限：用戶端只可讀自己的資料列，寫入只能透過 `security definer` RPC，且禁止直接刪除事件。
-- **測驗同步**：`apply_study_quiz_operation` 以 advisory lock 與事件收據保證冪等；離線作答須經使用者決定（上傳／捨棄／稍後）才會進 outbox（D-217）。
+- **已退場的 Quiz 相容性**：產品不再掛載 Quiz UI、建立 QuizRepository 或從 SyncEngine／syncStudy 上傳與重試 Quiz。`legacyQuiz.ts` 僅供 IndexedDB 保留 store 名稱；原始歷史、離線決策與佇列不變。`quizPersistence`／`quizSync`／題目工具僅保留為未被產品引用的歷史恢復契約及安全回歸測試；沒有自動恢復／上傳入口。歷史 RPC、收據、RLS、migration 及帳號刪除依賴保留。
 - **同步競態**：只允許最新一次 `startAccountSync` 更新 UI；登出與 React Strict Mode cleanup 使舊 token 失效。
 - **B2 未完成**：頁面層級 last-write-wins **不可作正式行為**（字卡層已有事件鏈式衝突偵測，頁面沒有）。
 

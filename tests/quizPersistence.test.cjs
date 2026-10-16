@@ -3,7 +3,7 @@ const {openDB,deleteDB}=require('idb');
 const {PGlite}=require('@electric-sql/pglite');
 const fs=require('node:fs'),test=require('node:test'),assert=require('node:assert/strict');
 const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
-const {QUIZ_STORES,QUIZ_SCORE}=require('../src/features/study/quiz/quizPersistence.ts');
+const {QUIZ_STORES,QUIZ_SCORE,QuizRepository}=require('../src/features/study/quiz/quizPersistence.ts');
 const {syncQuiz}=require('../src/features/study/quiz/quizSync.ts');
 const {syncStudy}=require('../src/features/study/studySync.ts');
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
@@ -20,7 +20,7 @@ async function fixture(){
  const card=(await repo.readDeck('deck',true)).cards[0];
  const daily=await repo.startSession('deck','daily',1000),state=(await repo.readDeck('deck',true)).states[0];
  await repo.rateSession({sessionId:daily.id,cardId:card.id,revision:daily.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:4,actionId:crypto.randomUUID(),now:1000});
- const quiz=repo.getQuizRepository();
+ const quiz=new QuizRepository(db,()=>owner);
  return {name,db,repo,quiz,card,record:(correct=false,batchId='batch',eventId=crypto.randomUUID())=>quiz.record({cardId:card.id,correct,batchId,eventId,now:2000}),
  close:async()=>{db.close();await deleteDB(name);}};
 }
@@ -102,7 +102,7 @@ test('deck quiz direction persists on reload and syncs to another device without
  }finally{await s.pg.close();await f.close();await computer.close();}
 });
 
-test('ordinary sync never uploads awaiting attempts; approved attempts sync and pull leaves FSRS untouched',async()=>{
+test('retired Quiz stays queued during ordinary study sync; explicit legacy recovery preserves FSRS',async()=>{
  const f=await fixture(),s=await server(f);try{
  const review=await f.repo.startSession('deck','free',1500),state=(await f.repo.readDeck('deck',true)).states[0];
  await f.repo.rateSession({sessionId:review.id,cardId:f.card.id,revision:review.revision,contentRevision:f.card.content_revision,expectedHead:state.head,rating:3,actionId:crypto.randomUUID(),now:1500});
@@ -115,7 +115,10 @@ test('ordinary sync never uploads awaiting attempts; approved attempts sync and 
  await syncStudy(f.repo,s.client,owner);
  assert.equal((await s.pg.query('select count(*)::int n from study_quiz_attempt_receipts')).rows[0].n,0);
  assert.equal((await f.quiz.awaiting()).length,1);
- await f.quiz.decide([a.id],'upload');await syncStudy(f.repo,s.client,owner);
+ await f.quiz.decide([a.id],'upload');
+ await syncStudy(f.repo,s.client,owner);
+ assert.equal((await f.quiz.pending()).length,1,'formal sync must not upload authorized legacy Quiz either');
+ await syncQuiz(f.quiz,s.client,owner);
  assert.equal((await f.quiz.states())[0].mistake_score,1);
  assert.equal((await f.quiz.pending()).length,0);
  assert.equal((await f.quiz.attempts())[0].status,'synced');

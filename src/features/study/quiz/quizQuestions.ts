@@ -1,3 +1,4 @@
+/** Legacy compatibility only; not imported by product entry points. */
 import { schedulerCard, studyScheduler, type StudyCard, type StudySnapshot, type StudyState } from "../studyFSRS";
 import { isLearned } from "../studySessions";
 import { QUIZ_SCORE, type QuizRepository, type QuizState } from "./quizPersistence";
