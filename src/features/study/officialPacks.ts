@@ -3,8 +3,9 @@ export const OFFICIAL_PACKS = [
   {id:'gsat-1-2',name:'學測單字 1–2 級',description:'基礎',levels:'1–2'},
   {id:'gsat-3-4',name:'學測單字 3–4 級',description:'中階',levels:'3–4'},
   {id:'gsat-5-6',name:'學測單字 5–6 級',description:'進階',levels:'5–6'},
+  {id:'gsat-all',name:'學測單字全',description:'完整詞表（去重）',levels:'1–6'},
 ] as const;
-export const OFFICIAL_SOURCE = 'Nexus 官方預設學習集，由管理員維護。正式單字清單及來源說明尚待匯入；各詞條的來源與授權以字典為準。';
+export const OFFICIAL_SOURCE = '依據大學入學考試中心《高中英文參考詞彙表》（111 學年度起適用）分級；來源著作權屬財團法人大學入學考試中心基金會。僅供個人、非營利學習使用；若需營利使用或轉載，請先依來源規定取得授權。學習集詞條引用 Nexus 字典，後續詞義更新以字典內容為準。';
 export interface OfficialPack { id:string; name:string; version:number; word_count:number; deck_id:string|null; installed_version:number|null }
 export function packAction(pack:OfficialPack,busy=false,error=false) {
   return busy?'下載中…':error?'重試':!pack.deck_id?'下載':pack.installed_version!==pack.version?'更新':'開啟';
