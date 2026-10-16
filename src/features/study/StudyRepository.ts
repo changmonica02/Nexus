@@ -116,8 +116,11 @@ export class StudyRepository {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
     const card: StudyCard = await tx.objectStore("study_cards").get(id); this.owned(card);
-    if(card.official_pack_id&&Object.keys(patch).some(k=>k!=='front'&&k!=='back'))throw new Error('官方字卡只能修改私人英文與中文內容。');
-    const updated = {...card,...patch,migration_only:false,content_revision:card.content_revision+1,updated_at:Math.max(Date.now(),card.updated_at+1)};
+    if(card.official_pack_id&&Object.keys(patch).some(k=>!['front','back','dictionary_entry_id','deleted_at'].includes(k)))throw new Error('官方來源身份不可修改。');
+    const source=card.official_pack_id?card.official_source_entry_id??(('dictionary_entry_id' in patch||'deleted_at' in patch)?card.dictionary_entry_id:undefined):undefined;
+    if(card.official_pack_id&&('dictionary_entry_id' in patch||'deleted_at' in patch)&&!source)throw new Error('缺少官方來源識別，請先同步後重試。');
+    if(card.official_pack_id&&card.deleted_at!=null&&'deleted_at' in patch&&patch.deleted_at!==card.deleted_at)throw new Error('已刪除官方卡不可自動恢復。');
+    const updated = {...card,...patch,...(source?{official_source_entry_id:source}:{}),migration_only:false,content_revision:card.content_revision+1,updated_at:Math.max(Date.now(),card.updated_at+1)};
     await tx.objectStore("study_cards").put(updated);
     await this.enqueue(tx,{owner_id:this.owner(),kind:"card",value:updated});
     if (reset) {
@@ -524,6 +527,7 @@ export class StudyRepository {
         this.owned(value);
         if(store==='study_settings'&&(value as StudySettings).record_type==='style'){const record=value as StudySettings;validateStudyStyle(record.style!);if(record.style!.id!==record.id)throw Error('Style identity mismatch');}
         const local=await tx.objectStore(store).get(value.id);
+        if(store==='study_cards'&&local&&!local.official_source_entry_id&&(value as StudyCard).official_source_entry_id&&local.official_pack_id===(value as StudyCard).official_pack_id&&local.deck_id===(value as StudyCard).deck_id&&local.updated_at>=value.updated_at)await tx.objectStore(store).put({...local,official_source_entry_id:(value as StudyCard).official_source_entry_id});
         if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);
       }
     }

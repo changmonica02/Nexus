@@ -13,6 +13,7 @@ export interface FixedReviewLog {method:"fixed";rating:Grade;review:number;due:n
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
+  official_source_entry_id?: string;
   official_pack_id?: string;
   official_pack_version?: number;
   dictionary_entry_id?: string;

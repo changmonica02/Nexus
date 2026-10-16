@@ -546,3 +546,9 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 - `DictionaryEditor` 將 Word 的 `part_of_speech` 與 `gloss_zh_tw` 在各穩定 Sense ID 的編輯列顯示，基本資訊只留 Entry。640px 起詞性／中文／刪除並排，窄版在同列內換行；沿用 Field、EditorSection、原 addSense／removeSense 與 PublishedWorkspace。
 - 無資料遷移或過濾空義項；prepareEditorBundle 仍只清理既有非交換 metadata，不改 Sense ID 或內容。Prefix／Root、關聯依賴、CAS／Review／發布 RPC 不變。
+
+### 2026-10-16 官方私人卡片身份分離（已實作，正式 SQL 待授權）
+
+- 增量 Migration `20261016030000_official_private_card_identity.sql` 將不可變 `official_source_entry_id` 與可移除／重連的 `dictionary_entry_id` 分離；來源唯一索引與原下載 RPC 去重涵蓋 soft-deleted 卡片。來源身份／owner／card／deck／pack guard 保留；卡片連結由 after-update trigger 原子維護並沿用 Published Word 驗證。新 capability 只允許 authenticated。未改 RLS 或正式資料。
+- 舊身份受原 guard 保護，SQL 交易補 metadata，不修改 timestamps／內容／排程；來源不明則中止。舊裝置未送新欄位時由已存身份補回，不採新連結推測。StudyRepository 在較新離線私有內容仍待同步時可只接收來源 metadata，不以舊遠端文字覆蓋。
+- StudySetView 以 capability 防止在舊後端啟用官方連結與單卡刪除；舊文字編輯仍可用。StudyCardEditor 沿原 picker／儲存與排程保留選擇；單卡刪除有確認且只 soft-delete。官方直接新增／匯入與整包刪除保護不變。部署／回滾見 `docs/OFFICIAL-PRIVATE-CARD-MIGRATION.md`；SQL 隔離測試使用真實 Study／Dictionary／Official RPC，僅 Workspace 建頁 transport 為 fixture，非正式 staging。

@@ -45,7 +45,7 @@ test('catalog/download/update/delete use scoped RPCs; failed download can retry 
 test('official private text can be edited while source identity/import protection and daily learning remain unchanged',async t=>{
   const {repo}=await fixture(t),card=await installLocal(repo);
   await assert.rejects(repo.addCards('deck',[{front:'fake',back:'test'}]),/不可直接/);
-  await repo.updateCard(card.id,{front:'changed',back:'私人義'});const edited=(await repo.readDeck('deck')).cards[0];assert.equal((await repo.readDeck('deck')).cards[0].front,'changed');await assert.rejects(repo.updateCard(card.id,{dictionary_entry_id:'other'}),/只能修改/);
+  await repo.updateCard(card.id,{front:'changed',back:'私人義'});const edited=(await repo.readDeck('deck')).cards[0];assert.equal((await repo.readDeck('deck')).cards[0].front,'changed');await assert.rejects(repo.updateCard(card.id,{official_pack_id:'forged'}),/身份/);
   const session=await repo.startSession('deck','daily',1000);
   const {snapshot}=await repo.readSession(session.id);
   await repo.rateSession({sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:snapshot.cards[0].content_revision,expectedHead:snapshot.states[0].head,rating:4,actionId:'daily-easy',now:1100});
@@ -103,4 +103,19 @@ test('migration statically scopes installs/deletes and keeps manifests content-f
   assert.doesNotMatch(sql,/alter table public.dictionary_|delete from public.dictionary_|delete from public.official_study_packs|insert into public.official_study_pack_entries/);
   assert.doesNotMatch(sql,/create or replace function public.apply_study_operation/);
   assert.match(sql,/grant select on public.official_study_packs/);
+});
+
+
+test('official unlink/relink/delete preserve stable source, original ID, events and scheduling; metadata-only pull cannot undo offline edits',async t=>{
+ const {repo,db}=await fixture(t),card=await installLocal(repo);const before=await repo.exportData();
+ await repo.updateCard(card.id,{front:'private',back:'我的答案',dictionary_entry_id:undefined});
+ const unlinked=(await repo.readDeck('deck')).cards[0];assert.equal(unlinked.dictionary_entry_id,undefined);assert.equal(unlinked.official_source_entry_id,card.dictionary_entry_id);
+ await repo.updateCard(card.id,{dictionary_entry_id:'other-published'});let changed=(await repo.readDeck('deck')).cards[0];assert.equal(changed.official_source_entry_id,card.dictionary_entry_id);assert.equal(changed.id,card.id);
+ assert.deepEqual((await repo.exportData()).states,before.states);assert.deepEqual((await repo.exportData()).events,before.events);
+ await repo.updateCard(card.id,{deleted_at:100});await assert.rejects(repo.updateCard(card.id,{deleted_at:null}),/恢復/);await assert.rejects(repo.updateCard(card.id,{deleted_at:undefined}),/恢復/);
+ assert.equal((await db.get('study_cards',card.id)).official_source_entry_id,card.dictionary_entry_id);
+ const second=await installLocal(repo,'other');await repo.updateCard(second.id,{front:'offline custom'});const local=await db.get('study_cards',second.id);assert.equal(local.official_source_entry_id,undefined);
+ await repo.mergeRemote({cards:[{...second,official_source_entry_id:second.dictionary_entry_id}],states:[],events:[],settings:[]});
+ const merged=await db.get('study_cards',second.id);assert.equal(merged.front,'offline custom');assert.equal(merged.official_source_entry_id,second.dictionary_entry_id);
+ const {officialPrivateCardsAvailable}=api;assert.equal(await officialPrivateCardsAvailable({rpc:async()=>({error:{code:'42883'}})}),false);assert.equal(await officialPrivateCardsAvailable({rpc:async()=>({data:{version:1}})}),true);
 });

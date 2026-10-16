@@ -5,10 +5,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { StudyCard } from "../studyFSRS";
 import DictionaryLinkPicker from "../../dictionary/DictionaryLinkPicker";
 
-export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, onClose, onCopy, fixedEntryId }: {
+export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, onClose, onCopy, fixedEntryId, officialSource=false, lockDictionaryLink=false }: {
   card: Pick<StudyCard, "front" | "back"> & { id?: string };
   requiresScheduleChoice: boolean;
-  fixedEntryId?:string;
+  fixedEntryId?:string; officialSource?:boolean; lockDictionaryLink?:boolean;
   onSave: (values: { front: string; back: string; dictionaryEntryId?:string|null }, reset: boolean) => Promise<void>;
   onClose: () => void;
   onCopy: () => void;
@@ -58,9 +58,9 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
       else void save(false);
     }}>
       <fieldset disabled={busy || choice} className="space-y-4 disabled:opacity-60">
-        <label className="block text-sm">英文<textarea autoFocus value={front} onChange={event => setFront(event.target.value)} rows={3}
+        <label className="block text-sm">英文<textarea aria-label="英文" autoFocus value={front} onChange={event => setFront(event.target.value)} rows={3}
           className="mt-1 block w-full resize-y rounded border bg-transparent p-2 outline-none focus:ring-2 focus:ring-blue-500" /></label>
-        <label className="block text-sm">中文<textarea value={back} onChange={event => setBack(event.target.value)} rows={5}
+        <label className="block text-sm">中文<textarea aria-label="中文" value={back} onChange={event => setBack(event.target.value)} rows={5}
           className="mt-1 block w-full resize-y rounded border bg-transparent p-2 outline-none focus:ring-2 focus:ring-blue-500" /></label>
       </fieldset>
       {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
@@ -73,9 +73,9 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
           <button type="button" disabled={busy} className="rounded border p-2" onClick={close}>取消修改</button>
         </div>
       </div> : <div className="mt-5 flex flex-wrap justify-end gap-2">
-        {card.id && !fixedEntryId && <button type="button" disabled={busy} onClick={async()=>{if(await confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
+        {card.id && !fixedEntryId && !officialSource && <button type="button" disabled={busy} onClick={async()=>{if(await confirmDiscard())onCopy();}} className="mr-auto rounded border px-3 py-2 text-sm">複製為新卡</button>}
       </div>}
     </form>
-    <div className="mt-5">{fixedEntryId?<p className="text-sm">官方字卡保留字典連結；私人英文與中文可自行修改。</p>:<DictionaryLinkPicker cardId={card.id} front={front} back={back} disabled={busy||choice} onChange={setDictionaryEntryId}/>}</div>
+    <div className="mt-5">{fixedEntryId||lockDictionaryLink?<p className="text-sm">私人英文與中文可自行修改；字典連結與單卡刪除需啟用官方來源相容更新。</p>:<DictionaryLinkPicker cardId={card.id} front={front} back={back} disabled={busy||choice} onChange={setDictionaryEntryId}/>}</div>
   </dialog>;
 }

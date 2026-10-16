@@ -25,3 +25,8 @@ export async function deleteOfficialPack(client:Pick<SupabaseClient,'rpc'>,deckI
   const {error}=await client.rpc('delete_official_study_pack',{deck_id:deckId});
   if(error)throw new Error(`刪除未完成，請連線後重試：${error.message}`);
 }
+
+/** Missing migration or offline: retain existing text editing, disable new source-dependent operations. */
+export async function officialPrivateCardsAvailable(client:Pick<SupabaseClient,'rpc'>):Promise<boolean>{
+ try{const {data,error}=await client.rpc('official_private_card_capabilities');return !error&&data?.version===1;}catch{return false;}
+}
