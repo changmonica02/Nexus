@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','中文義項','歷史詞源','記憶故事','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['單字','詞性','中文意思','歷史詞源','記憶故事','構詞關聯','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -58,7 +58,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(!html.includes('儲存整份草稿'));
   assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
   assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>義項</h3>'));
-  assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增中文義項'));
+  assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
   assert.ok(!html.includes('grid-cols-2'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
   const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
@@ -219,4 +219,17 @@ test('empty classification uses unset placeholder and empty composition hides se
  const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
  assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>歷史詞源</h3>'));assert.ok(section.includes('新增構詞關聯'));assert.ok(!section.includes('待補'));
+});
+
+
+test('Word Sense rows keep stable identities and blank legacy values; basic info has no Sense fields',()=>{
+ const senses=[detail.senses[0],{...detail.senses[0],id:'blank-sense',part_of_speech:null,gloss_zh_tw:''}];
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,senses},entries:[],senses:[],onSaved:async()=>{}}));
+ const basic=html.slice(html.indexOf('data-editor-section="基本資訊"'),html.indexOf('data-editor-section="義項"'));
+ assert.ok(!basic.includes('詞性'));assert.ok(!html.includes('分類 · 義項'));
+ assert.equal((html.match(/data-word-sense-row=/g)||[]).length,2);
+ assert.ok(html.includes('data-word-sense-row="blank-sense"'));assert.equal((html.match(/>詞性<\/span>/g)||[]).length,2);
+ assert.ok(html.includes('sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]'));
+ const bundle={dictionary_entries:[detail.entry],dictionary_senses:senses};
+ assert.deepEqual(require('../src/features/dictionary/DictionaryAdmin.tsx').prepareEditorBundle(bundle).dictionary_senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})),senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})));
 });

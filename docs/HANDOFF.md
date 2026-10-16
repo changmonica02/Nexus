@@ -2,7 +2,13 @@
 
 產品契約以 SPEC 為準，技術契約看 ARCHITECTURE；真實裝置驗收集中 #60。
 
-## 第四輪 UI（#34／#45）
+## 第五輪開發（#34／#43／#62）
+
+- PR A：Word 詞性／中文／刪除移入各 Sense 緊湊列，保留空白義項、ID 與原安全流程，無 Migration；驗證與交付狀態見 PR。
+- 接續順序：官方私人卡身份／連結分離 → 學習中管理員字典浮窗 → 角色卡區塊／組件 → 私人模板 → 投稿資源庫 → 同來源模板安全更新。未開發項不得視為已完成。
+- 正式 Supabase Migration／資料寫入未授權；新能力須以 capability 安全隔離，SQL 先隔離驗證、待授權套用。
+
+## 前輪 UI（#34／#45）
 
 - PR #66 已合併：Quiz UI、Repository factory 及背景同步／重試退場，保留舊歷史、離線佇列、stores、恢復契約及 SQL migrations。77/77 單元／整合、正式學習瀏覽器組通過；TypeScript／Build 通過，ESLint 0 errors／459 既有 warnings。
 - PR #67 已合併：發布／恢復／返回／焦點／跨分頁重新取得完整字典管理清單、精確分頁及統計。保留搜尋、篩選與 active Review Draft。38/38 單元／整合、3/3 瀏覽器組及 TypeScript／Build 通過，ESLint 0 errors／459 既有 warnings。
