@@ -601,3 +601,9 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 正式部署狀態及測試實際結果見 HANDOFF。2026-10-16 已唯讀核實先前兩份 Migration 的正式 ledger 名稱 official_private_card_identity（20261016062703）、creation_template_library（20261016062716），不按 Git 檔名重播。
 
 - 本輪正式 ledger：`20261016072304 dictionary_retire_source_forms`（Git SQL 檔時間戳不同）；已於 2026-10-16 成功套用並唯讀核對。舊種類 0、有效提示 67、Entry 6301／Sense 11518／詞形 7135／active Review 927／匯入工作 28 保留，13 組交易內指紋檢查通過。備份 schema 應用角色不可讀，cleaner 已移除，原 RPC／RLS 不變。沒有進行正式儲存／發布驗收；相關實機操作留 #60。
+
+## 2026-10-16｜一般 Draft 單筆發布入口修復
+- `DictionaryWorkspace` 的一般 Draft 分支補傳 `onPublish`／`canPublish`／`publicationBusy`；既有 `DictionaryEditor` 的共用 sticky 發布按鈕原先僅 PublishedWorkspace 有接 callback，故三種新草稿都缺入口。
+- revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
+- 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
+- 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。

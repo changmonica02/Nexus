@@ -2,6 +2,12 @@
 
 產品規格以 SPEC 為準；技術契約見 ARCHITECTURE，人工驗收集中 #60。
 
+## 新增修復：一般 Draft 發布按鈕（Refs #34）
+
+- 已補 Word／Prefix／Root 的共用單筆發布入口；初次未儲存停用、dirty 先儲存、人工查證、伺服器版本前置比對、失敗保留／提示、成功重讀 Published 與清單失效。
+- 舊版複製型 Review 保持禁止直接發布，正常 Review 發布流程不變。無 Migration、正式字典發布或資料修改。
+- 驗證：23/23 相關單元／整合、2/2 隔離瀏覽器組（新草稿 3 類型 × 3 尺寸、刪除義項後發布、取消／錯誤／舊版本／舊 Review 保護及既有編輯器回歸）、TypeScript／Production Build 通過，ESLint 0 errors／456 既有 warnings。Preview／PR 合併狀態由修復 PR 記錄；真實 iPad Safari 請用既有 ab- 草稿驗收，留 #60 O 節。
+
 ## 本輪字典修復
 
 - 已實作學習字典詳情 Modal：僅 linked 卡翻面後提供入口，詳情／完整管理員編輯器保護原 Session、私人內容及評分；移除技術說明。
