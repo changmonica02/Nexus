@@ -19,3 +19,9 @@
 備份僅供災難復原，不是隱藏產品欄位／變體替代功能。正式驗收後由操作員安排外部備份／保留期限及清除 schema；本輪不刪除不可變歷史、Audit、原始檔與舊本機工作。
 
 實際部署結果與 ledger 版本看 HANDOFF；檔案存在、Preview 成功不代表正式 SQL 已套用。
+
+## 本輪正式結果（2026-10-16）
+
+ledger `20261016072304 dictionary_retire_source_forms` 已成功。舊種類 6199→0、13 組指紋檢查通過；Entry 6301、Sense 11518、inflections 7135、relation_hint 67、active Review 927、常駐工作 28 保留。回復副本 source_forms 6199／Review 927，PUBLIC／anon／authenticated 不可存取，一次性 cleaner 已移除。沒有重播先前兩份 SQL，沒有發布／匯入字典或改私人學習紀錄。
+
+Security advisors 與變更前一致（無新增）：[7 個 RLS 無直接 policy INFO](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)、[43 個 authenticated SECURITY DEFINER 提醒](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)、[既有洩漏密碼保護未啟用](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)。不為消除通用提醒而解除現有 owner／admin RPC 契約或擅自改 Auth 設定。

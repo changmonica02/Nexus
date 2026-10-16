@@ -599,3 +599,5 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 遷移以既有 advisory lock 加表鎖，在同一交易先建立非 exposed `dictionary_retirement_backup` 回復副本（應用角色無 schema／表權限），清理 active Review 的候選及基底並遞增 revision；受影響常駐匯入清理舊差異、保留其他決策並標 stale 要求重新比對。不可變 Published 歷史、Audit、operation receipts／來源原檔不重寫。一次性 JSON cleaner 提交前移除，非新增 API。
 - 回復腳本 `docs/operations/DICTIONARY-SOURCE-FORMS-ROLLBACK.sql` 對部署後 Review／匯入變更做完整比對，存在新工作即整筆拒絕，不覆寫；恢復仍遞增 revision。回復副本僅供操作員災難復原，非隱藏功能欄位。正式驗收後可另行封存及清除備份 schema；本輪不自動清理。
 - 正式部署狀態及測試實際結果見 HANDOFF。2026-10-16 已唯讀核實先前兩份 Migration 的正式 ledger 名稱 official_private_card_identity（20261016062703）、creation_template_library（20261016062716），不按 Git 檔名重播。
+
+- 本輪正式 ledger：`20261016072304 dictionary_retire_source_forms`（Git SQL 檔時間戳不同）；已於 2026-10-16 成功套用並唯讀核對。舊種類 0、有效提示 67、Entry 6301／Sense 11518／詞形 7135／active Review 927／匯入工作 28 保留，13 組交易內指紋檢查通過。備份 schema 應用角色不可讀，cleaner 已移除，原 RPC／RLS 不變。沒有進行正式儲存／發布驗收；相關實機操作留 #60。
