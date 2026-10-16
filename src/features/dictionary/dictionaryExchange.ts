@@ -212,7 +212,7 @@ export function draftFromExchange(
           throw Error("Invalid etymology verification");
         if (
           section === "lexical_annotations" &&
-          !["source_forms", "relation_hint"].includes(String(r.kind))
+          !["relation_hint"].includes(String(r.kind))
         )
           throw Error("Invalid lexical annotation kind");
         if (
@@ -320,7 +320,6 @@ function invalidDraft(
     etymologies: [],
     learning_notes: [],
     examples: [],
-    lexical_annotations: [],
     relation_hints: [],
   };
 }

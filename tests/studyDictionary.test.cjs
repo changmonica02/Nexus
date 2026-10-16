@@ -61,7 +61,7 @@ test('detail starts collapsed and answer status disappears after save, errors of
   const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
   const Panel=require('../src/features/dictionary/CardDictionaryPanel.tsx').default;
   const {AnswerSaveNotice}=require('../src/features/study/components/DailyStudySession.tsx');
-  const html=renderToStaticMarkup(React.createElement(Panel,{cardId:'card',front:'test'}));
+  const html=renderToStaticMarkup(React.createElement(Panel,{cardId:'card',front:'test',fixedEntryId:id(10)}));
   assert.ok(html.includes('aria-expanded="false"'));assert.ok(!html.includes('歷史詞源'));
   const render=props=>renderToStaticMarkup(React.createElement(AnswerSaveNotice,{onReload:()=>{},...props}));
   assert.equal(render({saving:false,error:''}),'');

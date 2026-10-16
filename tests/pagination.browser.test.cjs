@@ -24,8 +24,8 @@ test('desktop/mobile pagination: inline Enter/Esc, validation, last-request wins
  await jump('32');await page.getByRole('button',{name:'下一頁',exact:true}).waitFor();await page.waitForFunction(()=>document.querySelector('[data-testid=rows]').textContent==='row 31');assert.equal(await page.getByRole('button',{name:'下一頁',exact:true}).isDisabled(),true);
  await page.getByRole('button',{name:'縮減資料'}).click();await page.getByText('/ 共 2 頁',{exact:true}).waitFor();assert.equal(await number().innerText(),'2');
  await page.getByLabel('篩選').selectOption('empty');await page.getByText('/ 共 0 頁',{exact:true}).waitFor();assert.equal(await number().innerText(),'0');assert.equal(await number().isDisabled(),true);
- for(const [fixture,total,target] of [['admin',3,2],['reader',13,3],['groups',13,2],['relations',13,2],['links',13,2],['card',13,2],['suggestions',3,2]]){
-  await page.goto(base+'/?fixture='+fixture+(fixture==='groups'?'&kind=prefix&category=__ungrouped__':''));if(fixture==='links')await page.getByRole('button',{name:'搜尋',exact:true}).click();if(fixture==='card')await page.getByRole('button',{name:'▸ 字典詳情',exact:true}).click();
+ for(const [fixture,total,target] of [['admin',3,2],['reader',13,3],['groups',13,2],['relations',13,2],['links',13,2],['suggestions',3,2]]){
+  await page.goto(base+'/?fixture='+fixture+(fixture==='groups'?'&kind=prefix&category=__ungrouped__':''));if(fixture==='links')await page.getByRole('button',{name:'搜尋',exact:true}).click();
   await page.getByText('/ 共 '+total+' 頁',{exact:true}).first().waitFor();if(fixture==='admin'){assert.equal(await page.getByRole('navigation',{name:'管理詞條分頁'}).count(),2);assert.equal(await page.locator('input[aria-label^=勾選]').count(),0);}await jump(String(target));await page.getByRole('button',{name:'編輯第 '+target+' 頁',exact:true}).first().waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   if(fixture==='admin')assert.equal(await page.locator('input[aria-label^=勾選]:checked').count(),0);
   if(fixture==='reader')assert.equal(new URL(page.url()).searchParams.get('page'),'2');

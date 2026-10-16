@@ -69,7 +69,6 @@ export async function previewImportSource(
           etymologies: [],
           examples: [],
           learning_notes: [],
-          lexical_annotations: [],
           relation_hints: [],
           relations: [],
         });

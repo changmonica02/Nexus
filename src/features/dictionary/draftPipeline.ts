@@ -13,7 +13,7 @@ export interface DictionaryDraftInput {
   senses:(DraftRow & {part_of_speech:string|null;gloss_zh_tw:string;category?:string|null;row?:number})[];
   pronunciations?:DraftRow[]; inflections?:DraftRow[];
   etymologies:DraftRow[]; learning_notes:DraftRow[]; relations:DraftRow[];
-  examples:DraftRow[]; lexical_annotations:DraftRow[]; relation_hints:DraftRow[];
+  examples:DraftRow[]; relation_hints:DraftRow[];
   component_order?:string[]; grouping?:DictionaryGrouping; row?:number; proposed_ids?:string[];
 }
 export interface DraftIssue {row:number;field:string;kind:string;error:string}
@@ -25,6 +25,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
   const errors:DraftIssue[]=[],seen=new Set<string>();
   for(const d of drafts){
     const issue=(field:string,error:string,row=d.row??1)=>errors.push({row,field,kind:d.kind,error});
+    if(Array.isArray((d as unknown as Record<string,unknown>).lexical_annotations)&&((d as unknown as Record<string,unknown>).lexical_annotations as unknown[]).length)issue('lexical_annotations','此舊欄位已移除；請備份原檔並重新比對，不會自動轉為詞形。');
     if(!['word','prefix','root'].includes(d.kind))issue('kind','必須是 word / prefix / root');
     if(!uuid.test(d.entry_id))issue('entry_id','必須為 UUID');
     if(seen.has(d.entry_id))issue('entry_id','重複 ID');seen.add(d.entry_id);
@@ -39,11 +40,11 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
       if(s.category&&d.kind!=='prefix')issue('category','只有 Prefix 義項使用分類',s.row);
       if(d.kind==='prefix'&&((options.csv&&!s.category)||(s.category&&!prefixCategories.includes(s.category as typeof prefixCategories[number]))))issue('category',`不是合法 Prefix 分類；允許值：${prefixCategories.join('、')}`,s.row);
     }
-    for(const [field,rows] of Object.entries({inflections:d.inflections??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,lexical_annotations:d.lexical_annotations,relation_hints:d.relation_hints}))for(const r of rows){
+    for(const [field,rows] of Object.entries({inflections:d.inflections??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,relation_hints:d.relation_hints}))for(const r of rows){
       if(!uuid.test(r.id))issue(field,'ID 必須為 UUID');
       if(seen.has(r.id))issue(field,'重複 ID');seen.add(r.id);
       if(['source_id','citation','license','level'].some(k=>k in r))issue(field,'不接受來源授權或 Study level 欄位');
-      if(['examples','lexical_annotations','relation_hints'].includes(field)){
+      if(['examples','relation_hints'].includes(field)){
         if(typeof r.body!=='string'||!r.body.trim())issue(field,'內容必填');
         if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
       }
@@ -80,14 +81,14 @@ export function draftsFromBundle(bundle:Bundle,grouping?:DictionaryGrouping,sens
     return {kind:e.kind as DictionaryKind,entry_id:String(e.id),headword:String(e.headword),...(e.revision!==undefined?{revision:Number(e.revision)}:{}),
       senses:rows('dictionary_senses').map(s=>({...s,part_of_speech:s.part_of_speech as string|null,gloss_zh_tw:String(s.gloss_zh_tw),...(s.id in senseGroups?{category:senseGroups[s.id]}:{})})),
       inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:rows('dictionary_learning_notes'),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
-      lexical_annotations:rows('dictionary_lexical_annotations').filter(r=>r.kind==='source_forms'),relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint'),grouping};
+      relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint'),grouping};
   });
 }
 export function mapDictionaryDraft(d:DictionaryDraftInput){
   const own=(rows:DraftRow[])=>rows.map(r=>({...strip(r),entry_id:d.entry_id}));
   const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations.map(compositionRow)),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
   return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),origin:{row:d.row??1,kind:d.kind},bundle,group_data:d.grouping??null,sense_groups:d.senses.filter(s=>s.category!==undefined).map(s=>({sense_id:s.id,primary_category:s.category})),
-    inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.lexical_annotations.map(r=>({...r,kind:'source_forms'})),...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
+    inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]),examples:own(d.examples),annotations:own([...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
 }
 type Client=Pick<SupabaseClient,'rpc'>;
 /** Resolve explicit IDs only. Freeze revisions in the candidate used by preview and apply. */
@@ -99,7 +100,7 @@ export async function prepareDictionaryDrafts(client:Client,drafts:DictionaryDra
     if(data.entry.status==='published')throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'entry_id',error:'Published 不可直接覆蓋，請建立 Review Draft 並人工核准'}]);
     if(d.revision!==undefined&&d.revision!==data.entry.revision)throw new Error('Revision conflict');
     d.revision=data.entry.revision;
-    for(const [field,table] of [['inflections','inflections'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples'],['lexical_annotations','lexical_annotations'],['relation_hints','lexical_annotations']] as const){
+    for(const [field,table] of [['inflections','inflections'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples'],['relation_hints','lexical_annotations']] as const){
       for(const row of d[field]??[]){const old=data[table]?.find((r:DraftRow)=>r.id===row.id);if(old)row.revision=old.revision;}
     }
     if(d.grouping){const {data:snapshot,error:e}=await client.rpc('get_dictionary_ai_snapshot',{entry_uuid:d.entry_id});if(e)throw new Error(e.message);d.grouping={...d.grouping,tags:snapshot?.grouping?.tags??[],variant_group:snapshot?.grouping?.variant_group??null};}
