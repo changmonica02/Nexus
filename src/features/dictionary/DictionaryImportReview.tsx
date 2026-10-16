@@ -34,7 +34,7 @@ function LegacyDictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;fo
       const bundle=await parseDictionaryImport(raw,format);
       const ids=new Set([...(bundle.dictionary_entries??[]).map(e=>String(e.id)),...Object.entries(bundle).filter(([t])=>t!=='dictionary_entries').flatMap(([,rows])=>rows.map(r=>String(r.entry_id)))]);
       for(const id of ids){const part=Object.fromEntries(Object.entries(bundle).map(([table,rows])=>[table,rows.filter(r=>table==='dictionary_entries'?r.id===id:r.entry_id===id)]));
-        try{drafts.push(...await normalizeDictionaryBundle(getSupabase()!,part));}catch(e){const d:DictionaryDraftInput={entry_id:id,kind:'word',headword:String(part.dictionary_entries?.[0]?.headword??'待審核內容'),row:drafts.length+1,senses:[],etymologies:[],examples:[],learning_notes:[],lexical_annotations:[],relation_hints:[],relations:[]};drafts.push(d);issues.push({row:d.row!,kind:d.kind,field:'legacy_mapping',error:String(e)});}
+        try{drafts.push(...await normalizeDictionaryBundle(getSupabase()!,part));}catch(e){const d:DictionaryDraftInput={entry_id:id,kind:'word',headword:String(part.dictionary_entries?.[0]?.headword??'待審核內容'),row:drafts.length+1,senses:[],etymologies:[],examples:[],learning_notes:[],relation_hints:[],relations:[]};drafts.push(d);issues.push({row:d.row!,kind:d.kind,field:'legacy_mapping',error:String(e)});}
       }
     }
     if(!drafts.length&&issues.length)throw new DraftValidationError(issues);

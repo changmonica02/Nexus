@@ -11,6 +11,8 @@ window.pendingReview=new URLSearchParams(location.search).has('pending');window.
 window.dictionaryClient={
  from(table){let filter=[];const query={select(){return query;},eq(k,v){filter.push([k,v]);return query;},in(){return query;},ilike(){return query;},order(){return query;},range(){return Promise.resolve({data:targets.map(t=>t.entry),count:targets.length});},maybeSingle(){return Promise.resolve({data:null});},then(resolve){let data=table==='dictionary_review_drafts'?window.fixture.reviews:table==='dictionary_published_revisions'?window.fixture.history:[];data=data.filter(r=>filter.every(([k,v])=>r[k]===v));return Promise.resolve({data}).then(resolve);}};return query;},
  async rpc(name,args){
+ const contracts={save_dictionary_review:['candidate','expected_revision','review_uuid'],discard_dictionary_review:['expected_revision','review_uuid'],approve_dictionary_review:['content_verified','expected_revision','review_uuid']};
+ if(contracts[name]&&JSON.stringify(Object.keys(args).sort())!==JSON.stringify(contracts[name]))return {error:{message:'RPC signature mismatch: '+name}};
  const f=window.fixture;
  if(name==='dictionary_import_review_capabilities')return {data:{version:1}};
  if(name==='get_dictionary_import_reviews')return {data:{total:window.pendingReview?1:0,items:window.pendingReview?[{id:id(250),pending_count:1,item:{status:'pending'}}]:[]}};
@@ -24,6 +26,7 @@ window.dictionaryClient={
   else if(review.revision!==args.expected_revision)return {error:{message:'Review revision conflict'}};
   review.candidate=structuredClone(args.candidate);review.revision++;f.writes++;persist();return {data:structuredClone(review)};
  }
+ if(name==='discard_dictionary_review'){const review=f.reviews.find(r=>r.id===args.review_uuid);if(!review||review.state!=='active'||review.revision!==args.expected_revision)return {error:{message:'Review revision conflict'}};review.state='discarded';review.revision++;f.writes++;persist();return {data:structuredClone(review)};}
  if(name==='approve_dictionary_review'){
   if(window.failPublish)return {error:{message:'Stale Review Draft (fixture)'}};
   const review=f.reviews.find(r=>r.id===args.review_uuid),c=review.candidate,b=c.bundle;f.history.push({entry_id:id(10),revision:f.snapshot.detail.entry.revision,snapshot:structuredClone(f.snapshot)});

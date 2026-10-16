@@ -6,7 +6,7 @@ import {mapDictionaryDraft,validateDictionaryDraft,type DictionaryDraftInput,typ
 type Client=Pick<SupabaseClient,'rpc'>;
 export type ImportAction='review'|'keep'|'incoming'|'fill'|'new_sense'|'skip'|'later';
 export const actionLabels:Record<ImportAction,string>={keep:'保留現有',review:'建立 Review Draft',incoming:'使用匯入版本',fill:'補上缺失值',new_sense:'建立新的 Sense',skip:'略過',later:'暫不處理'};
-type Section='entry'|'grouping'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'lexical_annotations'|'relation_hints'|'pronunciations'|'inflections';
+type Section='entry'|'grouping'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'inflections';
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
@@ -21,14 +21,14 @@ export interface ImportItem {
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
 export interface ImportSession {durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
-export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','lexical_annotations','relation_hints'] as const;
-const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',lexical_annotations:'dictionary_lexical_annotations',relation_hints:'dictionary_lexical_annotations'};
+export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','relation_hints'] as const;
+const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',relation_hints:'dictionary_lexical_annotations'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 function storedRows(c:ImportContext,section:typeof contentSections[number]):DraftRow[]{
   if(!c.snapshot)return [];
   const detail=c.snapshot.detail;
   const rows=section==='relation_hints'?detail.lexical_annotations:detail[section];
-  return (rows??[]).filter(r=>section==='relation_hints'?'kind' in r&&r.kind==='relation_hint':section==='lexical_annotations'?'kind' in r&&r.kind==='source_forms':true) as unknown as DraftRow[];
+  return (rows??[]).filter(r=>section==='relation_hints'?'kind' in r&&r.kind==='relation_hint':true) as unknown as DraftRow[];
 }
 function addIssue(item:ImportItem,type:string,field:string,existing:unknown,incoming:unknown,reason:string,actions:ImportAction[],target?:ImportIssue['target'],row=item.draft.row??1){
   const issue:ImportIssue={id:crypto.randomUUID(),row,kind:item.draft.kind,headword:item.draft.headword,type,field,existing,incoming,reason,allowedActions:actions,selectedAction:null,target};

@@ -31,7 +31,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
       const belongs=(row:{sense_id:string|null})=>row.sense_id===scope.id;
       const pronunciations=(data.pronunciations??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id));
       const forms=(data.inflections??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order);
-      const relations=data.relations.filter(belongs),histories=data.etymologies.filter(belongs),examples=(data.examples??[]).filter(belongs),annotations=(data.lexical_annotations??[]).filter(belongs),notes=data.learning_notes.filter(belongs);
+      const relations=data.relations.filter(belongs),histories=data.etymologies.filter(belongs),examples=(data.examples??[]).filter(belongs),annotations=(data.lexical_annotations??[]).filter(x=>x.kind==='relation_hint').filter(belongs),notes=data.learning_notes.filter(belongs);
       if(scope.id===null&&!forms.length&&!pronunciations.length&&!relations.length&&!histories.length&&!examples.length&&!annotations.length&&!notes.length)return null;
       return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection accordion={accordion} title={scope.id?`${scope.pos?`(${scope.pos}) `:''}${scope.title}`:scope.title}>
         <div className="min-w-0 space-y-4">
@@ -41,7 +41,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
         {!!forms.length&&section('詞形變化',<dl className="grid gap-2 sm:grid-cols-2">{forms.map(f=><div key={f.id}><dt className="inline">{inflectionLabels[f.form_kind]}：</dt><dd className="inline">{f.form}</dd></div>)}</dl>)}
         {!!histories.length&&section('歷史詞源',histories.map(h=><div key={h.id}><p className="text-sm">{verification[h.verification]}{h.verification!=='verified'?'（不是已確認的詞源事實）':''}</p><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：{h.data_source}</p>}</div>))}
         {!!examples.length&&section('例詞',[...examples].sort((a,b)=>a.sort_order-b.sort_order).map(x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>))}
-        {!!annotations.length&&section('字形與待解析提示',annotations.map(x=><div key={x.id}><h4 className="text-sm">{x.kind==='source_forms'?'原始字形':'待解析構詞提示（尚非確認關聯）'}</h4><p className="whitespace-pre-wrap">{x.body}</p></div>))}
+        {!!annotations.length&&section('待解析構詞提示',annotations.map(x=><div key={x.id}><h4 className="text-sm">待解析構詞提示（尚非確認關聯）</h4><p className="whitespace-pre-wrap">{x.body}</p></div>))}
         {([{kind:'learning_decomposition',title:'口訣'},{kind:'mnemonic_scenario',title:'記憶故事'}] as const).map(({kind,title})=>notes.some(n=>n.kind===kind)&&<div key={kind}>{section(title,<div aria-label={kind==='mnemonic_scenario'?'記憶情境':title}>{notes.filter(n=>n.kind===kind).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</div>)}</div>)}
         </div>
       </DetailSection></div>;

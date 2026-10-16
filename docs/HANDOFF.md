@@ -1,27 +1,28 @@
 # Nexus — 當前交接（2026-10-16）
 
-產品契約以最新 SPEC 為準；實作看 ARCHITECTURE。正式啟用與使用者驗收分開，人工驗收集中 #60。
+產品規格以 SPEC 為準；技術契約見 ARCHITECTURE，人工驗收集中 #60。
 
-## 第五輪交付（#34／#43／#62）
+## 本輪字典修復
 
-- A #69 已合併：Word 義項詞性／中文／刪除同列，保留空白 Sense、關聯與 Review／CAS。
-- B #70 已合併：官方來源與可修改私人字典連結分離，更新只新增缺漏，保留私人內容、刪除意圖及 FSRS。**SQL 正式未套用**，capability 缺少保留舊功能。
-- C #71 已合併：正式學習翻面＋展開字典後，僅管理員可開完整詞條編輯器，保護 Session、評分與未存內容，返回重讀 Published。
-- D #72 已合併：角色卡預覽、五欄基本資料、區塊／組件、扳手耐久浮窗、尺寸與長按／鍵盤移動；保留舊內容、附件與分頁。
-- E #73 已合併：純結構私人模板、獨立管理頁、結構自動儲存與獨立角色實例。
-- F #74 已合併：獨立創作資源庫、owner 草稿、不可覆寫公開版本、來源許可快照、最新下載、檢舉／上下架。**SQL 正式未套用**，新資源庫安全停用；私人模板不受影響。
-- G 同來源安全更新／快照還原已實作，驗證與合併狀態見本輪 PR。三方合併保護個人資料／覆寫，消失或不相容組件進「保留內容」；交易內來源／角色 CAS。無新 Migration。
+- 已實作學習字典詳情 Modal：僅 linked 卡翻面後提供入口，詳情／完整管理員編輯器保護原 Session、私人內容及評分；移除技術說明。
+- 修正 save／discard Review 多傳發布專用 content_verified；不更改後端簽名，發布查證／RLS／CAS 保留，fake RPC 增加精確參數驗證。
+- 移除舊 source_forms 編輯／AI／CSV／Draft 模型；共表 relation_hint、結構化詞形與 Stable ID 保留。舊交換檔明確報錯，舊本機 Session／原檔不清除。
+- 新 SQL：`20261016050000_dictionary_retire_source_forms.sql`；隔離測試含回復／後續修改拒絕覆寫，操作順序與回復腳本見 `docs/operations/DICTIONARY-SOURCE-FORMS.md`。**正式已套用**：ledger `20261016072304 dictionary_retire_source_forms`。舊註釋 6,199→0；Entry 6,301／Sense 11,518／詞形 7,135／有效提示 67／active Review 927／常駐工作 28 均保留，13 組指紋交易內驗證通過。一般用戶／匿名者無備份存取權，一次性 cleaner 已移除。
 
-## 待使用者另行授權的正式 SQL
+## 已核實的先前 Migration
 
-1. `supabase/migrations/20261016030000_official_private_card_identity.sql`：官方來源 backfill／guard／下載去重。順序及相容說明 `docs/OFFICIAL-PRIVATE-CARD-MIGRATION.md`。
-2. `supabase/migrations/20261016040000_creation_template_library.sql`：創作資源庫五表、RLS／RPC。相依、staging 驗證及非破壞回復 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。
+正式 Nexus ledger 已存在 official_private_card_identity（20261016062703）及 creation_template_library（20261016062716），與使用者回報一致；本輪沒有重播。第五輪 #69～#75 均已合併，角色模板／官方卡功能仍待 #60 真實帳號驗收。
 
-本輪未執行正式 Migration／批次資料寫入、字典匯入／發布、官方集重建或 FSRS 重設。隔離 PostgreSQL／Chromium 不等於 Supabase staging／真實 Safari 驗收；正式 ledger、JWT／PostgREST／advisors 尚待授權後核對。
+## 驗證與 PR
 
-## 相容性與下一步
+- PR #76：本輪程式、Migration／回復腳本及文件。Preview／最終合併狀態由 PR 檢查與結案回報核對。
+- 字典 28 個單元／整合測試檔完整跑過；25 檔初次通過，3 檔舊 CSV／註釋 fixture 依新規格更新後重跑通過。最終聚焦契約 13/13、Identity／Lifecycle 4/4、學習／同步 29/29。6,300 交換與 6,301 常駐恢復規模測試通過。
+- 5/5 隔離 Chromium 組：字典編輯器（含多 Review／儲存／捨棄取消）、學習詳情、分頁、常駐審核、完整交換。桌面／平板／手機尺寸不是實機 Safari／正式帳號驗收。
+- TypeScript／Production Build 通過；ESLint 0 errors／456 既有 warnings。正式 security advisors 前後相同：7 INFO、43 既有 SECURITY DEFINER 提醒、1 既有密碼保護提醒，無本輪新增。
+- 正式 SQL 初次 Connector requestState 過期；先核對 ledger／schema 未改變才重試，第二次成功，不重播已成功操作。沒有正式字典匯入／發布、私人字卡／學習事件或官方集重建。
 
-- 舊角色若缺來源 baseline／穩定節點對照，不安全猜配；保留原內容並提示，需要可查證對照才能補建。新角色已記錄可重現基準。
-- 角色只手動套用目前同來源模板；下載新版不自動改角色。來源下架／刪除不刪私人副本。
-- 真實 iPad Safari：字典 Word 同列、學習中管理員編輯返回、角色長按／尺寸／浮窗、自訂模板、同來源更新與還原。兩項 SQL 授權啟用後再驗收官方私人卡與公開資源庫。清單及最終 commit 由 #60／PR 追蹤。
-- 既有字典常駐審核與四組官方集保留；原 28 筆僅歷史資訊，舊工作仍先備份原檔／Session JSON，不重新匯入已套用項目。
+## 人工驗收
+
+- 真實 iPad Safari／手機：學習翻面→詳情 Modal→管理員完整編輯→儲存／發布／未存關閉→詳情→原卡，不能多出評分或重開 Session；一般用戶／無連結卡無編輯入口。
+- 測試詞條新草稿、既有／多份 Review、衝突／重載與人工發布；舊註釋消失，詞形與構詞提示仍可編輯。
+- 原本常駐待審工作重讀／重新比對，保留未退場欄位的決策；不要重匯已完成的歷史工作。未配可靠 baseline 的舊角色仍保留資料並拒絕猜配。

@@ -3,7 +3,7 @@ import {parseCSV} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 import {emptyGrouping} from './grouping';
 
-export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','source_forms','relation_hint','mnemonic_story'];
+export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint','mnemonic_story'];
 export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
 export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
@@ -21,7 +21,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     if(!r.entry_id.trim()&&!known?.size)proposed.set(key,entry_id);
     const sense_id=r.sense_id.trim().toLowerCase()||crypto.randomUUID();
     let d=drafts.get(entry_id);
-    if(!d){d={kind:kind as DictionaryDraftInput['kind'],entry_id,headword:r.headword,row,senses:[],etymologies:[],examples:[],relations:[],learning_notes:[],lexical_annotations:[],relation_hints:[],proposed_ids:[]};drafts.set(entry_id,d);}
+    if(!d){d={kind:kind as DictionaryDraftInput['kind'],entry_id,headword:r.headword,row,senses:[],etymologies:[],examples:[],relations:[],learning_notes:[],relation_hints:[],proposed_ids:[]};drafts.set(entry_id,d);}
     else if(d.kind!==kind||entryKey(d.kind,d.headword)!==key)error('entry_id','同一 entry_id 的 kind / headword 不一致');
     if(proposed.get(key)===entry_id&&!d.proposed_ids!.includes(entry_id))d.proposed_ids!.push(entry_id);if(!r.sense_id.trim())d.proposed_ids!.push(sense_id);
     if(kind==='word'&&r.category?.trim())d.grouping={...emptyGrouping(),primary_category:r.category};
@@ -33,7 +33,6 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     for(const [field,list,extra] of [
       ['etymology',d.etymologies,{verification:'pending',verification_note:''}],
       ['example_words',d.examples,{sort_order:0}],
-      ['source_forms',d.lexical_annotations,{kind:'source_forms',sort_order:0}],
       ['relation_hint',d.relation_hints,{kind:'relation_hint',sort_order:0}],
       ['mnemonic_story',d.learning_notes,{kind:'mnemonic_scenario'}],
     ] as const){if(r[field]?.trim()){const id=crypto.randomUUID();d.proposed_ids!.push(id);list.push({id,sense_id,body:r[field],...extra});}}
@@ -56,12 +55,12 @@ export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
       if(own.length>1||items.some(x=>!x.sense_id)&&d.senses.length>1)throw Error('此詞條有多筆或詞條級內容，請使用 AI JSON 完整匯出，避免 CSV 合併遺失關聯。');
       return String(own[0]?.body??'');
     };
-    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,d.kind==='prefix'?sense.category??'':d.kind==='root'?d.grouping?.primary_category??'':'',content(d.etymologies),content(d.examples),content(d.lexical_annotations),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='mnemonic_scenario'))]);
+    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,d.kind==='prefix'?sense.category??'':d.kind==='root'?d.grouping?.primary_category??'':'',content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='mnemonic_scenario'))]);
   }
   return dictionaryCSVHeaders.join(',')+'\n'+rows.map(r=>r.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');
 }
 export const dictionaryCSVExample=dictionaryCSVHeaders.join(',')+'\n'+[
-  ['word','','','example','noun','例子','','','an example','','','用例子幫助記憶'],
-  ['prefix','','','pre-','','之前','位置、方向與關係','','preview','','',''],
-  ['root','','','form','','形狀','空間、位置與環境','','formation','','',''],
+  ['word','','','example','noun','例子','','','an example','','用例子幫助記憶'],
+  ['prefix','','','pre-','','之前','位置、方向與關係','','preview','',''],
+  ['root','','','form','','形狀','空間、位置與環境','','formation','',''],
 ].map(row=>row.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');

@@ -1,5 +1,8 @@
 # 官方私人卡片身份相容更新（2026-10-16）
 
+> 2026-10-16 已唯讀核實正式 Nexus ledger：`20261016062703 official_private_card_identity`，與使用者回報一致；下方為操作／相容說明，不再代表此 SQL 待套用。本輪不重播。
+
+
 SQL：`supabase/migrations/20261016030000_official_private_card_identity.sql`。**未套用正式環境，需另行授權**。
 
 ## 依賴及資料保護

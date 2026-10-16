@@ -124,7 +124,7 @@ test(
       word.examples = [
         { id: id(29), sense_id: id(24), body: "example 中文", sort_order: 1 },
       ];
-      word.lexical_annotations = [
+      word.relation_hints = [
         { id: id(30), sense_id: null, body: "source forms", sort_order: 0 },
       ];
       word.relation_hints = [

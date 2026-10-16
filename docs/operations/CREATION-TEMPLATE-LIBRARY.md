@@ -1,5 +1,8 @@
 # 創作模板資源庫：待授權資料庫啟用
 
+> 2026-10-16 已唯讀核實正式 Nexus ledger：`20261016062716 creation_template_library`，與使用者回報一致；下方為操作／相容說明，不再代表此 SQL 待套用。本輪不重播。
+
+
 ## 狀態與相依
 
 第五輪 F 提供增量 SQL `supabase/migrations/20261016040000_creation_template_library.sql`，**尚未在正式 Supabase 執行**。依賴已存在的 `auth.users`、`auth.uid()`、authenticated／anon 及 `public.is_dictionary_admin()`（沿用 Nexus 專案管理員名單，不採可由使用者修改的 metadata）。無需先套用官方私人字卡來源 Migration；兩項互不依賴。

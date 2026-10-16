@@ -103,7 +103,7 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
     word.examples = [
       { id: id(25), sense_id: null, body: "example", sort_order: 0 },
     ];
-    word.lexical_annotations = [
+    word.relation_hints = [
       { id: id(26), sense_id: null, body: "annotation", sort_order: 0 },
     ];
     word.pronunciations = [

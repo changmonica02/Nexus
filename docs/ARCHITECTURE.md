@@ -242,7 +242,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - Sense-aware pronunciation 原候選欄位：`id, entry_id, sense_id nullable, locale nullable, ipa, note nullable, sort_order`，另含 revision／updated_at；`sense_id` 必須屬相同 Entry。實際 migration 與 schema 仍須查證。
 - 匯入階段先預覽及驗證，區分 Safe／Review／Invalid；Apply 重新確認 snapshot／revision／狀態／權限；保留稽核收據及冪等性；批次切分不能拆散同一 Entry 的 Sense。
 - Word CSV runtime 曾採五欄：`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw`。Canonical master CSV v1 曾採十二欄：`kind,entry_id,sense_id,headword,part_of_speech,gloss_zh_tw,category,etymology,example_words,source_forms,relation_hint,mnemonic_story`。二者用途不同，**最終匯入 UI 格式與轉換流程仍須核定**。
-- `relation_hint` 為候選關聯，`source_forms` 為字形註解；`levels` 供 Official Study Pack manifest 使用，與字典內容分類分離。
+- `relation_hint` 為候選關聯；`source_forms` 字形註解已退場，詳見下方本輪遷移契約；`levels` 供 Official Study Pack manifest 使用，與字典內容分類分離。
 - Inflection／Derivation 應具不同語義；如何建立欄位或關聯模型，待產品規格確認。
 
 ## F-DICTIONARY｜正式目標架構與資料契約（2026-10-12）
@@ -285,7 +285,7 @@ offline / reconnect / delete / attachment / backup import 行為
 ### D. CSV 相容匯入／匯出（完整交換見 #44）
 
 - **CSV 相容匯入操作**：管理字典 →「匯入」→浮動視窗 → 選擇受支援的交換檔案 → 解析／驗證 → 預覽（Safe、Review、Invalid）→ 確認寫入 Draft → 審核／發布。Word／Prefix／Root 均必須有可定義的 CSV 處理方式。
-- **現有格式差異**：`dictionaryCSV.ts` 含 12 欄 Dictionary CSV v1 和 Word 舊五欄；`adminImport.ts`／DictionaryAdmin 仍含 Markdown／JSON／AI 相容路徑。Codex 必須先確認這些路徑是否被其他內部／migration／管理工具呼叫，再移除或封存不屬於管理 UI 的功能。
+- **現有格式差異**：`dictionaryCSV.ts` 現行為移除 source_forms 後的 11 欄 Dictionary CSV 和 Word 舊五欄；`adminImport.ts`／DictionaryAdmin 仍含 Markdown／JSON／AI 相容路徑。Codex 必須先確認這些路徑是否被其他內部／migration／管理工具呼叫，再移除或封存不屬於管理 UI 的功能。
 - **資料無損要求**：CSV 欄位契約需可完整表達產品要求的多 Sense、Entry／Sense 讀音、變體、詞源及構詞關係，或明確定義 CSV 對這些內容僅部分支援並由管理 UI 防止不完整匯出／覆寫。**在使用者核准完整 CSV schema 前，不得聲稱 CSV 可以全量無損 round-trip**。
 - **匯出**：管理介面提供資料匯出；明確標示全部／篩選範圍、草稿／正式內容範圍與資料完整性。若目前 CSV 無法無損保存完整詞條，需阻止誤導性的「完整備份」敘述並回報缺口；不得靜默丟失讀音或 Sense 關聯。
 - **批次安全**：檔案大小／列數／編碼、錯誤列提示、同 Entry 多 Sense 群組、預覽後來源版本變化與重試冪等需有驗證及測試；運輸分批大小屬效能參數，不應固定成舊歷史 13 批方案。
@@ -320,7 +320,7 @@ offline / reconnect / delete / attachment / backup import 行為
 - 新增 `dictionary_inflections(id,entry_id,sense_id?,form_kind,form,sort_order,revision,updated_at)`。它是 Entry 附屬記錄，沒有公開 Entry 身分；同 Entry／Sense／類型／正規化詞形防重，相同拼寫可屬不同類型或不同 Sense。詞性對應與 Sense 所屬關係由 TypeScript、FK 和伺服器驗證；直接資料表寫入未授權。此版只儲存人工指定的形式，不做規則猜測。
 - 詞形納入 canonical DraftInput、Review candidate、Published snapshot／diff、JSON Bundle、AI JSON roundtrip、Safe／Review import 與稽核。Editor 的完整草稿儲存可在同一 revision 交易移除被刪去的附屬詞形／關聯；部分匯入的省略仍保留舊資料與構詞順序：一般 `mapDictionaryDraft` 不傳 `component_order`，完整 Editor save／Review save 才明確傳入排序。舊 Review snapshot 缺少新欄位時以空陣列正規化比對，關聯陣列比較以穩定 ID 正規化；歷史原文不回填、不重寫。
 - `dictionary_relations` 保留所有 ID／目標 Sense FK，來源 `sense_id` 支援 null（詞條共用）；構詞模型不含關聯種類／查證狀態／查證說明。舊 SQL 欄位只供無損相容與歷史保留。擴充 Word 成分並拒絕自身連結。排序**沿用既有 `dictionary_ai_metadata.component_order`**，不建立平行排序模型。選取器只列已發布候選，DB 仍允許既有批次匯入暫時指向 Draft 成分；發布前必須先發布所有目標，維持舊批次安全機制。
-- 舊 `source_forms` 原文繼續保存在 lexical annotations，編輯器僅移至收合相容區塊，不轉換為詞形。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 #44 JSON Exchange v1，JSON Bundle／AI JSON 亦保持原流程；CSV schema 不變。
+- 舊 `source_forms` 已從有效模型及編輯器移除，不轉換為詞形；資料庫以本輪安全退場 Migration 清理，備份與不可變歷史不提供產品編輯入口。CSV v1 沒有詞形欄位，含詞形的 CSV 匯出明確拒絕；完整交換使用 #44 JSON Exchange v1，JSON Bundle／AI JSON 亦保持原流程；現行 CSV 移除 source_forms 欄，舊格式明確拒絕，不靜默丟棄。
 - `search_dictionary_with_inflections` 合併 headword／中文義項及**索引可確認的 exact 詞形**，結果帶 `inflection_matches`，保留原形與同形詞；Reader 標示匹配原因，詞形以文字而非新 Entry 連結顯示。反向構詞改用直接來源 Entry FK embed，涵蓋詞條共用及指定義項；分類篩選仍用原查詢。
 - 新 Migration：`supabase/migrations/20261020_dictionary_edit_inflections.sql`，依賴既有字典 migrations 至 20261019。只有新表／索引／RLS／trigger 及 RPC replacement，無既存資料清除或 backfill。PR #46開發當時只在隔離PGlite執行；其後已由正式ledger `20261013041717 dictionary_edit_inflections_20261020` 核實套用，現不可當成待執行SQL重播。若回退應保留新表與附屬資料，停用新 UI／RPC；不能以刪表當作回滾。
 - 自動化：`tests/dictionaryEditInflections.test.cjs` 驗證升級舊 review、ID／Sense／詞形 roundtrip、衝突、隔離、發布／歷史與權限；`tests/dictionaryEditor.browser.test.cjs` 以模擬 RPC 和 Chromium 驗證桌面／390px 手機的編輯、焦點、返回及保存／發布。瀏覽器測試需 `npx playwright install chromium` 或設定 `BROWSER_EXECUTABLE`；所有 fixture 僅在臨時 HTTP server 運作，無正式資料服務。
@@ -590,3 +590,14 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 模板結構編輯可修改組件類型（保留穩定 ID）、欄位名稱、統計欄名及偏向端點，不提供個人值輸入；不相容類型變更由上述合併保留舊角色內容。
 - 合併最新 main 的 F-CHARACTER 整理後，空白角色保留無區塊，明確 disabled 的基本資料不被舊 JSON 正規化重新打開。私人角色／世界觀模板分流，世界觀模板不強加角色五欄，下載世界觀模板可用於新建世界觀；原世界觀內容編輯流程保留。
 - 測試補足來源／目標 CAS、交易中止、回復、stable IDs、個人覆寫、跨分頁移動、備份與第二裝置 merge。共用工作區 browser 的既有復原後 DOM 競態改成等待該列移除並鎖定目標永久刪除列，未移除安全斷言。真實 iPad Safari／正式帳號驗收仍在 #60。
+
+
+## 2026-10-16｜字典詳情、Review RPC 與 source_forms 退場
+- `CardDictionaryPanel` 以原生 `DictionaryModal` 顯示 Published，依卡片／連結 key 隔離生命週期，generation 拒絕離開後的舊讀取；無連結無入口。詳情開啟即透過原 `onEditingChange` 暫停正式學習 reload／評分，巢狀完整編輯器沿用離開保護，返回只刷新字典，不寫私人卡／FSRS。
+- 根因：`72b9a03` 將發布專用 `content_verified` 同時加入 save／discard；正式 RPC 分別只有 `(review_uuid,expected_revision,candidate)`／`(review_uuid,expected_revision)`，PostgREST 因命名參數組合不符而失敗。移除兩處多餘參數，approve／publish 查證參數、後端 dry-run 候選驗證、管理員檢查及 CAS 全保留。瀏覽器 fake RPC 現在核對精確參數集合。
+- `20261016050000_dictionary_retire_source_forms.sql` 只刪除共享 `dictionary_lexical_annotations` 的 source_forms，保留 relation_hint 與共享 FK／索引，CHECK 收緊為 relation_hint。所有現有 SQL 函式均未硬編碼 source_forms；不需更改 RPC 簽名／授權。前端 Draft／AI／CSV 不再寫入舊欄，交換檔拒絕舊種類。
+- 遷移以既有 advisory lock 加表鎖，在同一交易先建立非 exposed `dictionary_retirement_backup` 回復副本（應用角色無 schema／表權限），清理 active Review 的候選及基底並遞增 revision；受影響常駐匯入清理舊差異、保留其他決策並標 stale 要求重新比對。不可變 Published 歷史、Audit、operation receipts／來源原檔不重寫。一次性 JSON cleaner 提交前移除，非新增 API。
+- 回復腳本 `docs/operations/DICTIONARY-SOURCE-FORMS-ROLLBACK.sql` 對部署後 Review／匯入變更做完整比對，存在新工作即整筆拒絕，不覆寫；恢復仍遞增 revision。回復副本僅供操作員災難復原，非隱藏功能欄位。正式驗收後可另行封存及清除備份 schema；本輪不自動清理。
+- 正式部署狀態及測試實際結果見 HANDOFF。2026-10-16 已唯讀核實先前兩份 Migration 的正式 ledger 名稱 official_private_card_identity（20261016062703）、creation_template_library（20261016062716），不按 Git 檔名重播。
+
+- 本輪正式 ledger：`20261016072304 dictionary_retire_source_forms`（Git SQL 檔時間戳不同）；已於 2026-10-16 成功套用並唯讀核對。舊種類 0、有效提示 67、Entry 6301／Sense 11518／詞形 7135／active Review 927／匯入工作 28 保留，13 組交易內指紋檢查通過。備份 schema 應用角色不可讀，cleaner 已移除，原 RPC／RLS 不變。沒有進行正式儲存／發布驗收；相關實機操作留 #60。
