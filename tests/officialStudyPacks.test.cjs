@@ -21,8 +21,8 @@ async function fixture(t){
 async function installLocal(repo,deck='deck'){
   const card=makeCard(`card-${deck}`,deck);await repo.mergeRemote({cards:[card],states:[emptyStudyState(card)],events:[],sessions:[],settings:[settings(deck)]});return card;
 }
-test('three official packs, exact levels, all requested download states and honest empty counts',()=>{
-  assert.deepEqual(api.OFFICIAL_PACKS.map(p=>p.levels),['1–2','3–4','5–6']);
+test('four official packs, exact levels, all requested download states and honest empty counts',()=>{
+  assert.deepEqual(api.OFFICIAL_PACKS.map(p=>p.levels),['1–2','3–4','5–6','1–6']);
   for(const p of api.OFFICIAL_PACKS){
     const pack={...p,version:1,word_count:0,deck_id:null,installed_version:null};
     assert.equal(api.packAction(pack),'下載');assert.equal(api.packAction(pack,true),'下載中…');assert.equal(api.packAction(pack,false,true),'重試');
