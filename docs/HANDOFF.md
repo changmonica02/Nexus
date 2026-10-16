@@ -1,28 +1,27 @@
 # Nexus — 當前交接（2026-10-16）
 
-產品契約以 SPEC 為準，技術契約看 ARCHITECTURE；真實裝置驗收集中 #60。
+產品契約以最新 SPEC 為準；實作看 ARCHITECTURE。正式啟用與使用者驗收分開，人工驗收集中 #60。
 
-## 第五輪開發（#34／#43／#62）
+## 第五輪交付（#34／#43／#62）
 
-- PR A #69 已合併：Word 詞性／中文／刪除移入各 Sense 緊湊列，保留空白義項、ID 與原安全流程，無 Migration；驗證與交付狀態見 PR。
-- PR B #70 已合併，已實作官方來源／私人連結分離，增量 SQL `20261016030000_official_private_card_identity.sql` 未套用正式環境；capability 缺少時保留既有功能。隔離驗證與交付狀態見 PR。
-- PR C #71 已合併，已實作展開字典後的管理員完整編輯浮窗、未儲存保護與 Session 評分鎖，無新 SQL；交付驗證見 PR。
-- PR D #72 已合併：角色卡預覽／五欄基本資料、長按移動排序、尺寸、浮窗耐久儲存及舊資料快照已實作，驗證與交付見 PR。無新 SQL。
-- PR E #73 已合併：私人模板結構白名單、獨立管理頁及結構自動儲存已實作，無新 SQL；驗證／交付見 PR。
-- PR F：創作模板資源庫、公開／私人版本、RLS／RPC 與同 ID 下載已實作；新 SQL `20261016040000_creation_template_library.sql` 正式未套用，capability 缺少時停用新資源庫。部署順序見 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。
-- 接續 G：同來源模板安全更新；未交付前不得視為已完成。
-- 正式 Supabase Migration／資料寫入未授權；新能力須以 capability 安全隔離，SQL 先隔離驗證、待授權套用。
+- A #69 已合併：Word 義項詞性／中文／刪除同列，保留空白 Sense、關聯與 Review／CAS。
+- B #70 已合併：官方來源與可修改私人字典連結分離，更新只新增缺漏，保留私人內容、刪除意圖及 FSRS。**SQL 正式未套用**，capability 缺少保留舊功能。
+- C #71 已合併：正式學習翻面＋展開字典後，僅管理員可開完整詞條編輯器，保護 Session、評分與未存內容，返回重讀 Published。
+- D #72 已合併：角色卡預覽、五欄基本資料、區塊／組件、扳手耐久浮窗、尺寸與長按／鍵盤移動；保留舊內容、附件與分頁。
+- E #73 已合併：純結構私人模板、獨立管理頁、結構自動儲存與獨立角色實例。
+- F #74 已合併：獨立創作資源庫、owner 草稿、不可覆寫公開版本、來源許可快照、最新下載、檢舉／上下架。**SQL 正式未套用**，新資源庫安全停用；私人模板不受影響。
+- G 同來源安全更新／快照還原已實作，驗證與合併狀態見本輪 PR。三方合併保護個人資料／覆寫，消失或不相容組件進「保留內容」；交易內來源／角色 CAS。無新 Migration。
 
-## 前輪 UI（#34／#45）
+## 待使用者另行授權的正式 SQL
 
-- PR #66 已合併：Quiz UI、Repository factory 及背景同步／重試退場，保留舊歷史、離線佇列、stores、恢復契約及 SQL migrations。77/77 單元／整合、正式學習瀏覽器組通過；TypeScript／Build 通過，ESLint 0 errors／459 既有 warnings。
-- PR #67 已合併：發布／恢復／返回／焦點／跨分頁重新取得完整字典管理清單、精確分頁及統計。保留搜尋、篩選與 active Review Draft。38/38 單元／整合、3/3 瀏覽器組及 TypeScript／Build 通過，ESLint 0 errors／459 既有 warnings。
-- 首頁分支已實作緊湊同排工具列、不分類預設、資料夾／功能獨立收合、搜尋及原選取／排序／選單；37/37 單元／整合、2/2 瀏覽器組通過（含六尺寸首頁與四尺寸完整工作區）；TypeScript／Build 通過。Preview／合併結果見本輪 PR。其他功能建立入口保留。
-- 無新增 Migration、正式資料庫讀寫、字典匯入／發布或官方集重建。既有正式字典與四組官方集資料不變；部署成功與使用者實機驗收分開記錄。
+1. `supabase/migrations/20261016030000_official_private_card_identity.sql`：官方來源 backfill／guard／下載去重。順序及相容說明 `docs/OFFICIAL-PRIVATE-CARD-MIGRATION.md`。
+2. `supabase/migrations/20261016040000_creation_template_library.sql`：創作資源庫五表、RLS／RPC。相依、staging 驗證及非破壞回復 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。
 
-## 常駐審核與既有待辦
+本輪未執行正式 Migration／批次資料寫入、字典匯入／發布、官方集重建或 FSRS 重設。隔離 PostgreSQL／Chromium 不等於 Supabase staging／真實 Safari 驗收；正式 ledger、JWT／PostgREST／advisors 尚待授權後核對。
 
-- PR #61 的常駐審核 Migration 已由使用者回報正式套用；本輪沒有另查正式 ledger。原 28 筆只是歷史資訊，不推定目前剩餘數量。
-- 舊匯入工作仍先在原裝置備份原檔及 Import Session JSON，再由「先前本機匯入工作」轉移未完成項；保留 operation／Entry／Review ID、已選決策及本機封存。已 applied／unchanged／skipped 不重做，不足以安全轉換者人工重新比對。
-- 真實 iPad Safari：首頁各尺寸分類／選取／排序、正式學習無 Quiz 提示、字典發布後清單與 Review Draft 狀態；四組官方集下載驗收仍在 #60。
-- #27 拼寫、工具進階及 PDF 新設計不在本輪；角色卡及 #62 按第五輪分階段推進。
+## 相容性與下一步
+
+- 舊角色若缺來源 baseline／穩定節點對照，不安全猜配；保留原內容並提示，需要可查證對照才能補建。新角色已記錄可重現基準。
+- 角色只手動套用目前同來源模板；下載新版不自動改角色。來源下架／刪除不刪私人副本。
+- 真實 iPad Safari：字典 Word 同列、學習中管理員編輯返回、角色長按／尺寸／浮窗、自訂模板、同來源更新與還原。兩項 SQL 授權啟用後再驗收官方私人卡與公開資源庫。清單及最終 commit 由 #60／PR 追蹤。
+- 既有字典常駐審核與四組官方集保留；原 28 筆僅歷史資訊，舊工作仍先備份原檔／Session JSON，不重新匯入已套用項目。

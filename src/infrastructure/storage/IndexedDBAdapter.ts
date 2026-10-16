@@ -182,6 +182,13 @@ export class IndexedDBAdapter implements StorageAdapter {
     return page;
   }
 
+  async savePageChecked(page:Page,expectedRevision:number,source?:{id:string;revision:number}):Promise<Page>{
+    const current=await this.getPage(page.id);if(current?.official_pack_id && current.title!==page.title)throw Error("官方單字集標題不可編輯。");
+    await this.getWorkspacePersistence().mutate(this.workspaceOwnerId,[{type:"pages",kind:"save",value:page}],
+      [{type:"pages",id:page.id,revision:expectedRevision},...(source?[{type:"pages" as const,id:source.id,revision:source.revision}]:[])]);
+    return page;
+  }
+
   async savePages(pages: Page[]): Promise<void> {
     if (pages.length) await this.getWorkspacePersistence().mutate(this.workspaceOwnerId, pages.map(value => ({ type: "pages", kind: "save", value })));
   }

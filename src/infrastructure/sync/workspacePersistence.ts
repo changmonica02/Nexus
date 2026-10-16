@@ -50,9 +50,13 @@ export class WorkspacePersistence {
       .filter(batch => batch.owner_id === owner).sort((a, b) => a.sequence - b.sequence);
   }
 
-  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob }[]): Promise<void> {
+  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
     const tx = this.db.transaction(stores, "readwrite", { durability: "strict" });
     try {
+      for (const guard of guards) {
+        const record=await tx.objectStore(guard.type).get(guard.id) as WorkspaceRecord|undefined;
+        if (!record || (record.workspace_owner_id??null)!==owner || record.deleted_at!=null || !("revision" in record) || record.revision!==guard.revision) throw new Error("資料版本已變更，請重新預覽。 / Revision conflict");
+      }
       const outbox = tx.objectStore("workspace_outbox");
       const metadata = tx.objectStore("workspace_sync_meta");
       const queued = await outbox.getAll() as WorkspaceBatch[];

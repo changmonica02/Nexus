@@ -43,7 +43,7 @@ export default function CharacterTemplateManager({
         <header className="flex flex-wrap items-center gap-3">
           <SidebarToggle />
           <button onClick={onClose}>← 返回創作</button>
-          <h1 className="flex-1 text-xl font-semibold">私人角色卡模板</h1>
+          <h1 className="flex-1 text-xl font-semibold">私人創作模板</h1>
         </header>
         <p className="text-sm opacity-65">
           模板只保存區塊、欄位與排版；修改不會自動改動已建立的角色。
@@ -113,7 +113,7 @@ export default function CharacterTemplateManager({
                 className="mt-3 text-sm text-blue-600"
                 onClick={() => onUse(template.id)}
               >
-                使用模板建立角色
+                {template.creative_type==="world"?"使用模板建立世界觀":"使用模板建立角色"}
               </button>
             </article>
           ))}

@@ -65,12 +65,14 @@ export default function CharacterBlockWorkspace({
   onSaveTemplate,
   readOnly = false,
   renderComponent,
+  templateActions,
 }: {
   page: Page;
   onCommit: (data: CharacterProfileData) => Promise<void>;
   onBack?: () => void;
   onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
   readOnly?: boolean;
+  templateActions?: ReactNode;
   renderComponent: (
     section: CharacterSection,
     mode: "edit" | "card",
@@ -488,6 +490,7 @@ export default function CharacterBlockWorkspace({
           </h1>
         </div>
         <div className="flex gap-2">
+          {templateActions}
           {!readOnly && (
             <button
               className={control}
@@ -543,7 +546,7 @@ export default function CharacterBlockWorkspace({
       )}
       <div ref={root} className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
         <div ref={grid} className="mx-auto max-w-6xl space-y-4">
-          {tab === "base" && data.basicBlock?.enabled && (
+          {tab === "base" && page.creative_type!=="world" && data.basicBlock?.enabled && (
             <section
               data-character-basic
               className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4"
@@ -822,6 +825,7 @@ export default function CharacterBlockWorkspace({
                   ): CharacterSection => ({
                     ...structuredClone(section),
                     id: crypto.randomUUID(),
+                    template_node_id: undefined,
                     contents: section.contents?.map(clone),
                   });
                   const id = crypto.randomUUID();
@@ -905,7 +909,7 @@ export default function CharacterBlockWorkspace({
             <button className={control} onClick={() => void addBlock()}>
               一般區塊
             </button>
-            {!data.basicBlock?.enabled && (
+            {page.creative_type!=="world" && !data.basicBlock?.enabled && (
               <button
                 className={control}
                 onClick={() => {

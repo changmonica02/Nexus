@@ -15,6 +15,8 @@ export async function installCreationTemplate(
   check();
   const existing = await storage.getPage(data.page_id);
   check();
+  if (existing && existing.workspace_owner_id !== owner)
+    throw Error("Account changed / Owner mismatch");
   if (
     existing &&
     (existing.character_data?.resourceSource?.postId !== data.source_id ||

@@ -126,7 +126,7 @@ export function instantiateCharacterTemplate(
     world_id: null,
     basicBlock: clean.basicBlock
       ? { ...clean.basicBlock, id: `basic_${nanoid()}` }
-      : undefined,
+      : source.templateId === "blank" ? {id:`basic_${nanoid()}`,enabled:false} : undefined,
     templateBinding: sourceId ? { sourceId, baseline: clean } : undefined,
     sections: clean.sections.map(instantiate),
     tabs: clean.tabs?.map((t) => ({

@@ -253,6 +253,8 @@ export interface CharacterStatisticItem {
 export interface CharacterExternalLink { label: string; url: string; }
 
 export interface CharacterSection {
+  retainedContent?: boolean;
+  retained_template_node_id?: string;
   size?: { span: number; height?: number };
   legacy_id?: string;
   template_node_id?: string;
@@ -289,6 +291,7 @@ export interface CharacterPageTab {
 
 export interface CharacterProfileData {
   resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
+  templateUpdateSnapshots?: {id:string;at:number;sourceId:string;title?:string;attachmentIds?:string[];data:CharacterProfileData}[];
   blocks_version?: 1;
   basicBlock?: { id: string; enabled: boolean };
   legacyCharacterSnapshot?: unknown;
