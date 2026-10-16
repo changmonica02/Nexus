@@ -107,7 +107,7 @@ export function normalizeCharacterBlocks(
     ...data,
     blocks_version: 1,
     basic: data.basic ?? { name: "" },
-    basicBlock: { id: identity(`basic:${documentId}`, "basic"), enabled: true },
+    basicBlock: { id: identity(data.basicBlock?.id ?? `basic:${documentId}`, "basic"), enabled: data.basicBlock?.enabled ?? true },
     sections,
     tabs: data.tabs?.map((tab, i) => ({
       ...tab,

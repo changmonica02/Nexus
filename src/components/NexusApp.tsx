@@ -61,6 +61,7 @@ import ResizablePanel from "./ResizablePanel";
 import PresentationView from "./PresentationView";
 import {installCreationTemplate} from "../features/creation/installTemplate";
 import {creationTemplateLibrary, type CreationDownload} from "../features/creation/templateLibrary";
+import CharacterTemplateUpdateControl from "./CharacterTemplateUpdateControl";
 import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
@@ -607,9 +608,16 @@ function NexusAppInner({
     if (!storage || storage.getWorkspaceOwner?.()!==owner) throw Error("帳號已切換，請重新開啟資源庫。");
     const pending=pendingSavesRef.current.get(data.page_id);if(pending)await flushSave(pending);
     const saved=await installCreationTemplate(storage,data,owner);
+    if(storage.getWorkspaceOwner?.()!==owner)throw Error("帳號已切換。");
     setPages(previous=>[...previous.filter(p=>p.id!==saved.id),saved]);
     void syncEngineRef.current?.pushPage(saved);
   },[flushSave,storageRef]);
+
+  const resolveTemplateStorage=useCallback(()=>storageRef.current,[storageRef]);
+  const beforeTemplateRead=useCallback(async(page:Page)=>{
+    for(const id of [page.id,page.character_data?.templateSourceId]){if(!id)continue;const pending=pendingSavesRef.current.get(id);if(pending)await flushSave(pending);const active=activeSavesRef.current.get(id);if(active)await active;}
+  },[flushSave]);
+  const templateApplied=useCallback((saved:Page)=>{if(storageRef.current?.getWorkspaceOwner?.()!==saved.workspace_owner_id)return;setPages(previous=>previous.map(p=>p.id===saved.id?saved:p));void syncEngineRef.current?.pushPage(saved);},[storageRef]);
 
   const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
     return storageRef.current?.readBinary(attachmentId) || null;
@@ -930,7 +938,7 @@ function NexusAppInner({
     if (templateId === "blank") initialData = createBlankTemplate();
     if (templateId === "dnd5e") initialData = createDnd5eTemplate();
     if (templateId === "coc7e") initialData = createCoc7eTemplate();
-    const customTemplate = pages.find((page) => page.id === templateId && page.character_data?.isTemplate && !page.deleted_at);
+    const customTemplate = pages.find((page) => page.id === templateId && page.creative_type!=="world" && page.character_data?.isTemplate && !page.deleted_at);
     if (customTemplate?.character_data) initialData = customTemplate.character_data;
     initialData = instantiateCharacterTemplate(initialData, customTemplate?.id);
 
@@ -1989,8 +1997,9 @@ function NexusAppInner({
           onRenameTemplate={(id, title) => patchPage(id, { title })}
           onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
           onCreateCharacter={handleCreateCharacter}
-          onCreateWorld={async () => {
-            const initialData = createBlankTemplate();
+          onCreateWorld={async (templateId="blank") => {
+            const custom=pages.find(p=>p.id===templateId&&p.creative_type==="world"&&p.character_data?.isTemplate&&!p.deleted_at);
+            const initialData = custom?.character_data?instantiateCharacterTemplate(custom.character_data,custom.id):createBlankTemplate();
             initialData.basic.name = "新世界觀";
             initialData.basic.role = "世界觀設定";
             const p = await createAndOpenPage({ kind: "creative", title: initialData.basic.name, format: "flow" });
@@ -2011,6 +2020,7 @@ function NexusAppInner({
               activePage.creative_type === "character" || !!activePage.character_data ? (
                 <CharacterProfileView
                   key={activePage.id}
+                  templateActions={<CharacterTemplateUpdateControl page={activePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(activePage)} onApplied={templateApplied}/>}
                   onCommitCharacterData={data=>commitCharacterData(activePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
                   page={activePage}
@@ -2091,6 +2101,7 @@ function NexusAppInner({
               secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
                 <CharacterProfileView
                   key={secondaryActivePage.id}
+                  templateActions={<CharacterTemplateUpdateControl page={secondaryActivePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(secondaryActivePage)} onApplied={templateApplied}/>}
                   onCommitCharacterData={data=>commitCharacterData(secondaryActivePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(secondaryActivePage, name, data)}
                   page={secondaryActivePage}
@@ -2164,6 +2175,7 @@ function NexusAppInner({
         activePage.creative_type === "character" || !!activePage.character_data ? (
           <CharacterProfileView
             key={activePage.id}
+                  templateActions={<CharacterTemplateUpdateControl page={activePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(activePage)} onApplied={templateApplied}/>}
                   onCommitCharacterData={data=>commitCharacterData(activePage,data)}
                   onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
                   page={activePage}
@@ -2248,7 +2260,7 @@ function NexusAppInner({
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
       {isDevicePreviewOpen && <DevicePreview onClose={() => setIsDevicePreviewOpen(false)} />}
 
-      {characterTemplatePicker && <CreationChoiceDialog title="選擇角色卡模板" options={[{ id: "blank", label: "全空白" }, { id: "dnd5e", label: "D&D 5e" }, { id: "coc7e", label: "CoC 7e" }, ...pages.filter((page) => page.character_data?.isTemplate && !page.deleted_at).map((page) => ({ id: page.id, label: page.title }))]} onClose={() => setCharacterTemplatePicker(false)} onChoose={(id) => { setCharacterTemplatePicker(false); void handleCreateCharacter(id); }} />}
+      {characterTemplatePicker && <CreationChoiceDialog title="選擇角色卡模板" options={[{ id: "blank", label: "全空白" }, { id: "dnd5e", label: "D&D 5e" }, { id: "coc7e", label: "CoC 7e" }, ...pages.filter((page) => page.creative_type!=="world" && page.character_data?.isTemplate && !page.deleted_at).map((page) => ({ id: page.id, label: page.title }))]} onClose={() => setCharacterTemplatePicker(false)} onChoose={(id) => { setCharacterTemplatePicker(false); void handleCreateCharacter(id); }} />}
       <NewPageDialog
         isOpen={createDialog.open}
         initialKind={createDialog.initialKind}

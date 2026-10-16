@@ -146,7 +146,7 @@ test(
           .getByRole("button", { name: "編輯組件 故事結構", exact: true })
           .waitFor();
         await page.goto(url + "?manager");
-        await page.getByRole("heading", { name: "私人角色卡模板" }).waitFor();
+        await page.getByRole("heading", { name: "私人創作模板" }).waitFor();
         await page
           .getByRole("button", { name: "私人模板", exact: true })
           .click();
@@ -178,20 +178,94 @@ test(
             .count(),
           2,
         );
-        await page.getByRole("button",{name:"模板操作 私人模板 copy",exact:true}).click();
-        await page.getByRole("menuitem",{name:"重新命名",exact:true}).click();
-        const rename=page.getByRole("dialog",{name:"模板名稱",exact:true});
-        await rename.getByRole("textbox").fill("獨立副本");await rename.getByRole("button",{name:"確認",exact:true}).click();
-        await page.getByRole("button",{name:"獨立副本",exact:true}).waitFor();
-        await page.getByRole("button",{name:"模板操作 獨立副本",exact:true}).click();
-        await page.getByRole("menuitem",{name:"刪除",exact:true}).click();
-        await page.getByRole("dialog").getByRole("button",{name:"取消",exact:true}).click();
-        await page.getByRole("button",{name:"獨立副本",exact:true}).waitFor();
-        await page.getByRole("button",{name:"模板操作 獨立副本",exact:true}).click();
-        await page.getByRole("menuitem",{name:"刪除",exact:true}).click();
-        await page.getByRole("dialog").getByRole("button",{name:"確認",exact:true}).click();
-        await page.getByRole("button",{name:"獨立副本",exact:true}).waitFor({state:"detached"});
-        assert.equal(await page.getByRole("button",{name:"私人模板",exact:true}).count(),1);
+        await page
+          .getByRole("button", { name: "模板操作 私人模板 copy", exact: true })
+          .click();
+        await page
+          .getByRole("menuitem", { name: "重新命名", exact: true })
+          .click();
+        const rename = page.getByRole("dialog", {
+          name: "模板名稱",
+          exact: true,
+        });
+        await rename.getByRole("textbox").fill("獨立副本");
+        await rename.getByRole("button", { name: "確認", exact: true }).click();
+        await page
+          .getByRole("button", { name: "獨立副本", exact: true })
+          .waitFor();
+        await page
+          .getByRole("button", { name: "模板操作 獨立副本", exact: true })
+          .click();
+        await page.getByRole("menuitem", { name: "刪除", exact: true }).click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "取消", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "獨立副本", exact: true })
+          .waitFor();
+        await page
+          .getByRole("button", { name: "模板操作 獨立副本", exact: true })
+          .click();
+        await page.getByRole("menuitem", { name: "刪除", exact: true }).click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "確認", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "獨立副本", exact: true })
+          .waitFor({ state: "detached" });
+        assert.equal(
+          await page
+            .getByRole("button", { name: "私人模板", exact: true })
+            .count(),
+          1,
+        );
+        await page
+          .getByRole("button", { name: "私人模板", exact: true })
+          .waitFor();
+        await page.goto(url + "?template&world");
+        await page
+          .getByRole("button", { name: "編輯組件 故事結構", exact: true })
+          .waitFor();
+        assert.equal(
+          await page.locator("[data-character-basic]").count(),
+          0,
+          "world templates never force the character five-field block",
+        );
+        await page
+          .getByRole("button", { name: "編輯組件 故事結構", exact: true })
+          .click();
+        const structure = page.getByRole("dialog", {
+          name: "編輯組件",
+          exact: true,
+        });
+        await structure
+          .getByRole("combobox", { name: "組件類型", exact: true })
+          .selectOption("key_value");
+        await structure
+          .getByRole("textbox", { name: "欄位名稱 1", exact: true })
+          .fill("世界設定欄位");
+        await structure
+          .getByRole("button", { name: "儲存並返回", exact: true })
+          .click();
+        await structure.waitFor({ state: "detached" });
+        const changed = await page.evaluate(
+          async () =>
+            (await window.characterStorage.getPage("character")).character_data,
+        );
+        assert.equal(
+          changed.sections
+            .flatMap((b) => b.contents ?? [])
+            .find((c) => c.id === "story").type,
+          "key_value",
+        );
+        assert.equal(
+          changed.sections
+            .flatMap((b) => b.contents ?? [])
+            .find((c) => c.id === "story").keyValues[0].value,
+          "",
+        );
         await context.close();
       }
       assert.deepEqual(errors, []);

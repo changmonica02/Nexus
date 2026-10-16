@@ -1,6 +1,9 @@
 "use client";
-import type { CharacterSection } from "../lib/types";
-import { CHARACTER_COMPONENT_TYPES } from "../lib/characterBlocks";
+import type { CharacterSection, CharacterComponentType } from "../lib/types";
+import {
+  CHARACTER_COMPONENT_TYPES,
+  newCharacterComponent,
+} from "../lib/characterBlocks";
 /** A template edits field definitions, never a character's filled values. */
 export default function CharacterTemplateStructureEditor({
   value,
@@ -51,11 +54,102 @@ export default function CharacterTemplateStructureEditor({
           onChange={(e) => onChange({ ...value, title: e.target.value })}
         />
       </label>
-      <p className="text-sm">
-        類型：
-        {CHARACTER_COMPONENT_TYPES.find((t) => t.type === value.type)?.label ??
-          value.type}
-      </p>
+      <label className="block">
+        組件類型
+        <select
+          className="block w-full rounded border p-2"
+          value={value.type}
+          onChange={(e) =>
+            onChange({
+              ...newCharacterComponent(
+                e.target.value as CharacterComponentType,
+                value.id,
+              ),
+              title: value.title,
+              size: value.size,
+            })
+          }
+        >
+          {CHARACTER_COMPONENT_TYPES.map((t) => (
+            <option key={t.type} value={t.type}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {value.statisticHeaders && (
+        <div>
+          {(["label", "description", "value", "unit"] as const).map(
+            (key, i) => (
+              <label className="block" key={key}>
+                統計欄位標題 {i + 1}
+                <input
+                  className="block w-full rounded border p-2"
+                  value={value.statisticHeaders![key]}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      statisticHeaders: {
+                        ...value.statisticHeaders!,
+                        [key]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
+            ),
+          )}
+        </div>
+      )}
+      {value.tendency && (
+        <div>
+          {value.tendency.map((item, i) => (
+            <div className="flex flex-wrap gap-2" key={i}>
+              {(["left", "right"] as const).map((key) => (
+                <label key={key}>
+                  {key === "left" ? "左端名稱" : "右端名稱"}
+                  <input
+                    value={item[key]}
+                    className="block min-w-0 rounded border p-2"
+                    onChange={(e) =>
+                      onChange({
+                        ...value,
+                        tendency: value.tendency!.map((v, j) =>
+                          j === i ? { ...v, [key]: e.target.value } : v,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+              ))}
+              <button
+                aria-label={`刪除偏向 ${i + 1}`}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    tendency: value.tendency!.filter((_, j) => j !== i),
+                  })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              onChange({
+                ...value,
+                tendency: [
+                  ...value.tendency!,
+                  { left: "左端", right: "右端", value: 0 },
+                ],
+              })
+            }
+          >
+            ＋新增偏向
+          </button>
+        </div>
+      )}
       {keys && (
         <div>
           {keys.map((key, i) => (

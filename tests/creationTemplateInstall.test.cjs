@@ -1,7 +1,7 @@
 require('fake-indexeddb/auto');require('./loadStudy.cjs');const test=require('node:test'),assert=require('node:assert/strict');
 const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts');const {installCreationTemplate}=require('../src/features/creation/installTemplate.ts');
-test('private template installation is durable, same-ID retry/update, owner-scoped and respects deletion tombstones',async()=>{
- const storage=new IndexedDBAdapter();await storage.init();storage.setWorkspaceOwner('owner');
+test('private template installation is durable, same-ID retry/update, owner-scoped and respects deletion tombstones',async(t)=>{
+ const storage=new IndexedDBAdapter();await storage.init();t.after(()=>storage.close());storage.setWorkspaceOwner('owner');
  const data={page_id:'template-receipt-id',source_id:'post',version:1,title:'Template',kind:'character',author_name:'Author',license_snapshot:{allow_derivatives:false},structure:{isTemplate:true,basic:{name:'secret'},sections:[{id:'b',type:'group',title:'背景',contents:[]}],tabs:[]}};
  const one=await installCreationTemplate(storage,data,'owner');assert.equal(one.character_data.basic.name,'');assert.equal(one.character_data.resourceSource.postId,'post');
  await installCreationTemplate(storage,data,'owner');assert.equal((await storage.listPages()).length,1);

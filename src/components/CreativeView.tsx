@@ -23,7 +23,7 @@ export default function CreativeView({
   pages: Page[];
   templates?: Page[];
   onCreateCharacter: (id?: string) => void;
-  onCreateWorld: () => void;
+  onCreateWorld: (templateId?:string) => void;
   onSelectPage: (id: string) => void;
   onCreateTemplate: () => void;
   onRenameTemplate: (id: string, title: string) => void;
@@ -33,6 +33,7 @@ export default function CreativeView({
   const { t } = useLanguage();
   const [choice, setChoice] = useState(false),
     [character, setCharacter] = useState(false),
+    [world,setWorld]=useState(false),
     [manager, setManager] = useState(false), [library,setLibrary]=useState(Boolean(initialLibraryPost)),[resourcePost,setResourcePost]=useState(initialLibraryPost);
   if (library) return <CreationTemplateLibraryView templates={templates} onClose={()=>setLibrary(false)} onDownload={onDownloadTemplate} initialPostId={resourcePost}/>;
   if (manager) return (
@@ -43,7 +44,7 @@ export default function CreativeView({
             onEdit={onSelectPage}
             onRename={onRenameTemplate}
             onDelete={(id) => actions.onDeletePage?.(id)}
-            onUse={onCreateCharacter}
+            onUse={id=>templates.find(t=>t.id===id)?.creative_type==="world"?onCreateWorld(id):onCreateCharacter(id)}
             onOpenResource={id=>{setResourcePost(id);setManager(false);setLibrary(true)}}
             onCopy={(id)=>actions.onDuplicatePage?.(id)}
           />
@@ -96,12 +97,13 @@ export default function CreativeView({
             ]}
             onChoose={(id) => {
               setChoice(false);
-              if (id === "world") onCreateWorld();
+              if (id === "world") {if(templates.some(t=>t.creative_type==="world"))setWorld(true);else onCreateWorld();}
               else setCharacter(true);
             }}
             onClose={() => setChoice(false)}
           />
         )}
+        {world&&<CreationChoiceDialog title="世界觀模板 / World templates" options={[{id:"blank",label:"空白世界觀 / Blank world"},...templates.filter(t=>t.creative_type==="world").map(t=>({id:t.id,label:t.title}))]} onClose={()=>setWorld(false)} onChoose={id=>{setWorld(false);onCreateWorld(id)}}/>}
         {character && (
           <CreationChoiceDialog
             title={t("ui.templates")}
@@ -109,7 +111,7 @@ export default function CreativeView({
               { id: "blank", label: t("ui.blankCharacter") },
               { id: "dnd5e", label: "D&D 5e" },
               { id: "coc7e", label: "CoC 7e" },
-              ...templates.map((p) => ({ id: p.id, label: p.title })),
+              ...templates.filter(p=>p.creative_type!=="world").map((p) => ({ id: p.id, label: p.title })),
             ]}
             onChoose={(id) => {
               setCharacter(false);

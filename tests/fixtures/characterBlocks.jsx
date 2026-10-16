@@ -77,6 +77,7 @@ if (new URLSearchParams(location.search).has("template")) {
     character_data: { ...page.character_data, isTemplate: true },
   };
 }
+if(new URLSearchParams(location.search).has("world"))page={...page,creative_type:"world"};
 window.characterStorage = storage;
 window.failSave = false;
 window.commits = 0;

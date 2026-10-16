@@ -220,7 +220,8 @@ test(
             (p) => p.title === "Trash restore" && !p.deleted_at,
           ),
         );
-        const permanent = page.getByRole("button", {
+        await restoreRow.waitFor({state:"detached"});
+        const permanent = page.locator("li").filter({hasText:"Trash permanent"}).getByRole("button", {
           name: "永久刪除",
           exact: true,
         });
@@ -826,6 +827,21 @@ test(
             ),
             countBefore,
           );
+          const worldTemplateId=await page.evaluate(async()=>{
+            const template=await window.fixtureStorage.createPage({kind:"creative",title:"World template",format:"flow"});
+            await window.fixtureStorage.savePage({...template,creative_type:"world",character_data:{isTemplate:true,blocks_version:1,basic:{name:"Do not copy"},sections:[{id:"world-block",type:"group",title:"地理",contents:[]}],tabs:[]}});return template.id;
+          });
+          await page.reload();await opener.waitFor();await opener.click();
+          const expand=drawer.getByRole("button",{name:"功能總覽",exact:true});if(await expand.getAttribute("aria-expanded")==="false")await expand.click();
+          await drawer.getByRole("button",{name:"創作",exact:true}).press("Enter");
+          await page.getByRole("button",{name:"＋ 建立",exact:true}).click();await page.getByRole("button",{name:"世界觀",exact:true}).click();
+          await page.getByRole("dialog",{name:"世界觀模板 / World templates",exact:true}).getByRole("button",{name:"World template",exact:true}).click();
+          await until(page,async sourceId=>(await window.fixtureStorage.listPages()).some(p=>p.creative_type==="world"&&!p.character_data?.isTemplate&&p.character_data?.templateSourceId===sourceId),worldTemplateId);
+          const createdWorld=await page.evaluate(async sourceId=>(await window.fixtureStorage.listPages()).find(p=>p.character_data?.templateSourceId===sourceId),worldTemplateId);
+          assert.equal(createdWorld.character_data.basic.name,"新世界觀");assert.notEqual(createdWorld.character_data.sections[0].id,"world-block");
+          await opener.click();await drawer.getByRole("button",{name:"創作",exact:true}).press("Enter");
+          await page.getByRole("button",{name:"＋ 建立",exact:true}).click();await page.getByRole("button",{name:"角色卡",exact:true}).click();
+          assert.equal(await page.getByRole("dialog").getByRole("button",{name:"World template",exact:true}).count(),0,"world templates never appear in the character picker");await page.keyboard.press("Escape");
           await opener.click();
           await drawer
             .getByRole("button", { name: "小說", exact: true })

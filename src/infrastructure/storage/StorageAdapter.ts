@@ -17,6 +17,7 @@ export interface StorageAdapter {
   getPage(id: ID): Promise<Page | null>;
   listPages(query?: PageQuery): Promise<Page[]>;
   savePage(page: Page): Promise<Page>;
+  savePageChecked?(page:Page,expectedRevision:number,source?:{id:string;revision:number}):Promise<Page>;
   /** Atomically persists chapter activation and its independent records. */
   savePages(pages: Page[]): Promise<void>;
   createPage(input?: CreatePageInput): Promise<Page>;

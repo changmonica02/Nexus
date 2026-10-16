@@ -579,3 +579,14 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 新 Migration ledger：`20261016040000_creation_template_library.sql` **僅已編寫與隔離測試，正式未套用**。新增 creation_templates／drafts／versions／downloads／reports 五表及 RLS；public capability 和 invoker mutate wrapper，privileged mutate 留在 non-exposed `nexus_private`。無既有表／FSRS／字典內容修改。來源授權首次發布重查並凍結快照；immutable 版本、草稿 CAS、首次保存／發布重試及同 owner 下載 receipt 保護。
 - `installCreationTemplate` 以 server receipt 固定 page ID 寫入既有 owner Workspace transaction；失敗整筆回滾，重試同 ID，檢查帳號、來源及 Tombstone。下載來源保存在既有 character_data JSON 的 `resourceSource`，不新增未同步的頂層 Page 欄位；私人修改／複製及實例保留來源追溯，公開 sanitizer 排除私人 metadata。共用樣式／字典／學習資料不修改。
 - 私人模板 `TemplateResourceStatus` 只查詢可用更新，不自動套用；使用者在資源庫確認後更新同一私人模板。已建立角色仍保持原狀，安全套用屬後續 G。缺少 capability 或離線安全停用新資源庫，原私人管理仍可使用。完整部署、RLS 與非破壞回復說明見 `docs/operations/CREATION-TEMPLATE-LIBRARY.md`。
+
+### 2026-10-16｜同來源角色卡模板更新（第五輪 G，已實作）
+
+- `characterTemplateUpdate` 以 instance 的 `templateBinding.sourceId/baseline`、穩定 `template_node_id` 與當前私人來源模板做三方合併。僅接受目前綁定來源；沒有可靠 baseline、來源重複／保留 ID 或區塊／組件層級衝突時明確拒絕，不按名稱猜配。早期 lazy wrapper 僅接受由原 ID 可重現的包裹關係。
+- 保留全部角色內容；名稱／尺寸／位置／順序只有未被個人覆寫才採上游變更。新節點建立空白且具新 instance ID；刪除／型別不相容的舊組件保留 ID 和內容，解除 active source mapping，移入根分頁底部 `retainedContent` 區塊，仍沿用扳手與拖曳。個人刪除不自動復活，個人新增及空白區塊保留。舊欄位沒有穩定 field ID，不靠位置猜測改名或覆寫已填值。
+- 每次實際套用前將完整 character_data（含個人內容）與標題／附件 ID 建立 `templateUpdateSnapshots`；快照本體不再內嵌舊快照清單，避免遞迴成長。還原前再保留目前狀態，可再次恢復；附件引用保留聯集，不刪附件。全部欄位沿用現有 JSON／備份／Workspace 同步。
+- `WorkspacePersistence.mutate` 增量接受交易內 revision guards；`savePageChecked` 在同一 IndexedDB pages＋outbox 交易核對角色與來源 owner／存活／revision，完整失敗回滾。沿用官方標題、Tombstone、既有 server operation receipt／revision 與跨裝置衝突機制，無新 RPC 或 Migration。離線操作只根據已快取來源，較新雲端內容仍依既有同步衝突處理，不假裝跨裝置鎖定。
+- `CharacterTemplateUpdateControl` 提供比較摘要、明確確認、來源改變後重新比對、儲存失敗重試及快照還原。NexusApp 先 flush 相關 pending save 再比較／提交，避免覆寫未存內容；帳號切換後不將舊 owner 結果放入目前畫面或另一帳號同步器。
+- 模板結構編輯可修改組件類型（保留穩定 ID）、欄位名稱、統計欄名及偏向端點，不提供個人值輸入；不相容類型變更由上述合併保留舊角色內容。
+- 合併最新 main 的 F-CHARACTER 整理後，空白角色保留無區塊，明確 disabled 的基本資料不被舊 JSON 正規化重新打開。私人角色／世界觀模板分流，世界觀模板不強加角色五欄，下載世界觀模板可用於新建世界觀；原世界觀內容編輯流程保留。
+- 測試補足來源／目標 CAS、交易中止、回復、stable IDs、個人覆寫、跨分頁移動、備份與第二裝置 merge。共用工作區 browser 的既有復原後 DOM 競態改成等待該列移除並鎖定目標永久刪除列，未移除安全斷言。真實 iPad Safari／正式帳號驗收仍在 #60。
