@@ -1,5 +1,6 @@
 "use client";
 import {observeDictionaryInvalidation} from './dictionaryInvalidation';
+import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import EditorSection from "./EditorSection";
 import FeatureIcon from "../../components/FeatureIcon";
 import {SidebarToggle} from "../../components/WorkspaceNavigation";
@@ -227,7 +228,7 @@ export function DictionaryListActions({busy,onNew,onImport,onExport}:{busy:boole
  const {t}=usePaginationLanguage();
  return <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>{t("ui.new")}</button><button className={button} disabled={busy} onClick={onImport}>{t("exchange.import")}</button><button className={button} disabled={busy} onClick={onExport}>{t("exchange.export")}</button></div>;
 }
-export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
+export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{onCommitted?:()=>void;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
   const [reviews,setReviews]=useState<DictionaryReview[]>([]),[chosen,setChosen]=useState<DictionaryReview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [targets,setTargets]=useState({entries,senses});
   useEffect(()=>{let active=true;const ids=[...new Set([...detail.relations,...(chosen?.candidate.bundle.dictionary_relations??[])].map(r=>String(r.target_entry_id)))];
@@ -248,9 +249,9 @@ export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:Dicti
     let saved:DictionaryReview;
     if(chosen){const {data,error}=await getSupabase()!.rpc('save_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請先備份內容，再重新載入比對。`);saved=data;}
     else {const {data,error}=await getSupabase()!.rpc('create_dictionary_edit_review',{entry_uuid:detail.entry.id,expected_snapshot:base,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請先備份內容，再重新載入比對既有草稿。`);saved=data;}
-    setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);
+    setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);onCommitted?.();
   };
-  const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:'核准發布新版本',message:'我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。目前公開版本將保留在版本歷史。',confirmLabel:'發布'}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);await refresh(detail.entry.id);});
+  const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:'核准發布新版本',message:'我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。目前公開版本將保留在版本歷史。',confirmLabel:'發布'}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);await refresh(detail.entry.id);onCommitted?.();});
   const latestBundle:Bundle={dictionary_entries:[base.detail.entry as unknown as Row],dictionary_senses:base.detail.senses as unknown as Row[],dictionary_relations:base.detail.relations as unknown as Row[],dictionary_etymologies:base.detail.etymologies as unknown as Row[],dictionary_learning_notes:base.detail.learning_notes as unknown as Row[],dictionary_inflections:(base.detail.inflections??[]) as unknown as Row[],dictionary_pronunciations:(base.detail.pronunciations??[]) as unknown as Row[],dictionary_examples:(base.detail.examples??[]) as unknown as Row[],dictionary_lexical_annotations:(base.detail.lexical_annotations??[]) as unknown as Row[]};
   return <section className="min-w-0 space-y-3">
     {!!activeReviews.length&&<div role="tablist" aria-label="詞條版本" className="flex gap-2">{(['latest','draft'] as const).map(tab=><button type="button" role="tab" tabIndex={view===tab?0:-1} onKeyDown={e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?'latest':e.key==='End'?'draft':view==='latest'?'draft':'latest';setView(next);const tabs=e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');tabs?.[next==='latest'?0:1]?.focus();}} aria-selected={view===tab} key={tab} onClick={()=>setView(tab)} className="min-h-11 rounded px-4 text-sm" style={{background:view===tab?'var(--color-border)':undefined}}>{tab==='latest'?'最新版本':'草稿'}</button>)}</div>}
@@ -267,7 +268,7 @@ export function PublishedWorkspace({detail,entries,senses,refresh}:{detail:Dicti
   </section>;
 }
 
-export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:string;newKind?:DictionaryEntry['kind'];embedded?:boolean}){
+export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}:{onCommitted?:()=>void;entryId?:string;newKind?:DictionaryEntry['kind'];embedded?:boolean}){
   const senses:DictionarySense[]=[];
   const [page,setPage]=useState(0),[reload,setReload]=useState(0),[work,setWork]=useState<string[]>([]),[reviewTarget,setReviewTarget]=useState<string|null>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('review')?new URLSearchParams(window.location.search).get('review')==='all'?'*':new URLSearchParams(window.location.search).get('review'):null);
   const [detail,setDetail]=useState<DictionaryDetail|null>(()=>{
@@ -300,7 +301,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
   const visible=entries;
 
-  if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh}/></>;
+  if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh} onCommitted={onCommitted}/></>;
   if(detail)return <><PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/></>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
@@ -346,10 +347,6 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false}:{entryId?:s
   </div>;
 }
 export default function DictionaryAdmin({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['kind']}={}){
-  const [access,setAccess]=useState<{owner:string;allowed:boolean}|null>(null),[error,setError]=useState('');
-  const ownerRef=useRef<string|null>(null);
-  useEffect(()=>{const client=getSupabase();if(!client)return;let generation=0;let mounted=true;
-    const check=async()=>{const run=++generation;setAccess(null);const {data:{user},error:authError}=await client.auth.getUser();if(!mounted||run!==generation)return;if(authError||!user){setError('請先從 Nexus 登入。');return;}const {data,error}=await client.rpc('is_dictionary_admin');if(!mounted||run!==generation)return;if(error){setError('無法確認管理權限，請確認 M7-9／M7-10 migration 已套用。');return;}setError('');ownerRef.current=user.id;setAccess({owner:user.id,allowed:data===true});};
-    void check();const {data:{subscription}}=client.auth.onAuthStateChange((event,session)=>{if(event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED'||(session?.user.id===ownerRef.current))return;generation++;ownerRef.current=null;setAccess(null);setTimeout(()=>{if(mounted)void check();},0);});return()=>{mounted=false;generation++;subscription.unsubscribe();};},[]);
+  const {access,error}=useDictionaryAdminAccess();
   return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><header className="flex min-w-0 flex-wrap items-center gap-3"><SidebarToggle/><Link href={entryId||newKind?'/dictionary/admin':'/dictionary'} className="shrink-0 text-sm underline">← 返回上一頁</Link><h1 className="text-2xl font-semibold">字典管理</h1></header>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<DictionaryWorkspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
 }

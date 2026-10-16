@@ -552,3 +552,9 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 增量 Migration `20261016030000_official_private_card_identity.sql` 將不可變 `official_source_entry_id` 與可移除／重連的 `dictionary_entry_id` 分離；來源唯一索引與原下載 RPC 去重涵蓋 soft-deleted 卡片。來源身份／owner／card／deck／pack guard 保留；卡片連結由 after-update trigger 原子維護並沿用 Published Word 驗證。新 capability 只允許 authenticated。未改 RLS 或正式資料。
 - 舊身份受原 guard 保護，SQL 交易補 metadata，不修改 timestamps／內容／排程；來源不明則中止。舊裝置未送新欄位時由已存身份補回，不採新連結推測。StudyRepository 在較新離線私有內容仍待同步時可只接收來源 metadata，不以舊遠端文字覆蓋。
 - StudySetView 以 capability 防止在舊後端啟用官方連結與單卡刪除；舊文字編輯仍可用。StudyCardEditor 沿原 picker／儲存與排程保留選擇；單卡刪除有確認且只 soft-delete。官方直接新增／匯入與整包刪除保護不變。部署／回滾見 `docs/OFFICIAL-PRIVATE-CARD-MIGRATION.md`；SQL 隔離測試使用真實 Study／Dictionary／Official RPC，僅 Workspace 建頁 transport 為 fixture，非正式 staging。
+
+### 2026-10-16 正式學習中的管理員字典浮窗
+
+- `useDictionaryAdminAccess` 抽出原 DictionaryAdmin 的 auth generation／owner／RPC 管理權限檢查，管理頁與 CardDictionaryPanel 共用。字卡翻面後且面板展開、有有效連結與 Published detail 才顯示編輯入口；一般使用者與未連結卡不顯示。所有實際寫入仍由原字典 RPC 驗權／CAS，無新權限或 SQL。
+- 完整 DictionaryWorkspace 按需 lazy 載入於 DictionaryModal，保留 PR A 詞性／中文列、PublishedWorkspace、Review Draft、儲存／人工發布及原 useUnsavedDraft。關閉／Esc／遮罩走 navigateDictionary，失敗或取消保留編輯。浮窗專用 onCommitted 在成功儲存／發布後返回原卡，管理頁未傳回呼時仍留在原編輯器；關閉後只重讀 published detail，不把草稿或公開更新寫入私人 Front／Back。
+- ScheduledStudySession 以穩定編輯回呼同步鎖住 mark 與評分按鈕、暫停 study-changed／到期 timer 的背景讀取；原 Session／卡／翻面與 panel 展開保留。沒有新增評分／intro／FSRS 事件。native dialog 管理焦點與背景不可操作。

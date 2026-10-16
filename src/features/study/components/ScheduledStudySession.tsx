@@ -13,6 +13,9 @@ type Data={session:StudySession;snapshot:StudySnapshot};
 export default function ScheduledStudySession({repository,deckId,onExit}:{repository:StudyRepository;deckId:string;onExit:()=>void}) {
   const {t,language}=useLanguage();
   const [data,setData]=useState<Data|null>(null),[revealed,setRevealed]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[hasAttempt,setHasAttempt]=useState(false);
+  const [dictionaryEditing,setDictionaryEditing]=useState(false);
+  const dictionaryOpen=useRef(false);
+  const editingChanged=useCallback((open:boolean)=>{dictionaryOpen.current=open;setDictionaryEditing(open);},[]);
   const [now,setNow]=useState(()=>Date.now());
   const alive=useRef(true),busy=useRef(false),opening=useRef<Promise<StudySession>|null>(null),current=useRef<string|null>(null),formal=useRef<string|null>(null);
   const revealButton=useRef<HTMLButtonElement>(null),firstRating=useRef<HTMLButtonElement>(null);
@@ -48,9 +51,9 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
     alive.current=true;
     opening.current??=start();
     void opening.current.then(async session=>{current.current=session.id;formal.current=session.id;await load();}).catch(e=>{if(alive.current)setError(String(e));});
-    const changed=()=>{if(!busy.current)void load().catch(e=>{if(alive.current)setError(String(e));});};
+    const changed=()=>{if(!busy.current&&!dictionaryOpen.current)void load().catch(e=>{if(alive.current)setError(String(e));});};
     window.addEventListener('nexus-study-changed',changed);
-    const timer=window.setInterval(()=>{const schedule=availability.current;if(schedule&&(schedule.nextDue!=null&&schedule.nextDue<=Date.now()||schedule.day!==new Date().toDateString())&&!busy.current&&!document.hidden)void load().catch(e=>{if(alive.current)setError(String(e));});},1000);
+    const timer=window.setInterval(()=>{const schedule=availability.current;if(schedule&&(schedule.nextDue!=null&&schedule.nextDue<=Date.now()||schedule.day!==new Date().toDateString())&&!busy.current&&!dictionaryOpen.current&&!document.hidden)void load().catch(e=>{if(alive.current)setError(String(e));});},1000);
     return()=>{alive.current=false;window.removeEventListener('nexus-study-changed',changed);window.clearInterval(timer);};
   },[load,start]);
   const session=data?.session, practice=session?.mode==='practice';
@@ -62,7 +65,7 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
   useEffect(()=>{availability.current=status?{nextDue:status.nextDue,day:new Date().toDateString()}:null;},[status]);
   const preview=!practice&&state&&revealed?previewStudy(state,now,session?.settings_snapshot):null;
   async function mark(rating:Grade){
-    if(!session||!card||!state||!revealed||busy.current)return;
+    if(!session||!card||!state||!revealed||busy.current||dictionaryOpen.current)return;
     busy.current=true;setSaving(true);setError('');setHasAttempt(true);
     try{
       attempt.current??={sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating,actionId:crypto.randomUUID(),now:Date.now(),practice};
@@ -94,9 +97,9 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
         <p className="whitespace-pre-wrap break-words text-2xl font-medium" lang="en">{card.front}</p>
         {revealed&&<p className="mt-6 whitespace-pre-wrap break-words border-t pt-6 text-xl" lang="zh">{card.back}</p>}
       </div>
-      {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
-        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
-        <CardDictionaryPanel key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.dictionary_entry_id}/>
+      {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
+        <CardDictionaryPanel onEditingChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.dictionary_entry_id}/>
       </>}
     </>:<div className="space-y-3 py-8 text-center">
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
