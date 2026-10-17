@@ -184,7 +184,7 @@ test(
       assert.equal(after[0].sense_id, id(11));
       assert.equal(after[0].kind, "core_concept");
       assert.equal(after[1].body, "shared");
-      await pg.exec(script);
+      await assert.rejects(pg.exec(script),/already completed/);await pg.exec('rollback');
       assert.deepEqual(
         await sql(
           pg,

@@ -16,7 +16,7 @@ Migration：supabase/migrations/20261017010000_dictionary_core_concept.sql。
 
 - 不停用任何 RLS／trigger／Published guard。使用版本化 schema 轉換，非管理員寫入、人工發布、CAS 及 Review 保護不變。
 - 同一交易中加鎖、先備份，再合併、驗證剩餘內容及 10 組未涉及資料（Entry／Sense／歷史詞源／關聯／讀音／詞形／例詞／舊提示／metadata／Published history）指紋。非預期差異立即 rollback。
-- migration_state 完成標記防止重跑串接文字；第二次執行不重做。
+- migration_state 完成標記防止重跑串接文字；第二次執行會在變更前明確回報已完成並停止，不重做。
 - commit 前失敗：整體回滾，隔離測試已實際驗證。commit 後若有問題，先保留當前輸入並停用舊版詞源寫入；用受限原始／遷移後影像核對，再作帶 revision 檢查的前向修復，不能盲目覆蓋後續工作。備份及 alias 不自動清除。
 - 沒有重設 Entry／Sense、字卡連結、FSRS 或官方學習集。不將 relation_hint／source_forms 轉為核心概念。舊提示退出一般編輯／閱讀，但仍保留歷史及交換資料，不清空資料表。
 

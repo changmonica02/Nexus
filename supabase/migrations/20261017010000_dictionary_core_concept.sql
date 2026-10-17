@@ -9,8 +9,8 @@ create table if not exists dictionary_core_backup.migration_state(id boolean pri
 insert into dictionary_core_backup.migration_state values(true,false) on conflict do nothing;
 revoke all on all tables in schema dictionary_core_backup from public,anon,authenticated;
 do $migration$begin
- if (select done from dictionary_core_backup.migration_state) then return;end if;
- execute $ddl$
+ if (select done from dictionary_core_backup.migration_state) then raise exception 'Core concept migration already completed; do not replay';end if;
+end $migration$;
 lock table public.dictionary_learning_notes,public.dictionary_review_drafts in share row exclusive mode;
 create table dictionary_core_backup.notes as table public.dictionary_learning_notes;
 create table dictionary_core_backup.reviews as select * from public.dictionary_review_drafts where state='active';
@@ -158,7 +158,5 @@ do $check$begin
  if exists(select 1 from dictionary_core_backup.notes n where not exists(select 1 from public.dictionary_learning_notes m where m.entry_id=n.entry_id and m.sense_id is not distinct from n.sense_id and position(n.body in m.body)>0)) then raise exception 'Lost legacy core content';end if;
 end $check$;
 update dictionary_core_backup.migration_state set done=true;
-$ddl$;
-end $migration$;
 notify pgrst,'reload schema';
 commit;
