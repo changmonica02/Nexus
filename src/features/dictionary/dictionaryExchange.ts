@@ -1,3 +1,4 @@
+import {mergeCoreConcepts} from './coreConcept';
 import type { AISnapshot } from "./aiDictionary";
 import type { DictionaryReview } from "./revisionLifecycle";
 import {
@@ -204,7 +205,7 @@ export function draftFromExchange(
           throw Error("Invalid lexical annotation kind");
         if (
           section === "learning_notes" &&
-          !["learning_decomposition", "mnemonic_scenario"].includes(
+          !["core_concept", "learning_decomposition", "mnemonic_scenario"].includes(
             String(r.kind),
           )
         )
@@ -272,6 +273,7 @@ export function draftFromExchange(
     snapshot.grouping ?? undefined,
     snapshot.sense_groups,
   )[0];
+  draft.learning_notes=mergeCoreConcepts(draft.learning_notes);
   draft.row = row;
   if (snapshot.metadata)
     draft.component_order = [...snapshot.metadata.component_order];

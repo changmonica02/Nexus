@@ -67,6 +67,7 @@ test('Admin and Reader render editable scopes/locales and escaped, ordered pronu
  const {DictionaryEditor}=require('../src/features/dictionary/DictionaryAdmin.tsx');
  const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
  const detail=snapshot().detail;detail.pronunciations[0].note='<script>unsafe</script>';
- const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));for(const label of ['IPA','適用義項','en-GB','新增讀音','刪除讀音','排序'])assert.ok(html.includes(label),label);
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));for(const label of ['IPA','適用義項','en-GB','新增讀音','刪除讀音'])assert.ok(html.includes(label),label);
+ assert.ok(!html.includes('>排序<'));assert.ok(html.includes('上移讀音'));assert.ok(html.includes('下移讀音'));
  const reader=renderToStaticMarkup(React.createElement(DictionaryArticle,{data:{...detail,related:[]},accordion:true}));for(const text of ['讀音','en-US','詞條共用','紀錄','記錄'])assert.ok(reader.includes(text),text);assert.ok(reader.indexOf('/ˈrek.ɔːd/')<reader.indexOf('/rɪˈkɔːrd/'));assert.ok(!reader.includes('<script>'));assert.ok(reader.includes('&lt;script&gt;'));
 });

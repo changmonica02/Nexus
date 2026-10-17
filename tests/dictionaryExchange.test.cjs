@@ -116,7 +116,7 @@ test(
         {
           id: id(28),
           sense_id: id(24),
-          kind: "mnemonic_scenario",
+          kind: "core_concept",
           body: "memory",
         },
       ];

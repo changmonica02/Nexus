@@ -33,7 +33,7 @@ export interface DictionaryEtymology extends ContentRow {
 }
 export interface DictionaryLearningNote extends ContentRow {
   sense_id: string | null;
-  kind: "learning_decomposition" | "mnemonic_scenario";
+  kind: "core_concept";
   body: string;
 }
 export interface DictionaryExtra extends ContentRow {sense_id:string|null;body:string;sort_order:number;kind?:"relation_hint"}

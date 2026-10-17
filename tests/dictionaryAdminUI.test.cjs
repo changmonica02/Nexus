@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','詞性','中文意思','歷史詞源','記憶故事','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['單字','詞性','中文意思','歷史詞源','核心概念','構詞關聯','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -28,7 +28,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
 });
 test('import preview escapes Markdown and distinguishes mnemonic from historical content',()=>{
   const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{dictionary_etymologies:[{id:'h',body:'Unverified history',verification:'pending'}],dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],dictionary_sources:[{id:'s',citation:'Self authored',license:'test-only',raw_text:'raw original'}]}}));
-  assert.ok(html.includes('不是歷史事實'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('核心概念'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
 });
 
 test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
@@ -45,7 +45,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資訊','義項','詞形變化','構詞關聯','補充資料','歷史詞源','口訣','記憶故事']){
+  for(const label of ['基本資訊','義項','詞形變化','構詞關聯','補充資料','讀音','核心概念','歷史詞源']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
@@ -59,7 +59,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
   assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>義項</h3>'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
-  assert.ok(!html.includes('grid-cols-2'));
+  assert.ok(html.includes('sm:grid-cols-2'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
   const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(source.includes("modal==='import'&&<DictionaryModal"));
@@ -94,7 +94,7 @@ async function withEditorState(props,run){
 function nodes(root){
   if(Array.isArray(root))return root.flatMap(nodes);
   if(!React.isValidElement(root))return [];
-  return [root,...nodes(root.props.children)];
+  return [root,...nodes(root.props.children),...nodes(root.props.actions)];
 }
 function pick(root,predicate){const result=nodes(root).find(predicate);assert.ok(result,'expected editor control');return result;}
 const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&(node.props.children===text||node.props['aria-label']===text));
@@ -140,7 +140,7 @@ test('Root category snapshots selection and saves unchanged tags via existing gr
   supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});return {error:null};}});
   try{
     await withEditorState({detail:{...detail,senses:detail.senses.map(s=>({...s,part_of_speech:null})),entry:{...detail.entry,kind:'root'}},entries:[],senses:[],initialGrouping:{primary_category:null,tags:[' old ','old'],variant_group:null},onSaved:async()=>{}},async render=>{
-      let tree=render();const select=pick(tree,n=>n.type==='select'&&!n.props['aria-label']);
+      let tree=render();const select=pick(tree,n=>n.type==='select'&&n.props['aria-label']==='主要分類');
       const target={value:primaryCategories[2]};select.props.onChange({currentTarget:target,target});target.value='';
       tree=render();assert.equal(pick(tree,n=>n.type==='select').props.value,primaryCategories[2]);
       pick(tree,n=>n.type?.name==='VariantEditor').props.onChange('cap/cept/cip');
@@ -203,7 +203,7 @@ test('return sits beside page title and shared copyright information is reachabl
 
 test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
  const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
- try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','learning_decomposition','口訣'],['dictionary_learning_notes','mnemonic_scenario','記憶故事']]){
+ try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','核心概念']]){
   let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
   const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{data_source:''})};
   const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
@@ -232,4 +232,9 @@ test('Word Sense rows keep stable identities and blank legacy values; basic info
  assert.ok(html.includes('sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]'));
  const bundle={dictionary_entries:[detail.entry],dictionary_senses:senses};
  assert.deepEqual(require('../src/features/dictionary/DictionaryAdmin.tsx').prepareEditorBundle(bundle).dictionary_senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})),senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})));
+});
+
+test('normal preview places core concept before etymology without legacy kind or retired hint controls',()=>{
+ const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
+ assert.ok(html.indexOf('核心概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });

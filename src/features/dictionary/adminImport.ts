@@ -1,3 +1,4 @@
+import {mergeCoreConcepts} from './coreConcept';
 import {parseCSV} from './csvRows';
 import {draftsFromBundle,saveDictionaryDraft,mapDictionaryDraft} from './draftPipeline';
 import {parseDictionaryCSV} from './dictionaryCSV';
@@ -55,16 +56,16 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
     if(Object.keys(meta).some(k=>!allowed.includes(k)))throw new Error('未知 Markdown 欄位，請保留原檔並人工確認');
     for(const key of ['id','entry_id','kind'])required(meta,key);
     id(meta.id,'id');id(meta.entry_id,'entry_id');if(meta.sense_id)id(meta.sense_id,'sense_id');
-    if(!['historical_etymology','learning_decomposition','mnemonic_scenario'].includes(meta.kind))throw new Error('未知內容種類');
+    if(!['historical_etymology','core_concept','learning_decomposition','mnemonic_scenario'].includes(meta.kind))throw new Error('未知內容種類');
     const record={id:meta.id,entry_id:meta.entry_id,sense_id:meta.sense_id||null,body:match[2]};
     if(meta.kind==='historical_etymology') {
       bundle.dictionary_etymologies.push({...record,data_source:meta.data_source??''});
     }else{
       if(meta.data_source)throw new Error('記憶／構詞聯想不可標記成歷史查證');
-      bundle.dictionary_learning_notes.push({...record,kind:meta.kind});
+      bundle.dictionary_learning_notes.push({...record,kind:'core_concept'});
     }
   }
-  return bundle;
+  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;return bundle;
 }
 
 /** Only the existing RPC input contract; database-owned fields cannot be imported. */
@@ -107,12 +108,12 @@ export function parseJSONBundle(raw:string):Bundle {
       const enums:Record<string,string[]>={relation_kind:['historical_etymology','learning_decomposition']};
       if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root'];
-      if(table==='dictionary_learning_notes')enums.kind=['learning_decomposition','mnemonic_scenario'];
+      if(table==='dictionary_learning_notes')enums.kind=['core_concept','learning_decomposition','mnemonic_scenario'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
       count++;return row;
     });
   }
   if(!count)throw new Error('JSON Bundle 沒有資料');
   // References may point to existing database rows; the RPC preview validates all FKs.
-  return bundle;
+  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;return bundle;
 }

@@ -10,7 +10,7 @@ import type {DictionaryEntry} from './dictionary';
 import {matchAIEntry,parseAI,readAI,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
 const control='w-full rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2';
 const button='rounded border border-[var(--color-border)] px-3 py-2 disabled:opacity-40';
-const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',learning_decomposition:'口訣',story:'記憶故事'};
+const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',core_concept:'核心概念'};
 async function targetsFor(client:SupabaseClient,s:AISnapshot|null,input?:AIEntry){
  const ids=new Set([...(s?.detail.relations.map(r=>r.target_entry_id)??[]),...(input?.components?.map(c=>c.target_id)??[])]);
  return new Map(await Promise.all([...ids].map(async id=>[id,await readAI(client,id)] as const)));

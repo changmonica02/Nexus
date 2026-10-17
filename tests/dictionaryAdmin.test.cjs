@@ -94,6 +94,6 @@ test('admin bundle: preview rollback, atomic import, replay/conflict, revisions,
   await assert.rejects(parseDictionaryImport('{','json'),/JSON 格式/);
   const uppercase={...original.dictionary_entries[0],id:'abcdefab-abcd-4abc-8abc-abcdefabcdef'};
   await assert.rejects(parseDictionaryImport(JSON.stringify({dictionary_entries:[uppercase,{...uppercase,id:uppercase.id.toUpperCase()}]}),'json'),/重複 ID/);
-  const notes={dictionary_learning_notes:[{id:id(90),entry_id:id(10),kind:'mnemonic_scenario',body:'完整記憶情境\n保留原文',sense_id:null}]};
+  const notes={dictionary_learning_notes:[{id:id(90),entry_id:id(10),kind:'core_concept',body:'完整記憶情境\n保留原文',sense_id:null}]};
   assert.deepEqual(await parseDictionaryImport(JSON.stringify(notes),'json'),notes);
 });
