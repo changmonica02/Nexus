@@ -7,7 +7,7 @@
 - 將 Word／Prefix／Root 共用編輯器改為標題同行新增、短欄位並排與同行刪除；義項 Stable ID／空白行為保留。讀音以移動操作取代排序數字，長文字自動增高。
 - 口訣＋記憶故事整合為核心概念；依 Entry／Sense 及穩定順序合併原文，保留代表 ID、每筆原始來源與版本，不混不同義項、不借用舊提示／字形。新增管理員限定退場 ID 對照，防止舊交換檔重建重複內容。
 - 保留原 Review／人工發布／CAS／RLS／Audit；歷史與 receipt 不改寫，舊格式僅在相容邊界轉換。備份、完整性比對、回滾與正式順序見 operations/DICTIONARY-CORE-CONCEPT.md。
-- 驗證：字典回歸 124/124，追加預覽順序等聚焦測試 21/21（與回歸有重疊），學習／同步 49/49、5/5 隔離瀏覽器組；TypeScript／Build 通過，ESLint 0 errors／456 既有 warnings。最新 alias RLS、核准刪除後 FK 與不復活測試通過。正式 SQL、PR／部署證據於交付時補齊。真實 iPad Safari 由使用者驗收，留 #60。
+- 驗證：字典回歸 124/124，追加預覽順序等聚焦測試 21/21（與回歸有重疊），學習／同步 49/49、5/5 隔離瀏覽器組；TypeScript／Build 通過，ESLint 0 errors／456 既有 warnings。最新 alias RLS、核准刪除後 FK 與不復活測試通過。PR #79；正式 SQL 已套用（ledger 20261017054409）：52 筆轉為核心概念、舊類型 0、完整原文及來源比對差異 0；Entry 6,305／Sense 11,525／active Review 925／匯入工作 28 保留，12 份 Review 版本前進。10 組未涉及資料指紋通過、RLS／安全 advisors 無新增問題。前端合併與 Production 結果由 PR #79 記錄。真實 iPad Safari 由使用者驗收，留 #60。
 
 ## 2026-10-16｜今日交付整理與內容審核狀態退場
 

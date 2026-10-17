@@ -34,4 +34,4 @@ Migration：supabase/migrations/20261017010000_dictionary_core_concept.sql。
 
 ## 正式狀態
 
-目前 SQL 已準備及隔離驗證，尚未正式套用。正式 ledger／資料驗證與 PR 結果完成後更新。
+已正式套用，ledger 20261017054409 dictionary_core_concept（PR #79）。52 筆原始列均保留在受限備份，正式 52 筆為 core_concept、舊類型為 0，與 merged_notes 逐列差異 0；當下沒有同 Entry＋Sense 雙類型組，因此正式沒有刪除合併列，alias=0。Entry 6,305／Sense 11,525／active Review 925／常駐工作 28 保留；12 份 Review 版本前進。10 組未涉及資料指紋驗證通過。alias RLS 為管理員 SELECT，app 無 INSERT／DELETE；備份／helper 無 app 權限。Security advisors 與前一致，沒有新增。\n\n前兩次 Connector requestState 過期後均先核實 ledger／schema 未改變，再改用可直接審查的靜態 SQL 提交成功；未重播已套用 Migration。重跑已完成 SQL 會先明確拒絕並回滾，不再串接文字。前端 Preview 已通過，合併／Production 部署以 PR #79 最終狀態為準。

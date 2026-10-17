@@ -3,7 +3,7 @@
 > 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 管理 UI／單筆刪除與 PR #61 常駐審核均已合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 
-## 2026-10-17：緊湊編輯器與核心概念（已實作／隔離驗證通過，正式 SQL 待套用）
+## 2026-10-17：緊湊編輯器與核心概念（PR #79，已實作／驗證，SQL 正式已套用）
 
 - Word／Prefix／Root 沿用 DictionaryEditor 與 PublishedWorkspace；EditorSection 新增 action slot，標題旁新增不觸發收合。AutoTextarea 依內容與寬度重新量測，清理 ResizeObserver，不縮小文字。
 - 基本資訊短欄位雙欄、變體緊湊列；義項以穩定 ID 的列顯示，單筆無重複序號。Word 詞性／中文並排，Prefix 分類仍為 Sense 資料、Root 分類仍為 Entry grouping，沒有搬移資料。
