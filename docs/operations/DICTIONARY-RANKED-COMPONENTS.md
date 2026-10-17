@@ -31,3 +31,7 @@ Migration：`20261017020000_dictionary_ranked_components.sql`，依賴已套用 
 純前端可回復上一版。DB 變更無原資料改寫；可先停用新快速建立 UI、撤銷新 quick RPC 的 authenticated 執行權限，保留所有新建詞條、Sense、receipt、歷史。搜尋函式可還原部署前定義，新增 summary RPC 可保留給舊前端使用。
 
 只有確認沒有空白義項時，才能還原原 `CHECK(length(btrim(gloss_zh_tw))>0)`；否則保留相容 CHECK，或由管理員逐筆補內容後再恢復。不得為回復而刪除合法最小詞條或填入捏造中文義。新唯一索引／helper 如需移除，先確認函式依賴；保留既有 kind+headword 唯一索引。回復也須版本化 migration，不修改已套用檔。
+
+## 正式套用紀錄
+
+2026-10-17 透過 migration 工具成功套用，ledger `20261017073742 dictionary_ranked_components`。部署前後13張表內容及筆數指紋完全相同；未建立／發布正式測試詞條。Entry6,305／Sense11,525／active Review925／常駐項目28保留。RPC ACL、CHECK、唯一索引已核對；advisors 7 INFO及既有密碼保護提示不變，authenticated definer43→44，新增quick RPC為必要且有管理員／確認防護的預期公開接口。前端 PR #80；真實帳號／iPad Safari 仍待 #60。

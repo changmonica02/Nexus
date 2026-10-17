@@ -8,7 +8,7 @@
 - 根因：原列表串接所有義項，閱讀標題與內文重複；構詞 SQL 把全部內容命中按字母排序後截取第一頁。改為完整 Published 候選分層排名，再穩定分頁；首義項有界 RPC 避免 Data API row cap。
 - 構詞選擇器加入明確確認的最小 Prefix／Root 建立／發布，保留主編輯器輸入。原資料庫中文義皆必填；以 null POS＋空中文定義最小成分 Sense，原 Word parent guard／非空 CHECK 保留。既有 Draft 不擅自發布，Published 等價名稱重用；唯一索引、operation鎖／收據、既有發布／稽核／歷史與原子回滾完整保護。
 - SQL `20261017020000_dictionary_ranked_components.sql` 正式已套用，ledger `20261017073742`。13表完整指紋無差異：Entry 6,305／Sense 11,525／active Review 925／常駐項目28保留。沒有正式新建／匯入／發布資料、未動私人 FSRS。Advisors 新增1個預期 authenticated definer 提示（quick RPC），管理員／人工確認與 anon拒絕已驗證；其餘既有警告不變。
-- 驗證：字典回歸131/131，新增聚焦7/7（PGlite及獨立無網路 PostgreSQL15，各自通過，與回歸有重疊），學習／官方集／同步59/59；6,301候選排名首頁20筆，PostgreSQL約131–482ms。瀏覽器與最終工程檢查、PR／前端部署結果由對應交付記錄；真實iPad Safari／帳號仍留 #60，不把隔離尺寸當實機驗收。部署／回復見 operations/DICTIONARY-RANKED-COMPONENTS.md。
+- 驗證：字典回歸131/131，新增聚焦7/7（PGlite及獨立無網路 PostgreSQL15，各自通過，與回歸有重疊），學習／官方集／同步59/59；6,301候選排名首頁20筆，PostgreSQL約131–482ms。六組隔離瀏覽器、TypeScript／Production Build通過，ESLint 0 errors／456既有warnings；PR #80／前端部署結果見該PR交付記錄；真實iPad Safari／帳號仍留 #60，不把隔離尺寸當實機驗收。部署／回復見 operations/DICTIONARY-RANKED-COMPONENTS.md。
 
 ## 2026-10-17｜字典編輯器緊湊化與核心概念
 
