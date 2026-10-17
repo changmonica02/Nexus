@@ -1,5 +1,15 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 2026-10-17 字典閱讀／構詞建立（已實作／測試；SQL 已套用）
+
+- 公開 Article 以單一義項標題顯示完整中文，不再重複中文欄位／跳轉摘要；補充資料使用義項編號。Word 才顯示 POS，Core→History 順序、來源安全 URL 與原 Sense 錨點保留。Connections 的全詞條／多 Sense 反向查詢仍分開，單義項不重複入口；VariantLink 由父層單一 open key 管理，重按收合、切換互斥，取消舊回應。
+- `firstSenseSummary` 依既有 Sense UUID 升序取第一筆；不拼接後續義項，空白明示。公開／分類及管理列表共用；卡片 line-clamp，管理狀態 icon 保留 title／aria-label。`dictionary_admin_first_senses` 每頁最多100 Entry、每 Entry lateral一筆，不受多義項 Data API row cap。缺 RPC 時有界逐 Entry fallback。
+- `search_dictionary_relation_targets` 在伺服器完整 Published 候選集分層排名後分頁；變體只解析既有 nexus-variants-v1 或原始變體文字，不把條件文字當變體。保留 Child entry_id 索引，單字元／中文皆按字串查詢，穩定 tie-break，無前端截斷重排。
+- `quick_create_dictionary_component` 使用既有 operation receipt、publication confirmation／publish、audit、published revisions。owner＋operation鎖／request比對、名稱鎖及 Prefix/Root 等價名稱唯一索引保護並行及重試。已有 Published 重用，Draft 不自動發布。無 POS 空義項為明確最小 Prefix/Root；原 Word parent guard＋非空 CHECK 不變。UI 嵌套原 DictionaryModal，不重掛主編輯器，明確人工確認／錯誤保留／已建立但未加關聯區分。
+- Migration `20261017020000_dictionary_ranked_components.sql` 只新增函式／索引及擴充上述 CHECK，不重寫既有列；新舊 JSON／AI／Review 相容。舊 CSV 的中文／分類必填契約不放寬。權限、部署順序與保留新建內容的回復見 `operations/DICTIONARY-RANKED-COMPONENTS.md`；正式套用狀態另於交付核對，不能把隔離 PostgreSQL 當 Supabase staging 或 iPad Safari。
+- 正式 SQL 已套用（ledger `20261017073742 dictionary_ranked_components`），13 張既有表的完整內容指紋／筆數前後相同；Entry 6,305／Sense 11,525／active Review 925／常駐項目28。所有新公開 RPC 的 anon execute=false，summary為 invoker，私有 variant helper不可由一般角色呼叫；新 quick definer RPC 明確檢查管理員及確認。Advisors 既有7 INFO／leaked-password警告不變；authenticated definer 提示43→44，新增為預期且已測試授權的 quick RPC。前端正式部署由對應 PR 最終 commit 核對，未替使用者建立或發布正式測試詞條。
+
+
 > 本文件記錄已確認技術契約與經實作驗證的架構；使用者核准的產品決策以 SPEC 為準。**#44 已由 PR #56 合併 main；2026-10-14 唯讀核實正式 Migration ledger／RPC 已存在。PR #57 管理 UI／單筆刪除與 PR #61 常駐審核均已合併；正式部署／人工驗收狀態不由 Git 合併或 Migration 推定。** 已存在的 migration 或程式碼不代表已在正式環境部署。舊交接原文已從工作樹移除，仍可在 Git 歷史追溯。
 
 

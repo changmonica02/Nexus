@@ -12,7 +12,7 @@ test('dictionary publish/resume revalidates list, stats and exact pages; preserv
  const stats={red:0,yellow:0,green:0};for(const row of rows)stats[row.work_status]++;
  if(args.work_filter)rows=rows.filter(x=>x.work_status===args.work_filter);
  result={data:{total:rows.length,stats,items:rows.slice(args.page_number*100,(args.page_number+1)*100)}};
- }else if(name==='preview_dictionary_bulk_publish'||name==='publish_dictionary_bulk'){
+ }else if(name==='dictionary_admin_first_senses'){result={data:args.entry_ids.map(entry_id=>({id:'sense-'+entry_id,entry_id,part_of_speech:'v.',gloss_zh_tw:'first meaning'}))};}else if(name==='preview_dictionary_bulk_publish'||name==='publish_dictionary_bulk'){
  if(name==='publish_dictionary_bulk'){await new Promise(r=>setTimeout(r,180));completed=++batches>=2;}
  result={data:{total:102,ready:completed?0:102,blocked:0,invalid:0,published:batches?51:0,published_total:completed?102:batches?51:0,remaining:completed?0:batches?51:102,continuation:!completed,no_progress:false,attempted:51,batch_size:51,signature:'token',issues:[]}};
  }else result={error:{code:'42883',message:'fixture unavailable '+name}};
@@ -24,17 +24,20 @@ test('dictionary publish/resume revalidates list, stats and exact pages; preserv
  await page.getByRole('button',{name:'發布全部草稿',exact:true}).click();await page.getByRole('dialog',{name:'批次發布預覽'}).getByRole('button',{name:'確認批次發布',exact:true}).click();await page.getByRole('dialog',{name:'確認批次發布',exact:true}).getByRole('button',{name:'確認批次發布',exact:true}).click();
  await page.getByRole('button',{name:'停止未開始的批次',exact:true}).click();await page.getByText(/已發布 51/).waitFor();
  await page.reload();await page.getByRole('link',{name:/item000/}).waitFor();
- await page.getByRole('textbox',{name:'搜尋管理詞條'}).fill('item');await page.getByLabel('單字',{exact:true}).check();await page.getByLabel('🟡 有草稿',{exact:true}).check();
+ await page.getByRole('textbox',{name:'搜尋管理詞條'}).fill('item');await page.getByLabel('單字',{exact:true}).check();await page.getByRole('checkbox',{name:'🟡 有草稿',exact:true}).check();
  await page.getByRole('button',{name:'下一頁',exact:true}).first().click();await page.getByRole('link',{name:/item102.*有草稿/}).waitFor();
  await page.getByRole('button',{name:'恢復已保存的批次發布',exact:true}).click();await page.getByRole('dialog',{name:'批次發布預覽'}).getByRole('button',{name:'恢復已保存的批次發布',exact:true}).click();await page.getByText(/已發布 102 · 待處理 0/).waitFor();
  await page.getByRole('link',{name:/item102.*有草稿/}).waitFor();
  await page.waitForFunction(()=>document.querySelectorAll('[data-dictionary-list] li').length===1);
- assert.equal(await page.getByRole('textbox',{name:'搜尋管理詞條'}).inputValue(),'item');assert.equal(await page.getByLabel('單字',{exact:true}).isChecked(),true);assert.equal(await page.getByLabel('🟡 有草稿',{exact:true}).isChecked(),true);
+ assert.equal(await page.getByRole('textbox',{name:'搜尋管理詞條'}).inputValue(),'item');assert.equal(await page.getByLabel('單字',{exact:true}).isChecked(),true);assert.equal(await page.getByRole('checkbox',{name:'🟡 有草稿',exact:true}).isChecked(),true);
  assert.ok(calls.filter(c=>c.name==='list_dictionary_admin_work').some(c=>c.args.page_number===0&&c.args.work_filter==='yellow'&&c.args.query_text==='item'));
  await page.getByRole('dialog',{name:'批次發布預覽'}).getByRole('button',{name:'關閉'}).click();
- await page.getByLabel('🟡 有草稿',{exact:true}).uncheck();await page.getByRole('link',{name:/item000.*新發布/}).waitFor();
+ await page.getByRole('checkbox',{name:'🟡 有草稿',exact:true}).uncheck();await page.getByRole('link',{name:/item000.*新發布/}).waitFor();
  red=true;const tab=await context.newPage();await tab.goto(url);await tab.evaluate(()=>localStorage.setItem('nexus-dictionary-invalidation',crypto.randomUUID()));await page.getByRole('link',{name:/item000.*待審核/}).waitFor();
- const before=calls.length;await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('pageshow'));});await page.waitForTimeout(150);assert.equal(calls.length,before+1,'coalesce lifecycle signals');
+ const before=calls.length;await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('pageshow'));});await page.waitForTimeout(150);assert.equal(calls.filter(c=>c.name==='list_dictionary_admin_work').length,calls.slice(0,before).filter(c=>c.name==='list_dictionary_admin_work').length+1,'coalesce lifecycle signals');
+ assert.equal(await page.locator('[data-dictionary-list] li').first().locator('p').innerText(),'(v.) first meaning');
+ assert.equal(await page.locator('[data-dictionary-list] li').first().locator('[role=img]').innerText(),'🔴');
+ assert.ok(!/待審核|有草稿|新發布/.test(await page.locator('[data-dictionary-list] li').first().innerText()));
  assert.deepEqual(errors,[]);await context.close();
  }finally{await browser.close();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
 });

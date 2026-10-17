@@ -2,6 +2,14 @@
 
 > 最新日期與最新實作置於文件上方。歷史段落記錄當時狀態；目前產品契約看 SPEC，實作與部署現況看 ARCHITECTURE／HANDOFF。
 
+## 2026-10-17｜字典閱讀去重、首義項摘要與構詞快速建立
+
+- 閱讀端每個義項中文呈現一次、保留完整多義項及 Word 詞性；核心概念先於詞源，來源 URL 可點擊，變體重按收合／互斥切換。公開／管理／分類列表共用 UUID 升序首義項摘要，空義明示且不偷換其他義項；管理工作狀態僅保留具 tooltip／ARIA 的圓點。
+- 根因：原列表串接所有義項，閱讀標題與內文重複；構詞 SQL 把全部內容命中按字母排序後截取第一頁。改為完整 Published 候選分層排名，再穩定分頁；首義項有界 RPC 避免 Data API row cap。
+- 構詞選擇器加入明確確認的最小 Prefix／Root 建立／發布，保留主編輯器輸入。原資料庫中文義皆必填；以 null POS＋空中文定義最小成分 Sense，原 Word parent guard／非空 CHECK 保留。既有 Draft 不擅自發布，Published 等價名稱重用；唯一索引、operation鎖／收據、既有發布／稽核／歷史與原子回滾完整保護。
+- SQL `20261017020000_dictionary_ranked_components.sql` 正式已套用，ledger `20261017073742`。13表完整指紋無差異：Entry 6,305／Sense 11,525／active Review 925／常駐項目28保留。沒有正式新建／匯入／發布資料、未動私人 FSRS。Advisors 新增1個預期 authenticated definer 提示（quick RPC），管理員／人工確認與 anon拒絕已驗證；其餘既有警告不變。
+- 驗證：字典回歸131/131，新增聚焦7/7（PGlite及獨立無網路 PostgreSQL15，各自通過，與回歸有重疊），學習／官方集／同步59/59；6,301候選排名首頁20筆，PostgreSQL約131–482ms。六組隔離瀏覽器、TypeScript／Production Build通過，ESLint 0 errors／456既有warnings；PR #80／前端部署結果見該PR交付記錄；真實iPad Safari／帳號仍留 #60，不把隔離尺寸當實機驗收。部署／回復見 operations/DICTIONARY-RANKED-COMPONENTS.md。
+
 ## 2026-10-17｜字典編輯器緊湊化與核心概念
 
 - 將 Word／Prefix／Root 共用編輯器改為標題同行新增、短欄位並排與同行刪除；義項 Stable ID／空白行為保留。讀音以移動操作取代排序數字，長文字自動增高；閱讀端統一補充資料順序並保留義項歸屬／錨點，避免跨義項順序反轉。

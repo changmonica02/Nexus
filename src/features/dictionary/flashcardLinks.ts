@@ -5,7 +5,12 @@ import type {StudyRepository} from '../study/StudyRepository';
 import type {Page} from '../../lib/types';
 export const normalizeHeadword=(text:string)=>text.trim().toLocaleLowerCase('en');
 export const basicMeaning=(entry:PublishedDetail)=>entry.senses.map(s=>s.gloss_zh_tw).filter(Boolean).join('；');
-export const candidateSummary=(entry:PublishedDetail)=>entry.senses.map(s=>`${s.part_of_speech?`(${s.part_of_speech}) `:''}${s.gloss_zh_tw}`).join('；');
+/** Public RPCs order senses by stable UUID; never depend on response arrival order. */
+export function firstSenseSummary(entry:{entry:{kind:DictionaryKind};senses:{id:string;part_of_speech:string|null;gloss_zh_tw:string}[]}){
+ const sense=[...entry.senses].sort((a,b)=>a.id.localeCompare(b.id))[0];
+ return (entry.entry.kind==='word'&&sense?.part_of_speech?`(${sense.part_of_speech}) `:'')+(sense?.gloss_zh_tw.trim()||'尚無中文意思');
+}
+export const candidateSummary=firstSenseSummary;
 export interface DictionaryCandidate {detail:PublishedDetail;summary:string}
 type Client=Pick<SupabaseClient,'rpc'>;
 export async function searchCandidates(client:Client,query:string,page=0,kind:DictionaryKind|'all'='word'){

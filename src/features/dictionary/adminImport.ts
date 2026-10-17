@@ -102,6 +102,7 @@ export function parseJSONBundle(raw:string):Bundle {
         if(typeof v!=='string')fail(`${key} 必須為文字`);
         const text=v as string;
         if(key==='id'||key.endsWith('_id')){if(!uuid.test(text))fail(`${key} 必須為穩定 UUID`);row[key]=text.toLowerCase();}
+        else if(key==='gloss_zh_tw'&&table==='dictionary_senses'&&row.part_of_speech==null&&Array.isArray(value.dictionary_entries)&&value.dictionary_entries.some(e=>object(e)&&e.id===row.entry_id&&['prefix','root'].includes(String(e.kind))))continue;
         else if(key!=='raw_text'&&(schema.required.includes(key)||key==='part_of_speech')&&!text.trim())fail(`缺少 ${key}`);
       }
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);

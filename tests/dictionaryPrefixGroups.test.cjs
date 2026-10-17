@@ -48,7 +48,7 @@ test('prefix and root browser use distinct categories and query contracts; prefi
  assert.deepEqual(await searchGrouping(client,'prefix','sur',2,prefixCategories[1]),page);
  assert.deepEqual(calls[0],{name:'search_prefix_dictionary',args:{query_text:'sur',page_number:2,primary_category_filter:prefixCategories[1]}});
  await searchGrouping(client,'root','cap',0,primaryCategories[0]);assert.equal(calls[1].name,'search_grouped_dictionary');assert.equal(calls[1].args.category,'root');
- for(const item of page.items){const html=renderToStaticMarkup(React.createElement(GroupedResult,{item}));assert.ok(html.includes(item.gloss_zh_tw));assert.ok(html.includes(`#sense-${item.sense_id}`));}
+ for(const item of page.items){const html=renderToStaticMarkup(React.createElement(GroupedResult,{item,summary:page.items[0].gloss_zh_tw}));assert.ok(html.includes(page.items[0].gloss_zh_tw));assert.ok(html.includes(`#sense-${item.sense_id}`));}
  await assert.rejects(searchGrouping({rpc:async()=>({error:{message:'offline'}})},'prefix','',0,'__ungrouped__'),/無法讀取/);
 });
 test('migration statically preserves old groups, gates writes and uses sense-based published pagination',()=>{

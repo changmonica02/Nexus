@@ -61,11 +61,11 @@ export function parseAI(raw:string):AIDocument{
      if(row.sort_order!==undefined&&(!Number.isSafeInteger(row.sort_order)||Number(row.sort_order)<0))throw Error('sort_order 必須為非負整數');
      if(row.meaning_id!==undefined&&row.meaning_id!==null){identifier(row.meaning_id,'meaning_id');row.meaning_id=String(row.meaning_id).toLowerCase();}
     }else if(field==='meanings'){
-     if(row.zh_tw!==undefined)text(row.zh_tw,'zh_tw');else if(!row.id)throw Error('新增義項缺少 zh_tw');
+     if(row.zh_tw!==undefined){if(e.type==='word'||row.zh_tw!=='')text(row.zh_tw,'zh_tw');}else if(!row.id)throw Error('新增義項缺少 zh_tw');
      if(row.classification!==undefined){if(e.type!=='word')throw Error('義項 classification 僅用於 Word');text(row.classification,'classification',true);}
      if(row.grouping!==undefined){if(e.type!=='prefix')throw Error('只有 Prefix 義項可有 grouping');keys(row.grouping,['primary_category'],'meaning.grouping');if(!Object.hasOwn(row.grouping,'primary_category')||(row.grouping.primary_category!==null&&!prefixCategories.includes(row.grouping.primary_category as typeof prefixCategories[number])))throw Error('未知 Prefix 分類');}
     }else if(field==='components'){
-     if(e.type!=='word')throw Error('components 僅用於 Word');identifier(row.target_id,'target_id');row.target_id=String(row.target_id).toLowerCase();text(row.headword,'headword');text(row.zh_tw,'zh_tw');
+     if(e.type!=='word')throw Error('components 僅用於 Word');identifier(row.target_id,'target_id');row.target_id=String(row.target_id).toLowerCase();text(row.headword,'headword');if(typeof row.zh_tw!=='string')throw Error('zh_tw 必須為文字');
      if(!Number.isSafeInteger(row.order)||Number(row.order)<0)throw Error('order 必須為非負整數');
      if(row.meaning_id!==undefined&&row.meaning_id!==null){identifier(row.meaning_id,'meaning_id');row.meaning_id=String(row.meaning_id).toLowerCase();}
      if(row.relation!==undefined&&!['historical_etymology','learning_decomposition'].includes(String(row.relation)))throw Error('未知構詞種類');

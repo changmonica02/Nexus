@@ -11,7 +11,7 @@ import {usePagedList} from '../../components/pagination/usePagedList';
 
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
-import {listAdminEntries,listAdminWork,adminPageSize} from './adminQueries';
+import {listAdminEntries,listAdminWork,adminSummaries,adminPageSize} from './adminQueries';
 import {inflectionLabels,availableInflections} from './inflections';
 import {RelationTargetPicker,RelationSelectionDialog} from './RelationTargetPicker';
 import {DictionaryBulkPublish} from './DictionaryBulkPublish';
@@ -301,8 +301,9 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   useUnsavedDraft(!detail&&!!fileText,busy);
   async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
   const listing=usePagedList(JSON.stringify([kinds,statuses,query,work,reload,entryId,newKind]),page,adminPageSize,async p=>{
-    if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false};
-    return {...await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p}),page:p};
+    if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false,summaries:{} as Record<string,string>};
+    const result=await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p});
+    return {...result,summaries:await adminSummaries(getSupabase()!,result.items),page:p};
   },p=>{setPage(p);});
   const revalidate=useRef(listing.retry);
   useEffect(()=>{revalidate.current=listing.retry;});
@@ -342,7 +343,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     </div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     {listing.data?.workAvailable&&<p role="status" className="text-sm">{t('ui.redCount',{n:listing.data.stats!.red})}</p>}
-    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin?review=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {t("ui."+e.kind)} · {e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}</Link>{e.work_status==='red'&&<button className={button} onClick={()=>setReviewTarget(e.id)}>{t('persistent.pending',{n:e.pending_count??0})}</button>}</li>)}</ul></div>
+    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin?review=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
       <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>

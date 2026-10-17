@@ -1,24 +1,17 @@
 # Nexus — 當前交接（2026-10-17）
 
-產品契約以 SPEC 為準，技術見 ARCHITECTURE；歷史紀錄最新置頂，實機驗收集中 Issue #60。
+產品契約看 SPEC，技術看 ARCHITECTURE，歷史最新置頂；真實裝置驗收集中 #60。
 
-## 本輪：字典緊湊化與核心概念
+## 本輪：字典閱讀／摘要／構詞搜尋與快速建立
 
-- 已實作三種類型共用緊湊編輯器、區塊 action slot、AutoTextarea、變體／義項同行操作、讀音自動排序／移動、核心概念先於歷史詞源（含跨義項／共用內容），閱讀保留義項歸屬與原錨點。
-- SQL：20261017010000_dictionary_core_concept.sql；原文／來源受限備份、Entry＋Sense 穩定合併、舊內容及 Review revision 前進、10 組指紋、重跑安全、管理員限定 alias 防止退場 ID 重建。**正式已套用**（ledger 20261017054409）。52 筆核心概念、舊類型 0、遷移後逐列內容差異 0；當下無雙類型同義項，未刪正式列，alias=0。Entry 6,305／Sense 11,525／Review 925／工作 28 保留，12 份 Review 版本前進；10 組指紋及 RLS／安全 advisors 與預期一致。
-- 閱讀／AI／CSV／JSON 使用核心概念；舊格式有明確相容邊界，過期版本與退場 ID 不強行套用。舊提示退出一般 UI，沒有作為核心概念來源或清空其資料。
-- 字典回歸 124/124、最後聚焦 21/21（重疊且含新增預覽測試）、學習同步 49/49、5/5 隔離瀏覽器組通過；TypeScript／Build 通過，ESLint 0 errors／456 既有 warnings。PR #79，Preview／Checks 通過；前端合併與 Production 以 PR 最終狀態為準。操作／回復見 operations/DICTIONARY-CORE-CONCEPT.md。
+- 已實作閱讀中文去重、完整多義項、精簡相關單字入口、變體重按收合；公開／管理列表穩定首義項摘要與空義狀態，管理工作狀態 icon-only／tooltip／ARIA。
+- 構詞搜尋完整 Published 候選排名後分頁。快速建立僅 Prefix／Root，管理員明確確認，穩定空白 Sense、既有發布／Review／歷史／Audit、等價唯一性、同操作重試、並行及失敗回滾；不發布主編輯器、不覆寫未儲存內容。Word 規則不放寬。舊 CSV 必填契約保留，最小詞條用完整 JSON／AI。
+- SQL `20261017020000_dictionary_ranked_components.sql` **正式已套用**（ledger `20261017073742`），13 表資料指紋無差異；Entry6,305／Sense11,525／active Review925／常駐項目28維持。新RPC anon不可呼叫，無正式新建／匯入／發布測試資料。Advisors新增1項預期 quick definer提示，權限已測試；既有7 INFO／leaked-password警告不變。
+- 已通過字典131、聚焦7（PGlite及獨立PostgreSQL，各自7；重疊不累加）、學習／官方集／同步59；6,301候選排名約131–482ms。六組隔離瀏覽器、TypeScript／Production Build 通過，ESLint 0 errors／456既有warnings；PR與Vercel以最終交付記錄核對。回復／部署順序見 operations/DICTIONARY-RANKED-COMPONENTS.md。
+- 交付 [PR #80](https://github.com/changmonica02/Nexus/pull/80)，最終合併／Production commit 以該 PR 交付留言核對。下一步僅使用者於 #60 驗收真實 iPad Safari 的閱讀、變體、列表及明確快速建立／人工發布；不需要重匯或批次發布。舊工作保留原裝置／原檔，不重播已完成內容。
 
-## 已核實的既有正式狀態
+## 既有能力／保留事項
 
-- PR #78 main 8029e33 已部署，verification 欄位已移除，ledger 20261016150215。
-- PR #76 source_forms 退場已套用，ledger 20261016072304；PR #77 補回三種類型 Draft 單筆發布已部署。不要重播 SQL 或重匯既有字典。
-- official_private_card_identity（20261016062703）與 creation_template_library（20261016062716）已套用，不可只依 Git 檔名重播。
-- 第五輪 PR #69～#75 已合併；正式帳號／真實 iPad Safari 操作驗收仍留 #60，不把 Chromium 尺寸模擬當成人工驗收。
-
-## 下一步／人工驗收
-
-- 正式 SQL 已完成；完成 PR #79 合併及 Vercel Production 確認，實機結果仍由使用者驗收。
-- iPad Safari／手機確認基本資訊、單／多義項、變體、長文字、讀音排序及儲存／重開；確認核心概念在詞源前。
-- 正式 Review 修改後仍須人工發布，舊分頁重載；常駐工作重比但不重匯已完成內容。
-- 學習翻面→字典詳情→管理員完整編輯→返回原卡，私人 Front／Back、Session／評分不變。
+- PR #79 核心概念 SQL 已套用（20261017054409）；舊來源字形／逐筆查證狀態已退場。不要重播已套用 SQL，不恢復舊欄位。
+- official_private_card_identity、creation_template_library 已核實正式套用，角色模板／官方集／私人學習維持原契約；本輪不做資料搬移。
+- 真實 iPad Safari、正式帳號、跨裝置人工驗收仍由 #60 追蹤。隔離 PostgreSQL不等於Supabase staging；Chromium尺寸不等於真實Safari。
