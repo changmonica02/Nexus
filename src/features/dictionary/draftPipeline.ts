@@ -1,3 +1,4 @@
+import {mergeCoreConcepts} from './coreConcept';
 import {compositionRow} from './composition';
 import {availableInflections,inflectionIdentity,inflectionLabels} from './inflections';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -82,7 +83,7 @@ export function draftsFromBundle(bundle:Bundle,grouping?:DictionaryGrouping,sens
     const rows=(table:string)=>(bundle[table]??[]).filter(r=>r.entry_id===e.id).map(r=>strip(r) as DraftRow);
     return {kind:e.kind as DictionaryKind,entry_id:String(e.id),headword:String(e.headword),...(e.revision!==undefined?{revision:Number(e.revision)}:{}),
       senses:rows('dictionary_senses').map(s=>({...s,part_of_speech:s.part_of_speech as string|null,gloss_zh_tw:String(s.gloss_zh_tw),...(s.id in senseGroups?{category:senseGroups[s.id]}:{})})),
-      inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:rows('dictionary_learning_notes'),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
+      inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:mergeCoreConcepts(rows('dictionary_learning_notes')),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
       relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint'),grouping};
   });
 }

@@ -14,7 +14,7 @@ test('variant editor has two placeholder inputs per row and immutable add/edit/d
  let value=serializeVariants([{variant:'cap',condition:'before x'}]);const render=()=>VariantEditor({value,onChange:v=>value=v});
  let tree=render(),row=tree.props.children[1][0];row.props.children[0].props.onChange({target:{value:'cept'}});
  assert.equal(parseVariants(value)[0].variant,'cept');assert.equal(parseVariants(value)[0].condition,'before x');
- tree=render();tree.props.children[2].props.onClick();assert.equal(parseVariants(value).length,2);
+ tree=render();tree.props.children[0].props.children[1].props.onClick();assert.equal(parseVariants(value).length,2);
  tree=render();tree.props.children[1][0].props.children[2].props.onClick();assert.deepEqual(parseVariants(value),[{variant:'',condition:''}]);
  const html=renderToStaticMarkup(React.createElement(VariantEditor,{value,onChange:()=>{}}));
  assert.match(html,/placeholder="變體"/);assert.match(html,/placeholder="出現條件"/);assert.ok(!html.includes('<label'));assert.match(html,/minmax\(0,2fr\)/);

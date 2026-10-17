@@ -1,6 +1,7 @@
 "use client";
 import {invalidateDictionary,observeDictionaryInvalidation} from './dictionaryInvalidation';
 import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
+import AutoTextarea from "./AutoTextarea";
 import EditorSection from "./EditorSection";
 import FeatureIcon from "../../components/FeatureIcon";
 import {SidebarToggle} from "../../components/WorkspaceNavigation";
@@ -44,20 +45,22 @@ const addButton='min-h-11 rounded px-2 py-1 text-sm hover:bg-zinc-500/10 disable
 const labels={word:'單字',prefix:'字首',root:'字根'};
 type Row=Record<string,unknown>;
 function Field({label,value,onChange,multiline=false,placeholder,compact=false}:{label:string;value:unknown;onChange:(v:string)=>void;multiline?:boolean;placeholder?:string;compact?:boolean}) {
-  return <label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{label}</span>{multiline?<textarea aria-label={label} className={control} rows={4} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input aria-label={label} className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
+  return <label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{label}</span>{multiline?<AutoTextarea aria-label={label} className={control} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input aria-label={label} className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
 }
 
 function clean(row:object):Row { const result={...row} as Row;for(const key of ['updated_at','published_at','status','source_id'])delete result[key];return result; }
 export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technical?:boolean}) {
-  return <div className="space-y-4" aria-label="字典預覽">{Object.entries(bundle).map(([table,rows])=><section key={table}>
-    <h3 className="font-semibold">{{dictionary_entries:'詞條',dictionary_inflections:'詞形變化',dictionary_pronunciations:'讀音',dictionary_senses:'義項',dictionary_relations:'義項構詞關聯',dictionary_etymologies:'歷史詞源',dictionary_learning_notes:'學習拆解／記憶情境（不是歷史事實）'}[table]??table}</h3>
+  const order=['dictionary_entries','dictionary_senses','dictionary_pronunciations','dictionary_inflections','dictionary_relations','dictionary_learning_notes','dictionary_etymologies','dictionary_examples'];
+  const rank=(table:string)=>order.includes(table)?order.indexOf(table):order.length;
+  return <div className="space-y-2" aria-label="字典預覽">{Object.entries(bundle).filter(([table,rows])=>technical||rows.length>0&&table!=='dictionary_lexical_annotations').sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
+    <h3 className="font-semibold">{{dictionary_entries:'詞條',dictionary_inflections:'詞形變化',dictionary_pronunciations:'讀音',dictionary_senses:'義項',dictionary_relations:'構詞關聯',dictionary_etymologies:'歷史詞源',dictionary_learning_notes:'核心概念'}[table]??table}</h3>
     {rows.map(row=><article key={String(row.id)} className="my-2 space-y-2 whitespace-pre-wrap break-words rounded border p-3 text-sm">
       {<>
-        {!!row.kind&&<p>類型：{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??'義項關聯')}</p>
-        {!!row.part_of_speech&&<p>分類：{String(row.part_of_speech)}</p>}
+        {(technical||table==='dictionary_entries')&&!!row.kind&&<p>類型：{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??'義項關聯')}</p>
+        {!!row.part_of_speech&&<p>詞性：{String(row.part_of_speech)}</p>}
         {table==='dictionary_etymologies'&&!!row.data_source&&<p>資料來源：{String(row.data_source)}</p>}
         {technical&&!!row.target_sense_id&&<p>目標義項：{String(row.target_sense_id)}</p>}
-        {row.kind==='mnemonic_scenario'&&<p>記憶情境，不是歷史事實</p>}
+
       </>}
       {technical&&<details><summary>穩定識別與資料欄位</summary><pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(row,null,2)}</pre></details>}
     </article>)}
@@ -65,7 +68,7 @@ export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technic
 }
 export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
   const {t}=usePaginationLanguage();
-  const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:(detail.pronunciations??[]).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
+  const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
   const [grouping,setGrouping]=useState(initialGrouping);
   const [senseGroups,setSenseGroups]=useState(initialSenseGroups);
@@ -77,7 +80,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
   const headword=String(bundle.dictionary_entries[0].headword);
   useEffect(()=>{let active=true;setMatches([]);if(!headword.trim())return;const timer=setTimeout(()=>{const client=getSupabase();if(client)void listAdminEntries(client,{kinds:[detail.entry.kind],statuses:[],query:headword,page:0}).then(r=>{if(active)setMatches(r.items);}).catch(()=>{});},250);return()=>{active=false;clearTimeout(timer);};},[headword,detail.entry.kind]);
   const matching=[...entries,...matches].filter((e,i,all)=>all.findIndex(x=>x.id===e.id)===i).filter(e=>e.id!==detail.entry.id&&entryKey(e.kind,e.headword)===entryKey(detail.entry.kind,String(bundle.dictionary_entries[0].headword)));
-  const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>適用義項</span><select className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>請選擇義項</option><option value="__shared__">{table==='dictionary_relations'?'不分義項／詞條共用':'詞條共用（不限定義項）'}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>義項 {i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
+  const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>適用義項</span><select aria-label="適用義項" className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>請選擇義項</option><option value="__shared__">{table==='dictionary_relations'?'不分義項／詞條共用':'詞條共用（不限定義項）'}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>義項 {i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
   const newContentSense=()=>bundle.dictionary_senses.length===1?bundle.dictionary_senses[0].id:'';
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline)||JSON.stringify(grouping)!==JSON.stringify(groupBaseline)||bundle.dictionary_senses.some(row=>(senseGroups[String(row.id)]??null)!==(senseBaseline[String(row.id)]??null)));
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
@@ -146,25 +149,29 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
     {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
     {matching.length>0&&<div role="alert" className="space-y-2"><p>同類同拼寫已有詞條，請在既有詞條新增中文義項。</p>{matching.map(e=><button key={e.id} className={button} onClick={()=>void (async()=>{if(await confirmDialog('開啟既有詞條？目前尚未儲存的表單將捨棄，請先保留需要的內容。'))await onSaved(e.id);})()}>開啟 {e.headword} · {e.status==='published'?'已發布（需 Review Draft）':'草稿'}</button>)}</div>}
     {locked&&<p>目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。</p>}
-    <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-5">
+    <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2">
       <EditorSection title="基本資訊">
-        <Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
         {detail.entry.kind!=='word'&&<>
-          {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+          {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select aria-label="主要分類" className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+        </>}
+        </div>
+        {detail.entry.kind!=='word'&&<>
           <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
         </>}
       </EditorSection>
-      <EditorSection title="義項" count={bundle.dictionary_senses.length}><div className="flex flex-wrap items-center justify-between gap-2"><button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?'＋新增義項':'＋新增中文義項'}>{detail.entry.kind==='word'?'＋新增義項':'＋新增'}</button></div>
-      {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3">
-        <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={detail.entry.kind==='word'?"grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]":"flex items-center justify-between gap-2"}><h4 className={detail.entry.kind==='word'?"sr-only":"text-sm font-medium"}>義項 {i+1}</h4>
-        {detail.entry.kind==='word'&&<><Field label="詞性" placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/><div className="col-start-1 sm:col-start-auto"><Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div></>}<button type="button" aria-label={`刪除義項 ${i+1}`} className={(detail.entry.kind==='word'?'col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto ':'')+"min-h-11 shrink-0 rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100"} onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
-        {detail.entry.kind!=='word'&&<Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/>}
-        {detail.entry.kind==='prefix'&&<label className="block text-sm">分類<select className={control} aria-label={`義項 ${i+1} 的分類`} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">未分類</option>{prefixCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+      <EditorSection title="義項" count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?'＋新增義項':'＋新增中文義項'}>＋新增義項</button>}>
+      {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
+        {bundle.dictionary_senses.length>1&&<span className="pt-7 text-xs opacity-50">{i+1}</span>}
+        <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={"grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 "+(detail.entry.kind==='root'?'':"sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]")}>
+        {detail.entry.kind==='word'&&<Field label="詞性" placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>}
+        <div className={detail.entry.kind==='word'?"col-start-1 sm:col-start-auto":""}><Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div>
+        {detail.entry.kind==='prefix'&&<label className="col-start-1 min-w-0 text-sm sm:col-start-auto">分類<select className={control} aria-label={`義項 ${i+1} 的分類`} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">未分類</option>{prefixCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+        <button type="button" aria-label={`刪除義項 ${i+1}`} className="col-start-2 row-start-1 min-h-11 shrink-0 p-2 opacity-70 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
       </div>)}
       </EditorSection>
       {detail.entry.kind==='word'&&<>
-      <EditorSection title="詞形變化" count={bundle.dictionary_inflections.length}>
-      <div className="flex justify-end"><button type="button" className={addButton} aria-label="＋新增詞形變化" onClick={()=>add('dictionary_inflections',{sense_id:null,form_kind:availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],null)[0]??'',form:'',sort_order:bundle.dictionary_inflections.length})}>＋新增</button></div>
+      <EditorSection title="詞形變化" count={bundle.dictionary_inflections.length} actions={<button type="button" className={addButton} aria-label="＋新增詞形變化" onClick={()=>add('dictionary_inflections',{sense_id:null,form_kind:availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],null)[0]??'',form:'',sort_order:bundle.dictionary_inflections.length})}>＋新增詞形變化</button>}>
       {!bundle.dictionary_inflections.length&&<p className="text-sm opacity-60">尚無詞形</p>}
       {!!bundle.dictionary_inflections.length&&<div aria-hidden className="hidden gap-2 text-xs opacity-60 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]"><span>變化類型</span><span>詞形</span><span>適用義項</span><span/></div>}
       {bundle.dictionary_inflections.map((row,i)=>{const types=availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],String(row.sense_id??'')||null);return <div key={String(row.id)} data-inflection-row className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 border-t border-[var(--color-border)] py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]">
@@ -174,36 +181,41 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
       <button type="button" aria-label="移除詞形" className="col-start-2 row-start-1 min-h-11 self-start p-2 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>setBundle(b=>({...b,dictionary_inflections:b.dictionary_inflections.filter(r=>r.id!==row.id)}))}><FeatureIcon feature="delete" size={16}/></button>
       </div>;})}
       </EditorSection>
-      <EditorSection title="構詞關聯" count={bundle.dictionary_relations.length}><div className="flex flex-wrap items-center justify-between gap-2"><button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label="＋新增構詞關聯">＋新增</button></div>
+      <EditorSection title="構詞關聯" count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label="＋新增構詞關聯">＋新增構詞關聯</button>}>
       {!bundle.dictionary_relations.length&&<p className="text-sm">尚無構詞關聯</p>}
-      {bundle.dictionary_relations.map((row,i)=><div key={String(row.id)} className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3">
-        {bundle.dictionary_senses.length>1&&contentSense('dictionary_relations',i,row)}
+      {bundle.dictionary_relations.map((row,i)=><div key={String(row.id)} className="grid min-w-0 gap-2 py-1 sm:grid-cols-[minmax(0,1fr)_auto]">
+        {bundle.dictionary_senses.length>1&&<div className="sm:col-span-2">{contentSense('dictionary_relations',i,row)}</div>}
         <RelationTargetPicker entryId={String(row.target_entry_id)} senseId={String(row.target_sense_id)} excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.id!==row.id&&r.sense_id===row.sense_id).map(r=>String(r.target_sense_id))} onChange={(entry,sense)=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.map((r,index)=>index===i?{...r,target_entry_id:entry,target_sense_id:sense}:r)}))}/>
-        <div className="flex flex-wrap gap-2"><button className={button} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,-1)}))}>上移</button><button className={button} disabled={i===bundle.dictionary_relations.length-1} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,1)}))}>下移</button><button className={addButton} onClick={()=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.filter(r=>r.id!==row.id)}))} aria-label="移除構詞關聯"><FeatureIcon feature="delete" size={16}/></button></div>
+        <div className="flex flex-wrap items-center gap-1">{bundle.dictionary_relations.length>1&&<><button className={addButton} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,-1)}))}>上移</button><button className={addButton} disabled={i===bundle.dictionary_relations.length-1} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,1)}))}>下移</button></>}<button className={addButton} onClick={()=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.filter(r=>r.id!==row.id)}))} aria-label="移除構詞關聯"><FeatureIcon feature="delete" size={16}/></button></div>
       </div>)}
       {addingRelation&&<RelationSelectionDialog excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.sense_id==null).map(r=>String(r.target_sense_id))} onClose={()=>setAddingRelation(false)} onSelect={(entry,sense)=>{add('dictionary_relations',{sense_id:null,target_entry_id:entry,target_sense_id:sense});setAddingRelation(false);}}/>}
       </EditorSection>
       </>}
-      <EditorSection title="補充資料" count={bundle.dictionary_pronunciations.length+bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length+bundle.dictionary_lexical_annotations.length}>
-      <section className="space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">讀音</h3><button className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:(bundle.dictionary_pronunciations??[]).length})} aria-label="＋新增讀音">＋新增</button></div>
-      {(bundle.dictionary_pronunciations??[]).map((row,i)=><div key={String(row.id)} className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3">
-        <div className="flex justify-end"><button className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,'讀音')} aria-label="刪除讀音"><FeatureIcon feature="delete" size={16}/></button></div>
-        {contentSense('dictionary_pronunciations',i,row)}
-        <Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/>
-        <Field label="地區／語言（選填，例如 en-GB）" value={row.locale} onChange={v=>change('dictionary_pronunciations',i,'locale',v||null)}/>
-        <Field label="備註（選填）" value={row.note} onChange={v=>change('dictionary_pronunciations',i,'note',v||null)}/>
-        <Field label="排序" value={row.sort_order} onChange={v=>change('dictionary_pronunciations',i,'sort_order',Number(v))}/>
+      <EditorSection title="補充資料" count={bundle.dictionary_pronunciations.length+bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length}>
+      <section className="min-w-0 space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="font-semibold">讀音</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label="＋新增讀音">＋新增讀音</button></div>
+      {(bundle.dictionary_pronunciations??[]).map((row,i,rows)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-start gap-2">
+        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+          <Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/>
+          <Field label="地區／語言（選填，例如 en-GB）" value={row.locale} onChange={v=>change('dictionary_pronunciations',i,'locale',v||null)}/>
+          <div className="sm:col-span-2"><Field label="備註（選填）" multiline value={row.note} onChange={v=>change('dictionary_pronunciations',i,'note',v||null)}/></div>
+          {bundle.dictionary_senses.length>1&&contentSense('dictionary_pronunciations',i,row)}
+        </div>
+        <div className="flex shrink-0 flex-col pt-5">
+          <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,'讀音')} aria-label="刪除讀音"><FeatureIcon feature="delete" size={16}/></button>
+          {rows.length>1&&<><button type="button" className={addButton} aria-label="上移讀音" disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label="下移讀音" disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
+        </div>
       </div>)}</section>
-      {([{table:'dictionary_etymologies',title:'歷史詞源',kind:null},{table:'dictionary_learning_notes',title:'口訣',kind:'learning_decomposition'},{table:'dictionary_learning_notes',title:'記憶故事',kind:'mnemonic_scenario'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button className={addButton} onClick={()=>add(table,kind?{sense_id:newContentSense(),body:'',kind}:{sense_id:newContentSense(),body:'',data_source:''})} aria-label={`新增${title}`}>＋新增</button></div>
-        {bundle[table].map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)} className="space-y-2 border-t border-[var(--color-border)] py-3">
-          <div className="flex justify-end"><button type="button" aria-label={`刪除${title}`} className="rounded px-2 py-1 text-xs opacity-70 hover:bg-[var(--color-panel-bg)] hover:opacity-100" onClick={()=>void removeContent(table,row,title)}><FeatureIcon feature="delete" size={16}/></button></div>
-          {contentSense(table,i,row)}
-          <Field label="完整內容" multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
-          {!kind&&<Field label="資料來源" multiline value={row.data_source} onChange={v=>change(table,i,'data_source',v)}/>}
+      {([{table:'dictionary_learning_notes',title:'核心概念'},{table:'dictionary_etymologies',title:'歷史詞源'},{table:'dictionary_examples',title:'例詞'}] as const).map(({table,title})=><section key={title} className="min-w-0 space-y-2" data-content-section={title}>
+        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={`新增${title}`}>＋新增{title}</button></div>
+        {bundle[table].map((row,i)=><div key={String(row.id)} className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            {bundle.dictionary_senses.length>1&&contentSense(table,i,row)}
+            <Field label={title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
+            {table==='dictionary_etymologies'&&<Field label="資料來源" multiline value={row.data_source} onChange={v=>change(table,i,'data_source',v)}/>}
+          </div>
+          <button type="button" aria-label={`刪除${title}`} className={addButton+" mt-5 shrink-0"} onClick={()=>void removeContent(table,row,title)}><FeatureIcon feature="delete" size={16}/></button>
         </div>)}
       </section>)}
-      {([{table:'dictionary_examples',title:'例詞',kind:null},{table:'dictionary_lexical_annotations',title:'待解析構詞提示',kind:'relation_hint'}] as const).map(({table,title,kind})=><section key={title} className="space-y-2"><h3 className="font-semibold">{title}</h3>{(bundle[table]??[]).map((row,i)=>(!kind||row.kind===kind)&&<div key={String(row.id)}><button type="button" className={button} onClick={()=>void removeContent(table,row,title)} aria-label={`刪除${title}`}><FeatureIcon feature="delete" size={16}/></button>{contentSense(table,i,row)}<Field label={title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/><Field label="排序" value={row.sort_order} onChange={v=>change(table,i,'sort_order',Number(v))}/></div>)}<button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',sort_order:(bundle[table]??[]).length,...(kind?{kind}:{})})} aria-label={`新增${title}`}>＋新增</button></section>)}
       </EditorSection>
     </fieldset>
     <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle),detail.entry.kind==='word'?undefined:grouping,senseGroups),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>切換完整預覽</button>
@@ -334,9 +346,9 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
       <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>
-      <details><summary>匯入格式說明 · Dictionary CSV v1（12 欄）</summary><div className="space-y-2 text-sm">
+      <details><summary>匯入格式說明 · Dictionary CSV v1（11 欄）</summary><div className="space-y-2 text-sm">
 <p>共通必填：kind、headword、gloss_zh_tw。Word 另需 part_of_speech，category 必須留空。Prefix / Root 另需 category，part_of_speech 必須留空。Root 可使用 etymology。</p>
-<p>可選：entry_id、sense_id、example_words、relation_hint、mnemonic_story。每列一義項；同 kind 與正規化拼寫共用 Entry，不同詞性／語義／詞源使用不同義項。既有內容更新須保留穩定 ID；空 ID 僅在預覽時產生一次 proposed UUID；本次寫入使用相同 ID。寫入後請下載含永久 ID 的 CSV，後續修改保留 ID。</p>
+<p>可選：entry_id、sense_id、example_words、relation_hint（舊檔相容）、core_concept（舊 mnemonic_story 相容）。每列一義項；同 kind 與正規化拼寫共用 Entry，不同詞性／語義／詞源使用不同義項。既有內容更新須保留穩定 ID；空 ID 僅在預覽時產生一次 proposed UUID；本次寫入使用相同 ID。寫入後請下載含永久 ID 的 CSV，後續修改保留 ID。</p>
 <p>例詞與字形原文完整保留；relation_hint 僅為待解析提示，不自動建立構詞關聯。不接受 citation、license、source_id 或 level。</p>
 <details><summary>Prefix 分類（4 類）</summary><ul>{prefixCategories.map(c=><li key={c}>{c}</li>)}</ul></details>
 <details><summary>Root 分類（9 類）</summary><ul>{primaryCategories.map(c=><li key={c}>{c}</li>)}</ul></details>

@@ -142,7 +142,7 @@ test("existing latest single-target RPC: cancellation, revisions, admin, externa
       },
     ];
     full.learning_notes = [
-      { id: id(37), sense_id: null, kind: "mnemonic_scenario", body: "note" },
+      { id: id(37), sense_id: null, kind: "core_concept", body: "note" },
     ];
     await save(pg, full);
     await save(pg, draft(40));

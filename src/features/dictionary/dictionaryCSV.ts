@@ -3,7 +3,7 @@ import {parseCSV} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 import {emptyGrouping} from './grouping';
 
-export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint','mnemonic_story'];
+export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint','core_concept'];
 export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
 export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
@@ -34,7 +34,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
       ['etymology',d.etymologies,{data_source:''}],
       ['example_words',d.examples,{sort_order:0}],
       ['relation_hint',d.relation_hints,{kind:'relation_hint',sort_order:0}],
-      ['mnemonic_story',d.learning_notes,{kind:'mnemonic_scenario'}],
+      ['core_concept',d.learning_notes,{kind:'core_concept'}],
     ] as const){if(r[field]?.trim()){const id=crypto.randomUUID();d.proposed_ids!.push(id);list.push({id,sense_id,body:r[field],...extra});}}
   }
   const result=[...drafts.values()];issues.push(...validateDictionaryDraft(result,{csv:true}));
@@ -55,7 +55,7 @@ export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
       if(own.length>1||items.some(x=>!x.sense_id)&&d.senses.length>1)throw Error('此詞條有多筆或詞條級內容，請使用 AI JSON 完整匯出，避免 CSV 合併遺失關聯。');
       return String(own[0]?.body??'');
     };
-    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,d.kind==='prefix'?sense.category??'':d.kind==='root'?d.grouping?.primary_category??'':'',content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='mnemonic_scenario'))]);
+    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,d.kind==='prefix'?sense.category??'':d.kind==='root'?d.grouping?.primary_category??'':'',content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='core_concept'))]);
   }
   return dictionaryCSVHeaders.join(',')+'\n'+rows.map(r=>r.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');
 }

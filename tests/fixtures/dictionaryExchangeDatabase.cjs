@@ -33,6 +33,7 @@ async function database(options={}) {
   for (const f of files)
     await pg.exec(fs.readFileSync("supabase/migrations/" + f, "utf8"));
   if(!options.legacy)await pg.exec(fs.readFileSync("supabase/migrations/20261016060000_dictionary_retire_verification_state.sql","utf8"));
+  if(!options.legacy&&!options.coreLegacy)await pg.exec(fs.readFileSync("supabase/migrations/20261017010000_dictionary_core_concept.sql","utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, id(900001)]);
   await pg.query("insert into dictionary_admins values($1)", [owner]);
   await pg.exec("set role authenticated");

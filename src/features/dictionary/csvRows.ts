@@ -11,7 +11,8 @@ export function parseCSV(text:string): Record<string,string>[] {
   if(quoted)throw new Error("CSV 引號未關閉");
   if(value||row.length||closed){row.push(value);rows.push(row);}
   const headers=rows.shift();if(!headers||new Set(headers).size!==headers.length)throw new Error("CSV 缺少或重複欄名");
-  const allowed=headers.includes('kind')?['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint','mnemonic_story']:['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
+  const legacyStory=headers.includes('mnemonic_story');
+  const allowed=headers.includes('kind')?['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint',legacyStory?'mnemonic_story':'core_concept']:['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
   if(headers.length!==allowed.length||headers.some(h=>!allowed.includes(h)))throw new Error(`CSV 欄位必須為 ${allowed.join(',')}；citation / license / source_id 已淘汰`);
-  return rows.filter(r=>r.some(Boolean)).map((r,i)=>{if(r.length!==headers.length)throw new Error(`第 ${i+2} 列欄數不符`);return Object.fromEntries(headers.map((h,j)=>[h,r[j]]));});
+  return rows.filter(r=>r.some(Boolean)).map((r,i)=>{if(r.length!==headers.length)throw new Error(`第 ${i+2} 列欄數不符`);return Object.fromEntries(headers.map((h,j)=>[h==='mnemonic_story'?'core_concept':h,r[j]]));});
 }

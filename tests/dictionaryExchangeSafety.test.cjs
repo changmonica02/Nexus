@@ -97,7 +97,7 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
       },
     ];
     word.learning_notes = [
-      { id: id(24), sense_id: null, kind: "mnemonic_scenario", body: "note" },
+      { id: id(24), sense_id: null, kind: "core_concept", body: "note" },
     ];
     word.examples = [
       { id: id(25), sense_id: null, body: "example", sort_order: 0 },
