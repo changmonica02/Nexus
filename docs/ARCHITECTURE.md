@@ -8,7 +8,7 @@
 - Word／Prefix／Root 沿用 DictionaryEditor 與 PublishedWorkspace；EditorSection 新增 action slot，標題旁新增不觸發收合。AutoTextarea 依內容與寬度重新量測，清理 ResizeObserver，不縮小文字。
 - 基本資訊短欄位雙欄、變體緊湊列；義項以穩定 ID 的列顯示，單筆無重複序號。Word 詞性／中文並排，Prefix 分類仍為 Sense 資料、Root 分類仍為 Entry grouping，沒有搬移資料。
 - 讀音依 sort_order＋ID 初始化；新增安排在最大值之後，多筆移動時依新順序重編 sort_order，既有 Draft／Review extension 原子保存。單筆無移動、UI 無手填數字，公開閱讀沿用同一順序。
-- learning_notes 的現行 kind 統一 core_concept；同 Entry＋Sense 舊內容經穩定排序串接，保留代表 ID 與完整原始來源備份，不混不同義項。核心概念在歷史詞源之前，編輯／閱讀／AI／CSV／JSON 一致；舊型別只在交換相容 adapter 與不可變歷史保留。
+- learning_notes 的現行 kind 統一 core_concept；同 Entry＋Sense 舊內容經穩定排序串接，保留代表 ID 與完整原始來源備份，不混不同義項。核心概念在歷史詞源之前，編輯／閱讀／AI／CSV／JSON 一致；閱讀補充資料先按種類排序再標示義項歸屬，保留 Sense 錨點，讀音跨義項仍用全詞條 sort_order，避免共用核心概念被個別義項詞源擠到下方；舊型別只在交換相容 adapter 與不可變歷史保留。
 - 增量 SQL 20261017010000_dictionary_core_concept.sql 含 private backup、10 組完整性指紋、monotonic revision、重跑標記及 dictionary_core_aliases（管理員唯讀＋既有 guard 拒絕重建退場 ID）。不增加可公開寫入的 RPC，不停用原 RLS／guard／人工發布。已完成歷史／receipt 不改寫，受影響常駐工作 stale 後重比。
 - 待解析構詞提示不再提供一般編輯／閱讀入口，原始資料及交換／歷史相容保留，沒有轉入核心概念。部署／回復與正式套用狀態見 operations/DICTIONARY-CORE-CONCEPT.md。
 

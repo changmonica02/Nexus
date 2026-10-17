@@ -62,3 +62,12 @@ test('reader detail renders senses, related links, safe source attribution and s
   for(const text of ['noun','測試','https://example.test/source','核心概念',`/dictionary/${id(33)}?from=${encodeURIComponent(`/dictionary/${id(10)}`)}#sense-${id(133)}`])assert.ok(html.includes(text),text);
   assert.ok(!/待審核|未查證|已查證|有爭議|不是已確認的詞源事實/.test(html));assert.ok(!html.includes('來源與授權'));assert.ok(!html.includes('test-only'));assert.ok(!html.includes('<script>'));assert.ok(!html.includes('javascript:'));
 });
+
+test('global supplementary order survives mixed shared/Sense content and pronunciation order crosses scopes',()=>{
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
+ const data={entry:{id:id(10),headword:'ordering',kind:'word'},senses:[{id:id(11),part_of_speech:'noun',gloss_zh_tw:'義一'},{id:id(12),part_of_speech:'verb',gloss_zh_tw:'義二'}],relations:[],related:[],inflections:[],pronunciations:[{id:id(30),sense_id:id(11),ipa:'second-ipa',sort_order:1},{id:id(31),sense_id:null,ipa:'first-ipa',sort_order:0}],learning_notes:[{id:id(40),sense_id:null,kind:'core_concept',body:'shared core'},{id:id(41),sense_id:id(12),kind:'core_concept',body:'second Sense core'}],etymologies:[{id:id(50),sense_id:id(11),body:'first Sense history',data_source:'source URL'}],examples:[{id:id(60),sense_id:id(12),body:'example',sort_order:0}]};
+ for(const accordion of [false,true]){
+  const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data,accordion}));let previous=-1;for(const title of ['讀音','核心概念','歷史詞源','例詞']){const next=html.indexOf(title);assert.ok(next>previous,title);previous=next;}
+  assert.ok(html.indexOf('first-ipa')<html.indexOf('second-ipa'));assert.ok(html.includes('shared core'));assert.ok(html.includes('second Sense core'));assert.ok(html.includes('first Sense history'));assert.ok(html.includes('source URL'));assert.ok(html.includes('id="sense-'+id(11)+'"'));assert.ok(html.includes('id="sense-'+id(12)+'"'));
+ }
+});
