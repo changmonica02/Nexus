@@ -1,3 +1,4 @@
+import {firstSenseSummary} from './flashcardLinks';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {DictionaryDetail,DictionaryEntry,DictionarySense} from './dictionary';
 export const adminPageSize=100;
@@ -48,4 +49,15 @@ export async function listAdminWork(client:Pick<SupabaseClient,'rpc'|'from'>,fil
  const {data,error}=await client.rpc('list_dictionary_admin_work' ,{kind_filters:filter.kinds,status_filters:filter.statuses,query_text:filter.query,work_filter:work,page_number:filter.page});
  if(error){if(['PGRST202','42883'].includes(error.code)||/Could not find the function|does not exist/.test(error.message))return {...await listAdminEntries(client,filter),stats:null,workAvailable:false};throw Error(error.message);}
  return {items:data.items as AdminWorkEntry[],total:data.total as number,stats:data.stats as {red:number;yellow:number;green:number},workAvailable:true};
+}
+
+export async function adminSummaries(client:Pick<SupabaseClient,'rpc'>,items:DictionaryEntry[]){
+ if(!items.length)return {} as Record<string,string>;
+ const {data,error}=await client.rpc('dictionary_admin_first_senses',{entry_ids:items.map(e=>e.id)});
+ if(error){
+  if(!['PGRST202','42883'].includes(error.code))throw Error(error.message);
+  const details=await Promise.all(items.map(e=>readRelationTarget(client,e.id)));
+  return Object.fromEntries(items.map((entry,i)=>[entry.id,firstSenseSummary({entry,senses:details[i]?.senses??[]})]));
+ }
+ return Object.fromEntries(items.map(entry=>[entry.id,firstSenseSummary({entry,senses:((data??[]) as DictionarySense[]).filter(s=>s.entry_id===entry.id)})]));
 }

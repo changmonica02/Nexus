@@ -19,13 +19,14 @@ import {DictionaryConnections} from './DictionaryConnections';
 import {browseHref,dictionaryReturn,entryHref} from './browseRelations';
 const box='rounded-xl border p-4';
 const kinds={word:'單字',prefix:'字首',root:'字根'};
-function DetailSection({title,children,accordion=false}:{title:string;children:ReactNode;accordion?:boolean}){return accordion?<details className={`${box} min-w-0`}><summary className="cursor-pointer font-semibold">{title}</summary><div className="mt-3 min-w-0 space-y-3 [overflow-wrap:anywhere]">{children}</div></details>:<section className={box}><h2 className="mb-3 text-lg font-semibold">{title}</h2>{children}</section>;}
+function DetailSection({title,children,accordion=false}:{title:ReactNode;children:ReactNode;accordion?:boolean}){return accordion?<details className={`${box} min-w-0`}><summary className="cursor-pointer font-semibold">{title}</summary><div className="mt-3 min-w-0 space-y-3 [overflow-wrap:anywhere]">{children}</div></details>:<section className="min-w-0 space-y-2"><h2 className="text-base font-semibold">{title}</h2>{children}</section>;}
+function SourceText({text}:{text:string}){return <>{text.split(/(https?:\/\/[^\s]+)/g).map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all">{part}</a>:part)}</>;}
 export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,accordion=false}:{data:PublishedDetail;from?:string;accordion?:boolean}){
-  const sections=[...data.senses.map(s=>({id:s.id,title:s.gloss_zh_tw,pos:s.part_of_speech})),{id:null,title:'詞條共用',pos:null}];
+  const sections=[...[...data.senses].sort((a,b)=>a.id.localeCompare(b.id)).map((s,i)=>({id:s.id,title:s.gloss_zh_tw,pos:data.entry.kind==='word'?s.part_of_speech:null,label:`義項 ${i+1}`})),{id:null,title:'詞條共用',pos:null,label:'詞條共用'}];
   const section=(title:string,children:ReactNode)=><section className="space-y-2 border-t pt-3"><h3 className="font-semibold">{title}</h3>{children}</section>;
   function scoped<T extends {id:string;sense_id:string|null}>(rows:T[],render:(row:T)=>ReactNode,ordered=false){
-    if(ordered)return rows.map(row=>{const scope=sections.find(s=>s.id===row.sense_id);return <div key={row.id}>{(row.sense_id===null||data.senses.length>1)&&<p className="text-xs opacity-60">{scope?.title??'詞條共用'}</p>}{render(row)}</div>;});
-    return sections.map(scope=>{const own=rows.filter(r=>r.sense_id===scope.id);return own.length?<div key={scope.id??'shared'} className="space-y-2">{(scope.id===null||data.senses.length>1)&&<p className="text-xs opacity-60">{scope.id?(scope.pos?'('+scope.pos+') ':'')+scope.title:'詞條共用'}</p>}{own.map(render)}</div>:null;});
+    if(ordered)return rows.map(row=>{const scope=sections.find(s=>s.id===row.sense_id);return <div key={row.id}>{(row.sense_id===null||data.senses.length>1)&&<p className="text-xs opacity-60">{scope?.label??'詞條共用'}</p>}{render(row)}</div>;});
+    return sections.map(scope=>{const own=rows.filter(r=>r.sense_id===scope.id);return own.length?<div key={scope.id??'shared'} className="space-y-2">{(scope.id===null||data.senses.length>1)&&<p className="text-xs opacity-60">{scope.label}</p>}{own.map(render)}</div>:null;});
   }
   return <article className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
     <header><p className="text-sm opacity-60">{kinds[data.entry.kind]}</p><h1 className="text-3xl font-semibold break-words">{data.entry.headword}</h1></header>
@@ -35,9 +36,8 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
       const forms=(data.inflections??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order);
       const relations=data.relations.filter(belongs);
       if(scope.id===null&&!forms.length&&!relations.length)return null;
-      return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection accordion={accordion} title={scope.id?`${scope.pos?`(${scope.pos}) `:''}${scope.title}`:scope.title}>
+      return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection accordion={accordion} title={scope.id?<>{scope.pos&&<span>({scope.pos}) </span>}<span>{scope.title||'尚無中文意思'}</span></>:scope.title}>
         <div className="min-w-0 space-y-4">
-        {scope.id&&<div><h3 className="text-sm opacity-60">中文義</h3><p className="whitespace-pre-wrap">{scope.title}</p></div>}
         {!!relations.length&&section('構詞',relations.map(r=>{const target=data.related.find(t=>t.sense_id===r.target_sense_id);return <div key={r.id}>{target?<><Link className="underline" href={entryHref(target.id,from,target.sense_id)}>{target.headword} · {kinds[target.kind]} · {target.gloss_zh_tw}</Link><Link className="ml-2 text-sm underline" href={browseHref('word',{component:target.id,sense:target.sense_id},from)}>查看使用 {target.headword} 的單字</Link></>:<p>相關詞條尚未提供。</p>}</div>;}))}
         {!!forms.length&&section('詞形變化',<dl className="grid gap-2 sm:grid-cols-2">{forms.map(f=><div key={f.id}><dt className="inline">{inflectionLabels[f.form_kind]}：</dt><dd className="inline">{f.form}</dd></div>)}</dl>)}
 
@@ -45,14 +45,14 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,acco
       </DetailSection></div>;
     })}
     {!!data.pronunciations?.length&&<DetailSection accordion={accordion} title="讀音">{scoped([...data.pronunciations].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)),p=><div key={p.id}><p>{p.locale&&<span className="mr-2 text-sm">{p.locale}</span>}{p.ipa}</p>{p.note&&<p className="whitespace-pre-wrap text-sm">{p.note}</p>}</div>,true)}</DetailSection>}
-    {!!data.learning_notes.length&&<DetailSection accordion={accordion} title="核心概念">{scoped(data.learning_notes,n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
-    {!!data.etymologies.length&&<DetailSection accordion={accordion} title="歷史詞源">{scoped(data.etymologies,h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：{h.data_source}</p>}</div>)}</DetailSection>}
+    {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection accordion={accordion} title="核心概念">{scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
+    {!!data.etymologies.some(n=>n.body.trim())&&<DetailSection accordion={accordion} title="歷史詞源">{scoped(data.etymologies.filter(n=>n.body.trim()),h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：<SourceText text={h.data_source}/></p>}</div>)}</DetailSection>}
     {!!data.examples?.length&&<DetailSection accordion={accordion} title="例詞">{scoped([...data.examples].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}
   </article>;
 }
 
 export function GroupedResult({item,from='/dictionary',summary}:{item:GroupedDictionaryItem;from?:string;summary?:string}){
-  return <Link href={entryHref(item.id,from,item.sense_id)} className="block rounded border border-[var(--color-border)] p-3"><span>{item.headword}</span>{item.sense_id&&<p className="mt-1 text-sm">{item.gloss_zh_tw}</p>}{!item.sense_id&&summary&&<p className="mt-1 text-sm">{summary}</p>}</Link>;
+  return <Link href={entryHref(item.id,from,item.sense_id)} className="block min-w-0 break-words rounded border border-[var(--color-border)] p-3 [overflow-wrap:anywhere]"><span>{item.headword}</span><p className="mt-1 line-clamp-2 text-sm opacity-70">{summary??'尚無中文意思'}</p></Link>;
 }
 function GroupPage({kind,query,category,from='/dictionary'}:{kind:'prefix'|'root';query:string;category:string;from?:string}){
   const [page,setPage]=useState(()=>Math.max(0,Math.floor(Number(new URL(from,'https://nexus.invalid').searchParams.get('page'))||0)));
@@ -114,7 +114,7 @@ function Content({path,admin}:{path:string[];admin:boolean}){
       {(component||variant||category)&&<div className="mb-4 flex flex-wrap gap-2 text-sm">{component&&<Link className="underline" href={entryHref(component,from,sense)}>目前條件：使用此字首／字根{ sense?'義項':''}的單字</Link>}{variant&&<span>同字變體：{variant}</span>}{category&&<span>分類：{category==='__ungrouped__'?'未分類':category}</span>}<button className="underline" onClick={()=>change({component:'',sense:'',variant:'',category:'',page:''})}>清除條件</button></div>}
     </>}
     {!id&&(kind==='prefix'||kind==='root')&&!variant?(category?<GroupPage key={`${kind}:${query}:${category}`} kind={kind} query={query} category={category} from={from}/>:<DictionaryGroups key={`${kind}:${query}`} kind={kind} query={query} from={from}/>):!current?<p role="status">讀取中…</p>:current.error?<div role="alert"><p>{current.error}</p><button onClick={()=>setRetry(n=>n+1)}>重試</button></div>:id?<ReaderEntry key={id} id={id} data={current.detail??null} from={from} admin={admin}/>:current.list&&<>
-      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id}><Link className={`${box} block`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search)}>{e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 text-sm opacity-70">{current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
+      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id} className="min-w-0"><Link className={`${box} block break-words [overflow-wrap:anywhere]`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search)}>{e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 line-clamp-2 text-sm opacity-70">{current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
       <Pagination label="搜尋結果分頁" page={current.list.page} total={current.list.total} pageSize={20} hasMore={current.list.has_more} loading={browse.loading} onPageChange={p=>change({page:String(p)})}/>
 
     </>}

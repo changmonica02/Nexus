@@ -35,7 +35,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(options.csv&&!d.senses.length)issue('gloss_zh_tw','至少需要一個義項');
     if(d.kind==='root'&&((options.csv&&!d.grouping?.primary_category)||(d.grouping?.primary_category&&!primaryCategories.includes(d.grouping.primary_category as typeof primaryCategories[number]))))issue('category',`不是合法 Root 分類；允許值：${primaryCategories.join('、')}`);
     for(const s of d.senses){
-      if(!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
+      if((d.kind==='word'||options.csv)&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
       if(d.kind==='word'&&!s.part_of_speech?.trim())issue('part_of_speech','Word 必須提供 part_of_speech',s.row);
       if(d.kind!=='word'&&s.part_of_speech)issue('part_of_speech','Prefix / Root 必須留空',s.row);
       if(s.category&&d.kind!=='prefix')issue('category','只有 Prefix 義項使用分類',s.row);

@@ -45,6 +45,8 @@ async function database(options={}) {
 const sql = async (pg, q, args = []) => (await pg.query(q, args)).rows[0]?.v;
 function client(pg) {
   const statements = {
+    dictionary_admin_first_senses:["entry_ids"],
+    get_dictionary_entry:["entry_uuid"],
     export_dictionary_exchange_page: [
       "kind_filters",
       "status_filters",
@@ -86,7 +88,7 @@ function client(pg) {
           error: null,
         };
       } catch (e) {
-        return { error: { message: e.message } };
+        return { error: { message: e.message, code:e.code } };
       }
     },
   };

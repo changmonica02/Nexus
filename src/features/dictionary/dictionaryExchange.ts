@@ -196,7 +196,7 @@ export function draftFromExchange(
         for (const field of fields.filter((f) =>
           ["body", "form", "ipa", "gloss_zh_tw"].includes(f),
         ))
-          if (typeof r[field] !== "string" || !String(r[field]).trim())
+          if (!(section === "senses" && field === "gloss_zh_tw" && r.part_of_speech === null && entry.kind !== "word") && (typeof r[field] !== "string" || !String(r[field]).trim()))
             throw Error(`${section}: invalid ${field}`);
         if (
           section === "lexical_annotations" &&

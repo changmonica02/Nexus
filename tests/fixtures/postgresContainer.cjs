@@ -13,7 +13,7 @@ async function docker(args,input){
  if(input!==undefined)child.stdin.end(input);
  return promise;
 }
-const literal=value=>value===null||value===undefined?'NULL':typeof value==='number'?String(value):typeof value==='boolean'?String(value):"'"+String(value).replaceAll("'","''")+"'";
+const literal=value=>Array.isArray(value)?(value.length?'ARRAY['+value.map(literal).join(',')+']':"'{}'"):value===null||value===undefined?'NULL':typeof value==='number'?String(value):typeof value==='boolean'?String(value):"'"+String(value).replaceAll("'","''")+"'";
 class PGlite {
  constructor(){this.database='nexus46_'+randomUUID().replaceAll('-','');this.role=null;this.jwt=null;this.ready=this.initialize();}
  async initialize(){
