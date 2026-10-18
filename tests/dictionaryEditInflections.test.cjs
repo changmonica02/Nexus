@@ -4,7 +4,7 @@ const {PGlite}=process.env.NEXUS_TEST_POSTGRES_CONTAINER?require('./fixtures/pos
 const {mapDictionaryDraft,draftsFromBundle,validateDictionaryDraft,saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts');
 const {toAI,parseAI,planAI}=require('../src/features/dictionary/aiDictionary.ts');
-const {diffDictionaryReview,reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
+const {reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
 const {exportDictionaryCSV}=require('../src/features/dictionary/dictionaryCSV.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const draft=(n,headword,pos='verb',kind='word')=>({kind,entry_id:id(n),headword,senses:[{id:id(n+1),part_of_speech:kind==='word'?pos:null,gloss_zh_tw:headword+'中文'}],etymologies:[],learning_notes:[],relations:[],examples:[],lexical_annotations:[],relation_hints:[],pronunciations:[],inflections:[]});
@@ -19,7 +19,7 @@ test('attached inflection validation and JSON / AI roundtrip preserve IDs, sense
  const snapshot={detail:{entry:{...bundle.dictionary_entries[0],status:'published',revision:1},senses:bundle.dictionary_senses,inflections:bundle.dictionary_inflections,pronunciations:[],relations:[],etymologies:[],learning_notes:[],lexical_annotations:[{id:id(25),entry_id:id(10),sense_id:null,body:'unresolved hint',kind:'relation_hint',sort_order:0}]},grouping:null,sense_groups:{},metadata:null};
  const ai=parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[toAI(snapshot,new Map())]})).entries[0];const plan=planAI(ai,snapshot,new Map());assert.deepEqual(plan.bundle.dictionary_inflections,bundle.dictionary_inflections);assert.equal(plan.bundle.dictionary_lexical_annotations[0].body,'unresolved hint');delete ai.inflections;assert.equal(planAI(ai,snapshot,new Map()).bundle.dictionary_inflections.length,2);
  assert.throws(()=>exportDictionaryCSV([d]),/詞形/);
- const candidate=mapDictionaryDraft(d);candidate.inflections[0].form='changed';const review={base_snapshot:snapshot,candidate,revision:2};assert.equal(reviewSnapshot(review).detail.inflections[0].form,'changed');assert.ok(diffDictionaryReview(review).some(x=>x.section==='inflections'&&x.kind==='modified'));
+ const candidate=mapDictionaryDraft(d);candidate.inflections[0].form='changed';const review={base_snapshot:snapshot,candidate,revision:2};assert.equal(reviewSnapshot(review).detail.inflections[0].form,'changed');assert.equal(reviewSnapshot(review).detail.inflections[0].id,candidate.inflections[0].id);assert.notEqual(snapshot.detail.inflections[0].form,'changed');
 });
 test('partial imports omit component order; only full editor saves explicitly replace the order',async()=>{
  const d=draft(10,'go');d.revision=1;

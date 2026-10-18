@@ -4,7 +4,7 @@ const {parseDictionaryCSV,dictionaryCSVHeaders}=require('../src/features/diction
 const {mapDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {buildImportSession,chooseIssue,applyImportItems}=require('../src/features/dictionary/importReview.ts');
 const {planAI,toAI,submitAI}=require('../src/features/dictionary/aiDictionary.ts');
-const {diffDictionaryReview,reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
+const {reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('Published lifecycle: stable IDs, complete snapshots, atomic approval, history, stale, isolation and discard',async()=>{
  const pg=new PGlite();try{
@@ -25,7 +25,7 @@ test('Published lifecycle: stable IDs, complete snapshots, atomic approval, hist
  const review=await create(),other=await create();assert.equal(review.entry_id,id(10));assert.equal(review.candidate.bundle.dictionary_senses[0].id,id(11));assert.equal(review.candidate.examples.length,1);assert.equal(review.candidate.annotations.length,1);assert.equal(review.candidate.bundle.dictionary_etymologies.length,1);assert.equal(review.candidate.bundle.dictionary_learning_notes.length,1);
  assert.equal(review.candidate.bundle.dictionary_relations.length,2);
  const candidate=structuredClone(review.candidate);candidate.bundle.dictionary_entries[0].headword='test revised';candidate.bundle.dictionary_senses[0].gloss_zh_tw='新義';candidate.examples.push({id:id(50),entry_id:id(10),sense_id:id(11),body:'another example',sort_order:1});candidate.bundle.dictionary_learning_notes=[];
- const diff=diffDictionaryReview({...review,candidate},{entries:[{id:id(20),headword:'pre-'},{id:id(30),headword:'form'}],senses:[{id:id(21),gloss_zh_tw:'之前'},{id:id(31),gloss_zh_tw:'形狀'}]});assert.deepEqual(new Set(diff.map(d=>d.kind)),new Set(['added','modified','removed','unchanged']));assert.ok(JSON.stringify(diff).includes('pre-'));assert.ok(!JSON.stringify(diff).includes(id(20)));assert.equal(reviewSnapshot({...review,candidate}).detail.entry.id,id(10));
+ const updated=reviewSnapshot({...review,candidate});assert.equal(updated.detail.entry.id,id(10));assert.equal(updated.detail.entry.headword,'test revised');assert.equal(updated.detail.senses[0].gloss_zh_tw,'新義');assert.equal(updated.detail.examples.length,candidate.examples.length);assert.equal(updated.detail.learning_notes.length,0);
  const saved=await sql('select save_dictionary_review($1,$2,$3) v',[review.id,review.revision,JSON.stringify(candidate)]);
  assert.equal((await sql('select get_published_dictionary_entry($1) v',[id(10)])).entry.headword,'test');
  const approved=await sql('select approve_dictionary_review($1,$2,true) v',[saved.id,saved.revision]);assert.equal(approved.state,'approved');assert.equal(approved.approved_revision,review.base_revision+1);
