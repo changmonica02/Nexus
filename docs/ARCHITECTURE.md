@@ -1,5 +1,13 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 2026-10-18 整筆詞條刪除與精簡編輯器（已實作／測試，SQL已套用）
+
+- `deleteEntry.ts`先讀取管理快照、核對已載入revision，再確認後送出`delete_dictionary_entry(entry_uuid,expected_revision,expected_snapshot,operation_uuid)`。Editor以ref鎖住重送與原operation/snapshot，網路掉回覆可重試；baseline revision變更時換新操作。Published Review編輯使用canonical Entry身份，不能誤把Review revision當Published revision。
+- 單一transaction使用既有全域寫入鎖＋Entry鎖，CAS、阻擋他筆構詞／active Review／legacy copy／官方manifest；只刪owned live children與`study_card_dictionary_links`。私人payload／state／event／source不寫入，失效ID讀不到公開內容，不授予編輯。成功快取失效與`?deleted=1`管理頁重查，dirty離開略過僅在成功後一次；失敗留原頁。
+- 歷史表保留Entry ID和原PK／RLS／grants但不再限制對應live Entry必須存在；刪除時active Review封存為discarded（原candidate／base保留並稽核）。Audit `DELETE_ENTRY`＋既有owner operation receipt保護刪除重試，`guard_deleted_dictionary_identity`防舊匯入以原ID重建；其他未知FK一律完整回滾。
+- 移除編輯器五個備份／差異／捨棄／重載操作、專屬state和構詞預載；`revisionLifecycle.ts`只保留共用create／snapshot／types，移除已無產品呼叫的diff formatter。一般Review／人工發布／多份既有Review安全選擇及dirty hook保留。
+- Migration `20261018010000_dictionary_entry_deletion.sql` 已正式套用，ledger `20261018103636`。16表內容指紋一致；沒有正式詞條刪除或私人資料改寫。新RPC anon=false、empty search_path、admin驗權；advisors預期新增1個authenticated definer提示，其餘不變。部署／回復／管理員相依處理見`operations/DICTIONARY-ENTRY-DELETION.md`；前端PR交付紀錄及#60實機驗收分開追蹤。
+
 ## 2026-10-17 字典閱讀／構詞建立（已實作／測試；SQL 已套用）
 
 - 公開 Article 以單一義項標題顯示完整中文，不再重複中文欄位／跳轉摘要；補充資料使用義項編號。Word 才顯示 POS，Core→History 順序、來源安全 URL 與原 Sense 錨點保留。Connections 的全詞條／多 Sense 反向查詢仍分開，單義項不重複入口；VariantLink 由父層單一 open key 管理，重按收合、切換互斥，取消舊回應。

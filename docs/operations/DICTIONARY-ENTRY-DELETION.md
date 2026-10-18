@@ -24,3 +24,7 @@ Migration：`20261018010000_dictionary_entry_deletion.sql`。依賴現行 dictio
 4. 回復可先撤銷新RPC authenticated執行權並回復前端，不刪歷史、receipt、Audit或退場ID保護。若已有歷史對應的live Entry被刪，不能為恢復FK而刪掉歷史／重新建立Entry；保留FK拆離即可。只有確認沒有孤立歷史ID時才可用新的版本化migration加回原FK。
 
 管理員遇到其他構詞／Review／官方manifest阻擋時，須先透過相應管理流程處理引用；不得以停用FK、直接SQL級聯或批次刪私人卡替代。正式環境不由自動化測試替使用者刪除任何詞條。
+
+## 正式驗證
+
+2026-10-18透過migration工具成功套用，ledger `20261018103636 dictionary_entry_deletion`。首次connector requestState失效後先核對ledger/RPC皆不存在、兩個FK仍在，再重試成功，未繞過migration工具。16張相關字典／歷史／私人卡／state／event／官方manifest表內容及筆數指紋全相同；沒有正式詞條刪除。history RLS仍啟用、anon execute=false、authenticated需函式內admin驗權。Advisors 7 INFO及既有密碼保護提示不變，authenticated definer44→45為預期新刪除RPC。
