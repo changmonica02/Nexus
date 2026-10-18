@@ -374,17 +374,17 @@ test(
         // Single persisted Draft deletion: cancel/failure preserve dirty input; success reloads list.
         await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000001"+(viewport.width<500?"&embedded":""));
         await page
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "刪除詞條", exact: true })
           .waitFor();
         await page.getByLabel("單字", { exact: true }).fill("unsaved item1");
         await page
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "刪除詞條", exact: true })
           .click();
         const deletion = page.getByRole("dialog", {
-          name: "刪除草稿",
+          name: "刪除詞條",
           exact: true,
         });
-        await deletion.getByText(/item1.*義項.*構詞.*內容/).waitFor();
+        await deletion.getByText(/item1.*內容/).waitFor();
         await deletion
           .getByRole("button", { name: "取消", exact: true })
           .click();
@@ -395,17 +395,17 @@ test(
         assert.equal(
           await page.evaluate(
             () =>
-              window.calls.filter((c) => c.name === "delete_dictionary_drafts")
+              window.calls.filter((c) => c.name === "delete_dictionary_entry")
                 .length,
           ),
           0,
         );
         await page.evaluate(() => (window.failDelete = true));
         await page
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "刪除詞條", exact: true })
           .click();
         await deletion
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "確認刪除", exact: true })
           .click();
         await page
           .getByRole("alert")
@@ -417,12 +417,12 @@ test(
         );
         await page.evaluate(() => (window.failDelete = false));
         await page
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "刪除詞條", exact: true })
           .click();
         await deletion
-          .getByRole("button", { name: "刪除草稿", exact: true })
+          .getByRole("button", { name: "確認刪除", exact: true })
           .click();
-        await page.waitForURL(url + "/dictionary/admin");
+        await page.waitForURL(url + "/dictionary/admin?deleted=1");
         await page.getByRole("link", { name: /item2/ }).waitFor();
         assert.equal(
           await page.getByRole("link", { name: /item1/ }).count(),
@@ -438,9 +438,9 @@ test(
         assert.equal(await page.getByText(/Published revision/).count(),0);
         assert.equal(
           await page
-            .getByRole("button", { name: "刪除草稿", exact: true })
+            .getByRole("button", { name: "刪除詞條", exact: true })
             .count(),
-          0,
+          1,
         );
         await context.close();
       }

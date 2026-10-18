@@ -1,0 +1,6 @@
+import React from 'react';import Link from 'next/link';import {createRoot} from 'react-dom/client';
+import {DictionaryWorkspace} from '../../src/features/dictionary/DictionaryAdmin';
+import ConfirmDialogHost from '../../src/components/ConfirmDialog';
+const request=async(path,body)=>(await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();
+window.dictionaryClient={auth:{getUser:async()=>({data:{user:{id:'00000000-0000-4000-8000-000000900000'}}})},rpc:async(name,args={})=>{if(name==='delete_dictionary_entry'&&window.failDelete)return {error:{message:'fixture safe deletion failure'}};return request('/rpc',{name,args});},from(table){const filters=[];const q={select(){return q;},eq(k,v){filters.push([k,[v]]);return q;},in(k,v){filters.push([k,v]);return q;},order(){return q;},maybeSingle:()=>request('/table',{table,filters,single:true}),then:resolve=>request('/table',{table,filters}).then(resolve)};return q;}};
+const params=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<><Link href="/dictionary/admin">返回管理清單</Link><DictionaryWorkspace entryId={params.get('entry')??undefined} newKind={params.has('new')?'word':undefined}/><ConfirmDialogHost/></>);

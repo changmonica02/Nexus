@@ -31,12 +31,12 @@ import { getDictionaryEntry, publishDictionaryEntry, type DictionaryDetail, type
 import {dictionaryCSVExample,dictionaryCSVHeaders} from './dictionaryCSV';
 import {draftsFromBundle,saveDictionaryDraft,previewDictionaryDraft,validateDictionaryDraft,DraftValidationError} from './draftPipeline';
 import {type Bundle} from './adminImport';
-import {reviewSnapshot,diffDictionaryReview,type DictionaryReview} from './revisionLifecycle';
+import {reviewSnapshot,type DictionaryReview} from './revisionLifecycle';
 import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
 import {deleteDraftSense,deleteDraftContent,withoutSense} from './draftEditing';
-import {deleteDictionaryDrafts} from './deleteDrafts';
+import {deleteDictionaryEntry} from './deleteEntry';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
 const control='scroll-mt-24 w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm text-[var(--color-text)]';
@@ -66,7 +66,7 @@ export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technic
     </article>)}
   </section>)}</div>;
 }
-export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
+export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{deletionEntry?:DictionaryEntry;onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
   const {t}=usePaginationLanguage();
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
@@ -102,14 +102,17 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
     }catch(e){setMessage(e instanceof Error?e.message:String(e));return false;}finally{setBusy(false);}
   };
   const navigation=useUnsavedDraft(dirty,busy||publicationBusy,()=>save());
-  const removeDraft=async()=>{
-    if(busy||publicationBusy||!onDeleted||saveReview||detail.entry.status!=='draft'||detail.entry.revision===0)return;
-    setBusy(true);setMessage('');
+  const deletePending=useRef(false),deleteOperation=useRef<{id:string;snapshot?:{detail:{entry:{revision:number}}}}|null>(null);
+  const deleteTarget=deletionEntry??{...detail.entry,revision:Number(baseline.dictionary_entries[0].revision)};
+  const removeEntry=async()=>{
+    if(deletePending.current||busy||publicationBusy||!onDeleted||deleteTarget.revision===0)return;
+    deletePending.current=true;setBusy(true);setMessage('');
     try{
-      const removed=await deleteDictionaryDrafts(getSupabase()!,[{...detail.entry,revision:Number(baseline.dictionary_entries[0].revision)}],()=>confirmDialog({title:t('dictionary.deleteDraft'),message:t('dictionary.confirmDeleteDraft',{name:detail.entry.headword}),confirmLabel:t('dictionary.deleteDraft'),danger:true}));
-      if(removed===1)navigation.leave(onDeleted);
-      else if(removed!==null)throw Error('Invalid draft deletion response; reload before retrying');
-    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+      if(deleteOperation.current?.snapshot&&deleteOperation.current.snapshot.detail.entry.revision!==deleteTarget.revision)deleteOperation.current=null;
+      deleteOperation.current??={id:crypto.randomUUID()};
+      const removed=await deleteDictionaryEntry(getSupabase()!,deleteTarget,()=>confirmDialog({title:t('dictionary.deleteEntry'),message:t('dictionary.confirmDeleteEntry',{kind:t('ui.'+deleteTarget.kind),name:deleteTarget.headword}),confirmLabel:t('dictionary.confirmDeletion'),danger:true}),deleteOperation.current);
+      if(removed){invalidateDictionary();navigation.leave(onDeleted);}
+    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{deletePending.current=false;setBusy(false);}
   };
   const removeSense=async(row:Row)=>{
     if(busy||locked)return;
@@ -142,6 +145,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
   return <section className="min-w-0 space-y-3" aria-label="詞條編輯器">
     <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b bg-[var(--color-bg)] py-2">
       <h2 className="min-w-0 flex-1 truncate font-semibold">{headword||'新增詞條'} <span className="ml-2 text-xs font-normal opacity-60">{labels[detail.entry.kind]} · {locked?'最新版本':dirty?'未儲存':detail.entry.status==='published'?'已發布':'草稿'}</span></h2>
+      {onDeleted&&deleteTarget.revision>0&&<button type="button" className={`${button} shrink-0 border-red-600 text-red-600 hover:bg-red-500/10`} disabled={busy||publicationBusy} onClick={()=>void removeEntry()}>{t('dictionary.deleteEntry')}</button>}
       <button type="button" className={`${button} shrink-0`} disabled={busy||publicationBusy||locked||!dirty} onClick={()=>void save()}>{busy?'儲存中…':'儲存'}</button>
       {onPublish&&<button type="button" className={button} disabled={busy||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage('尚有未儲存變更，請先儲存後再發布。');return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?'處理中…':'發布'}</button>}
     </header>
@@ -220,8 +224,6 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,initialGroupi
     </fieldset>
     <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle),detail.entry.kind==='word'?undefined:grouping,senseGroups),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>切換完整預覽</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
-    {onDeleted&&!saveReview&&detail.entry.status==='draft'&&detail.entry.revision>0&&<button type="button" className={button} disabled={busy||publicationBusy} onClick={()=>void removeDraft()}>{t('dictionary.deleteDraft')}</button>}
-    <details><summary>編輯內容備份</summary><p>儲存失敗時，可下載目前輸入，再重新載入比對；備份不會發布。</p><a className={button} download="dictionary-editor-backup.json" href={'data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify({format:'nexus-dictionary-editor-backup',version:1,draft:draftsFromBundle(prepareEditorBundle(bundle),grouping,senseGroups)[0]},null,2))}>下載目前編輯內容</a></details>
     {reviewDraft&&<p>這是舊版複製型審核草稿，沒有可靠的 base revision，不能直接核准。請從原 Published 建立新版 Review Draft 並重新比對；舊資料保留。</p>}
   </section>;
 }
@@ -241,11 +243,6 @@ export function DictionaryListActions({busy,onNew,onImport,onExport}:{busy:boole
 }
 export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{onCommitted?:()=>void;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
   const [reviews,setReviews]=useState<DictionaryReview[]>([]),[chosen,setChosen]=useState<DictionaryReview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const [targets,setTargets]=useState({entries,senses});
-  useEffect(()=>{let active=true;const ids=[...new Set([...detail.relations,...(chosen?.candidate.bundle.dictionary_relations??[])].map(r=>String(r.target_entry_id)))];
-    void Promise.all(ids.map(id=>getDictionaryEntry(getSupabase()!,id))).then(rows=>{if(active)setTargets({entries:rows.flatMap(r=>r?[r.entry]:[]),senses:rows.flatMap(r=>r?.senses??[])});}).catch(()=>{if(active)setError('構詞目標名稱暫時無法讀取。');});return()=>{active=false;};
-  },[detail,chosen]);
-  const reload=async()=>{const {data,error}=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active').order('updated_at',{ascending:false});if(error)throw Error(error.message);setReviews(data??[]);};
   const [view,setView]=useState<'latest'|'draft'>('draft');
   const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}};
   const [editorEpoch,setEditorEpoch]=useState(0);
@@ -258,8 +255,8 @@ export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{
   const saveCurrent=async(draft:DictionaryDraftInput)=>{
     if(stale)throw Error('此草稿的 Published 基底已變更。請保留輸入，重新載入版本資訊後比對；不會覆蓋公開內容。');
     let saved:DictionaryReview;
-    if(chosen){const {data,error}=await getSupabase()!.rpc('save_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請先備份內容，再重新載入比對。`);saved=data;}
-    else {const {data,error}=await getSupabase()!.rpc('create_dictionary_edit_review',{entry_uuid:detail.entry.id,expected_snapshot:base,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請先備份內容，再重新載入比對既有草稿。`);saved=data;}
+    if(chosen){const {data,error}=await getSupabase()!.rpc('save_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請重新開啟詞條確認最新內容。`);saved=data;}
+    else {const {data,error}=await getSupabase()!.rpc('create_dictionary_edit_review',{entry_uuid:detail.entry.id,expected_snapshot:base,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請重新開啟詞條確認既有修改。`);saved=data;}
     setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);onCommitted?.();
   };
   const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:'核准發布新版本',message:'我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。目前公開版本將保留在版本歷史。',confirmLabel:'發布'}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);await refresh(detail.entry.id);onCommitted?.();});
@@ -269,13 +266,12 @@ export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{
     {!!activeReviews.length&&view==='latest'&&<section aria-label="最新版本"><h2 className="text-xl">{detail.entry.headword} · {labels[detail.entry.kind]} · 已發布</h2><DictionaryPreview bundle={latestBundle} technical={false}/></section>}
     <div hidden={!!activeReviews.length&&view==='latest'}>
     {activeReviews.length>1&&<label className="block text-sm">選擇草稿<select aria-label="選擇草稿" className={control} value={chosen?.id??''} onChange={e=>{const reviewId=e.currentTarget.value;navigateDictionary(()=>{setChosen(activeReviews.find(r=>r.id===reviewId)??null);setEditorEpoch(n=>n+1);});}}><option value="">請選擇</option>{activeReviews.map((r,i)=><option key={r.id} value={r.id}>草稿 {i+1} · {r.source}</option>)}</select></label>}
-    {activeReviews.length>1&&!chosen?<p role="alert">有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。</p>:<DictionaryEditor key={`${chosen?.id??'published'}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} saveReview={saveCurrent} onPublish={publish} canPublish={!!chosen&&!stale} publicationBusy={busy}/>}
-    {stale&&<p role="alert">最新版本已變更，這份草稿不能發布。請先備份輸入，再重新載入比對。</p>}
-    {chosen&&<><button type="button" className={button} disabled={busy} onClick={()=>navigateDictionary(()=>void run(async()=>{if(!await confirmDialog('捨棄此 Review Draft？目前 Published 不會受影響。'))return;const {error}=await getSupabase()!.rpc('discard_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision});if(error)throw Error(error.message);setChosen(null);await reload();setView('draft');}))}>捨棄草稿</button>
-      <details><summary>已儲存的內容差異</summary>{diffDictionaryReview(chosen,targets).map((d,i)=><details key={i} open={d.kind!=='unchanged'} className="min-w-0 border-b py-2"><summary className="break-words">{{added:'新增',modified:'修改',removed:'移除',unchanged:'相同'}[d.kind]} · {d.label}</summary><div className="grid min-w-0 gap-2 text-xs sm:grid-cols-2"><pre className="whitespace-pre-wrap break-words">原：{JSON.stringify(d.before,null,2)}</pre><pre className="whitespace-pre-wrap break-words">新：{JSON.stringify(d.after,null,2)}</pre></div></details>)}</details></>}
+    {activeReviews.length>1&&!chosen?<p role="alert">有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。</p>:<DictionaryEditor key={`${chosen?.id??'published'}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} deletionEntry={detail.entry} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')} saveReview={saveCurrent} onPublish={publish} canPublish={!!chosen&&!stale} publicationBusy={busy}/>}
+    {stale&&<p role="alert">最新版本已變更，這份草稿不能發布。請保留輸入並重新開啟詞條確認最新內容。</p>}
+
     </div>
     {error&&<p role="alert" className="whitespace-pre-wrap">{error}</p>}
-    <button className={button} disabled={busy} onClick={()=>navigateDictionary(()=>void run(async()=>{await refresh(detail.entry.id);const snapshot=await readAI(getSupabase()!,detail.entry.id);const {data,error}=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active').order('updated_at',{ascending:false});if(error)throw Error(error.message);setBase(snapshot);setReviews(data??[]);setChosen(data?.length===1?data[0]:null);setEditorEpoch(n=>n+1);setView('draft');} ))}>重新載入版本與草稿</button>
+
   </section>;
 }
 
@@ -317,16 +313,17 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     if(!detail||detail.entry.status!=='draft'||detail.entry.revision<1||reviewDraft)return;
     if(!await confirmDialog({title:'發布詞條',message:`我已完成「${detail.entry.headword}」的內容與構詞依據查證，確認發布已儲存的草稿。`,confirmLabel:'發布'}))return;
     const current=await getDictionaryEntry(getSupabase()!,detail.entry.id);
-    if(!current||current.entry.status!=='draft'||current.entry.revision!==expectedRevision)throw Error('草稿版本已變更，請先備份目前內容並重新載入後比對；本次未發布。');
+    if(!current||current.entry.status!=='draft'||current.entry.revision!==expectedRevision)throw Error('草稿版本已變更，請保留輸入並重新開啟詞條確認；本次未發布。');
     await publishDictionaryEntry(getSupabase()!,detail.entry.id);
     invalidateDictionary();
     await refresh(detail.entry.id);
     onCommitted?.();
   });
   if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh} onCommitted={onCommitted}/></>;
-  if(detail)return <>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}<PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onPublish={reviewDraft?undefined:publishDraft} canPublish={detail.entry.revision>0&&!reviewDraft} publicationBusy={busy} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin')}/></>;
+  if(detail)return <>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}<PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onPublish={reviewDraft?undefined:publishDraft} canPublish={detail.entry.revision>0&&!reviewDraft} publicationBusy={busy} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')}/></>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
+    {typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('deleted')==='1'&&<p role="status">{t('dictionary.entryDeleted')}</p>}
     {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
     <div className="flex flex-wrap items-center justify-between gap-3"><DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/><div className="flex flex-wrap items-center gap-2">{listing.data?.workAvailable&&<button className={button} onClick={()=>setReviewTarget('*')}>{t('persistent.openQueue')}</button>}
      <DictionaryBulkPublish disabled={busy||loading}/></div></div>

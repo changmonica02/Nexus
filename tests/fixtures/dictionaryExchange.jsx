@@ -131,12 +131,12 @@ window.dictionaryClient = {
           )?.snapshot ?? null,
         error: null,
       };
-    if (name === "delete_dictionary_drafts") {
+    if (name === "delete_dictionary_entry") {
       if (window.failDelete)
         return {
           error: { message: "fixture referenced entry; deletion cancelled" },
         };
-      const targets = args.targets;
+      const targets = [{id:args.entry_uuid,revision:args.expected_revision}];
       if (targets.length !== 1)
         return { error: { message: "Expected a single target" } };
       const entry = server.records.find(
@@ -144,7 +144,6 @@ window.dictionaryClient = {
       )?.snapshot.detail.entry;
       if (
         !entry ||
-        entry.status !== "draft" ||
         entry.revision !== targets[0].revision
       )
         return { error: { message: "Published or stale draft" } };
@@ -152,7 +151,7 @@ window.dictionaryClient = {
         (r) => r.snapshot.detail.entry.id !== entry.id,
       );
       persist();
-      return { data: 1, error: null };
+      return { data: {deleted:true,entry_id:entry.id}, error: null };
     }
     if (name === "export_dictionary_exchange_page") {
       if (window.failExport) {

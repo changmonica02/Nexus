@@ -39,7 +39,7 @@ const save = (pg, d) =>
   sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
     JSON.stringify([mapDictionaryDraft(d)]),
   ]);
-test("delete button only for persisted Draft editor; new, Published and Review candidates are protected", () => {
+test("entry deletion is present for saved entries, including Published/Review; new entries stay protected", () => {
   const detail = {
     entry: {
       ...draft(1),
@@ -65,19 +65,19 @@ test("delete button only for persisted Draft editor; new, Published and Review c
         ...props,
       }),
     );
-  assert.ok(html(detail).includes("刪除草稿"));
+  assert.ok(html(detail).includes("刪除詞條"));
   assert.ok(
     !html({ ...detail, entry: { ...detail.entry, revision: 0 } }).includes(
-      "刪除草稿",
+      "刪除詞條",
     ),
   );
   assert.ok(
-    !html({
+    html({
       ...detail,
       entry: { ...detail.entry, status: "published" },
-    }).includes("刪除草稿"),
+    }).includes("刪除詞條"),
   );
-  assert.ok(!html(detail, { saveReview: async () => {} }).includes("刪除草稿"));
+  assert.ok(html(detail, { saveReview: async () => {} }).includes("刪除詞條"));
   const admin = fs.readFileSync(
       "src/features/dictionary/DictionaryAdmin.tsx",
       "utf8",

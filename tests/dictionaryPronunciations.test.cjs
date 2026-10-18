@@ -5,7 +5,7 @@ const {draftsFromBundle,mapDictionaryDraft,saveDictionaryDraft,validateDictionar
 const {parseJSONBundle,normalizeDictionaryBundle}=require('../src/features/dictionary/adminImport.ts');
 const {buildImportSession,chooseIssue,applyImportItems}=require('../src/features/dictionary/importReview.ts');
 const {parseAI,toAI,planAI,submitAI}=require('../src/features/dictionary/aiDictionary.ts');
-const {reviewSnapshot,diffDictionaryReview}=require('../src/features/dictionary/revisionLifecycle.ts');
+const {reviewSnapshot}=require('../src/features/dictionary/revisionLifecycle.ts');
 const {withoutSense}=require('../src/features/dictionary/draftEditing.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const bundle=()=>({dictionary_entries:[{id:id(10),kind:'word',headword:'record'}],dictionary_senses:[{id:id(11),entry_id:id(10),part_of_speech:'noun',gloss_zh_tw:'紀錄'},{id:id(12),entry_id:id(10),part_of_speech:'verb',gloss_zh_tw:'記錄'}],dictionary_pronunciations:[{id:id(20),entry_id:id(10),sense_id:null,locale:null,ipa:'/shared/',note:null,sort_order:2},{id:id(21),entry_id:id(10),sense_id:id(11),locale:'en-GB',ipa:'/ˈrek.ɔːd/',note:'名詞',sort_order:0},{id:id(22),entry_id:id(10),sense_id:id(12),locale:'en-US',ipa:'/rɪˈkɔːrd/',note:'動詞',sort_order:1}]});
@@ -23,9 +23,9 @@ test('AI export/import preserves pronunciation IDs and scope; omission retains r
  const changed={...ai,pronunciations:[{id:id(21),ipa:'/changed/',meaning_id:id(12),locale:'en-AU',sort_order:3}]};const update=planAI(changed,s,new Map());assert.equal(update.bundle.dictionary_pronunciations.find(r=>r.id===id(21)).sense_id,id(12));
  assert.throws(()=>planAI({...ai,pronunciations:[{id:id(99),ipa:'x'}]},s,new Map()),/不屬於/);
 });
-test('Review diff shows readable sense reassignment and retains stable pronunciation identity',()=>{
+test('Review snapshot retains sense reassignment and stable pronunciation identity',()=>{
  const s=snapshot(),draft=draftsFromBundle(bundle())[0];draft.pronunciations[1].sense_id=id(12);
- const review={base_snapshot:s,candidate:mapDictionaryDraft(draft),revision:2};assert.equal(reviewSnapshot(review).detail.pronunciations[1].id,id(21));const diff=diffDictionaryReview(review).find(x=>x.section==='pronunciations'&&x.kind==='modified');assert.equal(diff.before.適用義項,'紀錄');assert.equal(diff.after.適用義項,'記錄');
+ const review={base_snapshot:s,candidate:mapDictionaryDraft(draft),revision:2};assert.equal(reviewSnapshot(review).detail.pronunciations[1].id,id(21));assert.equal(reviewSnapshot(review).detail.pronunciations[1].sense_id,id(12));assert.equal(s.detail.pronunciations[1].sense_id,id(11));
 });
 test('local PostgreSQL: import/preview rollback, Safe/Review, ownership/RLS, Published lifecycle, deletion and audit',async()=>{
  const pg=new PGlite();try{

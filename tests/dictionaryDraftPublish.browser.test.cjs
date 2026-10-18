@@ -290,7 +290,7 @@ test(
             .getByRole("button", { name: "發布", exact: true })
             .click();
           await page
-            .getByRole("button", { name: "重新載入版本與草稿", exact: true })
+            .getByRole("heading", { name: /已發布/ })
             .waitFor();
           const published = await sql(pg, "select get_dictionary_entry($1) v", [
             entry,
