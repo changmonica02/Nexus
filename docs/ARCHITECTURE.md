@@ -629,6 +629,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 
 ## 2026-10-16｜字典詳情、Review RPC 與 source_forms 退場
 - `CardDictionaryPanel` 以原生 `DictionaryModal` 顯示 Published，依卡片／連結 key 隔離生命週期，generation 拒絕離開後的舊讀取；無連結無入口。詳情開啟即透過原 `onEditingChange` 暫停正式學習 reload／評分，巢狀完整編輯器沿用離開保護，返回只刷新字典，不寫私人卡／FSRS。
+- Refs #82（本機已實作／測試通過，正式待驗證）：`DictionaryArticle` 移除 accordion，所有閱讀段落直接展開且無卡片外框；`showConnections` 獨立控制既有頁面關聯導覽，學習 Modal 維持不顯示。共用資料保留原 scope 與順序，但不顯示管理用標籤；多義項內容仍標示義項歸屬。`DictionaryModal.headerActions` 提供固定頂部操作插槽，由 `CardDictionaryPanel` 依既有 access.allowed 與 detail 決定顯示編輯按鈕，關閉與編輯後刷新機制不變；無 schema／RPC 變更。
 - 根因：`72b9a03` 將發布專用 `content_verified` 同時加入 save／discard；正式 RPC 分別只有 `(review_uuid,expected_revision,candidate)`／`(review_uuid,expected_revision)`，PostgREST 因命名參數組合不符而失敗。移除兩處多餘參數，approve／publish 查證參數、後端 dry-run 候選驗證、管理員檢查及 CAS 全保留。瀏覽器 fake RPC 現在核對精確參數集合。
 - `20261016050000_dictionary_retire_source_forms.sql` 只刪除共享 `dictionary_lexical_annotations` 的 source_forms，保留 relation_hint 與共享 FK／索引，CHECK 收緊為 relation_hint。所有現有 SQL 函式均未硬編碼 source_forms；不需更改 RPC 簽名／授權。前端 Draft／AI／CSV 不再寫入舊欄，交換檔拒絕舊種類。
 - 遷移以既有 advisory lock 加表鎖，在同一交易先建立非 exposed `dictionary_retirement_backup` 回復副本（應用角色無 schema／表權限），清理 active Review 的候選及基底並遞增 revision；受影響常駐匯入清理舊差異、保留其他決策並標 stale 要求重新比對。不可變 Published 歷史、Audit、operation receipts／來源原檔不重寫。一次性 JSON cleaner 提交前移除，非新增 API。

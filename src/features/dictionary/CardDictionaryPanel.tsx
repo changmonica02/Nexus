@@ -104,6 +104,16 @@ function LinkedDictionaryPanel({ fixedEntryId, onEditingChange }: PanelProps) {
       {open && (
         <DictionaryModal
           title="字典詳情"
+          headerActions={detail && access?.allowed && (
+            <button
+              type="button"
+              className="rounded bg-[var(--color-text)] px-3 py-2 text-sm text-[var(--color-bg)] disabled:opacity-40"
+              disabled={busy}
+              onClick={() => setEditing(true)}
+            >
+              編輯詞條
+            </button>
+          )}
           onClose={() => {
             if (!editingAllowed) {
               generation.current++;
@@ -122,17 +132,7 @@ function LinkedDictionaryPanel({ fixedEntryId, onEditingChange }: PanelProps) {
             </div>
           )}
           {!busy && !error && !detail && <p>此詞條尚未收錄或尚未發布。</p>}
-          {detail && <DictionaryArticle data={detail} accordion />}
-          {detail && access?.allowed && (
-            <button
-              type="button"
-              className="rounded border px-3 py-2 text-sm"
-              disabled={busy}
-              onClick={() => setEditing(true)}
-            >
-              編輯詞條
-            </button>
-          )}
+          {detail && <DictionaryArticle data={detail} showConnections={false} />}
           {editingAllowed && (
             <DictionaryModal
               title="編輯詞條"
