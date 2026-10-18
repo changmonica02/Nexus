@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 test('formal study dictionary editor: admin only after reveal/details, Review isolation, publish, guarded close and unchanged Session/private data',{timeout:150000},async()=>{
-  const root = path.resolve(__dirname, ".."),
+  const root = path.resolve(__dirname, "..").replaceAll(String.fromCharCode(92), "/"),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-study-dictionary-"));
     await build({
       entryPoints: ["tests/fixtures/studyDictionaryEditor.jsx"],
@@ -24,7 +24,7 @@ test('formal study dictionary editor: admin only after reveal/details, Review is
               resolveDir: root,
             }));
             b.onLoad(
-              { filter: /infrastructure\/supabase\/client\.ts$/ },
+              { filter: /infrastructure[\\/]supabase[\\/]client\.ts$/ },
               () => ({
                 contents: "export const getSupabase=()=>window.dictionaryClient;",
                 loader: "js",
@@ -55,9 +55,19 @@ test('formal study dictionary editor: admin only after reveal/details, Review is
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:['--no-sandbox']});const errors=[];
  try{for(const [width,role] of [[1280,'admin'],[820,'admin'],[390,'admin'],[820,'official'],[820,'reader'],[390,'unlinked']]){
  const context=await browser.newContext({viewport:{width,height:1000}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));const url='http://127.0.0.1:'+server.address().port;
- await page.goto(url+'/?'+role+'&etymology');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'編輯詞條',exact:true}).count(),0);await page.getByRole('button',{name:'顯示答案',exact:true}).click();assert.equal(await page.getByRole('button',{name:'編輯詞條',exact:true}).count(),0);if(role==='unlinked'){assert.equal(await page.getByRole('button',{name:/字典詳情/}).count(),0);await context.close();continue;}await page.getByRole('button',{name:/字典詳情/}).click();await page.getByRole('dialog',{name:'字典詳情',exact:true}).waitFor();assert.equal(await page.getByRole('dialog',{name:'字典詳情',exact:true}).getByText('Synthetic etymology',{exact:true}).count(),1);assert.equal(await page.getByText(/不是已確認的詞源事實|未查證|已查證|有爭議/).count(),0);
+ await page.goto(url+'/?'+role+'&etymology');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'編輯詞條',exact:true}).count(),0);await page.getByRole('button',{name:'顯示答案',exact:true}).click();assert.equal(await page.getByRole('button',{name:'編輯詞條',exact:true}).count(),0);if(role==='unlinked'){assert.equal(await page.getByRole('button',{name:/字典詳情/}).count(),0);await context.close();continue;}await page.getByRole('button',{name:/字典詳情/}).click();await page.getByRole('dialog',{name:'字典詳情',exact:true}).waitFor();await page.getByText('Synthetic etymology',{exact:true}).waitFor();assert.equal(await page.getByRole('dialog',{name:'字典詳情',exact:true}).getByText('Synthetic etymology',{exact:true}).count(),1);assert.equal(await page.getByText(/不是已確認的詞源事實|未查證|已查證|有爭議/).count(),0);
+ const detailDialog=page.getByRole('dialog',{name:'字典詳情',exact:true});
+ assert.equal(await detailDialog.locator('details, summary').count(),0);
+ assert.equal(await detailDialog.getByText('詞條共用',{exact:true}).count(),0);
+ assert.equal(await detailDialog.getByText('Synthetic etymology',{exact:true}).isVisible(),true);
+ assert.equal(await detailDialog.locator('article section').evaluateAll(nodes=>nodes.every(n=>getComputedStyle(n).borderTopWidth==='0px'&&getComputedStyle(n).borderRadius==='0px')),true);
+ assert.equal(await detailDialog.evaluate(n=>n.scrollWidth<=n.clientWidth),true);
  if(!['admin','official'].includes(role)){await page.waitForTimeout(500);assert.equal(await page.getByRole('button',{name:'編輯詞條',exact:true}).count(),0);await context.close();continue;}
  await page.getByRole('button',{name:'編輯詞條',exact:true}).waitFor();const before=await page.evaluate(async()=>({cards:await window.studyDb.getAll('study_cards'),states:await window.studyDb.getAll('study_states'),events:await window.studyDb.getAll('study_events'),sessions:await window.studyDb.getAll('study_sessions')}));
+ const header=detailDialog.locator(':scope > header');
+ assert.equal(await header.getByRole('button',{name:'編輯詞條',exact:true}).count(),1);
+ const closeBox=await header.getByRole('button',{name:'關閉',exact:true}).boundingBox(),editBox=await header.getByRole('button',{name:'編輯詞條',exact:true}).boundingBox();
+ assert.ok(editBox.x>closeBox.x);assert.ok(Math.abs(editBox.y+editBox.height/2-closeBox.y-closeBox.height/2)<3);
  await page.getByRole('button',{name:'編輯詞條',exact:true}).click();const modal=page.getByRole('dialog',{name:'編輯詞條',exact:true});await modal.getByLabel('詞性',{exact:true}).waitFor();await modal.getByLabel('中文意思',{exact:true}).fill('新版公開意思');await page.keyboard.press('1');await page.keyboard.press('Space');await page.keyboard.press('ArrowRight');await modal.getByRole('button',{name:'關閉',exact:true}).click();await page.getByRole('button',{name:'繼續編輯',exact:true}).click();assert.equal(await modal.isVisible(),true);assert.ok((await modal.getByLabel('中文意思',{exact:true}).inputValue()).startsWith('新版公開意思'));
  await modal.getByLabel('中文意思',{exact:true}).fill('新版公開意思');await modal.getByRole('button',{name:'儲存',exact:true}).click();await modal.waitFor({state:'detached'});await page.getByRole('button',{name:'編輯詞條',exact:true}).waitFor();assert.equal(await page.getByText('新版公開意思',{exact:true}).count(),0,'unpublished Review must not leak');
  await page.getByRole('button',{name:'編輯詞條',exact:true}).click();await modal.getByRole('button',{name:'發布',exact:true}).waitFor();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.getByRole('dialog',{name:'核准發布新版本',exact:true}).getByRole('button',{name:'發布',exact:true}).click();await page.waitForFunction(()=>window.fixture.snapshot.detail.entry.revision===2);await modal.waitFor({state:'detached'});await page.getByText('新版公開意思',{exact:true}).waitFor({state:'attached'});assert.equal(await page.getByText('已依穩定詞條 ID 連結').count(),0);await page.getByRole('dialog',{name:'字典詳情',exact:true}).getByRole('button',{name:'關閉',exact:true}).click();assert.equal(await page.getByText('我的私人答案',{exact:true}).isVisible(),true);assert.equal(await page.getByRole('button',{name:/字典詳情/}).getAttribute('aria-expanded'),'false');await page.getByRole('button',{name:/字典詳情/}).click();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'字典詳情',exact:true}).waitFor({state:'detached'});

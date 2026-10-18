@@ -2,6 +2,13 @@
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
+## 本輪：字典詳情連續閱讀（Refs #82）
+
+- 本機分支 `fix/dictionary-detail-reading` 已完成段落展開、移除細卡片／共用標籤，管理員編輯按鈕移至固定頂部關閉旁。所有既有內容、適用義項與資料寫入流程保留。
+- 自動化：21 項字典回歸、TypeScript、production build 通過；修改元件 ESLint 0 errors／3 項既有 warnings。
+- 隔離介面：Edge Chromium 1280／820／390 寬、管理員／一般使用者／官方卡／未連結卡通過；涵蓋段落無框、預設展開、按鈕位置、無水平溢出、編輯／發布／關閉及私人卡／Session 不變。測試服務為本機 fixture，並非正式帳號操作。
+- 未部署、無 migration；真實帳號與 iPad Safari 人工驗收仍待 #60。
+
 ## 本輪：整筆詞條刪除與編輯器精簡
 
 - 已完成既有Word／Prefix／Root紅色刪除按鈕、永久性確認、busy／snapshot-CAS／重試收據、成功返回刷新、取消／失敗保留輸入。Published用canonical身份，新增未儲存不顯示。
