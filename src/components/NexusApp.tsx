@@ -47,18 +47,18 @@ import FloatingPanel from "./FloatingPanel";
 import ToolsOverview from "./ToolsOverview";
 import FeatureIcon from "./FeatureIcon";
 import TrashPage from "./TrashPage";
+import { useAttachmentPreview } from "./useAttachmentPreview";
+import type { PageSaveState } from "./SaveStatus";
 import Sidebar, { type SortMode } from "./Sidebar";
 import { noteToPresentation } from "../lib/presentation";
-import EditorPane from "./EditorPane";
+import WorkspacePane from "./WorkspacePane";
 import RightPanel from "./RightPanel";
 import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
 import {deleteOfficialPack,packDeleteMessage} from "../features/study/officialPacks";
 import DictionaryAddRequest from '../features/dictionary/DictionaryAddRequest';
-import StudySetView from "../features/study/components/StudySetView";
 import Dashboard from "./Dashboard";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
-import PresentationView from "./PresentationView";
 import {installCreationTemplate} from "../features/creation/installTemplate";
 import {creationTemplateLibrary, type CreationDownload} from "../features/creation/templateLibrary";
 import CharacterTemplateUpdateControl from "./CharacterTemplateUpdateControl";
@@ -66,8 +66,6 @@ import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
 import TodoView from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
-import NovelReaderView from "./NovelReaderView";
-import CharacterProfileView from "./CharacterProfileView";
 import UtilityView from "./UtilityView";
 import FeatureOverview from "./FeatureOverview";
 import DevicePreview from "./DevicePreview";
@@ -144,8 +142,6 @@ function NexusAppInner({
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
-  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("updated");
@@ -154,8 +150,6 @@ function NexusAppInner({
   const [secondaryActivePageId, setSecondaryActivePageId] = useState<string | null>(null);
   const [splitPrimaryWidth, setSplitPrimaryWidth] = useState(50);
   const splitContainerRef = useRef<HTMLDivElement>(null);
-  const [secondaryPdfUrl, setSecondaryPdfUrl] = useState<string | null>(null);
-  const [secondaryPdfLoadError, setSecondaryPdfLoadError] = useState<string | null>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
   const [isCreativeMode, setIsCreativeMode] = useState(false);
@@ -182,6 +176,7 @@ function NexusAppInner({
   const activePageRef = useRef<Page | null>(null);
   // A page owns its own debounce. A single global timer made simultaneous
   // edits in split view cancel one another's saves.
+  const [pageSaveStates, setPageSaveStates] = useState<Record<string, PageSaveState>>({});
   const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pendingSavesRef = useRef(new Map<string, Page>());
   const activeSavesRef = useRef(new Map<string, Promise<void>>());
@@ -226,8 +221,6 @@ function NexusAppInner({
   useEffect(() => {
     if (!isTabletViewport || !secondaryActivePageId) return;
     setSecondaryActivePageId(null);
-    setSecondaryPdfUrl(null);
-    setSecondaryPdfLoadError(null);
   }, [isTabletViewport, secondaryActivePageId]);
 
   useEffect(() => {
@@ -236,90 +229,13 @@ function NexusAppInner({
     if (isTabletViewport) setIsRightPanelCollapsed(true);
   }, [isTabletViewport]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    async function loadActivePdf() {
-      setActivePdfUrl(null);
-      setPdfLoadError(null);
-      if (!activeAttachment) return;
-      if (activeAttachment.kind !== "pdf") {
-        setPdfLoadError("This attachment is not a PDF.");
-        return;
-      }
-      if (!storageRef.current) {
-        setPdfLoadError("Storage is not ready.");
-        return;
-      }
-      const blob = await storageRef.current.readBinary(activeAttachment.id);
-      if (cancelled) return;
-      if (!blob) {
-        setPdfLoadError("PDF binary data was not found in local storage.");
-        return;
-      }
-      objectUrl = URL.createObjectURL(blob);
-      if (!cancelled) setActivePdfUrl(objectUrl);
-    }
-
-    loadActivePdf().catch((error) => {
-      console.error(error);
-      if (!cancelled) {
-        setActivePdfUrl(null);
-        setPdfLoadError("Failed to load PDF preview.");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [activeAttachment, storageRef]);
-
-  // Task 3: Secondary PDF loading
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    async function loadSecondaryPdf() {
-      setSecondaryPdfUrl(null);
-      setSecondaryPdfLoadError(null);
-      if (!secondaryActiveAttachment) return;
-      if (secondaryActiveAttachment.kind !== "pdf") {
-        setSecondaryPdfLoadError("This attachment is not a PDF.");
-        return;
-      }
-      if (!storageRef.current) {
-        setSecondaryPdfLoadError("Storage is not ready.");
-        return;
-      }
-      const blob = await storageRef.current.readBinary(secondaryActiveAttachment.id);
-      if (cancelled) return;
-      if (!blob) {
-        setSecondaryPdfLoadError("PDF binary data was not found in local storage.");
-        return;
-      }
-      objectUrl = URL.createObjectURL(blob);
-      if (!cancelled) setSecondaryPdfUrl(objectUrl);
-    }
-
-    loadSecondaryPdf().catch((error) => {
-      console.error(error);
-      if (!cancelled) {
-        setSecondaryPdfUrl(null);
-        setSecondaryPdfLoadError("Failed to load PDF preview.");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [secondaryActiveAttachment, storageRef]);
+  const { url: activePdfUrl, error: pdfLoadError } = useAttachmentPreview(activeAttachment, storageRef);
+  const { url: secondaryPdfUrl, error: secondaryPdfLoadError } = useAttachmentPreview(secondaryActiveAttachment, storageRef);
 
   useEffect(() => {
     let cancelled = false;
     let syncRun = 0;
+    let syncOwner: string | null = null;
     let authSubscription: { unsubscribe: () => void } | null = null;
     const adapter = new IndexedDBAdapter();
 
@@ -394,11 +310,25 @@ function NexusAppInner({
         if (supabase) {
           const deviceId = await adapter.getDeviceId();
           const startAccountSync = async (userId: string) => {
+            // INITIAL_SESSION/SIGNED_IN/TOKEN_REFRESHED for this owner reuse the
+            // running engine (including an initial sync already in flight).
+            if (cancelled || syncOwner === userId) return;
+            syncOwner = userId;
             const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
+            if (adapter.getWorkspaceOwner() !== userId) {
+              setPages([]);
+              setAttachments([]);
+              setTrashPages([]);
+              setActivePageId(null);
+              setSecondaryActivePageId(null);
+            }
+            adapter.setWorkspaceOwner(userId);
             // A browser's IndexedDB is shared by every account. Select the
             // signed-in account's cache before any pull or push can run.
-            await adapter.claimAnonymousWorkspace?.(userId);
+            try { await adapter.claimAnonymousWorkspace?.(userId); }
+            catch (error) { if (thisRun === syncRun) syncOwner = null; throw error; }
+            if (cancelled || thisRun !== syncRun) return;
             adapter.setWorkspaceOwner(userId);
             const engine = new SyncEngine(supabase, adapter, deviceId, userId);
             syncEngineRef.current = engine;
@@ -438,7 +368,9 @@ function NexusAppInner({
             setIsAuthenticated(!!nextSession?.user);
             setIsAuthResolved(true);
             if (event === "SIGNED_OUT" || !nextSession?.user) {
+              syncOwner = null;
               syncRun += 1;
+              const signedOutRun = syncRun;
               syncEngineRef.current?.destroy();
               syncEngineRef.current = null;
               adapter.setWorkspaceOwner(null);
@@ -451,7 +383,7 @@ function NexusAppInner({
               setActivePageId(null);
               setSecondaryActivePageId(null);
               void Promise.all([adapter.listPages(), adapter.listAttachments()]).then(([localPages, localAttachments]) => {
-                if (!cancelled) {
+                if (!cancelled && syncRun === signedOutRun) {
                   setPages(localPages);
                   setAttachments(localAttachments);
                   setActivePageId(getWorkspaceEntryPage(localPages)?.id ?? null);
@@ -492,6 +424,7 @@ function NexusAppInner({
     saveTimersRef.current.delete(latestPage.id);
     if (!storageRef.current) throw new Error("Storage unavailable");
     pendingSavesRef.current.set(latestPage.id, latestPage);
+    setPageSaveStates(states => ({ ...states, [latestPage.id]: { status: "saving" } }));
     const previous = activeSavesRef.current.get(latestPage.id);
     const operation = (async () => {
       // Serialize writes to the same page; a later successful retry supersedes a failed write.
@@ -502,7 +435,13 @@ function NexusAppInner({
       syncEngineRef.current?.pushPage(nextPage);
     })();
     activeSavesRef.current.set(latestPage.id, operation);
-    try { await operation; }
+    try {
+      await operation;
+      if (!pendingSavesRef.current.has(latestPage.id)) setPageSaveStates(states => ({ ...states, [latestPage.id]: { status: "saved" } }));
+    } catch (error) {
+      if (pendingSavesRef.current.get(latestPage.id) === latestPage) setPageSaveStates(states => ({ ...states, [latestPage.id]: { status: "error", error: String(error) } }));
+      throw error;
+    }
     finally { if (activeSavesRef.current.get(latestPage.id) === operation) activeSavesRef.current.delete(latestPage.id); }
   }, [storageRef]);
   const commitCharacterData = useCallback(async (page: Page, data: CharacterProfileData) => {
@@ -521,6 +460,7 @@ function NexusAppInner({
     } while (pendingSavesRef.current.size || activeSavesRef.current.size);
   }, [flushSave]);
   const scheduleSave = useCallback((page: Page) => {
+    setPageSaveStates(states => ({ ...states, [page.id]: { status: "saving" } }));
     const previousTimer = saveTimersRef.current.get(page.id);
     if (previousTimer) clearTimeout(previousTimer);
     pendingSavesRef.current.set(page.id, page);
@@ -835,13 +775,7 @@ function NexusAppInner({
     await createAndOpenPage({ title: "Untitled Study Set", kind: "study_set" });
   }, [createAndOpenPage]);
 
-  const handleUpdatePresentation = useCallback((data: any) => {
-    if (activePageId) patchPage(activePageId, { presentation_data: data });
-  }, [activePageId, patchPage]);
 
-  const handleSecondaryUpdatePresentation = useCallback((data: any) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { presentation_data: data });
-  }, [secondaryActivePageId, patchPage]);
 
   const handleConvertToPresentation = useCallback(async (id?: string) => {
     const targetId = id || activePageId;
@@ -1472,17 +1406,8 @@ function NexusAppInner({
     }
   }, [pages, handleSelectPage, t, createAndOpenPage]);
 
-  const handleTitleChange = useCallback((title: string) => {
-    if (activePageId) patchPage(activePageId, { title });
-  }, [activePageId, patchPage]);
 
-  const handleFolderChange = useCallback((newFolder: string | null) => {
-    if (activePageId) patchPage(activePageId, { folder: newFolder });
-  }, [activePageId, patchPage]);
 
-  const handleTagsChange = useCallback((newTags: string[]) => {
-    if (activePageId) patchPage(activePageId, { tags: newTags });
-  }, [activePageId, patchPage]);
 
   // Task 1: PageFormat toggle - any paginated can convert to flow
   const handleFormatChange = useCallback((newFormat: PageFormat) => {
@@ -1506,8 +1431,6 @@ function NexusAppInner({
       if (storageRef.current) void storageRef.current.setActivePageId(secondaryActivePageId);
     }
     setSecondaryActivePageId(null);
-    setSecondaryPdfUrl(null);
-    setSecondaryPdfLoadError(null);
   }, [secondaryActivePageId, storageRef]);
 
   const handleSwapSplit = useCallback(() => {
@@ -1537,37 +1460,16 @@ function NexusAppInner({
     window.addEventListener("mouseup", onUp);
   }, []);
 
-  const handleSecondaryTitleChange = useCallback((title: string) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { title });
-  }, [secondaryActivePageId, patchPage]);
 
-  const handleSecondaryFolderChange = useCallback((newFolder: string | null) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { folder: newFolder });
-  }, [secondaryActivePageId, patchPage]);
 
-  const handleSecondaryTagsChange = useCallback((newTags: string[]) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { tags: newTags });
-  }, [secondaryActivePageId, patchPage]);
 
-  const handleMarginsChange = useCallback((margins: PageMargins) => {
-    if (activePageId) patchPage(activePageId, { margins });
-  }, [activePageId, patchPage]);
 
-  const handleSecondaryMarginsChange = useCallback((margins: PageMargins) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { margins });
-  }, [secondaryActivePageId, patchPage]);
 
   const handleSecondaryFormatChange = useCallback((newFormat: PageFormat) => {
     if (secondaryActivePageId) patchPage(secondaryActivePageId, { format: newFormat });
   }, [secondaryActivePageId, patchPage]);
 
-  const handleSecondaryContentChange = useCallback(({ json, text }: { json: any; text: string }) => {
-    if (secondaryActivePageId) patchPage(secondaryActivePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
-  }, [secondaryActivePageId, patchPage]);
 
-  const handleContentChange = useCallback(({ json, text }: { json: any; text: string }) => {
-    if (activePageId) patchPage(activePageId, { content_json: json, content_text: text, links: extractWikilinks(text) });
-  }, [activePageId, patchPage]);
 
   // Novel operations identify their target page explicitly. They must not rely
   // on the currently-focused editor, because mobile navigation and split view
@@ -1749,6 +1651,43 @@ function NexusAppInner({
   if (!isAuthenticated && !externalContent) {
     return <AccountButton required />;
   }
+
+  const renderPane = (page: Page | null, secondary = false) => {
+    const onTitleChange = (title: string) => { if (page) patchPage(page.id, { title }); };
+    const patch = (value: Partial<Page>) => { if (page) patchPage(page.id, value); };
+    return <WorkspacePane page={page}
+      study={{ onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
+      presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
+      character={{
+        templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
+        onCommitCharacterData: data => page ? commitCharacterData(page, data) : Promise.resolve(),
+        onSaveTemplate: (name, data) => page ? saveCharacterTemplate(page, name, data) : Promise.resolve(),
+        worlds: pages.filter(item => item.creative_type === "world" && !item.deleted_at),
+        getAttachmentBlob: getNovelCoverBlob,
+        onUploadGalleryImage: file => uploadCharacterGalleryImage(page!.id, file), onTitleChange,
+        onUpdateCharacterData: data => { if (page) patch({ character_data: data, title: data.isTemplate ? page.title : data.basic.name || page.title }); },
+        onBackToCreativeOverview: handleShowCreative,
+      }}
+      novel={{
+        chapterRecords: page ? getNovelChapters(pages, page.id) : [],
+        onEnableChapters: () => enableNovelChapters(page!.id), onCreateChapter: () => createNovelChapter(page!.id), onPatchChapter: patchPage,
+        onTitleChange, onContentChange: (json, text) => saveNovelContent(page!.id, json, text), onUpdateSettings: value => patch({ novel_settings: value }),
+        getCoverBlob: getNovelCoverBlob, onUploadCover: file => uploadNovelCover(page!.id, file), onRemoveCover: () => void removeNovelCover(page!.id),
+        onBackToNovelList: handleShowNovels, onDeleteNovel: () => { void handleDeletePage(page!.id); handleShowNovels(); },
+      }}
+      editor={{
+        attachment: secondary ? secondaryActiveAttachment : activeAttachment, pdfUrl: secondary ? secondaryPdfUrl : activePdfUrl,
+        pdfLoadError: secondary ? secondaryPdfLoadError : pdfLoadError, onTitleChange,
+        onTagsChange: tags => patch({ tags }), onContentChange: ({json, text}) => patch({ content_json: json, content_text: text, links: extractWikilinks(text) }),
+        onFormatChange: secondary ? handleSecondaryFormatChange : handleFormatChange, onMarginsChange: margins => patch({ margins }), margins: page?.margins,
+        onExportMarkdown: () => { if (page) void handleExportPageMarkdown(page.id); }, onExportPdf: () => { if (page) void handleExportPageAsPdf(page.id); },
+        onExportNexus: () => { if (page) void handleExportPageAsNexusJson(page.id); }, onNewNote: () => handleCreatePage("flow"), onNewDocument: () => handleCreateDocument("flow"),
+        onImportPdf: handleImportPdfClick, onImportMd: handleImportMarkdownClick, onConvertToPresentation: () => handleConvertToPresentation(page?.id),
+        nightAdapt: isPageNightAdapt, onToggleNightAdapt: handleTogglePageNightAdapt, onBackToInterface: handleShowHome,
+        isSplitView: !!secondaryActivePageId, onCloseSplit: handleCloseSplit, onSwapSplit: handleSwapSplit,
+        saveState: page ? pageSaveStates[page.id] : undefined, onSave: () => page ? flushSave(page) : Promise.resolve(),
+      }} />;
+  };
 
   return (
     <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
@@ -2012,78 +1951,7 @@ function NexusAppInner({
         <div ref={splitContainerRef} className="flex flex-1 overflow-hidden gap-2">
           {/* Primary pane */}
           <div className="flex flex-col shrink-0 overflow-hidden rounded-2xl" style={{ flexBasis: `calc(${splitPrimaryWidth}% - 18px)`, border: "1px solid var(--color-border)" }}>
-            {activePage?.kind === "study_set" ? (
-              <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
-            ) : activePage?.kind === "presentation" ? (
-              <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
-            ) : activePage?.kind === "creative" ? (
-              activePage.creative_type === "character" || !!activePage.character_data ? (
-                <CharacterProfileView
-                  key={activePage.id}
-                  templateActions={<CharacterTemplateUpdateControl page={activePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(activePage)} onApplied={templateApplied}/>}
-                  onCommitCharacterData={data=>commitCharacterData(activePage,data)}
-                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
-                  page={activePage}
-                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
-                  getAttachmentBlob={getNovelCoverBlob}
-                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
-                  onTitleChange={handleTitleChange}
-                  onUpdateCharacterData={(cData) => {
-                    patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
-                  }}
-                  onBackToCreativeOverview={handleShowCreative}
-                />
-              ) : (
-                <NovelReaderView
-                  key={activePage.id}
-                  page={activePage}
-                  chapterRecords={getNovelChapters(pages, activePage.id)}
-                  onEnableChapters={() => enableNovelChapters(activePage.id)}
-                  onCreateChapter={() => createNovelChapter(activePage.id)}
-                  onPatchChapter={patchPage}
-                  onTitleChange={handleTitleChange}
-                  onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
-                  onUpdateSettings={(nSettings) => {
-                    patchPage(activePage.id, { novel_settings: nSettings });
-                  }}
-                  getCoverBlob={getNovelCoverBlob}
-                  onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
-                  onRemoveCover={() => void removeNovelCover(activePage.id)}
-                  onBackToNovelList={handleShowNovels}
-                  onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
-
-                />
-              )
-            ) : (
-              <EditorPane
-                page={activePage}
-                attachment={activeAttachment}
-                pdfUrl={activePdfUrl}
-                pdfLoadError={pdfLoadError}
-                onTitleChange={handleTitleChange}
-                onFolderChange={handleFolderChange}
-                onTagsChange={handleTagsChange}
-                onContentChange={handleContentChange}
-                onFormatChange={handleFormatChange}
-                onMarginsChange={handleMarginsChange}
-                margins={activePage?.margins}
-                onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
-                onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
-                onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
-                onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("flow")}
-                onImportPdf={handleImportPdfClick}
-                onImportMd={handleImportMarkdownClick}
-                onConvertToPresentation={() => handleConvertToPresentation()}
-              
-                nightAdapt={isPageNightAdapt}
-                onToggleNightAdapt={handleTogglePageNightAdapt}
-                onBackToInterface={handleShowHome}
-                isSplitView={!!secondaryActivePageId}
-                onCloseSplit={handleCloseSplit}
-                onSwapSplit={handleSwapSplit}
-              />
-            )}
+            {renderPane(activePage)}
           </div>
           {/* Divider with controls */}
           <div onMouseDown={handleSplitResizeStart} className="flex w-7 shrink-0 cursor-col-resize flex-col items-center gap-1 py-2" title="拖曳調整左右編輯器寬度">
@@ -2093,152 +1961,10 @@ function NexusAppInner({
           </div>
           {/* Secondary pane - Obsidian style closable */}
           <div className="flex flex-col flex-1 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--color-border)" }}>
-            {secondaryActivePage.kind === "study_set" ? (
-              <StudySetView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
-            ) : secondaryActivePage.kind === "presentation" ? (
-              <PresentationView page={secondaryActivePage} onTitleChange={handleSecondaryTitleChange} onUpdatePresentation={handleSecondaryUpdatePresentation} onBackToInterface={handleShowHome} />
-            ) : secondaryActivePage.kind === "creative" ? (
-              secondaryActivePage.creative_type === "character" || !!secondaryActivePage.character_data ? (
-                <CharacterProfileView
-                  key={secondaryActivePage.id}
-                  templateActions={<CharacterTemplateUpdateControl page={secondaryActivePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(secondaryActivePage)} onApplied={templateApplied}/>}
-                  onCommitCharacterData={data=>commitCharacterData(secondaryActivePage,data)}
-                  onSaveTemplate={(name, data) => saveCharacterTemplate(secondaryActivePage, name, data)}
-                  page={secondaryActivePage}
-                  worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
-                  getAttachmentBlob={getNovelCoverBlob}
-                  onUploadGalleryImage={(file) => uploadCharacterGalleryImage(secondaryActivePage.id, file)}
-                  onTitleChange={handleSecondaryTitleChange}
-                  onUpdateCharacterData={(cData) => {
-                    patchPage(secondaryActivePage.id, { character_data: cData, title: cData.isTemplate ? secondaryActivePage.title : cData.basic.name || secondaryActivePage.title });
-                  }}
-                  onBackToCreativeOverview={handleShowCreative}
-                />
-              ) : (
-                <NovelReaderView
-                  key={secondaryActivePage.id}
-                  page={secondaryActivePage}
-                  chapterRecords={getNovelChapters(pages, secondaryActivePage.id)}
-                  onEnableChapters={() => enableNovelChapters(secondaryActivePage.id)}
-                  onCreateChapter={() => createNovelChapter(secondaryActivePage.id)}
-                  onPatchChapter={patchPage}
-                  onTitleChange={handleSecondaryTitleChange}
-                  onContentChange={(json, text) => saveNovelContent(secondaryActivePage.id, json, text)}
-                  onUpdateSettings={(nSettings) => {
-                    patchPage(secondaryActivePage.id, { novel_settings: nSettings });
-                  }}
-                  getCoverBlob={getNovelCoverBlob}
-                  onUploadCover={(file) => uploadNovelCover(secondaryActivePage.id, file)}
-                  onRemoveCover={() => void removeNovelCover(secondaryActivePage.id)}
-                  onBackToNovelList={handleShowNovels}
-                  onDeleteNovel={() => { void handleDeletePage(secondaryActivePage.id); handleShowNovels(); }}
-
-                />
-              )
-            ) : (
-              <EditorPane
-                page={secondaryActivePage}
-                attachment={secondaryActiveAttachment}
-                pdfUrl={secondaryPdfUrl}
-                pdfLoadError={secondaryPdfLoadError}
-                onTitleChange={handleSecondaryTitleChange}
-                onFolderChange={handleSecondaryFolderChange}
-                onTagsChange={handleSecondaryTagsChange}
-                onContentChange={handleSecondaryContentChange}
-                onFormatChange={handleSecondaryFormatChange}
-                onMarginsChange={handleSecondaryMarginsChange}
-                margins={secondaryActivePage?.margins}
-                onExportMarkdown={() => secondaryActivePage && handleExportPageMarkdown(secondaryActivePage.id)}
-                onExportPdf={() => secondaryActivePage && handleExportPageAsPdf(secondaryActivePage.id)}
-                onExportNexus={() => secondaryActivePage && handleExportPageAsNexusJson(secondaryActivePage.id)}
-                onNewNote={() => handleCreatePage("flow")}
-                onNewDocument={() => handleCreateDocument("flow")}
-                onImportPdf={handleImportPdfClick}
-                onImportMd={handleImportMarkdownClick}
-                onConvertToPresentation={() => handleConvertToPresentation(secondaryActivePageId || undefined)}
-              
-                nightAdapt={isPageNightAdapt}
-                onToggleNightAdapt={handleTogglePageNightAdapt}
-                onBackToInterface={handleShowHome}
-                isSplitView={!!secondaryActivePageId}
-                onCloseSplit={handleCloseSplit}
-                onSwapSplit={handleSwapSplit}
-              />
-            )}
+            {renderPane(secondaryActivePage, true)}
           </div>
         </div>
-      ) : activePage?.kind === "study_set" ? (
-        <StudySetView page={activePage} onTitleChange={handleTitleChange} repository={storageRef.current!.getStudyRepository()} onBackToInterface={handleShowStudySets} />
-      ) : activePage?.kind === "presentation" ? (
-        <PresentationView page={activePage} onTitleChange={handleTitleChange} onUpdatePresentation={handleUpdatePresentation} onBackToInterface={handleShowHome} />
-      ) : activePage?.kind === "creative" ? (
-        activePage.creative_type === "character" || !!activePage.character_data ? (
-          <CharacterProfileView
-            key={activePage.id}
-                  templateActions={<CharacterTemplateUpdateControl page={activePage} resolveStorage={resolveTemplateStorage} onBeforeRead={()=>beforeTemplateRead(activePage)} onApplied={templateApplied}/>}
-                  onCommitCharacterData={data=>commitCharacterData(activePage,data)}
-                  onSaveTemplate={(name, data) => saveCharacterTemplate(activePage, name, data)}
-                  page={activePage}
-            worlds={pages.filter((page) => page.creative_type === "world" && !page.deleted_at)}
-            getAttachmentBlob={getNovelCoverBlob}
-            onUploadGalleryImage={(file) => uploadCharacterGalleryImage(activePage.id, file)}
-            onTitleChange={handleTitleChange}
-            onUpdateCharacterData={(cData) => {
-              patchPage(activePage.id, { character_data: cData, title: cData.isTemplate ? activePage.title : cData.basic.name || activePage.title });
-            }}
-            onBackToCreativeOverview={handleShowCreative}
-          />
-        ) : (
-          <NovelReaderView
-            key={activePage.id}
-                  page={activePage}
-                  chapterRecords={getNovelChapters(pages, activePage.id)}
-                  onEnableChapters={() => enableNovelChapters(activePage.id)}
-                  onCreateChapter={() => createNovelChapter(activePage.id)}
-                  onPatchChapter={patchPage}
-            onTitleChange={handleTitleChange}
-            onContentChange={(json, text) => saveNovelContent(activePage.id, json, text)}
-            onUpdateSettings={(nSettings) => {
-              patchPage(activePage.id, { novel_settings: nSettings });
-            }}
-            getCoverBlob={getNovelCoverBlob}
-            onUploadCover={(file) => uploadNovelCover(activePage.id, file)}
-            onRemoveCover={() => void removeNovelCover(activePage.id)}
-            onBackToNovelList={handleShowNovels}
-            onDeleteNovel={() => { void handleDeletePage(activePage.id); handleShowNovels(); }}
-
-          />
-        )
-      ) : (
-        <EditorPane
-          page={activePage}
-          attachment={activeAttachment}
-          pdfUrl={activePdfUrl}
-          pdfLoadError={pdfLoadError}
-          onTitleChange={handleTitleChange}
-          onFolderChange={handleFolderChange}
-          onTagsChange={handleTagsChange}
-          onContentChange={handleContentChange}
-          onFormatChange={handleFormatChange}
-          onMarginsChange={handleMarginsChange}
-          margins={activePage?.margins}
-          onExportMarkdown={() => activePage && handleExportPageMarkdown(activePage.id)}
-          onExportPdf={() => activePage && handleExportPageAsPdf(activePage.id)}
-          onExportNexus={() => activePage && handleExportPageAsNexusJson(activePage.id)}
-          onNewNote={() => handleCreatePage("flow")}
-          onNewDocument={() => handleCreateDocument("flow")}
-          onImportPdf={handleImportPdfClick}
-          onImportMd={handleImportMarkdownClick}
-                onConvertToPresentation={() => handleConvertToPresentation()}
-        
-                nightAdapt={isPageNightAdapt}
-                onToggleNightAdapt={handleTogglePageNightAdapt}
-                onBackToInterface={handleShowHome}
-                isSplitView={!!secondaryActivePageId}
-                onCloseSplit={handleCloseSplit}
-                onSwapSplit={handleSwapSplit}
-              />
-      ))}
+      ) : renderPane(activePage))}
 
       {!isFeatureInterface && isTabletViewport && (
         <>

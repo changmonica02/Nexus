@@ -2,7 +2,8 @@
 import { useState } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
-import PageCollection, { type PageActions } from "./PageCollection";
+import type { PageActions } from "./PageCollection";
+import FeatureOverview from "./FeatureOverview";
 import FeatureIcon from "./FeatureIcon";
 import CreationChoiceDialog from "./CreationChoiceDialog";
 export default function ToolsOverview({
@@ -22,23 +23,9 @@ export default function ToolsOverview({
   const { t } = useLanguage(),
     [creating, setCreating] = useState(false);
   return (
-    <main
-      data-pull-refresh
-      className="min-w-0 flex-1 overflow-y-auto bg-[var(--color-editor-bg)] text-[var(--color-text)]"
-    >
-      <section className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
-        <header className="flex items-center justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <FeatureIcon feature="tools" />
-            {t("ui.tools")}
-          </h1>
-          <button
-            className="min-h-11 rounded-full bg-blue-600 px-5 py-2 text-sm text-white"
-            onClick={() => setCreating(true)}
-          >
-            ＋ {t("ui.create")}
-          </button>
-        </header>
+    <FeatureOverview title={t("ui.tools")} description="" feature="tools" actionLabel={t("ui.create")} onCreate={()=>setCreating(true)}
+      pages={pages.filter(p=>p.kind===kind&&!p.deleted_at)} onSelectPage={onOpen} viewStorageKey={"nexus-tools-"+kind+"-view"} {...actions}
+      beforeList={
         <nav aria-label={t("ui.tools")} className="flex gap-2">
           {(["counter", "draw"] as const).map((value) => (
             <button
@@ -56,12 +43,7 @@ export default function ToolsOverview({
             </button>
           ))}
         </nav>
-        <PageCollection
-          viewStorageKey={"nexus-tools-" + kind + "-view"}
-          pages={pages.filter((p) => p.kind === kind && !p.deleted_at)}
-          onSelectPage={onOpen}
-          {...actions}
-        />
+      }>
         {creating && (
           <CreationChoiceDialog
             title={t("ui.create")}
@@ -76,7 +58,6 @@ export default function ToolsOverview({
             onClose={() => setCreating(false)}
           />
         )}
-      </section>
-    </main>
+    </FeatureOverview>
   );
 }

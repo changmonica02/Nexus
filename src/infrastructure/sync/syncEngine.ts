@@ -31,14 +31,30 @@ export class SyncEngine {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private state: SyncState = { status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 };
   private isSyncing: boolean = false;
+  private workspaceSync: Promise<void> | null = null;
+  private workspaceAgain = false;
+  private lastWorkspaceAttempt = 0;
   private studySync: Promise<void> | null = null;
   private studySyncTimer: ReturnType<typeof setTimeout> | null = null;
   private studyError: string | null = null;
   private studyOnline = () => { void this.syncStudyNow(); };
   private workspaceTimer: ReturnType<typeof setTimeout> | null = null;
   private workspaceChanged = () => {
-    if (this.destroyed || this.workspaceTimer) return;
-    this.workspaceTimer = setTimeout(() => { this.workspaceTimer = null; void this.fullSync(); }, 300);
+    if (this.destroyed) return;
+    if (this.isSyncing) { this.workspaceAgain = true; return; }
+    if (this.workspaceTimer) return;
+    this.workspaceTimer = setTimeout(() => { this.workspaceTimer = null; void this.fullSync(); },
+      typeof document !== "undefined" && document.hidden ? 5000 : 300);
+  };
+  private workspaceVisible = () => {
+    if (!document.hidden) {
+      if (this.workspaceTimer) { clearTimeout(this.workspaceTimer); this.workspaceTimer = null; }
+      this.workspaceChanged();
+    }
+  };
+  private periodicWorkspace = () => {
+    if (typeof document !== "undefined" && document.hidden && Date.now() - this.lastWorkspaceAttempt < 300000) return;
+    void this.fullSync();
   };
   private studyChanged = () => {
     if (this.destroyed || this.studySyncTimer) return;
@@ -109,6 +125,7 @@ export class SyncEngine {
       window.addEventListener("nexus-workspace-changed", this.workspaceChanged);
       window.addEventListener("online", this.studyOnline);
       window.addEventListener("online", this.workspaceChanged);
+      document.addEventListener("visibilitychange", this.workspaceVisible);
     }
     this.realtimeChannel = this.supabase.channel(`nexus-${this.userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, payload => {
@@ -127,7 +144,7 @@ export class SyncEngine {
           this.setState({ status: "error", error: "Realtime connection failed" });
         }
       });
-    this.syncInterval = setInterval(() => { void this.fullSync(); }, 60000);
+    this.syncInterval = setInterval(this.periodicWorkspace, 60000);
   }
 
   private async handleRemoteChange(type: EntityType, payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }): Promise<void> {
@@ -156,9 +173,21 @@ export class SyncEngine {
     }
   }
 
-  async fullSync(): Promise<void> {
-    if (this.isSyncing || this.destroyed) return;
+  fullSync(): Promise<void> {
+    if (this.destroyed) return Promise.resolve();
+    if (this.workspaceSync) return this.workspaceSync;
+    if (this.workspaceTimer) { clearTimeout(this.workspaceTimer); this.workspaceTimer = null; }
+    this.workspaceSync = this.runFullSync().finally(() => {
+      this.isSyncing = false;
+      this.workspaceSync = null;
+      if (this.workspaceAgain && !this.destroyed) { this.workspaceAgain = false; this.workspaceChanged(); }
+    });
+    return this.workspaceSync;
+  }
+
+  private async runFullSync(): Promise<void> {
     this.isSyncing = true;
+    this.lastWorkspaceAttempt = Date.now();
     this.setState({ status: "syncing", error: null });
     const local = this.storage.getWorkspacePersistence();
     try {
@@ -171,7 +200,6 @@ export class SyncEngine {
     } catch (error) {
       if (!this.destroyed) this.setState({ status: "error", error: error instanceof Error ? error.message : String(error) });
     } finally {
-      this.isSyncing = false;
       if (!this.destroyed) {
         // A tombstone pull must refresh the UI even if a stale queued save conflicts.
         this.onRemoteChange?.();
@@ -203,6 +231,7 @@ export class SyncEngine {
     if (this.workspaceTimer) clearTimeout(this.workspaceTimer);
     if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceChanged);
     if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceChanged);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.workspaceVisible);
     this.destroyed = true;
     this.stopPeriodicSync();
     if (this.realtimeChannel) {

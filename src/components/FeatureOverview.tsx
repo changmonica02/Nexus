@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import FeatureIcon from "./FeatureIcon";
 import type { Page } from "../lib/types";
 import PageCollection, { type PageActions } from "./PageCollection";
@@ -11,9 +12,10 @@ export default function FeatureOverview({
   pages,
   onCreate,
   onSelectPage,
-  relatedLink,
+  relatedLink, beforeList, children, viewStorageKey,
   ...actions
 }: PageActions & {
+  beforeList?: ReactNode; children?: ReactNode; viewStorageKey?: string;
   title: string;
   description: string;
   icon?: string;
@@ -35,7 +37,7 @@ export default function FeatureOverview({
           <div>
             <div className="mb-2"><FeatureIcon feature={feature} size={28}/></div>
             <h1 className="text-3xl font-semibold">{title}</h1>
-            <p className="mt-2 text-sm opacity-60">{description}</p>
+            {description && <p className="mt-2 text-sm opacity-60">{description}</p>}
             {relatedLink && (
               <a
                 href={relatedLink.href}
@@ -53,12 +55,14 @@ export default function FeatureOverview({
             ＋ {actionLabel || t("ui.create")}
           </button>
         </div>
+        {beforeList}
         <PageCollection
           pages={pages}
           onSelectPage={onSelectPage}
-          viewStorageKey={"nexus-"+feature+"-view"}
+          viewStorageKey={viewStorageKey ?? "nexus-"+feature+"-view"}
           {...actions}
         />
+        {children}
       </section>
     </main>
   );

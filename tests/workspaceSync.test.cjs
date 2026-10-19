@@ -32,11 +32,11 @@ async function device(t) {
 // migration execution (intentionally not performed by this test suite).
 class Server {
   rows = { pages: new Map(), attachments: new Map(), binaries: new Map(), workspace_tombstones: new Map() };
-  receipts = new Map(); calls = []; limit = 2; offline = false; loseResponse = false; binaryDeleteFails = false;
+  receipts = new Map(); calls = []; binaryDownloads = 0; binaryBytes = 0; afterBinary = null; limit = 2; offline = false; loseResponse = false; binaryDeleteFails = false;
   from(table) {
-    const server = this, filters = [], state = { limit: Infinity, cursor: null };
+    const server = this, filters = [], state = { limit: Infinity, cursor: null, columns: "*" };
     const query = {
-      select() { return this; }, eq(k, v) { filters.push([k, v]); return this; },
+      select(columns) { state.columns = columns; return this; }, abortSignal() { return this; }, eq(k, v) { filters.push([k, v]); return this; },
       order() { return this; }, limit(n) { state.limit = n; return this; }, gt(k, v) { state.cursor = [k, v]; return this; },
       async then(resolve, reject) {
         try {
@@ -45,7 +45,8 @@ class Server {
           const data = [...server.rows[table].values()].filter(row => filters.every(([k, v]) => row[k] === v)
             && (!state.cursor || String(row[state.cursor[0]]).localeCompare(state.cursor[1]) > 0)).sort((a, b) => a.id.localeCompare(b.id))
             .slice(0, Math.min(state.limit, server.limit));
-          resolve({ data, error: null });
+          if (table === "binaries" && (state.columns === "*" || state.columns.includes("data"))) { server.binaryDownloads += data.length; server.binaryBytes += data.reduce((n,r)=>n+Buffer.byteLength(r.data),0); if(server.afterBinary) await server.afterBinary(); }
+          resolve({ data: state.columns === "*" ? data : data.map(row=>Object.fromEntries(state.columns.split(",").map(k=>[k,row[k]]))), error: null });
         } catch (e) { reject(e); }
       },
       async maybeSingle() { const { data, error } = await this; return { data: data?.[0] ?? null, error }; },
@@ -302,4 +303,95 @@ test('migration statically enforces owner-scoped RPC, receipts, revision and old
   assert.match(sql, /delete from public\.binaries where id = entity_id and owner_id = actor/);
   assert.doesNotMatch(sql, /delete from public\.workspace_tombstones|delete from public\.workspace_operation_receipts/);
   assert.doesNotMatch(sql, /study_review_events|study_card_states|dictionary_/);
+});
+
+function seedBinaries(s, count=6) {
+  for(let i=0;i<count;i++){
+    const id='pdf-'+i, content=Buffer.alloc(64*1024,i+1);
+    s.rows.attachments.set(id,{...attachment(id),owner_id:owner,revision:1,mime_type:'application/pdf',size_bytes:content.length});
+    s.rows.binaries.set(id,{id,owner_id:owner,data:content.toString('base64')});
+  }
+}
+test('traffic benchmark: first/new device downloads; six unchanged PDFs have ZERO body downloads on later syncs',async t=>{
+  const d=await device(t),fresh=await device(t),s=new Server();seedBinaries(s);
+  // Execute the previous full-body listing against exactly the same synthetic data.
+  for(let i=0;i<6;i++)await readWorkspaceRows(s,'binaries',owner);
+  const before={downloads:s.binaryDownloads,bytes:s.binaryBytes};s.binaryDownloads=0;s.binaryBytes=0;
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,6);
+  const first={downloads:s.binaryDownloads,bytes:s.binaryBytes};
+  for(let i=0;i<5;i++)await pullWorkspace(s,d.local,owner);
+  assert.deepEqual({downloads:s.binaryDownloads,bytes:s.binaryBytes},first);
+  t.diagnostic(JSON.stringify({scenario:'6 synthetic 64KiB PDFs, 6 syncs',before,after:first,subsequent:{downloads:0,bytes:0}}));
+  await pullWorkspace(s,fresh.local,owner);assert.equal(s.binaryDownloads,12);
+});
+test('one changed attachment replaces cached content without downloading the other PDFs',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s);await pullWorkspace(s,d.local,owner);
+  s.rows.attachments.get('pdf-2').revision=2;s.rows.binaries.get('pdf-2').data=btoa('updated');
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,7);assert.equal(await (await d.adapter.readBinary('pdf-2')).text(),'updated');
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,7);
+});
+test('legacy, missing and damaged local blobs revalidate once; offline failure retains cache and retry succeeds',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);await pullWorkspace(s,d.local,owner);
+  const record=await d.db.get('binaries','pdf-0');delete record.server_revision;await d.db.put('binaries',record);
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,2);
+  s.offline=true;await assert.rejects(pullWorkspace(s,d.local,owner),/offline/);assert.ok(await d.adapter.readBinary('pdf-0'));s.offline=false;
+  await d.db.put('binaries',{...await d.db.get('binaries','pdf-0'),blob:new Blob(['bad'])});
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,3);
+  await d.db.delete('binaries','pdf-0');s.afterBinary=()=>{throw Error('download disconnected');};
+  await assert.rejects(pullWorkspace(s,d.local,owner),/disconnected/);assert.equal(await d.adapter.readBinary('pdf-0'),null);
+  s.afterBinary=null;await pullWorkspace(s,d.local,owner);assert.ok(await d.adapter.readBinary('pdf-0'));
+  const n=s.binaryDownloads;await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,n);
+});
+test('download racing a remote update/delete is not committed under an obsolete revision',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);
+  s.afterBinary=()=>{s.rows.attachments.get('pdf-0').revision=2;s.rows.binaries.set('pdf-0',{id:'pdf-0',owner_id:owner,data:btoa('new')});s.afterBinary=null;};
+  await pullWorkspace(s,d.local,owner);assert.equal(await d.adapter.readBinary('pdf-0'),null);
+  await pullWorkspace(s,d.local,owner);assert.equal(await (await d.adapter.readBinary('pdf-0')).text(),'new');
+  s.rows.attachments.get('pdf-0').revision=3;
+  s.afterBinary=()=>{s.rows.attachments.delete('pdf-0');s.rows.binaries.delete('pdf-0');s.rows.workspace_tombstones.set('deleted',{id:'deleted',owner_id:owner,entity_type:'attachments',entity_id:'pdf-0',revision:4,deleted_at:100});s.afterBinary=null;};
+  await pullWorkspace(s,d.local,owner);assert.equal((await d.db.get('binaries','pdf-0')).server_revision,2);
+  await pullWorkspace(s,d.local,owner);assert.equal(await d.adapter.readBinary('pdf-0'),null);assert.equal(await d.db.get('binaries','pdf-0'),undefined);
+});
+test('pending local edits are never overwritten, including edits created during download',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);
+  s.afterBinary=async()=>{s.afterBinary=null;await d.adapter.attachBinary('pdf-0',new Blob(['offline edit']));};
+  await pullWorkspace(s,d.local,owner);assert.equal(await (await d.adapter.readBinary('pdf-0')).text(),'offline edit');
+  const n=s.binaryDownloads;await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,n);assert.equal((await d.local.pending(owner)).length,1);
+  await flushWorkspace(s,d.local,owner);await pullWorkspace(s,d.local,owner);assert.equal(await (await d.adapter.readBinary('pdf-0')).text(),'offline edit');
+});
+test('logout/account switch blocks reads and late download commit; soft deletion hides cache and restore recovers',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);let alive=true;
+  s.afterBinary=()=>{alive=false;d.adapter.setWorkspaceOwner('other');s.afterBinary=null;};
+  await pullWorkspace(s,d.local,owner,()=>alive);assert.equal(await d.db.get('binaries','pdf-0'),undefined);
+  alive=true;d.adapter.setWorkspaceOwner(owner);await pullWorkspace(s,d.local,owner);
+  d.adapter.setWorkspaceOwner(null);assert.equal(await d.adapter.readBinary('pdf-0'),null);assert.equal(await d.adapter.getAttachment('pdf-0'),null);
+  d.adapter.setWorkspaceOwner('other');assert.equal(await d.adapter.readBinary('pdf-0'),null);
+  d.adapter.setWorkspaceOwner(owner);assert.ok(await d.adapter.readBinary('pdf-0'));
+  s.rows.attachments.get('pdf-0').deleted_at=100;s.rows.attachments.get('pdf-0').revision=2;const n=s.binaryDownloads;
+  await pullWorkspace(s,d.local,owner);assert.equal(s.binaryDownloads,n);assert.equal(await d.adapter.readBinary('pdf-0'),null);
+  s.rows.attachments.get('pdf-0').deleted_at=null;s.rows.attachments.get('pdf-0').revision=3;
+  await pullWorkspace(s,d.local,owner);assert.ok(await d.adapter.readBinary('pdf-0'));
+});
+test('two IndexedDB connections share a lease; crashed leases expire and superseded tokens cannot commit',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);
+  const secondDB=await openDB(d.db.name),second=new WorkspacePersistence(secondDB);
+  let release,entered;const ready=new Promise(r=>entered=r);const gate=new Promise(r=>release=r);
+  s.afterBinary=async()=>{entered();await gate;};
+  const first=pullWorkspace(s,d.local,owner);await ready;await pullWorkspace(s,second,owner);assert.equal(s.binaryDownloads,1);
+  release();await first;s.afterBinary=null;await pullWorkspace(s,second,owner);assert.equal(s.binaryDownloads,1);
+  await d.db.delete('binaries','pdf-0');const token=await d.local.claimBinary(owner,'pdf-0',1);
+  const leaseKey=JSON.stringify(['binary-lease',owner,'pdf-0']);await d.db.put('workspace_sync_meta',{...await d.db.get('workspace_sync_meta',leaseKey),expires_at:0});
+  const replacement=await second.claimBinary(owner,'pdf-0',1);assert.ok(replacement&&replacement!==token);
+  await d.local.commitBinary(owner,'pdf-0',1,token,new Blob(['late']));assert.equal(await d.db.get('binaries','pdf-0'),undefined);
+  await d.local.releaseBinary(owner,'pdf-0',token);assert.equal((await d.db.get('workspace_sync_meta',leaseKey)).token,replacement);
+  await second.releaseBinary(owner,'pdf-0',replacement);await pullWorkspace(s,d.local,owner);assert.ok(await d.adapter.readBinary('pdf-0'));secondDB.close();
+});
+test('full sync callers join, in-flight local changes schedule one follow-up, background polling is throttled',async t=>{
+  const d=await device(t),s=new Server();seedBinaries(s,1);const engine=new SyncEngine(s,d.adapter,'test',owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
+  let release,entered;const ready=new Promise(r=>entered=r),gate=new Promise(r=>release=r);s.afterBinary=async()=>{entered();await gate;};
+  const first=engine.fullSync();await ready;assert.equal(engine.fullSync(),first);engine.workspaceChanged();engine.workspaceChanged();
+  release();await first;assert.ok(engine.workspaceTimer);s.afterBinary=null;await engine.fullSync();assert.equal(s.binaryDownloads,1);
+  const oldDoc=global.document;global.document={hidden:true,removeEventListener(){}};t.after(()=>{global.document=oldDoc;});let runs=0;engine.fullSync=async()=>{runs++;};
+  engine.periodicWorkspace();assert.equal(runs,0);engine.lastWorkspaceAttempt=Date.now()-300001;engine.periodicWorkspace();assert.equal(runs,1);
+  global.document.hidden=false;engine.workspaceVisible();assert.ok(engine.workspaceTimer);engine.destroy();
 });

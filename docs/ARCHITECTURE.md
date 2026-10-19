@@ -1,5 +1,14 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
+
+- `WorkspacePane` 統一主／次窗格類型分派，NexusApp 保留頁面專屬儲存、匯出與工具操作；`useAttachmentPreview` 共用本機 PDF 讀取，取消過期回應並回收各窗格 Object URL。
+- `SaveStatus` 由實際 `savePage` 結果驅動；每頁 debounce／序列寫入仍獨立，較早完成的寫入不會把新修改標成已儲存。失敗保留待寫內容，重試與目前窗格 Ctrl/Cmd+S 走同一 flush。提示僅代表此裝置寫入，雲端同步另行呈現。
+- `ModalDialog` 共用原生 dialog 焦點、Escape、busy 與背景關閉策略；`useAnchoredMenu` 共用選單位置、dialog 內 portal、視窗調整及鍵盤導航。編輯器選單保留文字選取。
+- 工具總覽使用 `FeatureOverview`，保留各分頁儲存的排列偏好；學習存檔提示統一為 `AnswerSaveNotice`。
+- 移除無入口的 creatableRegistry、useSidebarPreference、DailyStudySession／studyPractice；保留 SPEC 中的 inbox、歷史 quiz 相容模組、受測的 deleteDrafts、world 編輯與舊匯入 fallback。沒有資料遷移、RLS 或 RPC 變更。
+
+
 ## 2026-10-18 整筆詞條刪除與精簡編輯器（已實作／測試，SQL已套用）
 
 - `deleteEntry.ts`先讀取管理快照、核對已載入revision，再確認後送出`delete_dictionary_entry(entry_uuid,expected_revision,expected_snapshot,operation_uuid)`。Editor以ref鎖住重送與原operation/snapshot，網路掉回覆可重試；baseline revision變更時換新操作。Published Review編輯使用canonical Entry身份，不能誤把Review revision當Published revision。
@@ -117,6 +126,15 @@ sort_order, parent/subpage relationship（若目前 source 有使用）
 
 ```
 Attachment metadata 與 binary payload 分離。
+
+### 附件版本快取與同步合併（2026-10-19，Refs #84；本機已實作，待部署）
+
+- `pullWorkspace` 仍先處理 tombstone／owner metadata；binaries 列表僅取 `id,owner_id`。`apply_workspace_operations` 的 binary 寫入會原子增加 attachment revision，因此以 `(owner,id,attachment revision)` 判斷快取；不依賴檔名、下載時間或 binaries.updated_at。不新增 SQL、索引或 RLS 變更。
+- IndexedDB binaries 加入可選 `owner_id,server_revision,verified_size`；舊紀錄保留，第一次同步重新驗證一次，無需升級 DB version。只有缺失／版本不同／Blob 或大小不符時下載內容；下載後再讀 attachment revision／deleted_at，落盤交易再次檢查 owner、版本、tombstone、pending outbox。既有本機修改不被覆蓋；失敗保留快取與 outbox，可重試。附件 metadata 修改也會增加版本，保守地重新驗證該單一檔案。
+- `workspace_sync_meta` 保存 owner/id 專屬 60 秒下載租約；IndexedDB readwrite 交易讓同源多分頁互斥。網路下載 45 秒逾時，租約過期可接手，舊 token 不能覆蓋新租約；其他分頁下次同步讀共用快取。此機制只合併檔案下載，各分頁仍可讀 metadata。Blob 的結構／大小檢查不是密碼學內容校驗。
+- `IndexedDBAdapter.getAttachment/readBinary` 加強 owner 篩選與已知過期版本的讀取保護。登出／帳號切換立即清空舊帳號 UI，晚到的同步及登出讀取不得套用至新帳號。同帳號 auth refresh 沿用 SyncEngine。
+- 同分頁 fullSync 共用進行中的 Promise；同步中的變更合併為一次後續同步，保留持久 outbox。前景週期仍 60 秒；背景週期降至 5 分鐘，事件合併延遲 5 秒；恢復前景重新確認。沒有停用離線／跨裝置同步。
+- 量測、限制、發布／回復與監控見 `operations/ATTACHMENT-SYNC-CACHE.md`。正式帳號與 Safari 驗收尚未執行。
 PDF、未來 image insert 等資源走 Attachment / Asset abstraction。
 Page / Presentation / Canvas / Website 應引用資源，不直接把 blob 塞入 content_json。
 ```

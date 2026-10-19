@@ -60,14 +60,15 @@ const ts=require('typescript');require.extensions['.tsx']=(module,filename)=>mod
 test('detail starts collapsed and answer status disappears after save, errors offer explicit retry',()=>{
   const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
   const Panel=require('../src/features/dictionary/CardDictionaryPanel.tsx').default;
-  const {AnswerSaveNotice}=require('../src/features/study/components/DailyStudySession.tsx');
+  const AnswerSaveNotice=require('../src/features/study/components/AnswerSaveNotice.tsx').default;
   const html=renderToStaticMarkup(React.createElement(Panel,{cardId:'card',front:'test',fixedEntryId:id(10)}));
   assert.ok(html.includes('aria-expanded="false"'));assert.ok(!html.includes('歷史詞源'));
-  const render=props=>renderToStaticMarkup(React.createElement(AnswerSaveNotice,{onReload:()=>{},...props}));
+  const {LanguageProvider}=require('../src/lib/LanguageContext.tsx');
+  const render=props=>renderToStaticMarkup(React.createElement(LanguageProvider,{initialLanguage:'zh-TW'},React.createElement(AnswerSaveNotice,{onReload:()=>{},...props})));
   assert.equal(render({saving:false,error:''}),'');
   assert.ok(render({saving:true,error:''}).includes('正在儲存作答'));
   assert.ok(render({saving:false,error:'failed',onRetry:()=>{}}).includes('重試儲存同一作答'));
-  const source=fs.readFileSync('src/features/study/components/DailyStudySession.tsx','utf8');
+  const source=fs.readFileSync('src/features/study/components/ScheduledStudySession.tsx','utf8');
   assert.ok(source.indexOf('<CardDictionaryPanel')<source.indexOf('<AnswerSaveNotice'));
   assert.ok(source.includes('session!.answers'));
 });

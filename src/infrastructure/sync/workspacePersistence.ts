@@ -87,7 +87,7 @@ export class WorkspacePersistence {
           if (type === "attachments") await tx.objectStore("binaries").delete(value.id);
         } else if (kind === "binary") {
           if (old?.deleted_at != null) throw new Error("Attachment is deleted");
-          await tx.objectStore("binaries").put({ id: value.id, blob: change.blob, updated_at: Date.now() });
+          await tx.objectStore("binaries").put({ id: value.id, owner_id: owner, blob: change.blob, updated_at: Date.now() });
         } else {
           const next = kind === "save" ? value : { ...old!, deleted_at: kind === "restore" ? null : Date.now(), updated_at: Date.now() };
           await store.put(next);
@@ -147,12 +147,49 @@ export class WorkspacePersistence {
     }
   }
 
-  async mergeBinary(owner: string, id: string, blob: Blob): Promise<void> {
-    const tx = this.db.transaction(["attachments", "binaries", "workspace_sync_meta"], "readwrite");
+  /** Shared IndexedDB lease works across tabs, including browsers without Web Locks.
+   * Expiration recovers crashed tabs; downloads have a shorter network deadline.
+   * The token is checked again at commit, so a late old response cannot win. */
+  async claimBinary(owner: string, id: string, revision: number): Promise<string | null> {
+    if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("Invalid attachment revision");
+    const tx = this.db.transaction(["attachments", "binaries", ...WORKSPACE_STORES], "readwrite");
     const attachment = await tx.objectStore("attachments").get(id);
     const meta = await tx.objectStore("workspace_sync_meta").get(key(owner, "attachments", id));
-    if (attachment?.workspace_owner_id === owner && attachment.deleted_at == null && !meta?.hard_deleted && !await tx.objectStore("binaries").get(id)) {
-      await tx.objectStore("binaries").put({ id, blob: blob.slice(0, blob.size, attachment.mime_type || "application/octet-stream"), updated_at: Date.now() });
+    const binary = await tx.objectStore("binaries").get(id);
+    const pending = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[])
+      .some(b => b.owner_id === owner && b.operations.some(op => op.entity_type === "attachments" && op.entity_id === id));
+    const leaseKey = JSON.stringify(["binary-lease", owner, id]);
+    const lease = await tx.objectStore("workspace_sync_meta").get(leaseKey);
+    const cached = binary?.owner_id === owner && binary.server_revision === revision
+      && binary.blob instanceof Blob && binary.blob.size === binary.verified_size;
+    let token: string | null = null;
+    if (attachment?.workspace_owner_id === owner && attachment.deleted_at == null && !meta?.hard_deleted
+      && meta?.revision === revision && !pending && !cached && !(lease?.expires_at > Date.now())) {
+      token = crypto.randomUUID();
+      await tx.objectStore("workspace_sync_meta").put({ id: leaseKey, owner_id: owner, token, expires_at: Date.now() + 60000 });
+    }
+    await tx.done;
+    return token;
+  }
+
+  async releaseBinary(owner: string, id: string, token: string): Promise<void> {
+    const tx = this.db.transaction("workspace_sync_meta", "readwrite");
+    const leaseKey = JSON.stringify(["binary-lease", owner, id]);
+    if ((await tx.store.get(leaseKey))?.token === token) await tx.store.delete(leaseKey);
+    await tx.done;
+  }
+
+  async commitBinary(owner: string, id: string, revision: number, token: string, blob: Blob, alive = () => true): Promise<void> {
+    const tx = this.db.transaction(["attachments", "binaries", ...WORKSPACE_STORES], "readwrite");
+    const attachment = await tx.objectStore("attachments").get(id);
+    const meta = await tx.objectStore("workspace_sync_meta").get(key(owner, "attachments", id));
+    const lease = await tx.objectStore("workspace_sync_meta").get(JSON.stringify(["binary-lease", owner, id]));
+    const pending = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[])
+      .some(b => b.owner_id === owner && b.operations.some(op => op.entity_type === "attachments" && op.entity_id === id));
+    if (alive() && attachment?.workspace_owner_id === owner && attachment.deleted_at == null && !meta?.hard_deleted
+      && meta?.revision === revision && !pending && lease?.token === token && lease.expires_at > Date.now()) {
+      await tx.objectStore("binaries").put({ id, owner_id: owner, server_revision: revision, verified_size: blob.size,
+        blob: blob.slice(0, blob.size, attachment.mime_type || "application/octet-stream"), updated_at: Date.now() });
     }
     await tx.done;
   }

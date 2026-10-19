@@ -309,7 +309,8 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async getAttachment(id: ID): Promise<Attachment | null> {
     if (!this.db) throw new Error("DB not initialized");
-    return (await this.db.get("attachments", id)) ?? null;
+    const attachment = await this.db.get("attachments", id);
+    return attachment && (attachment.workspace_owner_id ?? null) === this.workspaceOwnerId ? attachment : null;
   }
 
   async saveAttachment(attachment: Attachment): Promise<Attachment> {
@@ -349,7 +350,22 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async readBinary(attachmentId: ID): Promise<Blob | null> {
     if (!this.db) throw new Error("DB not initialized");
+    const owner = this.workspaceOwnerId;
+    const attachment = await this.getAttachment(attachmentId);
+    if (!attachment || attachment.deleted_at != null) return null;
     const record = await this.db.get("binaries", attachmentId);
+    if (this.workspaceOwnerId !== owner || (record?.owner_id != null && record.owner_id !== owner)) return null;
+    if (!(record?.blob instanceof Blob)) return null;
+    if (record.server_revision != null) {
+      const meta = await this.db.get("workspace_sync_meta", JSON.stringify([owner, "attachments", attachmentId]));
+      if (record.server_revision !== meta?.revision || record.blob.size !== record.verified_size) {
+        // An offline user edit remains readable; an obsolete remote cache does not.
+        const pending = (await this.db.getAll("workspace_outbox") as WorkspaceBatch[]).some(batch => batch.owner_id === owner
+          && batch.operations.some(op => op.entity_type === "attachments" && op.entity_id === attachmentId && op.kind === "binary"));
+        if (!pending) return null;
+      }
+    }
+    if (this.workspaceOwnerId !== owner) return null;
     return record?.blob ?? null;
   }
 
