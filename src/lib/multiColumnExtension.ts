@@ -1,9 +1,29 @@
 "use client";
 import { Node, mergeAttributes } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { Fragment } from "@tiptap/pm/model";
 
 const clamp = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.max(20, Math.min(80, Math.round(value))) : 50;
+
+/** Move a top-level block into one existing column in one undoable transaction. */
+export function moveTopLevelBlockIntoColumn(state: EditorState, sourcePos: number, groupPos: number, targetIndex: number): Transaction | null {
+  if (state.doc.resolve(sourcePos).depth !== 0 || state.doc.resolve(groupPos).depth !== 0) return null;
+  const moved = state.doc.nodeAt(sourcePos), group = state.doc.nodeAt(groupPos);
+  if (!moved || !group || moved.type.name === "multiColumn" || group.type.name !== "multiColumn" || sourcePos === groupPos || targetIndex < 0 || targetIndex >= group.childCount) return null;
+  const columns = Array.from({ length: group.childCount }, (_, index) => group.child(index));
+  const destination = columns[targetIndex];
+  const children = Array.from({ length: destination.childCount }, (_, index) => destination.child(index));
+  if (children.length === 1 && children[0].type.name === "paragraph" && children[0].content.size === 0) children.length = 0;
+  columns[targetIndex] = destination.copy(Fragment.fromArray([...children, moved]));
+  const nextGroup = group.copy(Fragment.fromArray(columns));
+  const tr = state.tr.delete(sourcePos, sourcePos + moved.nodeSize);
+  const nextGroupPos = tr.mapping.map(groupPos);
+  tr.replaceWith(nextGroupPos, nextGroupPos + group.nodeSize, nextGroup);
+  let movedPos = -1;
+  tr.doc.descendants((node, pos) => { if (node === moved) { movedPos = pos; return false; } return true; });
+  if (movedPos >= 0) tr.setSelection(TextSelection.near(tr.doc.resolve(movedPos + 1)));
+  return tr.scrollIntoView();
+}
 export const Column = Node.create({
   name: "column", group: "column", content: "block+", defining: true,
   parseHTML: () => [{ tag: 'div[data-type="column"]' }],

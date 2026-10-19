@@ -26,7 +26,7 @@ import { Callout } from "../lib/calloutExtension";
 import { createObsidianMathNodeView } from "../lib/obsidianMathNodeView";
 import { ObsidianMathInput } from "../lib/obsidianMathInput";
 import { PageBreak } from "../lib/pageBreakExtension";
-import { MultiColumn, Column } from "../lib/multiColumnExtension";
+import { MultiColumn, Column, moveTopLevelBlockIntoColumn } from "../lib/multiColumnExtension";
 import { FoldBlock } from "../lib/foldBlockExtension";
 import { NodeSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
@@ -507,12 +507,34 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           if (variant !== "rich" || !draggedId) return false;
           let sourcePos = -1;
           view.state.doc.descendants((node, pos) => { if (node.attrs.id === draggedId) { sourcePos = pos; return false; } return true; });
-          if (sourcePos < 0 || view.state.doc.resolve(sourcePos).depth !== 0) return false;
+          if (sourcePos < 0) return false;
           const source = view.state.doc.nodeAt(sourcePos), hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
           if (!source || !hit) return false;
           const $hit = view.state.doc.resolve(hit.pos);
           if ($hit.depth < 1) return false;
-          for (let depth = 1; depth <= $hit.depth; depth++) if ($hit.node(depth).type.name === "column") return false;
+          const columnDepth = Array.from({ length: $hit.depth }, (_, index) => index + 1).find(depth => $hit.node(depth).type.name === "column");
+          if (columnDepth && columnDepth > 1 && $hit.node(columnDepth - 1).type.name === "multiColumn") {
+            const targetIndex = $hit.index(columnDepth - 1);
+            const sourceDepth = view.state.doc.resolve(sourcePos).depth;
+            if (sourceDepth === 0) {
+              const tr = moveTopLevelBlockIntoColumn(view.state, sourcePos, $hit.before(columnDepth - 1), targetIndex);
+              if (!tr) return false;
+              event.preventDefault();
+              view.dispatch(closeHistory(tr));
+              draggedBlockIdRef.current = null;
+              return true;
+            }
+            const $source = view.state.doc.resolve(sourcePos);
+            if (targetIndex < 2 && $source.depth === columnDepth && $source.node(columnDepth).type.name === "column" && $source.before(columnDepth - 1) === $hit.before(columnDepth - 1) && $source.index(columnDepth - 1) !== targetIndex) {
+              event.preventDefault();
+              view.dispatch(closeHistory(view.state.tr.setSelection(NodeSelection.create(view.state.doc, sourcePos))));
+              editor.commands.moveColumnBlock(targetIndex === 0 ? "left" : "right");
+              draggedBlockIdRef.current = null;
+              return true;
+            }
+            return false;
+          }
+          if (view.state.doc.resolve(sourcePos).depth !== 0) return false;
           const targetPos = $hit.before(1), target = view.state.doc.nodeAt(targetPos);
           if (!target || targetPos === sourcePos) return false;
           const targetElement = view.nodeDOM(targetPos);

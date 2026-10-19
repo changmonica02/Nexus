@@ -126,6 +126,10 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
 - 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
 
+## 2026-10-19 筆記改版第三批（Refs #87；本機實作，未部署）
+
+- rich editor 的同頁把手拖曳會依穩定區塊 ID 定位來源；跨左右欄沿用既有欄間移動命令，頂層區塊移入指定欄位則在單次 transaction 內搬移原節點並保留 undo。欄位分隔線與把手的層級分開，避免遮擋操作；不改資料模型或同步介面。
+
 ## 2026-10-19 筆記改版第二批（Refs #87；本機實作，未部署）
 
 - `TiptapEditor` 沿用既有 rich schema；`MultiColumn` 以所選頂層區塊局部包覆，NodeView 儲存 20–80 欄寬比例，移入／移出與攤平操作保留子區塊；`FoldBlock` 儲存嵌套內容與展開狀態。把手與斜線選單修改原 Tiptap transaction，頂層區塊拖曳落點以穩定 ID 搬移同一節點並隔開 undo 群組；繼續使用既有 `content_json` 自動儲存／同步，無 migration。
@@ -137,7 +141,7 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - EditorPane 對 Note 採單一 flow 編輯器，保留儲存的 format／pageBreak 節點；不自動轉換或刪除舊分頁資料。新建 Note 不再詢問流動／分頁。Document 原有 flow 契約不變。
 - `content_json.noteAppearance.fullWidth` 為逐篇外觀設定，沿用原有 JSON 儲存與同步，不新增 schema；編輯回傳保留根層 metadata。標題靠左，原有可收合講義目錄沿用。
 - Math NodeView 隔離原文輸入事件、空內容退出時刪除節點、按鈕防止 blur 提前提交，公式提交／刪除具有獨立 undo 邊界；美元輸入辨識跳脫、code 與 IME，不屏蔽空白。公式及原有教學節點資料模型不變。
-- 尚未實作新版區塊選單／斜線指令、雙欄拖曳調寬、桌面側欄及獨立輸出預覽；既有相關入口不代表新版已完成。長雙欄跨頁等未決規則維持待確認。
+- 本段是第一批當時狀態；後續區塊選單／斜線指令、雙欄調寬、桌面側欄及輸出預覽已見上方批次。長雙欄跨頁等未決規則維持待確認。
 
 ## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
 

@@ -42,6 +42,16 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   const bounds=await divider.boundingBox();await page.mouse.move(bounds.x+4,bounds.y+Math.max(4,bounds.height/2));
   await page.mouse.down();await page.mouse.move(bounds.x+65,bounds.y+Math.max(4,bounds.height/2),{steps:4});await page.mouse.up();
   assert.deepEqual(await page.evaluate(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn').content.map(c=>c.content.map(b=>b.content?.map(t=>t.text).join('')||''))),[['Left content '],['Right content']]);
+  if(width===1440){
+   await group.locator('[data-type="column"]').nth(1).locator('p').hover();
+   const handle=await page.locator('.nexus-drag-handle').boundingBox(),target=await group.locator('[data-type="column"]').first().locator('p').boundingBox();
+   await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
+   await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:12});await page.mouse.up();
+   await page.waitForFunction(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn')?.content[0].content.some(n=>n.content?.some(t=>t.text==='Right content')));
+   assert.equal((await group.locator('[data-type="column"]').nth(1).innerText()).trim(),'');
+   await page.keyboard.press('Control+z');
+   await page.waitForFunction(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn')?.content[1].content.some(n=>n.content?.some(t=>t.text==='Right content')));
+  }
   if(width===1440){await editor.locator('p').first().hover();await page.locator('.nexus-drag-handle').click();const menu=page.getByRole('menu',{name:'區塊操作'});await menu.getByRole('menuitem',{name:'建立副本'}).click();assert.equal(await group.locator('[data-type=column]').first().locator('p').count(),2);await page.keyboard.press('Control+z');assert.equal(await group.locator('[data-type=column]').first().locator('p').count(),1);}
   if(width===1440){
    await group.locator('[data-type="column"]').nth(1).locator('p').hover();await page.locator('.nexus-drag-handle').click();
@@ -51,6 +61,14 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
    await group.locator('[data-type="column"]').first().locator('p').last().hover();await page.locator('.nexus-drag-handle').click();
    await page.getByRole('menu',{name:'區塊操作'}).getByRole('menuitem',{name:'移出雙欄'}).click();
    assert.match(await editor.locator(':scope > p').allInnerTexts().then(a=>a.join(' ')),/Right content/);
+   await editor.locator(':scope > p').filter({hasText:'Right content'}).hover();
+   const outerHandle=await page.locator('.nexus-drag-handle').boundingBox(),emptyColumn=await group.locator('[data-type="column"]').nth(1).boundingBox();
+   await page.mouse.move(outerHandle.x+outerHandle.width/2,outerHandle.y+outerHandle.height/2);await page.mouse.down();
+   await page.mouse.move(emptyColumn.x+emptyColumn.width/2,emptyColumn.y+Math.min(16,emptyColumn.height/2),{steps:12});await page.mouse.up();
+   await page.waitForFunction(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn')?.content[1].content.some(n=>n.content?.some(t=>t.text==='Right content')));
+   assert.equal((await editor.locator(':scope > p').allInnerTexts()).some(text=>text.includes('Right content')),false);
+   await page.keyboard.press('Control+z');
+   await page.waitForFunction(()=>window.currentNote.content_json.content.some(n=>n.type==='paragraph'&&n.content?.some(t=>t.text==='Right content')));
   }
   const beforeExport=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
   await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();
