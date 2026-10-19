@@ -15,11 +15,18 @@ const entries = Array.from({ length: 241 }, (_, i) => ({
   pending_count: i % 3 === 0 ? 1 : 0,
 }));
 window.rpcCalls = [];
+window.authListeners = new Set();
+window.refreshAuth = () => {
+  for (const listener of window.authListeners) listener('TOKEN_REFRESHED', session);
+};
 window.dictionaryClient = {
   auth: {
     getSession: async () => ({ data: { session } }),
     getUser: async () => ({ data: { user: session.user } }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    onAuthStateChange: listener => {
+      window.authListeners.add(listener);
+      return { data: { subscription: { unsubscribe() { window.authListeners.delete(listener); } } } };
+    },
   },
   rpc: async (name, args = {}) => {
     window.rpcCalls.push({ name, args });

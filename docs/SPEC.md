@@ -82,6 +82,7 @@
 ```
 
 - PDF binary 不放入 `content_json`；以 attachment／asset 管理。
+- 附件同步（Refs #84）：先讀 owner-scoped metadata 與伺服器 revision；本機已驗證同版本時完整內容下載為 0。首次／新裝置、版本變更或快取損壞才下載，下載期間重新核對版本；舊無版本快取需一次重驗。帳號隔離、刪除標記、未上傳本機內容與離線功能優先；跨分頁合併下載，失敗可重試。同帳號憑證刷新不重建引擎，背景降低同步頻率、回前景檢查變更。既有 revision 也可能因 metadata 修改而遞增，此時允許保守重驗該附件，不重抓其他附件。
 - 一篇 PDF 對一篇主 research note 是起步 UX，不是資料模型硬限制。
 - Viewer 現有 Open、Small/Medium/Large、Hide/Show、loading/unavailable/normal 三態。
 

@@ -1,6 +1,13 @@
-# Nexus — 當前交接（2026-10-18）
+# Nexus — 當前交接（2026-10-19）
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
+
+## 本輪：附件零重複下載（Refs #84）
+
+- `fix/attachment-sync-cache`：版本 metadata-first、owner 快取、跨分頁租約、同帳號 auth reuse、同分頁同步合併與背景節流；未變更附件後續完整下載0次。無 migration／RLS 調整／正式資料操作，尚未合併或部署。
+- 六份合成64KiB附件、六輪同步：36次／3,145,824 Base64 bytes → 6次／524,304 bytes；後五輪0次／0 bytes。舊版無版本快取先重驗一次。
+- 32項核心回歸、TypeScript、build通過；Edge真實雙分頁通過。完整舊工作區UI suite在字典管理過時checkbox逾時，不列為通過。測試範圍與發布監控見 `operations/ATTACHMENT-SYNC-CACHE.md`。
+- 字典N+1摘要RPC僅完成評估，未實作；正式帳號／Safari／跨裝置驗收留#60。
 
 ## 本輪：字典詳情連續閱讀（Refs #82）
 

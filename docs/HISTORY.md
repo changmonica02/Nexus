@@ -2,6 +2,12 @@
 
 > 最新日期與最新實作置於文件上方。歷史段落記錄當時狀態；目前產品契約看 SPEC，實作與部署現況看 ARCHITECTURE／HANDOFF。
 
+## 2026-10-19｜附件版本快取與同步觸發（Refs #84）
+
+- 重複流量來自完整同步先抓 binary 再查本機。改以現有原子 attachment revision 判斷下載，不新增內容hash欄位或更動正式資料；owner／版本／pending intent／tombstone在寫入交易再次驗證。metadata-only 更新可能保守重抓單檔，優先安全與最小資料契約變更。
+- 同源多分頁共用 IndexedDB 下載租約，避免依賴 Web Locks；當機可逾時接手。登入憑證更新沿用引擎，同分頁合併 fullSync，背景降低頻率，前景恢復確認，離線 outbox 保留。
+- 合成六份附件六輪：完整內容36次降至6次，後續五輪0次；本機驗證與正式部署狀態分開記錄，詳見 HANDOFF 及 operations/ATTACHMENT-SYNC-CACHE.md。
+
 ## 2026-10-18｜整筆字典詞條刪除與編輯器簡化
 
 - 既有 Word／Prefix／Root 主操作區新增紅色「刪除詞條」，具明確永久性確認、防重送、完整snapshot／revision CAS及冪等重試。成功提示並返回重新查詢的管理清單；取消／失敗保留輸入，新增未儲存頁不顯示。

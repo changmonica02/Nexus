@@ -33,7 +33,12 @@ test('account deletion: confirmation, permissions, cascades, rollback and stale 
       await pg.query('insert into study_quiz_attempt_receipts(owner_id,event_id,card_id,correct,answered_at,batch_id,local_sequence,applied_revision) values($1,$2,$3,false,1,$4,1,1)',[id,'attempt','card','batch']);
       const fixture = require('./etymologyFixture.cjs')();
       for(const [name,rows] of Object.entries(fixture)) for(const row of rows) {
-        const record={owner_id:id,...row},keys=Object.keys(record);
+        const record={owner_id:id,...row};
+        // This migration test intentionally uses the legacy 2026-09-29 schema.
+        // The shared modern import fixture also carries a later data_source field.
+        delete record.data_source;
+        if (name === 'word_senses' || name === 'claims') record.verification = 'unverified';
+        const keys=Object.keys(record);
         await pg.query(`insert into etymology_${name} (${keys.join(',')}) values (${keys.map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(record));
       }
     }

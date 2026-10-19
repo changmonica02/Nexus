@@ -320,6 +320,7 @@ function NexusAppInner({
   useEffect(() => {
     let cancelled = false;
     let syncRun = 0;
+    let syncOwner: string | null = null;
     let authSubscription: { unsubscribe: () => void } | null = null;
     const adapter = new IndexedDBAdapter();
 
@@ -394,11 +395,25 @@ function NexusAppInner({
         if (supabase) {
           const deviceId = await adapter.getDeviceId();
           const startAccountSync = async (userId: string) => {
+            // INITIAL_SESSION/SIGNED_IN/TOKEN_REFRESHED for this owner reuse the
+            // running engine (including an initial sync already in flight).
+            if (cancelled || syncOwner === userId) return;
+            syncOwner = userId;
             const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
+            if (adapter.getWorkspaceOwner() !== userId) {
+              setPages([]);
+              setAttachments([]);
+              setTrashPages([]);
+              setActivePageId(null);
+              setSecondaryActivePageId(null);
+            }
+            adapter.setWorkspaceOwner(userId);
             // A browser's IndexedDB is shared by every account. Select the
             // signed-in account's cache before any pull or push can run.
-            await adapter.claimAnonymousWorkspace?.(userId);
+            try { await adapter.claimAnonymousWorkspace?.(userId); }
+            catch (error) { if (thisRun === syncRun) syncOwner = null; throw error; }
+            if (cancelled || thisRun !== syncRun) return;
             adapter.setWorkspaceOwner(userId);
             const engine = new SyncEngine(supabase, adapter, deviceId, userId);
             syncEngineRef.current = engine;
@@ -438,7 +453,9 @@ function NexusAppInner({
             setIsAuthenticated(!!nextSession?.user);
             setIsAuthResolved(true);
             if (event === "SIGNED_OUT" || !nextSession?.user) {
+              syncOwner = null;
               syncRun += 1;
+              const signedOutRun = syncRun;
               syncEngineRef.current?.destroy();
               syncEngineRef.current = null;
               adapter.setWorkspaceOwner(null);
@@ -451,7 +468,7 @@ function NexusAppInner({
               setActivePageId(null);
               setSecondaryActivePageId(null);
               void Promise.all([adapter.listPages(), adapter.listAttachments()]).then(([localPages, localAttachments]) => {
-                if (!cancelled) {
+                if (!cancelled && syncRun === signedOutRun) {
                   setPages(localPages);
                   setAttachments(localAttachments);
                   setActivePageId(getWorkspaceEntryPage(localPages)?.id ?? null);

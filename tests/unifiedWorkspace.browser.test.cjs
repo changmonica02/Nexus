@@ -6,7 +6,7 @@ const { test } = require("node:test"),
   http = require("node:http");
 const { build } = require("esbuild"),
   { chromium } = require("playwright");
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..").replaceAll('\\', '/');
 async function until(page, predicate, arg) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
@@ -17,7 +17,7 @@ async function until(page, predicate, arg) {
 }
 
 test(
-  "actual shared workspace: overlay/focus/footer at four sizes, settings, tools, Web navigation, collection menus and dictionary union/pagination",
+  process.env.NEXUS_SYNC_ONLY ? "actual workspace auth: token refresh and dictionary navigation reuse sync engine at four sizes" : "actual shared workspace: overlay/focus/footer at four sizes, settings, tools, Web navigation, collection menus and dictionary union/pagination",
   { timeout: 180000 },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-ui-"));
@@ -34,7 +34,7 @@ test(
           name: "isolated-services",
           setup(b) {
             b.onLoad(
-              { filter: /infrastructure\/supabase\/client\.ts$/ },
+              { filter: /infrastructure[\\/]supabase[\\/]client\.ts$/ },
               () => ({
                 contents:
                   "export const getSupabase=()=>window.dictionaryClient;export const isSupabaseConfigured=()=>true;",
@@ -42,10 +42,10 @@ test(
               }),
             );
             b.onLoad(
-              { filter: /infrastructure\/sync\/syncEngine\.ts$/ },
+              { filter: /infrastructure[\\/]sync[\\/]syncEngine\.ts$/ },
               () => ({
                 contents:
-                  "export class SyncEngine { subscribe(){}setOnRemoteChange(){}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
+                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(){}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
                 loader: "js",
               }),
             );
@@ -114,6 +114,18 @@ test(
           exact: true,
         });
         await opener.waitFor();
+        await page.waitForFunction(() => window.authListeners?.size > 0);
+        const engines = await page.evaluate(() => window.engineCount);
+        await page.evaluate(() => { window.refreshAuth(); window.refreshAuth(); });
+        await page.waitForTimeout(100);
+        assert.equal(await page.evaluate(() => window.engineCount), engines, 'same-account token refresh reuses sync engine');
+        if (process.env.NEXUS_SYNC_ONLY) {
+          await page.evaluate(() => { history.pushState(null, '', '/dictionary'); window.dispatchEvent(new Event('fixture-nav')); });
+          await page.getByRole('heading', { name: '字典管理', exact: true }).waitFor();
+          assert.equal(await page.evaluate(() => window.engineCount), engines, 'dictionary navigation keeps existing workspace engine');
+          await context.close();
+          continue;
+        }
         if (width === 1440) {
           await page.evaluate(() => {
             localStorage.setItem(

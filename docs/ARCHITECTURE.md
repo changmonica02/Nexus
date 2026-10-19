@@ -117,6 +117,15 @@ sort_order, parent/subpage relationship（若目前 source 有使用）
 
 ```
 Attachment metadata 與 binary payload 分離。
+
+### 附件版本快取與同步合併（2026-10-19，Refs #84；本機已實作，待部署）
+
+- `pullWorkspace` 仍先處理 tombstone／owner metadata；binaries 列表僅取 `id,owner_id`。`apply_workspace_operations` 的 binary 寫入會原子增加 attachment revision，因此以 `(owner,id,attachment revision)` 判斷快取；不依賴檔名、下載時間或 binaries.updated_at。不新增 SQL、索引或 RLS 變更。
+- IndexedDB binaries 加入可選 `owner_id,server_revision,verified_size`；舊紀錄保留，第一次同步重新驗證一次，無需升級 DB version。只有缺失／版本不同／Blob 或大小不符時下載內容；下載後再讀 attachment revision／deleted_at，落盤交易再次檢查 owner、版本、tombstone、pending outbox。既有本機修改不被覆蓋；失敗保留快取與 outbox，可重試。附件 metadata 修改也會增加版本，保守地重新驗證該單一檔案。
+- `workspace_sync_meta` 保存 owner/id 專屬 60 秒下載租約；IndexedDB readwrite 交易讓同源多分頁互斥。網路下載 45 秒逾時，租約過期可接手，舊 token 不能覆蓋新租約；其他分頁下次同步讀共用快取。此機制只合併檔案下載，各分頁仍可讀 metadata。Blob 的結構／大小檢查不是密碼學內容校驗。
+- `IndexedDBAdapter.getAttachment/readBinary` 加強 owner 篩選與已知過期版本的讀取保護。登出／帳號切換立即清空舊帳號 UI，晚到的同步及登出讀取不得套用至新帳號。同帳號 auth refresh 沿用 SyncEngine。
+- 同分頁 fullSync 共用進行中的 Promise；同步中的變更合併為一次後續同步，保留持久 outbox。前景週期仍 60 秒；背景週期降至 5 分鐘，事件合併延遲 5 秒；恢復前景重新確認。沒有停用離線／跨裝置同步。
+- 量測、限制、發布／回復與監控見 `operations/ATTACHMENT-SYNC-CACHE.md`。正式帳號與 Safari 驗收尚未執行。
 PDF、未來 image insert 等資源走 Attachment / Asset abstraction。
 Page / Presentation / Canvas / Website 應引用資源，不直接把 blob 塞入 content_json。
 ```
