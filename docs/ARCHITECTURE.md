@@ -1,5 +1,14 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
+
+- `WorkspacePane` 統一主／次窗格類型分派，NexusApp 保留頁面專屬儲存、匯出與工具操作；`useAttachmentPreview` 共用本機 PDF 讀取，取消過期回應並回收各窗格 Object URL。
+- `SaveStatus` 由實際 `savePage` 結果驅動；每頁 debounce／序列寫入仍獨立，較早完成的寫入不會把新修改標成已儲存。失敗保留待寫內容，重試與目前窗格 Ctrl/Cmd+S 走同一 flush。提示僅代表此裝置寫入，雲端同步另行呈現。
+- `ModalDialog` 共用原生 dialog 焦點、Escape、busy 與背景關閉策略；`useAnchoredMenu` 共用選單位置、dialog 內 portal、視窗調整及鍵盤導航。編輯器選單保留文字選取。
+- 工具總覽使用 `FeatureOverview`，保留各分頁儲存的排列偏好；學習存檔提示統一為 `AnswerSaveNotice`。
+- 移除無入口的 creatableRegistry、useSidebarPreference、DailyStudySession／studyPractice；保留 SPEC 中的 inbox、歷史 quiz 相容模組、受測的 deleteDrafts、world 編輯與舊匯入 fallback。沒有資料遷移、RLS 或 RPC 變更。
+
+
 ## 2026-10-18 整筆詞條刪除與精簡編輯器（已實作／測試，SQL已套用）
 
 - `deleteEntry.ts`先讀取管理快照、核對已載入revision，再確認後送出`delete_dictionary_entry(entry_uuid,expected_revision,expected_snapshot,operation_uuid)`。Editor以ref鎖住重送與原operation/snapshot，網路掉回覆可重試；baseline revision變更時換新操作。Published Review編輯使用canonical Entry身份，不能誤把Review revision當Published revision。

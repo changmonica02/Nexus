@@ -17,7 +17,7 @@ async function until(page, predicate, arg) {
 }
 
 test(
-  process.env.NEXUS_SYNC_ONLY ? "actual workspace auth: token refresh and dictionary navigation reuse sync engine at four sizes" : "actual shared workspace: overlay/focus/footer at four sizes, settings, tools, Web navigation, collection menus and dictionary union/pagination",
+  process.env.NEXUS_SAVE_ONLY ? "actual workspace: slow/failed saves, retry, newer edits and split-pane isolation" : process.env.NEXUS_SYNC_ONLY ? "actual workspace auth: token refresh and dictionary navigation reuse sync engine at four sizes" : "actual shared workspace: overlay/focus/footer at four sizes, settings, tools, Web navigation, collection menus and dictionary union/pagination",
   { timeout: 180000 },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-ui-"));
@@ -119,6 +119,51 @@ test(
         await page.evaluate(() => { window.refreshAuth(); window.refreshAuth(); });
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(() => window.engineCount), engines, 'same-account token refresh reuses sync engine');
+        if (process.env.NEXUS_SAVE_ONLY) {
+          await opener.click();
+          const drawer = page.getByRole('dialog', {name:'開啟導覽',exact:true});
+          await drawer.getByText('Sample note',{exact:true}).click();
+          const pane = page.locator('[data-workspace-pane]');
+          const titleInput = pane.locator('input[type=text]').first();
+          await titleInput.waitFor();
+          await page.evaluate(() => { window.saveBehavior='hold'; window.saveAttempts=[]; });
+          await titleInput.fill('Delayed note');
+          await titleInput.press('Control+s');
+          await page.waitForFunction(() => window.releaseSave);
+          await page.waitForTimeout(1000);
+          assert.equal(await pane.locator('[data-save-status]').getAttribute('data-save-status'),'saving');
+          await page.evaluate(() => { window.saveBehavior='fail'; window.releaseSave(); });
+          await pane.locator('[data-save-status=error]').waitFor();
+          assert.equal(await titleInput.inputValue(),'Delayed note');
+          assert.equal(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.title==='Delayed note')),false);
+          await page.evaluate(() => {window.saveBehavior='normal';});
+          await pane.getByRole('button',{name:'重試儲存',exact:true}).click();
+          await pane.locator('[data-save-status=saved]').waitFor();
+          assert.equal(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.title==='Delayed note')),true);
+          await page.evaluate(() => { window.saveBehavior='hold'; window.releaseSave=null; });
+          await titleInput.fill('Older write'); await titleInput.press('Control+s');
+          await page.waitForFunction(() => window.releaseSave);
+          await titleInput.fill('Newest write');
+          await page.evaluate(() => {window.saveBehavior='normal';window.releaseSave();});
+          await pane.locator('[data-save-status=saved]').waitFor();
+          assert.equal(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.title==='Newest write')),true);
+          if(width===1440){
+            await page.getByRole('button',{name:'開啟導覽',exact:true}).click();
+            await drawer.getByText('A note',{exact:true}).click({modifiers:['Control']});
+            await page.waitForFunction(()=>document.querySelectorAll('[data-workspace-pane]').length===2);
+            const panes=page.locator('[data-workspace-pane]');
+            await panes.nth(0).locator('input[type=text]').first().fill('Left note');
+            await panes.nth(0).locator('input[type=text]').first().press('Control+s');
+            await panes.nth(0).locator('[data-save-status=saved]').waitFor();
+            assert.equal(await panes.nth(1).locator('input[type=text]').first().inputValue(),'Newest write');
+            await panes.nth(1).locator('input[type=text]').first().fill('Right note');
+            await panes.nth(1).locator('input[type=text]').first().press('Control+s');
+            await panes.nth(1).locator('[data-save-status=saved]').waitFor();
+            const saved=await page.evaluate(async()=> (await window.fixtureStorage.listPages()).filter(p=>['Left note','Right note'].includes(p.title)).map(p=>p.kind).sort());
+            assert.deepEqual(saved,['note','note']);
+          }
+          await context.close(); continue;
+        }
         if (process.env.NEXUS_SYNC_ONLY) {
           await page.evaluate(() => { history.pushState(null, '', '/dictionary'); window.dispatchEvent(new Event('fixture-nav')); });
           await page.getByRole('heading', { name: '字典管理', exact: true }).waitFor();
@@ -953,11 +998,7 @@ test(
             .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().top));
           assert.ok(Math.abs(boxes[0] - boxes[1]) < 3);
         }
-        assert.ok(
-          (await page.locator("[data-dictionary-list]").textContent()).includes(
-            "待審核",
-          ),
-        );
+        assert.ok(await page.locator('[data-dictionary-list]').getByRole('img', {name:'🔴 待審核',exact:true}).count());
         await navs
           .first()
           .getByRole("button", { name: "編輯第 2 頁", exact: true })

@@ -30,6 +30,7 @@ window.dictionaryClient = {
   },
   rpc: async (name, args = {}) => {
     window.rpcCalls.push({ name, args });
+    if (name === "dictionary_admin_first_senses") return {data:[]};
     if (name === "is_dictionary_admin") return { data: true };
     if (name === "list_dictionary_admin_work") {
       const scoped = entries.filter(
@@ -146,6 +147,15 @@ if (!(await storage.listPages()).length) {
   const character=await storage.createPage({kind:'creative',title:'Sample character',format:'flow'});await storage.savePage({...character,creative_type:'character',character_data:{basic:{name:'Character😀'},sections:[]}});
 }
 window.fixtureStorage = storage;
+const originalSave = IndexedDBAdapter.prototype.savePage;
+window.saveBehavior = 'normal';
+window.saveAttempts = [];
+IndexedDBAdapter.prototype.savePage = async function(page) {
+  window.saveAttempts.push(page.title);
+  if (window.saveBehavior === 'hold') await new Promise(resolve => { window.releaseSave = resolve; });
+  if (window.saveBehavior === 'fail') throw new Error('Synthetic disk failure');
+  return originalSave.call(this, page);
+};
 createRoot(document.getElementById("root")).render(
   <>
     <WorkspaceRoot>

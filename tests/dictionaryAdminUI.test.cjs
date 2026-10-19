@@ -74,7 +74,8 @@ test('dictionary modal is bounded, scrollable and cancels through the guarded cl
   assert.ok(html.includes('<dialog'));assert.ok(html.includes('max-h-[90dvh]'));assert.ok(html.includes('overflow-y-auto'));
   assert.ok(html.includes('var(--color-bg)'));assert.ok(html.includes('關閉'));
   const source=fs.readFileSync('src/features/dictionary/DictionaryModal.tsx','utf8');
-  assert.ok(source.includes('dialog.showModal()'));assert.ok(source.includes('if(!busy)onClose()'));
+  assert.ok(source.includes('busy={busy}'));assert.ok(source.includes('onDismiss={onClose}'));
+  const base=fs.readFileSync('src/components/ModalDialog.tsx','utf8');assert.ok(base.includes('dialog?.showModal()'));assert.ok(base.includes('if (!busy) onDismiss()'));
 });
 
 // Defer functional updaters as React may do after a controlled select's DOM value

@@ -5,6 +5,7 @@ import { previewStudy, type Grade, type StudySnapshot } from '../studyFSRS';
 import type { StudySession } from '../studySessions';
 import { scheduledStatus } from '../scheduledStudy';
 import { useLanguage } from '../../../lib/LanguageContext';
+import AnswerSaveNotice from "./AnswerSaveNotice";
 import CardDictionaryPanel from '../../dictionary/CardDictionaryPanel';
 import { getSupabase } from '../../../infrastructure/supabase/client';
 import { syncStudy } from '../studySync';
@@ -104,8 +105,7 @@ export default function ScheduledStudySession({repository,deckId,onExit}:{reposi
     </>:<div className="space-y-3 py-8 text-center">
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
     </div>}
-    {saving&&<p role="status" className="text-sm">{t('study.saving')}</p>}
-    {error&&<div role="alert" className="w-full rounded border border-red-400 p-3 text-sm">{error}{hasAttempt&&<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void mark(attempt.current!.rating)}>{t('study.retryAnswer')}</button>}<button type="button" className="ml-2 underline" disabled={saving} onClick={()=>void change('reload')}>{t('study.reload')}</button></div>}
+    <AnswerSaveNotice saving={saving} error={error} onRetry={hasAttempt?()=>void mark(attempt.current!.rating):undefined} onReload={()=>void change('reload')}/>
     <button type="button" disabled={saving} className="text-sm underline opacity-70" onClick={onExit}>{t(practice?'study.stopPractice':'study.back')}</button>
   </div>;
 }

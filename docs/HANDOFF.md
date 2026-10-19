@@ -2,6 +2,14 @@
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
+## 2026-10-19 最新交付準備（Refs #84、#85）
+
+- `refactor/workspace-components` 包含附件修復與共用元件整理；使用者已明確授權測試通過後上傳／合併 main（可能觸發 Vercel）。本段記錄提交前狀態，合併及部署結果以 PR／Vercel 記錄為準。
+- 統一窗格、PDF 預覽、dialog、menu、總覽與學習存檔提示；真實每頁本機寫入狀態取代假成功計時器。無 migration／RLS／資料刪除。
+- 八組隔離瀏覽器驗證通過，包含完整工作區與學習流程、雙窗格延遲寫入／失敗重試、雙分頁附件。TypeScript／build 通過，修改 production 檔 ESLint 0 errors／37 warnings。詳見 `operations/WORKSPACE-COMPONENTS.md`。
+- 下方 #84 舊 UI 測試阻塞已由 #85 更新 fixture 與舊 checkbox 斷言解決。#82 已透過 PR #83 合併；下方未部署文字為先前交接狀態，不作最新部署證據。
+- 字典列表 N+1 僅評估，未混入本輪；真實帳號／Safari／跨裝置仍留 #60。
+
 ## 本輪：附件零重複下載（Refs #84）
 
 - `fix/attachment-sync-cache`：版本 metadata-first、owner 快取、跨分頁租約、同帳號 auth reuse、同分頁同步合併與背景節流；未變更附件後續完整下載0次。無 migration／RLS 調整／正式資料操作，尚未合併或部署。

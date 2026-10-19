@@ -16,6 +16,8 @@
 
 ## 驗證
 
+2026-10-19 #85 後續回歸：已更新工作區 fixture 的字典摘要 RPC mock 及過時狀態 checkbox 定位，完整 unifiedWorkspace 四種寬度通過；下方舊失敗描述保留作先前測試紀錄。
+
 - 32 項 Node／IndexedDB／PGlite：工作區27、學習同步3、帳號刪除與本機清理2，均通過。涵蓋首次、新裝置、未變更、單一更新、軟／永久刪除、離線重試、丟失回應、帳號切換、late response、pending edit、lease crash recovery、背景節流及備份／學習契約。帳號刪除 fixture 修正為其歷史 migration 的欄位，沒有更動正式 SQL。
 - 真實 Edge 同源雙分頁／真實 IndexedDB：併發首次只下載1次，後續五輪0次，更新只下載1次；離線可讀、重連、不同帳號／登出不可讀，刪除後不可讀。僅本機 HTTP 合成資料。
 - 工作區介面聚焦模式 `NEXUS_SYNC_ONLY=1`：以實際 NexusApp、模擬引擎驗證同帳號 TOKEN_REFRESHED 與字典導航不重建引擎；附件零下載另由實際引擎／雙分頁測試驗證。

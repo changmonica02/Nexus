@@ -1,4 +1,5 @@
 "use client";
+import SaveStatus, { type PageSaveState } from "./SaveStatus";
 import {SidebarToggle} from "./WorkspaceNavigation";
 import { type CSSProperties, useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
 import type { Page, Attachment, PageFormat, PageMargins } from "../lib/types";
@@ -37,7 +38,10 @@ export default function EditorPane({
   margins,
   onMarginsChange,
   onBackToInterface,
+  saveState, onSave,
 }: {
+  saveState?: PageSaveState;
+  onSave?: () => Promise<void>;
   page: Page | null;
   attachment: Attachment | null;
   pdfUrl: string | null;
@@ -101,47 +105,20 @@ export default function EditorPane({
     return () => observer.disconnect();
   }, []);
 
-  // 自動存檔狀態回饋
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "just_saved">("saved");
-  const [lastSavedTime, setLastSavedTime] = useState<string>("");
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const handleContentWithAutoSave = useCallback((payload: { json: any; text: string }) => {
-    setSaveStatus("saving");
     onContentChange({ ...payload, json: { ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      setSaveStatus("saved");
-      const now = new Date();
-      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
-    }, 800);
   }, [onContentChange]);
-
-  const handleTitleWithAutoSave = useCallback((title: string) => {
-    setSaveStatus("saving");
-    onTitleChange(title);
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      setSaveStatus("saved");
-      const now = new Date();
-      setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
-    }, 800);
-  }, [onTitleChange]);
-
-  // 鍵盤 Ctrl+S / Cmd+S 手動立即儲存
+  const handleTitleWithAutoSave = onTitleChange;
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        setSaveStatus("just_saved");
-        const now = new Date();
-        setLastSavedTime(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
-        setTimeout(() => setSaveStatus("saved"), 1500);
-      }
+    const save = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      if (!(event.target instanceof Node) || !lessonRootRef.current?.contains(event.target)) return;
+      event.preventDefault();
+      void onSave?.().catch(() => undefined); // Workspace state retains the failure and pending edit.
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    window.addEventListener("keydown", save);
+    return () => window.removeEventListener("keydown", save);
+  }, [onSave]);
 
   // The editor toolbar is rendered into this node with a portal.  A normal effect
   // can run while a browser tab is hidden, leaving the portal measured at zero
@@ -274,7 +251,7 @@ export default function EditorPane({
   };
 
   return (
-    <main ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
+    <main data-workspace-pane={page.id} ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
@@ -398,27 +375,7 @@ export default function EditorPane({
           </>}
           <div className="flex-1" />
 
-          {/* 自動存檔即時狀態指示器 */}
-          <div className="flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded select-none shrink-0 mr-2">
-            {saveStatus === "saving" && (
-              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 animate-pulse">
-                <span>🟡</span>
-                <span>正在儲存...</span>
-              </span>
-            )}
-            {saveStatus === "just_saved" && (
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                <span>✓</span>
-                <span>已立即手動存檔</span>
-              </span>
-            )}
-            {saveStatus === "saved" && (
-              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity" title="所有文字編輯已自動即時儲存">
-                <span>🟢</span>
-                <span>已自動儲存{lastSavedTime ? ` (${lastSavedTime})` : ""}</span>
-              </span>
-            )}
-          </div>
+          <SaveStatus state={saveState} onRetry={() => { void onSave?.().catch(() => undefined); }} />
 
           {isSplitView ? (
             <div className="flex items-center gap-1">
