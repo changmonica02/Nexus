@@ -12,6 +12,7 @@ import PaginatedEditorView from "./PaginatedEditorView";
 import FileMenu from "./FileMenu";
 import ToolbarDropdown from "./ToolbarDropdown";
 import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
+import NoteExportPreview from "./NoteExportPreview";
 
 export default function EditorPane({
   page,
@@ -82,6 +83,8 @@ export default function EditorPane({
   const [showRuler, setShowRuler] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(false);
   const [isWordCountOpen, setIsWordCountOpen] = useState(false);
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [exportSource, setExportSource] = useState<HTMLElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isThumbRailOpen, setIsThumbRailOpen] = useState(true);
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
@@ -111,6 +114,10 @@ export default function EditorPane({
     onContentChange({ ...payload, json: { ...documentMetadataRef.current, ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
   }, [onContentChange]);
   const handleTitleWithAutoSave = onTitleChange;
+  const openExportPreview = () => {
+    setExportSource(lessonRootRef.current?.querySelector<HTMLElement>(".nexus-print-target .ProseMirror") ?? null);
+    setExportPreviewOpen(true);
+  };
   useEffect(() => {
     const save = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
@@ -299,9 +306,9 @@ export default function EditorPane({
             isPresentation={isPresentation}
             onFormatChange={onFormatChange}
             onExportMarkdown={onExportMarkdown}
-            onExportPdf={onExportPdf}
+            onExportPdf={isLessonNote && !isPaged ? openExportPreview : onExportPdf}
             onExportNexus={onExportNexus}
-            onPrint={() => window.print()}
+            onPrint={isLessonNote && !isPaged ? openExportPreview : () => window.print()}
             onNewNote={onNewNote}
             onNewDocument={onNewDocument}
             onImportPdf={onImportPdf}
@@ -550,6 +557,10 @@ export default function EditorPane({
         </>
       )}
       </div>
+      {exportPreviewOpen && isLessonNote && !isPaged && <NoteExportPreview
+        source={exportSource}
+        title={page.title} header={lessonLayout.header} footer={lessonLayout.footer} pageNumbers={lessonLayout.pageNumbers}
+        onClose={() => setExportPreviewOpen(false)} onSave={onSave} />}
     </main>
   );
 }

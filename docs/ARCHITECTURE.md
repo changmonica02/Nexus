@@ -126,6 +126,11 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
 - 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
 
+## 2026-10-19 筆記改版第二批（Refs #87；本機實作，未部署）
+
+- `TiptapEditor` 沿用既有 rich schema；`MultiColumn` 以所選頂層區塊局部包覆，NodeView 儲存 20–80 欄寬比例，移入／移出與攤平操作保留子區塊；`FoldBlock` 儲存嵌套內容與展開狀態。把手與斜線選單修改原 Tiptap transaction，頂層區塊拖曳落點以穩定 ID 搬移同一節點並隔開 undo 群組；繼續使用既有 `content_json` 自動儲存／同步，無 migration。
+- `FloatingSidebar` 在桌面 Note 編輯頁變成共用 Sidebar 的 docked 呈現，寬度與開合只存本機 localStorage；手機與其他功能維持原浮層。`NoteExportPreview` 複製已渲染 DOM，於副本展開摺疊並依 A4 可用高度分頁；PDF 列印從預覽輸出，不改 Note JSON。舊 paged Note 保持原呈現／匯出，待無損過渡規則確認。
+
 ## 2026-10-19 筆記改版第一批（Refs #87；本機實作，未部署）
 
 - 同步讀取開始時保留 pending 快照，回填時優先採目前 pending，再採讀取開始時 pending。避免遠端通知以較舊 IndexedDB 內容覆蓋 800ms debounce／寫入中的本機修改，引發 Tiptap setContent 與游標跳動；未改同步頻率、附件下載或權限。

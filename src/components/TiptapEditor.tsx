@@ -27,6 +27,9 @@ import { createObsidianMathNodeView } from "../lib/obsidianMathNodeView";
 import { ObsidianMathInput } from "../lib/obsidianMathInput";
 import { PageBreak } from "../lib/pageBreakExtension";
 import { MultiColumn, Column } from "../lib/multiColumnExtension";
+import { FoldBlock } from "../lib/foldBlockExtension";
+import { NodeSelection } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
 import { WritingModeExtension } from "../lib/writingModeExtension";
 import { StableBlockId } from "../lib/stableBlockIdExtension";
 import { CellSelection, TableMap } from "prosemirror-tables";
@@ -298,6 +301,18 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   const editorRef = useRef<Editor | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [toolbarState, setToolbarState] = useState<ToolbarState>(emptyToolbarState);
+  const hoveredBlockRef = useRef<{ pos: number; size: number; type: string } | null>(null);
+  const hoveredElementIdRef = useRef<string | null>(null);
+  const draggedBlockIdRef = useRef<string | null>(null);
+  const selectedBlockRef = useRef<string | null>(null);
+  const [blockMenu, setBlockMenu] = useState<{ left: number; top: number; type: string; canMoveLeft: boolean; canMoveRight: boolean; canMoveOut: boolean } | null>(null);
+  const [slashMenu, setSlashMenu] = useState<{ from: number; to: number; query: string; left: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!blockMenu && !slashMenu) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setBlockMenu(null); setSlashMenu(null); } };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [blockMenu, slashMenu]);
   const [marginsPanelOpen, setMarginsPanelOpen] = useState(false);
   const handledFocusRevisionRef = useRef<number | null>(null);
   const [marginsPos, setMarginsPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -394,6 +409,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           PageBreak,
           Column,
           MultiColumn,
+          FoldBlock,
           WritingModeExtension,
           BlockMath.extend({ addNodeView() { return createObsidianMathNodeView(false); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
           InlineMath.extend({ addNodeView() { return createObsidianMathNodeView(true); }, addInputRules() { return []; } }).configure({ katexOptions: { throwOnError: false } }),
@@ -404,6 +420,15 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         // editor lives inside a scrolling pane or a resized split editor.
         ...(variant !== "novel" ? [DragHandle.configure({
           computePositionConfig: { placement: "left-start", strategy: "fixed" },
+          nested: true,
+          onElementDragStart: () => { draggedBlockIdRef.current = hoveredElementIdRef.current; },
+          onElementDragEnd: () => { draggedBlockIdRef.current = null; },
+          onNodeChange: ({ node, editor: active }) => {
+            if (!node) { hoveredBlockRef.current = null; hoveredElementIdRef.current = null; return; }
+            let found = -1;
+            active.state.doc.descendants((item, pos) => { if (item === node) { found = pos; return false; } return true; });
+            hoveredBlockRef.current = found < 0 ? null : { pos: found, size: node.nodeSize, type: node.type.name };
+          },
           render: () => {
             const el = document.createElement("div");
             el.classList.add("nexus-drag-handle");
@@ -412,6 +437,43 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
             el.style.visibility = "hidden";
             el.style.pointerEvents = "none";
             el.innerHTML = "⠿";
+            el.setAttribute("aria-label", "區塊操作與拖曳");
+            el.setAttribute("role", "button");
+            el.tabIndex = 0;
+            const open = (shift: boolean) => {
+              const ed = editorRef.current;
+              let block = hoveredBlockRef.current;
+              if (!ed || !block) return;
+              // DragHandle may report a layout parent (such as multiColumn) while
+              // the pointer is over a child paragraph. Prefer the actual block
+              // beside the handle so actions do not duplicate the whole layout.
+              const handleRect = el.getBoundingClientRect();
+              const target = document.elementFromPoint(handleRect.right + 12, handleRect.top + handleRect.height / 2);
+              const blockElement = target instanceof Element ? target.closest<HTMLElement>("[data-id]") : null;
+              const hoveredId = hoveredElementIdRef.current || (blockElement && ed.view.dom.contains(blockElement) ? blockElement.dataset.id : null);
+              if (hoveredId) {
+                ed.state.doc.descendants((candidate, pos) => {
+                  if (candidate.attrs.id === hoveredId) {
+                    block = { pos, size: candidate.nodeSize, type: candidate.type.name };
+                    return false;
+                  }
+                  return true;
+                });
+              }
+              const node = ed.state.doc.nodeAt(block.pos);
+              if (!node) return;
+              if (shift && selectedBlockRef.current) {
+                let anchorPos = -1, anchorSize = 0;
+                ed.state.doc.descendants((candidate, pos) => { if (candidate.attrs.id === selectedBlockRef.current) { anchorPos = pos; anchorSize = candidate.nodeSize; return false; } return true; });
+                if (anchorPos >= 0) ed.commands.setTextSelection({ from: Math.min(anchorPos, block.pos), to: Math.max(anchorPos + anchorSize, block.pos + node.nodeSize) });
+              } else { ed.view.dispatch(ed.state.tr.setSelection(NodeSelection.create(ed.state.doc, block.pos))); selectedBlockRef.current = typeof node.attrs.id === "string" ? node.attrs.id : null; }
+              const bounds = el.getBoundingClientRect();
+              setSlashMenu(null);
+              setBlockMenu({ left: Math.min(bounds.right + 6, window.innerWidth - 208), top: Math.min(bounds.top, window.innerHeight - 330), type: node.type.name,
+                canMoveLeft: ed.can().moveColumnBlock("left"), canMoveRight: ed.can().moveColumnBlock("right"), canMoveOut: ed.can().moveColumnBlock("out") });
+            };
+            el.addEventListener("click", event => { event.preventDefault(); open(event.shiftKey); });
+            el.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(event.shiftKey); } });
             return el;
           },
         })] : []),
@@ -424,6 +486,10 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       content: content || { type: "doc", content: [{ type: "paragraph" }] },
       editorProps: {
         attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" },
+        handleDOMEvents: { mousemove: (_view, event) => {
+          hoveredElementIdRef.current = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-id]")?.dataset.id ?? null : null;
+          return false;
+        } },
         // Rich clipboard HTML can otherwise recreate table/image/list nodes
         // even though the novel toolbar does not expose them.
         handlePaste: (view, event) => {
@@ -435,7 +501,32 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           editor.commands.insertContentAt(view.state.selection, blocks);
           return true;
         },
-        handleDrop: () => variant === "novel",
+        handleDrop: (view, event) => {
+          if (variant === "novel") return true;
+          const draggedId = draggedBlockIdRef.current;
+          if (variant !== "rich" || !draggedId) return false;
+          let sourcePos = -1;
+          view.state.doc.descendants((node, pos) => { if (node.attrs.id === draggedId) { sourcePos = pos; return false; } return true; });
+          if (sourcePos < 0 || view.state.doc.resolve(sourcePos).depth !== 0) return false;
+          const source = view.state.doc.nodeAt(sourcePos), hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
+          if (!source || !hit) return false;
+          const $hit = view.state.doc.resolve(hit.pos);
+          if ($hit.depth < 1) return false;
+          for (let depth = 1; depth <= $hit.depth; depth++) if ($hit.node(depth).type.name === "column") return false;
+          const targetPos = $hit.before(1), target = view.state.doc.nodeAt(targetPos);
+          if (!target || targetPos === sourcePos) return false;
+          const targetElement = view.nodeDOM(targetPos);
+          const bounds = targetElement instanceof Element ? targetElement.getBoundingClientRect() : null;
+          const before = !bounds || event.clientY < bounds.top + bounds.height / 2;
+          const insertAt = before ? targetPos : targetPos + target.nodeSize;
+          if (insertAt === sourcePos || insertAt === sourcePos + source.nodeSize) return true;
+          event.preventDefault();
+          const tr = closeHistory(view.state.tr).delete(sourcePos, sourcePos + source.nodeSize);
+          tr.insert(tr.mapping.map(insertAt), source);
+          view.dispatch(closeHistory(tr).scrollIntoView());
+          draggedBlockIdRef.current = null;
+          return true;
+        },
       },
       onCreate() { refreshToolbarState(); },
       onSelectionUpdate() { refreshToolbarState(); },
@@ -471,6 +562,14 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           if (position >= offset && position <= offset + node.nodeSize) blockIndex = index;
         });
         const $pos = state.doc.resolve(Math.min(position, state.doc.content.size));
+        if (variant === "rich" && editor.isFocused && state.selection.empty && $pos.parent.isTextblock && !$pos.parent.type.spec.code) {
+          const before = state.doc.textBetween($pos.start(), position, undefined, " ");
+          const match = before.match(/(?:^|\s)\/([^\s/]*)$/u);
+          if (match) {
+            const coords = editor.view.coordsAtPos(position);
+            setSlashMenu({ from: position - match[1].length - 1, to: position, query: match[1], left: Math.max(8, Math.min(coords.left, window.innerWidth - 220)), top: Math.max(8, Math.min(coords.bottom + 6, window.innerHeight - 330)) });
+          } else setSlashMenu(null);
+        } else setSlashMenu(null);
         for (let depth = $pos.depth; depth > 0; depth--) {
           const node = $pos.node(depth);
           if (node.type.isBlock && typeof node.attrs?.id === "string" && node.attrs.id) {
@@ -1456,12 +1555,55 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     </div>
   );
 
+  const runBlockAction = (action: string, slash = false) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    ed.view.dispatch(closeHistory(ed.state.tr));
+    if (slash && slashMenu) ed.chain().focus().deleteRange({ from: slashMenu.from, to: slashMenu.to }).run();
+    switch (action) {
+      case "new": { const selection = ed.state.selection; ed.chain().focus().insertContentAt(selection.to, { type: "paragraph" }).run(); break; }
+      case "copy": void handleClipboardAction("copy"); break;
+      case "duplicate": { const { from, to } = ed.state.selection; ed.view.dispatch(ed.state.tr.insert(to, ed.state.selection.content().content).scrollIntoView()); break; }
+      case "delete": ed.commands.deleteSelection(); break;
+      case "undo": ed.commands.undo(); break;
+      case "paragraph": ed.chain().focus().setParagraph().run(); break;
+      case "heading": ed.chain().focus().toggleHeading({ level: 2 }).run(); break;
+      case "bullet": ed.chain().focus().toggleBulletList().run(); break;
+      case "task": ed.chain().focus().toggleTaskList().run(); break;
+      case "quote": ed.chain().focus().toggleBlockquote().run(); break;
+      case "fold": ed.chain().focus().wrapIn("foldBlock").run(); break;
+      case "columns": ed.chain().focus().setMultiColumn(2).run(); break;
+      case "moveLeft": ed.chain().focus().moveColumnBlock("left").run(); break;
+      case "moveRight": ed.chain().focus().moveColumnBlock("right").run(); break;
+      case "moveOut": ed.chain().focus().moveColumnBlock("out").run(); break;
+      case "math": ed.chain().focus().insertContent({ type: "blockMath", attrs: { latex: "" } }).run(); break;
+    }
+    ed.view.dispatch(closeHistory(ed.state.tr));
+    setBlockMenu(null); setSlashMenu(null);
+  };
+  const blockActions = [
+    ["new", "新增區塊"], ["copy", "複製"], ["duplicate", "建立副本"], ["delete", "刪除"], ["undo", "復原"],
+    ["paragraph", "轉換成文字"], ["heading", "轉換成標題"], ["bullet", "轉換成清單"],
+    ["task", "轉換成待辦"], ["quote", "轉換成引用"], ["fold", "轉換成摺疊"], ["columns", "建立雙欄"],
+    ["moveLeft", "移至左欄"], ["moveRight", "移至右欄"], ["moveOut", "移出雙欄"],
+  ] as const;
+  const slashActions = [...blockActions.filter(([id]) => !["copy", "duplicate", "delete", "undo", "moveLeft", "moveRight", "moveOut"].includes(id)), ["math", "插入公式"] as const];
+  const popover = slashMenu ? { ...slashMenu, actions: slashActions, slash: true } : blockMenu ? { ...blockMenu, actions: blockActions, slash: false } : null;
+
   return (
     <>
       {showToolbar && (toolbarTarget ? createPortal(renderToolbar(), toolbarTarget) : renderToolbar())}
       {showToolbar && editToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[200px]">{editTools}</div>, editToolbarTarget)}
       {showToolbar && insertToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[220px]">{insertTools}</div>, insertToolbarTarget)}
       {showToolbar && formatToolbarTarget && createPortal(<div className="flex flex-col items-stretch gap-0.5 p-1 min-w-[240px]">{formatTools}</div>, formatToolbarTarget)}
+      {popover && variant === "rich" && createPortal(<div role="menu" aria-label={popover.slash ? "斜線指令" : "區塊操作"} onMouseDown={event => event.preventDefault()}
+        className="fixed z-[10002] max-h-[330px] w-[200px] overflow-y-auto rounded-lg border bg-[var(--color-bg)] p-1 shadow-xl" style={{ left: popover.left, top: popover.top }}>
+        {popover.actions.filter(([, label]) => !popover.slash || label.includes(slashMenu?.query ?? "") || !slashMenu?.query).map(([id, label]) => (
+          <button key={id} type="button" role="menuitem" onClick={() => runBlockAction(id, popover.slash)}
+            disabled={!popover.slash && ((["paragraph", "heading", "bullet", "task", "quote", "fold"].includes(id) && !["paragraph", "heading", "blockquote", "bulletList", "orderedList", "taskList", "foldBlock"].includes(blockMenu?.type ?? "")) || (id === "moveLeft" && !blockMenu?.canMoveLeft) || (id === "moveRight" && !blockMenu?.canMoveRight) || (id === "moveOut" && !blockMenu?.canMoveOut))}
+            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-zinc-500/10 disabled:opacity-40">{label}</button>
+        ))}
+      </div>, document.body)}
       {clipboardMessage && <div role="status" className="fixed bottom-4 left-4 right-4 z-[10001] rounded-lg border bg-amber-50 p-3 text-sm text-zinc-900 shadow-lg">{clipboardMessage}<button className="ml-3 underline" onClick={() => setClipboardMessage("")}>關閉</button></div>}
       {marginsMenu}
       {textContextMenu}

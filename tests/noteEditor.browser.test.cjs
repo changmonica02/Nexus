@@ -31,6 +31,70 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   await page.keyboard.press('Control+a');await page.keyboard.type('$$x^2$$');await editor.locator('.nexus-math-block').waitFor();await page.locator('input[type=text]').first().click();
   await editor.locator('.math-preview').click();const source=editor.locator('textarea');await source.fill('x^3');await source.press('Backspace');assert.equal(await editor.locator('.nexus-math-block').count(),1);
   await source.fill('');await source.press('Control+Enter');assert.equal(await editor.locator('.nexus-math-block').count(),0);
+  await page.evaluate(()=>window.loadNote('columns'));await page.locator('[data-workspace-pane="columns"]').waitFor();
+  await editor.click();await page.keyboard.type('Left content /');
+  const slash=page.getByRole('menu',{name:'斜線指令'});await slash.waitFor();await slash.getByRole('menuitem',{name:'建立雙欄'}).click();
+  const group=editor.locator('[data-type="multiColumn"]');await group.waitFor();
+  assert.match(await group.locator('[data-type="column"]').first().innerText(),/Left content/);
+  assert.equal(await group.locator('[data-type="column"]').count(),2);
+  await group.locator('[data-type="column"]').nth(1).click();await page.keyboard.type('Right content');
+  const divider=group.getByRole('separator',{name:'調整雙欄寬度'});
+  const bounds=await divider.boundingBox();await page.mouse.move(bounds.x+4,bounds.y+Math.max(4,bounds.height/2));
+  await page.mouse.down();await page.mouse.move(bounds.x+65,bounds.y+Math.max(4,bounds.height/2),{steps:4});await page.mouse.up();
+  assert.deepEqual(await page.evaluate(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn').content.map(c=>c.content.map(b=>b.content?.map(t=>t.text).join('')||''))),[['Left content '],['Right content']]);
+  if(width===1440){await editor.locator('p').first().hover();await page.locator('.nexus-drag-handle').click();const menu=page.getByRole('menu',{name:'區塊操作'});await menu.getByRole('menuitem',{name:'建立副本'}).click();assert.equal(await group.locator('[data-type=column]').first().locator('p').count(),2);await page.keyboard.press('Control+z');assert.equal(await group.locator('[data-type=column]').first().locator('p').count(),1);}
+  if(width===1440){
+   await group.locator('[data-type="column"]').nth(1).locator('p').hover();await page.locator('.nexus-drag-handle').click();
+   await page.getByRole('menu',{name:'區塊操作'}).getByRole('menuitem',{name:'移至左欄'}).click();
+   assert.match(await group.locator('[data-type="column"]').first().innerText(),/Right content/);
+   assert.equal((await group.locator('[data-type="column"]').nth(1).innerText()).trim(),'');
+   await group.locator('[data-type="column"]').first().locator('p').last().hover();await page.locator('.nexus-drag-handle').click();
+   await page.getByRole('menu',{name:'區塊操作'}).getByRole('menuitem',{name:'移出雙欄'}).click();
+   assert.match(await editor.locator(':scope > p').allInnerTexts().then(a=>a.join(' ')),/Right content/);
+  }
+  const beforeExport=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
+  await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();
+  const preview=page.getByRole('dialog',{name:'筆記匯出預覽'});await preview.waitFor();
+  assert.match(await preview.innerText(),/Left content/);assert.match(await preview.innerText(),/Right content/);
+  await preview.getByLabel('紙張方向').selectOption('landscape');await preview.getByLabel('頁面邊界').selectOption('20');
+  await preview.getByLabel('匯出頁首').fill('Preview header');await preview.getByLabel('匯出頁尾').fill('Preview footer');
+  assert.match(await preview.locator('.nexus-export-header').first().innerText(),/Preview header/);
+  assert.match(await preview.locator('.nexus-export-footer').first().innerText(),/Preview footer/);
+  assert.equal(await preview.locator('.nexus-export-paper').first().getAttribute('style').then(s=>s.includes('297mm')),true);
+  if(width===1440){const pdf=await page.pdf({printBackground:true});assert.equal(pdf.subarray(0,4).toString(),'%PDF');assert.ok(pdf.length>10000);}
+  await preview.getByRole('button',{name:'關閉'}).click();assert.equal(await page.evaluate(()=>JSON.stringify(window.currentNote.content_json)),beforeExport);
+  await page.evaluate(()=>window.loadNote('fold'));await page.locator('[data-workspace-pane="fold"]').waitFor();
+  await editor.click();await page.keyboard.type('Question /');await slash.getByRole('menuitem',{name:'轉換成摺疊'}).click();
+  const fold=editor.locator('details[data-type="fold-block"]');await fold.waitFor();assert.match(await fold.innerText(),/Question/);
+  await fold.locator('summary').click();await page.waitForFunction(()=>window.currentNote.content_json.content[0].attrs?.open===false);
+  const closedSource=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
+  await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();
+  const foldPreview=page.getByRole('dialog',{name:'筆記匯出預覽'});await foldPreview.waitFor();
+  assert.equal(await foldPreview.locator('details').first().evaluate(el=>el.open),true);
+  assert.equal(await fold.first().evaluate(el=>el.open),false);await foldPreview.getByRole('button',{name:'關閉'}).click();
+  assert.equal(await page.evaluate(()=>JSON.stringify(window.currentNote.content_json)),closedSource);
+  await page.evaluate(()=>window.loadNote('blocks'));await page.locator('[data-workspace-pane="blocks"]').waitFor();
+  await editor.click();await page.keyboard.type('Alpha');await page.keyboard.press('Enter');await page.keyboard.type('Beta');
+  await editor.locator('p').first().hover();await page.locator('.nexus-drag-handle').click();
+  await page.getByRole('menu',{name:'區塊操作'}).getByRole('menuitem',{name:'轉換成標題'}).click();
+  assert.equal(await editor.locator('h2').innerText(),'Alpha');
+  await editor.locator('h2').hover();await page.locator('.nexus-drag-handle').click();
+  await page.keyboard.press('Escape');
+  await editor.locator('p').last().hover();await page.locator('.nexus-drag-handle').click({modifiers:['Shift']});
+  await page.getByRole('menu',{name:'區塊操作'}).getByRole('menuitem',{name:'刪除'}).click();
+  assert.equal((await editor.innerText()).includes('Beta'),false);
+  await page.keyboard.press('Control+z');assert.match(await editor.innerText(),/Alpha[\s\S]*Beta/);
+  if(width===1440){
+   assert.equal(await editor.locator('h2').count(),1);
+   const beta=editor.locator('p').filter({hasText:'Beta'});
+   await beta.click();await beta.hover();
+   const target=await editor.locator('h2').boundingBox(),handle=await page.locator('.nexus-drag-handle').boundingBox();
+   await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
+   await page.mouse.move(target.x+12,target.y+3,{steps:12});await page.mouse.up();
+   await page.waitForFunction(()=>window.currentNote.content_json.content[0]?.content?.[0]?.text==='Beta',null,{timeout:1000});
+   assert.match(await editor.innerText(),/^Beta[\s\S]*Alpha/);
+   await page.keyboard.press('Control+z');assert.match(await editor.innerText(),/^Alpha[\s\S]*Beta/);
+  }
   assert.deepEqual(errors,[]);await page.close();
  }
 });

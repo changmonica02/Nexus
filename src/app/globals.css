@@ -166,6 +166,16 @@ body {
 }
 .nexus-multi-column {
   display: grid;
+  min-width: 0;
+}
+.nexus-multi-column-node { position: relative; min-width: 0; }
+.nexus-column-divider { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; background: transparent; z-index: 2; }
+.nexus-column-divider:hover, .nexus-column-divider:focus-visible { background: rgba(59,130,246,.35); outline: none; }
+.nexus-fold-block { margin: .75rem 0; border-left: 2px solid var(--color-border); padding-left: .75rem; }
+.nexus-fold-block > summary { cursor: pointer; user-select: none; }
+.nexus-fold-block > [data-fold-body] { padding-top: .5rem; }
+.nexus-multi-column {
+  display: grid;
   gap: 16px;
   margin: 1rem 0;
   padding: 0.5rem;
@@ -465,3 +475,27 @@ html, body { overscroll-behavior-y: none; }
 .lesson-menu-row > button { flex-shrink: 0; white-space: nowrap; }
 
 .lesson-paper-footer > :first-child { min-width: 0; flex: 1; }
+.nexus-export-preview { position: fixed; inset: 0; z-index: 20000; overflow: auto; background: #e5e7eb; color: #18181b; }
+.nexus-export-controls { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 16px; background: white; box-shadow: 0 1px 4px #0002; }
+.nexus-export-controls select, .nexus-export-controls button { border: 1px solid #a1a1aa; border-radius: 5px; padding: 4px 8px; background: white; }
+.nexus-export-pages { display: grid; justify-items: center; gap: 20px; padding: 20px; }
+.nexus-export-paper { box-sizing: border-box; display: flex; flex-direction: column; overflow: visible; background: white; box-shadow: 0 4px 16px #0002; }
+.nexus-export-header, .nexus-export-footer { flex: none; min-height: 5mm; color: #52525b; font-size: 10px; }
+.nexus-export-footer { margin-top: auto; text-align: right; }
+.nexus-export-body { box-sizing: border-box; height: calc(var(--export-height) - 10mm); min-height: 0; overflow: visible; outline: none; }
+.nexus-export-body img, .nexus-export-body table { max-width: 100%; }
+.nexus-export-body p, .nexus-export-body td, .nexus-export-body .katex-display { overflow-wrap: anywhere; }
+.nexus-export-body details, .nexus-export-body .lesson-block-body { display: block; }
+@media print {
+  @page nexusExportPortrait { size: A4 portrait; margin: 0; }
+  @page nexusExportLandscape { size: A4 landscape; margin: 0; }
+  body:has(.nexus-export-preview) .nexus-print-target { display: none !important; }
+  body:has(.nexus-export-preview) .nexus-export-preview,
+  body:has(.nexus-export-preview) .nexus-export-preview * { visibility: visible !important; }
+  .nexus-export-preview { position: static; overflow: visible; background: white; }
+  .nexus-export-pages { display: block; padding: 0; }
+  .nexus-export-paper { page: nexusExportPortrait; width: 210mm; min-height: 297mm; box-shadow: none; break-after: page; }
+  .nexus-export-preview.landscape .nexus-export-paper { page: nexusExportLandscape; width: 297mm; min-height: 210mm; }
+  .nexus-export-paper:last-child { break-after: auto; }
+  .nexus-export-paper tr, .nexus-export-paper img { break-inside: avoid; }
+}

@@ -107,6 +107,7 @@ test(
             hasTouch: width !== 1440,
           }),
           page = await context.newPage();
+        page.setDefaultTimeout(10000);
         page.on("pageerror", (e) => errors.push(e.message));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
         const opener = page.getByRole("button", {
@@ -659,8 +660,14 @@ test(
                 "開啟導覽",
             ),
           );
-          await opener.click();
-          await drawer
+          const noteNav = page.locator('[data-note-sidebar="docked"]');
+          await noteNav.waitFor();
+          const sidebarWidth = await noteNav.evaluate(el => Math.round(el.getBoundingClientRect().width));
+          const sidebarDivider = noteNav.getByRole('separator', {name:'調整筆記側邊欄寬度'});
+          await sidebarDivider.press('ArrowRight');
+          assert.equal(await noteNav.evaluate(el => Math.round(el.getBoundingClientRect().width)), sidebarWidth + 10);
+          assert.equal(await page.evaluate(() => localStorage.getItem('nexus:noteSidebarWidth')), String(sidebarWidth + 10));
+          await noteNav
             .getByRole("button", { name: "垃圾桶", exact: true })
             .click();
           await page.waitForTimeout(330);
@@ -669,16 +676,16 @@ test(
             0,
           );
           assert.equal(await back.isVisible(), true);
-          await page.keyboard.press("Escape");
-          await opener.click();
-          await drawer
-            .getByRole("button", { name: "筆記", exact: true })
-            .press("Enter");
+          await noteNav.getByRole("button", { name: "垃圾桶", exact: true }).click();
+          const features = noteNav.getByRole('button',{name:'功能總覽',exact:true});
+          if(await features.getAttribute('aria-expanded')==='false') await features.click();
+          await noteNav.getByRole('button',{name:'筆記',exact:true}).press('Enter');
           await page
             .getByRole("button", { name: "＋ 建立筆記", exact: true })
             .click();
-          await page.getByText("流動頁面（無分頁）", { exact: true }).waitFor();
-          await page.keyboard.press("Escape");
+          await page.locator('[data-workspace-pane]').waitFor();
+          assert.equal(await page.evaluate(async id => (await window.fixtureStorage.getPage(id))?.format, await page.locator('[data-workspace-pane]').getAttribute('data-workspace-pane')), 'flow');
+          await page.getByRole('button',{name:'回到功能介面',exact:true}).click();
           await page
             .getByRole("button", { name: "更多操作 Renamed note", exact: true })
             .click();
@@ -697,7 +704,9 @@ test(
           );
           assert.notEqual(copy.id, sourceId);
           await opener.click();
-          await drawer
+          const navFeatures = page.locator('nav[aria-label="功能導覽"] button[aria-expanded]');
+          if(await navFeatures.getAttribute('aria-expanded')==='false') await navFeatures.click();
+          await page
             .getByRole("button", { name: "筆記", exact: true })
             .press("Enter");
           await page
@@ -749,7 +758,8 @@ test(
             null,
           );
           await opener.click();
-          await drawer
+          if(await navFeatures.getAttribute('aria-expanded')==='false') await navFeatures.click();
+          await page
             .getByRole("button", { name: "字卡", exact: true })
             .press("Enter");
           await page

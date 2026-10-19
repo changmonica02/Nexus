@@ -140,6 +140,7 @@ function NexusAppInner({
 
   // Every workspace view uses one overlay drawer, closed by default.
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [noteSidebarOpen, setNoteSidebarOpen] = useState(true);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -211,6 +212,12 @@ function NexusAppInner({
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
   const showWorkspaceHeader = !trashRoute && isFeatureInterface && !externalContent && !(utilityMode && activePage);
   const isTabletViewport = viewportWidth < 1024;
+  const isDockedNoteSidebar = activePage?.kind === "note" && !isTabletViewport && !isFeatureInterface;
+  useEffect(() => { setNoteSidebarOpen(window.localStorage.getItem("nexus:noteSidebarOpen") !== "false"); }, []);
+  const toggleNoteSidebar = (open: boolean) => {
+    setNoteSidebarOpen(open);
+    window.localStorage.setItem("nexus:noteSidebarOpen", String(open));
+  };
 
   useEffect(() => {
     const updateViewport = () => setViewportWidth(window.innerWidth);
@@ -1719,7 +1726,7 @@ function NexusAppInner({
 
   return (
     <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
-    <WorkspaceNavigationProvider open={()=>{setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
+    <WorkspaceNavigationProvider open={()=>{if (isDockedNoteSidebar) toggleNoteSidebar(true); else setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
       <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
@@ -1758,7 +1765,7 @@ function NexusAppInner({
         </header>
       )}
 
-      <FloatingSidebar open={isNavigationOpen} onClose={() => setIsNavigationOpen(false)}>
+      <FloatingSidebar docked={isDockedNoteSidebar} open={isDockedNoteSidebar ? noteSidebarOpen : isNavigationOpen} onClose={() => isDockedNoteSidebar ? toggleNoteSidebar(false) : setIsNavigationOpen(false)}>
         <Sidebar
           pages={((isTrashMode||trashRoute) ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
           activePageId={trashRoute || isTrashMode || isHomeMode ? null : activePageId}
@@ -1766,7 +1773,7 @@ function NexusAppInner({
           isTrashMode={isTrashMode||trashRoute}
           isHomeMode={!trashRoute&&isHomeMode}
           isCollapsed={false}
-          onToggleCollapse={() => setIsNavigationOpen(false)}
+          onToggleCollapse={() => isDockedNoteSidebar ? toggleNoteSidebar(false) : setIsNavigationOpen(false)}
           onSelectTag={setSelectedTag}
           onSelectPage={(id)=>navigate(()=>void handleSelectPage(id))}
           onImportPdf={handleImportPdfClick}
