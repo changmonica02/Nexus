@@ -171,6 +171,7 @@ body {
 .nexus-multi-column-node { position: relative; min-width: 0; }
 .nexus-column-divider { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; background: transparent; z-index: 2; }
 .nexus-drag-handle { z-index: 3; }
+.nexus-side-drop-preview { box-shadow: inset -4px 0 0 #3b82f6; }
 .nexus-column-divider:hover, .nexus-column-divider:focus-visible { background: rgba(59,130,246,.35); outline: none; }
 .nexus-fold-block { margin: .75rem 0; border-left: 2px solid var(--color-border); padding-left: .75rem; }
 .nexus-fold-block > summary { cursor: pointer; user-select: none; }

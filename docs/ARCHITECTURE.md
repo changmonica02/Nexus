@@ -126,6 +126,10 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
 - 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
 
+## 2026-10-19 筆記改版第四批（Refs #87；本機實作，未部署）
+
+- 把手拖至另一個頂層區塊的右側中段，會在單次 ProseMirror transaction 建立局部雙欄：目標區塊留左欄、拖入區塊進右欄；原節點內容與 ID 保留，undo 可恢復原順序。上／下邊緣仍用於一般排序。拖曳期間於有效側邊落點顯示提示；舊手動分頁節點及既有雙欄不作此轉換。
+
 ## 2026-10-19 筆記改版第三批（Refs #87；本機實作，未部署）
 
 - rich editor 的同頁把手拖曳會依穩定區塊 ID 定位來源；跨左右欄沿用既有欄間移動命令，頂層區塊移入指定欄位則在單次 transaction 內搬移原節點並保留 undo。欄位分隔線與把手的層級分開，避免遮擋操作；不改資料模型或同步介面。

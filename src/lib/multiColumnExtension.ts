@@ -5,6 +5,24 @@ import { Fragment } from "@tiptap/pm/model";
 
 const clamp = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.max(20, Math.min(80, Math.round(value))) : 50;
 
+/** Place two existing top-level blocks side by side without recreating their content. */
+export function createColumnsFromDrop(state: EditorState, sourcePos: number, targetPos: number): Transaction | null {
+  if (sourcePos === targetPos || state.doc.resolve(sourcePos).depth !== 0 || state.doc.resolve(targetPos).depth !== 0) return null;
+  const moved = state.doc.nodeAt(sourcePos), target = state.doc.nodeAt(targetPos);
+  if (!moved || !target || ["multiColumn", "pageBreak"].includes(moved.type.name) || ["multiColumn", "pageBreak"].includes(target.type.name) || !state.schema.nodes.column || !state.schema.nodes.multiColumn) return null;
+  const group = state.schema.nodes.multiColumn.create({ cols: 2, ratio: 50 }, [
+    state.schema.nodes.column.create(null, target),
+    state.schema.nodes.column.create(null, moved),
+  ]);
+  const tr = state.tr.delete(sourcePos, sourcePos + moved.nodeSize);
+  const nextTargetPos = tr.mapping.map(targetPos);
+  tr.replaceWith(nextTargetPos, nextTargetPos + target.nodeSize, group);
+  let movedPos = -1;
+  tr.doc.descendants((node, pos) => { if (node === moved) { movedPos = pos; return false; } return true; });
+  if (movedPos >= 0) tr.setSelection(TextSelection.near(tr.doc.resolve(movedPos + 1)));
+  return tr.scrollIntoView();
+}
+
 /** Move a top-level block into one existing column in one undoable transaction. */
 export function moveTopLevelBlockIntoColumn(state: EditorState, sourcePos: number, groupPos: number, targetIndex: number): Transaction | null {
   if (state.doc.resolve(sourcePos).depth !== 0 || state.doc.resolve(groupPos).depth !== 0) return null;

@@ -31,6 +31,28 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   await page.keyboard.press('Control+a');await page.keyboard.type('$$x^2$$');await editor.locator('.nexus-math-block').waitFor();await page.locator('input[type=text]').first().click();
   await editor.locator('.math-preview').click();const source=editor.locator('textarea');await source.fill('x^3');await source.press('Backspace');assert.equal(await editor.locator('.nexus-math-block').count(),1);
   await source.fill('');await source.press('Control+Enter');assert.equal(await editor.locator('.nexus-math-block').count(),0);
+  if(width===1440){
+   await page.evaluate(()=>window.loadNote('dragcreate'));await page.locator('[data-workspace-pane="dragcreate"]').waitFor();
+   await editor.click();await page.keyboard.type('Left drag');await page.keyboard.press('Enter');await page.keyboard.type('Right drag');
+   const moving=editor.locator('p').filter({hasText:'Right drag'});await moving.hover();
+   const sideHandle=await page.locator('.nexus-drag-handle').boundingBox(),heading=await editor.locator('p').filter({hasText:'Left drag'}).boundingBox();
+   await page.mouse.move(sideHandle.x+sideHandle.width/2,sideHandle.y+sideHandle.height/2);await page.mouse.down();
+   await page.mouse.move(heading.x+heading.width*0.8,heading.y+heading.height/2,{steps:12});await page.mouse.up();
+   await page.waitForFunction(()=>window.currentNote.content_json.content.some(n=>n.type==='multiColumn'));
+   const created=await page.evaluate(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn'));
+   assert.deepEqual(created.content.map(c=>c.content.map(n=>n.content?.map(t=>t.text).join(''))),[['Left drag'],['Right drag']]);
+   await page.keyboard.press('Control+z');await page.waitForFunction(()=>window.currentNote.content_json.content.every(n=>n.type!=='multiColumn'));
+   assert.match(await editor.innerText(),/Left drag[\s\S]*Right drag/);
+   await page.evaluate(()=>window.loadNote('dragcreate-reverse'));await page.locator('[data-workspace-pane="dragcreate-reverse"]').waitFor();
+   await editor.click();await page.keyboard.type('First drag');await page.keyboard.press('Enter');await page.keyboard.type('Second drag');
+   await editor.locator('p').filter({hasText:'First drag'}).hover();
+   const firstHandle=await page.locator('.nexus-drag-handle').boundingBox(),second=await editor.locator('p').filter({hasText:'Second drag'}).boundingBox();
+   await page.mouse.move(firstHandle.x+firstHandle.width/2,firstHandle.y+firstHandle.height/2);await page.mouse.down();
+   await page.mouse.move(second.x+second.width*0.8,second.y+second.height/2,{steps:12});await page.mouse.up();
+   await page.waitForFunction(()=>window.currentNote.content_json.content.some(n=>n.type==='multiColumn'));
+   assert.deepEqual(await page.evaluate(()=>window.currentNote.content_json.content.find(n=>n.type==='multiColumn').content.map(c=>c.content.map(n=>n.content?.map(t=>t.text).join('')))),[['Second drag'],['First drag']]);
+   await page.keyboard.press('Control+z');await page.waitForFunction(()=>window.currentNote.content_json.content.every(n=>n.type!=='multiColumn'));
+  }
   await page.evaluate(()=>window.loadNote('columns'));await page.locator('[data-workspace-pane="columns"]').waitFor();
   await editor.click();await page.keyboard.type('Left content /');
   const slash=page.getByRole('menu',{name:'斜線指令'});await slash.waitFor();await slash.getByRole('menuitem',{name:'建立雙欄'}).click();

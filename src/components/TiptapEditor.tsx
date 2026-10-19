@@ -26,7 +26,7 @@ import { Callout } from "../lib/calloutExtension";
 import { createObsidianMathNodeView } from "../lib/obsidianMathNodeView";
 import { ObsidianMathInput } from "../lib/obsidianMathInput";
 import { PageBreak } from "../lib/pageBreakExtension";
-import { MultiColumn, Column, moveTopLevelBlockIntoColumn } from "../lib/multiColumnExtension";
+import { MultiColumn, Column, createColumnsFromDrop, moveTopLevelBlockIntoColumn } from "../lib/multiColumnExtension";
 import { FoldBlock } from "../lib/foldBlockExtension";
 import { NodeSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
@@ -304,6 +304,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
   const hoveredBlockRef = useRef<{ pos: number; size: number; type: string } | null>(null);
   const hoveredElementIdRef = useRef<string | null>(null);
   const draggedBlockIdRef = useRef<string | null>(null);
+  const sideDropPreviewRef = useRef<Element | null>(null);
   const selectedBlockRef = useRef<string | null>(null);
   const [blockMenu, setBlockMenu] = useState<{ left: number; top: number; type: string; canMoveLeft: boolean; canMoveRight: boolean; canMoveOut: boolean } | null>(null);
   const [slashMenu, setSlashMenu] = useState<{ from: number; to: number; query: string; left: number; top: number } | null>(null);
@@ -421,8 +422,15 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         ...(variant !== "novel" ? [DragHandle.configure({
           computePositionConfig: { placement: "left-start", strategy: "fixed" },
           nested: true,
-          onElementDragStart: () => { draggedBlockIdRef.current = hoveredElementIdRef.current; },
-          onElementDragEnd: () => { draggedBlockIdRef.current = null; },
+          onElementDragStart: (event) => {
+            const handle = event.currentTarget;
+            const rect = handle instanceof Element ? handle.getBoundingClientRect() : null;
+            const adjacent = rect ? document.elementFromPoint(rect.right + 12, rect.top + rect.height / 2) : null;
+            const adjacentBlock = adjacent instanceof Element ? adjacent.closest<HTMLElement>("[data-id]") : null;
+            draggedBlockIdRef.current = adjacentBlock && editorRef.current?.view.dom.contains(adjacentBlock)
+              ? adjacentBlock.dataset.id ?? null : hoveredElementIdRef.current;
+          },
+          onElementDragEnd: () => { draggedBlockIdRef.current = null; sideDropPreviewRef.current?.classList.remove("nexus-side-drop-preview"); sideDropPreviewRef.current = null; },
           onNodeChange: ({ node, editor: active }) => {
             if (!node) { hoveredBlockRef.current = null; hoveredElementIdRef.current = null; return; }
             let found = -1;
@@ -486,10 +494,32 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
       content: content || { type: "doc", content: [{ type: "paragraph" }] },
       editorProps: {
         attributes: { class: "nexus-tiptap-editor prose prose-zinc max-w-none focus:outline-none min-h-[400px] text-base" },
-        handleDOMEvents: { mousemove: (_view, event) => {
-          hoveredElementIdRef.current = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-id]")?.dataset.id ?? null : null;
-          return false;
-        } },
+        handleDOMEvents: {
+          mousemove: (_view, event) => {
+            hoveredElementIdRef.current = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-id]")?.dataset.id ?? null : null;
+            return false;
+          },
+          dragover: (view, event) => {
+            sideDropPreviewRef.current?.classList.remove("nexus-side-drop-preview");
+            sideDropPreviewRef.current = null;
+            if (variant !== "rich" || !draggedBlockIdRef.current) return false;
+            let sourceType: string | null = null, sourcePos = -1;
+            view.state.doc.descendants((node, pos) => { if (node.attrs.id === draggedBlockIdRef.current) { sourceType = node.type.name; sourcePos = pos; return false; } return true; });
+            if (!sourceType || sourceType === "multiColumn" || sourceType === "pageBreak" || sourcePos < 0 || view.state.doc.resolve(sourcePos).depth !== 0) return false;
+            const sideTarget: { current: Element | null } = { current: null };
+            view.state.doc.forEach((node, pos) => {
+              const element = view.nodeDOM(pos);
+              const rect = element instanceof Element ? element.getBoundingClientRect() : null;
+              if (rect && element instanceof Element && node.type.name !== "multiColumn" && node.type.name !== "pageBreak" && node.attrs.id !== draggedBlockIdRef.current && event.clientY > rect.top + rect.height * 0.25 && event.clientY < rect.bottom - rect.height * 0.25 && event.clientX > rect.left + rect.width * 0.65 && event.clientX < rect.right) sideTarget.current = element;
+            });
+            if (!sideTarget.current) return false;
+            sideDropPreviewRef.current = sideTarget.current;
+            sideTarget.current.classList.add("nexus-side-drop-preview");
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+            return true;
+          },
+        },
         // Rich clipboard HTML can otherwise recreate table/image/list nodes
         // even though the novel toolbar does not expose them.
         handlePaste: (view, event) => {
@@ -502,6 +532,8 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           return true;
         },
         handleDrop: (view, event) => {
+          sideDropPreviewRef.current?.classList.remove("nexus-side-drop-preview");
+          sideDropPreviewRef.current = null;
           if (variant === "novel") return true;
           const draggedId = draggedBlockIdRef.current;
           if (variant !== "rich" || !draggedId) return false;
@@ -510,6 +542,23 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
           if (sourcePos < 0) return false;
           const source = view.state.doc.nodeAt(sourcePos), hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
           if (!source || !hit) return false;
+          if (view.state.doc.resolve(sourcePos).depth === 0) {
+            let sideTarget = -1;
+            view.state.doc.forEach((_node, pos) => {
+              const element = view.nodeDOM(pos);
+              const rect = element instanceof Element ? element.getBoundingClientRect() : null;
+              if (rect && pos !== sourcePos && event.clientY > rect.top + rect.height * 0.25 && event.clientY < rect.bottom - rect.height * 0.25 && event.clientX > rect.left + rect.width * 0.65 && event.clientX < rect.right) sideTarget = pos;
+            });
+            if (sideTarget >= 0) {
+              const tr = createColumnsFromDrop(view.state, sourcePos, sideTarget);
+              if (tr) {
+                event.preventDefault();
+                view.dispatch(closeHistory(tr));
+                draggedBlockIdRef.current = null;
+                return true;
+              }
+            }
+          }
           const $hit = view.state.doc.resolve(hit.pos);
           if ($hit.depth < 1) return false;
           const columnDepth = Array.from({ length: $hit.depth }, (_, index) => index + 1).find(depth => $hit.node(depth).type.name === "column");
