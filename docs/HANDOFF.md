@@ -72,6 +72,13 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
+## 筆記第一批（#87，feat/note-freeform；禁止正式部署）
+
+- 已實作：P0 同步快照覆蓋 pending 修復；Note 連續編輯、保留舊分頁資料；新建不分模式；標題靠左、逐篇全寬及 metadata 保留；公式跳脫／空內容刪除／按鈕 blur／獨立 undo。
+- 本機測試：筆記／公式桌面與手機 fixture、P0 工作區四種尺寸、慢寫／失敗重試／較新修改／雙窗格儲存均通過；教學文件與 UI 相關 6 項、TypeScript、production build 通過；修改檔 ESLint 0 errors／38 warnings。未執行正式帳號／實機 Safari 驗收。
+- 下一批依賴：區塊多選與轉換／斜線 → 局部雙欄與摺疊 → 桌面側欄 → 獨立 A4 預覽及 PDF。沿用 Tiptap／JSON，不移除舊內容；新版匯出尚未接入，目前仍為既有匯出。跨頁順序／縮放／分頁保存未定，不自行確立。
+- 尚未 push／PR／合併／部署，不執行 migration。#87 保持開啟，第一批不是全功能驗收。
+
 ## 2026-10-19 最新交付準備（Refs #84、#85）
 
 - `refactor/workspace-components` 包含附件修復與共用元件整理；使用者已明確授權測試通過後上傳／合併 main（可能觸發 Vercel）。本段記錄提交前狀態，合併及部署結果以 PR／Vercel 記錄為準。

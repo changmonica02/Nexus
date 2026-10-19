@@ -1,6 +1,7 @@
 import katex from "katex";
 import type { Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { closeHistory } from "@tiptap/pm/history";
 
 const COMMON_MATH_SYMBOLS = [
   { label: "a/b", latex: "\\frac{a}{b}" },
@@ -41,6 +42,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
 
     const wrapper = document.createElement(isInline ? "span" : "div");
     wrapper.className = isInline ? "nexus-math-inline" : "nexus-math-block";
+    wrapper.contentEditable = "false";
 
     // 預覽層 (KaTeX Rendered)
     const preview = document.createElement(isInline ? "span" : "div");
@@ -152,6 +154,11 @@ export function createObsidianMathNodeView(isInline: boolean) {
     }
 
     wrapper.append(preview, editContainer);
+    // Footer/symbol clicks must not blur and commit the source before their
+    // click handlers run (in particular Cancel and Delete).
+    editContainer.addEventListener("mousedown", event => {
+      if ((event.target as HTMLElement).closest("button")) event.preventDefault();
+    });
 
     function insertLatexSnippet(snippet: string) {
       const el = editInput;
@@ -176,7 +183,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
         livePreviewEl.innerHTML = "";
         katex.render(raw, livePreviewEl, { displayMode: true, throwOnError: true });
       } catch (err: any) {
-        livePreviewEl.innerHTML = `<span style="color:#ef4444;font-size:12px;font-family:monospace;">${err?.message || "LaTeX 語法錯誤"}</span>`;
+        livePreviewEl.textContent = err?.message || "LaTeX 語法錯誤";
       }
     }
 
@@ -227,7 +234,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
       const pos = typeof getPos === "function" ? getPos() : undefined;
       if (pos !== undefined && editor && !editor.isDestroyed) {
         const tr = editor.state.tr.delete(pos, pos + currentNode.nodeSize);
-        editor.view.dispatch(tr);
+        editor.view.dispatch(closeHistory(tr));
       }
     }
 
@@ -259,6 +266,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
 
       if (save) {
         const latex = stripDelimiters(val);
+        if (!latex) { deleteThisNode(); return; }
         const pos = typeof getPos === "function" ? getPos() : undefined;
         if (pos !== undefined && editor && !editor.isDestroyed) {
           if (latex !== currentNode.attrs.latex) {
@@ -266,10 +274,10 @@ export function createObsidianMathNodeView(isInline: boolean) {
               ...currentNode.attrs,
               latex,
             });
-            editor.view.dispatch(tr);
+            editor.view.dispatch(closeHistory(tr));
           }
         }
-      }
+      } else if (!String(currentNode.attrs.latex || "").trim()) { deleteThisNode(); return; }
 
       editContainer.style.display = "none";
       preview.style.display = isInline ? "inline-flex" : "flex";
@@ -292,7 +300,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
         exitEdit(true);
         setTimeout(() => {
           if (editor.isDestroyed) return;
-          const nextPos = pos + currentNode.nodeSize;
+          const nextPos = Math.min(pos + (editInput.value.trim() ? currentNode.nodeSize : 0), editor.state.doc.content.size);
           editor.chain().focus().setTextSelection(nextPos).run();
         }, 0);
         return true;
@@ -324,6 +332,7 @@ export function createObsidianMathNodeView(isInline: boolean) {
 
     editInput.addEventListener("keydown", (event: Event) => {
       const keyboardEvent = event as KeyboardEvent;
+      if (keyboardEvent.isComposing) return;
       if (keyboardEvent.key === "Escape") {
         keyboardEvent.preventDefault();
         keyboardEvent.stopPropagation();
@@ -375,10 +384,10 @@ export function createObsidianMathNodeView(isInline: boolean) {
     return {
       dom: wrapper,
       selectNode() {
-        // Selection can happen while opening a page or moving with arrows;
-        // it must not expose the raw LaTeX source. Explicit preview click
-        // above is the edit gesture.
+        // Keyboard entry edits the source; merely loading an unfocused note
+        // keeps the rendered formula visible.
         wrapper.classList.add("is-selected");
+        if (editor.isFocused) enterEdit();
       },
       deselectNode() {
         wrapper.classList.remove("is-selected");

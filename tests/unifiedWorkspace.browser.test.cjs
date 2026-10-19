@@ -45,7 +45,7 @@ test(
               { filter: /infrastructure[\\/]sync[\\/]syncEngine\.ts$/ },
               () => ({
                 contents:
-                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(){}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
+                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(cb){window.remoteRefresh=cb;}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
                 loader: "js",
               }),
             );
@@ -119,6 +119,21 @@ test(
         await page.evaluate(() => { window.refreshAuth(); window.refreshAuth(); });
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(() => window.engineCount), engines, 'same-account token refresh reuses sync engine');
+        if (process.env.NEXUS_CURSOR_ONLY) {
+          await opener.click();
+          await page.getByRole('dialog',{name:'開啟導覽',exact:true}).getByText('Sample note',{exact:true}).click();
+          const editor=page.locator('.ProseMirror').first();
+          await editor.click(); await page.keyboard.press('Control+End');
+          await page.keyboard.insertText('中文 English');
+          // Fire the real remote-refresh callback while the new text is only
+          // in the debounce queue; IndexedDB still contains the old snapshot.
+          await page.evaluate(()=>window.remoteRefresh());
+          await page.keyboard.press('Space'); await page.keyboard.insertText('tail');
+          assert.match(await editor.innerText(),/中文 English tail$/);
+          await page.locator('[data-save-status=saved]').waitFor();
+          assert.ok(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.content_text?.includes('中文 English tail'))));
+          await context.close(); continue;
+        }
         if (process.env.NEXUS_SAVE_ONLY) {
           await opener.click();
           const drawer = page.getByRole('dialog', {name:'開啟導覽',exact:true});

@@ -126,6 +126,14 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
 - 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
 
+## 2026-10-19 筆記改版第一批（Refs #87；本機實作，未部署）
+
+- 同步讀取開始時保留 pending 快照，回填時優先採目前 pending，再採讀取開始時 pending。避免遠端通知以較舊 IndexedDB 內容覆蓋 800ms debounce／寫入中的本機修改，引發 Tiptap setContent 與游標跳動；未改同步頻率、附件下載或權限。
+- EditorPane 對 Note 採單一 flow 編輯器，保留儲存的 format／pageBreak 節點；不自動轉換或刪除舊分頁資料。新建 Note 不再詢問流動／分頁。Document 原有 flow 契約不變。
+- `content_json.noteAppearance.fullWidth` 為逐篇外觀設定，沿用原有 JSON 儲存與同步，不新增 schema；編輯回傳保留根層 metadata。標題靠左，原有可收合講義目錄沿用。
+- Math NodeView 隔離原文輸入事件、空內容退出時刪除節點、按鈕防止 blur 提前提交，公式提交／刪除具有獨立 undo 邊界；美元輸入辨識跳脫、code 與 IME，不屏蔽空白。公式及原有教學節點資料模型不變。
+- 尚未實作新版區塊選單／斜線指令、雙欄拖曳調寬、桌面側欄及獨立輸出預覽；既有相關入口不代表新版已完成。長雙欄跨頁等未決規則維持待確認。
+
 ## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
 
 - `WorkspacePane` 統一主／次窗格類型分派，NexusApp 保留頁面專屬儲存、匯出與工具操作；`useAttachmentPreview` 共用本機 PDF 讀取，取消過期回應並回收各窗格 Object URL。

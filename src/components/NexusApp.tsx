@@ -336,10 +336,13 @@ function NexusAppInner({
             engine.subscribe(setSyncState);
             engine.setOnRemoteChange(async () => {
               if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+              const editsAtRead = new Map(pendingSavesRef.current);
               const syncedPages = await adapter.listPages();
               const syncedAttachments = await adapter.listAttachments();
               if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
-              setPages(syncedPages);
+              // A refresh can finish during the local debounce or an in-flight
+              // write. Its IndexedDB snapshot must not replace newer edits.
+              setPages(syncedPages.map(page => pendingSavesRef.current.get(page.id) ?? editsAtRead.get(page.id) ?? page));
               setAttachments(syncedAttachments);
             });
             await engine.fullSync();
