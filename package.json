@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:dictionary": "node --test tests/dictionary*.test.cjs",
-    "test:dictionary:browser": "node tests/dictionaryEditor.browser.test.cjs"
+    "test:dictionary:browser": "node tests/dictionaryEditor.browser.test.cjs",
+    "test:world-map": "node tests/worldMap.test.cjs && node --test tests/worldMapIndexedDB.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

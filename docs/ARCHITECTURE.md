@@ -1,5 +1,16 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 2026-10-20 世界觀地圖儲存基礎（Refs #88；首批程式／契約測試，尚未接入產品）
+
+- `src/features/worldMap/worldMapRepository.ts` 固定整合來源為 Azgaar `v1.154.2`，commit `b4a0dcb933586a57242508f558f775da16c35c64`；目前沒有複製或執行上游程式。上游 LICENSE 為 MIT，Copyright 2017–2024 Max Haniyeu；嵌入時仍須保留完整授權及第三方素材聲明。
+- `CharacterProfileData.world_maps?: WorldMapRecord[]` 僅保存穩定 map ID、world_id、標題、版本、軟刪除及附件參照／SHA-256。既有世界觀沒有此欄位時視為空集合；不新增 Page kind、IndexedDB store、SQL、RPC 或 RLS。完整原生 .map 存於既有 file Attachment binary，不放 content_json。地圖屬於既有非模板、未刪除世界觀，所有 Repository 操作明確核對目前帳號及世界觀 owner。
+- Repository 提供 create/list/read/save/rename/duplicate/remove/restore；**尚未掛載任何 UI，也沒有 Azgaar 編輯器或自動儲存計時器**。map revision 用於拒絕過期編輯 session；world revision 在 WorkspacePersistence 原子交易中再次比對。新附件 metadata、binary 與世界觀參照共用既有 outbox batch。呼叫端未來必須先 flush 世界觀待存內容，完成後採用回傳 Page，不能以舊 React snapshot 覆蓋地圖 metadata；這個工作區接線仍未實作。
+- 每份變更專案使用獨立不可變附件，避免原生 binary 被過期 session 就地覆寫；相同原始 bytes 的 SHA-256 不排入任何寫入或傳輸意圖，改名／刪除／還原僅改世界觀 metadata，不觸碰 binary。舊附件及參照保守保留，不自動 GC；**大型專案連續保存的容量成本、壓縮／節流與安全回收仍待實測，不能宣稱雲端消耗驗收通過**。列表不讀 binary，重新開啟沿用 owner/revision 附件快取。
+- `inspectMapProject` 僅結構驗證目前固定版本的 plain/base64/gzip 原生容器，並保留輸入 bytes；它不完整驗證上游地圖語意，也不是 SVG sanitizer。未知版本／格式拒絕寫入。完整 Azgaar 原生往返、非同步載入完成／失敗 handshake 與匯入隔離仍未實作；不可將此函式當成可安全同源嵌入匯入 SVG 的證明。
+- M0 查證：上游為獨立 Vite 應用（Node >=24 建置），全域地圖狀態與 UI 應隔離於 iframe，避免改寫成 React 引擎。`Save.prepareMapData` 序列化設定、SVG 及完整地圖欄位；`Load.uploadMap` 使用 FileReader 且回傳 void，解析／重建另行非同步，不能以呼叫返回判定載入成功。上游原生 browser storage 的 `lastMap` 是單槽，不能當 Nexus 多地圖及帳號隔離的資料真相。實際 iframe origin／CSP／檔案隔離方式尚待驗證，未鎖定部署方案。
+- 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
+- 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
+
 ## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
 
 - `WorkspacePane` 統一主／次窗格類型分派，NexusApp 保留頁面專屬儲存、匯出與工具操作；`useAttachmentPreview` 共用本機 PDF 讀取，取消過期回應並回收各窗格 Object URL。

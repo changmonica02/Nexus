@@ -289,7 +289,24 @@ export interface CharacterPageTab {
   sections: CharacterSection[];
 }
 
+/** Metadata only. The native editable project lives in an Attachment binary. */
+export interface WorldMapRecord {
+  id: ID;
+  world_id: ID;
+  title: string;
+  engine: "azgaar";
+  engine_version: string;
+  attachment_id: ID | null;
+  project_sha256: string | null;
+  revision: number;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
 export interface CharacterProfileData {
+  /** World-owned maps, including tombstones; never included in reusable templates. */
+  world_maps?: WorldMapRecord[];
   resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
   templateUpdateSnapshots?: {id:string;at:number;sourceId:string;title?:string;attachmentIds?:string[];data:CharacterProfileData}[];
   blocks_version?: 1;

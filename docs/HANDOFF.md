@@ -1,5 +1,13 @@
 # Nexus — 當前交接（2026-10-19）
 
+## 2026-10-20 世界觀地圖首批（Refs #88；尚未接入產品）
+
+- 工作分支 `feat/world-map-storage-20261020` 由地圖 SPEC 分支 `ef002c8` 建立，未合併 main、未部署、無 migration。使用者授權直接修改 GitHub 分支；環境 Git clone 仍因 proxy:8080 無法連線而失敗。
+- 已新增世界觀地圖 metadata 與 StorageAdapter Repository：多地圖、新增／命名／複製／軟刪除還原、原生專案 immutable 附件、單批原子寫入、owner／revision／SHA-256 檢查及相同 bytes 不重排傳輸。**這些是尚未接入 UI 的資料層能力，不能稱為使用者可用功能。**
+- M0 部分查證：固定來源 Azgaar v1.154.2（b4a0dcb），MIT；原生 prepareMapData／uploadMap 與單槽 lastMap 已核對。上游套件／素材未複製；第三方素材授權、完整 build、體積／記憶體量測、原生 .map 實際往返仍未完成。
+- 通過：Node 24.19.0 執行 `node tests/worldMap.test.cjs`，19/19 契約測試（合成檔案與記憶體替身）。已寫 5 項 `tests/worldMapIndexedDB.test.cjs`，尚未執行。TypeScript／build／整合回歸／瀏覽器／真實帳號／Safari 均未執行；不能以本輪測試代替。
+- 下一批：先取得可驗證的上游建置，驗證 iframe 安全隔離與非同步載入成功／失敗 handshake，再接世界觀入口及既有 flush/adopt Page 流程。不得直接同源執行未隔離的匯入 SVG，或在附件缺失時以新圖覆寫。immutable 舊附件暫不 GC，連續大圖保存容量與節流策略仍需實測。M1 編輯器、M2 UI／工作區接線、M3 原生／圖片匯出及完整備份同步安全驗收全部未完成；地標連結保持 M4。
+
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
 ## 2026-10-19 最新交付準備（Refs #84、#85）
