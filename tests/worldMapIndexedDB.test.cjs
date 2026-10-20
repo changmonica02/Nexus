@@ -105,3 +105,35 @@ test('IDB: existing backup round-trip preserves map metadata and native project 
   const restored = await new WorldMapRepository(target.adapter).read('world', map.id);
   assert.equal(await restored.blob.text(), await project('backup').text());
 });
+
+test('IDB: local recovery snapshots survive reopen without creating upload intents', async t => {
+  const d = await device(t); await d.adapter.savePage(world());
+  const repo = new WorldMapRepository(d.adapter), {map} = await repo.create('world','Draft',project('saved'));
+  const before=(await d.adapter.getWorkspacePersistence().pending(owner)).length;
+  const token=await repo.stageDraft('world',map.id,1,project('draft'));
+  await d.reopen();
+  const draft=await repo.readDraft('world',map.id);
+  assert.equal(draft.token,token); assert.equal(draft.base_revision,1);
+  assert.equal(await draft.blob.text(),await project('draft').text());
+  assert.equal((await d.adapter.getWorkspacePersistence().pending(owner)).length,before);
+  d.adapter.setWorkspaceOwner('other'); await assert.rejects(repo.readDraft('world',map.id),{code:'owner'});
+});
+
+test('IDB: clearing an older checkpoint never clears a newer recovery draft', async t => {
+  const d = await device(t); await d.adapter.savePage(world());
+  const repo = new WorldMapRepository(d.adapter), {map} = await repo.create('world','Draft',project('saved'));
+  const first=await repo.stageDraft('world',map.id,1,project('first'));
+  const second=await repo.stageDraft('world',map.id,1,project('second'));
+  await repo.clearDraft('world',map.id,first);
+  assert.equal((await repo.readDraft('world',map.id)).token,second);
+  await repo.clearDraft('world',map.id,second);assert.equal(await repo.readDraft('world',map.id),null);
+});
+
+test('IDB: a conflicting recovery draft is retained until explicit discard', async t => {
+  const d = await device(t); await d.adapter.savePage(world());
+  const repo = new WorldMapRepository(d.adapter), {map} = await repo.create('world','Draft',project('saved'));
+  const token=await repo.stageDraft('world',map.id,1,project('unsynchronized'));
+  await repo.rename('world',map.id,1,'New revision');
+  await assert.rejects(repo.stageDraft('world',map.id,2,project('overwrite')),/older recovery draft/);
+  assert.equal((await repo.readDraft('world',map.id)).token,token);
+});

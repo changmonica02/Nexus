@@ -59,7 +59,7 @@ window.addEventListener('message', event => {
 window.addEventListener('map:generated', () => {
   ready = true;
   if (!port) setTimeout(() => parent.postMessage({ type: 'nexus-map-ready', session }, '*'), 0);
-  else notify('dirty');
+  else if (!busy) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, () => {
   if (ready && !busy) notify('dirty');

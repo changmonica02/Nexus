@@ -17,6 +17,8 @@ for (const name of ['src', 'public', 'scripts', 'package.json', 'package-lock.js
   await cp(path.join(checkout, name), path.join(target, name), { recursive: true });
 }
 const pkg = JSON.parse(await readFile(path.join(target, 'package.json'), 'utf8'));
+await mkdir(path.join(target, 'docs/architecture'), { recursive: true });
+for (const name of ['data-model.md', 'configuration.md']) await cp(path.join(checkout, 'docs/architecture', name), path.join(target, 'docs/architecture', name));
 await writeFile(path.join(target, 'NEXUS-SOURCE.json'), JSON.stringify({ repository: 'https://github.com/Azgaar/Fantasy-Map-Generator', commit, version: pkg.version,
   note: 'Nexus-owned source fork. Edit this source independently; no upstream update compatibility is required.' }, null, 2) + '\n');
 console.log('Imported fixed source. Retain LICENSE, source notices, public/libs and asset attribution.');

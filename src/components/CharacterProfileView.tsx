@@ -1,5 +1,8 @@
 "use client";
 import CharacterBlockWorkspace from "./CharacterBlockWorkspace";
+import WorldMapManager from "./WorldMapManager";
+import type {StorageAdapter} from "../infrastructure/storage/StorageAdapter";
+import type {RegisterMapFlush} from "./WorldMapEditor";
 import {SidebarToggle} from "./WorkspaceNavigation";
 import { useMenuDismiss } from "./useMenuDismiss";
 import React, { useEffect, useState, useRef } from "react";
@@ -1504,8 +1507,8 @@ export function CharacterContentEditor({
 }
 
 
-export type CharacterProfileProps=Parameters<typeof CharacterContentEditor>[0]&{onCommitCharacterData?:(data:CharacterProfileData)=>Promise<void>;readOnly?:boolean;templateActions?:React.ReactNode};
+export type CharacterProfileProps=Parameters<typeof CharacterContentEditor>[0]&{onCommitCharacterData?:(data:CharacterProfileData)=>Promise<void>;readOnly?:boolean;templateActions?:React.ReactNode;worldMapStorage?:StorageAdapter;beforeWorldMapSave?:()=>Promise<void>;onWorldMapSaved?:(page:Page)=>Promise<void>;registerWorldMapFlush?:RegisterMapFlush};
 export default function CharacterProfileView(props:CharacterProfileProps){
- if(props.page.creative_type==='world'&&!props.page.character_data?.isTemplate)return <CharacterContentEditor {...props}/>;
+ if(props.page.creative_type==='world'&&!props.page.character_data?.isTemplate)return <div className="flex h-full min-h-0 flex-1 flex-col">{props.worldMapStorage&&props.beforeWorldMapSave&&props.onWorldMapSaved&&!props.readOnly?<WorldMapManager world={props.page} storage={props.worldMapStorage} beforeSave={props.beforeWorldMapSave} onSaved={props.onWorldMapSaved} registerFlush={props.registerWorldMapFlush}/>:null}<div className="min-h-0 flex-1"><CharacterContentEditor {...props}/></div></div>;
  return <CharacterBlockWorkspace templateActions={props.templateActions} page={props.page} readOnly={props.readOnly} onBack={props.onBackToCreativeOverview} onSaveTemplate={props.onSaveTemplate} onCommit={async data=>{if(props.onCommitCharacterData)await props.onCommitCharacterData(data);else await props.onUpdateCharacterData(data);}} renderComponent={(section,mode,change)=><CharacterContentEditor {...props} page={{...props.page,character_data:{...props.page.character_data??createBlankTemplate(),sections:[section],tabs:[]}}} sectionOnly={section} sectionMode={mode} onUpdateCharacterData={next=>change(next.sections[0])}/>}/>;
 }

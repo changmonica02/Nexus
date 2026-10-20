@@ -50,3 +50,4 @@ next-env.d.ts
 # Nexus map fork build outputs (the source under vendor/ is committed)
 /.cache/
 /public/world-map/core/
+/public/world-map/offline.js

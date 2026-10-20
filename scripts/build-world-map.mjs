@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 const root = process.cwd(), source = path.join(root, 'vendor/azgaar'), work = path.join(root, '.cache/azgaar-build');
 await readFile(path.join(source, 'NEXUS-SOURCE.json')); // Missing fork is a build failure, never an online fallback.
 await mkdir(work, { recursive: true });
-for (const name of ['src', 'public', 'scripts']) {
+for (const name of ['src', 'public', 'scripts', 'docs']) {
   await rm(path.join(work, name), { recursive: true, force: true });
   await cp(path.join(source, name), path.join(work, name), { recursive: true });
 }
@@ -58,3 +58,22 @@ for (const [name, pkg] of Object.entries(packages)) {
   }
 }
 console.log('Built Nexus map core from our local fixed source fork');
+async function walk(dir) {
+  const entries=[];
+  for(const entry of await readdir(dir,{withFileTypes:true})) {
+    const name=path.join(dir,entry.name);
+    if(entry.isDirectory())entries.push(...await walk(name));else entries.push(name);
+  }
+  return entries;
+}
+const files=await walk(output);
+const urls=files.map(file=>'/world-map/core/'+path.relative(output,file).split(path.sep).map(encodeURIComponent).join('/'));
+const fingerprint=createHash('sha256');
+for(const file of files)fingerprint.update(await readFile(file));
+const cache='nexus-world-map-'+fingerprint.digest('hex').slice(0,20);
+await writeFile(path.join(root,'public/world-map/offline.js'), `// Public map tools only. Never cache Nexus API responses or user projects.
+const CACHE=${JSON.stringify(cache)}, FILES=${JSON.stringify(urls)};
+self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);for(let i=0;i<FILES.length;i+=20)await cache.addAll(FILES.slice(i,i+20));await self.skipWaiting();})()));
+self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('nexus-world-map-')&&key!==CACHE)await caches.delete(key);await self.clients.claim();})()));
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||!url.pathname.startsWith('/world-map/core/'))return;event.respondWith((async()=>{const cache=await caches.open(CACHE);const saved=await cache.match(event.request,{ignoreSearch:true});return saved||fetch(event.request);})());});
+`);

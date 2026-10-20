@@ -190,6 +190,26 @@ export class WorldMapRepository {
     return { world: await this.commit(world, mapsOf(world).map(item => item.id === id ? map : item), project), map, changed: true };
   }
 
+  async stageDraft(worldId: string, id: string, revision: number, blob: Blob): Promise<string> {
+    mapOf(await this.world(worldId), id, revision);
+    await inspectMapProject(blob);
+    requireOwner(this.storage, this.owner);
+    return this.storage.getWorkspacePersistence().writeMapDraft(this.owner, worldId, id, revision, blob);
+  }
+
+  async readDraft(worldId: string, id: string) {
+    mapOf(await this.world(worldId), id);
+    const draft = await this.storage.getWorkspacePersistence().readMapDraft(this.owner, worldId, id);
+    requireOwner(this.storage, this.owner);
+    return draft;
+  }
+
+  async clearDraft(worldId: string, id: string, token: string): Promise<void> {
+    await this.world(worldId);
+    await this.storage.getWorkspacePersistence().clearMapDraft(this.owner, worldId, id, token);
+    requireOwner(this.storage, this.owner);
+  }
+
   async rename(worldId: string, id: string, expectedRevision: number, title: string): Promise<Page> {
     const name = titleOf(title);
     return this.update(worldId, id, expectedRevision, map => ({ ...map, title: name }));
