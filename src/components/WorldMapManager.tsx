@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useState,useRef} from 'react';
 import type {Page,WorldMapRecord} from '../lib/types';
 import type {StorageAdapter} from '../infrastructure/storage/StorageAdapter';
 import {WorldMapRepository} from '../features/worldMap/worldMapRepository';
@@ -26,9 +26,11 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const maps=world.character_data?.world_maps??[],active=maps.filter(m=>m.deleted_at==null);
  const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('political');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
+ const browser=useRef<HTMLElement>(null);
  const [managing,setManaging]=useState(false),[linking,setLinking]=useState(false),[linkId,setLinkId]=useState('');
  const [views,setViews]=useState(()=>new Map<string,MapView>());
  const current=active.find(m=>m.id===selected)??active[0],selectedId=current?.id;
+ useEffect(()=>{browser.current?.scrollTo(0,0);},[selectedId]);
  const scope=current?.scope??'world';
  const scopes=[...new Set(['world','region','town',...active.map(m=>m.scope??'world')])];
  useEffect(()=>{
@@ -70,7 +72,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     <button className="text-red-600 dark:text-red-400" disabled={busy} onClick={()=>void(async()=>{if(await askConfirm(t('worldMap.deleteConfirm')))await run(async()=>{await onSaved(await repository.remove(world.id,map.id,map.revision));});})()}>{t('worldMap.delete')}</button>
    </div></details>}
  </li>);
- return <section data-map-scroll aria-label={t('worldMap.home')} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3 [&_button:disabled]:opacity-40">
+ return <section ref={browser} data-map-scroll aria-label={t('worldMap.home')} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3 [&_button:disabled]:opacity-40">
   <header className="flex shrink-0 items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4">
    <SidebarToggle/>{onBack&&<button type="button" onClick={onBack} aria-label={t('worldMap.back')} className="shrink-0"><ArrowLeft size={20}/></button>}
    <h1 className="min-w-0 flex-1 truncate text-base font-semibold sm:text-xl" title={world.title}>{world.title}</h1>

@@ -26,7 +26,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const surface=useRef<HTMLDivElement>(null),canvas=useRef<HTMLDivElement>(null);
   const [expanded,setExpanded]=useState(false),[fullscreen,setFullscreen]=useState(false);
   const fullView=expanded||fullscreen;
-  const documentId=useRef<string|null>(null);
+  const documentId=useRef<string|null>(null),previewView=useRef<MapView|null>(null);
   const [connected,setConnected]=useState(false);
   const freshCore=useRef(true),previousEditing=useRef(editing);
   const readyDocument=useRef<{id:string;blob:Blob|null}|null>(null);
@@ -88,7 +88,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
         if(data.type==='scroll'&&!latest.current.editing&&!latest.current.fullView&&typeof data.delta==='number'&&Number.isFinite(data.delta)){surface.current?.closest<HTMLElement>('[data-map-scroll]')?.scrollBy({top:Math.max(-1000,Math.min(1000,data.delta)),behavior:'instant'});}
-        if(data.type==='view'&&data.view&&ready.current)latest.current.onView?.(data.view);
+        if(data.type==='view'&&data.view&&ready.current){if(data.preview&&!latest.current.editing)previewView.current=data.view;latest.current.onView?.(data.view);}
         if(data.type==='loading'){ready.current=false;if(current){setAvailable(false);setStatus('worldMap.editor5');}}
         if(data.type==='loaded'){ready.current=true;dirty.current=true;changes.current++;if(current){setAvailable(true);setError('');}}
         if(data.type==='load-failed'){ready.current=false;if(current){setAvailable(false);setError(latest.current.t('worldMap.editor6'));}}
@@ -116,6 +116,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     if(!connected||!client.current)return;
     let current=true;
     const core=client.current,sameDocument=documentId.current===map.id,initialView=latest.current.view,useFresh=!blob&&freshCore.current;
+    if(!sameDocument)previewView.current=null;
     documentId.current=map.id;
     freshCore.current=false;ready.current=false;readyDocument.current=null;dirty.current=false;
     setAvailable(false);setError('');setConflict(draftConflict);
@@ -142,7 +143,9 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   useEffect(()=>{
     if(available&&editing&&(token.current||!canonical.current)){dirty.current=true;setStatus('worldMap.editor8');}
     const modeChanged=previousEditing.current!==editing;previousEditing.current=editing;
-    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,freePan:fullView,view:modeChanged?latest.current.view:undefined}).catch(e=>setError(String(e)));
+    const returning=modeChanged&&!editing;
+    const restored=returning?previewView.current:modeChanged?latest.current.view:undefined;
+    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
   },[connected,available,editing,language,layer,fullView]);
   useEffect(()=>{
     const changed=()=>setFullscreen(document.fullscreenElement===surface.current);
@@ -169,7 +172,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     return ()=>previous?.focus();
   },[editing,fullView]);
   const report=(e:unknown)=>setError(String(e));
-  const captureView=async()=>{const snapshot=ready.current?await client.current?.request('view'):undefined;if(snapshot)latest.current.onView?.(JSON.parse(await snapshot.text()) as MapView);};
+  const captureView=async()=>{const snapshot=ready.current?await client.current?.request('view'):undefined;if(snapshot){const view=JSON.parse(await snapshot.text()) as MapView;if(!latest.current.editing)previewView.current=view;latest.current.onView?.(view);}};
   const enter=()=>{const id=map.id;void captureView().then(()=>{if(latest.current.mapId===id)onEdit?.();}).catch(report);};
   const close=()=>{void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();await captureView();onClose();})().catch(report);};
   const exportProject=()=>{void(async()=>{const project=ready.current&&readyDocument.current?.id===map.id&&readyDocument.current.blob===blob?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};

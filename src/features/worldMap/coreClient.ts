@@ -6,7 +6,7 @@ export class MapCoreClient {
   private pending = new Map<number, { resolve: (blob: Blob | undefined) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob;view?:MapView;delta?:number}) => void) {
+  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob;view?:MapView;delta?:number;preview?:boolean}) => void) {
     port.onmessage = ({ data }) => {
       if (typeof data?.type === 'string') { onEvent(data); return; }
       const pending = this.pending.get(data?.id);

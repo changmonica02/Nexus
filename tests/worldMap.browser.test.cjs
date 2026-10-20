@@ -70,7 +70,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   const firstSession=await frame.evaluate(()=>location.href);
-  assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return z.x>=-1&&z.y>=-1&&z.x+w*z.k<=m.width.baseVal.value+1&&z.y+h*z.k<=m.height.baseVal.value+1;}),'initial preview contains the whole map');
+  assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return z.x>=-1&&z.y>=-1&&z.x+w*z.k<=m.width.baseVal.value+1&&z.y+h*z.k<=m.height.baseVal.value+1;}),'initial preview contains the whole map: '+JSON.stringify(await frame.evaluate(()=>({z:document.querySelector('#map').__zoom,w:options.map.graph.width,h:options.map.graph.height,viewport:[innerWidth,innerHeight]}))));
   const revisionBefore=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;});
   await page.getByLabel('Display layers',{exact:true}).selectOption('temperature');
   await frame.waitForFunction(()=>{const node=document.querySelector('[data-layer=temperature]');return node&&getComputedStyle(node).display!=='none';});

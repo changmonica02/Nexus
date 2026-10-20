@@ -39,7 +39,7 @@ document.addEventListener('touchmove',event=>{
   const nextY=event.touches[0].clientY,delta=touchY-nextY;touchY=nextY;
   if(!pinched&&Number.isFinite(delta))port?.postMessage({type:'scroll',delta});
 },{capture:true,passive:false});
-const reportView=()=>port?.postMessage({type:'view',view:{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale}});
+const reportView=()=>port?.postMessage({type:'view',preview,view:{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale}});
 let viewTimer:ReturnType<typeof setTimeout>|undefined;
 for(const type of ['pointerup','wheel','touchend'])document.addEventListener(type,()=>{clearTimeout(viewTimer);viewTimer=setTimeout(reportView,180);},{passive:true});
 
