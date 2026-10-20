@@ -105,9 +105,12 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.basic.gender;}),'Legacy gender');
   assert.equal(await page.getByRole('button',{name:'Zoom in',exact:true}).isVisible(),false,'phone uses gestures instead of persistent +/-');
+  await page.getByRole('button',{name:'Full screen',exact:true}).waitFor();
+  await page.evaluate(()=>{window.scrollTo(0,0);document.querySelector('[data-map-scroll]').scrollTop=0;});
   await page.waitForFunction(()=>{const canvas=document.querySelector('[data-map-canvas]');return canvas.getBoundingClientRect().bottom<=innerHeight+1;});
+  await page.waitForTimeout(200);
   const editBounds=await page.getByRole('button',{name:'Edit map',exact:true}).boundingBox();
-  assert.ok(editBounds.y>=0&&editBounds.y+editBounds.height<=844,'phone editing tool is not clipped by the viewport');
+  assert.ok(editBounds.y>=0&&editBounds.y+editBounds.height<=844,'phone editing tool is not clipped by the viewport: '+JSON.stringify({editBounds,canvas:await page.locator('[data-map-canvas]').boundingBox(),page:await page.evaluate(()=>({height:innerHeight,scroll:document.querySelector('[data-map-scroll]').scrollTop,y:scrollY}))}));
   assert.equal(await frame.locator('#map').evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)','preview whitespace inherits the Nexus theme');
   console.log('NEXUS_MOBILE_SCREEN:'+ (await page.screenshot({type:'jpeg',quality:35})).toString('base64'));
   await openManage();
