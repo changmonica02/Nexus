@@ -1,5 +1,5 @@
 "use client";
-import {useState} from 'react';
+import {useState,useEffect} from 'react';
 import type {WorldEntity,WorldMapRecord} from '../lib/types';
 import {useLanguage} from '../lib/LanguageContext';
 import TiptapEditor from './TiptapEditor';
@@ -8,6 +8,7 @@ import ModalDialog from './ModalDialog';
 export function WorldEntityForm({entity,onSave,onCancel}:{entity:WorldEntity;onSave:(entity:WorldEntity)=>Promise<void>;onCancel:()=>void}) {
  const {t}=useLanguage();
  const [draft,setDraft]=useState(()=>structuredClone(entity)),[busy,setBusy]=useState(false),[error,setError]=useState(false),[changed,setChanged]=useState(false),[aliases,setAliases]=useState(entity.aliases.join(', '));
+ useEffect(()=>{if(!changed)return;const guard=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};window.addEventListener('beforeunload',guard);return()=>window.removeEventListener('beforeunload',guard);},[changed]);
  const update=(patch:Partial<WorldEntity>)=>{setDraft(old=>({...old,...patch}));setChanged(true);};
  const cancel=()=>{if(!busy&&(!changed||window.confirm(t('worldEntity.discard'))))onCancel();};
  return <ModalDialog aria-label={t('worldEntity.edit')} busy={busy} onDismiss={cancel} className="max-h-[90dvh] w-[min(94vw,48rem)] overflow-y-auto rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:px-3">

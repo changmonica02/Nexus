@@ -51,7 +51,7 @@ document.addEventListener('click',event=>{
     const matrix=view.getScreenCTM();if(!matrix)return;
     const point=new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());
     if(point.x<0||point.y<0||point.x>options.map.graph.width||point.y>options.map.graph.height)return;
-    const requestId=pickPoint;pickPoint=null;
+    const requestId=pickPoint;
     port?.postMessage({type:'map-point',requestId,x:point.x,y:point.y});
   }else if(marker)port?.postMessage({type:'placement-select',placementId:(marker as SVGGElement).dataset.placementId});
 },true);

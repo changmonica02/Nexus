@@ -106,7 +106,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   };
   const readTowns=()=>page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return {entities:w.character_data.world_entities??[],maps:w.character_data.world_maps};});
   await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
-  await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
+  await townForm.waitFor();
+  for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){await page.setViewportSize(viewport);assert.ok(await townForm.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&el.scrollWidth<=el.clientWidth+1;}),'entry dialog fits viewport');}
+  await page.getByRole('button',{name:'繁體中文',exact:true}).evaluate(el=>el.click());await page.getByLabel('城鎮名稱',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'English',exact:true}).evaluate(el=>el.click());
+  await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
   assert.equal((await readTowns()).entities.length,0,'cancel point form leaves no entity');
   await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.getByLabel('Town name',{exact:true}).fill('Canonical Harbor');
@@ -161,12 +165,18 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   });
   // Reopen actual native project before making any edits.
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Towns',exact:true}).click();
+  await townPanel.locator('li').filter({hasText:'Renamed Harbor'}).getByRole('button',{name:'Edit town entry',exact:true}).click();
+  await townForm.getByLabel('Town name',{exact:true}).fill('Manager Harbor');await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
+  await townPanel.getByRole('button',{name:'Close panel',exact:true}).click();
+  await frame.locator('#nexus-placements text').filter({hasText:'Manager Harbor'}).waitFor();
+  assert.equal((await readTowns()).entities[0].entityId,townId,'manager rename preserves stable ID');
   await page.reload();
   await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await dataDigest(),naturalData);
-  await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).waitFor();
+  await frame.locator('#nexus-placements text').filter({hasText:'Manager Harbor'}).waitFor();
   assert.equal((await readTowns()).entities.length,2,'towns survive backup and cold reopen');
   await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
   await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
@@ -212,7 +222,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const geography=await dataDigest();
   for(const type of ['SVG','PNG']){
     const pending=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();
-    const download=await pending,file=path.join(tmp,'natural.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000,'natural '+type+' export');
+    const download=await pending,file=path.join(tmp,'natural.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000,'natural '+type+' export');if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/Manager Harbor/,'SVG includes canonical town label');
   }
   assert.equal(await dataDigest(),geography,'image exports preserve geography');
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
