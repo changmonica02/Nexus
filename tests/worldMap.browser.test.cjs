@@ -423,6 +423,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
   // A second native project references the same canonical body, rather than copying it.
   await page.getByLabel('Selected map',{exact:true}).selectOption({label:'Atlas One'});
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
   await page.getByRole('button',{name:'Towns',exact:true}).click();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Atlas Imported'});
   await townPanel.locator('li').filter({hasText:'Manager Harbor'}).getByRole('button',{name:'Place on selected map',exact:true}).click();

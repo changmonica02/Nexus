@@ -30,7 +30,7 @@ export default function WorldEntityPanel({entities,maps,readOnly,onClose,onCreat
  return <ModalDialog aria-label={t('worldEntity.title')} onDismiss={onClose} dismissOnBackdrop className="max-h-[90dvh] w-[min(94vw,42rem)] overflow-y-auto rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3">
   <header className="mb-3 flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">{t('worldEntity.title')}</h2>{!readOnly&&<button className="border" onClick={onCreate}>{t('worldEntity.add')}</button>}<button onClick={onClose}>{t('worldMap.closePanel')}</button></header>
   {!entities.length&&<p className="py-4 opacity-60">{t('worldEntity.empty')}</p>}
-  {!!maps.length&&!readOnly&&<label className="block text-sm">{t('worldEntity.targetMap')}<select className="mb-3 min-h-11 w-full rounded-lg border bg-transparent px-2" value={mapId} onChange={e=>setMapId(e.target.value)}>{maps.map(map=><option key={map.id} value={map.id}>{map.title}</option>)}</select></label>}
+  {!!maps.length&&!readOnly&&<label className="block text-sm">{t('worldEntity.targetMap')}<select aria-label={t('worldEntity.targetMap')} className="mb-3 min-h-11 w-full rounded-lg border bg-transparent px-2" value={mapId} onChange={e=>setMapId(e.target.value)}>{maps.map(map=><option key={map.id} value={map.id}>{map.title}</option>)}</select></label>}
   <p className="mb-3 text-xs opacity-60">{t('worldEntity.backupHint')}</p>
   <ul className="space-y-3">{entities.filter(entity=>entity.type==='settlement').map(entity=>{
    const placed=maps.filter(map=>map.placements?.some(p=>p.entityId===entity.entityId&&p.deletedAt===null));
