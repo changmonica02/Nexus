@@ -1,8 +1,18 @@
 # Nexus — 當前交接（2026-10-20）
 
+## 地圖 V2-2A（Refs #98；PR #99；CI 通過、待審查，未合併）
+
+- main `65653d0` 已包含 PR #97；本次獨立分支 `feat/world-map-entities-v22a-20261020`，沒有覆蓋其他分支／main，沒有正式 DB 操作。
+- 已接上：原世界觀 Page 的可選正式城鎮集合、點配置引用、單 Page CAS／outbox 原子新增與穩定 ID 重試；世界觀列表／未配置建立／Tiptap 基本編輯／選圖放置；地圖新增／既有放置／標記資訊／改名衍生更新／移動／移除。地圖刪除不刪條目；地圖與世界觀複製分別重建必要 IDs；備份驗證引用，原生保存不夾帶正式正文／標記投影。
+- **驗證通過**：程式／測試 `d29d5e570272c7b273d14dc2358fe25133e16db8`；[CI 39437559252](https://github.com/changmonica02/Nexus/actions/runs/39437559252)。133 項單元／契約（29 repo、4 port、11 fake-IDB、2 i18n、39 workspace／character／study、48 native）；核心／Nexus TypeScript、production/omit=dev build、限定檔案 ESLint 0 errors／32 warnings。地圖與角色兩組實際 Chromium 成功，地圖 pageerror=[]。新流程包含：地圖取消不留條目、實際交易失敗重試零殘留、Tiptap 正文保存、兩入口新增／改名、未配置→選圖放置、移動正文不變、移除保留條目、兩張原生地圖引用同 entityId、真實 IDB 備份／cold reload／SHA／owner 拒絕、SVG 正式標籤與 native snapshot 不含投影、390/820/1440 表單與 zh-TW/en。沿用整組自然編輯、舊文明、.map／PNG／SVG、失敗草稿、離線、fit／縮放／平移／CDP 觸控／全螢幕及角色回歸。
+- **指令**：`npm run test:world-map`；`node --test tests/worldMap.i18n.test.cjs`；`node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs`；語系 `npx tsc`、`npm run build`；固定核心七檔 `npx vitest run`、限定檔案 `npx eslint`，以及 `node tests/worldMap.browser.test.cjs`／`node tests/characterBlocks.browser.test.cjs`。完整參數見 `.github/workflows/world-map.yml`。最後只更新四份文件，不再修改程式。
+- 未實作：國家／行政區／文化／宗教等完整 UI、線／區域配置、樣式編輯 UI、舊 burgs 自動連結、人口經濟模擬與 V2-1 拓撲重建；不擴大本批。後續 V2-2 可沿用 entityId／relations 與獨立 geometry，而不是將 pack 陣列索引或名稱當正式 ID。
+- 保留事項：原生 .map 匯出只含地圖，正式條目／配置須工作區備份。現有 Page 級同步衝突不會自動合併兩裝置的 entity 修改；使用既有衝突／重試機制，不假報雲端成功。真實帳號跨裝置同步失敗／重登入、iOS／Android／Safari 與大型圖效能仍留 #60，禁止視為已驗收。
+
+
 ## 地圖 V2-0／V2-1 首批（Refs #96；PR #97）
 
-- 分支 `feat/world-map-natural-v2-20261020` 承接 PR #95 `60728b8` 的完整瀏覽 UX，安全帶入 main `6cdf489` 的 V2 SPEC。沒有修改 #95 原分支或 main；本次只準備 PR，未合併／正式部署。
+- 分支 `feat/world-map-natural-v2-20261020` 承接 PR #95 `60728b8` 的完整瀏覽 UX，安全帶入 main `6cdf489` 的 V2 SPEC。開發當時未修改 #95 原分支或 main；PR #97 現已合併 main `65653d0`，以下保留首批交付驗證紀錄。
 - **V2-0 已完成盤點；V2-1 部分完成、可獨立驗收**：37 個來源（14 程序／23 預製 PNG）、確認前隔離 preview／取消零持久化、自然-only pipeline、名稱／seed／畫布／格網／收合氣候／選填尺度、原生工具分群、相對高度等高線與氣溫／降水／生態等 2D view／overlay、保留舊文明顯示、手繪資料優先及 stale 標記。沒有建立隨機文明或紀元；原文明 generators 未刪。
 - **已實作的安全限制**：Keep 高度編輯可抬升／降低／平滑及 undo/redo，鎖定海陸分類；海岸／湖泊保留原有屬性及樣式編輯，但海陸拓撲重建未完成。氣候明確套用只算溫度／降水，不重建手繪河流或生態；生態屬性修改不自動重算人口。安全局部重算、人工物件鎖定、完整再生成（含備份／候選／二次確認／rollback）**尚未完成，維持阻擋**。特殊區域僅沿用 zones 擴充入口，不做奇幻模擬。3D／地球主入口與語音設定／輪詢退場，共享 D3 氣候預覽及 legacy dependencies 保留。
 - **相容**：原生專案新增可選 `options.map.nexus.version=1` 狀態，不遷移或刪除舊附件；舊檔缺欄位照常載入。metadata_version／map IDs／owner／world／CAS／immutable SHA、備份 v3、10 秒 local recovery／60 秒 canonical／同步及離線公開工具快取沿用。詳細圖專案及既有 parent/scope 同一原子 create commit；無 DB／IDB schema／RPC／RLS／付費服務變動。新內容不承諾舊核心降版或原版 .map 對外互通。
@@ -74,6 +84,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
 
 

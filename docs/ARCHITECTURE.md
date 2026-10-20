@@ -1,6 +1,21 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## 地圖 V2-0／V2-1 第一批（2026-10-20；Refs #96；PR #97，工作分支實作，未合併／部署）
+## 地圖 V2-2A：正式城鎮與配置（2026-10-20；Refs #98；PR #99，工作分支已實作／CI 通過，待審查）
+
+**盤點與責任邊界**：PR #97 已合併，基準 main `65653d0`。世界觀是 `Page(kind=creative,creative_type=world)`，原 basic/sections/tabs 是自由內容，沒有可直接重用的正式城鎮集合；角色仍是獨立 Page，以原 `character_data.world_id` 歸屬世界觀。本批不猜測／搬移舊段落、不把舊 Azgaar burgs 自動轉成新條目，也不重建世界觀管理器。沿用現有 Page JSON／StorageAdapter／IndexedDBAdapter／WorkspacePersistence／同步及備份 v3，不新增 store、資料表、RPC、RLS、依賴或 migration。
+
+**正式資料**：`CharacterProfileData.world_entities?` 是唯一現行正文來源，每筆 `WorldEntity` 有 schemaVersion=1、entityId、worldId、保留類型、name、aliases、可選 subtype/summary/Tiptap content、relations、時間及 revision。本批只有 settlement 的建立與編輯 UI。ID 使用 UUID，名稱不做關聯鍵。`WorldMapRecord.placements?` 只放 placementId/mapId/entityId、point geometry（原生圖座標，非螢幕像素）、visible、可選 label/icon、時間、獨立 revision、deletedAt。線／區域、樣式設定 UI 及永久刪除條目未實作。缺欄位的舊世界觀／地圖不遷移；不支援的版本或損壞／跨世界觀引用拒絕寫入，不靜默修復。
+
+**交易與重試**：擴充既有 WorldMapRepository；createSettlement 可在同一份世界觀 Page CAS／outbox batch 寫入 entity 與 placement，沒有跨兩資料表的部分提交。管理器先建未配置條目、稍後 placeEntity 也只更新該 Page。呼叫端保留 entityId/placementId 作為穩定操作身分，建立的相同重試直接回傳目前 Page、不增加 outbox；同 ID 不同內容衝突。失敗交易不留下半筆條目，owner 在 async 前後檢查；跨帳號／世界觀引用拒絕。movePlacement 只改座標，removePlacement 留 tombstone 且不刪 entity，舊 placement 操作不得復活標記。metadata 操作不改 native map revision、不讀寫附件，後續 native save 讀最新 Page 再經 CAS 保留條目／配置；並行異動衝突時保留來源，讓使用者重試，不自動合併覆蓋。
+
+**介面與核心**：WorldEntityPanel／WorldEntityForm 是最小列表及表單，詳細內容沿用 TiptapEditor。WorldMapManager 管理建立／選擇／表單／移動意圖；WorldMapEditor 透過私有 MessagePort 傳送投影後的名稱／座標／顯示設定，不傳條目正文或帳號憑證。bridge 在 `#viewbox` 疊加 `#nexus-placements`，文字使用 textContent；點選經 inverse screen CTM 轉原生座標，驗證邊界，不用名稱查找；捕捉點選及標記事件避免觸發原生筆刷、dirty 或重新生成。活躍 heightmap customization 時不允許啟動放置。一般地圖瀏覽、原有文明資料與自然編輯器仍沿用原路徑。切語系／更新 marker 不重建 iframe 或重設 camera。
+
+**備份／複製／輸出**：Page JSON 自然包含正式條目及配置，IndexedDBAdapter 在匯出及還原寫入前驗證完整引用；二進位 SHA／owner／草稿驗證沿用既有流程。地圖複製重建 placement/map ID、仍引用同世界觀 entity；世界觀複製經 cloneWorldReferences 重建 entity/map/placement IDs 與 relations，原 immutable binary 可共用。snapshotCharacterTemplate 原白名單不包含 live maps/entities。PNG／SVG 保留衍生標記；Save.prepareMapData 只在 clone 移除標記，原生 .map 不複製正式條目。工作區備份才是包含條目／配置的完整 Nexus 備份，UI 有明示。原生專案載入／Quick Load 不修改 canonical entities，重畫投影後再顯示。
+
+**驗證邊界**：程式／測試 `d29d5e5` 的 CI [39437559252](https://github.com/changmonica02/Nexus/actions/runs/39437559252) 通過：133 項單元／契約、地圖與角色兩組實際 Chromium、核心／Nexus TypeScript、production/omit=dev build；相關 ESLint 0 errors／32 warnings。地圖 pageerror=[]；涵蓋 Tiptap 正文、取消／失敗重試、雙入口建立／改名、移動不改正文、移除保留條目、多圖同一 entityId、SVG 標籤及原生快照排除投影、真實 IDB 備份／cold reload、舊文明／自然地理／離線／草稿與 CDP 觸控回歸。這是隔離帳號／測試資料，不等於 Supabase 正式帳號或真實裝置驗收。未合併／部署、未寫正式資料庫；真實帳號跨裝置雲端失敗／重登入、Safari／手機實機及大型資料仍須 #60 人工驗收。既有 page 級同步衝突契約未改為 entity 級自動合併；同步成功只能由實際工作區狀態表示。
+
+
+## 地圖 V2-0／V2-1 第一批（2026-10-20；Refs #96；PR #97，已合併 main `65653d0`；下列為首批交付紀錄）
 
 **分支整合**：`feat/world-map-natural-v2-20261020` 保留 PR #95 全部地圖瀏覽器／contain fit／觸控成果，再以雙親整合提交帶入 main `6cdf489` 唯一新增的 V2 SPEC。未改寫 #95 原分支，沒有 main 寫入。以下為本批實際程式；完整 V2-1 仍部分完成。
 
@@ -737,6 +752,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+
 
 
 
