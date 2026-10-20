@@ -1,5 +1,14 @@
 # Nexus — 當前交接（2026-10-20）
 
+
+## 內嵌地圖原版 UI 清理（Refs #92；PR #93）
+
+分支 `feat/world-map-embedded-ui-20261020` 以尚未合併的首頁 PR #91 為基礎；PR #93 目標是該首頁分支，未合併或正式部署。程式 `f2109ee`；[CI 39390319230](https://github.com/changmonica02/Nexus/actions/runs/39390319230) 的 TypeScript（核心／Nexus／語系 adapter）、production build、相關 ESLint、37 項地圖／IDB／port／i18n／入口清理、39 項相關回歸、原生 map-commands／hotkeys 兩檔與地圖／角色兩組 Chromium 均通過。
+
+移除原版 About／AppInfo、Tour、Desktop App、社群／宣傳／捐款、首次版本公告與啟動動畫，以及相關 registry、初始化、事件與 CSS。Nexus 管理新地圖、儲存、.map 匯入匯出、PNG／SVG、重載／草稿；原版重複入口、F1／F2／F6／F9、Dropbox／URL、獨立 browser-storage、分享連結、Google Translate 與無效 startup/autosave 設定退場。Ctrl/Cmd+S 沿用 Nexus bridge，Ctrl+C 保留正常複製。地圖工具、圖層、樣式、生成設定、必要提示／錯誤與進階 JPEG／tiles／GIS／JSON 保留；原生 load-error picker 依賴僅在使用時建立，不常駐初始化。
+
+Nexus 編輯器提供第三方授權資訊，連結固定來源、MIT 與彙整完整 dependency／公共素材授權文字的 THIRD-PARTY-NOTICES.txt；原 LICENSE、著作權與第三方原檔保留。語系沿用 Nexus 字典與英文 fallback，未知長篇／動態訊息仍可能英文；不翻譯使用者地名或專案內容。沒有資料結構／migration／正式 DB／付費依賴變更。測試是隔離帳號資料及真實 Chromium，正式帳號跨裝置、Safari／實機與大型地圖仍屬 #60 人工驗收，不能視為已正式驗收。
+
 ## 世界觀地圖首頁（Refs #90；工作分支 feat/world-map-home-20261020）
 
 已實作地圖優先首頁、同一核心切圖／預覽／扳手編輯、多圖與 scope/parent metadata、原生政治／地形／溫度／降水／生態圖層、縮放／拖曳／全螢幕。瀏覽狀態按圖保留，變更版面前讀取即時視圖；載入文件 ID/blob guard 禁止切圖期間儲存上一張內容。舊世界觀與角色資料不刪；無 migration／正式 DB 操作，本輪不合併或部署正式環境。
@@ -54,4 +63,5 @@
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
