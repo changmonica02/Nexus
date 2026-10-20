@@ -55,10 +55,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(()=>document.body.classList.contains('nexus-preview')),true);
   await frame.locator('#map').click({position:{x:120,y:120}});
   assert.equal(await page.getByRole('dialog',{name:'World map editor'}).count(),0);
+  await frame.evaluate(()=>{document.querySelector('#burgName').value='Save';document.querySelector('#layersPreset').add(new Option('Save','Save'));});
   await page.getByRole('button',{name:'繁體中文',exact:true}).click();
   await frame.waitForFunction(()=>document.documentElement.lang==='zh-TW');
   assert.equal(await page.getByLabel('地圖範圍',{exact:true}).count(),1);
   assert.equal(await frame.locator('#layersTab').innerText(),'圖層');
+  assert.equal(await frame.locator('#burgName').inputValue(),'Save');
+  assert.equal(await frame.locator('#layersPreset option[value=Save]').textContent(),'Save');
+  await frame.evaluate(()=>{document.querySelector('#burgName').value='Nexus Port';});
   assert.equal(await frame.locator('#optionsContent').getByText('介面大小',{exact:true}).count(),1);
   assert.equal(await frame.locator('#editStatesButton').getAttribute('data-tip'),'開啟國家編輯器');
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
@@ -66,6 +70,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.waitForFunction(()=>document.documentElement.lang==='en');
   assert.equal(await frame.locator('#layersTab').innerText(),'Layers');
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;}),revisionBefore,'preview/layers/language do not write');
+  await page.getByRole('button',{name:'Full screen',exact:true}).click();
+  await page.waitForFunction(()=>Boolean(document.fullscreenElement));
+  await page.evaluate(()=>document.exitFullscreen());
   await page.setViewportSize({width:390,height:844});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'mobile has no horizontal overflow');
   assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);

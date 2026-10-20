@@ -10,8 +10,8 @@ import type {MapView} from '../features/worldMap/coreClient';
 import {Wrench} from 'lucide-react';
 
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
-export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,view,onView}: {
-  editing?:boolean;onEdit?:()=>void;layer?:string;view?:MapView;onView?:(view:MapView)=>void;
+export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,view,onView,reloadKey=0}: {
+  reloadKey?:number;editing?:boolean;onEdit?:()=>void;layer?:string;view?:MapView;onView?:(view:MapView)=>void;
   map:WorldMapRecord; blob:Blob|null; draftToken?:string; draftConflict?:{token:string;blob:Blob}; repository:WorldMapRepository;
   beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>; onClose:()=>void; registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null};
 }) {
@@ -131,7 +131,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     return ()=>{current=false;ready.current=false;};
     // A map title/revision adopted from our save does not reload the current document.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[connected,blob,draftToken,map.id]);
+  },[connected,blob,draftToken,map.id,reloadKey]);
   useEffect(()=>registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();}),[registerFlush,map.id,session]);
   useEffect(()=>{
     if(available&&editing&&(token.current||!canonical.current)){dirty.current=true;setStatus('worldMap.editor8');}
@@ -148,7 +148,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const exportProject=()=>{void(async()=>{const project=ready.current&&readyDocument.current?.id===map.id&&readyDocument.current.blob===blob?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   return <div ref={surface} role={editing?'dialog':undefined} aria-modal={editing?true:undefined} aria-label={editing?t('worldMap.editor10'):t('worldMap.preview')}
     onKeyDown={event=>{if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if(editing&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),iframe');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
-    className={editing||expanded?'fixed inset-0 z-50 m-0 flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-h-[55vh] min-w-0 flex-1 flex-col overflow-hidden'} style={!editing&&!expanded?{minHeight:'55vh'}:undefined}>
+    className={editing||expanded?'fixed inset-0 z-50 m-0 flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col overflow-hidden'} style={!editing&&!expanded?{height:'65vh',minHeight:'18rem',maxHeight:'48rem',flexShrink:0}:undefined}>
     {editing?<header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
       <button type="button" onClick={close} disabled={busy}>{t('worldMap.editor11')}</button>
       <strong className="mr-auto truncate">{map.title}</strong>
@@ -170,9 +170,9 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>downloadMapBlob(conflict.blob,map.title+'-recovery','map')}>{t('worldMap.editor19')}</button>
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
-    <div className="relative min-h-0 flex-1">
+    <div className="relative min-h-0 flex-1 overflow-hidden">
       <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
-        sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="h-full w-full border-0"/>
+        sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!available&&<div className="absolute inset-0 grid place-items-center bg-white/80 text-zinc-800">{error?(t('worldMap.editor23')):(t('worldMap.editor24'))}</div>}
     </div>
   </div>;

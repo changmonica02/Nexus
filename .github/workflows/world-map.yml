@@ -58,6 +58,7 @@ jobs:
           if [ -f tests/worldMap.browser.test.cjs ]; then
             npx playwright install --with-deps chromium
             node tests/worldMap.browser.test.cjs
+            node tests/characterBlocks.browser.test.cjs
           fi
       - name: Core build artifact (no user content)
         if: always()

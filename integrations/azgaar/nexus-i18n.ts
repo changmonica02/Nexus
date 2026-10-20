@@ -19,10 +19,11 @@ function apply():void {
  for(const key of ['burgs','states','cultures','religions','provinces'])for(const entry of world?.[key]??[]){if(entry.name)protectedNames.add(entry.name);if(entry.fullName)protectedNames.add(entry.fullName);}
  const legacy=document.getElementById('loadGoogleTranslateButton')?.closest('tr');if(legacy)legacy.hidden=true;
  document.documentElement.lang=language;
- const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
+ const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,#dialogs td,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
  for(const element of candidates){
   if(element.closest(excluded))continue;
   if(element.tagName==='OPTION'&&!staticSelects.has(element.parentElement?.id??''))continue;
+  if(element.tagName==='OPTION'&&element.parentElement?.id==='layersPreset'&&!['political','cultural','religions','provinces','biomes','heightmap','physical','poi','goods','trade','military','emblems','landmass','custom'].includes((element as HTMLOptionElement).value))continue;
   // Shortcut underlines may split a static label. Never replace controls or data descendants.
   if(element.childNodes.length&&[...element.childNodes].every(n=>n.nodeType===Node.TEXT_NODE||n instanceof HTMLElement&&n.tagName==='U')){
    const current=element.textContent??'',old=originals.get(element),source=old&&current===old.applied?old.source:current;
