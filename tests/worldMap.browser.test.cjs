@@ -236,7 +236,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.waitForFunction(i=>pack.cells.biome[i]===4,manual.i);
   assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','biomes']);
   assert.equal(await page.evaluate(async id=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id===id;},naturalId),true);
-  await frame.evaluate(async()=>{await window.generateMapOnLoad({naturalOnly:false});});
+  // The legacy-civilization fixture replaces content only; retain the native extent and placement coordinate system.
+  await frame.evaluate(async()=>{const {width,height}=options.map.graph;await window.generateMapOnLoad({naturalOnly:false,width,height});});
   if(!await frame.locator('#exportButton').isVisible())await frame.locator('#optionsTrigger').click();
   await frame.locator('#exportButton').click();
   assert.equal(await frame.locator('#exportMapData button').filter({hasText:/^\.(svg|png)$/}).count(),0);
