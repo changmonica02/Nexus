@@ -2,6 +2,7 @@ name: World map integration
 on:
   push:
     branches: [feat/world-map-storage-20261020]
+    paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
   contents: write

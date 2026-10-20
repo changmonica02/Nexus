@@ -23,6 +23,7 @@ await patch('src/services/platform.ts', 'export function registerServiceWorker()
 await patch('src/components/lifecycle.ts', '  initiateAutosave();', '  if (window.parent === window) initiateAutosave();');
 await patch('src/services/io/save.ts', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {\n  if (window.nexusSaveProject) return window.nexusSaveProject(new Blob([mapData], {type: "application/octet-stream"}));');
 await patch('src/services/io/load.ts', 'async function parseLoadedData(data: string[], mapVersion: string | null): Promise<void> {', 'async function parseLoadedData(data: string[], mapVersion: string | null, propagate = false): Promise<void> {');
+await patch('src/services/io/load.ts', 'function uploadMap(file: Blob, callback?: () => void): void {', 'function uploadMap(file: Blob, callback?: () => void): void {\n if(window.nexusLoadProject){void window.nexusLoadProject(file).then(()=>callback?.()).catch(error=>tip(String(error),true,"error"));return;}');
 // The last loader catch belongs to parseLoadedData. Surface failures to Nexus.
 const loadFile = path.join(work, 'src/services/io/load.ts');
 let loader = await readFile(loadFile, 'utf8');
@@ -41,6 +42,9 @@ if (installed !== hash) {
   await writeFile(path.join(work, '.nexus-installed'), hash);
 }
 execFileSync('npx', ['tsc', '--noEmit'], { cwd: work, stdio: 'inherit' });
+// A single executable core also works in an opaque offline document: no native
+// module fetches can bypass Nexus's public-asset broker. The fork source stays modular.
+await writeFile(path.join(work,'vite.config.ts'), `import {fileURLToPath,URL} from 'node:url';export default {root:'./src',publicDir:'../public',build:{outDir:'../dist',assetsDir:'.',emptyOutDir:true,rollupOptions:{output:{format:'iife',inlineDynamicImports:true}}},resolve:{alias:{'@':fileURLToPath(new URL('./src',import.meta.url))}}};`);
 execFileSync('npx', ['vite', 'build', '--base=/world-map/core/'], { cwd: work, stdio: 'inherit' });
 const output = path.join(root, 'public/world-map/core');
 await rm(output, { recursive: true, force: true });
@@ -49,6 +53,10 @@ await cp(path.join(source, 'LICENSE'), path.join(output, 'AZGAAR-LICENSE.txt'));
 await cp(path.join(source, 'NEXUS-SOURCE.json'), path.join(output, 'NEXUS-SOURCE.json'));
 const packages = JSON.parse(lock.toString()).packages;
 await writeFile(path.join(output, 'THIRD-PARTY-PACKAGES.json'), JSON.stringify(Object.entries(packages).filter(([name, p]) => name && !p.dev).map(([name, p]) => ({ name, version: p.version, license: p.license })), null, 2));
+const shimPackage=JSON.parse(await readFile(path.join(root,'node_modules/fake-indexeddb/package.json'),'utf8'));
+const shimNotice=path.join(output,'licenses/fake-indexeddb');await mkdir(shimNotice,{recursive:true});
+await cp(path.join(root,'node_modules/fake-indexeddb/LICENSE'),path.join(shimNotice,'LICENSE'));
+await writeFile(path.join(shimNotice,'PACKAGE.json'),JSON.stringify({name:shimPackage.name,version:shimPackage.version,license:shimPackage.license},null,2));
 // Copy dependency licenses as well as preserving the original public asset notices.
 for (const [name, pkg] of Object.entries(packages)) {
   if (!name || pkg.dev) continue;

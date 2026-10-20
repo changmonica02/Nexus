@@ -137,3 +137,29 @@ test('IDB: a conflicting recovery draft is retained until explicit discard', asy
   await assert.rejects(repo.stageDraft('world',map.id,2,project('overwrite')),/older recovery draft/);
   assert.equal((await repo.readDraft('world',map.id)).token,token);
 });
+
+test('IDB: backups include local recovery drafts and restore them independently of canonical projects', async t => {
+  const source=await device(t),target=await device(t);await source.adapter.savePage(world());
+  const repo=new WorldMapRepository(source.adapter),{map}=await repo.create('world','Map',project('canonical'));
+  await repo.stageDraft('world',map.id,1,project('recovery'));
+  const backup=await source.adapter.exportWorkspaceBackup();assert.equal(backup.world_map_drafts.length,1);
+  await target.adapter.importWorkspaceBackup(backup);
+  const restored=new WorldMapRepository(target.adapter);
+  assert.equal(await (await restored.read('world',map.id)).blob.text(),await project('canonical').text());
+  assert.equal(await (await restored.readDraft('world',map.id)).blob.text(),await project('recovery').text());
+});
+
+test('IDB: backup export is account scoped; restore rejects foreign files without clearing other caches', async t => {
+  const d=await device(t);await d.adapter.savePage(world());
+  const {map}=await new WorldMapRepository(d.adapter).create('world','Private',project('private'));
+  const privateBackup=await d.adapter.exportWorkspaceBackup();
+  d.adapter.setWorkspaceOwner('other');
+  await d.adapter.savePage({...world(),id:'other-world',workspace_owner_id:'other'});
+  const otherBackup=await d.adapter.exportWorkspaceBackup();
+  assert.equal(otherBackup.pages.length,1);assert.equal(otherBackup.attachments.length,0);
+  await assert.rejects(d.adapter.importWorkspaceBackup(privateBackup),/different account/);
+  assert.ok(await d.db.get('pages','other-world'));assert.ok(await d.db.get('pages','world'));
+  await d.adapter.importWorkspaceBackup(otherBackup);
+  d.adapter.setWorkspaceOwner(owner);
+  assert.equal(await (await new WorldMapRepository(d.adapter).read('world',map.id)).blob.text(),await project('private').text());
+});

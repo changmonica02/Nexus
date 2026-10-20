@@ -1253,6 +1253,11 @@ function NexusAppInner({
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
+    if(source.creative_type==="world" && pageToSave.character_data?.world_maps){
+      pageToSave.character_data.world_maps=pageToSave.character_data.world_maps.map(map=>({...map,id:`map_${nanoid()}`,world_id:pageToSave.id,revision:1}));
+      // Project binaries are immutable, so independent world copies can safely share this snapshot.
+      pageToSave.attachment_ids=[...(source.attachment_ids??[])];
+    }
     const chapters = getNovelChapters(pages, source.id).map((chapter) => ({ ...structuredClone(chapter),
       id: `chapter_${nanoid()}`, parent_id: pageToSave.id, created_at: Date.now(), updated_at: Date.now(), revision: 1,
     }));

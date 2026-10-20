@@ -366,6 +366,8 @@ export interface WorkspaceBackupSettingEntry {
 }
 
 export interface WorkspaceBackup {
+  /** Local recovery projects, separate from canonical map attachments. Optional for old backups. */
+  world_map_drafts?: {owner_id:ID;world_id:ID;map_id:ID;base_revision:number;binary_base64:string}[];
   study?: StudyBackup;
   schema_version: number;
   exported_at: number;

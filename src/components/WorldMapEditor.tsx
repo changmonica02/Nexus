@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from 'react';
 import type {Page, WorldMapRecord} from '../lib/types';
 import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import {MapCoreClient, downloadMapBlob} from '../features/worldMap/coreClient';
+import {offlineMapDocument,readPublicMapAsset} from '../features/worldMap/offlineCore';
 import {useLanguage} from '../lib/LanguageContext';
 import ModalDialog from './ModalDialog';
 
@@ -13,6 +14,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
 }) {
   const {language} = useLanguage(), en = language === 'en';
   const [session] = useState(() => crypto.randomUUID());
+  const [offline]=useState(()=>!navigator.onLine),[offlineHTML,setOfflineHTML]=useState<string>();
   const frame = useRef<HTMLIFrameElement>(null), client = useRef<MapCoreClient|null>(null);
   const revision = useRef(map.revision), changes = useRef(0), dirty = useRef(false), ready = useRef(false);
   const token = useRef(draftToken), active = useRef<Promise<void>|null>(null), staged = useRef<Promise<void>|null>(null);
@@ -59,9 +61,17 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     let current = true;
     const fail = (e:unknown) => {if(current)setError(String(e));};
     const onMessage = (event:MessageEvent) => {
-      if (event.source !== frame.current?.contentWindow || event.origin !== 'null' || event.data?.type !== 'nexus-map-ready' || event.data.session !== session || client.current) return;
+      if(event.source!==frame.current?.contentWindow||event.origin!=='null'||event.data?.session!==session)return;
+      if(event.data.type==='nexus-map-asset'&&typeof event.data.url==='string'){
+        const source=event.source as Window,id=event.data.id;
+        void readPublicMapAsset(event.data.url).then(blob=>source.postMessage({type:'nexus-map-asset-result',session,id,blob},'*')).catch(error=>source.postMessage({type:'nexus-map-asset-result',session,id,error:String(error)},'*'));return;
+      }
+      if(event.data?.type!=='nexus-map-ready'||client.current)return;
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
+        if(data.type==='loading'){ready.current=false;if(current){setAvailable(false);setStatus(latest.current.en?'Loading project…':'正在載入專案…');}}
+        if(data.type==='loaded'){ready.current=true;dirty.current=true;changes.current++;if(current){setAvailable(true);setError('');}}
+        if(data.type==='load-failed'){ready.current=false;if(current){setAvailable(false);setError(latest.current.en?'Native project loading failed. The saved Nexus project was not replaced.':'原生專案載入失敗，Nexus 已儲存的專案未被取代。');}}
         if(data.type==='dirty') {dirty.current=true;changes.current++;if(current)setStatus(latest.current.en?'Unsaved changes':'有尚未儲存的修改');}
         if(data.type==='save-request') void actions.current.save().catch(fail);
         if(data.type==='persist' && data.blob instanceof Blob && typeof data.id==='number') {
@@ -81,17 +91,18 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       })().catch(fail);
     };
     window.addEventListener('message',onMessage);
+    if(offline)void offlineMapDocument(session).then(html=>{if(current)setOfflineHTML(html);}).catch(fail);
     const checkpoint = setInterval(()=>{void actions.current.stage().catch(fail);},10000);
     const autosave = setInterval(()=>{if(dirty.current && ready.current && !latest.current.conflict)void actions.current.save().catch(fail);},60000);
     const beforeUnload = (event:BeforeUnloadEvent)=>{if(dirty.current){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',beforeUnload);
     const unregister=registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();});
     return ()=>{current=false;clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);unregister?.();client.current?.close();client.current=null;ready.current=false;};
-  },[blob,draftToken,map.id,registerFlush,repository,session]);
+  },[blob,draftToken,map.id,offline,registerFlush,repository,session]);
 
   const report=(e:unknown)=>setError(String(e));
   const close=()=>{void(async()=>{if(ready.current && !conflict)await actions.current.save();onClose();})().catch(report);};
-  const exportProject=()=>{void(async()=>{const project=ready.current?await client.current!.request('snapshot'):blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
+  const exportProject=()=>{void(async()=>{const project=ready.current?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   return <ModalDialog onDismiss={close} busy={busy} aria-label={en?'World map editor':'世界觀地圖編輯器'}
     className="fixed inset-0 m-0 flex h-dvh max-h-none w-screen max-w-none flex-col border-0 bg-[var(--color-bg)] p-0 text-[var(--color-text)]">
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm">
@@ -109,7 +120,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>{if(window.confirm(en?'Discard only this recovery draft?':'確定只捨棄這份復原草稿？'))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{en?'Discard draft':'捨棄草稿'}</button>
     </div>}
     <div className="relative min-h-0 flex-1">
-      <iframe ref={frame} title={en?'Nexus editable map core':'Nexus 可編輯地圖核心'} src={`/world-map/core/index.html?nexus=${session}`}
+      <iframe ref={frame} title={en?'Nexus editable map core':'Nexus 可編輯地圖核心'} src={offline?undefined:`/world-map/core/index.html?nexus=${session}`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="h-full w-full border-0"/>
       {!available&&<div className="absolute inset-0 grid place-items-center bg-white/80 text-zinc-800">{error?(en?'Project loading failed; return without replacing it':'專案載入未完成，可返回；原專案不會被取代'):(en?'Opening map tools…':'正在開啟地圖工具…')}</div>}
     </div>

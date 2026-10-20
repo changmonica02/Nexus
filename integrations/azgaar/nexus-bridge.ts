@@ -3,7 +3,7 @@ import { Save } from '@/services/io/save';
 import { loadNexusMap } from '@/services/io/load';
 import { Services } from '@/services';
 
-const session = new URL(location.href).searchParams.get('nexus');
+const session = window.nexusSession ?? new URL(location.href).searchParams.get('nexus');
 let port: MessagePort | undefined, busy = false, ready = false, sequence = 0;
 const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 const notify = (type: string) => port?.postMessage({ type });
@@ -77,4 +77,11 @@ window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) =>
   pendingSaves.set(id, { resolve, reject, timer });
   port.postMessage({ type: 'persist', id, blob });
 });
-declare global { interface Window { nexusSaveProject?: (blob: Blob) => Promise<void>; } }
+window.nexusLoadProject = async (blob:Blob) => {
+  if(busy)throw Error('Map operation already in progress');
+  busy=true;ready=false;notify('loading');
+  try { await loadNexusMap(blob);ready=true;notify('loaded');notify('dirty'); }
+  catch(error){notify('load-failed');throw error;}
+  finally{busy=false;}
+};
+declare global { interface Window { nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }

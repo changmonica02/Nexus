@@ -28,7 +28,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const editor=page.getByRole('dialog',{name:'World map editor'});
   await editor.getByRole('button',{name:'Save',exact:true}).waitFor({state:'visible',timeout:120000});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
-  let frame=page.frames().find(f=>f.url().includes('/world-map/core/index.html'));
+  let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.ok(frame);
   assert.equal(await frame.evaluate(()=>{try{void parent.document.body;return false;}catch{return true;}}),true,'core cannot access Nexus document');
   assert.equal(await frame.evaluate(()=>localStorage.getItem('nexus-owner')),null);
@@ -43,7 +43,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:'Atlas One',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
-  frame=page.frames().find(f=>f.url().includes('/world-map/core/index.html'));
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await context.setOffline(true);
   await frame.evaluate(id=>{pack.burgs[id].name='Offline Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
@@ -51,12 +51,12 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:'Atlas One',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
-  frame=page.frames().find(f=>f.url().includes('/world-map/core/index.html'));
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Offline Port');
   await context.setOffline(false);await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.locator('input[type=file]').setInputFiles(file);await confirmName('Atlas Imported');
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
-  frame=page.frames().find(f=>f.url().includes('/world-map/core/index.html'));assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await frame.evaluate(async id=>{await Controllers.BurgEditor.open(id);},burgId);await frame.locator('#burgName').fill('Imported Editable Port');
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
