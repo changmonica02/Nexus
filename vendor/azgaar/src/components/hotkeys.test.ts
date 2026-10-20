@@ -6,7 +6,6 @@ vi.mock("@/components/options/options-panel", () => ({ hideOptions: vi.fn() }));
 vi.mock("@/controllers", () => ({ Controllers: { Omnibar: { open: mocks.open } } }));
 vi.mock("@/services", () => ({ Services: { Save: { toMachine: mocks.save } } }));
 vi.mock("@/services/autosave", () => ({ toggleSaveReminder: vi.fn() }));
-vi.mock("./app-info", () => ({ showInfo: vi.fn() }));
 vi.mock("./dialog/dialog-helpers", () => ({ closeDialogs: vi.fn() }));
 vi.mock("./options/tabs/layers-tab", () => ({ getLayerByShortcut: mocks.getLayer }));
 vi.mock("./zoom", () => ({ changeMapZoom: vi.fn(), panMap: vi.fn(), setMapZoom: vi.fn() }));
@@ -35,22 +34,21 @@ beforeEach(() => {
 });
 
 describe("save shortcut", () => {
-  it.each(["ctrlKey", "metaKey"])("saves on %s + S keydown and suppresses the browser save", modifier => {
+  it.each(["ctrlKey", "metaKey"])("leaves persistence to Nexus for %s + S and suppresses browser save", modifier => {
     const init = { code: "KeyS", key: "s", bubbles: true, cancelable: true, [modifier]: true };
     const keydown = new KeyboardEvent("keydown", init);
     document.body.dispatchEvent(keydown);
-    expect(mocks.save).toHaveBeenCalledOnce();
-    expect(mocks.save).toHaveBeenCalledWith(false);
+    expect(mocks.save).not.toHaveBeenCalled();
     expect(keydown.defaultPrevented).toBe(true);
     document.body.dispatchEvent(new KeyboardEvent("keydown", { ...init, repeat: true }));
     document.body.dispatchEvent(new KeyboardEvent("keyup", init));
-    expect(mocks.save).toHaveBeenCalledOnce();
+    expect(mocks.save).not.toHaveBeenCalled();
     expect(mocks.getLayer).not.toHaveBeenCalled();
   });
 
-  it.each(["ctrlKey", "metaKey"])("uses Save As for %s + Shift + S", modifier => {
+  it.each(["ctrlKey", "metaKey"])("does not start standalone Save As for %s + Shift + S", modifier => {
     press(document.body, "KeyS", "S", { [modifier]: true, shiftKey: true });
-    expect(mocks.save).toHaveBeenCalledExactlyOnceWith(true);
+    expect(mocks.save).not.toHaveBeenCalled();
     expect(mocks.getLayer).not.toHaveBeenCalled();
   });
 
@@ -91,3 +89,4 @@ describe("Space opens the search", () => {
     expect(mocks.open).not.toHaveBeenCalled();
   });
 });
+

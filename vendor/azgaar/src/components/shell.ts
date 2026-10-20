@@ -4,9 +4,7 @@ import { Layers } from "@/components/layers";
 import { Pins } from "@/components/pins";
 import { showDataTip } from "@/components/tooltips";
 import { Controllers } from "@/controllers";
-import { Services } from "@/services";
-import { isElectron, isLocalhost } from "@/services/platform";
-import { ensureEl, findEl } from "@/utils";
+import { findEl } from "@/utils";
 import { fitMapToScreen } from "./canvas";
 
 /** Wire the window up: the svg layer scaffold and the browser-level behaviours around it. Called by boot() */
@@ -16,12 +14,8 @@ export function initShell(): void {
   window.addEventListener("resize", onResize);
   window.addEventListener("vite:preloadError", onChunkLoadError);
   document.addEventListener("touchstart", onTitlebarButtonTouch, { capture: true, passive: true });
-  addDragToUpload();
-  initTourPromptButton();
   initAssistantBubble();
 
-  if (!isLocalhost() && !isElectron()) window.onbeforeunload = () => "Are you sure you want to navigate away?";
-  if (isElectron()) removeWebOnlyControls();
 }
 
 /** Keep the next unpinned map request in step with the browser window. */
@@ -79,71 +73,6 @@ function onChunkLoadError(): void {
   });
 }
 
-/** Dropping a .map or .gz anywhere on the window opens it. Pull request from @evyatron */
-function addDragToUpload(): void {
-  const overlay = () => ensureEl("mapOverlay");
-
-  document.addEventListener("dragover", event => {
-    event.stopPropagation();
-    event.preventDefault();
-    overlay().style.display = null as unknown as string;
-  });
-
-  document.addEventListener("dragleave", () => {
-    overlay().style.display = "none";
-  });
-
-  document.addEventListener("drop", event => {
-    event.stopPropagation();
-    event.preventDefault();
-
-    const mapOverlay = overlay();
-    mapOverlay.style.display = "none";
-
-    const items = event.dataTransfer?.items;
-    if (items?.length !== 1) return; // no files, or more than one
-    const file = items[0].getAsFile();
-    if (!file) return;
-
-    if (!file.name.endsWith(".map") && !file.name.endsWith(".gz")) {
-      return alertDialog({
-        title: "Invalid file format",
-        message: "Please upload a map file (<i>.map</i> or <i>.gz</i> formats) you have previously downloaded"
-      });
-    }
-
-    mapOverlay.style.display = null as unknown as string;
-    mapOverlay.innerHTML = "Uploading<span>.</span><span>.</span><span>.</span>";
-    closeDialogs();
-    Services.Load.uploadMap(file, () => {
-      mapOverlay.style.display = "none";
-      mapOverlay.innerHTML = "Drop a map file to open";
-    });
-  });
-}
-
-/**
- * Offer the tour to newcomers with a floating button. Shown on the first few visits only, and never
- * again once the user has taken it. The tour itself stays lazy: it is a chunk of its own
- */
-function initTourPromptButton(): void {
-  const MAX_SHOWS = 3;
-  const STORAGE_KEY = "fmg-tour-prompt-count";
-
-  const count = Number.parseInt(localStorage.getItem(STORAGE_KEY) || "0", 10);
-  if (count >= MAX_SHOWS) return;
-
-  const button = findEl("tourPromptButton");
-  if (!button) return;
-
-  button.style.display = "flex";
-  button.addEventListener("click", () => {
-    Services.UiTour.start();
-    localStorage.setItem(STORAGE_KEY, String(MAX_SHOWS));
-  });
-  localStorage.setItem(STORAGE_KEY, String(count + 1));
-}
-
 /** The app is a static site, but it fetches assets: opening index.html from disk cannot work */
 export function warnIfServerless(): boolean {
   if (location.hostname) return false;
@@ -155,10 +84,4 @@ export function warnIfServerless(): boolean {
     message: /* html */ `Fantasy Map Generator cannot run serverless. Follow the <a href="${wiki}" target="_blank">instructions</a> on how you can easily run a local web-server`
   });
   return true;
-}
-
-function removeWebOnlyControls(): void {
-  findEl("getAppButton")?.remove();
-  findEl("saveToDropboxButton")?.remove();
-  findEl("loadFromDropbox")?.remove();
 }

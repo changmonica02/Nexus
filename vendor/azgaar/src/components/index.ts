@@ -1,5 +1,4 @@
 import "./options-model";
-import "./app-info";
 import "./tooltips";
 import "./map-tooltip";
 import "./zoom";
@@ -17,3 +16,4 @@ import "./dialog/dialog-helpers";
 import "./dialog/sorting";
 import "./shared/fill-box";
 import "./shared/slider-input";
+

@@ -6,7 +6,6 @@ import "@/components/globals";
 import "@/components/options/tabs";
 
 import "@/utils";
-import "@/data/supporters";
 import "@/data/heightmap-templates";
 import "@/data/precreated-heightmaps";
 import "@/generators";
@@ -19,3 +18,4 @@ import "@/generators/styles-legacy";
 import { boot } from "@/components/lifecycle";
 
 document.addEventListener("DOMContentLoaded", boot);
+

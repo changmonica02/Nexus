@@ -1,9 +1,6 @@
 import { hideOptions } from "@/components/options/options-panel";
 import { Controllers } from "@/controllers";
-import { Services } from "@/services";
-import { toggleSaveReminder } from "@/services/autosave";
 import { findEl, minmax } from "@/utils";
-import { showInfo } from "./app-info";
 import { closeDialogs } from "./dialog/dialog-helpers";
 import { getLayerByShortcut } from "./options/tabs/layers-tab";
 import { changeMapZoom, panMap, setMapZoom } from "./zoom";
@@ -18,12 +15,11 @@ function handleKeydown(event: KeyboardEvent): void {
   const { code, ctrlKey, metaKey, altKey, shiftKey } = event;
   if ((ctrlKey || metaKey) && code === "KeyS") {
     event.preventDefault();
-    if (!event.repeat) Services.Save.toMachine(shiftKey); // keydown supplies the file picker's user activation
+    // The Nexus bridge handles this shortcut in capture phase.
     return;
   }
   if (altKey && !ctrlKey && !shiftKey) event.preventDefault(); // disallow plain alt key combinations
-  if (ctrlKey && ["KeyS", "KeyC"].includes(code)) event.preventDefault(); // disallow CTRL + S and CTRL + C
-  if (["F1", "F2", "F6", "F9", "Tab"].includes(code)) event.preventDefault(); // disallow default Fn and Tab
+  if (["Tab"].includes(code)) event.preventDefault(); // disallow default Fn and Tab
 }
 
 function handleKeyup(event: KeyboardEvent): void {
@@ -40,18 +36,12 @@ function handleKeyup(event: KeyboardEvent): void {
   const brush = getVisibleBrush();
 
   if (code === "Space") openOmnibar(event);
-  else if (code === "F1") showInfo();
-  else if (code === "F2") regeneratePrompt();
-  else if (code === "F6") Services.Save.toStorage();
-  else if (code === "F9") Services.Load.quickLoad();
   else if (code === "Tab") toggleOptions(event);
   else if (code === "Escape") {
     closeDialogs();
     hideOptions();
   } else if (code === "Delete") removeElementOnKey();
   else if (code === "KeyO" && findEl("canvas3d")) Controllers.View3d.toggleOptions();
-  else if (ctrl && code === "KeyQ") toggleSaveReminder();
-  else if (ctrl && code === "KeyC") Services.Save.toDropbox();
   else if (ctrl && code === "KeyZ") findEl("undo")?.click();
   else if (ctrl && code === "KeyY") findEl("redo")?.click();
   else if ((shift || altShift) && code === "KeyH") Controllers.HeightmapEditor.open();
@@ -171,3 +161,4 @@ function removeElementOnKey(): void {
     });
   });
 }
+

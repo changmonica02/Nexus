@@ -155,6 +155,17 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     {editing?<header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
       <button type="button" onClick={close} disabled={busy}>{t('worldMap.editor11')}</button>
       <strong className="mr-auto truncate">{map.title}</strong>
+      <details className="relative">
+        <summary className="cursor-pointer rounded border px-3 py-2">{t('worldMap.licenses')}</summary>
+        <section aria-label={t('worldMap.licenses')} className="absolute right-0 top-full z-10 w-72 max-w-[85vw] rounded border bg-[var(--color-bg)] p-3 shadow-lg">
+          <p>{t('worldMap.attribution')}</p>
+          <ul className="list-inside list-disc [&_a]:underline">
+            <li><a href="https://github.com/Azgaar/Fantasy-Map-Generator/tree/b4a0dcb933586a57242508f558f775da16c35c64" target="_blank" rel="noreferrer">{t('worldMap.source')}</a></li>
+            <li><a href="/world-map/core/AZGAAR-LICENSE.txt" target="_blank" rel="noreferrer">MIT License</a></li>
+            <li><a href="/world-map/core/THIRD-PARTY-NOTICES.txt" target="_blank" rel="noreferrer">{t('worldMap.notices')}</a></li>
+          </ul>
+        </section>
+      </details>
       <button type="button" disabled={!available||busy||Boolean(conflict)} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
       <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
       {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}

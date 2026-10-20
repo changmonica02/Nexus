@@ -1,17 +1,8 @@
-import { showInfo } from "@/components/app-info";
 import { refreshEditors } from "@/components/dialog/dialog-helpers";
 import type { LayerId } from "@/components/layers";
 import { Layers } from "@/components/layers";
 import { applyPreset, savePreset } from "@/components/layers-presets";
-import { regeneratePrompt } from "@/components/lifecycle";
-import {
-  loadURL,
-  openExportToPngTiles,
-  pickMapFile,
-  showExportPane,
-  showLoadPane,
-  showSavePane
-} from "@/components/options/io-panes";
+import { openExportToPngTiles, showExportPane } from "@/components/options/io-panes";
 import { openTab, toggleOptions } from "@/components/options/options-panel";
 import { LAYER_PRESETS, LAYER_TOGGLES } from "@/components/options/tabs/layers-tab";
 import { showSeedHistoryDialog } from "@/components/seed";
@@ -22,9 +13,6 @@ import { Emblems } from "@/generators/emblems-generator";
 import { Population } from "@/generators/population-generator";
 import { unfog } from "@/renderers/overlays/fogging";
 import { Services } from "@/services";
-import { toggleSaveReminder } from "@/services/autosave";
-import { copyMapURL } from "@/services/url-params";
-import { cleanupData } from "@/services/versioning";
 import { ensureEl, gauss, isCtrlClick } from "@/utils";
 
 export interface MapCommand {
@@ -48,44 +36,9 @@ export const MAP_COMMANDS: MapCommand[] = [
     matches: isQuestion,
     run: () => Controllers.Assistant.open()
   },
-  {
-    id: "startTour",
-    name: "Start Interactive Tour",
-    aliases: "help guide tutorial",
-    run: () => Services.UiTour.start()
-  },
-  { id: "newMap", name: "Generate New Map", aliases: "regenerate random create", run: () => regeneratePrompt() },
-  {
-    id: "saveToMachine",
-    name: "Save Map File",
-    aliases: "save .map disk",
-    run: () => Services.Save.toMachine()
-  },
-  {
-    id: "saveMapAs",
-    name: "Save Map As…",
-    aliases: "save as copy .map filename folder location backup",
-    run: () => Services.Save.toMachine(true)
-  },
-  {
-    id: "loadFromFile",
-    name: "Load Map from File",
-    aliases: "open upload disk",
-    run: () => pickMapFile()
-  },
-  { id: "quickLoad", name: "Quick Load Map", aliases: "browser storage restore", run: () => Services.Load.quickLoad() },
-  {
-    id: "saveToStorage",
-    name: "Save Map to browser storage",
-    aliases: "browser storage",
-    run: () => Services.Save.toStorage()
-  },
-  { id: "saveToDropbox", name: "Save Map to Dropbox", aliases: "cloud", run: () => Services.Save.toDropbox() },
-  { id: "loadFromURL", name: "Load Map from URL", aliases: "open link", run: () => loadURL() },
-  { id: "saveButton", name: "Show Save Panel", aliases: "store dialog", run: () => showSavePane() },
-  { id: "loadButton", name: "Load Map", aliases: "open dialog", run: () => showLoadPane() },
-  { id: "exportButton", name: "Show Export Panel", aliases: "map download image data", run: () => showExportPane() },
-  { id: "copyMapURL", name: "Copy Map URL", aliases: "seed link share clipboard", run: () => copyMapURL() },
+
+  { id: "exportButton", name: "Show Advanced Export", aliases: "map download image data", run: () => showExportPane() },
+
   {
     id: "seedHistory",
     name: "Show Seed History",
@@ -506,13 +459,7 @@ export const MAP_COMMANDS: MapCommand[] = [
   { id: "optionsTab", name: "Open Options Tab", aliases: "menu panel settings", run: () => openTab("optionsTab") },
   { id: "toolsTab", name: "Open Tools Tab", aliases: "menu panel", run: () => openTab("toolsTab") },
   { id: "aboutTab", name: "Open About Tab", aliases: "menu panel info credits", run: () => openTab("aboutTab") },
-  {
-    id: "exportSvg",
-    name: "Export as SVG",
-    aliases: "download vector image",
-    run: () => Services.ExportMap.exportToSvg()
-  },
-  { id: "exportPng", name: "Export as PNG", aliases: "download image", run: () => Services.ExportMap.exportToPng() },
+
   { id: "exportJpeg", name: "Export as JPEG", aliases: "download image", run: () => Services.ExportMap.exportToJpeg() },
   { id: "exportTiles", name: "Export as PNG Tiles", aliases: "download zip", run: () => openExportToPngTiles() },
   {
@@ -629,20 +576,7 @@ export const MAP_COMMANDS: MapCommand[] = [
     aliases: "download table areas regions",
     run: () => Controllers.ZonesEditor.exportCsv()
   },
-  { id: "showInfo", name: "Show App Info", aliases: "about version help", run: () => showInfo() },
-  { id: "getApp", name: "Get Desktop App", aliases: "install download electron", run: () => Services.AppOffer.open() },
-  {
-    id: "toggleSaveReminder",
-    name: "Toggle Save Reminder",
-    aliases: "autosave notification",
-    run: () => toggleSaveReminder()
-  },
-  {
-    id: "optionsReset",
-    name: "Reset Options",
-    aliases: "restore defaults clear cache reload",
-    run: () => cleanupData()
-  },
+
   { id: "savePresetButton", name: "Save Layers Preset", aliases: "displayed layers", run: () => savePreset() },
   ...Object.entries(LAYER_PRESETS).map(([id, label]) => ({
     id: `preset:${id}`,
@@ -823,3 +757,4 @@ function regenerateZones(event?: MouseEvent): void {
     applyZonesRegeneration(Number(value))
   );
 }
+
