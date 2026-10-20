@@ -22,7 +22,7 @@ import { isAutoBurgLimit } from "@/generators/burgs-generator";
 import { CULTURE_SETS, Cultures } from "@/generators/cultures-generator";
 import { Emblems } from "@/generators/emblems-generator";
 import { EmblemRenderer } from "@/renderers/emblems/renderer";
-import { applyOption, ensureEl, findEl } from "@/utils/nodeUtils";
+import { applyOption, ensureEl } from "@/utils/nodeUtils";
 import { minmax, rn } from "@/utils/numberUtils";
 import { PerformanceSettings } from "../performance-settings";
 

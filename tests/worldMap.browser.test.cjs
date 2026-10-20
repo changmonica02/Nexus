@@ -138,9 +138,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await frame.evaluate(async id=>{await Controllers.BurgEditor.open(id);},burgId);await frame.locator('#burgName').fill('Imported Editable Port');
-  // Native UI imports also use the awaitable failure boundary, not the old void loader.
+  // The retained loader API still uses the awaitable failure boundary.
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
-  await frame.locator('#mapToLoad').setInputFiles({name:'invalid.map',mimeType:'application/octet-stream',buffer:Buffer.from('invalid')});
+  await frame.evaluate(()=>Services.Load.uploadMap(new Blob(['invalid'],{type:'application/octet-stream'})));
   await editor.getByRole('alert').filter({hasText:'Native project loading failed'}).waitFor();
   assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});

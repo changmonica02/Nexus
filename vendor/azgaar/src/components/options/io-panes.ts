@@ -3,6 +3,7 @@ import { select } from "d3";
 import { closeDialogs } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { Services } from "@/services";
+import { createFileInput } from "@/utils/fileUtils";
 import { ensureEl } from "@/utils/nodeUtils";
 
 const closeButton = {
@@ -106,6 +107,19 @@ function updateTilesOptions(): void {
 
   select("#debug").html(/* html */ `<g fill="none" stroke="#000">${rects.join("")}</g>
     <g fill="#000" stroke="none" text-anchor="middle" dominant-baseline="central" font-size="18px">${labels.join("")}</g>`);
+}
+
+/** Only the native load-error dialog needs this fallback; Nexus owns normal imports. */
+export function pickMapFile(): void {
+  const input = createFileInput(".map,.gz");
+  input.addEventListener("cancel", () => input.remove(), { once: true });
+  input.onchange = () => {
+    const file = input.files?.[0];
+    input.remove();
+    closeDialogs();
+    if (file) void Services.Load.uploadMap(file);
+  };
+  input.click();
 }
 
 function initialize(): void {
