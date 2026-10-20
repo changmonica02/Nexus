@@ -62,7 +62,9 @@ function getContourSurface(smoothed: Float64Array): { points: [number, number][]
   return { points, elevations };
 }
 
-export const drawHeightmap = (presentation?: {contourInterval:number;contourLabels:boolean}): void => {
+export const drawHeightmap = (): void => drawHeightmapView();
+
+export const drawHeightmapView = (presentation?: {contourInterval:number;contourLabels:boolean}): void => {
   if (customization === 1)
     return void tip("The Layer control is not available in the heightmap edit mode", false, "error");
 

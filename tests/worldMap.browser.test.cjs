@@ -2,7 +2,7 @@ require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),os=require('node:os');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 const {worldMapHeaders}=require('../next.config.ts');
-test('actual fork: isolated native editing, save/reopen, project roundtrip, images, offline, multi-map and restore',{timeout:420000},async t=>{
+test('actual fork: isolated native editing, save/reopen, project roundtrip, images, offline, multi-map and restore',{timeout:600000},async t=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-world-map-')),root=path.resolve(__dirname,'..'),core=path.join(root,'public/world-map/core');
   await build({entryPoints:['tests/fixtures/worldMap.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})}});
   const cssFiles=fs.readdirSync(path.join(root,'.next/static'),{recursive:true}).filter(p=>p.endsWith('.css'));
@@ -32,6 +32,32 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
   const closeManage=async()=>{if(await manage.isVisible())await manage.getByRole('button',{name:'Close panel'}).click();};
   assert.equal(await manage.count(),0,'management is hidden by default');
+  // Preview every shipped source in a disposable sandbox, then cancel with zero persistence.
+  await openManage();await manage.getByRole('button',{name:'Create map',exact:true}).click();
+  const creator=page.getByRole('dialog',{name:'Create map',exact:true});
+  await creator.locator('img').waitFor({timeout:120000});
+  const creationFrame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  const beforePreview=await creationFrame.evaluate(()=>JSON.stringify([pack,grid.cells.h,options.map]));
+  for(const kind of ['procedural','precreated']){
+    await creator.getByLabel('Terrain source',{exact:true}).selectOption(kind);
+    const source=creator.getByLabel('Terrain template',{exact:true});
+    const ids=await source.locator('option').evaluateAll(nodes=>nodes.map(n=>n.value));
+    assert.equal(ids.length,kind==='procedural'?14:23);
+    for(const id of ids){
+      const old=await creator.locator('img').getAttribute('src');
+      await source.selectOption(id);
+      // Selecting the already-selected first item is not a resample.
+      if(await source.inputValue()===id){
+        await creator.getByRole('button',{name:'Resample',exact:true}).click();
+      }
+      await page.waitForFunction(old=>{const img=document.querySelector('img[alt="Terrain template preview"]');return img&&img.getAttribute('src')!==old&&img.complete&&img.naturalWidth>0;},old,{timeout:30000});
+      assert.equal(await creator.getByRole('alert').count(),0,'template '+id);
+    }
+  }
+  assert.equal(await creationFrame.evaluate(()=>JSON.stringify([pack,grid.cells.h,options.map])),beforePreview,'preview never changes active geography');
+  assert.equal(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (w.character_data.world_maps??[]).length;}),0);
+  await creator.getByRole('button',{name:'Cancel',exact:true}).click();await creator.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (w.character_data.world_maps??[]).length;}),0,'cancel creates no map');
   await openManage();await manage.getByRole('button',{name:'Create map',exact:true}).click();await confirmName('Atlas One');
   const editor=page.getByRole('dialog',{name:'World map editor'});
   await editor.getByRole('button',{name:'Save',exact:true}).waitFor({state:'visible',timeout:120000});
@@ -52,6 +78,47 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.locator('.ui-dialog:visible').count(),0);
 
   assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i&&!b.removed).length),0,'new maps have no random towns');
+  assert.deepEqual(await frame.evaluate(()=>[pack.states,pack.cultures,pack.religions].map(a=>a.filter(e=>e.i&&!e.removed).length)),[0,0,0]);
+  const naturalId=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id;});
+  const naturalData=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
+  // Reopen actual native project before making any edits.
+  await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
+  assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map])),naturalData);
+  await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
+  await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
+  await frame.locator('#paintBrushes').click();await frame.locator('#brushRaise').click();
+  const terrain=await frame.evaluate(()=>{const i=grid.cells.i.find(i=>grid.cells.h[i]>=30&&grid.cells.h[i]<80&&!grid.cells.b[i]);const z=document.querySelector('#map').__zoom;return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
+  await frame.locator('#map').click({position:{x:terrain.x,y:terrain.y},force:true});
+  assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h,'native raise brush edits height');
+  await frame.locator('#undo').click();assert.equal(await frame.evaluate(i=>grid.cells.h[i],terrain.i),terrain.h);
+  await frame.locator('#redo').click();assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h);
+  await frame.locator('#finalizeHeightmap').click();
+  assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','climate','biomes']);
+  assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i).length),0);
+  await frame.evaluate(()=>{closeDialogs();});
+  // Manual biome paint and river name survive climate application; hydrology is never regenerated.
+  const manual=await frame.evaluate(()=>{const i=pack.cells.i.find(i=>pack.cells.h[i]>=20);pack.cells.biome[i]=4;if(pack.rivers[0])pack.rivers[0].name='Manual River';return {i,rivers:JSON.stringify(pack.rivers),biomes:Array.from(pack.cells.biome)};});
+  await frame.evaluate(()=>Controllers.WorldConfigurator.open());
+  await frame.getByRole('button',{name:'Apply climate',exact:true}).click();
+  assert.equal(await frame.evaluate(()=>JSON.stringify(pack.rivers)),manual.rivers);
+  assert.deepEqual(await frame.evaluate(()=>Array.from(pack.cells.biome)),manual.biomes);
+  await frame.evaluate(()=>closeDialogs());
+  await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
+  const geography=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
+  await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  for(const preset of ['contours','temperature','precipitation','biomes','political','cultural','religions','physical']){
+    await page.getByLabel('Display layers',{exact:true}).selectOption(preset);await page.waitForTimeout(100);
+    assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map])),geography,'view is presentation-only: '+preset);
+    if(preset==='contours')assert.ok(await frame.locator('.heightmap-contours path').count()>0,'height-derived contour paths');
+  }
+  await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
+  await frame.evaluate(async()=>Services.Load.quickLoad());
+  await frame.waitForFunction(i=>pack.cells.biome[i]===4,manual.i);
+  assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','biomes']);
+  assert.equal(await page.evaluate(async id=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id===id;},naturalId),true);
+  await frame.locator('#optionsTrigger').click();
+
   await frame.evaluate(async()=>{await window.generateMapOnLoad({naturalOnly:false});});
   await frame.locator('#optionsTrigger').click();
   await frame.locator('#exportButton').click();

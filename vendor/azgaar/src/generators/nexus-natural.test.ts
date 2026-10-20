@@ -1,10 +1,10 @@
 import {afterEach,expect,test,vi} from 'vitest';
 import {existsSync} from 'node:fs';
 import {Layers} from '@/components/layers';
-import {drawHeightmap} from '@/renderers/draw-heightmap';
+import {drawHeightmapView as drawHeightmap} from '@/renderers/draw-heightmap';
 import {naturalCatalog,naturalConfig,previewNaturalHeightmap,applyNaturalView} from './nexus-natural';
 vi.mock('@/components/layers',()=>({Layers:{set:vi.fn()}}));
-vi.mock('@/renderers/draw-heightmap',()=>({drawHeights:()=> 'data:image/png;base64,AA==',drawHeightmap:vi.fn()}));
+vi.mock('@/renderers/draw-heightmap',()=>({drawHeights:()=> 'data:image/png;base64,AA==',drawHeightmapView:vi.fn()}));
 vi.mock('@/renderers/heightmap-color-schemes',()=>({HeightmapColorSchemes:{get:()=>()=> '#000'}}));
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 test('all 14 procedural scripts and 23 precreated raster resources are selectable',()=>{

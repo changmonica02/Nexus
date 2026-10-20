@@ -21,7 +21,7 @@ function open(): void {
     title: "Configure World",
     resizable: false,
     width: "minmax(40em, 85vw)",
-    buttons: { "Update world": updateWorld },
+    buttons: { [window.parent !== window ? "Apply climate" : "Update world"]: updateWorld },
     open: function (this: HTMLElement) {
       const checkbox = /* html */ `<div class="dontAsk" data-tip="Automatically update world on input changes and button clicks">
         <input id="wcAutoChange" class="checkbox" type="checkbox" checked />
@@ -29,6 +29,7 @@ function open(): void {
       </div>`;
       const pane = this.parentElement?.querySelector(".ui-dialog-buttonpane");
       pane?.insertAdjacentHTML("afterbegin", checkbox);
+      if(window.parent !== window)ensureEl<HTMLInputElement>("wcAutoChange").checked=false;
 
       const button = this.parentElement?.querySelector(".ui-dialog-buttonset > button");
       button?.addEventListener("mousemove", () => tip("Apply current settings to the map"));

@@ -1,5 +1,6 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "azgaar.Apply climate":"Apply climate",
   "worldMap.createNatural":"Create a natural map",
   "worldMap.sourceType":"Terrain source",
   "worldMap.procedural":"Procedural template",
@@ -631,6 +632,7 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "azgaar.Apply climate":"套用氣候",
   "worldMap.createNatural":"建立自然地圖",
   "worldMap.sourceType":"地形來源",
   "worldMap.procedural":"程序地形模板",

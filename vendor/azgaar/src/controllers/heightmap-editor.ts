@@ -57,6 +57,7 @@ const dialogId = "heightmapEditor";
 const EDITOR_OPTIONS = ["renderOcean", "showDrainage", "allowErosion"] as const; // the customization menu checkboxes
 const historyLimit = 100;
 let filterState: FilterState;
+let keptLandMask: Uint8Array | null = null;
 let templateInput: HTMLInputElement | null = null;
 let converterInput: HTMLInputElement | null = null;
 
@@ -65,6 +66,7 @@ function open(options?: { mode?: string; tool?: string }): void {
     tip("Coastline topology rebuild is unavailable: existing rivers and manual data are preserved. Use Keep mode for terrain editing.", false, "error", 8000);
     return;
   }
+  keptLandMask = window.parent !== window ? Uint8Array.from(grid.cells.h, h=>h>=20?1:0) : null;
   filterState = dialogState.get(dialogId, "filters", (): FilterState => ({ cellType: "all" }));
   if (!(["all", "land", "water"] as string[]).includes(filterState.cellType)) filterState.cellType = "all";
   dialogState.set(dialogId, "filters", filterState);
@@ -914,6 +916,11 @@ function setHistoryButtonsDisabled(undo: boolean, redo: boolean): void {
 }
 
 function updateHistory(noStat?: string): void {
+  // All native brushes, filters and rescalers converge here. The UI filter alone is not a coastline guard.
+  if (keptLandMask) for (const i of grid.cells.i) {
+    if (keptLandMask[i] && grid.cells.h[i] < 20) grid.cells.h[i] = 20;
+    if (!keptLandMask[i] && grid.cells.h[i] >= 20) grid.cells.h[i] = 19;
+  }
   const step = edits.n;
   edits = Object.assign(edits.slice(0, step), { n: step + 1 });
   edits[step] = grid.cells.h.slice();

@@ -1,7 +1,7 @@
 /** Nexus-only geography boundary. It owns no world IDs, attachments or account state. */
 import {heightmapTemplates} from '@/data/heightmap-templates';
 import {precreatedHeightmaps} from '@/data/precreated-heightmaps';
-import {drawHeights,drawHeightmap} from '@/renderers/draw-heightmap';
+import {drawHeights,drawHeightmapView as drawHeightmap} from '@/renderers/draw-heightmap';
 import {HeightmapColorSchemes} from '@/renderers/heightmap-color-schemes';
 import {Layers,type LayerId} from '@/components/layers';
 export type NaturalConfig={template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number;naturalOnly:true};
