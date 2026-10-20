@@ -115,12 +115,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.getByLabel('Town name',{exact:true}).fill('Canonical Harbor');
   await townForm.getByLabel('Short description',{exact:true}).fill('One official record');
+  await townForm.locator('[contenteditable=true]').fill('Harbor chronicle');
   await page.evaluate(()=>{window.failMapSave=true;});
   await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.getByRole('alert').waitFor();
   assert.equal((await readTowns()).entities.length,0,'transaction failure creates no half-record');
   await page.evaluate(()=>{window.failMapSave=false;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
   const townCreated=await readTowns(),townId=townCreated.entities[0].entityId;
   assert.equal(townCreated.entities.length,1);assert.equal(townCreated.maps[0].placements[0].entityId,townId);
+  assert.match(JSON.stringify(townCreated.entities[0].content),/Harbor chronicle/,'Tiptap details are saved in the canonical entry');
   await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).waitFor();
   await editor.getByRole('button',{name:'Place existing town',exact:true}).click();await townPanel.waitFor();
   await townPanel.getByText('Canonical Harbor',{exact:true}).waitFor();
