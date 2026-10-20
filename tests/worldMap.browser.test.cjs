@@ -96,6 +96,56 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     geography:await frame.evaluate(()=>({gridCells:grid.cells.i.length,packedCells:pack.cells.i.length,heapSampleBytes:performance.memory?.usedJSHeapSize??null})),
     projectBytes:await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (await mapStorage.getAttachment(w.character_data.world_maps[0].attachment_id)).size_bytes;})
   }));
+  // V2-2A: use real editor clicks and canonical Page persistence, without regenerating native data.
+  const townForm=page.getByRole('dialog',{name:'Edit town entry',exact:true});
+  const townPanel=page.getByRole('dialog',{name:'Towns',exact:true});
+  const markerDialog=page.getByRole('dialog',{name:'Town marker',exact:true});
+  const clickMapPoint=async(x=0.55,y=0.65)=>{
+    await page.waitForTimeout(250);const box=await frame.locator('#map').boundingBox();
+    await page.mouse.click(box.x+box.width*x,box.y+box.height*y);
+  };
+  const readTowns=()=>page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return {entities:w.character_data.world_entities??[],maps:w.character_data.world_maps};});
+  await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
+  await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.equal((await readTowns()).entities.length,0,'cancel point form leaves no entity');
+  await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
+  await townForm.getByLabel('Town name',{exact:true}).fill('Canonical Harbor');
+  await townForm.getByLabel('Short description',{exact:true}).fill('One official record');
+  await page.evaluate(()=>{window.failMapSave=true;});
+  await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.getByRole('alert').waitFor();
+  assert.equal((await readTowns()).entities.length,0,'transaction failure creates no half-record');
+  await page.evaluate(()=>{window.failMapSave=false;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
+  const townCreated=await readTowns(),townId=townCreated.entities[0].entityId;
+  assert.equal(townCreated.entities.length,1);assert.equal(townCreated.maps[0].placements[0].entityId,townId);
+  await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).waitFor();
+  await editor.getByRole('button',{name:'Place existing town',exact:true}).click();await townPanel.waitFor();
+  await townPanel.getByText('Canonical Harbor',{exact:true}).waitFor();
+  await townPanel.getByRole('button',{name:'Add town',exact:true}).click();
+  await townForm.getByLabel('Town name',{exact:true}).fill('Unplaced Town');
+  await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
+  const unplaced=townPanel.locator('li').filter({hasText:'Unplaced Town'});await unplaced.getByText('Unplaced',{exact:true}).waitFor();
+  await unplaced.getByRole('button',{name:'Place on selected map',exact:true}).click();await clickMapPoint(0.7,0.7);
+  await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).waitFor();
+  // Both entrances edit the same canonical entry; no copy of the body is sent to the core.
+  await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).click();
+  await markerDialog.getByRole('button',{name:'Open world entry',exact:true}).click();
+  await townForm.getByLabel('Town name',{exact:true}).fill('Renamed Harbor');
+  await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
+  await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).waitFor();
+  const beforeMove=(await readTowns()).entities;
+  await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).click();
+  await markerDialog.getByRole('button',{name:'Move marker',exact:true}).click();await clickMapPoint(0.6,0.75);
+  await page.waitForTimeout(300);assert.deepEqual((await readTowns()).entities,beforeMove,'moving never alters canonical body');
+  assert.notDeepEqual((await readTowns()).maps[0].placements[0].geometry,townCreated.maps[0].placements[0].geometry);
+  await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).click();
+  await markerDialog.getByRole('button',{name:'Remove from this map',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm',exact:true}).click();await markerDialog.waitFor({state:'detached'});
+  assert.equal((await readTowns()).entities.length,2,'removing marker retains entry');
+  assert.equal(await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).count(),0);
+  assert.equal(await dataDigest(),naturalData,'entity changes never regenerate geography');
+  await editor.getByRole('button',{name:'Save',exact:true}).click();
+  await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
+  assert.equal(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (await (await mapStorage.readBinary(w.character_data.world_maps[0].attachment_id)).text()).includes('nexus-placements');}),false,'native snapshot excludes canonical label overlay');
   // Real IndexedDB backup: reject corrupt / foreign-owner input, restore, then cold-reopen.
   await page.evaluate(async()=>{
     const backup=await mapStorage.exportWorkspaceBackup();
@@ -116,6 +166,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await dataDigest(),naturalData);
+  await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).waitFor();
+  assert.equal((await readTowns()).entities.length,2,'towns survive backup and cold reopen');
   await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
   await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
   await frame.locator('#paintBrushes').click();await frame.locator('#brushRaise').click();
@@ -411,5 +463,6 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });
+
 
 

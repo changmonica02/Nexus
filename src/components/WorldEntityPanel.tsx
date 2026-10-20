@@ -7,14 +7,14 @@ import ModalDialog from './ModalDialog';
 
 export function WorldEntityForm({entity,onSave,onCancel}:{entity:WorldEntity;onSave:(entity:WorldEntity)=>Promise<void>;onCancel:()=>void}) {
  const {t}=useLanguage();
- const [draft,setDraft]=useState(()=>structuredClone(entity)),[busy,setBusy]=useState(false),[error,setError]=useState(false),[changed,setChanged]=useState(false);
+ const [draft,setDraft]=useState(()=>structuredClone(entity)),[busy,setBusy]=useState(false),[error,setError]=useState(false),[changed,setChanged]=useState(false),[aliases,setAliases]=useState(entity.aliases.join(', '));
  const update=(patch:Partial<WorldEntity>)=>{setDraft(old=>({...old,...patch}));setChanged(true);};
  const cancel=()=>{if(!busy&&(!changed||window.confirm(t('worldEntity.discard'))))onCancel();};
  return <ModalDialog aria-label={t('worldEntity.edit')} busy={busy} onDismiss={cancel} className="max-h-[90dvh] w-[min(94vw,48rem)] overflow-y-auto rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:px-3">
   <h2 className="mb-3 font-semibold">{t('worldEntity.edit')}</h2>
   <div className="grid gap-3 [&_input]:min-h-11 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:bg-transparent [&_input]:px-3">
    <label>{t('worldEntity.name')}<input autoFocus value={draft.name} onChange={e=>update({name:e.target.value})}/></label>
-   <label>{t('worldEntity.aliases')}<input value={draft.aliases.join(', ')} onChange={e=>update({aliases:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)})}/></label>
+   <label>{t('worldEntity.aliases')}<input value={aliases} onChange={e=>{setAliases(e.target.value);update({aliases:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)});}}/></label>
    <label>{t('worldEntity.subtype')}<input value={draft.subtype??''} onChange={e=>update({subtype:e.target.value})}/></label>
    <label>{t('worldEntity.summary')}<input value={draft.summary??''} onChange={e=>update({summary:e.target.value})}/></label>
    <section aria-label={t('worldEntity.content')} className="min-h-40 rounded-lg border p-2"><p className="mb-2 text-sm opacity-60">{t('worldEntity.content')}</p><TiptapEditor content={draft.content??{type:'doc',content:[{type:'paragraph'}]}} onChange={({json})=>update({content:json})} variant="rich" showToolbar/></section>

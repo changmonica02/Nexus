@@ -88,7 +88,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       clearTimeout(startup);
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
-        if(data.type==='map-point'&&latest.current.editing&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
+        if(data.type==='map-point'&&latest.current.editing&&typeof data.requestId==='string'&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
         if(data.type==='placement-select'&&typeof data.placementId==='string')latest.current.onMarker?.(data.placementId);
         if(data.type==='scroll'&&!latest.current.editing&&!latest.current.fullView&&typeof data.delta==='number'&&Number.isFinite(data.delta)){surface.current?.closest<HTMLElement>('[data-map-scroll]')?.scrollBy({top:Math.max(-1000,Math.min(1000,data.delta)),behavior:'instant'});}
         if(data.type==='view'&&data.view&&ready.current){if(data.preview&&!latest.current.editing)previewView.current=data.view;latest.current.onView?.(data.view);}
