@@ -105,6 +105,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.basic.gender;}),'Legacy gender');
   assert.equal(await page.getByRole('button',{name:'Zoom in',exact:true}).isVisible(),false,'phone uses gestures instead of persistent +/-');
+  console.log('NEXUS_MOBILE_SCREEN:'+ (await page.screenshot({type:'jpeg',quality:35})).toString('base64'));
+  await openManage();
+  assert.ok(await manage.evaluate(el=>el.scrollWidth<=el.clientWidth),'mobile management has no internal horizontal overflow');
+  console.log('NEXUS_MANAGEMENT_SCREEN:'+ (await page.screenshot({type:'jpeg',quality:35})).toString('base64'));
+  await closeManage();
   const cdp=await context.newCDPSession(page);
   const touches=async(points)=>{await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points});};
   const moveTouches=async(points)=>{await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points});await page.waitForTimeout(30);};
@@ -255,6 +260,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
     await page.getByRole('button',{name:'Reset view',exact:true}).click();await page.waitForTimeout(200);
     const bounds=await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return {left:z.x,top:z.y,right:z.x+w*z.k,bottom:z.y+h*z.k,vw:m.width.baseVal.value,vh:m.height.baseVal.value,k:z.k,w,h};});
+    assert.equal(bounds.w,width);assert.equal(bounds.h,height);
     assert.ok(bounds.left>=-1&&bounds.top>=-1&&bounds.right<=bounds.vw+1&&bounds.bottom<=bounds.vh+1,'all four map edges fit inside the container');
     assert.ok(Math.abs(bounds.k-Math.min(bounds.vw/bounds.w,bounds.vh/bounds.h))<0.0001);
     await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
