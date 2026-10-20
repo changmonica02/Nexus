@@ -59,6 +59,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.waitForFunction(()=>document.documentElement.lang==='zh-TW');
   assert.equal(await page.getByLabel('地圖範圍',{exact:true}).count(),1);
   assert.equal(await frame.locator('#layersTab').innerText(),'圖層');
+  assert.equal(await frame.locator('#optionsContent').getByText('介面大小',{exact:true}).count(),1);
+  assert.equal(await frame.locator('#editStatesButton').getAttribute('data-tip'),'開啟國家編輯器');
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await page.getByRole('button',{name:'English',exact:true}).click();
   await frame.waitForFunction(()=>document.documentElement.lang==='en');

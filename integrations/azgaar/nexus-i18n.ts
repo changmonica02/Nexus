@@ -4,7 +4,7 @@ let language:Language='en',timer:ReturnType<typeof setTimeout>|undefined;
 const originals=new WeakMap<Node,{source:string;applied:string}>();
 const attributes=new WeakMap<Element,Map<string,{source:string;applied:string}>>();
 const excluded='svg,input,textarea,[contenteditable],script,style,#map,#burgsList,#statesList,#culturesList,#religionsList';
-const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale']);
+const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','onloadBehavior','performancePreset','azgaarAssistant','emblemShape']);
 function uiText(source:string):string {
  const key='azgaar.'+source.trim(),value=translate(language,key);
  if(value!==key)return source.replace(source.trim(),value);
@@ -17,8 +17,9 @@ function apply():void {
  const protectedNames=new Set<string>();
  const world=(window as unknown as {pack?:Record<string,Array<{name?:string;fullName?:string}>>}).pack;
  for(const key of ['burgs','states','cultures','religions','provinces'])for(const entry of world?.[key]??[]){if(entry.name)protectedNames.add(entry.name);if(entry.fullName)protectedNames.add(entry.fullName);}
+ const legacy=document.getElementById('loadGoogleTranslateButton')?.closest('tr');if(legacy)legacy.hidden=true;
  document.documentElement.lang=language;
- const candidates=document.querySelectorAll('button,label,legend,summary,th,p,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
+ const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
  for(const element of candidates){
   if(element.closest(excluded))continue;
   if(element.tagName==='OPTION'&&!staticSelects.has(element.parentElement?.id??''))continue;
@@ -45,5 +46,5 @@ function apply():void {
 }
 window.nexusSetLanguage=(value:string)=>{language=value==='zh-TW'?'zh-TW':'en';apply();};
 window.nexusTranslateError=(message:string)=>uiText(message);
-new MutationObserver(()=>{if(timer)return;timer=setTimeout(()=>{timer=undefined;apply();},30);}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-tip','title','aria-label','placeholder']});
+new MutationObserver(records=>{if(!records.some(record=>{const target=record.target instanceof Element?record.target:record.target.parentElement;return !target?.closest('svg,#map,input,textarea,[contenteditable]');})||timer)return;timer=setTimeout(()=>{timer=undefined;apply();},30);}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-tip','title','aria-label','placeholder']});
 declare global {interface Window {nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;}}
