@@ -26,13 +26,13 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const surface=useRef<HTMLDivElement>(null);
   const [expanded,setExpanded]=useState(false);
   const [connected,setConnected]=useState(false);
-  const freshCore=useRef(true);
+  const freshCore=useRef(true),previousEditing=useRef(editing);
   const readyDocument=useRef<{id:string;blob:Blob|null}|null>(null);
   const [loadedDocument,setLoadedDocument]=useState<{id:string;blob:Blob|null}|null>(null);
   const [coreAvailable,setAvailable] = useState(false), [conflict,setConflict] = useState(draftConflict);
   const available=coreAvailable&&loadedDocument?.id===map.id&&loadedDocument.blob===blob;
   const actions = useRef<{save:(blob?:Blob)=>Promise<void>;stage:()=>Promise<void>}>({save:async()=>{},stage:async()=>{}});
-  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,view,onView}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,view,onView};
+  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,view,onView,mapId:map.id}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,view,onView,mapId:map.id};
 
   actions.current.stage = async () => {
     if (!latest.current.editing || readyDocument.current?.id!==map.id || readyDocument.current?.blob!==blob || !ready.current || !dirty.current || staged.current || active.current || latest.current.conflict) return;
@@ -135,7 +135,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   useEffect(()=>registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();}),[registerFlush,map.id,session]);
   useEffect(()=>{
     if(available&&editing&&(token.current||!canonical.current)){dirty.current=true;setStatus('worldMap.editor8');}
-    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,view:latest.current.view}).catch(e=>setError(String(e)));
+    const modeChanged=previousEditing.current!==editing;previousEditing.current=editing;
+    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,view:modeChanged?latest.current.view:undefined}).catch(e=>setError(String(e)));
   },[connected,available,editing,language,layer]);
   useEffect(()=>{
     if(!editing)return;
@@ -144,7 +145,9 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     return ()=>previous?.focus();
   },[editing]);
   const report=(e:unknown)=>setError(String(e));
-  const close=()=>{void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();onClose();})().catch(report);};
+  const captureView=async()=>{const snapshot=ready.current?await client.current?.request('view'):undefined;if(snapshot)latest.current.onView?.(JSON.parse(await snapshot.text()) as MapView);};
+  const enter=()=>{const id=map.id;void captureView().then(()=>{if(latest.current.mapId===id)onEdit?.();}).catch(report);};
+  const close=()=>{void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();await captureView();onClose();})().catch(report);};
   const exportProject=()=>{void(async()=>{const project=ready.current&&readyDocument.current?.id===map.id&&readyDocument.current.blob===blob?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   return <div ref={surface} role={editing?'dialog':undefined} aria-modal={editing?true:undefined} aria-label={editing?t('worldMap.editor10'):t('worldMap.preview')}
     onKeyDown={event=>{if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if(editing&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),iframe');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
@@ -160,7 +163,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" disabled={!available} aria-label={t('worldMap.zoomOut')} onClick={()=>void client.current?.request('configure',undefined,{zoom:1/1.5}).catch(report)}>−</button>
       <button type="button" onClick={()=>{if(document.fullscreenElement){void document.exitFullscreen().catch(report);}else if(surface.current?.requestFullscreen){void surface.current.requestFullscreen().catch(()=>setExpanded(v=>!v));}else setExpanded(v=>!v);}}>{t('worldMap.fullscreen')}</button>
       {expanded&&<button type="button" onClick={()=>setExpanded(false)}>{t('worldMap.exitFullscreen')}</button>}
-      {onEdit&&<button type="button" onClick={onEdit} aria-label={t('worldMap.edit')} className="ml-auto flex items-center gap-1"><Wrench size={18}/>{t('worldMap.edit')}</button>}
+      {onEdit&&<button type="button" disabled={!available||busy} onClick={enter} aria-label={t('worldMap.edit')} className="ml-auto flex items-center gap-1"><Wrench size={18}/>{t('worldMap.edit')}</button>}
     </header>}
     <p role="status" className="shrink-0 px-3 py-1 text-xs">{t(status)}</p>
     {cloudState&&<p className="shrink-0 px-3 text-xs opacity-70">{cloudState.error?(t('worldMap.editor13')):cloudState.status==='offline'?(t('worldMap.editor14')):cloudState.status==='syncing'?(t('worldMap.editor15')):(t('worldMap.editor16'))}</p>}

@@ -16,7 +16,7 @@ export class MapCoreClient {
     };
     port.start();
   }
-  request(type: 'load' | 'snapshot' | 'svg' | 'png' | 'configure' | 'generate', blob?: Blob, settings?: MapPresentation): Promise<Blob | undefined> {
+  request(type: 'load' | 'snapshot' | 'svg' | 'png' | 'configure' | 'generate' | 'view', blob?: Blob, settings?: MapPresentation): Promise<Blob | undefined> {
     const operation = this.tail.catch(() => undefined).then(() => new Promise<Blob | undefined>((resolve, reject) => {
       if (this.closed) { reject(Error('Map editor closed')); return; }
       const id = ++this.sequence;

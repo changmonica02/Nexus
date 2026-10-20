@@ -79,11 +79,22 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'mobile has no horizontal overflow');
   assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.basic.gender;}),'Legacy gender');
+  await page.setViewportSize({width:820,height:1180});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'tablet has no horizontal overflow');
   await page.setViewportSize({width:1440,height:1000});
   await page.getByLabel('Display layers',{exact:true}).selectOption('political');
+  const zoomBefore=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
+  await page.getByRole('button',{name:zoomBefore<19?'Zoom in':'Zoom out',exact:true}).click();
+  await frame.waitForFunction(before=>document.querySelector('#map').__zoom.k!==before,zoomBefore);
+  const mapBox=await frame.locator('#map').boundingBox();
+  const panBefore=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));let panned=false;
+  for(const direction of [1,-1]){await page.mouse.move(mapBox.x+mapBox.width/2,mapBox.y+mapBox.height/2);await page.mouse.down();await page.mouse.move(mapBox.x+mapBox.width/2+direction*40,mapBox.y+mapBox.height/2+direction*20,{steps:3});await page.mouse.up();const after=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));panned=panned||after.x!==panBefore.x||after.y!==panBefore.y;}
+  assert.ok(panned,'read-only map can be dragged');
+  const viewScale=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
   await page.getByRole('button',{name:'Atlas One',exact:true}).click();await page.getByRole('button',{name:'Edit map',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  assert.equal(await frame.evaluate(()=>document.querySelector('#map').__zoom.k),viewScale);
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   // A failed canonical write keeps the editor and a local-only recovery project.
   await frame.evaluate(id=>{pack.burgs[id].name='Recovery Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);

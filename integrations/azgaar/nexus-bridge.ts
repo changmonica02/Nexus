@@ -81,7 +81,8 @@ window.addEventListener('message', event => {
         ready = true;
       } else {
         if (!ready) throw Error('Map is not ready');
-        if (data.type === 'snapshot') blob = new Blob([Save.prepareMapData()], { type: 'application/octet-stream' });
+        if(data.type==='view')blob=new Blob([JSON.stringify({x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale})],{type:'application/json'});
+        else if (data.type === 'snapshot') blob = new Blob([Save.prepareMapData()], { type: 'application/octet-stream' });
         else if (data.type === 'svg' || data.type === 'png') blob = await image(data.type);
         else throw Error('Unknown map operation');
       }
