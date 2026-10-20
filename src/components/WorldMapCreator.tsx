@@ -14,8 +14,8 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
  const [offline]=useState(()=>!navigator.onLine),[html,setHTML]=useState<string>(),[connected,setConnected]=useState(false);
  const [name,setName]=useState(initialName),[kind,setKind]=useState('procedural'),[catalog,setCatalog]=useState<Template[]>([]);
  const [settings,setSettings]=useState<NaturalMapSettings>(()=>({template:'continents',seed:crypto.randomUUID().slice(0,8),width:1280,height:800,points:10000,equator:25,precipitation:100}));
- const [preview,setPreview]=useState(''),[working,setWorking]=useState(false),[creating,setCreating]=useState(false),[error,setError]=useState('');
- const mounted=useRef(true),currentLanguage=useRef(language);currentLanguage.current=language;
+ const [preview,setPreview]=useState(''),[previewKey,setPreviewKey]=useState(''),[working,setWorking]=useState(false),[creating,setCreating]=useState(false),[error,setError]=useState('');
+ const mounted=useRef(true),currentLanguage=useRef(language);
  useEffect(()=>{
    mounted.current=true;
    const fail=(e:unknown)=>{if(mounted.current)setError(String(e));};
@@ -38,11 +38,11 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
  // The core's lifetime is the dialog; language changes are presentation only.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[session,offline]);
- useEffect(()=>{if(connected)void core.current?.request('configure',undefined,{language}).catch(e=>setError(String(e)));},[connected,language]);
+ useEffect(()=>{currentLanguage.current=language;if(connected)void core.current?.request('configure',undefined,{language}).catch(e=>setError(String(e)));},[connected,language]);
  useEffect(()=>{
    if(!connected||creating)return;
-   let live=true,url='';setWorking(true);setError('');
-   const timer=setTimeout(()=>{void core.current?.request('heightmap-preview',undefined,{generation:settings}).then(blob=>{if(!live||!blob)return;url=URL.createObjectURL(blob);setPreview(url);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setWorking(false);});},200);
+   let live=true,url='';const signature=JSON.stringify(settings);
+   const timer=setTimeout(()=>{setWorking(true);setError('');void core.current?.request('heightmap-preview',undefined,{generation:settings}).then(blob=>{if(!live||!blob)return;url=URL.createObjectURL(blob);setPreview(url);setPreviewKey(signature);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setWorking(false);});},200);
    return()=>{live=false;clearTimeout(timer);if(url)URL.revokeObjectURL(url);};
  },[settings,connected,creating]);
  const change=(key:keyof NaturalMapSettings,value:string|number|undefined)=>setSettings(old=>({...old,[key]:value}));
@@ -55,15 +55,15 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
   <h2 className="mb-3 text-lg font-semibold">{t('worldMap.createNatural')}</h2>
   <fieldset disabled={creating} className="min-w-0 space-y-3">
    <label className="grid gap-1">{t('worldMap.name')}<input autoFocus value={name} onChange={e=>setName(e.target.value)} maxLength={200}/></label>
-   <div className="grid grid-cols-2 gap-2"><label className="grid gap-1">{t('worldMap.sourceType')}<select value={kind} onChange={e=>{setKind(e.target.value);const first=catalog.find(item=>item.kind===e.target.value);if(first)change('template',first.id);}}><option value="procedural">{t('worldMap.procedural')}</option><option value="precreated">{t('worldMap.precreated')}</option></select></label><label className="grid min-w-0 gap-1">{t('worldMap.template')}<select aria-label={t('worldMap.template')} value={settings.template} onChange={e=>change('template',e.target.value)}>{catalog.filter(item=>item.kind===kind).map(item=><option key={item.id} value={item.id}>{t('azgaar.'+item.name)}</option>)}</select></label></div>
-   <div aria-busy={working} className="relative grid h-44 place-items-center overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] sm:h-56">{preview&&<img src={preview} alt={t('worldMap.templatePreview')} className="h-full w-full object-contain"/>}{(!connected||working)&&<p className="absolute rounded bg-[var(--color-bg)] px-3 py-1 text-xs">{t('worldMap.previewing')}</p>}</div>
+   <div className="grid grid-cols-2 gap-2"><label className="grid gap-1">{t('worldMap.sourceType')}<select aria-label={t('worldMap.sourceType')} value={kind} onChange={e=>{setKind(e.target.value);const first=catalog.find(item=>item.kind===e.target.value);if(first)change('template',first.id);}}><option value="procedural">{t('worldMap.procedural')}</option><option value="precreated">{t('worldMap.precreated')}</option></select></label><label className="grid min-w-0 gap-1">{t('worldMap.template')}<select aria-label={t('worldMap.template')} value={settings.template} onChange={e=>change('template',e.target.value)}>{catalog.filter(item=>item.kind===kind).map(item=><option key={item.id} value={item.id}>{t('azgaar.'+item.name)}</option>)}</select></label></div>
+   <div aria-busy={working||previewKey!==JSON.stringify(settings)} className="relative grid h-44 place-items-center overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] sm:h-56">{preview&&<img src={preview} alt={t('worldMap.templatePreview')} className="h-full w-full object-contain"/>}{(!connected||working||previewKey!==JSON.stringify(settings))&&<p className="absolute rounded bg-[var(--color-bg)] px-3 py-1 text-xs">{t('worldMap.previewing')}</p>}</div>
    <p className="text-xs opacity-70">{t('worldMap.previewHint')}</p>
    <div className="flex gap-2"><label className="grid min-w-0 flex-1 gap-1">{t('worldMap.seed')}<input value={settings.seed} onChange={e=>change('seed',e.target.value)} maxLength={128}/></label><button type="button" className="self-end border" onClick={()=>change('seed',crypto.randomUUID().slice(0,8))}>{t('worldMap.resample')}</button></div>
    <div className="grid grid-cols-2 gap-2">{(['width','height'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+key)}<input type="number" min={key==='width'?320:240} max={4096} value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div>
    <details><summary className="cursor-pointer py-2">{t('worldMap.advanced')}</summary><div className="grid grid-cols-2 gap-2"><label className="col-span-2 grid min-w-0 gap-1">{t('worldMap.widthKm')}<input type="number" min={0.1} value={settings.widthKm??''} onChange={e=>change('widthKm',e.target.value?+e.target.value:undefined)}/><span className="text-xs opacity-60">{t('worldMap.scaleHint')}</span></label>{(['points','equator','precipitation'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+(key==='precipitation'?'rainfallFactor':key))}<input type="number" value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div></details>
   </fieldset>
   {error&&<p role="alert" className="my-2 break-words text-red-600">{mapMessage(language,error)}</p>}
-  <div className="mt-4 flex justify-end gap-2"><button disabled={creating} onClick={onCancel}>{t('ui.cancel')}</button><button disabled={!connected||working||creating||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{t(creating?'worldMap.generating':'worldMap.confirmCreate')}</button></div>
+  <div className="mt-4 flex justify-end gap-2"><button disabled={creating} onClick={onCancel}>{t('ui.cancel')}</button><button disabled={!connected||working||previewKey!==JSON.stringify(settings)||creating||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{t(creating?'worldMap.generating':'worldMap.confirmCreate')}</button></div>
   <iframe ref={frame} title={t('worldMap.creationCore')} aria-hidden="true" tabIndex={-1} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={html} sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="pointer-events-none fixed -left-[9999px] h-[800px] w-[1280px] border-0"/>
  </ModalDialog>;
 }

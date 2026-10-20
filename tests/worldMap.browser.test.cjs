@@ -98,7 +98,20 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i).length),0);
   await frame.evaluate(()=>{closeDialogs();});
   // Manual biome paint and river name survive climate application; hydrology is never regenerated.
-  const manual=await frame.evaluate(()=>{const i=pack.cells.i.find(i=>pack.cells.h[i]>=20);pack.cells.biome[i]=4;if(pack.rivers[0])pack.rivers[0].name='Manual River';return {i,rivers:JSON.stringify(pack.rivers),biomes:Array.from(pack.cells.biome)};});
+  const river=await frame.evaluate(()=>pack.rivers[0].i);
+  await frame.evaluate(async id=>Controllers.RiverEditor.open('river'+id),river);
+  await frame.locator('#riverName').fill('Manual River');await frame.evaluate(()=>closeDialogs());
+  await frame.evaluate(()=>Controllers.BiomesEditor.open());await frame.locator('#biomesManually').click();
+  await frame.locator('#paintEditorSelect').selectOption('4');
+  const paint=await frame.evaluate(()=>{
+    const z=document.querySelector('#map').__zoom,rects=[...document.querySelectorAll('.ui-dialog')].filter(e=>getComputedStyle(e).display!=='none').map(e=>e.getBoundingClientRect());
+    const i=pack.cells.i.find(i=>{const [px,py]=pack.cells.p[i],x=z.x+px*z.k,y=z.y+py*z.k;return pack.cells.h[i]>=20&&x>20&&y>100&&x<innerWidth-20&&y<innerHeight-20&&!rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);});
+    if(i===undefined)throw Error('No visible land cell for painting');return {i,x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};
+  });
+  await frame.locator('#map').click({position:{x:paint.x,y:paint.y},force:true});await frame.locator('#paintEditorApply').click();
+  assert.equal(await frame.evaluate(i=>pack.cells.biome[i],paint.i),4,'native biome brush is usable without civilization');
+  await frame.evaluate(()=>closeDialogs());
+  const manual=await frame.evaluate(i=>({i,rivers:JSON.stringify(pack.rivers),biomes:Array.from(pack.cells.biome)}),paint.i);
   await frame.evaluate(()=>Controllers.WorldConfigurator.open());
   await frame.getByRole('button',{name:'Apply climate',exact:true}).click();
   assert.equal(await frame.evaluate(()=>JSON.stringify(pack.rivers)),manual.rivers);
