@@ -39,8 +39,9 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const task = (async()=>{
       setBusy(true); setError(''); setStatus(latest.current.en?'Saving to this device…':'正在儲存至此裝置…');
       if (staged.current) await staged.current;
-      const generation = changes.current;
       const snapshot = supplied ?? await client.current!.request('snapshot');
+      // Dirty notifications sent before the snapshot response are already in this snapshot.
+      const generation = changes.current;
       if (!snapshot) throw Error('Missing native project');
       token.current = await repository.stageDraft(map.world_id,map.id,revision.current,snapshot);
       await latest.current.beforeSave();

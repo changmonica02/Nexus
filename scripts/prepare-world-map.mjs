@@ -1,10 +1,11 @@
 // One-time import of a pinned source fork. After import, builds use only our copy.
-import { cp, mkdir, readFile, writeFile, access } from 'node:fs/promises';
+import { cp, mkdir, readFile, writeFile, access, readdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 const root = process.cwd(), target = path.join(root, 'vendor/azgaar');
 const commit = 'b4a0dcb933586a57242508f558f775da16c35c64';
 try { await access(path.join(target, 'NEXUS-SOURCE.json')); console.log('Using the Nexus-owned Azgaar fork'); process.exit(0); } catch {}
+try {if((await readdir(target)).length)throw Error('Refusing to overwrite an existing fork without its source marker');}catch(error){if(error.code!=='ENOENT')throw error;}
 const checkout = path.join(root, '.cache/azgaar-source');
 await mkdir(checkout, { recursive: true });
 const git = (...args) => execFileSync('git', ['-C', checkout, ...args], { stdio: 'inherit' });

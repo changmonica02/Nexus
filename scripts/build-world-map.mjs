@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { build } from 'esbuild';
 const root = process.cwd(), source = path.join(root, 'vendor/azgaar'), work = path.join(root, '.cache/azgaar-build');
+const run=(tool,args)=>execFileSync(process.platform==='win32'?tool+'.cmd':tool,args,{cwd:work,stdio:'inherit',shell:process.platform==='win32',env:{...process.env,ELECTRON_SKIP_BINARY_DOWNLOAD:'1'}});
 await readFile(path.join(source, 'NEXUS-SOURCE.json')); // Missing fork is a build failure, never an online fallback.
 await mkdir(work, { recursive: true });
 for (const name of ['src', 'public', 'scripts', 'docs']) {
@@ -21,6 +22,8 @@ await patch('src/index.html', '<script async src="https://www.googletagmanager.c
 await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
 await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
 await patch('src/components/shell.ts', '  if (location.hostname) return false;', '  if (location.hostname || window.parent !== window) return false;');
+// Native IDB coerces this legacy array to a string; the opaque-origin IDB shim does not.
+await patch('public/libs/indexedDB.js', 'transaction.objectStore([STORE_NAME])', 'transaction.objectStore(STORE_NAME)');
 await patch('src/components/lifecycle.ts', '  initiateAutosave();', '  if (window.parent === window) initiateAutosave();');
 await patch('src/services/io/save.ts', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {\n  if (window.nexusSaveProject) return window.nexusSaveProject(new Blob([mapData], {type: "application/octet-stream"}));');
 await patch('src/services/io/load.ts', 'async function parseLoadedData(data: string[], mapVersion: string | null): Promise<void> {', 'async function parseLoadedData(data: string[], mapVersion: string | null, propagate = false): Promise<void> {');
@@ -39,14 +42,14 @@ const lock = await readFile(path.join(work, 'package-lock.json'));
 const hash = createHash('sha256').update(lock).digest('hex');
 let installed = ''; try { installed = await readFile(path.join(work, '.nexus-installed'), 'utf8'); } catch {}
 if (installed !== hash) {
-  execFileSync('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: work, stdio: 'inherit', env: { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' } });
+  run('npm',['ci','--ignore-scripts','--no-audit','--no-fund']);
   await writeFile(path.join(work, '.nexus-installed'), hash);
 }
-execFileSync('npx', ['tsc', '--noEmit'], { cwd: work, stdio: 'inherit' });
+run('npx',['tsc','--noEmit']);
 // A single executable core also works in an opaque offline document: no native
 // module fetches can bypass Nexus's public-asset broker. The fork source stays modular.
 await writeFile(path.join(work,'vite.config.ts'), `import {fileURLToPath,URL} from 'node:url';export default {root:'./src',publicDir:'../public',build:{outDir:'../dist',assetsDir:'.',emptyOutDir:true,rollupOptions:{output:{format:'iife',inlineDynamicImports:true}}},resolve:{alias:{'@':fileURLToPath(new URL('./src',import.meta.url))}}};`);
-execFileSync('npx', ['vite', 'build', '--base=/world-map/core/'], { cwd: work, stdio: 'inherit' });
+run('npx',['vite','build','--base=/world-map/core/']);
 const output = path.join(root, 'public/world-map/core');
 await rm(output, { recursive: true, force: true });
 await cp(path.join(work, 'dist'), output, { recursive: true });

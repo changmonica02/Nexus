@@ -256,3 +256,13 @@ test('blank titles fail without writes, and metadata listings do not read any bi
   assert.equal(state.reads, 0);
   assert.equal(state.outbox.length, 1);
 });
+
+test('older Nexus metadata remains readable while unknown metadata versions are never overwritten', async () => {
+  const {repo,state}=fixture();const {map}=await repo.create('world-a','Map');
+  assert.equal(map.metadata_version,1);
+  const record=state.pages.get('world-a').character_data.world_maps[0];delete record.metadata_version;
+  assert.equal((await repo.list('world-a'))[0].id,map.id);
+  record.metadata_version=2;
+  await assert.rejects(repo.rename('world-a',map.id,1,'Overwrite'),{code:'map'});
+  assert.equal(state.outbox.length,1);
+});

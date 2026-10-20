@@ -61,7 +61,7 @@ function mapsOf(world: Page): WorldMapRecord[] {
   if (!Array.isArray(maps)) throw new WorldMapError("map", "Invalid map collection; nothing was changed");
   const ids = new Set<string>();
   for (const map of maps) {
-    if (!map || !map.id || ids.has(map.id) || map.world_id !== world.id || !Number.isSafeInteger(map.revision) || map.revision < 1
+    if (!map || (map.metadata_version !== undefined && map.metadata_version !== 1) || !map.id || ids.has(map.id) || map.world_id !== world.id || !Number.isSafeInteger(map.revision) || map.revision < 1
       || map.engine !== "azgaar" || map.engine_version !== AZGAAR_SOURCE.version
       || ((map.attachment_id === null) !== (map.project_sha256 === null))
       || (map.attachment_id !== null && (typeof map.attachment_id !== "string" || !/^[a-f0-9]{64}$/.test(map.project_sha256 ?? "")))) {
@@ -153,7 +153,7 @@ export class WorldMapRepository {
     const project = blob ? await this.project(blob) : undefined;
     const now = Date.now();
     const map: WorldMapRecord = {
-      id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: "azgaar", engine_version: AZGAAR_SOURCE.version,
+      metadata_version: 1, id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: "azgaar", engine_version: AZGAAR_SOURCE.version,
       attachment_id: project?.attachment.id ?? null, project_sha256: project?.sha256 ?? null,
       revision: 1, created_at: now, updated_at: now, deleted_at: null,
     };

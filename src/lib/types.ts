@@ -291,6 +291,8 @@ export interface CharacterPageTab {
 
 /** Metadata only. The native editable project lives in an Attachment binary. */
 export interface WorldMapRecord {
+  /** Version of Nexus metadata, independent from the native engine file version. Older records imply 1. */
+  metadata_version?: 1;
   id: ID;
   world_id: ID;
   title: string;
