@@ -23,6 +23,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "vendor/**",
+    ".cache/**",
+    "public/world-map/core/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

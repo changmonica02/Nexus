@@ -1,0 +1,60 @@
+import { cp, mkdir, readFile, writeFile, rm, readdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { build } from 'esbuild';
+const root = process.cwd(), source = path.join(root, 'vendor/azgaar'), work = path.join(root, '.cache/azgaar-build');
+await readFile(path.join(source, 'NEXUS-SOURCE.json')); // Missing fork is a build failure, never an online fallback.
+await mkdir(work, { recursive: true });
+for (const name of ['src', 'public', 'scripts']) {
+  await rm(path.join(work, name), { recursive: true, force: true });
+  await cp(path.join(source, name), path.join(work, name), { recursive: true });
+}
+for (const name of ['package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts']) await cp(path.join(source, name), path.join(work, name));
+const patch = async (file, before, after) => {
+  const target = path.join(work, file), text = await readFile(target, 'utf8');
+  if (!text.includes(before) || text.indexOf(before) !== text.lastIndexOf(before)) throw Error(`Fork adapter anchor changed: ${file}`);
+  await writeFile(target, text.replace(before, after));
+};
+await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js"></script>');
+await patch('src/index.html', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-VJL3J26W7R"></script>', '');
+await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
+await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
+await patch('src/components/lifecycle.ts', '  initiateAutosave();', '  if (window.parent === window) initiateAutosave();');
+await patch('src/services/io/save.ts', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {\n  if (window.nexusSaveProject) return window.nexusSaveProject(new Blob([mapData], {type: "application/octet-stream"}));');
+await patch('src/services/io/load.ts', 'async function parseLoadedData(data: string[], mapVersion: string | null): Promise<void> {', 'async function parseLoadedData(data: string[], mapVersion: string | null, propagate = false): Promise<void> {');
+// The last loader catch belongs to parseLoadedData. Surface failures to Nexus.
+const loadFile = path.join(work, 'src/services/io/load.ts');
+let loader = await readFile(loadFile, 'utf8');
+const at = loader.lastIndexOf('  } catch (error) {');
+if (at < 0) throw Error('Missing native loader error boundary');
+loader = loader.slice(0, at) + loader.slice(at).replace('  } catch (error) {', '  } catch (error) {\n    if (propagate) throw error;');
+loader += '\nexport async function loadNexusMap(blob: Blob): Promise<void> {\n const {mapData, mapVersion} = await parseLoadedResult(await blob.arrayBuffer());\n if (!mapData || mapVersion !== VERSION || mapData.length < 12 || !mapData[5]) throw Error("Invalid or unsupported map project");\n await parseLoadedData(mapData, mapVersion, true);\n}\n';
+await writeFile(loadFile, loader);
+await cp(path.join(root, 'integrations/azgaar/nexus-bridge.ts'), path.join(work, 'src/nexus-bridge.ts'));
+await build({ entryPoints: [path.join(root, 'integrations/azgaar/storage-shim.mjs')], outfile: path.join(work, 'public/nexus-storage.js'), bundle: true, format: 'iife', platform: 'browser', minify: true });
+const lock = await readFile(path.join(work, 'package-lock.json'));
+const hash = createHash('sha256').update(lock).digest('hex');
+let installed = ''; try { installed = await readFile(path.join(work, '.nexus-installed'), 'utf8'); } catch {}
+if (installed !== hash) {
+  execFileSync('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: work, stdio: 'inherit', env: { ...process.env, ELECTRON_SKIP_BINARY_DOWNLOAD: '1' } });
+  await writeFile(path.join(work, '.nexus-installed'), hash);
+}
+execFileSync('npx', ['tsc', '--noEmit'], { cwd: work, stdio: 'inherit' });
+execFileSync('npx', ['vite', 'build', '--base=/world-map/core/'], { cwd: work, stdio: 'inherit' });
+const output = path.join(root, 'public/world-map/core');
+await rm(output, { recursive: true, force: true });
+await cp(path.join(work, 'dist'), output, { recursive: true });
+await cp(path.join(source, 'LICENSE'), path.join(output, 'AZGAAR-LICENSE.txt'));
+await cp(path.join(source, 'NEXUS-SOURCE.json'), path.join(output, 'NEXUS-SOURCE.json'));
+const packages = JSON.parse(lock.toString()).packages;
+await writeFile(path.join(output, 'THIRD-PARTY-PACKAGES.json'), JSON.stringify(Object.entries(packages).filter(([name, p]) => name && !p.dev).map(([name, p]) => ({ name, version: p.version, license: p.license })), null, 2));
+// Copy dependency licenses as well as preserving the original public asset notices.
+for (const [name, pkg] of Object.entries(packages)) {
+  if (!name || pkg.dev) continue;
+  for (const file of await readdir(path.join(work, name))) if (/^(licen[sc]e|copying|notice)/i.test(file)) {
+    const dest = path.join(output, 'licenses', name.replace(/^node_modules\//, ''));
+    await mkdir(dest, { recursive: true }); await cp(path.join(work, name, file), path.join(dest, file), { recursive: true });
+  }
+}
+console.log('Built Nexus map core from our local fixed source fork');
