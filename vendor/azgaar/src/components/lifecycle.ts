@@ -57,8 +57,8 @@ export async function generate(config?: GenerationConfig): Promise<void> {
     const { seed: precreatedSeed, graph: precreatedGraph, width, height, points } = config || {};
     Options.setGraphSize(width, height);
     setSeed(precreatedSeed);
-    Options.randomize();
     const naturalOnly = config?.naturalOnly ?? (window.parent !== window);
+    Options.randomize(naturalOnly);
     if (config?.template) options.generation.template = config.template;
     if (config?.points !== undefined) options.map.graph.points = config.points;
     if (config?.equator !== undefined) options.map.climate.temperature.equator = config.equator;

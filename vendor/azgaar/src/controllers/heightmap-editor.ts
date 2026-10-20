@@ -418,7 +418,7 @@ function enterHeightmapEditMode(mode: string, tool?: string): void {
 
   // show finalize button
   const exitCustomization = ensureEl("exitCustomization");
-  if (!sessionStorage.getItem("noExitButtonAnimation")) {
+  if (window.parent === window && !sessionStorage.getItem("noExitButtonAnimation")) {
     sessionStorage.setItem("noExitButtonAnimation", "true");
     exitCustomization.style.opacity = "0";
     const width = 12 * +ensureEl<HTMLInputElement>("uiSize").value * 11;

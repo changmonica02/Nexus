@@ -79,16 +79,24 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
 
   assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i&&!b.removed).length),0,'new maps have no random towns');
   assert.deepEqual(await frame.evaluate(()=>[pack.states,pack.cultures,pack.religions].map(a=>a.filter(e=>e.i&&!e.removed).length)),[0,0,0]);
+  assert.deepEqual(await frame.evaluate(()=>options.map.lore.calendar),{year:0,era:'',eraShort:''},'no generated human era or history');
   const naturalId=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id;});
-  const naturalData=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
+  const naturalData=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value));
   // Reopen actual native project before making any edits.
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  await page.reload();
   await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
-  assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map])),naturalData);
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)),naturalData);
   await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
   await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
   await frame.locator('#paintBrushes').click();await frame.locator('#brushRaise').click();
-  const terrain=await frame.evaluate(()=>{const i=grid.cells.i.filter(i=>grid.cells.h[i]>=30&&grid.cells.h[i]<80&&!grid.cells.b[i]).sort((a,b)=>Math.hypot(grid.points[a][0]-640,grid.points[a][1]-400)-Math.hypot(grid.points[b][0]-640,grid.points[b][1]-400))[0];const z=document.querySelector('#map').__zoom;return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
+  const terrain=await frame.evaluate(()=>{
+    const z=document.querySelector('#map').__zoom;
+    const i=grid.cells.i.filter(i=>{const x=z.x+grid.points[i][0]*z.k,y=z.y+grid.points[i][1]*z.k;return grid.cells.h[i]>=30&&grid.cells.h[i]<80&&x>20&&y>80&&x<innerWidth-20&&y<innerHeight-20&&document.elementFromPoint(x,y)?.closest('#viewbox');}).sort((a,b)=>Math.hypot(grid.points[a][0]-640,grid.points[a][1]-400)-Math.hypot(grid.points[b][0]-640,grid.points[b][1]-400))[0];
+    if(i===undefined)throw Error('No uncovered terrain cell');return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};
+  });
   await frame.locator('#map').click({position:{x:terrain.x,y:terrain.y},force:true});
   assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h,'native raise brush edits height');
   await frame.locator('#undo').click();assert.equal(await frame.evaluate(i=>grid.cells.h[i],terrain.i),terrain.h);
@@ -118,11 +126,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.deepEqual(await frame.evaluate(()=>Array.from(pack.cells.biome)),manual.biomes);
   await frame.evaluate(()=>closeDialogs());
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
-  const geography=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
+  const geography=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value));
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   for(const preset of ['contours','temperature','precipitation','biomes','political','cultural','religions','physical']){
     await page.getByLabel('Display layers',{exact:true}).selectOption(preset);await page.waitForTimeout(100);
-    assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map])),geography,'view is presentation-only: '+preset);
+    assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)),geography,'view is presentation-only: '+preset);
     if(preset==='contours')assert.ok(await frame.locator('.heightmap-contours path').count()>0,'height-derived contour paths');
   }
   await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
