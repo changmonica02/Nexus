@@ -22,8 +22,7 @@ import { isAutoBurgLimit } from "@/generators/burgs-generator";
 import { CULTURE_SETS, Cultures } from "@/generators/cultures-generator";
 import { Emblems } from "@/generators/emblems-generator";
 import { EmblemRenderer } from "@/renderers/emblems/renderer";
-import { copyMapURL } from "@/services/url-params";
-import { applyOption, ensureEl, findEl } from "@/utils/nodeUtils";
+import { applyOption, ensureEl } from "@/utils/nodeUtils";
 import { minmax, rn } from "@/utils/numberUtils";
 import { PerformanceSettings } from "../performance-settings";
 
@@ -156,16 +155,6 @@ const OPTION_BINDINGS: Record<string, OptionBinding> = {
     effect: changeEmblemShape
   }),
   performancePreset: { read: o => resolvePerformancePreset(o.app.performance), update: applyPerformancePreset },
-  onloadBehavior: option({
-    read: o => o.app.onLoad,
-    write: (o, value) => (o.app.onLoad = value),
-    parse: value => (value === "lastSaved" ? "lastSaved" : "random")
-  }),
-  autosaveInterval: option({
-    read: o => o.app.autosave.interval,
-    write: (o, value) => (o.app.autosave.interval = value),
-    parse: Number
-  }),
   viewportWidth: { read: () => viewport.width, update: changeViewportSize, event: "change" },
   viewportHeight: { read: () => viewport.height, update: changeViewportSize, event: "change" },
   zoomExtentMin: { read: o => o.app.zoomExtent.min, update: changeZoomExtent, event: "change" },
@@ -224,11 +213,7 @@ const TEMPLATE = /* html */ `
         <input id="seedInput" data-option="seed" class="long" type="number" min="1" max="999999999" step="1" />
       </td>
       <td>
-        <i
-          data-tip="Copy map seed as URL. It will produce the same map only if options are default or the same"
-          id="optionsCopySeed"
-          class="icon-docs"
-        ></i>
+
       </td>
     </tr>
     <tr
@@ -401,43 +386,8 @@ const TEMPLATE = /* html */ `
         <slider-input id="transparencyInput" data-option="transparency" min="0" max="100"></slider-input>
       </td>
     </tr>
-    <tr data-tip="Set autosave interval in minutes. Set 0 to disable autosave. Map is saved to browser memory">
-      <td></td>
-      <td>Autosave interval</td>
-      <td>
-        <input
-          id="autosaveIntervalInput"
-          data-option="autosaveInterval"
-          type="range"
-          min="0"
-          max="60"
-          step="1"
-          value="15"
-        />
-      </td>
-      <td>
-        <input
-          id="autosaveIntervalOutput"
-          data-option="autosaveInterval"
-          type="number"
-          min="0"
-          max="60"
-          step="1"
-          value="15"
-        />
-      </td>
-    </tr>
-    <tr data-tip="Set what Generator should do on load">
-      <td></td>
-      <td>On load</td>
-      <td>
-        <select id="onloadBehavior" data-option="onloadBehavior">
-          <option value="random" selected>Generate random map</option>
-          <option value="lastSaved">Open last saved map</option>
-        </select>
-      </td>
-      <td></td>
-    </tr>
+
+
     <tr data-tip="Rendering preset: visual quality traded for speed. Pick 'Speed' if the map feels slow">
       <td></td>
       <td>Performance</td>
@@ -602,19 +552,7 @@ const TEMPLATE = /* html */ `
         ></i>
       </td>
     </tr>
-    <tr
-      data-tip="Load Google Translate and select a language. Automatic translation can break some page functions. If this happens, reset the language to English or refresh the page"
-    >
-      <td>
-        <i data-tip="Reset language to English" id="resetLanguage" class="icon-ccw"></i>
-      </td>
-      <td>Language</td>
-      <td>
-        <button id="loadGoogleTranslateButton">Load Google Translate</button>
-        <div id="google_translate_element"></div>
-      </td>
-      <td></td>
-    </tr>
+
   </table>
   <div>
     <button
@@ -631,13 +569,7 @@ const TEMPLATE = /* html */ `
     >
       Set Lore
     </button>
-    <button
-      id="optionsReset"
-      data-tip="Click to restore default options and reload the page"
-      onclick="cleanupData()"
-    >
-      Reset Options
-    </button>
+
   </div>
 `;
 
@@ -659,7 +591,6 @@ function addListeners(): void {
     const target = event.target as HTMLElement;
     if (target.id === "restoreDefaultMapSize") restoreDefaultMapSize();
     else if (target.id === "optionsMapHistory") showSeedHistoryDialog();
-    else if (target.id === "optionsCopySeed") copyMapURL();
     else if (target.id === "templateInputContainer") Controllers.HeightmapSelection.open();
     else if (target.id === "viewportFit") fitViewportToWindow();
     else if (target.id === "zoomExtentDefault") restoreDefaultZoomExtent();
@@ -667,8 +598,6 @@ function addListeners(): void {
     else if (target.id === "openPerformanceSettings") PerformanceSettings.open();
     else if (target.id === "speakerTest") testSpeaker();
     else if (target.id === "themeColorRestore") restoreDefaultThemeColor();
-    else if (target.id === "loadGoogleTranslateButton") loadGoogleTranslate();
-    else if (target.id === "resetLanguage") resetLanguage();
   });
 }
 
@@ -1001,33 +930,6 @@ function testSpeaker(): void {
   speechSynthesis.speak(speech);
 }
 
-function loadGoogleTranslate(): void {
-  const script = document.createElement("script");
-  script.src = "https://translate.google.com/translate_a/element.js?cb=initGoogleTranslate";
-  script.onload = () => {
-    findEl("loadGoogleTranslateButton")?.remove();
-
-    // replace the mapLayers hotkey underlines with bare text, they confuse the translator
-    for (const item of ensureEl("mapLayers").querySelectorAll("li")) {
-      item.innerHTML = item.innerHTML.replace(/<u>(.+)<\/u>/g, "$1");
-    }
-  };
-  document.head.append(script);
-}
-
-function resetLanguage(): void {
-  const select = document.querySelector<HTMLSelectElement & { handleChange: (e: Event) => void }>(
-    "#google_translate_element select"
-  );
-  if (!select?.value) return;
-
-  // twice: the first change only arms the widget, the second actually resets it
-  for (let i = 0; i < 2; i++) {
-    select.value = "en";
-    select.handleChange(new Event("change"));
-  }
-}
-
 /**
  * Restore what the tab itself shows: the lock icons, the saved style presets and the interface
  * settings. The values themselves are restored by `Options.restore` before this runs
@@ -1058,26 +960,11 @@ export function restoreUi(): void {
   applyZoomExtent();
 }
 
-// Legacy seam: the submap and transform tools set the cell density, and Google's script calls
-// back into the page by name
+// Legacy seam: the submap and transform tools set the cell density
 declare global {
   // biome-ignore lint/suspicious/noRedeclare: legacy seam
   var changeCellsDensity: (density: number) => void;
-  var initGoogleTranslate: () => void;
-  var google: {
-    translate: {
-      TranslateElement: {
-        new (config: { pageLanguage: string; layout: unknown }, elementId: string): unknown;
-        InlineLayout: { VERTICAL: unknown };
-      };
-    };
-  };
+
 }
 
 window.changeCellsDensity = changeCellsDensity;
-window.initGoogleTranslate = () => {
-  new google.translate.TranslateElement(
-    { pageLanguage: "en", layout: google.translate.TranslateElement.InlineLayout.VERTICAL },
-    "google_translate_element"
-  );
-};

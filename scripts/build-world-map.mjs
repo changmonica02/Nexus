@@ -18,7 +18,6 @@ const patch = async (file, before, after) => {
   await writeFile(target, text.replace(before, after));
 };
 await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js"></script><script src="./nexus-i18n.js"></script>');
-await patch('src/index.html', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-VJL3J26W7R"></script>', '');
 await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
 await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
 await patch('src/components/shell.ts', '  if (location.hostname) return false;', '  if (location.hostname || window.parent !== window) return false;');
@@ -80,6 +79,10 @@ async function walk(dir) {
   }
   return entries;
 }
+const noticeFiles=(await walk(output)).filter(file=>/licen[sc]e|copying|notice/i.test(path.basename(file)));
+const notices=[];
+for(const file of noticeFiles.sort())notices.push('===== '+path.relative(output,file)+' =====\n'+await readFile(file,'utf8'));
+await writeFile(path.join(output,'THIRD-PARTY-NOTICES.txt'),notices.join('\n\n'));
 const files=await walk(output);
 const urls=files.map(file=>'/world-map/core/'+path.relative(output,file).split(path.sep).map(encodeURIComponent).join('/'));
 const fingerprint=createHash('sha256');

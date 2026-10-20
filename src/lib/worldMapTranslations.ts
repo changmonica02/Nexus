@@ -1,5 +1,13 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "worldMap.licenses":"Third-party licenses",
+  "worldMap.attribution":"Based on Fantasy Map Generator v1.154.2 by Azgaar and Team (MIT). Original copyright and asset notices are retained.",
+  "worldMap.source":"Original source and fixed version",
+  "worldMap.notices":"Dependency and asset notices",
+  "azgaar.Show Advanced Export":"Show Advanced Export",
+  "azgaar.Advanced export":"Advanced export",
+  "azgaar.Export advanced image and map data":"Export advanced image and map data",
+
   "worldMap.confirm":"Confirm",
   "worldMap.home": "World maps",
   "worldMap.maps": "Maps",
@@ -524,6 +532,14 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "worldMap.licenses":"第三方授權",
+  "worldMap.attribution":"以 Azgaar 與團隊的 Fantasy Map Generator v1.154.2（MIT）為基礎，保留原始著作權及素材聲明。",
+  "worldMap.source":"原始碼與固定版本",
+  "worldMap.notices":"依賴與素材授權聲明",
+  "azgaar.Show Advanced Export":"顯示進階匯出",
+  "azgaar.Advanced export":"進階匯出",
+  "azgaar.Export advanced image and map data":"匯出進階圖片與地圖資料",
+
   "worldMap.confirm":"確認",
   "worldMap.home": "世界觀地圖",
   "worldMap.maps": "地圖",

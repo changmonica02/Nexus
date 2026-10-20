@@ -17,7 +17,6 @@ vi.mock("@/components/options/tabs/layers-tab", () => ({
 }));
 vi.mock("@/components/zoom", () => ({ changeMapZoom: vi.fn(), resetZoom: vi.fn() }));
 vi.mock("@/controllers", () => ({ Controllers: {} }));
-vi.mock("@/components/app-info", () => ({ showInfo: vi.fn() }));
 vi.mock("@/components/layers-presets", () => ({ applyPreset: mocks.applyPreset, savePreset: vi.fn() }));
 vi.mock("@/components/lifecycle", () => ({ regeneratePrompt: vi.fn() }));
 vi.mock("@/components/options/io-panes", () => ({}));
@@ -42,11 +41,9 @@ function confirmation() {
   return mocks.dialog.mock.calls[0][0] as { buttons: { Proceed: () => void; Cancel: () => void } };
 }
 
-it("offers Save As in command search without another save button", () => {
-  MAP_COMMANDS.find(command => command.id === "saveToMachine")!.run();
-  expect(mocks.save).toHaveBeenLastCalledWith();
-  MAP_COMMANDS.find(command => command.id === "saveMapAs")!.run();
-  expect(mocks.save).toHaveBeenLastCalledWith(true);
+it("does not expose standalone management or promotion commands", () => {
+  for (const id of ["saveToMachine", "saveMapAs", "quickLoad", "saveToStorage", "saveToDropbox", "loadFromURL", "newMap", "showInfo", "getApp", "startTour"])
+    expect(MAP_COMMANDS.find(command => command.id === id)).toBeUndefined();
 });
 
 describe("shared regeneration commands", () => {
@@ -96,3 +93,4 @@ describe("linkable commands", () => {
       expect(linkable).not.toContain(id);
   });
 });
+

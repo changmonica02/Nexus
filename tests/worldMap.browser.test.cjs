@@ -36,12 +36,30 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok(frame);
   assert.equal(await frame.evaluate(()=>{try{void parent.document.body;return false;}catch{return true;}}),true,'core cannot access Nexus document');
   assert.equal(await frame.evaluate(()=>localStorage.getItem('nexus-owner')),null);
-  await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
+  assert.equal(await frame.locator('#aboutTab,#aboutContent,#tourPromptButton,#loading,#regenerate,#newMapButton,#saveButton,#loadButton,#saveMapData,#loadMapData,#mapToLoad,#loadGoogleTranslateButton,#autosaveIntervalInput,#onloadBehavior,#optionsReset').count(),0);
+  assert.equal(await frame.locator('a[href*="patreon"],a[href*="discord"],a[href*="reddit"],a[href*="deorum"],a[href*="u24.gov.ua"]').count(),0);
+  await editor.locator('summary').filter({hasText:'Third-party licenses'}).click();
+  assert.equal(await editor.getByRole('link',{name:'MIT License',exact:true}).getAttribute('href'),'/world-map/core/AZGAAR-LICENSE.txt');
+  await editor.locator('summary').filter({hasText:'Third-party licenses'}).click();
+  assert.match(fs.readFileSync(path.join(core,'AZGAAR-LICENSE.txt'),'utf8'),/Copyright/);
+  assert.match(fs.readFileSync(path.join(core,'THIRD-PARTY-NOTICES.txt'),'utf8'),/fake-indexeddb/);
+  // The old first-visit announcement ran after six seconds.
+  await page.waitForTimeout(6500);
+  assert.equal(await frame.locator('.ui-dialog:visible').count(),0);
+
+  await frame.locator('#optionsTrigger').click();
+  await frame.locator('#exportButton').click();
+  assert.equal(await frame.locator('#exportMapData button').filter({hasText:/^\.(svg|png)$/}).count(),0);
+  assert.equal(await frame.locator('#exportMapData button').filter({hasText:'.jpeg'}).count(),1);
+  await frame.evaluate(()=>$('#exportMapData').dialog('close'));
+  await frame.locator('#toolsTab').click();
   const burgId=await frame.evaluate(async()=>{const burg=pack.burgs.find(b=>b.i&&!b.removed);if(!burg)throw Error('No burg generated');await Controllers.BurgEditor.open(burg.i);return burg.i;});
   await frame.locator('#burgName').fill('Nexus Port');
-  await editor.getByRole('button',{name:'Save',exact:true}).click();
+  await frame.locator('#burgName').press('Control+s');
   await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor({timeout:60000});
-  await frame.evaluate(async id=>{pack.burgs[id].name='Temporary unsaved name';await Services.Load.quickLoad();},burgId);
+  await frame.evaluate(id=>{pack.burgs[id].name='Temporary unsaved name';for(const code of ['F1','F2','F6','F9'])document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));},burgId);
+  assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Temporary unsaved name','removed standalone shortcuts cannot replace the project');
+  await frame.evaluate(async()=>Services.Load.quickLoad());
   await frame.waitForFunction(id=>pack.burgs[id].name==='Nexus Port',burgId);
   let downloadEvent=page.waitForEvent('download');await editor.getByRole('button',{name:'.map ↓',exact:true}).click();
   const native=await downloadEvent,file=path.join(tmp,'roundtrip.map');await native.saveAs(file);assert.ok(fs.statSync(file).size>10000);
@@ -67,6 +85,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(id=>{document.querySelector('#locale-user-input').remove();document.querySelector('#locale-map-data').remove();if(window.localeOldDescription===undefined)delete pack.burgs[id].description;else pack.burgs[id].description=window.localeOldDescription;},burgId);
   assert.equal(await frame.locator('#optionsContent').getByText('介面大小',{exact:true}).count(),1);
   assert.equal(await frame.locator('#editStatesButton').getAttribute('data-tip'),'開啟國家編輯器');
+  assert.equal(await frame.locator('#exportButton').innerText(),'進階匯出');
+  assert.notEqual(await frame.locator('#tooltip').evaluate(el=>getComputedStyle(el).opacity),'0');
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await page.getByRole('button',{name:'English',exact:true}).click();
   await frame.waitForFunction(()=>document.documentElement.lang==='en');
@@ -118,9 +138,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await frame.evaluate(async id=>{await Controllers.BurgEditor.open(id);},burgId);await frame.locator('#burgName').fill('Imported Editable Port');
-  // Native UI imports also use the awaitable failure boundary, not the old void loader.
+  // The retained loader API still uses the awaitable failure boundary.
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
-  await frame.locator('#mapToLoad').setInputFiles({name:'invalid.map',mimeType:'application/octet-stream',buffer:Buffer.from('invalid')});
+  await frame.evaluate(()=>Services.Load.uploadMap(new Blob(['invalid'],{type:'application/octet-stream'})));
   await editor.getByRole('alert').filter({hasText:'Native project loading failed'}).waitFor();
   assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});

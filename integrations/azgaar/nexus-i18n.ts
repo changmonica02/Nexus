@@ -6,7 +6,7 @@ let language:Language='en',timer:ReturnType<typeof setTimeout>|undefined;
 const originals=new WeakMap<Node,{source:string;applied:string}>();
 const attributes=new WeakMap<Element,Map<string,{source:string;applied:string}>>();
 const excluded='svg,input,textarea,[contenteditable],script,style,#map,#burgsList,#statesList,#culturesList,#religionsList';
-const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','onloadBehavior','performancePreset','azgaarAssistant','emblemShape']);
+const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','performancePreset','azgaarAssistant','emblemShape']);
 function uiText(source:string):string {
  const key='azgaar.'+source.trim(),value=translate(language,key);
  if(value!==key)return source.replace(source.trim(),value);
@@ -32,8 +32,8 @@ function apply():void {
   }
  };
  if(language!=='en')for(const value of window.nexusMapData?.()??[])protect(value);
- const legacy=document.getElementById('loadGoogleTranslateButton')?.closest('tr');if(legacy)legacy.hidden=true;
  document.documentElement.lang=language;
+ document.title=translate(language,'worldMap.editor10');
  const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,#dialogs td,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
  for(const element of candidates){
   if(element.closest(excluded))continue;

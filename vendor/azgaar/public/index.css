@@ -475,21 +475,6 @@ button.options:hover {
   margin-left: 0.5em;
 }
 
-#aboutContent {
-  text-align: justify;
-}
-
-#aboutContent p {
-  font-weight: normal;
-  font-style: normal;
-}
-
-#aboutContent a {
-  color: #1d1b1c;
-  font-weight: bold;
-  text-decoration: underline;
-}
-
 #optionsContent span {
   font-size: 0.9em;
 }
@@ -707,10 +692,6 @@ input[type="color"]::-webkit-color-swatch-wrapper {
   white-space: nowrap;
   font-family: var(--monospace);
   animation: glowing 2s infinite;
-}
-
-.glow {
-  animation: glowing 3s infinite ease-in-out;
 }
 
 @keyframes glowing {
@@ -1962,22 +1943,6 @@ div.editorLine {
   text-anchor: middle;
 }
 
-ul.share-buttons {
-  margin: 4px 0 0 0;
-  padding-left: 8%;
-}
-
-ul.share-buttons li {
-  padding: 0;
-  background: none !important;
-  width: 16%;
-  margin: 0;
-}
-
-ul.share-buttons img {
-  width: 2em;
-}
-
 input[type="checkbox"].native {
   accent-color: var(--header);
   cursor: pointer;
@@ -2366,21 +2331,6 @@ svg.button {
   font-family: var(--sans-serif);
 }
 
-#mapOverlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  pointer-events: none;
-  text-align: center;
-  background: rgba(0, 0, 0, 0.5);
-  font-size: 2.4em;
-  color: #fff5da;
-  text-shadow: 0px 1px 4px #4c3a35;
-}
-
 .epgrid line {
   stroke: lightgrey;
   stroke-opacity: 0.5;
@@ -2459,55 +2409,6 @@ svg.button {
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: var(--bg-opacity);
-  }
-}
-
-#tourPromptButton {
-  position: fixed;
-  bottom: 116px; /* stacked above the assistant bubble, sharing its column */
-  right: 18px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background-color: var(--bg-main);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  user-select: none;
-  opacity: 0;
-  animation: fadeIn 1s ease-in 1s forwards;
-  z-index: 99;
-}
-
-#tourPromptButton button {
-  all: unset;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-#tourPromptButton svg path {
-  fill: #000000;
-  stroke: #000000;
-  fill-opacity: 1;
-  stroke-width: 0;
-  transition: all 0.3s ease-out;
-  stroke-linejoin: round;
-}
-
-#tourPromptButton:hover svg path {
-  fill-opacity: 0;
-  stroke-width: 5;
-}
-
 @media print {
   div,
   canvas {
@@ -2559,49 +2460,7 @@ div.states .marketBadge {
   line-height: 1.35;
 }
 
-.fmg-tour.driver-popover {
-  border-radius: 4px;
-}
-
-.fmg-tour .driver-popover-title {
-  font-size: 1.1em;
-  border-bottom: 1px solid;
-  padding-bottom: 0.4em;
-  margin-bottom: 0.5em;
-}
-
-.fmg-tour .driver-popover-description {
-  font-size: 0.9em;
-  line-height: 1.5;
-}
-
-.fmg-tour .driver-popover-footer button {
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.fmg-tour .driver-popover-footer button:hover {
-  background-color: #e0e0e0;
-}
-
-.fmg-tour .driver-popover-progress-text {
-  font-size: 0.8em;
-}
-
 /* Tooltip demo step: hide overlay and restore all pointer events so the map is fully hoverable */
-body.tour-free-roam .driver-overlay {
-  opacity: 0 !important;
-}
-
-body.tour-free-roam * {
-  pointer-events: auto !important;
-}
-
-.aboutActions {
-  display: flex;
-  gap: 0.5em;
-  margin: 0.8em 0 0.4em 0;
-}
 
 /* Assistant call button: the flat, themed circle the OpenWidget launcher used to be — a
    dark rounded badge with the glyph punched out of it, and the same press squish */
@@ -3089,3 +2948,4 @@ body.tour-free-roam * {
   text-decoration: underline;
   cursor: pointer;
 }
+

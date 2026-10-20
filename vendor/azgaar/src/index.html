@@ -3,44 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Azgaar's Fantasy Map Generator</title>
-    <meta name="application-name" content="Azgaar's Fantasy Map Generator" />
-    <meta name="author" content="Azgaar" />
-    <meta
-      name="description"
-      content="Free web app that helps fantasy writers, game masters, and cartographers create and edit fantasy maps"
-    />
-    <meta property="og:url" content="https://azgaar.github.io/Fantasy-Map-Generator" />
-    <meta property="og:title" content="Azgaar's Fantasy Map Generator" />
-    <meta
-      property="og:description"
-      content="Free web app that helps fantasy writers, game masters, and cartographers create and edit fantasy maps"
-    />
-    <meta property="og:image" content="images/preview.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta property="twitter:domain" content="azgaar.github.io" />
-    <meta property="twitter:url" content="https://azgaar.github.io/Fantasy-Map-Generator/" />
-    <meta name="twitter:title" content="Azgaar's Fantasy Map Generator" />
-    <meta
-      name="twitter:description"
-      content="Free web app that helps fantasy writers, game masters, and cartographers create and edit fantasy maps"
-    />
-    <meta name="twitter:image" content="images/preview.png" />
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-VJL3J26W7R"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-      gtag("config", "G-VJL3J26W7R");
-    </script>
-    <link rel="icon" type="image/png" href="images/icons/favicon-32x32.png" sizes="32x32" />
-    <link rel="icon" type="image/png" href="images/icons/favicon-16x16.png" sizes="16x16" />
-    <link rel="apple-touch-icon" href="images/icons/maskable_icon_x192.png" />
-    <link rel="canonical" href="https://azgaar.github.io/Fantasy-Map-Generator/" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <!-- inline css for loading screen -->
+    <title>Nexus map editor</title>
+    <meta name="author" content="Azgaar and Team; Nexus integration" />
+    <!-- Base canvas styles; Nexus owns the loading screen. -->
     <style type="text/css">
       body {
         margin: 0;
@@ -50,85 +15,6 @@
       }
       #map {
         position: absolute;
-      }
-      #loading > * {
-        pointer-events: none;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-      }
-      #loading > #loading-rose > use {
-        fill: none;
-        stroke: black;
-        opacity: 0.7;
-        transform-origin: center;
-        animation: 20s linear 0s infinite spin;
-      }
-      #loading > #loading-typography {
-        opacity: 1;
-        font-size: 11px;
-        color: #fff5da;
-        text-align: center;
-        text-shadow: 0px 1px 4px #4c3a35;
-        width: 80vw;
-        max-width: 540px;
-      }
-      @media screen and (max-width: 600px) {
-        #loading > #loading-typography {
-          font-size: 8px;
-        }
-      }
-      #titleName {
-        text-align: left;
-        font-size: 3em;
-      }
-      #title {
-        font-size: 7em;
-      }
-      #versionText {
-        text-align: right;
-        font-size: 2em;
-      }
-      #loading-text {
-        font-size: 2em;
-        margin: 0.2em;
-      }
-      #loading-text > span {
-        font-size: 1.3em;
-        padding-left: 1px;
-        line-height: 0px;
-      }
-      #loading-text > span,
-      #mapOverlay > span {
-        animation: 3s infinite both blink;
-      }
-      #loading-text span:nth-child(2),
-      #mapOverlay > span:nth-child(2) {
-        animation-delay: 1s;
-      }
-      #loading-text span:nth-child(3),
-      #mapOverlay > span:nth-child(3) {
-        animation-delay: 2s;
-      }
-      @keyframes blink {
-        0% {
-          opacity: 0;
-        }
-        20% {
-          opacity: 1;
-        }
-        100% {
-          opacity: 0.1;
-        }
-      }
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(359deg);
-        }
       }
     </style>
     <link
@@ -333,44 +219,16 @@
         <rect id="scaleBarBack" data-group="back"></rect>
       </g>
     </svg>
-    <div id="loading">
-      <svg width="100%" height="100%">
-        <pattern id="loading-pattern" width="100" height="100" patternUnits="userSpaceOnUse">
-          <image href="./images/pattern1.png" width="100" height="100" opacity="0.2"></image>
-        </pattern>
-        <rect x="-1%" y="-1%" width="102%" height="102%" fill="#466eab" />
-        <rect x="-1%" y="-1%" width="102%" height="102%" fill="url(#loading-pattern)" />
-      </svg>
-      <svg id="loading-rose" width="100%" height="100%" viewBox="0 0 700 700">
-        <use href="#defs-compass-rose" x="50%" y="50%" />
-      </svg>
-      <div id="loading-typography">
-        <div id="titleName">Azgaar's</div>
-        <div id="title">Fantasy Map Generator</div>
-        <div id="versionText">‎ ‎</div>
-        <p id="loading-text">LOADING<span>.</span><span>.</span><span>.</span></p>
-      </div>
-    </div>
-    <div id="optionsContainer" style="opacity: 0">
+    <div id="optionsContainer">
       <div id="collapsible">
         <button
           id="optionsTrigger"
           data-tip="Click to show the Menu"
           data-shortcut="Tab"
-          class="options glow"
+          class="options"
           onclick="showOptions(event)"
         >
           ►
-        </button>
-        <button
-          id="regenerate"
-          data-tip="Click to generate a new map"
-          data-shortcut="F2"
-          onclick="regeneratePrompt()"
-          class="options"
-          style="display: none"
-        >
-          New Map!
         </button>
       </div>
       <div id="options" style="display: none">
@@ -389,19 +247,14 @@
           <button id="styleTab" data-tip="Click to open style editor" class="options">Style</button>
           <button id="optionsTab" data-tip="Click to change generation and UI options" class="options">Options</button>
           <button id="toolsTab" data-tip="Click to open tools menu" class="options">Tools</button>
-          <button id="aboutTab" data-tip="Click to see Generator info" class="options">About</button>
         </div>
         <div id="layersContent" class="tabcontent" style="display: block"></div>
         <div id="styleContent" class="tabcontent"></div>
         <div id="optionsContent" class="tabcontent"></div>
         <div id="toolsContent" class="tabcontent"></div>
         <div id="customizationMenu" class="tabcontent"></div>
-        <div id="aboutContent" class="tabcontent"></div>
         <div id="sticked">
-          <button id="newMapButton" data-tip="Generate a new map based on options" data-shortcut="F2">New Map</button>
-          <button id="exportButton" data-tip="Select format to download image or export map data">Export</button>
-          <button id="saveButton" data-tip="Save fully-functional map file">Save</button>
-          <button id="loadButton" data-tip="Load fully-functional map (.map or .gz formats)">Load</button>
+          <button id="exportButton" data-tip="Export advanced image and map data">Advanced export</button>
           <button id="zoomReset" data-tip="Reset map zoom" data-shortcut="0 (zero)">Zoom out</button>
           <button id="searchButton" data-tip="Search map and commands" data-shortcut="Space">Search</button>
         </div>
@@ -425,15 +278,6 @@
       <div id="exportMapData" style="display: none" class="dialog">
         <div style="margin-bottom: 0.3em; font-weight: bold">Download image</div>
         <div>
-          <button
-            onclick="window.Services.ExportMap.exportToSvg()"
-            data-tip="Download the map as vector image (open directly in browser or Inkscape)"
-          >
-            .svg
-          </button>
-          <button onclick="window.Services.ExportMap.exportToPng()" data-tip="Download visible part of the map as .png (lossless compressed)">
-            .png
-          </button>
           <button
             onclick="window.Services.ExportMap.exportToJpeg()"
             data-tip="Download visible part of the map as .jpeg (lossy compressed) image"
@@ -467,7 +311,6 @@
           />
           <input id="pngResolutionOutput" data-stored="pngResolution" type="number" min="1" max="8" value="1" />
         </div>
-        <p>Generator uses pop-up window to download files. Please ensure your browser does not block popups.</p>
         <div style="margin: 1em 0 0.3em; font-weight: bold">Export to GeoJSON</div>
         <div>
           <button onclick="window.Services.ExportMap.saveGeoJsonCells()" data-tip="Download cells data in GeoJSON format">cells</button>
@@ -493,82 +336,6 @@
           </button>
         </div>
         <p>Export in JSON format can be used as an API replacement.</p>
-      </div>
-      <div id="saveMapData" style="display: none" class="dialog">
-        <div style="margin-top: 0.3em">
-          <strong>Save map to</strong>
-          <button
-            onclick="window.Services.Save.toMachine(event.shiftKey)"
-            data-tip="Save to the chosen file; Shift-click to choose another filename or location"
-            data-shortcut="Ctrl + S"
-            style="font-weight: 600"
-          >
-            machine
-          </button>
-          <button
-            id="saveToDropboxButton"
-            onclick="window.Services.Save.toDropbox()"
-            data-tip="Save map file to your Dropbox"
-            data-shortcut="Ctrl + C"
-          >
-            dropbox
-          </button>
-          <button onclick="window.Services.Save.toStorage()" data-tip="Save the project to browser storage only" data-shortcut="F6">
-            browser
-          </button>
-        </div>
-        <p>
-          When supported by your browser, Save updates the chosen file. Shift-click machine or press Ctrl + Shift + S
-          to save a separate copy.
-        </p>
-        <p>
-          Maps are saved in <i>.map</i> format, that can be loaded back via the <i>Load</i> in menu. There is no way to
-          restore the progress if file is lost. Please keep old save files on your machine or cloud storage as backups.
-        </p>
-      </div>
-      <div id="loadMapData" style="display: none" class="dialog">
-        <div>
-          <strong>Load map from</strong>
-          <button id="loadMapFromMachine" data-tip="Load map file (.map or .gz) from your local disk">
-            machine
-          </button>
-          <button
-            onclick="loadURL()"
-            data-tip="Load map file (.map or .gz) file from URL. Note that the server should allow CORS"
-          >
-            URL
-          </button>
-          <button onclick="window.Services.Load.quickLoad()" data-tip="Load map from browser storage (if saved before)">storage</button>
-        </div>
-        <p>Click on <i>storage</i> to open the last saved map.</p>
-        <div id="loadFromDropbox">
-          <p style="margin-bottom: 0.3em">
-            Or load from your Dropbox account
-            <button
-              id="dropboxConnectButton"
-              onclick="connectToDropbox()"
-              data-tip="Connect your Dropbox account to be able to load maps from it"
-            >
-              Connect
-            </button>
-          </p>
-          <select id="loadFromDropboxSelect" style="width: 22em"></select>
-          <div id="loadFromDropboxButtons" style="margin-bottom: 0.6em">
-            <button onclick="window.Services.Load.loadFromDropbox()" data-tip="Load map file (.map or .gz) from your Dropbox">Load</button>
-            <button
-              onclick="window.Services.Load.createSharableDropboxLink()"
-              data-tip="Select file and create a link to share with your friends"
-            >
-              Share
-            </button>
-          </div>
-          <div style="margin-top: 0.3em">
-            <div id="sharableLinkContainer" style="display: none">
-              <a id="sharableLink" target="_blank"></a>
-              <i data-tip="Copy link to the clipboard" onclick="copyLinkToClipboard()" class="icon-clone pointer"></i>
-            </div>
-          </div>
-        </div>
       </div>
       <div id="exportToPngTilesScreen" style="display: none" class="dialog">
         <p>Map will be split into tiles and downloaded as a single zip file. Avoid saving too large images</p>
@@ -635,17 +402,8 @@
     </div>
     <div
       id="tooltip"
-      style="opacity: 0"
-      data-main="Сlick the arrow button for options. Zoom in to see the map in details"
+      data-main=""
     ></div>
-    <div id="mapOverlay" style="display: none">Drop a map file to open</div>
-    <div id="tourPromptButton" style="display: none" data-tip="Take an interactive tour of the map generator">
-      <button type="button" aria-label="Launch UI Tour">
-        <svg preserveAspectRatio="xMidYMid" viewBox="0 0 58 52" height="30px" width="30px">
-          <path d="M20 10 L20 42 L42 26 Z" />
-        </svg>
-      </button>
-    </div>
     <!-- reusable svg elements -->
     <svg id="defElements" width="0" height="0" style="position: absolute">
       <defs>
@@ -932,3 +690,4 @@
     <script defer src="libs/jquery.ui.touch-punch.min.js"></script>
   </body>
 </html>
+

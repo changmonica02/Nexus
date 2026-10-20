@@ -1,28 +1,18 @@
 // The collapsible panel on the right and the sticked menu below it
-import { showExportPane, showLoadPane, showSavePane } from "@/components/options/io-panes";
+import { showExportPane } from "@/components/options/io-panes";
 import { changeViewMode } from "@/components/options/view-mode";
-import { clearMainTip } from "@/components/tooltips";
 import { resetZoom } from "@/components/zoom";
 import { Controllers } from "@/controllers";
-import { ARROW_TIP_KEY } from "@/services/versioning";
 import { ensureEl, findEl } from "@/utils/nodeUtils";
 
 const TAB_CONTENT: Record<string, string> = {
   layersTab: "layersContent",
   styleTab: "styleContent",
   optionsTab: "optionsContent",
-  toolsTab: "toolsContent",
-  aboutTab: "aboutContent"
+  toolsTab: "toolsContent"
 };
 
 export function showOptions(event?: Event): void {
-  if (!localStorage.getItem(ARROW_TIP_KEY)) {
-    clearMainTip();
-    localStorage.setItem(ARROW_TIP_KEY, "true");
-    ensureEl("optionsTrigger").classList.remove("glow");
-  }
-
-  ensureEl("regenerate").style.display = "none";
   ensureEl("options").style.display = "block";
   ensureEl("optionsTrigger").style.display = "none";
   event?.stopPropagation();
@@ -82,20 +72,6 @@ function initialize(): void {
   $("#exitCustomization").draggable({ handle: "div" });
   $("#mapLayers").disableSelection();
 
-  if (localStorage.getItem(ARROW_TIP_KEY)) {
-    clearMainTip();
-    ensureEl("optionsTrigger").classList.remove("glow");
-  }
-
-  const trigger = ensureEl("optionsTrigger");
-  trigger.addEventListener("mouseenter", () => {
-    if (trigger.classList.contains("glow")) return;
-    if (ensureEl("options").style.display === "none") ensureEl("regenerate").style.display = "block";
-  });
-  ensureEl("collapsible").addEventListener("mouseleave", () => {
-    ensureEl("regenerate").style.display = "none";
-  });
-
   ensureEl("options")
     .querySelector("div.tab")
     ?.addEventListener("click", event => {
@@ -109,10 +85,7 @@ function initialize(): void {
 
   ensureEl("sticked").addEventListener("click", event => {
     const id = (event.target as HTMLElement).id;
-    if (id === "newMapButton") regeneratePrompt();
-    else if (id === "saveButton") showSavePane();
-    else if (id === "exportButton") showExportPane();
-    else if (id === "loadButton") void showLoadPane();
+    if (id === "exportButton") showExportPane();
     else if (id === "zoomReset") resetZoom(1000);
     else if (id === "searchButton") Controllers.Omnibar.open();
   });
@@ -122,7 +95,7 @@ function initialize(): void {
 
 initialize();
 
-// Legacy seam: the hotkeys and the About tab reach these by name from inline markup
+// Legacy seam: legacy hotkeys reach these by name from inline markup
 declare global {
   // biome-ignore lint/suspicious/noRedeclare: legacy seam
   var toggleOptions: (event?: Event) => void;
@@ -134,3 +107,4 @@ declare global {
 window.toggleOptions = toggleOptions;
 window.showOptions = showOptions;
 window.hideOptions = hideOptions;
+
