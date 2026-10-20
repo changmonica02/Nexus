@@ -34,16 +34,16 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await manage.count(),0,'management is hidden by default');
   // Preview every shipped source in a disposable sandbox, then cancel with zero persistence.
   await openManage();await manage.getByRole('button',{name:'Create map',exact:true}).click();
-  const creator=page.getByRole('dialog',{name:'Create map',exact:true});
+  const creator=page.locator('dialog').filter({has:page.locator('iframe[aria-hidden="true"]')});
   await creator.locator('img').waitFor({timeout:120000});
   for(const size of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){
     await page.setViewportSize(size);
     assert.ok(await creator.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&el.scrollWidth<=el.clientWidth+1;}),'responsive creation dialog');
   }
-  await page.getByRole('button',{name:'繁體中文',exact:true}).click();
+  await page.getByRole('button',{name:'繁體中文',exact:true}).evaluate(el=>el.click());
   await creator.getByRole('heading',{name:'建立自然地圖',exact:true}).waitFor();
   assert.equal(await creator.getByLabel('地形模板',{exact:true}).locator('option').filter({hasText:'azgaar.'}).count(),0);
-  await page.getByRole('button',{name:'English',exact:true}).click();
+  await page.getByRole('button',{name:'English',exact:true}).evaluate(el=>el.click());
   const creationFrame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   const beforePreview=await creationFrame.evaluate(()=>JSON.stringify([pack,grid.cells.h,options.map]));
   for(const kind of ['procedural','precreated']){
@@ -96,6 +96,19 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     geography:await frame.evaluate(()=>({gridCells:grid.cells.i.length,packedCells:pack.cells.i.length,heapSampleBytes:performance.memory?.usedJSHeapSize??null})),
     projectBytes:await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (await mapStorage.getAttachment(w.character_data.world_maps[0].attachment_id)).size_bytes;})
   }));
+  // Real IndexedDB backup: reject corrupt / foreign-owner input, restore, then cold-reopen.
+  await page.evaluate(async()=>{
+    const backup=await mapStorage.exportWorkspaceBackup();
+    const original=backup.pages[0].character_data.world_maps[0];
+    if(!backup.attachments.find(entry=>entry.attachment.id===original.attachment_id)?.binary_base64)throw Error('Natural project missing from backup');
+    const corrupt=structuredClone(backup);corrupt.pages[0].character_data.world_maps[0].project_sha256='0'.repeat(64);
+    let rejected=false;try{await mapStorage.importWorkspaceBackup(corrupt);}catch{rejected=true;}if(!rejected)throw Error('Corrupt backup accepted');
+    mapStorage.setWorkspaceOwner('foreign-map-owner');
+    try{rejected=false;try{await mapStorage.importWorkspaceBackup(backup);}catch{rejected=true;}if(!rejected)throw Error('Foreign owner backup accepted');}
+    finally{mapStorage.setWorkspaceOwner('map-browser-owner');}
+    await mapStorage.importWorkspaceBackup(backup);
+    const restored=await mapStorage.getPage('world-browser');if(restored.character_data.world_maps[0].id!==original.id)throw Error('Backup changed map identity');
+  });
   // Reopen actual native project before making any edits.
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.reload();
