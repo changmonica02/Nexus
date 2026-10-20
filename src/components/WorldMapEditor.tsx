@@ -25,6 +25,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [status,setStatus] = useState('worldMap.editor1'), [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const surface=useRef<HTMLDivElement>(null);
   const [expanded,setExpanded]=useState(false);
+  const [connected,setConnected]=useState(false);
+  const freshCore=useRef(true);
   const [available,setAvailable] = useState(false), [conflict,setConflict] = useState(draftConflict);
   const actions = useRef<{save:(blob?:Blob)=>Promise<void>;stage:()=>Promise<void>}>({save:async()=>{},stage:async()=>{}});
   const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,view,onView}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,view,onView};
@@ -93,17 +95,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       });
       client.current = core;
       frame.current!.contentWindow!.postMessage({type:'nexus-map-connect',session},'*',[channel.port2]);
-      void (async()=>{
-        const initialView=latest.current.view;
-        await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language});
-        if(blob) await core.request('load',blob);
-        await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,view:initialView});
-        if(!current)return;
-        ready.current=true;setAvailable(true);
-        if(draftToken&&latest.current.editing){dirty.current=true;changes.current++;setStatus('worldMap.editor8');}
-        else if(!blob&&latest.current.editing){dirty.current=true;changes.current++;await actions.current.save();}
-        else setStatus('worldMap.editor9');
-      })().catch(fail);
+      setConnected(true);
     };
     window.addEventListener('message',onMessage);
     if(offline)void offlineMapDocument(session).then(html=>{if(current)setOfflineHTML(html);}).catch(fail);
@@ -111,12 +103,35 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const autosave = setInterval(()=>{if(latest.current.editing && dirty.current && ready.current && !latest.current.conflict)void actions.current.save().catch(fail);},60000);
     const beforeUnload = (event:BeforeUnloadEvent)=>{if(dirty.current){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',beforeUnload);
-    const unregister=registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();});
-    return ()=>{current=false;clearTimeout(startup);clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);unregister?.();client.current?.close();client.current=null;ready.current=false;};
-  },[blob,draftToken,map.id,offline,registerFlush,repository,session]);
+    return ()=>{current=false;clearTimeout(startup);clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);client.current?.close();client.current=null;ready.current=false;};
+  },[offline,session]);
 
   useEffect(()=>{
-    if(available&&editing&&token.current){dirty.current=true;setStatus('worldMap.editor8');}
+    if(!connected||!client.current)return;
+    let current=true;
+    const core=client.current,initialView=latest.current.view,useFresh=!blob&&freshCore.current;
+    freshCore.current=false;ready.current=false;dirty.current=false;
+    setAvailable(false);setError('');setConflict(draftConflict);
+    revision.current=map.revision;token.current=draftToken;canonical.current=Boolean(blob);
+    void (async()=>{
+      await core.request('configure',undefined,{preview:true,language:latest.current.language});
+      if(!current)return;
+      if(blob)await core.request('load',blob);else if(!useFresh)await core.request('generate');
+      if(!current)return;
+      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,view:initialView});
+      if(!current)return;
+      ready.current=true;setAvailable(true);
+      if(draftToken){dirty.current=latest.current.editing;changes.current++;setStatus('worldMap.editor8');}
+      else if(!blob&&latest.current.editing){dirty.current=true;changes.current++;await actions.current.save();}
+      else setStatus('worldMap.editor9');
+    })().catch(error=>{if(current)setError(String(error));});
+    return ()=>{current=false;ready.current=false;};
+    // A map title/revision adopted from our save does not reload the current document.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[connected,blob,draftToken,map.id]);
+  useEffect(()=>registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();}),[registerFlush,map.id,session]);
+  useEffect(()=>{
+    if(available&&editing&&(token.current||!canonical.current)){dirty.current=true;setStatus('worldMap.editor8');}
     if(available)void client.current?.request('configure',undefined,{preview:!editing,language,layer,view:latest.current.view}).catch(e=>setError(String(e)));
   },[available,editing,language,layer]);
   useEffect(()=>{

@@ -50,7 +50,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const firstSession=await frame.evaluate(()=>location.href);
   const revisionBefore=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;});
   await page.getByLabel('Display layers',{exact:true}).selectOption('temperature');
-  await frame.waitForFunction(()=>document.querySelector('#temperature')?.style.display!=='none');
+  await frame.waitForFunction(()=>{const node=document.querySelector('[data-layer=temperature]');return node&&getComputedStyle(node).display!=='none';});
   assert.equal(await frame.evaluate(()=>location.href),firstSession,'layer preview reuses the core');
   assert.equal(await frame.evaluate(()=>document.body.classList.contains('nexus-preview')),true);
   await frame.locator('#map').click({position:{x:120,y:120}});
@@ -109,6 +109,19 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.getByText('Deleted maps',{exact:true}).click();
   const restore=page.getByRole('button',{name:'Restore',exact:true});await restore.click();await restore.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.filter(m=>m.deleted_at==null).length;}),3);
+  const sessionBeforeSwitch=await frame.evaluate(()=>location.href);
+  await page.getByRole('button',{name:'Atlas One copy',exact:true}).click();
+  await page.getByLabel('Selected map',{exact:true}).selectOption({label:'Atlas One copy'});
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Zoom in'&&!b.disabled),{},{timeout:120000});
+  assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch,'switching maps reuses the core');
+  await page.getByLabel('Map scope',{exact:true}).selectOption('town');
+  await page.waitForFunction(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').scope==='town';});
+  const parentId=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One').id;});
+  await page.getByLabel('Parent map',{exact:true}).selectOption(parentId);
+  await page.waitForFunction(async parentId=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').parent_map_id===parentId;},parentId);
+  await page.getByRole('button',{name:'↑ Parent map',exact:true}).click();
+  await page.getByRole('navigation',{name:'Detail maps'}).getByRole('button',{name:'Atlas One copy',exact:true}).waitFor();
+  assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch);
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });

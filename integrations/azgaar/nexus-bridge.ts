@@ -2,6 +2,9 @@
 import { Save } from '@/services/io/save';
 import { loadNexusMap } from '@/services/io/load';
 import { Services } from '@/services';
+import {generate} from '@/components/lifecycle';
+import {closeDialogs} from '@/components/dialog/dialog-helpers';
+import {undraw} from '@/components/undraw';
 import {applyPreset} from '@/components/layers-presets';
 import {Layers} from '@/components/layers';
 import {viewport} from '@/components/viewport';
@@ -10,7 +13,7 @@ let preview=true;
 const previewStyle=document.createElement('style');
 previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview #map{cursor:grab}';
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
-for(const type of ['click','dblclick','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview){event.preventDefault();event.stopImmediatePropagation();}},true);
+for(const type of ['click','dblclick','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
 const reportView=()=>port?.postMessage({type:'view',view:{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale}});
 let viewTimer:ReturnType<typeof setTimeout>|undefined;
 for(const type of ['pointerup','wheel','touchend'])document.addEventListener(type,()=>{clearTimeout(viewTimer);viewTimer=setTimeout(reportView,180);},{passive:true});
@@ -68,6 +71,8 @@ window.addEventListener('message', event => {
         else if(settings.layer==='temperature'||settings.layer==='precipitation')Layers.set(['lakes','rivers',settings.layer,'scaleBar']);
         if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
         reportView();
+      }else if(data.type==='generate'){
+        ready=false;closeDialogs();undraw();await generate();Layers.drawAll();if(!ready)throw Error('Map is not ready');
       }else if (data.type === 'load') {
         if (!(data.blob instanceof Blob)) throw Error('Missing project');
         ready = false;
