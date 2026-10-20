@@ -19,6 +19,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [session] = useState(() => crypto.randomUUID());
   const [offline]=useState(()=>!navigator.onLine),[offlineHTML,setOfflineHTML]=useState<string>();
   const frame = useRef<HTMLIFrameElement>(null), client = useRef<MapCoreClient|null>(null);
+  const canonical=useRef(Boolean(blob));
   const revision = useRef(map.revision), changes = useRef(0), dirty = useRef(false), ready = useRef(false);
   const token = useRef(draftToken), active = useRef<Promise<void>|null>(null), staged = useRef<Promise<void>|null>(null);
   const [status,setStatus] = useState('worldMap.editor1'), [error,setError] = useState(''), [busy,setBusy] = useState(false);
@@ -52,7 +53,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       token.current = await repository.stageDraft(map.world_id,map.id,revision.current,snapshot);
       await latest.current.beforeSave();
       const result = await repository.save(map.world_id,map.id,revision.current,snapshot);
-      revision.current = result.map.revision;
+      revision.current = result.map.revision;canonical.current=true;
       await repository.clearDraft(map.world_id,map.id,token.current);
       token.current = undefined;
       await latest.current.onSaved(result.world);
@@ -93,9 +94,10 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       client.current = core;
       frame.current!.contentWindow!.postMessage({type:'nexus-map-connect',session},'*',[channel.port2]);
       void (async()=>{
+        const initialView=latest.current.view;
         await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language});
         if(blob) await core.request('load',blob);
-        await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,view:latest.current.view});
+        await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,view:initialView});
         if(!current)return;
         ready.current=true;setAvailable(true);
         if(draftToken&&latest.current.editing){dirty.current=true;changes.current++;setStatus('worldMap.editor8');}
@@ -115,7 +117,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
 
   useEffect(()=>{
     if(available&&editing&&token.current){dirty.current=true;setStatus('worldMap.editor8');}
-    if(available)void client.current?.request('configure',undefined,{preview:!editing,language,layer}).catch(e=>setError(String(e)));
+    if(available)void client.current?.request('configure',undefined,{preview:!editing,language,layer,view:latest.current.view}).catch(e=>setError(String(e)));
   },[available,editing,language,layer]);
   useEffect(()=>{
     if(!editing)return;
@@ -124,7 +126,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     return ()=>previous?.focus();
   },[editing]);
   const report=(e:unknown)=>setError(String(e));
-  const close=()=>{void(async()=>{if(ready.current && !conflict&&(dirty.current||!blob))await actions.current.save();onClose();})().catch(report);};
+  const close=()=>{void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();onClose();})().catch(report);};
   const exportProject=()=>{void(async()=>{const project=ready.current?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   return <div ref={surface} role={editing?'dialog':undefined} aria-modal={editing?true:undefined} aria-label={editing?t('worldMap.editor10'):t('worldMap.preview')}
     onKeyDown={event=>{if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if(editing&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),iframe');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
@@ -151,7 +153,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
     <div className="relative min-h-0 flex-1">
-      <iframe ref={frame} title={t('worldMap.editor22')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
+      <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="h-full w-full border-0"/>
       {!available&&<div className="absolute inset-0 grid place-items-center bg-white/80 text-zinc-800">{error?(t('worldMap.editor23')):(t('worldMap.editor24'))}</div>}
     </div>
