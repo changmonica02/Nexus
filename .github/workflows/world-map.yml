@@ -46,6 +46,8 @@ jobs:
       - run: node --test tests/worldMap.i18n.test.cjs
       - name: Related storage, creation and study regressions
         run: node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs
+      - name: Type-check shared core localization
+        run: npx tsc --noEmit --skipLibCheck --target ES2022 --module esnext --moduleResolution bundler --lib es2022,dom,dom.iterable integrations/azgaar/nexus-i18n.ts
       - name: Build the map core and Nexus (production dependency environment)
         env:
           NODE_ENV: production

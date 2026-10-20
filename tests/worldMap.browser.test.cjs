@@ -55,14 +55,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(()=>document.body.classList.contains('nexus-preview')),true);
   await frame.locator('#map').click({position:{x:120,y:120}});
   assert.equal(await page.getByRole('dialog',{name:'World map editor'}).count(),0);
-  await frame.evaluate(()=>{document.querySelector('#burgName').value='Save';document.querySelector('#layersPreset').add(new Option('Save','Save'));});
+  await frame.evaluate(()=>{const field=document.createElement('input');field.id='locale-user-input';field.value='Save';document.body.append(field);document.querySelector('#layersPreset').add(new Option('Save','Save'));});
   await page.getByRole('button',{name:'繁體中文',exact:true}).click();
   await frame.waitForFunction(()=>document.documentElement.lang==='zh-TW');
   assert.equal(await page.getByLabel('地圖範圍',{exact:true}).count(),1);
   assert.equal(await frame.locator('#layersTab').innerText(),'圖層');
-  assert.equal(await frame.locator('#burgName').inputValue(),'Save');
+  assert.equal(await frame.locator('#locale-user-input').inputValue(),'Save');
   assert.equal(await frame.locator('#layersPreset option[value=Save]').textContent(),'Save');
-  await frame.evaluate(()=>{document.querySelector('#burgName').value='Nexus Port';});
+  await frame.evaluate(()=>{document.querySelector('#locale-user-input').remove();});
   assert.equal(await frame.locator('#optionsContent').getByText('介面大小',{exact:true}).count(),1);
   assert.equal(await frame.locator('#editStatesButton').getAttribute('data-tip'),'開啟國家編輯器');
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');

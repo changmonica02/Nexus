@@ -16,7 +16,7 @@ function apply():void {
  // Core is initialized after this script; data fields are excluded even before pack exists.
  const protectedNames=new Set<string>();
  const world=(window as unknown as {pack?:Record<string,Array<{name?:string;fullName?:string}>>}).pack;
- for(const key of ['burgs','states','cultures','religions','provinces'])for(const entry of world?.[key]??[]){if(entry.name)protectedNames.add(entry.name);if(entry.fullName)protectedNames.add(entry.fullName);}
+ for(const key of ['burgs','states','cultures','religions','provinces'])for(const entry of world?.[key]??[]){if(entry?.name)protectedNames.add(entry.name);if(entry?.fullName)protectedNames.add(entry.fullName);}
  const legacy=document.getElementById('loadGoogleTranslateButton')?.closest('tr');if(legacy)legacy.hidden=true;
  document.documentElement.lang=language;
  const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,#dialogs td,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');

@@ -8,11 +8,12 @@ import {mapMessage} from '../features/worldMap/mapMessages';
 import {prepareOfflineMapCore} from '../features/worldMap/offlineCore';
 import {useLanguage} from '../lib/LanguageContext';
 import {useWorkspaceDialog} from './WorkspaceDialog';
+import {SidebarToggle} from './WorkspaceNavigation';
 import WorldMapEditor,{type RegisterMapFlush} from './WorldMapEditor';
 
 export function WorldMapUnavailable({onBack}:{onBack?:()=>void}) {
   const {t}=useLanguage();
-  return <section className="min-w-0 p-4"><button onClick={onBack}>{t('worldMap.back')}</button><p>{t('worldMap.unavailable')}</p></section>;
+  return <section className="min-w-0 p-4"><SidebarToggle/><button onClick={onBack}>{t('worldMap.back')}</button><p>{t('worldMap.unavailable')}</p></section>;
 }
 type Opened={map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob}};
 export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack}: {
@@ -62,7 +63,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  </li>);
  return <section aria-label={t('worldMap.home')} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:px-3">
   <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-3">
-   {onBack&&<button onClick={onBack}>{t('worldMap.back')}</button>}
+   <SidebarToggle/>{onBack&&<button onClick={onBack}>{t('worldMap.back')}</button>}
    <h1 className="mr-auto min-w-0 break-words text-xl font-semibold">{world.title}</h1>
    {!readOnly&&<><button disabled={busy||editing} onClick={()=>void create()}>＋ {t('worldMap.create')}</button><label className="max-w-full">{t('worldMap.import')}<input type="file" accept=".map,.gz" disabled={busy||editing} className="block max-w-full text-xs" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void create(f,f.name.replace(/\.(map|gz)$/i,''));}}/></label></>}
   </header>
