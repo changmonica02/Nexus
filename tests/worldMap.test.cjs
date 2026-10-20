@@ -302,3 +302,102 @@ test('invalid or foreign detail parents cannot leave a map or binary behind', as
   await assert.rejects(repo.create('world-a','Detail',project(),{scope:'INVALID',parentId:foreign.map.id}));
   assert.equal(state.outbox.length,before.writes);assert.equal(state.binaries.size,before.binaries);assert.equal((await repo.list('world-a')).length,before.maps);
 });
+
+
+test('settlement creation and placement are one atomic canonical write, idempotent after lost acknowledgement', async () => {
+ const {repo,state,storage}=fixture(),{map}=await repo.create('world-a','Natural',project());
+ const input={entityId:'town_one',name:'  Harbor  ',summary:'Canonical',content:{type:'doc',content:[{type:'paragraph'}]}},point={placementId:'place_one',mapId:map.id,x:20,y:30};
+ const before=state.outbox.length;
+ await repo.createSettlement('world-a',input,point);
+ const saved=state.pages.get('world-a');
+ assert.equal(saved.character_data.world_entities[0].name,'Harbor');
+ assert.equal(saved.character_data.world_maps[0].placements[0].entityId,'town_one');
+ assert.deepEqual(state.outbox.at(-1).map(op=>[op.type,op.kind]),[['pages','save']]);
+ assert.equal(state.binaries.size,1);
+ await new WorldMapRepository(storage).createSettlement('world-a',input,point);
+ assert.equal(state.outbox.length,before+1);
+ await assert.rejects(repo.createSettlement('world-a',{...input,name:'Other'},point),{code:'conflict'});
+ assert.equal(saved.character_data.world_maps[0].revision,map.revision);
+});
+
+test('unplaced town, multi-map references, rename, move and marker removal never duplicate or delete the body',async()=>{
+ const {repo,state}=fixture(),one=(await repo.create('world-a','One')).map,two=(await repo.create('world-a','Two')).map;
+ await repo.createSettlement('world-a',{entityId:'town_one',name:'Old',content:{type:'doc',content:[]}});
+ assert.equal(state.pages.get('world-a').character_data.world_maps[0].placements,undefined);
+ await repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:one.id,x:12,y:34});
+ await repo.placeEntity('world-a','town_one',{placementId:'p_two',mapId:two.id,x:56,y:78});
+ await repo.updateEntity('world-a','town_one',1,{name:'New'});
+ const page=state.pages.get('world-a'),body=structuredClone(page.character_data.world_entities[0]);
+ const {projectWorldPlacements}=await importRepo();
+ assert.equal(projectWorldPlacements(page,one.id)[0].name,'New');
+ assert.equal(projectWorldPlacements(page,two.id)[0].name,'New');
+ await repo.movePlacement('world-a',one.id,'p_one',1,{x:22,y:44});
+ assert.deepEqual(state.pages.get('world-a').character_data.world_entities[0],body);
+ await repo.removePlacement('world-a',one.id,'p_one',2);
+ await repo.removePlacement('world-a',one.id,'p_one',2);
+ assert.equal(projectWorldPlacements(state.pages.get('world-a'),one.id).length,0);
+ await repo.remove('world-a',two.id,two.revision);
+ assert.deepEqual(state.pages.get('world-a').character_data.world_entities,[body]);
+ await assert.rejects(repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:one.id,x:22,y:44}),{code:'conflict'});
+});
+
+async function importRepo(){
+ const source=fs.readFileSync('src/features/worldMap/worldMapRepository.ts','utf8');
+ const js=stripTypeScriptTypes?stripTypeScriptTypes(source,{mode:'transform'}):require('typescript').transpileModule(source,{compilerOptions:{module:99,target:9}}).outputText;
+ return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+}
+
+test('failed atomic writes and explicit retries leave no half-created entries or orphan references',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ const input={entityId:'town_one',name:'One'},point={placementId:'p_one',mapId:map.id,x:1,y:2};
+ state.fail=true;
+ await assert.rejects(repo.createSettlement('world-a',input,point),/Disk full/);
+ assert.equal(state.pages.get('world-a').character_data.world_entities,undefined);
+ assert.equal(state.pages.get('world-a').character_data.world_maps[0].placements,undefined);
+ state.fail=false;
+ await repo.createSettlement('world-a',input,point);
+ await repo.createSettlement('world-a',input,point);
+ assert.equal((await repo.listEntities('world-a')).length,1);
+});
+
+test('foreign accounts/worlds, invalid coordinates and stale entity/placement revisions cannot modify data',async()=>{
+ const {repo,state}=fixture(),one=(await repo.create('world-a','One')).map,two=(await repo.create('world-b','Two')).map;
+ await repo.createSettlement('world-a',{entityId:'town_one',name:'One'});
+ const before=state.outbox.length;
+ await assert.rejects(repo.placeEntity('world-b','town_one',{placementId:'p_one',mapId:two.id,x:1,y:1}),{code:'entity'});
+ await assert.rejects(repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:two.id,x:1,y:1}),{code:'map'});
+ for(const x of [NaN,Infinity,-1])await assert.rejects(repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:one.id,x,y:1}),{code:'entity'});
+ assert.equal(state.outbox.length,before);
+ await repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:one.id,x:1,y:1});
+ await assert.rejects(repo.movePlacement('world-a',one.id,'p_one',4,{x:2,y:2}),{code:'conflict'});
+ await assert.rejects(repo.updateEntity('world-a','town_one',4,{name:'No'}),{code:'conflict'});
+ state.owner='other';
+ await assert.rejects(repo.listEntities('world-a'),{code:'owner'});
+ await assert.rejects(repo.createSettlement('world-a',{entityId:'town_two',name:'No'}),{code:'owner'});
+});
+
+test('map duplicate shares the canonical entity; world duplicate remaps entities, relations and placements',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ await repo.createSettlement('world-a',{entityId:'town_one',name:'One'},{placementId:'p_one',mapId:map.id,x:1,y:1});
+ const {map:copy}=await repo.duplicate('world-a',map.id,map.revision,'Copy');
+ assert.notEqual(copy.placements[0].placementId,'p_one');assert.equal(copy.placements[0].mapId,copy.id);assert.equal(copy.placements[0].entityId,'town_one');
+ const {cloneWorldReferences,validateWorldEntities}=await importRepo();
+ const data=cloneWorldReferences(state.pages.get('world-a').character_data,'new-world');
+ assert.equal(data.world_entities.length,1);assert.notEqual(data.world_entities[0].entityId,'town_one');
+ assert.equal(data.world_maps[0].placements[0].entityId,data.world_entities[0].entityId);
+ assert.equal(data.world_maps[1].placements[0].entityId,data.world_entities[0].entityId);
+ assert.equal(data.world_maps[1].placements[0].mapId,data.world_maps[1].id);
+ validateWorldEntities({id:'new-world',character_data:data});
+});
+
+test('entity metadata survives later native project saves without causing binary transfers on rename or move',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map',project('before'));
+ await repo.createSettlement('world-a',{entityId:'town_one',name:'One'},{placementId:'p_one',mapId:map.id,x:1,y:1});
+ await repo.updateEntity('world-a','town_one',1,{name:'Renamed'});
+ await repo.movePlacement('world-a',map.id,'p_one',1,{x:2,y:3});
+ assert.equal(state.binaries.size,1);
+ const result=await repo.save('world-a',map.id,map.revision,project('after'));
+ assert.equal(result.world.character_data.world_entities[0].name,'Renamed');
+ assert.equal(result.world.character_data.world_maps[0].placements[0].geometry.x,2);
+ assert.equal(state.binaries.size,2);
+});

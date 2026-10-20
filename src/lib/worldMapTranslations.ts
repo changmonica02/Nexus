@@ -1,5 +1,30 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "worldEntity.title":"Towns",
+  "worldEntity.add":"Add town",
+  "worldEntity.edit":"Edit town entry",
+  "worldEntity.name":"Town name",
+  "worldEntity.aliases":"Aliases (comma separated)",
+  "worldEntity.subtype":"Town type (optional)",
+  "worldEntity.summary":"Short description",
+  "worldEntity.content":"Details",
+  "worldEntity.save":"Save entry",
+  "worldEntity.failed":"Not saved. Keep this form open and retry.",
+  "worldEntity.discard":"Discard unsaved entry changes?",
+  "worldEntity.empty":"No towns yet. A town can be placed on a map later.",
+  "worldEntity.placed":"Placed",
+  "worldEntity.unplaced":"Unplaced",
+  "worldEntity.targetMap":"Placement map",
+  "worldEntity.place":"Place on selected map",
+  "worldEntity.existing":"Place existing town",
+  "worldEntity.human":"Human geography",
+  "worldEntity.pick":"Click a map position. Cancel to keep existing data unchanged.",
+  "worldEntity.marker":"Town marker",
+  "worldEntity.open":"Open world entry",
+  "worldEntity.move":"Move marker",
+  "worldEntity.remove":"Remove from this map",
+  "worldEntity.removeConfirm":"Remove this marker? The world entry is kept.",
+
   "worldMap.widthKm":"Geographic width (km, optional)",
   "worldMap.scaleHint":"Canvas pixels do not define geographic scale. Leave blank if unknown; no calibrated scale bar is shown.",
   "worldMap.rainfallFactor":"Precipitation factor (%)",
@@ -635,6 +660,31 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "worldEntity.title":"城鎮條目",
+  "worldEntity.add":"新增城鎮",
+  "worldEntity.edit":"編輯城鎮條目",
+  "worldEntity.name":"城鎮名稱",
+  "worldEntity.aliases":"別名（以逗號分隔）",
+  "worldEntity.subtype":"城鎮類型（選填）",
+  "worldEntity.summary":"簡短描述",
+  "worldEntity.content":"詳細內容",
+  "worldEntity.save":"儲存條目",
+  "worldEntity.failed":"尚未儲存，請保留此表單並重試。",
+  "worldEntity.discard":"捨棄尚未儲存的條目修改？",
+  "worldEntity.empty":"尚無城鎮，可先建立條目，稍後再配置到地圖。",
+  "worldEntity.placed":"已配置",
+  "worldEntity.unplaced":"未配置",
+  "worldEntity.targetMap":"配置地圖",
+  "worldEntity.place":"配置到所選地圖",
+  "worldEntity.existing":"放置既有城鎮",
+  "worldEntity.human":"人文地理",
+  "worldEntity.pick":"請點選地圖位置；取消不會修改既有資料。",
+  "worldEntity.marker":"城鎮標記",
+  "worldEntity.open":"開啟世界觀條目",
+  "worldEntity.move":"移動標記",
+  "worldEntity.remove":"從本圖移除標記",
+  "worldEntity.removeConfirm":"移除此標記？世界觀條目仍會保留。",
+
   "worldMap.widthKm":"地理實際寬度（公里，選填）",
   "worldMap.scaleHint":"畫布像素不代表地理尺度。不確定時留白；不顯示未校準的比例尺。",
   "worldMap.rainfallFactor":"降水倍率（%）",
@@ -1269,4 +1319,5 @@ export const worldMapZhTW:Record<string,string> = {
   "azgaar.Click to regenerate non-locked routes": "重新產生未鎖定的路線",
   "azgaar.Click to regenerate non-locked states": "重新產生未鎖定的國家"
 };
+
 

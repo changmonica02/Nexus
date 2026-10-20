@@ -1,4 +1,5 @@
 "use client";
+import { cloneWorldReferences } from "../features/worldMap/worldMapRepository";
 import { StudyPreferencesProvider } from "../features/study/components/StudyPreferences";
 import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
 import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
@@ -1253,10 +1254,9 @@ function NexusAppInner({
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
-    if(source.creative_type==="world" && pageToSave.character_data?.world_maps){
-      const mapIds=new Map(pageToSave.character_data.world_maps.map(map=>[map.id,`map_${nanoid()}`]));
-      pageToSave.character_data.world_maps=pageToSave.character_data.world_maps.map(map=>({...map,id:mapIds.get(map.id)!,world_id:pageToSave.id,parent_map_id:map.parent_map_id?mapIds.get(map.parent_map_id)??null:map.parent_map_id,revision:1}));
-      // Project binaries are immutable, so independent world copies can safely share this snapshot.
+    if(source.creative_type==="world" && pageToSave.character_data){
+      pageToSave.character_data=cloneWorldReferences(pageToSave.character_data,pageToSave.id);
+      // Project binaries are immutable; world entities and placement identities are independent.
       pageToSave.attachment_ids=[...(source.attachment_ids??[])];
     }
     const chapters = getNovelChapters(pages, source.id).map((chapter) => ({ ...structuredClone(chapter),
@@ -2033,3 +2033,4 @@ function NexusAppInner({
     </StudyPreferencesProvider>
   );
 }
+

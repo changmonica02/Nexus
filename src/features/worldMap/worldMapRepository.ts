@@ -1,4 +1,4 @@
-import type { Attachment, Page, WorldMapRecord } from "../../lib/types";
+import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData } from "../../lib/types";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 
 /** Fixed source for the integration. This module does not execute imported SVG. */
@@ -9,7 +9,7 @@ export const AZGAAR_SOURCE = {
 } as const;
 
 export class WorldMapError extends Error {
-  constructor(public readonly code: "owner" | "world" | "map" | "conflict" | "project" | "unavailable", message: string) {
+  constructor(public readonly code: "owner" | "world" | "map" | "conflict" | "project" | "unavailable" | "entity", message: string) {
     super(message);
     this.name = "WorldMapError";
   }
@@ -56,7 +56,82 @@ function requireWorld(page: Page | null, owner: string): Page {
   return page;
 }
 
+const entityTypes = new Set(["country", "administrative_area", "settlement", "culture", "religion", "geographic_region", "site"]);
+function entityError(message: string): never { throw new WorldMapError("entity", message); }
+function validId(id: unknown): id is string { return typeof id === "string" && /^[a-zA-Z0-9_-]{1,160}$/.test(id); }
+function validRevision(value: number): boolean { return Number.isSafeInteger(value) && value >= 1; }
+function validTime(value: number): boolean { return Number.isSafeInteger(value) && value >= 0; }
+function validPoint(point: WorldMapPlacement["geometry"]): boolean {
+  return !!point && point.type === "point" && Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.y >= 0;
+}
+
+/** Used before metadata mutations and before any backup restore writes. Missing legacy fields are valid.
+ * No names are used as foreign keys; even tombstones must retain valid references. */
+export function validateWorldEntities(world: Pick<Page, "id" | "character_data">): void {
+  const data = world.character_data;
+  if (!data) return;
+  const entities = data.world_entities ?? [];
+  if (!Array.isArray(entities)) entityError("Invalid world entity collection");
+  const ids = new Set<string>();
+  for (const entity of entities) {
+    if (!entity || entity.schemaVersion !== 1 || !validId(entity.entityId) || ids.has(entity.entityId)
+      || entity.worldId !== world.id || !entityTypes.has(entity.type) || typeof entity.name !== "string" || !entity.name.trim()
+      || !Array.isArray(entity.aliases) || entity.aliases.some(alias => typeof alias !== "string")
+      || !Array.isArray(entity.relations) || !validRevision(entity.revision) || !validTime(entity.createdAt) || !validTime(entity.updatedAt)
+      || (entity.summary !== undefined && typeof entity.summary !== "string")
+      || (entity.subtype !== undefined && typeof entity.subtype !== "string")
+      || (entity.content !== undefined && (!entity.content || typeof entity.content !== "object" || Array.isArray(entity.content)))) entityError("Invalid world entity identity or content");
+    ids.add(entity.entityId);
+  }
+  for (const entity of entities) for (const relation of entity.relations) {
+    if (!relation || typeof relation.type !== "string" || !relation.type.trim() || !ids.has(relation.entityId)) entityError("Invalid world entity relation");
+  }
+  const placements = new Set<string>();
+  if (data.world_maps !== undefined && !Array.isArray(data.world_maps)) entityError("Invalid map collection");
+  for (const map of data.world_maps ?? []) {
+    if (map.world_id !== world.id) throw new WorldMapError("map", "Invalid map ownership");
+    if (map.placements !== undefined && !Array.isArray(map.placements)) entityError("Invalid placement collection");
+    for (const placement of map.placements ?? []) {
+      if (!placement || placement.schemaVersion !== 1 || !validId(placement.placementId) || placements.has(placement.placementId)
+        || placement.mapId !== map.id || !ids.has(placement.entityId) || !validPoint(placement.geometry)
+        || typeof placement.visible !== "boolean" || !validRevision(placement.revision)
+        || !validTime(placement.createdAt) || !validTime(placement.updatedAt)
+        || (placement.deletedAt !== null && !validTime(placement.deletedAt))
+        || (placement.label !== undefined && (!placement.label || typeof placement.label.visible !== "boolean"))
+        || (placement.icon !== undefined && typeof placement.icon !== "string")) entityError("Invalid map entity reference or geometry");
+      placements.add(placement.placementId);
+    }
+  }
+}
+
+/** Only presentation leaves the world manager, never the canonical body. */
+export function projectWorldPlacements(world: Page, mapId: string) {
+  validateWorldEntities(world);
+  const entities = new Map((world.character_data?.world_entities ?? []).map(entity => [entity.entityId, entity]));
+  return (world.character_data?.world_maps?.find(map => map.id === mapId && map.deleted_at === null)?.placements ?? [])
+    .filter(placement => placement.deletedAt === null)
+    .map(placement => ({ placementId: placement.placementId, entityId: placement.entityId,
+      name: entities.get(placement.entityId)!.name, ...placement.geometry, visible: placement.visible,
+      label: placement.label, icon: placement.icon }));
+}
+
+/** Independent world copies receive independent entity IDs; map copies within one world do not. */
+export function cloneWorldReferences(data: CharacterProfileData, worldId: string): CharacterProfileData {
+  const copy = structuredClone(data);
+  const maps = new Map((copy.world_maps ?? []).map(map => [map.id, `map_${crypto.randomUUID()}`]));
+  const entities = new Map((copy.world_entities ?? []).map(entity => [entity.entityId, `entity_${crypto.randomUUID()}`]));
+  copy.world_entities = copy.world_entities?.map(entity => ({ ...entity, entityId: entities.get(entity.entityId)!, worldId,
+    revision: 1, relations: entity.relations.map(relation => ({ ...relation, entityId: entities.get(relation.entityId)! })) }));
+  copy.world_maps = copy.world_maps?.map(map => ({ ...map, id: maps.get(map.id)!, world_id: worldId,
+    parent_map_id: map.parent_map_id ? maps.get(map.parent_map_id) ?? null : map.parent_map_id, revision: 1,
+    placements: map.placements?.map(placement => ({ ...placement, placementId: `placement_${crypto.randomUUID()}`,
+      mapId: maps.get(map.id)!, entityId: entities.get(placement.entityId)!, revision: 1 })) }));
+  validateWorldEntities({ id: worldId, character_data: copy });
+  return copy;
+}
+
 function mapsOf(world: Page): WorldMapRecord[] {
+  validateWorldEntities(world);
   const maps = world.character_data!.world_maps ?? [];
   if (!Array.isArray(maps)) throw new WorldMapError("map", "Invalid map collection; nothing was changed");
   const ids = new Set<string>();
@@ -100,14 +175,16 @@ export class WorldMapRepository {
     requireOwner(this.storage, this.owner);
     const page = await this.storage.getPage(id);
     requireOwner(this.storage, this.owner);
-    return requireWorld(page, this.owner);
+    const world = requireWorld(page, this.owner);
+    validateWorldEntities(world);
+    return world;
   }
 
   async list(worldId: string, includeDeleted = false): Promise<WorldMapRecord[]> {
     return structuredClone(mapsOf(await this.world(worldId)).filter(map => includeDeleted || map.deleted_at == null));
   }
 
-  private async commit(world: Page, maps: WorldMapRecord[], project?: { attachment: Attachment; blob: Blob }): Promise<Page> {
+  private async commit(world: Page, maps: WorldMapRecord[], project?: { attachment: Attachment; blob: Blob }, entities?: WorldEntity[]): Promise<Page> {
     const device = await this.storage.getDeviceId();
     // Encode before opening the IDB transaction; async blob reads would close it.
     let data: string | undefined;
@@ -119,10 +196,11 @@ export class WorldMapRepository {
     }
     requireOwner(this.storage, this.owner);
     const next: Page = {
-      ...world, character_data: { ...world.character_data!, world_maps: maps },
+      ...world, character_data: { ...world.character_data!, world_maps: maps, ...(entities ? { world_entities: entities } : {}) },
       attachment_ids: [...new Set([...(world.attachment_ids ?? []), ...(project ? [project.attachment.id] : [])])],
       updated_at: Date.now(), revision: world.revision + 1, device_id: device,
     };
+    validateWorldEntities(next);
     // Existing attachment/binary intents and the page share the existing atomic outbox batch.
     await this.storage.getWorkspacePersistence().mutate(this.owner, [
       ...(project ? [
@@ -259,8 +337,91 @@ export class WorldMapRepository {
     const copy: WorldMapRecord = { ...map, id: `map_${crypto.randomUUID()}`, title: titleOf(title),
       attachment_id: project?.attachment.id ?? null, project_sha256: project?.sha256 ?? null,
       created_at: now, updated_at: now, deleted_at: null, revision: 1 };
+    copy.placements = map.placements?.map(placement => ({ ...placement, placementId: `placement_${crypto.randomUUID()}`, mapId: copy.id, revision: 1 }));
     return { world: await this.commit(world, [...mapsOf(world), copy], project), map: copy };
   }
+  async listEntities(worldId: string): Promise<WorldEntity[]> {
+    return structuredClone((await this.world(worldId)).character_data!.world_entities ?? []);
+  }
+
+  /** Caller retains entityId/placementId until acknowledged. Entity + placement + outbox are one Page transaction.
+   * On a lost acknowledgement, identical retries return current data without another write. */
+  async createSettlement(worldId: string, input: { entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown> },
+    placement?: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
+    const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
+    const name = input.name.trim();
+    const existing = entities.find(entity => entity.entityId === input.entityId);
+    if (existing) {
+      const matches = existing.type === "settlement" && existing.name === name && existing.revision === 1
+        && JSON.stringify(existing.aliases) === JSON.stringify(input.aliases ?? []) && existing.subtype === input.subtype
+        && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content);
+      const saved = placement && mapsOf(world).find(map => map.id === placement.mapId && map.deleted_at === null)?.placements?.find(item => item.placementId === placement.placementId);
+      if (!matches || (placement && (!saved || saved.deletedAt !== null || saved.entityId !== existing.entityId || saved.geometry.x !== placement.x || saved.geometry.y !== placement.y))) {
+        throw new WorldMapError("conflict", "This operation was already used with different content; reload before retrying");
+      }
+      return world;
+    }
+    const now = Date.now();
+    const entity: WorldEntity = { ...input, name, schemaVersion: 1, worldId, type: "settlement", aliases: input.aliases ?? [],
+      relations: [], createdAt: now, updatedAt: now, revision: 1 };
+    const maps = placement ? this.withPlacement(world, input.entityId, placement) : mapsOf(world);
+    return this.commit(world, maps, undefined, [...entities, entity]);
+  }
+
+  async updateEntity(worldId: string, entityId: string, revision: number,
+    patch: Partial<Pick<WorldEntity, "name" | "aliases" | "subtype" | "summary" | "content" | "relations">>): Promise<Page> {
+    const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
+    const current = entities.find(entity => entity.entityId === entityId);
+    if (!current) entityError("World entity is unavailable");
+    if (current.revision !== revision) throw new WorldMapError("conflict", "World entity changed; reload before retrying");
+    const entity = { ...current, ...patch, name: (patch.name ?? current.name).trim(), revision: current.revision + 1, updatedAt: Date.now() };
+    return this.commit(world, mapsOf(world), undefined, entities.map(item => item.entityId === entityId ? entity : item));
+  }
+
+  private withPlacement(world: Page, entityId: string, input: { placementId: string; mapId: string; x: number; y: number }): WorldMapRecord[] {
+    const map = mapOf(world, input.mapId);
+    if (mapsOf(world).some(map => map.placements?.some(item => item.placementId === input.placementId))) {
+      throw new WorldMapError("conflict", "Placement operation already exists");
+    }
+    const now = Date.now();
+    const placement: WorldMapPlacement = { schemaVersion: 1, placementId: input.placementId, mapId: map.id, entityId,
+      geometry: { type: "point", x: input.x, y: input.y }, visible: true, createdAt: now, updatedAt: now, revision: 1, deletedAt: null };
+    // Native project revision and binary do not change for derived markers.
+    return mapsOf(world).map(item => item.id === map.id ? { ...item, placements: [...(item.placements ?? []), placement] } : item);
+  }
+
+  async placeEntity(worldId: string, entityId: string, input: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
+    const world = await this.world(worldId);
+    if (!world.character_data!.world_entities?.some(entity => entity.entityId === entityId && entity.type === "settlement")) entityError("Settlement is not in this world");
+    const map = mapOf(world, input.mapId), saved = map.placements?.find(item => item.placementId === input.placementId);
+    if (saved) {
+      if (saved.deletedAt !== null || saved.entityId !== entityId || saved.geometry.x !== input.x || saved.geometry.y !== input.y) {
+        throw new WorldMapError("conflict", "Placement operation was already used; reload before retrying");
+      }
+      return world;
+    }
+    return this.commit(world, this.withPlacement(world, entityId, input));
+  }
+
+  async movePlacement(worldId: string, mapId: string, placementId: string, revision: number, point: { x: number; y: number }): Promise<Page> {
+    return this.changePlacement(worldId, mapId, placementId, revision, placement => ({ ...placement, geometry: { type: "point", ...point } }));
+  }
+
+  async removePlacement(worldId: string, mapId: string, placementId: string, revision: number): Promise<Page> {
+    return this.changePlacement(worldId, mapId, placementId, revision, placement => ({ ...placement, deletedAt: Date.now() }), true);
+  }
+
+  private async changePlacement(worldId: string, mapId: string, placementId: string, revision: number,
+    change: (placement: WorldMapPlacement) => WorldMapPlacement, removing = false): Promise<Page> {
+    const world = await this.world(worldId), map = mapOf(world, mapId), current = map.placements?.find(item => item.placementId === placementId);
+    if (!current) entityError("Placement is unavailable");
+    if (current.deletedAt !== null && removing) return world;
+    if (current.deletedAt !== null || current.revision !== revision) throw new WorldMapError("conflict", "Placement changed; reload before retrying");
+    const placement = { ...change(current), revision: current.revision + 1, updatedAt: Date.now() };
+    return this.commit(world, mapsOf(world).map(item => item.id === mapId ? { ...item, placements: item.placements!.map(old => old.placementId === placementId ? placement : old) } : item));
+  }
+
 }
+
 
 

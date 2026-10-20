@@ -1,3 +1,4 @@
+import { validateWorldEntities } from "../../features/worldMap/worldMapRepository";
 import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
@@ -416,6 +417,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     if(this.workspaceOwnerId !== owner)throw Error("Account changed during backup");
     // A map backup must never silently omit the native project needed for editing.
     for(const page of allPages.filter(row => (row.workspace_owner_id??null)===owner)) {
+      validateWorldEntities(page);
       for(const map of page.character_data?.world_maps??[]) {
         if(!map.attachment_id)continue;
         const entry=attachmentEntries.find(item=>item.attachment.id===map.attachment_id);
@@ -445,6 +447,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     if(backup.pages.some(row=>(row.workspace_owner_id??null)!==owner)
       ||backup.attachments.some(entry=>(entry.attachment.workspace_owner_id??null)!==owner)
       ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
+    for(const page of backup.pages) validateWorldEntities(page);
     for(const page of backup.pages)for(const map of page.character_data?.world_maps??[]){
       if(map.world_id!==page.id)throw Error("Invalid world map membership in backup");
       if(!map.attachment_id)continue;
@@ -563,3 +566,4 @@ export class IndexedDBAdapter implements StorageAdapter {
 
   async close(): Promise<void> { this.db?.close(); }
 }
+
