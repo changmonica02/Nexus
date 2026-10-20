@@ -1,5 +1,6 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "worldMap.confirm":"Confirm",
   "worldMap.home": "World maps",
   "worldMap.maps": "Maps",
   "worldMap.create": "Create map",
@@ -523,6 +524,7 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "worldMap.confirm":"確認",
   "worldMap.home": "世界觀地圖",
   "worldMap.maps": "地圖",
   "worldMap.create": "建立地圖",

@@ -27,7 +27,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:'確認',exact:true}).click();};
+  const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:'Confirm',exact:true}).click();};
   await page.getByRole('button',{name:'＋ Create map'}).click();await confirmName('Atlas One');
   const editor=page.getByRole('dialog',{name:'World map editor'});
   await editor.getByRole('button',{name:'Save',exact:true}).waitFor({state:'visible',timeout:120000});
@@ -127,7 +127,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
   const row=page.locator('li').filter({has:page.getByRole('button',{name:'Atlas One',exact:true})});
   await row.getByRole('button',{name:'Duplicate',exact:true}).click();await page.getByRole('button',{name:'Atlas One copy',exact:true}).waitFor();
-  await row.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('button',{name:'確認',exact:true}).click();
+  await row.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();
   await page.getByText('Deleted maps',{exact:true}).click();
   const restore=page.getByRole('button',{name:'Restore',exact:true});await restore.click();await restore.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.filter(m=>m.deleted_at==null).length;}),3);

@@ -19,7 +19,7 @@ type Opened={map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?
 export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack}: {
  world:Page;storage:StorageAdapter;beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null};readOnly?:boolean;onBack?:()=>void;
 }) {
- const {language,t}=useLanguage(),{askText,askConfirm,dialog}=useWorkspaceDialog();
+ const {language,t}=useLanguage(),{askText,askConfirm,dialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('worldMap.confirm')});
  const repository=useMemo(()=>new WorldMapRepository(storage),[storage]);
  const maps=world.character_data?.world_maps??[],active=maps.filter(m=>m.deleted_at==null);
  const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('political');

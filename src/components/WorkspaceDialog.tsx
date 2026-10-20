@@ -3,7 +3,7 @@ import ModalDialog from "./ModalDialog";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 type Request = { title: string; kind: "text" | "confirm"; initial?: string };
-export function useWorkspaceDialog() {
+export function useWorkspaceDialog(labels?:{cancel:string;confirm:string}) {
   const [request, setRequest] = useState<Request | null>(null);
   const [value, setValue] = useState("");
   const resolveRef = useRef<((result: string | boolean | null) => void) | null>(null);
@@ -34,8 +34,9 @@ export function useWorkspaceDialog() {
     <form ref={dialogRef} onSubmit={event=>{event.preventDefault();finish(request.kind === "text" ? value : true);}}>
       <h2 id={titleId} className="mb-4 text-base font-semibold">{request.title}</h2>
       {request.kind === "text" && <input aria-label={request.title} value={value} onChange={(event) => setValue(event.target.value)} className="mb-4 w-full rounded-lg border bg-transparent px-3 py-2" />}
-      <div className="flex justify-end gap-3"><button type="button" onClick={() => finish(null)} className="rounded-lg border px-4 py-2 text-sm">取消</button><button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">確認</button></div>
+      <div className="flex justify-end gap-3"><button type="button" onClick={() => finish(null)} className="rounded-lg border px-4 py-2 text-sm">{labels?.cancel??"取消"}</button><button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">{labels?.confirm??"確認"}</button></div>
     </form>
   </ModalDialog>;
   return { askText, askConfirm, dialog };
 }
+
