@@ -1,5 +1,20 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "worldEntity.backupHint":"World entries and placements are included in workspace backups. Native .map export contains only the map project.",
+  "worldEntity.error.0":"Invalid world entity collection",
+  "worldEntity.error.1":"Invalid world entity identity or content",
+  "worldEntity.error.2":"Invalid world entity relation",
+  "worldEntity.error.3":"Invalid placement collection",
+  "worldEntity.error.4":"Invalid map entity reference or geometry",
+  "worldEntity.error.5":"This operation was already used with different content; reload before retrying",
+  "worldEntity.error.6":"World entity is unavailable",
+  "worldEntity.error.7":"World entity changed; reload before retrying",
+  "worldEntity.error.8":"Placement operation already exists",
+  "worldEntity.error.9":"Settlement is not in this world",
+  "worldEntity.error.10":"Placement operation was already used; reload before retrying",
+  "worldEntity.error.11":"Placement is unavailable",
+  "worldEntity.error.12":"Placement changed; reload before retrying",
+
   "worldEntity.title":"Towns",
   "worldEntity.add":"Add town",
   "worldEntity.edit":"Edit town entry",
@@ -660,6 +675,21 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "worldEntity.backupHint":"世界觀條目與配置會保存在工作區備份中；原生 .map 匯出僅包含地圖專案。",
+  "worldEntity.error.0":"世界觀條目集合格式無效，未修改資料。",
+  "worldEntity.error.1":"世界觀條目的身分或內容格式無效，未修改資料。",
+  "worldEntity.error.2":"世界觀條目關聯無效，未修改資料。",
+  "worldEntity.error.3":"地圖配置集合格式無效，未修改資料。",
+  "worldEntity.error.4":"地圖條目引用或座標無效，未修改資料。",
+  "worldEntity.error.5":"此操作已用於不同內容，請重新開啟後再重試。",
+  "worldEntity.error.6":"世界觀條目目前無法使用。",
+  "worldEntity.error.7":"世界觀條目已變更，請先保留修改並重新開啟。",
+  "worldEntity.error.8":"此配置操作已存在，請重新開啟後再重試。",
+  "worldEntity.error.9":"此城鎮不屬於目前世界觀。",
+  "worldEntity.error.10":"此配置操作已使用，請重新開啟後再重試。",
+  "worldEntity.error.11":"此地圖配置目前無法使用。",
+  "worldEntity.error.12":"地圖配置已變更，請重新開啟後再重試。",
+
   "worldEntity.title":"城鎮條目",
   "worldEntity.add":"新增城鎮",
   "worldEntity.edit":"編輯城鎮條目",
