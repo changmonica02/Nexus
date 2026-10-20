@@ -27,7 +27,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const confirmName=async name=>{if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
+  const confirmName=async name=>{if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');await page.getByRole('dialog',{name:'Create map',exact:true}).locator('summary').filter({hasText:'Advanced settings'}).click();await page.getByLabel('Geographic width (km, optional)',{exact:true}).fill('1000');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
   const closeManage=async()=>{if(await manage.isVisible())await manage.getByRole('button',{name:'Close panel'}).click();};
@@ -36,6 +36,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await openManage();await manage.getByRole('button',{name:'Create map',exact:true}).click();
   const creator=page.getByRole('dialog',{name:'Create map',exact:true});
   await creator.locator('img').waitFor({timeout:120000});
+  for(const size of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){
+    await page.setViewportSize(size);
+    assert.ok(await creator.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&el.scrollWidth<=el.clientWidth+1;}),'responsive creation dialog');
+  }
+  await page.getByRole('button',{name:'繁體中文',exact:true}).click();
+  await creator.getByRole('heading',{name:'建立自然地圖',exact:true}).waitFor();
+  assert.equal(await creator.getByLabel('地形模板',{exact:true}).locator('option').filter({hasText:'azgaar.'}).count(),0);
+  await page.getByRole('button',{name:'English',exact:true}).click();
   const creationFrame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   const beforePreview=await creationFrame.evaluate(()=>JSON.stringify([pack,grid.cells.h,options.map]));
   for(const kind of ['procedural','precreated']){
@@ -79,16 +87,22 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
 
   assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i&&!b.removed).length),0,'new maps have no random towns');
   assert.deepEqual(await frame.evaluate(()=>[pack.states,pack.cultures,pack.religions].map(a=>a.filter(e=>e.i&&!e.removed).length)),[0,0,0]);
+  const dataDigest=()=>frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)).then(value=>require('node:crypto').createHash('sha256').update(value).digest('hex'));
   assert.deepEqual(await frame.evaluate(()=>options.map.lore.calendar),{year:0,era:'',eraShort:''},'no generated human era or history');
   const naturalId=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id;});
-  const naturalData=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value));
+  const naturalData=await dataDigest();
+  console.log('NEXUS_NATURAL_METRICS',JSON.stringify({
+    coreBytes:fs.readdirSync(core,{recursive:true}).reduce((sum,name)=>{const file=path.join(core,name);return sum+(fs.statSync(file).isFile()?fs.statSync(file).size:0);},0),
+    geography:await frame.evaluate(()=>({gridCells:grid.cells.i.length,packedCells:pack.cells.i.length,heapSampleBytes:performance.memory?.usedJSHeapSize??null})),
+    projectBytes:await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return (await mapStorage.getAttachment(w.character_data.world_maps[0].attachment_id)).size_bytes;})
+  }));
   // Reopen actual native project before making any edits.
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.reload();
   await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
-  assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)),naturalData);
+  assert.equal(await dataDigest(),naturalData);
   await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
   await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
   await frame.locator('#paintBrushes').click();await frame.locator('#brushRaise').click();
@@ -113,10 +127,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#paintEditorSelect').selectOption('4');
   const paint=await frame.evaluate(()=>{
     const z=document.querySelector('#map').__zoom,rects=[...document.querySelectorAll('.ui-dialog')].filter(e=>getComputedStyle(e).display!=='none').map(e=>e.getBoundingClientRect());
-    const i=pack.cells.i.find(i=>{const [px,py]=pack.cells.p[i],x=z.x+px*z.k,y=z.y+py*z.k;return pack.cells.h[i]>=20&&x>20&&y>100&&x<innerWidth-20&&y<innerHeight-20&&!rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);});
+    const i=pack.cells.i.find(i=>{const [px,py]=pack.cells.p[i],x=z.x+px*z.k,y=z.y+py*z.k;return pack.cells.h[i]>=20&&pack.cells.biome[i]!==4&&x>20&&y>100&&x<innerWidth-20&&y<innerHeight-20&&!rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);});
     if(i===undefined)throw Error('No visible land cell for painting');return {i,x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};
   });
-  await frame.locator('#map').click({position:{x:paint.x,y:paint.y},force:true});await frame.locator('#paintEditorApply').click();
+  const paintFrameBounds=await (await frame.frameElement()).boundingBox();
+  await page.mouse.move(paintFrameBounds.x+paint.x,paintFrameBounds.y+paint.y);await page.mouse.down();
+  await page.mouse.move(paintFrameBounds.x+paint.x+8,paintFrameBounds.y+paint.y+1,{steps:4});await page.mouse.up();
+  assert.equal(await frame.locator('#paintEditorUndo').isEnabled(),true,'drag creates a native paint history entry');
+  await frame.locator('#paintEditorApply').click();
   assert.equal(await frame.evaluate(i=>pack.cells.biome[i],paint.i),4,'native biome brush is usable without civilization');
   await frame.evaluate(()=>closeDialogs());
   const manual=await frame.evaluate(i=>({i,rivers:JSON.stringify(pack.rivers),biomes:Array.from(pack.cells.biome)}),paint.i);
@@ -126,12 +144,12 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.deepEqual(await frame.evaluate(()=>Array.from(pack.cells.biome)),manual.biomes);
   await frame.evaluate(()=>closeDialogs());
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
-  const geography=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value));
+  const geography=await dataDigest();
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   for(const preset of ['contours','temperature','precipitation','biomes','political','cultural','religions','physical']){
     await page.getByLabel('Display layers',{exact:true}).selectOption(preset);await page.waitForTimeout(100);
-    assert.equal(await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map],(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)),geography,'view is presentation-only: '+preset);
-    if(preset==='contours')assert.ok(await frame.locator('.heightmap-contours path').count()>0,'height-derived contour paths');
+    assert.equal(await dataDigest(),geography,'view is presentation-only: '+preset);
+    if(preset==='contours')await frame.locator('.heightmap-contours path').first().waitFor();
   }
   await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
   await frame.evaluate(async()=>Services.Load.quickLoad());
@@ -348,6 +366,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch);
   await page.getByRole('button',{name:'Create detail map',exact:true}).click();await confirmName('Detail Created');
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
+  assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i).length),0);
+  assert.equal(await frame.evaluate(()=>options.map.nexus.scaleKnown),true);
+  assert.equal(await frame.evaluate(()=>options.map.units.distance.scale),1000/1280);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:'↑ Parent map',exact:true}).click();
   await page.getByRole('navigation',{name:'Detail maps'}).getByRole('button',{name:/Detail Created/}).waitFor();
