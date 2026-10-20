@@ -599,7 +599,10 @@ class HeightmapModule {
       canvas.height = cellsY;
 
       const img = new Image();
+      let imageUrl: string | undefined;
+      const release = () => {if(imageUrl)URL.revokeObjectURL(imageUrl);};
       const fail = (message: string) => {
+        release();
         canvas.remove();
         img.remove();
         reject(new Error(message));
@@ -616,9 +619,15 @@ class HeightmapModule {
         this.getHeightsFromImageData(imageData.data);
         canvas.remove();
         img.remove();
+        release();
         resolve(this.heights);
       };
-      img.src = `./heightmaps/${id}.png`;
+      // Fetch through Nexus' public-asset broker, then use an opaque-core-owned blob URL.
+      // Direct cross-origin <img> would taint the sampling canvas in the sandbox.
+      void fetch(`./heightmaps/${id}.png`).then(response=>{
+        if(!response.ok)throw Error(`Cannot load heightmap ${id}`);
+        return response.blob();
+      }).then(blob=>{imageUrl=URL.createObjectURL(blob);img.src=imageUrl;}).catch(error=>fail(String(error)));
     });
   }
 
@@ -628,3 +637,4 @@ class HeightmapModule {
 }
 
 window.HeightmapGenerator = new HeightmapModule();
+

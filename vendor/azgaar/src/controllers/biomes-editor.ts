@@ -503,6 +503,7 @@ function applyBiomesChange(changes: ReadonlyMap<number, number>): void {
 }
 
 function restoreInitialBiomes(): void {
+  if(window.parent !== window){tip("Full recalculation is unavailable: manual data is preserved. Create a separate natural map instead.",false,"error",8000);return;}
   Biomes.restore();
   Layers.draw("biomes");
   regeneratePopulation();
@@ -515,8 +516,10 @@ function closeBiomesEditor(): void {
 }
 
 function regeneratePopulation(): void {
+  if(window.parent !== window)return; // Biome edits must not replace manual demographic data.
   Population.regenerate();
   Layers.draw("population", "goods");
 }
 
 export const BiomesEditor = { open, exportCsv: downloadBiomesData };
+

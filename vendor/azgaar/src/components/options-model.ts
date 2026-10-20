@@ -218,7 +218,7 @@ class OptionsModel {
   }
 
   /** Establish new map settings */
-  randomize(): void {
+  randomize(naturalOnly = false): void {
     const { generation } = options;
     const { graph, cultures, states, provinces, religions, burgs } = generation;
 
@@ -235,6 +235,7 @@ class OptionsModel {
     generation.template = Pins.rolls("template")
       ? this.randomTemplate()
       : Pins.valueOr("template", generation.template);
+    if (!naturalOnly) {
     states.limit = Pins.rolls("statesNumber") ? gauss(18, 5, 2, 30) : Pins.valueOr("statesNumber", states.limit);
     provinces.ratio = Pins.rolls("provincesRatio")
       ? gauss(20, 10, 20, 100)
@@ -253,6 +254,8 @@ class OptionsModel {
     cultures.limit = Pins.rolls("cultures") ? gauss(12, 3, 5, 30) : Pins.valueOr("cultures", cultures.limit);
     cultures.set = Pins.rolls("culturesSet") ? this.randomCultureSet() : Pins.valueOr("culturesSet", cultures.set);
     this.capCultures();
+
+    }
 
     // keep the resolved seed, the active style preset and the user's definition sets
     const previous = options.map;
@@ -289,6 +292,7 @@ class OptionsModel {
     units.distance.scale = Pins.rolls("distanceScale")
       ? gauss(3, 1, 1, 5)
       : Pins.valueOr("distanceScale", units.distance.scale);
+    if (!naturalOnly) {
     lore.calendar.year = Pins.rolls("year") ? rand(100, 2000) : Pins.valueOr("year", lore.calendar.year);
 
     if (Pins.rolls("era")) {
@@ -300,6 +304,12 @@ class OptionsModel {
     }
 
     lore.name = Pins.rolls("mapName") ? Names.getMapName() : Pins.valueOr("mapName", lore.name);
+    } else {
+      lore.name = "";
+      lore.description = "";
+      lore.calendar = {year: 0, era: "", eraShort: ""};
+      units.distance.scale = 1; // uncalibrated until Nexus receives a geographic width
+    }
     units.distance.unit = Pins.valueOr("distanceUnit", units.distance.unit);
     units.area.unit = Pins.valueOr("areaUnit", units.area.unit);
     units.height.unit = Pins.valueOr("heightUnit", units.height.unit);
@@ -357,3 +367,4 @@ class OptionsModel {
 export const Options = new OptionsModel();
 globalThis.Options = Options;
 globalThis.options = Options.getDefaultOptions();
+

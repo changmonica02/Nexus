@@ -22,6 +22,7 @@ import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { viewport } from "@/components/viewport";
 import { Controllers } from "@/controllers";
 import { heightmapTemplates } from "@/data/heightmap-templates";
+import {markGeographyStale} from "@/generators/nexus-natural";
 import { ErasePipeline } from "@/generators/generation-pipeline";
 import { GraphOverride } from "@/generators/graph-override";
 import { removeEmblem } from "@/renderers/draw-emblems";
@@ -56,10 +57,16 @@ const dialogId = "heightmapEditor";
 const EDITOR_OPTIONS = ["renderOcean", "showDrainage", "allowErosion"] as const; // the customization menu checkboxes
 const historyLimit = 100;
 let filterState: FilterState;
+let keptLandMask: Uint8Array | null = null;
 let templateInput: HTMLInputElement | null = null;
 let converterInput: HTMLInputElement | null = null;
 
 function open(options?: { mode?: string; tool?: string }): void {
+  if (window.parent !== window && options?.mode && options.mode !== "keep") {
+    tip("Coastline topology rebuild is unavailable: existing rivers and manual data are preserved. Use Keep mode for terrain editing.", false, "error", 8000);
+    return;
+  }
+  keptLandMask = window.parent !== window ? Uint8Array.from(grid.cells.h, h=>h>=20?1:0) : null;
   filterState = dialogState.get(dialogId, "filters", (): FilterState => ({ cellType: "all" }));
   if (!(["all", "land", "water"] as string[]).includes(filterState.cellType)) filterState.cellType = "all";
   dialogState.set(dialogId, "filters", filterState);
@@ -307,7 +314,8 @@ function addToolbarListeners(): void {
   ensureEl("applyTemplate").addEventListener("click", openTemplateEditor);
   ensureEl("convertImage").addEventListener("click", openImageConverter);
   ensureEl("heightmapPreview").addEventListener("click", toggleHeightmapPreview);
-  ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
+  if(window.parent !== window)ensureEl("heightmap3DView").style.display="none";
+  else ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
   ensureEl("finalizeHeightmap").addEventListener("click", finalizeHeightmap);
   for (const key of EDITOR_OPTIONS) {
     ensureEl<HTMLInputElement>(key).addEventListener("change", function () {
@@ -332,6 +340,14 @@ function redrawDrainage(): void {
 }
 
 function showModeDialog(tool?: string): void {
+  if (window.parent !== window) {
+    alertMessage.textContent = "Terrain editing preserves rivers, climate, biomes and civilization. Coastline changes are locked; derived data will be marked for review, not regenerated.";
+    $("#alert").dialog({resizable:false,title:"Edit terrain safely",buttons:{
+      Keep:()=>enterHeightmapEditMode("keep",tool),
+      Cancel:function(this:HTMLElement){$(this).dialog("close");}
+    }});
+    return;
+  }
   alertMessage.innerHTML = /* html */ `Heightmap is a core element on which all other data (rivers, burgs, states etc) is based. So the best edit approach is to
     <i>erase</i> the secondary data and let the system automatically regenerate it on edit completion.
     <p><i>Erase</i> mode also allows you Convert an Image into a heightmap or use Template Editor.</p>
@@ -402,7 +418,7 @@ function enterHeightmapEditMode(mode: string, tool?: string): void {
 
   // show finalize button
   const exitCustomization = ensureEl("exitCustomization");
-  if (!sessionStorage.getItem("noExitButtonAnimation")) {
+  if (window.parent === window && !sessionStorage.getItem("noExitButtonAnimation")) {
     sessionStorage.setItem("noExitButtonAnimation", "true");
     exitCustomization.style.opacity = "0";
     const width = 12 * +ensureEl<HTMLInputElement>("uiSize").value * 11;
@@ -541,6 +557,7 @@ async function regenerateErasedData(): Promise<void> {
 }
 
 function restoreKeptData(): void {
+  if (window.parent !== window) {markGeographyStale();window.dispatchEvent(new Event("nexus-geography-changed"));}
   for (const i of pack.cells.i) {
     pack.cells.h[i] = grid.cells.h[pack.cells.g[i]];
   }
@@ -900,6 +917,11 @@ function setHistoryButtonsDisabled(undo: boolean, redo: boolean): void {
 }
 
 function updateHistory(noStat?: string): void {
+  // All native brushes, filters and rescalers converge here. The UI filter alone is not a coastline guard.
+  if (keptLandMask) for (const i of grid.cells.i) {
+    if (keptLandMask[i] && grid.cells.h[i] < 20) grid.cells.h[i] = 20;
+    if (!keptLandMask[i] && grid.cells.h[i] >= 20) grid.cells.h[i] = 19;
+  }
   const step = edits.n;
   edits = Object.assign(edits.slice(0, step), { n: step + 1 });
   edits[step] = grid.cells.h.slice();
@@ -2215,3 +2237,4 @@ export const HeightmapEditor = { open, redrawDrainage };
 declare global {
   var edits: Uint8Array[] & { n: number };
 }
+

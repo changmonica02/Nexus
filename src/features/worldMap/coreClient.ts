@@ -1,12 +1,13 @@
 export type MapView = {x:number;y:number;scale:number};
-export type MapPresentation = {preview?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
+export type NaturalMapSettings = {widthKm?:number;template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number};
+export type MapPresentation = {generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
 /** Only a private MessagePort crosses the opaque-origin core boundary. */
 export class MapCoreClient {
   private sequence = 0;
   private pending = new Map<number, { resolve: (blob: Blob | undefined) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob;view?:MapView}) => void) {
+  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob;view?:MapView;delta?:number;preview?:boolean}) => void) {
     port.onmessage = ({ data }) => {
       if (typeof data?.type === 'string') { onEvent(data); return; }
       const pending = this.pending.get(data?.id);
@@ -16,7 +17,7 @@ export class MapCoreClient {
     };
     port.start();
   }
-  request(type: 'load' | 'snapshot' | 'svg' | 'png' | 'configure' | 'generate' | 'view', blob?: Blob, settings?: MapPresentation): Promise<Blob | undefined> {
+  request(type: 'load' | 'snapshot' | 'svg' | 'png' | 'configure' | 'generate' | 'view' | 'catalog' | 'heightmap-preview', blob?: Blob, settings?: MapPresentation): Promise<Blob | undefined> {
     const operation = this.tail.catch(() => undefined).then(() => new Promise<Blob | undefined>((resolve, reject) => {
       if (this.closed) { reject(Error('Map editor closed')); return; }
       const id = ++this.sequence;
@@ -43,4 +44,5 @@ export function downloadMapBlob(blob: Blob, title: string, extension: string) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+
 

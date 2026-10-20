@@ -10,7 +10,7 @@ import "@/generators/styles";
 import { setViewportSize, setViewportTransform, viewport } from "@/components/viewport";
 import { ViewportLayers } from "@/renderers/viewport/viewport-renderer";
 import { rn } from "@/utils/numberUtils";
-import { applyZoomBehavior, setMapZoom, setTranslateExtent, setZoomExtent, zoomTo } from "./zoom";
+import { applyZoomBehavior, configurePreviewGestures, zoomAtPoint, setMapZoom, setTranslateExtent, setZoomExtent, zoomTo } from "./zoom";
 
 beforeEach(() => {
   document.body.innerHTML = /* html */ `
@@ -151,4 +151,19 @@ describe("invokeActiveZooming", () => {
     invokeActiveZooming();
     expect(fontSizes()).toEqual(["52.5px", "22.36px", "80.81px", null]);
   });
+});
+
+
+describe("Nexus preview interaction",()=>{
+ it("zooms around the requested point and honors the fit floor",()=>{
+   setZoomExtent(0.25,20);setTranslateExtent(0,0,4000,2400);zoomTo(2000,1200,0.25,0);
+   configurePreviewGestures(true,false);
+   const x=viewport.x,y=viewport.y;
+   zoomAtPoint(2,500,300);
+   expect(viewport.scale).toBeCloseTo(0.5);
+   expect((500-viewport.x)/viewport.scale).toBeCloseTo((500-x)/0.25);
+   expect((300-viewport.y)/viewport.scale).toBeCloseTo((300-y)/0.25);
+   zoomAtPoint(0.001,500,300);expect(viewport.scale).toBeCloseTo(0.25);
+   configurePreviewGestures(false,false);
+ });
 });

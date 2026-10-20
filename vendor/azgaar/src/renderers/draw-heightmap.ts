@@ -62,7 +62,9 @@ function getContourSurface(smoothed: Float64Array): { points: [number, number][]
   return { points, elevations };
 }
 
-export const drawHeightmap = (): void => {
+export const drawHeightmap = (): void => drawHeightmapView();
+
+export const drawHeightmapView = (presentation?: {contourInterval:number;contourLabels:boolean}): void => {
   if (customization === 1)
     return void tip("The Layer control is not available in the heightmap edit mode", false, "error");
 
@@ -79,7 +81,8 @@ export const drawHeightmap = (): void => {
   const used = new Uint8Array(cells.i.length);
   const heights = Array.from(cells.i).sort((a, b) => cells.h[a] - cells.h[b]);
 
-  const landOptions = styles.heightmap.groups.landHeights.options;
+  const baseLandOptions = styles.heightmap.groups.landHeights.options;
+  const landOptions = presentation ? {...baseLandOptions, contours:{...baseLandOptions.contours,mode:"only",interval:presentation.contourInterval}} : baseLandOptions;
   const oceanOptions = styles.heightmap.groups.oceanHeights.options;
   const linesOnly = (o: typeof landOptions) => o.contours.mode === "only" || o.hachures.mode === "only";
   const landFillsVisible = !linesOnly(landOptions);
@@ -215,6 +218,13 @@ export const drawHeightmap = (): void => {
           .attr("d", round(contour.path)) // full-precision coordinates bloat the saved map
           .attr("data-height", contour.height)
           .attr("stroke-width", contours.width * (contour.major ? 2 : 1));
+        if (presentation?.contourLabels && contour.major) {
+          const path = contourGroup.select<SVGPathElement>(`path[data-height="${contour.height}"]`).node();
+          if (path && path.getTotalLength() > 30) {
+            const point = path.getPointAtLength(path.getTotalLength()/2);
+            group.append("text").attr("class","nexus-contour-label").attr("x",point.x).attr("y",point.y).attr("font-size",8).attr("fill",contours.color).text(String(contour.height));
+          }
+        }
       }
     }
   }
@@ -347,3 +357,4 @@ export const drawHeights = ({
   ctx.putImageData(imageData, 0, 0);
   return canvas.toDataURL("image/png");
 };
+

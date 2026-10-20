@@ -154,6 +154,7 @@ const units = z.strictObject({
  * Saving writes this object and loading replaces it, so the two are the same shape by construction
  */
 export const mapSchema = z.strictObject({
+  nexus: z.strictObject({version: z.literal(1), naturalOnly: z.boolean(), scaleKnown:z.boolean().optional(), stale: z.array(z.enum(["hydrology", "climate", "biomes"]))}).optional(),
   seed: z.string(),
   graph: z.strictObject({ width: positive, height: positive, points: positive }),
   geography,
@@ -314,3 +315,4 @@ export const pinSchemas: Record<string, z.ZodType> = {
   urbanization: units.shape.population.shape.urbanization.shape.rate,
   urbanDensity: units.shape.population.shape.urbanization.shape.density
 };
+

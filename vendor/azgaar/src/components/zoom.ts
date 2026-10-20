@@ -12,6 +12,17 @@ export function applyZoomBehavior(): void {
   select<SVGSVGElement, unknown>("#map").call(zoomBehavior.on("zoom", onZoom).on("end", handleZoomEnd));
 }
 
+/** Nexus preview keeps D3's native two-finger math; single-finger page scrolling is brokered by the adapter. */
+export function configurePreviewGestures(preview: boolean, freePan: boolean): void {
+  zoomBehavior.filter(event => {
+    if (preview && !freePan && 'touches' in event) return event.touches.length >= 2;
+    return (!event.ctrlKey || event.type === 'wheel') && !event.button;
+  });
+}
+export function zoomAtPoint(factor: number, x: number, y: number): void {
+  zoomBehavior.scaleBy(select<SVGSVGElement, unknown>('#map'), factor, [x, y]);
+}
+
 let frameId: number | null = null;
 let pendingScaleChange = false;
 let pendingPositionChange = false;
@@ -216,3 +227,4 @@ window.setTranslateExtent = setTranslateExtent;
 window.resetZoom = resetZoom;
 window.invokeActiveZooming = invokeActiveZooming;
 window.setMapZoom = setMapZoom;
+

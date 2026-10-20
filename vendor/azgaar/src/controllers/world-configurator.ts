@@ -21,7 +21,7 @@ function open(): void {
     title: "Configure World",
     resizable: false,
     width: "minmax(40em, 85vw)",
-    buttons: { "Update world": updateWorld },
+    buttons: { [window.parent !== window ? "Apply climate" : "Update world"]: updateWorld },
     open: function (this: HTMLElement) {
       const checkbox = /* html */ `<div class="dontAsk" data-tip="Automatically update world on input changes and button clicks">
         <input id="wcAutoChange" class="checkbox" type="checkbox" checked />
@@ -29,6 +29,7 @@ function open(): void {
       </div>`;
       const pane = this.parentElement?.querySelector(".ui-dialog-buttonpane");
       pane?.insertAdjacentHTML("afterbegin", checkbox);
+      if(window.parent !== window)ensureEl<HTMLInputElement>("wcAutoChange").checked=false;
 
       const button = this.parentElement?.querySelector(".ui-dialog-buttonset > button");
       button?.addEventListener("mousemove", () => tip("Apply current settings to the map"));
@@ -301,6 +302,14 @@ function updateInputValues(): void {
 }
 
 function updateWorld(): void {
+  if (window.parent !== window) {
+    // Only climate arrays are recalculated here. Rivers and painted biomes remain intact.
+    Temperature.generate(); Precipitation.generate();
+    options.map.nexus={...options.map.nexus,version:1,naturalOnly:options.map.nexus?.naturalOnly??false,stale:['hydrology','biomes']};
+    Layers.draw("temperature","precipitation");
+    window.dispatchEvent(new Event("nexus-geography-changed"));
+    return;
+  }
   updateGlobeTemperature();
   updateGlobePosition();
   Temperature.generate();
@@ -435,3 +444,4 @@ function applyWorldPreset(size: number, latitude: number): void {
 }
 
 export const WorldConfigurator = { open };
+

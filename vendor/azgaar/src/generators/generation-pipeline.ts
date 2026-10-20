@@ -50,13 +50,49 @@ const generationPipelineSteps = [
 
 type GenerationPipelineStepId = (typeof generationPipelineSteps)[number]["id"];
 
-type GenerationContext = {
+export type GenerationContext = {
   graph?: GridGraph; // pre-created grid to use instead of generating one
 };
 export const GenerationPipeline = new Pipeline<GenerationPipelineStepId, GenerationContext>(
   "Generation Pipeline",
   generationPipelineSteps
 );
+
+/** Geography never calls a civilization/economy generator. Index zero means unassigned,
+ * not a generated entity; keep the native indexed-array contract for old tools and IO. */
+export function initializeEmptyCivilization(): void {
+  const n = pack.cells.i.length;
+  for (const key of ["culture", "burg", "state", "religion", "province", "good", "market"] as const)
+    pack.cells[key] = new Uint16Array(n);
+  pack.cells.s = new Int16Array(n);
+  pack.cells.pop = new Float32Array(n);
+  pack.cells.routes = {};
+  pack.cultures = [{i: 0, name: "Wildlands", base: 1, shield: "round", type: "Generic"} as typeof pack.cultures[number]];
+  pack.states = [{i: 0, name: "Neutrals", salesTax: 0, pollTax: 0, treasury: 0, provinces: []} as unknown as typeof pack.states[number]];
+  pack.religions = [{i: 0, name: "No religion"} as typeof pack.religions[number]];
+  pack.burgs = [0 as unknown as typeof pack.burgs[number]];
+  pack.provinces = [0 as unknown as typeof pack.provinces[number]];
+  pack.routes = []; pack.goods = []; pack.markets = []; pack.deals = [];
+  pack.markers = []; pack.zones = []; pack.relief = []; pack.addedLabels = []; pack.journeys = [];
+}
+
+// Same geographic ordering as the canonical pipeline, with empty indexed collections
+// initialized before rivers (names/editors may read culture zero).
+const naturalStepIds = new Set<string>(["grid","heightmap","markupGrid","depressionLakes","nearSeaLakes","mapSize","temperatures","precipitation","clearPack","clearGraphOverride","regraph","markupPack","defaultRuler","rivers","biomes","featureGroups","ice"]);
+export const naturalGenerationSteps: readonly PipelineStep<string, GenerationContext>[] = [
+  ...generationPipelineSteps.filter(step=>naturalStepIds.has(step.id)).flatMap<PipelineStep<string,GenerationContext>>(step=>
+    step.id === "rivers" ? [{id:"emptyCivilization",run:initializeEmptyCivilization},step] : [step]),
+  {id: "naturalRiverNames", run: () => {
+    for (const river of pack.rivers) {
+      river.parent = Rivers.getParent(river.i); river.basin = Rivers.getBasin(river.i);
+      river.name = `River ${river.i}`; river.type = "River";
+    }
+  }},
+  {id: "naturalFeatureNames", run: () => {
+    for (const feature of pack.features) if (feature && !feature.name) feature.name = `${feature.type} ${feature.i}`;
+  }}
+];
+export const NaturalGenerationPipeline = new Pipeline("Natural Geography", naturalGenerationSteps);
 
 const erasePipelineSteps = [
   { id: "markupGrid", run: () => Features.markupGrid() },
@@ -104,3 +140,4 @@ declare global {
   var GenerationPipeline: import("@/generators/pipeline").Pipeline<GenerationPipelineStepId, GenerationContext>;
 }
 window.GenerationPipeline = GenerationPipeline;
+

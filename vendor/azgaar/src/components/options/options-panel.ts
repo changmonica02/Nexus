@@ -90,7 +90,8 @@ function initialize(): void {
     else if (id === "searchButton") Controllers.Omnibar.open();
   });
 
-  ensureEl("viewMode").addEventListener("click", changeViewMode);
+  if(window.parent !== window)ensureEl("viewMode").style.display="none";
+  else ensureEl("viewMode").addEventListener("click", changeViewMode);
 }
 
 initialize();
@@ -107,4 +108,5 @@ declare global {
 window.toggleOptions = toggleOptions;
 window.showOptions = showOptions;
 window.hideOptions = hideOptions;
+
 

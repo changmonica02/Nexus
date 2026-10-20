@@ -147,14 +147,19 @@ export class WorldMapRepository {
     return { attachment, blob, sha256: info.sha256 };
   }
 
-  async create(worldId: string, title: string, blob?: Blob): Promise<{ world: Page; map: WorldMapRecord }> {
+  async create(worldId: string, title: string, blob?: Blob, presentation?: {scope:string;parentId:string}): Promise<{ world: Page; map: WorldMapRecord }> {
     const name = titleOf(title);
     const world = await this.world(worldId);
+    if (presentation) {
+      if (!/^[a-z][a-z0-9_-]{0,63}$/.test(presentation.scope)) throw new WorldMapError("map", "Invalid map scope");
+      mapOf(world, presentation.parentId);
+    }
     const project = blob ? await this.project(blob) : undefined;
     const now = Date.now();
     const map: WorldMapRecord = {
       metadata_version: 1, id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: "azgaar", engine_version: AZGAAR_SOURCE.version,
       attachment_id: project?.attachment.id ?? null, project_sha256: project?.sha256 ?? null,
+      ...(presentation ? {scope:presentation.scope,parent_map_id:presentation.parentId} : {}),
       revision: 1, created_at: now, updated_at: now, deleted_at: null,
     };
     return { world: await this.commit(world, [...mapsOf(world), map], project), map };
@@ -257,4 +262,5 @@ export class WorldMapRepository {
     return { world: await this.commit(world, [...mapsOf(world), copy], project), map: copy };
   }
 }
+
 

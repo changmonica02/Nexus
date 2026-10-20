@@ -15,7 +15,7 @@ import { setViewportSize } from "@/components/viewport";
 import { invokeActiveZooming, resetZoom } from "@/components/zoom";
 import { Controllers } from "@/controllers";
 import { getPointsNumber } from "@/data/graph-density";
-import { GenerationPipeline } from "@/generators/generation-pipeline";
+import { GenerationPipeline, NaturalGenerationPipeline } from "@/generators/generation-pipeline";
 import { adoptLegacyIconSlots } from "@/generators/styles-legacy";
 import { stashCallbackToken } from "@/services/assistant/azgaar-server/auth";
 import { initiateAutosave } from "@/services/autosave";
@@ -49,7 +49,7 @@ export async function boot(): Promise<void> {
   initiateAutosave();
 }
 
-export type GenerationConfig = { seed?: string; graph?: GridGraph; width?: number; height?: number; points?: number };
+export type GenerationConfig = { seed?: string; graph?: GridGraph; width?: number; height?: number; points?: number; widthKm?: number; naturalOnly?: boolean; template?: string; density?: number; equator?: number; precipitation?: number };
 
 /** Generate a whole new world */
 export async function generate(config?: GenerationConfig): Promise<void> {
@@ -57,12 +57,21 @@ export async function generate(config?: GenerationConfig): Promise<void> {
     const { seed: precreatedSeed, graph: precreatedGraph, width, height, points } = config || {};
     Options.setGraphSize(width, height);
     setSeed(precreatedSeed);
-    Options.randomize();
+    const naturalOnly = config?.naturalOnly ?? (window.parent !== window);
+    Options.randomize(naturalOnly);
+    if (config?.template) options.generation.template = config.template;
+    if (config?.points !== undefined) options.map.graph.points = config.points;
+    if (config?.equator !== undefined) options.map.climate.temperature.equator = config.equator;
+    if (config?.precipitation !== undefined) options.map.climate.precipitation = config.precipitation;
+    if (naturalOnly) {
+      options.map.nexus = {version: 1, naturalOnly: true, scaleKnown:config?.widthKm!==undefined, stale: []};
+      if(config?.widthKm!==undefined){options.map.units.distance.unit="km";options.map.units.distance.scale=config.widthKm/options.map.graph.width;}
+    }
     Icons.syncCustom(); // the carried-over custom icons, and the stored ones at startup
     if (precreatedGraph && points !== undefined) options.map.graph.points = points;
     applyGraphSize(); // TODO: DOM change, not part of generation
 
-    await GenerationPipeline.run({ graph: precreatedGraph });
+    await (naturalOnly ? NaturalGenerationPipeline : GenerationPipeline).run({ graph: precreatedGraph });
     Options.persist();
 
     syncOptionInputs();
@@ -70,6 +79,7 @@ export async function generate(config?: GenerationConfig): Promise<void> {
     logStats();
     invokeActiveZooming();
   } catch (error) {
+    if (window.parent !== window) throw error;
     ERROR && console.error(error);
     clearMainTip();
 
@@ -98,6 +108,7 @@ export async function generate(config?: GenerationConfig): Promise<void> {
 
 /** Replace the current map with a new one. Debounced: the hotkey and the button both fire it */
 export const regenerateMap = debounce(async (config?: GenerationConfig | string) => {
+  if (window.parent !== window) return; // Only isolated creation RPC can generate a new embedded map.
   const reason = typeof config === "string" ? config : "user request";
   WARN && console.warn(`Generate new random map: ${reason}`);
 
@@ -123,6 +134,10 @@ export const regenerateMap = debounce(async (config?: GenerationConfig | string)
 
 /** Ask before throwing away a map the user has been working on for a while */
 export function regeneratePrompt(config?: GenerationConfig): void {
+  if (window.parent !== window) {
+    tip("Full recalculation is unavailable: manual data is preserved. Create a separate natural map instead.", false, "error", 8000);
+    return;
+  }
   if (customization) {
     tip("New map cannot be generated when edit mode is active, please exit the mode and retry", false, "error");
     return;
@@ -186,3 +201,4 @@ declare global {
 }
 window.regeneratePrompt = regeneratePrompt;
 window.regenerateMap = regenerateMap;
+
