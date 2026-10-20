@@ -314,7 +314,8 @@ function addToolbarListeners(): void {
   ensureEl("applyTemplate").addEventListener("click", openTemplateEditor);
   ensureEl("convertImage").addEventListener("click", openImageConverter);
   ensureEl("heightmapPreview").addEventListener("click", toggleHeightmapPreview);
-  ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
+  if(window.parent !== window)ensureEl("heightmap3DView").style.display="none";
+  else ensureEl("heightmap3DView").addEventListener("click", changeViewMode);
   ensureEl("finalizeHeightmap").addEventListener("click", finalizeHeightmap);
   for (const key of EDITOR_OPTIONS) {
     ensureEl<HTMLInputElement>(key).addEventListener("change", function () {

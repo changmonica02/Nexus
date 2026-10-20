@@ -904,6 +904,7 @@ function toggleTranslateExtent(el: HTMLElement): void {
 
 /** Voices arrive asynchronously and some browsers report none at all, so poll briefly then give up */
 function loadVoices(): void {
+  if(window.parent !== window){optionInput<HTMLSelectElement>("speakerVoice").closest("tr")?.setAttribute("hidden", "");return;}
   let attempts = 0;
   const select = optionInput<HTMLSelectElement>("speakerVoice");
 
@@ -924,6 +925,7 @@ function loadVoices(): void {
 }
 
 function testSpeaker(): void {
+  if(window.parent !== window)return;
   const speech = new SpeechSynthesisUtterance("The quick brown fox jumps over the lazy dog");
   const voices = speechSynthesis.getVoices();
   if (voices.length) speech.voice = voices[Number(options.app.ui.speakerVoice)] ?? speech.voice;
@@ -968,3 +970,4 @@ declare global {
 }
 
 window.changeCellsDensity = changeCellsDensity;
+

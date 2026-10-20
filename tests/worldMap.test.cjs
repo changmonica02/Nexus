@@ -283,3 +283,22 @@ test('scope and same-world detail links are metadata-only, extensible and preser
  assert.equal((await repo.list('world-a')).find(m=>m.id===second.map.id).scope,'district');
  state.owner='owner-b';await assert.rejects(repo.setPresentation('world-a',second.map.id,3,'town',null),{code:'owner'});
 });
+
+
+test('confirmed detail creation commits the project and parent relationship atomically', async () => {
+  const {repo,state}=fixture(),parent=await repo.create('world-a','Parent');
+  const before=state.outbox.length;
+  const detail=await repo.create('world-a','Detail',project('natural'),{scope:'region',parentId:parent.map.id});
+  assert.equal(state.outbox.length,before+1);
+  assert.equal(detail.map.parent_map_id,parent.map.id);assert.equal(detail.map.scope,'region');
+  assert.equal(detail.map.revision,1);assert.ok(detail.map.attachment_id);
+  const worldWrite=state.outbox.at(-1).find(c=>c.type==='pages');
+  assert.equal(worldWrite.value.character_data.world_maps.find(m=>m.id===detail.map.id).parent_map_id,parent.map.id);
+});
+test('invalid or foreign detail parents cannot leave a map or binary behind', async () => {
+  const {repo,state}=fixture(),foreign=await repo.create('world-b','Foreign');
+  const before={writes:state.outbox.length,binaries:state.binaries.size,maps:(await repo.list('world-a')).length};
+  await assert.rejects(repo.create('world-a','Detail',project(),{scope:'region',parentId:foreign.map.id}));
+  await assert.rejects(repo.create('world-a','Detail',project(),{scope:'INVALID',parentId:foreign.map.id}));
+  assert.equal(state.outbox.length,before.writes);assert.equal(state.binaries.size,before.binaries);assert.equal((await repo.list('world-a')).length,before.maps);
+});

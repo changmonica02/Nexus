@@ -765,3 +765,5 @@ if (window.parent !== window) for (const command of MAP_COMMANDS) {
   if (command.id.startsWith("regenerate") || ["openSubmapTool", "openTransformTool"].includes(command.id))
     command.run = () => tip("Full recalculation is unavailable: manual data is preserved. Create a separate natural map instead.", false, "error", 8000);
 }
+
+if(window.parent !== window)for(let i=MAP_COMMANDS.length-1;i>=0;i--)if(["viewMesh","viewGlobe"].includes(MAP_COMMANDS[i].id))MAP_COMMANDS.splice(i,1);

@@ -13,6 +13,7 @@ export const is3dView = (): boolean => viewMode !== "standard";
 export const isGlobeView = (): boolean => viewMode === "globe";
 
 export function changeViewMode(event: Event): void {
+  if(window.parent !== window)return;
   const button = event.target as HTMLElement;
   if (button.tagName !== "BUTTON") return;
 
@@ -20,3 +21,4 @@ export function changeViewMode(event: Event): void {
   if (!isPressed && button.id !== "viewStandard") void Controllers.View3d.open(button.id);
   else void Controllers.View3d.enterStandard();
 }
+

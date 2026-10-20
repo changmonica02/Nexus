@@ -113,8 +113,8 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     await beforeSave();
     const result=await repository.create(world.id,name,project,creation.parentId?{parentId:creation.parentId,scope:creation.scope??'region'}:undefined);
     // Adopt committed content even if the parent UI callback subsequently fails; never create a duplicate on retry.
-    setCreation(null);setSelected(result.map.id);setEditing(true);setManaging(false);
-    await onSaved(result.world);
+    setCreation(null);setManaging(false);
+    try{await onSaved(result.world);setSelected(result.map.id);setEditing(true);}catch(error){setError(String(error));throw error;}
    }}/>}
   {dialog}
  </section>;

@@ -78,10 +78,10 @@ export function initializeEmptyCivilization(): void {
 
 // Same geographic ordering as the canonical pipeline, with empty indexed collections
 // initialized before rivers (names/editors may read culture zero).
+const naturalStepIds = new Set<string>(["grid","heightmap","markupGrid","depressionLakes","nearSeaLakes","mapSize","temperatures","precipitation","clearPack","clearGraphOverride","regraph","markupPack","defaultRuler","rivers","biomes","featureGroups","ice"]);
 export const naturalGenerationSteps: readonly PipelineStep<string, GenerationContext>[] = [
-  ...generationPipelineSteps.slice(0, 13),
-  {id: "emptyCivilization", run: initializeEmptyCivilization},
-  ...generationPipelineSteps.slice(13, 17),
+  ...generationPipelineSteps.filter(step=>naturalStepIds.has(step.id)).flatMap<PipelineStep<string,GenerationContext>>(step=>
+    step.id === "rivers" ? [{id:"emptyCivilization",run:initializeEmptyCivilization},step] : [step]),
   {id: "naturalRiverNames", run: () => {
     for (const river of pack.rivers) {
       river.parent = Rivers.getParent(river.i); river.basin = Rivers.getBasin(river.i);
