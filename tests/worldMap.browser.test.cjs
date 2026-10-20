@@ -105,6 +105,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.basic.gender;}),'Legacy gender');
   assert.equal(await page.getByRole('button',{name:'Zoom in',exact:true}).isVisible(),false,'phone uses gestures instead of persistent +/-');
+  await page.waitForFunction(()=>{const canvas=document.querySelector('[data-map-canvas]');return canvas.getBoundingClientRect().bottom<=innerHeight+1;});
+  const editBounds=await page.getByRole('button',{name:'Edit map',exact:true}).boundingBox();
+  assert.ok(editBounds.y>=0&&editBounds.y+editBounds.height<=844,'phone editing tool is not clipped by the viewport');
+  assert.equal(await frame.locator('#map').evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)','preview whitespace inherits the Nexus theme');
   console.log('NEXUS_MOBILE_SCREEN:'+ (await page.screenshot({type:'jpeg',quality:35})).toString('base64'));
   await openManage();
   assert.ok(await manage.evaluate(el=>el.scrollWidth<=el.clientWidth),'mobile management has no internal horizontal overflow');
@@ -170,6 +174,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok(await frame.evaluate(p=>{const z=document.querySelector('#map').__zoom;return Math.abs(z.x-p.x)>1||Math.abs(z.y-p.y)>1;},fullBefore),'full-screen allows single-finger pan');
   assert.equal(await page.locator('[data-map-scroll]').evaluate(el=>el.scrollTop),fullScroll);
   await page.getByRole('button',{name:'Exit full screen',exact:true}).click();await page.waitForFunction(()=>!document.fullscreenElement);
+  const bodyOverflow=await page.evaluate(()=>document.body.style.overflow);
+  await page.locator('[data-map-canvas]').evaluate(el=>{el.parentElement.requestFullscreen=undefined;});
+  await page.getByRole('button',{name:'Full screen',exact:true}).click();
+  await page.getByRole('button',{name:'Exit full screen',exact:true}).waitFor();
+  await page.waitForFunction(()=>document.body.style.overflow==='hidden');
+  assert.equal(await page.evaluate(()=>Boolean(document.fullscreenElement)),false,'full-screen fallback works without the browser API');
+  await page.getByRole('button',{name:'Exit full screen',exact:true}).focus();await page.keyboard.press('Escape');
+  await page.waitForFunction(old=>document.body.style.overflow===old,bodyOverflow);
   await page.setViewportSize({width:820,height:1180});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'tablet has no horizontal overflow');
   await page.setViewportSize({width:1440,height:1000});

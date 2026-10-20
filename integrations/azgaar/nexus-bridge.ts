@@ -17,7 +17,7 @@ const fitScale=()=>containScale(viewport.width,viewport.height,options.map.graph
 const fitView=()=>zoomTo(options.map.graph.width/2,options.map.graph.height/2,fitScale(),0);
 configurePreviewGestures(true,false);
 const previewStyle=document.createElement('style');
-previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview{background:transparent!important}body.nexus-preview #map{cursor:grab}';
+previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview{background:transparent!important}body.nexus-preview #map{cursor:grab;background:transparent!important}';
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
 for(const type of ['click','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
 // Preview double-click zooms without opening a native editing tool.

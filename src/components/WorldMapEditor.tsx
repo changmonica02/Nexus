@@ -27,7 +27,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [expanded,setExpanded]=useState(false),[fullscreen,setFullscreen]=useState(false);
   const fullView=expanded||fullscreen;
   const documentId=useRef<string|null>(null),previewView=useRef<MapView|null>(null);
-  const [connected,setConnected]=useState(false);
+  const [connected,setConnected]=useState(false),[previewHeight,setPreviewHeight]=useState<number>();
   const freshCore=useRef(true),previousEditing=useRef(editing);
   const readyDocument=useRef<{id:string;blob:Blob|null}|null>(null);
   const [loadedDocument,setLoadedDocument]=useState<{id:string;blob:Blob|null}|null>(null);
@@ -155,15 +155,25 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   useEffect(()=>{
     if(!connected||!canvas.current)return;
     let timer:ReturnType<typeof setTimeout>;
-    const observer=new ResizeObserver(()=>{clearTimeout(timer);timer=setTimeout(()=>{void client.current?.request('configure',undefined,{resize:true}).catch(e=>setError(String(e)));},80);});
-    observer.observe(canvas.current);
-    return ()=>{clearTimeout(timer);observer.disconnect();};
+    const resized=()=>{clearTimeout(timer);timer=setTimeout(()=>{
+      if(!latest.current.editing&&!latest.current.fullView&&canvas.current){
+        const host=surface.current?.closest<HTMLElement>('[data-map-scroll]');
+        const top=canvas.current.getBoundingClientRect().top+(host?.scrollTop??0);
+        const bottom=Math.min(window.visualViewport?.height??innerHeight,host?.getBoundingClientRect().bottom??innerHeight);
+        setPreviewHeight(Math.min(832,Math.max(140,Math.floor(bottom-top-12))));
+      }
+      void client.current?.request('configure',undefined,{resize:true}).catch(e=>setError(String(e)));
+    },80);};
+    const observer=new ResizeObserver(resized);observer.observe(canvas.current);
+    window.addEventListener('resize',resized);window.visualViewport?.addEventListener('resize',resized);
+    return ()=>{clearTimeout(timer);observer.disconnect();window.removeEventListener('resize',resized);window.visualViewport?.removeEventListener('resize',resized);};
   },[connected]);
   useEffect(()=>{
     if(!editing&&!fullView)return;
-    const host=surface.current?.closest<HTMLElement>('[data-map-scroll]'),old=host?.style.overflowY;
+    const host=surface.current?.closest<HTMLElement>('[data-map-scroll]'),old=host?.style.overflowY,bodyOverflow=document.body.style.overflow;
     if(host)host.style.overflowY='hidden';
-    return ()=>{if(host)host.style.overflowY=old??'';};
+    if(fullView)document.body.style.overflow='hidden';
+    return ()=>{if(host)host.style.overflowY=old??'';if(fullView)document.body.style.overflow=bodyOverflow;};
   },[editing,fullView]);
   useEffect(()=>{
     if(!editing&&!fullView)return;
@@ -207,7 +217,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>downloadMapBlob(conflict.blob,map.title+'-recovery','map')}>{t('worldMap.editor19')}</button>
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
-    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg-secondary)] sm:mx-4'} style={!editing&&!fullView?{height:'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
+    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
       <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>
@@ -217,7 +227,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
           <button type="button" className="!hidden md:!grid" disabled={!available} aria-label={t('worldMap.zoomIn')} onClick={()=>void client.current?.request('configure',undefined,{zoom:1.5}).catch(report)}>＋</button>
           <button type="button" className="!hidden md:!grid" disabled={!available} aria-label={t('worldMap.zoomOut')} onClick={()=>void client.current?.request('configure',undefined,{zoom:1/1.5}).catch(report)}>−</button>
         </div>
-        {onEdit&&<button type="button" disabled={!available||busy} onClick={enter} aria-label={t('worldMap.edit')} title={t('worldMap.edit')} className="absolute bottom-3 right-3 z-10 grid min-h-11 min-w-11 place-items-center rounded-xl border bg-[var(--color-bg)] shadow-md"><Wrench size={20}/></button>}
+        {onEdit&&<button type="button" disabled={!available||busy} onClick={enter} aria-label={t('worldMap.edit')} title={t('worldMap.edit')} className="absolute bottom-14 right-3 z-10 grid min-h-11 min-w-11 place-items-center rounded-xl border bg-[var(--color-bg)] shadow-md"><Wrench size={20}/></button>}
       </>}
       {!available&&<div className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)] text-[var(--color-text)]">{error?t('worldMap.editor23'):t('worldMap.editor24')}</div>}
     </div>
