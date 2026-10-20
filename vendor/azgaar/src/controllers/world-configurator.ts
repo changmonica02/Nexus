@@ -301,6 +301,14 @@ function updateInputValues(): void {
 }
 
 function updateWorld(): void {
+  if (window.parent !== window) {
+    // Only climate arrays are recalculated here. Rivers and painted biomes remain intact.
+    Temperature.generate(); Precipitation.generate();
+    options.map.nexus={version:1,naturalOnly:options.map.nexus?.naturalOnly??false,stale:['hydrology','biomes']};
+    Layers.draw("temperature","precipitation");
+    window.dispatchEvent(new Event("nexus-geography-changed"));
+    return;
+  }
   updateGlobeTemperature();
   updateGlobePosition();
   Temperature.generate();
@@ -435,3 +443,4 @@ function applyWorldPreset(size: number, latitude: number): void {
 }
 
 export const WorldConfigurator = { open };
+

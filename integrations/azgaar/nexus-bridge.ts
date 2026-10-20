@@ -2,10 +2,10 @@
 import { Save } from '@/services/io/save';
 import { loadNexusMap } from '@/services/io/load';
 import { Services } from '@/services';
+import {naturalCatalog,naturalConfig,previewNaturalHeightmap,applyNaturalView} from '@/generators/nexus-natural';
 import {generate} from '@/components/lifecycle';
 import {closeDialogs} from '@/components/dialog/dialog-helpers';
 import {undraw} from '@/components/undraw';
-import {applyPreset} from '@/components/layers-presets';
 import {Layers} from '@/components/layers';
 import {viewport} from '@/components/viewport';
 import {fitMapToScreen,useContainViewport,containScale} from '@/components/canvas';
@@ -98,12 +98,15 @@ window.addEventListener('message', event => {
           await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit||wasFit&&!settings.view)fitView();else zoomTo(view.x,view.y,view.scale,0);resolve();}));
         }else if(settings.fit)fitView();
         else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
-        if(['political','physical','biomes'].includes(settings.layer))applyPreset(settings.layer);
-        else if(settings.layer==='temperature'||settings.layer==='precipitation')Layers.set(['lakes','rivers',settings.layer,'scaleBar']);
+        if(settings.layer)applyNaturalView(settings.layer,settings.overlays,settings.contourInterval,settings.contourLabels);
         if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
         reportView();
+      }else if(data.type==='catalog'){
+        blob=new Blob([JSON.stringify(naturalCatalog())],{type:'application/json'});
+      }else if(data.type==='heightmap-preview'){
+        blob=await previewNaturalHeightmap(data.settings?.generation??{});
       }else if(data.type==='generate'){
-        ready=false;closeDialogs();undraw();await generate();Layers.drawAll();if(!ready)throw Error('Map is not ready');
+        ready=false;closeDialogs();undraw();await generate(naturalConfig(data.settings?.generation));Layers.drawAll();if(!ready)throw Error('Map is not ready');
       }else if (data.type === 'load') {
         if (!(data.blob instanceof Blob)) throw Error('Missing project');
         ready = false;

@@ -230,3 +230,37 @@ ensureEl("toolsContent").addEventListener("click", event => {
   const command = MAP_COMMANDS.find(command => command.id === (event.target as HTMLElement).id);
   if (command) void command.run(event);
 });
+
+
+if (window.parent !== window) {
+  const root=ensureEl("toolsContent");
+  const advanced=document.createElement("details"),summary=document.createElement("summary");
+  summary.textContent="Legacy and advanced tools";advanced.append(summary);
+  const groups:[string,string[]][]=[
+    ["Terrain and elevation",["editHeightmapButton"]],
+    ["Coasts and lakes",["editCoastlineSettings","overviewFeaturesButton"]],
+    ["Rivers and hydrology",["overviewRiversButton","addRiver"]],
+    ["Temperature and precipitation",[]],
+    ["Biomes",["editBiomesButton"]],
+    ["Special geographic areas",["editZonesButton"]]
+  ];
+  const sections=document.createDocumentFragment();
+  const warning=document.createElement("p");warning.id="nexus-geography-warning";warning.setAttribute("role","status");
+  warning.textContent="Hydrology, climate or biomes need review. Existing manual data is preserved; safe local recalculation is not yet available.";
+  const refresh=()=>{warning.hidden=!options.map.nexus?.stale.length;};
+  window.addEventListener("map:generated",refresh);window.addEventListener("nexus-geography-changed",refresh);refresh();sections.append(warning);
+  for(const [title,ids] of groups){
+    const section=document.createElement("details"),heading=document.createElement("summary");heading.textContent=title;section.append(heading);
+    for(const id of ids){const button=document.getElementById(id);if(button)section.append(button);}
+    if(title==="Temperature and precipitation"){
+      const button=document.createElement("button");button.textContent="Climate settings";
+      button.addEventListener("click",()=>{void window.Controllers.WorldConfigurator.open();});section.append(button);
+    }
+    sections.append(section);
+  }
+  // Move, rather than clone, buttons: the original command dispatcher remains the sole handler.
+  while(root.firstChild)advanced.append(root.firstChild);
+  advanced.querySelector("#regenerateFeature")?.remove();
+  advanced.querySelector("#openSubmapTool")?.remove();advanced.querySelector("#openTransformTool")?.remove();
+  root.append(sections,advanced);
+}

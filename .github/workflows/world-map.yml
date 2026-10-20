@@ -1,7 +1,7 @@
 name: World map integration
 on:
   push:
-    branches: [feat/world-map-storage-20261020, feat/world-map-home-20261020, feat/world-map-embedded-ui-20261020, feat/world-map-browser-ux-20261020]
+    branches: [feat/world-map-storage-20261020, feat/world-map-home-20261020, feat/world-map-embedded-ui-20261020, feat/world-map-browser-ux-20261020, feat/world-map-natural-v2-20261020]
     paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   map:
-    if: github.ref == 'refs/heads/feat/world-map-storage-20261020' || github.ref == 'refs/heads/feat/world-map-home-20261020' || github.ref == 'refs/heads/feat/world-map-embedded-ui-20261020' || github.ref == 'refs/heads/feat/world-map-browser-ux-20261020'
+    if: github.ref == 'refs/heads/feat/world-map-storage-20261020' || github.ref == 'refs/heads/feat/world-map-home-20261020' || github.ref == 'refs/heads/feat/world-map-embedded-ui-20261020' || github.ref == 'refs/heads/feat/world-map-browser-ux-20261020' || github.ref == 'refs/heads/feat/world-map-natural-v2-20261020'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -55,9 +55,9 @@ jobs:
         run: npm run build
       - name: Native commands and editing shortcuts
         working-directory: .cache/azgaar-build
-        run: npx vitest run src/components/map-commands.test.ts src/components/hotkeys.test.ts src/components/zoom.test.ts src/components/canvas-fit.test.ts
+        run: npx vitest run src/components/map-commands.test.ts src/components/hotkeys.test.ts src/components/zoom.test.ts src/components/canvas-fit.test.ts src/generators/generation-pipeline.test.ts src/generators/nexus-natural.test.ts src/renderers/heightmap-contours.test.ts
       - name: Changed map boundaries lint
-        run: npx eslint src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts src/features/worldMap/mapMessages.ts src/lib/worldMapTranslations.ts src/lib/i18n.ts src/components/CharacterProfileView.tsx src/components/NexusApp.tsx
+        run: npx eslint src/components/WorldMapCreator.tsx src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts src/features/worldMap/mapMessages.ts src/lib/worldMapTranslations.ts src/lib/i18n.ts src/components/CharacterProfileView.tsx src/components/NexusApp.tsx
       - name: Browser integration
         run: |
           if [ -f tests/worldMap.browser.test.cjs ]; then
@@ -72,5 +72,6 @@ jobs:
           name: nexus-map-core
           path: public/world-map/core
           if-no-files-found: ignore
+
 
 

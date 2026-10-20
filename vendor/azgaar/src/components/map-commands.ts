@@ -758,3 +758,10 @@ function regenerateZones(event?: MouseEvent): void {
   );
 }
 
+
+
+// Embedded editing must never invoke a destructive regeneration through search or hotkeys.
+if (window.parent !== window) for (const command of MAP_COMMANDS) {
+  if (command.id.startsWith("regenerate") || ["openSubmapTool", "openTransformTool"].includes(command.id))
+    command.run = () => tip("Full recalculation is unavailable: manual data is preserved. Create a separate natural map instead.", false, "error", 8000);
+}

@@ -11,6 +11,7 @@ import {useWorkspaceDialog} from './WorkspaceDialog';
 import {SidebarToggle} from './WorkspaceNavigation';
 import {ArrowLeft,MoreHorizontal,Plus,Upload,X} from 'lucide-react';
 import ModalDialog from './ModalDialog';
+import WorldMapCreator from './WorldMapCreator';
 import WorldMapEditor,{type RegisterMapFlush} from './WorldMapEditor';
 
 export function WorldMapUnavailable({onBack}:{onBack?:()=>void}) {
@@ -24,10 +25,12 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const {language,t}=useLanguage(),{askText,askConfirm,dialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('worldMap.confirm')});
  const repository=useMemo(()=>new WorldMapRepository(storage),[storage]);
  const maps=world.character_data?.world_maps??[],active=maps.filter(m=>m.deleted_at==null);
- const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('political');
+ const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('physical');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
  const browser=useRef<HTMLElement>(null);
  const [managing,setManaging]=useState(false),[linking,setLinking]=useState(false),[linkId,setLinkId]=useState('');
+ const [creation,setCreation]=useState<{name:string;parentId?:string;scope?:string}|null>(null);
+ const [overlays,setOverlays]=useState(['lakes','rivers','scaleBar']),[contourInterval,setContourInterval]=useState(5),[contourLabels,setContourLabels]=useState(false);
  const [views,setViews]=useState(()=>new Map<string,MapView>());
  const current=active.find(m=>m.id===selected)??active[0],selectedId=current?.id;
  useEffect(()=>{browser.current?.scrollTo(0,0);},[selectedId]);
@@ -50,6 +53,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  };
  const choose=(id:string)=>{setEditing(false);setError('');if(id!==selectedId)setViews(old=>{const next=new Map(old);next.delete(id);return next;});setSelected(id);setManaging(false);};
  const create=async(blob?:Blob,defaultName?:string,parentId?:string,nextScope?:string)=>{
+   if(!blob){setCreation({name:defaultName??t('worldMap.new'),parentId,scope:nextScope});setManaging(false);return;}
    const name=(await askText(t('worldMap.name'),defaultName??t('worldMap.new')))?.trim();if(!name)return;
    await run(async()=>{const result=await repository.create(world.id,name,blob);await onSaved(result.world);if(parentId)await onSaved(await repository.setPresentation(world.id,result.map.id,result.map.revision,nextScope??'region',parentId));setSelected(result.map.id);setEditing(true);setManaging(false);});
  };
@@ -84,10 +88,12 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     <label className="block min-w-0"><span className="sr-only">{t('worldMap.select')}</span><select aria-label={t('worldMap.select')} className="min-h-11 w-full min-w-0 truncate rounded-xl border bg-[var(--color-bg)] px-3 font-medium sm:max-w-md" value={current.id} disabled={busy||editing} onChange={e=>choose(e.target.value)}>{active.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select></label>
     <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [&_label]:flex [&_label]:shrink-0 [&_label]:items-center [&_label]:gap-2 [&_label]:rounded-lg [&_label]:border [&_label]:pl-3 [&_label]:text-xs [&_select]:min-h-11 [&_select]:max-w-40 [&_select]:rounded-lg [&_select]:bg-[var(--color-bg)] [&_select]:px-2">
      <label>{t('worldMap.scope')}<select aria-label={t('worldMap.scope')} value={scope} disabled={busy||editing||readOnly} onChange={e=>changePresentation(e.target.value,current.parent_map_id??null)}>{scopes.map(s=><option key={s} value={s}>{scopeName(s)}</option>)}</select></label>
-     <label>{t('worldMap.layer')}<select aria-label={t('worldMap.layer')} value={layer} disabled={editing} onChange={e=>setLayer(e.target.value)}>{['political','physical','temperature','precipitation','biomes'].map(s=><option key={s} value={s}>{t('worldMap.'+s)}</option>)}</select></label>
+     <label>{t('worldMap.layer')}<select aria-label={t('worldMap.layer')} value={layer} disabled={editing} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(s=><option key={s} value={s}>{t('worldMap.'+s)}</option>)}</select></label>
     </div>
+    <details className="text-xs"><summary className="cursor-pointer py-1">{t('worldMap.overlays')}</summary><div className="flex flex-wrap gap-3 pt-2">{['lakes','rivers','borders','labels','burgIcons','routes','scaleBar'].map(id=><label key={id} className="flex items-center gap-1"><input type="checkbox" checked={overlays.includes(id)} onChange={e=>setOverlays(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{t('worldMap.overlay.'+id)}</label>)}</div></details>
+    {layer==='contours'&&<div className="flex flex-wrap items-center gap-3 text-xs"><span>{t('worldMap.relativeHeight')}</span><label>{t('worldMap.contourInterval')}<select value={contourInterval} onChange={e=>setContourInterval(+e.target.value)}>{[2,5,10,20].map(n=><option key={n}>{n}</option>)}</select></label><label><input type="checkbox" checked={contourLabels} onChange={e=>setContourLabels(e.target.checked)}/>{t('worldMap.contourLabels')}</label></div>}
    </div>
-   {opened?<div className="min-w-0 shrink-0" style={{display:opened.map.id===current.id&&(opened.blob||current.attachment_id||editing)?undefined:'none'}}><WorldMapEditor key={world.id} reloadKey={epoch} {...opened} map={{...opened.map,title:opened.map.id===current.id?current.title:opened.map.title}} editing={opened.map.id===current.id&&editing&&!readOnly} onEdit={readOnly?undefined:()=>setEditing(true)} layer={layer} view={views.get(current.id)} onView={view=>setViews(old=>new Map(old).set(opened.map.id,view))} previewFooter={details} repository={repository} beforeSave={beforeSave} onSaved={onSaved} registerFlush={registerFlush} cloudState={cloudState} onClose={()=>setEditing(false)}/></div>:null}
+   {opened?<div className="min-w-0 shrink-0" style={{display:opened.map.id===current.id&&(opened.blob||current.attachment_id||editing)?undefined:'none'}}><WorldMapEditor key={world.id} reloadKey={epoch} {...opened} map={{...opened.map,title:opened.map.id===current.id?current.title:opened.map.title}} editing={opened.map.id===current.id&&editing&&!readOnly} onEdit={readOnly?undefined:()=>setEditing(true)} layer={layer} overlays={overlays} contourInterval={contourInterval} contourLabels={contourLabels} view={views.get(current.id)} onView={view=>setViews(old=>new Map(old).set(opened.map.id,view))} previewFooter={details} repository={repository} beforeSave={beforeSave} onSaved={onSaved} registerFlush={registerFlush} cloudState={cloudState} onClose={()=>setEditing(false)}/></div>:null}
    {(!opened||opened.map.id!==current.id||(!opened.blob&&!current.attachment_id&&!editing))&&<><div className="grid min-h-[50svh] place-items-center p-4"><div><p>{opened?t('worldMap.noProject'):t('worldMap.loading')}</p>{opened&&!readOnly&&<button onClick={()=>setEditing(true)}>{t('worldMap.edit')}</button>}</div></div>{details}</>}
   </>:<div className="grid min-h-[60svh] place-items-center p-6 text-center"><div><p className="mb-3 opacity-60">{t('worldMap.empty')}</p>{!readOnly&&<button className="border" onClick={()=>setManaging(true)}>{t('worldMap.management')}</button>}</div></div>}
   {managing&&<ModalDialog aria-label={t('worldMap.management')} onDismiss={()=>setManaging(false)} busy={busy} dismissOnBackdrop className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[88dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] shadow-xl backdrop:bg-black/40 sm:inset-y-0 sm:left-auto sm:right-0 sm:h-dvh sm:max-h-none sm:w-[26rem] sm:rounded-none [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3">
@@ -103,6 +109,13 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    {error&&<p role="alert" className="text-red-600">{mapMessage(language,error)}</p>}
    <div className="mt-3 flex justify-end gap-2"><button onClick={()=>setLinking(false)} disabled={busy}>{t('ui.cancel')}</button><button disabled={!linkId||busy} onClick={()=>void run(async()=>{const map=active.find(m=>m.id===linkId);if(!map)return;await onSaved(await repository.setPresentation(world.id,map.id,map.revision,map.scope??'world',current.id));setLinking(false);})}>{t('worldMap.confirm')}</button></div>
   </ModalDialog>}
+  {creation&&<WorldMapCreator initialName={creation.name} onCancel={()=>setCreation(null)} onCreate={async(name,project)=>{
+    await beforeSave();
+    const result=await repository.create(world.id,name,project,creation.parentId?{parentId:creation.parentId,scope:creation.scope??'region'}:undefined);
+    // Adopt committed content even if the parent UI callback subsequently fails; never create a duplicate on retry.
+    setCreation(null);setSelected(result.map.id);setEditing(true);setManaging(false);
+    await onSaved(result.world);
+   }}/>}
   {dialog}
  </section>;
 }

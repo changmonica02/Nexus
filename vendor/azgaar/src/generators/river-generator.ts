@@ -607,7 +607,7 @@ class RiverModule {
   }
 
   getName(cell: number) {
-    return Names.getCulture(pack.cells.culture[cell]);
+    return pack.cells.culture[cell] ? Names.getCulture(pack.cells.culture[cell]) : `River ${this.getNextId(pack.rivers)}`;
   }
 
   getType({ i, length, parent }: River) {
@@ -834,3 +834,4 @@ declare global {
 // biome-ignore lint/suspicious/noRedeclare: legacy seam
 export const Rivers = new RiverModule();
 window.Rivers = Rivers;
+

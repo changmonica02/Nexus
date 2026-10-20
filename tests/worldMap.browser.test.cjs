@@ -27,7 +27,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:'Confirm',exact:true}).click();};
+  const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
   const closeManage=async()=>{if(await manage.isVisible())await manage.getByRole('button',{name:'Close panel'}).click();};
@@ -51,6 +51,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForTimeout(6500);
   assert.equal(await frame.locator('.ui-dialog:visible').count(),0);
 
+  assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i&&!b.removed).length),0,'new maps have no random towns');
+  await frame.evaluate(async()=>{await window.generateMapOnLoad({naturalOnly:false});});
   await frame.locator('#optionsTrigger').click();
   await frame.locator('#exportButton').click();
   assert.equal(await frame.locator('#exportMapData button').filter({hasText:/^\.(svg|png)$/}).count(),0);

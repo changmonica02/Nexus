@@ -22,6 +22,7 @@ import { applyDefaultViewboxEvents } from "@/components/viewbox-events";
 import { viewport } from "@/components/viewport";
 import { Controllers } from "@/controllers";
 import { heightmapTemplates } from "@/data/heightmap-templates";
+import {markGeographyStale} from "@/generators/nexus-natural";
 import { ErasePipeline } from "@/generators/generation-pipeline";
 import { GraphOverride } from "@/generators/graph-override";
 import { removeEmblem } from "@/renderers/draw-emblems";
@@ -60,6 +61,10 @@ let templateInput: HTMLInputElement | null = null;
 let converterInput: HTMLInputElement | null = null;
 
 function open(options?: { mode?: string; tool?: string }): void {
+  if (window.parent !== window && options?.mode && options.mode !== "keep") {
+    tip("Coastline topology rebuild is unavailable: existing rivers and manual data are preserved. Use Keep mode for terrain editing.", false, "error", 8000);
+    return;
+  }
   filterState = dialogState.get(dialogId, "filters", (): FilterState => ({ cellType: "all" }));
   if (!(["all", "land", "water"] as string[]).includes(filterState.cellType)) filterState.cellType = "all";
   dialogState.set(dialogId, "filters", filterState);
@@ -332,6 +337,14 @@ function redrawDrainage(): void {
 }
 
 function showModeDialog(tool?: string): void {
+  if (window.parent !== window) {
+    alertMessage.textContent = "Terrain editing preserves rivers, climate, biomes and civilization. Coastline changes are locked; derived data will be marked for review, not regenerated.";
+    $("#alert").dialog({resizable:false,title:"Edit terrain safely",buttons:{
+      Keep:()=>enterHeightmapEditMode("keep",tool),
+      Cancel:function(this:HTMLElement){$(this).dialog("close");}
+    }});
+    return;
+  }
   alertMessage.innerHTML = /* html */ `Heightmap is a core element on which all other data (rivers, burgs, states etc) is based. So the best edit approach is to
     <i>erase</i> the secondary data and let the system automatically regenerate it on edit completion.
     <p><i>Erase</i> mode also allows you Convert an Image into a heightmap or use Template Editor.</p>
@@ -541,6 +554,7 @@ async function regenerateErasedData(): Promise<void> {
 }
 
 function restoreKeptData(): void {
+  if (window.parent !== window) {markGeographyStale();window.dispatchEvent(new Event("nexus-geography-changed"));}
   for (const i of pack.cells.i) {
     pack.cells.h[i] = grid.cells.h[pack.cells.g[i]];
   }
@@ -2215,3 +2229,4 @@ export const HeightmapEditor = { open, redrawDrainage };
 declare global {
   var edits: Uint8Array[] & { n: number };
 }
+
