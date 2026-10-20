@@ -23,10 +23,13 @@ export async function readPublicMapAsset(value:string):Promise<Blob> {
   const url=new URL(value,location.origin+'/world-map/core/');
   if(url.origin!==location.origin||!url.pathname.startsWith('/world-map/core/'))throw Error('Not a public map asset');
   url.hash='';
-  const cached=await caches.match(url.href,{ignoreSearch:true});
-  const response=cached??await fetch(url.href,{credentials:'omit'});
-  if(!response.ok)throw Error('Map asset unavailable: '+url.pathname);
-  return response.blob();
+  // The broker can return only a pre-cached public file, never fetch an arbitrary
+  // same-origin URL on behalf of imported content (including encoded traversal).
+  for(const name of await caches.keys())if(name.startsWith('nexus-world-map-')){
+    const response=await (await caches.open(name)).match(url.href,{ignoreSearch:true});
+    if(response?.ok)return response.blob();
+  }
+  throw Error('Public map asset is not cached: '+url.pathname);
 }
 
 /** Public code/assets only, never a saved user project. Used for offline iframe navigation. */
@@ -39,9 +42,9 @@ export async function offlineMapDocument(session:string):Promise<string> {
     const code=await (await readPublicMapAsset(new URL(script.getAttribute('src')!,base).href)).text();
     script.removeAttribute('src');script.removeAttribute('crossorigin');script.textContent=textSafe(code);
   }
-  const dataURL=async(url:string)=>new Promise<string>(async(resolve,reject)=>{
-    try{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(await readPublicMapAsset(url));}catch(e){reject(e);}
-  });
+  const dataURL=async(url:string)=>{const blob=await readPublicMapAsset(url);return new Promise<string>((resolve,reject)=>{
+    const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob);
+  });};
   for(const link of Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet],link[rel=preload][as=style]'))){
     const url=new URL(link.getAttribute('href')!,base).href;
     let css=await (await readPublicMapAsset(url)).text();
@@ -81,7 +84,7 @@ function assetBroker(session:string,base:string) {
   const urls=new Map<string,Promise<string>>();
   const imageURL=(url:URL)=>{const key=url.href;if(!urls.has(key))urls.set(key,asset(key).then(blob=>URL.createObjectURL(blob)+url.hash));return urls.get(key)!;};
   const descriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src')!;
-  Object.defineProperty(HTMLImageElement.prototype,'src',{get:descriptor.get,set(value:string){const url=publicURL(value);if(!url)return descriptor.set!.call(this,value);void imageURL(url).then(src=>descriptor.set!.call(this,src)).catch(()=>this.dispatchEvent(new Event('error')));}});
+  Object.defineProperty(HTMLImageElement.prototype,'src',{get:descriptor.get,set(this:HTMLImageElement,value:string){const url=publicURL(value);if(!url)return descriptor.set!.call(this,value);void imageURL(url).then(src=>descriptor.set!.call(this,src)).catch(()=>this.dispatchEvent(new Event('error')));}});
   const update=(el:Element)=>{
     const attr=el.tagName.toLowerCase()==='img'?'src':'href',value=el.getAttribute(attr);
     if(!value)return;const url=publicURL(value);if(!url)return;

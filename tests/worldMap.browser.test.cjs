@@ -21,7 +21,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.close();fs.rmSync(tmp,{recursive:true,force:true});});
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage();
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('browser:',m.text().slice(0,350));});
+  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror:',e.message);});page.on('console',m=>{if(m.type()==='error')console.log('browser:',m.text().slice(0,350));});
+  page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
+  page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);await page.getByText('Maps (0)',{exact:true}).click();
   const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:'確認',exact:true}).click();};
   await page.getByRole('button',{name:'＋ Create map'}).click();await confirmName('Atlas One');
@@ -45,6 +47,15 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
+  // A failed canonical write keeps the editor and a local-only recovery project.
+  await frame.evaluate(id=>{pack.burgs[id].name='Recovery Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
+  await page.evaluate(()=>{window.failMapSave=true;});await editor.getByRole('button',{name:'Save',exact:true}).click();
+  await editor.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();
+  assert.ok(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser'),map=p.character_data.world_maps[0];return Boolean(await window.mapStorage.getWorkspacePersistence().readMapDraft('map-browser-owner',p.id,map.id));}));
+  await page.reload();await page.getByText('Maps (1)',{exact:true}).click();await page.getByRole('button',{name:'Atlas One',exact:true}).click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Recovery Port');
+  await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
   await context.setOffline(true);
   await frame.evaluate(id=>{pack.burgs[id].name='Offline Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
@@ -58,6 +69,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await frame.evaluate(async id=>{await Controllers.BurgEditor.open(id);},burgId);await frame.locator('#burgName').fill('Imported Editable Port');
+  // Native UI imports also use the awaitable failure boundary, not the old void loader.
+  await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
+  await frame.locator('#mapToLoad').setInputFiles({name:'invalid.map',mimeType:'application/octet-stream',buffer:Buffer.from('invalid')});
+  await editor.getByRole('alert').filter({hasText:'Native project loading failed'}).waitFor();
+  assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
   const row=page.locator('li').filter({has:page.getByRole('button',{name:'Atlas One',exact:true})});

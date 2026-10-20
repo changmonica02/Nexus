@@ -42,8 +42,12 @@ jobs:
             fi
           fi
       - run: npm run test:world-map
+      - name: Related storage, creation and study regressions
+        run: node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs
       - name: Build the map core and Nexus
         run: npm run build
+      - name: Changed map boundaries lint
+        run: npx eslint src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts
       - name: Browser integration
         run: |
           if [ -f tests/worldMap.browser.test.cjs ]; then

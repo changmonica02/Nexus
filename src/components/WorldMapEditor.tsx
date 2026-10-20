@@ -60,6 +60,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   useEffect(()=>{
     let current = true;
     const fail = (e:unknown) => {if(current)setError(String(e));};
+    const startup=setTimeout(()=>fail(Error('Map tools did not finish loading. Keep the saved project and retry opening.')),120000);
     const onMessage = (event:MessageEvent) => {
       if(event.source!==frame.current?.contentWindow||event.origin!=='null'||event.data?.session!==session)return;
       if(event.data.type==='nexus-map-asset'&&typeof event.data.url==='string'){
@@ -67,6 +68,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
         void readPublicMapAsset(event.data.url).then(blob=>source.postMessage({type:'nexus-map-asset-result',session,id,blob},'*')).catch(error=>source.postMessage({type:'nexus-map-asset-result',session,id,error:String(error)},'*'));return;
       }
       if(event.data?.type!=='nexus-map-ready'||client.current)return;
+      clearTimeout(startup);
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
         if(data.type==='loading'){ready.current=false;if(current){setAvailable(false);setStatus(latest.current.en?'Loading project…':'正在載入專案…');}}
@@ -97,7 +99,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const beforeUnload = (event:BeforeUnloadEvent)=>{if(dirty.current){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',beforeUnload);
     const unregister=registerFlush?.(`${map.id}:${session}`,async()=>{if(dirty.current)await actions.current.save();});
-    return ()=>{current=false;clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);unregister?.();client.current?.close();client.current=null;ready.current=false;};
+    return ()=>{current=false;clearTimeout(startup);clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);unregister?.();client.current?.close();client.current=null;ready.current=false;};
   },[blob,draftToken,map.id,offline,registerFlush,repository,session]);
 
   const report=(e:unknown)=>setError(String(e));
