@@ -50,6 +50,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       await repository.clearDraft(map.world_id,map.id,token.current);
       token.current = undefined;
       await latest.current.onSaved(result.world);
+      client.current?.rememberSaved(snapshot);
       if (changes.current === generation) dirty.current = false;
       setStatus(dirty.current ? (latest.current.en?'New changes pending':'仍有新修改待儲存') : (latest.current.en?'Saved to this device; cloud sync is separate':'已儲存至此裝置；雲端同步狀態另行顯示'));
     })();

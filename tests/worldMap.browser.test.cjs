@@ -39,6 +39,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#burgName').fill('Nexus Port');
   await editor.getByRole('button',{name:'Save',exact:true}).click();
   await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor({timeout:60000});
+  await frame.evaluate(async id=>{pack.burgs[id].name='Temporary unsaved name';await Services.Load.quickLoad();},burgId);
+  await frame.waitForFunction(id=>pack.burgs[id].name==='Nexus Port',burgId);
   let downloadEvent=page.waitForEvent('download');await editor.getByRole('button',{name:'.map ↓',exact:true}).click();
   const native=await downloadEvent,file=path.join(tmp,'roundtrip.map');await native.saveAs(file);assert.ok(fs.statSync(file).size>10000);
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
@@ -79,7 +81,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const row=page.locator('li').filter({has:page.getByRole('button',{name:'Atlas One',exact:true})});
   await row.getByRole('button',{name:'Duplicate',exact:true}).click();await page.getByRole('button',{name:'Atlas One copy',exact:true}).waitFor();
   await row.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('button',{name:'確認',exact:true}).click();
-  await page.getByText('Deleted maps',{exact:true}).click();await page.getByRole('button',{name:'Restore',exact:true}).click();
+  await page.getByText('Deleted maps',{exact:true}).click();
+  const restore=page.getByRole('button',{name:'Restore',exact:true});await restore.click();await restore.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.filter(m=>m.deleted_at==null).length;}),3);
   console.log('Browser errors observed:',JSON.stringify(errors));
+  assert.deepEqual(errors,[]);
 });

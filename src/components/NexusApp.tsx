@@ -1362,8 +1362,8 @@ function NexusAppInner({
   const handleExportBackup = useCallback(async () => {
     const storage = storageRef.current;
     if (!storage || !storage.exportWorkspaceBackup) { await notifyDialog(t("app.backupNotAvailable")); return; }
-    await flushAllSaves();
     try {
+      await flushAllSaves();
       const backup = await storage.exportWorkspaceBackup();
       downloadJsonFile(formatBackupFileName(), backup);
     } catch (error) { console.error(error); await notifyDialog(t("app.backupExportFailed")); }

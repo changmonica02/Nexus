@@ -25,6 +25,7 @@ export class MapCoreClient {
     return operation;
   }
   acknowledge(id: number, error?: string) { this.port.postMessage({type:'persist-result',id,error}); }
+  rememberSaved(blob:Blob) { if(!this.closed)this.port.postMessage({type:'remember-saved',blob}); }
   close() {
     this.closed = true;
     this.port.close();

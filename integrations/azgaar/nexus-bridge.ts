@@ -25,6 +25,10 @@ window.addEventListener('message', event => {
   if (event.source !== parent || event.data?.type !== 'nexus-map-connect' || event.data.session !== session || !event.ports[0] || port) return;
   port = event.ports[0];
   port.onmessage = async ({ data }) => {
+    if(data?.type==='remember-saved' && data.blob instanceof Blob){
+      // Support native Quick Load for this editor session; Nexus remains the truth.
+      await ldb.set('lastMap',data.blob);return;
+    }
     if (data?.type === 'persist-result') {
       const pending = pendingSaves.get(data.id);
       if (!pending) return;
