@@ -475,9 +475,6 @@ button.options:hover {
   margin-left: 0.5em;
 }
 
-
-
-
 #optionsContent span {
   font-size: 0.9em;
 }
@@ -696,7 +693,6 @@ input[type="color"]::-webkit-color-swatch-wrapper {
   font-family: var(--monospace);
   animation: glowing 2s infinite;
 }
-
 
 @keyframes glowing {
   0% {
@@ -1947,9 +1943,6 @@ div.editorLine {
   text-anchor: middle;
 }
 
-
-
-
 input[type="checkbox"].native {
   accent-color: var(--header);
   cursor: pointer;
@@ -2338,21 +2331,6 @@ svg.button {
   font-family: var(--sans-serif);
 }
 
-#mapOverlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  pointer-events: none;
-  text-align: center;
-  background: rgba(0, 0, 0, 0.5);
-  font-size: 2.4em;
-  color: #fff5da;
-  text-shadow: 0px 1px 4px #4c3a35;
-}
-
 .epgrid line {
   stroke: lightgrey;
   stroke-opacity: 0.5;
@@ -2431,19 +2409,6 @@ svg.button {
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: var(--bg-opacity);
-  }
-}
-
-
-
-
-
 @media print {
   div,
   canvas {
@@ -2495,15 +2460,7 @@ div.states .marketBadge {
   line-height: 1.35;
 }
 
-
-
-
-
-
-
 /* Tooltip demo step: hide overlay and restore all pointer events so the map is fully hoverable */
-
-
 
 /* Assistant call button: the flat, themed circle the OpenWidget launcher used to be — a
    dark rounded badge with the glyph punched out of it, and the same press squish */

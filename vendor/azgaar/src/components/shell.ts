@@ -1,5 +1,5 @@
 // The app window itself: the SVG layer scaffold, browser-level behaviours
-import { alertDialog, closeDialogs, confirmationDialog } from "@/components/dialog/dialog-helpers";
+import { alertDialog, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { Pins } from "@/components/pins";
 import { showDataTip } from "@/components/tooltips";
@@ -15,7 +15,6 @@ export function initShell(): void {
   window.addEventListener("vite:preloadError", onChunkLoadError);
   document.addEventListener("touchstart", onTitlebarButtonTouch, { capture: true, passive: true });
   initAssistantBubble();
-
 }
 
 /** Keep the next unpinned map request in step with the browser window. */

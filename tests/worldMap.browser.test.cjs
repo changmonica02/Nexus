@@ -85,6 +85,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(id=>{document.querySelector('#locale-user-input').remove();document.querySelector('#locale-map-data').remove();if(window.localeOldDescription===undefined)delete pack.burgs[id].description;else pack.burgs[id].description=window.localeOldDescription;},burgId);
   assert.equal(await frame.locator('#optionsContent').getByText('介面大小',{exact:true}).count(),1);
   assert.equal(await frame.locator('#editStatesButton').getAttribute('data-tip'),'開啟國家編輯器');
+  assert.equal(await frame.locator('#exportButton').innerText(),'進階匯出');
+  assert.notEqual(await frame.locator('#tooltip').evaluate(el=>getComputedStyle(el).opacity),'0');
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
   await page.getByRole('button',{name:'English',exact:true}).click();
   await frame.waitForFunction(()=>document.documentElement.lang==='en');

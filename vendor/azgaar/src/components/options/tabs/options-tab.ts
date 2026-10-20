@@ -960,8 +960,7 @@ export function restoreUi(): void {
   applyZoomExtent();
 }
 
-// Legacy seam: the submap and transform tools set the cell density, and Google's script calls
-// back into the page by name
+// Legacy seam: the submap and transform tools set the cell density
 declare global {
   // biome-ignore lint/suspicious/noRedeclare: legacy seam
   var changeCellsDensity: (density: number) => void;
