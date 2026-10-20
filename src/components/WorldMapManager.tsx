@@ -9,8 +9,8 @@ import {useLanguage} from '../lib/LanguageContext';
 import {useWorkspaceDialog} from './WorkspaceDialog';
 import WorldMapEditor, {type RegisterMapFlush} from './WorldMapEditor';
 
-export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush}: {
-  world:Page; storage:StorageAdapter; beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>;registerFlush?:RegisterMapFlush;
+export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState}: {
+  world:Page; storage:StorageAdapter; beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>;registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null};
 }) {
   const {language}=useLanguage(),en=language==='en';
   const {askText,askConfirm,dialog}=useWorkspaceDialog();
@@ -44,7 +44,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     </>}
   </li>);
   return <section aria-label={en?'World maps':'世界觀地圖'} className="shrink-0 border-b p-3 text-sm">
-    <details><summary className="cursor-pointer font-semibold">{en?'Maps':'地圖'} ({maps.filter(m=>m.deleted_at==null).length})</summary>
+    <details className="max-h-[40vh] overflow-y-auto [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3"><summary className="cursor-pointer font-semibold">{en?'Maps':'地圖'} ({maps.filter(m=>m.deleted_at==null).length})</summary>
       <div className="flex flex-wrap gap-3 py-3">
         <button type="button" disabled={busy} onClick={()=>void create()}>＋ {en?'Create map':'建立地圖'}</button>
         <label className={busy?'opacity-50':''}>{en?'Import .map':'匯入 .map'}<input type="file" accept=".map,.gz" disabled={busy} className="block max-w-48 text-xs" onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void create(file,file.name.replace(/\.(map|gz)$/i,''));}}/></label>
@@ -54,6 +54,6 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
       {error&&<p role="alert" className="py-2 text-red-600">{error}</p>}
     </details>
     {dialog}
-    {opened&&<WorldMapEditor key={opened.map.id} {...opened} repository={repository} beforeSave={beforeSave} onSaved={onSaved} registerFlush={registerFlush} onClose={()=>setOpened(null)}/>}
+    {opened&&<WorldMapEditor key={opened.map.id} {...opened} repository={repository} beforeSave={beforeSave} onSaved={onSaved} registerFlush={registerFlush} cloudState={cloudState} onClose={()=>setOpened(null)}/>}
   </section>;
 }

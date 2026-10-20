@@ -8,7 +8,7 @@ permissions:
   contents: write
 concurrency:
   group: world-map-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   map:
     if: github.ref == 'refs/heads/feat/world-map-storage-20261020'

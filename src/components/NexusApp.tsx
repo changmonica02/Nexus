@@ -1682,7 +1682,7 @@ function NexusAppInner({
       character={{
         worldMapStorage: storageRef.current ?? undefined,
         beforeWorldMapSave: () => page ? beforeTemplateRead(page) : Promise.resolve(),
-        onWorldMapSaved: worldMapSaved, registerWorldMapFlush,
+        onWorldMapSaved: worldMapSaved, registerWorldMapFlush, worldMapCloudState: syncState,
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
         onCommitCharacterData: data => page ? commitCharacterData(page, data) : Promise.resolve(),
         onSaveTemplate: (name, data) => page ? saveCharacterTemplate(page, name, data) : Promise.resolve(),

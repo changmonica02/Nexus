@@ -8,9 +8,9 @@ import {useLanguage} from '../lib/LanguageContext';
 import ModalDialog from './ModalDialog';
 
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
-export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush}: {
+export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState}: {
   map:WorldMapRecord; blob:Blob|null; draftToken?:string; draftConflict?:{token:string;blob:Blob}; repository:WorldMapRepository;
-  beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>; onClose:()=>void; registerFlush?:RegisterMapFlush;
+  beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>; onClose:()=>void; registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null};
 }) {
   const {language} = useLanguage(), en = language === 'en';
   const [session] = useState(() => crypto.randomUUID());
@@ -107,7 +107,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const exportProject=()=>{void(async()=>{const project=ready.current?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   return <ModalDialog onDismiss={close} busy={busy} aria-label={en?'World map editor':'世界觀地圖編輯器'}
     className="fixed inset-0 m-0 flex h-dvh max-h-none w-screen max-w-none flex-col border-0 bg-[var(--color-bg)] p-0 text-[var(--color-text)]">
-    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm">
+    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
       <button type="button" onClick={close} disabled={busy}>{en?'← Save and return':'← 儲存並返回'}</button>
       <strong className="mr-auto truncate">{map.title}</strong>
       <button type="button" disabled={!available||busy||Boolean(conflict)} onClick={()=>void actions.current.save().catch(report)}>{en?'Save':'儲存'}</button>
@@ -115,6 +115,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
     </header>
     <p role="status" className="shrink-0 px-3 py-1 text-xs">{status}</p>
+    {cloudState&&<p className="shrink-0 px-3 text-xs opacity-70">{cloudState.error?(en?'Cloud sync needs retry; local projects are retained':'雲端同步待重試，本機專案仍保留'):cloudState.status==='offline'?(en?'Offline; cloud sync pending':'目前離線，雲端同步待完成'):cloudState.status==='syncing'?(en?'Synchronizing with cloud…':'正在同步至雲端…'):(en?'Cloud sync follows Nexus workspace status':'雲端同步依 Nexus 工作區狀態處理')}</p>}
     {error&&<div role="alert" className="shrink-0 bg-red-50 p-3 text-sm text-red-800">{error}<br/>{en?'Your editor and saved project are retained. Export .map or retry saving.':'目前編輯內容與原專案仍保留。可匯出 .map，或重試儲存。'}</div>}
     {conflict&&<div role="alert" className="shrink-0 bg-amber-50 p-3 text-sm text-amber-900">
       {en?'An older local draft conflicts with the saved revision.':'另有本機草稿與目前儲存版本不同，尚未覆蓋任何內容。'}

@@ -20,6 +20,7 @@ await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js
 await patch('src/index.html', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-VJL3J26W7R"></script>', '');
 await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
 await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
+await patch('src/components/shell.ts', '  if (location.hostname) return false;', '  if (location.hostname || window.parent !== window) return false;');
 await patch('src/components/lifecycle.ts', '  initiateAutosave();', '  if (window.parent === window) initiateAutosave();');
 await patch('src/services/io/save.ts', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {', 'async function writeToStorage(mapData: string, showTip = false): Promise<void> {\n  if (window.nexusSaveProject) return window.nexusSaveProject(new Blob([mapData], {type: "application/octet-stream"}));');
 await patch('src/services/io/load.ts', 'async function parseLoadedData(data: string[], mapVersion: string | null): Promise<void> {', 'async function parseLoadedData(data: string[], mapVersion: string | null, propagate = false): Promise<void> {');
