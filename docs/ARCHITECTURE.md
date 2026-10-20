@@ -1,6 +1,19 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
 
+## 行動優先世界觀瀏覽器（Refs #94；已實作，測試進度見 HANDOFF）
+
+WorldMapManager 保留同一 repository／opened document，預設僅顯示精簡導覽、醒目選圖、可橫滑範圍／圖層、地圖與詳細圖資訊；管理採共用 ModalDialog（行動底部／桌面右側），各圖更多操作及獨立軟刪除復原收合區，並將 parent 與重載移入管理。建立／關聯詳細圖僅調用既有 create／setPresentation，所有 scope／parent／revision／owner 檢查沿用原流程；未變更資料格式。詳細資訊經 previewFooter slot 放在地圖與簡短狀態之間，無第二個地圖渲染器。
+
+canvas 新增只存在記憶體的 contain presentation 開關，僅 Nexus bridge 啟用。fit floor 使用 viewport 與原生 graph 長寬的較小比例，原 D3 translate constraint 讓留白置中；不把此 floor 寫入 Options／原生專案。resize 保留地圖中心與 scale，原本為 fit 時重新 fit；Nexus 預覽／編輯兩模式皆使用此顯示適配，獨立核心未啟用時原行為保留。bridge configure 的 fit／resize／freePan 都是暫時 presentation RPC，不是新的儲存資料。
+
+Editor 用 ResizeObserver／visualViewport 處理容器／全螢幕尺寸，預覽高度依實際 canvas 起點、世界觀容器及可用 viewport 計算，扣除上方導覽／控制高度而不是只套用固定 vh；configure 只在模式變更或真正 resize 時適配，語系／圖層／同步提示不再 dispatch resize。同圖載入／編輯往返擷取即時 view，獨立 preview camera 不被編輯器手勢覆寫；首次建立後返回預覽重新 fit，後續返回保留進入編輯前的瀏覽鏡頭。切圖不套用舊的 cached view 並回頁首，明確重設置中顯示整圖。浮動工具附著 canvas，手機隱藏加減、保留全螢幕／重設／扳手；全螢幕／fallback 鎖定底頁捲動並保留鍵盤焦點。
+
+D3 本身處理雙指縮放／平移，filter 在一般預覽拒絕單指拖圖；bridge capture 的單指垂直 touchmove 經 private MessagePort 傳有限 scroll delta 到最近的世界觀捲動容器，避免 opaque iframe 吃掉頁面捲動。雙指後餘下一指不立即切成捲頁，全部放開再開始；全螢幕 freePan 讓原 D3 接受單指，且父層拒絕 scroll RPC。預覽 SVG 黑色背景由 scoped CSS 取消，留白繼承 Nexus 主題；扳手避開原比例尺，fullscreen fallback 也鎖定 body 捲動。預覽雙擊只呼叫 D3 point zoom，不開編輯工具；編輯模式保留原生操作。
+
+本機狀態為既有儲存結果／草稿狀態的短標籤；雲端依傳入 SyncState 的 error／syncing／offline／pendingPushes／connected 顯示，idle 不當成已同步，connected 只稱已連線。沒有新增傳輸、DB 或登入流程。
+
+
 ## 內嵌核心 UI 清理（Refs #92；已實作，驗證見 HANDOFF）
 
 固定 fork 直接移除 About／AppInfo、tour、desktop offer 原始 UI 模組及 registry／入口；shell 不再初始化首次導覽、原生拖入載入或獨立 beforeunload。versioning 保留原生版本解析與相容 API，取消首次公告／更新通知計時器；loading seam 保留給生成與高度圖工具，只設定 aria-busy，移除啟動畫面與漸隱。必要的即時操作提示與錯誤提示保留。
@@ -705,5 +718,6 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+
 
 

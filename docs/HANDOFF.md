@@ -1,23 +1,23 @@
 # Nexus — 當前交接（2026-10-20）
 
 
-## 內嵌地圖原版 UI 清理（Refs #92；PR #93）
+## 世界觀地圖瀏覽器 UX（Refs #94；PR #95）
 
-分支 `feat/world-map-embedded-ui-20261020` 以尚未合併的首頁 PR #91 為基礎；PR #93 目標是該首頁分支，未合併或正式部署。程式 `f2109ee`；[CI 39390319230](https://github.com/changmonica02/Nexus/actions/runs/39390319230) 的 TypeScript（核心／Nexus／語系 adapter）、production build、相關 ESLint、37 項地圖／IDB／port／i18n／入口清理、39 項相關回歸、原生 map-commands／hotkeys 兩檔與地圖／角色兩組 Chromium 均通過。
+本輪基準 main `d5d9b04`，確認沒有其他未合併地圖 PR；既有 PR #91／#93 已合併，該 main 的 GitHub Vercel 狀態為部署成功，正式帳號／實機未驗收仍留 #60。本輪分支 `feat/world-map-browser-ux-20261020`、PR #95 尚未合併／正式部署。
 
-移除原版 About／AppInfo、Tour、Desktop App、社群／宣傳／捐款、首次版本公告與啟動動畫，以及相關 registry、初始化、事件與 CSS。Nexus 管理新地圖、儲存、.map 匯入匯出、PNG／SVG、重載／草稿；原版重複入口、F1／F2／F6／F9、Dropbox／URL、獨立 browser-storage、分享連結、Google Translate 與無效 startup/autosave 設定退場。Ctrl/Cmd+S 沿用 Nexus bridge，Ctrl+C 保留正常複製。地圖工具、圖層、樣式、生成設定、必要提示／錯誤與進階 JPEG／tiles／GIS／JSON 保留；原生 load-error picker 依賴僅在使用時建立，不常駐初始化。
+已實作預設精簡瀏覽、手機底部／桌機右側管理面板、每圖更多操作、詳細圖建立／關聯與原軟刪除復原。預覽等比 contain fit、fit floor、切圖重新適配回頁首、圖層／語系／同步更新不重設、獨立 preview camera 支援編輯往返。浮動工具含全螢幕／重設／扳手，手機不常駐加減，預覽依實際 viewport／導覽位置計算高度，留白沿用 Nexus 主題、工具避開比例尺。
 
-Nexus 編輯器提供第三方授權資訊，連結固定來源、MIT 與彙整完整 dependency／公共素材授權文字的 THIRD-PARTY-NOTICES.txt；原 LICENSE、著作權與第三方原檔保留。語系沿用 Nexus 字典與英文 fallback，未知長篇／動態訊息仍可能英文；不翻譯使用者地名或專案內容。沒有資料結構／migration／正式 DB／付費依賴變更。測試是隔離帳號資料及真實 Chromium，正式帳號跨裝置、Safari／實機與大型地圖仍屬 #60 人工驗收，不能視為已正式驗收。
+一般預覽單指捲世界觀頁、原 D3 雙指縮放／平移；全螢幕單指拖圖並鎖定底頁，原生 API 不可用時用既有固定版面 fallback。雙擊與桌機滾輪／拖曳保留。本機狀態簡短顯示，雲端按實際 error／syncing／offline／pending／connected 呈現，不以 idle 或連線假報同步成功。既有資料、storage／owner／revision、原生專案／PNG／SVG、草稿／離線／備份與授權保留，無 schema、正式 DB 或依賴變更。
 
-## 世界觀地圖首頁（Refs #90；工作分支 feat/world-map-home-20261020）
+驗證：程式 `b1d9ce3`；[CI 39405736933](https://github.com/changmonica02/Nexus/actions/runs/39405736933) 全成功。37 項地圖／IDB／port／i18n、39 項相關回歸、36 項原生指令／鏡頭／fit（共 112）、地圖與角色兩組實際 Chromium 通過；含首次／切圖整圖、1600×400／400×1600 原生生成地圖、雙指放大縮小／平移、單指捲頁、原生全螢幕單指與 fallback／Escape／body 鎖定、手動視圖與同步／語系／長標題更新、管理／刪除還原／詳細圖建立與關聯、.map／PNG／SVG、離線與失敗草稿復原。390×844、820×1180、1440×1000 無水平溢出，手機工具未被可視高度裁切，兩張手機實際截圖已檢視。核心／Nexus／語系 adapter TypeScript、production build 通過；相關 lint 0 errors／28 warnings，瀏覽器 pageerror=[]。其後只更新技術文件。
 
-已實作地圖優先首頁、同一核心切圖／預覽／扳手編輯、多圖與 scope/parent metadata、原生政治／地形／溫度／降水／生態圖層、縮放／拖曳／全螢幕。瀏覽狀態按圖保留，變更版面前讀取即時視圖；載入文件 ID/blob guard 禁止切圖期間儲存上一張內容。舊世界觀與角色資料不刪；無 migration／正式 DB 操作，本輪不合併或部署正式環境。
+仍需人工驗收：真實 Safari／iOS／Android、平板橫直向與瀏覽器工具列／安全區、正式帳號跨裝置同步失敗／重新登入、大型地圖效能／容量。Chromium CDP 觸控、實際核心與隔離 IDB 測試不是上述正式裝置驗收。舊核心未收錄動態文字仍英文 fallback；本輪新增文字皆共用 Nexus i18n，使用者名稱與專案文字不翻譯。
 
-程式 `461f0ed`；[CI 39386733552](https://github.com/changmonica02/Nexus/actions/runs/39386733552) 通過：36 項地圖／IDB／port／i18n、39 項相關回歸、實際核心及既有角色 UI 兩組 Chromium；含保存／Quick Load、失敗草稿復原、離線重開、原生專案往返、PNG/SVG、多圖分類／詳細圖、唯讀無寫入、同一 iframe、全螢幕、縮放拖曳／編輯返回視圖、1440/820/390 無水平溢出、語系與使用者資料保護。Nexus／核心／語系 adapter TypeScript、production/omit=dev build 通過；相關 ESLint 0 errors／28 warnings。這是隔離資料與瀏覽器驗證，不代表正式帳號或實機驗收。
+## 已交付基準：地圖首頁與原版 UI 清理（Refs #90、#92）
 
-世界觀外層含確認／取消接既有 i18n；核心共用 452 個英文／繁中 UI 條目，包含主工具列、選單、圖層、設定與常見提示／錯誤。未收錄長篇說明／動態訊息回退英文；SVG、輸入、自訂預設及原生專案文字（含與 UI 同名的 rich-text）不翻譯。城鎮詳細圖為獨立專案，不提供街道建築生成。正式帳號／跨裝置與 Safari／實機、大型地圖仍留 #60。
+PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優先／共享核心、scope／parent 可選欄位與首次 i18n、原版 About／Tour／Desktop／宣傳及重複 I/O 入口清理已納入本輪基準。原 [CI 39390319230](https://github.com/changmonica02/Nexus/actions/runs/39390319230) 的 97 項測試及地圖／角色 Chromium 通過；必要授權與第三方 notices 保留。本輪 UX 取代該版首頁排列，沿用其資料保護流程。
 
-## 2026-10-20 世界觀地圖編輯器（Refs #88；已實作／隔離驗證；正式整合進行中）
+## 2026-10-20 世界觀地圖編輯器（Refs #88；已合併／隔離驗證，正式帳號驗收見 #60）
 
 - **正式整合（PR #89）**：使用者已授權安全檢查後合併及一般正式部署；實際合併／部署證據以 PR #89 與 #60 為準。Preview 22b8696 的 TS2688 原因為 production 安裝環境省略 fork 的 devDependencies；核心 npm ci 改為明確 --include=dev，安裝快取標記升版避免沿用不完整依賴。CI build 使用 NODE_ENV=production／NPM_CONFIG_OMIT=dev 重現環境並驗證。此修正不變更資料契約或正式 DB。
 - 分支 `feat/world-map-storage-20261020`，依最新 SPEC `64c8e0e`；本輪程式 `43246e4`。固定 Azgaar v1.154.2/b4a0dcb 原始碼已保存於 vendor/azgaar，可自主修改，不依賴第三方線上編輯網站、不追蹤上游升級；Nexus metadata_version 與 engine_version 分開。
@@ -25,7 +25,7 @@ Nexus 編輯器提供第三方授權資訊，連結固定來源、MIT 與彙整�
 - **M3 隔離驗證通過，正式／裝置驗收未完成**：10 秒本機 recovery checkpoint 不進 outbox；60 秒／明確保存才提交 canonical 專案；owner／revision／SHA、失敗保留、舊草稿衝突與 token 清除保護。公開工具快取支援已開工作區內離線重開；備份包含 canonical／recovery，按帳號匯出，跨帳號匯入拒絕且不清其他帳號 cache。工作區 flush／備份先保存開啟中的地圖，不另重送 binary。
 - **自動化**：[CI 39371050349](https://github.com/changmonica02/Nexus/actions/runs/39371050349) 成功，20+4+10 項地圖／IDB／port 測試、39 項既有相關回歸，上游核心 tsc/Vite、Nexus TypeScript/build 通過；ESLint 0 errors／3 refs warnings。實際 fork + 世界觀元件的 Chromium 完整流程通過，含原生城鎮編輯、保存／Quick Load、失敗後 reload 草稿復原、離線修改／重開、完整專案往返後編輯、PNG/SVG、native 無效匯入不覆寫、多圖／複製／刪除還原；pageerror=0。這是隔離介面，不是正式帳號或實機。
 - **主要檔案**：vendor/azgaar、integrations/azgaar、scripts/prepare-world-map.mjs／build-world-map.mjs、WorldMapManager／WorldMapEditor、coreClient／offlineCore／WorldMapRepository、NexusApp／CharacterProfileView、StorageAdapter 實作／WorkspacePersistence／types、地圖測試及分支限定 CI。Node >=24；npm run dev/build 會先從本地 fork 產生工具。生成產物忽略，不提交；首次 import 腳本遇到未標記非空 fork 會拒絕覆寫。Windows npm.cmd launcher 已處理，Windows 實機未驗證。
-- **保留事項／#60**：正式同帳號跨裝置與真實同步失敗／重登入、Safari／平板／手機、Windows、大型地圖 heap／容量／雲端成本仍需驗收。既有 immutable 舊專案附件保守保留，未實作安全 GC；首版只接受固定 1.154.2 原生版本，不自動轉換其他版本。外部 Watabou／雲端助手受 sandbox 限制；未快取外部字型離線可能 fallback，離線圖片輸出未獨立驗證。未新增整個 Nexus app shell 的離線啟動。地標連結 M4 不做，Issue #88 保持開啟。原始功能交付時尚未合併／部署；本次整合結果見 PR #89／#60。未操作正式 DB。
+- **保留事項／#60**：正式同帳號跨裝置與真實同步失敗／重登入、Safari／平板／手機、Windows、大型地圖 heap／容量／雲端成本仍需驗收。既有 immutable 舊專案附件保守保留，未實作安全 GC；首版只接受固定 1.154.2 原生版本，不自動轉換其他版本。外部 Watabou／雲端助手受 sandbox 限制；未快取外部字型離線可能 fallback，離線圖片輸出未獨立驗證。未新增整個 Nexus app shell 的離線啟動。地標連結 M4 不做；#88 已交付，人工驗收集中 #60。原始功能交付時尚未合併／部署；本次整合結果見 PR #89／#60。未操作正式 DB。
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
@@ -63,5 +63,6 @@ Nexus 編輯器提供第三方授權資訊，連結固定來源、MIT 與彙整�
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
 
