@@ -1,5 +1,16 @@
 # Nexus — 當前交接（2026-10-20）
 
+## 地圖 V2-0／V2-1 首批（Refs #96；PR #97）
+
+- 分支 `feat/world-map-natural-v2-20261020` 承接 PR #95 `60728b8` 的完整瀏覽 UX，安全帶入 main `6cdf489` 的 V2 SPEC。沒有修改 #95 原分支或 main；本次只準備 PR，未合併／正式部署。
+- **V2-0 已完成盤點；V2-1 部分完成、可獨立驗收**：37 個來源（14 程序／23 預製 PNG）、確認前隔離 preview／取消零持久化、自然-only pipeline、名稱／seed／畫布／格網／收合氣候／選填尺度、原生工具分群、相對高度等高線與氣溫／降水／生態等 2D view／overlay、保留舊文明顯示、手繪資料優先及 stale 標記。沒有建立隨機文明或紀元；原文明 generators 未刪。
+- **已實作的安全限制**：Keep 高度編輯可抬升／降低／平滑及 undo/redo，鎖定海陸分類；海岸／湖泊保留原有屬性及樣式編輯，但海陸拓撲重建未完成。氣候明確套用只算溫度／降水，不重建手繪河流或生態；生態屬性修改不自動重算人口。安全局部重算、人工物件鎖定、完整再生成（含備份／候選／二次確認／rollback）**尚未完成，維持阻擋**。特殊區域僅沿用 zones 擴充入口，不做奇幻模擬。3D／地球主入口與語音設定／輪詢退場，共享 D3 氣候預覽及 legacy dependencies 保留。
+- **相容**：原生專案新增可選 `options.map.nexus.version=1` 狀態，不遷移或刪除舊附件；舊檔缺欄位照常載入。metadata_version／map IDs／owner／world／CAS／immutable SHA、備份 v3、10 秒 local recovery／60 秒 canonical／同步及離線公開工具快取沿用。詳細圖專案及既有 parent/scope 同一原子 create commit；無 DB／IDB schema／RPC／RLS／付費服務變動。新內容不承諾舊核心降版或原版 .map 對外互通。
+- **驗證**：程式 `b53ec81` 的 [CI 39420685227](https://github.com/changmonica02/Nexus/actions/runs/39420685227) 成功。126 項單元／契約回歸（37 Repository／port／真實 Adapter + fake-IDB、2 i18n、39 workspace／character／study、48 native pipeline／source／contour／command／zoom）；核心與 Nexus TypeScript、production/omit=dev build 成功；相關 ESLint 0 errors／29 warnings。兩組實際 Chromium（地圖、角色）成功；地圖 pageerror=[]。包含全部 37 來源 preview／取消零持久化、390/820/1440 建立 UI 及 zh-TW/en、自然無文明／無紀元、真實 IndexedDB 備份匯入還原與損壞／跨帳號拒絕、cold reload 後內容一致、實際高度 raise／undo／redo、河流編輯、生態拖曳、氣候保留人工水文／生態、8 views 的資料 digest 不變／等高線路徑、自然 PNG/SVG 不改資料、已校準預製詳細圖、舊文明／.map 往返、草稿失敗復原、離線修改重開、多圖／刪除還原，以及既有 fit／CDP 觸控／全螢幕／手機回歸。這是隔離帳號及 Chromium，不等於正式帳號或實機。執行指令以 `.github/workflows/world-map.yml` 為準：`npm run test:world-map`、i18n／workspace 等 `node --test`、`npm run build`、核心 `npx vitest run` 七檔、限定檔案 `npx eslint`、`node tests/worldMap.browser.test.cjs` 與 `node tests/characterBlocks.browser.test.cjs`。最後僅文件提交，未再改程式。
+- **資源樣本**：該次實測完整公開核心 22,744,317 bytes；9,954 grid／5,743 packed cells 的自然專案 1,040,640 bytes；Chromium heap 單次 sample 47,400,000 bytes。 只是約 10k grid 的隔離 Chromium 單次 sample，不是 heap 峰值／手機上限或雲端成本驗收。建立視窗暫時載入第二個隔離核心，關閉即釋放；preview 最多 5k cells。
+- **人工／後續**：真實帳號跨裝置、雲端重登入／失敗、Safari／實機觸控與大型圖資源仍留 #60；未驗收不得視為已完成。V2-2 先確立 WorldEntity stable ID／正文正式來源，再用可選 placement adapter 關聯，禁止名稱連結或同步時重畫地理。本批不做 V2-2–V2-5。完整依賴、資料流與未完成限制見 ARCHITECTURE 的 #96 段。
+
+
 
 ## 世界觀地圖瀏覽器 UX（Refs #94；PR #95）
 

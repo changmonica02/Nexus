@@ -1,5 +1,24 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 地圖 V2-0／V2-1 第一批（2026-10-20；Refs #96；PR #97，工作分支實作，未合併／部署）
+
+**分支整合**：`feat/world-map-natural-v2-20261020` 保留 PR #95 全部地圖瀏覽器／contain fit／觸控成果，再以雙親整合提交帶入 main `6cdf489` 唯一新增的 V2 SPEC。未改寫 #95 原分支，沒有 main 寫入。以下為本批實際程式；完整 V2-1 仍部分完成。
+
+**V2-0 依賴盤點**：固定 fork 仍為 v1.154.2/b4a0dcb，MIT／第三方原檔不刪。`heightmap-templates.ts` 14 個非空程序腳本；`precreated-heightmaps.ts` 23 個 ID 均有 public/heightmaps PNG。自然 pipeline 的必要序列為 grid → heightmap → grid features/depression/near-sea lakes → coordinates → temperature/precipitation → clear/regraph/pack features/ruler → rivers → biomes → feature groups → ice。`Population.rankCells` 及 goods/cultures/burgs/states/routes/religions/provinces/economy/military/markers/zones/journeys 不屬於自然生成。依賴仍沿用 Alea（PRNG）、D3／Delaunator（格網及 2D）、lineclip／polylabel（幾何）、Zod（設定驗證）、Quill（原生註記）；public jQuery 等檔案沿用原第三方 notices。driver.js、Three 與 Electron 相關套件雖有退場入口，本批未冒險變更 lockfile／共享程式。PR #95 基線 vendor 1,338 files／25,176,697 bytes，其中 src 9,280,163 bytes、public 15,490,096 bytes、23 高度 PNG 1,218,425 bytes；非瀏覽器記憶體或下載量。CI 39420685227 的完整公開核心 22,744,317 bytes，9,954 grid／5,743 packed cells 的自然專案 1,040,640 bytes，Chromium heap 單次 sample 47,400,000 bytes（不是峰值／純地圖獨佔用量）；未驗收大型地圖／手機資源上限。建立視窗暫時有第二個隔離核心，用完即釋放；預覽僅保留當前 blob URL，不把 37 張預覽同時常駐或同步。河流原命名依文化索引；新圖使用自然物件編號，手動新增河流遇空文化時亦不建立文化。文明產生器保留，舊專案載入不經新圖初始化。Options.randomize 的自然分支跳過文明設定及隨機紀元／地圖故事命名，不保存捏造的人文歷史。
+
+`NaturalGenerationPipeline` 以明確 ID 白名單重用 canonical steps，在 rivers 前初始化零值 typed arrays 與空集合。cultures/states/religions 的索引 0 是原生 unassigned sentinel，burgs/provinces 保留零槽；**不是隨機文明條目**。pop/s/good/market 等置零，routes/economy/markers/zones/relief/labels/journeys 空，避免保存與舊工具缺欄位。完整 GenerationPipeline 未刪；內嵌啟動／RPC 新圖使用自然路徑，原生載入直接重建原內容。預覽／資料不是靠隱藏文明圖層假裝自然地圖。
+
+**建立及 preview 責任邊界**：`WorldMapCreator` 為一次性隔離核心容器，沒有 Repository／地圖 ID／自動保存入口。名稱、37 來源、低解析度高度預覽、seed、畫布尺寸、格網數、赤道氣溫／降水倍率及選填實際寬度；進階欄位收合；新建格網目前限制 1,000–30,000，preview 最多 5,000；既有更大型專案不因此拒絕載入，但未作大型資源驗收。catalog／heightmap-preview RPC 共用 fork 的來源與演算法；preview 建立獨立 grid、最多 5,000 cells，finally 釋放 HeightmapGenerator retained graph 並恢復 PRNG，不替換既有 grid/pack/options。只於確認後生成完整自然圖並 snapshot；成功後 Manager 才提交原 Repository。取消及生成失敗沒有新地圖。預製影像經 fetch → 核心自己的 blob URL 取樣，支援既有離線資源 broker 並避免 opaque sandbox canvas taint。選填寬度設定原生 distance unit/scale；未設定的自然圖不顯示未校準比例尺，不把畫布 px／內部高度值當 km／公尺。
+
+**相容及儲存契約**：沒有新 DB／IDB store／RPC／RLS／付費依賴。world_maps 的 ID/world/owner/revision/attachment SHA 及備份 v3 契約不變；完整 native project bytes 仍存 immutable 附件，非 PNG。僅在 options.map 加入可選、版本化 `nexus: {version:1,naturalOnly,scaleKnown?,stale:[hydrology|climate|biomes]}` 擴充；舊檔缺值可讀，不自動遷移原附件，未知欄位仍依既有 strict schema 拒絕。新內容不承諾回退至舊版核心／對外 Azgaar .map 互通。`Repository.create` 可選採用既有 scope/parent metadata，先驗證同 world 的有效 parent，再與專案／世界觀／outbox 同一原子 commit，避免詳細圖建立分兩次寫入。其餘 SHA dedup、owner/CAS、10 秒 local draft／60 秒 canonical、自動保存／flush／同步／備份流程沿用。
+
+**檢視與工具**：`nexus-natural.ts` 管理自然／contours／temperature／precipitation／biomes 及既有 political/cultural/religions 的 2D 呈現，獨立河流／湖泊／邊界／標籤／城鎮／道路等 overlay。configure RPC 不 generate、不寫 options.map 或 styles，不切換編輯目標；Editor 沿用同一 iframe 與相機／手勢。等高線重用既有高度網格、平滑與 Delaunay renderer；線距及主要線標籤僅 renderer-local override，標籤為相對高度值。自然工具搬移原 DOM 按鈕分群，原 dispatcher／brush／undo/redo 保留；其他舊工具收合。特殊區域先沿用原生 zones 的 cell list／note 等表示，不新增世界觀條目或魔法模擬。
+
+**安全限制（不得當作已完成）**：Nexus 高度編輯只開 Keep；所有原筆刷／rescaler 的 history 匯合點鎖定原海陸分類，退出後更新高度並保存 stale 標記，不重算水文／氣候／生態或文明。海岸設定及 features／lake 既有屬性可編輯，但跨海陸拓撲重建暫不開放。氣候設定預設關閉 auto-apply，明確套用只更新 temperature/precipitation，保留手繪 rivers/biomes 並標記待更新。UI 顯示待檢查與缺少安全局部重算的限制；不宣稱單物件鎖定。Biomes Restore 同樣阻擋，修改生態屬性不自動重算人口。原 Regenerate 命令／search／hotkey／prompt 在內嵌路徑阻擋；沒有混入普通編輯的全圖重算。含備份、候選預覽、二次確認、失敗還原的完整再生成管理流程尚未實作，故保持不可用。3D／地球主入口、heightmap 3D、搜尋命令及語音設定／polling 停用；View3d lazy module、舊 preference schema 與 WorldConfigurator 的 D3 氣候小球等共享依賴保留，未宣稱刪除全部 bundle／所有物件朗讀入口。
+
+V2-2 建議先確認 WorldEntity 穩定 ID 與既有創作內容承載，再加 map placement 引用的可選 adapter；不要依名稱關聯、複製正文，亦不要讓同步內容觸發地理重建。本批沒有提前實作 WorldEntity／Placement 或新的儲存系統。驗證狀態與未執行項目見 HANDOFF／PR #97。
+
+
 
 ## 行動優先世界觀瀏覽器（Refs #94；已實作，測試進度見 HANDOFF）
 
