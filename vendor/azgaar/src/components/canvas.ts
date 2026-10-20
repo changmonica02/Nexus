@@ -1,9 +1,16 @@
 import { select } from "d3";
 import { Layers } from "@/components/layers";
 import { setViewportSize, viewport } from "@/components/viewport";
-import { constrainZoom, setTranslateExtent, setZoomExtent } from "@/components/zoom";
+import { constrainZoom, setTranslateExtent, setZoomExtent, zoomTo } from "@/components/zoom";
 import { fitLegendBox } from "@/renderers/draw-legend";
 import { findEl } from "@/utils/nodeUtils";
+
+// Transient Nexus presentation only. Never serialize this flag or overwrite project preferences.
+let containViewport = false;
+export function useContainViewport(): void { containViewport = true; }
+export function containScale(width: number, height: number, mapWidth: number, mapHeight: number): number {
+  return Math.min(width / mapWidth, height / mapHeight);
+}
 
 /** Resize everything that covers the whole map to the graph extent */
 export function applyGraphSize(): void {
@@ -28,6 +35,12 @@ export function applyGraphSize(): void {
  */
 export function applyZoomExtent(): void {
   const { width, height } = options.map.graph;
+  if (containViewport) {
+    const fit = containScale(viewport.width, viewport.height, width, height);
+    setZoomExtent(fit, Math.max(fit, options.app.zoomExtent.max));
+    constrainZoom();
+    return;
+  }
   const cover = Math.ceil(Math.max(viewport.width / width, viewport.height / height) * 1000) / 1000;
 
   Options.set(o => (o.app.zoomExtent.min = cover));
@@ -63,11 +76,15 @@ export function setViewport(width: number, height: number): void {
  * than the window is scaled up to cover it, never letterboxed
  */
 export function fitMapToScreen(): void {
-  const kept = options.app.viewport;
+  const kept = containViewport ? null : options.app.viewport;
   const wanted = kept ?? { width: window.innerWidth, height: window.innerHeight };
 
   // a hidden or headless tab reports no size, which would collapse the viewport
   const width = wanted.width > 0 ? wanted.width : options.map.graph.width;
   const height = wanted.height > 0 ? wanted.height : options.map.graph.height;
+  const previous = {x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale};
+  const atFit = Math.abs(viewport.scale-containScale(viewport.width,viewport.height,options.map.graph.width,options.map.graph.height))<0.001;
   setViewport(width, height);
+  if (containViewport) zoomTo(atFit?options.map.graph.width/2:previous.x,atFit?options.map.graph.height/2:previous.y,atFit?containScale(width,height,options.map.graph.width,options.map.graph.height):previous.scale,0);
 }
+

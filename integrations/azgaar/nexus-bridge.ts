@@ -8,13 +8,37 @@ import {undraw} from '@/components/undraw';
 import {applyPreset} from '@/components/layers-presets';
 import {Layers} from '@/components/layers';
 import {viewport} from '@/components/viewport';
-import {changeMapZoom,zoomTo} from '@/components/zoom';
+import {fitMapToScreen,useContainViewport,containScale} from '@/components/canvas';
+import {configurePreviewGestures,zoomAtPoint,changeMapZoom,zoomTo} from '@/components/zoom';
 window.nexusMapData=()=>[typeof pack==='undefined'?undefined:pack,typeof options==='undefined'?undefined:options.map,(window as unknown as {notes?:unknown}).notes];
-let preview=true;
+useContainViewport();
+let preview=true,freePan=false;
+const fitScale=()=>containScale(viewport.width,viewport.height,options.map.graph.width,options.map.graph.height);
+const fitView=()=>zoomTo(options.map.graph.width/2,options.map.graph.height/2,fitScale(),0);
+configurePreviewGestures(true,false);
 const previewStyle=document.createElement('style');
-previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview #map{cursor:grab}';
+previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview{background:transparent!important}body.nexus-preview #map{cursor:grab}';
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
-for(const type of ['click','dblclick','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
+for(const type of ['click','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
+// Preview double-click zooms without opening a native editing tool.
+document.addEventListener('dblclick',event=>{
+  if(!preview)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const rect=document.getElementById('map')!.getBoundingClientRect();
+  zoomAtPoint(event.shiftKey?0.5:2,event.clientX-rect.left,event.clientY-rect.top);
+},true);
+let touchY=0,pinched=false;
+document.addEventListener('touchstart',event=>{
+  if(!preview||freePan)return;
+  if(event.touches.length===1){touchY=event.touches[0].clientY;pinched=false;}
+  else pinched=true;
+},{capture:true,passive:true});
+document.addEventListener('touchmove',event=>{
+  if(!preview||freePan||event.touches.length!==1)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const nextY=event.touches[0].clientY,delta=touchY-nextY;touchY=nextY;
+  if(!pinched&&Number.isFinite(delta))port?.postMessage({type:'scroll',delta});
+},{capture:true,passive:false});
 const reportView=()=>port?.postMessage({type:'view',view:{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale}});
 let viewTimer:ReturnType<typeof setTimeout>|undefined;
 for(const type of ['pointerup','wheel','touchend'])document.addEventListener(type,()=>{clearTimeout(viewTimer);viewTimer=setTimeout(reportView,180);},{passive:true});
@@ -62,12 +86,18 @@ window.addEventListener('message', event => {
       if(data.type==='configure'){
         const settings=data.settings??{};
         if(typeof settings.language==='string')window.nexusSetLanguage?.(settings.language);
-        if(typeof settings.preview==='boolean'){
+        const modeChanged=typeof settings.preview==='boolean'&&preview!==settings.preview;
+        if(typeof settings.preview==='boolean')preview=settings.preview;
+        if(typeof settings.freePan==='boolean')freePan=settings.freePan;
+        document.body.classList.toggle('nexus-preview',preview);
+        configurePreviewGestures(preview,freePan);
+        if(modeChanged||settings.resize){
           const view=settings.view??{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale};
-          preview=settings.preview;document.body.classList.toggle('nexus-preview',preview);
-          window.dispatchEvent(new Event('resize'));
-          await new Promise<void>(resolve=>requestAnimationFrame(()=>{zoomTo(view.x,view.y,view.scale,0);resolve();}));
-        }else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
+          const wasFit=Math.abs(viewport.scale-fitScale())<0.001;
+          fitMapToScreen();
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit||wasFit&&!settings.view)fitView();else zoomTo(view.x,view.y,view.scale,0);resolve();}));
+        }else if(settings.fit)fitView();
+        else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
         if(['political','physical','biomes'].includes(settings.layer))applyPreset(settings.layer);
         else if(settings.layer==='temperature'||settings.layer==='precipitation')Layers.set(['lakes','rivers',settings.layer,'scaleBar']);
         if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
@@ -122,4 +152,5 @@ window.nexusLoadProject = async (blob:Blob) => {
   finally{busy=false;}
 };
 declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+
 
