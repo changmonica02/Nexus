@@ -44,7 +44,10 @@ jobs:
       - run: npm run test:world-map
       - name: Related storage, creation and study regressions
         run: node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs
-      - name: Build the map core and Nexus
+      - name: Build the map core and Nexus (production dependency environment)
+        env:
+          NODE_ENV: production
+          NPM_CONFIG_OMIT: dev
         run: npm run build
       - name: Changed map boundaries lint
         run: npx eslint src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts

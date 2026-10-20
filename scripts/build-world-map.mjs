@@ -39,10 +39,11 @@ await writeFile(loadFile, loader);
 await cp(path.join(root, 'integrations/azgaar/nexus-bridge.ts'), path.join(work, 'src/nexus-bridge.ts'));
 await build({ entryPoints: [path.join(root, 'integrations/azgaar/storage-shim.mjs')], outfile: path.join(work, 'public/nexus-storage.js'), bundle: true, format: 'iife', platform: 'browser', minify: true });
 const lock = await readFile(path.join(work, 'package-lock.json'));
-const hash = createHash('sha256').update(lock).digest('hex');
+const hash = createHash('sha256').update('include-dev-v1\0').update(lock).digest('hex');
 let installed = ''; try { installed = await readFile(path.join(work, '.nexus-installed'), 'utf8'); } catch {}
 if (installed !== hash) {
-  run('npm',['ci','--ignore-scripts','--no-audit','--no-fund']);
+  // Vercel inherits production/omit=dev; the fork needs Vite and TypeScript to build.
+  run('npm',['ci','--include=dev','--ignore-scripts','--no-audit','--no-fund']);
   await writeFile(path.join(work, '.nexus-installed'), hash);
 }
 run('npx',['tsc','--noEmit']);
