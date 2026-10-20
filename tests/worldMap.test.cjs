@@ -266,3 +266,20 @@ test('older Nexus metadata remains readable while unknown metadata versions are 
   await assert.rejects(repo.rename('world-a',map.id,1,'Overwrite'),{code:'map'});
   assert.equal(state.outbox.length,1);
 });
+
+
+test('scope and same-world detail links are metadata-only, extensible and preserve legacy content', async()=>{
+ const {repo,state}=fixture();const first=await repo.create('world-a','Atlas',project());const second=await repo.create('world-a','Detail',project('town'));
+ const count=state.attachments.size;
+ const saved=await repo.setPresentation('world-a',second.map.id,1,'town',first.map.id);
+ const detail=saved.character_data.world_maps.find(m=>m.id===second.map.id);
+ assert.equal(detail.scope,'town');assert.equal(detail.parent_map_id,first.map.id);assert.equal(state.attachments.size,count);
+ assert.equal(saved.character_data.sections[0].richText,'Keep me');
+ await assert.rejects(repo.setPresentation('world-a',first.map.id,1,'world',second.map.id),{code:'map'});
+ await assert.rejects(repo.setPresentation('world-a',second.map.id,1,'region',null),{code:'conflict'});
+ const other=await repo.create('world-b','Other');
+ await assert.rejects(repo.setPresentation('world-a',second.map.id,2,'town',other.map.id),{code:'map'});
+ await repo.setPresentation('world-a',second.map.id,2,'district',first.map.id);
+ assert.equal((await repo.list('world-a')).find(m=>m.id===second.map.id).scope,'district');
+ state.owner='owner-b';await assert.rejects(repo.setPresentation('world-a',second.map.id,3,'town',null),{code:'owner'});
+});

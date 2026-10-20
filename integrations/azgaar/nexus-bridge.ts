@@ -2,6 +2,19 @@
 import { Save } from '@/services/io/save';
 import { loadNexusMap } from '@/services/io/load';
 import { Services } from '@/services';
+import {applyPreset} from '@/components/layers-presets';
+import {Layers} from '@/components/layers';
+import {viewport} from '@/components/viewport';
+import {changeMapZoom,zoomTo} from '@/components/zoom';
+let preview=true;
+const previewStyle=document.createElement('style');
+previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview #map{cursor:grab}';
+document.head.append(previewStyle);document.body.classList.add('nexus-preview');
+for(const type of ['click','dblclick','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview){event.preventDefault();event.stopImmediatePropagation();}},true);
+const reportView=()=>port?.postMessage({type:'view',view:{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale}});
+let viewTimer:ReturnType<typeof setTimeout>|undefined;
+for(const type of ['pointerup','wheel','touchend'])document.addEventListener(type,()=>{clearTimeout(viewTimer);viewTimer=setTimeout(reportView,180);},{passive:true});
+
 
 const session = window.nexusSession ?? new URL(location.href).searchParams.get('nexus');
 let port: MessagePort | undefined, busy = false, ready = false, sequence = 0;
@@ -40,9 +53,22 @@ window.addEventListener('message', event => {
     if (busy) { port!.postMessage({ id: data.id, error: 'Map operation already in progress' }); return; }
     busy = true;
     try {
-      if (customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
+      if (data.type!=='configure'&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
       let blob: Blob | undefined;
-      if (data.type === 'load') {
+      if(data.type==='configure'){
+        const settings=data.settings??{};
+        if(typeof settings.language==='string')window.nexusSetLanguage?.(settings.language);
+        if(typeof settings.preview==='boolean'){
+          const view=settings.view??{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale};
+          preview=settings.preview;document.body.classList.toggle('nexus-preview',preview);
+          window.dispatchEvent(new Event('resize'));
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>{zoomTo(view.x,view.y,view.scale,0);resolve();}));
+        }else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
+        if(['political','physical','biomes'].includes(settings.layer))applyPreset(settings.layer);
+        else if(settings.layer==='temperature'||settings.layer==='precipitation')Layers.set(['lakes','rivers',settings.layer,'scaleBar']);
+        if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
+        reportView();
+      }else if (data.type === 'load') {
         if (!(data.blob instanceof Blob)) throw Error('Missing project');
         ready = false;
         await loadNexusMap(data.blob);
@@ -54,7 +80,7 @@ window.addEventListener('message', event => {
         else throw Error('Unknown map operation');
       }
       port!.postMessage({ id: data.id, blob });
-    } catch (error) { port!.postMessage({ id: data.id, error: error instanceof Error ? error.message : String(error) }); }
+    } catch (error) { port!.postMessage({ id: data.id, error: window.nexusTranslateError?.(error instanceof Error ? error.message : String(error)) ?? String(error) }); }
     finally { busy = false; }
   };
   port.start();
@@ -63,19 +89,19 @@ window.addEventListener('message', event => {
 window.addEventListener('map:generated', () => {
   ready = true;
   if (!port) setTimeout(() => parent.postMessage({ type: 'nexus-map-ready', session }, '*'), 0);
-  else if (!busy) notify('dirty');
+  else if (!busy&&!preview) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, () => {
-  if (ready && !busy) notify('dirty');
+  if (ready && !busy&&!preview) notify('dirty');
 }, { passive: true });
 document.addEventListener('keydown', event => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+  if (!preview&&(event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault(); event.stopImmediatePropagation(); notify('save-request');
   }
 }, true);
 
 window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) => {
-  if (!port || !ready) return reject(Error('Nexus storage is not ready'));
+  if (!port || !ready || preview) return reject(Error('Nexus storage is not ready'));
   const id = ++sequence;
   const timer = setTimeout(() => { pendingSaves.delete(id); reject(Error('Nexus save timed out; keep the editor open and retry')); }, 120000);
   pendingSaves.set(id, { resolve, reject, timer });
@@ -88,4 +114,5 @@ window.nexusLoadProject = async (blob:Blob) => {
   catch(error){notify('load-failed');throw error;}
   finally{busy=false;}
 };
-declare global { interface Window { nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+declare global { interface Window { nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+

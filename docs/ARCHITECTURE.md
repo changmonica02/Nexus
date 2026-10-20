@@ -1,5 +1,13 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 世界觀地圖首頁改版（2026-10-20，Refs #90；分支實作，測試待執行）
+
+世界觀路由只渲染 WorldMapManager，不再渲染 CharacterContentEditor；角色／模板路由不變，舊 basic/sections/tabs 不刪除。world_maps 可選 scope（缺值 world，可擴充）與 parent_map_id；Repository 沿用 owner/revision/atomic outbox 更新並拒絕跨世界觀、自指與循環；複製整個世界觀時重建 parent IDs。無 DB schema 變更。詳細圖仍為獨立原生專案，未提供城鎮街道建築生成。
+
+WorldMapEditor 同一 iframe／MessagePort 在嵌入唯讀與全畫面編輯切換；configure 指令處理預覽、語系、原生 Layers/zoom，不因圖層或語系重建核心。唯讀核心隱藏編輯 UI、攔截編輯點擊／鍵盤且不回報 dirty；父層也拒絕預覽 persist/save，預覽不啟動寫入。修改保存／recovery／離線沿用原流程；切換地圖或明確重載才讀取檔案，舊非同步讀取取消提交。視圖按 map ID 保存在頁面記憶體；返回編輯不重載。
+
+worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用同一字典並以 private port 收到語系，MutationObserver 只翻譯介面文字與提示屬性。SVG／input／textarea／contenteditable／動態資料選項排除，pack 名稱額外保護；未知字串留英文。首批涵蓋工具列、選單、圖層、設定、常見提示／錯誤，並非全量逐字翻譯，後續沿用目錄擴充。
+
 
 ## 2026-10-20 Nexus 世界觀地圖核心與整合（Refs #88；已接線，驗證結果見 HANDOFF）
 
@@ -688,3 +696,4 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+

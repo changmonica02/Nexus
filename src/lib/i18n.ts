@@ -1,3 +1,4 @@
+import {worldMapEn,worldMapZhTW} from "./worldMapTranslations";
 export type Language = "en" | "zh-TW";
 export const DEFAULT_LANGUAGE: Language = "en";
 export const SUPPORTED_LANGUAGES: { value: Language; label: string }[] = [
@@ -14,6 +15,7 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  ...worldMapEn,
  "ui.sort.due_date":"Due date",
  "trash.back":"Back", "trash.empty":"Trash is empty.", "trash.restore":"Restore", "trash.permanent":"Delete permanently",
  "ui.noteColor":"Note color {{color}}",
@@ -712,6 +714,7 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  ...worldMapZhTW,
  "ui.sort.due_date":"到期日期",
  "trash.back":"返回", "trash.empty":"垃圾桶是空的。", "trash.restore":"復原", "trash.permanent":"永久刪除",
  "ui.noteColor":"筆記顏色 {{color}}",
@@ -1417,3 +1420,4 @@ export function translate(language: Language, key: string, params?: Record<strin
   if (!params) return template;
   return Object.keys(params).reduce((acc, paramKey) => acc.split(`{{${paramKey}}}`).join(String(params[paramKey])), template);
 }
+

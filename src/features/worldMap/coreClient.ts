@@ -1,10 +1,12 @@
+export type MapView = {x:number;y:number;scale:number};
+export type MapPresentation = {preview?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
 /** Only a private MessagePort crosses the opaque-origin core boundary. */
 export class MapCoreClient {
   private sequence = 0;
   private pending = new Map<number, { resolve: (blob: Blob | undefined) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob}) => void) {
+  constructor(private port: MessagePort, onEvent: (data: {type:string;id?:number;blob?:Blob;view?:MapView}) => void) {
     port.onmessage = ({ data }) => {
       if (typeof data?.type === 'string') { onEvent(data); return; }
       const pending = this.pending.get(data?.id);
@@ -14,12 +16,12 @@ export class MapCoreClient {
     };
     port.start();
   }
-  request(type: 'load' | 'snapshot' | 'svg' | 'png', blob?: Blob): Promise<Blob | undefined> {
+  request(type: 'load' | 'snapshot' | 'svg' | 'png' | 'configure', blob?: Blob, settings?: MapPresentation): Promise<Blob | undefined> {
     const operation = this.tail.catch(() => undefined).then(() => new Promise<Blob | undefined>((resolve, reject) => {
       if (this.closed) { reject(Error('Map editor closed')); return; }
       const id = ++this.sequence;
       const timer = setTimeout(() => { this.pending.delete(id); reject(Error('Map operation timed out; keep the editor open and retry')); }, 120000);
-      this.pending.set(id, {resolve, reject, timer}); this.port.postMessage({id, type, blob});
+      this.pending.set(id, {resolve, reject, timer}); this.port.postMessage({id, type, blob, settings});
     }));
     this.tail = operation;
     return operation;
@@ -41,3 +43,4 @@ export function downloadMapBlob(blob: Blob, title: string, extension: string) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+

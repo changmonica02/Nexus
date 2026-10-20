@@ -5,9 +5,11 @@ const {worldMapHeaders}=require('../next.config.ts');
 test('actual fork: isolated native editing, save/reopen, project roundtrip, images, offline, multi-map and restore',{timeout:300000},async t=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-world-map-')),root=path.resolve(__dirname,'..'),core=path.join(root,'public/world-map/core');
   await build({entryPoints:['tests/fixtures/worldMap.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})}});
+  const cssFiles=fs.readdirSync(path.join(root,'.next/static'),{recursive:true}).filter(p=>p.endsWith('.css'));
   const mime={'.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.woff':'font/woff','.woff2':'font/woff2','.json':'application/json','.html':'text/html'};
   const server=http.createServer((req,res)=>{
     const url=new URL(req.url,'http://localhost'),pathname=decodeURIComponent(url.pathname);
+    if(pathname.startsWith('/_next/static/')&&pathname.endsWith('.css')){const file=path.resolve(root,'.next/static',pathname.slice('/_next/static/'.length));if(!file.startsWith(path.join(root,'.next/static')+path.sep)||!fs.existsSync(file)){res.writeHead(404);return res.end();}res.setHeader('content-type','text/css');return res.end(fs.readFileSync(file));}
     if(pathname==='/fixture.js'){res.setHeader('content-type','text/javascript');return res.end(fs.readFileSync(path.join(tmp,'fixture.js')));}
     if(pathname==='/world-map/offline.js'){res.setHeader('content-type','text/javascript');return res.end(fs.readFileSync(path.join(root,'public/world-map/offline.js')));}
     if(pathname.startsWith('/world-map/core/')){
@@ -16,7 +18,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
       for(const h of worldMapHeaders)res.setHeader(h.key,h.value);
       res.setHeader('content-type',mime[path.extname(file)]??'application/octet-stream');return res.end(fs.readFileSync(file));
     }
-    res.setHeader('content-type','text/html');res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}button{padding:6px;margin:3px}dialog{max-width:none;max-height:none}dialog[aria-label="World map editor"]{width:100vw;height:100vh;margin:0;padding:0;display:flex;flex-direction:column}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex-1{flex:1}.min-h-0{min-height:0}.h-full{height:100%}.w-full{width:100%}.grid{display:grid}.place-items-center{place-items:center}</style><div id="root"></div><script type="module" src="/fixture.js"></script>');
+    res.setHeader('content-type','text/html');res.end(cssFiles.map(p=>'<link rel="stylesheet" href="/_next/static/'+p+'">').join('')+'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;height:100vh}#root{height:100%;min-width:0}button{padding:6px;margin:3px}dialog{max-width:none;max-height:none}[role="dialog"][aria-label="World map editor"]{width:100vw;height:100vh;margin:0;padding:0;display:flex;flex-direction:column}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex-1{flex:1}.min-h-0{min-height:0}.h-full{height:100%}.w-full{width:100%}.grid{display:grid}.place-items-center{place-items:center}</style><div id="root"></div><script type="module" src="/fixture.js"></script>');
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.close();fs.rmSync(tmp,{recursive:true,force:true});});
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
@@ -24,7 +26,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror:',e.message);});page.on('console',m=>{if(m.type()==='error')console.log('browser:',m.text().slice(0,350));});
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.getByText('Maps (0)',{exact:true}).click();
+  await page.goto('http://127.0.0.1:'+server.address().port);
   const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:'確認',exact:true}).click();};
   await page.getByRole('button',{name:'＋ Create map'}).click();await confirmName('Atlas One');
   const editor=page.getByRole('dialog',{name:'World map editor'});
@@ -45,7 +47,30 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const native=await downloadEvent,file=path.join(tmp,'roundtrip.map');await native.saveAs(file);assert.ok(fs.statSync(file).size>10000);
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
-  await page.getByRole('button',{name:'Atlas One',exact:true}).click();
+  const firstSession=await frame.evaluate(()=>location.href);
+  const revisionBefore=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;});
+  await page.getByLabel('Display layers',{exact:true}).selectOption('temperature');
+  await frame.waitForFunction(()=>document.querySelector('#temperature')?.style.display!=='none');
+  assert.equal(await frame.evaluate(()=>location.href),firstSession,'layer preview reuses the core');
+  assert.equal(await frame.evaluate(()=>document.body.classList.contains('nexus-preview')),true);
+  await frame.locator('#map').click({position:{x:120,y:120}});
+  assert.equal(await page.getByRole('dialog',{name:'World map editor'}).count(),0);
+  await page.getByRole('button',{name:'繁體中文',exact:true}).click();
+  await frame.waitForFunction(()=>document.documentElement.lang==='zh-TW');
+  assert.equal(await page.getByLabel('地圖範圍',{exact:true}).count(),1);
+  assert.equal(await frame.locator('#layersTab').innerText(),'圖層');
+  assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
+  await page.getByRole('button',{name:'English',exact:true}).click();
+  await frame.waitForFunction(()=>document.documentElement.lang==='en');
+  assert.equal(await frame.locator('#layersTab').innerText(),'Layers');
+  assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;}),revisionBefore,'preview/layers/language do not write');
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'mobile has no horizontal overflow');
+  assert.equal(await page.getByText('Legacy gender',{exact:true}).count(),0);
+  assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.basic.gender;}),'Legacy gender');
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByLabel('Display layers',{exact:true}).selectOption('political');
+  await page.getByRole('button',{name:'Atlas One',exact:true}).click();await page.getByRole('button',{name:'Edit map',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
@@ -54,7 +79,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.evaluate(()=>{window.failMapSave=true;});await editor.getByRole('button',{name:'Save',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();
   assert.ok(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser'),map=p.character_data.world_maps[0];return Boolean(await window.mapStorage.getWorkspacePersistence().readMapDraft('map-browser-owner',p.id,map.id));}));
-  await page.reload();await page.getByText('Maps (1)',{exact:true}).click();await page.getByRole('button',{name:'Atlas One',exact:true}).click();
+  await page.reload();await page.getByRole('button',{name:'Atlas One',exact:true}).click();await page.getByRole('button',{name:'Edit map',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Recovery Port');
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
@@ -62,7 +87,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(id=>{pack.burgs[id].name='Offline Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor();
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
-  await page.getByRole('button',{name:'Atlas One',exact:true}).click();
+  await page.getByRole('button',{name:'Atlas One',exact:true}).click();await page.getByRole('button',{name:'Edit map',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Offline Port');
@@ -87,3 +112,4 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });
+

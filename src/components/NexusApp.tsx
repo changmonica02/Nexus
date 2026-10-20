@@ -1254,7 +1254,8 @@ function NexusAppInner({
       revision: duplicated.revision + 1,
     };
     if(source.creative_type==="world" && pageToSave.character_data?.world_maps){
-      pageToSave.character_data.world_maps=pageToSave.character_data.world_maps.map(map=>({...map,id:`map_${nanoid()}`,world_id:pageToSave.id,revision:1}));
+      const mapIds=new Map(pageToSave.character_data.world_maps.map(map=>[map.id,`map_${nanoid()}`]));
+      pageToSave.character_data.world_maps=pageToSave.character_data.world_maps.map(map=>({...map,id:mapIds.get(map.id)!,world_id:pageToSave.id,parent_map_id:map.parent_map_id?mapIds.get(map.parent_map_id)??null:map.parent_map_id,revision:1}));
       // Project binaries are immutable, so independent world copies can safely share this snapshot.
       pageToSave.attachment_ids=[...(source.attachment_ids??[])];
     }

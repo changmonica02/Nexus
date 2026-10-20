@@ -1,5 +1,11 @@
 # Nexus — 當前交接（2026-10-20）
 
+## 世界觀地圖首頁（Refs #90；工作分支 feat/world-map-home-20261020）
+
+已接上地圖優先、持續核心預覽／扳手編輯、多圖與 scope/parent metadata、原生圖層、縮放／全畫面及共享 i18n。舊世界觀與角色資料不刪；無 migration／正式 DB 操作，本輪不合併或部署正式環境。正在以實際核心測試唯讀無寫入、保存復原離線、語系及地名保護、手機版面；測試尚未完成，不可宣稱驗收通過。
+
+翻譯採首批多類 UI 目錄，未收錄的長篇說明／動態訊息回退英文；城鎮範圍不提供街道建築引擎。正式帳號／實機仍屬 #60。
+
 ## 2026-10-20 世界觀地圖編輯器（Refs #88；已實作／隔離驗證；正式整合進行中）
 
 - **正式整合（PR #89）**：使用者已授權安全檢查後合併及一般正式部署；實際合併／部署證據以 PR #89 與 #60 為準。Preview 22b8696 的 TS2688 原因為 production 安裝環境省略 fork 的 devDependencies；核心 npm ci 改為明確 --include=dev，安裝快取標記升版避免沿用不完整依賴。CI build 使用 NODE_ENV=production／NPM_CONFIG_OMIT=dev 重現環境並驗證。此修正不變更資料契約或正式 DB。
@@ -46,3 +52,4 @@
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
