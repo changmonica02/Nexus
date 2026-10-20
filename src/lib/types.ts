@@ -289,8 +289,44 @@ export interface CharacterPageTab {
   sections: CharacterSection[];
 }
 
+/** Canonical world-owned content. Map placements never duplicate this content. */
+export type WorldEntityType = "country" | "administrative_area" | "settlement" | "culture" | "religion" | "geographic_region" | "site";
+export interface WorldEntity {
+  schemaVersion: 1;
+  entityId: ID;
+  worldId: ID;
+  type: WorldEntityType;
+  name: string;
+  aliases: string[];
+  subtype?: string;
+  summary?: string;
+  /** Existing Tiptap JSON document, not a second map-owned body. */
+  content?: Record<string, unknown>;
+  relations: { type: string; entityId: ID }[];
+  createdAt: number;
+  updatedAt: number;
+  revision: number;
+}
+
+export interface WorldMapPlacement {
+  schemaVersion: 1;
+  placementId: ID;
+  mapId: ID;
+  entityId: ID;
+  /** Native map coordinates, independent of screen zoom and pan. */
+  geometry: { type: "point"; x: number; y: number };
+  visible: boolean;
+  label?: { visible: boolean };
+  icon?: string;
+  createdAt: number;
+  updatedAt: number;
+  revision: number;
+  deletedAt: number | null;
+}
+
 /** Metadata only. The native editable project lives in an Attachment binary. */
 export interface WorldMapRecord {
+  placements?: WorldMapPlacement[];
   /** Version of Nexus metadata, independent from the native engine file version. Older records imply 1. */
   metadata_version?: 1;
   /** Extensible browsing scope; missing legacy values mean world. */
@@ -311,6 +347,8 @@ export interface WorldMapRecord {
 }
 
 export interface CharacterProfileData {
+  /** Authoritative world entries. Missing in older worlds; never infer entries from legacy prose. */
+  world_entities?: WorldEntity[];
   /** World-owned maps, including tombstones; never included in reusable templates. */
   world_maps?: WorldMapRecord[];
   resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
@@ -382,4 +420,5 @@ export interface WorkspaceBackup {
   attachments: WorkspaceBackupAttachmentEntry[];
   settings: WorkspaceBackupSettingEntry[];
 }
+
 

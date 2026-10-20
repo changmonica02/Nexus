@@ -19,6 +19,46 @@ configurePreviewGestures(true,false);
 const previewStyle=document.createElement('style');
 previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview{background:transparent!important}body.nexus-preview #map{cursor:grab;background:transparent!important}body .speaker{display:none!important}';
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
+type Marker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean}};
+let markers:Marker[]=[],pickPoint:string|null=null;
+const SVG_NS='http://www.w3.org/2000/svg';
+function drawMarkers(){
+  document.getElementById('nexus-placements')?.remove();
+  const view=document.getElementById('viewbox');if(!view)return;
+  const group=document.createElementNS(SVG_NS,'g');group.id='nexus-placements';
+  for(const marker of markers){
+    if(!marker.visible||!Number.isFinite(marker.x)||!Number.isFinite(marker.y))continue;
+    const item=document.createElementNS(SVG_NS,'g');item.dataset.placementId=marker.placementId;
+    item.setAttribute('transform',`translate(${marker.x},${marker.y})`);item.style.cursor='pointer';
+    const dot=document.createElementNS(SVG_NS,'circle');dot.setAttribute('r','5');dot.setAttribute('fill','#8c3e24');dot.setAttribute('stroke','white');dot.setAttribute('stroke-width','1.5');item.append(dot);
+    if(marker.label?.visible!==false){const text=document.createElementNS(SVG_NS,'text');text.textContent=marker.name;text.setAttribute('x','8');text.setAttribute('y','4');text.setAttribute('font-size','12');text.setAttribute('fill','#221b14');text.setAttribute('stroke','white');text.setAttribute('stroke-width','3');text.setAttribute('paint-order','stroke');item.append(text);}
+    group.append(item);
+  }
+  view.append(group);
+}
+let pointerStart:{x:number;y:number}|null=null;
+document.addEventListener('pointerdown',event=>{pointerStart={x:event.clientX,y:event.clientY};},true);
+// Capture before preview/native tools: markers and point picking never invoke a terrain brush.
+document.addEventListener('click',event=>{
+  const marker=(event.target as Element)?.closest?.('[data-placement-id]');
+  if(!pickPoint&&!marker)return;
+  if(customization)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  if(pointerStart&&Math.hypot(event.clientX-pointerStart.x,event.clientY-pointerStart.y)>8)return;
+  if(pickPoint&&!preview){
+    const view=document.getElementById('viewbox') as unknown as SVGGElement|null;
+    if(!view||!(event.target as Element).closest('#map'))return;
+    const matrix=view.getScreenCTM();if(!matrix)return;
+    const point=new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());
+    if(point.x<0||point.y<0||point.x>options.map.graph.width||point.y>options.map.graph.height)return;
+    const requestId=pickPoint;
+    port?.postMessage({type:'map-point',requestId,x:point.x,y:point.y});
+  }else if(marker)port?.postMessage({type:'placement-select',placementId:(marker as SVGGElement).dataset.placementId});
+},true);
+// Point picking is exclusive and cannot overlap the existing natural editing modes.
+for(const type of ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'])document.addEventListener(type,event=>{
+  if(pickPoint&&!preview&&!customization){if(type==='pointerdown'){const e=event as PointerEvent;pointerStart={x:e.clientX,y:e.clientY};}event.stopImmediatePropagation();}
+},true);
 for(const type of ['click','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
 // Preview double-click zooms without opening a native editing tool.
 document.addEventListener('dblclick',event=>{
@@ -85,6 +125,10 @@ window.addEventListener('message', event => {
       let blob: Blob | undefined;
       if(data.type==='configure'){
         const settings=data.settings??{};
+        if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
+        if('markers' in settings){markers=settings.markers??[];drawMarkers();}
+        if('pickPoint' in settings)pickPoint=settings.pickPoint;
+
         if(typeof settings.language==='string')window.nexusSetLanguage?.(settings.language);
         const modeChanged=typeof settings.preview==='boolean'&&preview!==settings.preview;
         if(typeof settings.preview==='boolean')preview=settings.preview;
@@ -111,7 +155,7 @@ window.addEventListener('message', event => {
         if (!(data.blob instanceof Blob)) throw Error('Missing project');
         ready = false;
         await loadNexusMap(data.blob);
-        ready = true;
+        ready = true;drawMarkers();
       } else {
         if (!ready) throw Error('Map is not ready');
         if(data.type==='view')blob=new Blob([JSON.stringify({x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale})],{type:'application/json'});
@@ -127,11 +171,12 @@ window.addEventListener('message', event => {
 });
 
 window.addEventListener('map:generated', () => {
-  ready = true;
+  ready = true;drawMarkers();
   if (!port) setTimeout(() => parent.postMessage({ type: 'nexus-map-ready', session }, '*'), 0);
   else if (!busy&&!preview) notify('dirty');
 });
-for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, () => {
+for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {
+  if(pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
   if (ready && !busy&&!preview) notify('dirty');
 }, { passive: true });
 document.addEventListener('keydown', event => {
@@ -150,10 +195,11 @@ window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) =>
 window.nexusLoadProject = async (blob:Blob) => {
   if(busy)throw Error('Map operation already in progress');
   busy=true;ready=false;notify('loading');
-  try { await loadNexusMap(blob);ready=true;notify('loaded');notify('dirty'); }
+  try { await loadNexusMap(blob);ready=true;drawMarkers();notify('loaded');notify('dirty'); }
   catch(error){notify('load-failed');throw error;}
   finally{busy=false;}
 };
 declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+
 
 

@@ -163,3 +163,24 @@ test('IDB: backup export is account scoped; restore rejects foreign files withou
   d.adapter.setWorkspaceOwner(owner);
   assert.equal(await (await new WorldMapRepository(d.adapter).read('world',map.id)).blob.text(),await project('private').text());
 });
+
+
+test('IDB: canonical entries and placements reopen, retry offline and survive workspace backup without binary intents',async t=>{
+ const source=await device(t),target=await device(t);await source.adapter.savePage(world());
+ const repo=new WorldMapRepository(source.adapter),{map}=await repo.create('world','Map',project('entities'));
+ const input={entityId:'town_one',name:'Town',content:{type:'doc',content:[{type:'paragraph'}]}},point={placementId:'p_one',mapId:map.id,x:30,y:40};
+ await repo.createSettlement('world',input,point);
+ const count=(await source.adapter.getWorkspacePersistence().pending(owner)).length;
+ await source.reopen();await new WorldMapRepository(source.adapter).createSettlement('world',input,point);
+ assert.equal((await source.adapter.getWorkspacePersistence().pending(owner)).length,count);
+ const batch=(await source.adapter.getWorkspacePersistence().pending(owner)).at(-1);
+ assert.deepEqual(batch.operations.map(op=>[op.entity_type,op.kind]),[['pages','save']]);
+ const backup=await source.adapter.exportWorkspaceBackup();await target.adapter.importWorkspaceBackup(backup);
+ const restored=await target.adapter.getPage('world');
+ assert.deepEqual(restored.character_data.world_entities,backup.pages[0].character_data.world_entities);
+ assert.deepEqual(restored.character_data.world_maps[0].placements,backup.pages[0].character_data.world_maps[0].placements);
+ assert.equal((await new WorldMapRepository(target.adapter).listEntities('world')).length,1);
+ const bad=structuredClone(backup);bad.pages[0].character_data.world_maps[0].placements[0].entityId='missing';
+ await assert.rejects(target.adapter.importWorkspaceBackup(bad),/reference/);
+ assert.deepEqual((await target.adapter.getPage('world')).character_data,restored.character_data);
+});

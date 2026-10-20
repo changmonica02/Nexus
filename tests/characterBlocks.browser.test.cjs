@@ -16,6 +16,7 @@ test(
       entryPoints: ["tests/fixtures/characterBlocks.jsx"],
       outfile: path.join(tmp, "fixture.js"),
       bundle: true,
+      loader: { ".woff": "dataurl", ".woff2": "dataurl", ".ttf": "dataurl" },
       format: "esm",
       jsx: "automatic",
       define: { "process.env": JSON.stringify({ NODE_ENV: "development" }) },
@@ -248,3 +249,4 @@ test(
     }
   },
 );
+

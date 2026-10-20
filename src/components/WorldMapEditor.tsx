@@ -6,11 +6,12 @@ import {MapCoreClient, downloadMapBlob} from '../features/worldMap/coreClient';
 import {offlineMapDocument,readPublicMapAsset} from '../features/worldMap/offlineCore';
 import {useLanguage} from '../lib/LanguageContext';
 import {mapMessage} from '../features/worldMap/mapMessages';
-import type {MapView} from '../features/worldMap/coreClient';
+import type {MapView,MapMarker} from '../features/worldMap/coreClient';
 import {Wrench,Maximize,Minimize,RotateCcw} from 'lucide-react';
 
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
-export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter}: {
+export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools}: {
+  markers?:MapMarker[];pickPoint?:string|null;onMapPoint?:(id:string,x:number,y:number)=>void;onMarker?:(id:string)=>void;humanTools?:ReactNode;
   previewFooter?:ReactNode;reloadKey?:number;editing?:boolean;onEdit?:()=>void;layer?:string;overlays?:string[];contourInterval?:number;contourLabels?:boolean;view?:MapView;onView?:(view:MapView)=>void;
   map:WorldMapRecord; blob:Blob|null; draftToken?:string; draftConflict?:{token:string;blob:Blob}; repository:WorldMapRepository;
   beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>; onClose:()=>void; registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null;pendingPushes?:number};
@@ -34,7 +35,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [coreAvailable,setAvailable] = useState(false), [conflict,setConflict] = useState(draftConflict);
   const available=coreAvailable&&loadedDocument?.id===map.id&&loadedDocument.blob===blob;
   const actions = useRef<{save:(blob?:Blob)=>Promise<void>;stage:()=>Promise<void>}>({save:async()=>{},stage:async()=>{}});
-  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id};
+  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker};
 
   actions.current.stage = async () => {
     if (!latest.current.editing || readyDocument.current?.id!==map.id || readyDocument.current?.blob!==blob || !ready.current || !dirty.current || staged.current || active.current || latest.current.conflict) return;
@@ -87,6 +88,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       clearTimeout(startup);
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
+        if(data.type==='map-point'&&ready.current&&readyDocument.current?.id===latest.current.mapId&&latest.current.editing&&typeof data.requestId==='string'&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
+        if(data.type==='placement-select'&&ready.current&&readyDocument.current?.id===latest.current.mapId&&typeof data.placementId==='string')latest.current.onMarker?.(data.placementId);
         if(data.type==='scroll'&&!latest.current.editing&&!latest.current.fullView&&typeof data.delta==='number'&&Number.isFinite(data.delta)){surface.current?.closest<HTMLElement>('[data-map-scroll]')?.scrollBy({top:Math.max(-1000,Math.min(1000,data.delta)),behavior:'instant'});}
         if(data.type==='view'&&data.view&&ready.current){if(data.preview&&!latest.current.editing)previewView.current=data.view;latest.current.onView?.(data.view);}
         if(data.type==='loading'){ready.current=false;if(current){setAvailable(false);setStatus('worldMap.editor5');}}
@@ -128,7 +131,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       if(!current)return;
       if(blob)await core.request('load',blob);else if(!useFresh)await core.request('generate');
       if(!current)return;
-      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView});
+      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView,markers:latest.current.markers,pickPoint:latest.current.pickPoint});
       if(!current)return;
       ready.current=true;readyDocument.current={id:map.id,blob};setLoadedDocument({id:map.id,blob});setAvailable(true);
       if(draftToken){dirty.current=latest.current.editing;changes.current++;setStatus('worldMap.editor8');}
@@ -145,8 +148,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const modeChanged=previousEditing.current!==editing;previousEditing.current=editing;
     const returning=modeChanged&&!editing;
     const restored=returning?previewView.current:modeChanged?latest.current.view:undefined;
-    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,overlays,contourInterval,contourLabels,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
-  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView]);
+    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,overlays,contourInterval,contourLabels,markers,pickPoint,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
+  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView,markers,pickPoint]);
   useEffect(()=>{
     const changed=()=>setFullscreen(document.fullscreenElement===surface.current);
     document.addEventListener('fullscreenchange',changed);
@@ -211,6 +214,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
       {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
     </header>}
+    {editing&&humanTools&&<fieldset disabled={!available||busy} className="m-0 min-w-0 border-0 p-0">{humanTools}</fieldset>}
     {error&&<div role="alert" className="shrink-0 bg-red-50 p-3 text-sm text-red-800">{mapMessage(language,error)}<br/>{t('worldMap.editor17')}</div>}
     {conflict&&<div role="alert" className="shrink-0 bg-amber-50 p-3 text-sm text-amber-900">
       {t('worldMap.editor18')}
@@ -235,3 +239,4 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     <footer className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 px-4 py-2 text-xs" role="status"><span className={status==='worldMap.editor3'||status==='worldMap.editor7'||status==='worldMap.editor8'?'font-medium text-amber-700 dark:text-amber-400':'opacity-60'}>{localLabel}</span>{cloudLabel&&<span role={cloudState?.error||cloudState?.status==='error'?'alert':undefined} className={cloudState?.error||cloudState?.status==='error'?'font-medium text-red-600 dark:text-red-400':'opacity-60'}>{cloudLabel}</span>}</footer>
   </div>;
 }
+
