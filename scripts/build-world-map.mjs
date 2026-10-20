@@ -17,7 +17,7 @@ const patch = async (file, before, after) => {
   if (!text.includes(before) || text.indexOf(before) !== text.lastIndexOf(before)) throw Error(`Fork adapter anchor changed: ${file}`);
   await writeFile(target, text.replace(before, after));
 };
-await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js"></script>');
+await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js"></script><script src="./nexus-i18n.js"></script>');
 await patch('src/index.html', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-VJL3J26W7R"></script>', '');
 await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
 await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
@@ -38,6 +38,7 @@ loader += '\nexport async function loadNexusMap(blob: Blob): Promise<void> {\n c
 await writeFile(loadFile, loader);
 await cp(path.join(root, 'integrations/azgaar/nexus-bridge.ts'), path.join(work, 'src/nexus-bridge.ts'));
 await build({ entryPoints: [path.join(root, 'integrations/azgaar/storage-shim.mjs')], outfile: path.join(work, 'public/nexus-storage.js'), bundle: true, format: 'iife', platform: 'browser', minify: true });
+await build({entryPoints:[path.join(root,'integrations/azgaar/nexus-i18n.ts')],outfile:path.join(work,'public/nexus-i18n.js'),bundle:true,format:'iife',platform:'browser',minify:true});
 const lock = await readFile(path.join(work, 'package-lock.json'));
 const hash = createHash('sha256').update('include-dev-v1\0').update(lock).digest('hex');
 let installed = ''; try { installed = await readFile(path.join(work, '.nexus-installed'), 'utf8'); } catch {}
@@ -90,3 +91,4 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=aw
 self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('nexus-world-map-')&&key!==CACHE)await caches.delete(key);await self.clients.claim();})()));
 self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||!url.pathname.startsWith('/world-map/core/'))return;event.respondWith((async()=>{const cache=await caches.open(CACHE);const saved=await cache.match(event.request,{ignoreSearch:true});return saved||fetch(event.request);})());});
 `);
+

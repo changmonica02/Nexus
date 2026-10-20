@@ -215,6 +215,20 @@ export class WorldMapRepository {
     return this.update(worldId, id, expectedRevision, map => ({ ...map, title: name }));
   }
 
+  async setPresentation(worldId: string, id: string, expectedRevision: number, scope: string, parentId: string | null): Promise<Page> {
+    if (!/^[a-z][a-z0-9_-]{0,63}$/.test(scope)) throw new WorldMapError("map", "Invalid map scope");
+    const world = await this.world(worldId), current = mapOf(world, id, expectedRevision);
+    let ancestor = parentId;
+    const seen = new Set([id]);
+    while (ancestor) {
+      if (seen.has(ancestor)) throw new WorldMapError("map", "A map cannot contain a cyclic detail link");
+      seen.add(ancestor);
+      ancestor = mapOf(world, ancestor).parent_map_id ?? null;
+    }
+    const map = {...current, scope, parent_map_id: parentId, revision: current.revision + 1, updated_at: Date.now()};
+    return this.commit(world, mapsOf(world).map(item => item.id === id ? map : item));
+  }
+
   async remove(worldId: string, id: string, expectedRevision: number): Promise<Page> {
     return this.update(worldId, id, expectedRevision, map => ({ ...map, deleted_at: Date.now() }));
   }
@@ -243,3 +257,4 @@ export class WorldMapRepository {
     return { world: await this.commit(world, [...mapsOf(world), copy], project), map: copy };
   }
 }
+

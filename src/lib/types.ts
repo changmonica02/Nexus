@@ -293,6 +293,10 @@ export interface CharacterPageTab {
 export interface WorldMapRecord {
   /** Version of Nexus metadata, independent from the native engine file version. Older records imply 1. */
   metadata_version?: 1;
+  /** Extensible browsing scope; missing legacy values mean world. */
+  scope?: string;
+  /** Independent detail project in the same world; no native data is embedded here. */
+  parent_map_id?: ID | null;
   id: ID;
   world_id: ID;
   title: string;
@@ -378,3 +382,4 @@ export interface WorkspaceBackup {
   attachments: WorkspaceBackupAttachmentEntry[];
   settings: WorkspaceBackupSettingEntry[];
 }
+

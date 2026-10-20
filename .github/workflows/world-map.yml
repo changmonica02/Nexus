@@ -1,7 +1,7 @@
 name: World map integration
 on:
   push:
-    branches: [feat/world-map-storage-20261020]
+    branches: [feat/world-map-storage-20261020, feat/world-map-home-20261020]
     paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   map:
-    if: github.ref == 'refs/heads/feat/world-map-storage-20261020'
+    if: github.ref == 'refs/heads/feat/world-map-storage-20261020' || github.ref == 'refs/heads/feat/world-map-home-20261020'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -27,6 +27,7 @@ jobs:
       - name: Materialize our fixed source fork
         run: node scripts/prepare-world-map.mjs
       - name: Preserve source on this development branch only
+        if: github.ref == 'refs/heads/feat/world-map-storage-20261020'
         shell: bash
         run: |
           git add vendor/azgaar
@@ -42,20 +43,24 @@ jobs:
             fi
           fi
       - run: npm run test:world-map
+      - run: node --test tests/worldMap.i18n.test.cjs
       - name: Related storage, creation and study regressions
         run: node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs
+      - name: Type-check shared core localization
+        run: npx tsc --noEmit --skipLibCheck --target ES2022 --module esnext --moduleResolution bundler --lib es2022,dom,dom.iterable integrations/azgaar/nexus-i18n.ts
       - name: Build the map core and Nexus (production dependency environment)
         env:
           NODE_ENV: production
           NPM_CONFIG_OMIT: dev
         run: npm run build
       - name: Changed map boundaries lint
-        run: npx eslint src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts
+        run: npx eslint src/components/WorldMapEditor.tsx src/components/WorldMapManager.tsx src/features/worldMap/coreClient.ts src/features/worldMap/offlineCore.ts src/features/worldMap/worldMapRepository.ts src/features/worldMap/mapMessages.ts src/lib/worldMapTranslations.ts src/lib/i18n.ts src/components/CharacterProfileView.tsx src/components/NexusApp.tsx
       - name: Browser integration
         run: |
           if [ -f tests/worldMap.browser.test.cjs ]; then
             npx playwright install --with-deps chromium
             node tests/worldMap.browser.test.cjs
+            node tests/characterBlocks.browser.test.cjs
           fi
       - name: Core build artifact (no user content)
         if: always()
@@ -64,3 +69,4 @@ jobs:
           name: nexus-map-core
           path: public/world-map/core
           if-no-files-found: ignore
+

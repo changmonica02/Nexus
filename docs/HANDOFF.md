@@ -1,5 +1,13 @@
 # Nexus — 當前交接（2026-10-20）
 
+## 世界觀地圖首頁（Refs #90；工作分支 feat/world-map-home-20261020）
+
+已實作地圖優先首頁、同一核心切圖／預覽／扳手編輯、多圖與 scope/parent metadata、原生政治／地形／溫度／降水／生態圖層、縮放／拖曳／全螢幕。瀏覽狀態按圖保留，變更版面前讀取即時視圖；載入文件 ID/blob guard 禁止切圖期間儲存上一張內容。舊世界觀與角色資料不刪；無 migration／正式 DB 操作，本輪不合併或部署正式環境。
+
+程式 `461f0ed`；[CI 39386733552](https://github.com/changmonica02/Nexus/actions/runs/39386733552) 通過：36 項地圖／IDB／port／i18n、39 項相關回歸、實際核心及既有角色 UI 兩組 Chromium；含保存／Quick Load、失敗草稿復原、離線重開、原生專案往返、PNG/SVG、多圖分類／詳細圖、唯讀無寫入、同一 iframe、全螢幕、縮放拖曳／編輯返回視圖、1440/820/390 無水平溢出、語系與使用者資料保護。Nexus／核心／語系 adapter TypeScript、production/omit=dev build 通過；相關 ESLint 0 errors／28 warnings。這是隔離資料與瀏覽器驗證，不代表正式帳號或實機驗收。
+
+世界觀外層含確認／取消接既有 i18n；核心共用 452 個英文／繁中 UI 條目，包含主工具列、選單、圖層、設定與常見提示／錯誤。未收錄長篇說明／動態訊息回退英文；SVG、輸入、自訂預設及原生專案文字（含與 UI 同名的 rich-text）不翻譯。城鎮詳細圖為獨立專案，不提供街道建築生成。正式帳號／跨裝置與 Safari／實機、大型地圖仍留 #60。
+
 ## 2026-10-20 世界觀地圖編輯器（Refs #88；已實作／隔離驗證；正式整合進行中）
 
 - **正式整合（PR #89）**：使用者已授權安全檢查後合併及一般正式部署；實際合併／部署證據以 PR #89 與 #60 為準。Preview 22b8696 的 TS2688 原因為 production 安裝環境省略 fork 的 devDependencies；核心 npm ci 改為明確 --include=dev，安裝快取標記升版避免沿用不完整依賴。CI build 使用 NODE_ENV=production／NPM_CONFIG_OMIT=dev 重現環境並驗證。此修正不變更資料契約或正式 DB。
@@ -46,3 +54,4 @@
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
