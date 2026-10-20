@@ -9,6 +9,7 @@ import {applyPreset} from '@/components/layers-presets';
 import {Layers} from '@/components/layers';
 import {viewport} from '@/components/viewport';
 import {changeMapZoom,zoomTo} from '@/components/zoom';
+window.nexusMapData=()=>[typeof pack==='undefined'?undefined:pack,typeof options==='undefined'?undefined:options.map,(window as unknown as {notes?:unknown}).notes];
 let preview=true;
 const previewStyle=document.createElement('style');
 previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview #map{cursor:grab}';
@@ -119,5 +120,5 @@ window.nexusLoadProject = async (blob:Blob) => {
   catch(error){notify('load-failed');throw error;}
   finally{busy=false;}
 };
-declare global { interface Window { nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
 
