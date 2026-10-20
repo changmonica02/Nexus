@@ -27,7 +27,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const confirmName=async name=>{if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');await page.getByRole('dialog',{name:'Create map',exact:true}).locator('summary').filter({hasText:'Advanced settings'}).click();await page.getByLabel('Geographic width (km, optional)',{exact:true}).fill('1000');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
+  const confirmName=async name=>{if(name==='Atlas One')await page.getByLabel('Seed',{exact:true}).fill('nexus-natural-v2-browser');if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');await page.getByRole('dialog',{name:'Create map',exact:true}).locator('summary').filter({hasText:'Advanced settings'}).click();await page.getByLabel('Geographic width (km, optional)',{exact:true}).fill('1000');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
   const closeManage=async()=>{if(await manage.isVisible())await manage.getByRole('button',{name:'Close panel'}).click();};
@@ -140,7 +140,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#paintEditorSelect').selectOption('4');
   const paint=await frame.evaluate(()=>{
     const z=document.querySelector('#map').__zoom,rects=[...document.querySelectorAll('.ui-dialog')].filter(e=>getComputedStyle(e).display!=='none').map(e=>e.getBoundingClientRect());
-    const i=pack.cells.i.find(i=>{const [px,py]=pack.cells.p[i],x=z.x+px*z.k,y=z.y+py*z.k;return pack.cells.h[i]>=20&&pack.cells.biome[i]!==4&&x>20&&y>100&&x<innerWidth-20&&y<innerHeight-20&&!rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);});
+    const i=pack.cells.i.find(i=>{const [px,py]=pack.cells.p[i],x=z.x+px*z.k,y=z.y+py*z.k;return pack.cells.h[i]>=20&&pack.cells.biome[i]!==4&&x>20&&y>100&&x<innerWidth-20&&y<innerHeight-20&&document.elementFromPoint(x,y)?.closest('#viewbox')&&document.elementFromPoint(x+8,y+1)?.closest('#viewbox')&&!rects.some(r=>x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom);});
     if(i===undefined)throw Error('No visible land cell for painting');return {i,x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};
   });
   const paintFrameBounds=await (await frame.frameElement()).boundingBox();
