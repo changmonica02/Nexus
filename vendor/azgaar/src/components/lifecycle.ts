@@ -49,7 +49,7 @@ export async function boot(): Promise<void> {
   initiateAutosave();
 }
 
-export type GenerationConfig = { seed?: string; graph?: GridGraph; width?: number; height?: number; points?: number; naturalOnly?: boolean; template?: string; density?: number; equator?: number; precipitation?: number };
+export type GenerationConfig = { seed?: string; graph?: GridGraph; width?: number; height?: number; points?: number; widthKm?: number; naturalOnly?: boolean; template?: string; density?: number; equator?: number; precipitation?: number };
 
 /** Generate a whole new world */
 export async function generate(config?: GenerationConfig): Promise<void> {
@@ -63,7 +63,10 @@ export async function generate(config?: GenerationConfig): Promise<void> {
     if (config?.points !== undefined) options.map.graph.points = config.points;
     if (config?.equator !== undefined) options.map.climate.temperature.equator = config.equator;
     if (config?.precipitation !== undefined) options.map.climate.precipitation = config.precipitation;
-    if (naturalOnly) options.map.nexus = {version: 1, naturalOnly: true, stale: []};
+    if (naturalOnly) {
+      options.map.nexus = {version: 1, naturalOnly: true, scaleKnown:config?.widthKm!==undefined, stale: []};
+      if(config?.widthKm!==undefined){options.map.units.distance.unit="km";options.map.units.distance.scale=config.widthKm/options.map.graph.width;}
+    }
     Icons.syncCustom(); // the carried-over custom icons, and the stored ones at startup
     if (precreatedGraph && points !== undefined) options.map.graph.points = points;
     applyGraphSize(); // TODO: DOM change, not part of generation

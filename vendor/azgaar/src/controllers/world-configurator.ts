@@ -305,7 +305,7 @@ function updateWorld(): void {
   if (window.parent !== window) {
     // Only climate arrays are recalculated here. Rivers and painted biomes remain intact.
     Temperature.generate(); Precipitation.generate();
-    options.map.nexus={version:1,naturalOnly:options.map.nexus?.naturalOnly??false,stale:['hydrology','biomes']};
+    options.map.nexus={...options.map.nexus,version:1,naturalOnly:options.map.nexus?.naturalOnly??false,stale:['hydrology','biomes']};
     Layers.draw("temperature","precipitation");
     window.dispatchEvent(new Event("nexus-geography-changed"));
     return;

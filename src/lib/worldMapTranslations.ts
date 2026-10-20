@@ -1,5 +1,8 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+  "worldMap.widthKm":"Geographic width (km, optional)",
+  "worldMap.scaleHint":"Canvas pixels do not define geographic scale. Leave blank if unknown; no calibrated scale bar is shown.",
+  "worldMap.rainfallFactor":"Precipitation factor (%)",
   "azgaar.Apply climate":"Apply climate",
   "worldMap.createNatural":"Create a natural map",
   "worldMap.sourceType":"Terrain source",
@@ -632,6 +635,9 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+  "worldMap.widthKm":"地理實際寬度（公里，選填）",
+  "worldMap.scaleHint":"畫布像素不代表地理尺度。不確定時留白；不顯示未校準的比例尺。",
+  "worldMap.rainfallFactor":"降水倍率（%）",
   "azgaar.Apply climate":"套用氣候",
   "worldMap.createNatural":"建立自然地圖",
   "worldMap.sourceType":"地形來源",

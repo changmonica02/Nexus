@@ -1,5 +1,5 @@
 export type MapView = {x:number;y:number;scale:number};
-export type NaturalMapSettings = {template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number};
+export type NaturalMapSettings = {widthKm?:number;template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number};
 export type MapPresentation = {generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
 /** Only a private MessagePort crosses the opaque-origin core boundary. */
 export class MapCoreClient {

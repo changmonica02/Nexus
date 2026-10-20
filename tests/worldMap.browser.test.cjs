@@ -27,7 +27,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const confirmName=async name=>{await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
+  const confirmName=async name=>{if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();};
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
   const closeManage=async()=>{if(await manage.isVisible())await manage.getByRole('button',{name:'Close panel'}).click();};
@@ -88,7 +88,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#optionsTrigger').click();await frame.locator('#toolsTab').click();
   await frame.evaluate(()=>Controllers.HeightmapEditor.open({mode:'keep'}));
   await frame.locator('#paintBrushes').click();await frame.locator('#brushRaise').click();
-  const terrain=await frame.evaluate(()=>{const i=grid.cells.i.find(i=>grid.cells.h[i]>=30&&grid.cells.h[i]<80&&!grid.cells.b[i]);const z=document.querySelector('#map').__zoom;return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
+  const terrain=await frame.evaluate(()=>{const i=grid.cells.i.filter(i=>grid.cells.h[i]>=30&&grid.cells.h[i]<80&&!grid.cells.b[i]).sort((a,b)=>Math.hypot(grid.points[a][0]-640,grid.points[a][1]-400)-Math.hypot(grid.points[b][0]-640,grid.points[b][1]-400))[0];const z=document.querySelector('#map').__zoom;return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
   await frame.locator('#map').click({position:{x:terrain.x,y:terrain.y},force:true});
   assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h,'native raise brush edits height');
   await frame.locator('#undo').click();assert.equal(await frame.evaluate(i=>grid.cells.h[i],terrain.i),terrain.h);

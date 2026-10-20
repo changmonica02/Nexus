@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {afterEach,expect,test,vi} from 'vitest';
 import {existsSync} from 'node:fs';
 import {Layers} from '@/components/layers';
@@ -26,6 +27,7 @@ test('preview uses a separate grid and restores PRNG and retained generator refe
  expect(Math.random).toBe(original);expect(grid).toBe(current);expect(pack).toBe(project);expect(clear).toHaveBeenCalledOnce();
 });
 test('view and contour options change rendering without touching data or styles',()=>{
+ vi.stubGlobal('options',{map:{}});
  const data={manualRivers:[{name:'custom'}]},style={heightmap:'manual'};vi.stubGlobal('pack',data);vi.stubGlobal('styles',style);
  applyNaturalView('contours',['rivers','borders','untrusted'],10,true);
  expect(Layers.set).toHaveBeenCalledWith(['heightmap','rivers','borders']);

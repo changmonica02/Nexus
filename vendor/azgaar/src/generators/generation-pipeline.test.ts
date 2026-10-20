@@ -1,7 +1,10 @@
-import { afterEach, expect, test, vi } from "vitest";
+// @vitest-environment jsdom
+import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import "./pack-generator";
 import { Coordinates } from "./coordinates";
 import { GenerationPipeline } from "./generation-pipeline";
+
+beforeEach(()=>{vi.stubGlobal("INFO",false);vi.stubGlobal("TIME",false);vi.stubGlobal("performance",{now:()=>0,measure:()=>{}});});
 
 afterEach(() => {
   vi.restoreAllMocks();

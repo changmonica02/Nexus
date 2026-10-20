@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
 import ModalDialog from './ModalDialog';
+import {mapMessage} from '../features/worldMap/mapMessages';
 import {useLanguage} from '../lib/LanguageContext';
 import {MapCoreClient,type NaturalMapSettings} from '../features/worldMap/coreClient';
 import {offlineMapDocument,readPublicMapAsset} from '../features/worldMap/offlineCore';
@@ -44,7 +45,7 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
    const timer=setTimeout(()=>{void core.current?.request('heightmap-preview',undefined,{generation:settings}).then(blob=>{if(!live||!blob)return;url=URL.createObjectURL(blob);setPreview(url);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setWorking(false);});},200);
    return()=>{live=false;clearTimeout(timer);if(url)URL.revokeObjectURL(url);};
  },[settings,connected,creating]);
- const change=(key:keyof NaturalMapSettings,value:string|number)=>setSettings(old=>({...old,[key]:value}));
+ const change=(key:keyof NaturalMapSettings,value:string|number|undefined)=>setSettings(old=>({...old,[key]:value}));
  const submit=async()=>{
    if(active.current||!core.current||!name.trim())return;active.current=true;setCreating(true);setError('');
    try{await core.current.request('generate',undefined,{generation:settings});const blob=await core.current.request('snapshot');if(!blob)throw Error('Missing native project');await onCreate(name.trim(),blob);}
@@ -59,9 +60,9 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
    <p className="text-xs opacity-70">{t('worldMap.previewHint')}</p>
    <div className="flex gap-2"><label className="grid min-w-0 flex-1 gap-1">{t('worldMap.seed')}<input value={settings.seed} onChange={e=>change('seed',e.target.value)} maxLength={128}/></label><button type="button" className="self-end border" onClick={()=>change('seed',crypto.randomUUID().slice(0,8))}>{t('worldMap.resample')}</button></div>
    <div className="grid grid-cols-2 gap-2">{(['width','height'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+key)}<input type="number" min={key==='width'?320:240} max={4096} value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div>
-   <details><summary className="cursor-pointer py-2">{t('worldMap.advanced')}</summary><div className="grid grid-cols-2 gap-2">{(['points','equator','precipitation'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+key)}<input type="number" value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div></details>
+   <details><summary className="cursor-pointer py-2">{t('worldMap.advanced')}</summary><div className="grid grid-cols-2 gap-2"><label className="col-span-2 grid min-w-0 gap-1">{t('worldMap.widthKm')}<input type="number" min={0.1} value={settings.widthKm??''} onChange={e=>change('widthKm',e.target.value?+e.target.value:undefined)}/><span className="text-xs opacity-60">{t('worldMap.scaleHint')}</span></label>{(['points','equator','precipitation'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+(key==='precipitation'?'rainfallFactor':key))}<input type="number" value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div></details>
   </fieldset>
-  {error&&<p role="alert" className="my-2 break-words text-red-600">{error}</p>}
+  {error&&<p role="alert" className="my-2 break-words text-red-600">{mapMessage(language,error)}</p>}
   <div className="mt-4 flex justify-end gap-2"><button disabled={creating} onClick={onCancel}>{t('ui.cancel')}</button><button disabled={!connected||working||creating||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{t(creating?'worldMap.generating':'worldMap.confirmCreate')}</button></div>
   <iframe ref={frame} title={t('worldMap.creationCore')} aria-hidden="true" tabIndex={-1} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={html} sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="pointer-events-none fixed -left-[9999px] h-[800px] w-[1280px] border-0"/>
  </ModalDialog>;
