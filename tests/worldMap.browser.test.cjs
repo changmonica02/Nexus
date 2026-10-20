@@ -158,6 +158,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(()=>closeDialogs());
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   const geography=await dataDigest();
+  for(const type of ['SVG','PNG']){
+    const pending=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();
+    const download=await pending,file=path.join(tmp,'natural.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000,'natural '+type+' export');
+  }
+  assert.equal(await dataDigest(),geography,'image exports preserve geography');
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   for(const preset of ['contours','temperature','precipitation','biomes','political','cultural','religions','physical']){
     await page.getByLabel('Display layers',{exact:true}).selectOption(preset);await page.waitForTimeout(100);
@@ -169,10 +174,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.waitForFunction(i=>pack.cells.biome[i]===4,manual.i);
   assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','biomes']);
   assert.equal(await page.evaluate(async id=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_maps[0].id===id;},naturalId),true);
-  await frame.locator('#optionsTrigger').click();
-
   await frame.evaluate(async()=>{await window.generateMapOnLoad({naturalOnly:false});});
-  await frame.locator('#optionsTrigger').click();
+  if(!await frame.locator('#exportButton').isVisible())await frame.locator('#optionsTrigger').click();
   await frame.locator('#exportButton').click();
   assert.equal(await frame.locator('#exportMapData button').filter({hasText:/^\.(svg|png)$/}).count(),0);
   assert.equal(await frame.locator('#exportMapData button').filter({hasText:'.jpeg'}).count(),1);
