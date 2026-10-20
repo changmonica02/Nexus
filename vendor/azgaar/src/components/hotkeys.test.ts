@@ -52,6 +52,11 @@ describe("save shortcut", () => {
     expect(mocks.getLayer).not.toHaveBeenCalled();
   });
 
+  it.each(["KeyC", "KeyQ"])("does not turn removed Ctrl shortcuts into layer actions: %s", code => {
+    press(document.body, code, code.slice(-1).toLowerCase(), { ctrlKey: true });
+    expect(mocks.getLayer).not.toHaveBeenCalled();
+  });
+
   it("leaves typing in a text field alone", () => {
     const field = document.getElementById("field")!;
     field.focus();

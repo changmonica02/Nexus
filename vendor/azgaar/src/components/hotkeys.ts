@@ -19,7 +19,7 @@ function handleKeydown(event: KeyboardEvent): void {
     return;
   }
   if (altKey && !ctrlKey && !shiftKey) event.preventDefault(); // disallow plain alt key combinations
-  if (["Tab"].includes(code)) event.preventDefault(); // disallow default Fn and Tab
+  if (code === "Tab") event.preventDefault(); // Tab toggles the tool panel
 }
 
 function handleKeyup(event: KeyboardEvent): void {
@@ -29,7 +29,7 @@ function handleKeyup(event: KeyboardEvent): void {
 
   const { code, key, ctrlKey, metaKey, shiftKey, altKey } = event;
   const ctrl = ctrlKey || metaKey || key === "Control";
-  if (ctrl && code === "KeyS") return; // handled on keydown; don't toggle the states layer on release
+  if (ctrl && ["KeyS", "KeyC", "KeyQ"].includes(code)) return; // Nexus save or browser shortcut, never a layer toggle
   const shift = (shiftKey || key === "Shift") && !altKey;
   const altShift = altKey && (shiftKey || key === "Shift") && !ctrl;
   const layer = getLayerByShortcut(code);

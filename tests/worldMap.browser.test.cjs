@@ -55,7 +55,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#toolsTab').click();
   const burgId=await frame.evaluate(async()=>{const burg=pack.burgs.find(b=>b.i&&!b.removed);if(!burg)throw Error('No burg generated');await Controllers.BurgEditor.open(burg.i);return burg.i;});
   await frame.locator('#burgName').fill('Nexus Port');
-  await editor.getByRole('button',{name:'Save',exact:true}).click();
+  await frame.locator('#burgName').press('Control+s');
   await editor.getByRole('status').filter({hasText:'Saved to this device'}).waitFor({timeout:60000});
   await frame.evaluate(id=>{pack.burgs[id].name='Temporary unsaved name';for(const code of ['F1','F2','F6','F9'])document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));},burgId);
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Temporary unsaved name','removed standalone shortcuts cannot replace the project');
