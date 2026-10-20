@@ -12,7 +12,6 @@
  * Example: 1.102.2 -> Major version 1, Minor version 102, Patch version 2
  * VERSION below is the only source of truth. Edit it by hand: the pre-commit hook copies it where needed.
  *
- * For the changes that may be interesting for end users, update the `latestPublicChanges` below.
  */
 
 import { dialogState } from "@/components/dialog/state";
