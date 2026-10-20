@@ -107,7 +107,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const readTowns=()=>page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return {entities:w.character_data.world_entities??[],maps:w.character_data.world_maps};});
   await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.waitFor();
-  for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){await page.setViewportSize(viewport);assert.ok(await townForm.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&el.scrollWidth<=el.clientWidth+1;}),'entry dialog fits viewport');}
+  for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){await page.setViewportSize(viewport);const layout=await townForm.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,viewport:innerWidth,scroll:el.scrollWidth,client:el.clientWidth};});assert.ok(layout.left>=-1&&layout.right<=layout.viewport+1&&layout.scroll<=layout.client+1,'entry dialog fits viewport '+JSON.stringify(layout));}
   await page.getByRole('button',{name:'繁體中文',exact:true}).evaluate(el=>el.click());await page.getByLabel('城鎮名稱',{exact:true}).waitFor();
   await page.getByRole('button',{name:'English',exact:true}).evaluate(el=>el.click());
   await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -420,6 +420,17 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
+  // A second native project references the same canonical body, rather than copying it.
+  await page.getByLabel('Selected map',{exact:true}).selectOption({label:'Atlas One'});
+  await page.getByRole('button',{name:'Towns',exact:true}).click();
+  await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Atlas Imported'});
+  await townPanel.locator('li').filter({hasText:'Manager Harbor'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());await clickMapPoint();
+  await frame.locator('#nexus-placements text').filter({hasText:'Manager Harbor'}).waitFor();
+  const crossMap=await readTowns();assert.equal(crossMap.entities.length,2);
+  assert.equal(crossMap.maps.find(map=>map.title==='Atlas Imported').placements[0].entityId,townId);
+  await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await openManage();
   const row=manage.locator('li').filter({has:page.getByRole('button',{name:'Atlas One',exact:true})});
   await row.locator('summary').click();

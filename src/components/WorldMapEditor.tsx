@@ -88,8 +88,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       clearTimeout(startup);
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
-        if(data.type==='map-point'&&latest.current.editing&&typeof data.requestId==='string'&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
-        if(data.type==='placement-select'&&typeof data.placementId==='string')latest.current.onMarker?.(data.placementId);
+        if(data.type==='map-point'&&ready.current&&readyDocument.current?.id===latest.current.mapId&&latest.current.editing&&typeof data.requestId==='string'&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
+        if(data.type==='placement-select'&&ready.current&&readyDocument.current?.id===latest.current.mapId&&typeof data.placementId==='string')latest.current.onMarker?.(data.placementId);
         if(data.type==='scroll'&&!latest.current.editing&&!latest.current.fullView&&typeof data.delta==='number'&&Number.isFinite(data.delta)){surface.current?.closest<HTMLElement>('[data-map-scroll]')?.scrollBy({top:Math.max(-1000,Math.min(1000,data.delta)),behavior:'instant'});}
         if(data.type==='view'&&data.view&&ready.current){if(data.preview&&!latest.current.editing)previewView.current=data.view;latest.current.onView?.(data.view);}
         if(data.type==='loading'){ready.current=false;if(current){setAvailable(false);setStatus('worldMap.editor5');}}
@@ -214,7 +214,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
       {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
     </header>}
-    {editing&&humanTools}
+    {editing&&humanTools&&<fieldset disabled={!available||busy} className="m-0 min-w-0 border-0 p-0">{humanTools}</fieldset>}
     {error&&<div role="alert" className="shrink-0 bg-red-50 p-3 text-sm text-red-800">{mapMessage(language,error)}<br/>{t('worldMap.editor17')}</div>}
     {conflict&&<div role="alert" className="shrink-0 bg-amber-50 p-3 text-sm text-amber-900">
       {t('worldMap.editor18')}
