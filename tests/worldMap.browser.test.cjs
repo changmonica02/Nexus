@@ -70,6 +70,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   const firstSession=await frame.evaluate(()=>location.href);
+  assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return z.x>=-1&&z.y>=-1&&z.x+w*z.k<=m.width.baseVal.value+1&&z.y+h*z.k<=m.height.baseVal.value+1;}),'initial preview contains the whole map');
   const revisionBefore=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.revision;});
   await page.getByLabel('Display layers',{exact:true}).selectOption('temperature');
   await frame.waitForFunction(()=>{const node=document.querySelector('[data-layer=temperature]');return node&&getComputedStyle(node).display!=='none';});
@@ -129,6 +130,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await endTouches();
   assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)>beforePinch.k*1.5,'two fingers zoom smoothly');
   assert.equal(await page.locator('[data-map-scroll]').evaluate(el=>el.scrollTop),pageBeforePinch);
+  const zoomed=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
+  await touches([{x:px-85,y:py,id:1},{x:px+85,y:py,id:2}]);
+  for(let d=75;d>=50;d-=5)await moveTouches([{x:px-d,y:py,id:1},{x:px+d,y:py,id:2}]);
+  await endTouches();
+  assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)<zoomed,'pinch inward zooms out');
   const pinchPosition=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));
   await touches([{x:px-45,y:py,id:1},{x:px+45,y:py,id:2}]);
   for(let d=5;d<=25;d+=5)await moveTouches([{x:px-45+d,y:py+15,id:1},{x:px+45+d,y:py+15,id:2}]);
@@ -138,6 +144,16 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.getByLabel('Display layers',{exact:true}).selectOption('physical');
   await page.waitForTimeout(250);
   assert.ok(Math.abs(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)-gestureScale)<0.0001,'layers preserve manual zoom');
+  const stableView=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y,k:document.querySelector('#map').__zoom.k}));
+  await page.evaluate(()=>{window.setMapCloud({status:'error',error:'simulated',pendingPushes:1});window.setMapTitle('A very long world title '.repeat(20));});
+  await page.getByRole('alert').filter({hasText:'Sync failed'}).waitFor();
+  assert.ok(await page.locator('h1').evaluate(el=>el.scrollWidth>el.clientWidth),'long title is truncated');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
+  assert.deepEqual(await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y,k:document.querySelector('#map').__zoom.k})),stableView,'sync/title updates preserve the view');
+  await page.evaluate(()=>window.setMapCloud({status:'connected',error:null,pendingPushes:2}));
+  await page.getByText('Waiting to sync',{exact:true}).waitFor();
+  await page.evaluate(()=>{window.setMapCloud({status:'idle',error:null,pendingPushes:0});window.setMapTitle('Test World');});
+  assert.equal(await page.getByText('Cloud connected',{exact:true}).count(),0,'idle is not called synchronized');
   await page.getByRole('button',{name:'Full screen',exact:true}).click();
   await page.waitForFunction(()=>Boolean(document.fullscreenElement));await page.waitForTimeout(250);
   touchBox=await frame.locator('#map').boundingBox();
@@ -156,6 +172,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const zoomBefore=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
   await page.getByRole('button',{name:zoomBefore<19?'Zoom in':'Zoom out',exact:true}).click();
   await frame.waitForFunction(before=>document.querySelector('#map').__zoom.k!==before,zoomBefore);
+  const beforeDouble=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
+  await frame.locator('#map').dblclick({position:{x:200,y:180}});await page.waitForTimeout(250);
+  assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)>beforeDouble,'double click zooms in read-only preview');
   const mapBox=await frame.locator('#map').boundingBox();
   const panBefore=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));let panned=false;
   for(const direction of [1,-1]){await page.mouse.move(mapBox.x+mapBox.width/2,mapBox.y+mapBox.height/2);await page.mouse.down();await page.mouse.move(mapBox.x+mapBox.width/2+direction*40,mapBox.y+mapBox.height/2+direction*20,{steps:3});await page.mouse.up();const after=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));panned=panned||after.x!==panBefore.x||after.y!==panBefore.y;}
@@ -196,7 +215,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
   await openManage();
-  const row=manage.locator('li').filter({has:manage.getByRole('button',{name:'Atlas One',exact:true})});
+  const row=manage.locator('li').filter({has:page.getByRole('button',{name:'Atlas One',exact:true})});
   await row.locator('summary').click();
   await row.getByRole('button',{name:'Duplicate',exact:true}).click();await page.getByRole('button',{name:/Atlas One copy/}).waitFor();
   await row.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();
@@ -208,6 +227,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.getByLabel('Selected map',{exact:true}).selectOption({label:'Atlas One copy'});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Zoom in'&&!b.disabled),{},{timeout:120000});
   assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch,'switching maps reuses the core');
+  assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom;return Math.abs(z.k-Math.min(m.width.baseVal.value/options.map.graph.width,m.height.baseVal.value/options.map.graph.height))<0.0001;}),'switching maps returns to fit');
   await page.getByLabel('Map scope',{exact:true}).selectOption('town');
   await page.waitForFunction(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').scope==='town';});
   const parentId=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One').id;});
