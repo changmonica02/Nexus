@@ -1,12 +1,13 @@
-# Nexus — 當前交接（2026-10-19）
+# Nexus — 當前交接（2026-10-20）
 
-## 2026-10-20 世界觀地圖首批（Refs #88；尚未接入產品）
+## 2026-10-20 世界觀地圖編輯器（Refs #88；已實作／隔離驗證，未部署）
 
-- 工作分支 `feat/world-map-storage-20261020` 由地圖 SPEC 分支 `ef002c8` 建立，未合併 main、未部署、無 migration。使用者授權直接修改 GitHub 分支；環境 Git clone 仍因 proxy:8080 無法連線而失敗。
-- 已新增世界觀地圖 metadata 與 StorageAdapter Repository：多地圖、新增／命名／複製／軟刪除還原、原生專案 immutable 附件、單批原子寫入、owner／revision／SHA-256 檢查及相同 bytes 不重排傳輸。**這些是尚未接入 UI 的資料層能力，不能稱為使用者可用功能。**
-- M0 部分查證：固定來源 Azgaar v1.154.2（b4a0dcb），MIT；原生 prepareMapData／uploadMap 與單槽 lastMap 已核對。上游套件／素材未複製；第三方素材授權、完整 build、體積／記憶體量測、原生 .map 實際往返仍未完成。
-- 通過：Node 24.19.0 執行 `node tests/worldMap.test.cjs`，19/19 契約測試（合成檔案與記憶體替身）。已寫 5 項 `tests/worldMapIndexedDB.test.cjs`，尚未執行。TypeScript／build／整合回歸／瀏覽器／真實帳號／Safari 均未執行；不能以本輪測試代替。
-- 下一批：先取得可驗證的上游建置，驗證 iframe 安全隔離與非同步載入成功／失敗 handshake，再接世界觀入口及既有 flush/adopt Page 流程。不得直接同源執行未隔離的匯入 SVG，或在附件缺失時以新圖覆寫。immutable 舊附件暫不 GC，連續大圖保存容量與節流策略仍需實測。M1 編輯器、M2 UI／工作區接線、M3 原生／圖片匯出及完整備份同步安全驗收全部未完成；地標連結保持 M4。
+- 分支 `feat/world-map-storage-20261020`，依最新 SPEC `64c8e0e`；本輪程式 `43246e4`。固定 Azgaar v1.154.2/b4a0dcb 原始碼已保存於 vendor/azgaar，可自主修改，不依賴第三方線上編輯網站、不追蹤上游升級；Nexus metadata_version 與 engine_version 分開。
+- **M1／M2 已接線**：世界觀「地圖」區、多圖新增／命名／開啟／複製／刪除還原、完整隔離核心、本機保存及關閉重開、原生 .map 匯入／匯出、SVG／PNG；保留原主要圖層／工具及 Quick Load。核心、世界觀 UI、Repository／同步保持分離；沒有新增 schema、RPC、RLS、付費服務或正式資料操作。
+- **M3 隔離驗證通過，正式／裝置驗收未完成**：10 秒本機 recovery checkpoint 不進 outbox；60 秒／明確保存才提交 canonical 專案；owner／revision／SHA、失敗保留、舊草稿衝突與 token 清除保護。公開工具快取支援已開工作區內離線重開；備份包含 canonical／recovery，按帳號匯出，跨帳號匯入拒絕且不清其他帳號 cache。工作區 flush／備份先保存開啟中的地圖，不另重送 binary。
+- **自動化**：[CI 39371050349](https://github.com/changmonica02/Nexus/actions/runs/39371050349) 成功，20+4+10 項地圖／IDB／port 測試、39 項既有相關回歸，上游核心 tsc/Vite、Nexus TypeScript/build 通過；ESLint 0 errors／3 refs warnings。實際 fork + 世界觀元件的 Chromium 完整流程通過，含原生城鎮編輯、保存／Quick Load、失敗後 reload 草稿復原、離線修改／重開、完整專案往返後編輯、PNG/SVG、native 無效匯入不覆寫、多圖／複製／刪除還原；pageerror=0。這是隔離介面，不是正式帳號或實機。
+- **主要檔案**：vendor/azgaar、integrations/azgaar、scripts/prepare-world-map.mjs／build-world-map.mjs、WorldMapManager／WorldMapEditor、coreClient／offlineCore／WorldMapRepository、NexusApp／CharacterProfileView、StorageAdapter 實作／WorkspacePersistence／types、地圖測試及分支限定 CI。Node >=24；npm run dev/build 會先從本地 fork 產生工具。生成產物忽略，不提交；首次 import 腳本遇到未標記非空 fork 會拒絕覆寫。Windows npm.cmd launcher 已處理，Windows 實機未驗證。
+- **保留事項／#60**：正式同帳號跨裝置與真實同步失敗／重登入、Safari／平板／手機、Windows、大型地圖 heap／容量／雲端成本仍需驗收。既有 immutable 舊專案附件保守保留，未實作安全 GC；首版只接受固定 1.154.2 原生版本，不自動轉換其他版本。外部 Watabou／雲端助手受 sandbox 限制；未快取外部字型離線可能 fallback，離線圖片輸出未獨立驗證。未新增整個 Nexus app shell 的離線啟動。地標連結 M4 不做，Issue #88 保持開啟。未合併 main、未部署正式環境、未操作正式 DB。
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
