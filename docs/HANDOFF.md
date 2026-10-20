@@ -1,4 +1,14 @@
-# Nexus — 當前交接（2026-10-19）
+# Nexus — 當前交接（2026-10-20）
+
+## 2026-10-20 世界觀地圖編輯器（Refs #88；已實作／隔離驗證；正式整合進行中）
+
+- **正式整合（PR #89）**：使用者已授權安全檢查後合併及一般正式部署；實際合併／部署證據以 PR #89 與 #60 為準。Preview 22b8696 的 TS2688 原因為 production 安裝環境省略 fork 的 devDependencies；核心 npm ci 改為明確 --include=dev，安裝快取標記升版避免沿用不完整依賴。CI build 使用 NODE_ENV=production／NPM_CONFIG_OMIT=dev 重現環境並驗證。此修正不變更資料契約或正式 DB。
+- 分支 `feat/world-map-storage-20261020`，依最新 SPEC `64c8e0e`；本輪程式 `43246e4`。固定 Azgaar v1.154.2/b4a0dcb 原始碼已保存於 vendor/azgaar，可自主修改，不依賴第三方線上編輯網站、不追蹤上游升級；Nexus metadata_version 與 engine_version 分開。
+- **M1／M2 已接線**：世界觀「地圖」區、多圖新增／命名／開啟／複製／刪除還原、完整隔離核心、本機保存及關閉重開、原生 .map 匯入／匯出、SVG／PNG；保留原主要圖層／工具及 Quick Load。核心、世界觀 UI、Repository／同步保持分離；沒有新增 schema、RPC、RLS、付費服務或正式資料操作。
+- **M3 隔離驗證通過，正式／裝置驗收未完成**：10 秒本機 recovery checkpoint 不進 outbox；60 秒／明確保存才提交 canonical 專案；owner／revision／SHA、失敗保留、舊草稿衝突與 token 清除保護。公開工具快取支援已開工作區內離線重開；備份包含 canonical／recovery，按帳號匯出，跨帳號匯入拒絕且不清其他帳號 cache。工作區 flush／備份先保存開啟中的地圖，不另重送 binary。
+- **自動化**：[CI 39371050349](https://github.com/changmonica02/Nexus/actions/runs/39371050349) 成功，20+4+10 項地圖／IDB／port 測試、39 項既有相關回歸，上游核心 tsc/Vite、Nexus TypeScript/build 通過；ESLint 0 errors／3 refs warnings。實際 fork + 世界觀元件的 Chromium 完整流程通過，含原生城鎮編輯、保存／Quick Load、失敗後 reload 草稿復原、離線修改／重開、完整專案往返後編輯、PNG/SVG、native 無效匯入不覆寫、多圖／複製／刪除還原；pageerror=0。這是隔離介面，不是正式帳號或實機。
+- **主要檔案**：vendor/azgaar、integrations/azgaar、scripts/prepare-world-map.mjs／build-world-map.mjs、WorldMapManager／WorldMapEditor、coreClient／offlineCore／WorldMapRepository、NexusApp／CharacterProfileView、StorageAdapter 實作／WorkspacePersistence／types、地圖測試及分支限定 CI。Node >=24；npm run dev/build 會先從本地 fork 產生工具。生成產物忽略，不提交；首次 import 腳本遇到未標記非空 fork 會拒絕覆寫。Windows npm.cmd launcher 已處理，Windows 實機未驗證。
+- **保留事項／#60**：正式同帳號跨裝置與真實同步失敗／重登入、Safari／平板／手機、Windows、大型地圖 heap／容量／雲端成本仍需驗收。既有 immutable 舊專案附件保守保留，未實作安全 GC；首版只接受固定 1.154.2 原生版本，不自動轉換其他版本。外部 Watabou／雲端助手受 sandbox 限制；未快取外部字型離線可能 fallback，離線圖片輸出未獨立驗證。未新增整個 Nexus app shell 的離線啟動。地標連結 M4 不做，Issue #88 保持開啟。原始功能交付時尚未合併／部署；本次整合結果見 PR #89／#60。未操作正式 DB。
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 

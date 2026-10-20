@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test:dictionary": "node --test tests/dictionary*.test.cjs",
-    "test:dictionary:browser": "node tests/dictionaryEditor.browser.test.cjs"
+    "test:dictionary:browser": "node tests/dictionaryEditor.browser.test.cjs",
+    "test:world-map": "node tests/worldMap.test.cjs && node tests/worldMapCore.test.cjs && node --test tests/worldMapIndexedDB.test.cjs",
+    "prebuild": "node scripts/build-world-map.mjs",
+    "predev": "node scripts/build-world-map.mjs",
+    "map:prepare": "node scripts/prepare-world-map.mjs",
+    "map:build": "node scripts/build-world-map.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

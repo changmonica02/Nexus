@@ -393,23 +393,41 @@ export class IndexedDBAdapter implements StorageAdapter {
   async exportWorkspaceBackup(): Promise<WorkspaceBackup> {
     if (!this.db) throw new Error("DB not initialized");
     const snapshotTime = Date.now();
+    const owner = this.workspaceOwnerId;
     const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readonly");
     const [allPages, allAttachments, allSettingsRecords, cards, states, events, settings, sessions] = await Promise.all(
       ["pages", "attachments", "settings", "study_cards", "study_states", "study_events", "study_settings", "study_sessions"].map(name => tx.objectStore(name).getAll())
     );
     await tx.done;
-    const study = { cards, states, events, settings, sessions };
+    const owned = <T extends {owner_id?:string|null}>(rows:T[]) => rows.filter(row => (row.owner_id??null)===owner);
+    const study = { cards:owned(cards), states:owned(states), events:owned(events), settings:owned(settings), sessions:owned(sessions) };
     const attachmentEntries: WorkspaceBackupAttachmentEntry[] = [];
-    for (const attachment of allAttachments) {
+    for (const attachment of allAttachments.filter(row => (row.workspace_owner_id??null)===owner)) {
       const binaryRecord = await this.db.get("binaries", attachment.id);
+      if(binaryRecord?.owner_id != null && binaryRecord.owner_id !== owner)throw Error("Backup binary ownership mismatch");
       const binaryBase64 = binaryRecord?.blob ? await blobToBase64(binaryRecord.blob) : null;
       attachmentEntries.push({ attachment, binary_base64: binaryBase64 });
     }
+    const world_map_drafts: NonNullable<WorkspaceBackup["world_map_drafts"]> = [];
+    for(const draft of await this.db.getAll("workspace_sync_meta")) {
+      if(draft.owner_id!==owner || !draft.world_id || !draft.map_id || !(draft.blob instanceof Blob))continue;
+      world_map_drafts.push({owner_id:draft.owner_id,world_id:draft.world_id,map_id:draft.map_id,base_revision:draft.base_revision,binary_base64:await blobToBase64(draft.blob)});
+    }
+    if(this.workspaceOwnerId !== owner)throw Error("Account changed during backup");
+    // A map backup must never silently omit the native project needed for editing.
+    for(const page of allPages.filter(row => (row.workspace_owner_id??null)===owner)) {
+      for(const map of page.character_data?.world_maps??[]) {
+        if(!map.attachment_id)continue;
+        const entry=attachmentEntries.find(item=>item.attachment.id===map.attachment_id);
+        if(!entry?.binary_base64)throw Error("Map project is missing from this device; synchronize it before backup");
+      }
+    }
     return {
+      world_map_drafts,
       schema_version: BACKUP_SCHEMA_VERSION,
       exported_at: snapshotTime,
       device_id: this.deviceId,
-      pages: allPages,
+      pages: allPages.filter(row => (row.workspace_owner_id??null)===owner),
       attachments: attachmentEntries,
       settings: allSettingsRecords,
       study,
@@ -422,6 +440,27 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (backup.schema_version > BACKUP_SCHEMA_VERSION) throw new Error(`Backup schema_version (${backup.schema_version}) is newer than supported (${BACKUP_SCHEMA_VERSION}).`);
     if (backup.schema_version >= 2 && !backup.study) throw new Error("新版備份缺少字卡資料，還原已停止。");
     if (backup.schema_version >= 3 && !Array.isArray(backup.study?.sessions)) throw new Error("新版備份缺少 session 資料。");
+    const owner=this.workspaceOwnerId;
+    if(!Array.isArray(backup.pages)||!Array.isArray(backup.attachments))throw Error("Invalid backup records");
+    if(backup.pages.some(row=>(row.workspace_owner_id??null)!==owner)
+      ||backup.attachments.some(entry=>(entry.attachment.workspace_owner_id??null)!==owner)
+      ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
+    for(const page of backup.pages)for(const map of page.character_data?.world_maps??[]){
+      if(map.world_id!==page.id)throw Error("Invalid world map membership in backup");
+      if(!map.attachment_id)continue;
+      const entry=backup.attachments.find(item=>item.attachment.id===map.attachment_id);
+      if(!entry?.binary_base64)throw Error("Backup is missing an editable map project");
+      const raw=base64ToBlob(entry.binary_base64,entry.attachment.mime_type);
+      const digest=await crypto.subtle.digest("SHA-256",await raw.arrayBuffer());
+      const hash=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");
+      if(raw.size!==entry.attachment.size_bytes||hash!==map.project_sha256)throw Error("Map project integrity check failed; no data was changed");
+    }
+    for(const draft of backup.world_map_drafts??[]) {
+      const page=backup.pages.find(page=>page.id===draft.world_id);
+      const map=page?.character_data?.world_maps?.find(map=>map.id===draft.map_id);
+      if(draft.owner_id!==owner || !map || map.world_id!==draft.world_id || !Number.isSafeInteger(draft.base_revision)||draft.base_revision<1||!draft.binary_base64)throw Error("Invalid map recovery draft in backup");
+    }
+    if(this.workspaceOwnerId!==owner)throw Error("Account changed during backup validation");
     if (backup.study) {
       const study = backup.study;
       if (![study.cards, study.states, study.events, study.settings].every(Array.isArray)) throw new Error("字卡備份格式不完整。");
@@ -487,8 +526,8 @@ export class IndexedDBAdapter implements StorageAdapter {
     // A backup is not an explicit restore of a deleted cloud object. Preserve
     // delete barriers and unacknowledged local work even when replacing the cache.
     const queued = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]).flatMap(batch => batch.operations);
-    const preservedPages = (await tx.objectStore("pages").getAll()).filter(row => row.deleted_at != null || queued.some(op => op.entity_type === "pages" && op.entity_id === row.id));
-    const preservedAttachments = (await tx.objectStore("attachments").getAll()).filter(row => row.deleted_at != null || queued.some(op => op.entity_type === "attachments" && op.entity_id === row.id));
+    const preservedPages = (await tx.objectStore("pages").getAll()).filter(row => (row.workspace_owner_id??null)!==owner || row.deleted_at != null || queued.some(op => op.entity_type === "pages" && op.entity_id === row.id));
+    const preservedAttachments = (await tx.objectStore("attachments").getAll()).filter(row => (row.workspace_owner_id??null)!==owner || row.deleted_at != null || queued.some(op => op.entity_type === "attachments" && op.entity_id === row.id));
     const preservedBinaries = (await tx.objectStore("binaries").getAll()).filter(row => preservedAttachments.some(att => att.id === row.id));
     const isHardDeleted = async (type: string, row: Page | Attachment) =>
       (await tx.objectStore("workspace_sync_meta").get(JSON.stringify([row.workspace_owner_id ?? null, type, row.id])))?.hard_deleted;
@@ -509,6 +548,11 @@ export class IndexedDBAdapter implements StorageAdapter {
     for (const attachment of preservedAttachments) await tx.objectStore("attachments").put(attachment);
     for (const binary of preservedBinaries) await tx.objectStore("binaries").put(binary);
     for (const setting of backup.settings) await tx.objectStore("settings").put(setting);
+    for(const draft of backup.world_map_drafts??[]){
+      const id=JSON.stringify(["world-map-draft",owner,draft.world_id,draft.map_id]);
+      // Existing local recovery work wins; the imported file retains any alternative draft.
+      if(!await tx.objectStore("workspace_sync_meta").get(id))await tx.objectStore("workspace_sync_meta").put({...draft,id,token:crypto.randomUUID(),blob:base64ToBlob(draft.binary_base64,"application/octet-stream"),updated_at:Date.now()});
+    }
     await tx.done;
     } catch (error) {
       try { tx.abort(); } catch {}

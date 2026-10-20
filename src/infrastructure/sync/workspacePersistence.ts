@@ -193,4 +193,36 @@ export class WorkspacePersistence {
     }
     await tx.done;
   }
+  /** Local-only recovery snapshots. Never enqueued or uploaded with map brush input. */
+  async writeMapDraft(owner: string, worldId: string, mapId: string, revision: number, blob: Blob): Promise<string> {
+    const tx = this.db.transaction(["pages", "workspace_sync_meta"], "readwrite", {durability:"strict"});
+    const world = await tx.objectStore("pages").get(worldId) as Page | undefined;
+    const map = world?.character_data?.world_maps?.find(m => m.id === mapId);
+    if (world?.workspace_owner_id !== owner || world.deleted_at != null || world.creative_type !== "world"
+      || !map || map.world_id !== worldId || map.deleted_at != null || map.revision !== revision) {
+      tx.abort(); await tx.done.catch(() => undefined); throw Error("Map draft ownership or revision changed");
+    }
+    const id = JSON.stringify(["world-map-draft", owner, worldId, mapId]);
+    const existing = await tx.objectStore("workspace_sync_meta").get(id);
+    if(existing && existing.base_revision !== revision) {tx.abort();await tx.done.catch(()=>undefined);throw Error("An older recovery draft must be exported or explicitly discarded first");}
+    const token = crypto.randomUUID();
+    await tx.objectStore("workspace_sync_meta").put({id, owner_id:owner, world_id:worldId, map_id:mapId,
+      base_revision:revision, token, blob, updated_at:Date.now()});
+    await tx.done;
+    return token;
+  }
+
+  async readMapDraft(owner: string, worldId: string, mapId: string): Promise<{base_revision:number;token:string;blob:Blob} | null> {
+    const record = await this.db.get("workspace_sync_meta", JSON.stringify(["world-map-draft", owner, worldId, mapId]));
+    return record?.owner_id === owner && record.blob instanceof Blob ? record : null;
+  }
+
+  async clearMapDraft(owner: string, worldId: string, mapId: string, token: string): Promise<void> {
+    const tx = this.db.transaction("workspace_sync_meta", "readwrite");
+    const id = JSON.stringify(["world-map-draft", owner, worldId, mapId]);
+    const draft = await tx.store.get(id);
+    if (draft?.owner_id === owner && draft.token === token) await tx.store.delete(id);
+    await tx.done;
+  }
+
 }

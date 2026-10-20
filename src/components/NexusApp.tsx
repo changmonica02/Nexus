@@ -452,7 +452,13 @@ function NexusAppInner({
     await flushSave(next);
     const persisted=await storage.getPage(page.id);if(persisted)setPages(previous=>previous.map(item=>item.id===page.id?persisted:item));
   },[flushSave,storageRef]);
+  const mapFlushersRef = useRef(new Map<string, () => Promise<void>>());
+  const registerWorldMapFlush = useCallback((id:string, flush:()=>Promise<void>) => {
+    mapFlushersRef.current.set(id,flush);
+    return () => {if(mapFlushersRef.current.get(id)===flush)mapFlushersRef.current.delete(id);};
+  },[]);
   const flushAllSaves = useCallback(async () => {
+    for(const flush of mapFlushersRef.current.values()) await flush();
     do {
       const pending = [...pendingSavesRef.current.values()];
       await Promise.all(pending.map((page) => flushSave(page)));
@@ -558,6 +564,16 @@ function NexusAppInner({
     for(const id of [page.id,page.character_data?.templateSourceId]){if(!id)continue;const pending=pendingSavesRef.current.get(id);if(pending)await flushSave(pending);const active=activeSavesRef.current.get(id);if(active)await active;}
   },[flushSave]);
   const templateApplied=useCallback((saved:Page)=>{if(storageRef.current?.getWorkspaceOwner?.()!==saved.workspace_owner_id)return;setPages(previous=>previous.map(p=>p.id===saved.id?saved:p));void syncEngineRef.current?.pushPage(saved);},[storageRef]);
+
+  const worldMapSaved = useCallback(async(saved:Page)=>{
+    const storage=storageRef.current;
+    if(!storage || storage.getWorkspaceOwner?.()!==saved.workspace_owner_id)throw Error("Account changed");
+    if(activePageRef.current?.id===saved.id)activePageRef.current=saved;
+    setPages(previous=>previous.map(page=>page.id===saved.id?saved:page));
+    const attachments=await storage.listAttachments();
+    if(storage.getWorkspaceOwner?.()===saved.workspace_owner_id)setAttachments(attachments);
+    // Persistence already queued the whole atomic batch and notified the sync engine.
+  },[storageRef]);
 
   const getNovelCoverBlob = useCallback(async (attachmentId: string) => {
     return storageRef.current?.readBinary(attachmentId) || null;
@@ -1237,6 +1253,11 @@ function NexusAppInner({
       updated_at: Date.now(),
       revision: duplicated.revision + 1,
     };
+    if(source.creative_type==="world" && pageToSave.character_data?.world_maps){
+      pageToSave.character_data.world_maps=pageToSave.character_data.world_maps.map(map=>({...map,id:`map_${nanoid()}`,world_id:pageToSave.id,revision:1}));
+      // Project binaries are immutable, so independent world copies can safely share this snapshot.
+      pageToSave.attachment_ids=[...(source.attachment_ids??[])];
+    }
     const chapters = getNovelChapters(pages, source.id).map((chapter) => ({ ...structuredClone(chapter),
       id: `chapter_${nanoid()}`, parent_id: pageToSave.id, created_at: Date.now(), updated_at: Date.now(), revision: 1,
     }));
@@ -1341,12 +1362,12 @@ function NexusAppInner({
   const handleExportBackup = useCallback(async () => {
     const storage = storageRef.current;
     if (!storage || !storage.exportWorkspaceBackup) { await notifyDialog(t("app.backupNotAvailable")); return; }
-    if (activePageRef.current) await flushSave(activePageRef.current);
     try {
+      await flushAllSaves();
       const backup = await storage.exportWorkspaceBackup();
       downloadJsonFile(formatBackupFileName(), backup);
     } catch (error) { console.error(error); await notifyDialog(t("app.backupExportFailed")); }
-  }, [flushSave, storageRef, t]);
+  }, [flushAllSaves, storageRef, t]);
 
   const handleImportBackupClick = useCallback(() => backupInputRef.current?.click(), []);
   const handleImportBackupFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1659,6 +1680,9 @@ function NexusAppInner({
       study={{ onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
+        worldMapStorage: storageRef.current ?? undefined,
+        beforeWorldMapSave: () => page ? beforeTemplateRead(page) : Promise.resolve(),
+        onWorldMapSaved: worldMapSaved, registerWorldMapFlush, worldMapCloudState: syncState,
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
         onCommitCharacterData: data => page ? commitCharacterData(page, data) : Promise.resolve(),
         onSaveTemplate: (name, data) => page ? saveCharacterTemplate(page, name, data) : Promise.resolve(),

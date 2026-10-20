@@ -2,6 +2,20 @@
 
 > 最新日期與最新實作置於文件上方。歷史段落記錄當時狀態；目前產品契約看 SPEC，實作與部署現況看 ARCHITECTURE／HANDOFF。
 
+## 2026-10-20｜Nexus 自主地圖核心與可用編輯流程（Refs #88）
+
+- 依 SPEC 64c8e0e，將固定 Azgaar 原始碼實際納入 Nexus-owned fork，分離核心、iframe adapter、世界觀 UI 與既有儲存同步。保留可自主改良的模組化來源，建置單一 executable core 以支援 opaque/offline 容器，不重寫演算法、不另造新儲存格式。
+- 一般 Service Worker 無法直接支援 opaque iframe 的離線導覽；改由 Nexus 公開工具 cache 組合隔離文件，broker 只回傳預快取的公開檔案，不代理私人 API 或任意同源請求。原生 serverless 檢查僅對嵌入模式放行。核心看不到 Nexus 帳號憑證／localStorage，原 lastMap 僅作 active-session Quick Load。
+- 本機 checkpoint 與 canonical/outbox 保存分開，保留離線草稿及明確成功提示。原生 void loader 補 awaitable 成功／失敗邊界；同時保護原生 UI 匯入失敗不覆寫。保存提示改在 snapshot 回覆後判定 dirty generation，避免把失焦通知誤當成未包含的新內容。
+- 備份沿用 v3 並加入可選 recovery 區段；修正共享 IndexedDB 匯出／匯入的帳號邊界，保留其他帳號 cache、pending/tombstone 及現有 recovery。地圖外層 metadata_version=1 獨立於原生 engine_version；沒有 SQL／RPC／RLS 變更或正式資料寫入。
+- 程式 43246e4 的 34 項地圖測試、39 項相關回歸、雙方 TypeScript/build 與實際 fork 的隔離 Chromium 完整流程通過。正式帳號／跨裝置／Safari、舊附件容量與離線字型限制見 HANDOFF；不將自動化視為正式啟用／實機驗收。未合併或部署。
+
+## 2026-10-20｜世界觀地圖資料／儲存首批（Refs #88）
+
+- 依 F-WORLD-MAP 固定上游來源及原生專案契約，先沿用世界觀 character_data、Attachment 與既有原子 outbox，不新增 schema。完整地圖 bytes 與 metadata 分離；不可變附件、world CAS、map revision 與 owner 檢查優先保護離線內容及失敗重試，尚未掛載 UI。
+- 保守保留舊附件避免就地覆寫；容量／節流與回收尚待後續驗證，不把這個取捨當作已完成效能方案。固定版本以外的格式先拒絕，原生載入及 SVG 隔離仍需完整驗證。
+- 使用者授權改由 GitHub 獨立分支修改。19 項資料層契約測試通過，5 項 IndexedDB 整合測試已寫未執行，M0 尚未全部完成，M1–M3 及實機驗收不列完成；詳見 ARCHITECTURE／HANDOFF。未合併、部署或操作正式資料。
+
 ## 2026-10-19｜共用元件與真實儲存狀態（Refs #85）
 
 - 依使用者授權整理重複窗格、PDF 預覽、原生對話框、選單與總覽；移除確認無入口的替代實作，保留規格需求及歷史相容路徑。

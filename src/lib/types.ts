@@ -289,7 +289,26 @@ export interface CharacterPageTab {
   sections: CharacterSection[];
 }
 
+/** Metadata only. The native editable project lives in an Attachment binary. */
+export interface WorldMapRecord {
+  /** Version of Nexus metadata, independent from the native engine file version. Older records imply 1. */
+  metadata_version?: 1;
+  id: ID;
+  world_id: ID;
+  title: string;
+  engine: "azgaar";
+  engine_version: string;
+  attachment_id: ID | null;
+  project_sha256: string | null;
+  revision: number;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
 export interface CharacterProfileData {
+  /** World-owned maps, including tombstones; never included in reusable templates. */
+  world_maps?: WorldMapRecord[];
   resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
   templateUpdateSnapshots?: {id:string;at:number;sourceId:string;title?:string;attachmentIds?:string[];data:CharacterProfileData}[];
   blocks_version?: 1;
@@ -349,6 +368,8 @@ export interface WorkspaceBackupSettingEntry {
 }
 
 export interface WorkspaceBackup {
+  /** Local recovery projects, separate from canonical map attachments. Optional for old backups. */
+  world_map_drafts?: {owner_id:ID;world_id:ID;map_id:ID;base_revision:number;binary_base64:string}[];
   study?: StudyBackup;
   schema_version: number;
   exported_at: number;

@@ -1,5 +1,32 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+
+## 2026-10-20 Nexus 世界觀地圖核心與整合（Refs #88；已接線，驗證結果見 HANDOFF）
+
+- 依 SPEC `64c8e0e`：Azgaar 是可獨立發展的來源起點。原始碼實際保存於 `vendor/azgaar`（來源 v1.154.2 / b4a0dcb933586a57242508f558f775da16c35c64），日後可直接修改其中的工具、圖層、UI、演算法；不追蹤上游升級。已有 source marker 時 prepare 不下載／覆蓋 fork，沒有 marker 的非空目錄則拒絕覆寫。
+- **責任邊界**：vendor 僅掌管地圖生成／編輯與原生格式；`integrations/azgaar` 是薄層容器 adapter；`WorldMapManager/WorldMapEditor` 掌管世界觀入口、操作及狀態；`WorldMapRepository` 經既有 StorageAdapter／WorkspacePersistence 管理帳號、資料及 outbox。不向核心傳送 Supabase token、不新增資料庫結構或付費服務。
+- 世界觀原畫面上方的「地圖」區沿用原生 dialog 提供多地圖新增、命名、複製、軟刪除／還原、匯入與完整編輯。模板／角色不顯示地圖入口。世界觀複製時重新配置 map ID/world_id，原生 immutable binary 可共享同一已保存快照；後續儲存各自建立新附件。Nexus metadata_version=1 與 engine_version 分開；第一批無 metadata_version 的資料視為 1，未知版本拒絕覆寫。
+- 保存前先 flush 原世界觀待存內容，成功後立即採用回傳 Page／附件清單；不另外重排相同 binary 的上傳。工作區全量 flush 與備份會先呼叫開啟中地圖的 flusher。編輯器採 modal，返回／Escape 等待真正保存；失敗保留編輯器及原專案，提供原生 .map 匯出，瀏覽器離開時若有未存修改會提示。
+- 原生 `.map` 是內容真相。原 Save/Load、圖層及主要工具保留；Nexus save 和原生 browser-storage save 都對接既有 Repository。原 `Load.uploadMap` 的 void/FileReader 流程另提供可 await 的成功／錯誤邊界；原生 UI 匯入也經該邊界，載入失敗時禁用保存，避免將部分重建狀態覆蓋原檔。Nexus 提供 .map／SVG／PNG 匯出，原引擎其他匯出入口保持在核心。
+- **本機與同步分離**：10 秒檢查點僅把有修改的原生快照保存於既有 workspace_sync_meta 的 owner/world/map 專屬 draft key，不建立 outbox；60 秒或明確保存／返回才提交 canonical 專案。相同 bytes 不排入傳輸；map revision 與 world transaction guard 防過期 session。draft 清除需 token 相符；有衝突的舊草稿保留供匯出或明確捨棄，不能被新 checkpoint 靜默覆寫。儲存時讀取／序列化仍可能隨大型專案耗時，尚未完成真實裝置效能驗收。
+- **容器隔離**：sandbox 不授予 allow-same-origin；MessagePort 僅由符合 frame window、opaque origin 與隨機 session 的握手建立。fake-indexeddb 與記憶體 Storage 僅供核心原有偏好／工具在 opaque origin 運作，不是 Nexus 私人資料來源；核心單槽 lastMap 不承擔多圖／跨帳號保存。原核心的 Service Worker 與自動保存由 Nexus 接管，成功保存後把該快照記入容器的 session-only lastMap 供原生 Quick Load 使用；原獨立程式的 serverless 檢查只對嵌入模式放行。
+- **離線公開資源**：固定源碼本機建置為單一 executable core，來源仍維持模組化。`/world-map/offline.js` 只預存公開工具，絕不快取私人專案或 API。opaque iframe 無法直接依賴一般 Service Worker 導覽快取；離線時由 Nexus 從自己的公開 cache 組合 srcdoc，並以 session 驗證的 broker 提供已快取公開圖片／fetch 資源。broker 不代理任意網路請求或私人路徑。未先備妥工具或瀏覽器移除快取時必須上線重新準備；並未新增整個 Nexus app shell 的離線啟動能力。
+- **備份安全**：沿用 schema v3，新增可選 world_map_drafts base64 區段；舊備份仍可缺少該欄位。匯出只含目前 owner，缺失的原生 map binary 會阻擋不完整備份。匯入前核對 owner、世界觀歸屬及原生 binary SHA-256；不同帳號備份拒絕寫入。既有其他帳號 cache 與本機 pending/tombstone 保留，現有 recovery draft 優先於匯入版本；沒有更動正式 Supabase。
+- **建置／授權**：Node >=24，使用既有 esbuild/fake-indexeddb；npm run dev/build 的 pre-step 從本地 fork 建置，不使用第三方線上編輯網站。prepare 僅供首次來源取得，正式 fork 已在分支。保留原 MIT/LICENSE、原始 public/libs/SVG 素材聲明；產物另含上游 runtime dependency 與 fake-indexeddb 的 license／notice。建置快取與 public/world-map 產物不提交，不觸及既有筆記或字卡編輯器。
+- **工具驗證（程式 43246e4）**：GitHub Actions [39371050349](https://github.com/changmonica02/Nexus/actions/runs/39371050349) 通過 20 項資料契約、4 項真實 MessageChannel／公開資源 broker、10 項 Adapter + fake-indexeddb、39 項既有 workspace／角色／字卡同步回歸；上游核心 tsc/Vite 與 Nexus TypeScript/build 通過；修改地圖邊界 ESLint 0 errors／3 refs warnings。隔離 Chromium 的實際世界觀元件 → 原生城鎮編輯 → 保存／Quick Load／關閉重開 → 保存失敗及 reload 草稿復原 → 離線修改及重開 → .map 重新匯入並編輯 → PNG/SVG → native 無效檔案拒絕 → 多圖／複製／刪除還原完整流程通過，pageerror 為 0。這不等於正式 Supabase、完整 Nexus 真實登入、跨裝置或 Safari 驗收。
+- **已知界線**：原外部 Watabou 內嵌預覽／雲端助手等遠端工具受隔離政策限制，並非 Nexus 必要服務；未快取的外部字型在離線時可能使用 fallback，原字型名稱及原生資料保留。舊 immutable 附件仍保守保留，沒有自動 GC；長期容量、原生 import 的跨版本轉換及新 Nexus 地圖格式均未提前實作。地標連結保持 M4。真實帳號、跨裝置衝突、Safari／Windows 等驗收須與隔離 Chromium 測試分開。
+
+## 2026-10-20 世界觀地圖首批儲存基礎（歷史狀態；目前整合見上節）
+
+- `src/features/worldMap/worldMapRepository.ts` 固定整合來源為 Azgaar `v1.154.2`，commit `b4a0dcb933586a57242508f558f775da16c35c64`；目前沒有複製或執行上游程式。上游 LICENSE 為 MIT，Copyright 2017–2024 Max Haniyeu；嵌入時仍須保留完整授權及第三方素材聲明。
+- `CharacterProfileData.world_maps?: WorldMapRecord[]` 僅保存穩定 map ID、world_id、標題、版本、軟刪除及附件參照／SHA-256。既有世界觀沒有此欄位時視為空集合；不新增 Page kind、IndexedDB store、SQL、RPC 或 RLS。完整原生 .map 存於既有 file Attachment binary，不放 content_json。地圖屬於既有非模板、未刪除世界觀，所有 Repository 操作明確核對目前帳號及世界觀 owner。
+- Repository 提供 create/list/read/save/rename/duplicate/remove/restore；**尚未掛載任何 UI，也沒有 Azgaar 編輯器或自動儲存計時器**。map revision 用於拒絕過期編輯 session；world revision 在 WorkspacePersistence 原子交易中再次比對。新附件 metadata、binary 與世界觀參照共用既有 outbox batch。呼叫端未來必須先 flush 世界觀待存內容，完成後採用回傳 Page，不能以舊 React snapshot 覆蓋地圖 metadata；這個工作區接線仍未實作。
+- 每份變更專案使用獨立不可變附件，避免原生 binary 被過期 session 就地覆寫；相同原始 bytes 的 SHA-256 不排入任何寫入或傳輸意圖，改名／刪除／還原僅改世界觀 metadata，不觸碰 binary。舊附件及參照保守保留，不自動 GC；**大型專案連續保存的容量成本、壓縮／節流與安全回收仍待實測，不能宣稱雲端消耗驗收通過**。列表不讀 binary，重新開啟沿用 owner/revision 附件快取。
+- `inspectMapProject` 僅結構驗證目前固定版本的 plain/base64/gzip 原生容器，並保留輸入 bytes；它不完整驗證上游地圖語意，也不是 SVG sanitizer。未知版本／格式拒絕寫入。完整 Azgaar 原生往返、非同步載入完成／失敗 handshake 與匯入隔離仍未實作；不可將此函式當成可安全同源嵌入匯入 SVG 的證明。
+- M0 查證：上游為獨立 Vite 應用（Node >=24 建置），全域地圖狀態與 UI 應隔離於 iframe，避免改寫成 React 引擎。`Save.prepareMapData` 序列化設定、SVG 及完整地圖欄位；`Load.uploadMap` 使用 FileReader 且回傳 void，解析／重建另行非同步，不能以呼叫返回判定載入成功。上游原生 browser storage 的 `lastMap` 是單槽，不能當 Nexus 多地圖及帳號隔離的資料真相。實際 iframe origin／CSP／檔案隔離方式尚待驗證，未鎖定部署方案。
+- 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
+- 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
+
 ## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
 
 - `WorkspacePane` 統一主／次窗格類型分派，NexusApp 保留頁面專屬儲存、匯出與工具操作；`useAttachmentPreview` 共用本機 PDF 讀取，取消過期回應並回收各窗格 Object URL。
