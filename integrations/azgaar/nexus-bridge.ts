@@ -131,7 +131,7 @@ window.addEventListener('message', event => {
         if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
         if('markers' in settings){markers=settings.markers??[];drawMarkers();}
-        if('pickPoint' in settings)pickPoint=settings.pickPoint;
+        if('pickPoint' in settings){pickPoint=settings.pickPoint;NexusRegions.setQueryEnabled(!pickPoint);}
 
         if(typeof settings.language==='string')window.nexusSetLanguage?.(settings.language);
         const modeChanged=typeof settings.preview==='boolean'&&preview!==settings.preview;

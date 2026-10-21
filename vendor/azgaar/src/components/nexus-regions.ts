@@ -6,7 +6,8 @@ type Region={placementId:string;entityId:string;name:string;entityType:string;ge
 let viewMode={layer:'physical',selected:null as string|null};
 let pathCache=new WeakMap<number[],{fill:string;border:string}>();
 let membership=new Map<number,Region[]>();
-let redrawFrame=0;
+let redrawFrame=0,queryEnabled=true;
+let queryTimer:ReturnType<typeof setTimeout>|undefined;
 let distributionCache:SVGGElement|null=null,cacheDraft:string|null|undefined;
 const NS='http://www.w3.org/2000/svg';
 let regions:Region[]=[],scope='world',send:(data:unknown)=>void=()=>{},meshId='',vertices:unknown;
@@ -56,7 +57,7 @@ function draw(includeDraft=true){
  const anchor=Array.from(view.children).find(child=>child.id==='nexus-placements'||!!city&&child.contains(city)||!!labels&&child.contains(labels));
  view.insertBefore(group,anchor??null);
 }
-async function configure(value:Region[],mapScope:string,notify:(data:unknown)=>void){regions=value;distributionCache=null;scope=mapScope;send=notify;await mesh();membership=new Map();for(const r of regions){if(!distribution(r)||!compatible(r.geometry))continue;for(const c of r.geometry.cells){if(!land(c))continue;const members=membership.get(c)??[];members.push(r);membership.set(c,members);}}draw();report();}
+async function configure(value:Region[],mapScope:string,notify:(data:unknown)=>void){clearTimeout(queryTimer);regions=value;distributionCache=null;scope=mapScope;send=notify;await mesh();membership=new Map();for(const r of regions){if(!distribution(r)||!compatible(r.geometry))continue;for(const c of r.geometry.cells){if(!land(c))continue;const members=membership.get(c)??[];members.push(r);membership.set(c,members);}}draw();report();}
 async function command(s:{action:string;id?:string;placementId?:string;name?:string;geometry?:CellRegion;radius?:number;erase?:boolean}){
  await mesh();
  if(s.action==='start'){if(customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');if(s.geometry&&!compatible(s.geometry))throw Error('Region mesh changed; keep the saved territory');if(draft?.id===s.id)return;if(!draft)previousTouchAction=document.getElementById('map')?.style.touchAction??'';draft={id:s.id!,placementId:s.placementId!,name:s.name??'',geometry:s.geometry?structuredClone(s.geometry):{type:'cells',meshId,cellCount:pack.cells.i.length,cells:[]}};undo=[];redo=[];radius=24;erase=false;}
@@ -78,8 +79,9 @@ for(const type of ['pointerdown','pointermove','pointerup','pointercancel'] as c
 for(const type of ['mousedown','mouseup','click','dblclick','touchstart','touchmove','touchend'])document.addEventListener(type,e=>{if(!draft)return;if(typeof TouchEvent!=='undefined'&&e instanceof TouchEvent&&(pinching||e.touches.length>1)){if(e.type==='touchend'&&!e.touches.length)pinching=false;return;}if((e.target as Element)?.closest?.('#map')){e.preventDefault();e.stopImmediatePropagation();}},{capture:true,passive:false});
 // A tap queries all confirmed distributions, including hidden entries; drags remain map navigation.
 let queryDown:{x:number;y:number}|null=null;
-document.addEventListener('pointerdown',e=>{queryDown=e.isPrimary?{x:e.clientX,y:e.clientY}:null;},{capture:true,passive:true});
+document.addEventListener('pointerdown',e=>{clearTimeout(queryTimer);queryDown=e.isPrimary?{x:e.clientX,y:e.clientY}:null;},{capture:true,passive:true});
 document.addEventListener('pointermove',e=>{if(queryDown&&Math.hypot(e.clientX-queryDown.x,e.clientY-queryDown.y)>5)queryDown=null;},{capture:true,passive:true});
-document.addEventListener('click',e=>{if(draft||customization||!queryDown||!['cultural','religions'].includes(viewMode.layer)||(e.target as Element)?.closest?.('#nexus-placements')||!(e.target as Element)?.closest?.('#map'))return;const p=point(e as PointerEvent);if(!p)return;queryDown=null;e.stopImmediatePropagation();const cell=Pack.findCell(p.x,p.y);send({type:'region-query',members:(cell===undefined?[]:membership.get(cell)??[]).map(r=>r.placementId)});},{capture:true});
-export const NexusRegions={configure,setView,command,draw,querying:(e:Event)=>!!queryDown&&!customization&&['cultural','religions'].includes(viewMode.layer)&&!!(e.target as Element)?.closest?.('#map'),active:()=>!!draft,pointCells:(points:{placementId:string;x:number;y:number}[])=>points.map(p=>({placementId:p.placementId,cell:Pack.findCell(p.x,p.y),meshId}))};
+document.addEventListener('dblclick',()=>clearTimeout(queryTimer),{capture:true});
+document.addEventListener('click',e=>{if(!queryEnabled||draft||customization||!queryDown||!['cultural','religions'].includes(viewMode.layer)||(e.target as Element)?.closest?.('#nexus-placements')||!(e.target as Element)?.closest?.('#map'))return;const p=point(e as PointerEvent);if(!p)return;queryDown=null;e.stopImmediatePropagation();const cell=Pack.findCell(p.x,p.y);const members=(cell===undefined?[]:membership.get(cell)??[]).map(r=>r.placementId);queryTimer=setTimeout(()=>send({type:'region-query',members}),250);},{capture:true});
+export const NexusRegions={configure,setView,setQueryEnabled:(value:boolean)=>{queryEnabled=value;if(!value)clearTimeout(queryTimer);},command,draw,querying:(e:Event)=>queryEnabled&&!!queryDown&&!customization&&['cultural','religions'].includes(viewMode.layer)&&!!(e.target as Element)?.closest?.('#map'),active:()=>!!draft,pointCells:(points:{placementId:string;x:number;y:number}[])=>points.map(p=>({placementId:p.placementId,cell:Pack.findCell(p.x,p.y),meshId}))};
 

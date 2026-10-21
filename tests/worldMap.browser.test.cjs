@@ -609,7 +609,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok(mixed.some(x=>x.members.split(' ').length===3),'commutative mixed fills represent all three cultures');
   const legend=editor.getByRole('region',{name:'Distribution legend',exact:true});
   await legend.getByLabel('Opacity Dawn culture',{exact:true}).selectOption('0.6');await page.waitForTimeout(200);
-  await legend.getByLabel('Visible Dusk culture',{exact:true}).uncheck();await page.waitForTimeout(200);
+  await legend.getByLabel('Visible Dusk culture',{exact:true}).click();await page.waitForFunction(()=>document.querySelector('input[aria-label="Visible Dusk culture"]')?.checked===false);
   const queryPosition=await frame.evaluate(c=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[c][0]*z.k,y:z.y+pack.cells.p[c][1]*z.k};},overlapCell),queryBox=await (await frame.frameElement()).boundingBox();
   await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);
   const queryDialog=page.getByRole('dialog',{name:'Distributions at this location',exact:true});await queryDialog.waitFor();
@@ -617,6 +617,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await queryDialog.getByRole('button',{name:/Dawn culture/}).click();await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();
   await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn renamed');await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
   await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
+  await editor.getByRole('button',{name:'Add town',exact:true}).click();await page.waitForTimeout(150);
+  await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
+  assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
   await legend.locator('div').filter({has:legend.getByLabel('Visible Dawn renamed',{exact:true})}).getByRole('button',{name:'Open world entry',exact:true}).click();
   await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await areaOutput.waitFor();await page.waitForTimeout(150);
