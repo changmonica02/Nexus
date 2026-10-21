@@ -183,7 +183,7 @@ window.addEventListener('map:generated', () => {
   else if (!busy&&!preview) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {
-  if(NexusRegions.active()||pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
+  if((NexusRegions.active()&&(event.target as Element)?.closest?.('#map'))||pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
   if (ready && !busy&&!preview) notify('dirty');
 }, { passive: true });
 document.addEventListener('keydown', event => {

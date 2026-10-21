@@ -104,6 +104,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const warnings=current?worldRegionWarnings(warningWorld,current.id,regionPoints):[];
  const marker=current?.placements?.find(p=>p.placementId===markerId&&p.deletedAt===null),markerEntity=entities?.find(e=>e.entityId===marker?.entityId);
  const humanTools=<div className="flex max-h-[38dvh] min-w-0 shrink-0 overflow-y-auto flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
+   {error&&<p role="alert" className="w-full break-words text-red-600">{mapMessage(language,error)}</p>}
    <span>{t('worldEntity.human')}</span><button disabled={busy||!!regionEdit} onClick={()=>{setIntent({id:crypto.randomUUID(),kind:'new',mapId:current!.id});}}>{t('worldEntity.add')}</button><button disabled={busy||!!regionEdit} onClick={()=>setEntityPanel(true)}>{t('worldEntity.existing')}</button>
    {(['country','administrative_area'] as const).map(type=><button key={type} disabled={busy||!!regionEdit} onClick={()=>{setIntent(null);setEntityForm({entity:newEntity(type),fresh:true,region:true});}}>{t('worldRegion.add.'+type)}</button>)}
    {regionEdit&&<div className="flex w-full flex-wrap items-center gap-2" aria-label={t('worldRegion.paint')}><strong>{regionEdit.entity.name}</strong><span>{t('worldRegion.paintHint')}</span>

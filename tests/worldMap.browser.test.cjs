@@ -18,7 +18,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
       for(const h of worldMapHeaders)res.setHeader(h.key,h.value);
       res.setHeader('content-type',mime[path.extname(file)]??'application/octet-stream');return res.end(fs.readFileSync(file));
     }
-    res.setHeader('content-type','text/html');res.end(cssFiles.map(p=>'<link rel="stylesheet" href="/_next/static/'+p+'">').join('')+'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;height:100vh}#root{height:100%;min-width:0}button{padding:6px;margin:3px}dialog{max-width:none;max-height:none}[role="dialog"][aria-label="World map editor"]{width:100vw;height:100vh;margin:0;padding:0;display:flex;flex-direction:column}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex-1{flex:1}.min-h-0{min-height:0}.h-full{height:100%}.w-full{width:100%}.grid{display:grid}.place-items-center{place-items:center}</style><div id="root"></div><script type="module" src="/fixture.js"></script>');
+    res.setHeader('content-type','text/html');res.end(cssFiles.map(p=>'<link rel="stylesheet" href="/_next/static/'+p+'">').join('')+'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;height:100vh}#root{height:100%;min-width:0}button{padding:6px;margin:3px}[role="dialog"][aria-label="World map editor"]{width:100vw;height:100vh;margin:0;padding:0;display:flex;flex-direction:column}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex-1{flex:1}.min-h-0{min-height:0}.h-full{height:100%}.w-full{width:100%}.grid{display:grid}.place-items-center{place-items:center}</style><div id="root"></div><script type="module" src="/fixture.js"></script>');
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.close();fs.rmSync(tmp,{recursive:true,force:true});});
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
@@ -525,11 +525,23 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();assert.match(await areaOutput.innerText(),/: 0 km²/);
   await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForTimeout(100);assert.equal(await areaOutput.innerText(),firstArea);
   await stroke(candidates[1]);
-  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await page.evaluate(()=>{window.failMapSave=true;});await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();
+  await editor.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();
+  assert.equal((await readTowns()).maps.find(m=>m.id===regionMapId).placements?.some(p=>p.entityId===countryId)??false,false,'failed territory transaction keeps the candidate without a partial placement');
+  await page.evaluate(()=>{window.failMapSave=false;});await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
   let regionWorld=await readTowns();let territory=regionWorld.maps.find(m=>m.id===regionMapId).placements.find(p=>p.entityId===countryId&&p.deletedAt===null);
   assert.ok(territory.geometry.cells.length>1);assert.equal(regionWorld.maps.find(m=>m.id===regionMapId).attachment_id,nativeBefore,'political edits enqueue no native binary');
   assert.equal(await dataDigest(),politicalDigest,'territory painting never changes geography or native civilization');
   assert.ok(await frame.evaluate(cells=>{const unseen=new Set(cells);let n=0;while(unseen.size){n++;const queue=[unseen.values().next().value];unseen.delete(queue[0]);while(queue.length){for(const c of pack.cells.c[queue.pop()])if(unseen.delete(c))queue.push(c);}}return n>=2;},territory.geometry.cells),'detached territories are supported');
+  // Direct map creation remains a candidate, then atomically creates the country and transfers explicitly confirmed overlap.
+  await editor.getByRole('button',{name:'Add country',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('South Realm');
+  await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});await areaOutput.waitFor();
+  assert.equal((await readTowns()).entities.some(e=>e.name==='South Realm'),false);
+  await stroke(candidates[0]);await paintTools.getByRole('alert').filter({hasText:'Overlaps these countries:'}).waitFor();
+  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  regionWorld=await readTowns();assert.equal(regionWorld.entities.filter(e=>e.name==='South Realm').length,1);
+  territory=regionWorld.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===territory.placementId);
+  assert.equal(await dataDigest(),politicalDigest,'confirmed reassignment does not regenerate native geography');
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:/North Republic/}).click();const regionInfo=page.getByRole('dialog',{name:'Territory details',exact:true});
   await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('North Union');
@@ -541,6 +553,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
   await townPanel.locator('li').filter({hasText:'North Province'}).getByRole('button',{name:'Place on selected map',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
   await stroke(candidates[0]);await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await editor.getByRole('alert').filter({hasText:'Administrative territory extends outside its parent.'}).waitFor();
   assert.equal((await readTowns()).entities.find(e=>e.name==='North Province').relations.find(r=>r.type==='parent').entityId,countryId);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   // Explicit world scope does not claim calibrated spherical km², even with a known width.
@@ -554,9 +567,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   // Real one-finger drawing in explicit paint mode; offline confirmation stays in local Page/outbox.
   await page.getByRole('button',{name:/North Union/}).click();await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
   await context.setOffline(true);await page.setViewportSize({width:390,height:844});await page.waitForTimeout(400);
-  const phoneCell=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom;return pack.cells.i.find(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return pack.cells.h[i]>=20&&x>25&&x<innerWidth-25&&y>50&&y<innerHeight-30&&document.elementFromPoint(x,y)?.closest('#viewbox');});});
-  assert.notEqual(phoneCell,undefined,'mobile painting retains visible map space');await stroke(phoneCell,true);
-  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});await context.setOffline(false);await page.setViewportSize({width:1440,height:1000});
+  const phoneBefore=await areaOutput.innerText(),phoneExisting=(await readTowns()).maps.find(m=>m.id===regionMapId).placements.find(p=>p.entityId===countryId&&p.deletedAt===null).geometry.cells;
+  const phoneCell=await frame.evaluate(existing=>{const z=document.querySelector('#map').__zoom;return pack.cells.i.find(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return !existing.includes(i)&&pack.cells.h[i]>=20&&x>25&&x<innerWidth-25&&y>50&&y<innerHeight-30&&document.elementFromPoint(x,y)?.closest('#viewbox');});},phoneExisting);
+  assert.notEqual(phoneCell,undefined,'mobile painting retains visible map space');await stroke(phoneCell,true);assert.notEqual(await areaOutput.innerText(),phoneBefore,'one-finger touch changes only the explicit region candidate');
+  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await page.waitForTimeout(100);if(await page.getByRole('button',{name:'Confirm',exact:true}).isVisible())await page.getByRole('button',{name:'Confirm',exact:true}).click();await paintTools.waitFor({state:'detached'});await context.setOffline(false);await page.setViewportSize({width:1440,height:1000});
   const finalEntity=(await readTowns()).entities.find(e=>e.entityId===countryId);assert.match(JSON.stringify(finalEntity.content),/Constitution and history/);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:/North Province/}).click();await regionInfo.getByRole('button',{name:'Remove from this map',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();await regionInfo.waitFor({state:'detached'});
