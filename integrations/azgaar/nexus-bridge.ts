@@ -127,10 +127,11 @@ window.addEventListener('message', event => {
       let blob: Blob | undefined;
       if(data.type==='configure'){
         const settings=data.settings??{};
+        if(settings.regionView)NexusRegions.setView(settings.regionView);
         if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
         if('markers' in settings){markers=settings.markers??[];drawMarkers();}
-        if('pickPoint' in settings)pickPoint=settings.pickPoint;
+        if('pickPoint' in settings){pickPoint=settings.pickPoint;NexusRegions.setQueryEnabled(!pickPoint);}
 
         if(typeof settings.language==='string')window.nexusSetLanguage?.(settings.language);
         const modeChanged=typeof settings.preview==='boolean'&&preview!==settings.preview;
@@ -184,6 +185,7 @@ window.addEventListener('map:generated', () => {
   else if (!busy&&!preview) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {
+  if(type==='pointerup'&&NexusRegions.querying(event))return;
   if((NexusRegions.active()&&(event.target as Element)?.closest?.('#map'))||pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
   if (ready && !busy&&!preview) notify('dirty');
 }, { passive: true });
@@ -209,6 +211,7 @@ window.nexusLoadProject = async (blob:Blob) => {
   finally{busy=false;}
 };
 declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+
 
 
 

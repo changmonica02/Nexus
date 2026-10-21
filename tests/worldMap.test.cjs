@@ -465,3 +465,53 @@ test('administrative and town geography warnings never rewrite formal relationsh
  assert.deepEqual(worldRegionWarnings(page,map.id,[{placementId:'pt',cell:1}]).map(w=>w.key),['townOutside','outsideParent']);
  assert.equal(page.character_data.world_entities.find(e=>e.entityId==='t').relations[0].entityId,'a');
 });
+
+
+test('culture/religion distributions overlap each other and countries without ownership transfer or body duplication',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Mixed',project());
+ await repo.createEntity('world-a',{entityId:'country',type:'country',name:'Country'});
+ await repo.saveRegion('world-a',map.id,'country','politics',0,cellGeometry([1,2,3]));
+ for(const type of ['culture','religion'])for(let i=0;i<3;i++){
+  const id=type+i;await repo.createEntity('world-a',{entityId:id,type,name:id,content:{type:'doc',content:[{type:'paragraph'}]},...(type==='culture'?{cultureSettings:{language:'Shared language',customs:'Free customs'}}:{})});
+  await repo.saveRegion('world-a',map.id,id,'p'+id,0,cellGeometry([1,2,40]),true);
+ }
+ const before=structuredClone(state.pages.get('world-a').character_data);
+ await repo.saveRegion('world-a',map.id,'culture0','pculture0',1,cellGeometry([2,70]));
+ const after=state.pages.get('world-a').character_data;
+ assert.deepEqual(after.world_entities,before.world_entities);
+ for(const p of before.world_maps[0].placements.filter(p=>p.entityId!=='culture0'))assert.deepEqual(after.world_maps[0].placements.find(x=>x.placementId===p.placementId),p);
+ const {map:two}=await repo.create('world-a','Other');await repo.saveRegion('world-a',two.id,'culture0','otherp',0,cellGeometry([8]));
+ assert.equal((await repo.listEntities('world-a')).filter(e=>e.entityId==='culture0').length,1);
+ const {projectWorldRegions}=await importRepo();await repo.updateEntity('world-a','culture0',1,{name:'Renamed'});
+ assert.equal(projectWorldRegions(state.pages.get('world-a'),map.id).find(p=>p.entityId==='culture0').name,'Renamed');
+ await repo.setDistribution('world-a',map.id,'pculture0',2,{visible:false,distribution:{color:'#ff2288',opacity:0.6,category:'secondary',influence:0.2}});
+ await repo.saveRegion('world-a',map.id,'culture0','pculture0',3,cellGeometry([2,71]));
+ assert.equal(projectWorldRegions(state.pages.get('world-a'),map.id).find(p=>p.entityId==='culture0').distribution.opacity,0.6);
+ await repo.removePlacement('world-a',map.id,'pculture0',4);assert.ok((await repo.listEntities('world-a')).some(e=>e.entityId==='culture0'));
+ assert.equal(state.binaries.size,1);
+});
+
+test('distribution references/settings reject wrong world, wrong types and invalid backup values',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ await repo.createEntity('world-a',{entityId:'c',type:'country',name:'Country'});
+ await repo.createEntity('world-a',{entityId:'culture',type:'culture',name:'Culture',relations:[{type:'distribution:country',entityId:'c'}]});
+ await repo.createEntity('world-a',{entityId:'faith',type:'religion',name:'Faith',relations:[{type:'distribution:culture',entityId:'culture'}]});
+ const count=state.outbox.length;
+ await assert.rejects(repo.updateEntity('world-a','culture',1,{relations:[{type:'distribution:country',entityId:'faith'}]}),/Incompatible/);
+ await assert.rejects(repo.createEntity('world-b',{entityId:'bad',type:'culture',name:'Bad',relations:[{type:'distribution:country',entityId:'c'}]}),/relation/);
+ assert.equal(state.outbox.length,count);
+ await repo.saveRegion('world-a',map.id,'culture','p',0,cellGeometry([1]));
+ for(const d of [{opacity:NaN},{opacity:1.1},{color:'url(attack)'},{category:'demographic'},{influence:-1}])await assert.rejects(repo.setDistribution('world-a',map.id,'p',1,{visible:true,distribution:d}),/Invalid distribution/);
+ const {validateWorldEntities}=await importRepo(),bad=structuredClone(state.pages.get('world-a'));bad.character_data.world_entities.find(e=>e.entityId==='culture').cultureSettings={language:2};assert.throws(()=>validateWorldEntities(bad),/Invalid/);
+});
+
+test('new distribution is atomic on failed writes, idempotent after lost ack, and tombstones reject stale retry',async()=>{
+ const {repo,state,storage}=fixture(),{map}=await repo.create('world-a','Map');
+ const entity={schemaVersion:1,entityId:'faith',worldId:'world-a',type:'religion',name:'Faith',aliases:[],relations:[],createdAt:1,updatedAt:1,revision:1};
+ state.fail=true;await assert.rejects(repo.saveRegion('world-a',map.id,'faith','p',0,cellGeometry([1]),false,entity),/Disk full/);
+ assert.equal((await repo.listEntities('world-a')).length,0);
+ state.fail=false;await repo.saveRegion('world-a',map.id,'faith','p',0,cellGeometry([1]),false,entity);const count=state.outbox.length;
+ await new WorldMapRepository(storage).saveRegion('world-a',map.id,'faith','p',0,cellGeometry([1]),false,entity);assert.equal(state.outbox.length,count);
+ await repo.removePlacement('world-a',map.id,'p',1);await assert.rejects(repo.saveRegion('world-a',map.id,'faith','p',2,cellGeometry([1]),false,entity),{code:'conflict'});
+ state.owner='foreign';await assert.rejects(repo.saveRegion('world-a',map.id,'faith','p2',0,cellGeometry([1])),{code:'owner'});
+});

@@ -300,6 +300,8 @@ export interface WorldEntity {
   aliases: string[];
   subtype?: string;
   summary?: string;
+  /** Optional creative settings, not demographic statistics. */
+  cultureSettings?: { language?: string; customs?: string };
   /** Existing Tiptap JSON document, not a second map-owned body. */
   content?: Record<string, unknown>;
   relations: { type: string; entityId: ID }[];
@@ -317,6 +319,8 @@ export interface WorldMapPlacement {
   /** Native map coordinates, independent of screen zoom and pan. */
   geometry: { type: "point"; x: number; y: number } | WorldRegionGeometry;
   visible: boolean;
+  /** User-assigned distribution presentation; no population inference. */
+  distribution?: { color?: string; opacity?: number; category?: "primary" | "secondary"; influence?: number };
   label?: { visible: boolean };
   icon?: string;
   createdAt: number;
@@ -421,6 +425,7 @@ export interface WorkspaceBackup {
   attachments: WorkspaceBackupAttachmentEntry[];
   settings: WorkspaceBackupSettingEntry[];
 }
+
 
 
 

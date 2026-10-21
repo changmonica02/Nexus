@@ -1,20 +1,20 @@
-import type {WorldRegionGeometry} from '../../lib/types';
+import type {WorldRegionGeometry,WorldMapPlacement} from '../../lib/types';
 export type RegionArea={relative:number;km2?:number};
-export type RegionProjection={placementId:string;entityId:string;name:string;entityType:string;geometry:WorldRegionGeometry;visible:boolean};
+export type RegionProjection={placementId:string;entityId:string;name:string;entityType:string;geometry:WorldRegionGeometry;visible:boolean;distribution?:WorldMapPlacement["distribution"]};
 export type RegionDraft={requestId:string;geometry:WorldRegionGeometry;area:RegionArea;undo:boolean;redo:boolean};
 export type RegionStat={placementId:string;compatible:boolean;area:RegionArea|null};
 export type RegionCommand={action:string;id?:string;placementId?:string;name?:string;geometry?:WorldRegionGeometry;radius?:number;erase?:boolean};
 export type MapMarker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean};icon?:string};
 export type MapView = {x:number;y:number;scale:number};
 export type NaturalMapSettings = {widthKm?:number;template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number};
-export type MapPresentation = {regions?:RegionProjection[];regionScope?:string;regionCommand?:RegionCommand;markers?:MapMarker[];pickPoint?:string|null;generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
+export type MapPresentation = {regionView?:{layer:string;selected?:string|null};regions?:RegionProjection[];regionScope?:string;regionCommand?:RegionCommand;markers?:MapMarker[];pickPoint?:string|null;generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
 /** Only a private MessagePort crosses the opaque-origin core boundary. */
 export class MapCoreClient {
   private sequence = 0;
   private pending = new Map<number, { resolve: (blob: Blob | undefined) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private tail: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private port: MessagePort, onEvent: (data: {geometry?:WorldRegionGeometry;area?:RegionArea;undo?:boolean;redo?:boolean;meshId?:string;stats?:RegionStat[];points?:{placementId:string;cell:number}[];type:string;placementId?:string;requestId?:string;x?:number;y?:number;id?:number;blob?:Blob;view?:MapView;delta?:number;preview?:boolean}) => void) {
+  constructor(private port: MessagePort, onEvent: (data: {members?:string[];geometry?:WorldRegionGeometry;area?:RegionArea;undo?:boolean;redo?:boolean;meshId?:string;stats?:RegionStat[];points?:{placementId:string;cell:number}[];type:string;placementId?:string;requestId?:string;x?:number;y?:number;id?:number;blob?:Blob;view?:MapView;delta?:number;preview?:boolean}) => void) {
     port.onmessage = ({ data }) => {
       if (typeof data?.type === 'string') { onEvent(data); return; }
       const pending = this.pending.get(data?.id);
@@ -51,6 +51,7 @@ export function downloadMapBlob(blob: Blob, title: string, extension: string) {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+
 
 
 

@@ -10,8 +10,8 @@ import type {MapView,MapMarker,RegionProjection,RegionDraft,RegionStat,RegionCom
 import {Wrench,Maximize,Minimize,RotateCcw} from 'lucide-react';
 
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
-export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools,regions,regionScope,onRegionDraft,onRegionStats,onRegionPoints,registerRegionCommand,onBeforeClose,regionStart,regionDirty}: {
-  regionStart?:RegionCommand;regionDirty?:boolean;regions?:RegionProjection[];regionScope?:string;onRegionDraft?:(draft:RegionDraft)=>void;onRegionStats?:(stats:RegionStat[])=>void;onRegionPoints?:(points:{placementId:string;cell:number}[])=>void;registerRegionCommand?:(run:(command:RegionCommand)=>Promise<void>)=>(()=>void);onBeforeClose?:()=>boolean;
+export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,registerRegionCommand,onBeforeClose,regionStart,regionDirty}: {
+  regionView?:{layer:string;selected?:string|null};onRegionQuery?:(members:string[])=>void;regionStart?:RegionCommand;regionDirty?:boolean;regions?:RegionProjection[];regionScope?:string;onRegionDraft?:(draft:RegionDraft)=>void;onRegionStats?:(stats:RegionStat[])=>void;onRegionPoints?:(points:{placementId:string;cell:number}[])=>void;registerRegionCommand?:(run:(command:RegionCommand)=>Promise<void>)=>(()=>void);onBeforeClose?:()=>boolean;
   markers?:MapMarker[];pickPoint?:string|null;onMapPoint?:(id:string,x:number,y:number)=>void;onMarker?:(id:string)=>void;humanTools?:ReactNode;
   previewFooter?:ReactNode;reloadKey?:number;editing?:boolean;onEdit?:()=>void;layer?:string;overlays?:string[];contourInterval?:number;contourLabels?:boolean;view?:MapView;onView?:(view:MapView)=>void;
   map:WorldMapRecord; blob:Blob|null; draftToken?:string; draftConflict?:{token:string;blob:Blob}; repository:WorldMapRepository;
@@ -36,7 +36,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [coreAvailable,setAvailable] = useState(false), [conflict,setConflict] = useState(draftConflict);
   const available=coreAvailable&&loadedDocument?.id===map.id&&loadedDocument.blob===blob;
   const actions = useRef<{save:(blob?:Blob)=>Promise<void>;stage:()=>Promise<void>}>({save:async()=>{},stage:async()=>{}});
-  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,onRegionDraft,onRegionStats,onRegionPoints,regionDirty}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,onRegionDraft,onRegionStats,onRegionPoints,regionDirty};
+  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty};
 
   actions.current.stage = async () => {
     if (!latest.current.editing || readyDocument.current?.id!==map.id || readyDocument.current?.blob!==blob || !ready.current || !dirty.current || staged.current || active.current || latest.current.conflict) return;
@@ -90,6 +90,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
         if(data.type==='region-draft'&&latest.current.editing&&data.geometry&&data.area&&typeof data.requestId==='string')latest.current.onRegionDraft?.({requestId:data.requestId,geometry:data.geometry,area:data.area,undo:Boolean(data.undo),redo:Boolean(data.redo)});
+        if(data.type==='region-query'&&data.members)latest.current.onRegionQuery?.(data.members);
         if(data.type==='region-stats'&&data.stats)latest.current.onRegionStats?.(data.stats);
         if(data.type==='region-points'&&data.points)latest.current.onRegionPoints?.(data.points);
         if(data.type==='map-point'&&ready.current&&readyDocument.current?.id===latest.current.mapId&&latest.current.editing&&typeof data.requestId==='string'&&data.requestId===latest.current.pickPoint&&typeof data.x==='number'&&typeof data.y==='number'&&Number.isFinite(data.x)&&Number.isFinite(data.y))latest.current.onMapPoint?.(data.requestId,data.x,data.y);
@@ -135,7 +136,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       if(!current)return;
       if(blob)await core.request('load',blob);else if(!useFresh)await core.request('generate');
       if(!current)return;
-      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView,regions:latest.current.regions,regionScope:latest.current.regionScope,markers:latest.current.markers,pickPoint:latest.current.pickPoint});
+      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView,regions:latest.current.regions,regionScope:latest.current.regionScope,regionView:latest.current.regionView,markers:latest.current.markers,pickPoint:latest.current.pickPoint});
       if(!current)return;
       ready.current=true;readyDocument.current={id:map.id,blob};setLoadedDocument({id:map.id,blob});setAvailable(true);
       if(draftToken){dirty.current=latest.current.editing;changes.current++;setStatus('worldMap.editor8');}
@@ -152,8 +153,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const modeChanged=previousEditing.current!==editing;previousEditing.current=editing;
     const returning=modeChanged&&!editing;
     const restored=returning?previewView.current:modeChanged?latest.current.view:undefined;
-    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,overlays,contourInterval,contourLabels,markers,pickPoint,regions,regionScope,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
-  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView,markers,pickPoint,regions,regionScope]);
+    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,overlays,contourInterval,contourLabels,markers,pickPoint,regions,regionScope,regionView,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
+  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView,markers,pickPoint,regions,regionScope,regionView]);
   useEffect(()=>{if(available&&editing&&regionStart)void client.current?.request('region',undefined,{regionCommand:regionStart}).catch(e=>setError(String(e)));},[available,editing,regionStart]);
   useEffect(()=>registerRegionCommand?.(async command=>{if(!ready.current)throw Error('Map is not ready');await client.current!.request('region',undefined,{regionCommand:command});}),[registerRegionCommand]);
   useEffect(()=>{
@@ -245,5 +246,6 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     <footer className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 px-4 py-2 text-xs" role="status"><span className={status==='worldMap.editor3'||status==='worldMap.editor7'||status==='worldMap.editor8'?'font-medium text-amber-700 dark:text-amber-400':'opacity-60'}>{localLabel}</span>{cloudLabel&&<span role={cloudState?.error||cloudState?.status==='error'?'alert':undefined} className={cloudState?.error||cloudState?.status==='error'?'font-medium text-red-600 dark:text-red-400':'opacity-60'}>{cloudLabel}</span>}</footer>
   </div>;
 }
+
 
 

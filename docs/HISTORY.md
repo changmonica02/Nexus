@@ -1,5 +1,10 @@
 # Nexus — 專案歷史與決策紀錄
 
+## 2026-10-21 — V2-3 文化／宗教分布（Refs #102；PR #103，CI 通過、待審查）
+
+承接已合併 PR #101 的 `826926f`。既有 cells 配置與同 Page 原子交易可安全承接非互斥分布，故不新增資料庫或另一套區域編輯器。國家重分配只適用 country；文化／宗教各自保存集合，可跨國及互相重疊。比較半透明堆疊、斜紋、點擊全部查詢與選取高亮後，採等權混色＋查詢＋高亮，避免先後順序決定唯一結果或引入複雜圖形依賴。既有原生文明保持獨立，正式條目不依名稱連結、不混入 native 附件。程式／測試 `2ad6cf54c13de2ba99f555e5e0a70257c461656c` 的 [CI 39531024382](https://github.com/changmonica02/Nexus/actions/runs/39531024382) 通過：144 項單元／契約（36 repository、4 port、13 Adapter/fake-IDB、2 area、2 i18n、39 相關工作區／角色／study、48 native），核心及 Nexus TypeScript／production omit-dev build，相關 ESLint 0 errors／33 既有 warnings；兩組實際 Chromium（地圖／角色）成功，地圖 pageerror=[]。 沒有正式操作或部署。
+
+
 ## 2026-10-21 — 人工區域沿用正式條目與原生網格（Refs #100；PR #101）
 
 基於已合併 PR #99 的 main `cc6ae3d`。選擇 mesh 指紋＋排序 cell IDs，在既有 placement 中擴充可選區域，重用自然格網而不寫原生 states/provinces；避免為 Polygon 布林／共界／水域拓撲引入高風險重寫。正式關係沿用 relations，政體／行政類型自由文字；正文仍一份。國家重疊只在明確確認後同 Page 原子移轉；行政／城鎮矛盾提示、不靜默改隸屬。面積是陸地 polygon 衍生統計，保守區分相對量、可信平面估算與未實作球面測地計算。未新增 DB schema／依賴／服務；程式／測試 `e9b4ed5` 的 CI 39523479994 已通過 140 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／33 warnings。PR #101 待審查，未合併／部署，不代表正式帳號或實機驗收。
@@ -304,6 +309,7 @@
 - 調整：垃圾桶快速查看與獨立route共用原資料模型；單雙擊分流，長按／Enter提供觸控與鍵盤替代，不以清除主區來實作側欄篩選。
 - 調整：排序每方法單一項、再次選取切換方向且浮窗保持；舊自訂順序按原顯示相容，version2才明確保存方向。字典三色僅簡稱，不增加發布日期條件。
 - 注意：無Migration與正式資料操作；交付PR／自動部署證據與#60真實裝置人工驗收分開。
+
 
 
 

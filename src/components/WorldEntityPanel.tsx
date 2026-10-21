@@ -17,11 +17,16 @@ export function WorldEntityForm({entity,entities=[],onSave,onCancel}:{entity:Wor
   <div inert={busy} className="grid min-w-0 gap-3 [&>*]:min-w-0 [&_input]:min-h-11 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:bg-transparent [&_input]:px-3">
    <label>{t(entity.type==='settlement'?'worldEntity.name':'worldRegion.name')}<input autoFocus value={draft.name} onChange={e=>update({name:e.target.value})}/></label>
    <label>{t('worldEntity.aliases')}<input value={aliases} onChange={e=>{setAliases(e.target.value);update({aliases:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)});}}/></label>
-   <label>{t(entity.type==='settlement'?'worldEntity.subtype':'worldRegion.subtype')}<input value={draft.subtype??''} onChange={e=>update({subtype:e.target.value})}/></label>
+   <label>{t(['culture','religion'].includes(entity.type)?'worldDistribution.subtype':entity.type==='settlement'?'worldEntity.subtype':'worldRegion.subtype')}<input value={draft.subtype??''} onChange={e=>update({subtype:e.target.value})}/></label>
    <label>{t('worldEntity.summary')}<input value={draft.summary??''} onChange={e=>update({summary:e.target.value})}/></label>
    {['parent','capital','center','culture','religion'].filter(kind=>kind==='parent'?['settlement','administrative_area'].includes(entity.type):kind==='center'?entity.type==='administrative_area':entity.type==='country').map(kind=>{
      const allowed=kind==='parent'?['country','administrative_area']:kind==='capital'||kind==='center'?['settlement']:[kind];
      return <label key={kind}>{t('worldRegion.relation.'+kind)}<select aria-label={t('worldRegion.relation.'+kind)} className="min-h-11 w-full rounded-lg border bg-[var(--color-bg)] px-3" value={draft.relations.find(r=>r.type===kind)?.entityId??''} onChange={e=>update({relations:[...draft.relations.filter(r=>r.type!==kind),...(e.target.value?[{type:kind,entityId:e.target.value}]:[])]})}><option value="">{t('worldMap.none')}</option>{entities.filter(e=>e.entityId!==entity.entityId&&e.worldId===entity.worldId&&allowed.includes(e.type)).map(e=><option key={e.entityId} value={e.entityId}>{e.name}</option>)}</select></label>;
+   })}
+   {entity.type==='culture'&&(['language','customs'] as const).map(key=><label key={key}>{t('worldDistribution.'+key)}<input value={draft.cultureSettings?.[key]??''} onChange={e=>update({cultureSettings:{...draft.cultureSettings,[key]:e.target.value}})}/></label>)}
+   {['culture','religion'].includes(entity.type)&&['country','region',...(entity.type==='culture'?['group']:['culture','site','branch'])].map(kind=>{
+    const targets:Record<string,string>={country:'country',region:'geographic_region',group:'culture',culture:'culture',site:'site',branch:'religion'},type='distribution:'+kind;
+    return <fieldset key={kind} className="rounded-lg border p-2"><legend>{t('worldDistribution.relation.'+kind)}</legend>{entities.filter(e=>e.worldId===entity.worldId&&e.entityId!==entity.entityId&&e.type===targets[kind]).map(e=><label key={e.entityId} className="mr-3 inline-flex items-center gap-2"><input className="!w-auto" type="checkbox" checked={draft.relations.some(r=>r.type===type&&r.entityId===e.entityId)} onChange={event=>update({relations:[...draft.relations.filter(r=>r.type!==type||r.entityId!==e.entityId),...(event.target.checked?[{type,entityId:e.entityId}]:[])]})}/>{e.name}</label>)}</fieldset>;
    })}
    <section aria-label={t('worldEntity.content')} className="min-h-40 min-w-0 max-w-full rounded-lg border p-2 [&>.flex-nowrap]:overflow-x-auto [&_.nexus-tiptap-editor]:ml-0 [&_.nexus-tiptap-editor]:pl-0"><p className="mb-2 text-sm opacity-60">{t('worldEntity.content')}</p><TiptapEditor content={draft.content??{type:'doc',content:[{type:'paragraph'}]}} onChange={({json})=>update({content:json})} variant="rich" showToolbar/></section>
   </div>
@@ -33,14 +38,15 @@ export default function WorldEntityPanel({entities,maps,readOnly,onClose,onCreat
  const {t}=useLanguage();
  const [mapId,setMapId]=useState(maps[0]?.id??'');
  return <ModalDialog aria-label={t('worldEntity.title')} onDismiss={onClose} dismissOnBackdrop className="max-h-[90dvh] w-[min(94vw,42rem)] overflow-y-auto rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3">
-  <header className="mb-3 flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">{t('worldEntity.title')}</h2>{!readOnly&&<span className="flex flex-wrap gap-2">{(['settlement','country','administrative_area'] as const).map(type=><button key={type} className="border" onClick={()=>onCreate(type)}>{t(type==='settlement'?'worldEntity.add':'worldRegion.add.'+type)}</button>)}</span>}<button onClick={onClose}>{t('worldMap.closePanel')}</button></header>
+  <header className="mb-3 flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">{t('worldEntity.title')}</h2>{!readOnly&&<span className="flex flex-wrap gap-2">{(['settlement','country','administrative_area','culture','religion'] as const).map(type=><button key={type} className="border" onClick={()=>onCreate(type)}>{t(type==='settlement'?'worldEntity.add':'worldRegion.add.'+type)}</button>)}</span>}<button onClick={onClose}>{t('worldMap.closePanel')}</button></header>
   {!entities.length&&<p className="py-4 opacity-60">{t('worldEntity.empty')}</p>}
   {!!maps.length&&!readOnly&&<label className="block text-sm">{t('worldEntity.targetMap')}<select aria-label={t('worldEntity.targetMap')} className="mb-3 min-h-11 w-full rounded-lg border bg-transparent px-2" value={mapId} onChange={e=>setMapId(e.target.value)}>{maps.map(map=><option key={map.id} value={map.id}>{map.title}</option>)}</select></label>}
   <p className="mb-3 text-xs opacity-60">{t('worldEntity.backupHint')}</p>
-  <ul className="space-y-3">{entities.filter(entity=>['settlement','country','administrative_area'].includes(entity.type)).map(entity=>{
+  <ul className="space-y-3">{entities.filter(entity=>['settlement','country','administrative_area','culture','religion'].includes(entity.type)).map(entity=>{
    const placed=maps.filter(map=>map.placements?.some(p=>p.entityId===entity.entityId&&p.deletedAt===null));
    return <li key={entity.entityId} className="rounded-xl border p-3"><div className="flex items-center gap-2"><strong className="min-w-0 flex-1 truncate">{entity.name}</strong><span className="text-xs opacity-60">{t('worldRegion.type.'+entity.type)}</span><span className="text-xs opacity-60">{t(placed.length?'worldEntity.placed':'worldEntity.unplaced')}</span></div>{entity.summary&&<p className="mt-1 break-words text-sm opacity-70">{entity.summary}</p>}<div className="mt-2 flex flex-wrap gap-2">{!readOnly&&<button onClick={()=>onEdit(entity)}>{t(entity.type==='settlement'?'worldEntity.edit':'worldRegion.edit.'+entity.type)}</button>}{placed.map(map=><button key={map.id} onClick={()=>onOpen(map.id)}>{map.title} ↗</button>)}{!readOnly&&mapId&&<button onClick={()=>onPlace(entity,mapId)}>{t('worldEntity.place')}</button>}</div></li>;
   })}</ul>
  </ModalDialog>;
 }
+
 
