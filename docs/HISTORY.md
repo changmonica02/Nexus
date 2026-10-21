@@ -1,5 +1,10 @@
 # Nexus — 專案歷史與決策紀錄
 
+## 2026-10-21 — 人工區域沿用正式條目與原生網格（Refs #100；PR #101）
+
+基於已合併 PR #99 的 main `cc6ae3d`。選擇 mesh 指紋＋排序 cell IDs，在既有 placement 中擴充可選區域，重用自然格網而不寫原生 states/provinces；避免為 Polygon 布林／共界／水域拓撲引入高風險重寫。正式關係沿用 relations，政體／行政類型自由文字；正文仍一份。國家重疊只在明確確認後同 Page 原子移轉；行政／城鎮矛盾提示、不靜默改隸屬。面積是陸地 polygon 衍生統計，保守區分相對量、可信平面估算與未實作球面測地計算。未新增 DB schema／依賴／服務；程式／測試 `e9b4ed5` 的 CI 39523479994 已通過 140 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／33 warnings。PR #101 待審查，未合併／部署，不代表正式帳號或實機驗收。
+
+
 ## 2026-10-20 — 世界觀為正式來源、地圖僅引用（Refs #98；PR #99）
 
 在 PR #97 合併後的 main `65653d0` 開獨立 V2-2A 分支。盤點確認原世界觀 sections/tabs 沒有正式城鎮身分，選擇在原 Page JSON 新增可選 world_entities、地圖 metadata 新增可選 placements，避免平行資料庫及多筆資料提交的孤兒引用。兩者共用既有 Page CAS／outbox／備份交易；ID 與名稱分離，位置與正文獨立修訂。地圖只接收衍生 SVG 標記，不更動 pack.burgs 或重算自然地理，舊文明資料不自動轉換。原生 .map 保持引擎內容，完整 Nexus 備份另保留正式條目與引用；不承諾外部原版相容。工作分支程式／測試 `d29d5e5` 的 CI 39437559252 已通過：133 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／32 warnings；PR #99 待審查，未合併／正式部署，不代表正式帳號或實機驗收。
@@ -299,6 +304,7 @@
 - 調整：垃圾桶快速查看與獨立route共用原資料模型；單雙擊分流，長按／Enter提供觸控與鍵盤替代，不以清除主區來實作側欄篩選。
 - 調整：排序每方法單一項、再次選取切換方向且浮窗保持；舊自訂順序按原顯示相容，version2才明確保存方向。字典三色僅簡稱，不增加發布日期條件。
 - 注意：無Migration與正式資料操作；交付PR／自動部署證據與#60真實裝置人工驗收分開。
+
 
 
 

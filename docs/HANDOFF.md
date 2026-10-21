@@ -1,6 +1,17 @@
-# Nexus — 當前交接（2026-10-20）
+# Nexus — 當前交接（2026-10-21）
 
-## 地圖 V2-2A（Refs #98；PR #99；CI 通過、待審查，未合併）
+## V2-2B（Refs #100；PR #101；CI 通過、待審查，未合併／部署）
+
+- 最新基準 main `cc6ae3d` 已包含 PR #99；獨立 `feat/world-map-regions-v22b-20261021`，不修改 #99 原分支或 main。
+- 實作：既有正式 WorldEntity 新增國家／行政區 UI、自訂類型、首都／行政中心／文化／宗教／parent 引用；同世界觀／型別／單值／循環檢查。既有 point 不變，新增 mesh 指紋的 cells 區域；繪製候選、加／減筆刷、逐筆 undo/redo、取消、確認、二次確認移轉國家重疊；admin／town 幾何與正式隸屬不一致顯示警告而非改寫正文。面積由陸地 cell polygon 衍生，未知／世界尺度不報 km²，可信地區只報平面估算。
+- 交易／同步／備份：沿用單世界觀 Page CAS/outbox，區域與新條目同交易；穩定 ID／相同重試去重、tombstone、防跨世界觀引用；metadata 編輯不重傳原生附件。新區域不寫原生 states/provinces，不重算地理。PNG/SVG 已確認 overlay 與完整工作區備份沿用，原生 .map 仍不含 Nexus 正式條目／配置。
+- **驗證成功**：程式／測試 `e9b4ed57edde493dd237fe2a3f94dbccdb67095c`；[CI 39523479994](https://github.com/changmonica02/Nexus/actions/runs/39523479994)。140 項單元／契約（33 repo、4 port、12 real Adapter＋fake-IDB、2 polygon/area、2 i18n、39 workspace／character／study、48 native）；核心／Nexus TypeScript、production/omit=dev build；相關 ESLint 0 errors／33 warnings。兩組實際 Chromium（地圖／角色）通過，地圖 pageerror=[]。
+- Chromium 新增覆蓋：管理器正式國家／行政區、首都／parent／行政中心、自訂政體與 Tiptap 正文、地圖新增取消零殘留、既有國家放置、連續筆畫一筆 undo／redo、飛地、已校準地區 km²、未確認零持久化、失敗保留候選重試、地圖直接新增正式國家＋確認移轉重疊、正文／native digest／附件不變、改名、取消編輯保留原幾何、admin 越界警告、世界 scope 無假 km²、真實 IDB 備份還原／cold reopen 指紋一致、390 寬手機單指繪製與離線確認保存、移除行政區配置但保留正式條目。既有全部自然筆刷／水文／生態／舊文明／point／.map／PNG／SVG／草稿／離線／fit／CDP 觸控／全螢幕／角色回歸保留，沒有刪除或略過案例。fixture 移除覆蓋正式 modal max-height 的舊樣式，使用正式可捲動版面。
+- **命令**：`npm run test:world-map`、`node --test tests/worldMapRegions.test.cjs`、`node --test tests/worldMap.i18n.test.cjs`、相關 workspace／character／study 四檔 `node --test`；共享語系 `npx tsc`、`npm run build`、核心七檔 `npx vitest run`、限定檔案 `npx eslint`、`node tests/worldMap.browser.test.cjs`、`node tests/characterBlocks.browser.test.cjs`。完整參數見 `.github/workflows/world-map.yml`。最後提交只更新四份文件，沒有新增程式。
+- 限制：cell 精度而非自由 Polygon；無球面面積／網格重投影／爭議覆蓋 UI、文明自動生成或拓撲重建。未確認候選只有記憶體＋離開防護，確認後才正式保存。Page 級同步不自動合併兩裝置疆界；真實帳號／重新登入／Safari／手機實機／大型圖仍留 #60。
+
+
+## 地圖 V2-2A（Refs #98；PR #99；已合併 main `cc6ae3d`，以下為交付紀錄）
 
 - main `65653d0` 已包含 PR #97；本次獨立分支 `feat/world-map-entities-v22a-20261020`，沒有覆蓋其他分支／main，沒有正式 DB 操作。
 - 已接上：原世界觀 Page 的可選正式城鎮集合、點配置引用、單 Page CAS／outbox 原子新增與穩定 ID 重試；世界觀列表／未配置建立／Tiptap 基本編輯／選圖放置；地圖新增／既有放置／標記資訊／改名衍生更新／移動／移除。地圖刪除不刪條目；地圖與世界觀複製分別重建必要 IDs；備份驗證引用，原生保存不夾帶正式正文／標記投影。
@@ -84,6 +95,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
 
 
