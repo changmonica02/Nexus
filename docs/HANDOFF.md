@@ -1,6 +1,14 @@
 # Nexus — 當前交接（2026-10-21）
 
-## V2-2B（Refs #100；PR #101；CI 通過、待審查，未合併／部署）
+## V2-3（Refs #102；PR #103；獨立分支，驗證中，未合併／部署）
+
+- 基準 main `826926f`，分支 `feat/world-map-distributions-v23-20261021`。新增文化／宗教通用條目表單、自由類型／摘要／Tiptap、文化語言／習俗及多值 stable ID 引用；共用既有格網筆刷、候選／擦除／history／取消／確認，同一 cell 多文化及多宗教，跨國界不移轉疆界。
+- 文化／宗教檢視以等權混色、個別顏色／透明度／顯示、選取高亮、全部 cell 分布查詢呈現；只動衍生 SVG。舊文明／自然／城鎮／政治資料及 native binary 不因文字或分布編輯重傳。單 Page CAS/outbox／重試／tombstone／owner 與備份同契約，無 migration。
+- 驗證進行中：本機 repository 36/36；CI 將跑 production TypeScript/build、限定 lint、實際 Adapter/fake-IDB、原生工具與兩組 Chromium。未完成前不宣告交付驗收。
+- 限制：自由 Polygon、球面／重投影、文明生成／傳播／人口統計不做；僅預留主要／次要／相對影響設定，未提供比例 UI。相關文化群體不是獨立族群條目，族群詳情可寫於正文。候選仍是記憶體草案，需確認保存；既有 Page 級衝突保留。真實帳號／Safari／手機實機／大型重疊仍需 #60 人工驗收。
+
+
+## V2-2B（Refs #100；PR #101 已合併 main `826926f`；以下為交付紀錄）
 
 - 最新基準 main `cc6ae3d` 已包含 PR #99；獨立 `feat/world-map-regions-v22b-20261021`，不修改 #99 原分支或 main。
 - 實作：既有正式 WorldEntity 新增國家／行政區 UI、自訂類型、首都／行政中心／文化／宗教／parent 引用；同世界觀／型別／單值／循環檢查。既有 point 不變，新增 mesh 指紋的 cells 區域；繪製候選、加／減筆刷、逐筆 undo/redo、取消、確認、二次確認移轉國家重疊；admin／town 幾何與正式隸屬不一致顯示警告而非改寫正文。面積由陸地 cell polygon 衍生，未知／世界尺度不報 km²，可信地區只報平面估算。
@@ -95,6 +103,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
 
 

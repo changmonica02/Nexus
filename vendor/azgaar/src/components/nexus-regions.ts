@@ -35,12 +35,13 @@ function draw(includeDraft=true){
  if(!distributionCache){distributionCache=document.createElementNS(NS,'g');
  // Equal-weight RGB mean is commutative: membership, not paint order, determines overlap.
  const kind=viewMode.layer==='cultural'?'culture':viewMode.layer==='religions'?'religion':null;
+ const activeSelection=sources.some(r=>r.entityType===kind&&r.placementId===viewMode.selected)?viewMode.selected:null;
  const buckets=new Map<string,{cells:number[];color:string;opacity:number;ids:string[]}>();
  for(const [cell,members] of membership){const visible=members.filter(r=>r.visible&&r.entityType===kind&&(!includeDraft||!draft||r.placementId!==draft.placementId));if(!visible.length)continue;
-  const selected=visible.find(r=>r.placementId===viewMode.selected),active=selected?[selected]:visible;
+  const selected=visible.find(r=>r.placementId===activeSelection),active=selected?[selected]:visible;
   const ids=active.map(r=>r.placementId).sort(),key=ids.join('|');let bucket=buckets.get(key);
   if(!bucket){const rgb=[0,0,0];for(const r of active){const c=color(r);for(let i=0;i<3;i++)rgb[i]+=parseInt(c.slice(1+i*2,3+i*2),16)/active.length;}
-   bucket={cells:[],color:'#'+rgb.map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''),opacity:active.reduce((v,r)=>v+(r.distribution?.opacity??0.4)/active.length,0)*(viewMode.selected&&!selected?0.2:1),ids};buckets.set(key,bucket);}
+   bucket={cells:[],color:'#'+rgb.map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''),opacity:active.reduce((v,r)=>v+(r.distribution?.opacity??0.4)/active.length,0)*(activeSelection&&!selected?0.2:1),ids};buckets.set(key,bucket);}
   bucket.cells.push(cell);
  }
  for(const bucket of buckets.values()){const item=document.createElementNS(NS,'path');item.setAttribute('d',path(bucket.cells).fill);item.setAttribute('fill',bucket.color);item.setAttribute('fill-opacity',String(bucket.opacity));item.dataset.members=bucket.ids.join(' ');item.style.pointerEvents='none';distributionCache.append(item);}

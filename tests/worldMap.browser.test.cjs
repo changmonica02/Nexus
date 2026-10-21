@@ -577,6 +577,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok((await readTowns()).entities.some(e=>e.name==='North Province'),'removing territory keeps the canonical administrative entry');
   // V2-3: actual shared forms and cell brush; culture/faith overlap never transfers political ownership.
   const distributionBefore=await readTowns(),distributionDigest=await dataDigest();
+  const distributionSnapshot=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
   const politicalBefore=distributionBefore.maps.find(m=>m.id===regionMapId).placements.filter(p=>distributionBefore.entities.find(e=>e.entityId===p.entityId)?.type==='country');
   await page.getByRole('button',{name:'World entries',exact:true}).click();
   const cultureForm=page.getByRole('dialog',{name:'Edit culture entry',exact:true}),faithForm=page.getByRole('dialog',{name:'Edit religion entry',exact:true});
@@ -599,7 +600,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   }
   let distributions=await readTowns();const distributionMap=distributions.maps.find(m=>m.id===regionMapId),dawn=distributions.entities.find(e=>e.name==='Dawn culture');
   assert.deepEqual(distributionMap.placements.filter(p=>politicalBefore.some(b=>b.placementId===p.placementId)),politicalBefore);
-  assert.equal(distributionMap.attachment_id,nativeBefore);assert.equal(await dataDigest(),distributionDigest);
+  assert.equal(distributionMap.attachment_id,nativeBefore);
+  const distributionSnapshotAfter=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
+  if(await dataDigest()!==distributionDigest){const a=JSON.parse(distributionSnapshot),b=JSON.parse(distributionSnapshotAfter);for(let i=0;i<a.length;i++)for(const key of new Set([...Object.keys(a[i]),...Object.keys(b[i])]))if(JSON.stringify(a[i][key])!==JSON.stringify(b[i][key]))console.log('Distribution native delta',i,key,JSON.stringify(a[i][key]).slice(0,1000),JSON.stringify(b[i][key]).slice(0,1000));}
+  assert.equal(await dataDigest(),distributionDigest);
   const dawnPlacement=distributionMap.placements.find(p=>p.entityId===dawn.entityId&&p.deletedAt===null),overlapCell=dawnPlacement.geometry.cells.find(c=>distributionMap.placements.filter(p=>p.geometry.type==='cells'&&p.deletedAt===null&&p.geometry.cells.includes(c)&&['culture','religion'].includes(distributions.entities.find(e=>e.entityId===p.entityId)?.type)).length===6);
   assert.notEqual(overlapCell,undefined,'three cultures and three religions occupy the same cell');
   await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');await frame.waitForFunction(()=>document.querySelector('#nexus-regions [data-members]'));
@@ -615,6 +619,17 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await queryDialog.getByRole('button',{name:/Dawn culture/}).click();await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();
   await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn renamed');await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
   await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
+  const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
+  await legend.locator('div').filter({has:legend.getByLabel('Visible Dawn renamed',{exact:true})}).getByRole('button',{name:'Open world entry',exact:true}).click();
+  await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await areaOutput.waitFor();await page.waitForTimeout(150);
+  const savedCultureArea=await areaOutput.innerText();await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[0]);assert.notEqual(await areaOutput.innerText(),savedCultureArea);
+  await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent===v,savedCultureArea);
+  await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent!==v,savedCultureArea);
+  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements,distributionSaved,'cancel restores all confirmed overlapping distributions');
+  await editor.getByRole('button',{name:'Add religion',exact:true}).click();await faithForm.getByLabel('Name',{exact:true}).fill('Cancelled faith');await faithForm.getByRole('button',{name:'Save entry',exact:true}).click();await faithForm.waitFor({state:'detached'});await areaOutput.waitFor();
+  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled faith'),false);
+  await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');
   // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
   for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download');await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
   assert.equal(await frame.evaluate(async()=>{const text=await Services.Save.prepareMapData();return String(text).includes('nexus-regions');}),false);
@@ -627,6 +642,23 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   distributions=await readTowns();assert.match(JSON.stringify(distributions.entities.find(e=>e.entityId===dawn.entityId).content),/Canonical cultural history/);
   assert.equal(distributions.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===dawnPlacement.placementId).distribution.opacity,0.6);
   console.log('V2-3 overlap fixture: six distributions on',dawnPlacement.geometry.cellCount,'cells; metadata and cold backup reopen verified');
+  // Synthetic overlap load on the same real grid, not a large-map or real-device performance claim.
+  const stressMeta=await readTowns(),stressStarted=Date.now();
+  await page.evaluate(async({mapId,entityId})=>{const b=await mapStorage.exportWorkspaceBackup(),p=b.pages.find(p=>p.id==='world-browser'),map=p.character_data.world_maps.find(m=>m.id===mapId),source=p.character_data.world_entities.find(e=>e.entityId===entityId),placement=map.placements.find(p=>p.entityId===entityId&&p.deletedAt===null);
+    for(let i=0;i<50;i++){const id='stress-culture-'+i;p.character_data.world_entities.push({...source,entityId:id,name:'Overlap culture '+i,relations:[],content:undefined});map.placements.push({...placement,placementId:'stress-placement-'+i,entityId:id,visible:true,distribution:undefined});}await mapStorage.importWorkspaceBackup(b);
+  },{mapId:regionMapId,entityId:dawn.entityId});
+  await page.reload();await page.getByLabel('Selected map',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display layers',{exact:true}).selectOption('cultural');
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  await frame.waitForFunction(()=>[...document.querySelectorAll('#nexus-regions [data-members]')].some(p=>p.dataset.members.split(' ').length>=50));
+  const frameTimings=await frame.evaluate(async()=>{const samples=[];let last=performance.now();for(let i=0;i<12;i++){await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}return {max:Math.max(...samples),mean:samples.reduce((a,b)=>a+b,0)/samples.length,cells:pack.cells.i.length};});
+  console.log('V2-3 synthetic overlap load:',JSON.stringify({extraDistributions:50,loadMs:Date.now()-stressStarted,...frameTimings}));
+  // A foreign mesh is preserved but is neither rendered nor accepted for editing.
+  await page.evaluate(async({meta,mapId,placementId})=>{const b=await mapStorage.exportWorkspaceBackup(),p=b.pages.find(p=>p.id==='world-browser');p.character_data.world_entities=meta.entities;p.character_data.world_maps=meta.maps;const target=p.character_data.world_maps.find(m=>m.id===mapId).placements.find(p=>p.placementId===placementId);target.geometry.meshId='f'.repeat(64);await mapStorage.importWorkspaceBackup(b);},{meta:stressMeta,mapId:regionMapId,placementId:dawnPlacement.placementId});
+  await page.reload();await page.getByLabel('Selected map',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display layers',{exact:true}).selectOption('cultural');
+  await page.getByText('Grid differs; saved territory is preserved but cannot be overlaid.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Dawn renamed',exact:false}).last().click();await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();
+  await editor.getByRole('alert').filter({hasText:'Region mesh changed; keep the saved territory'}).waitFor();
+  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });

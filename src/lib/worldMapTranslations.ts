@@ -1,5 +1,7 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+ "worldDistribution.error.relation":"Incompatible distribution relation",
+ "worldDistribution.error.settings":"Invalid distribution settings",
  "worldDistribution.view":"Map view",
   "worldRegion.add.culture":"Add culture",
   "worldRegion.add.religion":"Add religion",
@@ -65,10 +67,10 @@ export const worldMapEn:Record<string,string> = {
   "worldRegion.error.0":"Duplicate structured relation",
   "worldRegion.error.1":"Incompatible structured relation",
   "worldRegion.error.2":"Cyclic administrative relationship",
-  "worldRegion.error.3":"Region requires a political entity",
+  "worldRegion.error.3":"Region requires a supported entity",
   "worldRegion.error.4":"Entity already has a region on this map",
   "worldRegion.error.5":"Country territories overlap",
-  "worldRegion.error.6":"Invalid political region",
+  "worldRegion.error.6":"Invalid region",
   "worldRegion.error.7":"Empty territory cannot be created",
   "worldRegion.error.8":"Unsupported entity creation type",
   "worldRegion.error.9":"Placement is not a point",
@@ -749,6 +751,8 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+ "worldDistribution.error.relation":"分布條目的關聯類型不相容",
+ "worldDistribution.error.settings":"分布顯示設定無效",
  "worldDistribution.view":"地圖檢視",
   "worldRegion.add.culture":"新增文化",
   "worldRegion.add.religion":"新增宗教",
