@@ -1,5 +1,31 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+ "worldDistribution.view":"Map view",
+  "worldRegion.add.culture":"Add culture",
+  "worldRegion.add.religion":"Add religion",
+  "worldRegion.edit.culture":"Edit culture entry",
+  "worldRegion.edit.religion":"Edit religion entry",
+  "worldRegion.type.culture":"Culture",
+  "worldRegion.type.religion":"Religion",
+  "worldDistribution.subtype":"Custom culture / faith type",
+  "worldDistribution.language":"Languages / naming",
+  "worldDistribution.customs":"Customs",
+  "worldDistribution.relation.country":"Related countries",
+  "worldDistribution.relation.region":"Related geographic regions",
+  "worldDistribution.relation.group":"Related cultural groups (free detail in content)",
+  "worldDistribution.relation.culture":"Related cultures",
+  "worldDistribution.relation.site":"Sacred sites",
+  "worldDistribution.relation.branch":"Related religious branches",
+  "worldDistribution.legend":"Distribution legend",
+  "worldDistribution.showAll":"Show all distributions",
+  "worldDistribution.overlapHint":"Mixed colors indicate overlap. Select an entry to highlight it; tap the map to list all distributions at a location.",
+  "worldDistribution.visible":"Visible",
+  "worldDistribution.highlight":"Highlight",
+  "worldDistribution.color":"Color",
+  "worldDistribution.opacity":"Opacity",
+  "worldDistribution.query":"Distributions at this location",
+  "worldDistribution.empty":"No confirmed distribution here.",
+
   "worldRegion.add.country":"Add country",
   "worldRegion.add.administrative_area":"Add administrative area",
   "worldRegion.edit.country":"Edit country entry",
@@ -723,6 +749,32 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+ "worldDistribution.view":"地圖檢視",
+  "worldRegion.add.culture":"新增文化",
+  "worldRegion.add.religion":"新增宗教",
+  "worldRegion.edit.culture":"編輯文化條目",
+  "worldRegion.edit.religion":"編輯宗教條目",
+  "worldRegion.type.culture":"文化",
+  "worldRegion.type.religion":"宗教",
+  "worldDistribution.subtype":"自訂文化／信仰類型",
+  "worldDistribution.language":"語言／命名設定",
+  "worldDistribution.customs":"習俗設定",
+  "worldDistribution.relation.country":"相關國家",
+  "worldDistribution.relation.region":"相關地理區域",
+  "worldDistribution.relation.group":"相關文化群體（族群詳情可寫於正文）",
+  "worldDistribution.relation.culture":"相關文化",
+  "worldDistribution.relation.site":"聖地",
+  "worldDistribution.relation.branch":"相關宗教分支",
+  "worldDistribution.legend":"分布圖例",
+  "worldDistribution.showAll":"顯示所有分布",
+  "worldDistribution.overlapHint":"混色表示重疊。選取條目可高亮範圍；點擊地圖可查看該處所有分布。",
+  "worldDistribution.visible":"顯示",
+  "worldDistribution.highlight":"高亮",
+  "worldDistribution.color":"顏色",
+  "worldDistribution.opacity":"透明度",
+  "worldDistribution.query":"此處的文化與宗教",
+  "worldDistribution.empty":"此處尚無已確認的分布。",
+
   "worldRegion.add.country":"新增國家",
   "worldRegion.add.administrative_area":"新增行政區",
   "worldRegion.edit.country":"編輯國家條目",
@@ -1445,6 +1497,7 @@ export const worldMapZhTW:Record<string,string> = {
   "azgaar.Click to regenerate non-locked routes": "重新產生未鎖定的路線",
   "azgaar.Click to regenerate non-locked states": "重新產生未鎖定的國家"
 };
+
 
 
 

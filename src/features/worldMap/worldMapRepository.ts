@@ -87,6 +87,7 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
       || !Array.isArray(entity.aliases) || entity.aliases.some(alias => typeof alias !== "string")
       || !Array.isArray(entity.relations) || !validRevision(entity.revision) || !validTime(entity.createdAt) || !validTime(entity.updatedAt)
       || (entity.summary !== undefined && typeof entity.summary !== "string")
+      || (entity.cultureSettings !== undefined && (entity.type !== "culture" || !entity.cultureSettings || typeof entity.cultureSettings !== "object" || Array.isArray(entity.cultureSettings) || Object.entries(entity.cultureSettings).some(([key,value])=>!["language","customs"].includes(key)||typeof value!=="string")))
       || (entity.subtype !== undefined && typeof entity.subtype !== "string")
       || (entity.content !== undefined && (!entity.content || typeof entity.content !== "object" || Array.isArray(entity.content)))) entityError("Invalid world entity identity or content");
     ids.add(entity.entityId);
@@ -99,6 +100,12 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
   for (const entity of entities) {
     const seen = new Set<string>();
     for (const relation of entity.relations) {
+      if (relation.type.startsWith("distribution:")) {
+        const allowed:Record<string,string[]>={country:["country"],region:["geographic_region"],culture:["culture"],site:["site"],branch:["religion"],group:["culture"]};
+        const kind=relation.type.slice(13),target=byId.get(relation.entityId)!;
+        if (!["culture","religion"].includes(entity.type)||!allowed[kind]?.includes(target.type)||target.entityId===entity.entityId||seen.has(relation.type+":"+relation.entityId)) entityError("Incompatible distribution relation");
+        seen.add(relation.type+":"+relation.entityId);continue;
+      }
       if (!reserved.has(relation.type)) continue;
       if (seen.has(relation.type)) entityError("Duplicate structured relation");
       seen.add(relation.type);
@@ -129,7 +136,13 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
         || (placement.deletedAt !== null && !validTime(placement.deletedAt))
         || (placement.label !== undefined && (!placement.label || typeof placement.label.visible !== "boolean"))
         || (placement.icon !== undefined && typeof placement.icon !== "string")) entityError("Invalid map entity reference or geometry");
-      if (placement.geometry.type === "cells" && !["country", "administrative_area"].includes(byId.get(placement.entityId)!.type)) entityError("Region requires a political entity");
+      if (placement.geometry.type === "cells" && !["country", "administrative_area", "culture", "religion"].includes(byId.get(placement.entityId)!.type)) entityError("Region requires a supported entity");
+      if (placement.distribution !== undefined) {
+        const d=placement.distribution;
+        if (!["culture","religion"].includes(byId.get(placement.entityId)!.type)||placement.geometry.type!=="cells"||!d||typeof d!=="object"||Array.isArray(d)
+          || (d.color!==undefined&&!/^#[a-f0-9]{6}$/i.test(d.color)) || (d.opacity!==undefined&&(!Number.isFinite(d.opacity)||d.opacity<0||d.opacity>1))
+          || (d.category!==undefined&&!["primary","secondary"].includes(d.category)) || (d.influence!==undefined&&(!Number.isFinite(d.influence)||d.influence<0||d.influence>1))) entityError("Invalid distribution settings");
+      }
       placements.add(placement.placementId);
     }
     const claimed = new Set<string>(), configured = new Set<string>();
@@ -164,7 +177,7 @@ export function projectWorldRegions(world: Page, mapId: string) {
   return (world.character_data?.world_maps?.find(map => map.id === mapId && map.deleted_at === null)?.placements ?? [])
     .filter((placement): placement is WorldMapPlacement & {geometry:WorldRegionGeometry} => placement.deletedAt === null && placement.geometry.type === "cells")
     .map(placement => ({placementId:placement.placementId,entityId:placement.entityId,name:entities.get(placement.entityId)!.name,
-      entityType:entities.get(placement.entityId)!.type,geometry:placement.geometry,visible:placement.visible}));
+      entityType:entities.get(placement.entityId)!.type,geometry:placement.geometry,visible:placement.visible,distribution:placement.distribution}));
 }
 
 export function worldRegionWarnings(world:Page,mapId:string,points:{placementId:string;cell:number;meshId?:string}[]=[]) {
@@ -415,11 +428,11 @@ export class WorldMapRepository {
 
   /** Caller retains entityId/placementId until acknowledged. Entity + placement + outbox are one Page transaction.
    * On a lost acknowledgement, identical retries return current data without another write. */
-  async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations">>): Promise<Page> {
+  async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings">>): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
-    if (!["country", "administrative_area", "settlement"].includes(input.type)) entityError("Unsupported entity creation type");
+    if (!["country", "administrative_area", "settlement", "culture", "religion"].includes(input.type)) entityError("Unsupported entity creation type");
     const existing = entities.find(entity => entity.entityId === input.entityId);
-    const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,relations:input.relations??[]};
+    const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,cultureSettings:input.cultureSettings,relations:input.relations??[]};
     if (existing) {
       if (Object.entries(fields).some(([key,value]) => JSON.stringify(existing[key as keyof WorldEntity]) !== JSON.stringify(value))) throw new WorldMapError("conflict", "World entity changed; reload before retrying");
       return world;
@@ -451,7 +464,7 @@ export class WorldMapRepository {
   }
 
   async updateEntity(worldId: string, entityId: string, revision: number,
-    patch: Partial<Pick<WorldEntity, "name" | "aliases" | "subtype" | "summary" | "content" | "relations">>): Promise<Page> {
+    patch: Partial<Pick<WorldEntity, "name" | "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings">>): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
     const current = entities.find(entity => entity.entityId === entityId);
     if (!current) entityError("World entity is unavailable");
@@ -498,14 +511,14 @@ export class WorldMapRepository {
     if (!entity && newEntity && newEntity.entityId === entityId && newEntity.worldId === worldId) {
       const now = Date.now();entity = {...newEntity,createdAt:now,updatedAt:now,revision:1};entities = [...entities,entity];
     }
-    if (!entity || !["country", "administrative_area"].includes(entity.type) || !validRegion(geometry)) entityError("Invalid political region");
+    if (!entity || !["country", "administrative_area", "culture", "religion"].includes(entity.type) || !validRegion(geometry)) entityError("Invalid region");
     const current = map.placements?.find(item => item.placementId === placementId);
     if (current && current.entityId === entityId && current.deletedAt === null && JSON.stringify(current.geometry) === JSON.stringify(geometry)) return world;
     if ((current?.revision ?? 0) !== expectedRevision || current?.deletedAt != null || (current && (current.entityId !== entityId || current.geometry.type !== "cells"))) throw new WorldMapError("conflict", "Placement changed; reload before retrying");
     if (!current && mapsOf(world).some(item => item.placements?.some(p => p.placementId === placementId))) entityError("Placement operation already exists");
     if (!current && !geometry.cells.length) entityError("Empty territory cannot be created");
     const cells = new Set(geometry.cells), now = Date.now();
-    const placement: WorldMapPlacement = {schemaVersion:1,placementId,mapId,entityId,geometry,visible:current?.visible??true,
+    const placement: WorldMapPlacement = {schemaVersion:1,placementId,mapId,entityId,geometry,visible:current?.visible??true,distribution:current?.distribution,
       revision:expectedRevision+1,createdAt:current?.createdAt??now,updatedAt:now,deletedAt:geometry.cells.length?null:now};
     const updated = (map.placements ?? []).filter(item => item.placementId !== placementId).map(item => {
       if (item.deletedAt !== null || item.geometry.type !== "cells" || item.geometry.meshId !== geometry.meshId || item.entityId === entityId || entity!.type !== "country"
@@ -516,6 +529,10 @@ export class WorldMapRepository {
     });
     const nextMaps = mapsOf(world).map(item => item.id === mapId ? {...item,placements:[...updated,placement]} : item);
     return this.commit(world, nextMaps, undefined, entities);
+  }
+
+  async setDistribution(worldId:string,mapId:string,placementId:string,revision:number,patch:Pick<WorldMapPlacement,"visible"|"distribution">):Promise<Page> {
+    return this.changePlacement(worldId,mapId,placementId,revision,placement=>({...placement,...patch}));
   }
 
   async removePlacement(worldId: string, mapId: string, placementId: string, revision: number): Promise<Page> {
@@ -533,6 +550,7 @@ export class WorldMapRepository {
   }
 
 }
+
 
 
 

@@ -127,6 +127,7 @@ window.addEventListener('message', event => {
       let blob: Blob | undefined;
       if(data.type==='configure'){
         const settings=data.settings??{};
+        if(settings.regionView)NexusRegions.setView(settings.regionView);
         if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
         if('markers' in settings){markers=settings.markers??[];drawMarkers();}
@@ -209,6 +210,7 @@ window.nexusLoadProject = async (blob:Blob) => {
   finally{busy=false;}
 };
 declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+
 
 
 

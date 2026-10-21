@@ -575,9 +575,62 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:/North Province/}).click();await regionInfo.getByRole('button',{name:'Remove from this map',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();await regionInfo.waitFor({state:'detached'});
   assert.ok((await readTowns()).entities.some(e=>e.name==='North Province'),'removing territory keeps the canonical administrative entry');
+  // V2-3: actual shared forms and cell brush; culture/faith overlap never transfers political ownership.
+  const distributionBefore=await readTowns(),distributionDigest=await dataDigest();
+  const politicalBefore=distributionBefore.maps.find(m=>m.id===regionMapId).placements.filter(p=>distributionBefore.entities.find(e=>e.entityId===p.entityId)?.type==='country');
+  await page.getByRole('button',{name:'World entries',exact:true}).click();
+  const cultureForm=page.getByRole('dialog',{name:'Edit culture entry',exact:true}),faithForm=page.getByRole('dialog',{name:'Edit religion entry',exact:true});
+  await townPanel.getByRole('button',{name:'Add culture',exact:true}).click();await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn culture');
+  await cultureForm.getByLabel('Languages / naming',{exact:true}).fill('Dawn speech');await cultureForm.getByLabel('Customs',{exact:true}).fill('Shared journeys');
+  await cultureForm.getByLabel('Custom culture / faith type',{exact:true}).fill('Cross-border culture');
+  await cultureForm.locator('[contenteditable=true]').fill('Canonical cultural history');
+  await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
+  assert.ok((await readTowns()).entities.find(e=>e.name==='Dawn culture'));
+  await townPanel.locator('li').filter({hasText:'Dawn culture'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
+  await areaOutput.waitFor();await page.waitForTimeout(250);await stroke(candidates[0]);await stroke(candidates[1]);
+  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  const distributionNames=['Dusk culture','Night culture','Sun faith','Moon faith','River faith'];
+  for(const name of distributionNames){
+    const type=name.endsWith('culture')?'culture':'religion',form=type==='culture'?cultureForm:faithForm;
+    await editor.getByRole('button',{name:type==='culture'?'Add culture':'Add religion',exact:true}).click();await form.getByLabel('Name',{exact:true}).fill(name);
+    await form.getByRole('button',{name:'Save entry',exact:true}).click();await form.waitFor({state:'detached'});await areaOutput.waitFor();await page.waitForTimeout(120);
+    assert.equal((await readTowns()).entities.some(e=>e.name===name),false,'new entry remains ephemeral before distribution confirmation');
+    await stroke(candidates[0]);await stroke(candidates[1]);await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  }
+  let distributions=await readTowns();const distributionMap=distributions.maps.find(m=>m.id===regionMapId),dawn=distributions.entities.find(e=>e.name==='Dawn culture');
+  assert.deepEqual(distributionMap.placements.filter(p=>politicalBefore.some(b=>b.placementId===p.placementId)),politicalBefore);
+  assert.equal(distributionMap.attachment_id,nativeBefore);assert.equal(await dataDigest(),distributionDigest);
+  const dawnPlacement=distributionMap.placements.find(p=>p.entityId===dawn.entityId&&p.deletedAt===null),overlapCell=dawnPlacement.geometry.cells.find(c=>distributionMap.placements.filter(p=>p.geometry.type==='cells'&&p.deletedAt===null&&p.geometry.cells.includes(c)&&['culture','religion'].includes(distributions.entities.find(e=>e.entityId===p.entityId)?.type)).length===6);
+  assert.notEqual(overlapCell,undefined,'three cultures and three religions occupy the same cell');
+  await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');await frame.waitForFunction(()=>document.querySelector('#nexus-regions [data-members]'));
+  const mixed=await frame.evaluate(()=>[...document.querySelectorAll('#nexus-regions [data-members]')].map(e=>({members:e.dataset.members,fill:e.getAttribute('fill')})));
+  assert.ok(mixed.some(x=>x.members.split(' ').length===3),'commutative mixed fills represent all three cultures');
+  const legend=editor.getByRole('region',{name:'Distribution legend',exact:true});
+  await legend.getByLabel('Opacity Dawn culture',{exact:true}).selectOption('0.6');await page.waitForTimeout(200);
+  await legend.getByLabel('Visible Dusk culture',{exact:true}).uncheck();await page.waitForTimeout(200);
+  const queryPosition=await frame.evaluate(c=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[c][0]*z.k,y:z.y+pack.cells.p[c][1]*z.k};},overlapCell),queryBox=await (await frame.frameElement()).boundingBox();
+  await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);
+  const queryDialog=page.getByRole('dialog',{name:'Distributions at this location',exact:true});await queryDialog.waitFor();
+  for(const name of ['Dawn culture',...distributionNames])await queryDialog.getByRole('button',{name:new RegExp(name)}).waitFor();
+  await queryDialog.getByRole('button',{name:/Dawn culture/}).click();await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();
+  await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn renamed');await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
+  await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
+  // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
+  for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download');await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
+  assert.equal(await frame.evaluate(async()=>{const text=await Services.Save.prepareMapData();return String(text).includes('nexus-regions');}),false);
+  await editor.getByLabel('Map view',{exact:true}).selectOption('religions');await legend.getByLabel('Visible Moon faith',{exact:true}).waitFor();
+  assert.equal(await dataDigest(),distributionDigest);
+  await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  await page.evaluate(async()=>{const b=await mapStorage.exportWorkspaceBackup();await mapStorage.importWorkspaceBackup(b);});await page.reload();
+  await page.getByLabel('Selected map',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display layers',{exact:true}).selectOption('cultural');
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
+  distributions=await readTowns();assert.match(JSON.stringify(distributions.entities.find(e=>e.entityId===dawn.entityId).content),/Canonical cultural history/);
+  assert.equal(distributions.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===dawnPlacement.placementId).distribution.opacity,0.6);
+  console.log('V2-3 overlap fixture: six distributions on',dawnPlacement.geometry.cellCount,'cells; metadata and cold backup reopen verified');
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });
+
 
 
 

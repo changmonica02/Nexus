@@ -202,3 +202,23 @@ test('IDB: political hierarchy, detached region and point survive offline reopen
  await assert.rejects(target.adapter.importWorkspaceBackup(bad),/Cyclic/);assert.deepEqual((await target.adapter.getPage('world')).character_data,before.character_data);
  assert.equal(before.character_data.world_maps[0].attachment_id,map.attachment_id);
 });
+
+
+test('IDB: overlapping culture/religion settings survive cold reopen, offline retry and backup; invalid references restore nothing',async t=>{
+ const source=await device(t),target=await device(t),repo=new WorldMapRepository(source.adapter);
+ await source.adapter.savePage(world());const {map}=await repo.create('world','Mixed',project('mixed'));
+ const geometry={type:'cells',meshId:'a'.repeat(64),cellCount:20,cells:[1,2,10]};
+ for(const type of ['culture','religion'])for(let i=0;i<3;i++){
+  const entityId=type+i;await repo.createEntity('world',{entityId,type,name:entityId,...(type==='culture'?{cultureSettings:{language:'Language',customs:'Custom'}}:{})});
+  await repo.saveRegion('world',map.id,entityId,'p'+entityId,0,geometry);
+ }
+ await repo.setDistribution('world',map.id,'pculture0',1,{visible:false,distribution:{color:'#aa2244',opacity:0.6,category:'secondary'}});
+ const pending=(await source.adapter.getWorkspacePersistence().pending(owner)).length;await source.reopen();
+ await new WorldMapRepository(source.adapter).saveRegion('world',map.id,'culture0','pculture0',0,geometry);
+ assert.equal((await source.adapter.getWorkspacePersistence().pending(owner)).length,pending);
+ const backup=await source.adapter.exportWorkspaceBackup();await target.adapter.importWorkspaceBackup(backup);
+ const restored=await target.adapter.getPage('world');assert.deepEqual(restored.character_data,backup.pages[0].character_data);
+ assert.equal(restored.character_data.world_maps[0].placements.length,6);
+ const bad=structuredClone(backup);bad.pages[0].character_data.world_maps[0].placements[0].distribution={opacity:2};
+ await assert.rejects(target.adapter.importWorkspaceBackup(bad));assert.deepEqual((await target.adapter.getPage('world')).character_data,restored.character_data);
+});
