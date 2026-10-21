@@ -123,7 +123,7 @@ window.addEventListener('message', event => {
     if (busy) { port!.postMessage({ id: data.id, error: 'Map operation already in progress' }); return; }
     busy = true;
     try {
-      if (data.type!=='configure'&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
+      if (data.type!=='configure'&&!(data.type==='region'&&data.settings?.regionCommand?.action==='cancel')&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
       let blob: Blob | undefined;
       if(data.type==='configure'){
         const settings=data.settings??{};
