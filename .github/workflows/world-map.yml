@@ -43,6 +43,7 @@ jobs:
             fi
           fi
       - run: npm run test:world-map
+      - run: node --test tests/worldMapRegions.test.cjs
       - run: node --test tests/worldMap.i18n.test.cjs
       - name: Related storage, creation and study regressions
         run: node --test tests/workspaceSync.test.cjs tests/characterWorkspace.test.cjs tests/characterBlocks.test.cjs tests/studySync.test.cjs

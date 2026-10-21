@@ -184,3 +184,21 @@ test('IDB: canonical entries and placements reopen, retry offline and survive wo
  await assert.rejects(target.adapter.importWorkspaceBackup(bad),/reference/);
  assert.deepEqual((await target.adapter.getPage('world')).character_data,restored.character_data);
 });
+
+
+test('IDB: political hierarchy, detached region and point survive offline reopen and backup; cyclic restore is rejected atomically',async t=>{
+ const source=await device(t),target=await device(t);await source.adapter.savePage(world());const repo=new WorldMapRepository(source.adapter),{map}=await repo.create('world','Politics',project('same binary'));
+ await repo.createEntity('world',{entityId:'country',type:'country',name:'Country',content:{type:'doc',content:[{type:'paragraph'}]}});
+ await repo.createEntity('world',{entityId:'province',type:'administrative_area',name:'Province',relations:[{type:'parent',entityId:'country'}]});
+ await repo.createEntity('world',{entityId:'district',type:'administrative_area',name:'District',relations:[{type:'parent',entityId:'province'}]});
+ const geometry={type:'cells',meshId:'a'.repeat(64),cellCount:100,cells:[1,2,40,41]};
+ await repo.saveRegion('world',map.id,'country','territory',0,geometry);
+ await repo.createSettlement('world',{entityId:'town',name:'Town',relations:[{type:'parent',entityId:'province'}]},{placementId:'point',mapId:map.id,x:2,y:3});
+ const count=(await source.adapter.getWorkspacePersistence().pending(owner)).length;await source.reopen();await new WorldMapRepository(source.adapter).saveRegion('world',map.id,'country','territory',0,geometry);
+ assert.equal((await source.adapter.getWorkspacePersistence().pending(owner)).length,count);
+ const backup=await source.adapter.exportWorkspaceBackup();await target.adapter.importWorkspaceBackup(backup);const before=await target.adapter.getPage('world');
+ assert.deepEqual(before.character_data,backup.pages[0].character_data);
+ const bad=structuredClone(backup);bad.pages[0].character_data.world_entities.find(e=>e.entityId==='province').relations=[{type:'parent',entityId:'district'}];
+ await assert.rejects(target.adapter.importWorkspaceBackup(bad),/Cyclic/);assert.deepEqual((await target.adapter.getPage('world')).character_data,before.character_data);
+ assert.equal(before.character_data.world_maps[0].attachment_id,map.attachment_id);
+});

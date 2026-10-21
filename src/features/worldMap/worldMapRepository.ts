@@ -167,7 +167,7 @@ export function projectWorldRegions(world: Page, mapId: string) {
       entityType:entities.get(placement.entityId)!.type,geometry:placement.geometry,visible:placement.visible}));
 }
 
-export function worldRegionWarnings(world:Page,mapId:string,points:{placementId:string;cell:number}[]=[]) {
+export function worldRegionWarnings(world:Page,mapId:string,points:{placementId:string;cell:number;meshId?:string}[]=[]) {
   const entities=world.character_data?.world_entities??[],map=world.character_data?.world_maps?.find(m=>m.id===mapId);
   const active=(map?.placements??[]).filter(p=>p.deletedAt===null);
   const warnings:{key:string;name:string}[]=[];
@@ -179,7 +179,7 @@ export function worldRegionWarnings(world:Page,mapId:string,points:{placementId:
     if(placement.geometry.type==='cells'){
       if(placement.geometry.meshId!==upper.geometry.meshId)continue;
       const cells=new Set(upper.geometry.cells);if(placement.geometry.cells.some(cell=>!cells.has(cell)))warnings.push({key:'outsideParent',name:entity.name});
-    }else{const cell=points.find(p=>p.placementId===placement.placementId)?.cell;if(cell!==undefined&&!upper.geometry.cells.includes(cell))warnings.push({key:'townOutside',name:entity.name});}
+    }else{const point=points.find(p=>p.placementId===placement.placementId);if(point?.meshId&&point.meshId!==upper.geometry.meshId)continue;const cell=point?.cell;if(cell!==undefined&&!upper.geometry.cells.includes(cell))warnings.push({key:'townOutside',name:entity.name});}
   }
   return warnings;
 }

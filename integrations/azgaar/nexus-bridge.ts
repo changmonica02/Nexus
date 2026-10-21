@@ -150,7 +150,7 @@ window.addEventListener('message', event => {
         if('regions' in settings||'markers' in settings)port?.postMessage({type:'region-points',points:NexusRegions.pointCells(settings.markers??markers)});
         reportView();
       }else if(data.type==='region'){
-        if(preview)throw Error('Nexus storage is not ready');
+        if(preview&&data.settings?.regionCommand?.action!=='cancel')throw Error('Nexus storage is not ready');
         await NexusRegions.command(data.settings?.regionCommand??{});
       }else if(data.type==='catalog'){
         blob=new Blob([JSON.stringify(naturalCatalog())],{type:'application/json'});
@@ -200,6 +200,7 @@ window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) =>
   port.postMessage({ type: 'persist', id, blob });
 });
 window.nexusLoadProject = async (blob:Blob) => {
+  if(NexusRegions.active())throw Error('Confirm or cancel the territory preview before leaving.');
   if(busy)throw Error('Map operation already in progress');
   busy=true;ready=false;notify('loading');
   try { await loadNexusMap(blob);ready=true;drawMarkers();notify('loaded');notify('dirty'); }
