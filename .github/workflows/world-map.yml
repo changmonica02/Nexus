@@ -1,7 +1,7 @@
 name: World map integration
 on:
   push:
-    branches: [feat/world-map-storage-20261020, feat/world-map-home-20261020, feat/world-map-embedded-ui-20261020, feat/world-map-browser-ux-20261020, feat/world-map-natural-v2-20261020, feat/world-map-entities-v22a-20261020]
+    branches: [feat/world-map-storage-20261020, feat/world-map-home-20261020, feat/world-map-embedded-ui-20261020, feat/world-map-browser-ux-20261020, feat/world-map-natural-v2-20261020, feat/world-map-entities-v22a-20261020, feat/world-map-regions-v22b-20261021]
     paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   map:
-    if: github.ref == 'refs/heads/feat/world-map-storage-20261020' || github.ref == 'refs/heads/feat/world-map-home-20261020' || github.ref == 'refs/heads/feat/world-map-embedded-ui-20261020' || github.ref == 'refs/heads/feat/world-map-browser-ux-20261020' || github.ref == 'refs/heads/feat/world-map-natural-v2-20261020' || github.ref == 'refs/heads/feat/world-map-entities-v22a-20261020'
+    if: github.ref == 'refs/heads/feat/world-map-storage-20261020' || github.ref == 'refs/heads/feat/world-map-home-20261020' || github.ref == 'refs/heads/feat/world-map-embedded-ui-20261020' || github.ref == 'refs/heads/feat/world-map-browser-ux-20261020' || github.ref == 'refs/heads/feat/world-map-natural-v2-20261020' || github.ref == 'refs/heads/feat/world-map-entities-v22a-20261020' || github.ref == 'refs/heads/feat/world-map-regions-v22b-20261021'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -72,6 +72,7 @@ jobs:
           name: nexus-map-core
           path: public/world-map/core
           if-no-files-found: ignore
+
 
 
 

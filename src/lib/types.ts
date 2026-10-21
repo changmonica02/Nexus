@@ -308,13 +308,14 @@ export interface WorldEntity {
   revision: number;
 }
 
+export type WorldRegionGeometry = { type: "cells"; meshId: string; cellCount: number; cells: number[] };
 export interface WorldMapPlacement {
   schemaVersion: 1;
   placementId: ID;
   mapId: ID;
   entityId: ID;
   /** Native map coordinates, independent of screen zoom and pan. */
-  geometry: { type: "point"; x: number; y: number };
+  geometry: { type: "point"; x: number; y: number } | WorldRegionGeometry;
   visible: boolean;
   label?: { visible: boolean };
   icon?: string;
@@ -420,5 +421,6 @@ export interface WorkspaceBackup {
   attachments: WorkspaceBackupAttachmentEntry[];
   settings: WorkspaceBackupSettingEntry[];
 }
+
 
 

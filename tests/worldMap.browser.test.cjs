@@ -98,7 +98,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   }));
   // V2-2A: use real editor clicks and canonical Page persistence, without regenerating native data.
   const townForm=page.getByRole('dialog',{name:'Edit town entry',exact:true});
-  const townPanel=page.getByRole('dialog',{name:'Towns',exact:true});
+  const townPanel=page.getByRole('dialog',{name:'World entries',exact:true});
   const markerDialog=page.getByRole('dialog',{name:'Town marker',exact:true});
   const clickMapPoint=async(x=0.55,y=0.65)=>{
     await page.waitForTimeout(250);const box=await frame.locator('#map').boundingBox();
@@ -167,7 +167,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   });
   // Reopen actual native project before making any edits.
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
-  await page.getByRole('button',{name:'Towns',exact:true}).click();
+  await page.getByRole('button',{name:'World entries',exact:true}).click();
   await townPanel.locator('li').filter({hasText:'Renamed Harbor'}).getByRole('button',{name:'Edit town entry',exact:true}).click();
   await townForm.getByLabel('Town name',{exact:true}).fill('Manager Harbor');await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
   await townPanel.getByRole('button',{name:'Close panel',exact:true}).click();
@@ -426,7 +426,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   // A second native project references the same canonical body, rather than copying it.
   await page.getByLabel('Selected map',{exact:true}).selectOption({label:'Atlas One'});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
-  await page.getByRole('button',{name:'Towns',exact:true}).click();
+  await page.getByRole('button',{name:'World entries',exact:true}).click();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Atlas Imported'});
   await townPanel.locator('li').filter({hasText:'Manager Harbor'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
@@ -488,6 +488,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });
+
 
 
 
