@@ -1,4 +1,4 @@
-import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData } from "../../lib/types";
+import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData, WorldRegionGeometry } from "../../lib/types";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 
 /** Fixed source for the integration. This module does not execute imported SVG. */
@@ -65,6 +65,14 @@ function validPoint(point: WorldMapPlacement["geometry"]): boolean {
   return !!point && point.type === "point" && Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.y >= 0;
 }
 
+function validRegion(geometry: WorldMapPlacement["geometry"]): geometry is WorldRegionGeometry {
+  return !!geometry && geometry.type === "cells" && /^[a-f0-9]{64}$/.test(geometry.meshId)
+    && Number.isSafeInteger(geometry.cellCount) && geometry.cellCount > 0 && geometry.cellCount <= 1000000
+    && Array.isArray(geometry.cells) && geometry.cells.length <= geometry.cellCount
+    && geometry.cells.every((cell, index) => Number.isSafeInteger(cell) && cell >= 0 && cell < geometry.cellCount && (!index || cell > geometry.cells[index - 1]));
+}
+export function entityParent(entity: WorldEntity): string | undefined { return entity.relations.find(relation => relation.type === "parent")?.entityId; }
+
 /** Used before metadata mutations and before any backup restore writes. Missing legacy fields are valid.
  * No names are used as foreign keys; even tombstones must retain valid references. */
 export function validateWorldEntities(world: Pick<Page, "id" | "character_data">): void {
@@ -86,6 +94,28 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
   for (const entity of entities) for (const relation of entity.relations) {
     if (!relation || typeof relation.type !== "string" || !relation.type.trim() || !ids.has(relation.entityId)) entityError("Invalid world entity relation");
   }
+  const byId = new Map(entities.map(entity => [entity.entityId, entity]));
+  const reserved = new Set(["parent", "capital", "center", "culture", "religion"]);
+  for (const entity of entities) {
+    const seen = new Set<string>();
+    for (const relation of entity.relations) {
+      if (!reserved.has(relation.type)) continue;
+      if (seen.has(relation.type)) entityError("Duplicate structured relation");
+      seen.add(relation.type);
+      const target = byId.get(relation.entityId)!;
+      const compatible = relation.type === "parent" ? ["settlement", "administrative_area"].includes(entity.type) && ["country", "administrative_area"].includes(target.type)
+        : relation.type === "capital" ? entity.type === "country" && target.type === "settlement"
+        : relation.type === "center" ? entity.type === "administrative_area" && target.type === "settlement"
+        : entity.type === "country" && target.type === relation.type;
+      if (!compatible) entityError("Incompatible structured relation");
+    }
+    const ancestors = new Set([entity.entityId]);
+    let parent = entityParent(entity);
+    while (parent) {
+      if (ancestors.has(parent)) entityError("Cyclic administrative relationship");
+      ancestors.add(parent);parent = entityParent(byId.get(parent)!);
+    }
+  }
   const placements = new Set<string>();
   if (data.world_maps !== undefined && !Array.isArray(data.world_maps)) entityError("Invalid map collection");
   for (const map of data.world_maps ?? []) {
@@ -93,13 +123,26 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
     if (map.placements !== undefined && !Array.isArray(map.placements)) entityError("Invalid placement collection");
     for (const placement of map.placements ?? []) {
       if (!placement || placement.schemaVersion !== 1 || !validId(placement.placementId) || placements.has(placement.placementId)
-        || placement.mapId !== map.id || !ids.has(placement.entityId) || !validPoint(placement.geometry)
+        || placement.mapId !== map.id || !ids.has(placement.entityId) || (!validPoint(placement.geometry) && !validRegion(placement.geometry))
         || typeof placement.visible !== "boolean" || !validRevision(placement.revision)
         || !validTime(placement.createdAt) || !validTime(placement.updatedAt)
         || (placement.deletedAt !== null && !validTime(placement.deletedAt))
         || (placement.label !== undefined && (!placement.label || typeof placement.label.visible !== "boolean"))
         || (placement.icon !== undefined && typeof placement.icon !== "string")) entityError("Invalid map entity reference or geometry");
+      if (placement.geometry.type === "cells" && !["country", "administrative_area"].includes(byId.get(placement.entityId)!.type)) entityError("Region requires a political entity");
       placements.add(placement.placementId);
+    }
+    const claimed = new Set<string>(), configured = new Set<string>();
+    for (const placement of map.placements ?? []) {
+      if (placement.deletedAt !== null || placement.geometry.type !== "cells") continue;
+      if (configured.has(placement.entityId)) entityError("Entity already has a region on this map");
+      configured.add(placement.entityId);
+      if (byId.get(placement.entityId)!.type !== "country") continue;
+      for (const cell of placement.geometry.cells) {
+        const key = placement.geometry.meshId + ":" + cell;
+        if (claimed.has(key)) entityError("Country territories overlap");
+        claimed.add(key);
+      }
     }
   }
 }
@@ -109,10 +152,36 @@ export function projectWorldPlacements(world: Page, mapId: string) {
   validateWorldEntities(world);
   const entities = new Map((world.character_data?.world_entities ?? []).map(entity => [entity.entityId, entity]));
   return (world.character_data?.world_maps?.find(map => map.id === mapId && map.deleted_at === null)?.placements ?? [])
-    .filter(placement => placement.deletedAt === null)
+    .filter((placement): placement is WorldMapPlacement & {geometry:{type:"point";x:number;y:number}} => placement.deletedAt === null && placement.geometry.type === "point")
     .map(placement => ({ placementId: placement.placementId, entityId: placement.entityId,
       name: entities.get(placement.entityId)!.name, ...placement.geometry, visible: placement.visible,
       label: placement.label, icon: placement.icon }));
+}
+
+export function projectWorldRegions(world: Page, mapId: string) {
+  validateWorldEntities(world);
+  const entities = new Map((world.character_data?.world_entities ?? []).map(entity => [entity.entityId, entity]));
+  return (world.character_data?.world_maps?.find(map => map.id === mapId && map.deleted_at === null)?.placements ?? [])
+    .filter((placement): placement is WorldMapPlacement & {geometry:WorldRegionGeometry} => placement.deletedAt === null && placement.geometry.type === "cells")
+    .map(placement => ({placementId:placement.placementId,entityId:placement.entityId,name:entities.get(placement.entityId)!.name,
+      entityType:entities.get(placement.entityId)!.type,geometry:placement.geometry,visible:placement.visible}));
+}
+
+export function worldRegionWarnings(world:Page,mapId:string,points:{placementId:string;cell:number;meshId?:string}[]=[]) {
+  const entities=world.character_data?.world_entities??[],map=world.character_data?.world_maps?.find(m=>m.id===mapId);
+  const active=(map?.placements??[]).filter(p=>p.deletedAt===null);
+  const warnings:{key:string;name:string}[]=[];
+  for(const placement of active){
+    const entity=entities.find(e=>e.entityId===placement.entityId)!;if(!entity)continue;
+    const parent=entityParent(entity);if(!parent)continue;
+    const upper=active.find(p=>p.entityId===parent&&p.geometry.type==='cells');
+    if(!upper||upper.geometry.type!=='cells'){warnings.push({key:'parentMissing',name:entity.name});continue;}
+    if(placement.geometry.type==='cells'){
+      if(placement.geometry.meshId!==upper.geometry.meshId)continue;
+      const cells=new Set(upper.geometry.cells);if(placement.geometry.cells.some(cell=>!cells.has(cell)))warnings.push({key:'outsideParent',name:entity.name});
+    }else{const point=points.find(p=>p.placementId===placement.placementId);if(point?.meshId&&point.meshId!==upper.geometry.meshId)continue;const cell=point?.cell;if(cell!==undefined&&!upper.geometry.cells.includes(cell))warnings.push({key:'townOutside',name:entity.name});}
+  }
+  return warnings;
 }
 
 /** Independent world copies receive independent entity IDs; map copies within one world do not. */
@@ -346,7 +415,20 @@ export class WorldMapRepository {
 
   /** Caller retains entityId/placementId until acknowledged. Entity + placement + outbox are one Page transaction.
    * On a lost acknowledgement, identical retries return current data without another write. */
-  async createSettlement(worldId: string, input: { entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown> },
+  async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations">>): Promise<Page> {
+    const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
+    if (!["country", "administrative_area", "settlement"].includes(input.type)) entityError("Unsupported entity creation type");
+    const existing = entities.find(entity => entity.entityId === input.entityId);
+    const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,relations:input.relations??[]};
+    if (existing) {
+      if (Object.entries(fields).some(([key,value]) => JSON.stringify(existing[key as keyof WorldEntity]) !== JSON.stringify(value))) throw new WorldMapError("conflict", "World entity changed; reload before retrying");
+      return world;
+    }
+    const now = Date.now();
+    return this.commit(world, mapsOf(world), undefined, [...entities, {...fields,entityId:input.entityId,worldId,schemaVersion:1,createdAt:now,updatedAt:now,revision:1}]);
+  }
+
+  async createSettlement(worldId: string, input: { entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown>; relations?:WorldEntity["relations"] },
     placement?: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
     const name = input.name.trim();
@@ -354,16 +436,16 @@ export class WorldMapRepository {
     if (existing) {
       const matches = existing.type === "settlement" && existing.name === name && existing.revision === 1
         && JSON.stringify(existing.aliases) === JSON.stringify(input.aliases ?? []) && existing.subtype === input.subtype
-        && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content);
+        && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content) && JSON.stringify(existing.relations) === JSON.stringify(input.relations??[]);
       const saved = placement && mapsOf(world).find(map => map.id === placement.mapId && map.deleted_at === null)?.placements?.find(item => item.placementId === placement.placementId);
-      if (!matches || (placement && (!saved || saved.deletedAt !== null || saved.entityId !== existing.entityId || saved.geometry.x !== placement.x || saved.geometry.y !== placement.y))) {
+      if (!matches || (placement && (!saved || saved.deletedAt !== null || saved.entityId !== existing.entityId || saved.geometry.type !== "point" || saved.geometry.x !== placement.x || saved.geometry.y !== placement.y))) {
         throw new WorldMapError("conflict", "This operation was already used with different content; reload before retrying");
       }
       return world;
     }
     const now = Date.now();
     const entity: WorldEntity = { ...input, name, schemaVersion: 1, worldId, type: "settlement", aliases: input.aliases ?? [],
-      relations: [], createdAt: now, updatedAt: now, revision: 1 };
+      relations: input.relations??[], createdAt: now, updatedAt: now, revision: 1 };
     const maps = placement ? this.withPlacement(world, input.entityId, placement) : mapsOf(world);
     return this.commit(world, maps, undefined, [...entities, entity]);
   }
@@ -395,7 +477,7 @@ export class WorldMapRepository {
     if (!world.character_data!.world_entities?.some(entity => entity.entityId === entityId && entity.type === "settlement")) entityError("Settlement is not in this world");
     const map = mapOf(world, input.mapId), saved = map.placements?.find(item => item.placementId === input.placementId);
     if (saved) {
-      if (saved.deletedAt !== null || saved.entityId !== entityId || saved.geometry.x !== input.x || saved.geometry.y !== input.y) {
+      if (saved.deletedAt !== null || saved.entityId !== entityId || saved.geometry.type !== "point" || saved.geometry.x !== input.x || saved.geometry.y !== input.y) {
         throw new WorldMapError("conflict", "Placement operation was already used; reload before retrying");
       }
       return world;
@@ -404,7 +486,36 @@ export class WorldMapRepository {
   }
 
   async movePlacement(worldId: string, mapId: string, placementId: string, revision: number, point: { x: number; y: number }): Promise<Page> {
-    return this.changePlacement(worldId, mapId, placementId, revision, placement => ({ ...placement, geometry: { type: "point", ...point } }));
+    return this.changePlacement(worldId, mapId, placementId, revision, placement => { if (placement.geometry.type !== "point") entityError("Placement is not a point"); return { ...placement, geometry: { type: "point", ...point } }; });
+  }
+
+  /** Candidate geometry and optional new formal entity commit together. No native project attachment is touched. */
+  async saveRegion(worldId: string, mapId: string, entityId: string, placementId: string, expectedRevision: number,
+    geometry: WorldRegionGeometry, reassign = false, newEntity?: WorldEntity): Promise<Page> {
+    const world = await this.world(worldId), map = mapOf(world, mapId);
+    let entities = world.character_data!.world_entities ?? [];
+    let entity = entities.find(item => item.entityId === entityId);
+    if (!entity && newEntity && newEntity.entityId === entityId && newEntity.worldId === worldId) {
+      const now = Date.now();entity = {...newEntity,createdAt:now,updatedAt:now,revision:1};entities = [...entities,entity];
+    }
+    if (!entity || !["country", "administrative_area"].includes(entity.type) || !validRegion(geometry)) entityError("Invalid political region");
+    const current = map.placements?.find(item => item.placementId === placementId);
+    if (current && current.entityId === entityId && current.deletedAt === null && JSON.stringify(current.geometry) === JSON.stringify(geometry)) return world;
+    if ((current?.revision ?? 0) !== expectedRevision || current?.deletedAt != null || (current && (current.entityId !== entityId || current.geometry.type !== "cells"))) throw new WorldMapError("conflict", "Placement changed; reload before retrying");
+    if (!current && mapsOf(world).some(item => item.placements?.some(p => p.placementId === placementId))) entityError("Placement operation already exists");
+    if (!current && !geometry.cells.length) entityError("Empty territory cannot be created");
+    const cells = new Set(geometry.cells), now = Date.now();
+    const placement: WorldMapPlacement = {schemaVersion:1,placementId,mapId,entityId,geometry,visible:current?.visible??true,
+      revision:expectedRevision+1,createdAt:current?.createdAt??now,updatedAt:now,deletedAt:geometry.cells.length?null:now};
+    const updated = (map.placements ?? []).filter(item => item.placementId !== placementId).map(item => {
+      if (item.deletedAt !== null || item.geometry.type !== "cells" || item.geometry.meshId !== geometry.meshId || item.entityId === entityId || entity!.type !== "country"
+        || entities.find(e => e.entityId === item.entityId)?.type !== "country" || !item.geometry.cells.some(cell => cells.has(cell))) return item;
+      if (!reassign) entityError("Country territories overlap");
+      const remaining = item.geometry.cells.filter(cell => !cells.has(cell));
+      return {...item,geometry:{...item.geometry,cells:remaining},revision:item.revision+1,updatedAt:now,deletedAt:remaining.length?null:now};
+    });
+    const nextMaps = mapsOf(world).map(item => item.id === mapId ? {...item,placements:[...updated,placement]} : item);
+    return this.commit(world, nextMaps, undefined, entities);
   }
 
   async removePlacement(worldId: string, mapId: string, placementId: string, revision: number): Promise<Page> {
@@ -422,6 +533,7 @@ export class WorldMapRepository {
   }
 
 }
+
 
 
 

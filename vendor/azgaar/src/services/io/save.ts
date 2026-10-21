@@ -81,6 +81,7 @@ function prepareMapData(): string {
 
   // Derived Nexus labels/positions belong to world metadata, not the native project.
   cloneEl.querySelector("#nexus-placements")?.remove();
+  cloneEl.querySelector("#nexus-regions")?.remove();
   restoreOceanVectors(cloneEl);
 
   // reset transform values to default
@@ -236,4 +237,5 @@ async function writeToDropbox(mapData: string, filename: string): Promise<void> 
 }
 
 export const Save = { toStorage, toMachine, toDropbox, prepareMapData, writeToStorage };
+
 

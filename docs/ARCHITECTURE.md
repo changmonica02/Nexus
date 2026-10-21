@@ -1,6 +1,27 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## 地圖 V2-2A：正式城鎮與配置（2026-10-20；Refs #98；PR #99，工作分支已實作／CI 通過，待審查）
+## V2-2B 國家／行政區與人工區域（2026-10-21；Refs #100；PR #101，CI 通過、待審查，未合併）
+
+**基準與盤點**：PR #99 已合併 main `cc6ae3d`。延用 `WorldEntity` 正式內容、`WorldMapPlacement` 穩定 ID／revision／tombstone、世界觀 Page JSON、Repository、單 Page CAS/outbox、IndexedDBAdapter 備份 v3 與 immutable native 附件。未新增 DB／IDB store、SQL／RPC／RLS、服務或套件。原生 states/provinces 使用 pack.cells 的索引及原生文明陣列、native isoline 渲染與單位換算；它們不具備 Nexus 正式 entity 身分。本批不轉換／覆寫舊文明陣列，既有地圖仍走原載入。
+
+**幾何取捨**：原生 packed Voronoi cell 歸屬可重用 2D 網格、陸海判定與原生座標，鄰接 cell 共用邊，支援不連續領土／飛地及水域孔洞；儲存排序唯一整數陣列較小，筆刷無須新增布林幾何套件。獨立 Polygon/MultiPolygon 可以提供網格外精細邊界，但需處理自交、裁切、湖洞、相鄰共界、布林差集與投影，超出此批最小相容範圍，保留未來覆蓋／爭議模型。這批 **不支援任意向量頂點拖曳**，精度受原地圖網格限制。
+
+**實際模型**：point 不變；`WorldRegionGeometry={type:cells,meshId,cellCount,cells}`，meshId 為 packed cell→vertex 索引與頂點座標的 SHA-256，與高度／文明／正文／尺度分離。每個 entity 每圖最多一個 active 區域，區域可含多塊分離地。換網格後 fingerprint 不符會保留原配置並提示無法疊加，不盲目用舊索引；本批不重投影或重建拓撲。relative 面積、km² 及 SVG 路徑均是衍生值，不額外存正式面積或另一份正文。
+
+**結構化關聯**：仍用原 relations[]：parent（行政區／城鎮→country/administrative_area）、capital（country→settlement）、center（administrative_area→settlement）、culture/religion（country→對應正式類型）。保留既有其他自訂關係；上述保留關係為單值、同世界觀、類型相容，parent 另驗證循環。subtype 為自由文字。WorldEntityPanel／Form 只擴充既有列表及表單、沿用 Tiptap，沒有另建資料庫或富文字編輯器；文化／宗教只提供既有正式條目的可選引用，不新增該類型 UI。
+
+**候選／交易**：`nexus-regions.ts` 專責讀取 pack 幾何、原生座標繪製、筆畫 history 與衍生統計。Manager 管候選、新條目草案、關聯、二次確認及 Repository，Editor 管私有 port／同一 iframe／視圖。候選在記憶體中，確認前不寫 Page；取消清除候選，離開提示，既有 flush 在候選未確認時阻擋換頁。單次 pointer stroke 一筆 undo，最多 50 筆；redo 清楚區分。小畫筆包含命中的陸地 cell，避免高縮放時因只測 cell 中心而無法繪製；取消還原原生 touch-action，取消候選不受原生 heightmap 模式的保存鎖阻擋。普通瀏覽不攔手勢，明確繪製時接管單指／滑鼠；多指暫停並還原未完成筆畫，讓既有 D3 處理縮放。已確認區域才屬於可重開／離線／備份的正式資料；未確認候選不是 crash-recovery 草稿。
+
+Repository.saveRegion 在既有世界觀 CAS 交易一起新增正式條目（若有）、配置及 outbox。相同 placement ID／幾何重試不重複建立；已刪身分不得復活。國家同圖同 mesh 不重疊；候選列出重疊國家，明確二次確認後同交易從舊國家移除重疊 cells，空配置留 tombstone。沒有領土／戰爭／外交歷史。行政區越界或缺上級範圍、城鎮位置與正式 parent 不符只警告，不改正文／隸屬；native grid 不相容時不拿新 point cell 誤判舊範圍。條目改名只重畫名稱，疆界保存不讀寫 native attachment、不改 native map revision；後續 native 保存仍讀最新 Page 並受 CAS 保護。
+
+**面積**：`nexus-region-geometry.ts` 對實際 cell polygon 用 shoelace 計算，排除 h<20 水域後加總，飛地自然相加；渲染使用 cell fill 與共享邊消去，內部共邊不重畫國界。只有 scope=region/town、V2-1 scaleKnown=true、distance.unit=km 且 scale 有效時才以 scale² 換算，UI 明示「估算平面陸地面積」。世界 scope／未知或不支援尺度只顯示相對面積與未校準提示，**不是球面測地面積**。不以 cell 格數或畫布 px 冒充 km²。舊專案僅有原生距離設定、但沒有明確 scaleKnown 的，不假設該尺度已校準。
+
+**輸出／相容**：`#nexus-regions` 是衍生 SVG 圖層，與 point 的 `#nexus-placements` 分離，並保留原生城鎮／標籤及 Nexus 點位的點選優先權。private port 只傳投影與候選幾何，不傳正文／憑證；名稱用 textContent。PNG/SVG 用已確認配置（不把未確認候選當成正式輸出）；Save.prepareMapData 只在 clone 移除兩個 overlay。完整 Nexus 備份仍包含 Page 正式條目及配置，還原前驗證引用／關係循環／國家重疊；舊 point／舊 native／備份容器不遷移。World 複製依既有 helper 重建所有 entity/map/placement 與關係 IDs，map 複製仍引用同一世界觀 entity。舊版前端不保證可編輯新增 cells，但不得覆寫不認得的配置。
+
+**驗證**：程式／測試 `e9b4ed57edde493dd237fe2a3f94dbccdb67095c` 的 [CI 39523479994](https://github.com/changmonica02/Nexus/actions/runs/39523479994) 成功：140 項單元／契約、地圖與角色兩組實際 Chromium，地圖 pageerror=[]；核心／Nexus TypeScript、production/omit=dev build 及相關 lint（0 errors／33 warnings）。包含雙入口國家／行政區、Tiptap 正文與正式引用、取消零殘留、逐筆 undo/redo、飛地、衍生面積、重疊二次確認原子移轉、失敗保留候選並重試、疆界不改 native digest／正文或附件、admin 越界警告、世界尺度不顯示 km²、真實 IDB 備份／重開指紋、手機單指與離線保存，以及全部既有自然／舊文明／point／視圖回歸。最後僅更新文件，未再修改程式。真實帳號跨裝置／Supabase 衝突／重新登入、Safari／iOS／Android 與大型圖效能仍留 #60，隔離 IDB／Chromium 不等於正式驗收。沿用 Page 級同步衝突，不新增 field 級自動合併。
+
+
+## 地圖 V2-2A：正式城鎮與配置（2026-10-20；Refs #98；PR #99，已合併 main `cc6ae3d`，以下為交付紀錄）
 
 **盤點與責任邊界**：PR #97 已合併，基準 main `65653d0`。世界觀是 `Page(kind=creative,creative_type=world)`，原 basic/sections/tabs 是自由內容，沒有可直接重用的正式城鎮集合；角色仍是獨立 Page，以原 `character_data.world_id` 歸屬世界觀。本批不猜測／搬移舊段落、不把舊 Azgaar burgs 自動轉成新條目，也不重建世界觀管理器。沿用現有 Page JSON／StorageAdapter／IndexedDBAdapter／WorkspacePersistence／同步及備份 v3，不新增 store、資料表、RPC、RLS、依賴或 migration。
 
@@ -752,6 +773,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+
 
 
 

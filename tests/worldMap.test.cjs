@@ -401,3 +401,67 @@ test('entity metadata survives later native project saves without causing binary
  assert.equal(result.world.character_data.world_maps[0].placements[0].geometry.x,2);
  assert.equal(state.binaries.size,2);
 });
+
+
+const cellGeometry=(cells)=>({type:'cells',meshId:'a'.repeat(64),cellCount:100,cells});
+test('political entities share the canonical body and validate typed, same-world, acyclic parent references',async()=>{
+ const {repo,state}=fixture();
+ await repo.createEntity('world-a',{entityId:'country_a',type:'country',name:'Country',subtype:'Custom federation',content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'History'}]}]}});
+ await repo.createEntity('world-a',{entityId:'admin_a',type:'administrative_area',name:'Province',relations:[{type:'parent',entityId:'country_a'}]});
+ await repo.createEntity('world-a',{entityId:'admin_b',type:'administrative_area',name:'District',relations:[{type:'parent',entityId:'admin_a'}]});
+ await repo.createSettlement('world-a',{entityId:'town_a',name:'Town',relations:[{type:'parent',entityId:'admin_b'}]});
+ await repo.updateEntity('world-a','country_a',1,{relations:[{type:'capital',entityId:'town_a'}]});
+ const count=state.outbox.length;
+ await assert.rejects(repo.updateEntity('world-a','admin_a',1,{relations:[{type:'parent',entityId:'admin_b'}]}),/Cyclic/);
+ await assert.rejects(repo.updateEntity('world-a','admin_a',1,{relations:[{type:'parent',entityId:'town_a'}]}),/Incompatible/);
+ await assert.rejects(repo.updateEntity('world-a','country_a',2,{relations:[{type:'capital',entityId:'admin_a'}]}),/Incompatible/);
+ await assert.rejects(repo.createEntity('world-b',{entityId:'foreign',type:'administrative_area',name:'Bad',relations:[{type:'parent',entityId:'country_a'}]}),/relation/);
+ assert.equal(state.outbox.length,count);
+ assert.equal((await repo.listEntities('world-a')).find(e=>e.entityId==='town_a').relations[0].entityId,'admin_b');
+});
+
+test('region save supports detached territories, metadata-only edits, explicit atomic reassignment, removal and retries',async()=>{
+ const {repo,state,storage}=fixture(),{map}=await repo.create('world-a','Political',project('preserve'));
+ await repo.createEntity('world-a',{entityId:'country_a',type:'country',name:'A',summary:'Keep official text'});
+ await repo.createEntity('world-a',{entityId:'country_b',type:'country',name:'B'});
+ await repo.saveRegion('world-a',map.id,'country_a','region_a',0,cellGeometry([1,2,30,31]));
+ const body=structuredClone(state.pages.get('world-a').character_data.world_entities),count=state.outbox.length;
+ await new WorldMapRepository(storage).saveRegion('world-a',map.id,'country_a','region_a',0,cellGeometry([1,2,30,31]));
+ assert.equal(state.outbox.length,count,'lost acknowledgement retry adds no write');
+ await assert.rejects(repo.saveRegion('world-a',map.id,'country_b','region_b',0,cellGeometry([2,3])),/overlap/);
+ assert.equal(state.outbox.length,count);
+ await repo.saveRegion('world-a',map.id,'country_b','region_b',0,cellGeometry([2,3]),true);
+ const page=state.pages.get('world-a');assert.deepEqual(page.character_data.world_maps[0].placements.find(p=>p.placementId==='region_a').geometry.cells,[1,30,31]);
+ assert.deepEqual(page.character_data.world_entities,body);assert.equal(page.character_data.world_maps[0].revision,map.revision);assert.equal(state.binaries.size,1);
+ assert.deepEqual(state.outbox.at(-1).map(op=>[op.type,op.kind]),[['pages','save']]);
+ await assert.rejects(repo.saveRegion('world-a',map.id,'country_a','region_a',1,cellGeometry([4])),{code:'conflict'});
+ await repo.removePlacement('world-a',map.id,'region_b',1);
+ await assert.rejects(repo.saveRegion('world-a',map.id,'country_b','region_b',2,cellGeometry([2,3])),{code:'conflict'});
+ assert.deepEqual(state.pages.get('world-a').character_data.world_entities,body);
+});
+
+test('new country and territory commit atomically; invalid geometry, cancellation and failed writes leave no half-entity',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ const entity={schemaVersion:1,entityId:'country_new',worldId:'world-a',type:'country',name:'New',aliases:[],relations:[],createdAt:1,updatedAt:1,revision:1};
+ const before=state.outbox.length;
+ for(const cells of [[2,1],[1,1],[-1],[100]])await assert.rejects(repo.saveRegion('world-a',map.id,entity.entityId,'new_region',0,cellGeometry(cells),false,entity),/Invalid/);
+ assert.equal(state.outbox.length,before);
+ state.fail=true;await assert.rejects(repo.saveRegion('world-a',map.id,entity.entityId,'new_region',0,cellGeometry([1,20]),false,entity),/Disk full/);
+ assert.equal(state.pages.get('world-a').character_data.world_entities,undefined);
+ state.fail=false;await repo.saveRegion('world-a',map.id,entity.entityId,'new_region',0,cellGeometry([1,20]),false,entity);
+ await repo.saveRegion('world-a',map.id,entity.entityId,'new_region',0,cellGeometry([1,20]),false,entity);
+ assert.equal((await repo.listEntities('world-a')).length,1);
+ await assert.rejects(repo.movePlacement('world-a',map.id,'new_region',1,{x:1,y:1}),/not a point/);
+});
+
+test('administrative and town geography warnings never rewrite formal relationships or text',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ await repo.createEntity('world-a',{entityId:'c',type:'country',name:'Country'});
+ await repo.createEntity('world-a',{entityId:'a',type:'administrative_area',name:'Admin',relations:[{type:'parent',entityId:'c'}]});
+ await repo.createSettlement('world-a',{entityId:'t',name:'Town',relations:[{type:'parent',entityId:'a'}]},{placementId:'pt',mapId:map.id,x:10,y:20});
+ await repo.saveRegion('world-a',map.id,'c','pc',0,cellGeometry([1,2]));
+ await repo.saveRegion('world-a',map.id,'a','pa',0,cellGeometry([2,3]));
+ const page=state.pages.get('world-a'),{worldRegionWarnings}=await importRepo();
+ assert.deepEqual(worldRegionWarnings(page,map.id,[{placementId:'pt',cell:1}]).map(w=>w.key),['townOutside','outsideParent']);
+ assert.equal(page.character_data.world_entities.find(e=>e.entityId==='t').relations[0].entityId,'a');
+});

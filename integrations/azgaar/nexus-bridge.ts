@@ -1,4 +1,5 @@
 // Nexus adapter for our fork. No account credentials or Nexus persistence here.
+import {NexusRegions} from '@/components/nexus-regions';
 import { Save } from '@/services/io/save';
 import { loadNexusMap } from '@/services/io/load';
 import { Services } from '@/services';
@@ -90,6 +91,7 @@ const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) =
 const notify = (type: string) => port?.postMessage({ type });
 
 async function image(type: 'svg' | 'png'): Promise<Blob> {
+  NexusRegions.draw(false);
   const url = await Services.ExportMap.getMapURL(type, { fullMap: true });
   try {
     if (type === 'svg') return await (await fetch(url)).blob();
@@ -99,7 +101,7 @@ async function image(type: 'svg' | 'png'): Promise<Blob> {
     canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
     canvas.getContext('2d')!.drawImage(img, 0, 0);
     return await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error('PNG export failed')), 'image/png'));
-  } finally { URL.revokeObjectURL(url); }
+  } finally { URL.revokeObjectURL(url);NexusRegions.draw(); }
 }
 
 window.addEventListener('message', event => {
@@ -121,10 +123,11 @@ window.addEventListener('message', event => {
     if (busy) { port!.postMessage({ id: data.id, error: 'Map operation already in progress' }); return; }
     busy = true;
     try {
-      if (data.type!=='configure'&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
+      if (data.type!=='configure'&&!(data.type==='region'&&data.settings?.regionCommand?.action==='cancel')&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
       let blob: Blob | undefined;
       if(data.type==='configure'){
         const settings=data.settings??{};
+        if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
         if('markers' in settings){markers=settings.markers??[];drawMarkers();}
         if('pickPoint' in settings)pickPoint=settings.pickPoint;
@@ -144,7 +147,12 @@ window.addEventListener('message', event => {
         else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
         if(settings.layer)applyNaturalView(settings.layer,settings.overlays,settings.contourInterval,settings.contourLabels);
         if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
+        if('regions' in settings||'markers' in settings)port?.postMessage({type:'region-points',points:NexusRegions.pointCells(settings.markers??markers)});
         reportView();
+      }else if(data.type==='region'){
+        if(preview&&data.settings?.regionCommand?.action!=='cancel')throw Error('Nexus storage is not ready');
+        if(data.settings?.regionCommand?.action==='start'){closeDialogs();const panel=document.getElementById('options');if(panel&&getComputedStyle(panel).display!=='none')document.getElementById('optionsTrigger')?.click();}
+        await NexusRegions.command(data.settings?.regionCommand??{});
       }else if(data.type==='catalog'){
         blob=new Blob([JSON.stringify(naturalCatalog())],{type:'application/json'});
       }else if(data.type==='heightmap-preview'){
@@ -176,7 +184,7 @@ window.addEventListener('map:generated', () => {
   else if (!busy&&!preview) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {
-  if(pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
+  if((NexusRegions.active()&&(event.target as Element)?.closest?.('#map'))||pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
   if (ready && !busy&&!preview) notify('dirty');
 }, { passive: true });
 document.addEventListener('keydown', event => {
@@ -193,6 +201,7 @@ window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) =>
   port.postMessage({ type: 'persist', id, blob });
 });
 window.nexusLoadProject = async (blob:Blob) => {
+  if(NexusRegions.active())throw Error('Confirm or cancel the territory preview before leaving.');
   if(busy)throw Error('Map operation already in progress');
   busy=true;ready=false;notify('loading');
   try { await loadNexusMap(blob);ready=true;drawMarkers();notify('loaded');notify('dirty'); }
@@ -200,6 +209,7 @@ window.nexusLoadProject = async (blob:Blob) => {
   finally{busy=false;}
 };
 declare global { interface Window { nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;nexusSession?: string; nexusSaveProject?: (blob: Blob) => Promise<void>; nexusLoadProject?: (blob:Blob)=>Promise<void>; } }
+
 
 
 
