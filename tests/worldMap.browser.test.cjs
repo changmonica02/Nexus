@@ -621,7 +621,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
   assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
-  await legend.locator('div').filter({has:legend.getByLabel('Visible Dawn renamed',{exact:true})}).getByRole('button',{name:'Open world entry',exact:true}).click();
+  await legend.locator('div').filter({has:page.locator('input[aria-label="Visible Dawn renamed"]')}).getByRole('button',{name:'Open world entry',exact:true}).click();
   await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await areaOutput.waitFor();await page.waitForTimeout(150);
   const savedCultureArea=await areaOutput.innerText();await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[0]);assert.notEqual(await areaOutput.innerText(),savedCultureArea);
   await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent===v,savedCultureArea);
