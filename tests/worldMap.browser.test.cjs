@@ -577,7 +577,6 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok((await readTowns()).entities.some(e=>e.name==='North Province'),'removing territory keeps the canonical administrative entry');
   // V2-3: actual shared forms and cell brush; culture/faith overlap never transfers political ownership.
   const distributionBefore=await readTowns(),distributionDigest=await dataDigest();
-  const distributionSnapshot=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
   const politicalBefore=distributionBefore.maps.find(m=>m.id===regionMapId).placements.filter(p=>distributionBefore.entities.find(e=>e.entityId===p.entityId)?.type==='country');
   await page.getByRole('button',{name:'World entries',exact:true}).click();
   const cultureForm=page.getByRole('dialog',{name:'Edit culture entry',exact:true}),faithForm=page.getByRole('dialog',{name:'Edit religion entry',exact:true});
@@ -587,6 +586,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await cultureForm.locator('[contenteditable=true]').fill('Canonical cultural history');
   await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
   assert.ok((await readTowns()).entities.find(e=>e.name==='Dawn culture'));
+  await townPanel.getByLabel('Placement map',{exact:true}).selectOption(regionMapId);
   await townPanel.locator('li').filter({hasText:'Dawn culture'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
   await areaOutput.waitFor();await page.waitForTimeout(250);await stroke(candidates[0]);await stroke(candidates[1]);
   await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
@@ -601,8 +601,6 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   let distributions=await readTowns();const distributionMap=distributions.maps.find(m=>m.id===regionMapId),dawn=distributions.entities.find(e=>e.name==='Dawn culture');
   assert.deepEqual(distributionMap.placements.filter(p=>politicalBefore.some(b=>b.placementId===p.placementId)),politicalBefore);
   assert.equal(distributionMap.attachment_id,nativeBefore);
-  const distributionSnapshotAfter=await frame.evaluate(()=>JSON.stringify([pack,grid.cells.h,grid.cells.temp,grid.cells.prec,options.map]));
-  if(await dataDigest()!==distributionDigest){const a=JSON.parse(distributionSnapshot),b=JSON.parse(distributionSnapshotAfter);for(let i=0;i<a.length;i++)for(const key of new Set([...Object.keys(a[i]),...Object.keys(b[i])]))if(JSON.stringify(a[i][key])!==JSON.stringify(b[i][key]))console.log('Distribution native delta',i,key,JSON.stringify(a[i][key]).slice(0,1000),JSON.stringify(b[i][key]).slice(0,1000));}
   assert.equal(await dataDigest(),distributionDigest);
   const dawnPlacement=distributionMap.placements.find(p=>p.entityId===dawn.entityId&&p.deletedAt===null),overlapCell=dawnPlacement.geometry.cells.find(c=>distributionMap.placements.filter(p=>p.geometry.type==='cells'&&p.deletedAt===null&&p.geometry.cells.includes(c)&&['culture','religion'].includes(distributions.entities.find(e=>e.entityId===p.entityId)?.type)).length===6);
   assert.notEqual(overlapCell,undefined,'three cultures and three religions occupy the same cell');
@@ -642,6 +640,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   distributions=await readTowns();assert.match(JSON.stringify(distributions.entities.find(e=>e.entityId===dawn.entityId).content),/Canonical cultural history/);
   assert.equal(distributions.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===dawnPlacement.placementId).distribution.opacity,0.6);
   console.log('V2-3 overlap fixture: six distributions on',dawnPlacement.geometry.cellCount,'cells; metadata and cold backup reopen verified');
+  await page.getByRole('button',{name:'繁體中文',exact:true}).click();await page.getByLabel('顯示 Dawn renamed',{exact:true}).waitFor();
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'distribution legend fits a phone');
+  await page.getByRole('button',{name:'世界觀條目',exact:true}).click();await page.getByRole('dialog',{name:'世界觀條目',exact:true}).getByRole('button',{name:'新增宗教',exact:true}).waitFor();
+  await page.getByRole('button',{name:'關閉面板',exact:true}).click();await page.getByRole('button',{name:'English',exact:true}).click();await page.setViewportSize({width:1440,height:1000});
   // Synthetic overlap load on the same real grid, not a large-map or real-device performance claim.
   const stressMeta=await readTowns(),stressStarted=Date.now();
   await page.evaluate(async({mapId,entityId})=>{const b=await mapStorage.exportWorkspaceBackup(),p=b.pages.find(p=>p.id==='world-browser'),map=p.character_data.world_maps.find(m=>m.id===mapId),source=p.character_data.world_entities.find(e=>e.entityId===entityId),placement=map.placements.find(p=>p.entityId===entityId&&p.deletedAt===null);
