@@ -1,6 +1,10 @@
 # Nexus — 專案歷史與決策紀錄
 
-## 2026-10-21 — V2-3 文化／宗教分布（Refs #102；PR #103，CI 通過、待審查）
+## 2026-10-21｜筆記與最新 main 的本機整合（Refs #87）
+
+- 從 `b1840cb` 建立獨立整合分支，保留原筆記分支及 `backup/note-freeform-20261021`。四筆筆記提交按原順序套用；文件衝突只在同一插入點，保留較新的地圖紀錄與全部筆記紀錄。為讓本機 Windows 建置／Lint 可重現，將地圖核心的 PostCSS 解析隔離，並校正非 React Hook 的函式別名。沒有調整地圖資料、權限或部署。
+
+## 2026-10-21 — V2-3 文化／宗教分布（Refs #102；PR #103 後續已合併 main `b1840cb`）
 
 承接已合併 PR #101 的 `826926f`。既有 cells 配置與同 Page 原子交易可安全承接非互斥分布，故不新增資料庫或另一套區域編輯器。國家重分配只適用 country；文化／宗教各自保存集合，可跨國及互相重疊。比較半透明堆疊、斜紋、點擊全部查詢與選取高亮後，採等權混色＋查詢＋高亮，避免先後順序決定唯一結果或引入複雜圖形依賴。既有原生文明保持獨立，正式條目不依名稱連結、不混入 native 附件。程式／測試 `2ad6cf54c13de2ba99f555e5e0a70257c461656c` 的 [CI 39531024382](https://github.com/changmonica02/Nexus/actions/runs/39531024382) 通過：144 項單元／契約（36 repository、4 port、13 Adapter/fake-IDB、2 area、2 i18n、39 相關工作區／角色／study、48 native），核心及 Nexus TypeScript／production omit-dev build，相關 ESLint 0 errors／33 既有 warnings；兩組實際 Chromium（地圖／角色）成功，地圖 pageerror=[]。 沒有正式操作或部署。
 

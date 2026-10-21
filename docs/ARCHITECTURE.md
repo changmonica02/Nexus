@@ -1,6 +1,11 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103，CI 通過、待審查，未合併／部署）
+## 2026-10-21 筆記本機整合（Refs #87；未推送／部署）
+
+- `integrate/note-freeform` 以 `origin/main` `b1840cb` 為底，依序整合四筆筆記提交；保留最新世界觀地圖與原有同步、附件契約。筆記變更沿用下方四批既有 Tiptap／Page JSON 實作，沒有 schema 或權限變更。
+- 隔離地圖核心的 Vite PostCSS 設定，避免讀取上層 Next／Tailwind 專用配置；bridge 將非 React Hook 的 viewport 啟用函式改用別名，僅校正 Lint 辨識；地圖編輯及資料模型未改。世界觀瀏覽器測試可選用 `BROWSER_EXECUTABLE` 指向本機 Edge。
+
+## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103 已合併 main `b1840cb`，正式部署／實機驗收未在本輪核實）
 
 - 基於 PR #101 合併 main `826926f`，沿用世界觀 Page JSON 的正式 WorldEntity／placements、單 Page CAS/outbox 及既有備份驗證；無 SQL、RPC、RLS、IndexedDB schema 或付費依賴變動。
 - 文化／宗教沿用通用表單及 Tiptap。cultureSettings 可選 language/customs 自由文字；relations 的 distribution:* 多值 stable ID 引用驗證世界觀、目標型別、重複與自身引用。country／region／culture／site／branch／group 分別指向既有對應類型；group 為相關文化群體，尚無獨立族群模型，不假裝等同文化。舊自訂 relations 保留。

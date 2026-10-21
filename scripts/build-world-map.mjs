@@ -49,7 +49,7 @@ if (installed !== hash) {
 run('npx',['tsc','--noEmit']);
 // A single executable core also works in an opaque offline document: no native
 // module fetches can bypass Nexus's public-asset broker. The fork source stays modular.
-await writeFile(path.join(work,'vite.config.ts'), `import {fileURLToPath,URL} from 'node:url';export default {root:'./src',publicDir:'../public',build:{outDir:'../dist',assetsDir:'.',emptyOutDir:true,rollupOptions:{output:{format:'iife',inlineDynamicImports:true}}},resolve:{alias:{'@':fileURLToPath(new URL('./src',import.meta.url))}}};`);
+await writeFile(path.join(work,'vite.config.ts'), `import {fileURLToPath,URL} from 'node:url';export default {root:'./src',publicDir:'../public',css:{postcss:{plugins:[]}},build:{outDir:'../dist',assetsDir:'.',emptyOutDir:true,rollupOptions:{output:{format:'iife',inlineDynamicImports:true}}},resolve:{alias:{'@':fileURLToPath(new URL('./src',import.meta.url))}}};`);
 run('npx',['vite','build','--base=/world-map/core/']);
 const output = path.join(root, 'public/world-map/core');
 await rm(output, { recursive: true, force: true });

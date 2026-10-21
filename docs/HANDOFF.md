@@ -1,6 +1,11 @@
 # Nexus — 當前交接（2026-10-21）
 
-## V2-3（Refs #102；PR #103；CI 通過，待審查，未合併／部署）
+## 筆記本機整合（Refs #87；未推送／未部署）
+
+- `backup/note-freeform-20261021` 與原 `feat/note-freeform` 均指向 `4edbe28`；`integrate/note-freeform` 自最新 `origin/main` `b1840cb` 依序 cherry-pick 四筆筆記更新。僅 `ARCHITECTURE`／`HISTORY` 的同位置新增段落需人工整合，兩方內容均保留；沒有修改本機 `main` 或遠端。
+- 整合另含地圖核心 Vite PostCSS 隔離、非 Hook viewport 別名及地圖瀏覽器測試可選本機瀏覽器、處理多筆合法警告的定位；用於通過本機既有全專案 Lint／Build，不涉及地圖資料模型。TypeScript、全專案 ESLint（`--quiet`）、正式建置、筆記／附件／工作區瀏覽器、工作區同步 27 項與世界觀單元／IndexedDB／區域／語系／完整 Chromium 瀏覽器測試已通過，地圖頁面錯誤為零；未用正式帳號／附件。
+
+## V2-3（Refs #102；PR #103 已合併 main `b1840cb`；以下為交付紀錄，正式部署／實機驗收未在本輪核實）
 
 - 基準 main `826926f`，分支 `feat/world-map-distributions-v23-20261021`。新增文化／宗教通用條目表單、自由類型／摘要／Tiptap、文化語言／習俗及多值 stable ID 引用；共用既有格網筆刷、候選／擦除／history／取消／確認，同一 cell 多文化及多宗教，跨國界不移轉疆界。
 - 文化／宗教檢視以等權混色、個別顏色／透明度／顯示、選取高亮、全部 cell 分布查詢呈現；只動衍生 SVG。舊文明／自然／城鎮／政治資料及 native binary 不因文字或分布編輯重傳。單 Page CAS/outbox／重試／tombstone／owner 與備份同契約，無 migration。
@@ -72,7 +77,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 
 產品看SPEC、技術看ARCHITECTURE、歷史最新置頂；真實裝置驗收集中#60。
 
-## 筆記改版進度（#87，feat/note-freeform；禁止正式部署）
+## 筆記改版進度（#87，原 feat/note-freeform；整合分支見上方）
 
 - 第一批已提交 `231e159`：P0 同步快照覆蓋 pending 修復；Note 連續編輯、保留舊分頁資料；新建不分模式；標題靠左、逐篇全寬及 metadata 保留；公式跳脫／空內容刪除／獨立 undo。
 - 第二批本機：六點把手操作／Shift 多選／斜線指令；局部雙欄可建立、調寬、移入另一欄或移出；新增嵌套摺疊；桌面側欄記住開合與寬度；流動 Note 匯出使用唯讀 DOM 副本與 A4 分頁預覽，可調方向、邊界、頁首頁尾及頁碼。匯出時展開副本內摺疊，原筆記收合狀態不變。舊 paged Note 暫沿用既有匯出流程，未清除舊 pageBreak。
@@ -81,7 +86,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 - 第三批驗證：筆記 fixture 桌面／手機、工作區四尺寸整合、TypeScript 與正式建置通過；未使用正式帳號或附件。首次建置在 sandbox 內無法建立 Turbopack CSS worker，於本機重跑成功。
 - 本機筆記瀏覽器 fixture 1440／390 寬通過，涵蓋把手排序／復原、Shift 多選與刪除／復原、類型轉換、雙欄移入／移出、摺疊與 PDF 產生；完整工作區四種尺寸整合及同步 27 項回歸通過，含桌面側欄調寬與記憶。TypeScript、production build 通過。未執行正式帳號／實機 Safari 驗收。
 - 仍待完成：所有類型轉換與附件內容的匯出回歸、長雙欄跨頁／超寬內容的預覽與 PDF 一致性、預覽手動分頁調整，以及舊 paged Note 無損過渡。跨頁順序／縮放／分頁保存依 SPEC 待決，不自行定案。
-- 尚未 push／PR／合併／部署，不執行 migration。#87 保持開啟，第二批不是全功能驗收。
+- 筆記改版尚未推送／PR／合併／部署，不執行 migration。#87 保持開啟，以下仍有待完成項目。
 
 ## 2026-10-19 最新交付準備（Refs #84、#85）
 
