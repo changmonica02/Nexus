@@ -522,8 +522,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await stroke(candidates[0]);await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).waitFor();
   const firstArea=await areaOutput.innerText();assert.match(firstArea,/km²/,'calibrated region uses a labelled planar estimate');
   assert.equal((await readTowns()).maps.find(m=>m.id===regionMapId).placements?.some(p=>p.entityId===countryId)??false,false,'painting is not persisted before confirmation');
-  await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();assert.match(await areaOutput.innerText(),/: 0 km²/);
-  await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForTimeout(100);assert.equal(await areaOutput.innerText(),firstArea);
+  await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();await page.waitForFunction(()=>/: 0 km²/.test(document.querySelector('output[aria-label="Territory area"]')?.textContent??''));assert.match(await areaOutput.innerText(),/: 0 km²/);
+  await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForFunction(value=>document.querySelector('output[aria-label="Territory area"]')?.textContent===value,firstArea);assert.equal(await areaOutput.innerText(),firstArea);
   await stroke(candidates[1]);
   await page.evaluate(()=>{window.failMapSave=true;});await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();
