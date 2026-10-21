@@ -547,7 +547,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('North Union');
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
   await page.getByRole('button',{name:/North Union/}).click();await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
-  await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[0]);
+  await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[1]);
   await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===territory.placementId).geometry,territory.geometry,'cancelled edit preserves saved geometry');
   await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});

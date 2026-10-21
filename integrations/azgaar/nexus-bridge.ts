@@ -151,6 +151,7 @@ window.addEventListener('message', event => {
         reportView();
       }else if(data.type==='region'){
         if(preview&&data.settings?.regionCommand?.action!=='cancel')throw Error('Nexus storage is not ready');
+        if(data.settings?.regionCommand?.action==='start'){closeDialogs();const panel=document.getElementById('options');if(panel&&getComputedStyle(panel).display!=='none')document.getElementById('optionsTrigger')?.click();}
         await NexusRegions.command(data.settings?.regionCommand??{});
       }else if(data.type==='catalog'){
         blob=new Blob([JSON.stringify(naturalCatalog())],{type:'application/json'});
