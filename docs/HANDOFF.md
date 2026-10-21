@@ -1,10 +1,13 @@
 # Nexus — 當前交接（2026-10-21）
 
-## V2-3（Refs #102；PR #103；獨立分支，驗證中，未合併／部署）
+## V2-3（Refs #102；PR #103；CI 通過，待審查，未合併／部署）
 
 - 基準 main `826926f`，分支 `feat/world-map-distributions-v23-20261021`。新增文化／宗教通用條目表單、自由類型／摘要／Tiptap、文化語言／習俗及多值 stable ID 引用；共用既有格網筆刷、候選／擦除／history／取消／確認，同一 cell 多文化及多宗教，跨國界不移轉疆界。
 - 文化／宗教檢視以等權混色、個別顏色／透明度／顯示、選取高亮、全部 cell 分布查詢呈現；只動衍生 SVG。舊文明／自然／城鎮／政治資料及 native binary 不因文字或分布編輯重傳。單 Page CAS/outbox／重試／tombstone／owner 與備份同契約，無 migration。
-- 驗證進行中：本機 repository 36/36；CI 將跑 production TypeScript/build、限定 lint、實際 Adapter/fake-IDB、原生工具與兩組 Chromium。未完成前不宣告交付驗收。
+- 程式／測試 `2ad6cf54c13de2ba99f555e5e0a70257c461656c` 的 [CI 39531024382](https://github.com/changmonica02/Nexus/actions/runs/39531024382) 通過：144 項單元／契約（36 repository、4 port、13 Adapter/fake-IDB、2 area、2 i18n、39 相關工作區／角色／study、48 native），核心及 Nexus TypeScript／production omit-dev build，相關 ESLint 0 errors／33 既有 warnings；兩組實際 Chromium（地圖／角色）成功，地圖 pageerror=[]。
+- Chromium 新增：管理器文化與地圖宗教／文化、跨兩國的三文化三宗教重疊、政治 placements 及 native digest／附件不變、圖例顯示／透明度實際保存、完整 cell 查詢（含隱藏條目）、改名衍生顯示、文化圖仍能點選新增城鎮、擦除／逐筆 undo/redo／取消、取消新宗教零殘留、PNG/SVG 有分布且 native snapshot 無衍生圖層、備份／冷重開保留正文與樣式、zh-TW/en、390 寬不溢出、異網格拒絕編輯。原有完整自然／舊文明／城鎮／國家／離線／手勢及角色回歸保留。
+- 指令：`npm run test:world-map`、`node --test tests/worldMapRegions.test.cjs`、`node --test tests/worldMap.i18n.test.cjs`、四個相關工作區／角色／study 測試、核心語系 `npx tsc`、`NODE_ENV=production NPM_CONFIG_OMIT=dev npm run build`、七檔原生 `npx vitest run`、相關 `npx eslint`、`node tests/worldMap.browser.test.cjs`／`node tests/characterBlocks.browser.test.cjs`；完整參數見 workflow。
+- 合成負載：6710 packed cells 的同一測試地圖，既有六個分布上額外新增 50 個重疊文化；隔離 Page CAS 準備後重載／呈現及 12 個閒置 rAF 共 3455ms，平均 15.14ms／最大 16.70ms。這不是全圖高密度筆刷壓測或實機效能保證。
 - 限制：自由 Polygon、球面／重投影、文明生成／傳播／人口統計不做；僅預留主要／次要／相對影響設定，未提供比例 UI。相關文化群體不是獨立族群條目，族群詳情可寫於正文。候選仍是記憶體草案，需確認保存；既有 Page 級衝突保留。真實帳號／Safari／手機實機／大型重疊仍需 #60 人工驗收。
 
 

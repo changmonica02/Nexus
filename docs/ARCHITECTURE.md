@@ -1,15 +1,17 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103，實作中／驗證中）
+## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103，CI 通過、待審查，未合併／部署）
 
 - 基於 PR #101 合併 main `826926f`，沿用世界觀 Page JSON 的正式 WorldEntity／placements、單 Page CAS/outbox 及既有備份驗證；無 SQL、RPC、RLS、IndexedDB schema 或付費依賴變動。
 - 文化／宗教沿用通用表單及 Tiptap。cultureSettings 可選 language/customs 自由文字；relations 的 distribution:* 多值 stable ID 引用驗證世界觀、目標型別、重複與自身引用。country／region／culture／site／branch／group 分別指向既有對應類型；group 為相關文化群體，尚無獨立族群模型，不假裝等同文化。舊自訂 relations 保留。
 - cells 配置新增 culture/religion 支援。國家互斥／確認移轉仍只處理 country；文化／宗教無所有權或 parent 領土約束。可選 distribution 存 color/opacity 及預留 primary/secondary、influence（使用者分類／相對影響，非人口比例）；修改幾何保留顯示設定。舊資料無新增欄位仍有效，point 不變。
+- 分布查詢不攔截 Nexus 城鎮標記／點位放置，雙擊會取消延遲單擊查詢，單純查詢不標記 native dirty；顯示設定在 await 前擷取輸入，只有 durable 保存成功才更新受控值。
 - coreClient／nexus-bridge 只傳投影及視圖，無正式正文或帳號憑證。NexusRegions 共用原 cell brush、mesh SHA、逐筆 history、候選及手勢防護。正式 membership 索引含所有文化／宗教；按 view 決定可見色塊，點擊可查全部（含暫隱條目），選取後高亮範圍。每組重疊 cell 色彩等權混合，非繪製順序覆蓋；不同群組仍可因混色近似，圖例／高亮／完整查詢是識別來源。
 - 比較：多層透明疊畫會受順序影響；斜紋在小螢幕高重疊較雜；逐 cell 全部查詢精確但需互動；選取高亮易讀但無法同時比較全部。採混色＋高亮＋查詢的低依賴組合，不引入圖形套件或新引擎。
 - confirmed membership 在 configure 時更新；path 以 cells 陣列身分快取，換 mesh 清除；分布 SVG 快取在視圖／選取／配置／候選開始或取消時失效。pointer move 用 rAF 合併衍生重繪，不逐次重算正式分布；仍沿用全格網中心掃描筆刷，大地圖需實機評估。候選不寫 Page，確認才保存；新條目與首個分布同交易，穩定 ID 重試、revision／tombstone 保護不變。
 - PNG/SVG 使用已確認及目前顯示偏好；native Save 克隆會移除同一 nexus-regions 衍生圖層，正式資料以工作區備份保存。原生 cultures/religions 保持引擎讀取，不自動正式化；自然地理、原生文明與正式分布互不重算。
-- 自動化結果待本批 CI 更新；正式帳號、多裝置衝突、Safari／Android／iOS 實機與大型圖不視為已驗收。Page 級同步不自動合併同時分布編輯，沿用既有衝突處理。
+- 程式／測試 `2ad6cf54c13de2ba99f555e5e0a70257c461656c` 的 [CI 39531024382](https://github.com/changmonica02/Nexus/actions/runs/39531024382) 通過：144 項單元／契約（36 repository、4 port、13 Adapter/fake-IDB、2 area、2 i18n、39 相關工作區／角色／study、48 native），核心及 Nexus TypeScript／production omit-dev build，相關 ESLint 0 errors／33 既有 warnings；兩組實際 Chromium（地圖／角色）成功，地圖 pageerror=[]。
+- 正式帳號、多裝置衝突、Safari／Android／iOS 實機與大型圖不視為已驗收。Page 級同步不自動合併同時分布編輯，沿用既有衝突處理。
 
 
 ## V2-2B 國家／行政區與人工區域（2026-10-21；Refs #100；PR #101 已合併 main `826926f`；以下為交付紀錄）
