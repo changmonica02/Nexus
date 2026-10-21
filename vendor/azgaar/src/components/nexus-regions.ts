@@ -25,7 +25,10 @@ function draw(includeDraft=true){
  function add(cells:number[],id:string,color:string,name:string){const item=document.createElementNS(NS,'g');item.dataset.placementId=id;const d=path(cells),fill=document.createElementNS(NS,'path'),border=document.createElementNS(NS,'path');fill.setAttribute('d',d.fill);fill.setAttribute('fill',color);fill.setAttribute('fill-opacity','.24');fill.setAttribute('stroke','none');border.setAttribute('d',d.border);border.setAttribute('stroke',color);border.setAttribute('stroke-width','1.5');border.setAttribute('vector-effect','non-scaling-stroke');border.setAttribute('fill','none');item.append(fill,border);
  const valid=cells.filter(land);if(valid.length){const center=valid.reduce((p,c)=>[p[0]+pack.cells.p[c][0]/valid.length,p[1]+pack.cells.p[c][1]/valid.length],[0,0]);const anchor=valid.reduce((a,c)=>Math.hypot(pack.cells.p[c][0]-center[0],pack.cells.p[c][1]-center[1])<Math.hypot(pack.cells.p[a][0]-center[0],pack.cells.p[a][1]-center[1])?c:a,valid[0]);const label=document.createElementNS(NS,'text');label.textContent=name;label.setAttribute('x',String(pack.cells.p[anchor][0]));label.setAttribute('y',String(pack.cells.p[anchor][1]));label.setAttribute('text-anchor','middle');label.setAttribute('font-size','14');label.setAttribute('fill','#221b14');label.setAttribute('stroke','white');label.setAttribute('stroke-width','3');label.setAttribute('paint-order','stroke');item.append(label);}
  group.append(item);}
- view.insertBefore(group,document.getElementById('nexus-placements'));
+ // Keep native city icons/labels selectable above the new territorial fill.
+ const city=document.getElementById('burgIcons'),labels=document.getElementById('labels');
+ const anchor=Array.from(view.children).find(child=>child.id==='nexus-placements'||!!city&&child.contains(city)||!!labels&&child.contains(labels));
+ view.insertBefore(group,anchor??null);
 }
 async function configure(value:Region[],mapScope:string,notify:(data:unknown)=>void){regions=value;scope=mapScope;send=notify;await mesh();draw();report();}
 async function command(s:{action:string;id?:string;placementId?:string;name?:string;geometry?:CellRegion;radius?:number;erase?:boolean}){
