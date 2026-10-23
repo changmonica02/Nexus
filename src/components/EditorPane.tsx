@@ -12,6 +12,7 @@ import PaginatedEditorView from "./PaginatedEditorView";
 import FileMenu from "./FileMenu";
 import ToolbarDropdown from "./ToolbarDropdown";
 import DocumentRuler, { getDocumentRulerWidth } from "./DocumentRuler";
+import NoteExportPreview from "./NoteExportPreview";
 
 export default function EditorPane({
   page,
@@ -69,10 +70,12 @@ export default function EditorPane({
   /** Returns to the feature's overview instead of exposing global navigation in an editor. */
   onBackToInterface?: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const lessonRootRef = useRef<HTMLElement>(null);
   const lessonMetadataRef = useRef((page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout);
   lessonMetadataRef.current = (page?.content_json as { lessonLayout?: LessonLayout } | undefined)?.lessonLayout;
+  const documentMetadataRef = useRef(page?.content_json);
+  documentMetadataRef.current = page?.content_json;
   const navigateLesson = (id: string) => {
     Array.from(lessonRootRef.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((element) => element.dataset.id === id)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -80,6 +83,8 @@ export default function EditorPane({
   const [showRuler, setShowRuler] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(false);
   const [isWordCountOpen, setIsWordCountOpen] = useState(false);
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [exportSource, setExportSource] = useState<HTMLElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isThumbRailOpen, setIsThumbRailOpen] = useState(true);
   const [isPdfCollapsed, setIsPdfCollapsed] = useState(false);
@@ -106,9 +111,13 @@ export default function EditorPane({
   }, []);
 
   const handleContentWithAutoSave = useCallback((payload: { json: any; text: string }) => {
-    onContentChange({ ...payload, json: { ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
+    onContentChange({ ...payload, json: { ...documentMetadataRef.current, ...payload.json, ...(lessonMetadataRef.current ? { lessonLayout: lessonMetadataRef.current } : {}) } });
   }, [onContentChange]);
   const handleTitleWithAutoSave = onTitleChange;
+  const openExportPreview = () => {
+    setExportSource(lessonRootRef.current?.querySelector<HTMLElement>(".nexus-print-target .ProseMirror") ?? null);
+    setExportPreviewOpen(true);
+  };
   useEffect(() => {
     const save = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
@@ -170,15 +179,20 @@ export default function EditorPane({
     handleContentWithAutoSave({ json: { ...page.content_json, lessonLayout: layout }, text: page.content_text || "" });
   };
   const currentTags = page.tags || [];
-  // 2026-08-11：版面模式定案
-  // - 文檔一律流動（即使舊資料 format 為其他值，也以流動顯示）
-  // - 筆記：format "paged" → 分頁筆記；其餘（含舊 a4/16:9/4:3 資料）→ 流動
-  // - 簡報由 PresentationView 處理（不進 EditorPane）
-  const effectiveFormat: PageFormat = page.kind === "document" ? "flow" : ((page.format || "flow") === "paged" ? "paged" : "flow");
+  // Display legacy notes continuously without changing format or pageBreak
+  // nodes in storage. Pagination remains an output concern (F-NOTE #87).
+  const effectiveFormat: PageFormat = "flow";
   const currentFormat = effectiveFormat;
   const isDocument = page.kind === "document";
   const isPresentation = page.kind === "presentation";
-  const isPaged = page.kind === "note" && currentFormat === "paged";
+  const isPaged = false;
+  const noteAppearance = (page.content_json as { noteAppearance?: { fullWidth?: boolean } })?.noteAppearance;
+  const fullWidth = isLessonNote && noteAppearance?.fullWidth === true;
+  const toggleFullWidth = () => {
+    const json = { ...page.content_json, noteAppearance: { ...noteAppearance, fullWidth: !fullWidth } };
+    documentMetadataRef.current = json;
+    handleContentWithAutoSave({ json, text: page.content_text || "" });
+  };
 
   const getTextFromNode = (node: any): string => {
     if (!node) return "";
@@ -254,7 +268,7 @@ export default function EditorPane({
     <main data-workspace-pane={page.id} ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-        <div className="mx-auto w-full flex items-center gap-3" style={{ maxWidth: "820px" }}>
+        <div className={`${isLessonNote ? "" : "mx-auto"} w-full flex items-center gap-3`} style={{ maxWidth: isLessonNote ? undefined : "820px" }}>
           <SidebarToggle/>{onBackToInterface && (
             <button
               type="button"
@@ -292,15 +306,15 @@ export default function EditorPane({
             isPresentation={isPresentation}
             onFormatChange={onFormatChange}
             onExportMarkdown={onExportMarkdown}
-            onExportPdf={onExportPdf}
+            onExportPdf={isLessonNote && !isPaged ? openExportPreview : onExportPdf}
             onExportNexus={onExportNexus}
-            onPrint={() => window.print()}
+            onPrint={isLessonNote && !isPaged ? openExportPreview : () => window.print()}
             onNewNote={onNewNote}
             onNewDocument={onNewDocument}
             onImportPdf={onImportPdf}
             onImportMd={onImportMd}
             onConvertToPresentation={onConvertToPresentation}
-            onDeleteBlankPages={handleDeleteBlankPages}
+            onDeleteBlankPages={isLessonNote ? undefined : handleDeleteBlankPages}
           />
           {isToolbarCompact ? (
             <ToolbarDropdown label="⋯" variant="menu">
@@ -374,6 +388,13 @@ export default function EditorPane({
           />
           </>}
           <div className="flex-1" />
+
+          {isLessonNote && <ToolbarDropdown label="⋯" variant="menu">
+            <div className="px-3 py-2 text-xs opacity-60">{language === "en" ? "Appearance and layout" : "外觀與版面配置"}</div>
+            <button type="button" role="switch" aria-checked={fullWidth} onClick={toggleFullWidth} className="w-full px-3 py-2 text-left text-sm">
+              {fullWidth ? "✓ " : ""}{language === "en" ? "Full width" : "全寬"}
+            </button>
+          </ToolbarDropdown>}
 
           <SaveStatus state={saveState} onRetry={() => { void onSave?.().catch(() => undefined); }} />
 
@@ -505,7 +526,7 @@ export default function EditorPane({
             </div>
           )}
           <PageFormatView format={currentFormat}>
-          <div className="flex flex-col w-full nexus-print-target" style={{ maxWidth: currentFormat === "flow" ? "820px" : "100%", margin: currentFormat === "flow" ? "0 auto" : undefined, padding: currentFormat === "flow" ? "16px clamp(16px, 5vw, 64px) 48px" : "0" }}>
+          <div data-note-width={isLessonNote ? (fullWidth ? "full" : "reading") : undefined} className="flex flex-col w-full nexus-print-target" style={{ maxWidth: fullWidth ? "100%" : "820px", margin: "0 auto", padding: "16px clamp(16px, 5vw, 64px) 48px" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
                 <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs" style={{ borderBottom: "1px solid var(--color-border)", color: "var(--color-text)" }}>
@@ -536,6 +557,10 @@ export default function EditorPane({
         </>
       )}
       </div>
+      {exportPreviewOpen && isLessonNote && !isPaged && <NoteExportPreview
+        source={exportSource}
+        title={page.title} header={lessonLayout.header} footer={lessonLayout.footer} pageNumbers={lessonLayout.pageNumbers}
+        onClose={() => setExportPreviewOpen(false)} onSave={onSave} />}
     </main>
   );
 }

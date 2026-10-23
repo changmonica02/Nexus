@@ -7,17 +7,13 @@ import type { PageFormat, PageKind } from "../lib/types";
 
 export type NewPageKindChoice = PageKind;
 // 2026-08-11：建立流程
-// - 筆記：選「流動 / 分頁」兩種模式（建立後不可轉換）
+// - 筆記：直接建立自由連續筆記，保留既有分頁資料
 // - 文檔：一律流動（直接建立）
 // - 學習集：直接建立（flow）
 // - 簡報：選 16:9 / 4:3
 const FORMAT_OPTIONS_BY_KIND: Record<string, PageFormat[]> = {
   presentation: ["16:9", "4:3"],
 };
-const NOTE_MODE_OPTIONS: { value: PageFormat }[] = [
-  { value: "flow" },
-  { value: "paged" },
-];
 const DEFAULT_FORMAT_BY_KIND: Record<string, PageFormat> = {
   document: "flow",
   study_set: "flow",
@@ -28,14 +24,14 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   initialKind?: PageKind | null;
 }) {
   const { t } = useLanguage();
-  const [step, setStep] = useState<"kind" | "noteMode" | "format">("kind");
+  const [step, setStep] = useState<"kind" | "format">("kind");
   const [selectedKind, setSelectedKind] = useState<NewPageKindChoice | null>(null);
 
   useEffect(() => {
     if (isOpen && initialKind) {
       if (initialKind === "note") {
-        setSelectedKind(initialKind);
-        setStep("noteMode");
+        onConfirm(initialKind, "flow");
+        onClose();
       } else if (initialKind === "study_set") {
         onConfirm(initialKind, "flow");
         onClose();
@@ -74,8 +70,8 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
 
   const handleSelectKind = (kind: NewPageKindChoice) => {
     if (kind === "note") {
-      setSelectedKind(kind);
-      setStep("noteMode");
+      onConfirm(kind, "flow");
+      handleClose();
       return;
     }
     if (kind === "study_set") { onConfirm(kind, "flow"); handleClose(); return; }
@@ -89,11 +85,6 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
     handleClose();
   };
 
-  const handleSelectNoteMode = (format: PageFormat) => {
-    if (!selectedKind) return;
-    onConfirm(selectedKind, format);
-    handleClose();
-  };
   const handleSelectFormat = (format: PageFormat) => {
     if (!selectedKind) return;
     onConfirm(selectedKind, format);
@@ -102,7 +93,6 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
   const handleClose = () => { setStep("kind"); setSelectedKind(null); onClose(); };
 
   const showKindStep = step === "kind" && !initialKind;
-  const showNoteModeStep = step === "noteMode" && selectedKind === "note";
   const showFormatStep = step === "format" && selectedKind === "presentation";
 
   return (
@@ -110,7 +100,7 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-border)" }}>
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-            {showFormatStep ? t("newPage.formatTitle") : showNoteModeStep ? t("newPage.noteModeTitle") : t("newPage.title")}
+            {showFormatStep ? t("newPage.formatTitle") : t("newPage.title")}
           </span>
           <button onClick={handleClose} className="text-sm opacity-40 hover:opacity-100 px-1.5 py-0.5 rounded" style={{ border: "1px solid var(--color-border)" }}>{t("commandPalette.esc")}</button>
         </div>
@@ -119,17 +109,6 @@ export default function NewPageDialog({ isOpen, onClose, onConfirm, initialKind 
             <button key={option.id} onClick={() => handleSelectKind(option.id)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
               <FeatureIcon feature={"id" in option?String(option.id):"notes"} size={24}/>
               <span><span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{option.label}</span><span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>{option.desc}</span></span>
-            </button>
-          ))}
-          {showNoteModeStep && NOTE_MODE_OPTIONS.map((option) => (
-            <button key={option.value} onClick={() => handleSelectNoteMode(option.value)} className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all hover:bg-zinc-100" style={{ border: "1px solid var(--color-border)" }}>
-              <FeatureIcon feature={"id" in option?String(option.id):"notes"} size={24}/>
-              <span>
-                <span className="block text-sm font-medium" style={{ color: "var(--color-text)" }}>{formatLabel(option.value)}</span>
-                <span className="block text-xs opacity-60" style={{ color: "var(--color-text)" }}>
-                  {option.value === "flow" ? t("newPage.noteMode.flowDesc") : t("newPage.noteMode.pagedDesc")}
-                </span>
-              </span>
             </button>
           ))}
           {showFormatStep && (FORMAT_OPTIONS_BY_KIND[selectedKind as string] || ["flow"]).map((format) => (

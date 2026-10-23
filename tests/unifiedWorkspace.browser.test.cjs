@@ -45,7 +45,7 @@ test(
               { filter: /infrastructure[\\/]sync[\\/]syncEngine\.ts$/ },
               () => ({
                 contents:
-                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(){}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
+                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(cb){window.remoteRefresh=cb;}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
                 loader: "js",
               }),
             );
@@ -107,6 +107,7 @@ test(
             hasTouch: width !== 1440,
           }),
           page = await context.newPage();
+        page.setDefaultTimeout(10000);
         page.on("pageerror", (e) => errors.push(e.message));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
         const opener = page.getByRole("button", {
@@ -119,6 +120,21 @@ test(
         await page.evaluate(() => { window.refreshAuth(); window.refreshAuth(); });
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(() => window.engineCount), engines, 'same-account token refresh reuses sync engine');
+        if (process.env.NEXUS_CURSOR_ONLY) {
+          await opener.click();
+          await page.getByRole('dialog',{name:'開啟導覽',exact:true}).getByText('Sample note',{exact:true}).click();
+          const editor=page.locator('.ProseMirror').first();
+          await editor.click(); await page.keyboard.press('Control+End');
+          await page.keyboard.insertText('中文 English');
+          // Fire the real remote-refresh callback while the new text is only
+          // in the debounce queue; IndexedDB still contains the old snapshot.
+          await page.evaluate(()=>window.remoteRefresh());
+          await page.keyboard.press('Space'); await page.keyboard.insertText('tail');
+          assert.match(await editor.innerText(),/中文 English tail$/);
+          await page.locator('[data-save-status=saved]').waitFor();
+          assert.ok(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.content_text?.includes('中文 English tail'))));
+          await context.close(); continue;
+        }
         if (process.env.NEXUS_SAVE_ONLY) {
           await opener.click();
           const drawer = page.getByRole('dialog', {name:'開啟導覽',exact:true});
@@ -149,7 +165,7 @@ test(
           assert.equal(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.title==='Newest write')),true);
           if(width===1440){
             await page.getByRole('button',{name:'開啟導覽',exact:true}).click();
-            await drawer.getByText('A note',{exact:true}).click({modifiers:['Control']});
+            await page.locator('[data-note-sidebar="docked"]').getByText('A note',{exact:true}).click({modifiers:['Control']});
             await page.waitForFunction(()=>document.querySelectorAll('[data-workspace-pane]').length===2);
             const panes=page.locator('[data-workspace-pane]');
             await panes.nth(0).locator('input[type=text]').first().fill('Left note');
@@ -644,8 +660,14 @@ test(
                 "開啟導覽",
             ),
           );
-          await opener.click();
-          await drawer
+          const noteNav = page.locator('[data-note-sidebar="docked"]');
+          await noteNav.waitFor();
+          const sidebarWidth = await noteNav.evaluate(el => Math.round(el.getBoundingClientRect().width));
+          const sidebarDivider = noteNav.getByRole('separator', {name:'調整筆記側邊欄寬度'});
+          await sidebarDivider.press('ArrowRight');
+          assert.equal(await noteNav.evaluate(el => Math.round(el.getBoundingClientRect().width)), sidebarWidth + 10);
+          assert.equal(await page.evaluate(() => localStorage.getItem('nexus:noteSidebarWidth')), String(sidebarWidth + 10));
+          await noteNav
             .getByRole("button", { name: "垃圾桶", exact: true })
             .click();
           await page.waitForTimeout(330);
@@ -654,16 +676,16 @@ test(
             0,
           );
           assert.equal(await back.isVisible(), true);
-          await page.keyboard.press("Escape");
-          await opener.click();
-          await drawer
-            .getByRole("button", { name: "筆記", exact: true })
-            .press("Enter");
+          await noteNav.getByRole("button", { name: "垃圾桶", exact: true }).click();
+          const features = noteNav.getByRole('button',{name:'功能總覽',exact:true});
+          if(await features.getAttribute('aria-expanded')==='false') await features.click();
+          await noteNav.getByRole('button',{name:'筆記',exact:true}).press('Enter');
           await page
             .getByRole("button", { name: "＋ 建立筆記", exact: true })
             .click();
-          await page.getByText("流動頁面（無分頁）", { exact: true }).waitFor();
-          await page.keyboard.press("Escape");
+          await page.locator('[data-workspace-pane]').waitFor();
+          assert.equal(await page.evaluate(async id => (await window.fixtureStorage.getPage(id))?.format, await page.locator('[data-workspace-pane]').getAttribute('data-workspace-pane')), 'flow');
+          await page.getByRole('button',{name:'回到功能介面',exact:true}).click();
           await page
             .getByRole("button", { name: "更多操作 Renamed note", exact: true })
             .click();
@@ -682,7 +704,9 @@ test(
           );
           assert.notEqual(copy.id, sourceId);
           await opener.click();
-          await drawer
+          const navFeatures = page.locator('nav[aria-label="功能導覽"] button[aria-expanded]');
+          if(await navFeatures.getAttribute('aria-expanded')==='false') await navFeatures.click();
+          await page
             .getByRole("button", { name: "筆記", exact: true })
             .press("Enter");
           await page
@@ -734,7 +758,8 @@ test(
             null,
           );
           await opener.click();
-          await drawer
+          if(await navFeatures.getAttribute('aria-expanded')==='false') await navFeatures.click();
+          await page
             .getByRole("button", { name: "字卡", exact: true })
             .press("Enter");
           await page

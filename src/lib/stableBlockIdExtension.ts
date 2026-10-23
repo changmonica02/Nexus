@@ -37,6 +37,7 @@ export const StableBlockId = Extension.create({
           "codeBlock",
           "horizontalRule",
           "callout",
+          "foldBlock",
           "multiColumn",
           "column",
           "table",

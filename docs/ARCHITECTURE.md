@@ -1,6 +1,11 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103，CI 通過、待審查，未合併／部署）
+## 2026-10-21 筆記本機整合（Refs #87；未推送／部署）
+
+- `integrate/note-freeform` 以 `origin/main` `b1840cb` 為底，依序整合四筆筆記提交；保留最新世界觀地圖與原有同步、附件契約。筆記變更沿用下方四批既有 Tiptap／Page JSON 實作，沒有 schema 或權限變更。
+- 隔離地圖核心的 Vite PostCSS 設定，避免讀取上層 Next／Tailwind 專用配置；bridge 將非 React Hook 的 viewport 啟用函式改用別名，僅校正 Lint 辨識；地圖編輯及資料模型未改。世界觀瀏覽器測試可選用 `BROWSER_EXECUTABLE` 指向本機 Edge。
+
+## V2-3 文化／宗教分布（2026-10-21；Refs #102；PR #103 已合併 main `b1840cb`，正式部署／實機驗收未在本輪核實）
 
 - 基於 PR #101 合併 main `826926f`，沿用世界觀 Page JSON 的正式 WorldEntity／placements、單 Page CAS/outbox 及既有備份驗證；無 SQL、RPC、RLS、IndexedDB schema 或付費依賴變動。
 - 文化／宗教沿用通用表單及 Tiptap。cultureSettings 可選 language/customs 自由文字；relations 的 distribution:* 多值 stable ID 引用驗證世界觀、目標型別、重複與自身引用。country／region／culture／site／branch／group 分別指向既有對應類型；group 為相關文化群體，尚無獨立族群模型，不假裝等同文化。舊自訂 relations 保留。
@@ -125,6 +130,27 @@ worldMapTranslations 併入既有 i18n；核心 nexus-i18n.ts 由 esbuild 使用
 - M0 查證：上游為獨立 Vite 應用（Node >=24 建置），全域地圖狀態與 UI 應隔離於 iframe，避免改寫成 React 引擎。`Save.prepareMapData` 序列化設定、SVG 及完整地圖欄位；`Load.uploadMap` 使用 FileReader 且回傳 void，解析／重建另行非同步，不能以呼叫返回判定載入成功。上游原生 browser storage 的 `lastMap` 是單槽，不能當 Nexus 多地圖及帳號隔離的資料真相。實際 iframe origin／CSP／檔案隔離方式尚待驗證，未鎖定部署方案。
 - 上游 Git tree 共 1,739 entries，blob 大小合計 67,067,340 bytes（來源快照，不是正式 bundle 或記憶體用量）。lockfile 的 runtime dependencies 含 MIT、ISC、BSD-3-Clause、Apache-2.0、Unlicense；字型、圖示及 public/libs 等素材仍須逐項核對。尚未引入上游套件、資產或付費服務。
 - 驗證：`node tests/worldMap.test.cjs` 在 Node 24.19.0 通過 19 項合成資料／記憶體交易契約測試。`tests/worldMapIndexedDB.test.cjs` 新增 5 項既有 Adapter + fake-indexeddb 測試（重新開啟、交易回滾、owner、Trash／offline outbox、備份往返），本輪未能執行。未執行 TypeScript、build、現有完整回歸、瀏覽器、真實 Supabase 帳號／裝置驗收；M0 尚未全部完成，M1–M3 不列完成。
+
+## 2026-10-19 筆記改版第四批（Refs #87；本機實作，未部署）
+
+- 把手拖至另一個頂層區塊的右側中段，會在單次 ProseMirror transaction 建立局部雙欄：目標區塊留左欄、拖入區塊進右欄；原節點內容與 ID 保留，undo 可恢復原順序。上／下邊緣仍用於一般排序。拖曳期間於有效側邊落點顯示提示；舊手動分頁節點及既有雙欄不作此轉換。
+
+## 2026-10-19 筆記改版第三批（Refs #87；本機實作，未部署）
+
+- rich editor 的同頁把手拖曳會依穩定區塊 ID 定位來源；跨左右欄沿用既有欄間移動命令，頂層區塊移入指定欄位則在單次 transaction 內搬移原節點並保留 undo。欄位分隔線與把手的層級分開，避免遮擋操作；不改資料模型或同步介面。
+
+## 2026-10-19 筆記改版第二批（Refs #87；本機實作，未部署）
+
+- `TiptapEditor` 沿用既有 rich schema；`MultiColumn` 以所選頂層區塊局部包覆，NodeView 儲存 20–80 欄寬比例，移入／移出與攤平操作保留子區塊；`FoldBlock` 儲存嵌套內容與展開狀態。把手與斜線選單修改原 Tiptap transaction，頂層區塊拖曳落點以穩定 ID 搬移同一節點並隔開 undo 群組；繼續使用既有 `content_json` 自動儲存／同步，無 migration。
+- `FloatingSidebar` 在桌面 Note 編輯頁變成共用 Sidebar 的 docked 呈現，寬度與開合只存本機 localStorage；手機與其他功能維持原浮層。`NoteExportPreview` 複製已渲染 DOM，於副本展開摺疊並依 A4 可用高度分頁；PDF 列印從預覽輸出，不改 Note JSON。舊 paged Note 保持原呈現／匯出，待無損過渡規則確認。
+
+## 2026-10-19 筆記改版第一批（Refs #87；本機實作，未部署）
+
+- 同步讀取開始時保留 pending 快照，回填時優先採目前 pending，再採讀取開始時 pending。避免遠端通知以較舊 IndexedDB 內容覆蓋 800ms debounce／寫入中的本機修改，引發 Tiptap setContent 與游標跳動；未改同步頻率、附件下載或權限。
+- EditorPane 對 Note 採單一 flow 編輯器，保留儲存的 format／pageBreak 節點；不自動轉換或刪除舊分頁資料。新建 Note 不再詢問流動／分頁。Document 原有 flow 契約不變。
+- `content_json.noteAppearance.fullWidth` 為逐篇外觀設定，沿用原有 JSON 儲存與同步，不新增 schema；編輯回傳保留根層 metadata。標題靠左，原有可收合講義目錄沿用。
+- Math NodeView 隔離原文輸入事件、空內容退出時刪除節點、按鈕防止 blur 提前提交，公式提交／刪除具有獨立 undo 邊界；美元輸入辨識跳脫、code 與 IME，不屏蔽空白。公式及原有教學節點資料模型不變。
+- 本段是第一批當時狀態；後續區塊選單／斜線指令、雙欄調寬、桌面側欄及輸出預覽已見上方批次。長雙欄跨頁等未決規則維持待確認。
 
 ## 2026-10-19 共用工作區元件（Refs #85；已實作／本機驗證）
 

@@ -21,7 +21,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     res.setHeader('content-type','text/html');res.end(cssFiles.map(p=>'<link rel="stylesheet" href="/_next/static/'+p+'">').join('')+'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;height:100vh}#root{height:100%;min-width:0}button{padding:6px;margin:3px}[role="dialog"][aria-label="World map editor"]{width:100vw;height:100vh;margin:0;padding:0;display:flex;flex-direction:column}.relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.flex-1{flex:1}.min-h-0{min-height:0}.h-full{height:100%}.w-full{width:100%}.grid{display:grid}.place-items-center{place-items:center}</style><div id="root"></div><script type="module" src="/fixture.js"></script>');
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.close();fs.rmSync(tmp,{recursive:true,force:true});});
-  const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
+  const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE||undefined});t.after(()=>browser.close());
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,hasTouch:true}),page=await context.newPage();
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror:',e.message);});page.on('console',m=>{if(m.type()==='error')console.log('browser:',m.text().slice(0,350));});
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
@@ -661,7 +661,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   // A foreign mesh is preserved but is neither rendered nor accepted for editing.
   await page.evaluate(async({meta,mapId,placementId})=>{const p=await mapStorage.getPage('world-browser'),revision=p.revision;p.character_data.world_entities=meta.entities;p.character_data.world_maps=meta.maps;const target=p.character_data.world_maps.find(m=>m.id===mapId).placements.find(p=>p.placementId===placementId);target.geometry.meshId='f'.repeat(64);p.revision++;p.updated_at=Date.now();await mapStorage.getWorkspacePersistence().mutate(mapStorage.getWorkspaceOwner(),[{type:'pages',kind:'save',value:p}],[{type:'pages',id:p.id,revision}]);await mapStorage.exportWorkspaceBackup();},{meta:stressMeta,mapId:regionMapId,placementId:dawnPlacement.placementId});
   await page.reload();await page.getByLabel('Selected map',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display layers',{exact:true}).selectOption('cultural');
-  await page.getByText('Grid differs; saved territory is preserved but cannot be overlaid.',{exact:true}).waitFor();
+  await page.getByText('Grid differs; saved territory is preserved but cannot be overlaid.',{exact:true}).first().waitFor();
   await page.getByRole('button',{name:'Dawn renamed',exact:false}).last().click();await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Region mesh changed; keep the saved territory'}).waitFor();
   await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
