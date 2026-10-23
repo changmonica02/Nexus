@@ -4,6 +4,7 @@
 
 - `backup/note-freeform-20261021` 與原 `feat/note-freeform` 均指向 `4edbe28`；`integrate/note-freeform` 自最新 `origin/main` `b1840cb` 依序 cherry-pick 四筆筆記更新。僅 `ARCHITECTURE`／`HISTORY` 的同位置新增段落需人工整合，兩方內容均保留；沒有修改本機 `main` 或遠端。
 - 整合另含地圖核心 Vite PostCSS 隔離、非 Hook viewport 別名及地圖瀏覽器測試可選本機瀏覽器、處理多筆合法警告的定位；用於通過本機既有全專案 Lint／Build，不涉及地圖資料模型。TypeScript、全專案 ESLint（`--quiet`）、正式建置、筆記／附件／工作區瀏覽器、工作區同步 27 項與世界觀單元／IndexedDB／區域／語系／完整 Chromium 瀏覽器測試已通過，地圖頁面錯誤為零；未用正式帳號／附件。
+- PR 前補驗：筆記瀏覽器新增快速英文與空白、連續刪改、合成 composition 事件後續輸入及重新掛載保存內容；工作區保存失敗／重試、較新寫入、雙窗隔離與遠端更新碰上待保存輸入均通過。桌面筆記側欄已固定，修正舊保存測試對浮動 dialog 的定位。真實中文輸入法、Safari／實機、正式帳號、長雙欄跨頁與舊 paged Note 無損過渡仍待人工驗收／後續實作，不以合成事件宣稱真實 IME 已驗收。
 
 ## V2-3（Refs #102；PR #103 已合併 main `b1840cb`；以下為交付紀錄，正式部署／實機驗收未在本輪核實）
 

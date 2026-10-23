@@ -165,7 +165,7 @@ test(
           assert.equal(await page.evaluate(async()=> (await window.fixtureStorage.listPages()).some(p=>p.title==='Newest write')),true);
           if(width===1440){
             await page.getByRole('button',{name:'開啟導覽',exact:true}).click();
-            await drawer.getByText('A note',{exact:true}).click({modifiers:['Control']});
+            await page.locator('[data-note-sidebar="docked"]').getByText('A note',{exact:true}).click({modifiers:['Control']});
             await page.waitForFunction(()=>document.querySelectorAll('[data-workspace-pane]').length===2);
             const panes=page.locator('[data-workspace-pane]');
             await panes.nth(0).locator('input[type=text]').first().fill('Left note');

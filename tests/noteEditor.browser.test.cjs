@@ -5,7 +5,7 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:process.cwd()})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.resolve('src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{res.setHeader('content-type','text/html');if(req.url==='/fixture.js'){res.setHeader('content-type','text/javascript');res.end(bundle.outputFiles.find(f=>f.path.endsWith('.js')).text);}else if(req.url==='/fixture.css'){res.setHeader('content-type','text/css');res.end(css+'\n'+bundle.outputFiles.find(f=>f.path.endsWith('.css')).text);}else res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><div id="root"></div><script type="module" src="/fixture.js"></script>');});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>{server.closeAllConnections();server.close(r);}));
- const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium'});t.after(()=>browser.close());
+ const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||undefined});t.after(()=>browser.close());
  for(const width of [1440,390]){
   const page=await browser.newPage({viewport:{width,height:900}}),errors=[];page.on('pageerror',e=>{errors.push(e.message);t.diagnostic(e.message);});
   page.setDefaultTimeout(5000);page.on('console',m=>{if(m.type()==='error')t.diagnostic(m.text());});
@@ -135,6 +135,19 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
    assert.match(await editor.innerText(),/^Beta[\s\S]*Alpha/);
    await page.keyboard.press('Control+z');assert.match(await editor.innerText(),/^Alpha[\s\S]*Beta/);
   }
+  await page.evaluate(()=>window.loadNote('typing-regression'));await page.locator('[data-workspace-pane="typing-regression"]').waitFor();
+  await editor.click();await page.keyboard.type('fast English words ',{delay:1});
+  await page.keyboard.type('and more ',{delay:1});await page.keyboard.press('Backspace');await page.keyboard.press('Backspace');await page.keyboard.type('e ');
+  // Synthetic composition checks that React updates do not replace the editor
+  // while composing. Actual Chinese IME behavior still requires device review.
+  await editor.evaluate(el=>el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:'中'})));
+  await page.keyboard.insertText('中文');
+  await editor.evaluate(el=>el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'中文'})));
+  await page.keyboard.press('Space');await page.keyboard.type('tail',{delay:1});
+  const typingText=await editor.innerText();assert.match(typingText,/fast English words and more 中文 tail$/);
+  assert.equal(await page.evaluate(()=>{const s=getSelection();return s?.anchorOffset===s?.anchorNode?.textContent?.length}),true,'cursor remains at the end after space and composition');
+  await page.evaluate(()=>window.reopenCurrentNote());await editor.waitFor();
+  assert.equal(await editor.innerText(),typingText,'reopening preserves the complete typed text');
   assert.deepEqual(errors,[]);await page.close();
  }
 });
