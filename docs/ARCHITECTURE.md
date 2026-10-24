@@ -1,5 +1,15 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 筆記匯出安全第一批（2026-10-24；Refs #105；PR #106，驗證中）
+
+- 基準 main `23450f9` 已含 #87 自由筆記程式；以下是窄範圍輸出改良，非重建編輯器。詳細審計／開源比較／問題矩陣見 NOTE-EDITOR-AUDIT.md。
+- NoteExportPreview 沿用只讀 DOM clone＋頂層 A4 測量；新增 noteExportLayout.copyExportBlock 移除副本編輯控制、開啟副本 fold、恢復已確認 math-preview，不執行 Tiptap commands 或寫 JSON。
+- waitForExportAssets 對 attached 副本等待 image load 及 document.fonts.ready；最多 8 秒，失敗／超時有警告；取消 effect abort 清除 timer／listeners，late completion 不寫狀態。print 在 ready 前停用，儲存／print 例外轉可重試提示，不再冒出未處理 Promise。
+- 內容超出目前可排範圍、超高 paper/header 或超寬區塊顯示保守警告；不靜默決定拆分長雙欄／合併表格順序。保留 auto-height 的相容顯示並明示實際 PDF 頁數可能較多，尚不是完整 fragmentation engine。
+- CSS 只限 nexus-export：等比圖片限制、基本 heading break／widows/orphans／thead 與 print wrapper overflow；print 時只有 body 的預覽 portal 保留布局，避免原工作區 visibility:hidden 佔位。其他模組列印契約不變。預覽 UI 接既有 en/zh-TW 與 fallback。
+- 無 schema、DB/IDB migration、附件、Page/outbox、owner 或 sync 變更；無新增依賴。Paged.js 只研究、不安裝。正式帳號／真實 IME／Safari／實機／大文件仍需人工或後續量測；最終 CI 證據見 HANDOFF。
+
+
 ## 2026-10-21 筆記本機整合（Refs #87；未推送／部署）
 
 - `integrate/note-freeform` 以 `origin/main` `b1840cb` 為底，依序整合四筆筆記提交；保留最新世界觀地圖與原有同步、附件契約。筆記變更沿用下方四批既有 Tiptap／Page JSON 實作，沒有 schema 或權限變更。
@@ -813,6 +823,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+
 
 
 

@@ -16,7 +16,7 @@ export function waitForExportAssets(root:HTMLElement,signal:AbortSignal,timeoutM
   return new Promise(resolve=>{
     let pending=1,failed=false,done=false;
     const cleanup:(()=>void)[]=[];
-    let timeout:ReturnType<typeof setTimeout>|undefined;
+    const timeout=setTimeout(()=>{failed=true;finish();},timeoutMs);
     const finish=()=>{if(done)return;done=true;clearTimeout(timeout);cleanup.forEach(fn=>fn());resolve(!failed&&!signal.aborted);};
     const complete=(ok:boolean)=>{if(done)return;failed ||= !ok;if(--pending===0)finish();};
     const abort=()=>finish();signal.addEventListener('abort',abort,{once:true});cleanup.push(()=>signal.removeEventListener('abort',abort));
@@ -31,7 +31,6 @@ export function waitForExportAssets(root:HTMLElement,signal:AbortSignal,timeoutM
       cleanup.push(()=>{image.removeEventListener('load',loaded);image.removeEventListener('error',error);});
       if(image.complete){image.removeEventListener('load',loaded);image.removeEventListener('error',error);complete(image.naturalWidth>0);}
     }
-    timeout=setTimeout(()=>{failed=true;finish();},timeoutMs);
     const fonts=root.ownerDocument.fonts;
     if(fonts)void fonts.ready.then(()=>complete(true),()=>complete(false));else complete(true);
   });

@@ -1,8 +1,9 @@
 import React,{useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {LanguageProvider} from '../../src/lib/LanguageContext';
+import {LanguageProvider,useLanguage} from '../../src/lib/LanguageContext';
 import NoteExportPreview from '../../src/components/NoteExportPreview';
 function Fixture(){
+ const {setLanguage}=useLanguage();window.setExportLanguage=setLanguage;
  const [source,setSource]=useState(null),[open,setOpen]=useState(false);
  window.showExport=html=>{const host=document.createElement('article');host.className='ProseMirror nexus-tiptap-editor';host.innerHTML=html;document.getElementById('source').replaceChildren(host);setSource(host);setOpen(true);};
  window.failExportSave=false;window.printCount=0;window.print=()=>{window.printCount++;};
