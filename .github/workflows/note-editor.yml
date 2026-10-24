@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      - run: node --test tests/noteExportLayout.test.cjs
       - name: Export reproduction and regression
         run: node tests/noteExport.browser.test.cjs
       - name: Note, attachment and workspace browser regression
@@ -33,7 +34,7 @@ jobs:
           node tests/unifiedWorkspace.browser.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
       - run: npx tsc --noEmit
-      - run: npx eslint src/components/NoteExportPreview.tsx
+      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts
       - name: Production build
         env:
           NODE_ENV: production
