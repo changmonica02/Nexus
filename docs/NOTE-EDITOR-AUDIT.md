@@ -4,7 +4,7 @@
 
 ## 架構與產品核對
 
-- Note 在 EditorPane 使用單一 TiptapEditor 連續編輯，保留舊 `format=paged`／pageBreak 與未知根 metadata；Document、其他模組不屬本批。main 已有 #87 的自由筆記實作，HANDOFF 原「本機未推送」是歷史進度，不可再當目前缺失。
+- Note 在 EditorPane 使用單一 TiptapEditor 連續編輯（目前 `isPaged=false`，不把保留的 PaginatedEditorView 分支誤認仍在日常使用），保留舊 `format=paged`／pageBreak 與未知根 metadata；Document、其他模組不屬本批。main 已有 #87 的自由筆記實作，HANDOFF 原「本機未推送」是歷史進度，不可再當目前缺失。
 - Tiptap 3.27.1／ProseMirror JSON 是正式內容。StableBlockId 透過 appendTransaction 修補缺失及重複 ID；局部 multiColumn、column、foldBlock、inlineMath／blockMath 均沿用既有 schema。多欄比例、把手／Shift 多選／斜線、側欄與單篇全寬已有程式與 browser fixture，這次不重做。
 - onUpdate 傳 JSON／文字／block 游標錨點；prop 同步以 schema 正規化 JSON 比較後才 setContent，並避開 composing。既有 pending edit 保護已修過同步快照覆蓋游標；目前未重現新 P0，不停用空白／正常快捷格式。setContent 的舊字串錨點與全文序列化仍值得後續量測。
 - TableKit 已提供 resizable tables；現有選單呼叫 addRow/Column、mergeCells、splitCell、header 及 CellSelection/TableMap。不能因為選單存在就宣稱 Excel／HTML／複雜 rowspan paste、Tab 導覽及跨頁已全部驗收。
@@ -44,7 +44,7 @@
 | C01 | D | 中高／大文件未量測 | 中；基準後才優化 |
 | P01 | F/Q | 高／超過一頁區塊時必然 | 高；A/B/C 原型，未決規則不定案 |
 
-### E01｜預覽先於資源就緒量測 — R／P1，第一批
+### E01｜預覽先於資源就緒量測 — B（紅測試確認）／P1，第一批
 1. 名稱：圖片／字型載入競態。2. 影響：頁數、換頁與實際列印不一致。3. 重現：慢速載入高圖片／延遲字型後立即開預覽，等待資源後檢查 paper 高度。4. 根因：useLayoutEffect 同步一次量測，沒有 fonts.ready、image load/decode 或取消。5. 參考：Paged.js beforePreview／PM 不動原 doc 原則。6. 最小修正：只在副本等待有限資源就緒，超時／失敗顯示真實警告，關閉與換設定清理。7. 回歸：延遲 PNG、失敗圖片、關閉／重新開啟、快速換方向；檢查原 DOM／JSON 不變。8. 新依賴：否。9. 格式：不變。10. 優先：P1，低風險。
 
 ### E02｜超高／超寬內容無警告 — B／P1，第一批
@@ -57,7 +57,7 @@
 1. 名稱：NodeView 即時編輯 UI 被複製。2. 影響：公式遺漏或印出按鈕。3. 重現：公式原文展開時從匯出流程取副本；檢查隱藏 math-preview 與 textarea。4. 根因：cloneNode 複製 display:none 與可編輯卡，並不根據 LaTeX 正式狀態重建。5. 參考：PM NodeView 與 KaTeX。6. 最小修正候選：副本只保留已確認 preview、移除編輯控制；未確認原文不偷偷提交。7. 回歸：inline/block、錯誤原文、fold 內公式、刪除復原及 source 不變。8. 新依賴：否。9. 格式：不變。10. 優先：P1，若實際入口先 blur 已消除此狀態，仍維持副本防護測試，不捏造已發生資料遺失。
 
 ### M01｜Markdown 無損能力未告知 — B／P1，下一批獨立
-1. 名稱：專屬節點／merged table 變成扁平文字。2. 影響：以 Markdown 當備份會失去欄比、收合、span 或公式。3. 重現：pageToMarkdown 輸入 fold/multiColumn、含 blockMath 與 colspan 表格再 createMarkdownContent。4. 根因：default getTextFromNode／tableToMarkdown 未表達 schema 專屬 attrs；GFM 本來不能表示 rowspan。5. 參考：remark-gfm AST 與 HTML fallback，須先選明確交換策略。6. 最小修正候選：輸出能力檢查／警告、保留 JSON 備份；HTML/sidecar 封裝先原型比較，不直接定案。7. 回歸：表格 pipe／code ticks／多欄／fold／數學 round-trip fixture。8. 新依賴：警告不需；parser 另評估。9. 格式：警告不改，無損交換方案待核准。10. 優先：P1，獨立分支，避免改共用 Document parser。
+1. 名稱：專屬節點／merged table 變成扁平文字。2. 影響：以 Markdown 當備份會失去欄比、收合、span 或公式。3. 重現：pageToMarkdown 輸入 fold/multiColumn、含 blockMath 與 colspan 表格再 createMarkdownContent；一般 Note 純文字貼上不會自動走此 Markdown parser，GFM table paste 亦需專用測試，不將 Document 匯入支援視為 Note 已有完整貼上。4. 根因：default getTextFromNode／tableToMarkdown 未表達 schema 專屬 attrs；GFM 本來不能表示 rowspan。5. 參考：remark-gfm AST 與 HTML fallback，須先選明確交換策略。6. 最小修正候選：輸出能力檢查／警告、保留 JSON 備份；HTML/sidecar 封裝先原型比較，不直接定案。7. 回歸：表格 pipe／code ticks／多欄／fold／數學 round-trip fixture。8. 新依賴：警告不需；parser 另評估。9. 格式：警告不改，無損交換方案待核准。10. 優先：P1，獨立分支，避免改共用 Document parser。
 
 ### T01｜複雜表格互動矩陣不足 — F／P2
 1. 名稱：表格 paste／selection／鍵盤驗證缺口。2. 影響：Excel 合併格、Tab、欄寬可能有未發現問題。3. 重現：貼 HTML rowspan/colspan、跨格選取後 merge/split／undo；最後一格 Tab。4. 根因假設：未見專用不變條件 fixture，不代表 TableKit 已壞。5. 參考：PM Tables tableEditing／CellSelection／TableMap。6. 最小方案：先測，不重寫指令；另檢查「完整顯示」目前只改 DOM 而未持久化。7. 回歸：TableMap width／不重疊、撤銷、冷重開及手機選單。8. 新依賴：否。9. 格式：維持現有 attrs。10. 優先：P2，測出根因再修。
@@ -84,9 +84,23 @@
 
 第一批：E01–E03 的重現／最小修正與 E04 防護，獨立 PR；先提交紅測試，修正後跑完整要求。第二批：M01 損失警告與 T01 表格不變條件測試，另開分支，不改共享格式。第三批：C01 長文基準，再選可證實改善的局部方案。第四批：P01 同一多頁 fixture 的 A/B/C 原型與截圖、PDF 對照，未決產品規則保留選項。每批保留實際結果、手動驗收與未完成清單。
 
+## 鍵盤與預覽體驗另案（E05，UX／R，P2）
+
+1. 問題：預覽目前只有 role=dialog，缺少 native modal 的 Escape／焦點圈與回復。2. 影響：鍵盤使用者可能 Tab 到背景內容。3. 重現計畫：開預覽持續 Tab／Shift+Tab／Escape，記錄 activeElement。4. 根因假設：portal div 沒有 focus management。5. 參考：Nexus 既有 ModalDialog 與 ARIA modal pattern。6. 最小方案：先做焦點回歸，再評估沿用 ModalDialog，避免影響 print portal 選擇器。7. 測試：開啟／關閉／列印失敗的焦點還原及手機鍵盤。8. 新依賴：否。9. 資料格式：不變。10. P2，與本批資源準備無關，不冒充已修。
+
 ## 驗證界線
 
 目前盤點不等於每個 Bug 已完成瀏覽器重現。新的實際失敗／修正／CI 結果補於本文件和 HANDOFF。正式帳號、真實中文 IME、Safari、Android／iOS 及大型文件效能須人工／後續量測；不以 Chromium 或單一 PDF 檔頭通過取代上述驗收。
 
 
 2026-10-24 初始證據：baseline reproduction commit `75534a6` 的 [CI 40071347820](https://github.com/changmonica02/Nexus/actions/runs/40071347820) 在延遲圖片前列印按鈕仍 enabled 的斷言失敗，確認 E01。資源完成／等待／失敗／超時／取消五項 helper 單元測試已在本機 Node 通過；最終整合結果待 CI 紀錄。
+
+## 第一批實際交付與證據
+
+程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。
+
+- 已修 E01；E02 提供誠實溢位／資源警告並維持來源，沒有實作完整長區塊拆分。E03 窄範圍 print 隔離以一張紙正好一 PDF 頁及直／橫 MediaBox 驗證；E04 以副本公式編輯卡移除／已確認 preview 可見驗證，不宣稱真實入口已發生公式資料遺失。
+- 實際 fixture 包含延遲／失敗圖片、長篇中英混排、60-row table、rowspan／colspan、超高 pre、寬 columns、fold、math card 及 legacy break marker。檢查 source DOM 不變、尾端文字保留、warnings、不同方向 PDF 頁數／紙張框與儲存失敗重試；既有真實 EditorPane fixture 再驗證舊 JSON／pageBreak／metadata、公式／多欄／拖曳／history／合成 composition／重掛載。附件真實 IndexedDB 雙分頁、離線與帳號隔離回歸通過。
+- CI 的 `note-export-evidence` artifact 留存 multi-page.png/pdf、preview.png、print.png、portrait.pdf、landscape.pdf，全部是合成資料。人工檢視日誌的 paper 預覽與 print 截圖：正文與頁首定位一致，screen 存在工具列遮蓋區，print 移除工具列並顯示頁尾；這不是自動逐像素相等或跨瀏覽器品質保證。
+- 只在一般單紙 fixture 斷言 preview=PDF 一頁；多頁特殊區塊只確認產生多頁、來源／尾文仍在 DOM 且有警告，**沒有驗證每頁 PDF 的全部 glyph／文字或複雜表頭重複**。不能把本批說成所有表格／雙欄／長公式已達完整印刷排版。
+- 仍未做：M01 損失警告／無損格式原型、T01 完整表格互動矩陣、C01 5000/10000-block 效能、E05 鍵盤 modal、P01 Paged.js 可執行原型及未決跨頁規則。沒有新增 runtime dependency、schema／同步／儲存／附件修改或 Migration。

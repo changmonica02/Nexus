@@ -1,13 +1,13 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## 筆記匯出安全第一批（2026-10-24；Refs #105；PR #106，驗證中）
+## 筆記匯出安全第一批（2026-10-24；Refs #105；PR #106，CI 通過、待審查）
 
 - 基準 main `23450f9` 已含 #87 自由筆記程式；以下是窄範圍輸出改良，非重建編輯器。詳細審計／開源比較／問題矩陣見 NOTE-EDITOR-AUDIT.md。
 - NoteExportPreview 沿用只讀 DOM clone＋頂層 A4 測量；新增 noteExportLayout.copyExportBlock 移除副本編輯控制、開啟副本 fold、恢復已確認 math-preview，不執行 Tiptap commands 或寫 JSON。
 - waitForExportAssets 對 attached 副本等待 image load 及 document.fonts.ready；最多 8 秒，失敗／超時有警告；取消 effect abort 清除 timer／listeners，late completion 不寫狀態。print 在 ready 前停用，儲存／print 例外轉可重試提示，不再冒出未處理 Promise。
 - 內容超出目前可排範圍、超高 paper/header 或超寬區塊顯示保守警告；不靜默決定拆分長雙欄／合併表格順序。保留 auto-height 的相容顯示並明示實際 PDF 頁數可能較多，尚不是完整 fragmentation engine。
 - CSS 只限 nexus-export：等比圖片限制、基本 heading break／widows/orphans／thead 與 print wrapper overflow；print 時只有 body 的預覽 portal 保留布局，避免原工作區 visibility:hidden 佔位。其他模組列印契約不變。預覽 UI 接既有 en/zh-TW 與 fallback。
-- 無 schema、DB/IDB migration、附件、Page/outbox、owner 或 sync 變更；無新增依賴。Paged.js 只研究、不安裝。正式帳號／真實 IME／Safari／實機／大文件仍需人工或後續量測；最終 CI 證據見 HANDOFF。
+- 無 schema、DB/IDB migration、附件、Page/outbox、owner 或 sync 變更；無新增依賴。Paged.js 只研究、不安裝。正式帳號／真實 IME／Safari／實機／大文件仍需人工或後續量測；實際 CI `40071963719`：6＋27 單元／契約、四組 Chromium、TS／lint／production build 通過；PDF 一般單紙頁數／方向與副本保護已驗證，複雜多頁 fragmentation 尚未完成。完整證據及限制見 HANDOFF／審計文件。
 
 
 ## 2026-10-21 筆記本機整合（Refs #87；未推送／部署）
