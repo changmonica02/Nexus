@@ -501,3 +501,16 @@ html, body { overscroll-behavior-y: none; }
   .nexus-export-paper:last-child { break-after: auto; }
   .nexus-export-paper tr, .nexus-export-paper img { break-inside: avoid; }
 }
+
+
+/* Note export only: never alter the editable surface or other print flows. */
+.nexus-export-body img { height: auto; max-height: calc(var(--export-height) - 10mm); object-fit: contain; }
+.nexus-export-body h1, .nexus-export-body h2, .nexus-export-body h3 { break-after: avoid; }
+.nexus-export-body p { orphans: 3; widows: 3; }
+.nexus-export-body thead { display: table-header-group; }
+@media print {
+  body:has(.nexus-export-preview) > :not(.nexus-export-preview) { display: none !important; }
+  body:has(.nexus-export-preview) { height: auto !important; min-height: 0 !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; }
+  .nexus-export-preview { margin: 0 !important; padding: 0 !important; }
+  .nexus-export-body .tableWrapper, .nexus-export-body pre, .nexus-export-body .katex-display { overflow: visible !important; }
+}

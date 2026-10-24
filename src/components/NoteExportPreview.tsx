@@ -1,12 +1,18 @@
 "use client";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLanguage } from "../lib/LanguageContext";
+import { copyExportBlock, waitForExportAssets } from "../lib/noteExportLayout";
 
 /** Print from a DOM copy. Editing state, including folded blocks, is untouched. */
 export default function NoteExportPreview({ source, title, header, footer, pageNumbers, onClose, onSave }: {
   source: HTMLElement | null; title: string; header: string; footer: string;
   pageNumbers: boolean; onClose: () => void; onSave?: () => Promise<void>;
 }) {
+  const {t}=useLanguage();
+  const [warnings,setWarnings]=useState<string[]>([]);
+  const [error,setError]=useState(false);
+  const [ready,setReady]=useState(false);
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const [margin, setMargin] = useState(15);
   const [printHeader, setPrintHeader] = useState(header);
@@ -18,13 +24,16 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
   useLayoutEffect(() => {
     const host = pagesRef.current;
     if (!host || !source) return;
-    host.replaceChildren();
+    const controller=new AbortController();
+    setReady(false);setError(false);setWarnings([]);host.replaceChildren();
+    void (async()=>{try {
+    const issues=new Set<string>();
     const paperWidth = orientation === "portrait" ? 210 : 297;
     const paperHeight = orientation === "portrait" ? 297 : 210;
     const makePage = (number: number) => {
       const paper = document.createElement("section");
       paper.className = "nexus-export-paper";
-      paper.setAttribute("aria-label", `第 ${number} 頁`);
+      paper.setAttribute("aria-label", `${t("noteExport.page")} ${number}`);
       paper.style.width = `${paperWidth}mm`;
       paper.style.minHeight = `${paperHeight}mm`;
       paper.style.padding = `${margin}mm`;
@@ -37,38 +46,41 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
       return body;
     };
     let number = 1, body = makePage(number), oversized = false;
-    for (const original of Array.from(source.children)) {
-      if (original.matches(".nexus-drag-handle, .nexus-print-hide")) continue;
+    const copies=Array.from(source.children).filter(el=>!el.matches('.nexus-drag-handle,.nexus-print-hide')).map(copyExportBlock);
+    // Keep copies attached at final width while assets load, without touching source.
+    body.append(...copies);
+    if(!await waitForExportAssets(host,controller.signal))issues.add('assets');
+    if(controller.signal.aborted)return;
+    body.replaceChildren();
+    for (const copy of copies) {
       if (oversized) { body = makePage(++number); oversized = false; }
-      const copy = original.cloneNode(true) as HTMLElement;
-      copy.removeAttribute("contenteditable");
-      if (copy instanceof HTMLDetailsElement) copy.open = true;
-      copy.removeAttribute("hidden");
-      copy.querySelectorAll<HTMLElement>("[contenteditable], .nexus-drag-handle, .nexus-column-divider").forEach(el => {
-        if (el.matches(".nexus-drag-handle, .nexus-column-divider")) el.remove();
-        else el.removeAttribute("contenteditable");
-      });
-      copy.querySelectorAll<HTMLDetailsElement>("details").forEach(el => { el.open = true; });
-      copy.querySelectorAll<HTMLElement>("[hidden]").forEach(el => el.removeAttribute("hidden"));
       body.append(copy);
       if (body.scrollHeight > body.clientHeight + 2 && body.children.length > 1) {
         copy.remove(); body = makePage(++number); body.append(copy);
       }
-      if (body.scrollHeight > body.clientHeight + 2) { body.style.height = "auto"; oversized = true; }
+      if (body.scrollHeight > body.clientHeight + 2) { issues.add('overflow');body.style.height = "auto"; oversized = true; }
+      if(copy.scrollWidth>body.clientWidth+2||Array.from(copy.querySelectorAll<HTMLElement>('pre,table,.katex-display,[data-type="multi-column"]')).some(el=>el.scrollWidth>body.clientWidth+2))issues.add('overflow');
     }
-    setPageCount(number);
-  }, [source, title, printHeader, printFooter, showPageNumbers, orientation, margin]);
-  return createPortal(<div className={`nexus-export-preview ${orientation}`} role="dialog" aria-modal="true" aria-label="筆記匯出預覽">
+    if(controller.signal.aborted)return;
+    for(const paper of host.children){const rect=paper.getBoundingClientRect();if(rect.height>rect.width*paperHeight/paperWidth+2)issues.add('overflow');}
+    setPageCount(number);setWarnings([...issues]);setReady(true);
+    }catch{if(!controller.signal.aborted){setError(true);setReady(false);}}})();
+    return ()=>controller.abort();
+  }, [source, title, printHeader, printFooter, showPageNumbers, orientation, margin,t]);
+  return createPortal(<div className={`nexus-export-preview ${orientation}`} role="dialog" aria-modal="true" aria-label={t("noteExport.title")}>
     <div className="nexus-export-controls nexus-print-hide">
-      <strong className="mr-auto">匯出預覽 · {pageCount} 頁</strong>
-      <label>紙張 <select aria-label="紙張方向" value={orientation} onChange={e => setOrientation(e.target.value as "portrait" | "landscape")}><option value="portrait">A4 直式</option><option value="landscape">A4 橫式</option></select></label>
-      <label>邊界 <select aria-label="頁面邊界" value={margin} onChange={e => setMargin(Number(e.target.value))}><option value={10}>窄 10 mm</option><option value={15}>標準 15 mm</option><option value={20}>寬 20 mm</option></select></label>
-      <label>頁首 <input aria-label="匯出頁首" value={printHeader} onChange={e => setPrintHeader(e.target.value)} /></label>
-      <label>頁尾 <input aria-label="匯出頁尾" value={printFooter} onChange={e => setPrintFooter(e.target.value)} /></label>
-      <label><input type="checkbox" checked={showPageNumbers} onChange={e => setShowPageNumbers(e.target.checked)} /> 頁碼</label>
-      <button type="button" disabled={printing} onClick={async () => { setPrinting(true); try { await onSave?.(); window.print(); } finally { setPrinting(false); } }}>列印／儲存 PDF</button>
-      <button type="button" onClick={onClose}>關閉</button>
+      <strong className="mr-auto">{t("noteExport.title")} · {pageCount} {t("noteExport.page")}</strong>
+      <label>{t("noteExport.paper")} <select aria-label={t("noteExport.orientation")} value={orientation} onChange={e => setOrientation(e.target.value as "portrait" | "landscape")}><option value="portrait">{t("noteExport.portrait")}</option><option value="landscape">{t("noteExport.landscape")}</option></select></label>
+      <label>{t("noteExport.margin")} <select aria-label={t("noteExport.marginLabel")} value={margin} onChange={e => setMargin(Number(e.target.value))}><option value={10}>{t("noteExport.narrow")}</option><option value={15}>{t("noteExport.standard")}</option><option value={20}>{t("noteExport.wide")}</option></select></label>
+      <label>{t("noteExport.header")} <input aria-label={t("noteExport.headerLabel")} value={printHeader} onChange={e => setPrintHeader(e.target.value)} /></label>
+      <label>{t("noteExport.footer")} <input aria-label={t("noteExport.footerLabel")} value={printFooter} onChange={e => setPrintFooter(e.target.value)} /></label>
+      <label><input type="checkbox" checked={showPageNumbers} onChange={e => setShowPageNumbers(e.target.checked)} /> {t("noteExport.numbers")}</label>
+      <button type="button" disabled={printing||!ready} onClick={async () => { setPrinting(true); try { setError(false);await onSave?.(); window.print(); } catch { setError(true); } finally { setPrinting(false); } }}>{t("noteExport.print")}</button>
+      <button type="button" disabled={printing} onClick={onClose}>{t("noteExport.close")}</button>
     </div>
+    {!ready&&!error&&<p role="status" className="nexus-print-hide p-3">{t('noteExport.loading')}</p>}
+    {(warnings.length>0||error)&&<div role="alert" className="nexus-print-hide p-3 text-amber-900 bg-amber-50">{warnings.map(key=><p key={key}>{t('noteExport.warning.'+key)}</p>)}{error&&<p>{t('noteExport.error')}</p>}</div>}
     <div ref={pagesRef} className="nexus-export-pages" />
   </div>, document.body);
 }
+
