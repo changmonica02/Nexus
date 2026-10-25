@@ -17,7 +17,7 @@ export function splitExportTable(block:HTMLElement,referenceBody:HTMLElement):{b
   const table=block instanceof HTMLTableElement?block:block.matches('.tableWrapper')?block.querySelector('table'):null;
   if(!table)return {blocks:[block],warning:false};
   if(block!==table&&(block.childElementCount!==1||block.firstElementChild!==table||Array.from(block.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim())))return {blocks:[block],warning:true};
-  if(table.querySelector('table')||table.tFoot||table.tBodies.length>1)return {blocks:[block],warning:true};
+  if(table.querySelector('table,[data-type="page-break"]')||table.tFoot||table.tBodies.length>1)return {blocks:[block],warning:true};
   const rows=Array.from(table.rows);
   let headerCount=table.tHead?.rows.length??0;
   if(!headerCount)for(const row of rows){if(row.cells.length&&Array.from(row.cells).every(c=>c.tagName==='TH'))headerCount++;else break;}

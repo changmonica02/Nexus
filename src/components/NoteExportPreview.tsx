@@ -55,6 +55,7 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
     body.replaceChildren();
     for (const original of copies) {
       if(original.matches('[data-type="page-break"]')){body=makePage(++number);body.parentElement!.dataset.exportManualBreak=original.dataset.id??'';oversized=false;continue;}
+      if(original.querySelector('[data-type="page-break"]'))issues.add('overflow');
       if(oversized){body=makePage(++number);oversized=false;}
       const result=splitExportTable(original,body);if(result.warning)issues.add('table');
       for (const copy of result.blocks) {
