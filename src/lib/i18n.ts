@@ -15,6 +15,29 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "noteExport.title": "Note export preview",
+  "noteExport.page": "Pages",
+  "noteExport.paper": "Paper",
+  "noteExport.orientation": "Paper orientation",
+  "noteExport.portrait": "A4 portrait",
+  "noteExport.landscape": "A4 landscape",
+  "noteExport.margin": "Margins",
+  "noteExport.marginLabel": "Page margins",
+  "noteExport.narrow": "Narrow 10 mm",
+  "noteExport.standard": "Standard 15 mm",
+  "noteExport.wide": "Wide 20 mm",
+  "noteExport.header": "Header",
+  "noteExport.headerLabel": "Export header",
+  "noteExport.footer": "Footer",
+  "noteExport.footerLabel": "Export footer",
+  "noteExport.numbers": "Page numbers",
+  "noteExport.print": "Print / Save PDF",
+  "noteExport.close": "Close",
+  "noteExport.loading": "Preparing images, fonts and layout…",
+  "noteExport.warning.assets": "Some images or fonts could not finish loading. Check the preview before printing; the source note is unchanged.",
+  "noteExport.warning.overflow": "Some content exceeds a paper or cannot be safely split yet. Preview sheets may span more printed pages; check PDF output, especially tables and columns. No source content was removed.",
+  "noteExport.error": "Export or saving failed. The source note is unchanged. Retry saving/printing, or close and reopen the preview.",
+
   ...worldMapEn,
  "ui.sort.due_date":"Due date",
  "trash.back":"Back", "trash.empty":"Trash is empty.", "trash.restore":"Restore", "trash.permanent":"Delete permanently",
@@ -714,6 +737,29 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "noteExport.title": "筆記匯出預覽",
+  "noteExport.page": "頁",
+  "noteExport.paper": "紙張",
+  "noteExport.orientation": "紙張方向",
+  "noteExport.portrait": "A4 直式",
+  "noteExport.landscape": "A4 橫式",
+  "noteExport.margin": "邊界",
+  "noteExport.marginLabel": "頁面邊界",
+  "noteExport.narrow": "窄 10 mm",
+  "noteExport.standard": "標準 15 mm",
+  "noteExport.wide": "寬 20 mm",
+  "noteExport.header": "頁首",
+  "noteExport.headerLabel": "匯出頁首",
+  "noteExport.footer": "頁尾",
+  "noteExport.footerLabel": "匯出頁尾",
+  "noteExport.numbers": "頁碼",
+  "noteExport.print": "列印／儲存 PDF",
+  "noteExport.close": "關閉",
+  "noteExport.loading": "正在準備圖片、字型與版面…",
+  "noteExport.warning.assets": "部分圖片或字型未能完成載入，請檢查預覽後再列印；原筆記未更動。",
+  "noteExport.warning.overflow": "部分內容超出紙張或尚無法安全分割。預覽紙張可能跨越更多列印頁，請檢查 PDF，尤其表格與雙欄；原內容未刪除。",
+  "noteExport.error": "匯出或儲存失敗，原筆記未更動。請重試儲存／列印，或關閉後重新開啟預覽。",
+
   ...worldMapZhTW,
  "ui.sort.due_date":"到期日期",
  "trash.back":"返回", "trash.empty":"垃圾桶是空的。", "trash.restore":"復原", "trash.permanent":"永久刪除",
@@ -1420,4 +1466,5 @@ export function translate(language: Language, key: string, params?: Record<strin
   if (!params) return template;
   return Object.keys(params).reduce((acc, paramKey) => acc.split(`{{${paramKey}}}`).join(String(params[paramKey])), template);
 }
+
 

@@ -1,5 +1,10 @@
 # Nexus — 專案歷史與決策紀錄
 
+## 2026-10-24｜筆記自主審計與只讀輸出安全（Refs #105；PR #106，CI 通過、待審查）
+
+以 main `23450f9` 實際程式重新盤點，不把舊 #87 本機交接誤認尚未實作。先提出 10 組分類問題、驗證與分批路線圖，再選能保護原始 JSON 的輸出副本問題。官方 Paged.js／PM Tables／Milkdown／remark-GFM／Tiptap 研究確認核心 MIT 可借鑑，但商業 Pro 不屬免費來源；無需為修一個資源競態導入整套 parser／chunker 或替換編輯器。先用既有 C（唯讀 DOM）＋A（原生 print CSS）保守改良，完整 B（Paged.js）可執行原型尚未做。baseline CI 40071347820 成功重現圖片未就緒時允許列印；新實作等待／取消、警告特殊內容，不擅自定案長雙欄順序。程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。 沒有正式資料操作、合併或部署。
+
+
 ## 2026-10-21｜筆記與最新 main 的本機整合（Refs #87）
 
 - 從 `b1840cb` 建立獨立整合分支，保留原筆記分支及 `backup/note-freeform-20261021`。四筆筆記提交按原順序套用；文件衝突只在同一插入點，保留較新的地圖紀錄與全部筆記紀錄。為讓本機 Windows 建置／Lint 可重現，將地圖核心的 PostCSS 解析隔離，並校正非 React Hook 的函式別名。沒有調整地圖資料、權限或部署。
@@ -333,6 +338,7 @@
 - 調整：垃圾桶快速查看與獨立route共用原資料模型；單雙擊分流，長按／Enter提供觸控與鍵盤替代，不以清除主區來實作側欄篩選。
 - 調整：排序每方法單一項、再次選取切換方向且浮窗保持；舊自訂順序按原顯示相容，version2才明確保存方向。字典三色僅簡稱，不增加發布日期條件。
 - 注意：無Migration與正式資料操作；交付PR／自動部署證據與#60真實裝置人工驗收分開。
+
 
 
 

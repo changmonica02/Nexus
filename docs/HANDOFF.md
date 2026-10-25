@@ -1,5 +1,15 @@
 # Nexus — 當前交接（2026-10-21）
 
+## 筆記審計與輸出第一批（Refs #105；PR #106，CI 通過、待審查，未合併／部署）
+
+- 最新基準 main `23450f9`；已核對自由筆記程式存在。下方 #87「本機未推送」屬歷史交接紀錄，不當作目前 main 的實作缺失或正式部署證據。
+- 獨立分支 `feat/note-export-audit-20261024`。完整問題矩陣／開源 MIT 來源／A-B-C 分頁比較及後續路線圖見 docs/NOTE-EDITOR-AUDIT.md；本批僅修只讀匯出資源就緒、overflow 警告、math/fold 副本、print 工作區佔位及儲存失敗恢復，無新依賴／格式／儲存變更。
+- Red reproduction：CI 40071347820 在尚未載入圖片前 print enabled 的斷言失敗。helper 已擴充六項並通過。程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。
+- 匯出 fixture 通過延遲／失敗媒體、超出紙張警告、唯讀 fold/math、單紙 PDF 頁數與直橫尺寸、保存失敗／重試、中英切換及多頁合成文件。截圖／PDF 於該 CI 的 note-export-evidence；人工視覺比對與未覆蓋部分見審計文件。
+- 未完成：長段落／rowspan 表格／長雙欄真正分割、手動匯出分頁調整是否保存、舊 pageBreak 在新輸出中的逐頁一致性、Markdown 損失警告／無損方案、複雜表格矩陣、長文效能基準、Paged.js 可執行比較原型。不得當作本批完成或核准新規則。
+- 人工保留：真實中文 IME、Safari／Android／iOS、正式帳號／跨裝置／大文件；合成 composition、隔離 Chromium 或 PGlite 不取代它們。
+
+
 ## 筆記本機整合（Refs #87；未推送／未部署）
 
 - `backup/note-freeform-20261021` 與原 `feat/note-freeform` 均指向 `4edbe28`；`integrate/note-freeform` 自最新 `origin/main` `b1840cb` 依序 cherry-pick 四筆筆記更新。僅 `ARCHITECTURE`／`HISTORY` 的同位置新增段落需人工整合，兩方內容均保留；沒有修改本機 `main` 或遠端。
@@ -123,6 +133,7 @@ PR #91／#93 已合併至 main，交付及部署證據見 #60；首頁地圖優�
 ## 既有保留事項
 
 核心概念、ranking/minimal components、官方私人卡身份及創作模板SQL均已核實套用，不重播歷史SQL。字典既有常駐28項、本機匯入原檔／Session及私人學習保持原契約；不重匯、不批次發布。隔離PostgreSQL／Chromium不等同Supabase staging／真實Safari驗收。
+
 
 
 
