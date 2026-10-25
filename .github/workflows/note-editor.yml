@@ -31,7 +31,7 @@ jobs:
           npm install --prefix .cache/note-pagination-study --no-save --ignore-scripts --package-lock=false pagedjs@0.4.3
       - name: Compare CSS, isolated Paged.js and readonly DOM
         run: node tests/notePagination.study.test.cjs
-      - run: node --test tests/noteExportLayout.test.cjs
+      - run: node --test tests/noteExportLayout.test.cjs tests/noteTablePagination.test.cjs
       - run: node tests/noteTablePagination.browser.test.cjs
       - name: Export reproduction and regression
         run: node tests/noteExport.browser.test.cjs
@@ -41,8 +41,12 @@ jobs:
           node tests/attachmentSync.browser.test.cjs
           node tests/unifiedWorkspace.browser.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
+      - name: Existing map metadata, IDB and localization contracts
+        run: |
+          npm run test:world-map
+          node --test tests/worldMapRegions.test.cjs tests/worldMap.i18n.test.cjs
       - run: npx tsc --noEmit
-      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts
+      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts src/lib/noteTablePagination.ts
       - name: Production build
         env:
           NODE_ENV: production

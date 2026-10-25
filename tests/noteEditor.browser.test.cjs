@@ -148,6 +148,15 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   assert.equal(await page.evaluate(()=>{const s=getSelection();return s?.anchorOffset===s?.anchorNode?.textContent?.length}),true,'cursor remains at the end after space and composition');
   await page.evaluate(()=>window.reopenCurrentNote());await editor.waitFor();
   assert.equal(await editor.innerText(),typingText,'reopening preserves the complete typed text');
+  if(width===1440){
+   await page.evaluate(()=>{const p=(id,text)=>({type:'paragraph',attrs:{id},content:[{type:'text',text}]});const rows=[{type:'tableRow',attrs:{id:'table-head'},content:[{type:'tableHeader',attrs:{id:'head-cell',colspan:2},content:[p('head-text','Repeated editor header')]}]},...Array.from({length:110},(_,i)=>({type:'tableRow',attrs:{id:'row-'+i},content:[{type:'tableCell',attrs:{id:'cell-a-'+i},content:[p('text-a-'+i,'Saved row '+i)]},{type:'tableCell',attrs:{id:'cell-b-'+i},content:[p('text-b-'+i,'中文 English content')]}]}))];window.loadPaginationNote({type:'doc',unknownMetadata:{keep:true},content:[{type:'table',attrs:{id:'saved-table'},content:rows}]});});
+   await page.locator('[data-workspace-pane="pagination-note"]').waitFor();await page.waitForFunction(()=>document.querySelectorAll('.ProseMirror tr').length===111);
+   const savedTableJSON=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
+   await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();const tablePreview=page.getByRole('dialog',{name:'筆記匯出預覽'});await tablePreview.waitFor();await page.waitForFunction(()=>!document.querySelector('.nexus-export-controls button')?.disabled);
+   assert.ok(await tablePreview.locator('.nexus-export-paper').count()>1);assert.equal(await tablePreview.locator('tbody tr').count(),110);assert.equal(await page.evaluate(()=>JSON.stringify(window.currentNote.content_json)),savedTableJSON);
+   await tablePreview.getByRole('button',{name:'關閉',exact:true}).click();await page.evaluate(()=>window.reopenCurrentNote());await editor.waitFor();assert.equal(await page.evaluate(()=>JSON.stringify(window.currentNote.content_json)),savedTableJSON,'saved table, stable IDs and unknown metadata survive reopen/export');
+  }
   assert.deepEqual(errors,[]);await page.close();
  }
 });
+
