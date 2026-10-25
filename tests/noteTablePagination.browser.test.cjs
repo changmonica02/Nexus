@@ -45,6 +45,7 @@ test('table continuation preserves rows, spans, source and legacy breaks',{timeo
  assert.ok(await preview.locator('table').evaluate(e=>e.getBoundingClientRect().width<=e.closest('.nexus-export-body').clientWidth+2));
  assert.ok(await preview.locator('.katex-display').evaluate(e=>e.dataset.exportMathScaled==='true'));
  assert.ok((await preview.locator('pre').textContent()).includes('    abcdefghij'));assert.equal(await page.locator('#source').innerHTML(),wideSource);
+ const widePDF=await page.pdf({preferCSSPageSize:true,printBackground:true});fs.writeFileSync('test-results/note-pagination/wide-content.pdf',widePDF);const wideText=execFileSync('pdftotext',['-layout','test-results/note-pagination/wide-content.pdf','-'],{encoding:'utf8'});assert.match(wideText,/CODE_START/);assert.match(wideText,/CODE_END/);assert.match(wideText,/WIDE_END/);await page.screenshot({path:'test-results/note-pagination/wide-content.png',fullPage:true});
  await preview.getByRole('button',{name:'關閉',exact:true}).click();
  const stressStarted=Date.now();await page.evaluate(html=>window.showExport(html),table(Array.from({length:500},(_,i)=>row(i)).join('')));await ready();
  console.log('NEXUS_BATCH_EXPORT',JSON.stringify({rows:500,previewPages:await papers.count(),prepareElapsedMs:Date.now()-stressStarted}));assert.equal(await preview.locator('tbody tr[data-rowid]').count(),500);assert.equal(new Set(await preview.locator('tbody tr[data-rowid]').evaluateAll(rows=>rows.map(r=>r.dataset.rowid))).size,500);
