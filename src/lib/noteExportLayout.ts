@@ -35,3 +35,39 @@ export function waitForExportAssets(root:HTMLElement,signal:AbortSignal,timeoutM
     if(fonts)void fonts.ready.then(()=>complete(true),()=>complete(false));else complete(true);
   });
 }
+
+
+/** A reversible, explicitly selected output order; never changes editor columns. */
+export function exportColumnBlocks(block:HTMLElement, sequential:boolean):HTMLElement[] {
+  if(!sequential||!block.matches('[data-type="multiColumn"]'))return [block];
+  const columns=Array.from(block.children);
+  // Unknown children are retained instead of silently flattened away.
+  if(!columns.length||columns.some(c=>!c.matches('[data-type="column"]')||Array.from(c.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim()))||Array.from(block.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim()))return [block];
+  return columns.flatMap(column=>Array.from(column.children).flatMap(child=>exportColumnBlocks(child as HTMLElement,true)));
+}
+
+/** Work on attached copies at their final width, after fonts/images have loaded. */
+export function fitExportContent(block:HTMLElement, availableWidth:number):boolean {
+  let adjusted=false;
+  const elements=(selector:string)=>[...(block.matches(selector)?[block]:[]),...block.querySelectorAll<HTMLElement>(selector)];
+  for(const table of elements('table')){
+    const width=table.getBoundingClientRect().width;
+    const limit=Math.min(availableWidth,table.parentElement?.clientWidth||availableWidth);
+    if(width<=limit+2)continue;
+    table.style.width='100%';table.style.minWidth='0';table.style.tableLayout='fixed';
+    table.querySelectorAll<HTMLElement>('col,th,td').forEach(cell=>{cell.removeAttribute('width');cell.style.removeProperty('width');cell.style.minWidth='0';});
+    adjusted=true;
+  }
+  for(const display of elements('.katex-display')){
+    const formula=display.querySelector<HTMLElement>('.katex');
+    if(!formula)continue;
+    const limit=Math.min(availableWidth,display.clientWidth||availableWidth);
+    const width=Math.max(formula.scrollWidth,formula.getBoundingClientRect().width);
+    if(width<=limit+2)continue;
+    // Font-relative KaTeX layout participates in measurement (no clipped transform).
+    const ratio=Math.max(.5,limit/width);
+    display.style.fontSize=`${parseFloat(getComputedStyle(display).fontSize)*ratio}px`;
+    display.dataset.exportMathScaled='true';adjusted=true;
+  }
+  return adjusted;
+}
