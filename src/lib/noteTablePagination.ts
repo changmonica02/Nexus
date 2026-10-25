@@ -16,6 +16,7 @@ export function tableRowGroups(spans: readonly (readonly number[])[]): {from:num
 export function splitExportTable(block:HTMLElement,referenceBody:HTMLElement):{blocks:HTMLElement[];warning:boolean} {
   const table=block instanceof HTMLTableElement?block:block.matches('.tableWrapper')?block.querySelector('table'):null;
   if(!table)return {blocks:[block],warning:false};
+  if(block!==table&&(block.childElementCount!==1||block.firstElementChild!==table||Array.from(block.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim())))return {blocks:[block],warning:true};
   if(table.querySelector('table')||table.tFoot||table.tBodies.length>1)return {blocks:[block],warning:true};
   const rows=Array.from(table.rows);
   let headerCount=table.tHead?.rows.length??0;
@@ -28,24 +29,30 @@ export function splitExportTable(block:HTMLElement,referenceBody:HTMLElement):{b
   measure.style.setProperty('--export-height',referenceBody.parentElement?.style.getPropertyValue('--export-height')??'267mm');
   referenceBody.parentElement!.append(measure);
   const blocks:HTMLElement[]=[];let warning=false;
+  // Build the empty shell once. Cloning the full N-row table on every page
+  // would multiply transient DOM allocation by the page count.
+  if(Array.from(table.children).some(e=>!['CAPTION','COLGROUP','THEAD','TBODY','TFOOT','TR'].includes(e.tagName))){measure.remove();return {blocks:[block],warning:true};}
+  const emptyTable=table.cloneNode(false) as HTMLTableElement;
+  Array.from(table.children).filter(e=>['CAPTION','COLGROUP'].includes(e.tagName)).forEach(e=>emptyTable.append(e.cloneNode(true)));
+  const skeleton=block===table?emptyTable:block.cloneNode(false) as HTMLElement;
+  if(skeleton!==emptyTable)skeleton.append(emptyTable);
+    const cloneRow=(row:HTMLTableRowElement)=>{
+      const copy=row.cloneNode(true) as HTMLTableRowElement;
+      // Fresh row clones may not decode cached images synchronously. Preserve their
+      // already-known aspect ratio for measurement without touching the source.
+      const images=row.querySelectorAll('img');copy.querySelectorAll('img').forEach((image,index)=>{const source=images[index];if(source?.naturalWidth&&source.naturalHeight){image.style.aspectRatio ||= `${source.naturalWidth}/${source.naturalHeight}`;if(!image.hasAttribute('width')&&!image.hasAttribute('height')){image.width=source.naturalWidth;image.height=source.naturalHeight;}}});
+      return copy;
+    };
   const make=()=>{
-    const shell=block.cloneNode(true) as HTMLElement;
+    const shell=skeleton.cloneNode(true) as HTMLElement;
     const target=shell instanceof HTMLTableElement?shell:shell.querySelector('table')!;
-    Array.from(target.rows).forEach(r=>r.remove());
-    target.tHead?.remove();Array.from(target.tBodies).forEach(b=>b.remove());
-    if(headers.length){const head=target.createTHead();head.dataset.exportRepeat='header';headers.forEach(r=>head.append(r.cloneNode(true)));}
+    if(blocks.length)target.caption?.remove();
+    if(headers.length){const head=target.createTHead();head.dataset.exportRepeat='header';headers.forEach(r=>head.append(cloneRow(r)));}
     const body=target.createTBody();shell.dataset.exportTableFragment=String(blocks.length+1);
     measure.replaceChildren(shell);blocks.push(shell);return body;
   };
   try{
     let body=make(),groupsOnPage=0,oversized=false;
-    const cloneRow=(row:HTMLTableRowElement)=>{
-      const copy=row.cloneNode(true) as HTMLTableRowElement;
-      // Fresh row clones may not decode cached images synchronously. Preserve their
-      // already-known aspect ratio for measurement without touching the source.
-      const images=row.querySelectorAll('img');copy.querySelectorAll('img').forEach((image,index)=>{const source=images[index];if(source?.naturalWidth&&source.naturalHeight&&!image.hasAttribute('width')&&!image.hasAttribute('height')){image.width=source.naturalWidth;image.height=source.naturalHeight;}});
-      return copy;
-    };
     const groups=tableRowGroups(bodyRows.map(row=>Array.from(row.cells,c=>c.rowSpan)));
     for(const group of groups){
       if(oversized){body=make();groupsOnPage=0;oversized=false;}
