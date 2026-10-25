@@ -39,10 +39,17 @@ export function splitExportTable(block:HTMLElement,referenceBody:HTMLElement):{b
   };
   try{
     let body=make(),groupsOnPage=0,oversized=false;
+    const cloneRow=(row:HTMLTableRowElement)=>{
+      const copy=row.cloneNode(true) as HTMLTableRowElement;
+      // Fresh row clones may not decode cached images synchronously. Preserve their
+      // already-known aspect ratio for measurement without touching the source.
+      const images=row.querySelectorAll('img');copy.querySelectorAll('img').forEach((image,index)=>{const source=images[index];if(source?.naturalWidth&&source.naturalHeight&&!image.hasAttribute('width')&&!image.hasAttribute('height')){image.width=source.naturalWidth;image.height=source.naturalHeight;}});
+      return copy;
+    };
     const groups=tableRowGroups(bodyRows.map(row=>Array.from(row.cells,c=>c.rowSpan)));
     for(const group of groups){
       if(oversized){body=make();groupsOnPage=0;oversized=false;}
-      const copies=bodyRows.slice(group.from,group.to).map(r=>r.cloneNode(true));
+      const copies=bodyRows.slice(group.from,group.to).map(cloneRow);
       body.append(...copies);
       if(measure.scrollHeight>measure.clientHeight+2&&groupsOnPage){copies.forEach(r=>r.parentNode?.removeChild(r));body=make();groupsOnPage=0;body.append(...copies);}
       if(measure.scrollHeight>measure.clientHeight+2){warning=true;oversized=true;}
