@@ -52,7 +52,10 @@ export function splitExportTable(block:HTMLElement,referenceBody:HTMLElement):{b
     measure.replaceChildren(shell);blocks.push(shell);return body;
   };
   try{
-    let body=make(),groupsOnPage=0,oversized=false;
+    let body=make();
+    // Repeating a header taller than a page would multiply an unsafe block.
+    if(measure.scrollHeight>measure.clientHeight+2)return {blocks:[block],warning:true};
+    let groupsOnPage=0,oversized=false;
     const groups=tableRowGroups(bodyRows.map(row=>Array.from(row.cells,c=>c.rowSpan)));
     for(const group of groups){
       if(oversized){body=make();groupsOnPage=0;oversized=false;}
