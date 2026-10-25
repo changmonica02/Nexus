@@ -1,6 +1,6 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## 批次輸出韌性（2026-10-25；Refs #109；驗證中）
+## 批次輸出韌性（2026-10-25；Refs #109；CI 通過、未合併）
 
 - 基準為 PR #108 merge `9a5659d`，沒有改正式 schema／儲存／同步。沿用 NOTE-EDITOR-AUDIT 的 A/C 決策，不重跑完整技術選型。
 - noteExportLayout.exportColumnBlocks 僅在使用者選擇本次逐欄排版時展開已知 column children，兼容序列化 DOM 與 live NodeView 的 nexus-multi-column contentDOM。未知容器／直接文字保留並警告，不猜測刪除。預設保留原比例，輸出選擇不保存、不確立正式跨頁順序。
@@ -8,8 +8,9 @@
 - 超高 tr 在副本標記後允許原生 fragmentation；超高 thead 僅作 row group，避免每個原生延續頁再複製整個超高表頭。仍非 cell 內部分頁引擎，rowspan／巢狀表格保留完整且警告，不能宣稱全部 preview/PDF 一致。
 - NoteExportPreview 提供準備／保存／失敗與重新準備；每 20 個頂層區塊讓出 task 並檢查 AbortSignal，取消後不寫 late state。500-row 單張 table 內的同步測量仍未切到 worker，沒有 peak memory／所有裝置流暢性保證。警告可收合；準備時頁數清零，列印在 ready 前停用。
 
+- 程式驗證 head `48c84e0`／CI 40207686728 通過；詳細測試／限制見 HANDOFF、NOTE-EDITOR-AUDIT。正式帳號、Safari／實機、極大文件 peak memory 尚未驗收。
 
-## 唯讀表格延續與分頁研究（2026-10-25；Refs #107；第二批 CI 通過、待審查）
+## 唯讀表格延續與分頁研究（2026-10-25；Refs #107；PR #108 已合併 `9a5659d`）
 
 - PR #106 經重新核對 head／main／完整 CI 後，合併為 main `2bb1a01`。本批在獨立分支，只改輸出，不執行直接部署；不可將本節當正式裝置或帳號驗收。
 - noteTablePagination.tableRowGroups 對每列 rowspan 區間取傳遞閉包，產生完整、無重複、排序的半開列群組；rowspan=0 保守涵蓋剩餘 row group。colspan 不重寫。任何跨越未結束 rowspan 的邊界都不可切。

@@ -1,6 +1,6 @@
 # 筆記編輯器審計與漸進路線圖
 
-## 2026-10-25 集中批次（Refs #109；驗證中）
+## 2026-10-25 集中批次（Refs #109；CI 通過、待審查）
 
 沿用下方已完成的 A/B/C 研究，不重新選型或安裝 Paged.js。本批基準 #108 merge `9a5659d`，程式差距與最小修正：
 
@@ -11,7 +11,10 @@
 | 特殊表格 | 高 rowspan 群組不可任意拆、超高 thead 原生重複 | 保留 spans／所有 cells；tall row 允許原生延續、超高頭列作 row group，nested 保留警告；不是完整 cell fragmentation engine |
 | 操作恢復 | 排版例外原需關閉重開、長 block loop 不讓步 | 直接重新準備、保存 status、可收合警告、每 20 blocks 讓步與取消檢查；單張巨表仍同步測量 |
 
-新增情境全部沿用 notePaginationCases／noteExport fixture 與現有實際 EditorPane，不另建引擎。原生 formula 測試補載 KaTeX 真實 CSS／字型，不能只數 DOM。紅測試 CI 40206354834 重現缺少選項；中途失敗包含缺少 math 測試樣式與改語系後仍以中文 dialog 定位，均修根因，不刪案例。500 rows／長雙欄 PDF 同時核對 marker 唯一與頁數；特殊表格保留 spans／正文及警告。最終 CI、SHA、實測數值待補。沒有可比的前後效能基準，不宣稱加速比例；正式帳號／跨裝置／真實 IME／Safari／Firefox／極大文件仍未驗收。
+新增情境全部沿用 notePaginationCases／noteExport fixture 與現有實際 EditorPane，不另建引擎。原生 formula 測試補載 KaTeX 真實 CSS／字型，不能只數 DOM。紅測試 CI 40206354834 重現缺少選項；中途失敗包含缺少 math 測試樣式與改語系後仍以中文 dialog 定位，均修根因，不刪案例。500 rows／長雙欄 PDF 同時核對 marker 唯一與頁數；特殊表格保留 spans／正文及警告。程式／測試 `48c84e0730c4d38821126a003661f502ece70794` 的 [CI 40207686728](https://github.com/changmonica02/Nexus/actions/runs/40207686728) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），5 組 Chromium suites（table export、noteExport、實際 noteEditor、attachmentSync、unifiedWorkspace），TypeScript、限定 ESLint、production build（含既有 map prebuild）。沒有未解決的 CI failure；既有回歸未刪除。完整指令見 .github/workflows/note-editor.yml；A/B/C 研究僅在本分支略過（前批已完成），所有 correctness gates 保留。PDF／PNG artifact note-export-evidence：12604786674。
+實際結果：500 列 21 preview／21 PDF 頁，500 個正文 marker 各一次；單次準備 123ms（Linux Chromium、此 fixture、非峰值或前後對照）。逐欄模式含 70／15 段不等高雙欄及圖片／KaTeX／表格，至少三頁，preview/PDF count 一致、85 個 LEFT／RIGHT markers 無遺失／重複且依主動選擇的來源欄順序。真實 NodeView 的 80 段長欄／35:65 ratio、ID 與未知 metadata 經 IndexedDB 保存與 fresh adapter 重開不變。超高表頭只保留一次且不作原生重複頭列；100 段高 cell 與 nested table 的 DOM spans／PDF markers 保留，仍有安全警告。PDF 的 soft-wrap 會在單字內換行，因此 nested cell 另用 raw extraction 正規化空白核對，並保留 DOM 結構檢查；不能拿 text extraction 取代 glyph／圖片視覺驗收。圖片失敗重新準備、測量例外恢復、保存失敗重試及 en/zh-TW 均通過。
+
+本批五組 Chromium 全部執行；沒有重跑 Paged.js 研究或縮減必要儲存／附件／同步／地圖契約。PDF／PNG 保留待人工逐頁視覺驗收，本輪沒有宣稱新的逐頁人工檢視。沒有可比的前後效能基準，不宣稱加速比例；正式帳號／跨裝置／真實 IME／Safari／Firefox／極大文件仍未驗收。
 
 
 2026-10-24；Refs #105。產品／程式基準 main `23450f92ec7a12e46c48d18582b630a4bc4a158d`。這是程式盤點與驗證計畫，不表示正式帳號／裝置或全部功能已驗收。第一批驗證結果見 HANDOFF 與 PR。

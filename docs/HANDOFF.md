@@ -1,10 +1,10 @@
 # Nexus — 當前交接（2026-10-21）
 
-## 筆記匯出集中批次（2026-10-25；Refs #109；驗證中）
+## 筆記匯出集中批次（2026-10-25；Refs #109；CI 通過、待 PR 審查）
 
 - #108 已核對原 tested head／文件差異／CI／Preview／main 並合併 `9a5659d`；保留分支，無直接部署。下一批獨立 feat/note-export-batch-20261025，只交一個 PR，不合併。
 - 本批：可逆逐欄輸出選項、live NodeView 兼容、寬內容 soft-wrap／縮放／警告、超高 row/header 的原生延續保護、錯誤直接重試／取消讓步。維持原始 JSON／ID／ratio／fold／未知 metadata／附件／CAS 契約。
-- 共用實際 preview fixture 驗證 125／500 rows、rowspan／nested／100 段超高 cell、含圖片／KaTeX／表格的不等高長雙欄、寬 pre／URL／公式、prepare failure／save retry、en/zh-TW；真實 EditorPane＋IndexedDB 另驗證 live columns／舊 paged／保存重開。最終結果待 CI 完成後補記。
+- 共用實際 preview fixture 驗證 125／500 rows、rowspan／nested／100 段超高 cell、含圖片／KaTeX／表格的不等高長雙欄、寬 pre／URL／公式、prepare failure／save retry、en/zh-TW；真實 EditorPane＋IndexedDB 另驗證 live columns／舊 paged／保存重開。程式／測試 `48c84e0730c4d38821126a003661f502ece70794` 的 [CI 40207686728](https://github.com/changmonica02/Nexus/actions/runs/40207686728) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），5 組 Chromium suites（table export、noteExport、實際 noteEditor、attachmentSync、unifiedWorkspace），TypeScript、限定 ESLint、production build（含既有 map prebuild）。沒有未解決的 CI failure；既有回歸未刪除。完整指令見 .github/workflows/note-editor.yml；A/B/C 研究僅在本分支略過（前批已完成），所有 correctness gates 保留。PDF／PNG artifact note-export-evidence：12604786674。
 - 未完成：並排雙欄的完整多頁排版與最終閱讀順序、任意 cell 內部 DOM 切分、極寬公式小字可讀性／全部 PDF glyph；實機／Safari／正式帳號與 peak memory 仍需人工。
 
 
