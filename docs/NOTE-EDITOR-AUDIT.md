@@ -31,7 +31,19 @@
 
 採 C 安全表格＋A print 的最小組合。表頭重複是可識別的 readonly continuation，不重複正文列；caption 只一次。rowspan 的連通群組不拆，tfoot／多 tbody／nested table／nested pageBreak／特殊 wrapper 都保留警告。原文、欄比與來源順序不改。長欄最終閱讀順序、超高 cell 中途拆分、任意段落行切分／寡行、所有 PDF glyph、跨 browser、真實大文件 peak／GC 尚未解決。本批不採用 Paged.js runtime；研究原型的 headers／複雜內容需額外 work，不是授權或付費阻擋。
 
-實際修正後數值與最終 CI 待補。不得把「PDF 文字 markers 正常」升級成完整視覺驗收。
+程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。
+
+| 案例 | A PDF／預覽 | B PDF／預覽 | C PDF／預覽 |
+| --- | --- | --- | --- |
+| longTable | 5／無 | 5／5 | 5／5 |
+| merged | 4／無 | 2／2 | 5／3 |
+| columns | 4／無 | 4／4 | 4／1 |
+| mixed | 3／無 | 3／3 | 4／4 |
+
+本輪 12 次 render 的 body markers 缺少／重複、重複 row ID、span 變更均為 0。C 的安全長表有 5 個重複表頭；超高合併列仍為 3 preview／5 PDF、長雙欄 1／4，兩者確實出現警告，不冒充完整解決。六張實際 PDF 首頁點陣圖已檢視：C 長表邊界／表頭及雙欄保留，B 原型雙欄右欄未在首頁原位置呈現；首圖檢查不代表所有頁面已人工驗收。Flex 變體尚未實跑。
+
+Chromium 151.0.7922.34／Linux 單次樣本：長表 A/B/C render 49/156/63ms、DOM 節點 658/3018/2069、heap sample 3.70/6.45/6.60MB。全 corpus A 30–55ms、B 112–156ms、C 53–113ms。啟用 precise-memory-info，但只是完成時取樣，不是峰值／GC 基準；C 含 React 應用，不能據此宣稱引擎記憶體排名。Paged.js 0.4.3 dist 920798 bytes／gzip 161393 bytes，僅研究安裝；最新 upstream beta 未採用。不得把「PDF 文字 markers 正常」升級成完整視覺驗收。
+
 
 
 ## 架構與產品核對

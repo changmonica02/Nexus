@@ -1,11 +1,11 @@
 # Nexus — 當前交接（2026-10-21）
 
-## 第二批筆記分頁（Refs #107；PR #108，驗證中，未合併）
+## 第二批筆記分頁（Refs #107；PR #108，CI 通過、待審查，未合併）
 
 - 階段 A 完成：PR #106 head `d1b7c26` 無未審查變更、main 未前進、CI 40071963719 通過，最後僅文件提交；合併 `2bb1a01`。不另執行部署指令。階段 B 基準為該 main，獨立 `feat/note-table-pagination-20261025`。
 - 第一輪研究／紅測試 CI 40162658785：A 原生 CSS 長表格 PDF 5 頁；B Paged.js 0.4.3 預覽／PDF 5 頁，但此 prototype 只見 1 個表頭；舊 C 預覽 1 張超高紙、PDF 5 頁，專用測試因此失敗。實際跑 3 引擎×4 類 corpus，不只引用文件。
 - 已實作候選：安全 rowspan 列群組延續、thead／全 th 首列的副本投影、表頭重複、caption 一次、圖片比例、頂層舊 break、table／columns 警告。保留特殊不安全表格，長雙欄不定案。正式格式／保存／同步／附件／DB 全不改。
-- 新增驗證：125-row table、合併群組、列內圖片／KaTeX、60+ 長欄內容、CJK 段落、超寬 formula/code、fold／nested／manual break；純群組 6 tests、preview/PDF 頁數、marker loss/duplicate、cell span signatures、真實 EditorPane 110-row table 的 IDB 保存／新 adapter 重開及未知 metadata。完整回歸／Build 進行中，完成結果再更新。
+- 新增驗證：125-row table、合併群組、列內圖片／KaTeX、60+ 長欄內容、CJK 段落、超寬 formula/code、fold／nested／manual break；純群組 6 tests、preview/PDF 頁數、marker loss/duplicate、cell span signatures、真實 EditorPane 110-row table 的 IDB 保存／新 adapter 重開及未知 metadata。程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。
 - 限制：不切斷超高 cell／span；不解決長雙欄閱讀順序或強制攤平；不把 PDF markers 正常當全部 glyph／圖片或跨瀏覽器保證。Safari／Firefox／實機／正式帳號／極大文件峰值記憶體仍需人工。第二批不可自動合併／部署。
 
 

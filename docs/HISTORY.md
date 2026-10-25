@@ -1,8 +1,8 @@
 # Nexus — 專案歷史與決策紀錄
 
-## 2026-10-25｜合併 #106 與第二批分頁比較（Refs #107；PR #108，驗證中）
+## 2026-10-25｜合併 #106 與第二批分頁比較（Refs #107；PR #108，CI 通過、待審查）
 
-依新授權重新審查並合併 #106（`2bb1a01`），未把第二批帶入 main。用同一標準 corpus 實跑原生 CSS、MIT Paged.js 0.4.3 及現有 DOM 預覽，初次 CI 40162658785 重現長表格一張預覽／五頁 PDF；並觀察 Paged.js 原型表頭未自動逐頁重複，不能單憑功能多就導入 runtime。選擇擴充現有 C 的安全表格列群組，保留 A 作實際 print；不重寫行內排版或大幅改資料模型。只在安全邊界切段，rowspan 傳遞群組完整保留、oversized／未知表格警告。雙欄語意及正式閱讀順序不擅自定案，保留原欄比並記錄限制。效能採空殼＋列群組，避免每頁深複製整張表。固定 Paged.js 及其 license 只作隔離研究，正式依賴未變。最終 CI 結果待記錄，第二批未合併、無 DB 或直接部署操作。
+依新授權重新審查並合併 #106（`2bb1a01`），未把第二批帶入 main。用同一標準 corpus 實跑原生 CSS、MIT Paged.js 0.4.3 及現有 DOM 預覽，初次 CI 40162658785 重現長表格一張預覽／五頁 PDF；並觀察 Paged.js 原型表頭未自動逐頁重複，不能單憑功能多就導入 runtime。選擇擴充現有 C 的安全表格列群組，保留 A 作實際 print；不重寫行內排版或大幅改資料模型。只在安全邊界切段，rowspan 傳遞群組完整保留、oversized／未知表格警告。雙欄語意及正式閱讀順序不擅自定案，保留原欄比並記錄限制。效能採空殼＋列群組，避免每頁深複製整張表。固定 Paged.js 及其 license 只作隔離研究，正式依賴未變。程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。 第二批未合併、無 DB 或直接部署操作。
 
 
 ## 2026-10-24｜筆記自主審計與只讀輸出安全（Refs #105；PR #106，CI 通過、待審查）
