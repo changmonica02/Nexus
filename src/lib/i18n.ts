@@ -15,6 +15,8 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "noteExport.warning.table":"A row, merged-cell group or complex table cannot be safely split. It is kept intact; check the PDF continuation. No cells were discarded.",
+  "noteExport.warning.columns":"Long local columns keep their original ratio. Browser page continuation and reading order need checking; no single-column conversion was applied.",
   "noteExport.title": "Note export preview",
   "noteExport.page": "Pages",
   "noteExport.paper": "Paper",
@@ -737,6 +739,8 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "noteExport.warning.table":"部分表格列、合併儲存格群組或複雜表格尚無法安全切分，已整組保留；請檢查 PDF 跨頁，未捨棄儲存格。",
+  "noteExport.warning.columns":"長局部雙欄保留原比例，跨頁及閱讀順序需檢查；未自動轉成單欄。",
   "noteExport.title": "筆記匯出預覽",
   "noteExport.page": "頁",
   "noteExport.paper": "紙張",
@@ -1466,5 +1470,6 @@ export function translate(language: Language, key: string, params?: Record<strin
   if (!params) return template;
   return Object.keys(params).reduce((acc, paramKey) => acc.split(`{{${paramKey}}}`).join(String(params[paramKey])), template);
 }
+
 
 

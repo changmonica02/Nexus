@@ -1,5 +1,18 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
+## 唯讀表格延續與分頁研究（2026-10-25；Refs #107；第二批 CI 通過、待審查）
+
+- PR #106 經重新核對 head／main／完整 CI 後，合併為 main `2bb1a01`。本批在獨立分支，只改輸出，不執行直接部署；不可將本節當正式裝置或帳號驗收。
+- noteTablePagination.tableRowGroups 對每列 rowspan 區間取傳遞閉包，產生完整、無重複、排序的半開列群組；rowspan=0 保守涵蓋剩餘 row group。colspan 不重寫。任何跨越未結束 rowspan 的邊界都不可切。
+- splitExportTable 只接受頂層 table 或單純 TableKit tableWrapper。副本的顯式 thead 或連續全 th 前列轉成 readonly thead；每個延續片段重複表頭，caption 只在第一段，colgroup／比例／cells／data-id 保留。不是變更正式 table schema。
+- 以已完成資源等待的 content-box 作離屏測量，逐列群組附加；超出當頁則整組移至下一段。單群組超高時不截斷、不修改 rowspan，保留並回報 table/overflow 警告。tfoot、多 tbody、巢狀 table、嵌套 pageBreak 或不明 wrapper 不猜測拆分，原樣回傳警告。
+- 測量 shell 只建立一次空表格骨架，再逐頁複製骨架／表頭，避免每頁深複製完整 N 列造成 N×頁數的暫存配置。新列副本以已載入圖片比例保留測量尺寸。仍有來源與輸出 DOM，未虛擬化、未證明極大文件峰值記憶體。
+- NoteExportPreview 把頂層舊 pageBreak 映射為副本的新紙張邊界，原節點／ID 不改、不另存永久分頁；巢狀分頁保留但警告。長 multiColumn 保持原 ratio／DOM，不轉單欄；超高仍由瀏覽器延續並提示閱讀順序待檢查。保存期間停用版面設定，避免改設定時列印尚未準備的副本。
+- A/B/C 研究在 tests/notePagination.study.test.cjs：A 為原生 @page／break／thead；B 在 .cache/note-pagination-study 安裝固定 MIT pagedjs@0.4.3（官方 v0.4.3 package），只在合成研究頁使用 Previewer；C 是真實 NoteExportPreview。正式 package.json／lock／runtime 不加入 Paged.js。CI 僅加入 Poppler/CJK 字型等驗證工具。比較 JSON／PDF／截圖及 Paged.js license 隨 artifact 留存。
+- 超高表頭不可反覆複製，偵測後完整保留一次並警告。程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。
+- 不變：正式 Tiptap JSON、StableBlockId、原始欄比、fold 狀態、附件、owner、Page/outbox／同步、備份和 DB。沒有 Migration。實測結果、限制及尚未核准行為見 NOTE-EDITOR-AUDIT／HANDOFF。
+
+
 ## 筆記匯出安全第一批（2026-10-24；Refs #105；PR #106，CI 通過、待審查）
 
 - 基準 main `23450f9` 已含 #87 自由筆記程式；以下是窄範圍輸出改良，非重建編輯器。詳細審計／開源比較／問題矩陣見 NOTE-EDITOR-AUDIT.md。
@@ -823,6 +836,7 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - revision 0 僅顯示停用發布；儲存重讀後啟用，dirty 編輯先擋，人工確認後重讀伺服器 status／revision 做前置比對，再沿用 `publishDictionaryEntry`（content_verified=true）。前置比對不是新增資料庫原子 CAS；既有 RPC 的鎖、管理員、資料／構詞與發布檢查不變。
 - 發布失敗保留表單並在 Draft 分支呈現錯誤；成功發送既有字典失效事件、重讀 Published，並通知 embedded 呼叫端。舊版複製型 Review 不提供直接發布，正常 Review 仍走 approve。無 Migration、正式字典寫入或新發布管線。
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
+
 
 
 

@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "../lib/LanguageContext";
+import { splitExportTable } from "../lib/noteTablePagination";
 import { copyExportBlock, waitForExportAssets } from "../lib/noteExportLayout";
 
 /** Print from a DOM copy. Editing state, including folded blocks, is untouched. */
@@ -52,15 +53,21 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
     if(!await waitForExportAssets(host,controller.signal))issues.add('assets');
     if(controller.signal.aborted)return;
     body.replaceChildren();
-    for (const copy of copies) {
+    for (const original of copies) {
+      if(original.matches('[data-type="page-break"]')){body=makePage(++number);body.parentElement!.dataset.exportManualBreak=original.dataset.id??'';oversized=false;continue;}
+      if(original.querySelector('[data-type="page-break"]'))issues.add('overflow');
+      if(oversized){body=makePage(++number);oversized=false;}
+      const result=splitExportTable(original,body);if(result.warning)issues.add('table');
+      for (const copy of result.blocks) {
       if (oversized) { body = makePage(++number); oversized = false; }
       body.append(copy);
       if (body.scrollHeight > body.clientHeight + 2 && body.children.length > 1) {
         copy.remove(); body = makePage(++number); body.append(copy);
       }
-      if (body.scrollHeight > body.clientHeight + 2) { issues.add('overflow');body.style.height = "auto"; oversized = true; }
-      if(copy.scrollWidth>body.clientWidth+2||Array.from(copy.querySelectorAll<HTMLElement>('pre,table,.katex-display,[data-type="multi-column"]')).some(el=>el.scrollWidth>body.clientWidth+2))issues.add('overflow');
+      if (body.scrollHeight > body.clientHeight + 2) { if(copy.matches('[data-type="multiColumn"]'))issues.add('columns');issues.add('overflow');body.style.height = "auto"; oversized = true; }
+      if(copy.scrollWidth>body.clientWidth+2||Array.from(copy.querySelectorAll<HTMLElement>('pre,table,.katex-display,[data-type="multiColumn"]')).some(el=>el.scrollWidth>body.clientWidth+2))issues.add('overflow');
     }
+      }
     if(controller.signal.aborted)return;
     for(const paper of host.children){const rect=paper.getBoundingClientRect();if(rect.height>rect.width*paperHeight/paperWidth+2)issues.add('overflow');}
     setPageCount(number);setWarnings([...issues]);setReady(true);
@@ -70,11 +77,11 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
   return createPortal(<div className={`nexus-export-preview ${orientation}`} role="dialog" aria-modal="true" aria-label={t("noteExport.title")}>
     <div className="nexus-export-controls nexus-print-hide">
       <strong className="mr-auto">{t("noteExport.title")} · {pageCount} {t("noteExport.page")}</strong>
-      <label>{t("noteExport.paper")} <select aria-label={t("noteExport.orientation")} value={orientation} onChange={e => setOrientation(e.target.value as "portrait" | "landscape")}><option value="portrait">{t("noteExport.portrait")}</option><option value="landscape">{t("noteExport.landscape")}</option></select></label>
-      <label>{t("noteExport.margin")} <select aria-label={t("noteExport.marginLabel")} value={margin} onChange={e => setMargin(Number(e.target.value))}><option value={10}>{t("noteExport.narrow")}</option><option value={15}>{t("noteExport.standard")}</option><option value={20}>{t("noteExport.wide")}</option></select></label>
-      <label>{t("noteExport.header")} <input aria-label={t("noteExport.headerLabel")} value={printHeader} onChange={e => setPrintHeader(e.target.value)} /></label>
-      <label>{t("noteExport.footer")} <input aria-label={t("noteExport.footerLabel")} value={printFooter} onChange={e => setPrintFooter(e.target.value)} /></label>
-      <label><input type="checkbox" checked={showPageNumbers} onChange={e => setShowPageNumbers(e.target.checked)} /> {t("noteExport.numbers")}</label>
+      <label>{t("noteExport.paper")} <select disabled={printing} aria-label={t("noteExport.orientation")} value={orientation} onChange={e => setOrientation(e.target.value as "portrait" | "landscape")}><option value="portrait">{t("noteExport.portrait")}</option><option value="landscape">{t("noteExport.landscape")}</option></select></label>
+      <label>{t("noteExport.margin")} <select disabled={printing} aria-label={t("noteExport.marginLabel")} value={margin} onChange={e => setMargin(Number(e.target.value))}><option value={10}>{t("noteExport.narrow")}</option><option value={15}>{t("noteExport.standard")}</option><option value={20}>{t("noteExport.wide")}</option></select></label>
+      <label>{t("noteExport.header")} <input disabled={printing} aria-label={t("noteExport.headerLabel")} value={printHeader} onChange={e => setPrintHeader(e.target.value)} /></label>
+      <label>{t("noteExport.footer")} <input disabled={printing} aria-label={t("noteExport.footerLabel")} value={printFooter} onChange={e => setPrintFooter(e.target.value)} /></label>
+      <label><input disabled={printing} type="checkbox" checked={showPageNumbers} onChange={e => setShowPageNumbers(e.target.checked)} /> {t("noteExport.numbers")}</label>
       <button type="button" disabled={printing||!ready} onClick={async () => { setPrinting(true); try { setError(false);await onSave?.(); window.print(); } catch { setError(true); } finally { setPrinting(false); } }}>{t("noteExport.print")}</button>
       <button type="button" disabled={printing} onClick={onClose}>{t("noteExport.close")}</button>
     </div>
@@ -83,4 +90,5 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
     <div ref={pagesRef} className="nexus-export-pages" />
   </div>, document.body);
 }
+
 

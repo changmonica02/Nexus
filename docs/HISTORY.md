@@ -1,5 +1,10 @@
 # Nexus — 專案歷史與決策紀錄
 
+## 2026-10-25｜合併 #106 與第二批分頁比較（Refs #107；PR #108，CI 通過、待審查）
+
+依新授權重新審查並合併 #106（`2bb1a01`），未把第二批帶入 main。用同一標準 corpus 實跑原生 CSS、MIT Paged.js 0.4.3 及現有 DOM 預覽，初次 CI 40162658785 重現長表格一張預覽／五頁 PDF；並觀察 Paged.js 原型表頭未自動逐頁重複，不能單憑功能多就導入 runtime。選擇擴充現有 C 的安全表格列群組，保留 A 作實際 print；不重寫行內排版或大幅改資料模型。只在安全邊界切段，rowspan 傳遞群組完整保留、oversized／未知表格警告。雙欄語意及正式閱讀順序不擅自定案，保留原欄比並記錄限制。效能採空殼＋列群組，避免每頁深複製整張表。固定 Paged.js 及其 license 只作隔離研究，正式依賴未變。程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。 第二批未合併、無 DB 或直接部署操作。
+
+
 ## 2026-10-24｜筆記自主審計與只讀輸出安全（Refs #105；PR #106，CI 通過、待審查）
 
 以 main `23450f9` 實際程式重新盤點，不把舊 #87 本機交接誤認尚未實作。先提出 10 組分類問題、驗證與分批路線圖，再選能保護原始 JSON 的輸出副本問題。官方 Paged.js／PM Tables／Milkdown／remark-GFM／Tiptap 研究確認核心 MIT 可借鑑，但商業 Pro 不屬免費來源；無需為修一個資源競態導入整套 parser／chunker 或替換編輯器。先用既有 C（唯讀 DOM）＋A（原生 print CSS）保守改良，完整 B（Paged.js）可執行原型尚未做。baseline CI 40071347820 成功重現圖片未就緒時允許列印；新實作等待／取消、警告特殊內容，不擅自定案長雙欄順序。程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。 沒有正式資料操作、合併或部署。
@@ -338,6 +343,7 @@
 - 調整：垃圾桶快速查看與獨立route共用原資料模型；單雙擊分流，長按／Enter提供觸控與鍵盤替代，不以清除主區來實作側欄篩選。
 - 調整：排序每方法單一項、再次選取切換方向且浮窗保持；舊自訂順序按原顯示相容，version2才明確保存方向。字典三色僅簡稱，不增加發布日期條件。
 - 注意：無Migration與正式資料操作；交付PR／自動部署證據與#60真實裝置人工驗收分開。
+
 
 
 

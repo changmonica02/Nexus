@@ -2,6 +2,50 @@
 
 2026-10-24；Refs #105。產品／程式基準 main `23450f92ec7a12e46c48d18582b630a4bc4a158d`。這是程式盤點與驗證計畫，不表示正式帳號／裝置或全部功能已驗收。第一批驗證結果見 HANDOFF 與 PR。
 
+## 2026-10-25 第二批：真實 A/B/C 比較與表格延續（Refs #107；PR #108）
+
+第一批 #106 已合併 `2bb1a01`；本批從該 main 另開分支。標準 corpus 與實際研究入口為 `tests/fixtures/notePaginationCases.cjs`／`tests/notePagination.study.test.cjs`。Paged.js 固定官方 v0.4.3 package（MIT），只在 CI cache prefix 安裝，不加入正式依賴；license 與比較 JSON、12 組 PDF／print 截圖留存。不是未經實測的推薦。
+
+### 檢查範圍與判讀
+
+- 四類共用輸入：125 列長表、跨列／跨欄及高儲存格的複雜表、跨三頁以上的 38:62 局部雙欄（70 左段／15 右段）、中英長文／KaTeX／圖片／超寬 code／fold／nested／legacy break。另有真實 EditorPane 的 110 列 Tiptap JSON／StableBlockId／未知 metadata 保存與重開，以及圖片無尺寸、caption、Tiptap tbody 頭列與巢狀 break 專項。
+- 字型共用 sans-serif/CJK，研究 CSS 12px/1.4；C 保留 Nexus 紙張／header/footer 與內容盒（預留 10mm），A/B 使用原生 @page margin boxes。因此頁數與耗時是此 fixture 設定下的實測，不可當一般引擎排名。
+- PDF 以 pdftotext 驗證唯一 ASCII body markers 的缺少／重複，DOM 驗證 row IDs、rowspan／colspan、KaTeX／圖片及 source immutability；頁數與 preview count／頁首尾分開記錄。markers 不驗證所有中文字、公式 glyph、圖片畫素或完整閱讀語意；截圖／PDF 必須搭配檢視。
+- baseline CI 40162658785：原生 CSS table 5 頁／5 headers；Paged.js 預覽和 PDF 都 5 頁但只 1 header；舊 Nexus C 是 1 preview／5 PDF 頁。12 case 的標記未遺失／重複，不代表複雜視覺排版已正確。紅測試確認舊 C 缺少真實表格預覽延續。
+
+### 九項方案比較（有實測的部分與限制分列）
+
+| 面向 | A 原生 CSS | B 隔離 Paged.js 0.4.3 | C 唯讀 DOM＋原生 print |
+| --- | --- | --- | --- |
+| 表格跨頁 | 實測 thead 可重複，screen 無實體頁；需瀏覽器 fragmentation | 有實體頁；本 prototype headers 不逐頁重複，需額外 handler／測試 | 本批新增安全列群組／重複頭列，超高 rowspan／未知結構保留警告 |
+| 雙欄跨頁 | Grid 有實際多頁輸出；順序仍需產品定案 | 可生成多頁，但不能據此宣稱混合欄完整語意 | 保留 ratio／DOM；長欄 1 preview 對多 PDF 頁時明示，不攤平 |
+| 內容完整性 | corpus markers 可抽取；並非 glyph／像素保證 | corpus markers 可抽取；需再查 span／視覺續接 | 對 C assertions：markers、row ID 唯一、span signatures、來源不變；無法安全切分不丟棄 |
+| preview/PDF | 無獨立分頁 preview，直接 print 真實排版 | 實體 preview count 可比 PDF，但 headers／內容仍需驗證 | 安全長表格要求 preview=PDF；特殊高列／長欄仍可能不同，警告 |
+| LaTeX | 共用 KaTeX/fonts，過寬仍需處理 | 同 source KaTeX，SVG/MathML 需配合個別檢查 | 正式 NodeView 已確認 preview，無編輯卡；字型就緒與過寬警告沿用 |
+| 效能／記憶體 | 記錄 render latency／heap sample，無自製頁面 DOM | 額外解析／頁面 DOM 與 library bytes，測量非 peak | O(rows) 群組＋有限頁面測量；空 skeleton 避免 N×頁數完整表 clone，仍不是大文件 peak 壓測 |
+| 複雜度 | 最低，但無預覽頁與 browser 差異 | 高，CSS parser/chunker hooks 加維護成本 | 限定 table subset；不自製完整行分割或瀏覽器 engine |
+| 依賴／授權 | 瀏覽器已有，零 package | MIT；0.4.3 官方 tag，測試 prefix only；未選 beta 或商業服務 | 正式 runtime 新依賴 0，沿用 DOM APIs |
+| 資料相容 | 純輸出，不寫 JSON | 僅研究 DOM，不接儲存 | JSON／ID／欄比／fold／附件／metadata／CAS 全不改；舊 root break 只映射輸出邊界 |
+
+### 已選範圍及未完成
+
+採 C 安全表格＋A print 的最小組合。表頭重複是可識別的 readonly continuation，不重複正文列；caption 只一次。rowspan 的連通群組不拆，tfoot／多 tbody／nested table／nested pageBreak／特殊 wrapper 都保留警告。原文、欄比與來源順序不改。長欄最終閱讀順序、超高 cell 中途拆分、任意段落行切分／寡行、所有 PDF glyph、跨 browser、真實大文件 peak／GC 尚未解決。本批不採用 Paged.js runtime；研究原型的 headers／複雜內容需額外 work，不是授權或付費阻擋。
+
+程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。
+
+| 案例 | A PDF／預覽 | B PDF／預覽 | C PDF／預覽 |
+| --- | --- | --- | --- |
+| longTable | 5／無 | 5／5 | 5／5 |
+| merged | 4／無 | 2／2 | 5／3 |
+| columns | 4／無 | 4／4 | 4／1 |
+| mixed | 3／無 | 3／3 | 4／4 |
+
+本輪 12 次 render 的 body markers 缺少／重複、重複 row ID、span 變更均為 0。C 的安全長表有 5 個重複表頭；超高合併列仍為 3 preview／5 PDF、長雙欄 1／4，兩者確實出現警告，不冒充完整解決。六張實際 PDF 首頁點陣圖已檢視：C 長表邊界／表頭及雙欄保留，B 原型雙欄右欄未在首頁原位置呈現；首圖檢查不代表所有頁面已人工驗收。Flex 變體尚未實跑。
+
+Chromium 151.0.7922.34／Linux 單次樣本：長表 A/B/C render 49/156/63ms、DOM 節點 658/3018/2069、heap sample 3.70/6.45/6.60MB。全 corpus A 30–55ms、B 112–156ms、C 53–113ms。啟用 precise-memory-info，但只是完成時取樣，不是峰值／GC 基準；C 含 React 應用，不能據此宣稱引擎記憶體排名。Paged.js 0.4.3 dist 920798 bytes／gzip 161393 bytes，僅研究安裝；最新 upstream beta 未採用。不得把「PDF 文字 markers 正常」升級成完整視覺驗收。
+
+
+
 ## 架構與產品核對
 
 - Note 在 EditorPane 使用單一 TiptapEditor 連續編輯（目前 `isPaged=false`，不把保留的 PaginatedEditorView 分支誤認仍在日常使用），保留舊 `format=paged`／pageBreak 與未知根 metadata；Document、其他模組不屬本批。main 已有 #87 的自由筆記實作，HANDOFF 原「本機未推送」是歷史進度，不可再當目前缺失。
@@ -104,3 +148,4 @@
 - CI 的 `note-export-evidence` artifact 留存 multi-page.png/pdf、preview.png、print.png、portrait.pdf、landscape.pdf，全部是合成資料。人工檢視日誌的 paper 預覽與 print 截圖：正文與頁首定位一致，screen 存在工具列遮蓋區，print 移除工具列並顯示頁尾；這不是自動逐像素相等或跨瀏覽器品質保證。
 - 只在一般單紙 fixture 斷言 preview=PDF 一頁；多頁特殊區塊只確認產生多頁、來源／尾文仍在 DOM 且有警告，**沒有驗證每頁 PDF 的全部 glyph／文字或複雜表頭重複**。不能把本批說成所有表格／雙欄／長公式已達完整印刷排版。
 - 仍未做：M01 損失警告／無損格式原型、T01 完整表格互動矩陣、C01 5000/10000-block 效能、E05 鍵盤 modal、P01 Paged.js 可執行原型及未決跨頁規則。沒有新增 runtime dependency、schema／同步／儲存／附件修改或 Migration。
+
