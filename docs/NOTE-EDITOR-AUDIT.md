@@ -1,5 +1,19 @@
 # 筆記編輯器審計與漸進路線圖
 
+## 2026-10-25 集中批次（Refs #109；驗證中）
+
+沿用下方已完成的 A/B/C 研究，不重新選型或安裝 Paged.js。本批基準 #108 merge `9a5659d`，程式差距與最小修正：
+
+| 項目 | 已確認限制／原因 | 本批處理／保留限制 |
+| --- | --- | --- |
+| 長雙欄 | 原並排多頁只有一張超高 preview，閱讀順序未定 | 預設不變；主動選擇來源欄順序的單次輸出，重用 table splitter；支援 NodeView contentDOM，未知容器保留警告 |
+| 寬公式／code／table | math-preview 仍有編輯器 overflow-x:auto；pre nowrap；明確 col width | 只在副本解除 clip、soft-wrap、公式最小 50% 縮放、寬 table fixed layout；仍過寬／太高警告，無靜默隱藏 |
+| 特殊表格 | 高 rowspan 群組不可任意拆、超高 thead 原生重複 | 保留 spans／所有 cells；tall row 允許原生延續、超高頭列作 row group，nested 保留警告；不是完整 cell fragmentation engine |
+| 操作恢復 | 排版例外原需關閉重開、長 block loop 不讓步 | 直接重新準備、保存 status、可收合警告、每 20 blocks 讓步與取消檢查；單張巨表仍同步測量 |
+
+新增情境全部沿用 notePaginationCases／noteExport fixture 與現有實際 EditorPane，不另建引擎。原生 formula 測試補載 KaTeX 真實 CSS／字型，不能只數 DOM。紅測試 CI 40206354834 重現缺少選項；中途失敗包含缺少 math 測試樣式與改語系後仍以中文 dialog 定位，均修根因，不刪案例。500 rows／長雙欄 PDF 同時核對 marker 唯一與頁數；特殊表格保留 spans／正文及警告。最終 CI、SHA、實測數值待補。沒有可比的前後效能基準，不宣稱加速比例；正式帳號／跨裝置／真實 IME／Safari／Firefox／極大文件仍未驗收。
+
+
 2026-10-24；Refs #105。產品／程式基準 main `23450f92ec7a12e46c48d18582b630a4bc4a158d`。這是程式盤點與驗證計畫，不表示正式帳號／裝置或全部功能已驗收。第一批驗證結果見 HANDOFF 與 PR。
 
 ## 2026-10-25 第二批：真實 A/B/C 比較與表格延續（Refs #107；PR #108）

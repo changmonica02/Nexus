@@ -1,6 +1,14 @@
 # Nexus — 當前交接（2026-10-21）
 
-## 第二批筆記分頁（Refs #107；PR #108，CI 通過、待審查，未合併）
+## 筆記匯出集中批次（2026-10-25；Refs #109；驗證中）
+
+- #108 已核對原 tested head／文件差異／CI／Preview／main 並合併 `9a5659d`；保留分支，無直接部署。下一批獨立 feat/note-export-batch-20261025，只交一個 PR，不合併。
+- 本批：可逆逐欄輸出選項、live NodeView 兼容、寬內容 soft-wrap／縮放／警告、超高 row/header 的原生延續保護、錯誤直接重試／取消讓步。維持原始 JSON／ID／ratio／fold／未知 metadata／附件／CAS 契約。
+- 共用實際 preview fixture 驗證 125／500 rows、rowspan／nested／100 段超高 cell、含圖片／KaTeX／表格的不等高長雙欄、寬 pre／URL／公式、prepare failure／save retry、en/zh-TW；真實 EditorPane＋IndexedDB 另驗證 live columns／舊 paged／保存重開。最終結果待 CI 完成後補記。
+- 未完成：並排雙欄的完整多頁排版與最終閱讀順序、任意 cell 內部 DOM 切分、極寬公式小字可讀性／全部 PDF glyph；實機／Safari／正式帳號與 peak memory 仍需人工。
+
+
+## 第二批筆記分頁（Refs #107；PR #108 已合併 `9a5659d`；以下為交付紀錄）
 
 - 階段 A 完成：PR #106 head `d1b7c26` 無未審查變更、main 未前進、CI 40071963719 通過，最後僅文件提交；合併 `2bb1a01`。不另執行部署指令。階段 B 基準為該 main，獨立 `feat/note-table-pagination-20261025`。
 - 第一輪研究／紅測試 CI 40162658785：A 原生 CSS 長表格 PDF 5 頁；B Paged.js 0.4.3 預覽／PDF 5 頁，但此 prototype 只見 1 個表頭；舊 C 預覽 1 張超高紙、PDF 5 頁，專用測試因此失敗。實際跑 3 引擎×4 類 corpus，不只引用文件。
