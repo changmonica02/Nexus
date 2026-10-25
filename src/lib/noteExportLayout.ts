@@ -40,9 +40,12 @@ export function waitForExportAssets(root:HTMLElement,signal:AbortSignal,timeoutM
 /** A reversible, explicitly selected output order; never changes editor columns. */
 export function exportColumnBlocks(block:HTMLElement, sequential:boolean):HTMLElement[] {
   if(!sequential||!block.matches('[data-type="multiColumn"]'))return [block];
-  const columns=Array.from(block.children);
+  // Live Tiptap NodeViews have a known contentDOM wrapper; serialized HTML does not.
+  const first=block.firstElementChild;
+  const container=block.childElementCount===1&&first?.classList.contains('nexus-multi-column')?first:block;
+  const columns=Array.from(container.children);
   // Unknown children are retained instead of silently flattened away.
-  if(!columns.length||columns.some(c=>!c.matches('[data-type="column"]')||Array.from(c.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim()))||Array.from(block.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim()))return [block];
+  if(!columns.length||columns.some(c=>!c.matches('[data-type="column"]')||Array.from(c.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim()))||[block,container].some(el=>Array.from(el.childNodes).some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim())))return [block];
   return columns.flatMap(column=>Array.from(column.children).flatMap(child=>exportColumnBlocks(child as HTMLElement,true)));
 }
 

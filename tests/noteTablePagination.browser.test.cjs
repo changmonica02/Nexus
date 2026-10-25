@@ -56,7 +56,7 @@ test('table continuation preserves rows, spans, source and legacy breaks',{timeo
  await preview.getByRole('button',{name:'重新準備預覽'}).waitFor();
  await page.evaluate(()=>{HTMLElement.prototype.getBoundingClientRect=window.originalMeasure;});await preview.getByRole('button',{name:'重新準備預覽'}).click();await ready();assert.match(await preview.locator('.nexus-export-pages').innerText(),/RECOVERY_BODY/);
  await page.evaluate(()=>window.failExportSave=true);await preview.getByRole('button',{name:'列印／儲存 PDF',exact:true}).click();await preview.getByRole('alert').waitFor();await page.evaluate(()=>window.failExportSave=false);await preview.getByRole('button',{name:'列印／儲存 PDF',exact:true}).click();assert.equal(await page.evaluate(()=>window.printCount),1);
- await page.evaluate(()=>window.setExportLanguage('en'));await preview.getByLabel('Column layout for this export').waitFor();await ready();
+ await page.evaluate(()=>window.setExportLanguage('en'));await page.getByRole('dialog',{name:'Note export preview'}).getByLabel('Column layout for this export').waitFor();await ready();
  await page.screenshot({path:'test-results/note-pagination/batch-preview.png',fullPage:true});
 
 });

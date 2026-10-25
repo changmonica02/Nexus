@@ -51,7 +51,7 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
     let number = 1, body = makePage(number), oversized = false;
     let copies=Array.from(source.children).filter(el=>!el.matches('.nexus-drag-handle,.nexus-print-hide')).map(copyExportBlock);
     // Keep copies attached at final width while assets load, without touching source.
-    if(sequentialColumns){const expanded=copies.flatMap(copy=>exportColumnBlocks(copy,true));if(expanded.length!==copies.length||expanded.some((block,index)=>block!==copies[index]))issues.add('sequential');copies=expanded;}
+    if(sequentialColumns){const expanded=copies.flatMap(copy=>exportColumnBlocks(copy,true));if(expanded.some(copy=>copy.matches('[data-type="multiColumn"]')||copy.querySelector('[data-type="multiColumn"]')))issues.add('columnFallback');if(expanded.length!==copies.length||expanded.some((block,index)=>block!==copies[index]))issues.add('sequential');copies=expanded;}
     body.append(...copies);
     if(!await waitForExportAssets(host,controller.signal))issues.add('assets');
     if(controller.signal.aborted)return;
