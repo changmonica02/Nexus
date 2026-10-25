@@ -101,7 +101,7 @@ export default function NoteExportPreview({ source, title, header, footer, pageN
     {!ready&&!error&&<p role="status" className="nexus-print-hide p-3">{t('noteExport.loading')}</p>}
     {(warnings.length>0||error)&&<div role="alert" className="nexus-print-hide p-3 text-amber-900 bg-amber-50"><details className="nexus-export-warnings" open><summary>{t("noteExport.warnings")} ({warnings.length})</summary>{warnings.map(key=><p key={key}>{t('noteExport.warning.'+key)}</p>)}{error&&<p>{t('noteExport.error')}</p>}</details></div>}
     {printing&&<p role="status" className="nexus-print-hide p-3">{t('noteExport.saving')}</p>}
-    {error&&<button className="nexus-print-hide m-3" type="button" disabled={printing} onClick={()=>{setError(false);setAttempt(n=>n+1);}}>{t('noteExport.retry')}</button>}
+    {(error||warnings.includes('assets'))&&<button className="nexus-print-hide m-3" type="button" disabled={printing} onClick={()=>{setError(false);setAttempt(n=>n+1);}}>{t('noteExport.retry')}</button>}
     <div ref={pagesRef} className="nexus-export-pages" />
   </div>, document.body);
 }
