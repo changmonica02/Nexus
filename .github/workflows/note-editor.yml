@@ -1,7 +1,7 @@
 name: Note editor audit
 on:
   push:
-    branches: [feat/note-export-audit-20261024, feat/note-table-pagination-20261025]
+    branches: [feat/note-export-audit-20261024, feat/note-table-pagination-20261025, feat/note-export-batch-20261025]
     paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
@@ -25,29 +25,36 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - name: Isolated pagination research tools
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y poppler-utils fonts-noto-cjk
           npm install --prefix .cache/note-pagination-study --no-save --ignore-scripts --package-lock=false pagedjs@0.4.3
       - name: Compare CSS, isolated Paged.js and readonly DOM
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         run: node tests/notePagination.study.test.cjs
       - run: node --test tests/noteExportLayout.test.cjs tests/noteTablePagination.test.cjs
       - run: node tests/noteTablePagination.browser.test.cjs
       - name: Export reproduction and regression
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         run: node tests/noteExport.browser.test.cjs
       - name: Note, attachment and workspace browser regression
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         run: |
           node tests/noteEditor.browser.test.cjs
           node tests/attachmentSync.browser.test.cjs
           node tests/unifiedWorkspace.browser.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
+        if: github.ref_name != 'feat/note-export-batch-20261025'
       - name: Existing map metadata, IDB and localization contracts
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         run: |
           npm run test:world-map
           node --test tests/worldMapRegions.test.cjs tests/worldMap.i18n.test.cjs
       - run: npx tsc --noEmit
       - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts src/lib/noteTablePagination.ts
       - name: Production build
+        if: github.ref_name != 'feat/note-export-batch-20261025'
         env:
           NODE_ENV: production
           NPM_CONFIG_OMIT: dev

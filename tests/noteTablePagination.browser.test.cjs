@@ -17,4 +17,44 @@ test('table continuation preserves rows, spans, source and legacy breaks',{timeo
  const picture='<img style="max-width:100%;height:auto" src="data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="green"/></svg>')+'">';
  await page.evaluate(html=>window.showExport(html),table(Array.from({length:18},(_,i)=>row(i,picture)).join('')));await page.waitForFunction(()=>{const b=document.querySelector('.nexus-export-controls button');return b&&!b.disabled;});assert.ok(await papers.count()>1);assert.equal(await preview.locator('img').count(),18);assert.ok(await papers.evaluateAll(papers=>papers.every(p=>{const b=p.querySelector('.nexus-export-body');return b.scrollHeight<=b.clientHeight+2;})),'decoded image ratios stay stable in fresh row clones');await preview.getByRole('button',{name:'關閉',exact:true}).click();
  await page.evaluate(html=>window.showExport(html),'<p>Before old break</p><div data-type="page-break" data-id="old-break"></div><p>After old break</p>');await page.waitForFunction(()=>{const b=document.querySelector('.nexus-export-controls button');return b&&!b.disabled;});assert.equal(await papers.count(),2);assert.match(await papers.first().innerText(),/Before old break/);assert.match(await papers.last().innerText(),/After old break/);assert.equal(await page.locator('#source [data-id="old-break"]').count(),1);await preview.getByRole('button',{name:'關閉',exact:true}).click();await page.evaluate(html=>window.showExport(html),'<details><summary>Nested legacy</summary><div><p>Before nested</p><div data-type="page-break"></div><p>After nested</p></div></details>');await page.waitForFunction(()=>{const b=document.querySelector('.nexus-export-controls button');return b&&!b.disabled;});await preview.getByRole('alert').waitFor();assert.equal(await page.locator('#source [data-type="page-break"]').count(),1);await preview.getByRole('button',{name:'關閉',exact:true}).click();await page.evaluate(html=>window.showExport(html),table(Array.from({length:8},(_,i)=>row(i)).join(''),'<tr><th colspan="2"><div style="height:1300px">OVERSIZED_HEADER</div></th></tr>'));await page.waitForFunction(()=>{const b=document.querySelector('.nexus-export-controls button');return b&&!b.disabled;});await preview.getByRole('alert').waitFor();assert.equal(await preview.locator('thead').count(),1,'an oversized header is retained once instead of multiplied per row');
+ // #109: one shared real preview covers wide content, 500 rows, reversible columns and retry.
+ await preview.getByRole('button',{name:'關閉',exact:true}).click();
+ const ready=()=>page.waitForFunction(()=>{const b=document.querySelector('.nexus-export-controls button');return b&&!b.disabled;});
+ const corpus=require('./fixtures/notePaginationCases.cjs');
+ const columnHTML=cases.columns.replace('</div></div>',corpus.math('x^2+1')+corpus.image+table(Array.from({length:8},(_,i)=>row(i)).join(''))+'</div></div>');
+ await page.evaluate(html=>window.showExport(html),columnHTML);await ready();
+ const columnsSource=await page.locator('#source').innerHTML();
+ assert.equal(await preview.locator('[data-type="multiColumn"]').count(),1,'default preserves local columns');
+ await preview.getByLabel('此次匯出的欄位排版').selectOption('sequential');
+ await page.waitForFunction(()=>!document.querySelector('.nexus-export-pages [data-type="multiColumn"]'));await ready();
+ assert.ok(await papers.count()>=3);assert.equal(await preview.locator('.katex').count(),1);assert.equal(await preview.locator('img').count(),1);
+ const sequentialText=await preview.locator('.nexus-export-pages').innerText();
+ for(let i=0;i<70;i++)assert.equal(sequentialText.split('LEFT_'+String(i).padStart(3,'0')).length-1,1);
+ for(let i=0;i<15;i++)assert.equal(sequentialText.split('RIGHT_'+String(i).padStart(3,'0')).length-1,1);
+ assert.ok(sequentialText.indexOf('LEFT_069')<sequentialText.indexOf('RIGHT_000'));
+ assert.equal(await page.locator('#source').innerHTML(),columnsSource);
+ const columnsPDF=await page.pdf({preferCSSPageSize:true,printBackground:true});fs.writeFileSync('test-results/note-pagination/columns-sequential.pdf',columnsPDF);
+ assert.equal((columnsPDF.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,await papers.count());
+ await preview.getByLabel('此次匯出的欄位排版').selectOption('preserve');await page.waitForFunction(()=>!!document.querySelector('.nexus-export-pages [data-type="multiColumn"]'));await ready();assert.equal(await page.locator('#source').innerHTML(),columnsSource);
+ await preview.getByRole('button',{name:'關閉',exact:true}).click();
+ const wide='<pre style="white-space:pre">CODE_START\n    '+('abcdefghij'.repeat(180))+'\nCODE_END</pre><p><a href="https://example.test">'+('LONGURL'.repeat(180))+'</a></p>'+table('<tr><td>'+('LongWord'.repeat(150))+'</td><td>WIDE_END</td></tr>').replace('width:100%','width:1800px')+corpus.math(Array.from({length:18},(_,i)=>'x_{'+i+'}').join('+'));
+ await page.evaluate(html=>window.showExport(html),wide);await ready();const wideSource=await page.locator('#source').innerHTML();
+ assert.equal(await preview.locator('pre').evaluate(e=>getComputedStyle(e).whiteSpace),'pre-wrap');
+ assert.ok(await preview.locator('pre').evaluate(e=>e.scrollWidth<=e.clientWidth+2));
+ assert.ok(await preview.locator('table').evaluate(e=>e.getBoundingClientRect().width<=e.closest('.nexus-export-body').clientWidth+2));
+ assert.ok(await preview.locator('.katex-display').evaluate(e=>e.dataset.exportMathScaled==='true'));
+ assert.ok((await preview.locator('pre').textContent()).includes('    abcdefghij'));assert.equal(await page.locator('#source').innerHTML(),wideSource);
+ await preview.getByRole('button',{name:'關閉',exact:true}).click();
+ await page.evaluate(html=>window.showExport(html),table(Array.from({length:500},(_,i)=>row(i)).join('')));await ready();
+ assert.equal(await preview.locator('tbody tr[data-rowid]').count(),500);assert.equal(new Set(await preview.locator('tbody tr[data-rowid]').evaluateAll(rows=>rows.map(r=>r.dataset.rowid))).size,500);
+ const stressPDF=await page.pdf({preferCSSPageSize:true,printBackground:true});fs.writeFileSync('test-results/note-pagination/table-500.pdf',stressPDF);assert.equal((stressPDF.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,await papers.count());
+ // Force one real layout measurement failure, then restore it and use the retry UI.
+ await preview.getByRole('button',{name:'關閉',exact:true}).click();
+ await page.evaluate(()=>{window.originalMeasure=HTMLElement.prototype.getBoundingClientRect;HTMLElement.prototype.getBoundingClientRect=function(){if(this.matches('table'))throw Error('Synthetic measurement failure');return window.originalMeasure.call(this);};window.showExport('<table style="width:1800px"><tbody><tr><td>RECOVERY_BODY</td></tr></tbody></table>');});
+ await preview.getByRole('button',{name:'重新準備預覽'}).waitFor();
+ await page.evaluate(()=>{HTMLElement.prototype.getBoundingClientRect=window.originalMeasure;});await preview.getByRole('button',{name:'重新準備預覽'}).click();await ready();assert.match(await preview.locator('.nexus-export-pages').innerText(),/RECOVERY_BODY/);
+ await page.evaluate(()=>window.failExportSave=true);await preview.getByRole('button',{name:'列印／儲存 PDF',exact:true}).click();await preview.getByRole('alert').waitFor();await page.evaluate(()=>window.failExportSave=false);await preview.getByRole('button',{name:'列印／儲存 PDF',exact:true}).click();assert.equal(await page.evaluate(()=>window.printCount),1);
+ await page.evaluate(()=>window.setExportLanguage('en'));await preview.getByLabel('Column layout for this export').waitFor();
+ await page.screenshot({path:'test-results/note-pagination/batch-preview.png',fullPage:true});
+
 });
