@@ -1,7 +1,7 @@
 name: Note editor audit
 on:
   push:
-    branches: [feat/note-export-audit-20261024]
+    branches: [feat/note-export-audit-20261024, feat/note-table-pagination-20261025]
     paths-ignore: ['docs/**']
   workflow_dispatch:
 permissions:
@@ -24,7 +24,15 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
+      - name: Isolated pagination research tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y poppler-utils fonts-noto-cjk
+          npm install --prefix .cache/note-pagination-study --no-save --ignore-scripts --package-lock=false pagedjs@0.4.3
+      - name: Compare CSS, isolated Paged.js and readonly DOM
+        run: node tests/notePagination.study.test.cjs
       - run: node --test tests/noteExportLayout.test.cjs
+      - run: node tests/noteTablePagination.browser.test.cjs
       - name: Export reproduction and regression
         run: node tests/noteExport.browser.test.cjs
       - name: Note, attachment and workspace browser regression
@@ -45,5 +53,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: note-export-evidence
-          path: test-results/note-export
+          path: |
+            test-results/note-export
+            test-results/note-pagination
           if-no-files-found: ignore
+
