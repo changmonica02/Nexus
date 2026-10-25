@@ -525,3 +525,6 @@ html, body { overscroll-behavior-y: none; }
 .nexus-export-body thead[data-export-tall-header] { display: table-row-group; }
 .nexus-export-warnings { padding: 8px 16px; }
 .nexus-export-warnings summary { cursor: pointer; font-weight: 600; }
+
+.nexus-export-body .math-preview { overflow: visible !important; }
+.nexus-export-body .nexus-math-block .math-preview { justify-content: flex-start; min-width: 0; }
