@@ -1,97 +1,38 @@
 # Nexus — 專案歷史與決策紀錄
 
-## 2026-10-25｜合併 #106 與第二批分頁比較（Refs #107；PR #108，CI 通過、待審查）
 
-依新授權重新審查並合併 #106（`2bb1a01`），未把第二批帶入 main。用同一標準 corpus 實跑原生 CSS、MIT Paged.js 0.4.3 及現有 DOM 預覽，初次 CI 40162658785 重現長表格一張預覽／五頁 PDF；並觀察 Paged.js 原型表頭未自動逐頁重複，不能單憑功能多就導入 runtime。選擇擴充現有 C 的安全表格列群組，保留 A 作實際 print；不重寫行內排版或大幅改資料模型。只在安全邊界切段，rowspan 傳遞群組完整保留、oversized／未知表格警告。雙欄語意及正式閱讀順序不擅自定案，保留原欄比並記錄限制。效能採空殼＋列群組，避免每頁深複製整張表。固定 Paged.js 及其 license 只作隔離研究，正式依賴未變。程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。 第二批未合併、無 DB 或直接部署操作。
-
-
-## 2026-10-24｜筆記自主審計與只讀輸出安全（Refs #105；PR #106，CI 通過、待審查）
-
-以 main `23450f9` 實際程式重新盤點，不把舊 #87 本機交接誤認尚未實作。先提出 10 組分類問題、驗證與分批路線圖，再選能保護原始 JSON 的輸出副本問題。官方 Paged.js／PM Tables／Milkdown／remark-GFM／Tiptap 研究確認核心 MIT 可借鑑，但商業 Pro 不屬免費來源；無需為修一個資源競態導入整套 parser／chunker 或替換編輯器。先用既有 C（唯讀 DOM）＋A（原生 print CSS）保守改良，完整 B（Paged.js）可執行原型尚未做。baseline CI 40071347820 成功重現圖片未就緒時允許列印；新實作等待／取消、警告特殊內容，不擅自定案長雙欄順序。程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。 沒有正式資料操作、合併或部署。
-
-
-## 2026-10-21｜筆記與最新 main 的本機整合（Refs #87）
-
-- 從 `b1840cb` 建立獨立整合分支，保留原筆記分支及 `backup/note-freeform-20261021`。四筆筆記提交按原順序套用；文件衝突只在同一插入點，保留較新的地圖紀錄與全部筆記紀錄。為讓本機 Windows 建置／Lint 可重現，將地圖核心的 PostCSS 解析隔離，並校正非 React Hook 的函式別名。沒有調整地圖資料、權限或部署。
-
-## 2026-10-21 — V2-3 文化／宗教分布（Refs #102；PR #103 後續已合併 main `b1840cb`）
-
-承接已合併 PR #101 的 `826926f`。既有 cells 配置與同 Page 原子交易可安全承接非互斥分布，故不新增資料庫或另一套區域編輯器。國家重分配只適用 country；文化／宗教各自保存集合，可跨國及互相重疊。比較半透明堆疊、斜紋、點擊全部查詢與選取高亮後，採等權混色＋查詢＋高亮，避免先後順序決定唯一結果或引入複雜圖形依賴。既有原生文明保持獨立，正式條目不依名稱連結、不混入 native 附件。程式／測試 `2ad6cf54c13de2ba99f555e5e0a70257c461656c` 的 [CI 39531024382](https://github.com/changmonica02/Nexus/actions/runs/39531024382) 通過：144 項單元／契約（36 repository、4 port、13 Adapter/fake-IDB、2 area、2 i18n、39 相關工作區／角色／study、48 native），核心及 Nexus TypeScript／production omit-dev build，相關 ESLint 0 errors／33 既有 warnings；兩組實際 Chromium（地圖／角色）成功，地圖 pageerror=[]。 沒有正式操作或部署。
-
-
-## 2026-10-21 — 人工區域沿用正式條目與原生網格（Refs #100；PR #101）
-
-基於已合併 PR #99 的 main `cc6ae3d`。選擇 mesh 指紋＋排序 cell IDs，在既有 placement 中擴充可選區域，重用自然格網而不寫原生 states/provinces；避免為 Polygon 布林／共界／水域拓撲引入高風險重寫。正式關係沿用 relations，政體／行政類型自由文字；正文仍一份。國家重疊只在明確確認後同 Page 原子移轉；行政／城鎮矛盾提示、不靜默改隸屬。面積是陸地 polygon 衍生統計，保守區分相對量、可信平面估算與未實作球面測地計算。未新增 DB schema／依賴／服務；程式／測試 `e9b4ed5` 的 CI 39523479994 已通過 140 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／33 warnings。PR #101 待審查，未合併／部署，不代表正式帳號或實機驗收。
-
-
-## 2026-10-20 — 世界觀為正式來源、地圖僅引用（Refs #98；PR #99）
+## 2026-10-20 — 世界觀地圖資料／儲存首批、自主地圖核心與可用編輯流程、世界觀地圖優先、世界觀地圖改為行動優先瀏覽器、自然生成與文明配置分離、世界觀為正式來源、地圖僅引用（Refs #98；PR #99）
 
 在 PR #97 合併後的 main `65653d0` 開獨立 V2-2A 分支。盤點確認原世界觀 sections/tabs 沒有正式城鎮身分，選擇在原 Page JSON 新增可選 world_entities、地圖 metadata 新增可選 placements，避免平行資料庫及多筆資料提交的孤兒引用。兩者共用既有 Page CAS／outbox／備份交易；ID 與名稱分離，位置與正文獨立修訂。地圖只接收衍生 SVG 標記，不更動 pack.burgs 或重算自然地理，舊文明資料不自動轉換。原生 .map 保持引擎內容，完整 Nexus 備份另保留正式條目與引用；不承諾外部原版相容。工作分支程式／測試 `d29d5e5` 的 CI 39437559252 已通過：133 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／32 warnings；PR #99 待審查，未合併／正式部署，不代表正式帳號或實機驗收。
-
-
-## 2026-10-20 — 自然生成與文明配置分離（Refs #96；PR #97）
-
 承接 main V2 SPEC 與未合併 PR #95，另開分支，不重寫瀏覽器或儲存層。自然流水線使用明確 step 白名單及原生零索引／空集合，以保留保存、舊文明專案及既有工具契約。確認前採一次性隔離核心／獨立低密度 preview，避免先建立空地圖再取消刪除。僅新增原生 options 的可選版本化 Nexus 狀態，不改 DB 或備份容器。
-
 原 Erase／Risk 高度模式與 climate update 會重建水文／生態甚至文明，無法保證人工資料保留；因此第一批限制海陸拓撲變更、標記衍生資料待檢查，不冒充局部安全重算。完整再生成需獨立 snapshot／確認／rollback 流程，尚未開放。等高線使用既有高度演算法、相對值，沒有宣稱真實公尺；未知地理寬度不顯示未校準比例尺。3D 等共享模組暫保留，只退場已確認獨立入口。V2-2–V2-5 不混入。
-
-
-
-## 2026-10-20 世界觀地圖改為行動優先瀏覽器（Refs #94）
-
 採用預設瀏覽、集中管理與地圖浮動工具；上層關聯／詳細圖仍沿用既有 metadata 與 repository。為完整顯示不同長寬比地圖，Nexus 內嵌模式使用 contain fit 及暫時縮放下限，取代原版 cover 顯示；不把顯示適配寫回原生專案。重用 D3 雙指手勢，單指捲頁經既有私有 port 仲介，全螢幕改單指拖圖；瀏覽鏡頭獨立保留，避免編輯／同步／語系更新改寫瀏覽位置。沒有新引擎、資料格式、DB 或付費依賴。
-
-## 2026-10-20 世界觀地圖優先（Refs #90）
-
 依使用者決策，世界觀首頁取消角色資料編輯 UI，保留既有原始欄位；以現有核心的 preview/edit configure 切換取代另建渲染器或每次進出重載。scope 與顯示圖層分離，以可選 metadata 建獨立詳細專案連結，無 schema migration。切圖沿用同一個核心並以文件 identity 防止舊圖誤存；編輯前後讀即時原生視圖避免手勢通知延遲造成跳動。UI 翻譯以現有語系與同一目錄漸進接入核心，嚴格排除地圖資料與輸入值，未收錄保留英文；不重寫地圖演算法。
-
 > 最新日期與最新實作置於文件上方。歷史段落記錄當時狀態；目前產品契約看 SPEC，實作與部署現況看 ARCHITECTURE／HANDOFF。
-
-## 2026-10-20｜Nexus 自主地圖核心與可用編輯流程（Refs #88）
-
 - 依 SPEC 64c8e0e，將固定 Azgaar 原始碼實際納入 Nexus-owned fork，分離核心、iframe adapter、世界觀 UI 與既有儲存同步。保留可自主改良的模組化來源，建置單一 executable core 以支援 opaque/offline 容器，不重寫演算法、不另造新儲存格式。
 - 一般 Service Worker 無法直接支援 opaque iframe 的離線導覽；改由 Nexus 公開工具 cache 組合隔離文件，broker 只回傳預快取的公開檔案，不代理私人 API 或任意同源請求。原生 serverless 檢查僅對嵌入模式放行。核心看不到 Nexus 帳號憑證／localStorage，原 lastMap 僅作 active-session Quick Load。
 - 本機 checkpoint 與 canonical/outbox 保存分開，保留離線草稿及明確成功提示。原生 void loader 補 awaitable 成功／失敗邊界；同時保護原生 UI 匯入失敗不覆寫。保存提示改在 snapshot 回覆後判定 dirty generation，避免把失焦通知誤當成未包含的新內容。
 - 備份沿用 v3 並加入可選 recovery 區段；修正共享 IndexedDB 匯出／匯入的帳號邊界，保留其他帳號 cache、pending/tombstone 及現有 recovery。地圖外層 metadata_version=1 獨立於原生 engine_version；沒有 SQL／RPC／RLS 變更或正式資料寫入。
 - 程式 43246e4 的 34 項地圖測試、39 項相關回歸、雙方 TypeScript/build 與實際 fork 的隔離 Chromium 完整流程通過。正式帳號／跨裝置／Safari、舊附件容量與離線字型限制見 HANDOFF；不將自動化視為正式啟用／實機驗收。未合併或部署。
-
-## 2026-10-20｜世界觀地圖資料／儲存首批（Refs #88）
-
 - 依 F-WORLD-MAP 固定上游來源及原生專案契約，先沿用世界觀 character_data、Attachment 與既有原子 outbox，不新增 schema。完整地圖 bytes 與 metadata 分離；不可變附件、world CAS、map revision 與 owner 檢查優先保護離線內容及失敗重試，尚未掛載 UI。
 - 保守保留舊附件避免就地覆寫；容量／節流與回收尚待後續驗證，不把這個取捨當作已完成效能方案。固定版本以外的格式先拒絕，原生載入及 SVG 隔離仍需完整驗證。
 - 使用者授權改由 GitHub 獨立分支修改。19 項資料層契約測試通過，5 項 IndexedDB 整合測試已寫未執行，M0 尚未全部完成，M1–M3 及實機驗收不列完成；詳見 ARCHITECTURE／HANDOFF。未合併、部署或操作正式資料。
 
-## 2026-10-19｜筆記改版第四批（Refs #87）
+## 2026-10-19｜共用元件與真實儲存狀態、附件版本快取與同步觸發、筆記改版
 
 - 補上把手拖曳建立局部雙欄：將一個區塊拖至另一區塊右側中段，以原節點組成左右欄並可復原。舊手動分頁與既有雙欄不納入此落點轉換。僅本機實作，未部署。
-
-## 2026-10-19｜筆記改版第三批（Refs #87）
-
 - 把手拖曳可跨既有雙欄移動區塊，也可把一般區塊移入指定欄位；瀏覽器驗證內容與復原，修正分隔線遮住把手。本機實作，未部署。
-
-## 2026-10-19｜筆記改版第二批（Refs #87）
-
 - 既有 Tiptap 擴充支援選取區塊包入局部雙欄、欄寬比例、欄間移動與移出；把手操作、Shift 多選、斜線選單及嵌套摺疊均保留原 JSON 區塊。桌面筆記側欄沿用共用 Sidebar，增加可記憶寬度與開合。
 - 流動 Note 匯出新增唯讀 A4 預覽；從已渲染編輯器複製公式、圖片、表格及局部雙欄，副本展開摺疊。原資料和收合狀態不寫回。長雙欄跨頁與超寬內容規則仍待 SPEC 核准；舊分頁筆記暫用原流程。
 - 未操作正式資料或部署；完整驗收狀態見 HANDOFF。
-
-## 2026-10-19｜筆記改版第一批（Refs #87）
-
 - P0 實際隔離重現：輸入「中文 English」、觸發同步快照、再輸入空白與 tail，得到「tail中文 English 」；保護 pending 後四種尺寸正確保持文字及游標。未停用快捷格式或空白。
 - 舊分頁筆記先採只改閱讀布局的過渡，不改原 format／pageBreak；新版輸出與跨頁規則尚未實作／定案。新增逐篇全寬，保留未知根層資料。
 - 公式測試發現快速建立／刪除共用 undo 群組，改為每次確認／刪除可獨立復原。第一批不部署、不操作正式資料；其餘功能保留 #87 未完成。
-
-## 2026-10-19｜共用元件與真實儲存狀態（Refs #85）
-
 - 依使用者授權整理重複窗格、PDF 預覽、原生對話框、選單與總覽；移除確認無入口的替代實作，保留規格需求及歷史相容路徑。
 - 原 EditorPane 的定時成功提示不能證明寫入完成；改以實際每頁寫入結果顯示本機成功、失敗與重試，保持較新修改及雙窗格獨立。
-- 本機回歸與發布限制見 `operations/WORKSPACE-COMPONENTS.md`；無 schema／權限變更，不使用正式附件測試。
-
-## 2026-10-19｜附件版本快取與同步觸發（Refs #84）
-
-- 重複流量來自完整同步先抓 binary 再查本機。改以現有原子 attachment revision 判斷下載，不新增內容hash欄位或更動正式資料；owner／版本／pending intent／tombstone在寫入交易再次驗證。metadata-only 更新可能保守重抓單檔，優先安全與最小資料契約變更。
+- 重複流量來自完整同步先抓 binary 再查本機。改以現有原子 attachment revision 判斷下載。
 - 同源多分頁共用 IndexedDB 下載租約，避免依賴 Web Locks；當機可逾時接手。登入憑證更新沿用引擎，同分頁合併 fullSync，背景降低頻率，前景恢復確認，離線 outbox 保留。
-- 合成六份附件六輪：完整內容36次降至6次，後續五輪0次；本機驗證與正式部署狀態分開記錄，詳見 HANDOFF 及 operations/ATTACHMENT-SYNC-CACHE.md。
+- 合成六份附件六輪：完整內容36次降至6次，後續五輪0次。
 
 ## 2026-10-18｜整筆字典詞條刪除與編輯器簡化
 
