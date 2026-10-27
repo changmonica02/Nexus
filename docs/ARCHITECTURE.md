@@ -838,9 +838,475 @@ PR #57 本輪驗證：字典單元／整合116/116、既有排程／Session／�
 - 發布前置比對使用 `DictionaryEditor` 已儲存 baseline revision；立即刪除義項／內容後由既有刪除 RPC 更新 baseline，不能使用仍較舊的父層 detail revision。Review 發布回呼仍使用自身已選 Review revision，不以 Entry baseline 取代。
 
 
+---
+
+# 歷史專項文件整併（2026-10-27）
+
+以下保留原始專項文件內容與出處，作為技術／產品紀錄；若與本文件較新、已確認的規格衝突，以較新的決策為準。舊實作步驟與 SQL 不應未經重新審計直接執行。
+
+
+## 原始文件：`docs/NOTE-EDITOR-AUDIT.md`
+
+# 筆記編輯器審計與漸進路線圖
+
+2026-10-24；Refs #105。產品／程式基準 main `23450f92ec7a12e46c48d18582b630a4bc4a158d`。這是程式盤點與驗證計畫，不表示正式帳號／裝置或全部功能已驗收。第一批驗證結果見 HANDOFF 與 PR。
+
+## 2026-10-25 第二批：真實 A/B/C 比較與表格延續（Refs #107；PR #108）
+
+第一批 #106 已合併 `2bb1a01`；本批從該 main 另開分支。標準 corpus 與實際研究入口為 `tests/fixtures/notePaginationCases.cjs`／`tests/notePagination.study.test.cjs`。Paged.js 固定官方 v0.4.3 package（MIT），只在 CI cache prefix 安裝，不加入正式依賴；license 與比較 JSON、12 組 PDF／print 截圖留存。不是未經實測的推薦。
+
+### 檢查範圍與判讀
+
+- 四類共用輸入：125 列長表、跨列／跨欄及高儲存格的複雜表、跨三頁以上的 38:62 局部雙欄（70 左段／15 右段）、中英長文／KaTeX／圖片／超寬 code／fold／nested／legacy break。另有真實 EditorPane 的 110 列 Tiptap JSON／StableBlockId／未知 metadata 保存與重開，以及圖片無尺寸、caption、Tiptap tbody 頭列與巢狀 break 專項。
+- 字型共用 sans-serif/CJK，研究 CSS 12px/1.4；C 保留 Nexus 紙張／header/footer 與內容盒（預留 10mm），A/B 使用原生 @page margin boxes。因此頁數與耗時是此 fixture 設定下的實測，不可當一般引擎排名。
+- PDF 以 pdftotext 驗證唯一 ASCII body markers 的缺少／重複，DOM 驗證 row IDs、rowspan／colspan、KaTeX／圖片及 source immutability；頁數與 preview count／頁首尾分開記錄。markers 不驗證所有中文字、公式 glyph、圖片畫素或完整閱讀語意；截圖／PDF 必須搭配檢視。
+- baseline CI 40162658785：原生 CSS table 5 頁／5 headers；Paged.js 預覽和 PDF 都 5 頁但只 1 header；舊 Nexus C 是 1 preview／5 PDF 頁。12 case 的標記未遺失／重複，不代表複雜視覺排版已正確。紅測試確認舊 C 缺少真實表格預覽延續。
+
+### 九項方案比較（有實測的部分與限制分列）
+
+| 面向 | A 原生 CSS | B 隔離 Paged.js 0.4.3 | C 唯讀 DOM＋原生 print |
+| --- | --- | --- | --- |
+| 表格跨頁 | 實測 thead 可重複，screen 無實體頁；需瀏覽器 fragmentation | 有實體頁；本 prototype headers 不逐頁重複，需額外 handler／測試 | 本批新增安全列群組／重複頭列，超高 rowspan／未知結構保留警告 |
+| 雙欄跨頁 | Grid 有實際多頁輸出；順序仍需產品定案 | 可生成多頁，但不能據此宣稱混合欄完整語意 | 保留 ratio／DOM；長欄 1 preview 對多 PDF 頁時明示，不攤平 |
+| 內容完整性 | corpus markers 可抽取；並非 glyph／像素保證 | corpus markers 可抽取；需再查 span／視覺續接 | 對 C assertions：markers、row ID 唯一、span signatures、來源不變；無法安全切分不丟棄 |
+| preview/PDF | 無獨立分頁 preview，直接 print 真實排版 | 實體 preview count 可比 PDF，但 headers／內容仍需驗證 | 安全長表格要求 preview=PDF；特殊高列／長欄仍可能不同，警告 |
+| LaTeX | 共用 KaTeX/fonts，過寬仍需處理 | 同 source KaTeX，SVG/MathML 需配合個別檢查 | 正式 NodeView 已確認 preview，無編輯卡；字型就緒與過寬警告沿用 |
+| 效能／記憶體 | 記錄 render latency／heap sample，無自製頁面 DOM | 額外解析／頁面 DOM 與 library bytes，測量非 peak | O(rows) 群組＋有限頁面測量；空 skeleton 避免 N×頁數完整表 clone，仍不是大文件 peak 壓測 |
+| 複雜度 | 最低，但無預覽頁與 browser 差異 | 高，CSS parser/chunker hooks 加維護成本 | 限定 table subset；不自製完整行分割或瀏覽器 engine |
+| 依賴／授權 | 瀏覽器已有，零 package | MIT；0.4.3 官方 tag，測試 prefix only；未選 beta 或商業服務 | 正式 runtime 新依賴 0，沿用 DOM APIs |
+| 資料相容 | 純輸出，不寫 JSON | 僅研究 DOM，不接儲存 | JSON／ID／欄比／fold／附件／metadata／CAS 全不改；舊 root break 只映射輸出邊界 |
+
+### 已選範圍及未完成
+
+採 C 安全表格＋A print 的最小組合。表頭重複是可識別的 readonly continuation，不重複正文列；caption 只一次。rowspan 的連通群組不拆，tfoot／多 tbody／nested table／nested pageBreak／特殊 wrapper 都保留警告。原文、欄比與來源順序不改。長欄最終閱讀順序、超高 cell 中途拆分、任意段落行切分／寡行、所有 PDF glyph、跨 browser、真實大文件 peak／GC 尚未解決。本批不採用 Paged.js runtime；研究原型的 headers／複雜內容需額外 work，不是授權或付費阻擋。
+
+程式／測試 `cef87ef6cab82f22617e48b9f4cfad175ffc294f` 的 [CI 40164243583](https://github.com/changmonica02/Nexus/actions/runs/40164243583) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），6 組 Chromium suites（含 12 次 A/B/C 實際 render）、TypeScript、限定 ESLint、production build（含 map prebuild）。指令及環境見 .github/workflows/note-editor.yml；PDF／print PNG／PDF 點陣圖／comparison.json／MIT 聲明保留在 note-export-evidence artifact。沒有移除既有回歸測試。正式帳號、Safari／Firefox、Android／iOS 實機、真實 IME、極大文件峰值記憶體未驗收。
+
+| 案例 | A PDF／預覽 | B PDF／預覽 | C PDF／預覽 |
+| --- | --- | --- | --- |
+| longTable | 5／無 | 5／5 | 5／5 |
+| merged | 4／無 | 2／2 | 5／3 |
+| columns | 4／無 | 4／4 | 4／1 |
+| mixed | 3／無 | 3／3 | 4／4 |
+
+本輪 12 次 render 的 body markers 缺少／重複、重複 row ID、span 變更均為 0。C 的安全長表有 5 個重複表頭；超高合併列仍為 3 preview／5 PDF、長雙欄 1／4，兩者確實出現警告，不冒充完整解決。六張實際 PDF 首頁點陣圖已檢視：C 長表邊界／表頭及雙欄保留，B 原型雙欄右欄未在首頁原位置呈現；首圖檢查不代表所有頁面已人工驗收。Flex 變體尚未實跑。
+
+Chromium 151.0.7922.34／Linux 單次樣本：長表 A/B/C render 49/156/63ms、DOM 節點 658/3018/2069、heap sample 3.70/6.45/6.60MB。全 corpus A 30–55ms、B 112–156ms、C 53–113ms。啟用 precise-memory-info，但只是完成時取樣，不是峰值／GC 基準；C 含 React 應用，不能據此宣稱引擎記憶體排名。Paged.js 0.4.3 dist 920798 bytes／gzip 161393 bytes，僅研究安裝；最新 upstream beta 未採用。不得把「PDF 文字 markers 正常」升級成完整視覺驗收。
 
 
 
+## 架構與產品核對
+
+- Note 在 EditorPane 使用單一 TiptapEditor 連續編輯（目前 `isPaged=false`，不把保留的 PaginatedEditorView 分支誤認仍在日常使用），保留舊 `format=paged`／pageBreak 與未知根 metadata；Document、其他模組不屬本批。main 已有 #87 的自由筆記實作，HANDOFF 原「本機未推送」是歷史進度，不可再當目前缺失。
+- Tiptap 3.27.1／ProseMirror JSON 是正式內容。StableBlockId 透過 appendTransaction 修補缺失及重複 ID；局部 multiColumn、column、foldBlock、inlineMath／blockMath 均沿用既有 schema。多欄比例、把手／Shift 多選／斜線、側欄與單篇全寬已有程式與 browser fixture，這次不重做。
+- onUpdate 傳 JSON／文字／block 游標錨點；prop 同步以 schema 正規化 JSON 比較後才 setContent，並避開 composing。既有 pending edit 保護已修過同步快照覆蓋游標；目前未重現新 P0，不停用空白／正常快捷格式。setContent 的舊字串錨點與全文序列化仍值得後續量測。
+- TableKit 已提供 resizable tables；現有選單呼叫 addRow/Column、mergeCells、splitCell、header 及 CellSelection/TableMap。不能因為選單存在就宣稱 Excel／HTML／複雜 rowspan paste、Tab 導覽及跨頁已全部驗收。
+- 數學 input plugin 避開 composition／code／跳脫美元；node view 保留原始 LaTeX、可編輯／刪除／history。原生 IME、錯誤原文與超長公式仍需針對性矩陣；不把合成 composition 當實際中文輸入法。
+- Markdown 是自製 parser／serializer，與 Tiptap schema 並非完全等價；沒有 remark AST 作中介，也沒有完整 GFM／專屬節點無損協議。
+- NoteExportPreview 是 React portal，從已渲染 source 複製唯讀 DOM，按頂層區塊測量 A4。摺疊在副本展開，不寫正式 JSON。現有超高塊改 auto height，沒有真正分割長段落／跨頁表格或長雙欄。
+- EditorPane 的 onContentChange 保留根 metadata；既有 WorkspacePersistence 在 owner 範圍同交易寫 Page/outbox，revision guard、pending merge、tombstone 防覆寫；附件 metadata/binary 分離與租約快取。此批不改以上路徑、不遷移或刪除資料。真實遠端 JWT／RLS／多裝置仍未由靜態盤點證明。
+
+## 開源研究與採用界線
+
+以下官方 repository／README 於 2026-10-24 讀取；GitHub pushed_at 只表示近期活動，不等同品質保證。沒有複製第三方原始碼或新增套件。
+
+| 來源／授權／觀察 | 可借鑑、可用程式與 Nexus 邊界 | 體積與風險 |
+| --- | --- | --- |
+| [Paged.js](https://github.com/pagedjs/pagedjs)，MIT，最近 push 2026-10-23 | Previewer 的非自動 preview、beforePreview／afterPageLayout hooks、資源完成後量測可借鑑；MIT 程式可採用但須保留聲明。不可直接全站載入 auto polyfill，不能讓它重排可編輯 DOM。 | 新增 CSS parser／chunker／fragmentation 執行成本；尚未對 Nexus fixture 量測 gzip bundle，不能拿 repository 大小當 bundle。屬中高風險原型，這批不安裝。 |
+| [ProseMirror Tables](https://github.com/ProseMirror/prosemirror-tables)，MIT，最近 push 2026-06-18 | 現有 TableKit 已重用其 TableMap／CellSelection／tableEditing invariants。依官方建議注意 plugin 排序，維持每列寬度一致與儲存格不重疊。後續補 merged-cell paste／Tab／undo 測試，避免自造另一套格網。 | 已在依賴圖中，維持單一 PM 版本；不用再安裝第二份。桌面選取與手機工具可用性需實測。 |
+| [Milkdown](https://github.com/Milkdown/milkdown)，MIT，最近 push 2026-10-23 | PM＋remark 的 plugin-driven AST 分層、Markdown fixture round-trip 可借鑑。程式可依法採用，但更換 editor/schema 會破壞 Nexus 自訂節點，故不替換。數學仍需 Nexus 的原地編輯與歷史契約。 | 另一套編輯框架／插件與 parser 成本高，bundle 未量測；無需為借鑑模式引入整套。 |
+| [remark](https://github.com/remarkjs/remark)，MIT，最近 push 2026-09-27；[remark-gfm](https://github.com/remarkjs/remark-gfm)，MIT，最近 push 2025-02-10 | AST parse/stringify、escaped pipe、autolink／footnote／tasklist／table 標準 fixture 可借鑑。GFM 不等於 HTML renderer，不支援 Nexus 合併格／欄寬／雙欄／fold 原樣表示。數學另需 math extension，不是 GFM 自帶。 | ESM-only GFM 插件，需 unified/micromark/mdast 等依賴；離線 import/export 可 lazy load 的候選，但需先比較測量，不直接加入。 |
+| [Tiptap](https://github.com/ueberdosis/tiptap)／[ProseMirror](https://github.com/ProseMirror)，核心 MIT，Tiptap 最近 push 2026-10-23 | 既有 transaction mapping、Selection／history、composition guards、NodeView.ignoreMutation 是直接沿用的 API。以 transaction 的新 doc 定位，不靠 React 重建或關閉快捷鍵掩蓋。 | 現有依賴優先；不升級版本或增加另一份 PM。Tiptap README 明示 Pro Extensions 需訂閱，Cloud／Pro 轉換、AI 等不是此批免費方案。 |
+
+本批自行實作的是 Nexus 唯讀副本的資源就緒、取消／清理、溢位警告與 CSS 輸出隔離，不是另一個編輯或分頁引擎。授權評估不代表所有同品牌套件都同授權；未來採用需固定版本／檢查該套件 license、transitive deps 與 bundle。
+
+## 問題清單（依影響 × 機率，兼顧修改風險）
+
+分類：**B** 程式已能確認的缺陷；**R** 需瀏覽器重現／根因仍是假設；**F** 功能缺口；**D** 技術債；**Q** 未核准決策。以下列出十項必要欄位，未執行的回歸不得視為通過。
+
+| 順序／ID | 類別 | 影響／發生機率 | 修改風險與處理 |
+| --- | --- | --- | --- |
+| C02 | R | 極高／新根因尚未重現 | 中；沿用既有 P0 保護，真實 IME 優先驗證 |
+| S01 | R | 極高／故障情境常見 | 高；保存契約不改，每批回歸 |
+| E01 | R→已有紅測試 | 高／慢速媒體常見 | 低；本批等待副本資源 |
+| E02 | B | 高／長文與大表格常見 | 低至中；本批警告，完整拆分另議 |
+| E03 | R | 高／依列印容器 | 低；局部 print CSS＋PDF 頁數驗證 |
+| E04 | R | 中高／公式展開時 | 低；副本防護與來源不變測試 |
+| M01 | B | 高／有專屬節點時必然 | 中；先能力警告，無損格式需比較 |
+| T01 | F | 中高／複雜貼上未量測 | 中；先補 TableMap 互動矩陣 |
+| C01 | D | 中高／大文件未量測 | 中；基準後才優化 |
+| P01 | F/Q | 高／超過一頁區塊時必然 | 高；A/B/C 原型，未決規則不定案 |
+
+### E01｜預覽先於資源就緒量測 — B（紅測試確認）／P1，第一批
+1. 名稱：圖片／字型載入競態。2. 影響：頁數、換頁與實際列印不一致。3. 重現：慢速載入高圖片／延遲字型後立即開預覽，等待資源後檢查 paper 高度。4. 根因：useLayoutEffect 同步一次量測，沒有 fonts.ready、image load/decode 或取消。5. 參考：Paged.js beforePreview／PM 不動原 doc 原則。6. 最小修正：只在副本等待有限資源就緒，超時／失敗顯示真實警告，關閉與換設定清理。7. 回歸：延遲 PNG、失敗圖片、關閉／重新開啟、快速換方向；檢查原 DOM／JSON 不變。8. 新依賴：否。9. 格式：不變。10. 優先：P1，低風險。
+
+### E02｜超高／超寬內容無警告 — B／P1，第一批
+1. 名稱：A4 紙張 silently auto-height。2. 影響：預覽紙張數可能不等於 PDF 頁數，內容可能裁切而無提示。3. 重現：單一 2000px pre／長表格／超寬公式，開匯出。4. 根因：oversized 分支把 body.height 改 auto，沒有 warning；table wrapper、pre、math 的局部 overflow 仍存在。5. 參考：CSS fragmentation 的 break、orphans/widows；Paged.js overflow hooks。6. 最小修正：在副本偵測超出可用寬高／未能分割內容，明示預覽區塊數與實際頁數可能不同；可安全的圖片等比約束與 print overflow 修正，不自行定案雙欄閱讀順序。7. 回歸：大圖片／長段落／rowspan 表格／pre／math／columns，預覽與 print-media 截圖及 PDF，文字與來源完整。8. 新依賴：否。9. 格式：不變。10. 優先：P1，低至中風險；完整拆分另批。
+
+### E03｜列印 portal 受不可見應用布局干擾 — R／P1，第一批
+1. 名稱：visibility:hidden 不移除佔位。2. 影響：多印空白或意外縮放。3. 重現：前置 1600px 工作區，開獨立 portal，產生 PDF 比對 preview 紙張數與 page boxes。4. 根因假設：全域 print visibility 隱藏但保留 app 的尺寸，portal 又 position:static。5. 參考：原生 @page／named page。6. 最小修正：僅在 body:has(export-preview) 下移除其他 body 直接子元素列印布局，重設 portal 邊界，不動編輯器。7. 回歸：一頁／兩頁、直橫式 PDF 媒體框、前置工作區不留白。8. 新依賴：否。9. 格式：不變。10. 優先：P1，窄範圍 CSS。
+
+### E04｜正在編輯的公式副本可能輸出輸入卡 — R／P1，第一批驗證
+1. 名稱：NodeView 即時編輯 UI 被複製。2. 影響：公式遺漏或印出按鈕。3. 重現：公式原文展開時從匯出流程取副本；檢查隱藏 math-preview 與 textarea。4. 根因：cloneNode 複製 display:none 與可編輯卡，並不根據 LaTeX 正式狀態重建。5. 參考：PM NodeView 與 KaTeX。6. 最小修正候選：副本只保留已確認 preview、移除編輯控制；未確認原文不偷偷提交。7. 回歸：inline/block、錯誤原文、fold 內公式、刪除復原及 source 不變。8. 新依賴：否。9. 格式：不變。10. 優先：P1，若實際入口先 blur 已消除此狀態，仍維持副本防護測試，不捏造已發生資料遺失。
+
+### M01｜Markdown 無損能力未告知 — B／P1，下一批獨立
+1. 名稱：專屬節點／merged table 變成扁平文字。2. 影響：以 Markdown 當備份會失去欄比、收合、span 或公式。3. 重現：pageToMarkdown 輸入 fold/multiColumn、含 blockMath 與 colspan 表格再 createMarkdownContent；一般 Note 純文字貼上不會自動走此 Markdown parser，GFM table paste 亦需專用測試，不將 Document 匯入支援視為 Note 已有完整貼上。4. 根因：default getTextFromNode／tableToMarkdown 未表達 schema 專屬 attrs；GFM 本來不能表示 rowspan。5. 參考：remark-gfm AST 與 HTML fallback，須先選明確交換策略。6. 最小修正候選：輸出能力檢查／警告、保留 JSON 備份；HTML/sidecar 封裝先原型比較，不直接定案。7. 回歸：表格 pipe／code ticks／多欄／fold／數學 round-trip fixture。8. 新依賴：警告不需；parser 另評估。9. 格式：警告不改，無損交換方案待核准。10. 優先：P1，獨立分支，避免改共用 Document parser。
+
+### T01｜複雜表格互動矩陣不足 — F／P2
+1. 名稱：表格 paste／selection／鍵盤驗證缺口。2. 影響：Excel 合併格、Tab、欄寬可能有未發現問題。3. 重現：貼 HTML rowspan/colspan、跨格選取後 merge/split／undo；最後一格 Tab。4. 根因假設：未見專用不變條件 fixture，不代表 TableKit 已壞。5. 參考：PM Tables tableEditing／CellSelection／TableMap。6. 最小方案：先測，不重寫指令；另檢查「完整顯示」目前只改 DOM 而未持久化。7. 回歸：TableMap width／不重疊、撤銷、冷重開及手機選單。8. 新依賴：否。9. 格式：維持現有 attrs。10. 優先：P2，測出根因再修。
+
+### C01｜全文序列化／Stable ID 全掃描 — D／P2
+1. 名稱：長文交易成本。2. 影響：大文件輸入延遲。3. 重現：500／5000／10000 blocks，同步快照、空白、拖曳與 undo；記錄 transaction→paint percentile／JSON 成本。4. 假設：onUpdate 全文 getJSON/getText，prop effect stringify，StableBlockId 每次 docChanged descendants。5. 參考：PM StepMap changed ranges 與 plugin state。6. 最小方案：量測後再局部掃描／revision 比較；必須保護 duplicate IDs、selection/history，不先重構。7. 回歸：Enter／paste／duplicate／undo ID 不變及多窗格。8. 新依賴：否。9. 格式：不變。10. 優先：P2，中風險，這批不宣稱效能瓶頸已確認。
+
+### C02｜IME／外來同步 selection — R／P0 若重現
+1. 名稱：組字與非同步更新。2. 影響：游標跳回或待保存輸入被覆蓋。3. 重現：快打中英、空白、composition、同步 snapshot、失敗重試與冷重開。4. 現況：main 已有 pending 保護、composition guard、schema 正規化比較；未重現新的同根 Bug。5. 參考：PM composition 與 transaction.selection/map。6. 最小方案：先補真實裝置矩陣，不停用空白／input rules；只有具體根因才改。7. 回歸：既有 note＋unifiedWorkspace failure/race tests 與真實 IME。8. 新依賴：否。9. 格式：不變。10. 優先：安全保留 P0 驗證，真實輸入法未驗收。
+
+### P01｜完整分頁與跨頁內容 — F／Q／P2
+1. 名稱：長段落／表格／雙欄缺少可靠分割。2. 影響：preview/PDF 不完全一致。3. 重現：一個超過三頁的段落／rowspan table／雙欄。4. 根因：目前頂層 greedy block pagination。5. 參考：CSS fragmentation／Paged.js chunker。6. 方案：先用共用測試文件比較三種輸出；保留未知雙欄順序、手動分頁調整保存決策。7. 回歸：逐頁文本、MediaBox／頁數、邊界截圖、字型與跨頁表頭。8. 新依賴：C 方案不需；Paged.js 原型另經評估。9. 格式：任何方案均不得永久 pageBreak。10. 優先：P2，中高風險設計原型，未安裝 Paged.js。
+
+### S01｜舊分頁／附件／離線資料安全矩陣 — R／P1 持續
+1. 名稱：相容與故障恢復驗收。2. 影響：一旦退化會遺失正式筆記或附件。3. 重現：paged Note、pageBreak、未知 metadata、離線輸入、quota／同步失敗、換帳號與備份復原。4. 現況：owner／CAS/outbox／binary lease 已存在；不能把靜態閱讀當正式帳號驗收。5. 參考：現有 repository tests，無需改用其他編輯器儲存。6. 方案：本批輸出只讀 DOM、儲存／附件模組零修改，跑既有整合回歸。7. 回歸：noteEditor、attachmentSync、unifiedWorkspace、workspaceSync；真實帳號另人工。8. 新依賴：否。9. 格式：不變。10. 優先：每批必跑保護線。
+
+## 分頁方案比較與路線圖
+
+| 方案 | 優點 | 限制／決策 | 本次採用 |
+| --- | --- | --- | --- |
+| A 原生 @media print／@page／break | 零依賴，瀏覽器處理一般文字和表格 fragmentation | 瀏覽器差異、固定 header/footer、rowspan／雙欄閱讀順序不能保證；不能宣稱 screen 頁數完全相同 | 保留；修正輸出範圍隔離與基本 break／圖片約束，異常明示 |
+| B Paged.js | hooks、CSS paged media、可建立可見實體頁 | chunker 與 CSS 重寫／雙欄、表格、字型交互成本高；需鎖版和對照 prototype，不能直接套編輯器 | 不新增依賴，不宣稱已完成 Paged.js 原型比較 |
+| C 獨立唯讀 DOM 測量 | 已有基礎，零 schema 改動，易保護 source | 頂層 greedy 不足以完整分割；需等待資源、警告不支持情形 | 第一批最低成本：資源就緒＋誠實警告＋print 隔離，不冒充完整分頁引擎 |
+
+第一批：E01–E03 的重現／最小修正與 E04 防護，獨立 PR；先提交紅測試，修正後跑完整要求。第二批：M01 損失警告與 T01 表格不變條件測試，另開分支，不改共享格式。第三批：C01 長文基準，再選可證實改善的局部方案。第四批：P01 同一多頁 fixture 的 A/B/C 原型與截圖、PDF 對照，未決產品規則保留選項。每批保留實際結果、手動驗收與未完成清單。
+
+## 鍵盤與預覽體驗另案（E05，UX／R，P2）
+
+1. 問題：預覽目前只有 role=dialog，缺少 native modal 的 Escape／焦點圈與回復。2. 影響：鍵盤使用者可能 Tab 到背景內容。3. 重現計畫：開預覽持續 Tab／Shift+Tab／Escape，記錄 activeElement。4. 根因假設：portal div 沒有 focus management。5. 參考：Nexus 既有 ModalDialog 與 ARIA modal pattern。6. 最小方案：先做焦點回歸，再評估沿用 ModalDialog，避免影響 print portal 選擇器。7. 測試：開啟／關閉／列印失敗的焦點還原及手機鍵盤。8. 新依賴：否。9. 資料格式：不變。10. P2，與本批資源準備無關，不冒充已修。
+
+## 驗證界線
+
+目前盤點不等於每個 Bug 已完成瀏覽器重現。新的實際失敗／修正／CI 結果補於本文件和 HANDOFF。正式帳號、真實中文 IME、Safari、Android／iOS 及大型文件效能須人工／後續量測；不以 Chromium 或單一 PDF 檔頭通過取代上述驗收。
 
 
+2026-10-24 初始證據：baseline reproduction commit `75534a6` 的 [CI 40071347820](https://github.com/changmonica02/Nexus/actions/runs/40071347820) 在延遲圖片前列印按鈕仍 enabled 的斷言失敗，確認 E01。資源完成／等待／失敗／超時／取消五項 helper 單元測試已在本機 Node 通過；最終整合結果待 CI 紀錄。
 
+## 第一批實際交付與證據
+
+程式／測試 `f697bd596fa1cb8614348b8a69f71e59104d3548` 的 [CI 40071963719](https://github.com/changmonica02/Nexus/actions/runs/40071963719) 通過：6 項匯出 helper＋27 項 workspaceSync 單元／契約；4 組實際 Chromium（noteExport、noteEditor、attachmentSync、unifiedWorkspace）；TypeScript、限定 ESLint（0 errors／0 warnings）、production build（含既有 map prebuild）。無刪除／略過回歸案例。
+
+- 已修 E01；E02 提供誠實溢位／資源警告並維持來源，沒有實作完整長區塊拆分。E03 窄範圍 print 隔離以一張紙正好一 PDF 頁及直／橫 MediaBox 驗證；E04 以副本公式編輯卡移除／已確認 preview 可見驗證，不宣稱真實入口已發生公式資料遺失。
+- 實際 fixture 包含延遲／失敗圖片、長篇中英混排、60-row table、rowspan／colspan、超高 pre、寬 columns、fold、math card 及 legacy break marker。檢查 source DOM 不變、尾端文字保留、warnings、不同方向 PDF 頁數／紙張框與儲存失敗重試；既有真實 EditorPane fixture 再驗證舊 JSON／pageBreak／metadata、公式／多欄／拖曳／history／合成 composition／重掛載。附件真實 IndexedDB 雙分頁、離線與帳號隔離回歸通過。
+- CI 的 `note-export-evidence` artifact 留存 multi-page.png/pdf、preview.png、print.png、portrait.pdf、landscape.pdf，全部是合成資料。人工檢視日誌的 paper 預覽與 print 截圖：正文與頁首定位一致，screen 存在工具列遮蓋區，print 移除工具列並顯示頁尾；這不是自動逐像素相等或跨瀏覽器品質保證。
+- 只在一般單紙 fixture 斷言 preview=PDF 一頁；多頁特殊區塊只確認產生多頁、來源／尾文仍在 DOM 且有警告，**沒有驗證每頁 PDF 的全部 glyph／文字或複雜表頭重複**。不能把本批說成所有表格／雙欄／長公式已達完整印刷排版。
+- 仍未做：M01 損失警告／無損格式原型、T01 完整表格互動矩陣、C01 5000/10000-block 效能、E05 鍵盤 modal、P01 Paged.js 可執行原型及未決跨頁規則。沒有新增 runtime dependency、schema／同步／儲存／附件修改或 Migration。
+
+
+## 原始文件：`docs/OFFICIAL-PRIVATE-CARD-MIGRATION.md`
+
+# 官方私人卡片身份相容更新（2026-10-16）
+
+> 2026-10-16 已唯讀核實正式 Nexus ledger：`20261016062703 official_private_card_identity`，與使用者回報一致；下方為操作／相容說明，不再代表此 SQL 待套用。本輪不重播。
+
+
+SQL：`supabase/migrations/20261016030000_official_private_card_identity.sql`。**未套用正式環境，需另行授權**。
+
+## 依賴及資料保護
+
+先核對正式 ledger／schema 已具備 Study、字典、字典連結、Workspace、20261009 官方集及 20261015 私人文字編輯契約；不要按歷史檔名盲目重播。先備份 study_cards、links、states、events、downloads 及官方來源映射，記錄各表筆數。
+
+目前來源受舊 immutable guard 保護，來源為 payload.dictionary_entry_id；增量 SQL 在同一交易只補 official_source_entry_id，不更動文字、時間、FSRS、事件或 ID。來源缺漏時整體失敗，不猜 ID。先建立來源唯一索引，再移除使用可變字典連結的舊唯一索引；索引衝突將整體回滾，不刪重複資料。
+
+更新 guard 僅允許私人 Front／Back、目前連結、soft-delete 及既有技術 revision 欄位變更，來源、owner、card／deck／pack 保護保留。下載去重包含已刪卡；來源離開新版 manifest 後也不重建。舊客戶端漏送新身份時由已儲存身份補回。單卡操作與連結變更同交易，無效 Published Word 連結令卡片更新一併回滾。原 RLS 與操作 RPC 權限不放寬。
+
+## 套用順序
+
+1. 前端可先部署：capability 不存在／離線時維持舊文字編輯，不開放新連結與單卡刪除控制。
+2. 取得獨立批准、備份後，核對來源缺漏、來源重複與新函式依賴，再只套用此 SQL。
+3. 驗證 authenticated 的 official_private_card_capabilities.version=1，刷新 PostgREST schema cache；核對筆數、來源與原排程／事件一致。用明確指定測試卡驗證修改／解除、更新不重複與 owner 隔離。
+4. 重新整理前端後才顯示完整官方私人編輯能力。不要為驗證重新匯入字典／重建官方集。
+
+## 回滾
+
+交易失敗會完整回滾，勿留下半套欄位／索引／函式。前端回退可直接停用新入口；SQL 向舊客戶端相容，不應回套舊 guard 或舊去重索引（使用者可能已解除／重連）。若必須回退 DB，需另案先保留來源及私人修改，逐筆比對／備份後另行批准；不可清除新來源身份或重置資料。隔離 PGlite 測試不等於正式 staging／真實帳號驗收。
+
+
+## 原始文件：`docs/operations/ATTACHMENT-SYNC-CACHE.md`
+
+# 附件同步快取 — Refs #84
+
+2026-10-19：本機實作與隔離驗證；未部署、未寫正式資料庫、未下載正式 PDF。無新增 migration，沿用既有 `20261008_workspace_delete_protection.sql` 的 revision／CAS／tombstone 契約。
+
+## 可比較量測
+
+`tests/workspaceSync.test.cjs` 使用六份各 64 KiB 的合成 PDF payload，連續完整同步六次。舊路徑透過原 `select('*')` 分頁讀取；新路徑執行實際 metadata-first pull。統計附件 Base64 欄位 bytes，不含 metadata／JSON／HTTP headers，也不是壓縮後的 Supabase 計費數字。
+
+| 情境 | 完整附件下載次數 | Base64 bytes |
+| --- | ---: | ---: |
+| 修復前，六次同步 | 36 | 3,145,824 |
+| 修復後，首次＋五次後續同步 | 6 | 524,304 |
+| 修復後，五次後續同步 | **0** | **0** |
+
+此案例合計減少 83.33%；穩定版本的後續附件內容傳輸減少 100%。新裝置仍下載全部所需附件，更新一份僅重抓該份。舊無版本快取會保守驗證一次，不承諾升級後第一次就零下載。
+
+## 驗證
+
+2026-10-19 #85 後續回歸：已更新工作區 fixture 的字典摘要 RPC mock 及過時狀態 checkbox 定位，完整 unifiedWorkspace 四種寬度通過；下方舊失敗描述保留作先前測試紀錄。
+
+- 32 項 Node／IndexedDB／PGlite：工作區27、學習同步3、帳號刪除與本機清理2，均通過。涵蓋首次、新裝置、未變更、單一更新、軟／永久刪除、離線重試、丟失回應、帳號切換、late response、pending edit、lease crash recovery、背景節流及備份／學習契約。帳號刪除 fixture 修正為其歷史 migration 的欄位，沒有更動正式 SQL。
+- 真實 Edge 同源雙分頁／真實 IndexedDB：併發首次只下載1次，後續五輪0次，更新只下載1次；離線可讀、重連、不同帳號／登出不可讀，刪除後不可讀。僅本機 HTTP 合成資料。
+- 工作區介面聚焦模式 `NEXUS_SYNC_ONLY=1`：以實際 NexusApp、模擬引擎驗證同帳號 TOKEN_REFRESHED 與字典導航不重建引擎；附件零下載另由實際引擎／雙分頁測試驗證。
+- TypeScript 與 production build 通過；修改的 production 檔案 ESLint 0 errors／48 warnings。完整舊 unifiedWorkspace UI suite 在字典管理的舊「🔴 待審核」checkbox 等待逾時，不能宣稱整套 UI suite 通過；本次不擴大修改字典管理。
+- 未執行真實 Supabase 跨裝置、Safari 或 production 負載測試；不將隔離測試當作正式上線驗收。
+
+重跑：`node --test tests/workspaceSync.test.cjs tests/studySync.test.cjs tests/unifiedStudySync.test.cjs tests/studyStyleSync.test.cjs tests/accountDeletion.test.cjs`。瀏覽器設定 `BROWSER_EXECUTABLE` 為 Edge／Chromium，執行 `tests/attachmentSync.browser.test.cjs`；工作區 auth 聚焦測試另設 `NEXUS_SYNC_ONLY=1` 後執行 `tests/unifiedWorkspace.browser.test.cjs`。
+
+## 發布與觀察
+
+1. 正式發布前確認 binary 寫入仍走 `apply_workspace_operations` 並原子遞增附件 revision；不支援管理工具繞過 RPC 直接改 binary 而不更新 revision。既有 RLS／owner scope 不變。無需 SQL 更新，不重播 migration。
+2. 部署後請已開啟的舊分頁重新載入；舊版程式仍可能完整下載。首次版本驗證會有一次必要流量，之後觀察 `binaries?select=id,owner_id,data` 完整內容請求，未變更使用情境應為0；`select=id,owner_id` metadata 請求仍屬正常。
+3. 比較同一時段 Egress 每小時增量、完整內容請求次數／bytes、attachment 更新數、活躍裝置數；累積月用量不會因修復倒退。額外觀察下載逾時、同步錯誤、pending outbox 是否持續累積及快取修復次數。不要在 log 記錄 Base64、私人檔名或 token。
+4. 人工以少量測試附件驗證兩裝置更新／刪除、切換帳號、斷線恢復與 Safari；不需大量下載真實 PDF。正式驗收留 #60。
+5. 若需回復，回退前端 commit 即可；新可選 IDB 欄位不妨礙舊版讀取，無資料清除／DB rollback。回退會恢復原本高流量行為，應持續觀察。
+
+## 字典次要優化評估（未實作）
+
+`DictionaryBrowser` 的一般列表與 GroupPage 目前各對列表項目呼叫 `readPublishedEntry`，`flashcardLinks.searchCandidates` 也有同樣 N+1 模式。建議搜尋／分類 RPC 直接回傳已發布條目的 ID、headword、kind、排序後第一義項的詞性／釋義摘要與 inflection match；20 筆列表可由1＋20請求降為1請求。點開詳情或確認加入字卡時再抓完整 published detail，不能用摘要取代義項驗證／字卡內容。以 query、filter、page 及發布版本做快取／進行中請求合併，保留 published-only 與管理權限邊界。此項需要獨立 SQL／契約測試與發布安排，未併入附件修復。
+
+
+## 原始文件：`docs/operations/DICTIONARY-CORE-CONCEPT.md`
+
+# 核心概念與緊湊編輯器部署
+
+Migration：supabase/migrations/20261017010000_dictionary_core_concept.sql。
+
+## 資料契約
+
+沿用 dictionary_learning_notes，不建立第二條字典寫入管線。現行 kind 固定 core_concept；舊 learning_decomposition／mnemonic_scenario 只留在交換相容轉換與不可變歷史。
+
+同一 Entry＋Sense 的舊列依「口訣、記憶故事、各類 UUID」排序，以兩個換行完整串接，不 trim、不去除重複文字（原文可能有意重複）。不同 Sense 及 sense_id=null 分開。沿用第一列 ID，原始各列、source_id、revision、時間及函式定義保存至 dictionary_core_backup；合併後來源可由備份對照追溯。既有已是核心概念的多筆內容不任意再次壓成一筆。
+
+遷移提升舊附屬列 revision；active Review 候選／baseline 轉換並增加 Review revision。raw_candidate、operation receipt、Audit、Published 歷史不改寫。常駐匯入工作有受影響內容時標記 stale，保留原始資料及其他決策後重新比對。
+
+合併退場的 ID 記於 dictionary_core_aliases，只有管理員可 SELECT，app 無寫入權限；既有 guard 拒絕以舊 ID 再新增內容。此表不保存正文、不形成公開詞條，防止部分舊 JSON 重建重複內容。移除新的核心概念後，退場 ID 仍不可自動復活。
+
+## 安全與回復
+
+- 不停用任何 RLS／trigger／Published guard。使用版本化 schema 轉換，非管理員寫入、人工發布、CAS 及 Review 保護不變。
+- 同一交易中加鎖、先備份，再合併、驗證剩餘內容及 10 組未涉及資料（Entry／Sense／歷史詞源／關聯／讀音／詞形／例詞／舊提示／metadata／Published history）指紋。非預期差異立即 rollback。
+- migration_state 完成標記防止重跑串接文字；第二次執行會在變更前明確回報已完成並停止，不重做。
+- commit 前失敗：整體回滾，隔離測試已實際驗證。commit 後若有問題，先保留當前輸入並停用舊版詞源寫入；用受限原始／遷移後影像核對，再作帶 revision 檢查的前向修復，不能盲目覆蓋後續工作。備份及 alias 不自動清除。
+- 沒有重設 Entry／Sense、字卡連結、FSRS 或官方學習集。不將 relation_hint／source_forms 轉為核心概念。舊提示退出一般編輯／閱讀，但仍保留歷史及交換資料，不清空資料表。
+
+## 正式順序
+
+1. 核對實際 schema／ledger、guard 與 normalizer 的完整基準、目前筆數及安全 advisors。正式資料可能繼續增加，不寫死測試筆數。
+2. 隔離 PostgreSQL／瀏覽器、typecheck／lint／build 與 PR Preview 通過後，協調前後端更新；短暫停止自己的字典編輯，備份未儲存輸入。
+3. 套用本 SQL，再唯讀確認 core_concept 數量／原文／來源對照、10 組指紋、Review／匯入工作數量、RLS／ACL／alias 防重與 ledger。
+4. 合併相應前端並確認 Vercel Production。舊分頁刷新、舊 Review 重載；舊工作重新比對。舊前端的舊 kind 寫入會明確失敗，不會直接覆蓋新格式。
+5. CSV 新欄位 core_concept，舊 mnemonic_story 可讀；AI 新 core_concept，舊 story／learning_decomposition 僅讀取相容；JSON Bundle／Exchange 支援 core_concept 與舊格式轉換。過期 revision／合併退場 ID 必須重新匯出／比對，不繞過衝突保護。
+
+## 驗證
+
+隔離測試不是 Supabase staging，也不代表真實 Safari。自動化覆蓋合併順序、不同義項、重跑／回滾、來源、舊版本拒絕、人工發布、管理員 RLS、舊 ID 重建阻擋、交換相容，以及三種類型 × 桌面／平板／手機的操作與寬度。正式帳號／iPad Safari 驗收留 Issue #60。
+
+## 正式狀態
+
+已正式套用，ledger 20261017054409 dictionary_core_concept（PR #79）。52 筆原始列均保留在受限備份，正式 52 筆為 core_concept、舊類型為 0，與 merged_notes 逐列差異 0；當下沒有同 Entry＋Sense 雙類型組，因此正式沒有刪除合併列，alias=0。Entry 6,305／Sense 11,525／active Review 925／常駐工作 28 保留；12 份 Review 版本前進。10 組未涉及資料指紋驗證通過。alias RLS 為管理員 SELECT，app 無 INSERT／DELETE；備份／helper 無 app 權限。Security advisors 與前一致，沒有新增。\n\n前兩次 Connector requestState 過期後均先核實 ledger／schema 未改變，再改用可直接審查的靜態 SQL 提交成功；未重播已套用 Migration。重跑已完成 SQL 會先明確拒絕並回滾，不再串接文字。前端 Preview 已通過，合併／Production 部署以 PR #79 最終狀態為準。
+
+
+## 原始文件：`docs/operations/DICTIONARY-ENTRY-DELETION.md`
+
+# 整筆詞條刪除（2026-10-18）
+
+Migration：`20261018010000_dictionary_entry_deletion.sql`。依賴現行 dictionary revision lifecycle／bulk exchange receipt／official packs。CLI在此環境嘗試建立migration時因唯讀使用者設定目錄失敗；SQL已版本化並以隔離資料庫驗證。
+
+## 資料契約
+
+- 僅新RPC `delete_dictionary_entry(uuid,bigint,jsonb,uuid)` 能處理單一已存在Draft／Published；前後端仍驗證管理員。既有Draft-only RPC不變，沒有開放一般角色直接DELETE。
+- RPC在transaction內取得既有全域寫入鎖和Entry row lock，比較revision與完整snapshot。先檢查其他Entry的構詞、其他active Review candidate、舊複製Review、official manifest；有引用即拒絕，不重寫其他詞條、官方manifest或任意刪除引用。
+- 私人卡僅刪除`study_card_dictionary_links`參照列；不更新／刪除`study_cards.payload`、state、event、official_source身份或同步進度。舊／離線卡payload可能仍保存原ID，公開讀取回null，詳情明示無可用公開內容且無管理員編輯操作，使用者可重新連結其他合法詞條。不將字典刪除冒充私人卡修改或學習事件。
+- 專屬live children按相依順序刪除。保留Published歷史／Review所有列／Audit／既有備份；移除兩個history→live Entry的限制FK，保留非空stable Entry ID、PK、內容、管理員RLS與原grants。該ID在live Entry刪除後仍是歷史身份。active Review標為discarded並保留原candidate及base，避免誤恢復待發布內容。
+- `DELETE_ENTRY`稽核是原ID退場標記；trigger防止舊匯入重新插入同ID。既有owner-scoped operation receipt提供相同request／operation重試；掉回覆後仍回原結果，其他request不得重用UUID。未知FK或receipt寫入失敗，連link unlink與Audit也完整回滾。
+
+## 介面
+
+既有主操作區紅色「刪除詞條」，明確名稱／種類／永久性確認；取消無寫入、busy防雙送。只在已儲存詞條顯示，包含Published的Review編輯；刪除用canonical Published身份而非Review revision。成功使字典快取失效，離開dirty保護只在確定成功後略過一次，返回管理頁`?deleted=1`顯示成功並重新查詢。失敗保留輸入，資料狀態不冒稱成功。
+
+移除五項備份／草稿管理UI、差異formatter、專用構詞目標預載及reload handler；保留Review儲存／核准／CAS與必要多份Review選擇，避免默默覆蓋。dirty hook獨立於備份功能，仍可儲存／放棄／繼續。
+
+## 上線／回復
+
+1. 核對正式ledger、FK與RLS，保存原FK定義及相關表指紋；確認history仍只對管理員可讀。
+2. 隔離SQL／UI測試通過後，先套用此增量SQL，再發布前端。不需重播舊migration，不執行正式測試詞條刪除。
+3. Migration本身不刪／更新資料。核對前後內容指紋、RPC ACL／search_path／advisors及版本，再合併部署。
+4. 回復可先撤銷新RPC authenticated執行權並回復前端，不刪歷史、receipt、Audit或退場ID保護。若已有歷史對應的live Entry被刪，不能為恢復FK而刪掉歷史／重新建立Entry；保留FK拆離即可。只有確認沒有孤立歷史ID時才可用新的版本化migration加回原FK。
+
+管理員遇到其他構詞／Review／官方manifest阻擋時，須先透過相應管理流程處理引用；不得以停用FK、直接SQL級聯或批次刪私人卡替代。正式環境不由自動化測試替使用者刪除任何詞條。
+
+## 正式驗證
+
+2026-10-18透過migration工具成功套用，ledger `20261018103636 dictionary_entry_deletion`。首次connector requestState失效後先核對ledger/RPC皆不存在、兩個FK仍在，再重試成功，未繞過migration工具。16張相關字典／歷史／私人卡／state／event／官方manifest表內容及筆數指紋全相同；沒有正式詞條刪除。history RLS仍啟用、anon execute=false、authenticated需函式內admin驗權。Advisors 7 INFO及既有密碼保護提示不變，authenticated definer44→45為預期新刪除RPC。
+
+
+## 原始文件：`docs/operations/DICTIONARY-RANKED-COMPONENTS.md`
+
+# 字典閱讀／構詞搜尋與最小詞條（2026-10-17）
+
+## 依賴與相容性
+
+Migration：`20261017020000_dictionary_ranked_components.sql`，依賴已套用 core_concept、composition_shared、bulk_exchange／既有 receipts；不要依檔名重播歷史 SQL。Supabase CLI 在此環境寫入唯讀 `/home/agent/.supabase` 失敗，因此建立版本化 SQL 並以隔離 PostgreSQL 驗證。
+
+- 不刪列、不更換 Entry/Sense ID、不修改既有內容、Published/Review/CAS、個人卡或 FSRS。新增 RPC、純正規化 helper、等價名稱唯一索引；沿用現有表格／RLS。
+- 名稱 key：大小寫、前後空白／連字號（含常見 Unicode 連字號）正規化；內部連字號仍保留。索引按 Prefix／Root 類型分開；既有等價衝突使整個 transaction 失敗，不猜測合併。
+- 最小 Sense 定義：中文義空白、詞性 null，僅 Prefix／Root；原 parent-kind trigger 禁止 Word null POS，CHECK 仍禁止 Word 空義。未增加隱藏的查證／待補完狀態。編輯補充內容仍走 Review→人工核准。
+- JSON Bundle／完整 Exchange／AI 保留真實空白 Sense 及穩定 ID。舊 CSV 仍遵守其必填中文義／分類契約；最小詞條使用完整 JSON 交換，不能用不完整 CSV 冒充無損格式。
+
+## RPC 與權限
+
+`search_dictionary_relation_targets(text,integer)`：管理員限定，完整 Published 候選排序後才 LIMIT 20；名稱完全／前綴、變體完全／前綴、名稱包含、中文義／詞源／核心／例句／讀音／詞形／分類內容。相同級以長度、類型、字母、UUID 固定排序。不從過期 Review／退場提示取候選。6k 規模不採多語 tokenizer，保留現有 child entry_id 索引；不以客戶端 LIMIT 後重排。
+
+`dictionary_admin_first_senses(uuid[])`：security invoker、管理員檢查、最多100個 Entry，以 lateral LIMIT 1 取得 UUID 升序首義項，避免 Data API row cap。新前端對尚未有 RPC 的舊資料庫可退回有界逐 Entry 讀取；一般瀏覽／單筆編輯不依賴新 RPC。
+
+`quick_create_dictionary_component(uuid,text,text,boolean)`：管理員、明確人工確認、僅 Prefix／Root；鎖定 operation 及名稱，資料庫唯一索引同時保護一般編輯器。相同 Published 重用（多 Sense 仍由使用者選擇）；既有 Draft 明確阻擋，不擅自發布。新建→穩定空白 Sense→既有 publish RPC→歷史→既有 operation receipt，全部同 transaction；任何失敗完整回滾。相同 owner/operation 重試必須相同 request，回傳目前 Published 內容，不能以舊 receipt 誤報成功。
+
+前端新建確認只發布新成分，不儲存或發布主詞條。取消不寫入，網路錯誤可同 operation 重試；已存在／自身／重複 Sense 不能被誤加。新增成功但無法選入時明示已建立／未加入，不宣稱整體成功。新 RPC 未部署則 RPC 明確報錯、保留輸入，不建立無效關聯。
+
+## 發布順序與檢查
+
+1. 讀取正式 ledger、constraint／RPC、正規化名稱衝突及資料指紋；儲存舊搜尋函式定義與 CHECK。
+2. 隔離 PostgreSQL 測試排名／6,301筆／RLS／雙交易並行／冪等／最小詞條往返、Review補充及失敗回滾；非正式 Supabase staging／真實 iPad 驗收。
+3. 透過 Supabase migration 工具套用 SQL（lock timeout 5s；statement timeout 90s），核對 ledger、權限／advisors、既有13表指紋未變，再合併前端。不得以 execute_sql 直接 DDL 繞過 migration。
+4. 確認 Vercel Preview 與 main Production 的對應 commit。正式不替使用者新建或發布測試詞條；實機建立／發布由 #60 驗收。
+
+## 回復
+
+純前端可回復上一版。DB 變更無原資料改寫；可先停用新快速建立 UI、撤銷新 quick RPC 的 authenticated 執行權限，保留所有新建詞條、Sense、receipt、歷史。搜尋函式可還原部署前定義，新增 summary RPC 可保留給舊前端使用。
+
+只有確認沒有空白義項時，才能還原原 `CHECK(length(btrim(gloss_zh_tw))>0)`；否則保留相容 CHECK，或由管理員逐筆補內容後再恢復。不得為回復而刪除合法最小詞條或填入捏造中文義。新唯一索引／helper 如需移除，先確認函式依賴；保留既有 kind+headword 唯一索引。回復也須版本化 migration，不修改已套用檔。
+
+## 正式套用紀錄
+
+2026-10-17 透過 migration 工具成功套用，ledger `20261017073742 dictionary_ranked_components`。部署前後13張表內容及筆數指紋完全相同；未建立／發布正式測試詞條。Entry6,305／Sense11,525／active Review925／常駐項目28保留。RPC ACL、CHECK、唯一索引已核對；advisors 7 INFO及既有密碼保護提示不變，authenticated definer43→44，新增quick RPC為必要且有管理員／確認防護的預期公開接口。前端 PR #80；真實帳號／iPad Safari 仍待 #60。
+
+
+## 原始文件：`docs/operations/DICTIONARY-SOURCE-FORMS.md`
+
+# 舊字形註釋退場操作
+
+本輪使用者已授權具備完整驗證、資料保護與回復方案的正式變更。唯一新檔案是 `supabase/migrations/20261016050000_dictionary_retire_source_forms.sql`。不要重播已套用的 `official_private_card_identity`／`creation_template_library`，以正式 ledger 名稱與 schema 為準。
+
+## 順序與安全邊界
+
+1. 閱讀正式 RPC 簽名、種類／筆數、active Review／待審工作與 RLS／函式 ACL；不下載使用者內容至公開文件。
+2. 用現有實際 migration stack 在隔離 PostgreSQL 驗證新 SQL、回復成功／拒絕覆寫、非管理員權限、發布確認、CAS、Stable ID 與結構化詞形保留。PGlite 是隔離 PostgreSQL，不是 Supabase staging／JWT／Safari 驗收。
+3. 以原子交易先備份再清理，既有 dictionary advisory lock＋表鎖；5 秒 lock timeout、120 秒 statement timeout，失敗整筆 rollback。備份 schema 非 API exposed，PUBLIC／anon／authenticated 無存取權，沒有應用讀寫入口。
+4. 活躍 Review 的 candidate／base_snapshot 僅剔除退場種類、revision 遞增；既有真實衝突不消失。受影響常駐匯入移除退場差異但保留其他決策，標 stale 強制重新比對；不重播 receipts／operation IDs。舊瀏覽器 pending 請求會由 CAS／CHECK 阻擋，必須保留原檔並重讀。
+5. 比較遷移前後 13 組 live／history／receipt 的 row count＋逐列 hash 摘要；包括全部 Entry／Sense／inflections／relations／讀音／補充資料、Published 歷史、import receipts 及仍有效 relation_hint。任何非預期變更中止交易。
+6. 正式執行成功後核對 ledger、舊種類=0、有效提示／Entry／Sense／Review／待審 ID 數、原函式 ACL；notify pgrst 由 SQL 發出。不進行正式儲存／發布測試，以免改變使用者內容；登入真實帳號測試由 #60 追蹤。
+7. 資料庫先部署，再合併前端。舊前端可讀少了 source_forms 的內容；新版不再輸出該欄，舊 CSV／AI／JSON 檔明確報錯，需原檔備份並重新匯出／比對，絕不自動推導詞形。字典詳情 Modal／RPC 修復不需要新函式。
+
+## 回復
+
+`DICTIONARY-SOURCE-FORMS-ROLLBACK.sql` 使用非 API 的 `dictionary_retirement_backup`。若部署後任何既有 Review／import 已改變或刪除，整筆拒絕，避免覆寫後續工作；需操作員個別比對，不能強制移除 guard。無後續變更時還原資料與舊 CHECK、仍遞增 revision，避免舊請求復活。回復前端需回退到對應版本，備份表及 audit 不自動刪除。
+
+備份僅供災難復原，不是隱藏產品欄位／變體替代功能。正式驗收後由操作員安排外部備份／保留期限及清除 schema；本輪不刪除不可變歷史、Audit、原始檔與舊本機工作。
+
+實際部署結果與 ledger 版本看 HANDOFF；檔案存在、Preview 成功不代表正式 SQL 已套用。
+
+## 本輪正式結果（2026-10-16）
+
+ledger `20261016072304 dictionary_retire_source_forms` 已成功。舊種類 6199→0、13 組指紋檢查通過；Entry 6301、Sense 11518、inflections 7135、relation_hint 67、active Review 927、常駐工作 28 保留。回復副本 source_forms 6199／Review 927，PUBLIC／anon／authenticated 不可存取，一次性 cleaner 已移除。沒有重播先前兩份 SQL，沒有發布／匯入字典或改私人學習紀錄。
+
+Security advisors 與變更前一致（無新增）：[7 個 RLS 無直接 policy INFO](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)、[43 個 authenticated SECURITY DEFINER 提醒](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)、[既有洩漏密碼保護未啟用](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)。不為消除通用提醒而解除現有 owner／admin RPC 契約或擅自改 Auth 設定。
+
+
+## 原始文件：`docs/operations/DICTIONARY-SOURCE-FORMS-ROLLBACK.sql`
+
+**歷史回滾 SQL，僅供審計；執行前必須重新驗證正式資料與授權。**
+
+```sql
+-- Operator-only rollback. Abort rather than overwrite work created after deployment.
+-- Run in one transaction; never expose the backup schema to PostgREST.
+begin;
+select pg_advisory_xact_lock(710,1);
+lock table public.dictionary_lexical_annotations,public.dictionary_review_drafts,public.dictionary_import_review_items in share row exclusive mode;
+do $$begin
+ if exists(select 1 from dictionary_retirement_backup.review_drafts_after b left join public.dictionary_review_drafts r using(id) where to_jsonb(r) is distinct from to_jsonb(b))
+ or exists(select 1 from dictionary_retirement_backup.import_review_items_after b left join public.dictionary_import_review_items r using(id) where to_jsonb(r) is distinct from to_jsonb(b))
+ or exists(select 1 from dictionary_retirement_backup.source_forms b join public.dictionary_lexical_annotations r using(id))
+ then raise exception 'Post-retirement work exists; restore requires manual reconciliation, nothing changed';end if;
+end$$;
+alter table public.dictionary_lexical_annotations drop constraint dictionary_lexical_annotations_kind_check;
+alter table public.dictionary_lexical_annotations add constraint dictionary_lexical_annotations_kind_check check(kind in ('source_forms','relation_hint'));
+insert into public.dictionary_lexical_annotations select * from dictionary_retirement_backup.source_forms;
+-- Revisions remain monotonic, invalidating both pre-migration and post-migration stale clients.
+update public.dictionary_review_drafts r set candidate=b.candidate,base_snapshot=b.base_snapshot,revision=r.revision+1,updated_at=now()
+ from dictionary_retirement_backup.review_drafts b where r.id=b.id;
+update public.dictionary_import_review_items r set item=b.item,pending_count=b.pending_count,revision=r.revision+1,updated_at=now()
+ from dictionary_retirement_backup.import_review_items b where r.id=b.id;
+notify pgrst,'reload schema';
+commit;
+```
+
+
+## 原始文件：`docs/operations/DICTIONARY-VERIFICATION-RETIREMENT.md`
+
+# 字典內容審核狀態退場：操作與回復
+
+## 範圍
+
+移除每段內容的 verification，保留詞源與來源。這不會清空常駐匯入工作，也不會繞過 Review Draft、版本歷史、人工發布或權限檢查。
+
+Migration：supabase/migrations/20261016060000_dictionary_retire_verification_state.sql。依賴既有 revision lifecycle、composition shared 及現行字典 Schema。正式執行前以 ledger／實際函式核對；不要依檔名排序重播已套用 Migration。
+
+## 部署順序與相容性
+
+1. 確認最新 main、前後端差異、測試及回復資料可用。唯讀取得當下 Entry／Sense／詞源／active Review／匯入工作數量；不要把歷史筆數寫成遷移前提。
+2. 協調前端更新窗口；暫停自己的編輯操作。舊前端仍送 verification／verification_note 的詞源寫入會被新 SQL 明確拒絕，不會靜默丟資料。舊檔／本機 Session 不清除；先下載備份。
+3. 套用單一增量 Migration。5 秒取鎖、120 秒 statement 上限；SQL 在同一交易內建立 private backup、移除欄位、遷移 active 工作、逐列檢查後才 commit，並通知 PostgREST schema reload。
+4. 唯讀確認 public 無 verification 欄位、來源仍在、數量／Stable ID／內容比較通過、原 ACL／RLS 保留、備份無 app 存取。通過後發布相應前端，刷新舊分頁。
+5. active Review revision 已變時重載；常駐工作僅移除已退場狀態欄位的差異，來源差異／選擇轉為 data_source，重算 pending_count；按「重新比對」後核對保留的決策，不重匯已成功項目。匯入工作、原始候選及操作憑證不刪除。
+
+## 舊交換檔／本機作業
+
+新匯出只含 data_source。舊檔仍含 verification／verification_note 時明確報錯，不能靜默捨棄來源。保留原檔，在副本移除 verification，將每個詞源 verification_note 的來源文字搬到 data_source；若兩欄同時有不同內容，先人工確認，不能覆蓋。Entry／Sense／附屬 ID 與版本不可更改。完成後重新預覽／比對，舊 baseline 不得強制套用。
+
+資料庫中已完成歷史、Audit、operation receipt、raw_candidate 保留原樣，屬不可覆寫歷史而非現行內容狀態欄位。舊作業若缺可靠基準，保留原資料並重新比對，不猜測／重做已套用內容。
+
+## 備份與回復界線
+
+dictionary_verification_backup 保存受影響完整原始列、active Review／常駐工作遷移前後影像及被替換函式原定義。schema 不公開，PUBLIC／anon／authenticated 無存取權，勿改為前端可讀。
+
+- commit 前任一錯誤：整個交易 rollback，欄位、來源、工作及函式恢復；隔離測試已實際驗證。
+- commit 後：優先修復前端／RPC 映射，來源與內文仍完整；可由操作員唯讀備份核對來源及原狀態。不可把舊備份覆蓋到已產生新修改的 Review／工作，不可直接回退舊前端後繼續儲存。
+- 如確需復原已退場欄位，另做經測試的前向修復 Migration，先核對遷移後影像與目前 revision／新增資料，再恢復 metadata；不得停用 RLS／Published guards／觸發器以便強制覆寫。本次不提供會覆蓋後續使用者工作的盲目還原 SQL。備份保留，不自動清除。
+
+## 驗證證據
+
+測試覆蓋實體欄位退場、來源／ID／內容保存、交易回滾、active Review CAS、人工發布、非管理員拒絕、private backup／cleaner 存取拒絕、常駐決策／operation／原始候選保留及舊私人字源表相容性。隔離 Chromium 覆蓋桌面／平板／手機尺寸；實際 iPad Safari 與正式帳號仍由使用者驗收（Issue #60）。
+
+## 2026-10-16 正式執行結果
+
+ledger 20261016150215 dictionary_retire_verification_state，一次套用成功。public verification 欄位 3→0；來源／關聯／詞源對 private backup 扣除目標欄位後逐列差異均為 0。Entry 6,304、Sense 11,524、詞源 68、active Review 925、常駐工作 28 保留，沒有遺失 Review／工作 ID。2 份 active Review 遷移並遞增版本，常駐工作沒有需修改的舊欄位（0 份）。RLS／3 個既有函式 ACL 與 definer 屬性維持原狀；app 無 backup schema／cleaner 權限。Security advisors 與套用前相同（7 INFO、43 既有 SECURITY DEFINER 提醒、1 既有密碼保護提醒），未新增問題。沒有字典內容匯入／發布、私人卡片或學習資料寫入。前端部署由 PR #78 追蹤。
+
+
+## 原始文件：`docs/operations/WORKSPACE-COMPONENTS.md`
+
+# 工作區元件整理（Refs #85）
+
+## 變更
+
+統一主／次窗格分派、PDF 預覽、原生對話框、選單位置及鍵盤操作、總覽框架與學習存檔提示。筆記成功提示改為實際本機寫入成功，失敗可重試；不同窗格及較新修改各自維持待寫狀態。
+
+移除確認未接入的 creatableRegistry、useSidebarPreference、DailyStudySession 與 studyPractice。保留尚在 SPEC 的 inbox、quiz 歷史相容、deleteDrafts、world 分支及匯入 fallback，避免以「未被目前入口引用」推論資料或需求可刪除。
+
+## 驗證
+
+- Node 全套最終重跑 352／352 通過（0 失敗）；初次兩項舊原始碼定位斷言已修正，避免誤判 native confirm 的參數也已改名。
+- TypeScript 與正式 build 通過；修改 production 檔案 ESLint 0 errors／37 warnings（包括選單 layout effect 設定 portal 的提示）。
+- Edge 本機隔離測試通過：完整工作區四種寬度；儲存慢寫／失敗重試／較新修改／雙窗格；共用 dialog／menu／PDF 晚到回應；附件同源雙分頁；字典管理編輯發布；角色模板與模板更新；完整學習、偏好、FSRS／固定排程、英文流程。
+- 測試使用合成 fixture 與本機 IndexedDB，未下載正式附件。附件前後流量對照見 `ATTACHMENT-SYNC-CACHE.md`。
+
+## 發布與回復
+
+無 SQL migration、RLS、資料清除或權限變更。部署後重載舊分頁；觀察本機儲存錯誤、同步錯誤、outbox 累積及未變更附件完整內容下載次數（應為 0）。真實帳號／跨裝置及 iPad Safari 驗收保留 #60。
+
+如需回復，回退前端版本即可，不刪本機或雲端資料。若一併退回附件修復前版本，重複流量問題會恢復。
