@@ -4,7 +4,6 @@ require.extensions['.tsx']=(module,filename)=>module._compile(ts.transpileModule
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {openDB,deleteDB}=require('idb');
 const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
-const {QUIZ_STORES}=require('../src/features/study/quiz/quizPersistence.ts');
 const {emptyStudyState}=require('../src/features/study/studyFSRS.ts');
 const {WorkspacePersistence,WORKSPACE_STORES}=require('../src/infrastructure/sync/workspacePersistence.ts');
 const api=require('../src/features/study/officialPacks.ts');
@@ -15,7 +14,7 @@ const owner='owner',pack='gsat-1-2';
 const makeCard=(id,deck='deck')=>({id,deck_id:deck,owner_id:owner,front:'example',back:'示例',direction:'en-zh',sort_order:0,content_revision:1,created_at:1,updated_at:1,deleted_at:null,official_pack_id:pack,official_pack_version:1,dictionary_entry_id:`word-${id}`,official_level:1});
 const settings=(id='deck')=>({id,owner_id:owner,new_limit:20,direction_confirmed:true,updated_at:1,schema:2,official_pack_id:pack,official_pack_version:1});
 async function fixture(t){
-  const name=crypto.randomUUID();const db=await openDB(name,1,{upgrade(db){for(const name of ['pages','attachments','binaries',...STUDY_STORES,...QUIZ_STORES,...WORKSPACE_STORES]){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
+  const name=crypto.randomUUID();const db=await openDB(name,1,{upgrade(db){for(const name of ['pages','attachments','binaries',...STUDY_STORES,...WORKSPACE_STORES]){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
   t.after(async()=>{db.close();await deleteDB(name);});return {db,repo:new StudyRepository(db,()=>owner,'device'),local:new WorkspacePersistence(db)};
 }
 async function installLocal(repo,deck='deck'){
@@ -70,12 +69,10 @@ test('confirmed deletion removes only that deck/card/session/history/outboxes; r
   await db.put('study_sessions',{id:'old-session',owner_id:owner,deck_id:'deck'});
   await db.put('study_outbox',{id:'pending-settings',owner_id:owner,kind:'settings',value:settings()});
   await db.put('study_outbox',{id:'pending-review',owner_id:owner,kind:'event',value:{id:'old-event',deck_id:'deck'}});
-  for(const store of QUIZ_STORES)await db.put(store,{id:`${store}-id`,owner_id:owner,card_id:old.id,payload:{card_id:old.id}});
   await db.put('pages',{id:'deck',workspace_owner_id:owner,official_pack_id:pack});
   await local.merge(owner,[{entity_type:'pages',entity_id:'deck',revision:3,deleted_at:10,hard_deleted:true}]);
   await assert.rejects(repo.readDeck('deck'));assert.equal((await repo.pending()).length,0);
   assert.equal((await db.getAll('study_events')).length,0);assert.equal((await db.getAll('study_sessions')).length,0);
-  for(const store of QUIZ_STORES)assert.equal((await db.getAll(store)).length,0);
   assert.equal((await repo.readDeck('other-deck')).cards.length,1);
   // A remote response captured before deletion must not reinstall old progress.
   await repo.mergeRemote({cards:[old],states:[emptyStudyState(old)],events:[],settings:[settings()]});

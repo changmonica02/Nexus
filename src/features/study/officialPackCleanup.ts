@@ -1,6 +1,6 @@
 import type { IDBPTransaction } from 'idb';
 /** Called only for a server-confirmed permanent page tombstone. No retained progress. */
-export const OFFICIAL_CLEANUP_STORES=['study_cards','study_states','study_events','study_settings','study_sessions','study_outbox','quiz_attempts','quiz_states','quiz_outbox'];
+export const OFFICIAL_CLEANUP_STORES=['study_cards','study_states','study_events','study_settings','study_sessions','study_outbox'];
 export async function purgeOfficialDeck(tx:IDBPTransaction<unknown,string[],'readwrite'>,owner:string,deckId:string,knownOfficial=false) {
   if(!tx.objectStoreNames.contains('study_cards'))return false;
   const cards=await tx.objectStore('study_cards').getAll();
