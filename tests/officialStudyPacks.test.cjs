@@ -4,7 +4,7 @@ require.extensions['.tsx']=(module,filename)=>module._compile(ts.transpileModule
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {openDB,deleteDB}=require('idb');
 const {StudyRepository,STUDY_STORES}=require('../src/features/study/StudyRepository.ts');
-const {QUIZ_STORES}=require('../src/features/study/quiz/quizPersistence.ts');
+const {QUIZ_STORES}=require('../src/features/study/legacyQuiz.ts');
 const {emptyStudyState}=require('../src/features/study/studyFSRS.ts');
 const {WorkspacePersistence,WORKSPACE_STORES}=require('../src/infrastructure/sync/workspacePersistence.ts');
 const api=require('../src/features/study/officialPacks.ts');
