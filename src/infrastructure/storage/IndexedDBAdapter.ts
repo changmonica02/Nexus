@@ -2,7 +2,6 @@ import { validateWorldEntities } from "../../features/worldMap/worldMapRepositor
 import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
-import { QUIZ_STORES } from "../../features/study/legacyQuiz";
 import { StudyRepository, STUDY_STORES } from "../../features/study/StudyRepository";
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";
@@ -129,7 +128,7 @@ export class IndexedDBAdapter implements StorageAdapter {
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, _newVersion, transaction) {
-        for (const name of [...STUDY_STORES,...QUIZ_STORES,...WORKSPACE_STORES]) {
+        for (const name of [...STUDY_STORES,...WORKSPACE_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
