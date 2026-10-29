@@ -33,19 +33,28 @@ export class SyncEngine {
   private isSyncing: boolean = false;
   private workspaceSync: Promise<void> | null = null;
   private workspaceAgain = false;
+  private scheduledWorkspaceMode: "full" | "push" = "push";
+  private activeWorkspaceMode: "full" | "push" = "full";
   private lastWorkspaceAttempt = 0;
   private studySync: Promise<void> | null = null;
   private studySyncTimer: ReturnType<typeof setTimeout> | null = null;
   private studyError: string | null = null;
   private studyOnline = () => { void this.syncStudyNow(); };
   private workspaceTimer: ReturnType<typeof setTimeout> | null = null;
-  private workspaceChanged = () => {
+  private scheduleWorkspace = (mode: "full" | "push") => {
     if (this.destroyed) return;
+    if (mode === "full") this.scheduledWorkspaceMode = "full";
     if (this.isSyncing) { this.workspaceAgain = true; return; }
     if (this.workspaceTimer) return;
-    this.workspaceTimer = setTimeout(() => { this.workspaceTimer = null; void this.fullSync(); },
-      typeof document !== "undefined" && document.hidden ? 5000 : 300);
+    this.workspaceTimer = setTimeout(() => {
+      this.workspaceTimer = null;
+      const pull = this.scheduledWorkspaceMode === "full";
+      this.scheduledWorkspaceMode = "push";
+      void this.fullSync(pull);
+    }, typeof document !== "undefined" && document.hidden ? 5000 : 300);
   };
+  private workspaceChanged = () => this.scheduleWorkspace("full");
+  private workspaceLocalChanged = () => this.scheduleWorkspace("push");
   private workspaceVisible = () => {
     if (!document.hidden) {
       if (this.workspaceTimer) { clearTimeout(this.workspaceTimer); this.workspaceTimer = null; }
@@ -122,7 +131,7 @@ export class SyncEngine {
     if (this.destroyed || this.realtimeChannel) return;
     if (typeof window !== "undefined") {
       window.addEventListener("nexus-study-changed", this.studyChanged);
-      window.addEventListener("nexus-workspace-changed", this.workspaceChanged);
+      window.addEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
       window.addEventListener("online", this.studyOnline);
       window.addEventListener("online", this.workspaceChanged);
       document.addEventListener("visibilitychange", this.workspaceVisible);
@@ -173,25 +182,36 @@ export class SyncEngine {
     }
   }
 
-  fullSync(): Promise<void> {
+  fullSync(pull = true): Promise<void> {
     if (this.destroyed) return Promise.resolve();
-    if (this.workspaceSync) return this.workspaceSync;
+    if (this.workspaceSync) {
+      if (pull && this.activeWorkspaceMode === "push") this.scheduledWorkspaceMode = "full";
+      this.workspaceAgain = true;
+      return this.workspaceSync;
+    }
     if (this.workspaceTimer) { clearTimeout(this.workspaceTimer); this.workspaceTimer = null; }
-    this.workspaceSync = this.runFullSync().finally(() => {
+    if (pull) this.scheduledWorkspaceMode = "push";
+    this.activeWorkspaceMode = pull ? "full" : "push";
+    this.workspaceSync = this.runFullSync(pull).finally(() => {
       this.isSyncing = false;
       this.workspaceSync = null;
-      if (this.workspaceAgain && !this.destroyed) { this.workspaceAgain = false; this.workspaceChanged(); }
+      if (this.workspaceAgain && !this.destroyed) {
+        this.workspaceAgain = false;
+        const mode = this.scheduledWorkspaceMode;
+        this.scheduledWorkspaceMode = "push";
+        this.scheduleWorkspace(mode);
+      }
     });
     return this.workspaceSync;
   }
 
-  private async runFullSync(): Promise<void> {
+  private async runFullSync(pull: boolean): Promise<void> {
     this.isSyncing = true;
     this.lastWorkspaceAttempt = Date.now();
     this.setState({ status: "syncing", error: null });
     const local = this.storage.getWorkspacePersistence();
     try {
-      await pullWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
+      if (pull) await pullWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
       if (this.destroyed) return;
       await flushWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
       if (this.destroyed) return;
@@ -203,7 +223,7 @@ export class SyncEngine {
       if (!this.destroyed) {
         // A tombstone pull must refresh the UI even if a stale queued save conflicts.
         this.onRemoteChange?.();
-        await this.syncStudyNow();
+        if (pull) await this.syncStudyNow();
         this.setState({ pendingPushes: this.state.pendingPushes + (await local.pending(this.userId)).length });
       }
     }
@@ -215,21 +235,21 @@ export class SyncEngine {
   // reconstruct upload intent from UI snapshots or from cloud absence here.
   async pushPage(page: Page): Promise<void> { await this.pushPages([page]); }
   async pushPages(pages: Page[]): Promise<void> {
-    if (pages.length && pages.every(page => page.workspace_owner_id === this.userId)) await this.fullSync();
+    if (pages.length && pages.every(page => page.workspace_owner_id === this.userId)) await this.fullSync(false);
   }
   async pushAttachment(attachment: Attachment): Promise<void> {
-    if (attachment.workspace_owner_id === this.userId) await this.fullSync();
+    if (attachment.workspace_owner_id === this.userId) await this.fullSync(false);
   }
-  async pushBinary(_attachmentId: string, _blob: Blob): Promise<void> { await this.fullSync(); }
+  async pushBinary(_attachmentId: string, _blob: Blob): Promise<void> { await this.fullSync(false); }
   async pushSetting(_key: string, _value: unknown): Promise<void> { /* Local-only settings. */ }
-  async pushPermanentDeletePage(_pageId: string): Promise<void> { await this.fullSync(); }
-  async pushPermanentDeleteAttachment(_attachmentId: string): Promise<void> { await this.fullSync(); }
+  async pushPermanentDeletePage(_pageId: string): Promise<void> { await this.fullSync(false); }
+  async pushPermanentDeleteAttachment(_attachmentId: string): Promise<void> { await this.fullSync(false); }
 
   destroy(): void {
     if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }
     if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
     if (this.workspaceTimer) clearTimeout(this.workspaceTimer);
-    if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceChanged);
+    if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
     if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceChanged);
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.workspaceVisible);
     this.destroyed = true;
