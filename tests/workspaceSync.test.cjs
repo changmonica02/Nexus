@@ -395,3 +395,18 @@ test('full sync callers join, in-flight local changes schedule one follow-up, ba
   engine.periodicWorkspace();assert.equal(runs,0);engine.lastWorkspaceAttempt=Date.now()-300001;engine.periodicWorkspace();assert.equal(runs,1);
   global.document.hidden=false;engine.workspaceVisible();assert.ok(engine.workspaceTimer);engine.destroy();
 });
+
+test('local workspace push skips full download but explicit sync still reconciles', async t => {
+  const d = await device(t), server = new Server();
+  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  t.after(() => engine.destroy());
+  engine.syncStudyNow = async () => {};
+  await d.adapter.savePage(page('local-push'));
+  await engine.pushPage(page('local-push'));
+  assert.ok(server.calls.includes('rpc'));
+  assert.equal(server.calls.some(call => call.startsWith('pull:')), false);
+  assert.equal((await d.local.pending(owner)).length, 0);
+  await engine.fullSync();
+  assert.ok(server.calls.includes('pull:workspace_tombstones'));
+  assert.ok(server.calls.includes('pull:pages'));
+});
