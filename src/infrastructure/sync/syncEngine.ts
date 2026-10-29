@@ -189,8 +189,9 @@ export class SyncEngine {
       this.workspaceAgain = true;
       return this.workspaceSync;
     }
+    if (this.scheduledWorkspaceMode === "full") pull = true;
     if (this.workspaceTimer) { clearTimeout(this.workspaceTimer); this.workspaceTimer = null; }
-    if (pull) this.scheduledWorkspaceMode = "push";
+    this.scheduledWorkspaceMode = "push";
     this.activeWorkspaceMode = pull ? "full" : "push";
     this.workspaceSync = this.runFullSync(pull).finally(() => {
       this.isSyncing = false;
