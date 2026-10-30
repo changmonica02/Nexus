@@ -410,3 +410,23 @@ test('local workspace push skips full download but explicit sync still reconcile
   assert.ok(server.calls.includes('pull:workspace_tombstones'));
   assert.ok(server.calls.includes('pull:pages'));
 });
+
+test('PWA offline: local edits remain queued without contacting Supabase, reconnect can flush', async t => {
+  const d = await device(t), server = new Server();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  t.after(() => engine.destroy());
+  const states = [];
+  engine.subscribe(state => states.push({ ...state }));
+  await d.adapter.savePage(page('offline-note'));
+  await engine.pushPage(page('offline-note'));
+  assert.equal(server.calls.length, 0, 'offline push does not start cloud requests');
+  assert.equal((await d.local.pending(owner)).length, 1, 'durable outbox remains intact');
+  assert.equal(states.at(-1).status, 'offline');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
+  await engine.fullSync(false);
+  assert.equal(server.rows.pages.has('offline-note'), true, 'reconnect uploads queued note');
+  assert.equal((await d.local.pending(owner)).length, 0);
+});
