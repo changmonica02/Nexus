@@ -7,6 +7,7 @@ import PWARegister from "../components/PWARegister";
 export const metadata: Metadata = {
   title: "Nexus",
   description: "Local-first, cross-platform knowledge workspace",
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export default function RootLayout({
