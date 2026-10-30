@@ -1,7 +1,8 @@
 # Nexus — 技術架構與資料契約
 
-> 2026-10-30 再編；Refs #118。靜態核對基準：main `ad18e083aa72d82b4fce2e266d8a011ab5126358`。本輪只改文件。
+> 2026-10-30 再編；Refs #118。靜態核對基準：main `88fcbe115da8fac84d75fdb77c14c0bceaf6d489`。本輪只改文件。
 > 產品目標以 [SPEC](SPEC.md) 為準；進度見 [HANDOFF](HANDOFF.md)，決策見 [HISTORY](HISTORY.md)。
+> 本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準僅 SPEC 變更，程式碼相同；下列靜態來源核對仍適用，產品描述改以合併後 SPEC 重新判讀。
 > 原 ARCHITECTURE 全文保存在 [詳細契約與歷史參考](ARCHITECTURE-REFERENCE-20261030.md)，包含表／RPC、migration ledger、字典與創作等完整細節。此次移位不取消那些相容性與安全契約；其中逐批「待部署／已套用」文字是當時紀錄，不能作現時正式環境證據。本文與原文衝突時先依本次已核對範圍及最新 SPEC 判讀，其他部分須回到原碼核實。
 
 ## 1. 核對範圍與狀態
@@ -41,7 +42,7 @@ Refs #118：筆記僅提供 flow 編輯，不再提供分頁／流動模式選�
 
 `creationOptions.notes` 只有 `note_flow`；全部項目使用 `note`。EditorPane 實際以 `effectiveFormat = "flow"`、`isPaged = false` 呈現；新舊 Note 不因此清除既有 format／pageBreak／未知 metadata。逐篇全寬寫於 `noteAppearance.fullWidth`，與輸出紙張尺寸分離。移除 legacy 型別、元件或資料欄位不是本輪工作。
 
-**另有需釐清的落差**：EditorPane 的 flow 常數也涵蓋 Document 呼叫路徑，SPEC F-DOCUMENT 卻仍提 Document 預設 A4／現有版面契約。應先盤點實際操作與預期，不把本次「筆記僅流動」擴大成 Document 改版，也不直接恢復舊分頁程式。
+**規格已記錄、仍待處理的落差**：EditorPane 的 flow 常數也涵蓋 Document 呼叫路徑，10/29 SPEC F-DOCUMENT 已明示目前連續版面與原 A4 預設方向的差異。應先盤點實際操作與預期，不把本次「筆記僅流動」擴大成 Document 改版，也不直接恢復舊分頁程式。
 
 ### 已實作輸出流程
 
@@ -99,7 +100,23 @@ F-PWA 是已核准、待實作契約。主程式沒有 Manifest／應用外殼�
 
 目前較合理的是維持現有 Next.js／Tiptap／IndexedDB／Supabase 與隔離地圖核心，以小步收斂責任及量測瓶頸。尚無本輪證據支持重寫編輯器、引入 CRDT、自建第二套同步或全面改用 Paged.js。若要採用，另開 discovery 比較資料相容、長文件、維護成本與授權，再核准實作。
 
-## 7. 詳細契約與驗證入口
+## 7. 10/29 SPEC 對照補充與審計覆蓋
+
+10/29 SPEC 的 22 個 F-* 模組已將既有畫面／預設與待實作需求分開。此次只增補「筆記僅流動」確認，保留其新增規格；不能再以舊 main 的 F-HOME 模式文字作目前缺失。
+
+| 規格群 | 技術對照與本輪限制 |
+| --- | --- |
+| F-HOME／F-NAVIGATION／F-PREFERENCES | 檢視、排序、導覽與裝置預設屬產品契約；目前核對 creationOptions、NexusApp、WorkspaceRoot，沒有重驗所有 breakpoint、鍵盤或偏好跨分頁行為 |
+| F-NOTE／F-DOCUMENT／F-EDITOR／F-PAGEFORMAT | 共用 EditorPane／Tiptap 與獨立輸出副本；Document flow／A4 差異已由 SPEC 記錄，不當成新發現，也不擅改其他 editor variant |
+| F-PDF／F-PWA | metadata／Blob 與外殼資源分離；PWA 已區分既有本機保存與待實作啟動。附件零重複下載及離線帳號需另作實測 |
+| F-STUDY | 私人字卡與學習事件沿用領域 Repository／增量 cursor；本輪核對同步來源，沒有完整重驗抽卡、額度與所有 FSRS 排程契約 |
+| F-WORLD-MAP／F-WORLD | 地圖工具與世界觀正式資料分離；本輪僅核對 repository／離線入口，其餘沿用詳細參考與既有測試，不重新宣稱全部 V2 已驗收 |
+| F-DICTIONARY | 詳細資料／發布／CAS／刪除契約沿用參考全文；本輪未全面重審 RPC／SQL 或正式權限。SPEC 同時保留「篩選後分頁」及舊「分頁緊接搜尋、篩選在後」文字，後續宜在同模組標明新舊優先，避免實作誤判 |
+| F-SCORE／F-PRESENTATION／F-QUICKNOTE／F-TODO／F-CALENDAR／F-CREATIVE／F-NOVEL／F-CHARACTER／F-UTILITY | 10/29 的既有操作及待決需求保留；本輪不把這些模組的新規格當成新功能已實作證據，詳細技術來源仍在參考文件，需依後續任務逐一核對 |
+
+文件後續改善：各模組可逐步維護「SPEC 章節 → 入口元件 → Repository／資料契約 → 驗證來源」索引，避免再將全部交付流水帳塞回 ARCHITECTURE。先隨實作更新，不另建第二份產品規格或全站重複狀態清單。
+
+## 8. 詳細契約與驗證入口
 
 - [原架構完整參考](ARCHITECTURE-REFERENCE-20261030.md)：Page／附件／學習／字典／創作／地圖詳細契約、migration ledger 與歷史部署紀錄。查 SQL 時仍須比對 migrations 與實際環境；不要照抄歷史操作指令。
 - [筆記審計與分頁研究整併內容](ARCHITECTURE-REFERENCE-20261030.md)：舊 NOTE-EDITOR-AUDIT 專項內容已整併；歷史比較與 corpus 數字屬當時研究。
