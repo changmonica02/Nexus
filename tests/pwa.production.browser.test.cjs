@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { chromium } = require('playwright');
+const { waitForAsync, setNetwork } = require('./pwaBrowser.cjs');
 
 test('production Next shell: manifest, install icons, real JS/CSS and cold offline reopen', { timeout: 90000 }, async t => {
   const origin = process.env.NEXUS_PWA_URL || 'http://127.0.0.1:32120';
@@ -31,7 +32,7 @@ test('production Next shell: manifest, install icons, real JS/CSS and cold offli
   page.on('pageerror', e => errors.push(e.message));
   context.on('requestfailed', req => failed.push(req.url()));
   await page.goto(origin, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => document.body.innerText.includes('Nexus'));
+  await waitForAsync(page, () => document.body.innerText.includes('Nexus'));
   if (authenticated) await page.locator('main').waitFor();
   const manifestURL = await page.locator('link[rel="manifest"]').getAttribute('href');
   const manifest = await (await context.request.get(new URL(manifestURL, origin).href)).json();
@@ -43,9 +44,9 @@ test('production Next shell: manifest, install icons, real JS/CSS and cold offli
   }
   assert.ok(manifest.icons.some(icon => icon.purpose === 'maskable'));
   const apple = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href'); assert.equal((await context.request.get(new URL(apple, origin).href)).status(), 200);
-  await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration('/'))?.active && !!navigator.serviceWorker.controller);
+  await waitForAsync(page, async () => !!(await navigator.serviceWorker.getRegistration('/'))?.active && !!navigator.serviceWorker.controller);
   // Registration alone is not the offline-ready signal: verify persisted shell data.
-  await page.waitForFunction(async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
+  await waitForAsync(page, async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
   const cdp = await context.newCDPSession(page); await cdp.send('Page.enable');
   const install = await cdp.send('Page.getInstallabilityErrors'); assert.deepEqual(install.installabilityErrors, []);
   const state = await page.evaluate(async () => {
@@ -61,18 +62,18 @@ test('production Next shell: manifest, install icons, real JS/CSS and cold offli
   await page.screenshot({ path: 'test-results/pwa/online.png', fullPage: true });
   const offlineAssets = [];
   disconnected = true;
-  await context.setOffline(true); await page.close(); page = await context.newPage();
+  await context.setOffline(true); await setNetwork(page, true); await page.close(); page = await context.newPage(); await setNetwork(page, true);
   page.on('response', r => { if (r.url().includes('/_next/static/')) offlineAssets.push({ url: r.url(), status: r.status(), worker: r.fromServiceWorker() }); });
   await page.goto(origin, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => document.body.innerText.includes('Nexus'));
+  await waitForAsync(page, () => document.body.innerText.includes('Nexus'));
   if (authenticated) await page.locator('main').waitFor();
   assert.ok(offlineAssets.length > 0); assert.ok(offlineAssets.every(r => r.status === 200 && r.worker));
   assert.ok(!failed.some(url => url.includes('/_next/static/')), 'no missing scripts or styles after cold offline navigation');
   await page.screenshot({ path: 'test-results/pwa/offline.png', fullPage: true });
   await page.evaluate(async () => { window.pwaPendingInput = 'DO_NOT_RELOAD'; await (await caches.open('nexus-shell-v2')).delete('/'); });
   disconnected = false;
-  await context.setOffline(false);
-  await page.waitForFunction(async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
+  await context.setOffline(false); await setNetwork(page, false);
+  await waitForAsync(page, async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
   assert.equal(await page.evaluate(() => window.pwaPendingInput), 'DO_NOT_RELOAD', 'online refresh does not force a page reload');
   assert.equal(await page.evaluate(() => new Promise(resolve => { const r = indexedDB.open('pwa-preservation'); r.onsuccess = () => { const db = r.result, tx = db.transaction('sentinel'), q = tx.objectStore('sentinel').get('pending'); q.onsuccess = () => resolve(q.result); tx.oncomplete = () => db.close(); }; })), 'UNCHANGED');
   assert.deepEqual(errors, []);
