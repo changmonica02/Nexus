@@ -1,9 +1,13 @@
 # Nexus — 技術架構與資料契約
 
-> 2026-10-30 再編；Refs #118。靜態核對基準：main `88fcbe115da8fac84d75fdb77c14c0bceaf6d489`。本輪只改文件。
+> 2026-10-30 再編；Refs #118。靜態核對基準：main `a3bf6bde6a5cdf4ae5423951b0732d0d2247aede`。本輪只改文件。
 > 產品目標以 [SPEC](SPEC.md) 為準；進度見 [HANDOFF](HANDOFF.md)，決策見 [HISTORY](HISTORY.md)。
-> 本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準僅 SPEC 變更，程式碼相同；下列靜態來源核對仍適用，產品描述改以合併後 SPEC 重新判讀。
+> PR #110 已合併 main `a3bf6bd`，修正 head `11281b3` 的 GitHub CI 與 Preview 成功。本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準僅 SPEC 變更，程式碼相同；下列靜態來源核對仍適用，產品描述改以合併後 SPEC 重新判讀。
 > 原 ARCHITECTURE 全文保存在 [詳細契約與歷史參考](ARCHITECTURE-REFERENCE-20261030.md)，包含表／RPC、migration ledger、字典與創作等完整細節。此次移位不取消那些相容性與安全契約；其中逐批「待部署／已套用」文字是當時紀錄，不能作現時正式環境證據。本文與原文衝突時先依本次已核對範圍及最新 SPEC 判讀，其他部分須回到原碼核實。
+
+## 2026-10-30 #110 整合補充（Refs #109、#118）
+
+本文件已隨 #110 更新。其 readonly 輸出改善、可取消讓步／重試及實際本機驗證屬已實作；完整並排續頁仍待完成。下列改善表的 layout job／block splitter 是進一步責任分離提案，不應忽略既有 AbortSignal／每 20 blocks 讓步。原詳細參考保留原文，末尾追加 #110 整合的技術與研究段落；歷史數字仍屬原次 CI。
 
 ## 1. 核對範圍與狀態
 
@@ -17,7 +21,7 @@
 | PWA | app/layout、檔案樹、offlineCore | 主 Manifest／全站離線外殼尚未加入；地圖快取不能代表全站離線 |
 | 交付狀態 | GitHub PR #108 | 2026-10-25 已合併，merge commit `9a5659d`；本輪未核對正式部署 |
 
-本輪未執行 build、自動化、瀏覽器或正式 DB 檢查。歷史 CI 證據仍屬原提交；沒有原對話工作目錄，無法確認其未提交內容。
+本輪 #110 整合已完成 TypeScript、限定 ESLint、production build、單元／契約及五組 Chromium；正式 DB／實機未檢查。歷史 CI 證據仍屬原提交；沒有原對話工作目錄，無法確認其未提交內容。
 
 ## 2. 模組邊界與資料真相
 
@@ -56,6 +60,7 @@ Refs #118：筆記僅提供 flow 編輯，不再提供分頁／流動模式選�
 
 - 長段落、超高合併格與長雙欄未完整分割；目前放寬超高紙張並提示，瀏覽器仍可能另行分頁。不能宣稱所有預覽頁碼／PDF 一致。
 - 預覽沒有手動新增／移動分頁入口；識別原有 pageBreak 不等於提供這項操作。保存分頁調整的規則仍待確認。
+- #110 已提供使用者主動選擇「此次逐欄轉單欄」，保留預設原雙欄；寬 code／URL 換行、表格與公式適配、預覽直接重試亦已整合。這不等於原並排雙欄完整 fragmentation。
 - Paged.js 只是歷史隔離研究，不是正式 runtime 依賴，也沒有證據支持直接替換即能解決全部案例。
 - Safari／Firefox、真實 IME、裝置與大型文件峰值記憶體仍待驗證。測試來源見 tests/noteExport.browser.test.cjs、tests/noteTablePagination.browser.test.cjs、tests/notePagination.study.test.cjs。
 
@@ -121,4 +126,4 @@ F-PWA 是已核准、待實作契約。主程式沒有 Manifest／應用外殼�
 - [原架構完整參考](ARCHITECTURE-REFERENCE-20261030.md)：Page／附件／學習／字典／創作／地圖詳細契約、migration ledger 與歷史部署紀錄。查 SQL 時仍須比對 migrations 與實際環境；不要照抄歷史操作指令。
 - [筆記審計與分頁研究整併內容](ARCHITECTURE-REFERENCE-20261030.md)：舊 NOTE-EDITOR-AUDIT 專項內容已整併；歷史比較與 corpus 數字屬當時研究。
 - [SPEC](SPEC.md)：產品行為與待決範圍；[HANDOFF](HANDOFF.md)：當前狀態；[HISTORY](HISTORY.md)：原因。
-- PR #108 合併只能證明程式已進 main。正式帳號、Safari／行動裝置、跨裝置與大文件驗收仍需 #60 證據。
+- PR 合併只能證明程式已進 main。正式帳號、Safari／行動裝置、跨裝置與大文件驗收仍需 #60 證據。

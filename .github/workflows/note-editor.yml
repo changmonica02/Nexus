@@ -1,0 +1,65 @@
+name: Note editor audit
+on:
+  pull_request:
+    paths: ['src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
+  push:
+    branches: [main, feat/note-export-batch-20261025]
+    paths: ['src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: note-editor-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  note:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: PDF verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y poppler-utils fonts-noto-cjk
+      - run: node --test tests/noteExportLayout.test.cjs tests/noteTablePagination.test.cjs
+      - run: node tests/noteTablePagination.browser.test.cjs
+      - name: Export reproduction and regression
+        run: node tests/noteExport.browser.test.cjs
+      - name: Note, attachment and workspace browser regression
+        run: |
+          node tests/noteEditor.browser.test.cjs
+          node tests/attachmentSync.browser.test.cjs
+          node tests/unifiedWorkspace.browser.test.cjs
+      - run: node --test tests/workspaceSync.test.cjs
+      - name: Existing map metadata, IDB and localization contracts
+        run: |
+          npm run test:world-map
+          node --test tests/worldMapRegions.test.cjs tests/worldMap.i18n.test.cjs
+      - run: npx tsc --noEmit
+      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts src/lib/noteTablePagination.ts
+      - name: Production build
+        env:
+          NODE_ENV: production
+          NPM_CONFIG_OMIT: dev
+        run: npm run build
+      - name: Synthetic export evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: note-export-evidence
+          path: |
+            test-results/note-export
+            test-results/note-pagination
+          if-no-files-found: ignore
+

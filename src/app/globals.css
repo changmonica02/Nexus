@@ -514,3 +514,17 @@ html, body { overscroll-behavior-y: none; }
   .nexus-export-preview { margin: 0 !important; padding: 0 !important; }
   .nexus-export-body .tableWrapper, .nexus-export-body pre, .nexus-export-body .katex-display { overflow: visible !important; }
 }
+
+
+/* Readonly export only: soft-wrap without removing source characters or indentation. */
+.nexus-export-body pre { white-space: pre-wrap !important; overflow-wrap: anywhere; word-break: normal; max-width: 100%; min-width: 0; }
+.nexus-export-body pre code { white-space: inherit; overflow-wrap: inherit; }
+.nexus-export-body th, .nexus-export-body td, .nexus-export-body a { overflow-wrap: anywhere; min-width: 0; }
+.nexus-export-body .katex-display { overflow: visible !important; }
+.nexus-export-body tr[data-export-tall-row] { break-inside: auto; }
+.nexus-export-body thead[data-export-tall-header] { display: table-row-group; }
+.nexus-export-warnings { padding: 8px 16px; }
+.nexus-export-warnings summary { cursor: pointer; font-weight: 600; }
+
+.nexus-export-body .math-preview { overflow: visible !important; }
+.nexus-export-body .nexus-math-block .math-preview { justify-content: flex-start; min-width: 0; }
