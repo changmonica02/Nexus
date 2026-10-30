@@ -40,6 +40,7 @@ import { DEFAULT_LANGUAGE, detectDefaultLanguage, type Language } from "../lib/i
 import { LanguageProvider, useLanguage } from "../lib/LanguageContext";
 import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
 import { SyncEngine, type SyncState } from "../infrastructure/sync/syncEngine";
+import type { Session } from "@supabase/supabase-js";
 import { measureRefreshPull } from "../lib/pullToRefresh";
 import type { CreateItemType } from "../lib/creationOptions";
 import CreationChoiceDialog from "./CreationChoiceDialog";
@@ -256,7 +257,7 @@ function NexusAppInner({
       // a signed-in user could briefly see the anonymous workspace while the
       // app is starting up.
       let hasAuthenticatedSession = false;
-      let initialSession: Awaited<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["auth"]["getSession"]>>["data"]["session"] = null;
+      let initialSession: Session | null = null;
       if (isSupabaseConfigured()) {
         const initialSupabase = getSupabase();
         if (initialSupabase) {
