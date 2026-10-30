@@ -1,6 +1,21 @@
 # Nexus — 當前交接（2026-10-21）
 
-## 第二批筆記分頁（Refs #107；PR #108，CI 通過、待審查，未合併）
+## 2026-10-30 PR #110 整合驗證（Refs #109）
+
+- 已整合 main `88fcbe1`，保留 10/29 SPEC 全部模組；解決 SPEC／HISTORY 衝突，舊審計檔新增內容歸 ARCHITECTURE，不復活已整併文件。CI 改為 PR／程式路徑及 main 觸發，從 Playwright 取得實際 Chromium 路徑。
+- 本輪整合程式的 TypeScript、限定 ESLint、production/omit-dev build（含地圖 prebuild）、note helper／rowspan／workspaceSync、既有地圖 Repository／IndexedDB／區域／語系測試皆成功。五組實際 Chromium（表格匯出、NoteExport、NoteEditor、附件同步、完整工作區）通過，workspace 四尺寸另以明確瀏覽器路徑重跑成功。500 列 21 頁 preview／PDF markers、原 JSON／欄比保留及失敗重試由原測試覆蓋。
+- 僅整合／CI 與文件修正，匯出程式沿用已審查實作；沒有新 runtime 依賴、migration 或正式資料寫入。Safari／Firefox／實機／正式帳號／大文件峰值與並排雙欄完整 fragmentation 仍未驗收。使用者已授權處理後整合及合併文件，合併可能觸發 Production；部署結果另查。
+
+
+## 筆記匯出集中批次（2026-10-25；Refs #109；CI 通過、待 PR 審查）
+
+- #108 已核對原 tested head／文件差異／CI／Preview／main 並合併 `9a5659d`；保留分支，無直接部署。下一批獨立 feat/note-export-batch-20261025，只交一個 PR，不合併。
+- 本批：可逆逐欄輸出選項、live NodeView 兼容、寬內容 soft-wrap／縮放／警告、超高 row/header 的原生延續保護、錯誤直接重試／取消讓步。維持原始 JSON／ID／ratio／fold／未知 metadata／附件／CAS 契約。
+- 共用實際 preview fixture 驗證 125／500 rows、rowspan／nested／100 段超高 cell、含圖片／KaTeX／表格的不等高長雙欄、寬 pre／URL／公式、prepare failure／save retry、en/zh-TW；真實 EditorPane＋IndexedDB 另驗證 live columns／舊 paged／保存重開。程式／測試 `48c84e0730c4d38821126a003661f502ece70794` 的 [CI 40207686728](https://github.com/changmonica02/Nexus/actions/runs/40207686728) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），5 組 Chromium suites（table export、noteExport、實際 noteEditor、attachmentSync、unifiedWorkspace），TypeScript、限定 ESLint、production build（含既有 map prebuild）。沒有未解決的 CI failure；既有回歸未刪除。完整指令見 .github/workflows/note-editor.yml；A/B/C 研究僅在本分支略過（前批已完成），所有 correctness gates 保留。PDF／PNG artifact note-export-evidence：12604786674。
+- 未完成：並排雙欄的完整多頁排版與最終閱讀順序、任意 cell 內部 DOM 切分、極寬公式小字可讀性／全部 PDF glyph；實機／Safari／正式帳號與 peak memory 仍需人工。
+
+
+## 第二批筆記分頁（Refs #107；PR #108 已合併 `9a5659d`；以下為交付紀錄）
 
 - 階段 A 完成：PR #106 head `d1b7c26` 無未審查變更、main 未前進、CI 40071963719 通過，最後僅文件提交；合併 `2bb1a01`。不另執行部署指令。階段 B 基準為該 main，獨立 `feat/note-table-pagination-20261025`。
 - 第一輪研究／紅測試 CI 40162658785：A 原生 CSS 長表格 PDF 5 頁；B Paged.js 0.4.3 預覽／PDF 5 頁，但此 prototype 只見 1 個表頭；舊 C 預覽 1 張超高紙、PDF 5 頁，專用測試因此失敗。實際跑 3 引擎×4 類 corpus，不只引用文件。

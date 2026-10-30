@@ -1,6 +1,16 @@
 # Nexus — 技術架構與資料契約（完整 Canon 遷移版）
 
-## 唯讀表格延續與分頁研究（2026-10-25；Refs #107；第二批 CI 通過、待審查）
+## 批次輸出韌性（2026-10-25；Refs #109；CI 通過、未合併）
+
+- 基準為 PR #108 merge `9a5659d`，沒有改正式 schema／儲存／同步。沿用 NOTE-EDITOR-AUDIT 的 A/C 決策，不重跑完整技術選型。
+- noteExportLayout.exportColumnBlocks 僅在使用者選擇本次逐欄排版時展開已知 column children，兼容序列化 DOM 與 live NodeView 的 nexus-multi-column contentDOM。未知容器／直接文字保留並警告，不猜測刪除。預設保留原比例，輸出選擇不保存、不確立正式跨頁順序。
+- fitExportContent 只測已 attached、資源就緒的副本；寬表格保留 cell spans、解除輸出列寬限制並改 fixed layout，KaTeX 以 font-relative 尺寸縮放（至少原尺寸 50%，更寬仍警告）。pre 保留空白而 soft-wrap、URL／長詞允許換行；math-preview 的編輯器 scroll clip 僅在輸出解除，無 overflow:hidden。
+- 超高 tr 在副本標記後允許原生 fragmentation；超高 thead 僅作 row group，避免每個原生延續頁再複製整個超高表頭。仍非 cell 內部分頁引擎，rowspan／巢狀表格保留完整且警告，不能宣稱全部 preview/PDF 一致。
+- NoteExportPreview 提供準備／保存／失敗與重新準備；每 20 個頂層區塊讓出 task 並檢查 AbortSignal，取消後不寫 late state。500-row 單張 table 內的同步測量仍未切到 worker，沒有 peak memory／所有裝置流暢性保證。警告可收合；準備時頁數清零，列印在 ready 前停用。
+
+- 程式驗證 head `48c84e0`／CI 40207686728 通過；詳細測試／限制見 HANDOFF、NOTE-EDITOR-AUDIT。正式帳號、Safari／實機、極大文件 peak memory 尚未驗收。
+
+## 唯讀表格延續與分頁研究（2026-10-25；Refs #107；PR #108 已合併 `9a5659d`）
 
 - PR #106 經重新核對 head／main／完整 CI 後，合併為 main `2bb1a01`。本批在獨立分支，只改輸出，不執行直接部署；不可將本節當正式裝置或帳號驗收。
 - noteTablePagination.tableRowGroups 對每列 rowspan 區間取傳遞閉包，產生完整、無重複、排序的半開列群組；rowspan=0 保守涵蓋剩餘 row group。colspan 不重寫。任何跨越未結束 rowspan 的邊界都不可切。
@@ -1310,3 +1320,26 @@ ledger 20261016150215 dictionary_retire_verification_state，一次套用成功�
 無 SQL migration、RLS、資料清除或權限變更。部署後重載舊分頁；觀察本機儲存錯誤、同步錯誤、outbox 累積及未變更附件完整內容下載次數（應為 0）。真實帳號／跨裝置及 iPad Safari 驗收保留 #60。
 
 如需回復，回退前端版本即可，不刪本機或雲端資料。若一併退回附件修復前版本，重複流量問題會恢復。
+
+
+## #109 輸出批次研究補充（2026-10-30 整合；歷史數字保留）
+
+
+
+### 2026-10-25 集中批次（Refs #109；CI 通過、待審查）
+
+沿用下方已完成的 A/B/C 研究，不重新選型或安裝 Paged.js。本批基準 #108 merge `9a5659d`，程式差距與最小修正：
+
+| 項目 | 已確認限制／原因 | 本批處理／保留限制 |
+| --- | --- | --- |
+| 長雙欄 | 原並排多頁只有一張超高 preview，閱讀順序未定 | 預設不變；主動選擇來源欄順序的單次輸出，重用 table splitter；支援 NodeView contentDOM，未知容器保留警告 |
+| 寬公式／code／table | math-preview 仍有編輯器 overflow-x:auto；pre nowrap；明確 col width | 只在副本解除 clip、soft-wrap、公式最小 50% 縮放、寬 table fixed layout；仍過寬／太高警告，無靜默隱藏 |
+| 特殊表格 | 高 rowspan 群組不可任意拆、超高 thead 原生重複 | 保留 spans／所有 cells；tall row 允許原生延續、超高頭列作 row group，nested 保留警告；不是完整 cell fragmentation engine |
+| 操作恢復 | 排版例外原需關閉重開、長 block loop 不讓步 | 直接重新準備、保存 status、可收合警告、每 20 blocks 讓步與取消檢查；單張巨表仍同步測量 |
+
+新增情境全部沿用 notePaginationCases／noteExport fixture 與現有實際 EditorPane，不另建引擎。原生 formula 測試補載 KaTeX 真實 CSS／字型，不能只數 DOM。紅測試 CI 40206354834 重現缺少選項；中途失敗包含缺少 math 測試樣式與改語系後仍以中文 dialog 定位，均修根因，不刪案例。500 rows／長雙欄 PDF 同時核對 marker 唯一與頁數；特殊表格保留 spans／正文及警告。程式／測試 `48c84e0730c4d38821126a003661f502ece70794` 的 [CI 40207686728](https://github.com/changmonica02/Nexus/actions/runs/40207686728) 全部通過：96 項單元／契約（12 note、27 workspace、57 map），5 組 Chromium suites（table export、noteExport、實際 noteEditor、attachmentSync、unifiedWorkspace），TypeScript、限定 ESLint、production build（含既有 map prebuild）。沒有未解決的 CI failure；既有回歸未刪除。完整指令見 .github/workflows/note-editor.yml；A/B/C 研究僅在本分支略過（前批已完成），所有 correctness gates 保留。PDF／PNG artifact note-export-evidence：12604786674。
+實際結果：500 列 21 preview／21 PDF 頁，500 個正文 marker 各一次；單次準備 123ms（Linux Chromium、此 fixture、非峰值或前後對照）。逐欄模式含 70／15 段不等高雙欄及圖片／KaTeX／表格，至少三頁，preview/PDF count 一致、85 個 LEFT／RIGHT markers 無遺失／重複且依主動選擇的來源欄順序。真實 NodeView 的 80 段長欄／35:65 ratio、ID 與未知 metadata 經 IndexedDB 保存與 fresh adapter 重開不變。超高表頭只保留一次且不作原生重複頭列；100 段高 cell 與 nested table 的 DOM spans／PDF markers 保留，仍有安全警告。PDF 的 soft-wrap 會在單字內換行，因此 nested cell 另用 raw extraction 正規化空白核對，並保留 DOM 結構檢查；不能拿 text extraction 取代 glyph／圖片視覺驗收。圖片失敗重新準備、測量例外恢復、保存失敗重試及 en/zh-TW 均通過。
+
+本批五組 Chromium 全部執行；沒有重跑 Paged.js 研究或縮減必要儲存／附件／同步／地圖契約。PDF／PNG 保留待人工逐頁視覺驗收，本輪沒有宣稱新的逐頁人工檢視。沒有可比的前後效能基準，不宣稱加速比例；正式帳號／跨裝置／真實 IME／Safari／Firefox／極大文件仍未驗收。
+
+
