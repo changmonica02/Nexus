@@ -6,6 +6,20 @@
 
 
 
+
+
+## 2026-10-30｜筆記僅流動確認與技術文件再編（Refs #118）
+
+本輪經使用者更正基準後，先合併 10/29 分支 `docs/spec-existing-behavior-20261029` 的 PR #117 至 main `88fcbe1`（只改 SPEC；可能觸發正式部署，未操作 DB）。再以合併後 SPEC 重作文件對照；相對前次分析程式碼相同，保留 10/29 新增的 22 個模組與操作預設。Document 差異已由該 SPEC 記錄，不再當成新發現。PR #119 僅供文件審查，尚未合併。
+
+使用者確認筆記僅流動；修正 F-HOME 舊模式選擇文字，將紙張與分頁留在匯出／列印。此決策不刪既有 pageBreak／格式資料，不擴及 Document／簡報；EditorPane 的 Document flow 與 SPEC A4 差異列為待釐清。
+
+以合併後 main `88fcbe1` 靜態核對筆記、保存／同步、學習與地圖離線入口。ARCHITECTURE 重編為模組／資料流／限制／改善評估；舊全文移至 ARCHITECTURE-REFERENCE-20261030.md，詳細契約保留。HANDOFF 精簡，舊文移至 HANDOFF-REFERENCE-20261030.md。PR #108 已核實合併，正式部署與 DB 本輪未查驗。
+
+建議採漸進模組分離、可取消輸出排版與先量測後優化；PWA 重用既有資料與同步。這些屬提案，沒有實作新架構、migration 或驗收；未直接執行部署指令；PR #117 合併可能由既有設定觸發部署。
+
+
+
 ## 2026-10-20 — 世界觀地圖資料／儲存首批、自主地圖核心與可用編輯流程、世界觀地圖優先、世界觀地圖改為行動優先瀏覽器、自然生成與文明配置分離、世界觀為正式來源、地圖僅引用（Refs #98；PR #99）
 
 在 PR #97 合併後的 main `65653d0` 開獨立 V2-2A 分支。盤點確認原世界觀 sections/tabs 沒有正式城鎮身分，選擇在原 Page JSON 新增可選 world_entities、地圖 metadata 新增可選 placements，避免平行資料庫及多筆資料提交的孤兒引用。兩者共用既有 Page CAS／outbox／備份交易；ID 與名稱分離，位置與正文獨立修訂。地圖只接收衍生 SVG 標記，不更動 pack.burgs 或重算自然地理，舊文明資料不自動轉換。原生 .map 保持引擎內容，完整 Nexus 備份另保留正式條目與引用；不承諾外部原版相容。工作分支程式／測試 `d29d5e5` 的 CI 39437559252 已通過：133 項單元／契約與兩組實際 Chromium、TypeScript／production build、lint 0 errors／32 warnings；PR #99 待審查，未合併／正式部署，不代表正式帳號或實機驗收。
