@@ -55,3 +55,16 @@ self.addEventListener("fetch", event => {
     })());
   }
 });
+
+self.addEventListener("message", event => {
+  if (event.data?.type !== "NEXUS_PRECACHE_ASSETS" || !Array.isArray(event.data.assets)) return;
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.allSettled(event.data.assets.slice(0, 200).map(async asset => {
+      const url = new URL(asset, self.location.href);
+      if (url.origin !== self.location.origin || !url.pathname.startsWith("/_next/static/")) return;
+      const response = await fetch(url.href, { credentials: "omit" });
+      if (response.ok && response.type === "basic") await cache.put(url.href, response);
+    }));
+  })());
+});
