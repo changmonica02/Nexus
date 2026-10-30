@@ -1,5 +1,12 @@
 # Nexus — 當前交接（2026-10-21）
 
+## 2026-10-30 PR #110 整合驗證（Refs #109）
+
+- 已整合 main `88fcbe1`，保留 10/29 SPEC 全部模組；解決 SPEC／HISTORY 衝突，舊審計檔新增內容歸 ARCHITECTURE，不復活已整併文件。CI 改為 PR／程式路徑及 main 觸發，從 Playwright 取得實際 Chromium 路徑。
+- 本輪整合程式的 TypeScript、限定 ESLint、production/omit-dev build（含地圖 prebuild）、note helper／rowspan／workspaceSync、既有地圖 Repository／IndexedDB／區域／語系測試皆成功。五組實際 Chromium（表格匯出、NoteExport、NoteEditor、附件同步、完整工作區）通過，workspace 四尺寸另以明確瀏覽器路徑重跑成功。500 列 21 頁 preview／PDF markers、原 JSON／欄比保留及失敗重試由原測試覆蓋。
+- 僅整合／CI 與文件修正，匯出程式沿用已審查實作；沒有新 runtime 依賴、migration 或正式資料寫入。Safari／Firefox／實機／正式帳號／大文件峰值與並排雙欄完整 fragmentation 仍未驗收。使用者已授權處理後整合及合併文件，合併可能觸發 Production；部署結果另查。
+
+
 ## 筆記匯出集中批次（2026-10-25；Refs #109；CI 通過、待 PR 審查）
 
 - #108 已核對原 tested head／文件差異／CI／Preview／main 並合併 `9a5659d`；保留分支，無直接部署。下一批獨立 feat/note-export-batch-20261025，只交一個 PR，不合併。
