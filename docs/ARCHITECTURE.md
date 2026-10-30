@@ -2,7 +2,7 @@
 
 > 2026-10-30 再編；Refs #118。靜態核對基準：main `a3bf6bde6a5cdf4ae5423951b0732d0d2247aede`。本輪只改文件。
 > 產品目標以 [SPEC](SPEC.md) 為準；進度見 [HANDOFF](HANDOFF.md)，決策見 [HISTORY](HISTORY.md)。
-> PR #110 已合併 main `a3bf6bd`，修正 head `11281b3` 的 GitHub CI 與 Preview 成功。本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準僅 SPEC 變更，程式碼相同；下列靜態來源核對仍適用，產品描述改以合併後 SPEC 重新判讀。
+> PR #110 已合併 main `a3bf6bd`，修正 head `11281b3` 的 GitHub CI 與 Preview 成功。本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準已納入 #110 的匯出程式與整合驗證；產品描述依合併後 SPEC 判讀，其餘模組維持明列的靜態審計範圍。
 > 原 ARCHITECTURE 全文保存在 [詳細契約與歷史參考](ARCHITECTURE-REFERENCE-20261030.md)，包含表／RPC、migration ledger、字典與創作等完整細節。此次移位不取消那些相容性與安全契約；其中逐批「待部署／已套用」文字是當時紀錄，不能作現時正式環境證據。本文與原文衝突時先依本次已核對範圍及最新 SPEC 判讀，其他部分須回到原碼核實。
 
 ## 2026-10-30 #110 整合補充（Refs #109、#118）

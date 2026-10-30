@@ -2,7 +2,7 @@
 
 ## 本輪：承接 10/29 分支後的文件再編（Refs #116、#118）
 
-- 基準為遠端 main `88fcbe115da8fac84d75fdb77c14c0bceaf6d489`。原對話工作目錄不可見，無法執行該工作樹的 git status／確認未提交修改；未假設原任務完成。
+- 基準為遠端 main `a3bf6bde6a5cdf4ae5423951b0732d0d2247aede`。原對話工作目錄不可見，無法執行該工作樹的 git status／確認未提交修改；未假設原任務完成。
 - 已依使用者指示先合併 10/29 分支 PR #117，main `88fcbe1`。該 PR 只改 SPEC，Vercel status 與 Preview Comments 檢查成功；可能觸發正式部署，實際 Production 尚未核實。
 - 使用者確認：筆記僅流動；已修正 F-HOME 舊「分頁／流動」選擇文字，補入 F-NOTE。舊內容相容與 Document／簡報契約保留。
 - ARCHITECTURE 改為現行模組、資料流、限制及待實作改善；[原架構完整參考](ARCHITECTURE-REFERENCE-20261030.md) 保留詳細契約與原文。改善提案不是已實作功能。
