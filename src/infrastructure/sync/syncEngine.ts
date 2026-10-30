@@ -76,6 +76,11 @@ export class SyncEngine {
   };
   async syncStudyNow(): Promise<void> {
     if (this.destroyed) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const pendingPushes = (await this.storage.getStudyRepository().pending()).length;
+      this.setState({ status: "offline", error: null, pendingPushes });
+      return;
+    }
     if (this.studySync) return this.studySync;
     this.studySync = (async () => {
       try {
@@ -207,6 +212,11 @@ export class SyncEngine {
   }
 
   private async runFullSync(pull: boolean): Promise<void> {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const pendingPushes = (await this.storage.getWorkspacePersistence().pending(this.userId)).length;
+      this.setState({ status: "offline", error: null, pendingPushes });
+      return;
+    }
     this.isSyncing = true;
     this.lastWorkspaceAttempt = Date.now();
     this.setState({ status: "syncing", error: null });
