@@ -1,29 +1,9 @@
 # Nexus — 技術架構與資料契約
 
-> 2026-10-30 再編；Refs #118。靜態核對基準：main `a3bf6bde6a5cdf4ae5423951b0732d0d2247aede`。本輪只改文件。
-> 產品目標以 [SPEC](SPEC.md) 為準；進度見 [HANDOFF](HANDOFF.md)，決策見 [HISTORY](HISTORY.md)。
-> PR #110 已合併 main `a3bf6bd`，修正 head `11281b3` 的 GitHub CI 與 Preview 成功。本次基準包含 10/29 分支 `docs/spec-existing-behavior-20261029`（PR #117，2026-10-30 合併）。相對原分析基準已納入 #110 的匯出程式與整合驗證；產品描述依合併後 SPEC 判讀，其餘模組維持明列的靜態審計範圍。
-> 原 ARCHITECTURE 全文保存在 [詳細契約與歷史參考](ARCHITECTURE-REFERENCE-20261030.md)，包含表／RPC、migration ledger、字典與創作等完整細節。此次移位不取消那些相容性與安全契約；其中逐批「待部署／已套用」文字是當時紀錄，不能作現時正式環境證據。本文與原文衝突時先依本次已核對範圍及最新 SPEC 判讀，其他部分須回到原碼核實。
+> 更新：2026-10-30；程式核對基準 main `27aa143`。本文只描述目前架構、有效資料契約、限制與建議。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
-## 2026-10-30 #110 整合補充（Refs #109、#118）
+## 1. 模組與資料來源
 
-本文件已隨 #110 更新。其 readonly 輸出改善、可取消讓步／重試及實際本機驗證屬已實作；完整並排續頁仍待完成。下列改善表的 layout job／block splitter 是進一步責任分離提案，不應忽略既有 AbortSignal／每 20 blocks 讓步。原詳細參考保留原文，末尾追加 #110 整合的技術與研究段落；歷史數字仍屬原次 CI。
-
-## 1. 核對範圍與狀態
-
-| 範圍 | 本輪依據 | 可以確認／不能推定 |
-| --- | --- | --- |
-| 筆記建立與編輯 | creationOptions、EditorPane | 新入口為單一筆記；畫面採 flow。舊資料格式仍需相容 |
-| 筆記輸出 | NoteExportPreview、noteExportLayout、noteTablePagination | 唯讀副本與安全表格延續存在；完整 fragmentation 未完成 |
-| 工作區保存／同步 | StorageAdapter、WorkspacePersistence、SyncEngine | 本機交易、outbox、revision／owner 保護存在；非正式 RLS／跨裝置驗收 |
-| 學習同步 | studySync | 事件順序、冪等重試、增量 cursor 及同步合併存在；不等於實機驗收 |
-| 地圖 | worldMapRepository、offlineCore | 固定核心版本、結構檢查、owner 邊界及專用 SW 存在；未重驗全部地圖工具 |
-| PWA | app/layout、檔案樹、offlineCore | 主 Manifest／全站離線外殼尚未加入；地圖快取不能代表全站離線 |
-| 交付狀態 | GitHub PR #108 | 2026-10-25 已合併，merge commit `9a5659d`；本輪未核對正式部署 |
-
-本輪 #110 整合已完成 TypeScript、限定 ESLint、production build、單元／契約及五組 Chromium；正式 DB／實機未檢查。歷史 CI 證據仍屬原提交；沒有原對話工作目錄，無法確認其未提交內容。
-
-## 2. 模組邊界與資料真相
 
 | 層 | 主要來源 | 責任 |
 | --- | --- | --- |
@@ -36,15 +16,36 @@
 | 學習領域 | [StudyRepository](../src/features/study/StudyRepository.ts)、[studySync](../src/features/study/studySync.ts) | 私人字卡、學習事件、領域衝突與增量同步 |
 | 地圖領域 | [worldMapRepository](../src/features/worldMap/worldMapRepository.ts)、[offlineCore](../src/features/worldMap/offlineCore.ts) | 地圖原生專案驗證、世界觀條目／配置、隔離工具快取 |
 
-Page 是共用容器；不同功能的資料契約仍各自成立。編輯結構以正式 JSON／領域資料為準，`content_text` 為衍生用途。附件 metadata 與 Blob 分離。地圖原生專案、Nexus 正式條目及配置須按各自來源處理，不能以顯示投影或名稱取代穩定 ID。詳細欄位、IDB stores、備份格式與 SQL ledger 沿用參考文件，不在此重新發明 schema。
 
-## 3. 筆記：僅流動，輸出獨立
+Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`content_text` 是搜尋／預覽衍生資料。附件 metadata 與 Blob 分離，顯示用投影不取代穩定 ID。
+
+### 資料模型與本機儲存
+
+| 類型 | 正式資料位置與界線 |
+| --- | --- |
+| 筆記／文檔 | Page 的 `content_json`；筆記排版在 `lessonLayout`、全寬在 `noteAppearance` |
+| PDF 研究筆記 | Note Page 引用 Attachment，不新增 PDF 專用 kind，不把 binary 塞進正文 |
+| 字卡集 | Page 保存集合殼；StudyRepository 保存 cards／states／events／settings／sessions |
+| 簡報 | Page 的 `presentation_data`，Slide／Block 與一般正文分離 |
+| 隨手記／待辦 | `pages` 的 `quick_note`／`todo`；顏色、到期、優先度與完成狀態沿用 Page |
+| 角色卡／世界觀／私人模板 | `creative` Page 的 `character_data`；以 `creative_type` 與 `isTemplate` 區分 |
+| 小說 | 作品 Page 的 `novel_settings`；章節為 `novel_chapter`，使用 `parent_id`／`sort_order` |
+| 網頁／計數／抽選 | 對應 kind，資料放 `content_json`；頁面附屬說明放 `assistant_blocks` |
+
+Page 共用 ID、標題、時間、revision、device、軟刪除、標籤、資料夾、關聯、附件引用、排序與父子關係；詳細型別以 [types.ts](../src/lib/types.ts) 為準。
+
+[IndexedDBAdapter](../src/infrastructure/storage/IndexedDBAdapter.ts) 使用 `nexus`，DB_VERSION=8，BACKUP_SCHEMA_VERSION=3。主要 stores 為 pages／attachments／binaries／settings、study_cards／states／events／settings／sessions／outbox／sync_meta，以及 workspace_outbox／sync_meta。既有裝置的相容 stores 不因功能退場自動刪除；實際 upgrade 清單以 Adapter 為準。Page／Attachment 的 `workspace_owner_id` 是本機邊界，不當成可任意指定的雲端授權。
+
+備份匯出／匯入走 StorageAdapter 與實際 schema 校驗；涵蓋頁面、附件、學習資料及地圖 canonical／recovery。匯入遵守帳號、版本與引用檢查，交易失敗完整中止；不能把舊版「完全覆蓋」描述直接套到所有現行備份流程。裝置偏好另依 settings／localStorage 保存，不保證全部同步。
+
+## 2. 筆記編輯與輸出
+
 
 ### 已確認產品方向與實際編輯
 
-Refs #118：筆記僅提供 flow 編輯，不再提供分頁／流動模式選擇。A4、方向、邊界、頁首頁尾、頁碼及分頁調整屬輸出。這項決策只針對 Note，不自動改寫 Document 或 Presentation 的產品契約。
+筆記僅提供 flow 編輯，不再提供分頁／流動模式選擇。A4、方向、邊界、頁首頁尾、頁碼及分頁調整屬輸出。這項決策只針對 Note，不自動改寫 Document 或 Presentation 的產品契約。
 
-`creationOptions.notes` 只有 `note_flow`；全部項目使用 `note`。EditorPane 實際以 `effectiveFormat = "flow"`、`isPaged = false` 呈現；新舊 Note 不因此清除既有 format／pageBreak／未知 metadata。逐篇全寬寫於 `noteAppearance.fullWidth`，與輸出紙張尺寸分離。移除 legacy 型別、元件或資料欄位不是本輪工作。
+`creationOptions.notes` 只有 `note_flow`；全部項目使用 `note`。EditorPane 實際以 `effectiveFormat = "flow"`、`isPaged = false` 呈現；新舊 Note 不因此清除既有 format／pageBreak／未知 metadata。逐篇全寬寫於 `noteAppearance.fullWidth`，與輸出紙張尺寸分離。相容層退場前須驗證舊資料往返。
 
 **規格已記錄、仍待處理的落差**：EditorPane 的 flow 常數也涵蓋 Document 呼叫路徑，10/29 SPEC F-DOCUMENT 已明示目前連續版面與原 A4 預設方向的差異。應先盤點實際操作與預期，不把本次「筆記僅流動」擴大成 Document 改版，也不直接恢復舊分頁程式。
 
@@ -56,15 +57,18 @@ Refs #118：筆記僅提供 flow 編輯，不再提供分頁／流動模式選�
 4. NoteExportPreview 按紙張 content-box 測量；頂層舊 pageBreak 轉成副本分頁。安全表格由 splitExportTable 按 rowspan 相連群組延續，重複表頭並保留 span，caption 一次。
 5. 不能安全切分的特殊表格／超高區塊保留並警告；長雙欄保持原比例。列印前 await 保存，保存失敗保留預覽供重試；輸出仍交由瀏覽器 `window.print()`。
 
+輸出提供本次逐欄轉單欄、寬 code／URL 換行、表格及公式適配與直接重試。公式縮放下限為原尺寸 50%；過寬仍提示。未知欄位容器保留原布局，超高表頭不反覆重複。AbortSignal 及每 20 個頂層區塊讓步支援取消；單張巨表仍同步測量。
+
 ### 尚未完成
 
 - 長段落、超高合併格與長雙欄未完整分割；目前放寬超高紙張並提示，瀏覽器仍可能另行分頁。不能宣稱所有預覽頁碼／PDF 一致。
 - 預覽沒有手動新增／移動分頁入口；識別原有 pageBreak 不等於提供這項操作。保存分頁調整的規則仍待確認。
-- #110 已提供使用者主動選擇「此次逐欄轉單欄」，保留預設原雙欄；寬 code／URL 換行、表格與公式適配、預覽直接重試亦已整合。這不等於原並排雙欄完整 fragmentation。
 - Paged.js 只是歷史隔離研究，不是正式 runtime 依賴，也沒有證據支持直接替換即能解決全部案例。
 - Safari／Firefox、真實 IME、裝置與大型文件峰值記憶體仍待驗證。測試來源見 tests/noteExport.browser.test.cjs、tests/noteTablePagination.browser.test.cjs、tests/notePagination.study.test.cjs。
 
-## 4. 保存、同步與帳號邊界
+
+## 3. 保存、同步與帳號邊界
+
 
 ```text
 使用者編輯 → UI 保存協調 → StorageAdapter
@@ -82,15 +86,67 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 「已儲存本機」「待同步」「已同步」「失敗」須分開。connected 僅代表連線／協調狀態，不能直接當每筆資料已獲伺服器確認。RLS、RPC 權限、正式 migration ledger 必須另外核實；前端 owner filter 不取代伺服器權限。
 
-## 5. 附件、地圖與離線邊界
 
-附件版本 metadata-first、owner 快取與跨分頁下載合併的完整契約保留於參考文件與 SPEC F-PDF。本輪沒有重新量測下載次數；後續效能比較須記錄 metadata／binary 請求數與 bytes，不能沿用舊數字宣稱目前環境結果。
+## 4. 附件、地圖與離線
 
-地圖使用固定 Azgaar 1.154.2 fork。inspectMapProject 做結構／版本與 SHA 檢查，明確不是 SVG／HTML sanitizer；匯入不能因此取得同源執行權限。offlineCore 註冊 `/world-map/offline.js`，scope 為 `/world-map/`，公開工具與私人專案分離。既有 canonical／recovery 與備份細節沿用參考文件，本輪未更動。
+### 附件版本快取
 
-F-PWA 是已核准、待實作契約。主程式沒有 Manifest／應用外殼離線啟動；IndexedDB 有資料不代表斷網能重新載入網站。主 SW 應只處理明確版本化公開資源，私人資料仍走現有 owner 隔離儲存；Auth/API、附件 Blob 與地圖專用 scope 不納入主共享快取。離線 Session 恢復、帳號切換、更新時未保存內容仍需專門驗證。
+`pullWorkspace` 先處理 owner metadata／tombstones，binary 列表不預抓完整內容；快取身份為 `(owner, attachment ID, server revision)`。本機 Blob 及已驗證版本／大小一致時沿用，首次、版本改變、缺失或損壞才下載。metadata 改動可能提升 revision，允許保守重驗該附件。
 
-## 6. 改善評估與建議順序（尚未實作）
+下載後重新核對 revision／deleted_at，落盤交易再檢查 owner、tombstone 與待傳修改，避免覆蓋本機內容。IndexedDB 中 owner/id 專屬租約合併同源多分頁下載；租約 60 秒、網路下載 45 秒逾時，過期 token 不得覆蓋新租約。同帳號 auth refresh 沿用 SyncEngine。結構與大小檢查不代表密碼學內容驗證；下載 bytes／次數需實測，不能承諾固定省流比例。
+
+### 世界觀地圖
+
+固定 Azgaar 1.154.2 本地 fork，由 `scripts/build-world-map.mjs` 建置，整合層、隔離 iframe、Repository 與儲存同步分離。`inspectMapProject` 驗證版本／結構並計算 SHA，並非 SVG／HTML sanitizer；核心不取得 Nexus 帳號憑證或同源執行權限。
+
+世界觀 WorldEntity 保存正式正文、穩定 ID／relations；地圖 placement 引用 entity ID，point／cells 幾何獨立，cells 帶 mesh 指紋，不能靠名稱或原生陣列索引連結。Page 級 CAS／outbox 交易維持新增條目及配置原子性，重試使用穩定 ID；移除配置／刪圖不連鎖刪正式條目。metadata 修改不重傳原生 binary；原生 `.map` 不包含 Nexus 正式條目，完整資料用工作區備份。
+
+原生 canonical 專案使用 immutable 附件／SHA 與 revision，另有本機 recovery checkpoint；10 秒 recovery 不進 outbox，60 秒或明確保存提交 canonical。失敗保留草稿，不以本機成功冒充雲端成功；未實作安全 GC，不能任意清掉舊附件。自然地理與文明配置分離；手繪資料保留、網格變更與再生成限制依 SPEC，不能在同步時重新生成地理。
+
+`offlineCore` 註冊 `/world-map/offline.js`，scope 為 `/world-map/`；只快取公開工具。opaque iframe 的離線文件由工具快取組裝，broker 不代理私人 API 或任意網路，私人專案保存在既有 owner 儲存。
+
+### 主程式 PWA（待實作）
+
+目前沒有主 Manifest／全站離線外殼。IndexedDB 有資料不等於斷網能重新啟動網站。主 SW 應快取明確版本化的公開資源，與地圖 scope 分離；Auth/API、私人資料與附件 Blob 仍走現有帳號隔離儲存。重用 outbox／同步；Session 恢復、切帳號、未快取路由提示及更新不遺失待存內容須驗證。
+
+## 5. 學習、字典與創作契約
+
+### 學習排程
+
+`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用固定排程或 ts-fsrs；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。
+
+固定 state 與 FSRS 記憶分開，方法切換保留真實事件／due，不偽造 FSRS 歷史。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
+
+官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
+
+### 公共字典
+
+字典是獨立公共領域，Entry／Sense 使用穩定 ID；Published、Draft／Review、構詞及附屬內容有各自 revision／身份。Published 供讀取，管理員 UI 共用既有字典工作區；真正授權與 CAS 仍由伺服器 RPC 執行。草稿保存不等於公開發布，清單狀態在批次完成後重新讀取伺服器。
+
+字典交換由既有 export／preview／apply 管線處理。分頁匯出維持 scope version 一致，範圍變動要求重取；匯入先保存 operation UUID，再以原 RPC／receipt 重試，Published 修改產生 Review。checkpoint 與逐項狀態保存於獨立 `nexus-dictionary-import-review`；網路回覆遺失不換 UUID 重送。批次作業部分失敗保留結果，不能以新 preview 蓋掉尚待恢復的 operation。批次發布沿用 token／scope／人工確認，不繞過 Review 核准。
+
+`delete_dictionary_entry` 在交易內驗證管理員、revision、完整 snapshot 及其他構詞／Review／官方 manifest 引用；有相依即拒絕。私人卡僅解除 join，不刪 payload／state／events／來源身份；Published 歷史及 Audit 保留，收據與退場標記阻擋舊 ID 被重建。未知外鍵／收據失敗完整回滾。核心概念沿用 `dictionary_learning_notes`；退場 ID／alias 與相容匯入 guard 防止舊資料重建重複內容。
+
+管理介面入口見 DictionaryAdmin／DictionaryWorkspace；查詢、交換、刪除實作位於 [dictionary](../src/features/dictionary)。詳細 SQL 以 [migrations](../supabase/migrations) 為準，單一 migration 檔存在不代表遠端已套用。
+
+### 角色卡與模板
+
+角色區塊的標準化／移動／尺寸由 characterBlocks 處理，保持未知 metadata、內容與附件。私人模板仍為 owner Page；結構白名單清除個人值／相簿／附件，實例產生新 ID 並保留穩定 template node 對應。
+
+[creation](../src/features/creation) 處理資源庫 capability、投稿／草稿／immutable versions／下載 receipt。公開來源許可由伺服器重驗；缺 capability 或離線時停用新資源庫讀寫，既有私人模板仍可使用。下載以 receipt 固定 Page ID，owner／tombstone／交易失敗不得產生第二份或復活已刪內容。公開與私人資料授權各自驗證，privileged 實作維持非 exposed schema。
+
+模板更新採同來源 baseline／stable node ID 三方比較，由使用者確認，既有角色不自動跟隨。個人內容及覆寫保留；不相容或被上游刪除的內容移入 retainedContent，不靜默丟棄。套用前建立非遞迴 snapshot，附件引用保留聯集；角色與來源的 revision guards 與 pages＋outbox 同交易，衝突要求重新比對。
+
+## 6. 帳號、權限與刪除
+
+登入後才選取 owner 工作區；登出／切換立即移除舊 owner UI，晚到結果不能套用至新帳號。匿名舊資料遷移須明確授權。前端 filter 與隱藏按鈕不代替 RLS／RPC 驗權。
+
+`delete_own_account` 從已驗證 JWT 取得 auth.uid，驗證確認內容後以一個交易執行帳號及 owner 外鍵 cascade；共享資料按其正式關係處理，不以客戶端指定 owner 刪除。成功後只清目前 owner 的本機內容／Blob，再登出；掉回覆時保留本機，重新認證確認結果。其他裝置的離線副本不能遠端抹除，伺服器仍須拒絕已刪 owner 寫入。現有附件是 binaries 表，不可假定 Supabase Storage bucket 清理已實作。
+
+RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依以失敗回滾處理。新增 migration 採增量及非破壞回復，不能把文件清理當成刪 schema／歷史資料的授權。
+
+## 7. 改善建議（尚未實作）
+
 
 | 優先 | 建議與理由 | 最小驗證／採用條件 |
 | --- | --- | --- |
@@ -105,25 +161,10 @@ F-PWA 是已核准、待實作契約。主程式沒有 Manifest／應用外殼�
 
 目前較合理的是維持現有 Next.js／Tiptap／IndexedDB／Supabase 與隔離地圖核心，以小步收斂責任及量測瓶頸。尚無本輪證據支持重寫編輯器、引入 CRDT、自建第二套同步或全面改用 Paged.js。若要採用，另開 discovery 比較資料相容、長文件、維護成本與授權，再核准實作。
 
-## 7. 10/29 SPEC 對照補充與審計覆蓋
 
-10/29 SPEC 的 22 個 F-* 模組已將既有畫面／預設與待實作需求分開。此次只增補「筆記僅流動」確認，保留其新增規格；不能再以舊 main 的 F-HOME 模式文字作目前缺失。
+## 8. 驗證與維護
 
-| 規格群 | 技術對照與本輪限制 |
-| --- | --- |
-| F-HOME／F-NAVIGATION／F-PREFERENCES | 檢視、排序、導覽與裝置預設屬產品契約；目前核對 creationOptions、NexusApp、WorkspaceRoot，沒有重驗所有 breakpoint、鍵盤或偏好跨分頁行為 |
-| F-NOTE／F-DOCUMENT／F-EDITOR／F-PAGEFORMAT | 共用 EditorPane／Tiptap 與獨立輸出副本；Document flow／A4 差異已由 SPEC 記錄，不當成新發現，也不擅改其他 editor variant |
-| F-PDF／F-PWA | metadata／Blob 與外殼資源分離；PWA 已區分既有本機保存與待實作啟動。附件零重複下載及離線帳號需另作實測 |
-| F-STUDY | 私人字卡與學習事件沿用領域 Repository／增量 cursor；本輪核對同步來源，沒有完整重驗抽卡、額度與所有 FSRS 排程契約 |
-| F-WORLD-MAP／F-WORLD | 地圖工具與世界觀正式資料分離；本輪僅核對 repository／離線入口，其餘沿用詳細參考與既有測試，不重新宣稱全部 V2 已驗收 |
-| F-DICTIONARY | 詳細資料／發布／CAS／刪除契約沿用參考全文；本輪未全面重審 RPC／SQL 或正式權限。SPEC 同時保留「篩選後分頁」及舊「分頁緊接搜尋、篩選在後」文字，後續宜在同模組標明新舊優先，避免實作誤判 |
-| F-SCORE／F-PRESENTATION／F-QUICKNOTE／F-TODO／F-CALENDAR／F-CREATIVE／F-NOVEL／F-CHARACTER／F-UTILITY | 10/29 的既有操作及待決需求保留；本輪不把這些模組的新規格當成新功能已實作證據，詳細技術來源仍在參考文件，需依後續任務逐一核對 |
-
-文件後續改善：各模組可逐步維護「SPEC 章節 → 入口元件 → Repository／資料契約 → 驗證來源」索引，避免再將全部交付流水帳塞回 ARCHITECTURE。先隨實作更新，不另建第二份產品規格或全站重複狀態清單。
-
-## 8. 詳細契約與驗證入口
-
-- [原架構完整參考](ARCHITECTURE-REFERENCE-20261030.md)：Page／附件／學習／字典／創作／地圖詳細契約、migration ledger 與歷史部署紀錄。查 SQL 時仍須比對 migrations 與實際環境；不要照抄歷史操作指令。
-- [筆記審計與分頁研究整併內容](ARCHITECTURE-REFERENCE-20261030.md)：舊 NOTE-EDITOR-AUDIT 專項內容已整併；歷史比較與 corpus 數字屬當時研究。
-- [SPEC](SPEC.md)：產品行為與待決範圍；[HANDOFF](HANDOFF.md)：當前狀態；[HISTORY](HISTORY.md)：原因。
-- PR 合併只能證明程式已進 main。正式帳號、Safari／行動裝置、跨裝置與大文件驗收仍需 #60 證據。
+- `.github/workflows/note-editor.yml` 以相關 PR／程式路徑及 main 觸發：note helper／表格、五組 Chromium、workspaceSync、map 契約、TypeScript、限定 ESLint 與 production build。PDF／截圖作該次測試 artifact，正式 runtime 不加入研究用 Paged.js。
+- 修改保存／同步需覆蓋 owner、CAS、pending edits、遠端刪除、斷網／重連、掉回覆重試；修改輸出需驗證正文 markers、span、JSON／ID 不變與預覽／PDF，文字抽取不取代 glyph／圖片視覺檢查。
+- 隔離 Chromium／IDB／SQL 測試與正式帳號、Safari／行動裝置驗收分開；部署 READY 也不代表完整產品驗收。真實裝置與跨裝置事項集中 #60。
+- 技術契約隨程式維護於本文件，狀態放 HANDOFF；不再新增 archive、reference、追溯副本或逐批交付流水帳。
