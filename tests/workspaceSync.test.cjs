@@ -410,3 +410,51 @@ test('local workspace push skips full download but explicit sync still reconcile
   assert.ok(server.calls.includes('pull:workspace_tombstones'));
   assert.ok(server.calls.includes('pull:pages'));
 });
+
+test('PWA offline: local edits remain queued without contacting Supabase, reconnect can flush', async t => {
+  const d = await device(t), server = new Server();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  t.after(() => engine.destroy());
+  const states = [];
+  engine.subscribe(state => states.push({ ...state }));
+  await d.adapter.savePage(page('offline-note'));
+  await engine.pushPage(page('offline-note'));
+  assert.equal(server.calls.length, 0, 'offline push does not start cloud requests');
+  assert.equal((await d.local.pending(owner)).length, 1, 'durable outbox remains intact');
+  assert.equal(states.at(-1).status, 'offline');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
+  await engine.fullSync(false);
+  assert.equal(server.rows.pages.has('offline-note'), true, 'reconnect uploads queued note');
+  assert.equal((await d.local.pending(owner)).length, 0);
+});
+
+test('unknown navigator connectivity does not disable sync outside a browser', async t => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
+  const d = await device(t), server = new Server(), engine = new SyncEngine(server, d.adapter, 'device', owner);
+  t.after(() => engine.destroy());
+  await d.adapter.savePage(page('unknown-connectivity'));
+  await engine.pushPage(page('unknown-connectivity'));
+  assert.ok(server.rows.pages.has('unknown-connectivity'));
+});
+
+test('offline realtime waits for online and reconnect installs one channel', async t => {
+  const originals = new Map(['window', 'document', 'navigator'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  t.after(() => { for (const [key, original] of originals) { if (original) Object.defineProperty(globalThis, key, original); else delete globalThis[key]; } });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: Object.assign(new EventTarget(), { hidden: false }) });
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+  const d = await device(t), server = new Server(); let channels = 0;
+  const channel = { on() { return this; }, subscribe() { return this; } };
+  server.channel = () => { channels++; return channel; }; server.removeChannel = () => {};
+  const engine = new SyncEngine(server, d.adapter, 'device', owner); engine.syncStudyNow = async () => {};
+  t.after(() => engine.destroy());
+  engine.startRealtime(); engine.startRealtime(); assert.equal(channels, 0);
+  navigator.onLine = true; window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
+  window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
+  engine.destroy(); window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
+});

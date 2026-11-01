@@ -40,6 +40,7 @@ import { DEFAULT_LANGUAGE, detectDefaultLanguage, type Language } from "../lib/i
 import { LanguageProvider, useLanguage } from "../lib/LanguageContext";
 import { getSupabase, isSupabaseConfigured } from "../infrastructure/supabase/client";
 import { SyncEngine, type SyncState } from "../infrastructure/sync/syncEngine";
+import type { Session } from "@supabase/supabase-js";
 import { measureRefreshPull } from "../lib/pullToRefresh";
 import type { CreateItemType } from "../lib/creationOptions";
 import CreationChoiceDialog from "./CreationChoiceDialog";
@@ -256,10 +257,12 @@ function NexusAppInner({
       // a signed-in user could briefly see the anonymous workspace while the
       // app is starting up.
       let hasAuthenticatedSession = false;
+      let initialSession: Session | null = null;
       if (isSupabaseConfigured()) {
         const initialSupabase = getSupabase();
         if (initialSupabase) {
           const { data: { session } } = await initialSupabase.auth.getSession();
+          initialSession = session;
           if (cancelled) return;
           setAccountEmail(session?.user.email || null);
           setIsAuthenticated(!!session?.user);
@@ -352,29 +355,35 @@ function NexusAppInner({
               setPages(syncedPages.map(page => pendingSavesRef.current.get(page.id) ?? editsAtRead.get(page.id) ?? page));
               setAttachments(syncedAttachments);
             });
-            await engine.fullSync();
+            // Offline launch uses the existing account-scoped IndexedDB cache.
+            // Reconnection is handled by SyncEngine; do not block launch on a network pull.
+            if (navigator.onLine) await engine.fullSync();
+            else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: (await adapter.getWorkspacePersistence().pending(userId)).length });
             if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
             // A newly registered account starts truly empty. Creating a
             // placeholder here used to leave every account with an unwanted
             // "Untitled" document, even when the user had not made anything.
-            const accountPages = await adapter.listPages();
-            setPages(accountPages);
-            setAttachments(await adapter.listAttachments());
+            const editsAtRead = new Map(pendingSavesRef.current);
+            const [accountPages, accountAttachments] = await Promise.all([adapter.listPages(), adapter.listAttachments()]);
+            if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
+            setPages(accountPages.map(page => pendingSavesRef.current.get(page.id) ?? editsAtRead.get(page.id) ?? page));
+            setAttachments(accountAttachments);
             const storedActiveId = await adapter.getActivePageId();
+            if (cancelled || thisRun !== syncRun || syncEngineRef.current !== engine) return;
             const nextActiveId = getWorkspaceEntryPage(accountPages, storedActiveId)?.id ?? null;
             setActivePageId(nextActiveId);
             await adapter.setActivePageId(nextActiveId);
             engine.startRealtime();
           };
 
-          const { data: { session } } = await supabase.auth.getSession();
+          const session = initialSession;
           setAccountEmail(session?.user.email || null);
           setIsAuthenticated(!!session?.user);
           setIsAuthResolved(true);
-          if (session?.user) await startAccountSync(session.user.id);
-          else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
-
+          let authObserved = false;
           const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+            if (cancelled) return;
+            authObserved = true;
             setAccountEmail(nextSession?.user.email || null);
             setIsAuthenticated(!!nextSession?.user);
             setIsAuthResolved(true);
@@ -406,6 +415,12 @@ function NexusAppInner({
             void startAccountSync(nextSession.user.id);
           });
           authSubscription = subscription;
+          // Listen before awaiting network work: sign-out/account changes must
+          // invalidate a slow first pull before its results can reach the UI.
+          if (!authObserved) {
+            if (session?.user) await startAccountSync(session.user.id);
+            else setSyncState({ status: "offline", lastSyncAt: 0, error: null, pendingPushes: 0 });
+          }
         }
       }
     }

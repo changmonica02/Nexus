@@ -17,11 +17,14 @@ export default function PWARegister() {
     const register = () => { void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).then(async current => {
       registration = current;
       const ready = await navigator.serviceWorker.ready;
-      prewarm(current.active ?? ready.active);
+      const worker = current.active ?? ready.active;
+      prewarm(worker);
+      if (navigator.onLine) worker?.postMessage({ type: "NEXUS_REFRESH_SHELL" });
     }).catch(error => {
       if (process.env.NODE_ENV !== "production") console.warn("PWA worker registration failed", error);
     }); };
     const refresh = () => {
+      if (!registration) { register(); return; }
       void registration?.update().catch(() => undefined);
       registration?.active?.postMessage({ type: "NEXUS_REFRESH_SHELL" });
       prewarm(registration?.active ?? null);

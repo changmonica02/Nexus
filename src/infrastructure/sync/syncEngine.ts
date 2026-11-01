@@ -54,6 +54,7 @@ export class SyncEngine {
     }, typeof document !== "undefined" && document.hidden ? 5000 : 300);
   };
   private workspaceChanged = () => this.scheduleWorkspace("full");
+  private workspaceOnline = () => { this.startRealtime(); this.workspaceChanged(); };
   private workspaceLocalChanged = () => this.scheduleWorkspace("push");
   private workspaceVisible = () => {
     if (!document.hidden) {
@@ -76,6 +77,11 @@ export class SyncEngine {
   };
   async syncStudyNow(): Promise<void> {
     if (this.destroyed) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const pendingPushes = (await this.storage.getStudyRepository().pending()).length;
+      this.setState({ status: "offline", error: null, pendingPushes });
+      return;
+    }
     if (this.studySync) return this.studySync;
     this.studySync = (async () => {
       try {
@@ -133,9 +139,11 @@ export class SyncEngine {
       window.addEventListener("nexus-study-changed", this.studyChanged);
       window.addEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
       window.addEventListener("online", this.studyOnline);
-      window.addEventListener("online", this.workspaceChanged);
+      window.addEventListener("online", this.workspaceOnline);
       document.addEventListener("visibilitychange", this.workspaceVisible);
     }
+    if (!this.syncInterval) this.syncInterval = setInterval(this.periodicWorkspace, 60000);
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     this.realtimeChannel = this.supabase.channel(`nexus-${this.userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "pages", filter: `owner_id=eq.${this.userId}` }, payload => {
         void this.handleRemoteChange("pages", payload);
@@ -153,7 +161,6 @@ export class SyncEngine {
           this.setState({ status: "error", error: "Realtime connection failed" });
         }
       });
-    this.syncInterval = setInterval(this.periodicWorkspace, 60000);
   }
 
   private async handleRemoteChange(type: EntityType, payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }): Promise<void> {
@@ -207,6 +214,11 @@ export class SyncEngine {
   }
 
   private async runFullSync(pull: boolean): Promise<void> {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const pendingPushes = (await this.storage.getWorkspacePersistence().pending(this.userId)).length;
+      this.setState({ status: "offline", error: null, pendingPushes });
+      return;
+    }
     this.isSyncing = true;
     this.lastWorkspaceAttempt = Date.now();
     this.setState({ status: "syncing", error: null });
@@ -251,7 +263,7 @@ export class SyncEngine {
     if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
     if (this.workspaceTimer) clearTimeout(this.workspaceTimer);
     if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
-    if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceChanged);
+    if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceOnline);
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.workspaceVisible);
     this.destroyed = true;
     this.stopPeriodicSync();
