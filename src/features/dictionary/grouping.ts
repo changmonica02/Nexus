@@ -1,3 +1,4 @@
+import {offline} from './publicCache';
 import {primaryCategories,prefixCategories} from './dictionaryCategories';
 export {primaryCategories,prefixCategories} from './dictionaryCategories';
 import {draftsFromBundle,saveDictionaryDraft} from './draftPipeline';
@@ -7,6 +8,7 @@ import type {Bundle} from './adminImport';
 export interface DictionaryGrouping {primary_category:string|null;tags:string[];variant_group:string|null}
 export const emptyGrouping=():DictionaryGrouping=>({primary_category:null,tags:[],variant_group:null});
 export async function readGrouping(client:Pick<SupabaseClient,'from'>,id:string):Promise<DictionaryGrouping>{
+  if(offline())throw new Error('此分類或關聯搜尋尚未離線保存，請連線後閱讀。');
   const {data,error}=await client.from('dictionary_entry_groups').select('primary_category,tags,variant_group').eq('id',id).maybeSingle();
   if(error)throw new Error('無法讀取分類，請確認字典分類 migration 已套用。');
   return data??emptyGrouping();
@@ -19,6 +21,7 @@ export async function saveGroupedDraft(client:Pick<SupabaseClient,'rpc'>,bundle:
 export interface DictionarySenseGrouping {sense_id:string;primary_category:string|null}
 export type SenseGroupMap=Record<string,string|null>;
 export async function readSenseGroups(client:Pick<SupabaseClient,'from'>,senseIds:string[]):Promise<SenseGroupMap>{
+  if(offline())throw new Error('此分類或關聯搜尋尚未離線保存，請連線後閱讀。');
   if(!senseIds.length)return {};
   const {data,error}=await client.from('dictionary_sense_groups').select('sense_id,primary_category').in('sense_id',senseIds);
   if(error)throw new Error('無法讀取字首義項分類，請確認字首分類 migration 已套用。');
@@ -31,6 +34,7 @@ export async function savePrefixDraft(client:Pick<SupabaseClient,'rpc'>,bundle:B
 export interface GroupedDictionaryItem {id:string;kind:'prefix'|'root';headword:string;sense_id?:string;gloss_zh_tw?:string}
 export interface GroupedDictionaryPage {items:GroupedDictionaryItem[];has_more:boolean;page:number;total?:number}
 export async function searchGrouping(client:Pick<SupabaseClient,'rpc'>,kind:'prefix'|'root',query:string,page:number,category:string):Promise<GroupedDictionaryPage>{
+  if(offline())throw new Error('此分類或關聯搜尋尚未離線保存，請連線後閱讀。');
   const args={query_text:query,page_number:page,primary_category_filter:category};
   const {data,error}=kind==='prefix'?await client.rpc('search_prefix_dictionary',args):await client.rpc('search_grouped_dictionary',{...args,category:'root'});
   if(error)throw new Error('分類暫時無法讀取，請稍後重試或確認分類資料服務已啟用。');

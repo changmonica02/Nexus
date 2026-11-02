@@ -24,7 +24,7 @@ async function publicRequest<T>(key:string,load:()=>Promise<T>,errorMessage:stri
   }
   try {
     const result=await load();
-    if(result!==null && result!==undefined)void savePublicCache(key,result);
+    await savePublicCache(key,result);
     return result;
   } catch {
     // Do not hide server-side publication changes behind stale content while online.

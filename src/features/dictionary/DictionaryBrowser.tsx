@@ -5,7 +5,8 @@ import {usePagedList} from '../../components/pagination/usePagedList';
 
 import {inflectionLabels} from './inflections';
 import Link from 'next/link';
-import {useRouter,useSearchParams} from 'next/navigation';
+import {usePathname,useRouter,useSearchParams} from 'next/navigation';
+import {offline} from './publicCache';
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {DictionaryWorkspace} from './DictionaryAdmin';
 import {loadBrowsePage,readerNeighbours,swipeDirection} from './readerNavigation';
@@ -91,10 +92,11 @@ function Content({path,admin}:{path:string[];admin:boolean}){
   const [result,setResult]=useState<{key:string;list?:DictionaryPage;candidates?:DictionaryCandidate[];detail?:PublishedDetail|null;error?:string}|null>(null);
   const id=path[0],from=`/dictionary${id?`/${id}`:''}${params.size?`?${params}`:''}`;
   const key=JSON.stringify([id,kind,query,page,component,sense,variant,category,retry,params.get('edit')]);
-  const change=(values:Record<string,string>)=>{const next=new URLSearchParams(params);for(const [k,v]of Object.entries(values)){if(v)next.set(k,v);else next.delete(k);}router.push(`/dictionary?${next}`);};
+  const change=(values:Record<string,string>)=>{const next=new URLSearchParams(params);for(const [k,v]of Object.entries(values)){if(v)next.set(k,v);else next.delete(k);}const href=`/dictionary?${next}`;if(offline())window.history.pushState(null,'',href);else router.push(href);};
   useEffect(()=>setInput(query),[query]);
+  useEffect(()=>{const refresh=()=>setRetry(n=>n+1);window.addEventListener('online',refresh);return()=>window.removeEventListener('online',refresh);},[]);
   useEffect(()=>{if(!id)return;let active=true;void readPublishedEntry(getSupabase()!,id).then(detail=>{if(active)setResult({key,detail});}).catch(e=>{if(active)setResult({key,error:String(e)});});return()=>{active=false;};},[id,key]);
-  const browse=usePagedList(JSON.stringify([kind,query,component,sense,variant,category,id]),page,20,async p=>{
+  const browse=usePagedList(JSON.stringify([kind,query,component,sense,variant,category,id,retry]),page,20,async p=>{
     if(id||(kind!=='all'&&kind!=='word'&&!variant))return {items:[],has_more:false,total:undefined,page:p,candidates:[]};
     const list=await loadBrowsePage(getSupabase()!,from,p);
     const details=await Promise.all(list.items.map(e=>readPublishedEntry(getSupabase()!,e.id)));
@@ -126,7 +128,7 @@ function ReaderEntry({id,data,from,admin}:{id:string;data:PublishedDetail|null;f
  const [neighbours,setNeighbours]=useState<{previous:string|null;next:string|null}>({previous:null,next:null}),[error,setError]=useState('');
  const [activeSense,setActiveSense]=useState<string|undefined>(undefined);
  useEffect(()=>{const read=()=>setActiveSense(window.location.hash.replace('#sense-','')||undefined);read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[]);
- const move=(href:string)=>{setActiveSense(new URL(href,'https://nexus.invalid').hash.replace('#sense-','')||undefined);router.push(href);};
+ const move=(href:string)=>{setActiveSense(new URL(href,'https://nexus.invalid').hash.replace('#sense-','')||undefined);if(offline())window.history.pushState(null,'',href);else router.push(href);};
  const start=useRef<{x:number;y:number;time:number}|null>(null);
  useEffect(()=>{let active=true;setNeighbours({previous:null,next:null});setError('');if(data&&!editing)void readerNeighbours(getSupabase()!,id,data.entry.headword,params.get('from'),activeSense).then(n=>{if(active)setNeighbours(n);}).catch(()=>{if(active)setError('相鄰詞條暫時無法讀取，仍可返回搜尋結果。');});return()=>{active=false;};},[id,data,editing,params,activeSense]);
  if(editing)return <><Link className="mb-4 inline-block underline" href={from.replace(/([?&])edit=1(&|$)/,(_,a,b)=>b?a:'').replace(/[?&]$/,'')}>結束編輯，返回詞條</Link><DictionaryWorkspace key={id} entryId={id} embedded/></>;
@@ -136,14 +138,24 @@ function ReaderEntry({id,data,from,admin}:{id:string;data:PublishedDetail|null;f
  </div>;
 }
 export default function DictionaryBrowser({path}:{path:string[]}){
-  const params=useSearchParams();
+  const params=useSearchParams(),pathname=usePathname();
+  path=pathname?.startsWith('/dictionary')?pathname.slice('/dictionary'.length).split('/').filter(Boolean):path;
   const from=params.get('from');
   const back=dictionaryReturn(from,path.length?'/dictionary':'/study');
   const [client]=useState(getSupabase),[owner,setOwner]=useState<string|null|undefined>(undefined);
   const [admin,setAdmin]=useState<{owner:string;allowed:boolean}|null>(null);
   useEffect(()=>{if(!client)return;const {data}=client.auth.onAuthStateChange((_event,session)=>setOwner(session?.user.id??null));return()=>data.subscription.unsubscribe();},[client]);
-  useEffect(()=>{if(!client||!owner)return;let active=true;void client.rpc('is_dictionary_admin').then(({data,error})=>{if(active)setAdmin({owner,allowed:!error&&data===true});});return()=>{active=false;};},[client,owner]);
-  return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><nav className="mb-6 flex flex-wrap justify-between gap-3 border-b pb-4"><div className="flex items-center gap-2"><SidebarToggle/><Link href={back}>{back==='/study'?"← 字卡首頁":"← 返回上一頁"}</Link></div>{owner&&admin?.owner===owner&&admin.allowed&&<Link href="/dictionary/admin" className="underline">管理字典</Link>}</nav>
+  useEffect(()=>{if(!client||!owner||offline())return;let active=true;void client.rpc('is_dictionary_admin').then(({data,error})=>{if(active)setAdmin({owner,allowed:!error&&data===true});});return()=>{active=false;};},[client,owner]);
+  return <main onClickCapture={event=>{
+    if(!offline()||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    const link=(event.target as Element).closest<HTMLAnchorElement>('a[href]');
+    if(!link||link.target||link.hasAttribute('download'))return;
+    const url=new URL(link.href,location.href);
+    if(url.origin!==location.origin||!/^\/dictionary(?:\/[^/]+)?$/.test(url.pathname)||url.pathname==='/dictionary/admin'||url.searchParams.has('edit'))return;
+    event.preventDefault();event.stopPropagation();
+    // Public reading stays in the loaded client UI: no Next RSC fetch is needed offline.
+    window.history.pushState(null,'',url.pathname+url.search+url.hash);
+  }} className="h-full min-w-0 flex-1 overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><nav className="mb-6 flex flex-wrap justify-between gap-3 border-b pb-4"><div className="flex items-center gap-2"><SidebarToggle/><Link href={back}>{back==='/study'?"← 字卡首頁":"← 返回上一頁"}</Link></div>{owner&&admin?.owner===owner&&admin.allowed&&<Link href="/dictionary/admin" className="underline">管理字典</Link>}</nav>
     {!client?<p>資料服務尚未設定，字典目前無法讀取。</p>:owner===undefined?<p role="status">正在確認登入…</p>:!owner?<p>請先回到 Nexus 登入，再搜尋字典。</p>:<Content key={owner} path={path} admin={!!(admin?.owner===owner&&admin.allowed)}/>}
   </div></main>;
 }
