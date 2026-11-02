@@ -109,7 +109,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     await page.waitForTimeout(250);const box=await frame.locator('#map').boundingBox();
     await page.mouse.click(box.x+box.width*x,box.y+box.height*y);
   };
-  const waitMapLayout=()=>frame.waitForFunction(()=>Math.abs(document.getElementById('map').getBoundingClientRect().height-innerHeight)<1);
+  // Let the existing asynchronous iframe configuration and resize settle before pointer coordinates are used.
+  const waitMapLayout=async()=>{await page.waitForTimeout(250);await frame.waitForFunction(()=>Math.abs(document.getElementById('map').getBoundingClientRect().height-innerHeight)<1);await frame.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
   const readTowns=()=>page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return {entities:w.character_data.world_entities??[],maps:w.character_data.world_maps};});
   await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.waitFor();
@@ -488,7 +489,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     await frame.evaluate(async size=>{await window.generateMapOnLoad(size);}, {width,height});
     await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
     await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
-    await page.getByRole('button',{name:'Reset view',exact:true}).click();await page.waitForTimeout(200);
+    await page.getByRole('button',{name:'Reset view',exact:true}).click();await frame.waitForFunction(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return z.x>=-1&&z.y>=-1&&z.x+w*z.k<=m.width.baseVal.value+1&&z.y+h*z.k<=m.height.baseVal.value+1&&Math.abs(z.k-Math.min(m.width.baseVal.value/w,m.height.baseVal.value/h))<0.0001;});
     const bounds=await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return {left:z.x,top:z.y,right:z.x+w*z.k,bottom:z.y+h*z.k,vw:m.width.baseVal.value,vh:m.height.baseVal.value,k:z.k,w,h};});
     assert.equal(bounds.w,width);assert.equal(bounds.h,height);
     assert.ok(bounds.left>=-1&&bounds.top>=-1&&bounds.right<=bounds.vw+1&&bounds.bottom<=bounds.vh+1,'all four map edges fit inside the container');
@@ -568,7 +569,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal((await readTowns()).entities.find(e=>e.name==='North Province').relations.find(r=>r.type==='parent').entityId,countryId);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   // Explicit world scope does not claim calibrated spherical km², even with a known width.
-  await page.getByLabel('Map scope',{exact:true}).selectOption('world');await page.waitForTimeout(400);
+  await page.getByLabel('Map scope',{exact:true}).selectOption('world');await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.includes('North Union')&&!b.textContent.includes('km²')));
   await page.getByRole('button',{name:/North Union/}).waitFor();assert.doesNotMatch(await page.getByRole('button',{name:/North Union/}).innerText(),/km²/);
   await page.evaluate(async()=>{const backup=await mapStorage.exportWorkspaceBackup();await mapStorage.importWorkspaceBackup(backup);});await page.reload();
   await page.getByLabel('Selected map',{exact:true}).selectOption(regionMapId);await page.getByRole('button',{name:/North Union/}).waitFor();
