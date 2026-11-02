@@ -21,8 +21,10 @@ export async function previewNaturalHeightmap(value:Partial<NaturalConfig>):Prom
     const graph=Grid.generate(config.seed,config.width,config.height,Math.min(config.points,5000));
     const shape={width:config.width,height:config.height,points:Math.min(config.points,5000)};
     const heights=config.template in heightmapTemplates?HeightmapGenerator.fromTemplate(graph,config.template,shape):await HeightmapGenerator.fromPrecreated(graph,config.template,shape);
-    const url=drawHeights({heights,width:graph.cellsX,height:graph.cellsY,scheme:HeightmapColorSchemes.get('spectral'),renderOcean:true});
-    return await (await fetch(url)).blob();
+    const url=drawHeights({heights,width:graph.cellsX,height:graph.cellsY,scheme:HeightmapColorSchemes.get('bright'),renderOcean:true});
+    const blob=await (await fetch(url)).blob();
+    if(blob.type!=='image/png'||!blob.size)throw Error('Heightmap preview PNG encoding failed');
+    return blob;
   }finally{HeightmapGenerator.clearData();Math.random=random;}
 }
 const views:Record<string,LayerId[]>={physical:['heightmap','ice'],contours:['heightmap'],temperature:['temperature'],precipitation:['precipitation'],biomes:['biomes'],political:['states'],cultural:['cultures'],religions:['religions']};

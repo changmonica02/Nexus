@@ -338,14 +338,18 @@ export const drawHeights = ({
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d")!;
+  if(!Number.isInteger(width)||!Number.isInteger(height)||width<=0||height<=0||heights.length!==width*height)throw Error("Invalid heightmap preview dimensions");
+  const ctx = canvas.getContext("2d");
+  if(!ctx)throw Error("Heightmap preview Canvas is unavailable");
   const imageData = ctx.createImageData(width, height);
 
   const getHeight = (height: number) => (height < 20 ? (renderOcean ? height : 0) : height);
 
   for (let i = 0; i < heights.length; i++) {
     const colorScheme = scheme(1 - getHeight(heights[i]) / 100);
-    const { r, g, b } = color(colorScheme)?.rgb() ?? { r: 0, g: 0, b: 0 };
+    const rgb = color(colorScheme)?.rgb();
+    if(!rgb||![rgb.r,rgb.g,rgb.b].every(Number.isFinite))throw Error("Invalid heightmap preview color");
+    const { r, g, b } = rgb;
 
     const n = i * 4;
     imageData.data[n] = r;

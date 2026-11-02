@@ -17,7 +17,7 @@ const patch = async (file, before, after) => {
   if (!text.includes(before) || text.indexOf(before) !== text.lastIndexOf(before)) throw Error(`Fork adapter anchor changed: ${file}`);
   await writeFile(target, text.replace(before, after));
 };
-await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-storage.js"></script><script src="./nexus-i18n.js"></script>');
+await patch('src/index.html', '<head>', '<head>\n<script src="./nexus-assets.js"></script><script src="./nexus-storage.js"></script><script src="./nexus-i18n.js"></script>');
 await patch('src/main.ts', 'document.addEventListener("DOMContentLoaded", boot);', 'import "./nexus-bridge";\ndocument.addEventListener("DOMContentLoaded", boot);');
 await patch('src/services/platform.ts', 'export function registerServiceWorker(): void {', 'export function registerServiceWorker(): void {\n  if (window.parent !== window) return;');
 await patch('src/components/shell.ts', '  if (location.hostname) return false;', '  if (location.hostname || window.parent !== window) return false;');
@@ -54,6 +54,9 @@ run('npx',['vite','build','--base=/world-map/core/']);
 const output = path.join(root, 'public/world-map/core');
 await rm(output, { recursive: true, force: true });
 await cp(path.join(work, 'dist'), output, { recursive: true });
+// WebKit cannot fetch same-site heightmaps directly from an opaque sandbox.
+// Reuse the existing cache-only public broker; offline documents install it themselves.
+await build({stdin:{contents:`import {assetBroker} from './src/features/worldMap/offlineCore';const session=new URL(location.href).searchParams.get('nexus');if(session)assetBroker(session,new URL('./',location.href).href,true);`,resolveDir:root},bundle:true,format:'iife',target:'es2022',outfile:path.join(output,'nexus-assets.js')});
 await cp(path.join(source, 'LICENSE'), path.join(output, 'AZGAAR-LICENSE.txt'));
 await cp(path.join(source, 'NEXUS-SOURCE.json'), path.join(output, 'NEXUS-SOURCE.json'));
 const packages = JSON.parse(lock.toString()).packages;
