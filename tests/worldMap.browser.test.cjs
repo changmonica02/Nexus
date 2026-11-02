@@ -1,4 +1,5 @@
 require('./loadStudy.cjs');
+const {setNetwork}=require('./pwaBrowser.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),os=require('node:os');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 const {worldMapHeaders}=require('../next.config.ts');
@@ -22,7 +23,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.close();fs.rmSync(tmp,{recursive:true,force:true});});
   const browser=await chromium.launch({headless:true,executablePath:process.env.BROWSER_EXECUTABLE||undefined});t.after(()=>browser.close());
-  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,hasTouch:true}),page=await context.newPage();
+  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true,hasTouch:true,ignoreHTTPSErrors:process.env.MAP_TEST_TRUST_PROXY==='1'}),page=await context.newPage();
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('pageerror:',e.message);});page.on('console',m=>{if(m.type()==='error')console.log('browser:',m.text().slice(0,350));});
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
@@ -72,13 +73,17 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.ok(frame);
+  const openWorldTools=async()=>{if(!await editor.locator('[data-world-tools]').evaluate(el=>el.open))await editor.locator('[data-world-tools] > summary').click();};
+  const openExports=async()=>{if(!await editor.locator('[data-map-export]').evaluate(el=>el.open))await editor.locator('[data-map-export] > summary').click();};
   assert.equal(await frame.evaluate(()=>{try{void parent.document.body;return false;}catch{return true;}}),true,'core cannot access Nexus document');
   assert.equal(await frame.evaluate(()=>localStorage.getItem('nexus-owner')),null);
   assert.equal(await frame.locator('#aboutTab,#aboutContent,#tourPromptButton,#loading,#regenerate,#newMapButton,#saveButton,#loadButton,#saveMapData,#loadMapData,#mapToLoad,#loadGoogleTranslateButton,#autosaveIntervalInput,#onloadBehavior,#optionsReset').count(),0);
   assert.equal(await frame.locator('a[href*="patreon"],a[href*="discord"],a[href*="reddit"],a[href*="deorum"],a[href*="u24.gov.ua"]').count(),0);
+  if(!await editor.locator('[data-map-more]').evaluate(el=>el.open))await editor.locator('[data-map-more] > summary').click();
   await editor.locator('summary').filter({hasText:'Third-party licenses'}).click();
   assert.equal(await editor.getByRole('link',{name:'MIT License',exact:true}).getAttribute('href'),'/world-map/core/AZGAAR-LICENSE.txt');
   await editor.locator('summary').filter({hasText:'Third-party licenses'}).click();
+  await editor.locator('[data-map-more] > summary').click();
   assert.match(fs.readFileSync(path.join(core,'AZGAAR-LICENSE.txt'),'utf8'),/Copyright/);
   assert.match(fs.readFileSync(path.join(core,'THIRD-PARTY-NOTICES.txt'),'utf8'),/fake-indexeddb/);
   // The old first-visit announcement ran after six seconds.
@@ -104,15 +109,16 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     await page.waitForTimeout(250);const box=await frame.locator('#map').boundingBox();
     await page.mouse.click(box.x+box.width*x,box.y+box.height*y);
   };
+  const waitMapLayout=()=>frame.waitForFunction(()=>Math.abs(document.getElementById('map').getBoundingClientRect().height-innerHeight)<1);
   const readTowns=()=>page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return {entities:w.character_data.world_entities??[],maps:w.character_data.world_maps};});
-  await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
+  await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.waitFor();
   for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){await page.setViewportSize(viewport);const layout=await townForm.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,viewport:innerWidth,scroll:el.scrollWidth,client:el.clientWidth};});assert.ok(layout.left>=-1&&layout.right<=layout.viewport+1&&layout.scroll<=layout.client+1,'entry dialog fits viewport '+JSON.stringify(layout));}
   await page.getByRole('button',{name:'繁體中文',exact:true}).evaluate(el=>el.click());await page.getByLabel('城鎮名稱',{exact:true}).waitFor();
   await page.getByRole('button',{name:'English',exact:true}).evaluate(el=>el.click());
   await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
   assert.equal((await readTowns()).entities.length,0,'cancel point form leaves no entity');
-  await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
+  await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await clickMapPoint();
   await townForm.getByLabel('Town name',{exact:true}).fill('Canonical Harbor');
   await townForm.getByLabel('Short description',{exact:true}).fill('One official record');
   await townForm.locator('[contenteditable=true]').fill('Harbor chronicle');
@@ -124,7 +130,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(townCreated.entities.length,1);assert.equal(townCreated.maps[0].placements[0].entityId,townId);
   assert.match(JSON.stringify(townCreated.entities[0].content),/Harbor chronicle/,'Tiptap details are saved in the canonical entry');
   await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).waitFor();
-  await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.waitFor();
+  await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.waitFor();
   await townPanel.getByText('Canonical Harbor',{exact:true}).waitFor();
   await townPanel.getByRole('button',{name:'Add town',exact:true}).click();
   await townForm.getByLabel('Town name',{exact:true}).fill('Unplaced Town');
@@ -133,17 +139,17 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await unplaced.getByRole('button',{name:'Place on selected map',exact:true}).click();await clickMapPoint(0.7,0.7);
   await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).waitFor();
   // Both entrances edit the same canonical entry; no copy of the body is sent to the core.
-  await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).click();
+  await waitMapLayout();await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).click();
   await markerDialog.getByRole('button',{name:'Open world entry',exact:true}).click();
   await townForm.getByLabel('Town name',{exact:true}).fill('Renamed Harbor');
   await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
   await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).waitFor();
   const beforeMove=(await readTowns()).entities;
-  await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).click();
+  await waitMapLayout();await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).click();
   await markerDialog.getByRole('button',{name:'Move marker',exact:true}).click();await clickMapPoint(0.6,0.75);
   await page.waitForTimeout(300);assert.deepEqual((await readTowns()).entities,beforeMove,'moving never alters canonical body');
   assert.notDeepEqual((await readTowns()).maps[0].placements[0].geometry,townCreated.maps[0].placements[0].geometry);
-  await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).click();
+  await waitMapLayout();await frame.locator('#nexus-placements text').filter({hasText:'Unplaced Town'}).click();
   await markerDialog.getByRole('button',{name:'Remove from this map',exact:true}).click();
   await page.getByRole('button',{name:'Confirm',exact:true}).click();await markerDialog.waitFor({state:'detached'});
   assert.equal((await readTowns()).entities.length,2,'removing marker retains entry');
@@ -222,6 +228,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(()=>closeDialogs());
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   const geography=await dataDigest();
+  await openExports();
   for(const type of ['SVG','PNG']){
     const pending=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();
     const download=await pending,file=path.join(tmp,'natural.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000,'natural '+type+' export');if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/Manager Harbor/,'SVG includes canonical town label');
@@ -254,8 +261,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Temporary unsaved name','removed standalone shortcuts cannot replace the project');
   await frame.evaluate(async()=>Services.Load.quickLoad());
   await frame.waitForFunction(id=>pack.burgs[id].name==='Nexus Port',burgId);
+  await openExports();
   let downloadEvent=page.waitForEvent('download');await editor.getByRole('button',{name:'.map ↓',exact:true}).click();
   const native=await downloadEvent,file=path.join(tmp,'roundtrip.map');await native.saveAs(file);assert.ok(fs.statSync(file).size>10000);
+  await openExports();
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   const firstSession=await frame.evaluate(()=>location.href);
@@ -403,7 +412,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Recovery Port');
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
-  await context.setOffline(true);
+  await context.setOffline(true);await setNetwork(page,true);
   await frame.evaluate(id=>{pack.burgs[id].name='Offline Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
@@ -411,7 +420,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Offline Port');
-  await context.setOffline(false);await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
+  await context.setOffline(false);await setNetwork(page,false);await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await openManage();await manage.locator('input[type=file]').setInputFiles(file);await confirmName('Atlas Imported');
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Nexus Port');
@@ -505,13 +514,13 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await adminForm.getByRole('button',{name:'Save entry',exact:true}).click();await adminForm.waitFor({state:'detached'});
   await townPanel.getByRole('button',{name:'Close panel',exact:true}).click();
   await page.getByRole('button',{name:'Edit map',exact:true}).click();
-  await editor.getByRole('button',{name:'Add country',exact:true}).click();
+  await openWorldTools();await editor.getByRole('button',{name:'Add country',exact:true}).click();
   await countryForm.getByLabel('Name',{exact:true}).fill('Cancelled Realm');
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
   const paintTools=page.getByLabel('Territory painting',{exact:true}),areaOutput=page.getByLabel('Territory area',{exact:true});
   await paintTools.waitFor();await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled Realm'),false,'cancelled map creation leaves no country');
-  await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();
+  await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
   await townPanel.locator('li').filter({hasText:'North Republic'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
   await areaOutput.waitFor();await page.waitForTimeout(250);
@@ -534,7 +543,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await dataDigest(),politicalDigest,'territory painting never changes geography or native civilization');
   assert.ok(await frame.evaluate(cells=>{const unseen=new Set(cells);let n=0;while(unseen.size){n++;const queue=[unseen.values().next().value];unseen.delete(queue[0]);while(queue.length){for(const c of pack.cells.c[queue.pop()])if(unseen.delete(c))queue.push(c);}}return n>=2;},territory.geometry.cells),'detached territories are supported');
   // Direct map creation remains a candidate, then atomically creates the country and transfers explicitly confirmed overlap.
-  await editor.getByRole('button',{name:'Add country',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('South Realm');
+  await openWorldTools();await editor.getByRole('button',{name:'Add country',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('South Realm');
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});await areaOutput.waitFor();
   assert.equal((await readTowns()).entities.some(e=>e.name==='South Realm'),false);
   await stroke(candidates[0]);await paintTools.getByRole('alert').filter({hasText:'Overlaps these countries:'}).waitFor();
@@ -550,7 +559,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[1]);
   await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===territory.placementId).geometry,territory.geometry,'cancelled edit preserves saved geometry');
-  await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
+  await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
   await townPanel.locator('li').filter({hasText:'North Province'}).getByRole('button',{name:'Place on selected map',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
   await stroke(candidates[0]);await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
   await editor.getByRole('alert').filter({hasText:'Administrative territory extends outside its parent.'}).waitFor();
@@ -566,11 +575,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.match(JSON.stringify((await readTowns()).entities.find(e=>e.entityId===countryId).content),/Constitution and history/);
   // Real one-finger drawing in explicit paint mode; offline confirmation stays in local Page/outbox.
   await page.getByRole('button',{name:/North Union/}).click();await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
-  await context.setOffline(true);await page.setViewportSize({width:390,height:844});await page.waitForTimeout(400);
+  await context.setOffline(true);await setNetwork(page,true);await page.setViewportSize({width:390,height:844});await page.waitForTimeout(400);
   const phoneBefore=await areaOutput.innerText(),phoneExisting=(await readTowns()).maps.find(m=>m.id===regionMapId).placements.find(p=>p.entityId===countryId&&p.deletedAt===null).geometry.cells;
   const phoneCell=await frame.evaluate(existing=>{const z=document.querySelector('#map').__zoom;return pack.cells.i.find(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return !existing.includes(i)&&pack.cells.h[i]>=20&&x>25&&x<innerWidth-25&&y>50&&y<innerHeight-30&&document.elementFromPoint(x,y)?.closest('#viewbox');});},phoneExisting);
   assert.notEqual(phoneCell,undefined,'mobile painting retains visible map space');await stroke(phoneCell,true);assert.notEqual(await areaOutput.innerText(),phoneBefore,'one-finger touch changes only the explicit region candidate');
-  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await page.waitForTimeout(100);if(await page.getByRole('button',{name:'Confirm',exact:true}).isVisible())await page.getByRole('button',{name:'Confirm',exact:true}).click();await paintTools.waitFor({state:'detached'});await context.setOffline(false);await page.setViewportSize({width:1440,height:1000});
+  await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await page.waitForTimeout(100);if(await page.getByRole('button',{name:'Confirm',exact:true}).isVisible())await page.getByRole('button',{name:'Confirm',exact:true}).click();await paintTools.waitFor({state:'detached'});await context.setOffline(false);await setNetwork(page,false);await page.setViewportSize({width:1440,height:1000});
   const finalEntity=(await readTowns()).entities.find(e=>e.entityId===countryId);assert.match(JSON.stringify(finalEntity.content),/Constitution and history/);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:/North Province/}).click();await regionInfo.getByRole('button',{name:'Remove from this map',exact:true}).click();await page.getByRole('button',{name:'Confirm',exact:true}).click();await regionInfo.waitFor({state:'detached'});
@@ -593,7 +602,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const distributionNames=['Dusk culture','Night culture','Sun faith','Moon faith','River faith'];
   for(const name of distributionNames){
     const type=name.endsWith('culture')?'culture':'religion',form=type==='culture'?cultureForm:faithForm;
-    await editor.getByRole('button',{name:type==='culture'?'Add culture':'Add religion',exact:true}).click();await form.getByLabel('Name',{exact:true}).fill(name);
+    await openWorldTools();await editor.getByRole('button',{name:type==='culture'?'Add culture':'Add religion',exact:true}).click();await form.getByLabel('Name',{exact:true}).fill(name);
     await form.getByRole('button',{name:'Save entry',exact:true}).click();await form.waitFor({state:'detached'});await areaOutput.waitFor();await page.waitForTimeout(120);
     assert.equal((await readTowns()).entities.some(e=>e.name===name),false,'new entry remains ephemeral before distribution confirmation');
     await stroke(candidates[0]);await stroke(candidates[1]);await paintTools.getByRole('button',{name:'Save territory',exact:true}).click();await paintTools.waitFor({state:'detached'});
@@ -604,7 +613,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await dataDigest(),distributionDigest);
   const dawnPlacement=distributionMap.placements.find(p=>p.entityId===dawn.entityId&&p.deletedAt===null),overlapCell=dawnPlacement.geometry.cells.find(c=>distributionMap.placements.filter(p=>p.geometry.type==='cells'&&p.deletedAt===null&&p.geometry.cells.includes(c)&&['culture','religion'].includes(distributions.entities.find(e=>e.entityId===p.entityId)?.type)).length===6);
   assert.notEqual(overlapCell,undefined,'three cultures and three religions occupy the same cell');
-  await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');await frame.waitForFunction(()=>document.querySelector('#nexus-regions [data-members]'));
+  await openWorldTools();await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');await frame.waitForFunction(()=>document.querySelector('#nexus-regions [data-members]'));
   const mixed=await frame.evaluate(()=>[...document.querySelectorAll('#nexus-regions [data-members]')].map(e=>({members:e.dataset.members,fill:e.getAttribute('fill')})));
   assert.ok(mixed.some(x=>x.members.split(' ').length===3),'commutative mixed fills represent all three cultures');
   const legend=editor.getByRole('region',{name:'Distribution legend',exact:true});
@@ -617,7 +626,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await queryDialog.getByRole('button',{name:/Dawn culture/}).click();await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();
   await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn renamed');await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
   await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
-  await editor.getByRole('button',{name:'Add town',exact:true}).click();await page.waitForTimeout(150);
+  await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await page.waitForTimeout(150);
   await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
   assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
@@ -628,13 +637,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent!==v,savedCultureArea);
   await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements,distributionSaved,'cancel restores all confirmed overlapping distributions');
-  await editor.getByRole('button',{name:'Add religion',exact:true}).click();await faithForm.getByLabel('Name',{exact:true}).fill('Cancelled faith');await faithForm.getByRole('button',{name:'Save entry',exact:true}).click();await faithForm.waitFor({state:'detached'});await areaOutput.waitFor();
+  await openWorldTools();await editor.getByRole('button',{name:'Add religion',exact:true}).click();await faithForm.getByLabel('Name',{exact:true}).fill('Cancelled faith');await faithForm.getByRole('button',{name:'Save entry',exact:true}).click();await faithForm.waitFor({state:'detached'});await areaOutput.waitFor();
   await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled faith'),false);
-  await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');
+  await openWorldTools();await editor.getByLabel('Map view',{exact:true}).selectOption('cultural');
   // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
+  await openExports();
   for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download');await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
   assert.equal(await frame.evaluate(async()=>{const text=await Services.Save.prepareMapData();return String(text).includes('nexus-regions');}),false);
-  await editor.getByLabel('Map view',{exact:true}).selectOption('religions');await legend.getByLabel('Visible Moon faith',{exact:true}).waitFor();
+  await openWorldTools();await editor.getByLabel('Map view',{exact:true}).selectOption('religions');await legend.getByLabel('Visible Moon faith',{exact:true}).waitFor();
   assert.equal(await dataDigest(),distributionDigest);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.evaluate(async()=>{const b=await mapStorage.exportWorkspaceBackup();await mapStorage.importWorkspaceBackup(b);});await page.reload();

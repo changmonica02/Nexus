@@ -198,17 +198,31 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const exportProject=()=>{void(async()=>{const project=ready.current&&readyDocument.current?.id===map.id&&readyDocument.current.blob===blob?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   const toggleFullscreen=()=>{void (async()=>{await captureView();if(document.fullscreenElement===surface.current)await document.exitFullscreen();else if(expanded)setExpanded(false);else if(surface.current?.requestFullscreen){try{await surface.current.requestFullscreen();}catch{setExpanded(true);}}else setExpanded(true);})().catch(report);};
   const resetView=()=>void client.current?.request('configure',undefined,{fit:true}).catch(report);
+  const closeMenus=()=>surface.current?.querySelectorAll<HTMLDetailsElement>('[data-map-export][open],[data-map-more][open]').forEach(menu=>{menu.open=false;});
   const localLabel=t(status);
   const cloudLabel=cloudState?(cloudState.error||cloudState.status==='error'?t('worldMap.syncFailed'):cloudState.status==='syncing'?t('worldMap.syncing'):cloudState.status==='offline'?t('worldMap.offline'):cloudState.pendingPushes? t('worldMap.waitingSync'):cloudState.status==='connected'?t('worldMap.connected'):null):null;
   return <div ref={surface} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={editing?t('worldMap.editor10'):t('worldMap.preview')}
-    onKeyDown={event=>{if(!editing&&fullView&&event.key==='Escape'){event.preventDefault();if(expanded)setExpanded(false);}if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if((editing||fullView)&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),summary,a,iframe');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
+    onPointerDownCapture={event=>{if(!(event.target as Element).closest('[data-map-export],[data-map-more]'))closeMenus();}}
+    onKeyDown={event=>{if(event.key==='Escape'&&surface.current?.querySelector('[data-map-export][open],[data-map-more][open]')){event.preventDefault();event.stopPropagation();closeMenus();return;}if(!editing&&fullView&&event.key==='Escape'){event.preventDefault();if(expanded)setExpanded(false);}if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if((editing||fullView)&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),summary,a,iframe');const visible=buttons?Array.from(buttons).filter(el=>el.getClientRects().length>0):[];if(!visible.length)return;const first=visible[0],last=visible[visible.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
     className={editing||fullView?'fixed inset-0 z-50 m-0 flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
     {editing&&<header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
       <button type="button" onClick={close} disabled={busy}>{t('worldMap.editor11')}</button>
-      <strong className="mr-auto min-w-0 truncate">{map.title}</strong>
+      <strong className="mr-auto min-w-0 flex-1 truncate">{map.title}</strong>
+      <button type="button" disabled={!available||busy||Boolean(conflict)} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
+      <nav aria-label={t('worldMap.actions')} className="ml-auto flex shrink-0 gap-2">
+      <details data-map-export name="world-map-header" className="relative">
+        <summary className="min-h-11 cursor-pointer rounded border px-3 py-2">{t('worldMap.export')}</summary>
+        <div className="absolute right-0 top-full z-30 grid w-44 max-w-[85vw] gap-2 rounded border bg-[var(--color-bg)] p-2 shadow-lg">
+      <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
+      {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
+        </div>
+      </details>
+      <details data-map-more name="world-map-header" className="relative">
+        <summary className="min-h-11 cursor-pointer rounded border px-3 py-2">{t('worldMap.actions')}</summary>
+        <div className="absolute right-0 top-full z-30 w-72 max-w-[85vw] rounded border bg-[var(--color-bg)] p-2 shadow-lg">
       <details className="relative">
         <summary className="cursor-pointer rounded border px-3 py-2">{t('worldMap.licenses')}</summary>
-        <section aria-label={t('worldMap.licenses')} className="absolute right-0 top-full z-20 w-72 max-w-[85vw] rounded border bg-[var(--color-bg)] p-3 shadow-lg">
+        <section aria-label={t('worldMap.licenses')} className="p-3">
           <p>{t('worldMap.attribution')}</p>
           <ul className="list-inside list-disc [&_a]:underline">
             <li><a href="https://github.com/Azgaar/Fantasy-Map-Generator/tree/b4a0dcb933586a57242508f558f775da16c35c64" target="_blank" rel="noreferrer">{t('worldMap.source')}</a></li>
@@ -217,9 +231,9 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
           </ul>
         </section>
       </details>
-      <button type="button" disabled={!available||busy||Boolean(conflict)} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
-      <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
-      {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
+        </div>
+      </details>
+      </nav>
     </header>}
     {editing&&humanTools&&<fieldset disabled={!available||busy} className="m-0 min-w-0 border-0 p-0">{humanTools}</fieldset>}
     {error&&<div role="alert" className="shrink-0 bg-red-50 p-3 text-sm text-red-800">{mapMessage(language,error)}<br/>{t('worldMap.editor17')}</div>}
@@ -229,7 +243,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
     <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
-      <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
+      <iframe ref={frame} onFocus={closeMenus} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>
         <button type="button" aria-label={t(fullView?'worldMap.exitFullscreen':'worldMap.fullscreen')} title={t(fullView?'worldMap.exitFullscreen':'worldMap.fullscreen')} onClick={toggleFullscreen} className="absolute right-3 top-3 z-10 grid min-h-11 min-w-11 place-items-center rounded-xl border bg-[var(--color-bg)] shadow-md">{fullView?<Minimize size={20}/>:<Maximize size={20}/>}</button>

@@ -29,6 +29,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('physical');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
  const [entityPanel,setEntityPanel]=useState(false),[entityForm,setEntityForm]=useState<{entity:WorldEntity;fresh:boolean;region?:boolean;point?:{mapId:string;x:number;y:number;placementId:string}}|null>(null);
+ const [toolsOpen,setToolsOpen]=useState(false);
  const [intent,setIntent]=useState<{id:string;kind:'new'|'existing'|'move';entityId?:string;placementId?:string;mapId:string}|null>(null),[markerId,setMarkerId]=useState<string|null>(null);
  const entities=world.character_data?.world_entities;
  const projections=useMemo(()=>projectWorldPlacements(world,selected??maps.find(m=>m.deleted_at===null)?.id??''),[entities,maps,selected,world]);
@@ -117,11 +118,13 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    <button onClick={()=>setMarkerId(r.placementId)}>{t('worldEntity.open')}</button>
   </div>;})}
  </section>:null;
- const humanTools=<div className="flex max-h-[38dvh] min-w-0 shrink-0 overflow-y-auto flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
+ const humanTools=<details data-world-tools open={toolsOpen||!!regionEdit||!!intent} onToggle={event=>setToolsOpen(event.currentTarget.open)} className="min-w-0 border-b">
+  <summary className="min-h-11 cursor-pointer px-3 py-2 font-medium">{t('worldMap.tools')}</summary>
+  <div className="flex max-h-[32dvh] min-w-0 shrink-0 overflow-y-auto flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
    {legend}
    {error&&<p role="alert" className="w-full break-words text-red-600">{mapMessage(language,error)}</p>}
-   <span>{t('worldEntity.human')}</span><select aria-label={t('worldDistribution.view')} value={layer} disabled={!!regionEdit} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(v=><option key={v} value={v}>{t('worldMap.'+v)}</option>)}</select><button disabled={busy||!!regionEdit} onClick={()=>{setIntent({id:crypto.randomUUID(),kind:'new',mapId:current!.id});}}>{t('worldEntity.add')}</button><button disabled={busy||!!regionEdit} onClick={()=>setEntityPanel(true)}>{t('worldEntity.existing')}</button>
-   {(['country','administrative_area','culture','religion'] as const).map(type=><button key={type} disabled={busy||!!regionEdit} onClick={()=>{setIntent(null);setEntityForm({entity:newEntity(type),fresh:true,region:true});}}>{t('worldRegion.add.'+type)}</button>)}
+   <label className="flex min-w-0 flex-wrap items-center gap-2"><span>{t('worldMap.layer')}</span><select aria-label={t('worldDistribution.view')} value={layer} disabled={!!regionEdit} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(v=><option key={v} value={v}>{t('worldMap.'+v)}</option>)}</select></label><div role="group" aria-label={t('worldMap.markers')} className="flex flex-wrap items-center gap-2"><span>{t('worldMap.markers')}</span><button disabled={busy||!!regionEdit} onClick={()=>{setIntent({id:crypto.randomUUID(),kind:'new',mapId:current!.id});}}>{t('worldEntity.add')}</button><button disabled={busy||!!regionEdit} onClick={()=>setEntityPanel(true)}>{t('worldEntity.existing')}</button></div>
+   <div role="group" aria-label={t('worldMap.regions')} className="flex flex-wrap items-center gap-2"><span>{t('worldMap.regions')}</span>{(['country','administrative_area','culture','religion'] as const).map(type=><button key={type} disabled={busy||!!regionEdit} onClick={()=>{setIntent(null);setEntityForm({entity:newEntity(type),fresh:true,region:true});}}>{t('worldRegion.add.'+type)}</button>)}</div>
    {regionEdit&&<div className="flex w-full flex-wrap items-center gap-2" aria-label={t('worldRegion.paint')}><strong>{regionEdit.entity.name}</strong><span>{t('worldRegion.paintHint')}</span>
     <label>{t('worldRegion.brush')}<input aria-label={t('worldRegion.brush')} type="range" min="4" max="100" value={brushRadius} onChange={e=>{setBrushRadius(+e.target.value);dispatchRegion({action:'brush',radius:+e.target.value});}}/></label>
     <label><input type="checkbox" checked={erasing} onChange={e=>{setErasing(e.target.checked);dispatchRegion({action:'brush',erase:e.target.checked});}}/>{t('worldRegion.erase')}</label>
@@ -132,7 +135,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    </div>}
    {warnings.map((warning,index)=><p key={index} role="alert" className="w-full break-words text-amber-700 dark:text-amber-400">{warning.name}: {t('worldRegion.'+warning.key)}</p>)}
    {intent&&<><span role="status">{t('worldEntity.pick')}</span><button disabled={busy} onClick={()=>setIntent(null)}>{t('ui.cancel')}</button></>}
- </div>;
+ </div></details>;
  const scopeName=(value?:string)=>['world','region','town'].includes(value??'world')?t('worldMap.'+(value??'world')):value;
  const details=current?<nav aria-label={t('worldMap.details')} className="shrink-0 px-3 py-4 sm:px-5">
    {legend}
@@ -162,7 +165,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   {current?<>
    <div className="shrink-0 space-y-2 px-3 pb-3 sm:px-5">
     <label className="block min-w-0"><span className="sr-only">{t('worldMap.select')}</span><select aria-label={t('worldMap.select')} className="min-h-11 w-full min-w-0 truncate rounded-xl border bg-[var(--color-bg)] px-3 font-medium sm:max-w-md" value={current.id} disabled={busy||editing} onChange={e=>choose(e.target.value)}>{active.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select></label>
-    <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [&_label]:flex [&_label]:shrink-0 [&_label]:items-center [&_label]:gap-2 [&_label]:rounded-lg [&_label]:border [&_label]:pl-3 [&_label]:text-xs [&_select]:min-h-11 [&_select]:max-w-40 [&_select]:rounded-lg [&_select]:bg-[var(--color-bg)] [&_select]:px-2">
+    <div className="flex min-w-0 flex-wrap gap-2 pb-1 [&_label]:flex [&_label]:shrink-0 [&_label]:items-center [&_label]:gap-2 [&_label]:rounded-lg [&_label]:border [&_label]:pl-3 [&_label]:text-xs [&_select]:min-h-11 [&_select]:max-w-40 [&_select]:rounded-lg [&_select]:bg-[var(--color-bg)] [&_select]:px-2">
      <label>{t('worldMap.scope')}<select aria-label={t('worldMap.scope')} value={scope} disabled={busy||editing||readOnly} onChange={e=>changePresentation(e.target.value,current.parent_map_id??null)}>{scopes.map(s=><option key={s} value={s}>{scopeName(s)}</option>)}</select></label>
      <label>{t('worldMap.layer')}<select aria-label={t('worldMap.layer')} value={layer} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(s=><option key={s} value={s}>{t('worldMap.'+s)}</option>)}</select></label>
     </div>

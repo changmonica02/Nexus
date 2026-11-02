@@ -6,7 +6,7 @@ let language:Language='en',timer:ReturnType<typeof setTimeout>|undefined;
 const originals=new WeakMap<Node,{source:string;applied:string}>();
 const attributes=new WeakMap<Element,Map<string,{source:string;applied:string}>>();
 const excluded='svg,input,textarea,[contenteditable],script,style,#map,#burgsList,#statesList,#culturesList,#religionsList';
-const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','performancePreset','azgaarAssistant','emblemShape']);
+const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','performancePreset','emblemShape']);
 function uiText(source:string):string {
  const key='azgaar.'+source.trim(),value=translate(language,key);
  if(value!==key)return source.replace(source.trim(),value);
