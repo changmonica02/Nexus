@@ -631,7 +631,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
   await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await page.waitForTimeout(150);
   await waitMapLayout();const pickBox=await (await frame.frameElement()).boundingBox(),pickPosition=await frame.evaluate(c=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[c][0]*z.k,y:z.y+pack.cells.p[c][1]*z.k};},overlapCell);
-  await page.mouse.click(pickBox.x+pickPosition.x,pickBox.y+pickPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
+  await page.mouse.click(pickBox.x+pickPosition.x,pickBox.y+pickPosition.y);await townForm.waitFor();
+  // Exercise native dialog cancellation without reusing pointer state from the iframe picker.
+  await townForm.press('Escape');await townForm.waitFor({state:'detached'});
   assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
   await legend.locator('div').filter({has:page.locator('input[aria-label="Visible Dawn renamed"]')}).getByRole('button',{name:'Open world entry',exact:true}).click();
