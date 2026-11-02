@@ -23,11 +23,18 @@ export async function readPublicMapAsset(value:string):Promise<Blob> {
   const url=new URL(value,location.origin+'/world-map/core/');
   if(url.origin!==location.origin||!url.pathname.startsWith('/world-map/core/'))throw Error('Not a public map asset');
   url.hash='';
-  // The broker can return only a pre-cached public file, never fetch an arbitrary
-  // same-origin URL on behalf of imported content (including encoded traversal).
-  for(const name of await caches.keys())if(name.startsWith('nexus-world-map-')){
-    const response=await (await caches.open(name)).match(url.href,{ignoreSearch:true});
-    if(response?.ok)return response.blob();
+  // Never proxy arbitrary same-origin URLs. The sole online exception is a
+  // fixed public heightmap PNG path, without query parameters or credentials.
+  try {
+    for(const name of await caches.keys())if(name.startsWith('nexus-world-map-')){
+      const response=await (await caches.open(name)).match(url.href,{ignoreSearch:true});
+      if(response?.ok)return response.blob();
+    }
+  } catch {/* Online heightmap previews do not require CacheStorage to work. */}
+  if(navigator.onLine&&!url.search&&/^\/world-map\/core\/heightmaps\/[a-z0-9-]+\.png$/.test(url.pathname)){
+    const response=await fetch(url.href,{credentials:'omit',mode:'same-origin'});
+    const blob=await response.blob();
+    if(response.ok&&blob.type==='image/png'&&blob.size)return blob;
   }
   throw Error('Public map asset is not cached: '+url.pathname);
 }
@@ -66,10 +73,10 @@ export async function offlineMapDocument(session:string):Promise<string> {
 }
 
 // This function is serialized into the opaque frame. It has no access to Nexus state.
-function assetBroker(session:string,base:string) {
+export function assetBroker(session:string,base:string,heightmapsOnly=false) {
   let sequence=0;
   const pending=new Map<number,{resolve:(blob:Blob)=>void;reject:(e:Error)=>void}>();
-  const publicURL=(value:string)=>{try{const u=new URL(value,base),b=new URL(base);return u.origin===b.origin&&u.pathname.startsWith(b.pathname)?u:null;}catch{return null;}};
+  const publicURL=(value:string)=>{try{const u=new URL(value,base),b=new URL(base);return u.origin===b.origin&&u.pathname.startsWith(b.pathname)&&(!heightmapsOnly||/^heightmaps\/[a-z0-9-]+\.png$/.test(u.pathname.slice(b.pathname.length)))?u:null;}catch{return null;}};
   window.addEventListener('message',event=>{if(event.source!==parent||event.data?.type!=='nexus-map-asset-result'||event.data.session!==session)return;
     const p=pending.get(event.data.id);if(!p)return;pending.delete(event.data.id);
     if(event.data.blob instanceof Blob)p.resolve(event.data.blob);else p.reject(Error(String(event.data.error)));
@@ -81,6 +88,7 @@ function assetBroker(session:string,base:string) {
     const url=publicURL(value);if(!url)return originalFetch(input,init);
     return new Response(await asset(url.href));
   };
+  if(heightmapsOnly)return;
   const urls=new Map<string,Promise<string>>();
   const imageURL=(url:URL)=>{const key=url.href;if(!urls.has(key))urls.set(key,asset(key).then(blob=>URL.createObjectURL(blob)+url.hash));return urls.get(key)!;};
   const descriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src')!;

@@ -42,7 +42,18 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
  useEffect(()=>{
    if(!connected||creating)return;
    let live=true,url='';const signature=JSON.stringify(settings);
-   const timer=setTimeout(()=>{setWorking(true);setError('');void core.current?.request('heightmap-preview',undefined,{generation:settings}).then(blob=>{if(!live||!blob)return;url=URL.createObjectURL(blob);setPreview(url);setPreviewKey(signature);}).catch(e=>{if(live)setError(String(e));}).finally(()=>{if(live)setWorking(false);});},200);
+   const timer=setTimeout(()=>{setWorking(true);setError('');setPreview('');setPreviewKey('');void core.current?.request('heightmap-preview',undefined,{generation:settings}).then(async blob=>{
+     if(!live)return;
+     if(!blob||blob.type!=='image/png'||!blob.size)throw Error('Missing preview PNG');
+     url=URL.createObjectURL(blob);
+     // Decode in the visible parent document before accepting the hidden core's output.
+     await new Promise<void>((resolve,reject)=>{
+       const image=new Image(),timeout=setTimeout(()=>reject(Error('Preview decode timed out')),10000);
+       image.onload=()=>{clearTimeout(timeout);if(image.naturalWidth&&image.naturalHeight)resolve();else reject(Error('Empty preview image'));};
+       image.onerror=()=>{clearTimeout(timeout);reject(Error('Invalid preview image'));};image.src=url;
+     });
+     if(live){setPreview(url);setPreviewKey(signature);}
+   }).catch(()=>{if(live){if(url)URL.revokeObjectURL(url);setError(t('worldMap.previewFailed'));}}).finally(()=>{if(live)setWorking(false);});},200);
    return()=>{live=false;clearTimeout(timer);if(url)URL.revokeObjectURL(url);};
  },[settings,connected,creating]);
  const change=(key:keyof NaturalMapSettings,value:string|number|undefined)=>setSettings(old=>({...old,[key]:value}));
@@ -56,7 +67,7 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
   <fieldset disabled={creating} className="min-w-0 space-y-3">
    <label className="grid gap-1">{t('worldMap.name')}<input autoFocus value={name} onChange={e=>setName(e.target.value)} maxLength={200}/></label>
    <div className="grid grid-cols-2 gap-2"><label className="grid min-w-0 gap-1">{t('worldMap.sourceType')}<select aria-label={t('worldMap.sourceType')} value={kind} onChange={e=>{setKind(e.target.value);const first=catalog.find(item=>item.kind===e.target.value);if(first)change('template',first.id);}}><option value="procedural">{t('worldMap.procedural')}</option><option value="precreated">{t('worldMap.precreated')}</option></select></label><label className="grid min-w-0 gap-1">{t('worldMap.template')}<select aria-label={t('worldMap.template')} value={settings.template} onChange={e=>change('template',e.target.value)}>{catalog.filter(item=>item.kind===kind).map(item=><option key={item.id} value={item.id}>{t('azgaar.'+item.name)}</option>)}</select></label></div>
-   <div aria-busy={working||previewKey!==JSON.stringify(settings)} className="relative grid h-44 place-items-center overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] sm:h-56">{preview&&<img src={preview} alt={t('worldMap.templatePreview')} className="h-full w-full object-contain"/>}{(!connected||working||previewKey!==JSON.stringify(settings))&&<p className="absolute rounded bg-[var(--color-bg)] px-3 py-1 text-xs">{t('worldMap.previewing')}</p>}</div>
+   <div aria-busy={!error&&(working||previewKey!==JSON.stringify(settings))} className="relative grid h-44 place-items-center overflow-hidden rounded-xl bg-[var(--color-bg-secondary)] sm:h-56">{preview&&<img src={preview} alt={t('worldMap.templatePreview')} onError={()=>{setPreview('');setPreviewKey('');setError(t('worldMap.previewFailed'));}} className="h-full w-full object-contain"/>}{!error&&(!connected||working||previewKey!==JSON.stringify(settings))&&<p className="absolute rounded bg-[var(--color-bg)] px-3 py-1 text-xs">{t('worldMap.previewing')}</p>}</div>
    <p className="text-xs opacity-70">{t('worldMap.previewHint')}</p>
    <div className="flex gap-2"><label className="grid min-w-0 flex-1 gap-1">{t('worldMap.seed')}<input value={settings.seed} onChange={e=>change('seed',e.target.value)} maxLength={128}/></label><button type="button" className="self-end border" onClick={()=>change('seed',crypto.randomUUID().slice(0,8))}>{t('worldMap.resample')}</button></div>
    <div className="grid grid-cols-2 gap-2">{(['width','height'] as const).map(key=><label className="grid min-w-0 gap-1" key={key}>{t('worldMap.'+key)}<input type="number" min={key==='width'?320:240} max={4096} value={settings[key]} onChange={e=>change(key,+e.target.value)}/></label>)}</div>
