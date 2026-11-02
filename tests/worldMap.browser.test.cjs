@@ -630,7 +630,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await cultureForm.getByLabel('Name',{exact:true}).fill('Dawn renamed');await cultureForm.getByRole('button',{name:'Save entry',exact:true}).click();await cultureForm.waitFor({state:'detached'});
   await legend.getByLabel('Visible Dawn renamed',{exact:true}).waitFor();
   await openWorldTools();await editor.getByRole('button',{name:'Add town',exact:true}).click();await page.waitForTimeout(150);
-  await page.mouse.click(queryBox.x+queryPosition.x,queryBox.y+queryPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
+  await waitMapLayout();const pickBox=await (await frame.frameElement()).boundingBox(),pickPosition=await frame.evaluate(c=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[c][0]*z.k,y:z.y+pack.cells.p[c][1]*z.k};},overlapCell);
+  await page.mouse.click(pickBox.x+pickPosition.x,pickBox.y+pickPosition.y);await townForm.waitFor();await townForm.getByRole('button',{name:'Cancel',exact:true}).click();await townForm.waitFor({state:'detached'});
   assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
   await legend.locator('div').filter({has:page.locator('input[aria-label="Visible Dawn renamed"]')}).getByRole('button',{name:'Open world entry',exact:true}).click();
