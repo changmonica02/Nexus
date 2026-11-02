@@ -1,14 +1,16 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os'), path = require('node:path');
 const { chromium } = require('playwright');
 const { waitForAsync, setNetwork } = require('./pwaBrowser.cjs');
 
 test('production Next shell: manifest, install icons, real JS/CSS and cold offline reopen', { timeout: 90000 }, async t => {
   const origin = process.env.NEXUS_PWA_URL || 'http://127.0.0.1:32120';
-  const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE || undefined });
-  t.after(() => browser.close());
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  // Installability requires a normal profile; Chromium rejects incognito installs.
+  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-pwa-install-'));
+  const context=await chromium.launchPersistentContext(profile,{executablePath:process.env.BROWSER_EXECUTABLE||undefined,viewport:{width:1280,height:900}});
+  t.after(async()=>{await context.close();fs.rmSync(profile,{recursive:true,force:true});});
   const privateResponses = [];
   context.on('response', response => { if (response.url().startsWith('https://pwa-fixture.supabase.co/')) privateResponses.push(response.fromServiceWorker()); });
   // Optional local-build-only authentication fixture; no real credentials or APIs.

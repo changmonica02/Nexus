@@ -1,3 +1,4 @@
+import {offline} from './publicCache';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
 import {searchGrouping} from './grouping';
@@ -26,6 +27,7 @@ export async function loadBrowsePage(client:Client,context:string,pageOverride?:
 export async function readerNeighbours(client:Client,id:string,headword:string,from:string|null,sense?:string){
  const context=browseContext(from);
  if(!context){
+  if(offline())return {previous:null,next:null};
   // Direct URL: keyset neighbours, never walk the full catalog.
   const quoted='"'+headword.replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"';
   const one=async(forward:boolean)=>{const op=forward?'gt':'lt';const {data,error}=await client.from('dictionary_entries').select('id,headword,kind').eq('status','published').or(`headword.${op}.${quoted},and(headword.eq.${quoted},id.${op}.${id})`).order('headword',{ascending:forward}).order('id',{ascending:forward}).limit(1);if(error)throw Error(error.message);return data?.[0]?`/dictionary/${data[0].id}`:null;};
