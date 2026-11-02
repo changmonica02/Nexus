@@ -243,7 +243,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
     <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
-      <iframe ref={frame} onFocus={closeMenus} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
+      <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>
         <button type="button" aria-label={t(fullView?'worldMap.exitFullscreen':'worldMap.fullscreen')} title={t(fullView?'worldMap.exitFullscreen':'worldMap.fullscreen')} onClick={toggleFullscreen} className="absolute right-3 top-3 z-10 grid min-h-11 min-w-11 place-items-center rounded-xl border bg-[var(--color-bg)] shadow-md">{fullView?<Minimize size={20}/>:<Maximize size={20}/>}</button>

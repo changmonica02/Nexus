@@ -1,5 +1,5 @@
 require('./loadStudy.cjs');
-const {setNetwork}=require('./pwaBrowser.cjs');
+const {setNetwork,waitForAsync}=require('./pwaBrowser.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),os=require('node:os');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 const {worldMapHeaders}=require('../next.config.ts');
@@ -141,6 +141,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   // Both entrances edit the same canonical entry; no copy of the body is sent to the core.
   await waitMapLayout();await frame.locator('#nexus-placements text').filter({hasText:'Canonical Harbor'}).click();
   await markerDialog.getByRole('button',{name:'Open world entry',exact:true}).click();
+
   await townForm.getByLabel('Town name',{exact:true}).fill('Renamed Harbor');
   await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
   await frame.locator('#nexus-placements text').filter({hasText:'Renamed Harbor'}).waitFor();
@@ -390,8 +391,9 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const zoomBefore=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
   await page.getByRole('button',{name:zoomBefore<19?'Zoom in':'Zoom out',exact:true}).click();
   await frame.waitForFunction(before=>document.querySelector('#map').__zoom.k!==before,zoomBefore);
+  if(await frame.evaluate(()=>document.querySelector('#map').__zoom.k>=19)){const capped=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);await page.getByRole('button',{name:'Zoom out',exact:true}).click();await frame.waitForFunction(before=>document.querySelector('#map').__zoom.k<before,capped);}
   const beforeDouble=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
-  await frame.locator('#map').dblclick({position:{x:200,y:180}});await page.waitForTimeout(250);
+  await frame.locator('#map').dblclick({position:{x:200,y:180}});await frame.waitForFunction(before=>document.querySelector('#map').__zoom.k>before,beforeDouble,{timeout:5000});
   assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)>beforeDouble,'double click zooms in read-only preview');
   const mapBox=await frame.locator('#map').boundingBox();
   const panBefore=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));let panned=false;
@@ -459,10 +461,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch,'switching maps reuses the core');
   assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom;return Math.abs(z.k-Math.min(m.width.baseVal.value/options.map.graph.width,m.height.baseVal.value/options.map.graph.height))<0.0001;}),'switching maps returns to fit');
   await page.getByLabel('Map scope',{exact:true}).selectOption('town');
-  await page.waitForFunction(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').scope==='town';});
+  await waitForAsync(page,async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').scope==='town';});
   const parentId=await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One').id;});
   await openManage();await page.getByLabel('Parent map',{exact:true}).selectOption(parentId);
-  await page.waitForFunction(async parentId=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').parent_map_id===parentId;},parentId);
+  await waitForAsync(page,async parentId=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.find(m=>m.title==='Atlas One copy').parent_map_id===parentId;},parentId);
   await closeManage();await page.getByRole('button',{name:'↑ Parent map',exact:true}).click();
   await page.getByRole('navigation',{name:'Detail maps'}).getByRole('button',{name:/Atlas One copy/}).waitFor();
   assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch);
@@ -527,7 +529,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const regionMapId=await page.getByLabel('Selected map',{exact:true}).inputValue();
   const nativeBefore=(await readTowns()).maps.find(m=>m.id===regionMapId).attachment_id,politicalDigest=await dataDigest();
   const candidates=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom;const cells=pack.cells.i.filter(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return pack.cells.h[i]>=20&&x>100&&x<innerWidth-100&&y>130&&y<innerHeight-70&&document.elementFromPoint(x,y)?.closest('#viewbox');});const a=cells[Math.floor(cells.length/3)];const b=cells.find(i=>Math.hypot(pack.cells.p[i][0]-pack.cells.p[a][0],pack.cells.p[i][1]-pack.cells.p[a][1])*z.k>180);if(a===undefined||b===undefined)throw Error('No separated visible land cells');return [a,b];});
-  const stroke=async(cell,touch=false)=>{const p=await frame.evaluate(i=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};},cell),box=await (await frame.frameElement()).boundingBox();if(touch){await touches([{id:61,x:box.x+p.x,y:box.y+p.y}]);await moveTouches([{id:61,x:box.x+p.x+8,y:box.y+p.y+1}]);await endTouches();}else{await page.mouse.move(box.x+p.x,box.y+p.y);await page.mouse.down();await page.mouse.move(box.x+p.x+8,box.y+p.y+1,{steps:4});await page.mouse.up();}await page.waitForTimeout(200);};
+  const stroke=async(cell,touch=false)=>{await page.waitForFunction(()=>/[0-9]/.test(document.querySelector('output[aria-label="Territory area"]')?.textContent??''));await waitMapLayout();const p=await frame.evaluate(i=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};},cell),box=await (await frame.frameElement()).boundingBox();if(touch){await touches([{id:61,x:box.x+p.x,y:box.y+p.y}]);await moveTouches([{id:61,x:box.x+p.x+8,y:box.y+p.y+1}]);await endTouches();}else{await page.mouse.move(box.x+p.x,box.y+p.y);await page.mouse.down();await page.mouse.move(box.x+p.x+8,box.y+p.y+1,{steps:4});await page.mouse.up();}await page.waitForTimeout(200);};
   await stroke(candidates[0]);await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).waitFor();
   const firstArea=await areaOutput.innerText();assert.match(firstArea,/km²/,'calibrated region uses a labelled planar estimate');
   assert.equal((await readTowns()).maps.find(m=>m.id===regionMapId).placements?.some(p=>p.entityId===countryId)??false,false,'painting is not persisted before confirmation');
