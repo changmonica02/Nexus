@@ -73,6 +73,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.ok(frame);
+  const enterEditor=async()=>{await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled&&b.getClientRects().length));frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());await waitMapLayout();await page.getByRole('button',{name:'Edit map',exact:true}).press('Enter');await editor.waitFor({state:'visible'});};
   const openWorldTools=async(group='Markers')=>{if(!await editor.locator('[data-world-tools]').evaluate(el=>el.open))await editor.locator('[data-world-tools] > summary').click();await editor.getByRole('button',{name:group,exact:true}).click();};
   const openExports=async()=>{if(!await editor.locator('[data-map-export]').evaluate(el=>el.open))await editor.locator('[data-map-export] > summary').click();};
   assert.equal(await frame.evaluate(()=>{try{void parent.document.body;return false;}catch{return true;}}),true,'core cannot access Nexus document');
@@ -183,7 +184,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#nexus-placements text').filter({hasText:'Manager Harbor'}).waitFor();
   assert.equal((await readTowns()).entities[0].entityId,townId,'manager rename preserves stable ID');
   await page.reload();
-  await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
+  await enterEditor();await editor.waitFor({state:'visible'});
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await dataDigest(),naturalData);
@@ -242,7 +243,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     assert.equal(await dataDigest(),geography,'view is presentation-only: '+preset);
     if(preset==='contours')await frame.locator('.heightmap-contours path').first().waitFor();
   }
-  await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
+  await enterEditor();await editor.waitFor({state:'visible'});
   await frame.evaluate(async()=>Services.Load.quickLoad());
   await frame.waitForFunction(i=>pack.cells.biome[i]===4,manual.i);
   assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','biomes']);
@@ -257,7 +258,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#toolsTab').click();
   const burgId=await frame.evaluate(async()=>{const burg=pack.burgs.find(b=>b.i&&!b.removed);if(!burg)throw Error('No burg generated');await Controllers.BurgEditor.open(burg.i);return burg.i;});
   await frame.locator('#burgName').fill('Nexus Port');
-  await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});await frame.locator('#map').press('Control+s');
+  await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled));await frame.locator('#map').press('Control+s');
   await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor({timeout:60000});
   await frame.evaluate(id=>{pack.burgs[id].name='Temporary unsaved name';for(const code of ['F1','F2','F6','F9'])document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));},burgId);
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Temporary unsaved name','removed standalone shortcuts cannot replace the project');
@@ -401,7 +402,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   for(const direction of [1,-1]){await page.mouse.move(mapBox.x+mapBox.width/2,mapBox.y+mapBox.height/2);await page.mouse.down();await page.mouse.move(mapBox.x+mapBox.width/2+direction*40,mapBox.y+mapBox.height/2+direction*20,{steps:3});await page.mouse.up();const after=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));panned=panned||after.x!==panBefore.x||after.y!==panBefore.y;}
   assert.ok(panned,'read-only map can be dragged');
   const viewScale=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
-  await page.getByRole('button',{name:'Edit map',exact:true}).click();
+  await enterEditor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(()=>document.querySelector('#map').__zoom.k),viewScale);
@@ -411,7 +412,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.evaluate(()=>{window.failMapSave=true;});await editor.getByRole('button',{name:'Save',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();
   assert.ok(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser'),map=p.character_data.world_maps[0];return Boolean(await window.mapStorage.getWorkspacePersistence().readMapDraft('map-browser-owner',p.id,map.id));}));
-  await page.reload();await page.getByRole('button',{name:'Edit map',exact:true}).click();
+  await page.reload();await enterEditor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Recovery Port');
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
@@ -419,7 +420,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(id=>{pack.burgs[id].name='Offline Port';document.dispatchEvent(new Event('input',{bubbles:true}));},burgId);
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
-  await page.getByRole('button',{name:'Edit map',exact:true}).click();
+  await enterEditor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Offline Port');
@@ -494,7 +495,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     assert.equal(bounds.w,width);assert.equal(bounds.h,height);
     assert.ok(bounds.left>=-1&&bounds.top>=-1&&bounds.right<=bounds.vw+1&&bounds.bottom<=bounds.vh+1,'all four map edges fit inside the container');
     assert.ok(Math.abs(bounds.k-Math.min(bounds.vw/bounds.w,bounds.vh/bounds.h))<0.0001);
-    await page.getByRole('button',{name:'Edit map',exact:true}).click();await editor.waitFor({state:'visible'});
+    await enterEditor();await editor.waitFor({state:'visible'});
   }
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   // V2-2B: real canonical country/admin forms, manual candidate geometry and derived area.
@@ -516,7 +517,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await adminForm.getByLabel('Administrative center',{exact:true}).selectOption({label:'Manager Harbor'});
   await adminForm.getByRole('button',{name:'Save entry',exact:true}).click();await adminForm.waitFor({state:'detached'});
   await townPanel.getByRole('button',{name:'Close panel',exact:true}).click();
-  await page.getByRole('button',{name:'Edit map',exact:true}).click();
+  await enterEditor();
   await openWorldTools('Regions');await editor.getByRole('button',{name:'Add country',exact:true}).click();
   await countryForm.getByLabel('Name',{exact:true}).fill('Cancelled Realm');
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
@@ -636,7 +637,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await townForm.press('Escape');await townForm.waitFor({state:'detached'});
   assert.equal(await queryDialog.count(),0,'distribution query never intercepts town point picking');
   const distributionSaved=structuredClone((await readTowns()).maps.find(m=>m.id===regionMapId).placements);
-  await legend.locator('div').filter({has:page.locator('input[aria-label="Visible Dawn renamed"]')}).getByRole('button',{name:'Open world entry',exact:true}).click();
+  await openWorldTools('Layers');await legend.locator('div').filter({has:page.locator('input[aria-label="Visible Dawn renamed"]')}).getByRole('button',{name:'Open world entry',exact:true}).click();
   await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await areaOutput.waitFor();await page.waitForTimeout(150);
   const savedCultureArea=await areaOutput.innerText();await paintTools.getByLabel('Erase cells',{exact:true}).check();await stroke(candidates[0]);assert.notEqual(await areaOutput.innerText(),savedCultureArea);
   await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent===v,savedCultureArea);
