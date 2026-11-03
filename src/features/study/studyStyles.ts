@@ -6,6 +6,8 @@ export type FixedIntervals = Record<
   [number, number, number, number]
 >;
 export interface StudyStyle {
+  auto_speech?: boolean;
+  speech_rate?: number;
   id: string;
   name: string;
   study_mode: "scheduled" | "endless";
@@ -23,6 +25,8 @@ export function defaultStudyStyle(owner: string | null): StudyStyle {
   return {
     id: defaultStyleId(owner),
     name: "預設字卡樣式",
+    auto_speech: true,
+    speech_rate: 0.9,
     study_mode: "scheduled",
     scheduling_method: "fsrs",
     review_limit: 100,
@@ -50,6 +54,8 @@ export function validateStudyStyle(style: StudyStyle) {
     !["new-first", "mixed", "review-first"].includes(style.card_order)
   )
     throw Error("Invalid study style");
+  if(style.auto_speech!==undefined&&typeof style.auto_speech!=='boolean')throw Error('Invalid auto speech setting');
+  if(style.speech_rate!==undefined&&(!Number.isFinite(style.speech_rate)||style.speech_rate<0.5||style.speech_rate>2))throw Error('Speech rate must be 0.5–2');
   for (const [key, min] of [
     ["review_limit", 1],
     ["new_limit", 0],
