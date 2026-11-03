@@ -62,6 +62,17 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   }
   return { cards: planned, shortIds: new Set(short.filter(c=>planned.some(p=>p.id===c.id)).map(c => c.id)), earlyIds, dueCount: reviews.length, limit };
 }
+/** Home counts use the same eligible batch and never introduce a card. */
+export function scheduledCounts(snapshot:StudySnapshot,now:number) {
+  const plan=planScheduled(snapshot,now),states=new Map(snapshot.states.map(s=>[s.id,s]));
+  return plan.cards.reduce((counts,card)=>{
+    const state=states.get(card.id)!;
+    if(isUnintroduced(state))counts.new++;
+    else if(isShortStep(state,now))counts.learning++;
+    else if(dueAt(state,now)<=now)counts.review++;
+    return counts;
+  },{new:0,learning:0,review:0});
+}
 export function makeScheduled(snapshot: StudySnapshot, now: number, id: string) {
   const plan = planScheduled(snapshot, now);
   const session = makeSession(snapshot, 'scheduled', plan.cards, now, id);

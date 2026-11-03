@@ -1,37 +1,9 @@
 "use client";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { Page } from "../../../lib/types";
-import { useLanguage } from "../../../lib/LanguageContext";
-import type { StudyRepository } from "../StudyRepository";
-import type { StudyStyle } from "../studyStyles";
+import { useEffect, useRef, useState } from 'react';
+import { useLanguage } from '../../../lib/LanguageContext';
+import type { StudyRepository } from '../StudyRepository';
+import type { StudyStyle } from '../studyStyles';
 
-export const StudyPreferencesContext = createContext<{
-  repository: StudyRepository;
-  decks: Page[];
-  activeDeckId?: string;
-} | null>(null);
-export function StudyPreferencesProvider({
-  getRepository,
-  decks,
-  activeDeckId,
-  children,
-}: {
-  getRepository: () => StudyRepository | null;
-  decks: Page[];
-  activeDeckId?: string;
-  children: React.ReactNode;
-}) {
-  const [repository] = useState(getRepository);
-  const value = useMemo(
-    () => repository ? ({ repository, decks, activeDeckId }) : null,
-    [repository, decks, activeDeckId],
-  );
-  return (
-    <StudyPreferencesContext.Provider value={value}>
-      {children}
-    </StudyPreferencesContext.Provider>
-  );
-}
 function IntervalInput({
   seconds,
   onSave,
@@ -96,183 +68,33 @@ function IntervalInput({
     </label>
   );
 }
-export default function StudyPreferences() {
-  const context = useContext(StudyPreferencesContext),
-    { t } = useLanguage();
-  const [deck, setDeck] = useState(
-      context?.activeDeckId ?? context?.decks[0]?.id ?? "",
-    ),
-    [styles, setStyles] = useState<StudyStyle[]>([]),
-    [editing, setEditing] = useState(""),
-    [assigned, setAssigned] = useState(""),
-    [notice, setNotice] = useState(false),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const deckId = context?.decks.some((d) => d.id === deck)
-    ? deck
-    : (context?.decks[0]?.id ?? "");
-  useEffect(() => {
-    if (!context) return;
-    let active = true;
-    const read = async () => {
-      try {
-        if (deckId) {
-          await context.repository.ensureDeck(
-            context.decks.find((d) => d.id === deckId)!,
-          );
-          const value = await context.repository.styleForDeck(deckId);
-          if (active) {
-            setAssigned(value.style.id);
-            setNotice(value.notice);
-            setEditing((old) => old || value.style.id);
-          }
-        }
-        const values = await context.repository.listStyles();
-        if (active) {
-          setStyles(values);
-          setEditing((old) => old || values[0]?.id || "");
-        }
-      } catch (e) {
-        if (active) setError(String(e));
-      }
-    };
-    void read();
-    window.addEventListener("nexus-study-changed", read);
-    return () => {
-      active = false;
-      window.removeEventListener("nexus-study-changed", read);
-    };
-  }, [context, deckId]);
-  const style = styles.find((s) => s.id === editing),
-    control =
-      "max-w-full min-w-0 rounded border bg-transparent px-3 py-2 text-sm";
-  const run = async (work: () => Promise<void>) => {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await work();
-      setStyles(await context!.repository.listStyles());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+export default function StudyPreferences({repository,deckId,registerFlush}:{repository:StudyRepository;deckId:string;registerFlush:(flush:()=>Promise<void>)=>void}) {
+  const {t}=useLanguage();
+  const [style,setStyle]=useState<StudyStyle|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const pending=useRef<Promise<void>>(Promise.resolve()),alive=useRef(true);
+  useEffect(()=>{alive.current=true;registerFlush(()=>pending.current);return()=>{alive.current=false;};},[registerFlush]);
+  useEffect(()=>{
+    let active=true;
+    const read=()=>void repository.styleForDeck(deckId).then(value=>{if(active)setStyle(value.style);}).catch(e=>{if(active)setError(String(e));});
+    read();window.addEventListener('nexus-study-changed',read);
+    return()=>{active=false;window.removeEventListener('nexus-study-changed',read);};
+  },[repository,deckId]);
+  const save=(patch:Partial<StudyStyle>)=>{
+    setBusy(true);setError('');
+    const task=pending.current.catch(()=>undefined).then(async()=>{
+      await repository.saveDeckStyle(deckId,patch);
+      const next=await repository.styleForDeck(deckId);if(alive.current)setStyle(next.style);
+    });
+    pending.current=task;
+    void task.catch(e=>{if(alive.current)setError(String(e));}).finally(()=>{if(alive.current)setBusy(false);});
   };
-  const save = (patch: Partial<StudyStyle>) => {
-    if (style)
-      void run(() => context!.repository.saveStyle({ ...style, ...patch }));
-  };
-  const count = (
-    key: "review_limit" | "new_limit" | "new_pause_threshold",
-    label: string,
-    min: number,
-  ) => (
-    <label className="flex flex-wrap items-center justify-between gap-3">
-      {label}
-      <input
-        key={style!.id + key + style![key]}
-        aria-label={label}
-        className={control + " w-24"}
-        type="number"
-        min={min}
-        max={10000}
-        defaultValue={style![key]}
-        onBlur={(e) => {
-          const n = e.target.value.trim() ? Number(e.target.value) : NaN;
-          if (n !== style![key]) save({ [key]: n });
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-      />
-    </label>
-  );
-  if (!context) return <p>{t("study.noDeck")}</p>;
-  return (
-    <section className="space-y-5 text-sm">
-      {context.decks.length > 0 && (
-        <>
-          <label className="flex flex-wrap justify-between gap-3">
-            {t("study.deck")}
-            <select
-              aria-label={t("study.deck")}
-              className={control}
-              value={deckId}
-              disabled={busy}
-              onChange={(e) => setDeck(e.target.value)}
-            >
-              {context.decks.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.title || t("common.untitled")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-wrap justify-between gap-3">
-            {t("styles.assignment")}
-            <select
-              aria-label={t("styles.assignment")}
-              className={control}
-              value={assigned}
-              disabled={busy}
-              onChange={(e) => {
-                const id = e.target.value;
-                void run(async () => {
-                  await context.repository.assignStyle(deckId, id);
-                  setAssigned(id);
-                  setNotice(false);
-                });
-              }}
-            >
-              {styles.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </>
-      )}
-      {notice && <p role="status">{t("styles.migrated")}</p>}
-      <p>{t("styles.scope")}</p>
-      {error && <p role="alert">{error}</p>}
-      <fieldset disabled={busy} className="space-y-5">
-        <label className="flex flex-wrap justify-between gap-3">
-          {t("styles.edit")}
-          <select
-            aria-label={t("styles.edit")}
-            className={control}
-            value={editing}
-            onChange={(e) => setEditing(e.target.value)}
-          >
-            {styles.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!style ? (
-          <p role="status">{t("common.loading")}</p>
-        ) : (
-          <>
-            <label className="flex flex-wrap justify-between gap-3">
-              {t("styles.name")}
-              <input
-                key={style.id + style.name}
-                aria-label={t("styles.name")}
-                className={control}
-                defaultValue={style.name}
-                onBlur={(e) => {
-                  if (e.target.value !== style.name)
-                    save({ name: e.target.value });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                }}
-              />
-            </label>
+  const control='max-w-full min-w-0 rounded border bg-transparent px-3 py-2 text-sm';
+  const count=(key:'review_limit'|'new_limit'|'new_pause_threshold',label:string,min:number)=><label className="flex flex-wrap items-center justify-between gap-3">{label}<input key={style!.id+key+style![key]} aria-label={label} className={control+' w-24'} type="number" min={min} max={10000} defaultValue={style![key]} onBlur={e=>{const n=e.target.value.trim()?Number(e.target.value):NaN;if(n!==style![key])save({[key]:n});}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/></label>;
+  return <section aria-label={t('deck.schedule')} className="space-y-4 text-sm">
+    <h2 className="text-lg font-semibold">{t('deck.schedule')}</h2><p className="opacity-65">{t('deck.scope')}</p>
+    {error&&<p role="alert">{error}</p>}
+    <fieldset disabled={busy} className="space-y-5">
+      {!style?<p>{t('common.loading')}</p>:<>
             <label className="flex flex-wrap justify-between gap-3">
               {t("study.mode")}
               <select
@@ -380,29 +202,8 @@ export default function StudyPreferences() {
               </section>
             ))}
             <p>{t("study.endlessHint")}</p>
-          </>
-        )}
-      </fieldset>
-      <p role="status">
-        {busy ? t("study.savingSettings") : t("study.savedSettings")}
-      </p>
-      <button
-        className={control}
-        disabled={busy || !style}
-        onClick={() =>
-          void run(async () => {
-            const created = {
-              ...structuredClone(style!),
-              id: "study-style:" + crypto.randomUUID(),
-              name: t("styles.custom") + " " + styles.length,
-            };
-            await context.repository.saveStyle(created);
-            setEditing(created.id);
-          })
-        }
-      >
-        {t("styles.add")}
-      </button>
-    </section>
-  );
+      </>}
+    </fieldset>
+    <p role="status">{busy?t('study.savingSettings'):t('study.savedSettings')}</p>
+  </section>;
 }

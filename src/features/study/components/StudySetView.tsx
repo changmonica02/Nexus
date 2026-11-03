@@ -1,21 +1,21 @@
 "use client";
-import {officialPrivateCardsAvailable} from '../officialPacks';
+import {officialPrivateCardsAvailable,downloadOfficialPack,deleteOfficialPack,packDeleteMessage} from '../officialPacks';
 import {SidebarToggle} from "../../../components/WorkspaceNavigation";
 import {confirmDialog} from '../../../lib/confirmDialog';
 import {dueAt} from '../scheduledStudy';
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StudyRepository } from "../StudyRepository";
 import { type StudyCard, type StudySnapshot } from "../studyFSRS";
 import { displayStudyCards, hasLearningData } from "../studySessions";
 import ScheduleConflict from "./ScheduleConflict";
 import ScheduledStudySession from "./ScheduledStudySession";
-import { planScheduled } from "../scheduledStudy";
 import {getSupabase} from '../../../infrastructure/supabase/client';
 import {syncStudy} from '../studySync';
 import {setCardDictionaryLink} from '../../dictionary/cardDictionary';
 import StudyLinkSuggestions from '../../dictionary/StudyLinkSuggestions';
 import StudyCardEditor from "./StudyCardEditor";
+import StudyPreferences from "./StudyPreferences";
 import type { Page } from "../../../lib/types";
 import { useLanguage } from "../../../lib/LanguageContext";
 
@@ -187,12 +187,23 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface, initialMode = "manage" }: {
-  initialMode?: "manage" | "scheduled"; page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
+function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface, initialMode = "manage", backLabel, onOfficialChanged, managementOnly=false, registerSettingsSave }: {
+  initialMode?: "manage" | "scheduled"; backLabel?:string; onOfficialChanged?:()=>Promise<void>; managementOnly?:boolean; registerSettingsSave?:(flush:()=>Promise<void>)=>(()=>void); page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
 }) {
   const {t}=useLanguage();
+  const settingsFlush=useRef<()=>Promise<void>>(async()=>{});
+  const registerSettingsFlush=useCallback((flush:()=>Promise<void>)=>{settingsFlush.current=flush;},[]);
+  useEffect(()=>registerSettingsSave?.(()=>settingsFlush.current()),[registerSettingsSave]);
+  const [officialBusy,setOfficialBusy]=useState(false);
+  const leave=async()=>{try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();await settingsFlush.current();await onBackToInterface?.();}catch(e){setError(String(e));}};
+  const officialAction=async(remove=false)=>{
+    if(officialBusy)return;
+    if(remove&&!await confirmDialog(packDeleteMessage(page.title)))return;
+    setOfficialBusy(true);setError('');
+    try{const client=getSupabase();if(!client)throw Error('請先登入並連線。');if(remove)await deleteOfficialPack(client,page.id);else await downloadOfficialPack(client,page.official_pack_id!);await onOfficialChanged?.();if(remove)await leave();}
+    catch(e){setError(String(e));}finally{setOfficialBusy(false);}
+  };
   const [historyEvents,setHistoryEvents]=useState<import("../studyFSRS").StudyEvent[]>([]);
-  const [planningAt,setPlanningAt]=useState(()=>Date.now());
   const [snapshot,setSnapshot]=useState<StudySnapshot|null>(null);
   const [privateOfficialStatus,setPrivateOfficialStatus]=useState<{pack:string;available:boolean}|null>(null);
   const privateOfficialEditing=privateOfficialStatus?.pack===page.official_pack_id&&privateOfficialStatus?.available===true;
@@ -209,7 +220,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   useEffect(()=>{if(openedCard.current||!snapshot)return;const id=new URLSearchParams(window.location.search).get('card');const card=snapshot.cards.find(c=>c.id===id&&!c.deleted_at);if(card){openedCard.current=true;setEditingCard(card);}},[snapshot]);
   useEffect(()=>{
     let active=true;
-    const read=()=>{void repository.ensureDeck(page).then(()=>repository.readScheduledDeck(page.id)).then(data=>{if(active){setSnapshot(data);setPlanningAt(Date.now());}}).catch(e=>{if(active)setError(String(e));});};
+    const read=()=>{void repository.ensureDeck(page, false).then(()=>repository.readScheduledDeck(page.id)).then(data=>{if(active){setSnapshot(data);}}).catch(e=>{if(active)setError(String(e));});};
     refresh.current=read;read();window.addEventListener("nexus-study-changed",read);
     return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
   },[repository,page]);
@@ -233,26 +244,26 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
     refresh.current();
   };
   if(!snapshot)return <main className="flex-1 p-8"><SidebarToggle/>{error||t("study.loadingCards")}</main>;
-  return <main className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
+  return <main data-study-management={managementOnly?page.id:undefined} className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
     <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
-        <div className="flex items-center gap-2"><SidebarToggle/>{onBackToInterface&&<button onClick={onBackToInterface} aria-label={t("study.backToStudySets")}>←</button>}<span>{t("study.cards")} · {t("study.direction")}</span></div>
+        <div className="flex items-center gap-2"><SidebarToggle/>{onBackToInterface&&<button autoFocus={managementOnly} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border" onClick={()=>void leave()} aria-label={backLabel??t("study.backToStudySets")}>←</button>}<span>{t(managementOnly?"deck.manageTitle":"study.cards")} · {t("study.direction")}</span></div>
         <div className="flex flex-wrap gap-2">{mode==="manage"?<>
-          {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>setMode("scheduled")}>{t("study.start")}</button>}
+          {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>void settingsFlush.current().then(()=>setMode("scheduled")).catch(e=>setError(String(e)))}>{t("study.start")}</button>}
           <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>{t("study.history")}</button>
         </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>{t("study.back")}</button>}</div>
       </div>
-      {page.official_pack_id&&<p className="mb-2 text-sm">官方單字集 · <a className="underline" href={`/study/official/${page.official_pack_id}`}>查看官方資訊</a> · 私人卡片可編輯</p>}
+
       <input readOnly={!!page.official_pack_id} aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
       {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
       {mode==="manage"&&<>
         {!snapshot.settings.direction_confirmed&&<div className="mb-4 rounded border p-4 text-sm"><p>舊字卡已完整保留。請先確認下方左欄是英文、右欄是中文；不符的內容可先編輯。</p><button className="mt-2 rounded border px-3 py-2" onClick={()=>void act(()=>repository.configure(page.id,{direction_confirmed:true}))}>確認為英 → 中，啟用學習</button></div>}
-        <p className="mb-3 text-sm">{t("study.planned",{n:planScheduled(snapshot,planningAt).cards.length})}</p>
-        <p className="mb-3 text-xs leading-6 opacity-70">{t("study.preferencesHint")}</p>
+
         {snapshot.states.filter(state=>state.conflict).map(state=><ScheduleConflict key={state.id} repository={repository} state={state} label={cards.find(card=>card.id===state.id)?.front??'字卡'}/>)}
         {!page.official_pack_id&&<button className="mb-3 rounded border px-3 py-2 text-sm" onClick={()=>setShowLinkSuggestions(true)}>建議字典連結</button>}
         <CardManageList allowOfficialDelete={privateOfficialEditing} official={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(async()=>{if(await confirmDialog('刪除這張私人字卡？字典詞條與其他學習集不受影響。'))await repository.updateCard(id,{deleted_at:Date.now()});})} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
+      {managementOnly&&mode==="manage"&&<div className="mt-8 border-t pt-6"><h2 className="mb-3 text-lg font-semibold">{t('deck.presentation')}</h2><p className="mb-5 text-sm">{t('study.direction')}</p><StudyPreferences repository={repository} deckId={page.id} registerFlush={registerSettingsFlush}/>{page.official_pack_id&&<section className="mt-6 border-t pt-4"><h2 className="mb-3 font-semibold">{t('ui.officialInfo')}</h2><p className="mb-3 text-sm">{t('ui.officialVersion',{n:page.official_pack_version??0})}</p><div className="flex flex-wrap gap-2"><a className="rounded border px-3 py-2 text-sm" href={`/study/official/${page.official_pack_id}`}>{t('ui.officialInfo')}</a><button disabled={officialBusy||!onOfficialChanged} className="rounded border px-3 py-2 text-sm" onClick={()=>void officialAction()}>{t('ui.syncOfficial')}</button><button disabled={officialBusy||!onOfficialChanged} className="rounded border px-3 py-2 text-sm" onClick={()=>void officialAction(true)}>{t('ui.delete')}</button></div></section>}</div>}
       {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} onExit={()=>setMode("manage")}/>}
       {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">{t("study.history")}</h2><p className="mb-3 text-xs opacity-60">{t("study.historyHint")}</p>
         {historyEvents.slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","知道","熟記"][event.rating!]} · {event.scheduling_method==="fixed"?t("styles.fixed"):"FSRS-6"}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(dueAt(event.after,event.at)).toLocaleString()}</span></div>)}

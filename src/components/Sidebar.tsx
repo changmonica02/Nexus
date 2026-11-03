@@ -671,7 +671,7 @@ export default function Sidebar({
           { id: "home", label: t("sidebar.nav.home"), active: isHomeMode, onClick: onShowHome },
           { id: "trash", label: t("sidebar.nav.trash"), active: isTrashMode, onClick: () => { if (isTrashMode) onExitTrash?.(); else onShowTrash(); } },
         ].map((item) => (
-          <SidebarNavigationButton key={item.id} immediate={item.id==='home'} onFilter={item.onClick} onOpen={item.id==='trash'?()=>onOpenTrash?.():onShowHome} title={t('ui.filterOrOpen')} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
+          <SidebarNavigationButton key={item.id} onFilter={item.id==='home'?()=>{onExitTrash?.();setFeatureFilter('all');setHasManualFeatureFilter(true);}:item.onClick} onOpen={item.id==='trash'?()=>onOpenTrash?.():onShowHome} title={t('ui.filterOrOpen')} className="flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800" style={{ color: "var(--color-text)", backgroundColor: item.active ? "rgba(26,115,232,0.12)" : "transparent" }}>
             <FeatureIcon feature={item.id}/><span>{item.label}</span>
           </SidebarNavigationButton>
         ))}

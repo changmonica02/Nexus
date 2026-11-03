@@ -1,6 +1,7 @@
 "use client";
 import { cloneWorldReferences } from "../features/worldMap/worldMapRepository";
-import { StudyPreferencesProvider } from "../features/study/components/StudyPreferences";
+import StudySetView from "../features/study/components/StudySetView";
+import { defaultStudyStyle } from "../features/study/studyStyles";
 import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
 import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
 
@@ -8,7 +9,6 @@ import {notifyDialog,confirmDialog} from '../lib/confirmDialog';
 import {
   useState,
   useEffect,
-  useMemo,
   useRef,
   useCallback,
   type MutableRefObject,
@@ -148,6 +148,7 @@ function NexusAppInner({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [studyLaunch, setStudyLaunch] = useState<string | null>(null);
+  const [deckManagement,setDeckManagement]=useState<{id:string;owner:string|null;from:"home"|"sets"}|null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("updated");
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
@@ -330,6 +331,7 @@ function NexusAppInner({
             const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
             if (adapter.getWorkspaceOwner() !== userId) {
+              setDeckManagement(null);
               setPages([]);
               setAttachments([]);
               setTrashPages([]);
@@ -399,6 +401,7 @@ function NexusAppInner({
               // Remove account state immediately. The anonymous workspace is
               // loaded afterwards, so a slow IndexedDB read can never leave
               // private account pages visible in the signed-out UI.
+              setDeckManagement(null);
               setPages([]);
               setAttachments([]);
               setTrashPages([]);
@@ -446,7 +449,11 @@ function NexusAppInner({
   }, []);
 
   const flushSave = useCallback(async (pageToSave: Page) => {
-    const latestPage = pendingSavesRef.current.get(pageToSave.id) ?? pageToSave;
+    const latestPage = pendingSavesRef.current.get(pageToSave.id);
+    if (!latestPage) {
+      await activeSavesRef.current.get(pageToSave.id);
+      return;
+    }
     const timer = saveTimersRef.current.get(latestPage.id);
     if (timer) clearTimeout(timer);
     saveTimersRef.current.delete(latestPage.id);
@@ -480,13 +487,14 @@ function NexusAppInner({
     await flushSave(next);
     const persisted=await storage.getPage(page.id);if(persisted)setPages(previous=>previous.map(item=>item.id===page.id?persisted:item));
   },[flushSave,storageRef]);
-  const mapFlushersRef = useRef(new Map<string, () => Promise<void>>());
-  const registerWorldMapFlush = useCallback((id:string, flush:()=>Promise<void>) => {
-    mapFlushersRef.current.set(id,flush);
-    return () => {if(mapFlushersRef.current.get(id)===flush)mapFlushersRef.current.delete(id);};
+  const workspaceFlushersRef = useRef(new Map<string, () => Promise<void>>());
+  const registerWorkspaceFlush = useCallback((id:string, flush:()=>Promise<void>) => {
+    workspaceFlushersRef.current.set(id,flush);
+    return () => {if(workspaceFlushersRef.current.get(id)===flush)workspaceFlushersRef.current.delete(id);};
   },[]);
+  const registerStudySettingsFlush=useCallback((flush:()=>Promise<void>)=>registerWorkspaceFlush('study-settings',flush),[registerWorkspaceFlush]);
   const flushAllSaves = useCallback(async () => {
-    for(const flush of mapFlushersRef.current.values()) await flush();
+    for(const flush of workspaceFlushersRef.current.values()) await flush();
     do {
       const pending = [...pendingSavesRef.current.values()];
       await Promise.all(pending.map((page) => flushSave(page)));
@@ -763,10 +771,13 @@ function NexusAppInner({
   }, [pages, storageRef]);
 
   const handleSelectPage = useCallback(async (id: string, studyMode: "manage" | "scheduled" = "manage") => {
-    if (activePageRef.current) await flushSave(activePageRef.current);
+    const owner=storageRef.current?.getWorkspaceOwner?.();
+    await flushAllSaves();
+    if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
+    setDeckManagement(null);
     setStudyLaunch(studyMode === "scheduled" ? id : null);
     await activatePage(id);
-  }, [activatePage, flushSave]);
+  }, [activatePage, flushAllSaves, storageRef]);
 
   const openedStudyLink=useRef(false);
   useEffect(()=>{
@@ -779,8 +790,14 @@ function NexusAppInner({
 
   const createAndOpenPage = useCallback(async (input: CreatePageInput) => {
     if (!storageRef.current) return;
-    if (activePageRef.current) await flushSave(activePageRef.current);
+    const owner=storageRef.current.getWorkspaceOwner?.();
+    await flushAllSaves();
+    if(storageRef.current.getWorkspaceOwner?.()!==owner)return;
     const newPage = await storageRef.current.createPage(input);
+    if(newPage.kind==='study_set'){
+      const repo=storageRef.current.getStudyRepository();await repo.ensureDeck(newPage,false);
+      await repo.saveDeckStyle(newPage.id,defaultStudyStyle(newPage.workspace_owner_id??null));
+    }
     setIsToolsMode(false);
     if(input.kind==='counter'||input.kind==='draw')setToolKind(input.kind);
     setUtilityMode(input.kind === "web" || input.kind === "counter" || input.kind === "draw" || input.kind === "score" ? input.kind : null);
@@ -803,7 +820,7 @@ function NexusAppInner({
     await storageRef.current.setActivePageId(newPage.id);
     syncEngineRef.current?.pushPage(newPage);
     return newPage;
-  }, [flushSave, storageRef]);
+  }, [flushAllSaves, storageRef]);
 
   // Task 1 optimization: kind decides default format
   // Document = A4 paper (like Word), Note = flow (infinite)
@@ -1174,13 +1191,15 @@ function NexusAppInner({
   const handleShowUtility = useCallback((kind: "web" | "counter" | "draw" | "score") => {setIsToolsMode(false); setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); setIsStudySetMode(false); setIsNovelMode(false); setIsDocumentMode(false); setIsNoteMode(false); setIsPresentationMode(false); setUtilityMode(kind); setActivePageId(null); }, []);
 
   const navigate = useCallback((action:()=>void,leaveExternal=true) => {
+    const owner=storageRef.current?.getWorkspaceOwner?.();
     navigateDictionary(()=>{void (async()=>{
       try {
         await flushAllSaves();
-        action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
+        if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
+        setDeckManagement(null);action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
       } catch { setRefreshError(t("ui.saveFailed")); }
     })();});
-  },[flushAllSaves,onLeaveExternal,t]);
+  },[flushAllSaves,onLeaveExternal,t,storageRef]);
 
   const handleShowTools=useCallback(()=>{closeFeatureOverviews();setIsTrashMode(false);setIsHomeMode(false);setIsQuickNoteMode(false);setIsTodoMode(false);setIsCreativeMode(false);setActivePageId(null);setIsToolsMode(true);},[]);
   useEffect(() => {
@@ -1692,7 +1711,24 @@ function NexusAppInner({
     { id: "device-preview", label: "裝置預覽", icon: "▣", keywords: "responsive device mobile tablet preview", run: () => setIsDevicePreviewOpen(true) },
   ];
 
-  const studyPreferenceDecks=useMemo(()=>pages.filter(p=>p.kind==='study_set'&&!p.deleted_at),[pages]);
+  const openDeckManagement=async(id:string)=>{
+    const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.()??null;
+    try{await flushAllSaves();if((storage.getWorkspaceOwner?.()??null)!==owner)return;setDeckManagement({id,owner,from:isHomeMode?'home':'sets'});}
+    catch{setRefreshError(t('ui.saveFailed'));}
+  };
+  const createManagedStudySet=async()=>{
+    const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.()??null;
+    try{
+      await flushAllSaves();if((storage.getWorkspaceOwner?.()??null)!==owner)return;
+      const page=await storage.createPage({title:'Untitled Study Set',kind:'study_set',format:'flow'});
+      const repo=storage.getStudyRepository();await repo.ensureDeck(page,false);await repo.saveDeckStyle(page.id,defaultStudyStyle(owner));
+      if((storage.getWorkspaceOwner?.()??null)!==owner)return;
+      setPages(previous=>[page,...previous]);syncEngineRef.current?.pushPage(page);setDeckManagement({id:page.id,owner,from:isHomeMode?'home':'sets'});
+    }catch(e){setRefreshError(String(e));}
+  };
+  const managementActive=deckManagement&&(storageRef.current?.getWorkspaceOwner?.()??null)===deckManagement.owner;
+  const managementPage=managementActive?pages.find(p=>p.id===deckManagement.id&&!p.deleted_at&&p.kind==='study_set'&&(p.workspace_owner_id??null)===deckManagement.owner):undefined;
+  const refreshStudyPages=async()=>{const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.();await syncEngineRef.current?.fullSync();const next=await storage.listPages();if(storage.getWorkspaceOwner?.()===owner)setPages(next);};
 
   if ((!isReady || !isAuthResolved) && !externalContent) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
@@ -1706,12 +1742,12 @@ function NexusAppInner({
     const onTitleChange = (title: string) => { if (page) patchPage(page.id, { title }); };
     const patch = (value: Partial<Page>) => { if (page) patchPage(page.id, value); };
     return <WorkspacePane page={page}
-      study={{ initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
+      study={{ onOfficialChanged:refreshStudyPages, initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
         beforeWorldMapSave: () => page ? beforeTemplateRead(page) : Promise.resolve(),
-        onWorldMapSaved: worldMapSaved, registerWorldMapFlush, worldMapCloudState: syncState,
+        onWorldMapSaved: worldMapSaved, registerWorldMapFlush:registerWorkspaceFlush, worldMapCloudState: syncState,
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
         onCommitCharacterData: data => page ? commitCharacterData(page, data) : Promise.resolve(),
         onSaveTemplate: (name, data) => page ? saveCharacterTemplate(page, name, data) : Promise.resolve(),
@@ -1743,7 +1779,7 @@ function NexusAppInner({
   };
 
   return (
-    <StudyPreferencesProvider key={accountEmail} getRepository={()=>isAuthenticated?storageRef.current?.getStudyRepository()??null:null} decks={studyPreferenceDecks} activeDeckId={activePage?.kind==='study_set'?activePage.id:undefined}>
+
     <WorkspaceNavigationProvider open={()=>{if (isDockedNoteSidebar) toggleNoteSidebar(true); else setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
     <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
       {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
@@ -1862,9 +1898,11 @@ function NexusAppInner({
       )}
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
+      {managementActive&&<>{managementPage?<StudySetView key={`${deckManagement.owner}:${managementPage.id}`} managementOnly registerSettingsSave={registerStudySettingsFlush} page={managementPage} repository={storageRef.current!.getStudyRepository()} onTitleChange={title=>patchPage(managementPage.id,{title})} onOfficialChanged={refreshStudyPages} backLabel={t(deckManagement.from==='home'?'deck.backHome':'study.backToStudySets')} onBackToInterface={async()=>{await flushAllSaves();setDeckManagement(null);}}/>:<main className="flex-1 p-6"><p role="alert">{t('study.noDeck')}</p><button onClick={()=>setDeckManagement(null)}>{t('home.close')}</button></main>}</>}
+      <div style={{display:managementActive?'none':'contents'}}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
         <HomeScreen key={storageRef.current!.getWorkspaceOwner?.() ?? 'anonymous'} owner={storageRef.current!.getWorkspaceOwner?.() ?? null} pages={pages} repository={storageRef.current!.getStudyRepository()}
-          onStudy={(id, mode) => void handleSelectPage(id, mode)} onStudySets={handleShowStudySets} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={handleShowTodoList}
+          suspended={!!managementActive} onCreateStudySet={()=>void createManagedStudySet()} onStudy={(id, mode) => mode==='manage'?void openDeckManagement(id):void handleSelectPage(id, mode)} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={handleShowTodoList}
           classic={<Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
@@ -1938,8 +1976,8 @@ function NexusAppInner({
           />
         )
       ) : isStudySetMode ? (
-        <StudyHomeOverview onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter(p=>p.kind==='study_set'&&!p.deleted_at)} repository={storageRef.current!.getStudyRepository()}
-          onCreate={()=>void handleCreateStudySet()} onSelectPage={handleSelectPage}
+        <StudyHomeOverview suspended={!!managementActive} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter(p=>p.kind==='study_set'&&!p.deleted_at)} repository={storageRef.current!.getStudyRepository()}
+          onCreate={()=>void createManagedStudySet()} onManage={id=>void openDeckManagement(id)} onSelectPage={handleSelectPage}
           onChanged={async()=>{await syncEngineRef.current?.fullSync();if(storageRef.current)setPages(await storageRef.current.listPages());}}/>
 
       ) : isNovelMode ? (
@@ -2035,7 +2073,7 @@ function NexusAppInner({
           <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
         </ResizablePanel>
       )}
-      </div>
+      </div></div>
 
       {initialFeature==='study'&&isAuthenticated&&storageRef.current&&<DictionaryAddRequest storage={storageRef.current} onChanged={async()=>{setPages(await storageRef.current!.listPages());}}/>}
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} actions={commandPaletteActions} onSelectPage={handleSelectPage} />
@@ -2060,7 +2098,6 @@ function NexusAppInner({
 
     </div>
     </WorkspaceNavigationProvider>
-    </StudyPreferencesProvider>
   );
 }
 

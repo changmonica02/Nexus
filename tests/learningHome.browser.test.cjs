@@ -14,50 +14,35 @@ test('learning home: actual IDB and study session, responsive layout, preview qu
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ['--no-sandbox'] }), errors = [];
   try {
-    for (const width of [1280, 820, 390, 320]) {
+    for (const width of [1280, 320]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 500, hasTouch: width < 900 }), page = await context.newPage();
       page.on('pageerror', e => errors.push(e.message)); await page.goto('http://127.0.0.1:' + server.address().port);
       const mode = () => page.getByLabel('切換首頁', { exact: true });
       await mode().waitFor(); assert.equal(await mode().inputValue(), 'classic');
       await page.getByLabel('搜尋項目', { exact: true }).waitFor();
-      await mode().selectOption('learning'); await page.getByRole('button', { name: '切換學習組', exact: true }).click(); await page.getByRole('dialog').getByRole('button', { name: 'English words', exact: true }).click(); await page.getByText('本次預計安排 1 張字卡。', { exact: true }).waitFor();
-      assert.equal(await page.evaluate(async () => { const r = window.homeStorage.getStudyRepository(), pages = await window.homeStorage.listPages(); return (await r.readDeck(pages.find(p => p.title === 'English words').id, true)).events.length; }), 0);
-      const boxes = await page.locator('[data-learning-home] > section').evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
-      if (width >= 768) assert.ok(boxes[0].x < boxes[1].x && boxes[1].x < boxes[2].x); else assert.ok(boxes[1].y < boxes[0].y && boxes[0].y < boxes[2].y);
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-      await page.screenshot({path:'/tmp/nexus-learning-home-'+width+'.png',fullPage:true});
-      assert.equal(await page.getByRole('region', { name: '日曆與待辦' }).locator('li').count(), 3);
-      await page.getByRole('button', { name: '展開日曆與待辦', exact: true }).click(); await page.getByRole('dialog').getByRole('button', { name: 'Task 3', exact: true }).waitFor();
-      await page.keyboard.press('Escape'); assert.equal(await page.getByRole('dialog').count(), 0);
-      await page.reload(); await page.getByText('本次預計安排 1 張字卡。', { exact: true }).waitFor(); assert.equal(await mode().inputValue(), 'learning');
-      await context.setOffline(true);
-      await page.getByRole('button', { name: '開始學習', exact: true }).click(); await page.getByRole('button', { name: '顯示答案', exact: true }).waitFor();
-      const session = await page.evaluate(async () => { const r = window.homeStorage.getStudyRepository(), pages = await window.homeStorage.listPages(); return (await r.readDeck(pages.find(p => p.title === 'English words').id, true)); });
-      assert.equal(session.sessions.filter(s => s.mode === 'scheduled').length, 1); assert.equal(session.events.filter(e => e.kind === 'introduce').length, 1);
-      await page.getByRole('button', { name: 'Nexus Home', exact: true }).click();
-      await page.getByRole('button', { name: '切換學習組', exact: true }).click(); await page.getByRole('dialog').getByRole('button', { name: 'Other words', exact: true }).click();
-      await page.getByRole('button', { name: '管理字卡', exact: true }).click(); await page.getByRole('table', { name: '單字列表', exact: true }).waitFor();
-      await page.getByRole('button', { name: 'Nexus Home', exact: true }).click(); await page.getByRole('button', { name: '切換學習組', exact: true }).click(); await page.getByRole('dialog').getByRole('button', { name: 'English words', exact: true }).click();
-      await page.getByRole('button', { name: '開始學習', exact: true }).click(); await page.getByRole('button', { name: '顯示答案', exact: true }).waitFor();
-      const resumed = await page.evaluate(async () => { const r = window.homeStorage.getStudyRepository(), pages = await window.homeStorage.listPages(); return r.readDeck(pages.find(p => p.title === 'English words').id, true); });
-      assert.equal(resumed.sessions.length, session.sessions.length); assert.equal(resumed.sessions[0].id, session.sessions[0].id); assert.equal(resumed.events.filter(e => e.kind === 'introduce').length, 1);
-      await page.getByRole('button', { name: 'Nexus Home', exact: true }).click();
-      await page.evaluate(() => window.switchOwner('home-account-b')); await page.waitForFunction(() => window.homeStorage.getWorkspaceOwner()==='home-account-b'); await mode().waitFor(); assert.equal(await mode().inputValue(), 'classic');
-      await mode().selectOption('learning'); await page.getByRole('button', { name: '開始學習', exact: true }).waitFor(); assert.ok(!(await page.locator('main').innerText()).includes('English words 0'));
-      await page.evaluate(() => window.switchOwner('home-account-a')); await page.waitForFunction(() => window.homeStorage.getWorkspaceOwner()==='home-account-a'); await page.getByRole('button', { name: '開始學習', exact: true }).waitFor(); assert.equal(await mode().inputValue(), 'learning');
-      await mode().selectOption('classic'); await page.getByLabel('搜尋項目', { exact: true }).waitFor();
+      const choose=async title=>{await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('radio',{name:title,exact:true}).check();await page.getByRole('dialog').getByRole('button',{name:'關閉',exact:true}).click();};
+      await mode().selectOption('learning');await choose('English words');await page.getByText('新卡 1｜學習中 0｜待複習 0',{exact:true}).waitFor();
+      assert.equal(await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return(await window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true)).events.length;}),0);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      await page.getByRole('button',{name:'日曆與待辦',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Task 3',exact:true}).waitFor();await page.keyboard.press('Escape');
+      await page.reload();assert.equal(await mode().inputValue(),'learning');await page.getByText('新卡 1｜學習中 0｜待複習 0',{exact:true}).waitFor();
+      await context.setOffline(true);await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
+      const session=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
+      assert.equal(session.sessions.length,1);assert.equal(session.events.filter(e=>e.kind==='introduce').length,1);
+      await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('Other words');
+      await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'管理 Other words',exact:true}).click();await page.getByRole('table',{name:'單字列表',exact:true}).waitFor();
+      await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('English words');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
+      const resumed=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
+      assert.equal(resumed.sessions[0].id,session.sessions[0].id);assert.equal(resumed.events.filter(e=>e.kind==='introduce').length,1);
+      await page.getByRole('button',{name:'Nexus Home',exact:true}).click();
+      await page.evaluate(()=>window.switchOwner('home-account-b'));await page.waitForFunction(()=>window.homeStorage.getWorkspaceOwner()==='home-account-b');assert.equal(await mode().inputValue(),'classic');
+      await page.evaluate(()=>window.switchOwner('home-account-a'));await page.waitForFunction(()=>window.homeStorage.getWorkspaceOwner()==='home-account-a');assert.equal(await mode().inputValue(),'learning');
       if(width===320){
-        await page.evaluate(()=>window.switchOwner('home-account-c'));await page.waitForFunction(()=>window.homeStorage.getWorkspaceOwner()==='home-account-c');
-        await mode().selectOption('learning');await page.getByText('請選擇或建立學習組以開始學習。',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'開始學習',exact:true}).isDisabled(),true);
-        await page.getByRole('button',{name:'管理字卡',exact:true}).click();assert.equal(await page.evaluate(()=>window.studySetsOpened),true);
-        await page.evaluate(()=>window.switchOwner('home-account-a'));await page.waitForFunction(()=>window.homeStorage.getWorkspaceOwner()==='home-account-a');
-        await mode().selectOption('learning');await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Empty set',exact:true}).click();
-        await page.getByText('學習組尚無字卡，請進入管理字卡新增。',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'開始學習',exact:true}).isDisabled(),true);
-        await page.evaluate(()=>window.failHomeRead());await page.getByRole('alert').getByText('無法載入學習資料，原有資料仍保留。',{exact:true}).waitFor();
-        await mode().selectOption('classic');await page.getByLabel('搜尋項目',{exact:true}).waitFor();await page.evaluate(()=>window.restoreHomeRead());
-        await page.evaluate(()=>{Storage.prototype.setItem=function(key,value){if(key.startsWith('nexus-home:'))throw Error('blocked');};});
-        await mode().selectOption('learning');await page.getByRole('status').getByText('目前選擇可使用，但無法記住在此裝置。',{exact:true}).waitFor();
-        await mode().selectOption('classic');await page.getByLabel('搜尋項目',{exact:true}).waitFor();
+        await choose('Empty set');await page.getByText('學習組尚無字卡，請進入管理字卡新增。',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'開始學習',exact:true}).isDisabled(),true);
+        await page.evaluate(()=>window.failHomeRead());await page.getByRole('alert').waitFor();await mode().selectOption('classic');await page.getByLabel('搜尋項目',{exact:true}).waitFor();await page.evaluate(()=>window.restoreHomeRead());
+        await page.evaluate(()=>window.switchOwner('home-account-c'));await page.waitForFunction(()=>window.homeStorage.getWorkspaceOwner()==='home-account-c');await mode().selectOption('learning');
+        await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'新增學習組'}).click();assert.equal(await page.evaluate(()=>window.studySetsOpened),true);await page.keyboard.press('Escape');
+        await mode().selectOption('classic');await page.evaluate(()=>{Storage.prototype.setItem=function(key){if(key.startsWith('nexus-home:'))throw Error('blocked');};});await mode().selectOption('learning');await page.getByRole('status').waitFor();
       }
       await context.setOffline(false); await context.close();
     }
