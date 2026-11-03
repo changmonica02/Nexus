@@ -25,7 +25,9 @@ export class StudyRepository {
   private changed() {
     if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-study-changed"));
   }
-  async ensureDeck(page: Page): Promise<StudySnapshot> {
+  async ensureDeck(page: Page): Promise<StudySnapshot>;
+  async ensureDeck(page: Page, includeSnapshot: false): Promise<void>;
+  async ensureDeck(page: Page, includeSnapshot = true): Promise<StudySnapshot | void> {
     if ((page.workspace_owner_id ?? null) !== this.owner()) throw new Error("學習集帳號不符。");
     const tx = this.db.transaction(STUDY_STORES, "readwrite", {durability:"strict"});
     try {
@@ -56,7 +58,7 @@ export class StudyRepository {
       }
     }
     await tx.done;
-    return this.readDeck(page.id,false);
+    if (includeSnapshot) return this.readDeck(page.id,false);
     } catch (error) {
       try { tx.abort(); } catch {}
       await tx.done.catch(() => undefined);
@@ -190,6 +192,18 @@ export class StudyRepository {
     const value={...settings,style_id:styleId,style_version:1 as const,style_migration_notice:false,configured:true,updated_at:Math.max(Date.now(),settings.updated_at+1)};
     await tx.objectStore('study_settings').put(value);await this.enqueue(tx,{owner_id:this.owner(),kind:'settings',value});
   });}
+  /** Copy the effective legacy/shared style on edit; only this deck is reassigned. */
+  async saveDeckStyle(deckId: string, patch: Partial<StudyStyle>) {
+    return this.sessionWrite(async tx => {
+      const settings:StudySettings=await tx.objectStore('study_settings').get(deckId);this.owned(settings);
+      const current=await this.effectiveStyle(tx,settings);
+      const style={...current,...patch,id:`study-style:deck:${this.owner()??'local'}:${deckId}`,name:current.name};
+      await this.styleRecord(tx,style);
+      const updated={...settings,style_id:style.id,style_version:1 as const,style_migration_notice:false,configured:true,updated_at:Math.max(Date.now(),settings.updated_at+1)};
+      await tx.objectStore('study_settings').put(updated);
+      await this.enqueue(tx,{owner_id:this.owner(),kind:'settings',value:updated});
+    });
+  }
   async configure(deckId: string, patch: Partial<Pick<StudySettings,"new_limit"|"direction_confirmed"|"review_limit"|"new_pause_threshold"|"sort_mode"|"quiz_direction"|"study_mode"|"card_order"|"review_order">>) {
     if (patch.study_mode != null && !["scheduled","endless"].includes(patch.study_mode)) throw new Error("無效學習模式。");
     if (patch.card_order != null && !["new-first","mixed","review-first"].includes(patch.card_order)) throw new Error("無效出卡順序。");

@@ -15,6 +15,19 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "deck.schedule": "Learning and scheduling",
+  "deck.scope": "Changes apply only to this study set and future sessions. Active sessions keep their settings.",
+  "deck.private": "Private study set",
+  "deck.manage": "Manage",
+  "deck.manageTitle": "Manage study set",
+  "deck.manageNamed": "Manage {{name}}",
+  "deck.create": "New study set",
+  "deck.backHome": "Back to study set selection",
+  "deck.presentation": "Card presentation",
+  "home.counts": "New {{fresh}} | Learning {{learning}} | Review {{review}}",
+  "home.previousMonth": "Previous month",
+  "home.nextMonth": "Next month",
+
   "home.switch": "Switch home",
   "home.classic": "Classic home",
   "home.learning": "Learning home",
@@ -399,7 +412,7 @@ const en: Dictionary = {
   "study.hours": "{{n}} hr",
   "study.days": "{{n}} days",
   "study.planned": "This session can arrange {{n}} cards.",
-  "study.preferencesHint": "Study settings: Preferences → Settings → Cards and learning. New and due cards share one session; cards not yet due are not reviewed early.",
+  "study.preferencesHint": "Adjust settings in this study set. New and due cards share one session.",
   "settings.一般": "General",
   "settings.字卡與學習": "Cards and learning",
   "settings.功能與導覽": "Features and navigation",
@@ -772,6 +785,19 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "deck.schedule": "學習與排程",
+  "deck.scope": "修改只套用此學習組與之後開始的學習；進行中的學習保留原設定。",
+  "deck.private": "私人學習組",
+  "deck.manage": "管理",
+  "deck.manageTitle": "管理學習組",
+  "deck.manageNamed": "管理 {{name}}",
+  "deck.create": "新增學習組",
+  "deck.backHome": "返回學習組選擇",
+  "deck.presentation": "字卡呈現",
+  "home.counts": "新卡 {{fresh}}｜學習中 {{learning}}｜待複習 {{review}}",
+  "home.previousMonth": "上個月",
+  "home.nextMonth": "下個月",
+
   "home.switch": "切換首頁",
   "home.classic": "經典首頁",
   "home.learning": "學習首頁",
@@ -1156,7 +1182,7 @@ const zhTW: Dictionary = {
   "study.hours": "{{n}} 小時",
   "study.days": "{{n}} 天",
   "study.planned": "本次預計安排 {{n}} 張字卡。",
-  "study.preferencesHint": "學習設定：側欄偏好 → 設定 → 字卡與學習。新卡與到期卡統一安排；不提前複習未到期卡。",
+  "study.preferencesHint": "在此學習組管理學習設定，新卡與到期卡統一安排。",
   "settings.一般": "一般",
   "settings.字卡與學習": "字卡與學習",
   "settings.功能與導覽": "功能與導覽",

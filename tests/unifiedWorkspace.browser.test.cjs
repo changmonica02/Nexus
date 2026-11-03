@@ -33,6 +33,40 @@ test(
         {
           name: "isolated-services",
           setup(b) {
+            if(process.env.NEXUS_DECK_MANAGEMENT)b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/},args=>{
+              let text=fs.readFileSync(args.path,'utf8');
+              text=text.replace('window.fixtureStorage = storage;',`const repo=storage.getStudyRepository();
+              let other=(await storage.listPages()).find(p=>p.title==='Other study');
+              if(!other){other=await storage.createPage({kind:'study_set',title:'Other study'});await repo.ensureDeck(other);await repo.addCards(other.id,[{front:'other',back:'其他'}]);}
+              const primary=(await storage.listPages()).find(p=>p.title==='Sample study_set');
+              if(!(await repo.listStyles()).some(s=>s.id==='study-style:shared-fixture')){const current=await repo.styleForDeck(primary.id);const shared={...current.style,id:'study-style:shared-fixture',name:'Legacy shared',new_limit:2,review_limit:2,study_mode:'endless'};await repo.saveStyle(shared);await repo.assignStyle(primary.id,shared.id);await repo.assignStyle(other.id,shared.id);}
+              window.mainDeckId=primary.id;window.otherDeckId=other.id;
+              window.switchFixtureAccount=next=>{storage.setWorkspaceOwner(next);session.user=next?{id:next,email:next+'@example.invalid'}:null;for(const cb of window.authListeners)cb(next?'SIGNED_IN':'SIGNED_OUT',next?session:null);};
+              window.fixtureStorage = storage;`);
+              return {contents:text,loader:'jsx'};
+            });
+            if (process.env.NEXUS_NAV_PERF) {
+              b.onLoad({filter:/components[\\/]NexusApp\.tsx$/}, async args => {
+                let text=process.env.NEXUS_PERF_BASELINE?require('node:child_process').execFileSync('git',['show','c776a1b:src/components/NexusApp.tsx'],{encoding:'utf8'}):fs.readFileSync(args.path,'utf8');
+                text=text.replace('const flushSave = useCallback(async (pageToSave: Page) => {','const flushSave = useCallback(async (pageToSave: Page) => { const __start=performance.now();try {');
+                text=text.replace('}, [storageRef]);\n  const commitCharacterData','} finally { window.navMetrics.flush.push(performance.now()-__start); } }, [storageRef]);\n  const commitCharacterData');
+                return {contents:text,loader:'tsx'};
+              });
+              if(process.env.NEXUS_PERF_BASELINE)b.onLoad({filter:/[\\/]src[\\/].*\.(ts|tsx)$/},args=>{
+                const file=path.relative(root,args.path).replaceAll('\\','/');
+                if(!['src/components/HomeScreen.tsx','src/components/Sidebar.tsx','src/components/SettingsDialog.tsx','src/features/study/StudyRepository.ts','src/features/study/scheduledStudy.ts','src/features/study/components/StudySetView.tsx','src/features/study/components/StudyHomeOverview.tsx','src/features/study/components/StudyPreferences.tsx','src/lib/i18n.ts'].includes(file))return null;
+                return {contents:require('node:child_process').execFileSync('git',['show','c776a1b:'+file],{encoding:'utf8'}),loader:file.endsWith('tsx')?'tsx':'ts'};
+              });
+              b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/}, async args => {
+                let text=fs.readFileSync(args.path,'utf8');
+                text=text.replace('const originalSave = IndexedDBAdapter.prototype.savePage;',`window.navMetrics={flush:[],reads:[],renders:[]};
+                const proto=Object.getPrototypeOf(storage.getStudyRepository());
+                for(const name of ['ensureDeck','readDeck','readScheduledDeck']){const original=proto[name];proto[name]=async function(...args){const start=performance.now();try{return await original.apply(this,args);}finally{window.navMetrics.reads.push({name,ms:performance.now()-start});}};}
+                const originalSave = IndexedDBAdapter.prototype.savePage;`);
+                text=text.replace('<>\n    <WorkspaceRoot>','<React.Profiler id="workspace" onRender={(id,phase,duration)=>window.navMetrics.renders.push({phase,ms:duration})}>\n    <WorkspaceRoot>').replace('</>,','</React.Profiler>,');
+                return {contents:text,loader:'jsx'};
+              });
+            }
             b.onLoad(
               { filter: /infrastructure[\\/]supabase[\\/]client\.ts$/ },
               () => ({
@@ -100,7 +134,7 @@ test(
         [1440, 900],
         [820, 1180],
         [1180, 820],
-        [390, 844],
+        [process.env.NEXUS_DECK_MANAGEMENT?320:390, 844],
       ]) {
         const context = await browser.newContext({
             viewport: { width, height },
@@ -110,6 +144,71 @@ test(
         page.setDefaultTimeout(10000);
         page.on("pageerror", (e) => errors.push(e.message));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
+        if(process.env.NEXUS_DECK_MANAGEMENT){
+          const toggle=page.getByLabel('切換首頁',{exact:true});await toggle.waitFor();await toggle.selectOption('learning');
+          await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
+          const start=await page.getByRole('button',{name:'開始學習',exact:true}).boundingBox();assert.ok(start.width>start.height*2);
+          await page.getByRole('button',{name:'切換學習組',exact:true}).click();const sheet=page.getByRole('dialog',{name:'切換學習組',exact:true});
+          const bounds=await sheet.boundingBox();assert.ok(Math.abs(bounds.y+bounds.height-height)<3,'sheet attaches to bottom');
+          await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).check();await sheet.getByRole('radio',{name:'Other study',exact:true}).check();await sheet.getByRole('radio',{name:'Other study',exact:true}).check();assert.equal(await sheet.getByRole('radio',{checked:true}).count(),1);
+          await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).check();
+          const before=await page.evaluate(async()=>({other:await window.fixtureStorage.getStudyRepository().styleForDeck(window.otherDeckId),data:await window.fixtureStorage.getStudyRepository().exportData()}));
+          await sheet.getByRole('button',{name:'管理 Sample study_set',exact:true}).click();const management=page.locator('[data-study-management]');await management.getByLabel('每日新卡上限',{exact:true}).waitFor();
+          assert.equal(await management.getAttribute('data-study-management'),await page.evaluate(()=>window.mainDeckId));
+          await management.getByLabel('每日新卡上限',{exact:true}).fill('7');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');
+          await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.new_limit===7);
+          const after=await page.evaluate(async()=>({other:await window.fixtureStorage.getStudyRepository().styleForDeck(window.otherDeckId),data:await window.fixtureStorage.getStudyRepository().exportData()}));assert.deepEqual(after.other,before.other);for(const key of ['cards','states','events','sessions'])assert.deepEqual(after.data[key],before.data[key],key);
+          if(width===1440){
+            await page.evaluate(()=>{const proto=Object.getPrototypeOf(window.fixtureStorage.getStudyRepository());window.restoreSettingsSave=proto.saveDeckStyle;proto.saveDeckStyle=async()=>{throw Error('Settings disk failure');};});
+            await management.getByLabel('每日新卡上限',{exact:true}).fill('8');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');await management.getByRole('alert').getByText(/Settings disk failure/).waitFor();
+            await page.getByRole('button',{name:'Nexus',exact:true}).first().click();assert.equal(await management.isVisible(),true);assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'8');
+            await page.evaluate(()=>{Object.getPrototypeOf(window.fixtureStorage.getStudyRepository()).saveDeckStyle=window.restoreSettingsSave;});
+            await management.getByLabel('每日新卡上限',{exact:true}).fill('9');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.new_limit===9);
+            const notice=page.locator('[role=alert].fixed');if(await notice.count())await notice.click();
+          }
+          await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).waitFor();assert.equal(await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).isChecked(),true);await page.keyboard.press('Escape');
+          await page.getByRole('button',{name:'日曆與待辦',exact:true}).click();const calendar=page.getByRole('dialog',{name:'日曆與待辦',exact:true});await calendar.getByRole('button',{name:'Sample todo',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.keyboard.press('Escape');
+          await page.getByRole('button',{name:'功能總覽',exact:true}).click();await page.getByRole('button',{name:'字卡',exact:true}).click();await page.getByRole('heading',{name:'我的學習集',exact:true}).waitFor();
+          await page.getByLabel('搜尋項目',{exact:true}).fill('Sample');await page.getByRole('button',{name:'更多操作 Sample study_set',exact:true}).click();await page.getByRole('menuitem',{name:'管理學習組',exact:true}).click();await management.getByLabel('每日新卡上限',{exact:true}).waitFor();assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),width===1440?'9':'7');
+          await management.getByRole('button',{name:'返回學習集',exact:true}).click();assert.equal(await page.getByLabel('搜尋項目',{exact:true}).inputValue(),'Sample');assert.equal(await management.count(),0);
+          await page.reload();await toggle.waitFor();assert.equal(await toggle.inputValue(),'learning');await page.getByRole('button',{name:'切換學習組',exact:true}).click();assert.equal(await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).isChecked(),true);await page.keyboard.press('Escape');
+          await page.keyboard.press('Control+k');await page.locator('input[placeholder]').filter({visible:true}).last().fill('Sample note');await page.getByText('Sample note',{exact:true}).last().click();await page.locator('.ProseMirror').first().waitFor();
+          if(!await page.getByRole('button',{name:'首頁',exact:true}).isVisible())await page.getByRole('button',{name:'開啟導覽',exact:true}).click();
+          assert.equal(await page.getByText(/本次預計安排.*張字卡/).count(),0);
+          const home=page.getByRole('button',{name:'首頁',exact:true});await home.click();await page.waitForTimeout(350);assert.equal(await page.locator('.ProseMirror').first().isVisible(),true);
+          await home.dblclick();await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
+          await page.getByRole('button',{name:'開啟導覽',exact:true}).click();const reopen=page.getByRole('button',{name:'首頁',exact:true});await reopen.focus();await page.keyboard.press('Enter');await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
+          if(width===320){await page.getByRole('button',{name:'開啟導覽',exact:true}).click();const touchHome=page.getByRole('button',{name:'首頁',exact:true});await touchHome.dispatchEvent('pointerdown',{pointerType:'touch',clientX:30,clientY:80});await page.waitForTimeout(650);await page.getByRole('dialog',{name:'開啟導覽',exact:true}).waitFor({state:'hidden'});assert.equal(await page.getByRole('dialog',{name:'開啟導覽',exact:true}).count(),0);}
+          await context.setOffline(true);await page.getByRole('button',{name:'切換學習組',exact:true}).click();await sheet.getByRole('button',{name:'管理 Sample study_set',exact:true}).click();await management.getByLabel('排程方法',{exact:true}).waitFor();await management.getByLabel('單次複習上限',{exact:true}).fill('3');await management.getByLabel('單次複習上限',{exact:true}).press('Enter');await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.review_limit===3);await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();await page.keyboard.press('Escape');await context.setOffline(false);
+          if(width===1440){
+            await page.getByRole('button',{name:'切換學習組',exact:true}).click();await sheet.getByRole('button',{name:'新增學習組',exact:false}).click();await management.getByLabel('每日新卡上限',{exact:true}).waitFor();
+            assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'20');assert.equal(await management.getByLabel('單次複習上限',{exact:true}).inputValue(),'100');
+            const otherOwner='00000000-0000-4000-8000-000000000002';await page.evaluate(owner=>window.switchFixtureAccount(owner),otherOwner);await page.waitForFunction(owner=>window.fixtureStorage.getWorkspaceOwner()===owner,otherOwner);assert.equal(await management.count(),0);await page.waitForFunction(()=>!document.body.innerText.includes('Sample study_set'));assert.equal(await toggle.inputValue(),'classic');
+            await page.evaluate(()=>window.switchFixtureAccount('00000000-0000-4000-8000-000000000001'));await page.waitForFunction(()=>window.fixtureStorage.getWorkspaceOwner()==='00000000-0000-4000-8000-000000000001');assert.equal(await toggle.inputValue(),'learning');
+          }
+          await page.screenshot({path:'/tmp/nexus132-home-'+width+'.png',fullPage:true});
+          assert.deepEqual(errors,[]);await context.close();continue;
+        }
+        if (process.env.NEXUS_NAV_PERF) {
+          if(width!==1440){await context.close();continue;}
+          const samples=[];
+          async function visit(title,ready){
+            await page.keyboard.press('Control+k');await page.locator('input[placeholder]').filter({visible:true}).last().fill(title);
+            const item=page.getByText(title,{exact:true}).last();await item.waitFor();
+            const started=await page.evaluate(()=>performance.now());await item.click();await ready();
+            return await page.evaluate(start=>performance.now()-start,started);
+          }
+          await page.locator('main').waitFor();
+          for(let i=0;i<8;i++){
+            const before=await page.evaluate(()=>({writes:window.saveAttempts.length,reads:window.navMetrics.reads.length,flush:window.navMetrics.flush.length,renders:window.navMetrics.renders.length}));
+            const note=await visit('Sample note',()=>page.locator('.ProseMirror').first().waitFor());
+            const study=await visit('Sample study_set',()=>page.getByRole('table',{name:'單字列表',exact:true}).waitFor());
+            const web=await visit('Sample web',()=>page.waitForFunction(()=>[...document.querySelectorAll('input')].some(n=>n.value==='Sample web')));
+            const stats=await page.evaluate(b=>({writes:window.saveAttempts.length-b.writes,reads:window.navMetrics.reads.slice(b.reads),flush:window.navMetrics.flush.slice(b.flush),renders:window.navMetrics.renders.slice(b.renders)}),before);
+            if(i>1)samples.push({note,study,web,...stats});
+          }
+          console.log('NAV_PERF '+JSON.stringify(samples));assert.deepEqual(errors,[]);await context.close();continue;
+        }
         const opener = page.getByRole("button", {
           name: "開啟導覽",
           exact: true,

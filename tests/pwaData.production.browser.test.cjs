@@ -93,6 +93,9 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await page.getByLabel('Switch home', { exact: true }).selectOption('learning');
   await page.getByRole('heading', { name: 'Learning home', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Start learning', exact: true }).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[data-study-counts]')?.textContent.includes('Loading'));
+  await page.evaluate(()=>window.dispatchEvent(new Event('nexus-study-changed')));
+  await waitForAsync(page,async A=>!(await window.pwaData.pending(A)).study.length,A);
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.length, 0, 'home preview does not consume new-card quota');
   offline = true; await context.setOffline(true); await setNetwork(page, true); await page.close(); page = await newPage(); page.setDefaultTimeout(10000);
   await page.goto(origin); await page.locator('main').waitFor(); await inject();

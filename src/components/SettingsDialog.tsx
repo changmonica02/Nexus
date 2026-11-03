@@ -7,10 +7,9 @@ import { useLanguage } from "../lib/LanguageContext";
 import { SUPPORTED_LANGUAGES, type Language } from "../lib/i18n";
 import { getHiddenFeatures, setHiddenFeatures, DEFAULT_FEATURE_ITEMS, getStoredFeatureOrderMode, setStoredFeatureOrderMode, getStoredCustomFeatureOrder, setStoredCustomFeatureOrder, type FeatureOrderMode } from "../lib/featurePreferences";
 import DataSourcesAndCopyright from "./DataSourcesAndCopyright";
-import StudyPreferences from "../features/study/components/StudyPreferences";
 import HelpGuide from "./HelpGuide";
 
-const sections = ["一般", "字卡與學習", "使用建議", "使用說明", "資料與備份", "關於 Nexus"] as const;
+const sections = ["一般", "使用建議", "使用說明", "資料與備份", "關於 Nexus"] as const;
 export default function SettingsDialog({ theme, onThemeChange, onExportBackup, onImportBackup, onClose }: PreferencesProps & { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { language, setLanguage, t } = useLanguage();
@@ -48,7 +47,6 @@ export default function SettingsDialog({ theme, onThemeChange, onExportBackup, o
             <label className="flex flex-wrap items-center justify-between gap-3">{t("preferences.language")}<select aria-label={t("preferences.language")} className={control} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>{SUPPORTED_LANGUAGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             <p className="text-xs leading-6 opacity-60">{t("ui.settingsHint")}</p>
           </div>}
-          {section === "字卡與學習" && <div className="space-y-6"><StudyPreferences /><p className="text-xs opacity-60">{t("styles.conflict")}</p></div>}
           {section === "一般" && <div className="space-y-4 text-sm">
             <h4 className="mt-6 font-medium">{t("ui.featureOrder")}</h4>
             <fieldset className="space-y-2"><legend className="mb-2 font-medium">{t("ui.featureOrder")}</legend>{([['recent', '最新使用排列（預設）'], ['default', '預設排列'], ['custom', '自訂排列']] as const).map(([value]) => <label key={value} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" style={{ borderColor: "var(--color-border)" }}><input type="radio" name="feature-order" value={value} checked={orderMode === value} onChange={() => changeMode(value)} />{t("ui.order."+value)}</label>)}</fieldset>
