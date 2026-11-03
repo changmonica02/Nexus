@@ -649,6 +649,8 @@ delete from public.dictionary_review_drafts where state<>'active';
 alter table public.dictionary_review_drafts drop column approved_revision;
 alter table public.dictionary_review_drafts drop constraint dictionary_review_drafts_state_check;
 alter table public.dictionary_review_drafts add constraint dictionary_review_drafts_state_check check(state='active');
+drop index public.dictionary_review_entry;
+create index dictionary_review_entry on public.dictionary_review_drafts(entry_id);
 
 -- Compact non-import safety receipts, not an archive of deleted words or old
 -- component definitions. CSV/JSON import receipts still expire after 3 days.

@@ -71,6 +71,15 @@ test('retention migration preserves current content/active work, deletes archive
  assert.deepEqual(await sql(pg,"select jsonb_build_object('state',(select payload from study_card_states where id='card'),'events',(select jsonb_agg(payload) from study_review_events)) v"),fsrsBefore);
  assert.equal(await sql(pg,'select count(*)::int v from binaries'),2);assert.equal(await sql(pg,'select count(*)::int v from attachments'),3);
  await pg.exec('set role authenticated');
+ // Fresh writes after retirement exercise publication wrappers and editor child replacement.
+ await save(pg,draft(60,'fresh'));
+ const bulk=await sql(pg,"select preview_dictionary_bulk_publish('{}','fresh') v");
+ assert.equal((await sql(pg,"select publish_dictionary_bulk('{}','fresh',$1,true) v",[bulk.signature])).published,1);
+ assert.ok((await sql(pg,"select quick_create_dictionary_component($1,'prefix','new-prefix',true) v",[id(501)])).id);
+ await assert.rejects(sql(pg,"select quick_create_dictionary_component($1,'prefix','different-prefix',true) v",[id(501)]),/reused/);
+ const editor=draft(70,'editor');editor.relations=[{id:id(74),entry_id:id(70),sense_id:id(71),target_entry_id:id(10),target_sense_id:id(11)}];await save(pg,editor);
+ const savedEditor=await snapshot(pg,70);const replacement=mapDictionaryDraft({...editor,revision:savedEditor.detail.entry.revision,relations:[],senses:savedEditor.detail.senses});replacement.replace_editor_children=true;
+ await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([replacement])]);assert.equal(await sql(pg,'select count(*)::int v from dictionary_relations where entry_id=$1',[id(70)]),0);
  assert.deepEqual(await sql(pg,'select quick_create_dictionary_component($1,\'root\',\'compact\',true) v',[id(500)]),quick);
  assert.equal(await sql(pg,"select request ? 'fingerprint' v from dictionary_import_operations where operation_id=$1",[id(500)]),true);
  assert.deepEqual(await sql(pg,'select result v from dictionary_import_operations where operation_id=$1',[id(500)]),{id:quick.id});
