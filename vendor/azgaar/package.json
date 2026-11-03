@@ -26,7 +26,6 @@
     "lint": "biome check --write",
     "sync-version": "node scripts/sync-version.js",
     "stamp-assets": "node scripts/stamp-assets.js",
-    "generate:assistant-context": "node scripts/generate-assistant-context.mjs",
     "prepare": "simple-git-hooks"
   },
   "simple-git-hooks": {

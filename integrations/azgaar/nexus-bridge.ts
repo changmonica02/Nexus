@@ -20,6 +20,10 @@ configurePreviewGestures(true,false);
 const previewStyle=document.createElement('style');
 previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):not(style){display:none!important}body.nexus-preview{background:transparent!important}body.nexus-preview #map{cursor:grab;background:transparent!important}body .speaker{display:none!important}';
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
+const compactTools=document.createElement('style');
+compactTools.textContent=`body:not(.nexus-preview) #optionsContainer{position:absolute;left:0;top:0;z-index:20;width:max-content;max-width:calc(100vw - 16px);max-height:55vh;overflow:auto;box-sizing:border-box}body:not(.nexus-preview) #collapsible{position:relative;margin:8px;max-width:100%}body:not(.nexus-preview) #options{position:relative;max-width:100%;box-sizing:border-box}body:not(.nexus-preview) #optionsTrigger{min-height:44px;min-width:44px}body:not(.nexus-preview) #options .tab{height:auto;min-height:44px}body:not(.nexus-preview) #options button,body:not(.nexus-preview) #options summary{min-height:44px} @media(max-width:600px){body:not(.nexus-preview) #optionsContainer{position:fixed;left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;max-height:45vh}body:not(.nexus-preview) #options{position:relative;margin:0;width:100%}}`;
+document.head.append(compactTools);
+
 type Marker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean}};
 let markers:Marker[]=[],pickPoint:string|null=null;
 const SVG_NS='http://www.w3.org/2000/svg';

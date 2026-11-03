@@ -1,7 +1,6 @@
 import { createRegistry } from "@/utils/registry";
 
 export const Controllers = createRegistry({
-  AiGenerator: () => import("@/controllers/ai-generator").then(m => m.AiGenerator),
   BattleScreen: () => import("@/controllers/battle-screen").then(m => m.BattleScreen),
   BiomesEditor: () => import("@/controllers/biomes-editor").then(m => m.BiomesEditor),
   BurgCreator: () => import("@/controllers/burg-creator").then(m => m.BurgCreator),
@@ -24,7 +23,6 @@ export const Controllers = createRegistry({
   FeaturesOverview: () => import("@/controllers/features-overview").then(m => m.FeaturesOverview),
   HeightmapEditor: () => import("@/controllers/heightmap-editor").then(m => m.HeightmapEditor),
   HeightmapSelection: () => import("@/controllers/heightmap-selection").then(m => m.HeightmapSelection),
-  Assistant: () => import("@/controllers/assistant").then(m => m.Assistant),
   IconPicker: () => import("@/controllers/icon-picker").then(m => m.IconPicker),
   HierarchyTree: () => import("@/controllers/hierarchy-tree").then(m => m.HierarchyTree),
   IceEditor: () => import("@/controllers/ice-editor").then(m => m.IceEditor),

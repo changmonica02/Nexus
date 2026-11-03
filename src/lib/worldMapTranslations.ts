@@ -1,5 +1,9 @@
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+ "worldMap.export":"Export",
+ "worldMap.tools":"World tools",
+ "worldMap.markers":"Markers and entries",
+ "worldMap.regions":"Regions and distributions",
  "worldDistribution.error.relation":"Incompatible distribution relation",
  "worldDistribution.error.settings":"Invalid distribution settings",
  "worldDistribution.view":"Map view",
@@ -557,7 +561,6 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Balance": "Balance",
   "azgaar.Speed": "Speed",
   "azgaar.Custom": "Custom",
-  "azgaar.Azgaar Assistant": "Azgaar Assistant",
   "azgaar.Speaker voice": "Speaker voice",
   "azgaar.Emblem shape": "Emblem shape",
   "azgaar.Cultures set": "Cultures set",
@@ -634,7 +637,6 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Set what Generator should do on load": "Set what Generator should do on load",
   "azgaar.Rendering preset: visual quality traded for speed. Pick 'Speed' if the map feels slow": "Rendering preset: visual quality traded for speed. Pick 'Speed' if the map feels slow",
   "azgaar.Open the performance settings": "Open the performance settings",
-  "azgaar.Toggle Azgaar Assistant (help bubble on the bottom right corner)": "Toggle Azgaar Assistant (help bubble on the bottom right corner)",
   "azgaar.Select speech synthesis voice to pronounce generated names": "Select speech synthesis voice to pronounce generated names",
   "azgaar.Click to test the voice": "Click to test the voice",
   "azgaar.Select emblem shape. Can be changed individually in the Emblem Editor": "Select emblem shape. Can be changed individually in the Emblem Editor",
@@ -752,6 +754,10 @@ export const worldMapEn:Record<string,string> = {
   "azgaar.Click to regenerate non-locked states": "Click to regenerate non-locked states"
 };
 export const worldMapZhTW:Record<string,string> = {
+ "worldMap.export":"匯出",
+ "worldMap.tools":"世界觀工具",
+ "worldMap.markers":"標記與條目",
+ "worldMap.regions":"區域與分布",
  "worldDistribution.error.relation":"分布條目的關聯類型不相容",
  "worldDistribution.error.settings":"分布顯示設定無效",
  "worldDistribution.view":"地圖檢視",
@@ -1309,7 +1315,6 @@ export const worldMapZhTW:Record<string,string> = {
   "azgaar.Balance": "平衡",
   "azgaar.Speed": "速度",
   "azgaar.Custom": "自訂",
-  "azgaar.Azgaar Assistant": "Azgaar 助手",
   "azgaar.Speaker voice": "語音朗讀",
   "azgaar.Emblem shape": "紋章形狀",
   "azgaar.Cultures set": "文化集合",
@@ -1386,7 +1391,6 @@ export const worldMapZhTW:Record<string,string> = {
   "azgaar.Set what Generator should do on load": "設定生成器啟動行為",
   "azgaar.Rendering preset: visual quality traded for speed. Pick 'Speed' if the map feels slow": "渲染預設會在畫質與速度間取捨；操作緩慢時可選速度",
   "azgaar.Open the performance settings": "開啟效能設定",
-  "azgaar.Toggle Azgaar Assistant (help bubble on the bottom right corner)": "切換 Azgaar 助手提示；此沙箱不提供外部助手服務",
   "azgaar.Select speech synthesis voice to pronounce generated names": "選擇朗讀生成名稱的語音",
   "azgaar.Click to test the voice": "測試語音",
   "azgaar.Select emblem shape. Can be changed individually in the Emblem Editor": "選擇紋章形狀，也可在紋章編輯器個別調整",

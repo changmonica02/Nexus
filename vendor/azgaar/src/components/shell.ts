@@ -2,9 +2,6 @@
 import { alertDialog, confirmationDialog } from "@/components/dialog/dialog-helpers";
 import { Layers } from "@/components/layers";
 import { Pins } from "@/components/pins";
-import { showDataTip } from "@/components/tooltips";
-import { Controllers } from "@/controllers";
-import { findEl } from "@/utils";
 import { fitMapToScreen } from "./canvas";
 
 /** Wire the window up: the svg layer scaffold and the browser-level behaviours around it. Called by boot() */
@@ -14,7 +11,6 @@ export function initShell(): void {
   window.addEventListener("resize", onResize);
   window.addEventListener("vite:preloadError", onChunkLoadError);
   document.addEventListener("touchstart", onTitlebarButtonTouch, { capture: true, passive: true });
-  initAssistantBubble();
 }
 
 /** Keep the next unpinned map request in step with the browser window. */
@@ -24,15 +20,6 @@ function onResize(): void {
     if (Pins.rolls("mapHeight") && window.innerHeight > 0) config.generation.graph.height = window.innerHeight;
   });
   fitMapToScreen();
-}
-
-/** The assistant's call button: always in the markup, shown only when the preference says so */
-function initAssistantBubble(): void {
-  const bubble = findEl("assistantBubble");
-  if (!bubble) return;
-
-  bubble.addEventListener("click", () => Controllers.Assistant.toggle());
-  bubble.addEventListener("mouseover", showDataTip);
 }
 
 /**
