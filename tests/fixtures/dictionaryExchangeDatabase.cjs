@@ -75,7 +75,7 @@ function client(pg) {
         return {
           data: await sql(
             pg,
-            `select ${name}(${fields.map((_f, i) => "$" + (i + 1)).join(",")}) v`,
+            `select ${name}(${fields.map((f, i) => "$" + (i + 1) + (f === "entry_ids" ? "::uuid[]" : "")).join(",")}) v`,
             fields.map((f) =>
               (typeof args[f] === "object" &&
                 args[f] !== null &&
