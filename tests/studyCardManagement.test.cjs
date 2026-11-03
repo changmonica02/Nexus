@@ -34,7 +34,8 @@ test('management renders only two readonly columns, always A–Z, with full text
   assert.match(html, /table-fixed/);
   assert.equal((html.match(/class="[^"]*truncate[^"]*"/g) || []).length, 4);
   assert.ok(html.includes(long));
-  assert.doesNotMatch(html, /<input|<textarea|<select|draggable|拖曳|自訂排序|到期|新卡/);
+  assert.doesNotMatch(html, /<textarea|draggable|拖曳|自訂排序|到期|新卡/);
+  assert.doesNotMatch(html.split('<tbody>')[1].split('</tbody>')[0], /<input|<textarea|<select/);
   assert.match(html, /tabindex="0"/);
   assert.match(html, /aria-label="編輯單字 Apple"/);
 });
@@ -90,3 +91,5 @@ test('add, batch import, edit and delete immediately derive A–Z without changi
     assert.deepEqual(words(await reopened.readDeck('deck',true)), ['apple', 'Banana', 'pear']);
   } finally { db.close(); await deleteDB(name); }
 });
+
+test('large card lists render a bounded page while keeping a complete count',()=>{const html=list(Array.from({length:6134},(_,i)=>({id:'card'+i,front:'word'+i,back:'中文'+i,sort_order:i})));assert.equal((html.match(/data-study-card=/g)||[]).length,50);assert.match(html,/6134 cards/);});

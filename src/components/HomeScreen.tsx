@@ -77,7 +77,7 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
     </button>)}
   </div>;
   return <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-editor-bg)] text-[var(--color-text)]">
-    <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-end gap-2 px-4 pt-3 sm:px-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-end gap-2 px-4 pt-3 shrink-0 sm:px-8">
       <label className="flex min-h-11 max-w-full items-center gap-2 text-sm">{t('home.switch')}
         <select aria-label={t('home.switch')} value={preferences.mode} onChange={event => change({ mode: event.target.value as Preferences['mode'] })} className="min-h-11 min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-2">
           <option value="classic">{t('home.classic')}</option><option value="learning">{t('home.learning')}</option>
@@ -85,10 +85,10 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
       </label>
       {preferenceError && <p role="status" className="w-full text-right text-xs">{t('home.preferenceError')}</p>}
     </div>
-    {preferences.mode === 'classic' ? classic : <main data-pull-refresh className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 sm:p-8">
+    {preferences.mode === 'classic' ? classic : <main data-pull-refresh className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 sm:pb-[calc(2rem+env(safe-area-inset-bottom))]">
       <h1 className="sr-only">{t('home.learning')}</h1>
-      <div className="flex min-h-32 flex-[3]"/>
-      <section data-learning-home aria-label={t('home.learning')} className="mx-auto w-full max-w-xl pb-8 text-center sm:pb-12">
+      <section data-learning-home aria-label={t('home.learning')} className="mx-auto mt-auto w-full max-w-xl shrink-0 text-center">
+        {current?.error?<div className="mb-4 text-sm"><p role="alert">{t('home.loadError')}</p><button className={button} onClick={()=>setNow(Date.now())}>{t('home.retry')}</button></div>:snapshot&&(!snapshot.settings.direction_confirmed||!cardCount)?<p className="mb-4 text-sm opacity-65">{t(!snapshot.settings.direction_confirmed?'home.confirmDirection':'home.emptyDeck')}</p>:null}
         <p aria-live="polite" data-study-counts className="mb-5 whitespace-nowrap text-xs tabular-nums sm:text-sm">
           {counts?t('home.counts',{fresh:counts.new,learning:counts.learning,review:counts.review}):deck&&!current?.error?t('study.loadingCards'):t('home.chooseHint')}
         </p>
@@ -97,9 +97,8 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
           <button disabled={!snapshot?.settings.direction_confirmed||cardCount===0} onClick={()=>{if(deck)onStudy(deck.id,'scheduled');}} className="flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-4 text-base font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-500 disabled:opacity-40 sm:min-h-16 sm:text-xl"><Play aria-hidden="true" size={22}/>{t('study.start')}</button>
           <button ref={calendarTrigger} aria-label={t('home.calendar')} title={t('home.calendar')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPreviewDate(today)}><CalendarDays aria-hidden="true" size={23}/></button>
         </div>
-        {current?.error?<div className="mt-4 text-sm"><p role="alert">{t('home.loadError')}</p><button className={button} onClick={()=>setNow(Date.now())}>{t('home.retry')}</button></div>:snapshot&&(!snapshot.settings.direction_confirmed||!cardCount)?<p className="mt-4 text-sm opacity-65">{t(!snapshot.settings.direction_confirmed?'home.confirmDirection':'home.emptyDeck')}</p>:null}
+
       </section>
-      <div className="flex flex-[2]"/>
     </main>}
     {picker && !suspended && <ModalDialog returnFocusRef={pickerTrigger} aria-label={t('home.chooseDeck')} onDismiss={()=>setPicker(false)} className={sheet}>
       <header className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t('home.chooseDeck')}</h2><button className={button} onClick={()=>setPicker(false)}>{t('home.close')}</button></header>

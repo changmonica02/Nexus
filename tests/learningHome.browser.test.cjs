@@ -14,7 +14,7 @@ test('learning home: actual IDB and study session, responsive layout, preview qu
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ['--no-sandbox'] }), errors = [];
   try {
-    for (const width of [1280, 320]) {
+    for (const width of [1280,820,320]) {
       const context = await browser.newContext({ viewport: { width, height: 1000 }, isMobile: width < 500, hasTouch: width < 900 }), page = await context.newPage();
       page.on('pageerror', e => errors.push(e.message)); await page.goto('http://127.0.0.1:' + server.address().port);
       const mode = () => page.getByLabel('切換首頁', { exact: true });
@@ -24,13 +24,22 @@ test('learning home: actual IDB and study session, responsive layout, preview qu
       await mode().selectOption('learning');await choose('English words');await page.getByText('新卡 1｜學習中 0｜待複習 0',{exact:true}).waitFor();
       assert.equal(await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return(await window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true)).events.length;}),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      const safeArea=await context.newCDPSession(page);let inset=0;
+      try{await safeArea.send('Emulation.setSafeAreaInsets',{insets:{bottom:24}});inset=24;}catch{console.log('SAFE_AREA: browser override unavailable; real-device check remains required');}
+      for(const height of [1000,480,320]){
+        await page.setViewportSize({width,height});
+        const geometry=await page.evaluate(()=>{const section=document.querySelector('[data-learning-home]'),main=section.closest('main'),row=section.querySelector('div.flex'),buttons=Array.from(row.children).map(e=>e.getBoundingClientRect()),box=main.getBoundingClientRect(),style=getComputedStyle(main);return{gap:box.bottom-buttons[1].bottom,padding:parseFloat(style.paddingBottom),y:buttons.map(b=>b.y+b.height/2),overflow:document.documentElement.scrollWidth>innerWidth,scroll:main.scrollHeight>main.clientHeight};});
+        assert.ok(Math.abs(geometry.gap-geometry.padding)<2,JSON.stringify(geometry));assert.ok(geometry.padding>=(width>=640?32:24)+inset);assert.ok(Math.max(...geometry.y)-Math.min(...geometry.y)<2);assert.equal(geometry.overflow,false);assert.equal(geometry.scroll,false);
+      }
+      if(inset)await safeArea.send('Emulation.setSafeAreaInsets',{insets:{bottom:0}});await safeArea.detach();
+      await page.setViewportSize({width,height:1000});
       await page.getByRole('button',{name:'日曆與待辦',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Task 3',exact:true}).waitFor();await page.keyboard.press('Escape');
       await page.reload();assert.equal(await mode().inputValue(),'learning');await page.getByText('新卡 1｜學習中 0｜待複習 0',{exact:true}).waitFor();
       await context.setOffline(true);await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
       const session=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
       assert.equal(session.sessions.length,1);assert.equal(session.events.filter(e=>e.kind==='introduce').length,1);
       await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('Other words');
-      await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'管理 Other words',exact:true}).click();await page.getByRole('table',{name:'單字列表',exact:true}).waitFor();
+      await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'管理 Other words',exact:true}).click();await page.getByLabel('排程方法',{exact:true}).waitFor();assert.equal(await page.getByRole('table',{name:'單字列表',exact:true}).count(),0);await page.getByRole('button',{name:/^查看字卡/}).click();await page.getByRole('table',{name:'單字列表',exact:true}).waitFor();
       await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('English words');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
       const resumed=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
       assert.equal(resumed.sessions[0].id,session.sessions[0].id);assert.equal(resumed.events.filter(e=>e.kind==='introduce').length,1);
