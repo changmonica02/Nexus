@@ -70,7 +70,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   });
   const newPage = async () => { const p = await context.newPage(); await setNetwork(p, offline); return p; };
   let page = await newPage(); page.setDefaultTimeout(10000);
-  const errors = []; context.on('page', p => p.on('pageerror', e => errors.push(e.message))); page.on('pageerror', e => errors.push(e.message));
+  const errors = []; context.on('page', p => p.on('pageerror', e => { errors.push(e.message); console.error('PAGE_ERROR',e.stack); })); page.on('pageerror', e => { errors.push(e.message); console.error('PAGE_ERROR',e.stack); });
   const inject = async () => { await page.addScriptTag({ type: 'module', content: helper }); await waitForAsync(page, () => !!window.pwaData); };
   const home = async () => { await inject(); await page.evaluate(() => window.pwaData.home()); await page.goto(origin); await page.locator('main').waitFor(); await inject(); };
   const switchAccount = async owner => {
@@ -90,8 +90,15 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await waitForAsync(page, async A => { const p = await window.pwaData.pending(A); return !p.workspace.length && !p.study.length; }, A);
   await waitForAsync(page, async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
   await home();
+  await page.getByLabel('Switch home', { exact: true }).selectOption('learning');
+  await page.getByRole('heading', { name: 'Learning home', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Start learning', exact: true }).waitFor();
+  assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.length, 0, 'home preview does not consume new-card quota');
   offline = true; await context.setOffline(true); await setNetwork(page, true); await page.close(); page = await newPage(); page.setDefaultTimeout(10000);
   await page.goto(origin); await page.locator('main').waitFor(); await inject();
+  assert.equal(await page.getByLabel('Switch home', { exact: true }).inputValue(), 'learning');
+  await page.getByRole('heading', { name: 'Learning home', exact: true }).waitFor();
+  await page.getByLabel('Switch home', { exact: true }).selectOption('classic');
   await page.locator('main').getByText('PWA Note', { exact: true }).first().click();
   const editor = page.locator('.ProseMirror').first(); await editor.waitFor(); assert.match(await editor.innerText(), /original body/);
   await editor.click(); await page.keyboard.press('ControlOrMeta+End'); await page.keyboard.type(' OFFLINE_EDIT');
@@ -105,7 +112,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await waitForAsync(page, () => !!document.querySelector('iframe[src^="blob:"], embed[src^="blob:"], object[data^="blob:"]'));
   const localPDF = await page.evaluate(async () => { const el = document.querySelector('iframe[src^="blob:"], embed[src^="blob:"], object[data^="blob:"]'); return (await (await fetch(el.src || el.data)).text()).slice(0, 8); }); assert.equal(localPDF, '%PDF-1.4');
   await home(); await page.locator('main').getByText('PWA Missing PDF', { exact: true }).first().click(); await page.getByText(/not found|unavailable|無法|找不到/i).first().waitFor();
-  await home(); await page.locator('main').getByText('PWA Study', { exact: true }).first().click(); await page.getByRole('button', { name: /Start learning|開始學習/i, exact: true }).click();
+  await home(); await page.getByLabel('Switch home', { exact: true }).selectOption('learning'); await page.getByRole('button', { name: 'Start learning', exact: true }).click();
   assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Show answer|顯示答案/i, exact: true }).click(); await page.getByRole('button', { name: /Easy|熟記/ }).first().click();
   await waitForAsync(page, async ({ A, id }) => (await window.pwaData.study(A, id)).events.some(e => e.kind === 'review'), { A, id: ids.deck });
   const learned = await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck });
@@ -125,7 +132,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   assert.equal([...studyReceipts.values()].filter(op => op.kind === 'event' && op.value.kind === 'review').length, 1);
   await page.evaluate(B => window.pwaData.seedOther(B), B);
   await switchAccount(B); await waitForAsync(page, () => !/PWA Study|offline word|offline answer/.test(document.querySelector('main')?.innerText || ''));
-  offline = true; await context.setOffline(true); await setNetwork(page, true); await home(); await page.locator('main').getByText('ACCOUNT B PRIVATE', { exact: true }).first().waitFor();
+  offline = true; await context.setOffline(true); await setNetwork(page, true); await home(); assert.equal(await page.getByLabel('Switch home', { exact: true }).inputValue(), 'classic'); await page.locator('main').getByText('ACCOUNT B PRIVATE', { exact: true }).first().waitFor();
   assert.ok(!/PWA Note|PWA Character|PWA World/.test(await page.locator('main').innerText()));
   await switchAccount(null); await page.getByText(/Sign in to Nexus|登入 Nexus/).waitFor(); assert.equal(await page.locator('main').count(), 0);
   offline = false; await context.setOffline(false); await setNetwork(page, false);
