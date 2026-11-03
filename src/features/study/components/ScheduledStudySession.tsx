@@ -65,6 +65,7 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
   const card=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
   const cardId=card?.id,head=state?.head;
+  const readingQuestion=JSON.stringify([session?.id,cardId,head,card?.content_revision]);
   useEffect(()=>{if(cardId){if(revealed)firstRating.current?.focus();else revealButton.current?.focus();}},[cardId,head,revealed]);
   const status=session&&data?scheduledStatus(session,data.snapshot,now):null;
   useEffect(()=>{availability.current=status?{nextDue:status.nextDue,day:new Date().toDateString()}:null;},[status]);
@@ -103,7 +104,7 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
         <p className="whitespace-pre-wrap break-words text-2xl font-medium" lang="en">{card.front}</p>
         {revealed&&<><p className="mt-6 whitespace-pre-wrap break-words border-t pt-6 text-xl" lang="zh">{card.back}</p>{card.dictionary_entry_id&&<StudyCompositionSummary key={`${card.id}:${card.dictionary_entry_id}`} entryId={card.dictionary_entry_id} front={card.front} answer={card.back}/>}</>}
       </div>
-      <StudyPronunciation key={question.current??card.id} question={question.current??card.id} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/>
+      <StudyPronunciation key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/>
       {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
         <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
         <CardDictionaryPanel onEditingChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} cardId={card.id} front={card.front} fixedEntryId={card.dictionary_entry_id}/>

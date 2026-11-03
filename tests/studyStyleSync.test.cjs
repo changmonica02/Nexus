@@ -30,6 +30,8 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
     ]);
     const fixed = {
       ...defaultStudyStyle(owner),
+      auto_speech: false,
+      speech_rate: 1.2,
       scheduling_method: "fixed",
       study_mode: "endless",
     };
@@ -100,6 +102,8 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
     await syncStudy(two.repo, client, owner);
     const remote = await two.repo.readScheduledDeck("deck", now + 60001);
     assert.equal(remote.settings.style.scheduling_method, "fsrs");
+    assert.equal(remote.settings.style.auto_speech, false);
+    assert.equal(remote.settings.style.speech_rate, 1.2);
     assert.equal(remote.settings.review_limit, 100);
     assert.equal(remote.states[0].scheduling_method, "fsrs");
     assert.ok(remote.states[0].fixed);
