@@ -115,6 +115,9 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await waitForAsync(page, () => !!document.querySelector('iframe[src^="blob:"], embed[src^="blob:"], object[data^="blob:"]'));
   const localPDF = await page.evaluate(async () => { const el = document.querySelector('iframe[src^="blob:"], embed[src^="blob:"], object[data^="blob:"]'); return (await (await fetch(el.src || el.data)).text()).slice(0, 8); }); assert.equal(localPDF, '%PDF-1.4');
   await home(); await page.locator('main').getByText('PWA Missing PDF', { exact: true }).first().click(); await page.getByText(/not found|unavailable|無法|找不到/i).first().waitFor();
+  await home();await page.getByLabel('Switch home',{exact:true}).selectOption('learning');await page.getByRole('button',{name:'Calendar and todos',exact:true}).click();await page.getByRole('button',{name:'Life → Calendar',exact:true}).click();const life=page.locator('[data-life-workspace]');await life.getByRole('tab',{name:'Calendar',selected:true}).waitFor();
+  await life.getByLabel('Complete PWA Task',{exact:true}).check();await life.getByRole('tab',{name:'Tasks',exact:true}).click();await life.getByRole('group',{name:'Task views'}).getByRole('button',{name:'Completed',exact:true}).click();await life.getByRole('button',{name:/^PWA Task/}).click();await page.getByLabel('Task date and time',{exact:true}).fill('2026-07-04T10:15');await page.locator('.ProseMirror').first().fill('OFFLINE_TASK_EDIT');await page.getByRole('button',{name:'回到功能介面',exact:true}).click();await life.getByRole('tab',{name:'Tasks',selected:true}).waitFor();assert.equal(await life.getByRole('group',{name:'Task views'}).getByRole('button',{name:'Completed',exact:true}).getAttribute('aria-pressed'),'true');
+  const task=await page.evaluate(({A,id})=>window.pwaData.read(A,id),{A,id:ids.task});assert.equal(task.completed,true);assert.match(task.content_text,/OFFLINE_TASK_EDIT/);assert.equal(await page.evaluate(time=>new Date(time).getDate(),task.due_date),4);
   await home(); await page.getByLabel('Switch home', { exact: true }).selectOption('learning'); await page.getByRole('button', { name: 'Start learning', exact: true }).click();
   assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Show answer|顯示答案/i, exact: true }).click();
   // The actual Next/PWA history implementation must close the bottom sheet
@@ -139,7 +142,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   offline = false; await context.setOffline(false); await setNetwork(page, false);
   await waitForAsync(page, async ({ A, id }) => !(await window.pwaData.pending(A)).workspace.some(batch => batch.operations.some(op => op.entity_id === id)), { A, id: ids.note });
   await waitForAsync(page, async A => !(await window.pwaData.pending(A)).study.length, A);
-  assert.match(rows.pages.get(ids.note).content_text, /OFFLINE_EDIT/);
+  assert.match(rows.pages.get(ids.note).content_text, /OFFLINE_EDIT/);await waitForAsync(page,async({A,id})=>!(await window.pwaData.pending(A)).workspace.some(batch=>batch.operations.some(op=>op.entity_id===id)),{A,id:ids.task});assert.match(rows.pages.get(ids.task).content_text,/OFFLINE_TASK_EDIT/);assert.equal(rows.pages.get(ids.task).completed,true);
   assert.equal(rows.pages.get(ids.conflict).content_text, 'OTHER_DEVICE_EDIT');
   const queued = await page.evaluate(A => window.pwaData.pending(A), A); assert.ok(queued.workspace.some(batch => batch.error?.includes('conflict')));
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.read(A, id), { A, id: ids.conflict })).content_text, 'LOCAL_CONFLICT_EDIT');
@@ -147,7 +150,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await page.evaluate(B => window.pwaData.seedOther(B), B);
   await switchAccount(B); await waitForAsync(page, () => !/PWA Study|offline word|offline answer/.test(document.querySelector('main')?.innerText || ''));
   offline = true; await context.setOffline(true); await setNetwork(page, true); await home(); assert.equal(await page.getByLabel('Switch home', { exact: true }).inputValue(), 'classic'); await page.locator('main').getByText('ACCOUNT B PRIVATE', { exact: true }).first().waitFor();
-  assert.ok(!/PWA Note|PWA Character|PWA World/.test(await page.locator('main').innerText()));
+  assert.ok(!/PWA Note|PWA Character|PWA World|PWA Task/.test(await page.locator('main').innerText()));
   await switchAccount(null); await page.getByText(/Sign in to Nexus|登入 Nexus/).waitFor(); assert.equal(await page.locator('main').count(), 0);
   offline = false; await context.setOffline(false); await setNetwork(page, false);
   await switchAccount(A); await page.locator('main').waitFor(); await inject(); assert.match((await page.evaluate(({ A, id }) => window.pwaData.read(A, id), { A, id: ids.note })).content_text, /OFFLINE_EDIT/);

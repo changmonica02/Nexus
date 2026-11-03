@@ -683,7 +683,7 @@ export default function Sidebar({
         {isFeaturesExpanded && (() => {
           const fixed = [
             { id: "all" as const, label: "所有項目", onOpen: onShowHome },
-            { id: "calendar" as const, label: "日曆", onOpen: () => onShowTodoList?.() },
+            { id: "calendar" as const, label: t("life.title"), onOpen: () => onShowTodoList?.() },
           ];
           const others = [
             { id: "notes" as const, label: "筆記", onOpen: () => onShowNotesOverview?.() },

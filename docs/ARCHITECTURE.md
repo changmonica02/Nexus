@@ -19,6 +19,12 @@
 
 Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`content_text` 是搜尋／預覽衍生資料。附件 metadata 與 Blob 分離，顯示用投影不取代穩定 ID。
 
+### 生活工作區
+
+`TodoView` 提供生活總覽、月曆及任務篩選，`PageCollection` 共用同一批 `kind: todo` Pages；內部 `calendar` 導覽識別與既有連結保留相容。`NexusApp` 只持有日期／月份／分頁／篩選／捲動等介面上下文，帳號切換時清除，任務編輯返回恢復上下文。學習首頁捷徑傳入選取的本地日期。
+
+任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。沒有生活專用資料表、事件副本或同步流程；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。
+
 ### 資料模型與本機儲存
 
 | 類型 | 正式資料位置與界線 |

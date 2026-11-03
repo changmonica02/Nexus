@@ -33,6 +33,13 @@ test(
         {
           name: "isolated-services",
           setup(b) {
+            if(process.env.NEXUS_LIFE)b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/},args=>{
+              let text=fs.readFileSync(args.path,'utf8');
+              text=text.replace('window.fixtureStorage = storage;',`const today=new Date();today.setHours(0,0,0,0);const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
+              for(const [title,date,completed] of [['Life today',today.getTime(),false],['Life done',today.getTime()+3600000,true],['Life future',tomorrow.getTime(),false],['Life undated',null,false]])if(!(await storage.listPages()).some(p=>p.title===title))await storage.createPage({title,kind:'todo',due_date:date,completed});
+              window.fixtureStorage = storage;`);
+              return{contents:text,loader:'jsx'};
+            });
             if(process.env.NEXUS_DECK_MANAGEMENT)b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/},args=>{
               let text=fs.readFileSync(args.path,'utf8');
               text=text.replace('window.fixtureStorage = storage;',`const repo=storage.getStudyRepository();
@@ -134,16 +141,31 @@ test(
         [1440, 900],
         [820, 1180],
         [1180, 820],
-        [process.env.NEXUS_DECK_MANAGEMENT?320:390, 844],
+        [(process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE)?320:390, 844],
       ]) {
         const context = await browser.newContext({
             viewport: { width, height },
             hasTouch: width !== 1440,
+            ...(process.env.NEXUS_LIFE?{timezoneId:width===820?'America/Los_Angeles':'Asia/Taipei'}:{}),
           }),
           page = await context.newPage();
         page.setDefaultTimeout(10000);
         page.on("pageerror", (e) => errors.push(e.message));
+        if(process.env.NEXUS_LIFE)await page.clock.setFixedTime(new Date('2026-03-08T12:00:00Z'));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
+        if(process.env.NEXUS_LIFE){
+          await page.waitForFunction(()=>!!window.fixtureStorage);await page.getByLabel('切換首頁',{exact:true}).waitFor();const life=page.locator('[data-life-workspace]');const baseline=await page.evaluate(()=>window.fixtureStorage.listPages());
+          await page.getByRole('button',{name:'功能總覽',exact:true}).click();await page.getByRole('button',{name:'生活',exact:true}).click();await life.getByRole('tab',{name:'總覽',exact:true}).waitFor();await life.getByText('待完成任務：2',{exact:true}).waitFor({timeout:3000}).catch(async e=>{console.error('LIFE_DIAG',await page.evaluate(async()=>({body:document.querySelector('[data-life-workspace]')?.textContent,now:new Date().toString(),pages:(await window.fixtureStorage.listPages()).filter(p=>p.kind==='todo').map(p=>({title:p.title,due:p.due_date,done:p.completed}))})));throw e;});await life.getByText('當日行程：3',{exact:true}).waitFor();assert.equal(await life.getByText(/記帳|日記|特殊日|我的清單/).count(),0);await life.getByLabel('新增任務標題',{exact:true}).fill('Unsaved title');await life.getByRole('button',{name:/^Life today/}).click();await page.getByRole('dialog',{name:'離開編輯',exact:true}).getByRole('button',{name:'取消',exact:true}).click();assert.equal(await life.getByLabel('新增任務標題',{exact:true}).inputValue(),'Unsaved title');await life.getByLabel('新增任務標題',{exact:true}).fill('');
+          await life.getByRole('tab',{name:'任務',exact:true}).click();await life.getByLabel('搜尋任務',{exact:true}).fill('Life');await life.getByText('Life undated',{exact:true}).waitFor();await life.getByRole('button',{name:'今日',exact:true}).click();await life.getByText('Life today',{exact:true}).waitFor();assert.equal(await life.getByText('Life future',{exact:true}).count(),0);await life.getByRole('button',{name:'即將到來',exact:true}).click();await life.getByText('Life future',{exact:true}).waitFor();assert.equal(await life.getByText('Life undated',{exact:true}).count(),0);await life.getByRole('button',{name:'已完成',exact:true}).click();await life.getByText('Life done',{exact:true}).waitFor();
+          await life.getByRole('tab',{name:'日曆',exact:true}).click();await life.getByLabel('選取日期',{exact:true}).fill('2026-04-15');await life.getByLabel('上個月',{exact:true}).click();await life.getByRole('heading',{name:/2026年3月/}).waitFor();await life.getByLabel('下個月',{exact:true}).click();await life.getByRole('heading',{name:/2026年4月/}).waitFor();await life.getByLabel('新增任務標題',{exact:true}).fill('Life created');await life.locator('form').evaluate(form=>{form.requestSubmit();form.requestSubmit();});await page.locator('.ProseMirror').first().waitFor();await page.getByLabel('任務日期與時間',{exact:true}).waitFor();assert.equal(await page.getByLabel('任務日期與時間',{exact:true}).inputValue(),'2026-04-15T00:00');
+          await page.getByLabel('任務日期與時間',{exact:true}).fill('2026-04-16T09:30');await page.locator('.ProseMirror').first().fill('Life body');await page.getByRole('button',{name:'回到功能介面',exact:true}).click();await life.getByRole('tab',{name:'日曆',exact:true}).waitFor();assert.equal(await life.getByLabel('選取日期',{exact:true}).inputValue(),'2026-04-15');await life.getByLabel('選取日期',{exact:true}).fill('2026-04-16');await life.getByText('Life created',{exact:true}).last().waitFor();
+          const saved=await page.evaluate(async()=>{const all=await window.fixtureStorage.listPages();return all.filter(p=>p.title==='Life created');});assert.equal(saved.length,1);assert.match(saved[0].content_text,/Life body/);assert.equal(new Date(saved[0].due_date).getDate(),16);assert.equal((await page.evaluate(()=>window.fixtureStorage.listPages())).length,baseline.length+1);
+          await life.getByLabel('完成 Life created',{exact:true}).check();await life.getByRole('tab',{name:'任務',exact:true}).click();await life.getByRole('button',{name:'已完成',exact:true}).click();await life.getByLabel('搜尋任務',{exact:true}).fill('Life created');await life.getByText('Life created',{exact:true}).waitFor();await life.getByRole('button',{name:'更多操作 Life created',exact:true}).click();await page.getByRole('menuitem',{name:'刪除',exact:true}).click();await page.getByRole('dialog',{name:'刪除',exact:true}).getByRole('button',{name:'刪除',exact:true}).click();await until(page,async()=>!(await window.fixtureStorage.listPages()).some(p=>p.title==='Life created'));assert.equal(await life.isVisible(),true);
+          for(const original of baseline){const current=await page.evaluate(id=>window.fixtureStorage.getPage(id),original.id);assert.deepEqual(current,original,'unrelated or pre-existing record preserved');}
+          if(!await page.getByRole('button',{name:'首頁',exact:true}).isVisible())await page.getByRole('button',{name:'開啟導覽',exact:true}).click();await page.getByRole('button',{name:'首頁',exact:true}).dblclick();await page.getByLabel('切換首頁',{exact:true}).selectOption('learning');await page.getByRole('button',{name:'日曆與待辦',exact:true}).click();const sheet=page.getByRole('dialog',{name:'日曆與待辦',exact:true});await sheet.getByRole('button',{name:'下個月',exact:true}).click();const picked=sheet.getByRole('button').filter({hasText:/^15$/}).first();await picked.click();await sheet.getByRole('button',{name:'生活 → 日曆',exact:true}).click();await life.getByRole('tab',{name:'日曆',selected:true}).waitFor();assert.ok((await life.getByLabel('選取日期',{exact:true}).inputValue()).endsWith('-15'));
+          assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await context.setOffline(true);await life.getByRole('tab',{name:'任務',exact:true}).click();await life.getByRole('button',{name:'全部',exact:true}).click();await life.getByLabel('搜尋任務',{exact:true}).fill('Life today');await life.getByText('Life today',{exact:true}).waitFor();await life.getByLabel('完成 Life today',{exact:true}).check();await context.setOffline(false);await page.waitForTimeout(1000);await until(page,async()=>!!(await window.fixtureStorage.listPages()).find(p=>p.title==='Life today')?.completed);
+          assert.deepEqual(errors,[]);await context.close();continue;
+        }
         if(process.env.NEXUS_DECK_MANAGEMENT){
           const toggle=page.getByLabel('切換首頁',{exact:true});await toggle.waitFor();await toggle.selectOption('learning');
           await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
