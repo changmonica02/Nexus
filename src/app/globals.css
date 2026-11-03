@@ -528,3 +528,8 @@ html, body { overscroll-behavior-y: none; }
 
 .nexus-export-body .math-preview { overflow: visible !important; }
 .nexus-export-body .nexus-math-block .math-preview { justify-content: flex-start; min-width: 0; }
+
+/* The existing editor owns one responsive context panel; the map keeps the rest. */
+@media (min-width: 640px) {
+  [data-map-context]:has([data-world-tools]:not([open])) { width: 3.5rem; }
+}

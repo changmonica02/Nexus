@@ -7,6 +7,8 @@ import {naturalCatalog,naturalConfig,previewNaturalHeightmap,applyNaturalView} f
 import {generate} from '@/components/lifecycle';
 import {closeDialogs} from '@/components/dialog/dialog-helpers';
 import {undraw} from '@/components/undraw';
+import {Controllers} from '@/controllers';
+import {hideOptions,openTab} from '@/components/options/options-panel';
 import {Layers} from '@/components/layers';
 import {viewport} from '@/components/viewport';
 import {fitMapToScreen,useContainViewport as enableContainViewport,containScale} from '@/components/canvas';
@@ -22,6 +24,7 @@ previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):n
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
 const compactTools=document.createElement('style');
 compactTools.textContent=`body:not(.nexus-preview) #optionsContainer{position:absolute;left:0;top:0;z-index:20;width:max-content;max-width:calc(100vw - 16px);max-height:55vh;overflow:auto;box-sizing:border-box}body:not(.nexus-preview) #collapsible{position:relative;margin:8px;max-width:100%}body:not(.nexus-preview) #options{position:relative;max-width:100%;box-sizing:border-box}body:not(.nexus-preview) #optionsTrigger{min-height:44px;min-width:44px}body:not(.nexus-preview) #options .tab{height:auto;min-height:44px}body:not(.nexus-preview) #options button,body:not(.nexus-preview) #options summary{min-height:44px} @media(max-width:600px){body:not(.nexus-preview) #optionsContainer{position:fixed;left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;max-height:45vh}body:not(.nexus-preview) #options{position:relative;margin:0;width:100%}}`;
+compactTools.textContent+=`body.nexus-managed-tools:not([data-nexus-tool="advanced"]):not([data-nexus-tool="height"]) #optionsContainer{display:none!important} body.nexus-managed-tools[data-nexus-tool="height"] #options .tab{display:none} body.nexus-managed-tools .ui-dialog{max-width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px);box-sizing:border-box}body.nexus-managed-tools .ui-dialog-content{max-height:60vh!important;overflow:auto!important}body.nexus-managed-tools .ui-dialog button{min-height:44px;min-width:44px} @media(max-width:600px){body.nexus-managed-tools .ui-dialog{left:8px!important;top:auto!important;bottom:8px!important;width:calc(100vw - 16px)!important;max-height:48vh}body.nexus-managed-tools .ui-dialog-content{max-height:32vh!important}}`;
 document.head.append(compactTools);
 
 type Marker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean}};
@@ -64,6 +67,11 @@ document.addEventListener('click',event=>{
 for(const type of ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'])document.addEventListener(type,event=>{
   if(pickPoint&&!preview&&!customization){if(type==='pointerdown'){const e=event as PointerEvent;pointerStart={x:e.clientX,y:e.clientY};}event.stopImmediatePropagation();}
 },true);
+// Nexus markers, territory queries and point picking run in earlier capture
+// handlers. Other native object editors are reached through the tool whitelist.
+for(const type of ['click','dblclick'])document.addEventListener(type,event=>{
+  if(!preview&&!nativeTool&&document.body.classList.contains('nexus-managed-tools')&&!customization&&(event.target as Element)?.closest?.('#viewbox'))event.stopImmediatePropagation();
+},true);
 for(const type of ['click','contextmenu','keydown'])document.addEventListener(type,event=>{if(preview&&!(event instanceof KeyboardEvent&&['Tab','Escape'].includes(event.key))){event.preventDefault();event.stopImmediatePropagation();}},true);
 // Preview double-click zooms without opening a native editing tool.
 document.addEventListener('dblclick',event=>{
@@ -93,6 +101,56 @@ const session = window.nexusSession ?? new URL(location.href).searchParams.get('
 let port: MessagePort | undefined, busy = false, ready = false, sequence = 0;
 const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 const notify = (type: string) => port?.postMessage({ type });
+// Tool transactions use the existing native project snapshot/loader only. No Nexus
+// entities, persistence, credentials or alternate map model enter the iframe.
+const nativeTools = ['height','coasts','rivers','climate','biomes','advanced'] as const;
+type NativeTool = typeof nativeTools[number];
+let nativeTool:NativeTool|null=null,toolCheckpoint:Blob|null=null;
+function toolState(){
+  const height=nativeTool==='height'&&customization===1&&typeof edits!=='undefined';
+  return {tool:nativeTool,undo:Boolean(height&&edits.n>1),redo:Boolean(height&&edits.n<edits.length)};
+}
+function reportTool(){port?.postMessage({type:'tool-state',toolState:toolState()});}
+window.addEventListener('nexus-height-history',reportTool);
+async function toolCommand(command:{action?:string;tool?:NativeTool}){
+  if(preview||!ready)throw Error('Nexus storage is not ready');
+  if(command.action==='open'){
+    if(!nativeTools.includes(command.tool as NativeTool))throw Error('Unknown map tool');
+    if(nativeTool||customization||NexusRegions.active()||pickPoint)throw Error('Confirm or cancel the active tool before switching.');
+    toolCheckpoint=new Blob([Save.prepareMapData()],{type:'application/octet-stream'});
+    nativeTool=command.tool!;
+    document.body.dataset.nexusTool=nativeTool;
+    closeDialogs();hideOptions();
+    try{
+      if(nativeTool==='height')await Controllers.HeightmapEditor.open({mode:'keep',tool:'brushes'});
+      else if(nativeTool==='coasts')await Controllers.FeaturesOverview.open();
+      else if(nativeTool==='rivers')await Controllers.RiversOverview.open();
+      else if(nativeTool==='climate')await Controllers.WorldConfigurator.open();
+      else if(nativeTool==='biomes')await Controllers.BiomesEditor.open();
+      else openTab('toolsTab');
+    }catch(error){
+      // An editor may have modified the working project before its lazy load failed.
+      // Keep the checkpoint reachable through Cancel instead of dropping recovery.
+      reportTool();throw error;
+    }
+  }else if(command.action==='cancel'){
+    if(!nativeTool||!toolCheckpoint)throw Error('No active map tool');
+    closeDialogs();
+    if(nativeTool==='height'||customization===1)await Controllers.HeightmapEditor.cancelNativeSession();
+    await loadNexusMap(toolCheckpoint);drawMarkers();NexusRegions.draw();
+    nativeTool=null;toolCheckpoint=null;delete document.body.dataset.nexusTool;hideOptions();
+  }else if(command.action==='confirm'){
+    if(!nativeTool)throw Error('No active map tool');
+    if(customization===1)await Controllers.HeightmapEditor.finalize();
+    if(customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
+    closeDialogs();hideOptions();nativeTool=null;toolCheckpoint=null;delete document.body.dataset.nexusTool;notify('dirty');
+  }else if(command.action==='undo'||command.action==='redo'){
+    if(nativeTool!=='height'||customization!==1)throw Error('This tool has no undo history');
+    if(command.action==='undo')await Controllers.HeightmapEditor.undo();else await Controllers.HeightmapEditor.redo();
+  }else throw Error('Unknown map tool command');
+  reportTool();return new Blob([JSON.stringify(toolState())],{type:'application/json'});
+}
+
 
 async function image(type: 'svg' | 'png'): Promise<Blob> {
   NexusRegions.draw(false);
@@ -127,10 +185,15 @@ window.addEventListener('message', event => {
     if (busy) { port!.postMessage({ id: data.id, error: 'Map operation already in progress' }); return; }
     busy = true;
     try {
-      if (data.type!=='configure'&&!(data.type==='region'&&data.settings?.regionCommand?.action==='cancel')&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
+      if(nativeTool&&!['configure','tool','view'].includes(data.type))throw Error('Confirm or cancel the active tool before switching.');
+      if (data.type!=='tool'&&data.type!=='configure'&&!(data.type==='region'&&data.settings?.regionCommand?.action==='cancel')&&customization) throw Error('Complete the active heightmap/edit mode before saving or exporting');
       let blob: Blob | undefined;
-      if(data.type==='configure'){
+      if(data.type==='tool'){
+        blob=await toolCommand(data.settings?.toolCommand??{});
+      }else if(data.type==='configure'){
         const settings=data.settings??{};
+        if(nativeTool&&(settings.pickPoint||settings.preview===true))throw Error('Confirm or cancel the active tool before switching.');
+        if(typeof settings.managedTools==='boolean')document.body.classList.toggle('nexus-managed-tools',settings.managedTools);
         if(settings.regionView)NexusRegions.setView(settings.regionView);
         if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
@@ -191,7 +254,7 @@ window.addEventListener('map:generated', () => {
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {
   if(type==='pointerup'&&NexusRegions.querying(event))return;
   if((NexusRegions.active()&&(event.target as Element)?.closest?.('#map'))||pickPoint||(event.target as Element)?.closest?.('#nexus-placements'))return;
-  if (ready && !busy&&!preview) notify('dirty');
+  if (ready && !busy&&!preview&&!nativeTool) notify('dirty');
 }, { passive: true });
 document.addEventListener('keydown', event => {
   if (!preview&&(event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -207,6 +270,7 @@ window.nexusSaveProject = (blob: Blob) => new Promise<void>((resolve, reject) =>
   port.postMessage({ type: 'persist', id, blob });
 });
 window.nexusLoadProject = async (blob:Blob) => {
+  if(nativeTool)throw Error('Confirm or cancel the active tool before switching.');
   if(NexusRegions.active())throw Error('Confirm or cancel the territory preview before leaving.');
   if(busy)throw Error('Map operation already in progress');
   busy=true;ready=false;notify('loading');

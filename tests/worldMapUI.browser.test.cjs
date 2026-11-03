@@ -2,7 +2,7 @@ require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),os=require('node:os');
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
 const {worldMapHeaders}=require('../next.config.ts');
-test('stage 1 map UI: responsive menus, legacy settings, native tools and real exports',{timeout:600000},async t=>{
+test('stage 2 map UI: context tools, native transactions, responsive menus and real exports',{timeout:600000},async t=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-world-map-')),root=path.resolve(__dirname,'..'),core=path.join(root,'public/world-map/core');
   await build({entryPoints:['tests/fixtures/worldMap.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,loader:{'.woff':'dataurl','.woff2':'dataurl','.ttf':'dataurl'},format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})}});
   const cssFiles=fs.readdirSync(path.join(root,'.next/static'),{recursive:true}).filter(p=>p.endsWith('.css'));
@@ -37,6 +37,8 @@ test('stage 1 map UI: responsive menus, legacy settings, native tools and real e
   const editor=page.getByRole('dialog',{name:'World map editor'});await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
   const frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   const nativeName=await frame.evaluate(()=>options.map.name);
+  const cancelNative=async(native)=>{await native.getByRole('button',{name:'Cancel',exact:true}).click();const prompt=page.getByRole('dialog',{name:'Discard changes made in this native tool? Earlier edits are preserved.',exact:true});await prompt.waitFor();await prompt.press('Escape');await prompt.waitFor({state:'detached'});assert.equal(await native.isVisible(),true,'cancelling the discard prompt keeps the active tool');await native.getByRole('button',{name:'Cancel',exact:true}).click();await prompt.getByRole('button',{name:'Confirm',exact:true}).click();await native.waitFor({state:'detached'});};
+  const waitLayout=async()=>{await page.waitForTimeout(250);await frame.waitForFunction(()=>Math.abs(document.querySelector('#map').getBoundingClientRect().height-innerHeight)<1);};
   await frame.evaluate(()=>Options.set(o=>{o.app.ui.assistant='show';}));
   assert.equal(await frame.locator('#assistantBubble,#assistant,#notesGenerateWithAi,#azgaarAssistant').count(),0);
   assert.equal(await frame.evaluate(()=>options.app.ui.assistant),'show','legacy preference remains readable');
@@ -44,17 +46,19 @@ test('stage 1 map UI: responsive menus, legacy settings, native tools and real e
   const exportMenu=editor.locator('[data-map-export]');const more=editor.locator('[data-map-more]');
   for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){
     await page.setViewportSize(viewport);
-    assert.equal(await tools.evaluate(el=>el.open),false);assert.equal(await editor.getByRole('button',{name:'SVG ↓',exact:true}).isVisible(),false);
-    await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Add country',exact:true}).waitFor();await editor.getByRole('button',{name:'Add town',exact:true}).waitFor();
+    if(await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();assert.equal(await editor.getByRole('button',{name:'SVG ↓',exact:true}).isVisible(),false);
+    await tools.locator(':scope > summary').click();for(const group of ['Terrain','Regions','Markers','Layers']){await editor.getByRole('button',{name:group,exact:true}).click();await editor.getByRole('button',{name:group,exact:true}).waitFor();}await editor.getByRole('button',{name:'Regions',exact:true}).click();await editor.getByRole('button',{name:'Add country',exact:true}).waitFor();await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).waitFor();
     assert.ok(await editor.locator('[data-map-canvas]').evaluate(el=>el.getBoundingClientRect().height)>150);
     assert.ok(await editor.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no parent horizontal overflow');
     await tools.locator(':scope > summary').click();
-    fs.mkdirSync('test-results/world-map-ui',{recursive:true});await page.screenshot({path:'test-results/world-map-ui/'+(process.env.MAP_BROWSER||'chromium')+'-'+viewport.width+'.png'});
-    if(!await frame.locator('#options').isVisible())await frame.locator('#optionsTrigger').click();
+    await waitLayout();fs.mkdirSync('test-results/world-map-ui',{recursive:true});await page.screenshot({path:'test-results/world-map-ui/'+(process.env.MAP_BROWSER||'chromium')+'-'+viewport.width+'.png'});
+    await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Terrain',exact:true}).click();
+    await editor.locator('[data-world-tools] details > summary').click();await editor.getByRole('button',{name:'Native advanced tools',exact:true}).click();
+    const native=editor.getByRole('region',{name:'Native map tool',exact:true});await native.waitFor();
+    assert.equal(await editor.locator('[data-map-context]').isVisible(),false,'Nexus context panel yields to the native tool');
     assert.ok(await frame.locator('#optionsContainer').evaluate(el=>{const r=el.getBoundingClientRect();return r.width<=innerWidth+1&&r.height<=innerHeight*.6+1;}),'bounded native advanced panel');
-    await frame.getByRole('button',{name:'Tools',exact:true}).click();await frame.getByText('Legacy and advanced tools',{exact:true}).waitFor();
     assert.equal(await frame.locator('#editHeightmapButton').count(),1,'native terrain editor retained');
-    await frame.evaluate(()=>hideOptions());
+    await cancelNative(native);
     await more.locator(':scope > summary').click();await more.locator('summary').filter({hasText:'Third-party licenses'}).click();await more.getByRole('link',{name:'MIT License',exact:true}).waitFor();await more.locator('summary').filter({hasText:'Third-party licenses'}).click();await more.locator(':scope > summary').click();
     await exportMenu.locator(':scope > summary').click();
     for(const type of ['SVG','PNG']){
@@ -63,13 +67,38 @@ test('stage 1 map UI: responsive menus, legacy settings, native tools and real e
     await exportMenu.locator(':scope > summary').click();
     await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   }
+  // The parent sends only named tool commands. Unknown controller names cannot execute.
+  await page.evaluate(()=>{const send=MessagePort.prototype.postMessage;MessagePort.prototype.postMessage=function(data,...rest){if(data?.type==='tool'&&data.settings?.toolCommand?.action==='open'){MessagePort.prototype.postMessage=send;data={...data,settings:{toolCommand:{action:'open',tool:'StatesEditor'}}};}return send.call(this,data,...rest);};});
+  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Terrain',exact:true}).click();await editor.getByRole('button',{name:'Edit height',exact:true}).click();await editor.getByRole('alert').filter({hasText:'Unknown map tool'}).waitFor();assert.equal(await frame.evaluate(()=>customization),0);
+  const originalHeights=await frame.evaluate(()=>Array.from(grid.cells.h));
+  await editor.getByRole('button',{name:'Edit height',exact:true}).click();
+  const native=editor.getByRole('region',{name:'Native map tool',exact:true});await native.waitFor();await waitLayout();
+  assert.equal(await editor.getByRole('button',{name:'Save',exact:true}).isDisabled(),true,'active native draft cannot be saved as a complete project');
+  assert.equal(await native.getByRole('button',{name:'Undo stroke',exact:true}).isDisabled(),true,'no invented global history');
+  await frame.locator('#brushRaise').click();
+  const terrain=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom,i=grid.cells.i.find(i=>{const [px,py]=grid.points[i],x=z.x+px*z.k,y=z.y+py*z.k;return grid.cells.h[i]>=30&&grid.cells.h[i]<75&&x>20&&y>80&&x<innerWidth-20&&y<innerHeight-20&&document.elementFromPoint(x,y)?.closest('#viewbox');});if(i===undefined)throw Error('No visible land');return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
+  await frame.locator('#map').click({position:{x:terrain.x,y:terrain.y},force:true});
+  await native.getByRole('button',{name:'Undo stroke',exact:true}).waitFor();assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h);
+  await native.getByRole('button',{name:'Undo stroke',exact:true}).click();assert.equal(await frame.evaluate(i=>grid.cells.h[i],terrain.i),terrain.h);
+  await native.getByRole('button',{name:'Redo stroke',exact:true}).click();assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h);
+  await cancelNative(native);assert.equal(await frame.locator('#exitCustomization').isVisible(),false);assert.equal(await frame.evaluate(()=>typeof edits==='undefined'&&(!document.getElementById('undo')||document.getElementById('undo').disabled)),true);assert.deepEqual(await frame.evaluate(()=>Array.from(grid.cells.h)),originalHeights,'Cancel restores native heights, preserving earlier edits');
+  await frame.evaluate(()=>document.dispatchEvent(new KeyboardEvent('keyup',{key:'H',code:'KeyH',shiftKey:true,bubbles:true})));assert.equal(await frame.evaluate(()=>customization),0,'native hotkeys cannot bypass managed tool transactions');
+  for(const [tool,id] of [['Coasts and lakes','featuresOverview'],['Rivers','riversOverview'],['Climate settings','worldConfigurator'],['Biome editor','biomesEditor']]){
+    if(tool==='Climate settings'&&!await editor.getByRole('button',{name:tool,exact:true}).isVisible())await editor.locator('[data-world-tools] details > summary').click();
+    await editor.getByRole('button',{name:tool,exact:true}).click();await native.waitFor();await frame.locator('#'+id).waitFor();
+    assert.equal(await editor.locator('[data-map-context]').isVisible(),false);assert.equal(await native.getByRole('button',{name:'Undo stroke',exact:true}).count(),0,'no false undo for tools without a shared native history');
+    await native.getByRole('button',{name:'Confirm tool',exact:true}).click();await native.waitFor({state:'detached'});
+  }
   await exportMenu.locator(':scope > summary').click();const projectDownload=page.waitForEvent('download');await exportMenu.getByRole('button',{name:'.map ↓',exact:true}).click();await (await projectDownload).saveAs('test-results/world-map-ui/project.map');await exportMenu.locator(':scope > summary').click();
-  await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Add town',exact:true}).click();
+  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).click();
   await page.waitForTimeout(250); // Existing MessagePort picker configuration must settle before the synthetic click.
   const box=await frame.locator('#map').boundingBox();await page.mouse.click(box.x+box.width*.55,box.y+box.height*.65);
   const townForm=page.getByRole('dialog',{name:'Edit town entry',exact:true});await townForm.getByLabel('Town name',{exact:true}).fill('UI Harbor');await page.evaluate(()=>{window.failMapSave=true;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();assert.equal(await townForm.getByLabel('Town name',{exact:true}).inputValue(),'UI Harbor');await page.evaluate(()=>{window.failMapSave=false;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
   assert.equal(await tools.evaluate(el=>el.open),true,'tool disclosure stays open after placing an entry');
   await frame.locator('#nexus-placements text').filter({hasText:'UI Harbor'}).click();const marker=page.getByRole('dialog',{name:'Town marker',exact:true});await marker.getByRole('button',{name:'Open world entry',exact:true}).waitFor();await marker.getByRole('button',{name:'Close panel',exact:true}).click();
+  await editor.getByRole('button',{name:'Add place',exact:true}).click();await waitLayout();const placeBox=await (await frame.frameElement()).boundingBox(),placePoint=await frame.evaluate(()=>{const p=new DOMPoint(options.map.graph.width*.6,options.map.graph.height*.55).matrixTransform(document.querySelector('#viewbox').getScreenCTM());return {x:p.x,y:p.y};});await page.mouse.click(placeBox.x+placePoint.x,placeBox.y+placePoint.y);
+  const placeForm=page.getByRole('dialog',{name:'Edit place entry',exact:true});await placeForm.getByLabel('Name',{exact:true}).fill('UI Ruin');await placeForm.getByRole('button',{name:'Save entry',exact:true}).click();await placeForm.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_entities.filter(e=>e.type==='site'&&e.name==='UI Ruin').length;}),1);
   await editor.getByRole('button',{name:'← Save and return',exact:true}).click();await editor.waitFor({state:'detached'});await page.getByRole('button',{name:'Edit map',exact:true}).click();await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
-  assert.equal(await frame.evaluate(()=>options.map.name),nativeName);assert.deepEqual(errors,[]);console.log('WORLD_MAP_UI_STAGE1_VERIFIED',{viewports:3,exports:6,legacyPreference:true,nativeTools:true,reopen:true});
+  assert.equal(await frame.evaluate(()=>options.map.name),nativeName);assert.deepEqual(errors,[]);console.log('WORLD_MAP_UI_STAGE2_VERIFIED',{viewports:3,exports:6,legacyPreference:true,nativeTools:true,reopen:true});
 });

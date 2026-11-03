@@ -13,7 +13,7 @@ import {ArrowLeft,MoreHorizontal,Plus,Upload,X} from 'lucide-react';
 import ModalDialog from './ModalDialog';
 import WorldEntityPanel,{WorldEntityForm} from './WorldEntityPanel';
 import WorldMapCreator from './WorldMapCreator';
-import WorldMapEditor,{type RegisterMapFlush} from './WorldMapEditor';
+import WorldMapEditor,{type RegisterMapFlush,type NativeToolControls} from './WorldMapEditor';
 
 export function WorldMapUnavailable({onBack}:{onBack?:()=>void}) {
   const {t}=useLanguage();
@@ -29,8 +29,9 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('physical');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
  const [entityPanel,setEntityPanel]=useState(false),[entityForm,setEntityForm]=useState<{entity:WorldEntity;fresh:boolean;region?:boolean;point?:{mapId:string;x:number;y:number;placementId:string}}|null>(null);
- const [toolsOpen,setToolsOpen]=useState(false);
- const [intent,setIntent]=useState<{id:string;kind:'new'|'existing'|'move';entityId?:string;placementId?:string;mapId:string}|null>(null),[markerId,setMarkerId]=useState<string|null>(null);
+ const [toolsOpen,setToolsOpen]=useState(true);
+ const [toolGroup,setToolGroup]=useState<'terrain'|'regions'|'markers'|'layers'>('terrain');
+ const [intent,setIntent]=useState<{id:string;kind:'new'|'existing'|'move';entityType?:'settlement'|'site';entityId?:string;placementId?:string;mapId:string}|null>(null),[markerId,setMarkerId]=useState<string|null>(null);
  const entities=world.character_data?.world_entities;
  const projections=useMemo(()=>projectWorldPlacements(world,selected??maps.find(m=>m.deleted_at===null)?.id??''),[entities,maps,selected,world]);
  const newEntity=(type:WorldEntityType='settlement'):WorldEntity=>({schemaVersion:1,entityId:`entity_${crypto.randomUUID()}`,worldId:world.id,type,name:'',aliases:[],relations:[],createdAt:Date.now(),updatedAt:Date.now(),revision:1});
@@ -79,17 +80,18 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    if(!current)return;
    void run(async()=>{await onSaved(await repository.setPresentation(world.id,current.id,current.revision,nextScope,parent));setEpoch(n=>n+1);});
  };
- const beginPlace=(entity:WorldEntity,mapId:string)=>{if(entity.type!=='settlement'){beginRegion(entity,mapId);return;}choose(mapId);setEntityPanel(false);setEditing(true);setIntent({id:crypto.randomUUID(),kind:'existing',entityId:entity.entityId,mapId});};
+ const beginPlace=(entity:WorldEntity,mapId:string)=>{setToolGroup('markers');setToolsOpen(true);if(!['settlement','site'].includes(entity.type)){beginRegion(entity,mapId);return;}choose(mapId);setEntityPanel(false);setEditing(true);setIntent({id:crypto.randomUUID(),kind:'existing',entityId:entity.entityId,mapId});};
  const picked=(id:string,x:number,y:number)=>{
    if(!intent||intent.id!==id||busy||readOnly)return;
    const pending=intent;
-   if(pending.kind==='new') {setIntent(null);setEntityForm({entity:newEntity(),fresh:true,point:{mapId:pending.mapId,x,y,placementId:`placement_${pending.id}`}});return;}
+   if(pending.kind==='new') {setIntent(null);setEntityForm({entity:newEntity(pending.entityType),fresh:true,point:{mapId:pending.mapId,x,y,placementId:`placement_${pending.id}`}});return;}
    void run(async()=>{
      const page=pending.kind==='existing'?await repository.placeEntity(world.id,pending.entityId!,{mapId:pending.mapId,placementId:`placement_${pending.id}`,x,y}):await repository.movePlacement(world.id,pending.mapId,pending.placementId!,current!.placements!.find(p=>p.placementId===pending.placementId)!.revision,{x,y});
      await onSaved(page);setIntent(null);
    });
  };
  const beginRegion=(entity:WorldEntity,mapId:string,fresh=false)=>{
+   setToolGroup(['culture','religion'].includes(entity.type)?'markers':'regions');setToolsOpen(true);
    choose(mapId);setEntityPanel(false);setMarkerId(null);setEditing(true);setRegionDraft(null);if(entity.type==='culture')setLayer('cultural');if(entity.type==='religion')setLayer('religions');setBrushRadius(24);setErasing(false);
    const placement=maps.find(m=>m.id===mapId)?.placements?.find(p=>p.entityId===entity.entityId&&p.geometry.type==='cells'&&p.deletedAt===null);
    setRegionEdit({id:crypto.randomUUID(),mapId,entity,fresh,placementId:placement?.placementId??`placement_${crypto.randomUUID()}`,revision:placement?.revision??0,geometry:placement?.geometry.type==='cells'?placement.geometry:undefined});
@@ -118,13 +120,30 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    <button onClick={()=>setMarkerId(r.placementId)}>{t('worldEntity.open')}</button>
   </div>;})}
  </section>:null;
- const humanTools=<details data-world-tools open={toolsOpen||!!regionEdit||!!intent} onToggle={event=>setToolsOpen(event.currentTarget.open)} className="min-w-0 border-b">
-  <summary className="min-h-11 cursor-pointer px-3 py-2 font-medium">{t('worldMap.tools')}</summary>
-  <div className="flex max-h-[32dvh] min-w-0 shrink-0 overflow-y-auto flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
-   {legend}
-   {error&&<p role="alert" className="w-full break-words text-red-600">{mapMessage(language,error)}</p>}
-   <label className="flex min-w-0 flex-wrap items-center gap-2"><span>{t('worldMap.layer')}</span><select aria-label={t('worldDistribution.view')} value={layer} disabled={!!regionEdit} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(v=><option key={v} value={v}>{t('worldMap.'+v)}</option>)}</select></label><div role="group" aria-label={t('worldMap.markers')} className="flex flex-wrap items-center gap-2"><span>{t('worldMap.markers')}</span><button disabled={busy||!!regionEdit} onClick={()=>{setIntent({id:crypto.randomUUID(),kind:'new',mapId:current!.id});}}>{t('worldEntity.add')}</button><button disabled={busy||!!regionEdit} onClick={()=>setEntityPanel(true)}>{t('worldEntity.existing')}</button></div>
-   <div role="group" aria-label={t('worldMap.regions')} className="flex flex-wrap items-center gap-2"><span>{t('worldMap.regions')}</span>{(['country','administrative_area','culture','religion'] as const).map(type=><button key={type} disabled={busy||!!regionEdit} onClick={()=>{setIntent(null);setEntityForm({entity:newEntity(type),fresh:true,region:true});}}>{t('worldRegion.add.'+type)}</button>)}</div>
+ const humanTools=(native:NativeToolControls)=><details data-world-tools open={toolsOpen||!!regionEdit||!!intent} onToggle={event=>setToolsOpen(event.currentTarget.open)} className="min-w-0 border-b">
+  <summary aria-label={t('worldMap.tools')} className="min-h-11 cursor-pointer break-words px-3 py-2 font-medium">☰ <span className={toolsOpen||regionEdit||intent?'':'sm:hidden'}>{t('worldMap.tools')}</span></summary>
+  <nav aria-label={t('worldMap.toolGroups')} className="grid grid-cols-4 gap-1 p-2 sm:grid-cols-2 [&_button]:min-h-11 [&_button]:rounded [&_button]:border">
+   {(['terrain','regions','markers','layers'] as const).map(group=><button key={group} aria-pressed={toolGroup===group} disabled={(!!regionEdit||!!intent)&&toolGroup!==group} onClick={()=>setToolGroup(group)}>{t('worldMap.group.'+group)}</button>)}
+  </nav>
+  <div className="flex min-w-0 flex-col gap-3 p-3 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
+   {error&&<p role="alert" className="break-words text-red-600">{mapMessage(language,error)}</p>}
+   {!regionEdit&&!intent&&toolGroup==='terrain'&&<>
+    <p>{t('worldMap.terrainHint')}</p>
+    {(['height','coasts','rivers'] as const).map(tool=><button key={tool} disabled={native.pending} onClick={()=>native.run({action:'open',tool})}>{t('worldMap.tool.'+tool)}</button>)}
+    <details><summary className="min-h-11 cursor-pointer py-2">{t('worldMap.advanced')}</summary><div className="flex flex-col gap-2">{(['climate','biomes','advanced'] as const).map(tool=><button key={tool} onClick={()=>native.run({action:'open',tool})}>{t('worldMap.tool.'+tool)}</button>)}</div></details>
+   </>}
+   {!regionEdit&&!intent&&toolGroup==='layers'&&<>
+    <label>{t('worldMap.layer')}<select className="min-h-11 w-full border bg-transparent" aria-label={t('worldDistribution.view')} value={layer} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(v=><option key={v} value={v}>{t('worldMap.'+v)}</option>)}</select></label>
+    <div className="flex flex-col gap-2">{['lakes','rivers','borders','labels','burgIcons','routes','scaleBar'].map(id=><label key={id} className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={overlays.includes(id)} onChange={e=>setOverlays(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{t('worldMap.overlay.'+id)}</label>)}</div>
+    {layer==='contours'&&<><label>{t('worldMap.contourInterval')}<select aria-label={t('worldMap.contourInterval')} value={contourInterval} onChange={e=>setContourInterval(+e.target.value)}>{[5,10,20].map(n=><option key={n}>{n}</option>)}</select></label><label><input type="checkbox" checked={contourLabels} onChange={e=>setContourLabels(e.target.checked)}/>{t('worldMap.contourLabels')}</label></>}
+    {legend}
+   </>}
+   {!regionEdit&&!intent&&(toolGroup==='markers'||toolGroup==='regions')&&<>
+    {toolGroup==='markers'&&<div role="group" aria-label={t('worldMap.markers')} className="flex flex-col gap-2"><button disabled={busy} onClick={()=>setIntent({id:crypto.randomUUID(),kind:'new',mapId:current!.id})}>{t('worldEntity.add')}</button><button disabled={busy} onClick={()=>setIntent({id:crypto.randomUUID(),kind:'new',entityType:'site',mapId:current!.id})}>{t('worldRegion.add.site')}</button></div>}
+    {(toolGroup==='regions'?['country','administrative_area']:['culture','religion']).map(type=><button key={type} disabled={busy} onClick={()=>setEntityForm({entity:newEntity(type as WorldEntityType),fresh:true,region:true})}>{t('worldRegion.add.'+type)}</button>)}
+    <button disabled={busy} onClick={()=>setEntityPanel(true)}>{t('worldEntity.existing')}</button>
+    {toolGroup==='regions'&&<p>{t('worldMap.regionHint')}</p>}
+   </>}
    {regionEdit&&<div className="flex w-full flex-wrap items-center gap-2" aria-label={t('worldRegion.paint')}><strong>{regionEdit.entity.name}</strong><span>{t('worldRegion.paintHint')}</span>
     <label>{t('worldRegion.brush')}<input aria-label={t('worldRegion.brush')} type="range" min="4" max="100" value={brushRadius} onChange={e=>{setBrushRadius(+e.target.value);dispatchRegion({action:'brush',radius:+e.target.value});}}/></label>
     <label><input type="checkbox" checked={erasing} onChange={e=>{setErasing(e.target.checked);dispatchRegion({action:'brush',erase:e.target.checked});}}/>{t('worldRegion.erase')}</label>
@@ -199,7 +218,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   {entityForm&&<WorldEntityForm key={entityForm.entity.entityId} entity={entityForm.entity} entities={entities??[]} onCancel={()=>setEntityForm(null)} onSave={async draft=>{
     if(entityForm.region){setEntityForm(null);beginRegion(draft,current!.id,true);return;}
     await beforeSave();
-    const page=entityForm.fresh&&!entityForm.point?await repository.createEntity(world.id,draft):entityForm.fresh?await repository.createSettlement(world.id,{entityId:draft.entityId,name:draft.name,aliases:draft.aliases,subtype:draft.subtype,summary:draft.summary,content:draft.content,relations:draft.relations},entityForm.point?{...entityForm.point}:undefined):await repository.updateEntity(world.id,draft.entityId,entityForm.entity.revision,{name:draft.name,aliases:draft.aliases,subtype:draft.subtype,summary:draft.summary,content:draft.content,relations:draft.relations,cultureSettings:draft.cultureSettings});
+    const page=entityForm.fresh&&!entityForm.point?await repository.createEntity(world.id,draft):entityForm.fresh?await repository.createSettlement(world.id,{type:draft.type==='site'?'site':'settlement',entityId:draft.entityId,name:draft.name,aliases:draft.aliases,subtype:draft.subtype,summary:draft.summary,content:draft.content,relations:draft.relations},entityForm.point?{...entityForm.point}:undefined):await repository.updateEntity(world.id,draft.entityId,entityForm.entity.revision,{name:draft.name,aliases:draft.aliases,subtype:draft.subtype,summary:draft.summary,content:draft.content,relations:draft.relations,cultureSettings:draft.cultureSettings});
     await onSaved(page);setEntityForm(null);
    }}/>}
   {query&&<ModalDialog aria-label={t('worldDistribution.query')} onDismiss={()=>setQuery(null)} dismissOnBackdrop className="max-h-[80dvh] w-[min(94vw,28rem)] overflow-y-auto rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] [&_button]:min-h-11">

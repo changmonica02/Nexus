@@ -45,12 +45,17 @@ test('PWA stage 2: native world map offline save and reopen with independent wor
   await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
   let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   await frame.evaluate(()=>{options.map.name='OFFLINE_STAGE2';});
+  await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add place',exact:true}).click();await page.waitForTimeout(250);
+  const point=await frame.evaluate(()=>{const p=new DOMPoint(options.map.graph.width*.5,options.map.graph.height*.5).matrixTransform(document.querySelector('#viewbox').getScreenCTM());return {x:p.x,y:p.y};}),box=await (await frame.frameElement()).boundingBox();await page.mouse.click(box.x+point.x,box.y+point.y);
+  const place=page.getByRole('dialog',{name:'Edit place entry',exact:true});await place.getByLabel('Name',{exact:true}).fill('Offline ruin');await place.getByRole('button',{name:'Save entry',exact:true}).click();await place.waitFor({state:'detached'});
+
   await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});
   await page.getByRole('button',{name:'Edit map',exact:true}).click();
   await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
   frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());assert.equal(await frame.evaluate(()=>options.map.name),'OFFLINE_STAGE2');
   const result=await page.evaluate(async()=>{const world=await mapStorage.getPage('world-browser');return {pending:(await mapStorage.getWorkspacePersistence().pending('map-browser-owner')).length,scope:(await navigator.serviceWorker.getRegistration('/world-map/')).scope,native:(await (await mapStorage.readBinary(world.character_data.world_maps[0].attachment_id)).text()).includes('OFFLINE_STAGE2')};});
-  assert.ok(result.pending>0);assert.ok(result.scope.endsWith('/world-map/'));assert.ok(result.native);
+  assert.ok(result.pending>0);assert.ok(result.scope.endsWith('/world-map/'));assert.ok(result.native);assert.equal(await page.evaluate(async()=>(await mapStorage.getPage('world-browser')).character_data.world_entities.some(e=>e.type==='site'&&e.name==='Offline ruin')),true);
+  await context.setOffline(false);await setNetwork(page,false);assert.ok(await page.evaluate(async()=>(await mapStorage.getWorkspacePersistence().pending('map-browser-owner')).length)>0,'reconnect retains queued edits until the existing sync engine acknowledges them');
   assert.deepEqual(errors,[]);console.log('PWA_WORLD_MAP_OFFLINE_VERIFIED',JSON.stringify(result));
 });
