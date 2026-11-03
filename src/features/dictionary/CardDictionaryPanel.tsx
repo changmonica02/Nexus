@@ -23,6 +23,7 @@ export default function CardDictionaryPanel({fixedEntryId,onOpenChange,rate=0.9}
   const {t}=useLanguage();
   const [open,setOpen]=useState(false);
   const trigger=useRef<HTMLButtonElement>(null),opened=useRef(false),marker=useRef<string|null>(null);
+  const account=useRef<string|null|undefined>(undefined);
   const finish=useCallback(()=>{opened.current=false;setOpen(false);onOpenChange(false);},[onOpenChange]);
   const close=useCallback(()=>{
     if(marker.current&&history.state?.nexusStudyDictionary===marker.current)history.back();
@@ -31,7 +32,7 @@ export default function CardDictionaryPanel({fixedEntryId,onOpenChange,rate=0.9}
   useEffect(()=>{
     const back=()=>{if(opened.current&&history.state?.nexusStudyDictionary!==marker.current)finish();};
     window.addEventListener('popstate',back);
-    const {data}=getSupabase()?.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT'||event==='SIGNED_IN')close();})??{};
+    const {data}=getSupabase()?.auth.onAuthStateChange((event,session)=>{const owner=session?.user.id??null;if(event==='SIGNED_OUT'||(account.current!==undefined&&account.current!==owner))close();account.current=owner;})??{};
     return()=>{
       window.removeEventListener('popstate',back);data?.subscription.unsubscribe();
       if(opened.current){onOpenChange(false);if(marker.current&&history.state?.nexusStudyDictionary===marker.current)history.back();}

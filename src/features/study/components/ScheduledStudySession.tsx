@@ -107,7 +107,7 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
       <StudyPronunciation key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/>
       {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
         <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
-        
+
       </>}
     </>:<div className="space-y-3 py-8 text-center">
       <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>

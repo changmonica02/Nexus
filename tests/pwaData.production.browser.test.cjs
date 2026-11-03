@@ -116,7 +116,18 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   const localPDF = await page.evaluate(async () => { const el = document.querySelector('iframe[src^="blob:"], embed[src^="blob:"], object[data^="blob:"]'); return (await (await fetch(el.src || el.data)).text()).slice(0, 8); }); assert.equal(localPDF, '%PDF-1.4');
   await home(); await page.locator('main').getByText('PWA Missing PDF', { exact: true }).first().click(); await page.getByText(/not found|unavailable|無法|找不到/i).first().waitFor();
   await home(); await page.getByLabel('Switch home', { exact: true }).selectOption('learning'); await page.getByRole('button', { name: 'Start learning', exact: true }).click();
-  assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Show answer|顯示答案/i, exact: true }).click(); await page.getByRole('button', { name: /Easy|熟記/ }).first().click();
+  assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Show answer|顯示答案/i, exact: true }).click();
+  // The actual Next/PWA history implementation must close the bottom sheet
+  // without navigating away or changing the already presented formal question.
+  const dictionaryBefore=await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),studyURL=page.url();
+  await page.getByRole('button',{name:'View dictionary',exact:true}).click();const dictionary=page.getByRole('dialog');
+  await dictionary.getByRole('heading',{name:'Search dictionary',exact:true}).waitFor();await dictionary.getByRole('alert').waitFor();
+  assert.equal(await page.getByRole('button',{name:/Easy|熟記/}).first().isDisabled(),true);
+  await page.evaluate(()=>history.back());await dictionary.waitFor({state:'detached'});assert.equal(page.url(),studyURL);
+  assert.deepEqual(await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),dictionaryBefore);
+  await page.getByRole('button',{name:'View dictionary',exact:true}).click();await dictionary.waitFor();await page.keyboard.press('Escape');await dictionary.waitFor({state:'detached'});
+  assert.equal(await page.getByRole('button',{name:/Show answer|顯示答案/i,exact:true}).count(),0);
+  await page.getByRole('button', { name: /Easy|熟記/ }).first().click();
   await waitForAsync(page, async ({ A, id }) => (await window.pwaData.study(A, id)).events.some(e => e.kind === 'review'), { A, id: ids.deck });
   const learned = await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck });
   const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.scheduling_method, 'fsrs'); assert.ok(review.log); assert.ok(learned.states[0].fsrs);

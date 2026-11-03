@@ -38,4 +38,3 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
     {!!data.examples?.length&&<DetailSection title="例詞">{scoped([...data.examples].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}
   </article>;
 }
-
