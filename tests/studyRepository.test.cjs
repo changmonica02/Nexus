@@ -104,7 +104,7 @@ test('v2 backup round trip retains events; importing old backup cannot erase FSR
  try{
  const page=await adapter.createPage({kind:'study_set'});let repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.addCards(page.id,[{front:'one',back:'一'}]);
  const q=await repo.presentNext(page.id,now);await repo.review(q.card.id,q.state.head,1,3,'backup-event',now);
- const backup=await adapter.exportWorkspaceBackup();assert.equal(backup.schema_version,3);
+ const backup=await adapter.exportWorkspaceBackup();assert.equal(backup.schema_version,4);
  await adapter.close();await deleteDB('nexus');adapter=new IndexedDBAdapter();await adapter.init();await adapter.importWorkspaceBackup(backup);
  repo=adapter.getStudyRepository();assert.equal((await repo.readDeck(page.id,true)).events.filter(e=>e.kind==='review').length,1);
  const old={...backup,schema_version:1};delete old.study;await adapter.importWorkspaceBackup(old);

@@ -1,10 +1,11 @@
+import {LIFE_STORES,emptyLife,validateLife,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
 import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
 
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
-export type EntityType = "pages" | "attachments";
-export type WorkspaceRecord = Page | Attachment;
+export type EntityType = "pages" | "attachments" | LifeStore;
+export type WorkspaceRecord = Page | Attachment | LifeRecord;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export interface WorkspaceOperation {
   id: string;
@@ -39,7 +40,8 @@ interface Meta {
 }
 const key = (owner: string | null, type: EntityType, id: string) => JSON.stringify([owner, type, id]);
 const notify = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-workspace-changed")); };
-const stores = ["pages", "attachments", "binaries", ...WORKSPACE_STORES];
+const baseStores = ["pages", "attachments", "binaries", ...WORKSPACE_STORES];
+const storesFor = (db:IDBPDatabase) => [...baseStores,...LIFE_STORES.filter(s=>db.objectStoreNames.contains(s))];
 
 /** Local records and immutable upload intents commit together. Remote merges never enqueue. */
 export class WorkspacePersistence {
@@ -51,7 +53,7 @@ export class WorkspacePersistence {
   }
 
   async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
-    const tx = this.db.transaction(stores, "readwrite", { durability: "strict" });
+    const tx = this.db.transaction(storesFor(this.db), "readwrite", { durability: "strict" });
     try {
       for (const guard of guards) {
         const record=await tx.objectStore(guard.type).get(guard.id) as WorkspaceRecord|undefined;
@@ -68,6 +70,16 @@ export class WorkspacePersistence {
         const store = tx.objectStore(type);
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
+        if (LIFE_STORES.includes(type as LifeStore)) {
+          if(!["save","soft_delete","restore"].includes(kind))throw Error("不支援的清單操作");
+          if (old && (value as LifeRecord).revision !== (old as LifeRecord).revision) throw Error('清單版本已變更，請重新載入後重試');
+          if (old && 'list_id' in old && 'list_id' in value && old.list_id !== value.list_id) throw Error('不可跨清單移動');
+          if (type === 'life_lists' && old) validateFieldChange(old as LifeList,value as LifeList,await tx.objectStore('life_items').getAll() as LifeItem[]);
+          if (type === 'life_items' && kind === 'save') {
+            const list=await tx.objectStore('life_lists').get((value as LifeItem).list_id);
+            if (!list || list.schema_version !== (value as LifeItem).schema_version) throw Error('清單欄位已更新，請重新載入');
+          }
+        }
         const metaId = key(owner, type, value.id);
         const meta = await metadata.get(metaId) as Meta | undefined;
         if (meta?.hard_deleted) throw new Error("此物件已永久刪除，不能重新儲存。");
@@ -90,8 +102,13 @@ export class WorkspacePersistence {
           await tx.objectStore("binaries").put({ id: value.id, owner_id: owner, blob: change.blob, updated_at: Date.now() });
         } else {
           const next = kind === "save" ? value : { ...old!, deleted_at: kind === "restore" ? null : Date.now(), updated_at: Date.now() };
+          if (LIFE_STORES.includes(type as LifeStore)) (next as LifeRecord).revision=revision+1;
           await store.put(next);
         }
+      }
+      if(changes.some(c=>LIFE_STORES.includes(c.type as LifeStore)||c.type==='attachments'&&c.kind!=='save'&&c.kind!=='binary') && this.db.objectStoreNames.contains('life_lists')){
+        const data=emptyLife();for(const s of LIFE_STORES)(data[s] as LifeRecord[])=(await tx.objectStore(s).getAll()).filter((r:LifeRecord)=>r.workspace_owner_id===owner);
+        validateLife(data,owner,await tx.objectStore('attachments').getAll());
       }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;
@@ -114,7 +131,7 @@ export class WorkspacePersistence {
   }
 
   async merge(owner: string, results: WorkspaceResult[], acknowledged?: string): Promise<void> {
-    const tx = this.db.transaction([...stores,...OFFICIAL_CLEANUP_STORES.filter(name=>this.db.objectStoreNames.contains(name))], "readwrite", { durability: "strict" });
+    const tx = this.db.transaction([...storesFor(this.db),...OFFICIAL_CLEANUP_STORES.filter(name=>this.db.objectStoreNames.contains(name))], "readwrite", { durability: "strict" });
     try {
       if (acknowledged) await tx.objectStore("workspace_outbox").delete(acknowledged);
       const pending = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[])

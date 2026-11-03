@@ -1934,7 +1934,7 @@ function NexusAppInner({
           onSelectPage={handleSelectPage}
         />
       ) : isTodoMode ? (
-        <TodoView key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
+        <TodoView storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
           onCreate={async(title,due)=>{await createAndOpenPage({title,kind:'todo',due_date:due??Date.now(),completed:false});}}
           onUpdate={(id,patch)=>patchPage(id,patch)}

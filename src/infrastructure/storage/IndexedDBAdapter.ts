@@ -1,3 +1,5 @@
+import {LifeRepository} from '../../features/life/LifeRepository';
+import {LIFE_STORES,validateLife,type LifeRecord,type LifeData} from '../../features/life/lists';
 import { validateWorldEntities } from "../../features/worldMap/worldMapRepository";
 import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
@@ -13,8 +15,8 @@ import type { StorageAdapter } from "./StorageAdapter";
 import { WorkspacePersistence, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 8;
-const BACKUP_SCHEMA_VERSION = 3;
+const DB_VERSION = 9;
+const BACKUP_SCHEMA_VERSION = 4;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
 function newBlockId(): ID { return `blk_${nanoid()}`; }
@@ -45,6 +47,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     if (!this.db) throw new Error("DB not initialized");
     return new WorkspacePersistence(this.db);
   }
+  getLifeRepository():LifeRepository {if(!this.db)throw Error("DB not initialized");const owner=this.workspaceOwnerId;return new LifeRepository(this.db,()=>{if(this.workspaceOwnerId!==owner)throw Error("帳號已切換");return owner;});}
   private studyRepository: StudyRepository | null = null;
   private studyRepositoryOwner: string | null | undefined;
   getStudyRepository(): StudyRepository {
@@ -76,7 +79,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     // This is intentionally a one-time, explicit migration: the user asked
     // for all current local data to belong to their account. Later anonymous
     // workspaces must not be silently claimed by whichever account signs in.
-    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES, ...WORKSPACE_STORES], "readwrite");
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES], "readwrite");
     const pages = await tx.objectStore("pages").getAll();
     const attachments = await tx.objectStore("attachments").getAll();
     for (const page of pages) {
@@ -89,6 +92,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
       }
     }
+    for(const store of LIFE_STORES)for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
     // Only explicit, post-upgrade offline intents are claimed for upload. Old cached
     // rows without an outbox record never become inferred cloud creations.
     for (const batch of await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]) {
@@ -128,7 +132,7 @@ export class IndexedDBAdapter implements StorageAdapter {
   async init(): Promise<void> {
     this.db = await openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, _newVersion, transaction) {
-        for (const name of [...STUDY_STORES,...WORKSPACE_STORES]) {
+        for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
@@ -424,7 +428,9 @@ export class IndexedDBAdapter implements StorageAdapter {
         if(!entry?.binary_base64)throw Error("Map project is missing from this device; synchronize it before backup");
       }
     }
+    const life=await this.getLifeRepository().read();validateLife(life,owner,allAttachments);
     return {
+      life,
       world_map_drafts,
       schema_version: BACKUP_SCHEMA_VERSION,
       exported_at: snapshotTime,
@@ -447,6 +453,8 @@ export class IndexedDBAdapter implements StorageAdapter {
     if(backup.pages.some(row=>(row.workspace_owner_id??null)!==owner)
       ||backup.attachments.some(entry=>(entry.attachment.workspace_owner_id??null)!==owner)
       ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
+    if(backup.schema_version>=4&&!backup.life)throw Error('新版備份缺少清單資料');
+    if(backup.life)validateLife(backup.life,owner,backup.attachments.map(e=>e.attachment));
     for(const page of backup.pages) validateWorldEntities(page);
     for(const page of backup.pages)for(const map of page.character_data?.world_maps??[]){
       if(map.world_id!==page.id)throw Error("Invalid world map membership in backup");
@@ -488,8 +496,43 @@ export class IndexedDBAdapter implements StorageAdapter {
         }
       }
     }
-    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES], "readwrite", { durability: "strict" });
+    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES], "readwrite", { durability: "strict" });
     try {
+    // Import canonical list records in the SAME backup transaction. Existing data,
+    // queued work and tombstones win over conflicting snapshots; no silent overwrite.
+    const lifeRestore:import('../sync/workspacePersistence').WorkspaceOperation[]=[];
+    const lifeDeletes:import('../sync/workspacePersistence').WorkspaceOperation[]=[];
+    if(backup.life){
+      const needed=new Set(backup.life.life_items.filter(r=>r.deleted_at==null).flatMap(r=>r.attachment_ids));
+      for(const entry of backup.attachments.filter(e=>needed.has(e.attachment.id))){
+        const a=entry.attachment,existing=await tx.objectStore('attachments').get(a.id);
+        if(existing&&(existing.workspace_owner_id??null)!==owner)throw Error('Attachment ownership mismatch');
+        const meta=await tx.objectStore('workspace_sync_meta').get(JSON.stringify([owner,'attachments',a.id]));
+        if(meta?.hard_deleted||existing?.deleted_at!=null)throw Error('清單備份引用已刪除附件');
+        if(!existing){
+          const revision=meta?.revision??0;
+          lifeRestore.push({id:crypto.randomUUID(),entity_type:'attachments',entity_id:a.id,kind:'save',expected_revision:revision,value:a});
+          if(entry.binary_base64!=null)lifeRestore.push({id:crypto.randomUUID(),entity_type:'attachments',entity_id:a.id,kind:'binary',expected_revision:revision+1,data:entry.binary_base64});
+        }
+      }
+      for(const store of LIFE_STORES)for(const row of backup.life[store]){
+        const existing=await tx.objectStore(store).get(row.id);
+        const meta=await tx.objectStore('workspace_sync_meta').get(JSON.stringify([owner,store,row.id]));
+        if(meta?.hard_deleted)throw Error('備份含已永久刪除的清單資料');
+        if(existing&&!sameStudyRecord(existing,row))throw Error('清單備份與本機版本衝突，還原已停止');
+        if(!existing){
+          await tx.objectStore(store).put(row);
+          const revision=meta?.revision??0;
+          lifeRestore.push({id:crypto.randomUUID(),entity_type:store,entity_id:row.id,kind:'save',expected_revision:revision,value:{...row,deleted_at:null,...(store==='life_items'?{schema_version:backup.life.life_lists.find(l=>l.id===(row as import('../../features/life/lists').LifeItem).list_id)!.schema_version}:{})}});
+          if(row.deleted_at!=null)lifeDeletes.push({id:crypto.randomUUID(),entity_type:store,entity_id:row.id,kind:'soft_delete',expected_revision:revision+1});
+        }
+      }
+      if(lifeRestore.length){
+        const sequence=((await tx.objectStore('workspace_sync_meta').get('sequence'))?.value??0)+1;
+        await tx.objectStore('workspace_sync_meta').put({id:'sequence',value:sequence});
+        await tx.objectStore('workspace_outbox').put({id:crypto.randomUUID(),owner_id:owner,sequence,operations:[...lifeRestore,...lifeDeletes]});
+      }
+    }
     // Never erase review history when importing an older or partial backup.
     if (backup.study) {
       for (const event of backup.study.events) {
@@ -530,7 +573,8 @@ export class IndexedDBAdapter implements StorageAdapter {
     // delete barriers and unacknowledged local work even when replacing the cache.
     const queued = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]).flatMap(batch => batch.operations);
     const preservedPages = (await tx.objectStore("pages").getAll()).filter(row => (row.workspace_owner_id??null)!==owner || row.deleted_at != null || queued.some(op => op.entity_type === "pages" && op.entity_id === row.id));
-    const preservedAttachments = (await tx.objectStore("attachments").getAll()).filter(row => (row.workspace_owner_id??null)!==owner || row.deleted_at != null || queued.some(op => op.entity_type === "attachments" && op.entity_id === row.id));
+    const lifeAttachmentIds=new Set((await tx.objectStore("life_items").getAll()).flatMap(r=>r.attachment_ids));
+    const preservedAttachments = (await tx.objectStore("attachments").getAll()).filter(row => (row.workspace_owner_id??null)!==owner || row.deleted_at != null || lifeAttachmentIds.has(row.id) || queued.some(op => op.entity_type === "attachments" && op.entity_id === row.id));
     const preservedBinaries = (await tx.objectStore("binaries").getAll()).filter(row => preservedAttachments.some(att => att.id === row.id));
     const isHardDeleted = async (type: string, row: Page | Attachment) =>
       (await tx.objectStore("workspace_sync_meta").get(JSON.stringify([row.workspace_owner_id ?? null, type, row.id])))?.hard_deleted;
@@ -556,6 +600,8 @@ export class IndexedDBAdapter implements StorageAdapter {
       // Existing local recovery work wins; the imported file retains any alternative draft.
       if(!await tx.objectStore("workspace_sync_meta").get(id))await tx.objectStore("workspace_sync_meta").put({...draft,id,token:crypto.randomUUID(),blob:base64ToBlob(draft.binary_base64,"application/octet-stream"),updated_at:Date.now()});
     }
+    const lifeData=await this.readLifeInTransaction(tx,owner);
+    validateLife(lifeData,owner,await tx.objectStore('attachments').getAll());
     await tx.done;
     } catch (error) {
       try { tx.abort(); } catch {}
@@ -564,6 +610,11 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
   }
 
+  private async readLifeInTransaction(tx:import('idb').IDBPTransaction<unknown,string[],"readwrite">,owner:string|null):Promise<LifeData>{
+    const data={life_lists:[],life_categories:[],life_items:[]} as LifeData;
+    for(const name of LIFE_STORES)(data[name] as LifeRecord[])=(await tx.objectStore(name).getAll()).filter((r:LifeRecord)=>r.workspace_owner_id===owner);
+    return data;
+  }
   async close(): Promise<void> { this.db?.close(); }
 }
 

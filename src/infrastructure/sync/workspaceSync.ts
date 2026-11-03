@@ -1,3 +1,4 @@
+import {LIFE_STORES} from '../../features/life/lists';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type EntityType, type WorkspaceResult, WorkspacePersistence } from "./workspacePersistence";
 
@@ -31,13 +32,13 @@ export async function pullWorkspace(client: SupabaseClient, local: WorkspacePers
   const attachments = new Map<string, Record<string, unknown>>();
   const pullTombstones = async () => {
     const tombstones = await readWorkspaceRows(client, "workspace_tombstones", owner, "*", alive);
-    if (alive()) await local.merge(owner, tombstones.map(row => ({
+    if (alive()) await local.merge(owner, tombstones.filter(row=>["pages","attachments",...LIFE_STORES].includes(String(row.entity_type))).map(row => ({
       entity_type: row.entity_type as EntityType, entity_id: String(row.entity_id),
       revision: Number(row.revision), deleted_at: Number(row.deleted_at), hard_deleted: true,
     })));
   };
   await pullTombstones();
-  for (const type of ["pages", "attachments"] as const) {
+  for (const type of ["pages", "attachments",...LIFE_STORES] as const) {
     const rows = await readWorkspaceRows(client, type, owner, "*", alive);
     if (!alive()) return;
     await local.merge(owner, rows.map(row => remoteResult(type, row)));
