@@ -61,9 +61,10 @@ test('detail starts collapsed and answer status disappears after save, errors of
   const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
   const Panel=require('../src/features/dictionary/CardDictionaryPanel.tsx').default;
   const AnswerSaveNotice=require('../src/features/study/components/AnswerSaveNotice.tsx').default;
-  const html=renderToStaticMarkup(React.createElement(Panel,{cardId:'card',front:'test',fixedEntryId:id(10)}));
-  assert.ok(html.includes('aria-expanded="false"'));assert.ok(!html.includes('歷史詞源'));
   const {LanguageProvider}=require('../src/lib/LanguageContext.tsx');
+  const html=renderToStaticMarkup(React.createElement(LanguageProvider,{initialLanguage:'zh-TW'},React.createElement(Panel,{fixedEntryId:id(10),onOpenChange:()=>{}})));
+  assert.ok(html.includes('查看字典'));
+  assert.ok(html.includes('aria-expanded="false"'));assert.ok(!html.includes('歷史詞源'));
   const render=props=>renderToStaticMarkup(React.createElement(LanguageProvider,{initialLanguage:'zh-TW'},React.createElement(AnswerSaveNotice,{onReload:()=>{},...props})));
   assert.equal(render({saving:false,error:''}),'');
   assert.ok(render({saving:true,error:''}).includes('正在儲存作答'));

@@ -49,11 +49,18 @@ export async function searchDictionaryWithInflections(client:Client,kind:Diction
   },'字典目前無法讀取，請稍後重試；若持續失敗，請確認資料服務已啟用。');
 }
 const entryRequests=new WeakMap<Client,Map<string,Promise<PublishedDetail|null>>>();
-export async function readPublishedEntry(client:Client,id:string):Promise<PublishedDetail|null>{
+export async function readPublishedEntry(client:Client,id:string,revalidate=false):Promise<PublishedDetail|null>{
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))return null;
   const modeKey=(offline()?'offline:':'online:')+id;
   let pending=entryRequests.get(client);if(!pending){pending=new Map();entryRequests.set(client,pending);}
-  const existing=pending.get(modeKey);if(existing)return existing;
+  const existing=pending.get(modeKey);
+  if(existing){
+    if(!revalidate)return existing;
+    // A commit must not reuse a response requested before it finished. Let that
+    // response/cache write settle, then fetch and cache the current public state.
+    await existing.catch(()=>undefined);
+    return readPublishedEntry(client,id,true);
+  }
   const request=publicRequest('entry:'+id,async()=>{
     const {data,error}=await client.rpc('get_published_dictionary_entry',{entry_uuid:id});
     if(error)throw error;

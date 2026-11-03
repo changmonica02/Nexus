@@ -34,3 +34,13 @@ test('concurrent public detail reads share a request; next online read still che
  client.rpc=async()=>{calls++;return {data:null,error:null};};assert.equal(await readPublishedEntry(client,id(1)),null);assert.equal(calls,2);
  client.rpc=async()=>({data:null,error:{message:'unavailable'}});await assert.rejects(readPublishedEntry(client,id(1)));
 });
+
+test('post-commit revalidation waits for an older in-flight detail before caching current published content',async()=>{
+ let calls=0,release;
+ const old=detail(),updated={...detail(),entry:{...detail().entry,headword:'updated published word'}};
+ const client={rpc:async()=>{calls++;if(calls===1){await new Promise(resolve=>release=resolve);return{data:old,error:null};}return{data:updated,error:null};}};
+ const before=readPublishedEntry(client,id(1)),after=readPublishedEntry(client,id(1),true);
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);release();
+ assert.deepEqual(await before,old);assert.deepEqual(await after,updated);assert.equal(calls,2);
+ const {readPublicCache}=require('../src/features/dictionary/publicCache.ts');assert.deepEqual(await readPublicCache('entry:'+id(1)),updated);
+});
