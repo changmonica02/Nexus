@@ -15,6 +15,19 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "speech.replay": "Replay pronunciation",
+  "speech.settings": "Pronunciation",
+  "speech.automatic": "Automatic pronunciation",
+  "speech.rate": "Speech rate",
+  "speech.language": "This front cannot be reliably read with an English voice.",
+  "speech.unsupported": "Speech is unavailable in this browser. You can continue learning.",
+  "speech.noVoice": "No suitable English voice is available. Try replay after an offline voice is installed.",
+  "speech.retry": "Playback was blocked or did not start. Tap Replay pronunciation to try again.",
+  "composition.title": "Word composition summary",
+  "composition.parts": "Composition",
+  "composition.meanings": "Component meanings",
+  "composition.concept": "Core concept",
+
   "deck.schedule": "Learning and scheduling",
   "deck.scope": "Changes apply only to this study set and future sessions. Active sessions keep their settings.",
   "deck.private": "Private study set",
@@ -785,6 +798,19 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "speech.replay": "重新播放發音",
+  "speech.settings": "發音",
+  "speech.automatic": "自動發音",
+  "speech.rate": "語速",
+  "speech.language": "無法可靠地以英文語音朗讀此正面內容。",
+  "speech.unsupported": "此瀏覽器不支援語音，仍可正常學習。",
+  "speech.noVoice": "沒有合適的英文語音，可安裝離線語音後再按重新播放。",
+  "speech.retry": "播放受限或未啟動，請按「重新播放發音」重試。",
+  "composition.title": "構詞摘要",
+  "composition.parts": "構詞",
+  "composition.meanings": "成分意義",
+  "composition.concept": "核心概念",
+
   "deck.schedule": "學習與排程",
   "deck.scope": "修改只套用此學習組與之後開始的學習；進行中的學習保留原設定。",
   "deck.private": "私人學習組",

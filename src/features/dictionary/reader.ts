@@ -48,11 +48,17 @@ export async function searchDictionaryWithInflections(client:Client,kind:Diction
     return data as DictionaryPage;
   },'字典目前無法讀取，請稍後重試；若持續失敗，請確認資料服務已啟用。');
 }
+const entryRequests=new WeakMap<Client,Map<string,Promise<PublishedDetail|null>>>();
 export async function readPublishedEntry(client:Client,id:string):Promise<PublishedDetail|null>{
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))return null;
-  return publicRequest('entry:'+id,async()=>{
+  const modeKey=(offline()?'offline:':'online:')+id;
+  let pending=entryRequests.get(client);if(!pending){pending=new Map();entryRequests.set(client,pending);}
+  const existing=pending.get(modeKey);if(existing)return existing;
+  const request=publicRequest('entry:'+id,async()=>{
     const {data,error}=await client.rpc('get_published_dictionary_entry',{entry_uuid:id});
     if(error)throw error;
     return data as PublishedDetail|null;
   },'詞條目前無法讀取，請稍後重試。');
+  pending.set(modeKey,request);
+  try{return await request;}finally{pending.delete(modeKey);}
 }
