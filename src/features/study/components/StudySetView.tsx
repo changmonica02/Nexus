@@ -187,8 +187,8 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface }: {
-  page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
+function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface, initialMode = "manage" }: {
+  initialMode?: "manage" | "scheduled"; page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
 }) {
   const {t}=useLanguage();
   const [historyEvents,setHistoryEvents]=useState<import("../studyFSRS").StudyEvent[]>([]);
@@ -197,7 +197,8 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface 
   const [privateOfficialStatus,setPrivateOfficialStatus]=useState<{pack:string;available:boolean}|null>(null);
   const privateOfficialEditing=privateOfficialStatus?.pack===page.official_pack_id&&privateOfficialStatus?.available===true;
   useEffect(()=>{let active=true;const client=getSupabase(),pack=page.official_pack_id;if(pack&&client)void officialPrivateCardsAvailable(client).then(available=>{if(active)setPrivateOfficialStatus({pack,available});});return()=>{active=false;};},[page.official_pack_id]);
-  const [mode,setMode]=useState<"manage"|"scheduled"|"history">("manage");
+  const [requestedMode,setMode]=useState<"manage"|"scheduled"|"history">(initialMode);
+  const mode = requestedMode === "scheduled" && snapshot && !snapshot.settings.direction_confirmed ? "manage" : requestedMode;
   const [showCsvImport,setShowCsvImport]=useState(false);
   const [showLinkSuggestions,setShowLinkSuggestions]=useState(false);
   const [error,setError]=useState("");

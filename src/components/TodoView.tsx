@@ -5,9 +5,7 @@ import { useState, useMemo } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 
-function startOfMonth(date: Date) { return new Date(date.getFullYear(), date.getMonth(), 1); }
-function endOfMonth(date: Date) { return new Date(date.getFullYear(), date.getMonth() + 1, 0); }
-function addDays(date: Date, days: number) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+import { startOfMonth, addDays, calendarDaysForMonth, localDateKey } from '../lib/todoCalendar';
 
 export default function TodoView({
   pages,
@@ -33,24 +31,14 @@ export default function TodoView({
   const today = new Date();
   today.setHours(0,0,0,0);
 
-  const calendarDays = useMemo(() => {
-    const start = startOfMonth(currentMonth);
-    const end = endOfMonth(currentMonth);
-    const days: Date[] = [];
-    const startWeekday = start.getDay();
-    for (let i = 0; i < startWeekday; i++) days.push(addDays(start, -startWeekday + i));
-    for (let d = new Date(start); d <= end; d = addDays(d, 1)) days.push(new Date(d));
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) days.push(addDays(end, i));
-    return days;
-  }, [currentMonth]);
+  const calendarDays = useMemo(() => calendarDaysForMonth(currentMonth), [currentMonth]);
 
   const todosByDate = useMemo(() => {
     const map = new Map<string, Page[]>();
     todos.forEach((todo) => {
       if (!todo.due_date) return;
       const d = new Date(todo.due_date);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = localDateKey(d);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(todo);
     });
@@ -93,7 +81,7 @@ export default function TodoView({
                   const isCurrentMonth = d.getMonth() === currentMonth.getMonth();
                   const isToday = d.toDateString() === new Date().toDateString();
                   const isSelected = d.toDateString() === selectedDate.toDateString();
-                  const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                  const key = localDateKey(d);
                   const dayTodos = todosByDate.get(key) || [];
                   return (
                     <div key={i} onClick={() => setSelectedDate(d)} className={`min-h-[80px] p-1.5 bg-white cursor-pointer hover:bg-zinc-50 ${!isCurrentMonth ? "opacity-30" : ""} ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isToday ? "bg-blue-50" : ""}`}>

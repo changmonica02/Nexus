@@ -59,6 +59,7 @@ import StudyHomeOverview from "../features/study/components/StudyHomeOverview";
 import {deleteOfficialPack,packDeleteMessage} from "../features/study/officialPacks";
 import DictionaryAddRequest from '../features/dictionary/DictionaryAddRequest';
 import Dashboard from "./Dashboard";
+import HomeScreen from "./HomeScreen";
 import CommandPalette, { type CommandPaletteAction } from "./CommandPalette";
 import ResizablePanel from "./ResizablePanel";
 import {installCreationTemplate} from "../features/creation/installTemplate";
@@ -146,6 +147,7 @@ function NexusAppInner({
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+  const [studyLaunch, setStudyLaunch] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("updated");
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
@@ -760,8 +762,9 @@ function NexusAppInner({
     if (storageRef.current) await storageRef.current.setActivePageId(id);
   }, [pages, storageRef]);
 
-  const handleSelectPage = useCallback(async (id: string) => {
+  const handleSelectPage = useCallback(async (id: string, studyMode: "manage" | "scheduled" = "manage") => {
     if (activePageRef.current) await flushSave(activePageRef.current);
+    setStudyLaunch(studyMode === "scheduled" ? id : null);
     await activatePage(id);
   }, [activatePage, flushSave]);
 
@@ -1703,7 +1706,7 @@ function NexusAppInner({
     const onTitleChange = (title: string) => { if (page) patchPage(page.id, { title }); };
     const patch = (value: Partial<Page>) => { if (page) patchPage(page.id, value); };
     return <WorkspacePane page={page}
-      study={{ onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
+      study={{ initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
@@ -1860,7 +1863,9 @@ function NexusAppInner({
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
-        <Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />
+        <HomeScreen key={storageRef.current!.getWorkspaceOwner?.() ?? 'anonymous'} owner={storageRef.current!.getWorkspaceOwner?.() ?? null} pages={pages} repository={storageRef.current!.getStudyRepository()}
+          onStudy={(id, mode) => void handleSelectPage(id, mode)} onStudySets={handleShowStudySets} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={handleShowTodoList}
+          classic={<Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
