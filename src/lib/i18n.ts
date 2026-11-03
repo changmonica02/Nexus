@@ -15,6 +15,7 @@ export function detectDefaultLanguage(): Language {
 type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
+  "studyDictionary.edit": "Edit entry",
   "studyDictionary.open": "View dictionary",
 "studyDictionary.previous": "← Previous entry",
 "studyDictionary.close": "Close dictionary",
@@ -819,6 +820,7 @@ const en: Dictionary = {
 };
 
 const zhTW: Dictionary = {
+  "studyDictionary.edit": "編輯詞條",
   "studyDictionary.open": "查看字典",
 "studyDictionary.previous": "← 返回上一詞條",
 "studyDictionary.close": "關閉字典",
