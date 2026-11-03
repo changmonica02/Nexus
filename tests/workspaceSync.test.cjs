@@ -458,3 +458,19 @@ test('offline realtime waits for online and reconnect installs one channel', asy
   window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
   engine.destroy(); window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
 });
+
+test('map tools keep native project and canonical site queued offline, then flush through the existing engine',async t=>{
+ const {WorldMapRepository}=require('../src/features/worldMap/worldMapRepository.ts');
+ const d=await device(t),server=new Server(),engine=new SyncEngine(server,d.adapter,'device',owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
+ const original=Object.getOwnPropertyDescriptor(globalThis,'navigator');t.after(()=>{if(original)Object.defineProperty(globalThis,'navigator',original);else delete globalThis.navigator;});
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{onLine:false}});
+ const world={...page('map-world'),kind:'creative',creative_type:'world',character_data:{},attachment_ids:[]};await d.adapter.savePage(world);
+ const native=new Blob([['1.154.2|File can be loaded in azgaar.github.io/Fantasy-Map-Generator|2026-10-20|seed|100|100|1','{}','','[]','','<svg id="map"><g id="viewbox"/></svg>','{"points":[[0,0]],"spacing":1}','1','2','3','4','5'].join('\r\n')]);
+ const repo=new WorldMapRepository(d.adapter),created=await repo.create(world.id,'Offline map',native);
+ await repo.createSettlement(world.id,{type:'site',entityId:'offline-site',name:'Offline ruin'},{mapId:created.map.id,placementId:'offline-placement',x:12,y:34});
+ await engine.pushPage(await d.adapter.getPage(world.id));assert.equal(server.calls.length,0);assert.ok((await d.local.pending(owner)).length>0);
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{onLine:true}});await engine.fullSync(false);
+ const saved=server.rows.pages.get(world.id),map=saved.character_data.world_maps[0];assert.equal(saved.character_data.world_entities[0].type,'site');assert.equal(map.placements[0].entityId,'offline-site');
+ assert.equal(Buffer.from(server.rows.binaries.get(map.attachment_id).data,'base64').toString(),await native.text(),'native bytes use the existing binary outbox');
+ assert.equal((await d.local.pending(owner)).length,0);assert.equal((await repo.read(world.id,map.id)).map.id,map.id);
+});

@@ -914,6 +914,7 @@ function setHistoryButtonsDisabled(undo: boolean, redo: boolean): void {
   };
   setPair("undo", "redo");
   setPair("templateUndo", "templateRedo");
+  window.dispatchEvent(new Event("nexus-height-history"));
 }
 
 function updateHistory(noStat?: string): void {
@@ -2232,7 +2233,19 @@ function downloadPreview(): void {
   };
 }
 
-export const HeightmapEditor = { open, redrawDrainage };
+// The Nexus adapter restores its existing native project checkpoint immediately
+// after this teardown. Clear transient handlers/history, never a second map model.
+function cancelNativeSession():void {
+  Reflect.deleteProperty(window,"edits");setHistoryButtonsDisabled(true,true);
+  HeightmapGenerator.clearData();keptLandMask=null;customization=0;
+  ensureEl("customizationMenu").style.display="none";ensureEl("exitCustomization").style.display="none";
+  ensureEl<HTMLSelectElement>("layersPreset").disabled=false;
+  closeDialogs();removeDrainage();clearMainTip();applyDefaultViewboxEvents();
+}
+export const HeightmapEditor = { open, redrawDrainage, finalize:finalizeHeightmap, cancelNativeSession,
+  undo:()=>{if(customization===1&&edits.n>1)restoreHistory(edits.n-1);},
+  redo:()=>{if(customization===1&&edits.n<edits.length)restoreHistory(edits.n+1);}
+};
 
 declare global {
   var edits: Uint8Array[] & { n: number };

@@ -430,7 +430,7 @@ export class WorldMapRepository {
    * On a lost acknowledgement, identical retries return current data without another write. */
   async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings">>): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
-    if (!["country", "administrative_area", "settlement", "culture", "religion"].includes(input.type)) entityError("Unsupported entity creation type");
+    if (!["country", "administrative_area", "settlement", "site", "culture", "religion"].includes(input.type)) entityError("Unsupported entity creation type");
     const existing = entities.find(entity => entity.entityId === input.entityId);
     const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,cultureSettings:input.cultureSettings,relations:input.relations??[]};
     if (existing) {
@@ -441,13 +441,15 @@ export class WorldMapRepository {
     return this.commit(world, mapsOf(world), undefined, [...entities, {...fields,entityId:input.entityId,worldId,schemaVersion:1,createdAt:now,updatedAt:now,revision:1}]);
   }
 
-  async createSettlement(worldId: string, input: { entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown>; relations?:WorldEntity["relations"] },
+  async createSettlement(worldId: string, input: { type?:"settlement"|"site"; entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown>; relations?:WorldEntity["relations"] },
     placement?: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
+    const type=input.type??"settlement";
+    if(!["settlement","site"].includes(type))entityError("Unsupported point entity type");
     const name = input.name.trim();
     const existing = entities.find(entity => entity.entityId === input.entityId);
     if (existing) {
-      const matches = existing.type === "settlement" && existing.name === name && existing.revision === 1
+      const matches = existing.type === type && existing.name === name && existing.revision === 1
         && JSON.stringify(existing.aliases) === JSON.stringify(input.aliases ?? []) && existing.subtype === input.subtype
         && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content) && JSON.stringify(existing.relations) === JSON.stringify(input.relations??[]);
       const saved = placement && mapsOf(world).find(map => map.id === placement.mapId && map.deleted_at === null)?.placements?.find(item => item.placementId === placement.placementId);
@@ -457,7 +459,7 @@ export class WorldMapRepository {
       return world;
     }
     const now = Date.now();
-    const entity: WorldEntity = { ...input, name, schemaVersion: 1, worldId, type: "settlement", aliases: input.aliases ?? [],
+    const entity: WorldEntity = { ...input, name, schemaVersion: 1, worldId, type, aliases: input.aliases ?? [],
       relations: input.relations??[], createdAt: now, updatedAt: now, revision: 1 };
     const maps = placement ? this.withPlacement(world, input.entityId, placement) : mapsOf(world);
     return this.commit(world, maps, undefined, [...entities, entity]);
@@ -487,7 +489,7 @@ export class WorldMapRepository {
 
   async placeEntity(worldId: string, entityId: string, input: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
     const world = await this.world(worldId);
-    if (!world.character_data!.world_entities?.some(entity => entity.entityId === entityId && entity.type === "settlement")) entityError("Settlement is not in this world");
+    if (!world.character_data!.world_entities?.some(entity => entity.entityId === entityId && ["settlement","site"].includes(entity.type))) entityError("Settlement is not in this world");
     const map = mapOf(world, input.mapId), saved = map.placements?.find(item => item.placementId === input.placementId);
     if (saved) {
       if (saved.deletedAt !== null || saved.entityId !== entityId || saved.geometry.type !== "point" || saved.geometry.x !== input.x || saved.geometry.y !== input.y) {

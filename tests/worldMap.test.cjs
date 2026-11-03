@@ -515,3 +515,16 @@ test('new distribution is atomic on failed writes, idempotent after lost ack, an
  await repo.removePlacement('world-a',map.id,'p',1);await assert.rejects(repo.saveRegion('world-a',map.id,'faith','p',2,cellGeometry([1]),false,entity),{code:'conflict'});
  state.owner='foreign';await assert.rejects(repo.saveRegion('world-a',map.id,'faith','p2',0,cellGeometry([1])),{code:'owner'});
 });
+
+test('site markers reuse canonical entities, atomic placement, retry and conflict isolation',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
+ const input={type:'site',entityId:'site_one',name:'Old ruin',content:{type:'doc',content:[]}},point={placementId:'site_point',mapId:map.id,x:12,y:34};
+ state.fail=true;await assert.rejects(repo.createSettlement('world-a',input,point),/Disk full/);
+ assert.equal(state.pages.get('world-a').character_data.world_entities,undefined);
+ state.fail=false;await repo.createSettlement('world-a',input,point);await repo.createSettlement('world-a',input,point);
+ const entities=await repo.listEntities('world-a');assert.equal(entities.length,1);assert.equal(entities[0].type,'site');
+ await assert.rejects(repo.createSettlement('world-a',{...input,type:'settlement'},point),{code:'conflict'});
+ await repo.placeEntity('world-a','site_one',{...point,placementId:'site_second',x:20});
+ assert.equal((await repo.listEntities('world-a')).length,1,'multiple locations never duplicate the body');
+ await assert.rejects(repo.updateEntity('world-a','site_one',0,{name:'stale'}),{code:'conflict'});
+});

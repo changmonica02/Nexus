@@ -5,19 +5,22 @@ import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import {MapCoreClient, downloadMapBlob} from '../features/worldMap/coreClient';
 import {offlineMapDocument,readPublicMapAsset} from '../features/worldMap/offlineCore';
 import {useLanguage} from '../lib/LanguageContext';
+import {useWorkspaceDialog} from './WorkspaceDialog';
 import {mapMessage} from '../features/worldMap/mapMessages';
-import type {MapView,MapMarker,RegionProjection,RegionDraft,RegionStat,RegionCommand} from '../features/worldMap/coreClient';
+import type {MapView,MapMarker,RegionProjection,RegionDraft,RegionStat,RegionCommand,NativeToolState,NativeToolCommand} from '../features/worldMap/coreClient';
 import {Wrench,Maximize,Minimize,RotateCcw} from 'lucide-react';
 
+export type NativeToolControls={state:NativeToolState;pending:boolean;run:(command:NativeToolCommand)=>void};
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
 export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,registerRegionCommand,onBeforeClose,regionStart,regionDirty}: {
   regionView?:{layer:string;selected?:string|null};onRegionQuery?:(members:string[])=>void;regionStart?:RegionCommand;regionDirty?:boolean;regions?:RegionProjection[];regionScope?:string;onRegionDraft?:(draft:RegionDraft)=>void;onRegionStats?:(stats:RegionStat[])=>void;onRegionPoints?:(points:{placementId:string;cell:number}[])=>void;registerRegionCommand?:(run:(command:RegionCommand)=>Promise<void>)=>(()=>void);onBeforeClose?:()=>boolean;
-  markers?:MapMarker[];pickPoint?:string|null;onMapPoint?:(id:string,x:number,y:number)=>void;onMarker?:(id:string)=>void;humanTools?:ReactNode;
+  markers?:MapMarker[];pickPoint?:string|null;onMapPoint?:(id:string,x:number,y:number)=>void;onMarker?:(id:string)=>void;humanTools?:(tools:NativeToolControls)=>ReactNode;
   previewFooter?:ReactNode;reloadKey?:number;editing?:boolean;onEdit?:()=>void;layer?:string;overlays?:string[];contourInterval?:number;contourLabels?:boolean;view?:MapView;onView?:(view:MapView)=>void;
   map:WorldMapRecord; blob:Blob|null; draftToken?:string; draftConflict?:{token:string;blob:Blob}; repository:WorldMapRepository;
   beforeSave:()=>Promise<void>; onSaved:(page:Page)=>Promise<void>; onClose:()=>void; registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null;pendingPushes?:number};
 }) {
   const {language,t} = useLanguage();
+  const {askConfirm,dialog:toolDialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('worldMap.confirm')});
   const [session] = useState(() => crypto.randomUUID());
   const [offline]=useState(()=>!navigator.onLine),[offlineHTML,setOfflineHTML]=useState<string>();
   const frame = useRef<HTMLIFrameElement>(null), client = useRef<MapCoreClient|null>(null);
@@ -26,6 +29,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const token = useRef(draftToken), active = useRef<Promise<void>|null>(null), staged = useRef<Promise<void>|null>(null);
   const [status,setStatus] = useState('worldMap.editor1'), [error,setError] = useState(''), [busy,setBusy] = useState(false);
   const surface=useRef<HTMLDivElement>(null),canvas=useRef<HTMLDivElement>(null);
+  const [nativeState,setNativeState]=useState<NativeToolState>({tool:null,undo:false,redo:false}),[toolBusy,setToolBusy]=useState(false);
   const [expanded,setExpanded]=useState(false),[fullscreen,setFullscreen]=useState(false);
   const fullView=expanded||fullscreen;
   const documentId=useRef<string|null>(null),previewView=useRef<MapView|null>(null);
@@ -36,9 +40,10 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const [coreAvailable,setAvailable] = useState(false), [conflict,setConflict] = useState(draftConflict);
   const available=coreAvailable&&loadedDocument?.id===map.id&&loadedDocument.blob===blob;
   const actions = useRef<{save:(blob?:Blob)=>Promise<void>;stage:()=>Promise<void>}>({save:async()=>{},stage:async()=>{}});
-  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty};
+  const latest = useRef({beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty,nativeState,toolBusy}); latest.current = {beforeSave,onSaved,t,conflict,editing,language,layer,overlays,contourInterval,contourLabels,view,onView,fullView,mapId:map.id,markers,pickPoint,onMapPoint,onMarker,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,regionDirty,nativeState,toolBusy};
 
   actions.current.stage = async () => {
+    if (latest.current.nativeState.tool||latest.current.toolBusy)return;
     if (!latest.current.editing || readyDocument.current?.id!==map.id || readyDocument.current?.blob!==blob || !ready.current || !dirty.current || staged.current || active.current || latest.current.conflict) return;
     const task = (async()=>{
       const snapshot = await client.current!.request('snapshot');
@@ -48,6 +53,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     try { await task; } finally { staged.current = null; }
   };
   actions.current.save = (supplied?:Blob) => {
+    if (latest.current.nativeState.tool||latest.current.toolBusy)return Promise.reject(Error(latest.current.t('worldMap.toolFinishFirst')));
     if (active.current) return active.current;
     if (!latest.current.editing) return Promise.resolve();
     if (!ready.current || readyDocument.current?.id!==map.id || readyDocument.current?.blob!==blob) return Promise.reject(Error('Map is not loaded; the saved project was not replaced'));
@@ -89,6 +95,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       clearTimeout(startup);
       const channel = new MessageChannel();
       const core = new MapCoreClient(channel.port1,data=>{
+        if(data.type==='tool-state'&&data.toolState)setNativeState(data.toolState);
         if(data.type==='region-draft'&&latest.current.editing&&data.geometry&&data.area&&typeof data.requestId==='string')latest.current.onRegionDraft?.({requestId:data.requestId,geometry:data.geometry,area:data.area,undo:Boolean(data.undo),redo:Boolean(data.redo)});
         if(data.type==='region-query'&&data.members)latest.current.onRegionQuery?.(data.members);
         if(data.type==='region-stats'&&data.stats)latest.current.onRegionStats?.(data.stats);
@@ -114,8 +121,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     window.addEventListener('message',onMessage);
     if(offline)void offlineMapDocument(session).then(html=>{if(current)setOfflineHTML(html);}).catch(fail);
     const checkpoint = setInterval(()=>{void actions.current.stage().catch(fail);},10000);
-    const autosave = setInterval(()=>{if(latest.current.editing && dirty.current && ready.current && !latest.current.conflict)void actions.current.save().catch(fail);},60000);
-    const beforeUnload = (event:BeforeUnloadEvent)=>{if(dirty.current){event.preventDefault();event.returnValue='';}};
+    const autosave = setInterval(()=>{if(!latest.current.nativeState.tool&&!latest.current.toolBusy&&latest.current.editing && dirty.current && ready.current && !latest.current.conflict)void actions.current.save().catch(fail);},60000);
+    const beforeUnload = (event:BeforeUnloadEvent)=>{if(dirty.current||latest.current.nativeState.tool||latest.current.toolBusy){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',beforeUnload);
     return ()=>{current=false;clearTimeout(startup);clearInterval(checkpoint);clearInterval(autosave);window.removeEventListener('message',onMessage);window.removeEventListener('beforeunload',beforeUnload);client.current?.close();client.current=null;ready.current=false;};
   },[offline,session]);
@@ -136,7 +143,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       if(!current)return;
       if(blob)await core.request('load',blob);else if(!useFresh)await core.request('generate');
       if(!current)return;
-      await core.request('configure',undefined,{preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView,regions:latest.current.regions,regionScope:latest.current.regionScope,regionView:latest.current.regionView,markers:latest.current.markers,pickPoint:latest.current.pickPoint});
+      await core.request('configure',undefined,{managedTools:true,preview:!latest.current.editing,language:latest.current.language,layer:latest.current.layer,overlays:latest.current.overlays,contourInterval:latest.current.contourInterval,contourLabels:latest.current.contourLabels,view:sameDocument?restoreView:undefined,fit:!sameDocument,freePan:latest.current.fullView,regions:latest.current.regions,regionScope:latest.current.regionScope,regionView:latest.current.regionView,markers:latest.current.markers,pickPoint:latest.current.pickPoint});
       if(!current)return;
       ready.current=true;readyDocument.current={id:map.id,blob};setLoadedDocument({id:map.id,blob});setAvailable(true);
       if(draftToken){dirty.current=latest.current.editing;changes.current++;setStatus('worldMap.editor8');}
@@ -153,8 +160,8 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     const modeChanged=previousEditing.current!==editing;previousEditing.current=editing;
     const returning=modeChanged&&!editing;
     const restored=returning?previewView.current:modeChanged?latest.current.view:undefined;
-    if(connected)void client.current?.request('configure',undefined,{preview:!editing,language,layer,overlays,contourInterval,contourLabels,markers,pickPoint,regions,regionScope,regionView,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
-  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView,markers,pickPoint,regions,regionScope,regionView]);
+    if(connected&&!nativeState.tool)void client.current?.request('configure',undefined,{managedTools:true,preview:!editing,language,layer,overlays,contourInterval,contourLabels,markers,pickPoint,regions,regionScope,regionView,freePan:fullView,view:restored??undefined,fit:returning&&!restored}).catch(e=>setError(String(e)));
+  },[connected,available,editing,language,layer,overlays,contourInterval,contourLabels,fullView,markers,pickPoint,regions,regionScope,regionView,nativeState.tool]);
   useEffect(()=>{if(available&&editing&&regionStart)void client.current?.request('region',undefined,{regionCommand:regionStart}).catch(e=>setError(String(e)));},[available,editing,regionStart]);
   useEffect(()=>registerRegionCommand?.(async command=>{if(!ready.current)throw Error('Map is not ready');await client.current!.request('region',undefined,{regionCommand:command});}),[registerRegionCommand]);
   useEffect(()=>{
@@ -192,9 +199,11 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     return ()=>previous?.focus();
   },[editing,fullView]);
   const report=(e:unknown)=>setError(String(e));
+  const runTool=(command:NativeToolCommand)=>{if(toolBusy)return;const checkpoint=command.action==='open'?actions.current.stage():Promise.resolve();setToolBusy(true);setError('');void checkpoint.then(()=>client.current!.request('tool',undefined,{toolCommand:command})).then(async result=>{if(result){const state=JSON.parse(await result.text()) as NativeToolState;setNativeState(state);await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await client.current!.request('configure',undefined,{resize:true});await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));if(!state.tool)surface.current?.querySelector<HTMLElement>('[data-world-tools] > summary')?.focus();}}).catch(report).finally(()=>setToolBusy(false));};
+  const toolControls:NativeToolControls={state:nativeState,pending:toolBusy,run:runTool};
   const captureView=async()=>{const snapshot=ready.current?await client.current?.request('view'):undefined;if(snapshot){const view=JSON.parse(await snapshot.text()) as MapView;if(!latest.current.editing)previewView.current=view;latest.current.onView?.(view);}};
   const enter=()=>{const id=map.id;void captureView().then(()=>{if(latest.current.mapId===id)onEdit?.();}).catch(report);};
-  const close=()=>{if(onBeforeClose&&!onBeforeClose())return;void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();await captureView();onClose();})().catch(report);};
+  const close=()=>{if(nativeState.tool||toolBusy){setError(t('worldMap.toolFinishFirst'));return;}if(onBeforeClose&&!onBeforeClose())return;void(async()=>{if(ready.current && !conflict&&(dirty.current||!canonical.current))await actions.current.save();await captureView();onClose();})().catch(report);};
   const exportProject=()=>{void(async()=>{const project=ready.current&&readyDocument.current?.id===map.id&&readyDocument.current.blob===blob?await client.current!.request('snapshot'):(await repository.read(map.world_id,map.id)).blob;if(project)downloadMapBlob(project,map.title,'map');})().catch(report);};
   const toggleFullscreen=()=>{void (async()=>{await captureView();if(document.fullscreenElement===surface.current)await document.exitFullscreen();else if(expanded)setExpanded(false);else if(surface.current?.requestFullscreen){try{await surface.current.requestFullscreen();}catch{setExpanded(true);}}else setExpanded(true);})().catch(report);};
   const resetView=()=>void client.current?.request('configure',undefined,{fit:true}).catch(report);
@@ -202,18 +211,18 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
   const localLabel=t(status);
   const cloudLabel=cloudState?(cloudState.error||cloudState.status==='error'?t('worldMap.syncFailed'):cloudState.status==='syncing'?t('worldMap.syncing'):cloudState.status==='offline'?t('worldMap.offline'):cloudState.pendingPushes? t('worldMap.waitingSync'):cloudState.status==='connected'?t('worldMap.connected'):null):null;
   return <div ref={surface} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={editing?t('worldMap.editor10'):t('worldMap.preview')}
-    onKeyDown={event=>{if(event.key==='Escape'&&surface.current?.querySelector('[data-map-export][open],[data-map-more][open]')){event.preventDefault();event.stopPropagation();closeMenus();return;}if(!editing&&fullView&&event.key==='Escape'){event.preventDefault();if(expanded)setExpanded(false);}if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if((editing||fullView)&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),summary,a,iframe');const visible=buttons?Array.from(buttons).filter(el=>el.getClientRects().length>0):[];if(!visible.length)return;const first=visible[0],last=visible[visible.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
+    onKeyDown={event=>{if((event.target as Element).closest('dialog'))return;if(event.key==='Escape'&&surface.current?.querySelector('[data-map-export][open],[data-map-more][open]')){event.preventDefault();event.stopPropagation();closeMenus();return;}if(!editing&&fullView&&event.key==='Escape'){event.preventDefault();if(expanded)setExpanded(false);}if(editing&&event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy)close();}if((editing||fullView)&&event.key==='Tab'){const buttons=surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),summary,a,iframe');const visible=buttons?Array.from(buttons).filter(el=>el.getClientRects().length>0):[];if(!visible.length)return;const first=visible[0],last=visible[visible.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}}
     className={editing||fullView?'fixed inset-0 z-50 m-0 flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
     {editing&&<header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
-      <button type="button" onClick={close} disabled={busy}>{t('worldMap.editor11')}</button>
+      <button type="button" onClick={close} disabled={busy||toolBusy||!!nativeState.tool}>{t('worldMap.editor11')}</button>
       <strong className="mr-auto min-w-0 flex-1 truncate">{map.title}</strong>
-      <button type="button" disabled={!available||busy||Boolean(conflict)} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
+      <button type="button" disabled={!available||busy||toolBusy||!!nativeState.tool||Boolean(conflict)||!!regionDirty} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
       <nav aria-label={t('worldMap.actions')} className="ml-auto flex shrink-0 gap-2">
       <details data-map-export name="world-map-header" className="relative">
         <summary className="min-h-11 cursor-pointer rounded border px-3 py-2">{t('worldMap.export')}</summary>
         <div className="absolute right-0 top-full z-30 grid w-44 max-w-[85vw] gap-2 rounded border bg-[var(--color-bg)] p-2 shadow-lg">
-      <button type="button" disabled={busy} onClick={exportProject}>.map ↓</button>
-      {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
+      <button type="button" disabled={busy||!!nativeState.tool||!!regionDirty} onClick={exportProject}>.map ↓</button>
+      {(['svg','png'] as const).map(type=><button key={type} type="button" disabled={!available||busy||!!nativeState.tool||!!regionDirty} onClick={()=>void client.current!.request(type).then(result=>{if(result)downloadMapBlob(result,map.title,type);}).catch(report)}>{type.toUpperCase()} ↓</button>)}
         </div>
       </details>
       <details data-map-more name="world-map-header" className="relative">
@@ -234,14 +243,15 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       </details>
       </nav>
     </header>}
-    {editing&&humanTools&&<fieldset disabled={!available||busy} className="m-0 min-w-0 border-0 p-0">{humanTools}</fieldset>}
     {error&&<div role="alert" className="shrink-0 bg-red-50 p-3 text-sm text-red-800">{mapMessage(language,error)}<br/>{t('worldMap.editor17')}</div>}
     {conflict&&<div role="alert" className="shrink-0 bg-amber-50 p-3 text-sm text-amber-900">
       {t('worldMap.editor18')}
       <button type="button" onClick={()=>downloadMapBlob(conflict.blob,map.title+'-recovery','map')}>{t('worldMap.editor19')}</button>
       <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
     </div>}
-    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
+    <div data-map-workspace className={editing?'flex min-h-0 min-w-0 flex-1 flex-col-reverse sm:flex-row':'contents'}>
+    {editing&&humanTools&&<aside data-map-context className={nativeState.tool?'hidden':'max-h-[42dvh] min-w-0 shrink-0 overflow-y-auto border-t sm:max-h-none sm:w-64 sm:border-r sm:border-t-0 lg:w-72'}><fieldset disabled={!available||busy||toolBusy} className="m-0 min-w-0 border-0 p-0">{humanTools(toolControls)}</fieldset></aside>}
+    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 min-w-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
       <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>
@@ -255,6 +265,13 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
       </>}
       {!available&&<div className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)] text-[var(--color-text)]">{error?t('worldMap.editor23'):t('worldMap.editor24')}</div>}
     </div>
+    </div>
+    {editing&&nativeState.tool&&<section aria-busy={toolBusy} aria-label={t('worldMap.nativeSession')} className="flex shrink-0 flex-wrap items-center gap-2 border-t p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
+      <strong>{t('worldMap.tool.'+nativeState.tool)}</strong><span className="mr-auto">{t('worldMap.nativeHint')}</span>
+      {nativeState.tool==='height'&&<><button disabled={toolBusy||!nativeState.undo} onClick={()=>runTool({action:'undo'})}>{t('worldRegion.undo')}</button><button disabled={toolBusy||!nativeState.redo} onClick={()=>runTool({action:'redo'})}>{t('worldRegion.redo')}</button></>}
+      <button disabled={toolBusy} onClick={()=>runTool({action:'confirm'})}>{t('worldMap.confirmTool')}</button><button disabled={toolBusy} onClick={()=>{void askConfirm(t('worldMap.cancelToolPrompt')).then(confirmed=>{if(confirmed)runTool({action:'cancel'});});}}>{t('ui.cancel')}</button>
+    </section>}
+    {toolDialog}
     {!editing&&!fullView&&previewFooter}
     <footer className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 px-4 py-2 text-xs" role="status"><span className={status==='worldMap.editor3'||status==='worldMap.editor7'||status==='worldMap.editor8'?'font-medium text-amber-700 dark:text-amber-400':'opacity-60'}>{localLabel}</span>{cloudLabel&&<span role={cloudState?.error||cloudState?.status==='error'?'alert':undefined} className={cloudState?.error||cloudState?.status==='error'?'font-medium text-red-600 dark:text-red-400':'opacity-60'}>{cloudLabel}</span>}</footer>
   </div>;

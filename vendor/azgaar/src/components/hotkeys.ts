@@ -19,7 +19,7 @@ function handleKeydown(event: KeyboardEvent): void {
     return;
   }
   if (altKey && !ctrlKey && !shiftKey) event.preventDefault(); // disallow plain alt key combinations
-  if (code === "Tab") event.preventDefault(); // Tab toggles the tool panel
+  if (code === "Tab" && !(window.parent!==window&&document.body.classList.contains("nexus-managed-tools")&&document.body.dataset.nexusTool!=="advanced")) event.preventDefault(); // Managed tools preserve browser focus traversal
 }
 
 function handleKeyup(event: KeyboardEvent): void {
@@ -28,6 +28,15 @@ function handleKeyup(event: KeyboardEvent): void {
   event.stopPropagation();
 
   const { code, key, ctrlKey, metaKey, shiftKey, altKey } = event;
+  // Managed editing enters native modes through a snapshot-backed Nexus tool.
+  // Keep pan/zoom and the current tool's own history; never let a shortcut
+  // silently replace a Nexus territory draft or an active heightmap session.
+  const managed=window.parent!==window&&document.body.classList.contains("nexus-managed-tools");
+  const opensEditor=code==="Tab"||code==="Space"||code==="Delete"||(shiftKey&&/^Key[A-Z]$/.test(code))||["!","@","#","$","%"].includes(key);
+  if(managed&&opensEditor&&(document.body.dataset.nexusTool!=="advanced"||customization)){
+    event.preventDefault();return;
+  }
+
   const ctrl = ctrlKey || metaKey || key === "Control";
   if (ctrl && ["KeyS", "KeyC", "KeyQ"].includes(code)) return; // Nexus save or browser shortcut, never a layer toggle
   const shift = (shiftKey || key === "Shift") && !altKey;
