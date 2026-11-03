@@ -17,6 +17,7 @@ window.pwaData = {
       return storage.savePage({ ...page, ...extra, content_json: { type: 'doc', retainedMetadata: 'KEEP', content: [{ type: 'paragraph', attrs: { id: 'pwa-body-' + page.id }, content: [{ type: 'text', text: title + ' original body' }] }] }, content_text: title + ' original body' });
     };
     const note = await create('PWA Note');
+    const task=await storage.createPage({title:'PWA Task',kind:'todo',due_date:Date.now(),completed:false});
     const conflict = await create('PWA Conflict');
     const characterData = createBlankTemplate(); characterData.basic.name = 'PWA Character'; characterData.sections.push({ id: 'character-bio', type: 'rich_text', title: 'Biography', richText: 'CREATIVE_BODY' });
     const character = await create('PWA Character', 'creative', { creative_type: 'character', character_data: characterData });
@@ -32,7 +33,7 @@ window.pwaData = {
     await repo.addCards(deck.id, [{ front: 'offline word', back: 'offline answer' }]);
     await repo.configure(deck.id, { direction_confirmed: true });
     await storage.setActivePageId(null);
-    return { note: note.id, conflict: conflict.id, character: character.id, world: world.id, deck: deck.id, pdf: pdfPage.id, missing: missingPage.id, attachment: cached.id };
+    return { task:task.id,note: note.id, conflict: conflict.id, character: character.id, world: world.id, deck: deck.id, pdf: pdfPage.id, missing: missingPage.id, attachment: cached.id };
   },
   async read(owner, id) { storage.setWorkspaceOwner(owner); return storage.getPage(id); },
   async pending(owner) { storage.setWorkspaceOwner(owner); return { workspace: await storage.getWorkspacePersistence().pending(owner), study: await storage.getStudyRepository().pending() }; },

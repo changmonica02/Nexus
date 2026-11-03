@@ -21,7 +21,7 @@ function readPreferences(key: string): Preferences {
 export default function HomeScreen({ owner, pages, repository, classic, onStudy, onOpenPage, onOpenTodos, onCreateStudySet, suspended = false }: {
   owner: string | null; pages: Page[]; repository: StudyRepository; classic: ReactNode;
   onStudy: (id: string, mode: 'manage' | 'scheduled') => void;
-  onOpenPage: (id: string) => void; onOpenTodos: () => void; onCreateStudySet: () => void; suspended?: boolean;
+  onOpenPage: (id: string) => void; onOpenTodos: (date?:Date) => void; onCreateStudySet: () => void; suspended?: boolean;
 }) {
   const { t, language } = useLanguage();
   const preferenceKey = `nexus-home:${owner ?? 'anonymous'}`;
@@ -118,7 +118,7 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
       <h3 className="my-4 font-semibold">{previewDate.toLocaleDateString(language)}</h3>
       <ul className="space-y-1">{todosForDay(ownedPages, previewDate).map(todo => <li key={todo.id}><button className={`${button} w-full break-words text-left ${todo.completed ? 'line-through opacity-60' : ''}`} onClick={() => onOpenPage(todo.id)}>{todo.title || t('common.untitled')}</button></li>)}</ul>
       {!todosForDay(ownedPages, previewDate).length && <p className="py-2 text-sm opacity-60">{t('home.noTodos')}</p>}
-      <div className="mt-5 flex flex-wrap justify-end gap-2"><button className={button} onClick={onOpenTodos}>{t('home.openTodos')}</button><button className={button} onClick={() => setPreviewDate(null)}>{t('home.close')}</button></div>
+      <div className="mt-5 flex flex-wrap justify-end gap-2"><button className={button} onClick={()=>onOpenTodos(previewDate??today)}>{t('home.openTodos')}</button><button className={button} onClick={() => setPreviewDate(null)}>{t('home.close')}</button></div>
     </ModalDialog>}
   </div>;
 }

@@ -392,6 +392,8 @@ export interface PageQuery {
 }
 
 export interface CreatePageInput {
+  due_date?: number | null;
+  completed?: boolean;
   title?: string;
   tags?: string[];
   folder?: string | null;

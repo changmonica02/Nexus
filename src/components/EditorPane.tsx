@@ -1,4 +1,5 @@
 "use client";
+import {localDateTimeInput} from "../lib/todoCalendar";
 import SaveStatus, { type PageSaveState } from "./SaveStatus";
 import {SidebarToggle} from "./WorkspaceNavigation";
 import { type CSSProperties, useRef, useState, useEffect, useLayoutEffect, useCallback } from "react";
@@ -39,8 +40,9 @@ export default function EditorPane({
   margins,
   onMarginsChange,
   onBackToInterface,
-  saveState, onSave,
+  saveState, onSave, onTaskChange,
 }: {
+  onTaskChange?: (patch:Partial<Pick<Page,"due_date"|"completed"|"priority">>)=>void;
   saveState?: PageSaveState;
   onSave?: () => Promise<void>;
   page: Page | null;
@@ -266,6 +268,10 @@ export default function EditorPane({
 
   return (
     <main data-workspace-pane={page.id} ref={lessonRootRef} data-lesson-preset={isLessonNote ? lessonLayout.preset : undefined} className={`relative flex flex-col flex-1 overflow-hidden ${isLessonNote ? "lesson-document" : ""}`} style={{ backgroundColor: "var(--color-editor-bg)", "--lesson-font-size": `${lessonLayout.fontSize}px`, "--lesson-line-height": lessonLayout.lineHeight, "--lesson-heading-scale": lessonLayout.headingScale } as CSSProperties}>
+      {page.kind==='todo'&&onTaskChange&&<div className="flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-2 text-sm">
+        <label className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{t('life.taskDate')}<input aria-label={t('life.taskDate')} type="datetime-local" value={localDateTimeInput(page.due_date)} onChange={event=>{const value=event.target.value?new Date(event.target.value).getTime():null;if(value==null||Number.isFinite(value))onTaskChange({due_date:value});}} className="min-h-11 min-w-0 max-w-full rounded border bg-transparent px-2"/></label>
+        <label className="inline-flex min-h-11 items-center gap-2"><input type="checkbox" checked={!!page.completed} onChange={event=>onTaskChange({completed:event.target.checked})}/>{t('todo.completed')}</label>
+      </div>}
       {/* Title strip（2026-08-11：Google Docs 風格精簡——小字、無邊框、標籤靠右） */}
       <div className="shrink-0 pt-4 pb-2 px-4" style={{ backgroundColor: "var(--color-editor-bg)" }}>
         <div className={`${isLessonNote ? "" : "mx-auto"} w-full flex items-center gap-3`} style={{ maxWidth: isLessonNote ? undefined : "820px" }}>

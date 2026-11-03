@@ -67,7 +67,7 @@ import {creationTemplateLibrary, type CreationDownload} from "../features/creati
 import CharacterTemplateUpdateControl from "./CharacterTemplateUpdateControl";
 import CreativeView from "./CreativeView";
 import QuickNotesView from "./QuickNotesView";
-import TodoView from "./TodoView";
+import TodoView,{initialLifeView,type LifeViewState} from "./TodoView";
 import NewPageDialog, { type NewPageKindChoice } from "./NewPageDialog";
 import UtilityView from "./UtilityView";
 import FeatureOverview from "./FeatureOverview";
@@ -158,6 +158,7 @@ function NexusAppInner({
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const [isQuickNoteMode, setIsQuickNoteMode] = useState(false);
   const [isTodoMode, setIsTodoMode] = useState(false);
+  const [lifeState,setLifeState]=useState<LifeViewState>(initialLifeView);
   const [isCreativeMode, setIsCreativeMode] = useState(false);
   const [creationTemplateTarget,setCreationTemplateTarget]=useState<string|null>(null);
   const [isStudySetMode, setIsStudySetMode] = useState(initialFeature==="study");
@@ -332,6 +333,7 @@ function NexusAppInner({
             syncEngineRef.current?.destroy();
             if (adapter.getWorkspaceOwner() !== userId) {
               setDeckManagement(null);
+              setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
               setTrashPages([]);
@@ -402,6 +404,7 @@ function NexusAppInner({
               // loaded afterwards, so a slow IndexedDB read can never leave
               // private account pages visible in the signed-out UI.
               setDeckManagement(null);
+              setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
               setTrashPages([]);
@@ -967,10 +970,9 @@ function NexusAppInner({
       sidebarCreateInFlightRef.current = true;
       try {
         const titles: Record<string, string> = { score: "新樂譜", novel: "新小說作品", world: "新世界觀", web: "新網頁", counter: "新計數", draw: "新抽選", quick_note: "隨手記", todo: "新事項" };
-        const page = await createAndOpenPage({ kind: type === "novel" || type === "world" ? "creative" : type as PageKind, format: "flow", title: titles[type] });
+        const page = await createAndOpenPage({ kind: type === "novel" || type === "world" ? "creative" : type as PageKind, format: "flow", title: titles[type],...(type==='todo'?{due_date:isTodoMode?lifeState.date:Date.now(),completed:false}:{}) });
         if (page && type === "novel") patchPage(page.id, { creative_type: "novel", novel_settings: { chaptersEnabled: true, theme: "parchment", fontSize: 18, fontFamily: "serif", lineHeight: 2, paragraphIndent: true, showWordCount: true } });
         if (page && type === "world") { const data = createBlankTemplate(); data.basic.name = titles.world; data.basic.role = "世界觀設定"; patchPage(page.id, { creative_type: "world", character_data: data }); }
-        if (page && type === "todo") patchPage(page.id, { due_date: Date.now(), completed: false });
       } finally { sidebarCreateInFlightRef.current = false; }
       return;
     }
@@ -1000,7 +1002,7 @@ function NexusAppInner({
       : { kind: "study_set", title: "" };
     const newPage = await createAndOpenPage(input);
     if (newPage) setPendingRenameId(newPage.id);
-  }, [createAndOpenPage, patchPage]);
+  }, [createAndOpenPage, patchPage,isTodoMode,lifeState.date]);
 
   // 2026-08-11：模式選擇對話框確認（筆記：流動/分頁）
   const handleConfirmCreateDialog = useCallback(async (kind: NewPageKindChoice, format: PageFormat) => {
@@ -1166,7 +1168,7 @@ function NexusAppInner({
   }, [storageRef]);
   const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
-  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setActivePageId(null); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowCreative = useCallback(() => {
     setIsTrashMode(false);
     setIsHomeMode(false);
@@ -1772,7 +1774,8 @@ function NexusAppInner({
         onExportMarkdown: () => { if (page) void handleExportPageMarkdown(page.id); }, onExportPdf: () => { if (page) void handleExportPageAsPdf(page.id); },
         onExportNexus: () => { if (page) void handleExportPageAsNexusJson(page.id); }, onNewNote: () => handleCreatePage("flow"), onNewDocument: () => handleCreateDocument("flow"),
         onImportPdf: handleImportPdfClick, onImportMd: handleImportMarkdownClick, onConvertToPresentation: () => handleConvertToPresentation(page?.id),
-        nightAdapt: isPageNightAdapt, onToggleNightAdapt: handleTogglePageNightAdapt, onBackToInterface: handleShowHome,
+        nightAdapt: isPageNightAdapt, onToggleNightAdapt: handleTogglePageNightAdapt, onBackToInterface: page?.kind==='todo'?()=>navigate(handleShowTodoList):handleShowHome,
+        onTaskChange: value=>patch(value),
         isSplitView: !!secondaryActivePageId, onCloseSplit: handleCloseSplit, onSwapSplit: handleSwapSplit,
         saveState: page ? pageSaveStates[page.id] : undefined, onSave: () => page ? flushSave(page) : Promise.resolve(),
       }} />;
@@ -1902,7 +1905,7 @@ function NexusAppInner({
       <div style={{display:managementActive?'none':'contents'}}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
         <HomeScreen key={storageRef.current!.getWorkspaceOwner?.() ?? 'anonymous'} owner={storageRef.current!.getWorkspaceOwner?.() ?? null} pages={pages} repository={storageRef.current!.getStudyRepository()}
-          suspended={!!managementActive} onCreateStudySet={()=>void createManagedStudySet()} onStudy={(id, mode) => mode==='manage'?void openDeckManagement(id):void handleSelectPage(id, mode)} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={handleShowTodoList}
+          suspended={!!managementActive} onCreateStudySet={()=>void createManagedStudySet()} onStudy={(id, mode) => mode==='manage'?void openDeckManagement(id):void handleSelectPage(id, mode)} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={date=>navigate(()=>{handleShowTodoList();const day=date??new Date();setLifeState({...initialLifeView(),tab:'calendar',date:day.getTime(),month:new Date(day.getFullYear(),day.getMonth(),1).getTime()});})}
           classic={<Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
@@ -1931,27 +1934,10 @@ function NexusAppInner({
           onSelectPage={handleSelectPage}
         />
       ) : isTodoMode ? (
-        <TodoView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
-          pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)}
-          onCreate={(title, due) => {
-            void createAndOpenPage({ title, kind: "todo" as any }).then((p) => {
-              if (p) {
-                const updated = { ...p, title, due_date: due || Date.now(), completed: false, updated_at: Date.now(), revision: p.revision + 1 };
-                void storageRef.current?.savePage(updated).then(() => {
-                  setPages((prev) => prev.map((pp) => pp.id === p.id ? updated : pp));
-                  syncEngineRef.current?.pushPage(updated);
-                });
-              }
-            });
-          }}
-          onUpdate={(id, patch) => {
-            setPages((prev) => {
-              const next = prev.map((p) => p.id === id ? { ...p, ...patch, updated_at: Date.now(), revision: p.revision + 1 } : p);
-              const upd = next.find((p) => p.id === id);
-              if (upd && storageRef.current) { void storageRef.current.savePage(upd); syncEngineRef.current?.pushPage(upd); }
-              return next;
-            });
-          }}
+        <TodoView key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
+          pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
+          onCreate={async(title,due)=>{await createAndOpenPage({title,kind:'todo',due_date:due??Date.now(),completed:false});}}
+          onUpdate={(id,patch)=>patchPage(id,patch)}
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />

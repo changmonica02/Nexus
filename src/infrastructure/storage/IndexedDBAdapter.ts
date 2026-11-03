@@ -213,6 +213,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       revision: 1,
       device_id: this.deviceId,
       kind: input?.kind ?? "note",
+      ...(input?.kind==='todo'?{due_date:input.due_date??null,completed:input.completed??false}:{}),
       study_items: input?.kind === "study_set" ? [] : undefined,
       presentation_data: input?.kind === "presentation" ? { theme: "minimal", slides: [] } : undefined,
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),

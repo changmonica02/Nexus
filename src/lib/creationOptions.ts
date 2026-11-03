@@ -12,7 +12,7 @@ export const creationOptions: Record<FeatureFilter, { type: CreateItemType; labe
   documents: [{ type: "document", label: "文檔" }],
   presentations: [{ type: "presentation", label: "簡報" }],
   study: [{ type: "study_set", label: "字卡集" }],
-  calendar: [{ type: "todo", label: "日曆事項" }],
+  calendar: [{ type: "todo", label: "新增任務" }],
   quicknotes: [{ type: "quick_note", label: "隨手記" }],
   web: [{ type: "web", label: "網頁" }],
   counter: [{ type: "counter", label: "計數項目" }],
