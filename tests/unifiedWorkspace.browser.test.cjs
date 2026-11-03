@@ -154,7 +154,7 @@ test(
           await sheet.getByRole('radio',{name:'Sample study_set',exact:true}).check();
           const before=await page.evaluate(async()=>({other:await window.fixtureStorage.getStudyRepository().styleForDeck(window.otherDeckId),data:await window.fixtureStorage.getStudyRepository().exportData()}));
           await sheet.getByRole('button',{name:'管理 Sample study_set',exact:true}).click();const management=page.locator('[data-study-management]');await management.getByLabel('每日新卡上限',{exact:true}).waitFor();
-          assert.equal(await management.getAttribute('data-study-management'),await page.evaluate(()=>window.mainDeckId));
+          assert.equal(await management.getAttribute('data-study-management'),await page.evaluate(()=>window.mainDeckId));assert.equal(await management.getByRole('table',{name:'單字列表'}).count(),0);await management.getByRole('button',{name:/^查看字卡/}).click();await management.getByRole('table',{name:'單字列表'}).waitFor();await management.getByRole('button',{name:'返回學習組設定',exact:true}).click();await management.getByLabel('每日新卡上限',{exact:true}).waitFor();
           await management.getByLabel('每日新卡上限',{exact:true}).fill('7');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');
           await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.new_limit===7);
           const after=await page.evaluate(async()=>({other:await window.fixtureStorage.getStudyRepository().styleForDeck(window.otherDeckId),data:await window.fixtureStorage.getStudyRepository().exportData()}));assert.deepEqual(after.other,before.other);for(const key of ['cards','states','events','sessions'])assert.deepEqual(after.data[key],before.data[key],key);

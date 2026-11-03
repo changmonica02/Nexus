@@ -49,7 +49,7 @@ export default function StudyCardEditor({ card, requiresScheduleChoice, onSave, 
     className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl border p-5 shadow-xl backdrop:bg-black/30"
     style={{ background: "var(--color-bg)", color: "var(--color-text)", borderColor: "var(--color-border)" }}>
     <header className="sticky top-0 z-10 -mx-5 -mt-5 mb-4 flex items-center justify-between gap-3 border-b p-4" style={{background:"var(--color-bg)",borderColor:"var(--color-border)"}}>
-      <h2 id="study-card-editor-title" className="min-w-0 text-lg font-semibold">{card.id ? "編輯單字" : "新增單字"}</h2>
+      <h2 id="study-card-editor-title" className="min-w-0 text-lg font-semibold">{card.id ? "編輯字卡" : "新增字卡"}</h2>
       <div className="flex shrink-0 gap-2"><button type="submit" form={formId} disabled={busy||choice} className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">{busy?"儲存中…":"儲存"}</button><button type="button" disabled={busy} onClick={close} className="rounded border px-3 py-2 text-sm">關閉</button></div>
     </header>
     <form id={formId} onSubmit={event => {

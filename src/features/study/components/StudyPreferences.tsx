@@ -129,11 +129,6 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
               </select>
             </label>
             <p>{t("styles.switch")}</p>
-            <section aria-label={t('speech.settings')} className="space-y-3">
-              <h3 className="font-semibold">{t('speech.settings')}</h3>
-              <label className="flex items-center justify-between gap-3">{t('speech.automatic')}<input type="checkbox" aria-label={t('speech.automatic')} checked={style.auto_speech??true} onChange={event=>save({auto_speech:event.target.checked})}/></label>
-              <label className="flex flex-wrap items-center justify-between gap-3">{t('speech.rate')}<input key={style.id+String(style.speech_rate)} aria-label={t('speech.rate')} type="number" min="0.5" max="2" step="0.1" defaultValue={style.speech_rate??0.9} className={control+' w-24'} onBlur={event=>{const value=event.target.value.trim()?Number(event.target.value):NaN;if(value!==(style.speech_rate??0.9))save({speech_rate:value});}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur();}}/></label>
-            </section>
             {count("review_limit", t("study.batchLimit"), 1)}
             <p>{t("study.batchHint")}</p>
             {count("new_limit", t("study.newLimit"), 0)}
@@ -207,6 +202,12 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
               </section>
             ))}
             <p>{t("study.endlessHint")}</p>
+            <section aria-label={t('speech.settings')} className="space-y-3">
+              <h3 className="font-semibold">{t('deck.presentation')}</h3><p>{t('study.direction')}</p>
+              <label className="flex items-center justify-between gap-3">{t('speech.automatic')}<input type="checkbox" aria-label={t('speech.automatic')} checked={style.auto_speech??true} onChange={event=>save({auto_speech:event.target.checked})}/></label>
+              <label className="flex flex-wrap items-center justify-between gap-3">{t('speech.rate')}<input key={style.id+String(style.speech_rate)} aria-label={t('speech.rate')} type="number" min="0.5" max="2" step="0.1" defaultValue={style.speech_rate??0.9} className={control+' w-24'} onBlur={event=>{const value=event.target.value.trim()?Number(event.target.value):NaN;if(value!==(style.speech_rate??0.9))save({speech_rate:value});}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur();}}/></label>
+            </section>
+
       </>}
     </fieldset>
     <p role="status">{busy?t('study.savingSettings'):t('study.savedSettings')}</p>

@@ -43,7 +43,7 @@ function App() {
   return <LanguageProvider initialLanguage={new URLSearchParams(location.search).has('en') ? 'en' : 'zh-TW'}>
     <WorkspaceNavigationProvider open={() => setDrawer(!drawer)}><div className="flex h-dvh min-w-0 flex-col"><nav className="flex shrink-0 gap-2 p-2"><SidebarToggle/><button onClick={() => setView(null)}>Nexus Home</button>{drawer && <span>Existing navigation</span>}</nav>
       {view?.todos ? <TodoView pages={own} onCreate={() => {}} onUpdate={() => {}} onDelete={() => {}} onSelectPage={open}/>
-      : page?.kind === 'study_set' ? <StudySetView page={page} repository={repo} initialMode={view.mode} onTitleChange={() => {}} onBackToInterface={() => setView(null)}/>
+      : page?.kind === 'study_set' ? <StudySetView managementOnly={view.mode==='manage'} page={page} repository={repo} initialMode={view.mode} onTitleChange={() => {}} onBackToInterface={() => setView(null)}/>
       : page ? <p>{page.title}</p>
       : <HomeScreen key={owner} owner={owner} pages={pages} repository={repo} onStudy={(id, mode) => setView({ id, mode })} onOpenPage={open} onCreateStudySet={() => { window.studySetsOpened = true; }} onOpenTodos={() => setView({ todos: true })}
         classic={<Dashboard pages={own} onSelectPage={open} onDeletePages={() => {}} onPinPages={() => {}} onReorderPages={() => {}} onSetFolder={() => {}}/>}/>}

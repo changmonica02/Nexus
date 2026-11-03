@@ -82,7 +82,7 @@ test('confirmed deletion removes only that deck/card/session/history/outboxes; r
 });
 test('official management list is read-only; all practice content remains visible',()=>{
   const html=renderToStaticMarkup(React.createElement(LanguageProvider,{initialLanguage:'zh-TW'},React.createElement(CardManageList,{studyItems:[makeCard('one')],readOnly:true,onAddCard:()=>{},onEditCard:()=>{},onDeleteCard:()=>{},onImportCsv:()=>{}})));
-  assert.ok(html.includes('example'));assert.ok(html.includes('示例'));assert.ok(!html.includes('<button'));assert.ok(!html.includes('編輯單字'));
+  assert.ok(html.includes('example'));assert.ok(html.includes('示例'));assert.ok(!html.split('<tbody>')[1].split('</tbody>')[0].includes('<button'));assert.ok(!html.includes('編輯單字'));
 });
 test('new official page does not migrate an empty local legacy deck over server contents',async t=>{
   const {repo}=await fixture(t);
