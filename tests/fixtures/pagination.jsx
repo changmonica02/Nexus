@@ -7,6 +7,7 @@ import {DictionaryWorkspace} from '../../src/features/dictionary/DictionaryAdmin
 import DictionaryBrowser from '../../src/features/dictionary/DictionaryBrowser';
 import {RelationSelectionDialog} from '../../src/features/dictionary/RelationTargetPicker';
 import DictionaryLinkPicker from '../../src/features/dictionary/DictionaryLinkPicker';
+import {LanguageProvider} from '../../src/lib/LanguageContext';
 import CardDictionaryPanel from '../../src/features/dictionary/CardDictionaryPanel';
 import StudyLinkSuggestions from '../../src/features/dictionary/StudyLinkSuggestions';
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -30,4 +31,4 @@ function Demo(){const [page,setPage]=useState(0),[query,setQuery]=useState('all'
  return <section><label>篩選<select value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}><option>all</option><option>short</option><option>empty</option></select></label><label>排序<select value={sort} onChange={e=>setSort(e.target.value)}><option>ascending</option><option>descending</option></select></label><button onClick={()=>setQuery('short')}>縮減資料</button><div data-testid="rows">{result.data?.items.join()}</div>{result.loading&&<p role="status">讀取中</p>}{result.error&&<p role="alert">{result.error}<button onClick={result.retry}>重試</button></p>}<Pagination page={result.data?.page??0} total={result.data?.total} pageSize={20} loading={result.loading} disabled={!result.data} onPageChange={setPage}/></section>;
 }
 const mode=new URLSearchParams(location.search).get('fixture');
-createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-4xl space-y-3 p-4">{mode==='admin'?<DictionaryWorkspace/>:mode==='reader'||mode==='groups'?<DictionaryBrowser path={[]}/>:mode==='relations'?<RelationSelectionDialog onClose={()=>{}} onSelect={()=>{}}/>:mode==='links'?<DictionaryLinkPicker front="item" back="中文" onChange={()=>{}}/>:mode==='card'?<CardDictionaryPanel cardId="private-card" front="item"/>:mode==='suggestions'?<StudyLinkSuggestions cards={cards} onClose={()=>{}} onEdit={()=>{}} onLink={async()=>{}}/>:<Demo/>}</main>);
+createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-4xl space-y-3 p-4">{mode==='admin'?<DictionaryWorkspace/>:mode==='reader'||mode==='groups'?<DictionaryBrowser path={[]}/>:mode==='relations'?<RelationSelectionDialog onClose={()=>{}} onSelect={()=>{}}/>:mode==='links'?<DictionaryLinkPicker front="item" back="中文" onChange={()=>{}}/>:mode==='card'?<LanguageProvider initialLanguage="zh-TW"><CardDictionaryPanel onOpenChange={()=>{}}/></LanguageProvider>:mode==='suggestions'?<StudyLinkSuggestions cards={cards} onClose={()=>{}} onEdit={()=>{}} onLink={async()=>{}}/>:<Demo/>}</main>);

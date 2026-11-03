@@ -1,5 +1,5 @@
 "use client";
-import Link from 'next/link';
+import Link from './DictionaryReadLink';
 import {useEffect,useState} from 'react';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {readGrouping,readSenseGroups,type DictionaryGrouping,type SenseGroupMap} from './grouping';
