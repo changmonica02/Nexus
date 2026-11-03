@@ -1,11 +1,10 @@
 require('./loadStudy.cjs');
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const test=require('node:test'),assert=require('node:assert/strict');
 const {database,sql,id,owner}=require('./fixtures/dictionaryExchangeDatabase.cjs');
-const migration=fs.readFileSync('supabase/migrations/20261018010000_dictionary_entry_deletion.sql','utf8');
-async function setup(){const pg=await database();await pg.exec("reset role;create table official_study_pack_entries(pack_id text,dictionary_entry_id uuid references dictionary_entries(id));");await pg.exec(migration);await pg.exec('set role authenticated');return pg;}
+async function setup(){const pg=await database();await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg);return pg;}
 async function seed(pg,n,kind='word',publish=true){await pg.query('insert into dictionary_entries(id,kind,headword) values($1,$2,$3)',[id(n),kind,'entry'+n]);await pg.query('insert into dictionary_senses(id,entry_id,part_of_speech,gloss_zh_tw) values($1,$2,$3,$4)',[id(n+1),id(n),kind==='word'?'noun':null,'意思']);if(publish)await pg.query('select publish_dictionary_entry($1,true)',[id(n)]);return sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(n)]);}
 const remove=(pg,snapshot,n)=>sql(pg,'select delete_dictionary_entry($1,$2,$3::jsonb,$4) v',[snapshot.detail.entry.id,snapshot.detail.entry.revision,JSON.stringify(snapshot),id(n)]);
-test('Word/Prefix/Root atomic deletion preserves history, private cards/states/events, removes only live children/links; retry and retired-ID guard',async()=>{
+test('Word/Prefix/Root atomic deletion preserves private cards/states/events, removes only live children/links; retry and retired-ID guard',async()=>{
  const pg=await setup();try{
  for(const [i,kind] of ['word','prefix','root'].entries()){
  const n=100+i*100;let s=await seed(pg,n,kind,false);
@@ -28,8 +27,7 @@ test('Word/Prefix/Root atomic deletion preserves history, private cards/states/e
  await pg.query('insert into study_card_dictionary_links values($1,$2,$3)',[owner,'private',id(n)]);await pg.exec('set role authenticated');
  }
  const result=await remove(pg,s,900+i);assert.equal(result.deleted,true);assert.equal(await sql(pg,'select get_dictionary_entry($1) v',[id(n)]),null);assert.deepEqual(await remove(pg,s,900+i),result);
- assert.equal(await sql(pg,"select state v from dictionary_review_drafts where id=$1",[review.id]),'discarded');
- assert.ok(await sql(pg,'select count(*)::int v from dictionary_published_revisions where entry_id=$1',[id(n)]));
+ assert.equal(await sql(pg,"select count(*)::int v from dictionary_review_drafts where id=$1",[review.id]),0);
  for(const t of ['dictionary_senses','dictionary_etymologies','dictionary_learning_notes','dictionary_inflections','dictionary_pronunciations','dictionary_examples'])assert.equal(await sql(pg,'select count(*)::int v from '+t+' where entry_id=$1',[id(n)]),0);
  await assert.rejects(pg.query("insert into dictionary_entries(id,kind,headword) values($1,$2,'resurrect')",[id(n),kind]),/permanently deleted/);
  }
@@ -46,8 +44,8 @@ test('admin/anon checks, revision and full snapshot CAS, external public/officia
  await assert.rejects(remove(pg,{...s,detail:{...s.detail,entry:{...s.detail.entry,revision:99}}},900),/changed/);
  await assert.rejects(remove(pg,{...s,grouping:{primary_category:'tampered'}},900),/changed/);
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(900001)]);await assert.rejects(remove(pg,s,900),/admin/);await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
- await pg.exec("reset role;create table test_entry_reference(entry_id uuid references dictionary_entries(id));");await pg.query('insert into test_entry_reference values($1)',[id(100)]);await pg.exec('set role authenticated');await assert.rejects(remove(pg,s,900),/still referenced/);assert.ok(await sql(pg,'select get_dictionary_entry($1) v',[id(100)]));assert.equal(await sql(pg,"select count(*)::int v from dictionary_audit where operation='DELETE_ENTRY'"),0);
- await pg.exec("reset role;drop table test_entry_reference;alter table dictionary_import_operations add constraint fail_delete_receipt check(source_type<>'delete_entry') not valid;set role authenticated");await assert.rejects(remove(pg,s,900),/fail_delete_receipt/);assert.ok(await sql(pg,'select get_dictionary_entry($1) v',[id(100)]));assert.equal(await sql(pg,"select count(*)::int v from dictionary_audit where operation='DELETE_ENTRY'"),0);
+ await pg.exec("reset role;create table test_entry_reference(entry_id uuid references dictionary_entries(id));");await pg.query('insert into test_entry_reference values($1)',[id(100)]);await pg.exec('set role authenticated');await assert.rejects(remove(pg,s,900),/still referenced/);assert.ok(await sql(pg,'select get_dictionary_entry($1) v',[id(100)]));assert.equal(await sql(pg,"select count(*)::int v from dictionary_import_operations where source_type='delete_entry'"),0);
+ await pg.exec("reset role;drop table test_entry_reference;alter table dictionary_import_operations add constraint fail_delete_receipt check(source_type<>'delete_entry') not valid;set role authenticated");await assert.rejects(remove(pg,s,900),/fail_delete_receipt/);assert.ok(await sql(pg,'select get_dictionary_entry($1) v',[id(100)]));assert.equal(await sql(pg,"select count(*)::int v from dictionary_import_operations where source_type='delete_entry'"),0);
  await pg.exec('reset role;set role anon');await assert.rejects(remove(pg,s,900),/permission/);
  }finally{await pg.close();}
 });

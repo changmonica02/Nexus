@@ -5,7 +5,7 @@ import type {DictionaryDetail} from './dictionary';
 import {emptyGrouping} from './grouping';
 import {mapDictionaryDraft,validateDictionaryDraft,DraftValidationError,type DictionaryDraftInput} from './draftPipeline';
 export type ReviewCandidate=ReturnType<typeof mapDictionaryDraft>&{component_order?:string[]};
-export interface DictionaryReview {id:string;entry_id:string;base_revision:number;base_snapshot:AISnapshot;candidate:ReviewCandidate;revision:number;state:'active'|'approved'|'discarded';source:string;approved_revision:number|null;updated_at:string}
+export interface DictionaryReview {id:string;entry_id:string;base_revision:number;base_snapshot:AISnapshot;candidate:ReviewCandidate;revision:number;state:'active';source:string;updated_at:string}
 type Client=Pick<SupabaseClient,'rpc'>;
 export async function createDictionaryReview(client:Client,snapshot:AISnapshot,draft?:DictionaryDraftInput,source='manual',preview=false,componentOrder?:string[]){
  if(draft){const issues=validateDictionaryDraft([draft]);if(issues.length)throw new DraftValidationError(issues);}

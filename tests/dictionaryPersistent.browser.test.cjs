@@ -92,6 +92,7 @@ test(
     try {
       for (const width of [1280, 820, 390]) {
         pg = await database();
+        await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg, { persistentInstalled: true });
         const d = draft(100);
         d.headword = "throw";
         d.inflections = [

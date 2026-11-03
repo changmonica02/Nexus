@@ -12,7 +12,7 @@ async function seed(pg,n,name,kind='word',gloss='target content',variant){
 }
 test('full server ranking before pagination: exact/hyphen, prefix, variant, substring, details, CJK and stable pages',async()=>{
  const pg=await database();try{
- await pg.exec('reset role');await pg.exec(migration);await pg.exec('set role authenticated');
+ await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg);
  // Enough alphabetically earlier full-text hits to bury genuine name matches in the old first page.
  for(let n=100;n<350;n+=10)await seed(pg,n,'aaa'+n,'word','org 中文');
  await seed(pg,400,'org-','prefix','組織');await seed(pg,410,'organic');await seed(pg,420,'xorgy');await seed(pg,430,'z-','root','其他','org');
@@ -25,9 +25,9 @@ test('full server ranking before pagination: exact/hyphen, prefix, variant, subs
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(900001)]);await assert.rejects(search(pg,'org'),/admin/);
  }finally{await pg.close();}
 });
-test('quick component: minimal Prefix/Root, canonical reuse, lost-response retry, audit/history, Word unchanged, RLS and atomic failure',async()=>{
+test('quick component: minimal Prefix/Root, canonical reuse, lost-response retry, compact receipts, Word unchanged, RLS and atomic failure',async()=>{
  const pg=await database();try{
- await pg.exec('reset role');await pg.exec(migration);await pg.exec('set role authenticated');
+ await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg);
  const a=await quick(pg,1000,'ab-');assert.equal(a.kind,'prefix');assert.equal(a.senses.length,1);assert.equal(a.senses[0].gloss_zh_tw,'');
  const again=await quick(pg,1000,' ab- '),equivalent=await quick(pg,1001,'-AB');assert.equal(again.id,a.id);assert.equal(equivalent.id,a.id);
  const root=await quick(pg,1002,'org','root');assert.equal(root.kind,'root');assert.notEqual(root.id,a.id);
@@ -38,8 +38,6 @@ test('quick component: minimal Prefix/Root, canonical reuse, lost-response retry
  const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');assert.equal(draftFromExchange({snapshot,reviews:[],version:null}).senses[0].gloss_zh_tw,'');
  const {toAI,parseAI}=require('../src/features/dictionary/aiDictionary.ts');const ai=toAI(snapshot);assert.ok(parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[ai]})));
 
- assert.equal(await sql(pg,"select count(*)::int v from dictionary_published_revisions where entry_id=$1",[a.id]),1);
- assert.equal(await sql(pg,"select count(*)::int v from dictionary_audit where record_id=$1 and operation='PUBLISH_VERIFIED'",[a.id]),1);
  const candidate=draftsFromBundle({...bundle,dictionary_senses:bundle.dictionary_senses.map(s=>({...s,gloss_zh_tw:'補充中文'}))})[0];
  const review=await sql(pg,'select create_dictionary_edit_review($1,$2::jsonb,$3::jsonb) v',[a.id,JSON.stringify(snapshot),JSON.stringify(mapDictionaryDraft(candidate))]);
  assert.equal((await sql(pg,'select get_published_dictionary_entry($1) v',[a.id])).senses[0].gloss_zh_tw,'');
@@ -95,7 +93,7 @@ test('failed receipt rolls back created Entry/Sense/publication/history/audit to
  await pg.exec('reset role');await pg.exec(migration);
  await pg.exec("alter table dictionary_import_operations add constraint test_receipt_failure check(source_type<>'quick_component') not valid;set role authenticated");
  await assert.rejects(quick(pg,7000,'rollback-'),/test_receipt_failure/);
- for(const table of ['dictionary_entries','dictionary_senses','dictionary_published_revisions','dictionary_import_operations','dictionary_audit'])assert.equal(await sql(pg,'select count(*)::int v from '+table),0,table);
+ for(const table of ['dictionary_entries','dictionary_senses','dictionary_import_operations'])assert.equal(await sql(pg,'select count(*)::int v from '+table),0,table);
  }finally{await pg.close();}
 });
 test('reader renders every meaning exactly once for Word/Prefix/Root; no duplicate jump/Chinese headings',()=>{
