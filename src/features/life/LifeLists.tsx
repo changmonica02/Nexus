@@ -1,11 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 import type { Attachment } from "../../lib/types";
 import { useLanguage } from "../../lib/LanguageContext";
 import { confirmDialog } from "../../lib/confirmDialog";
 import ModalDialog from "../../components/ModalDialog";
-import { Pagination } from "../../components/pagination/Pagination";
+import { categoryPath } from "./listViewModel";
 import { navigateDictionary, useUnsavedDraft } from "../dictionary/useUnsavedDraft";
 import {
   attachmentIds,
@@ -19,6 +19,7 @@ import {
   type LifeRecord,
   type LifeStore,
 } from "./lists";
+const LifeItemViews = lazy(() => import("./LifeItemViews"));
 const button =
   "min-h-11 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm hover:bg-zinc-500/10 disabled:opacity-50";
 const input =
@@ -35,10 +36,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
     [editor, setEditor] = useState<Editor | null>(null),
     [busy, setBusy] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]),
-    [query, setQuery] = useState(""),
-    [categoryId, setCategoryId] = useState("*"),
-    [view, setView] = useState<"list" | "cards">("list"),
-    [page, setPage] = useState(0);
+    [categoryId, setCategoryId] = useState("*");
   const refreshSequence = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++refreshSequence.current;
@@ -62,38 +60,15 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
       window.removeEventListener("nexus-workspace-changed", load);
     };
   }, [refresh]);
-  const list = data.life_lists.find((l) => l.id === listId && l.deleted_at == null),
-    categories = data.life_categories.filter((c) => c.list_id === listId && c.deleted_at == null),
-    items = data.life_items.filter((i) => i.list_id === listId && i.deleted_at == null);
-  const path = (category: LifeCategory) => {
-    const names = [category.title],
-      seen = new Set([category.id]);
-    let id = category.parent_id;
-    while (id) {
-      const p = categories.find((c) => c.id === id);
-      if (!p || seen.has(id)) break;
-      seen.add(id);
-      names.unshift(p.title);
-      id = p.parent_id;
-    }
-    return names.join(" → ");
-  };
-  const filtered = items
-    .filter(
-      (i) =>
-        (categoryId === "*" || (i.category_id ?? "") === categoryId) &&
-        (
-          i.title +
-          " " +
-          Object.values(i.values)
-            .filter((v) => typeof v === "string" || typeof v === "number")
-            .join(" ")
-        )
-          .toLocaleLowerCase()
-          .includes(query.toLocaleLowerCase()),
-    )
-    .sort((a, b) => a.title.localeCompare(b.title, language) || a.id.localeCompare(b.id));
-  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 50) - 1));
+  const { list, categories, items } = useMemo(
+    () => ({
+      list: data.life_lists.find((l) => l.id === listId && l.deleted_at == null),
+      categories: data.life_categories.filter((c) => c.list_id === listId && c.deleted_at == null),
+      items: data.life_items.filter((i) => i.list_id === listId && i.deleted_at == null),
+    }),
+    [data, listId],
+  );
+  const path = (category: LifeCategory) => categoryPath(category.id, categories);
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -183,8 +158,6 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
             onClick={() => {
               setListId(null);
               setCategoryId("*");
-              setQuery("");
-              setPage(0);
             }}
           >
             {label("返回我的清單", "Back to my lists")}
@@ -213,8 +186,6 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
                   onClick={() => {
                     setListId(l.id);
                     setCategoryId("*");
-                    setQuery("");
-                    setPage(0);
                   }}
                 >
                   {l.title}
@@ -254,17 +225,11 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
             >
               {label("新增欄位", "Add field")}
             </button>
-            <button className={button} aria-pressed={view === "list"} onClick={() => setView("list")}>
-              {label("清單", "List")}
-            </button>
-            <button className={button} aria-pressed={view === "cards"} onClick={() => setView("cards")}>
-              {label("卡片", "Cards")}
-            </button>
           </div>
           <details>
             <summary className="cursor-pointer py-2">{label("管理分類與欄位", "Manage categories and fields")}</summary>
             <div className="space-y-2">
-              {categories
+              {[...categories]
                 .sort((a, b) => path(a).localeCompare(path(b)))
                 .map((c) => (
                   <div key={c.id} className="flex min-w-0 flex-wrap items-center gap-2">
@@ -299,71 +264,26 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
               ))}
             </div>
           </details>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              type="search"
-              aria-label={label("搜尋項目", "Search items")}
-              placeholder={label("搜尋項目", "Search items")}
-              className={input}
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(0);
+          <Suspense fallback={<p role="status">{label("載入檢視…", "Loading views…")}</p>}>
+            <LifeItemViews
+              key={JSON.stringify([storage.getWorkspaceOwner?.() ?? null, list.id])}
+              onCategoryChange={setCategoryId}
+              list={list}
+              items={items}
+              categories={categories}
+              owner={storage.getWorkspaceOwner?.() ?? null}
+              renderValue={(f, item) => (
+                <FieldValue field={f} value={item.values[f.id]} attachments={attachments} storage={storage} />
+              )}
+              onEdit={(item) =>
+                setEditor({ type: "life_items", row: { ...item, schema_version: list.schema_version } })
+              }
+              onRemove={(item) => {
+                void remove("life_items", item);
               }}
+              busy={busy}
             />
-            <select
-              aria-label={label("篩選分類", "Filter category")}
-              className={input}
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="*">{label("全部分類", "All categories")}</option>
-              <option value="">{label("未分類", "Uncategorized")}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {path(c)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-sm opacity-60">
-            {filtered.length} {label("個項目", "items")}
-          </p>
-          <div className={view === "cards" ? "grid min-w-0 gap-3 sm:grid-cols-2" : "min-w-0 space-y-2"}>
-            {filtered.slice(currentPage * 50, currentPage * 50 + 50).map((item) => (
-              <article key={item.id} className="min-w-0 space-y-2 rounded-lg border border-[var(--color-border)] p-3">
-                <h3 className="break-words font-medium">{item.title}</h3>
-                {list.fields
-                  .filter((f) => !f.archived && item.values[f.id] != null)
-                  .map((f) => (
-                    <div key={f.id} className="min-w-0 break-words text-sm">
-                      <span className="opacity-60">{f.name}：</span>
-                      <FieldValue field={f} value={item.values[f.id]} attachments={attachments} storage={storage} />
-                    </div>
-                  ))}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className={button}
-                    onClick={() =>
-                      setEditor({
-                        type: "life_items",
-                        row: { ...item, schema_version: list.schema_version },
-                      })
-                    }
-                  >
-                    {label("編輯項目", "Edit item")}
-                  </button>
-                  <button className={button} disabled={busy} onClick={() => void remove("life_items", item)}>
-                    {label("刪除", "Delete")}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-          <Pagination page={currentPage} total={filtered.length} pageSize={50} onPageChange={setPage} />
+          </Suspense>
         </>
       )}
       {editor && (
@@ -630,7 +550,7 @@ function LifeEditor({
                 .filter((c) => c.id !== row.id)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.title}
+                    {categoryPath(c.id, categories)}
                   </option>
                 ))}
             </select>
