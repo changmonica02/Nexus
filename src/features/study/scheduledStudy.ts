@@ -20,6 +20,10 @@ export function dailyNewUsed(snapshot: StudySnapshot, now: number) {
     ...snapshot.states.filter(s => s.introduced_at != null && localStudyDay(s.introduced_at) === day).map(s => s.id),
   ]).size;
 }
+// Presentation consumes quota but is not yet a due review/forgotten backlog.
+function countsAsBacklog(state:StudyState,now:number){
+  return (activeFixed(state)||state.fsrs!=null||state.legacy_due_at!=null||state.learned_at!=null)&&dueAt(state,now)<=now;
+}
 function eligible(snapshot: StudySnapshot) {
   const states = new Map(snapshot.states.map(s => [s.id, s]));
   return displayStudyCards(snapshot.cards, snapshot.settings.sort_mode ?? 'custom')
@@ -30,7 +34,7 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   const cards = eligible(snapshot);
   const limit = snapshot.settings.review_limit ?? 100;
   const short = cards.filter(c => isShortStep(states.get(c.id)!, now)&&dueAt(states.get(c.id)!,now)<=now).sort((a,b)=>dueAt(states.get(a.id)!,now)-dueAt(states.get(b.id)!,now)||a.sort_order-b.sort_order);
-  const dueBacklog = cards.filter(c => !isUnintroduced(states.get(c.id)!) && dueAt(states.get(c.id)!, now) <= now).length;
+  const dueBacklog = cards.filter(c => countsAsBacklog(states.get(c.id)!,now)).length;
   const canIntroduce = dueBacklog < (snapshot.settings.new_pause_threshold ?? 200);
   const fresh = canIntroduce ? cards.filter(c => isUnintroduced(states.get(c.id)!))
     .slice(0, Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now))) : [];
@@ -87,7 +91,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
     const s = states.get(c.id)!;
     if (isShortStep(s, now)&&dueAt(s,now)<=now&&targets.length<(session.quota_limit??100) && !targets.some(t => t.card_id === c.id)) targets.push({ card_id: c.id, generation: s.generation, easy_at: null, official_event_id: null, event_id: crypto.randomUUID(), attempts: 0, counts_toward_limit: true });
   }
-  const backlog=cards.size?Array.from(cards.values()).filter(c=>!isUnintroduced(states.get(c.id)!)&&dueAt(states.get(c.id)!,now)<=now).length:0;
+  const backlog=cards.size?Array.from(cards.values()).filter(c=>countsAsBacklog(states.get(c.id)!,now)).length:0;
   let newRemaining = backlog>=(snapshot.settings.new_pause_threshold??200)?0:Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now));
   const ready: typeof targets = [], waiting: typeof targets = [];
   let blocked=0;
@@ -110,7 +114,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
 export function scheduledStatus(session: StudySession, snapshot: StudySnapshot, now: number) {
   const targets = new Set(session.targets.map(t => t.card_id));
   const states = new Map(snapshot.states.map(s => [s.id, s]));
-  const remainingDue = eligible(snapshot).filter(c => !targets.has(c.id) && !isUnintroduced(states.get(c.id)!) && dueAt(states.get(c.id)!, now) <= now).length;
+  const remainingDue = eligible(snapshot).filter(c => !targets.has(c.id) && countsAsBacklog(states.get(c.id)!,now)).length;
   const waits = session.targets.filter(t => !t.skipped && t.easy_at == null).flatMap(t => {
     const state = states.get(t.card_id); return state && isShortStep(state, now) && dueAt(state, now) > now ? [dueAt(state, now)] : [];
   });

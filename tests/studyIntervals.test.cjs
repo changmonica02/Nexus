@@ -38,3 +38,7 @@ test('old due, history, unfinished Session ID and consumed quota survive transit
   const backup=await f.repo.exportData(),other=await fixture(0);try{await other.repo.mergeRemote(backup);const roundtrip=await other.repo.exportData();assert.deepEqual(roundtrip.states,backup.states);assert.deepEqual(roundtrip.events,backup.events);}finally{await other.close();}
  }finally{await f.close();}
 });
+
+test('presented but unanswered new card is not a review backlog that discards the rest of its batch',async()=>{
+ const f=await fixture(2);try{await f.repo.configure('deck',{new_pause_threshold:1});const s=await f.repo.startSession('deck','scheduled',now);assert.equal(s.targets.length,2);await grade(f.repo,s.id,3,now);const d=await f.repo.presentScheduled(s.id,now);assert.equal(d.session.queue.length,1);assert.equal(d.session.targets.some(t=>t.skipped),false);await grade(f.repo,s.id,3,now);assert.equal(dailyNewUsed(await f.repo.readScheduledDeck('deck',now),now),2);}finally{await f.close();}
+});
