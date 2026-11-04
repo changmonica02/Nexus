@@ -1,3 +1,4 @@
+import {LIFE_STORES} from '../../features/life/lists';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type EntityType, type WorkspaceResult, WorkspacePersistence } from "./workspacePersistence";
 
@@ -10,7 +11,7 @@ export async function readWorkspaceRows(client: SupabaseClient, table: string, o
     let query = client.from(table).select(columns).eq("owner_id", owner).order("id", { ascending: true }).limit(200);
     if (cursor !== undefined) query = query.gt("id", cursor);
     const { data: result, error } = await query;
-    if (error) throw new Error(`${table}: ${error.message}`);
+    if (error) throw Object.assign(new Error(`${table}: ${error.message}`), {code:error.code});
     const data = result as unknown as Record<string, unknown>[] | null;
     if (!data?.length) return rows;
     const next = String(data[data.length - 1].id);
@@ -31,14 +32,22 @@ export async function pullWorkspace(client: SupabaseClient, local: WorkspacePers
   const attachments = new Map<string, Record<string, unknown>>();
   const pullTombstones = async () => {
     const tombstones = await readWorkspaceRows(client, "workspace_tombstones", owner, "*", alive);
-    if (alive()) await local.merge(owner, tombstones.map(row => ({
+    if (alive()) await local.merge(owner, tombstones.filter(row=>["pages","attachments",...LIFE_STORES].includes(String(row.entity_type))).map(row => ({
       entity_type: row.entity_type as EntityType, entity_id: String(row.entity_id),
       revision: Number(row.revision), deleted_at: Number(row.deleted_at), hard_deleted: true,
     })));
   };
   await pullTombstones();
-  for (const type of ["pages", "attachments"] as const) {
-    const rows = await readWorkspaceRows(client, type, owner, "*", alive);
+  for (const type of ["pages", "attachments",...LIFE_STORES] as const) {
+    let rows:Record<string,unknown>[];
+    try { rows = await readWorkspaceRows(client, type, owner, "*", alive); }
+    catch(error) {
+      // An early frontend release must not disable the existing workspace.
+      // Only a missing new relation/schema-cache entry is optional; permission,
+      // connectivity and all legacy-table errors remain visible failures.
+      if(LIFE_STORES.includes(type as typeof LIFE_STORES[number]) && ['42P01','PGRST205'].includes(String((error as {code?:string}).code)))continue;
+      throw error;
+    }
     if (!alive()) return;
     await local.merge(owner, rows.map(row => remoteResult(type, row)));
     if (type === "attachments") for (const row of rows) attachments.set(String(row.id), row);

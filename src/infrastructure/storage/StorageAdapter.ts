@@ -1,3 +1,4 @@
+import type {LifeRepository} from '../../features/life/LifeRepository';
 import type { StudyRepository } from "../../features/study/StudyRepository";
 import type { WorkspacePersistence } from "../sync/workspacePersistence";
 import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup } from "../../lib/types";
@@ -7,6 +8,7 @@ import type { ID, Page, PageQuery, CreatePageInput, Attachment, WorkspaceBackup 
 
 export interface StorageAdapter {
   init(): Promise<void>;
+  getLifeRepository(): LifeRepository;
   getStudyRepository(): StudyRepository;
   getWorkspacePersistence(): WorkspacePersistence;
   /** Selects the local workspace visible through list/create operations. */

@@ -8,6 +8,7 @@ const { WORKSPACE_STORES } = require('../src/infrastructure/sync/workspacePersis
 const { STUDY_STORES } = require('../src/features/study/StudyRepository.ts');
 const { WorldMapRepository } = require('../src/features/worldMap/worldMapRepository.ts');
 
+const {LIFE_STORES}=require('../src/features/life/lists.ts');
 const owner = 'map-owner';
 const world = () => ({ id: 'world', title: 'World', kind: 'creative', creative_type: 'world',
   character_data: { basic: { name: 'World' }, sections: [] }, content_json: {}, content_text: '',
@@ -21,7 +22,7 @@ const project = label => new Blob([[
 async function device(t) {
   const name = crypto.randomUUID();
   let db = await openDB(name, 1, { upgrade(db) {
-    for (const name of ['pages', 'attachments', 'binaries', ...WORKSPACE_STORES, ...STUDY_STORES]) {
+    for (const name of ['pages', 'attachments', 'binaries', ...WORKSPACE_STORES, ...STUDY_STORES,...LIFE_STORES]) {
       const store = db.createObjectStore(name, { keyPath: 'id' });
       if (name === 'pages' || name === 'attachments') store.createIndex('by_updated', 'updated_at');
     }

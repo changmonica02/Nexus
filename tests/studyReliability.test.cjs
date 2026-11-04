@@ -200,7 +200,7 @@ test('v7 upgrades add only sync metadata and bounded history indexes, retaining 
  await deleteDB('nexus');const old=await openDB('nexus',7,{upgrade(db){for(const name of STUDY_STORES.filter(s=>s!=='study_sync_meta')){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
  const original={id:'old-fact',deck_id:'deck',at:1,local_day:'2026-01-01',rating:3};await old.put('study_events',original);old.close();
  const {IndexedDBAdapter}=require('../src/infrastructure/storage/IndexedDBAdapter.ts'),adapter=new IndexedDBAdapter();let db;
- try{await adapter.init();db=await openDB('nexus');assert.equal(db.version,8);assert.ok(db.objectStoreNames.contains('study_sync_meta'));assert.deepEqual(await db.get('study_events','old-fact'),original);assert.ok(db.transaction('study_events').store.indexNames.contains('deck_at'));assert.ok(db.transaction('study_events').store.indexNames.contains('deck_day'));}
+ try{await adapter.init();db=await openDB('nexus');assert.equal(db.version,9);assert.ok(db.objectStoreNames.contains('study_sync_meta'));assert.deepEqual(await db.get('study_events','old-fact'),original);assert.ok(db.transaction('study_events').store.indexNames.contains('deck_at'));assert.ok(db.transaction('study_events').store.indexNames.contains('deck_day'));}
  finally{db?.close();await adapter.close();await deleteDB('nexus');}
 });
 test('single-card UI offers four choices; automatic repairs show pending sync instead of a false conflict',()=>{

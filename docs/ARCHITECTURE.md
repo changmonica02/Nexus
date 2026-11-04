@@ -23,7 +23,21 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 `TodoView` 提供生活總覽、月曆及任務篩選，`PageCollection` 共用同一批 `kind: todo` Pages；內部 `calendar` 導覽識別與既有連結保留相容。`NexusApp` 只持有日期／月份／分頁／篩選／捲動等介面上下文，帳號切換時清除，任務編輯返回恢復上下文。學習首頁捷徑傳入選取的本地日期。
 
-任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。沒有生活專用資料表、事件副本或同步流程；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。
+任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。日曆／任務沒有額外事件副本；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。
+
+自訂清單由 `features/life/LifeLists` 與 `LifeRepository` 提供。`life_lists` 保存欄位定義及 schema_version，`life_categories` 保存 parent_id，`life_items` 以固定 fieldId 保存 typed values、category_id 與 attachment_ids；三者獨立記錄／revision，不塞進 Page JSON。金額為十進位字串與幣別；圖片／附件只引用既有 Attachment，Blob 不放入項目。清單／卡片共用項目，列表每頁 50 筆；分類移動使用選擇操作。
+
+`WorkspacePersistence.mutate` 在原交易內校驗帳號、版本、欄位保值、分類與附件引用，並追加同一 outbox；本機 life revision 隨待傳操作前進。`apply_workspace_operations` 擴充三個實體，沿用 owner advisory lock、CAS 與 durable receipt，在整批提交前驗證分類循環、同帳號／同清單引用及附件。RLS 僅允許 owner SELECT，寫入只走驗權 RPC；life 不提供 hard purge，軟刪除保留重連保護。刪清單以單批軟刪項目、分類與清單，非空分類需先移走內容。
+
+Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，未套用正式環境。隔離 PostgreSQL 17.11 已執行實際 SQL，驗證既有 Page 全欄位、Attachment／binary、舊 receipt／tombstone、新舊混合交易、RLS 與 Migration 失敗整批回滾。初始三表的建表 DDL 未納入版本庫，測試依目前欄位契約重建，再套用實際帳號／創作／章節／workspace migrations；不是正式 schema dump，不能推論不存在正式 schema 漂移。舊 RPC 呼叫與硬刪除標記類型不變，life 不產生舊前端不認得的 hard-delete tombstone。
+
+部署／回復契約：
+- 核准後先確認正式備份／PITR 可用、既有 schema／RPC 前置條件，再以單一交易套用 Migration；驗證 owner SELECT、RPC 與 PostgREST 新表可見性／Realtime publication 後才發布前端。不可重複套用已成功的 Migration，或把 PR／隔離測試視為正式驗收。
+- 若前端誤先發布，`pullWorkspace` 僅對新 life 表的缺表／schema-cache 缺表碼（42P01／PGRST205）保留本機副本並繼續舊同步；權限、網路及舊表錯誤不忽略。未獲支援的 life intents 保留並顯示同步失敗，資料庫就緒後原 ID 重試；不假稱本機保存已上雲。
+- SQL 交易失敗會回滾新表、publication 與 RPC，舊資料／呼叫仍可使用。成功後若已有清單資料，保留新增表與新版 RPC，不執行刪表或回復舊 RPC；修復前端需保留 v9、備份 v4 及 life outbox 契約，優先向前修復。
+- 原 v8 前端不能開啟已升級 v9 的 IndexedDB，不能直接作為同裝置回退版。升級遇舊頁籤阻擋時顯示復原提示，先於舊頁籤保存修改，再關閉並重新載入；延遲開啟的已放棄連線會關閉。遇較新 DB 版本亦顯示錯誤，不降版／刪庫。離線舊前端須恢復連線取得相容版本，禁止以清除網站資料修復。真實 Chromium 已驗證未同步 Page／附件／Blob／outbox 保留與重新載入復原。
+
+備份 v4 包含三種清單記錄；舊備份不清除本機清單及其附件。匯入校驗整個結構與引用，在同一交易新增記錄與恢復 intents，附件先於項目補傳；遇到不同本機版本或刪除屏障即中止，不靜默覆蓋。本機副本與雲端已有不同版本時，仍由 CAS 阻擋，備份不是強制覆寫雲端的工具。
 
 ### 資料模型與本機儲存
 
@@ -40,7 +54,7 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 Page 共用 ID、標題、時間、revision、device、軟刪除、標籤、資料夾、關聯、附件引用、排序與父子關係；詳細型別以 [types.ts](../src/lib/types.ts) 為準。
 
-[IndexedDBAdapter](../src/infrastructure/storage/IndexedDBAdapter.ts) 使用 `nexus`，DB_VERSION=8，BACKUP_SCHEMA_VERSION=3。主要 stores 為 pages／attachments／binaries／settings、study_cards／states／events／settings／sessions／outbox／sync_meta，以及 workspace_outbox／sync_meta。既有裝置的相容 stores 不因功能退場自動刪除；實際 upgrade 清單以 Adapter 為準。Page／Attachment 的 `workspace_owner_id` 是本機邊界，不當成可任意指定的雲端授權。
+[IndexedDBAdapter](../src/infrastructure/storage/IndexedDBAdapter.ts) 使用 `nexus`，DB_VERSION=9，BACKUP_SCHEMA_VERSION=4。主要 stores 為 life_lists／life_categories／life_items、pages／attachments／binaries／settings、study_cards／states／events／settings／sessions／outbox／sync_meta，以及 workspace_outbox／sync_meta。既有裝置的相容 stores 不因功能退場自動刪除；實際 upgrade 清單以 Adapter 為準。Page／Attachment 的 `workspace_owner_id` 是本機邊界，不當成可任意指定的雲端授權。
 
 備份匯出／匯入走 StorageAdapter 與實際 schema 校驗；涵蓋頁面、附件、學習資料及地圖 canonical／recovery。匯入遵守帳號、版本與引用檢查，交易失敗完整中止；不能把舊版「完全覆蓋」描述直接套到所有現行備份流程。裝置偏好另依 settings／localStorage 保存，不保證全部同步。
 

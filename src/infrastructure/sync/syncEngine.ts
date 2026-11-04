@@ -151,6 +151,9 @@ export class SyncEngine {
       .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `owner_id=eq.${this.userId}` }, payload => {
         void this.handleRemoteChange("attachments", payload);
       })
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_lists",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_categories",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_items",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", { event: "*", schema: "public", table: "workspace_tombstones", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .on("postgres_changes", { event: "*", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .subscribe(status => {
