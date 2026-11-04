@@ -129,6 +129,10 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 世界觀 WorldEntity 保存正式正文、穩定 ID／relations；地圖 placement 引用 entity ID，point／cells 幾何獨立，cells 帶 mesh 指紋，不能靠名稱或原生陣列索引連結。Page 級 CAS／outbox 交易維持新增條目及配置原子性，重試使用穩定 ID；移除配置／刪圖不連鎖刪正式條目。metadata 修改不重傳原生 binary；原生 `.map` 不包含 Nexus 正式條目，完整資料用工作區備份。
 
+世界觀首頁由適中高度的唯讀地圖預覽、依類型分組的正式條目及既有 CharacterBlockWorkspace 撰寫區組成；完整編輯器才展開自然地理／人文地理／顯示與樣式工作區；路線、標籤及樣式沿用具名白名單指令開啟原生工具與既有確認／取消 checkpoint，不讓宿主直接操作 iframe DOM。WorldEntity 的可選 `fields` 以穩定欄位 ID 保存文字／數字／條目關聯，不另建實體表；舊紀錄缺少欄位仍有效。首頁詳細表單鎖定正式名稱，定位會沿用 placement ID、既有 MessagePort 及 MapView。正文保存檢查 Page revision 並保留目前 world_maps／world_entities，完整刪除條目須確認並拒絕尚被引用的條目。新空間 scope 使用 surface／underground／sky；舊 scope、parent_map_id 與附件不改寫，新主地表禁止重複建立，附屬空間刪除仍保留條目。
+
+內嵌編輯器 i18n 僅使用本機固定介面目錄，涵蓋動態面板、選項、說明及按鈕屬性；SVG、輸入內容、富文字與原生資料中的名稱／正文不翻譯。語言切換使用保留的原文還原，不使用外部翻譯服務。
+
 原生 canonical 專案使用 immutable 附件／SHA 與 revision，另有本機 recovery checkpoint；10 秒 recovery 不進 outbox，60 秒或明確保存提交 canonical。失敗保留草稿，不以本機成功冒充雲端成功；未實作安全 GC，不能任意清掉舊附件。自然地理與文明配置分離；手繪資料保留、網格變更與再生成限制依 SPEC，不能在同步時重新生成地理。
 
 `offlineCore` 註冊 `/world-map/offline.js`，scope 為 `/world-map/`；只快取公開工具。opaque iframe 的離線文件由工具快取組裝，broker 不代理私人 API 或任意網路，私人專案保存在既有 owner 儲存。

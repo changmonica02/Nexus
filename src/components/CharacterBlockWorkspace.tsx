@@ -66,6 +66,7 @@ export default function CharacterBlockWorkspace({
   readOnly = false,
   renderComponent,
   templateActions,
+  embedded = false,
 }: {
   page: Page;
   onCommit: (data: CharacterProfileData) => Promise<void>;
@@ -73,6 +74,7 @@ export default function CharacterBlockWorkspace({
   onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
   readOnly?: boolean;
   templateActions?: ReactNode;
+  embedded?: boolean;
   renderComponent: (
     section: CharacterSection,
     mode: "edit" | "card",
@@ -478,7 +480,7 @@ export default function CharacterBlockWorkspace({
     >
       {dialog}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] p-3">
-        <div className="flex min-w-0 items-center gap-2">
+        {!embedded&&<div className="flex min-w-0 items-center gap-2">
           <SidebarToggle />
           {onBack && (
             <button className={control} disabled={busy} onClick={onBack}>
@@ -488,7 +490,7 @@ export default function CharacterBlockWorkspace({
           <h1 className="truncate font-semibold">
             {data.isTemplate ? page.title : data.basic.name || page.title}
           </h1>
-        </div>
+        </div>}
         <div className="flex gap-2">
           {templateActions}
           {!readOnly && (

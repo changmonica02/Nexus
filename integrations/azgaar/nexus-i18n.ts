@@ -1,14 +1,15 @@
 // Shared Nexus dictionaries; UI presentation only, never native project strings.
 import {translate,type Language} from '../../src/lib/i18n';
 import {worldMapEn} from '../../src/lib/worldMapTranslations';
-const interfaceStrings=new Set(Object.values(worldMapEn));
+const normalized=(value:string)=>value.trim().replace(/\s+/g,' ');
+const interfaceStrings=new Set(Object.values(worldMapEn).map(normalized));
 let language:Language='en',timer:ReturnType<typeof setTimeout>|undefined;
 const originals=new WeakMap<Node,{source:string;applied:string}>();
 const attributes=new WeakMap<Element,Map<string,{source:string;applied:string}>>();
-const excluded='svg,input,textarea,[contenteditable],script,style,#map,#burgsList,#statesList,#culturesList,#religionsList';
-const staticSelects=new Set(['layersPreset','heightmapTemplate','viewMode','distanceUnit','heightUnit','temperatureScale','templateInput','culturesSet','performancePreset','emblemShape']);
+const excluded='svg,input,textarea,[contenteditable],script,style,#map';
+
 function uiText(source:string):string {
- const key='azgaar.'+source.trim(),value=translate(language,key);
+ const key='azgaar.'+normalized(source),value=translate(language,key);
  if(value!==key)return source.replace(source.trim(),value);
  const separator=source.indexOf(': click to toggle');
  if(separator>0)return uiText(source.slice(0,separator))+': '+uiText('Click to toggle, drag to raise or lower the layer');
@@ -20,11 +21,11 @@ function apply():void {
  const seen=new WeakSet<object>();
  const protect=(value:unknown):void=>{
   if(typeof value==='string'){
-   if(value.length<1000&&interfaceStrings.has(value.trim()))protectedNames.add(value.trim());
+   if(value.length<1000&&interfaceStrings.has(normalized(value)))protectedNames.add(normalized(value));
    if(value.includes('<')&&value.includes('>')){
     const parsed=document.createElement('template');parsed.innerHTML=value;
     const walker=document.createTreeWalker(parsed.content,NodeFilter.SHOW_TEXT);
-    while(walker.nextNode()){const text=walker.currentNode.textContent?.trim();if(text&&interfaceStrings.has(text))protectedNames.add(text);}
+    while(walker.nextNode()){const text=walker.currentNode.textContent?.trim();if(text&&interfaceStrings.has(normalized(text)))protectedNames.add(normalized(text));}
    }
   }else if(value&&typeof value==='object'&&!seen.has(value)){
    seen.add(value);
@@ -34,33 +35,32 @@ function apply():void {
  if(language!=='en')for(const value of window.nexusMapData?.()??[])protect(value);
  document.documentElement.lang=language;
  document.title=translate(language,'worldMap.editor10');
- const candidates=document.querySelectorAll('button,label,legend,summary,th,p,#options td,#options .separator,#dialogs td,.tip,.ui-dialog-title,#tooltip,#mapLayers li,option');
+ const candidates=document.querySelectorAll('button,label,legend,summary,th,td,p,a,span,div,li,h1,h2,h3,h4,.tip,.ui-dialog-title,#tooltip,option');
  for(const element of candidates){
   if(element.closest(excluded))continue;
-  if(element.tagName==='OPTION'&&!staticSelects.has(element.parentElement?.id??''))continue;
   if(element.tagName==='OPTION'&&element.parentElement?.id==='layersPreset'&&!['political','cultural','religions','provinces','biomes','heightmap','physical','poi','goods','trade','military','emblems','landmass','custom'].includes((element as HTMLOptionElement).value))continue;
   // Shortcut underlines may split a static label. Never replace controls or data descendants.
   if(element.childNodes.length&&[...element.childNodes].every(n=>n.nodeType===Node.TEXT_NODE||n instanceof HTMLElement&&n.tagName==='U')){
    const current=element.textContent??'',old=originals.get(element),source=old&&current===old.applied?old.source:current;
-   const applied=protectedNames.has(source.trim())?source:uiText(source);
+   const applied=protectedNames.has(normalized(source))?source:uiText(source);
    originals.set(element,{source,applied});if(current!==applied)element.textContent=applied;
   }else for(const node of [...element.childNodes]){
    if(node.nodeType!==Node.TEXT_NODE)continue;
    const current=node.textContent??'',old=originals.get(node),source=old&&current===old.applied?old.source:current;
-   const applied=protectedNames.has(source.trim())?source:uiText(source);originals.set(node,{source,applied});if(current!==applied)node.textContent=applied;
+   const applied=protectedNames.has(normalized(source))?source:uiText(source);originals.set(node,{source,applied});if(current!==applied)node.textContent=applied;
   }
  }
- for(const element of document.querySelectorAll('[data-tip],[title],[aria-label],[placeholder]')){
+ for(const element of document.querySelectorAll('[data-tip],[title],[aria-label],[placeholder],input[type=button],input[type=submit],optgroup[label]')){
   if(element.closest('svg,#map,[contenteditable]'))continue;
   let records=attributes.get(element);if(!records){records=new Map();attributes.set(element,records);}
-  for(const name of ['data-tip','title','aria-label','placeholder']){
+  for(const name of ['data-tip','title','aria-label','placeholder',...(element instanceof HTMLInputElement&&['button','submit'].includes(element.type)?['value']:[]),...(element.tagName==='OPTGROUP'?['label']:[])]){
    const current=element.getAttribute(name);if(current===null)continue;
    const old=records.get(name),source=old&&current===old.applied?old.source:current;
-   const applied=protectedNames.has(source.trim())?source:uiText(source);records.set(name,{source,applied});if(current!==applied)element.setAttribute(name,applied);
+   const applied=protectedNames.has(normalized(source))?source:uiText(source);records.set(name,{source,applied});if(current!==applied)element.setAttribute(name,applied);
   }
  }
 }
 window.nexusSetLanguage=(value:string)=>{language=value==='zh-TW'?'zh-TW':'en';apply();};
 window.nexusTranslateError=(message:string)=>uiText(message);
-new MutationObserver(records=>{if(!records.some(record=>{const target=record.target instanceof Element?record.target:record.target.parentElement;return !target?.closest('svg,#map,input,textarea,[contenteditable]');})||timer)return;timer=setTimeout(()=>{timer=undefined;apply();},30);}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-tip','title','aria-label','placeholder']});
+new MutationObserver(records=>{if(!records.some(record=>{const target=record.target instanceof Element?record.target:record.target.parentElement;return !target?.closest('svg,#map,input,textarea,[contenteditable]');})||timer)return;timer=setTimeout(()=>{timer=undefined;apply();},30);}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-tip','title','aria-label','placeholder','value','label']});
 declare global {interface Window {nexusMapData?:()=>unknown[];nexusSetLanguage?:(value:string)=>void;nexusTranslateError?:(message:string)=>string;}}

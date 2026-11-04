@@ -90,11 +90,13 @@ export function validateWorldEntities(world: Pick<Page, "id" | "character_data">
       || (entity.cultureSettings !== undefined && (entity.type !== "culture" || !entity.cultureSettings || typeof entity.cultureSettings !== "object" || Array.isArray(entity.cultureSettings) || Object.entries(entity.cultureSettings).some(([key,value])=>!["language","customs"].includes(key)||typeof value!=="string")))
       || (entity.subtype !== undefined && typeof entity.subtype !== "string")
       || (entity.content !== undefined && (!entity.content || typeof entity.content !== "object" || Array.isArray(entity.content)))) entityError("Invalid world entity identity or content");
+    if(entity.fields!==undefined&&(!Array.isArray(entity.fields)||entity.fields.some(f=>!f||typeof f.id!=='string'||!f.id||typeof f.name!=='string'||!f.name.trim()||!['text','number','relation'].includes(f.type)||(f.value!==null&&(f.type==='number'?typeof f.value!=='number'||!Number.isFinite(f.value):typeof f.value!=='string')))||new Set(entity.fields.map(f=>f.id)).size!==entity.fields.length))entityError("Invalid world entity identity or content");
     ids.add(entity.entityId);
   }
   for (const entity of entities) for (const relation of entity.relations) {
     if (!relation || typeof relation.type !== "string" || !relation.type.trim() || !ids.has(relation.entityId)) entityError("Invalid world entity relation");
   }
+  for(const entity of entities)for(const f of entity.fields??[])if(f.type==='relation'&&f.value&&!ids.has(String(f.value)))entityError('Invalid world entity relation');
   const byId = new Map(entities.map(entity => [entity.entityId, entity]));
   const reserved = new Set(["parent", "capital", "center", "culture", "religion"]);
   for (const entity of entities) {
@@ -325,6 +327,23 @@ export class WorldMapRepository {
     return { world: await this.commit(world, [...mapsOf(world), map], project), map };
   }
 
+  async createSpace(worldId:string,title:string,scope:'surface'|'underground'|'sky',blob?:Blob){
+    const world=await this.world(worldId),active=mapsOf(world).filter(m=>m.deleted_at==null);
+    if(scope==='surface'&&active.some(m=>m.scope==='surface'||!['underground','sky'].includes(m.scope??'')))throw new WorldMapError('map','A main surface map already exists');
+    const project=blob?await this.project(blob):undefined,now=Date.now();
+    const map:WorldMapRecord={metadata_version:1,id:`map_${crypto.randomUUID()}`,world_id:worldId,title:titleOf(title),engine:'azgaar',engine_version:AZGAAR_SOURCE.version,scope,parent_map_id:null,attachment_id:project?.attachment.id??null,project_sha256:project?.sha256??null,revision:1,created_at:now,updated_at:now,deleted_at:null};
+    return {world:await this.commit(world,[...mapsOf(world),map],project),map};
+  }
+  async saveWorldContent(worldId:string,revision:number,data:CharacterProfileData){
+    const world=await this.world(worldId);if(world.revision!==revision)throw new WorldMapError('conflict','World content changed; reload before retrying');
+    return this.commit({...world,character_data:{...world.character_data!,...data,world_maps:mapsOf(world),world_entities:world.character_data!.world_entities}},mapsOf(world));
+  }
+  async deleteEntity(worldId:string,entityId:string,revision:number){
+    const world=await this.world(worldId),entities=world.character_data!.world_entities??[],entity=entities.find(e=>e.entityId===entityId);
+    if(!entity||entity.revision!==revision)throw new WorldMapError('conflict','World entity changed; reload before retrying');
+    if(entities.some(e=>e.entityId!==entityId&&(e.relations.some(r=>r.entityId===entityId)||e.fields?.some(f=>f.type==='relation'&&f.value===entityId))))throw new WorldMapError('entity','World entry is still referenced');
+    return this.commit(world,mapsOf(world).map(m=>({...m,placements:m.placements?.filter(p=>p.entityId!==entityId)})),undefined,entities.filter(e=>e.entityId!==entityId));
+  }
   async read(worldId: string, id: string): Promise<{ map: WorldMapRecord; blob: Blob | null }> {
     const world = await this.world(worldId), map = mapOf(world, id);
     if (!map.attachment_id) return { map: structuredClone(map), blob: null };
@@ -395,10 +414,12 @@ export class WorldMapRepository {
   }
 
   async remove(worldId: string, id: string, expectedRevision: number): Promise<Page> {
-    return this.update(worldId, id, expectedRevision, map => ({ ...map, deleted_at: Date.now() }));
+    return this.update(worldId, id, expectedRevision, map => {if(map.scope==='surface')throw new WorldMapError('map','The main surface map cannot be removed');return { ...map, deleted_at: Date.now() };});
   }
 
   async restore(worldId: string, id: string, expectedRevision: number): Promise<Page> {
+    const world=await this.world(worldId),current=mapOf(world,id,expectedRevision,true);
+    if(current.scope==='surface'&&mapsOf(world).some(m=>m.id!==id&&m.deleted_at==null&&!['underground','sky'].includes(m.scope??'')))throw new WorldMapError('map','A main surface map already exists');
     return this.update(worldId, id, expectedRevision, map => ({ ...map, deleted_at: null }), true);
   }
 
@@ -409,6 +430,7 @@ export class WorldMapRepository {
   }
 
   async duplicate(worldId: string, id: string, expectedRevision: number, title: string): Promise<{ world: Page; map: WorldMapRecord }> {
+    if(mapOf(await this.world(worldId),id,expectedRevision).scope==='surface')throw new WorldMapError('map','The main surface map cannot be duplicated');
     const { map, blob } = await this.read(worldId, id);
     if (map.revision !== expectedRevision) throw new WorldMapError("conflict", "Map changed before duplication");
     // Source guard and creation share the same world revision, including async encoding.
@@ -428,11 +450,11 @@ export class WorldMapRepository {
 
   /** Caller retains entityId/placementId until acknowledged. Entity + placement + outbox are one Page transaction.
    * On a lost acknowledgement, identical retries return current data without another write. */
-  async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings">>): Promise<Page> {
+  async createEntity(worldId: string, input: Pick<WorldEntity, "entityId" | "type" | "name"> & Partial<Pick<WorldEntity, "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings" | "fields">>): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
     if (!["country", "administrative_area", "settlement", "site", "culture", "religion"].includes(input.type)) entityError("Unsupported entity creation type");
     const existing = entities.find(entity => entity.entityId === input.entityId);
-    const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,cultureSettings:input.cultureSettings,relations:input.relations??[]};
+    const fields = {type:input.type,name:input.name.trim(),aliases:input.aliases??[],subtype:input.subtype,summary:input.summary,content:input.content,cultureSettings:input.cultureSettings,...(input.fields?{fields:input.fields}:{}),relations:input.relations??[]};
     if (existing) {
       if (Object.entries(fields).some(([key,value]) => JSON.stringify(existing[key as keyof WorldEntity]) !== JSON.stringify(value))) throw new WorldMapError("conflict", "World entity changed; reload before retrying");
       return world;
@@ -441,7 +463,7 @@ export class WorldMapRepository {
     return this.commit(world, mapsOf(world), undefined, [...entities, {...fields,entityId:input.entityId,worldId,schemaVersion:1,createdAt:now,updatedAt:now,revision:1}]);
   }
 
-  async createSettlement(worldId: string, input: { type?:"settlement"|"site"; entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown>; relations?:WorldEntity["relations"] },
+  async createSettlement(worldId: string, input: { type?:"settlement"|"site"; entityId: string; name: string; aliases?: string[]; subtype?: string; summary?: string; content?: Record<string, unknown>; fields?:WorldEntity["fields"]; relations?:WorldEntity["relations"] },
     placement?: { placementId: string; mapId: string; x: number; y: number }): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
     const type=input.type??"settlement";
@@ -451,7 +473,7 @@ export class WorldMapRepository {
     if (existing) {
       const matches = existing.type === type && existing.name === name && existing.revision === 1
         && JSON.stringify(existing.aliases) === JSON.stringify(input.aliases ?? []) && existing.subtype === input.subtype
-        && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content) && JSON.stringify(existing.relations) === JSON.stringify(input.relations??[]);
+        && existing.summary === input.summary && JSON.stringify(existing.content) === JSON.stringify(input.content) && JSON.stringify(existing.fields) === JSON.stringify(input.fields) && JSON.stringify(existing.relations) === JSON.stringify(input.relations??[]);
       const saved = placement && mapsOf(world).find(map => map.id === placement.mapId && map.deleted_at === null)?.placements?.find(item => item.placementId === placement.placementId);
       if (!matches || (placement && (!saved || saved.deletedAt !== null || saved.entityId !== existing.entityId || saved.geometry.type !== "point" || saved.geometry.x !== placement.x || saved.geometry.y !== placement.y))) {
         throw new WorldMapError("conflict", "This operation was already used with different content; reload before retrying");
@@ -466,7 +488,7 @@ export class WorldMapRepository {
   }
 
   async updateEntity(worldId: string, entityId: string, revision: number,
-    patch: Partial<Pick<WorldEntity, "name" | "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings">>): Promise<Page> {
+    patch: Partial<Pick<WorldEntity, "name" | "aliases" | "subtype" | "summary" | "content" | "relations" | "cultureSettings" | "fields">>): Promise<Page> {
     const world = await this.world(worldId), entities = world.character_data!.world_entities ?? [];
     const current = entities.find(entity => entity.entityId === entityId);
     if (!current) entityError("World entity is unavailable");

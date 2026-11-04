@@ -223,3 +223,25 @@ test('IDB: overlapping culture/religion settings survive cold reopen, offline re
  const bad=structuredClone(backup);bad.pages[0].character_data.world_maps[0].placements[0].distribution={opacity:2};
  await assert.rejects(target.adapter.importWorkspaceBackup(bad));assert.deepEqual((await target.adapter.getPage('world')).character_data,restored.character_data);
 });
+
+test('IDB: writing-first details preserve geography, fields and stable identities across unplacement, offline reopen and backup',async t=>{
+ const d=await device(t);await d.adapter.savePage(world());const repo=new WorldMapRepository(d.adapter);
+ const {map}=await repo.createSpace('world','Surface','surface',project('unchanged terrain'));
+ await assert.rejects(repo.createSpace('world','Second surface','surface'),/already exists/);await assert.rejects(repo.remove('world',map.id,map.revision),/cannot be removed/);await assert.rejects(repo.duplicate('world',map.id,map.revision,'Other'),/cannot be duplicated/);
+ await repo.createSpace('world','Caverns','underground',project('independent underground'));
+ await repo.createSpace('world','Clouds','sky');
+ await repo.createSettlement('world',{entityId:'town',name:'Harbor',content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'History'}]}]},fields:[{id:'population',name:'People',type:'number',value:25}]},{mapId:map.id,placementId:'harbor',x:10,y:20});
+ let page=await d.adapter.getPage('world'),geo=structuredClone(page.character_data.world_maps),entity=page.character_data.world_entities[0];
+ await repo.updateEntity('world','town',entity.revision,{name:'Renamed Harbor',summary:'A new story',fields:[{...entity.fields[0],name:'Residents'}]});
+ page=await d.adapter.getPage('world');assert.deepEqual(page.character_data.world_maps,geo,'writing and renaming never regenerate or rewrite geography');
+ const old=structuredClone(page.character_data);old.world_maps=[];old.world_entities=[];old.sections=[{id:'history',type:'rich_text',title:'Chronicle',richText:{type:'doc',content:[{type:'paragraph'}]}}];
+ await repo.saveWorldContent('world',page.revision,old);page=await d.adapter.getPage('world');assert.deepEqual(page.character_data.world_maps,geo);assert.equal(page.character_data.world_entities[0].name,'Renamed Harbor');
+ await assert.rejects(repo.saveWorldContent('world',page.revision-1,old),/changed/);
+ await repo.removePlacement('world',map.id,'harbor',1);await d.reopen();
+ page=await d.adapter.getPage('world');entity=page.character_data.world_entities[0];assert.equal(entity.entityId,'town');assert.equal(entity.fields[0].value,25);assert.match(JSON.stringify(entity.content),/History/);assert.equal(page.character_data.world_maps[0].placements[0].deletedAt!==null,true);
+ const backup=await d.adapter.exportWorkspaceBackup(),target=await device(t);await target.adapter.importWorkspaceBackup(backup);assert.deepEqual((await target.adapter.getPage('world')).character_data,page.character_data);
+ await repo.createEntity('world',{entityId:'country',type:'country',name:'Realm',fields:[{id:'capital',name:'Capital',type:'relation',value:'town'}]});await assert.rejects(repo.deleteEntity('world','town',entity.revision),/referenced/);
+ await assert.rejects(repo.createEntity('world',{entityId:'bad',type:'country',name:'Invalid',fields:[{id:'ref',name:'Other world',type:'relation',value:'unknown'}]}),/relation/);
+ const latest=(await d.adapter.getPage('world')).character_data.world_entities.find(e=>e.entityId==='country');await repo.deleteEntity('world','country',latest.revision);await repo.deleteEntity('world','town',entity.revision);assert.equal((await repo.listEntities('world')).length,0);
+ d.adapter.setWorkspaceOwner('other');await assert.rejects(repo.listEntities('world'),{code:'owner'});
+});

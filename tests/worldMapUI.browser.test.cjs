@@ -35,7 +35,7 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   if(process.env.MAP_UI_PROJECT){await manage.locator('input[type=file]').setInputFiles(process.env.MAP_UI_PROJECT);await page.getByRole('textbox',{name:'Map name'}).fill('UI Atlas');await page.getByRole('button',{name:'Confirm',exact:true}).click();}
   else{await manage.getByRole('button',{name:'Create map',exact:true}).click();await page.getByRole('textbox',{name:'Map name'}).fill('UI Atlas');await page.getByRole('button',{name:'Confirm creation',exact:true}).click();}
   const editor=page.getByRole('dialog',{name:'World map editor'});await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
-  const frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   const nativeName=await frame.evaluate(()=>options.map.name);
   const cancelNative=async(native)=>{await native.getByRole('button',{name:'Cancel',exact:true}).click();const prompt=page.getByRole('dialog',{name:'Discard changes made in this native tool? Earlier edits are preserved.',exact:true});await prompt.waitFor();await prompt.press('Escape');await prompt.waitFor({state:'detached'});assert.equal(await native.isVisible(),true,'cancelling the discard prompt keeps the active tool');await native.getByRole('button',{name:'Cancel',exact:true}).click();await prompt.getByRole('button',{name:'Confirm',exact:true}).click();await native.waitFor({state:'detached'});};
   const waitLayout=async()=>{await page.waitForTimeout(250);await frame.waitForFunction(()=>Math.abs(document.querySelector('#map').getBoundingClientRect().height-innerHeight)<1);};
@@ -44,15 +44,15 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   assert.equal(await frame.evaluate(()=>options.app.ui.assistant),'show','legacy preference remains readable');
   const tools=editor.locator('[data-world-tools]');
   const exportMenu=editor.locator('[data-map-export]');const more=editor.locator('[data-map-more]');
-  for(const viewport of [{width:390,height:844},{width:820,height:1180},{width:1440,height:1000}]){
+  for(const viewport of [{width:320,height:700},{width:820,height:1180},{width:1440,height:1000}]){
     await page.setViewportSize(viewport);
     if(await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();assert.equal(await editor.getByRole('button',{name:'SVG ↓',exact:true}).isVisible(),false);
-    await tools.locator(':scope > summary').click();for(const group of ['Terrain','Regions','Markers','Layers']){const button=editor.getByRole('button',{name:group,exact:true});if(viewport.width<1000)await button.tap();else await button.click();await editor.getByRole('button',{name:group,exact:true}).waitFor();}await editor.getByRole('button',{name:'Regions',exact:true}).click();await editor.getByRole('button',{name:'Add country',exact:true}).waitFor();await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).waitFor();
+    await tools.locator(':scope > summary').click();for(const group of ['Natural geography','Human geography','Display and style']){const button=editor.getByRole('button',{name:group,exact:true});if(viewport.width<1000)await button.tap();else await button.click();await editor.getByRole('button',{name:group,exact:true}).waitFor();assert.equal(await tools.evaluate(el=>el.open),true,'mode switching does not race a native details toggle');}await editor.getByRole('button',{name:'Human geography',exact:true}).click();await editor.getByRole('button',{name:'Add country',exact:true}).waitFor();await editor.getByRole('button',{name:'Human geography',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).waitFor();
     assert.ok(await editor.locator('[data-map-canvas]').evaluate(el=>el.getBoundingClientRect().height)>150);
     assert.ok(await editor.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'no parent horizontal overflow');
     await tools.locator(':scope > summary').click();
     await waitLayout();fs.mkdirSync('test-results/world-map-ui',{recursive:true});await page.screenshot({path:'test-results/world-map-ui/'+(process.env.MAP_BROWSER||'chromium')+'-'+viewport.width+'.png'});
-    await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Terrain',exact:true}).click();
+    await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Natural geography',exact:true}).click();
     await editor.locator('[data-world-tools] details > summary').click();await editor.getByRole('button',{name:'Native advanced tools',exact:true}).click();
     const native=editor.getByRole('region',{name:'Native map tool',exact:true});await native.waitFor();
     assert.equal(await editor.locator('[data-map-context]').isVisible(),false,'Nexus context panel yields to the native tool');
@@ -69,7 +69,7 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   }
   // The parent sends only named tool commands. Unknown controller names cannot execute.
   await page.evaluate(()=>{const send=MessagePort.prototype.postMessage;MessagePort.prototype.postMessage=function(data,...rest){if(data?.type==='tool'&&data.settings?.toolCommand?.action==='open'){MessagePort.prototype.postMessage=send;data={...data,settings:{toolCommand:{action:'open',tool:'StatesEditor'}}};}return send.call(this,data,...rest);};});
-  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Terrain',exact:true}).click();await editor.getByRole('button',{name:'Edit height',exact:true}).click();await editor.getByRole('alert').filter({hasText:'Unknown map tool'}).waitFor();assert.equal(await frame.evaluate(()=>customization),0);
+  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Natural geography',exact:true}).click();await editor.getByRole('button',{name:'Edit height',exact:true}).click();await editor.getByRole('alert').filter({hasText:'Unknown map tool'}).waitFor();assert.equal(await frame.evaluate(()=>customization),0);
   const originalHeights=await frame.evaluate(()=>Array.from(grid.cells.h));
   await editor.getByRole('button',{name:'Edit height',exact:true}).click();
   const native=editor.getByRole('region',{name:'Native map tool',exact:true});await native.waitFor();await waitLayout();
@@ -87,10 +87,11 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
     if(tool==='Climate settings'&&!await editor.getByRole('button',{name:tool,exact:true}).isVisible())await editor.locator('[data-world-tools] details > summary').click();
     await editor.getByRole('button',{name:tool,exact:true}).click();await native.waitFor();await frame.locator('#'+id).waitFor();
     assert.equal(await editor.locator('[data-map-context]').isVisible(),false);assert.equal(await native.getByRole('button',{name:'Undo stroke',exact:true}).count(),0,'no false undo for tools without a shared native history');
-    await native.getByRole('button',{name:'Confirm tool',exact:true}).click();await native.waitFor({state:'detached'});
+    await native.getByRole('button',{name:'Confirm tool',exact:true}).click();await native.waitFor({state:'detached'}).catch(async error=>{console.log('NATIVE_CONFIRM_STATE',await editor.innerText());throw error;});
   }
+  for(const [group,tool,id] of [['Human geography','Routes','routesOverview'],['Display and style','Labels','labelsOverview'],['Display and style','Map style','styleContent']]){if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:group,exact:true}).click();await editor.getByRole('button',{name:tool,exact:true}).click();await native.waitFor();await frame.locator('#'+id).waitFor();assert.equal(await native.getByRole('button',{name:'Undo stroke',exact:true}).count(),0);await native.getByRole('button',{name:'Confirm tool',exact:true}).click();await native.waitFor({state:'detached'});}
   await exportMenu.locator(':scope > summary').click();const projectDownload=page.waitForEvent('download');await exportMenu.getByRole('button',{name:'.map ↓',exact:true}).click();await (await projectDownload).saveAs('test-results/world-map-ui/project.map');await exportMenu.locator(':scope > summary').click();
-  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).click();
+  if(!await tools.evaluate(el=>el.open))await tools.locator(':scope > summary').click();await editor.getByRole('button',{name:'Human geography',exact:true}).click();await editor.getByRole('button',{name:'Add town',exact:true}).click();
   await page.waitForTimeout(250); // Existing MessagePort picker configuration must settle before the synthetic click.
   const box=await frame.locator('#map').boundingBox();await page.mouse.click(box.x+box.width*.55,box.y+box.height*.65);
   const townForm=page.getByRole('dialog',{name:'Edit town entry',exact:true});await townForm.getByLabel('Town name',{exact:true}).fill('UI Harbor');await page.evaluate(()=>{window.failMapSave=true;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.getByRole('alert').filter({hasText:'Simulated local save failure'}).waitFor();assert.equal(await townForm.getByLabel('Town name',{exact:true}).inputValue(),'UI Harbor');await page.evaluate(()=>{window.failMapSave=false;});await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
@@ -100,5 +101,39 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   const placeForm=page.getByRole('dialog',{name:'Edit place entry',exact:true});await placeForm.getByLabel('Name',{exact:true}).fill('UI Ruin');await placeForm.getByRole('button',{name:'Save entry',exact:true}).click();await placeForm.waitFor({state:'detached'});
   assert.equal(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.world_entities.filter(e=>e.type==='site'&&e.name==='UI Ruin').length;}),1);
   await editor.getByRole('button',{name:'← Save and return',exact:true}).click();await editor.waitFor({state:'detached'});await page.getByRole('button',{name:'Edit map',exact:true}).click();await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
+  await editor.getByRole('button',{name:'← Save and return',exact:true}).click();await editor.waitFor({state:'detached'});
+  const details=page.locator('[data-world-details]');await details.getByRole('heading',{name:'World details',exact:true}).waitFor();
+  for(const viewport of [{width:320,height:700},{width:820,height:1180},{width:1440,height:1000}]){
+    await page.setViewportSize(viewport);assert.ok(await page.locator('[data-map-scroll]').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'world homepage has no horizontal overflow');
+    assert.ok(await page.locator('[data-map-canvas]').evaluate(el=>el.getBoundingClientRect().height<=385),'preview is bounded instead of a full-page map');
+    assert.ok(await page.locator('[data-world-writing]').count(),'original world writing workspace is retained');await page.locator('[data-map-scroll]').evaluate(el=>{el.scrollTop=0;});await page.screenshot({path:'test-results/world-map-ui/home-'+viewport.width+'.png'});
+  }
+  await page.locator('[data-world-writing]').getByText('Original world chronicle',{exact:true}).waitFor();
+  await details.getByRole('button',{name:'Country · 0',exact:true}).click();assert.equal(await details.getByRole('button',{name:'UI Harbor',exact:true}).count(),0);await details.getByRole('button',{name:'All entries',exact:true}).click();
+  const geography=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return JSON.stringify(w.character_data.world_maps);});
+  await details.getByRole('button',{name:'UI Harbor',exact:true}).click();await townForm.waitFor();
+  assert.equal(await townForm.getByLabel('Town name',{exact:true}).getAttribute('readonly'),'','identity can only be renamed in the editor');
+  await townForm.getByLabel('Short description',{exact:true}).fill('Updated story without changing geography');
+  await townForm.getByRole('button',{name:'Add default fields',exact:true}).click();
+  await townForm.getByLabel('History and stories',{exact:true}).fill('Preserved chronicle');
+  await townForm.locator('[contenteditable=true]').fill('Long history from the world homepage');
+  await townForm.getByRole('button',{name:'Save entry',exact:true}).click();await townForm.waitFor({state:'detached'});
+  assert.equal(await page.evaluate(async()=>JSON.stringify((await mapStorage.getPage('world-browser')).character_data.world_maps)),geography,'detail writing does not rewrite geography or project binaries');
+  await details.getByRole('button',{name:'UI Harbor',exact:true}).click();await townForm.getByRole('button',{name:'Locate in editor',exact:true}).click();await editor.waitFor();
+  const located=page.getByRole('dialog',{name:'Town marker',exact:true});await located.getByRole('button',{name:'Remove from this map',exact:true}).click();
+  const removal=page.getByRole('dialog').filter({hasText:'Remove this marker'});if(await removal.count())await removal.getByRole('button',{name:'Confirm',exact:true}).click();
+  await editor.getByRole('button',{name:'← Save and return',exact:true}).click();await editor.waitFor({state:'detached'});
+  await details.getByRole('button',{name:'UI Harbor',exact:true}).click();await townForm.getByText('Long history from the world homepage',{exact:true}).waitFor();assert.equal(await townForm.getByLabel('History and stories',{exact:true}).inputValue(),'Preserved chronicle');await townForm.getByRole('button',{name:'Cancel',exact:true}).click();
+  await page.reload();await page.locator('[data-world-details]').getByRole('button',{name:'UI Harbor',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Edit map',exact:true}).click();await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
+  frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
+  await frame.evaluate(()=>{const el=document.createElement('div');el.id='nexus-i18n-check';window.mapDataBeforeLocale=window.nexusMapData;window.nexusMapData=()=>[...window.mapDataBeforeLocale(),{name:'Units    Editor'}];el.innerHTML='<span data-ui>Coastline Settings</span><span data-user>Units    Editor</span><p title="Show drainage">Show or hide columns</p><select><option>Render ocean cells</option></select><input type="button" value="Open Image Converter"><input type="text" title="Show drainage" value="Coastline Settings"><div contenteditable="true">Coastline Settings</div>';document.body.append(el);window.nexusSetLanguage('zh-TW');});
+  await frame.locator('#nexus-i18n-check [data-ui]').filter({hasText:'海岸線設定'}).waitFor();assert.equal(await frame.locator('#nexus-i18n-check p').getAttribute('title'),'顯示排水');assert.equal(await frame.locator('#nexus-i18n-check option').textContent(),'繪製海洋網格');assert.equal(await frame.locator('#nexus-i18n-check input[type=button]').inputValue(),'開啟圖片轉換器');assert.equal(await frame.locator('#nexus-i18n-check input[type=text]').inputValue(),'Coastline Settings');assert.equal(await frame.locator('#nexus-i18n-check [contenteditable]').textContent(),'Coastline Settings');
+  assert.equal(await frame.locator('#nexus-i18n-check [data-user]').textContent(),'Units    Editor');
+  await frame.evaluate(()=>{window.nexusSetLanguage('en');window.nexusMapData=window.mapDataBeforeLocale;delete window.mapDataBeforeLocale;});assert.equal(await frame.locator('#nexus-i18n-check [data-ui]').textContent(),'Coastline Settings');await frame.locator('#nexus-i18n-check').evaluate(el=>el.remove());
+  await editor.getByRole('button',{name:'← Save and return',exact:true}).click();await editor.waitFor({state:'detached'});await page.getByRole('button',{name:'World entries',exact:true}).click();
+  const entries=page.getByRole('dialog',{name:'World entries',exact:true});await entries.locator('li').filter({hasText:'UI Harbor'}).getByRole('button',{name:'Edit town entry',exact:true}).click();
+  await townForm.getByRole('button',{name:'Delete entire entry',exact:true}).click();let deletion=page.getByRole('dialog').filter({hasText:'Permanently delete this entry, its writing and all placements?'});await deletion.getByRole('button',{name:'Cancel',exact:true}).click();assert.equal(await townForm.isVisible(),true,'cancel full deletion preserves the editing entry');
+  await townForm.getByRole('button',{name:'Delete entire entry',exact:true}).click();await deletion.getByRole('button',{name:'Confirm',exact:true}).click();await townForm.waitFor({state:'detached'});assert.equal(await page.evaluate(async()=>(await mapStorage.getPage('world-browser')).character_data.world_entities.some(e=>e.name==='UI Harbor')),false);await entries.getByRole('button',{name:'Close panel',exact:true}).click();
   assert.equal(await frame.evaluate(()=>options.map.name),nativeName);assert.deepEqual(errors,[]);console.log('WORLD_MAP_UI_STAGE2_VERIFIED',{viewports:3,exports:6,legacyPreference:true,nativeTools:true,reopen:true});
 });
