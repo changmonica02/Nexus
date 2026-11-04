@@ -99,7 +99,7 @@ const en: Dictionary = {
   "home.expandCalendar": "Expand calendar and todos",
   "home.todayTodos": "Today's todos",
   "home.noTodos": "No tasks for this day.",
-  "home.openTodos": "Life → Calendar",
+  "home.openTodos": "Life",
   "home.openStudySets": "Open study sets",
   "home.close": "Close",
 
@@ -945,7 +945,7 @@ const zhTW: Dictionary = {
   "home.expandCalendar": "展開日曆與待辦",
   "home.todayTodos": "今日待辦",
   "home.noTodos": "這一天沒有待辦事項。",
-  "home.openTodos": "生活 → 日曆",
+  "home.openTodos": "生活",
   "home.openStudySets": "開啟學習組",
   "home.close": "關閉",
 

@@ -113,6 +113,8 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 正式學習由 `StudySetView` 的單一頂欄顯示組名及 ScheduledStudySession 回報的 completed／實際 targets 長度；顯示不另算排程。字卡的翻面按鈕與語音／字典是兄弟互動元素，避免巢狀按鈕及鍵盤翻面落到評分；只於新題聚焦卡片。正反面切換保留同一發音元件，只有題目身份改變才重設一次自動播放。開始學習的同步使用者操作呼叫 `prepareStudySpeech` 初始化原生引擎；語音初始化補充短期 voices polling，自動播放讓出 WebKit cancel 的事件迴圈，手動播放留在使用者操作內。啟動等待延長且檢查引擎 speaking，不以缺少 onstart 取消實際播放；取消／中斷事件不冒充限制播放。真實 Safari／PWA 語音仍需實機驗收，不能保證瀏覽器允許自動發音。
 
+學習首頁的兩個底部面板共用 ModalDialog 的背景關閉、Escape 與 returnFocusRef；日曆選取日期獨立於開關狀態保留，生活捷徑將日期帶入既有 LifeViewState 並以總覽開啟，不另存任務或影響 Session。
+
 ## 4. 附件、地圖與離線
 
 ### 附件版本快取
