@@ -25,11 +25,15 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。日曆／任務沒有額外事件副本；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。
 
-自訂清單由 `features/life/LifeLists` 與 `LifeRepository` 提供。`life_lists` 保存欄位定義及 schema_version，`life_categories` 保存 parent_id，`life_items` 以固定 fieldId 保存 typed values、category_id 與 attachment_ids；三者獨立記錄／revision，不塞進 Page JSON。金額為十進位字串與幣別；圖片／附件只引用既有 Attachment，Blob 不放入項目。清單／卡片共用項目，列表每頁 50 筆；分類移動使用選擇操作。
+自訂清單由 `features/life/LifeLists` 與 `LifeRepository` 提供。`life_lists` 保存欄位定義及 schema_version，`life_categories` 保存 parent_id，`life_items` 以固定 fieldId 保存 typed values、category_id 與 attachment_ids；三者獨立記錄／revision，不塞進 Page JSON。金額為十進位字串與幣別；圖片／附件只引用既有 Attachment，Blob 不放入項目。四種檢視共用項目；分類移動使用選擇操作。
+
+`LifeItemViews` 按需載入 TanStack Table 9.3.1，僅註冊欄位篩選／排序／分組／展開與欄位順序／顯示功能；Table 的內部 store 不取代 Nexus 狀態或儲存。清單、卡片、表格與分類樹使用同一 row model，沿用 Pagination，每頁最多 50 列（含分組標題）。分類選取以 ID 包含子分類，展開／收合只改介面；分類與項目移動仍使用原編輯器及 workspace CAS。自訂欄位 column ID 加上 `field:` 前綴，避免與名稱／分類欄位碰撞；封存欄位不參與檢視，過期篩選／分組忽略、過期排序回到名稱。數字按數值排序，金額先按幣別再以十進位字串精確比較，不換匯或改寫原值。
+
+檢視偏好沿用現有裝置端 collection 偏好模式，`useListViewPreferences` 以 `(owner,list ID)` 分區、版本化 localStorage，使用 storage／nexus-view-changed 通知。記住檢視、欄位顯隱／順序、搜尋、篩選、排序、分組、分類選取／收合及頁碼；儲存失敗保留可用的記憶體狀態。偏好不進 outbox、不當成備份／跨裝置同步內容；正式項目與附件仍走原備份 v4。表格容器獨立水平捲動，手機預設清單；沒有新增資料表／Migration、拖曳套件或虛擬捲動。
 
 `WorkspacePersistence.mutate` 在原交易內校驗帳號、版本、欄位保值、分類與附件引用，並追加同一 outbox；本機 life revision 隨待傳操作前進。`apply_workspace_operations` 擴充三個實體，沿用 owner advisory lock、CAS 與 durable receipt，在整批提交前驗證分類循環、同帳號／同清單引用及附件。RLS 僅允許 owner SELECT，寫入只走驗權 RPC；life 不提供 hard purge，軟刪除保留重連保護。刪清單以單批軟刪項目、分類與清單，非空分類需先移走內容。
 
-Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，未套用正式環境。隔離 PostgreSQL 17.11 已執行實際 SQL，驗證既有 Page 全欄位、Attachment／binary、舊 receipt／tombstone、新舊混合交易、RLS 與 Migration 失敗整批回滾。初始三表的建表 DDL 未納入版本庫，測試依目前欄位契約重建，再套用實際帳號／創作／章節／workspace migrations；不是正式 schema dump，不能推論不存在正式 schema 漂移。舊 RPC 呼叫與硬刪除標記類型不變，life 不產生舊前端不認得的 hard-delete tombstone。
+Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，依使用者確認已套用正式環境，本輪未重新套用或查寫正式資料。隔離 PostgreSQL 17.11 已執行實際 SQL，驗證既有 Page 全欄位、Attachment／binary、舊 receipt／tombstone、新舊混合交易、RLS 與 Migration 失敗整批回滾。初始三表的建表 DDL 未納入版本庫，測試依目前欄位契約重建，再套用實際帳號／創作／章節／workspace migrations；不是正式 schema dump，不能推論不存在正式 schema 漂移。舊 RPC 呼叫與硬刪除標記類型不變，life 不產生舊前端不認得的 hard-delete tombstone。
 
 部署／回復契約：
 - 核准後先確認正式備份／PITR 可用、既有 schema／RPC 前置條件，再以單一交易套用 Migration；驗證 owner SELECT、RPC 與 PostgREST 新表可見性／Realtime publication 後才發布前端。不可重複套用已成功的 Migration，或把 PR／隔離測試視為正式驗收。
