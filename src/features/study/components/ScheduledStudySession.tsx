@@ -97,7 +97,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   return <div className="mx-auto flex min-h-[65dvh] w-full max-w-4xl flex-col items-center justify-center gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]" data-scheduled-study>
     {session?.compatibility_notice&&<p role="status" className="text-xs">{t('styles.legacySession')}</p>}
     {card&&state?<>
-      <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 text-center shadow-sm sm:p-10" data-study-card data-side={revealed?'back':'front'}>
+      <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 pb-12 text-center shadow-sm sm:p-10 sm:pb-12" data-study-card data-side={revealed?'back':'front'}>
         <button ref={revealButton} type="button" className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-4" aria-label={t(revealed?'study.flipFront':'study.flipBack')} aria-pressed={revealed} disabled={saving||!!error||dictionaryEditing} onClick={flip}/>
         <div className="pointer-events-none relative flex min-w-0 items-center justify-center gap-2">
           <p className={'min-w-0 whitespace-pre-wrap break-words '+(revealed?'text-xl opacity-60':'text-4xl font-medium sm:text-6xl')} lang={card.direction==='en-zh'?'en':undefined}>{card.front}</p>
@@ -106,6 +106,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
         <div className="pointer-events-none relative motion-safe:animate-[study-flip_160ms_ease-out]" key={revealed?'back-content':'front-content'}>
           {revealed&&<><p className="my-7 whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p>{card.dictionary_entry_id&&<StudyCompositionSummary key={`${card.id}:${card.dictionary_entry_id}`} entryId={card.dictionary_entry_id} front={card.front} answer={card.back}/>}</>}
         </div>
+        <p className="pointer-events-none absolute inset-x-3 bottom-3 text-xs opacity-50">{t(revealed?'study.flipHintBack':'study.flipHintFront')}</p>
       </article>
       {revealed&&<><CardDictionaryPanel onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
         <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
