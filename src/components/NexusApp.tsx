@@ -51,7 +51,7 @@ import FeatureIcon from "./FeatureIcon";
 import TrashPage from "./TrashPage";
 import { useAttachmentPreview } from "./useAttachmentPreview";
 import type { PageSaveState } from "./SaveStatus";
-import Sidebar, { type SortMode } from "./Sidebar";
+import Sidebar from "./Sidebar";
 import { noteToPresentation } from "../lib/presentation";
 import WorkspacePane from "./WorkspacePane";
 import RightPanel from "./RightPanel";
@@ -151,7 +151,8 @@ function NexusAppInner({
   const [studyLaunch, setStudyLaunch] = useState<string | null>(null);
   const [deckManagement,setDeckManagement]=useState<{id:string;owner:string|null;from:"home"|"sets"}|null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("updated");
+  const [pageHeaderCount,setPageHeaderCount]=useState(0);
+  const pageHeaderChanged=useCallback((present:boolean)=>setPageHeaderCount(n=>Math.max(0,n+(present?1:-1))),[]);
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
   // Task 3: Split view (Obsidian style) - left/right closable
   const [secondaryActivePageId, setSecondaryActivePageId] = useState<string | null>(null);
@@ -216,7 +217,7 @@ function NexusAppInner({
 
   const isFeatureInterface = isToolsMode || !!externalContent || isHomeMode || isQuickNoteMode || isTodoMode || isStudySetMode || isNovelMode || isDocumentMode || isNoteMode || isPresentationMode || !!utilityMode ||
     (isCreativeMode && (!activePage || activePage.kind !== "creative"));
-  const showWorkspaceHeader = !trashRoute && isFeatureInterface && !externalContent && !(utilityMode && activePage);
+  const showWorkspaceHeader = pageHeaderCount===0 && !trashRoute && isFeatureInterface && !externalContent && !(utilityMode && activePage);
   const isTabletViewport = viewportWidth < 1024;
   const isDockedNoteSidebar = activePage?.kind === "note" && !isTabletViewport && !isFeatureInterface;
   useEffect(() => { setNoteSidebarOpen(window.localStorage.getItem("nexus:noteSidebarOpen") !== "false"); }, []);
@@ -1205,6 +1206,16 @@ function NexusAppInner({
     })();});
   },[flushAllSaves,onLeaveExternal,t,storageRef]);
 
+  const handleSignOut=useCallback(()=>navigateDictionary(()=>{
+    void (async()=>{
+      const owner=storageRef.current?.getWorkspaceOwner?.();
+      await flushAllSaves();
+      if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
+      const result=await getSupabase()?.auth.signOut();
+      if(result?.error)throw result.error;
+    })().catch(error=>setRefreshError(String(error)));
+  }),[flushAllSaves,storageRef]);
+
   const handleShowTools=useCallback(()=>{closeFeatureOverviews();setIsTrashMode(false);setIsHomeMode(false);setIsQuickNoteMode(false);setIsTodoMode(false);setIsCreativeMode(false);setActivePageId(null);setIsToolsMode(true);},[]);
   useEffect(() => {
     const openUtility = (event: Event) => {
@@ -1794,22 +1805,7 @@ function NexusAppInner({
       }} />;
   };
 
-  return (
-
-    <WorkspaceNavigationProvider open={()=>{if (isDockedNoteSidebar) toggleNoteSidebar(true); else setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
-    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
-      {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
-      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
-      <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
-      <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
-      <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
-
-      {showWorkspaceHeader && (
-        <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
-          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
-          <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
-          <div className="flex-1" />
-          <div className="relative">
+  const workspaceActions=(<div className="relative">
             <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.overview")} title={t("ui.overview")}>
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
             </button>
@@ -1831,7 +1827,23 @@ function NexusAppInner({
                 ].map(item=><button key={item.id} type="button" onClick={()=>{if(item.id==='dictionary')item.action();else navigate(item.action);setIsAppLauncherOpen(false);}} className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-zinc-500/10"><FeatureIcon feature={item.id}/>{t('ui.feature.'+item.id)}</button>)}
               </div>
             </FloatingPanel>
-          </div>
+          </div>);
+  return (
+
+    <WorkspaceNavigationProvider onHeaderPresenceChange={pageHeaderChanged} actions={workspaceActions} open={()=>{if (isDockedNoteSidebar) toggleNoteSidebar(true); else setIsNavigationOpen(true);setIsAppLauncherOpen(false);}}>
+    <div className="relative flex h-[100dvh] w-screen overflow-hidden" style={{ backgroundColor: "var(--color-bg)", paddingBottom: "env(safe-area-inset-bottom)" }} onTouchStartCapture={beginGlobalPull} onTouchMoveCapture={moveGlobalPull} onTouchEndCapture={endGlobalPull} onTouchCancelCapture={cancelGlobalPull} onPointerDownCapture={closeMobilePanelsWhenEditing}>
+      {refreshError && <div role="alert" className="fixed inset-x-4 top-4 z-[100] rounded-xl bg-red-100 p-3 text-sm text-red-900" onClick={() => setRefreshError("")}>{refreshError}</div>}
+      <div className="pointer-events-none fixed inset-x-0 top-2 z-[70] flex justify-center text-xs font-medium transition-opacity" style={{ opacity: globalPullDistance > 20 || isGlobalRefreshing ? 1 : 0, color: "var(--color-text)" }}>{isGlobalRefreshing ? "正在重新載入…" : refreshReady ? "放開以重新載入" : "繼續下拉以重新載入"}</div>
+      <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleImportPdfFile} />
+      <input ref={markdownInputRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleImportMarkdownFile} />
+      <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportBackupFile} />
+
+      {showWorkspaceHeader && (
+        <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
+          <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
+          <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
+          <div className="flex-1" />
+          {workspaceActions}
         </header>
       )}
 
@@ -1869,8 +1881,6 @@ function NexusAppInner({
           onThemeChange={onThemeChange}
           onExportBackup={handleExportBackup}
           onImportBackup={handleImportBackupClick}
-          sortMode={sortMode}
-          onSortModeChange={setSortMode}
           onReorderPages={handleReorderPages}
           pendingRenameId={pendingRenameId}
           onClearPendingRename={handleClearPendingRename}
@@ -1879,6 +1889,8 @@ function NexusAppInner({
           onCreateItem={type=>navigate(()=>void handleCreateItem(type))}
           syncState={syncState}
           accountEmail={accountEmail}
+          onSetFolder={handleSetPagesFolder}
+          onSignOut={handleSignOut}
           onMovePage={handleMovePage}
           onOpenInSplit={id=>navigate(()=>void handleOpenInSplit(id))}
           isQuickNoteMode={isQuickNoteMode}

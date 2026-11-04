@@ -535,3 +535,8 @@ html, body { overscroll-behavior-y: none; }
 }
 
 @keyframes study-flip { from { opacity: .7; transform: rotateX(-5deg); } to { opacity: 1; transform: rotateX(0); } }
+
+@media (hover: hover) and (pointer: fine) {
+ .sidebar-item-actions { opacity: 0; }
+ .group:hover > .sidebar-item-actions, .group:focus-within > .sidebar-item-actions { opacity: 1; }
+}

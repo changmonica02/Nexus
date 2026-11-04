@@ -36,32 +36,23 @@ export function dashboardGroups(
   query: string,
   sort: string,
   ascending: boolean,
+  includeNested = false,
 ) {
   const needle = query.trim().toLocaleLowerCase();
   const sorted = pages
     .filter(
       (p) =>
-        !p.parent_id &&
+        (includeNested || !p.parent_id) &&
         !p.deleted_at &&
         (!needle ||
           `${p.title}\n${p.content_text ?? ""}`
             .toLocaleLowerCase()
             .includes(needle)),
     )
-    .sort((a, b) => {
-      const pinnedA = (a.sort_order ?? 0) < 0,
-        pinnedB = (b.sort_order ?? 0) < 0;
-      if (pinnedA !== pinnedB) return pinnedA ? -1 : 1;
-      return (
-        (ascending ? 1 : -1) *
-        (sort === "custom"
-          ? (a.sort_order ?? Number.MAX_SAFE_INTEGER) -
-            (b.sort_order ?? Number.MAX_SAFE_INTEGER)
-          : a.updated_at - b.updated_at)
-      );
-    });
+;
+  const sortedPages = sortDashboardPages(sorted,sort,ascending);
   const groups = new Map<string, Page[]>();
-  for (const page of sorted) {
+  for (const page of sortedPages) {
     const key =
       grouping === "none"
         ? ""
@@ -73,4 +64,19 @@ export function dashboardGroups(
     groups.set(key, items);
   }
   return [...groups].map(([key, items]) => ({ key, items }));
+}
+
+export function sortDashboardPages(pages:Page[],sort:string,ascending:boolean){
+return [...pages].sort((a, b) => {
+      const pinnedA = (a.sort_order ?? 0) < 0,
+        pinnedB = (b.sort_order ?? 0) < 0;
+      if (pinnedA !== pinnedB) return pinnedA ? -1 : 1;
+      return (
+        (ascending ? 1 : -1) *
+        (sort === "custom"
+          ? (a.sort_order ?? Number.MAX_SAFE_INTEGER) -
+            (b.sort_order ?? Number.MAX_SAFE_INTEGER)
+          : a.updated_at - b.updated_at)
+      );
+    });
 }

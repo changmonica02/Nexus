@@ -14,14 +14,14 @@ export default function AccountSettingsRow({
   onExportBackup,
   onImportBackup,
   syncState,
-  accountEmail,
+  accountEmail,onSignOut,
 }: {
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
   onExportBackup: () => void;
   onImportBackup: () => void;
   syncState?: SyncState;
-  accountEmail?: string | null;
+  accountEmail?: string | null;onSignOut?:()=>void;
 }) {
   const {t}=useLanguage();
   const [isAccountOpen, setIsAccountOpen] = useState(false);
@@ -51,6 +51,7 @@ export default function AccountSettingsRow({
   };
 
   const handleSignOut = async () => {
+    if(onSignOut){onSignOut();setIsAccountOpen(false);return;}
     await getSupabase()?.auth.signOut();
     setIsAccountOpen(false);
   };
@@ -74,7 +75,7 @@ export default function AccountSettingsRow({
           </div>
         </button>
 
-        <PreferencesMenu theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />
+        <PreferencesMenu onSignOut={accountEmail?handleSignOut:undefined} theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />
       </div>
 
       {/* 帳號登入/註冊/登出 Modal */}

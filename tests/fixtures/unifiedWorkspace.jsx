@@ -21,6 +21,7 @@ window.refreshAuth = () => {
 };
 window.dictionaryClient = {
   auth: {
+    signOut: async()=>{window.signOutCalls=(window.signOutCalls||0)+1;for(const listener of window.authListeners)listener('SIGNED_OUT',null);return{error:null};},
     getSession: async () => ({ data: { session } }),
     getUser: async () => ({ data: { user: session.user } }),
     onAuthStateChange: listener => {

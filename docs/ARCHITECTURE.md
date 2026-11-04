@@ -202,3 +202,5 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 - 修改保存／同步需覆蓋 owner、CAS、pending edits、遠端刪除、斷網／重連、掉回覆重試；修改輸出需驗證正文 markers、span、JSON／ID 不變與預覽／PDF，文字抽取不取代 glyph／圖片視覺檢查。
 - 隔離 Chromium／IDB／SQL 測試與正式帳號、Safari／行動裝置驗收分開；部署 READY 也不代表完整產品驗收。真實裝置與跨裝置事項集中 #60。
 - 技術契約隨程式維護於本文件，狀態放 HANDOFF；不再新增 archive、reference、追溯副本或逐批交付流水帳。
+
+次級頁面共用 `WorkspaceNavigation.PageHeader`，沿用 SidebarToggle、來源返回 callback／Next Link 與既有功能總覽。SidebarToggle 在 layout effect 登記／解除頁首，工作區外殼於子頁自有導覽時讓出泛用 Nexus 頁首；專業編輯器保留原工具列。創作總覽在資源庫／模板管理開啟時保持掛載，保留集合查詢與捲動。側欄與首頁共用 dashboardGroups、同一 collection/grouping 裝置偏好及 sort_order；分組不改寫資料，子項目排序使用同一 comparator。資料夾仍為 Page.folder，選單重用既有分類寫入，不引入資料夾表。登出入口透過既有未儲存導覽防護與 flushAllSaves，再呼叫原 auth.signOut；帳號切換清理與 owner-scoped outbox 不變。

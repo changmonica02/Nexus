@@ -10,8 +10,8 @@ export function englishFront(text:string,direction:string|undefined):string|null
   return direction==='en-zh'&&/[A-Za-z]/.test(value)&&/^[A-Za-z\s'’.,!?()\-–]+$/u.test(value)?value:null;
 }
 let activeUtterance:SpeechSynthesisUtterance|null=null;
-export default function StudyPronunciation({text,direction,question,frontVisible,automatic,rate,active=true}:{
-  text:string;direction:string|undefined;question:string;frontVisible:boolean;automatic:boolean;rate:number;active?:boolean;
+export default function StudyPronunciation({text,direction,question,frontVisible,automatic,rate,active=true,inlineCard=false}:{
+  text:string;direction:string|undefined;question:string;frontVisible:boolean;automatic:boolean;rate:number;active?:boolean;inlineCard?:boolean;
 }) {
   const {t}=useLanguage();
   const [notice,setNotice]=useState(''),[voicesVersion,setVoicesVersion]=useState(0);
@@ -65,8 +65,8 @@ export default function StudyPronunciation({text,direction,question,frontVisible
     const pending=setTimeout(()=>{if(!attempted.current)play();},0);
     return()=>clearTimeout(pending);
   },[question,frontVisible,automatic,active,play,voicesVersion]);
-  return <span className="relative inline-flex flex-col items-center text-center">
-    <button type="button" disabled={!active} aria-label={t('speech.replay')} title={t('speech.replay')} onClick={event=>{event.stopPropagation();play(true);}} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-sm disabled:opacity-40"><Volume2 size={22} aria-hidden="true"/></button>
-    {notice&&<span role="status" className="absolute right-0 top-full z-10 w-52 rounded-lg border bg-[var(--color-editor-bg)] p-2 text-xs">{t(notice)}</span>}
+  return <span className={inlineCard?"contents":"relative inline-flex max-w-full flex-col items-center text-center"}>
+    <button type="button" disabled={!active} aria-label={t('speech.replay')} title={t('speech.replay')} onClick={event=>{event.stopPropagation();play(true);}} className={"pointer-events-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-sm disabled:opacity-40 "+(inlineCard?"col-start-3 row-start-2 justify-self-start":"")}><Volume2 size={22} aria-hidden="true"/></button>
+    {notice&&<span role="status" className={"pointer-events-none min-w-0 break-words rounded-lg border bg-[var(--color-editor-bg)] p-2 text-xs [overflow-wrap:anywhere] "+(inlineCard?"col-span-3 col-start-1 row-start-1 mb-3":"mt-1")}>{t(notice)}</span>}
   </span>;
 }

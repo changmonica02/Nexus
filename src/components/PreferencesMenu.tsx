@@ -1,4 +1,5 @@
 "use client";
+import {LogOut} from "lucide-react";
 import FeatureIcon from "./FeatureIcon";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -7,6 +8,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import SettingsDialog from "./SettingsDialog";
 
 export interface PreferencesProps {
+  onSignOut?:()=>void;
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
   onExportBackup: () => void;
@@ -55,12 +57,13 @@ export default function PreferencesMenu(props: PreferencesProps) {
   return <>
     <button ref={anchor} type="button" title={t("preferences.title")} aria-label={t("preferences.title")} aria-expanded={open} onClick={() => { setPortalRoot(anchor.current?.closest("dialog")??null); setPanel(null); setOpen(!open); }} className="flex h-9 w-9 items-center justify-center rounded-lg border hover:bg-zinc-500/10" style={surface}><FeatureIcon feature="settings"/></button>
     {open && createPortal(<div ref={popup} role="dialog" aria-label={t("preferences.title")} className="fixed z-[1100] flex items-end gap-2" style={{ left: position.left, bottom: Math.max(8, position.bottom) }}>
-      <div className="rounded-xl border p-1.5 shadow-xl" style={{ ...surface, width: position.width }}>
+      <div className="max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl border p-1.5 shadow-xl" style={{ ...surface, width: position.width }}>
         <div className="px-3 py-2 text-xs font-semibold opacity-60">{t("preferences.title")}</div>
         <button type="button" className={buttonClass} aria-expanded={panel === "theme"} onClick={() => setPanel("theme")} onKeyDown={(e) => { if (e.key === "ArrowRight") setPanel("theme"); }}><span>{t("preferences.theme")}</span><span>›</span></button>
         <button type="button" className={buttonClass} aria-expanded={panel === "language"} onClick={() => setPanel("language")} onKeyDown={(e) => { if (e.key === "ArrowRight") setPanel("language"); }}><span>{t("preferences.language")}</span><span>›</span></button>
         <button type="button" className={buttonClass} onClick={() => { setOpen(false); setPanel(null); setSettings(true); }}>{t("settings.title")}</button>
         <button type="button" className={buttonClass} aria-expanded={panel === "backup"} onClick={() => setPanel("backup")}><span>{t("preferences.backup")}</span><span>›</span></button>
+        {props.onSignOut&&<button type="button" className={buttonClass+" text-red-600 dark:text-red-400"} onClick={()=>{close();props.onSignOut?.();}}><span>{t('auth.signOut')}</span><LogOut size={18}/></button>}
       </div>
       {panel && <div aria-label={panel === "theme" ? "主題選項" : panel === "language" ? "語言選項" : "備份選項"} role="region" className="max-h-[70dvh] overflow-y-auto rounded-xl border p-2 shadow-xl" style={{ ...surface, width: position.detailWidth }}>
         <div className="px-3 py-2 text-xs font-semibold opacity-60">{panel === "theme" ? "主題" : panel === "language" ? "語言" : "備份"}</div>

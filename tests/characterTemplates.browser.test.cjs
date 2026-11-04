@@ -12,7 +12,7 @@ test(
   async () => {
     const root = path.resolve(__dirname, ".."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-character-blocks-"));
-    await build({
+    await build({loader:{".woff":"dataurl",".woff2":"dataurl",".ttf":"dataurl"},
       entryPoints: ["tests/fixtures/characterBlocks.jsx"],
       outfile: path.join(tmp, "fixture.js"),
       bundle: true,

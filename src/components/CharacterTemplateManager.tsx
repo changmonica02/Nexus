@@ -7,7 +7,8 @@ import TemplateStructurePreview from "./TemplateStructurePreview";
 import TemplateResourceStatus from "./TemplateResourceStatus";
 import FloatingPanel from "./FloatingPanel";
 import PageItemMenu from "./PageItemMenu";
-import { SidebarToggle } from "./WorkspaceNavigation";
+import { PageHeader } from "./WorkspaceNavigation";
+import {usePaginationLanguage} from "../lib/LanguageContext";
 export default function CharacterTemplateManager({
   templates,
   onClose,
@@ -28,6 +29,7 @@ export default function CharacterTemplateManager({
   onCopy: (id: string) => void;
   onOpenResource?: (id:string)=>void;
 }) {
+  const {t}=usePaginationLanguage();
   const { askText, askConfirm, dialog } = useWorkspaceDialog();
   const [preview, setPreview] = useState<Page | null>(null);
   const clean = preview?.character_data
@@ -40,11 +42,7 @@ export default function CharacterTemplateManager({
     >
       {dialog}
       <div className="mx-auto max-w-5xl space-y-4">
-        <header className="flex flex-wrap items-center gap-3">
-          <SidebarToggle />
-          <button onClick={onClose}>← 返回創作</button>
-          <h1 className="flex-1 text-xl font-semibold">私人創作模板</h1>
-        </header>
+        <PageHeader title={t('navigation.privateTemplates')} onBack={onClose}/>
         <p className="text-sm opacity-65">
           模板只保存區塊、欄位與排版；修改不會自動改動已建立的角色。
         </p>

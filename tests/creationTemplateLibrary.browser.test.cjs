@@ -161,10 +161,10 @@ test(
         const url = "http://127.0.0.1:" + server.address().port;
         await page.goto(url);
         await page
-          .getByRole("heading", { name: "創作資源庫 / Creation library" })
+          .getByRole("heading", { name: "創作資源庫" })
           .waitFor();
         await page
-          .getByRole("button", { name: "＋投稿模板 / Submit", exact: true })
+          .getByRole("button", { name: "＋投稿模板", exact: true })
           .click();
         await page
           .getByRole("textbox", {
@@ -216,7 +216,7 @@ test(
         await page.keyboard.press("Escape");
         await editor.waitFor({ state: "detached" });
         await page
-          .getByRole("button", { name: "← 返回創作", exact: true })
+          .getByRole("button", { name: "返回", exact: true })
           .click();
         await selected.waitFor();
         const post = await page.evaluate(
@@ -380,7 +380,7 @@ test(
         await reader.getByText(/尚未啟用或目前無法連線/).waitFor();
         assert.equal(
           await reader
-            .getByRole("button", { name: "＋投稿模板 / Submit", exact: true })
+            .getByRole("button", { name: "＋投稿模板", exact: true })
             .count(),
           0,
         );

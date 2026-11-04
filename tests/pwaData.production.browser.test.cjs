@@ -158,7 +158,9 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await switchAccount(A); await page.locator('main').waitFor(); await inject(); assert.match((await page.evaluate(({ A, id }) => window.pwaData.read(A, id), { A, id: ids.note })).content_text, /OFFLINE_EDIT/);
   // An in-flight initial pull cannot postpone sign-out or restore account A data.
   offline = false; await context.setOffline(false); await setNetwork(page, false); hold = true;
-  await home(); await switchAccount(null); await page.getByText(/Sign in to Nexus|登入 Nexus/).waitFor();
+  await home();const pendingBeforeLogout=await page.evaluate(A=>window.pwaData.pending(A),A);
+  await page.getByRole('button',{name:'Open navigation',exact:true}).click();await page.getByRole('button',{name:'Preferences',exact:true}).click();const preferences=page.getByRole('dialog',{name:'Preferences',exact:true});await preferences.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByText(/Sign in to Nexus|登入 Nexus/).waitFor();
+  const pendingAfterLogout=await page.evaluate(A=>window.pwaData.pending(A),A);assert.deepEqual(pendingAfterLogout.workspace.map(b=>b.id),pendingBeforeLogout.workspace.map(b=>b.id),'logout preserves pending owner-scoped operations');
   releaseHold(); await page.waitForTimeout(100); assert.equal(await page.locator('main').count(), 0);
   assert.deepEqual(errors, []);
   fs.mkdirSync('test-results/pwa-stage2', { recursive: true });

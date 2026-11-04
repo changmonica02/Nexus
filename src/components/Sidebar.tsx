@@ -6,10 +6,15 @@ import {TOOL_FEATURES, getHiddenFeatures} from "../lib/featurePreferences";
 import {confirmDialog} from '../lib/confirmDialog';
 
 
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { isCreativeCharacterPage, isNovelPage, type Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import PageItemMenu, { type PageMenuItem } from "./PageItemMenu";
+import {CollectionItemMenu} from "./PageCollection";
+import {useCollectionPreferences} from "./useCollectionPreferences";
+import {useDashboardGrouping} from "./useDashboardGrouping";
+import {dashboardGroups,sortDashboardPages} from "../lib/dashboardGroups";
+import {useWorkspaceDialog} from "./WorkspaceDialog";
 import AccountSettingsRow from "./AccountSettingsRow";
 import type { SyncState } from "../infrastructure/sync/syncEngine";
 
@@ -83,8 +88,8 @@ type SidebarProps = {
   onThemeChange: (theme: "light" | "dark") => void;
   onExportBackup: () => void;
   onImportBackup: () => void;
-  sortMode: SortMode;
-  onSortModeChange: (mode: SortMode) => void;
+  onSetFolder?:(ids:string[],folder:string|null)=>void;
+  onSignOut?:()=>void;
   onReorderPages: (orderedIds: string[]) => void;
   pendingRenameId: string | null;
   onClearPendingRename: () => void;
@@ -146,8 +151,7 @@ export default function Sidebar({
   onThemeChange,
   onExportBackup,
   onImportBackup,
-  sortMode,
-  onSortModeChange,
+  onSetFolder,onSignOut,
   pendingRenameId,
   onClearPendingRename,
   onCancelNewPage,
@@ -170,7 +174,13 @@ export default function Sidebar({
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<DropPosition>("below");
   const [subPageMenuId, setSubPageMenuId] = useState<string | null>(null);
-  const [groupByType, setGroupByType] = useState(false);
+  const [grouping,setGrouping]=useDashboardGrouping();
+  const [preferences,setPreferences]=useCollectionPreferences('nexus-dashboard-view',{view:'list',sort:'updated_at',ascending:false});
+  const sortMode=preferences.sort==='custom'?'custom':'updated';
+  const onSortModeChange=(mode:SortMode)=>setPreferences({sort:mode==='custom'?'custom':'updated_at',ascending:mode==='custom'});
+  const [collapsedGroups,setCollapsedGroups]=useState<Set<string>>(new Set());
+  const {askText,dialog:folderDialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('ui.save')});
+  const setFolder=async(ids:string[],initial='')=>{const name=await askText(t('sidebar.folderName'),initial);if(name!==null)onSetFolder?.(ids,name.trim()||null);};
   const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
   const [featureFilter, setFeatureFilter] = useState<FeatureFilter>("all");
   const [hasManualFeatureFilter, setHasManualFeatureFilter] = useState(false);
@@ -337,9 +347,9 @@ export default function Sidebar({
     return matchQuery && matchTag;
   });
 
-  const topLevelPages = filteredPages.filter((page) => !page.parent_id);
+  const topLevelPages = filteredPages.filter((page) => !page.parent_id || !filteredPages.some(p=>p.id===page.parent_id));
 
-  const childMap = useMemo(() => {
+  const childMap = (() => {
     const map = new Map<string, Page[]>();
     filteredPages.forEach((page) => {
       if (!page.parent_id) return;
@@ -347,35 +357,12 @@ export default function Sidebar({
       children.push(page);
       map.set(page.parent_id, children);
     });
+    for(const [id,children] of map)map.set(id,sortDashboardPages(children,preferences.sort,preferences.ascending));
     return map;
-  }, [filteredPages]);
+  })();
 
-  const sortedTopLevel = useMemo(() => {
-    const copy = [...topLevelPages];
-    if (sortMode === "custom") copy.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-    return copy;
-  }, [topLevelPages, sortMode]);
-
-  const { folderedGroups, unfoldered } = useMemo(() => {
-    const foldered: { name: string; pages: Page[] }[] = [];
-    const noFolder: Page[] = [];
-    const folderMap = new Map<string, Page[]>();
-
-    sortedTopLevel.forEach((page) => {
-      const folder = page.folder?.trim();
-      if (!folder) {
-        noFolder.push(page);
-        return;
-      }
-      if (!folderMap.has(folder)) {
-        folderMap.set(folder, []);
-        foldered.push({ name: folder, pages: folderMap.get(folder)! });
-      }
-      folderMap.get(folder)!.push(page);
-    });
-
-    return { folderedGroups: foldered, unfoldered: noFolder };
-  }, [sortedTopLevel]);
+  const groups=isTrashMode?[{key:'',items:sortDashboardPages(topLevelPages,preferences.sort,preferences.ascending)}]:dashboardGroups(topLevelPages,grouping,'',preferences.sort,preferences.ascending,true);
+  const sortedTopLevel=groups.flatMap(group=>group.items);
 
   const handleDragStart = (event: DragEvent, pageId: string) => {
     event.dataTransfer.setData("text/plain", pageId);
@@ -431,34 +418,14 @@ export default function Sidebar({
     const canAddSubPage = !isTrashMode && (page.kind || "note") !== "presentation" && depth < 2;
     const isDragTarget = dragOverId === page.id;
 
-    const menuItems: PageMenuItem[] = [
-      page.is_favorite
-        ? { id: "unfavorite", label: t("sidebar.page.removeFavorite"), onClick: () => onToggleFavorite(page.id) }
-        : { id: "favorite", label: t("sidebar.page.addFavorite"), onClick: () => onToggleFavorite(page.id) },
-      { id: "rename", label: t("sidebar.page.rename"), onClick: () => startRename(page) },
-      { id: "copy", label: t("sidebar.page.copy"), onClick: () => onDuplicatePage(page.id) },
+    const menuItems:PageMenuItem[]=[
+      {id:'favorite',label:t(page.is_favorite?'sidebar.page.removeFavorite':'sidebar.page.addFavorite'),onClick:()=>onToggleFavorite(page.id)},
+      ...(onSetFolder?[{id:'move',label:t('sidebar.moveFolder'),onClick:()=>void setFolder([page.id],page.folder??'')}]:[]),
+      ...(page.kind==='document'?[{id:'export-md',label:t('sidebar.page.exportMarkdown'),onClick:()=>onExportPageMarkdown(page.id)}]:[{id:'export-pdf',label:t('sidebar.page.exportPdf'),onClick:()=>onExportPageAsPdf(page.id)},{id:'export-nexus',label:t('sidebar.page.exportNexusJson'),onClick:()=>onExportPageAsNexusJson(page.id)}]),
     ];
 
-    if (page.kind === "document") {
-      menuItems.push({ id: "export-md", label: t("sidebar.page.exportMarkdown"), onClick: () => onExportPageMarkdown(page.id) });
-    } else {
-      menuItems.push(
-        { id: "export-pdf", label: t("sidebar.page.exportPdf"), onClick: () => onExportPageAsPdf(page.id) },
-        { id: "export-nexus", label: t("sidebar.page.exportNexusJson"), onClick: () => onExportPageAsNexusJson(page.id) },
-      );
-    }
-
-    menuItems.push({
-      id: "delete",
-      label: t("sidebar.page.moveToTrash"),
-      danger: true,
-      onClick: async () => {
-        if (await confirmDialog(t("sidebar.page.confirmDeleteOne", { title: page.title || t("common.untitled") }))) onDeletePage(page.id);
-      },
-    });
-
     return (
-      <div key={page.id}>
+      <div key={page.id} data-sidebar-item={page.id}>
         <div
           draggable={!isTrashMode}
           onDragStart={(event) => handleDragStart(event, page.id)}
@@ -567,7 +534,7 @@ export default function Sidebar({
               </button>
             </div>
           ) : (
-            <div className="flex shrink-0 items-center opacity-0 transition-all group-hover:opacity-100 gap-0.5" onClick={(event) => event.stopPropagation()}>
+            <div className="sidebar-item-actions flex shrink-0 items-center gap-0.5" onClick={(event) => event.stopPropagation()} onPointerDown={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()} onDragStart={event=>{event.preventDefault();event.stopPropagation();}}>
               {canAddSubPage && (
                 <div className="relative" ref={subPageMenuId === page.id ? subPageMenuRef : undefined}>
                   <button onClick={() => setSubPageMenuId(subPageMenuId === page.id ? null : page.id)} className="flex items-center justify-center w-7 h-7 hover:bg-zinc-300 rounded-md text-sm transition-all text-zinc-500 hover:text-zinc-800" title={t("sidebar.page.addSubPage")}>
@@ -576,7 +543,7 @@ export default function Sidebar({
                   {renderSubPageTypeMenu(page)}
                 </div>
               )}
-              <PageItemMenu items={menuItems} title={t("sidebar.page.menuTitle")} />
+              <CollectionItemMenu page={page} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDeletePage} extraItems={menuItems}/>
             </div>
           )}
         </div>
@@ -606,42 +573,13 @@ export default function Sidebar({
       return <div className="text-sm text-center py-8 opacity-40 select-none" style={{ color: "var(--color-text)" }}>{message}</div>;
     }
 
-    if (groupByType) {
-      const kindOrder = ["note", "document", "study_set"];
-      const kindLabels: Record<string, string> = {
-        note: t("sidebar.sort.group.note"),
-        document: t("sidebar.sort.group.document"),
-        study_set: t("sidebar.sort.group.studySet"),
-      };
-      const allFlatPages = [...unfoldered, ...folderedGroups.flatMap((group) => group.pages)];
-
-      return kindOrder.map((kind) => {
-        const groupPages = allFlatPages.filter((page) => (page.kind || "note") === kind);
-        if (groupPages.length === 0) return null;
-        return (
-          <div key={kind} className="space-y-0.5">
-            <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold tracking-wider text-zinc-400 uppercase select-none">
-              <FeatureIcon feature={kind}/><span>{kindLabels[kind]}</span><span className="opacity-50">({groupPages.length})</span>
-            </div>
-            {groupPages.map((page) => renderPageItem(page, 0))}
-          </div>
-        );
-      });
-    }
-
-    return (
-      <>
-        {unfoldered.map((page) => renderPageItem(page, 0))}
-        {folderedGroups.map(({ name, pages: folderPages }) => (
-          <div key={name} className="space-y-0.5">
-            <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold tracking-wider text-zinc-400 uppercase select-none">
-              <span></span><span>{name}</span>
-            </div>
-            {folderPages.map((page) => renderPageItem(page, 0))}
-          </div>
-        ))}
-      </>
-    );
+    return groups.map(group=>{
+      const key=grouping+':'+group.key,closed=collapsedGroups.has(key),folderIds=pages.filter(p=>p.folder?.trim()===group.key).map(p=>p.id);
+      return <section key={key} className="space-y-0.5" data-sidebar-group={group.key}>
+        {!isTrashMode&&grouping!=='none'&&<div className="flex min-w-0 items-center gap-1 px-2 text-xs font-semibold"><button type="button" aria-expanded={!closed} className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left" onClick={()=>setCollapsedGroups(old=>{const next=new Set(old);if(next.has(key))next.delete(key);else next.add(key);return next;})}><span aria-hidden>{closed?'▸':'▾'}</span><span className="truncate">{grouping==='folder'?(group.key||t('dashboard.unfiled')):t('ui.feature.'+group.key)}</span><span>({group.items.length})</span></button>{grouping==='folder'&&group.key&&onSetFolder&&<PageItemMenu title={t('ui.more')+' '+group.key} items={[{id:'rename',label:t('ui.rename'),onClick:()=>void setFolder(folderIds,group.key)},{id:'move',label:t('sidebar.moveFolder'),onClick:()=>void setFolder(folderIds,group.key)},{id:'remove-folder',label:t('sidebar.removeFolder'),onClick:()=>onSetFolder(folderIds,null)}]}/>}</div>}
+        {!closed&&group.items.map(page=>renderPageItem(page))}
+      </section>;
+    });
   };
 
   if (isCollapsed) {
@@ -748,7 +686,7 @@ export default function Sidebar({
         <button onClick={() => setIsSelectMode((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs font-medium hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isSelectMode ? "var(--color-border)" : "transparent" }} title={t("sidebar.select.title")}>☑</button>
         {!isTrashMode && (
           <div className="relative shrink-0" ref={sortMenuRef}>
-            <button onClick={() => setShowSortMenu((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.sort.title")}>⇅</button>
+            <button aria-label={t("sidebar.sort.title")} onClick={() => setShowSortMenu((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.sort.title")}>⇅</button>
             {showSortMenu && (
               <div className="absolute right-0 top-full mt-1 w-52 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                 <button onClick={() => { onSortModeChange("updated"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "updated" ? "var(--color-border)" : "transparent" }}>
@@ -757,9 +695,10 @@ export default function Sidebar({
                 <button onClick={() => { onSortModeChange("custom"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "custom" ? "var(--color-border)" : "transparent" }}>
                   <span></span><span>{t("sidebar.sort.custom")}</span>{sortMode === "custom" && <span className="ml-auto text-xs"></span>}
                 </button>
+                <button className="min-h-11 w-full px-3 text-left text-sm" onClick={()=>setPreferences({ascending:!preferences.ascending})}>{t(preferences.ascending?'ui.ascending':'ui.descending')}</button>
                 <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
                   <label className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left cursor-pointer hover:bg-zinc-200 transition-all" style={{ color: "var(--color-text)" }}>
-                    <input type="checkbox" checked={groupByType} onChange={(event) => setGroupByType(event.target.checked)} className="rounded" />
+                    <input type="checkbox" checked={grouping==='feature'} onChange={(event) => setGrouping(event.target.checked?'feature':'none')} className="rounded" />
                     <span>{t("sidebar.sort.groupByType")}</span>
                   </label>
                 </div>
@@ -769,6 +708,8 @@ export default function Sidebar({
         )}
       </div>
 
+      <label className="flex shrink-0 min-w-0 items-center gap-2 px-3 py-1 text-xs">{t('dashboard.grouping')}<select aria-label={t('dashboard.grouping')} value={grouping} onChange={e=>setGrouping(e.target.value as 'none'|'folder'|'feature')} className="min-h-11 min-w-0 flex-1 rounded border bg-[var(--color-bg)] px-2"><option value="none">{t('dashboard.groupNone')}</option><option value="folder">{t('dashboard.groupFolder')}</option><option value="feature">{t('dashboard.groupFeature')}</option></select></label>
+      {folderDialog}
       {isSelectMode && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b text-xs" style={{ borderColor: "var(--color-border)" }}>
           <label className="flex items-center gap-1.5 cursor-pointer select-none" style={{ color: "var(--color-text)" }}>
@@ -814,7 +755,7 @@ export default function Sidebar({
         {renderPageSections()}
       </div>
 
-      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} accountEmail={accountEmail} />
+      <AccountSettingsRow theme={theme} onThemeChange={onThemeChange} onExportBackup={onExportBackup} onImportBackup={onImportBackup} syncState={syncState} accountEmail={accountEmail} onSignOut={onSignOut} />
     </aside>
   );
 }

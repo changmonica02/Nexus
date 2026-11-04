@@ -35,8 +35,8 @@ export default function CreativeView({
     [character, setCharacter] = useState(false),
     [world,setWorld]=useState(false),
     [manager, setManager] = useState(false), [library,setLibrary]=useState(Boolean(initialLibraryPost)),[resourcePost,setResourcePost]=useState(initialLibraryPost);
-  if (library) return <CreationTemplateLibraryView templates={templates} onClose={()=>setLibrary(false)} onDownload={onDownloadTemplate} initialPostId={resourcePost}/>;
-  if (manager) return (
+  const [libraryFromManager,setLibraryFromManager]=useState(false);
+  const secondary=library?<CreationTemplateLibraryView templates={templates} onClose={()=>{setLibrary(false);if(libraryFromManager)setManager(true);}} onDownload={onDownloadTemplate} initialPostId={resourcePost}/>:manager?(
           <CharacterTemplateManager
             templates={templates}
             onClose={() => setManager(false)}
@@ -45,13 +45,14 @@ export default function CreativeView({
             onRename={onRenameTemplate}
             onDelete={(id) => actions.onDeletePage?.(id)}
             onUse={id=>templates.find(t=>t.id===id)?.creative_type==="world"?onCreateWorld(id):onCreateCharacter(id)}
-            onOpenResource={id=>{setResourcePost(id);setManager(false);setLibrary(true)}}
+            onOpenResource={id=>{setResourcePost(id);setLibraryFromManager(true);setManager(false);setLibrary(true)}}
             onCopy={(id)=>actions.onDuplicatePage?.(id)}
           />
-  );
+  ):null;
   return (
-    <main
+    <>{secondary}<main
       data-pull-refresh
+      style={{display:secondary?"none":undefined}}
       className="min-w-0 flex-1 overflow-y-auto bg-[var(--color-editor-bg)] text-[var(--color-text)]"
     >
       <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
@@ -60,7 +61,7 @@ export default function CreativeView({
             <FeatureIcon feature="creative"/> {t("ui.feature.creative")}
           </h1>
           <div className="flex flex-wrap gap-2">
-            <button className="rounded border px-4 py-2 text-sm" onClick={()=>setLibrary(true)}>創作資源庫 / Creation library</button>
+            <button className="rounded border px-4 py-2 text-sm" onClick={()=>{setLibraryFromManager(false);setLibrary(true)}}>{t("navigation.creationLibrary")}</button>
             <button
               type="button"
               onClick={() => setManager(true)}
@@ -122,6 +123,6 @@ export default function CreativeView({
         )}
 
       </div>
-    </main>
+    </main></>
   );
 }
