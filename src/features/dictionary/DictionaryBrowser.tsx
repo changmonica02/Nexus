@@ -1,5 +1,5 @@
 "use client";
-import {SidebarToggle} from "../../components/WorkspaceNavigation";
+import {PageHeader} from "../../components/WorkspaceNavigation";
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
 
@@ -78,7 +78,7 @@ function Content({path,admin}:{path:string[];admin:boolean}){
     {!id&&browse.loading&&<p role="status">讀取中…</p>}
     {!id&&browse.error&&<p role="alert">{browse.error}<button className="ml-2 underline" onClick={browse.retry}>重試</button></p>}
     {!id&&<>
-      <h1 className="mb-4 text-2xl font-semibold">字典／百科</h1>
+
       <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="詞條類別">{Object.entries({all:"全部",...kinds}).map(([k,label])=><button key={k} aria-pressed={kind===k} className="rounded border px-4 py-2" onClick={()=>change({kind:k,page:'',category:'',component:'',sense:'',variant:''})}>{label}</button>)}</div>
       <form className="mb-4 flex gap-2" onSubmit={e=>{e.preventDefault();change({q:input.trim(),page:''});}}><input className="min-w-0 flex-1 rounded border bg-transparent p-2" aria-label="搜尋英文單字、字首或字根" placeholder={`搜尋英文${kind==='all'?'單字、字首或字根':kinds[kind]}`} maxLength={120} value={input} onChange={e=>setInput(e.target.value)}/><button className="rounded border px-4 py-2">搜尋</button></form>
       {(kind==='prefix'||kind==='root')&&<div className="mb-4 flex flex-wrap gap-2"><select className="min-w-0 max-w-full rounded border bg-[var(--color-editor-bg)] p-2" aria-label="分類篩選" value={category} onChange={e=>change({category:e.target.value,variant:'',page:''})}><option value="">所有分類</option>{(kind==='prefix'?prefixCategories:primaryCategories).map(c=><option key={c}>{c}</option>)}<option value="__ungrouped__">未分類</option></select><input className="min-w-0 rounded border bg-transparent p-2" aria-label="同字變體篩選" placeholder="同字變體（Enter 搜尋）" defaultValue={variant} key={variant} onKeyDown={e=>{if(e.key==='Enter')change({variant:e.currentTarget.value.trim(),category:'',page:''});}}/></div>}
@@ -124,7 +124,7 @@ export default function DictionaryBrowser({path}:{path:string[]}){
     event.preventDefault();event.stopPropagation();
     // Public reading stays in the loaded client UI: no Next RSC fetch is needed offline.
     window.history.pushState(null,'',url.pathname+url.search+url.hash);
-  }} className="h-full min-w-0 flex-1 overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><nav className="mb-6 flex flex-wrap justify-between gap-3 border-b pb-4"><div className="flex items-center gap-2"><SidebarToggle/><Link href={back}>{back==='/study'?"← 字卡首頁":"← 返回上一頁"}</Link></div>{owner&&admin?.owner===owner&&admin.allowed&&<Link href="/dictionary/admin" className="underline">管理字典</Link>}</nav>
+  }} className="h-full min-w-0 flex-1 overflow-y-auto" style={{background:'var(--color-editor-bg)',color:'var(--color-text)'}}><div className="mx-auto max-w-5xl break-words px-4 py-6 sm:px-8"><PageHeader title="字典／百科" backHref={back} actions={owner&&admin?.owner===owner&&admin.allowed?<Link href="/dictionary/admin" className="min-h-11 shrink-0 p-2 text-sm underline">管理字典</Link>:undefined}/>
     {!client?<p>資料服務尚未設定，字典目前無法讀取。</p>:owner===undefined?<p role="status">正在確認登入…</p>:!owner?<p>請先回到 Nexus 登入，再搜尋字典。</p>:<Content key={owner} path={path} admin={!!(admin?.owner===owner&&admin.allowed)}/>}
   </div></main>;
 }

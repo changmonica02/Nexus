@@ -4,7 +4,7 @@ import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import AutoTextarea from "./AutoTextarea";
 import EditorSection from "./EditorSection";
 import FeatureIcon from "../../components/FeatureIcon";
-import {SidebarToggle} from "../../components/WorkspaceNavigation";
+import {PageHeader} from "../../components/WorkspaceNavigation";
 import {PersistentReviewPanel} from './PersistentImportReview';
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
@@ -367,5 +367,5 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
 }
 export default function DictionaryAdmin({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['kind']}={}){
   const {access,error}=useDictionaryAdminAccess();
-  return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><header className="flex min-w-0 flex-wrap items-center gap-3"><SidebarToggle/><Link href={entryId||newKind?'/dictionary/admin':'/dictionary'} className="shrink-0 text-sm underline">← 返回上一頁</Link><h1 className="text-2xl font-semibold">字典管理</h1></header>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<DictionaryWorkspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
+  return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><PageHeader title="字典管理" backHref={entryId||newKind?'/dictionary/admin':'/dictionary'}/>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<DictionaryWorkspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
 }

@@ -28,7 +28,7 @@ import CharacterTemplateStructureEditor from "./CharacterTemplateStructureEditor
 import { snapshotCharacterTemplate } from "../lib/characterWorkspace";
 import { createBlankTemplate } from "../lib/characterTemplates";
 import { confirmDialog } from "../lib/confirmDialog";
-import { SidebarToggle } from "./WorkspaceNavigation";
+import { PageHeader } from "./WorkspaceNavigation";
 import FloatingPanel from "./FloatingPanel";
 import PageItemMenu from "./PageItemMenu";
 import { useWorkspaceDialog } from "./WorkspaceDialog";
@@ -479,18 +479,8 @@ export default function CharacterBlockWorkspace({
       data-character-workspace
     >
       {dialog}
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] p-3">
-        {!embedded&&<div className="flex min-w-0 items-center gap-2">
-          <SidebarToggle />
-          {onBack && (
-            <button className={control} disabled={busy} onClick={onBack}>
-              ← 返回創作
-            </button>
-          )}
-          <h1 className="truncate font-semibold">
-            {data.isTemplate ? page.title : data.basic.name || page.title}
-          </h1>
-        </div>}
+      {!embedded&&<div className="px-3"><PageHeader title={data.isTemplate?page.title:data.basic.name||page.title} onBack={onBack} backDisabled={busy}/></div>}
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2">
         <div className="flex gap-2">
           {templateActions}
           {!readOnly && (
@@ -528,7 +518,7 @@ export default function CharacterBlockWorkspace({
             />
           )}
         </div>
-      </header>
+      </div>
       {error && (
         <div
           role="alert"

@@ -33,6 +33,7 @@ test(
         {
           name: "isolated-services",
           setup(b) {
+            if(process.env.NEXUS_INTERFACE)b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/},args=>{let text=fs.readFileSync(args.path,'utf8');text=text.replace('window.fixtureStorage = storage;',`const parent=(await storage.listPages()).find(p=>p.title==='Sample note');if(!(await storage.listPages()).some(p=>p.title==='Nested note')){await storage.savePage({...parent,folder:'Original folder'});await storage.createPage({kind:'note',title:'Nested note',parent_id:parent.id});}window.fixtureStorage = storage;`);return{contents:text,loader:'jsx'};});
             if(process.env.NEXUS_LIFE)b.onLoad({filter:/fixtures[\\/]unifiedWorkspace\.jsx$/},args=>{
               let text=fs.readFileSync(args.path,'utf8');
               text=text.replace('window.fixtureStorage = storage;',`const today=new Date();today.setHours(0,0,0,0);const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
@@ -141,7 +142,7 @@ test(
         [1440, 900],
         [820, 1180],
         [1180, 820],
-        [(process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE)?320:390, 844],
+        [(process.env.NEXUS_INTERFACE||process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE)?320:390, 844],
       ]) {
         const context = await browser.newContext({
             viewport: { width, height },
@@ -153,6 +154,39 @@ test(
         page.on("pageerror", (e) => errors.push(e.message));
         if(process.env.NEXUS_LIFE)await page.clock.setFixedTime(new Date('2026-03-08T12:00:00Z'));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
+        if(process.env.NEXUS_INTERFACE){
+          await page.getByLabel('切換首頁',{exact:true}).waitFor();
+          const navigation=page.locator('aside').filter({has:page.getByRole('button',{name:'首頁',exact:true})}).last();
+          const openNavigation=async()=>{if(!await navigation.isVisible())await page.getByRole('button',{name:'開啟導覽',exact:true}).first().click();};
+          const closeNavigation=async()=>{if(await navigation.isVisible())await page.keyboard.press('Escape');};
+          const original=await page.evaluate(()=>window.fixtureStorage.listPages()),parent=original.find(p=>p.title==='Sample note'),child=original.find(p=>p.title==='Nested note');
+          await openNavigation();const row=navigation.locator(`[data-sidebar-item="${parent.id}"]`).first(),more=row.getByRole('button',{name:'更多操作 Sample note',exact:true});
+          assert.equal(await row.locator(`[data-sidebar-item="${child.id}"]`).count(),0);
+          if(width!==1440)assert.equal(await more.evaluate(b=>Number(getComputedStyle(b.parentElement).opacity)),1,'touch actions remain visible');await more.focus();assert.equal(await more.evaluate(b=>Number(getComputedStyle(b.parentElement).opacity)),1);
+          await more.click();assert.equal(await page.locator('[data-workspace-pane]').count(),0,'opening more must not open the editor');await page.getByRole('menuitem',{name:'複製',exact:true}).click();await page.waitForFunction(async n=>(await window.fixtureStorage.listPages()).length===n+1,original.length);
+          await page.locator('[data-workspace-pane]').waitFor();await page.getByRole('button',{name:'首頁',exact:true}).press('Enter');await page.getByLabel('切換首頁',{exact:true}).waitFor();await openNavigation();assert.equal(await row.locator(`[data-sidebar-item="${child.id}"]`).count(),0,'more must not expand children');
+          await more.click();await page.getByRole('menuitem',{name:'移至資料夾',exact:true}).click();const folder=page.getByRole('dialog',{name:'資料夾名稱（留空移除分類）',exact:true});await folder.getByRole('textbox').fill('Moved folder');await folder.getByRole('button',{name:'儲存',exact:true}).click();
+          await page.waitForFunction(async id=>(await window.fixtureStorage.getPage(id)).folder==='Moved folder',parent.id);
+          await navigation.getByLabel('分類方式',{exact:true}).selectOption('folder');await closeNavigation();assert.equal(await page.locator('main').getByLabel('分類方式',{exact:true}).inputValue(),'folder');
+          await page.locator('main').getByLabel('分類方式',{exact:true}).selectOption('feature');await openNavigation();assert.equal(await navigation.getByLabel('分類方式',{exact:true}).inputValue(),'feature');
+          for(const key of ['creative','study','presentations','web'])assert.equal(await navigation.locator(`[data-sidebar-group="${key}"]`).count(),1,key);
+          await navigation.getByRole('button',{name:'排序',exact:true}).click();await navigation.getByRole('button',{name:'自訂排序（拖曳）',exact:true}).click();await closeNavigation();
+          assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('nexus-dashboard-view:sort')).sort),'custom');
+          await page.reload();await page.getByLabel('切換首頁',{exact:true}).waitFor();await openNavigation();assert.equal(await navigation.getByLabel('分類方式',{exact:true}).inputValue(),'feature');
+          await navigation.getByLabel('分類方式',{exact:true}).selectOption('none');const parentRow=navigation.locator(`[data-sidebar-item="${parent.id}"]`).first();await parentRow.locator('button').first().click();await parentRow.locator(`[data-sidebar-item="${child.id}"]`).waitFor();await parentRow.locator(`[data-sidebar-item="${child.id}"]`).getByRole('button',{name:'更多操作 Nested note',exact:true}).click();await page.keyboard.press('Escape');assert.equal(await parentRow.locator(`[data-sidebar-item="${child.id}"]`).count(),1);await closeNavigation();
+          await page.getByLabel('切換首頁',{exact:true}).selectOption('learning');await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'管理 Sample study_set',exact:true}).click();const management=page.locator('[data-study-management]');
+          await management.getByRole('heading',{name:'管理學習組。Sample study_set',exact:true}).waitFor();assert.equal(await page.locator('[data-workspace-header]').count(),0);assert.equal(await page.locator('[data-page-header]:visible').count(),1);assert.equal(await page.getByRole('button',{name:'開啟導覽',exact:true}).count(),1);
+          assert.deepEqual(await management.locator('[data-study-actions] button').allTextContents(),['查看字卡 · 1 張卡片','開始學習','正式複習紀錄']);
+          await management.getByRole('button',{name:/^查看字卡/}).click();await management.getByRole('table',{name:'單字列表',exact:true}).waitFor();await management.getByRole('button',{name:'返回學習組設定',exact:true}).click();await management.getByLabel('每日新卡上限',{exact:true}).waitFor();await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();await page.keyboard.press('Escape');
+          await page.getByRole('button',{name:'功能總覽',exact:true}).click();await page.getByRole('button',{name:'創作',exact:true}).click();const overview=page.locator('main').filter({has:page.getByRole('button',{name:'創作資源庫',exact:true})}).first();const view=overview.getByRole('button',{name:'列表',exact:true});await view.click();
+          await overview.getByRole('button',{name:'創作資源庫',exact:true}).click();await page.locator('[data-page-header]').getByRole('heading',{name:'創作資源庫',exact:true}).waitFor();assert.equal(await page.locator('[data-workspace-header]').count(),0);assert.equal(await page.getByRole('button',{name:'開啟導覽',exact:true}).count(),1);await page.locator('[data-page-header]').getByRole('button',{name:'返回',exact:true}).click();assert.equal(await view.getAttribute('aria-pressed'),'true');
+          await overview.getByRole('button',{name:'模板管理',exact:true}).click();await page.getByRole('heading',{name:'私人創作模板',exact:true}).waitFor();assert.equal(await page.locator('[data-workspace-header]').count(),0);await page.locator('[data-page-header]').getByRole('button',{name:'返回',exact:true}).click();assert.equal(await view.getAttribute('aria-pressed'),'true');
+          await openNavigation();await navigation.getByRole('button',{name:'首頁',exact:true}).click();await navigation.locator(`[data-sidebar-item="${parent.id}"]`).first().getByText('Sample note',{exact:true}).click();const title=page.locator('[data-workspace-pane] input[type=text]').first();await title.waitFor();await page.evaluate(()=>window.saveBehavior='fail');await title.fill('Kept before logout');
+          await openNavigation();await navigation.getByRole('button',{name:'偏好設定',exact:true}).click();const prefs=page.getByRole('dialog',{name:'偏好設定',exact:true});const entries=(await prefs.getByRole('button').allTextContents()).map(text=>text.replace('›','').trim());assert.ok(entries.indexOf('登出')===entries.indexOf('備份')+1);await prefs.getByRole('button',{name:'登出',exact:true}).click();await page.getByRole('alert').filter({hasText:/Synthetic disk failure/}).first().waitFor();assert.equal(await page.evaluate(()=>window.signOutCalls||0),0);
+          await page.evaluate(()=>window.saveBehavior='normal');await openNavigation();await navigation.getByRole('button',{name:'偏好設定',exact:true}).click();await page.getByRole('dialog',{name:'偏好設定',exact:true}).getByRole('button',{name:'登出',exact:true}).click();await page.waitForFunction(()=>window.signOutCalls===1);await page.waitForFunction(()=>!document.querySelector('main')?.innerText.includes('Kept before logout'));
+          assert.equal((await page.evaluate(async id=>{window.fixtureStorage.setWorkspaceOwner('00000000-0000-4000-8000-000000000001');return window.fixtureStorage.getPage(id)},parent.id)).title,'Kept before logout');
+          assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await context.close();continue;
+        }
         if(process.env.NEXUS_LIFE){
           await page.waitForFunction(()=>!!window.fixtureStorage);await page.getByLabel('切換首頁',{exact:true}).waitFor();const life=page.locator('[data-life-workspace]');const baseline=await page.evaluate(()=>window.fixtureStorage.listPages());
           await page.getByRole('button',{name:'功能總覽',exact:true}).click();await page.getByRole('button',{name:'生活',exact:true}).click();await life.getByRole('tab',{name:'總覽',exact:true}).waitFor();await life.getByText('待完成任務：2',{exact:true}).waitFor({timeout:3000}).catch(async e=>{console.error('LIFE_DIAG',await page.evaluate(async()=>({body:document.querySelector('[data-life-workspace]')?.textContent,now:new Date().toString(),pages:(await window.fixtureStorage.listPages()).filter(p=>p.kind==='todo').map(p=>({title:p.title,due:p.due_date,done:p.completed}))})));throw e;});await life.getByText('當日行程：3',{exact:true}).waitFor();assert.equal(await life.getByText(/記帳|日記|特殊日|我的清單/).count(),0);await life.getByLabel('新增任務標題',{exact:true}).fill('Unsaved title');await life.getByRole('button',{name:/^Life today/}).click();await page.getByRole('dialog',{name:'離開編輯',exact:true}).getByRole('button',{name:'取消',exact:true}).click();assert.equal(await life.getByLabel('新增任務標題',{exact:true}).inputValue(),'Unsaved title');await life.getByLabel('新增任務標題',{exact:true}).fill('');
@@ -443,7 +477,7 @@ test(
         );
         await page.reload();
         await page.getByText("垃圾桶是空的。", { exact: true }).waitFor();
-        await page.getByRole("button", { name: "← 返回", exact: true }).click();
+        await page.getByRole("button", { name: "返回", exact: true }).click();
         await page.waitForURL("**/");
         await opener.click();
         await drawer.waitFor();
@@ -563,7 +597,7 @@ test(
         await page.getByRole("button", { name: "抽選", exact: true }).click();
         await page.getByRole("button", { name: /^Sample draw/ }).click();
         assert.equal(await page.locator("[data-workspace-header]").count(), 0);
-        await page.getByRole("button", { name: "← 返回", exact: true }).click();
+        await page.getByRole("button", { name: "返回", exact: true }).click();
         await page
           .getByRole("heading", { name: "工具", exact: true })
           .waitFor();

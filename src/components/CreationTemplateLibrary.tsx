@@ -10,11 +10,12 @@ import {
   type CreationDownload,
 } from "../features/creation/templateLibrary";
 import { Pagination } from "./pagination/Pagination";
-import { SidebarToggle } from "./WorkspaceNavigation";
+import { PageHeader } from "./WorkspaceNavigation";
 import TemplateStructurePreview from "./TemplateStructurePreview";
 import FloatingPanel from "./FloatingPanel";
 import CharacterBlockWorkspace from "./CharacterBlockWorkspace";
 import { useWorkspaceDialog } from "./WorkspaceDialog";
+import {usePaginationLanguage} from "../lib/LanguageContext";
 const button =
   "min-h-11 rounded border border-[var(--color-border)] px-3 py-2 text-sm disabled:opacity-50";
 export default function CreationTemplateLibraryView({
@@ -30,6 +31,7 @@ export default function CreationTemplateLibraryView({
   service?: LibraryService;
   initialPostId?: string | null;
 }) {
+  const {t}=usePaginationLanguage();
   const [cap, setCap] = useState<
       { version: number; admin: boolean } | null | undefined
     >(undefined),
@@ -195,15 +197,11 @@ export default function CreationTemplateLibraryView({
     setPage(0);
   };
   if (cap === undefined)
-    return <main className="flex-1 p-6">載入創作資源庫… / Loading…</main>;
+    return <main className="flex-1 p-6"><PageHeader title={t('navigation.creationLibrary')} onBack={onClose}/>{t('common.loading')}</main>;
   if (!cap)
     return (
       <main className="flex-1 p-6 space-y-4">
-        <SidebarToggle />
-        <button className={button} onClick={onClose}>
-          ← 返回創作 / Back
-        </button>
-        <h1>創作資源庫 / Creation library</h1>
+        <PageHeader title={t('navigation.creationLibrary')} onBack={onClose}/>
         <p>
           尚未啟用或目前無法連線。私人角色卡與模板仍可使用。 / Not enabled or
           offline. Private content remains available.
@@ -282,14 +280,8 @@ export default function CreationTemplateLibraryView({
     <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-8 text-[var(--color-text)] bg-[var(--color-editor-bg)]">
       {!selected && !creating && dialog}
       <div className="mx-auto max-w-5xl space-y-4">
-        <header className="flex flex-wrap items-center gap-3">
-          <SidebarToggle />
-          <button className={button} onClick={onClose}>
-            ← 返回創作 / Back
-          </button>
-          <h1 className="flex-1 text-xl font-semibold">
-            創作資源庫 / Creation library
-          </h1>
+        <PageHeader title={t('navigation.creationLibrary')} onBack={onClose}/>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             className={button}
             disabled={busy}
@@ -317,7 +309,7 @@ export default function CreationTemplateLibraryView({
               })
             }
           >
-            ＋投稿模板 / Submit
+            {t('navigation.submitTemplate')}
           </button>
           {cap.admin && (
             <button
@@ -326,10 +318,10 @@ export default function CreationTemplateLibraryView({
                 void run(async () => setReports(await service.reports()))
               }
             >
-              檢舉管理 / Reports
+              {t('navigation.reports')}
             </button>
           )}
-        </header>
+        </div>
         {error && (
           <p role="alert" className="text-red-600">
             {error}

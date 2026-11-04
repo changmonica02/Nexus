@@ -4,7 +4,7 @@ import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
 import { confirmDialog } from "../lib/confirmDialog";
 import FeatureIcon from "./FeatureIcon";
-import { SidebarToggle } from "./WorkspaceNavigation";
+import { PageHeader } from "./WorkspaceNavigation";
 import EditedTime from "./EditedTime";
 export default function TrashPage({
   pages,
@@ -54,16 +54,7 @@ export default function TrashPage({
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-[var(--color-editor-bg)] text-[var(--color-text)]">
       <section className="mx-auto max-w-5xl space-y-4 p-4 sm:p-8">
-        <header className="flex items-center gap-2">
-          <SidebarToggle />
-          <button type="button" onClick={onBack} className="min-h-11 px-2">
-            ← {t("trash.back")}
-          </button>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <FeatureIcon feature="trash" />
-            {t("sidebar.nav.trash")}
-          </h1>
-        </header>
+        <PageHeader title={t('sidebar.nav.trash')} onBack={onBack} backLabel={t('trash.back')}/>
         {loading && <p role="status">{t("common.loading")}</p>}
         {(error || failure) && (
           <p role="alert">
