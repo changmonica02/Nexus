@@ -7,9 +7,8 @@ import {getSupabase} from '../../infrastructure/supabase/client';
 import {syncStudy} from '../study/studySync';
 import {flushWorkspace,pullWorkspace} from '../../infrastructure/sync/workspaceSync';
 import {readPublishedEntry,type PublishedDetail} from './reader';
-import {basicMeaning,linkedPrivateCards,createDictionaryFlashcard,type LinkedPrivateCard} from './flashcardLinks';
+import {basicMeaning,linkedPrivateCards,createDictionaryFlashcard,linkedCardHref,type LinkedPrivateCard} from './flashcardLinks';
 import {setCardDictionaryLink} from './cardDictionary';
-import {linkedCardHref} from './DictionaryFlashcardActions';
 import {DictionaryModal} from './DictionaryModal';
 /** Runs in the existing Study workspace so creation uses its storage, outboxes and account scope. */
 export default function DictionaryAddRequest({storage,onChanged}:{storage:StorageAdapter;onChanged:()=>Promise<void>}){

@@ -1,4 +1,7 @@
 "use client";
+import {createPortal} from "react-dom";
+import {useAnchoredMenu} from "./useAnchoredMenu";
+import {useMenuDismiss} from "./useMenuDismiss";
 import FeatureIcon from "./FeatureIcon";
 import SidebarNavigationButton from "./SidebarNavigationButton";
 import FloatingPanel from "./FloatingPanel";
@@ -188,7 +191,10 @@ export default function Sidebar({
   const [snapshotRecentFeatureIds, setSnapshotRecentFeatureIds] = useState<FeatureFilter[]>([]);
   const [customFeatureOrder, setCustomFeatureOrder] = useState<FeatureFilter[]>([]);
 
-  const sortMenuRef = useRef<HTMLDivElement>(null);
+  const sortButtonRef=useRef<HTMLButtonElement>(null),sortPanelRef=useRef<HTMLDivElement>(null);
+  const closeSortMenu=()=>{setShowSortMenu(false);sortButtonRef.current?.focus();};
+  const {position:sortPosition,portalRoot:sortPortal,onKeyDown:sortKeys}=useAnchoredMenu(showSortMenu,sortButtonRef,sortPanelRef,208,'right',true);
+  useMenuDismiss(showSortMenu,[sortButtonRef,sortPanelRef],closeSortMenu);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const subPageMenuRef = useRef<HTMLDivElement>(null);
   const newlyCreatedRef = useRef<Set<string>>(new Set());
@@ -274,7 +280,6 @@ export default function Sidebar({
   useEffect(() => {
     const handler = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (showSortMenu && sortMenuRef.current && !sortMenuRef.current.contains(target)) setShowSortMenu(false);
       if (showCreateMenu && createMenuRef.current && !createMenuRef.current.contains(target)) {
         setShowCreateMenu(false);
       }
@@ -283,7 +288,7 @@ export default function Sidebar({
 
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [showSortMenu, showCreateMenu, subPageMenuId]);
+  }, [showCreateMenu, subPageMenuId]);
 
   useEffect(() => {
     if (!pendingRenameId) return;
@@ -685,30 +690,22 @@ export default function Sidebar({
         )}
         <button onClick={() => setIsSelectMode((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs font-medium hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)", backgroundColor: isSelectMode ? "var(--color-border)" : "transparent" }} title={t("sidebar.select.title")}>☑</button>
         {!isTrashMode && (
-          <div className="relative shrink-0" ref={sortMenuRef}>
-            <button aria-label={t("sidebar.sort.title")} onClick={() => setShowSortMenu((prev) => !prev)} className="shrink-0 w-8 h-8 flex items-center justify-center rounded text-xs hover:bg-zinc-200 transition-all" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("sidebar.sort.title")}>⇅</button>
-            {showSortMenu && (
-              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl overflow-hidden shadow-2xl z-30" style={{ backgroundColor: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-                <button onClick={() => { onSortModeChange("updated"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "updated" ? "var(--color-border)" : "transparent" }}>
-                  <span></span><span>{t("sidebar.sort.updated")}</span>{sortMode === "updated" && <span className="ml-auto text-xs"></span>}
-                </button>
-                <button onClick={() => { onSortModeChange("custom"); setShowSortMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-all hover:bg-zinc-200" style={{ color: "var(--color-text)", backgroundColor: sortMode === "custom" ? "var(--color-border)" : "transparent" }}>
-                  <span></span><span>{t("sidebar.sort.custom")}</span>{sortMode === "custom" && <span className="ml-auto text-xs"></span>}
-                </button>
-                <button className="min-h-11 w-full px-3 text-left text-sm" onClick={()=>setPreferences({ascending:!preferences.ascending})}>{t(preferences.ascending?'ui.ascending':'ui.descending')}</button>
-                <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
-                  <label className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left cursor-pointer hover:bg-zinc-200 transition-all" style={{ color: "var(--color-text)" }}>
-                    <input type="checkbox" checked={grouping==='feature'} onChange={(event) => setGrouping(event.target.checked?'feature':'none')} className="rounded" />
-                    <span>{t("sidebar.sort.groupByType")}</span>
-                  </label>
-                </div>
+          <div className="relative shrink-0">
+            <button ref={sortButtonRef} aria-label={t('sidebar.sort.title')} aria-expanded={showSortMenu} aria-haspopup="menu" onClick={()=>setShowSortMenu(open=>!open)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs hover:bg-zinc-200" style={{border:'1px solid var(--color-border)',color:'var(--color-text)'}} title={t('sidebar.sort.title')}>⇅</button>
+            {showSortMenu&&sortPortal&&createPortal(<div ref={sortPanelRef} role="menu" aria-label={t('sidebar.sort.title')} onKeyDown={sortKeys} className="fixed z-[9998] overflow-y-auto rounded-xl border bg-[var(--color-bg)] py-1 text-[var(--color-text)] shadow-2xl" style={{top:sortPosition.top,left:sortPosition.left,width:sortPosition.width,maxHeight:'min(360px, calc(100dvh - 16px))',borderColor:'var(--color-border)'}}>
+              <div role="group" aria-label={t('sidebar.sort.title')}>
+                {(['updated','custom'] as const).map(mode=><button key={mode} type="button" role="menuitemradio" aria-checked={sortMode===mode} onClick={()=>{onSortModeChange(mode);closeSortMenu();}} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm hover:bg-zinc-500/10"><span>{t('sidebar.sort.'+mode)}</span><span aria-hidden>{sortMode===mode?'✓':''}</span></button>)}
+                <button type="button" role="menuitem" className="min-h-11 w-full px-3 text-left text-sm hover:bg-zinc-500/10" onClick={()=>setPreferences({ascending:!preferences.ascending})}>{t(preferences.ascending?'ui.ascending':'ui.descending')}</button>
               </div>
-            )}
+              <div role="group" aria-label={t('dashboard.grouping')} className="border-t border-[var(--color-border)]">
+                <p className="px-3 pb-1 pt-2 text-xs opacity-60">{t('dashboard.grouping')}</p>
+                {(['none','folder','feature'] as const).map(value=><button key={value} type="button" role="menuitemradio" aria-checked={grouping===value} onClick={()=>{setGrouping(value);closeSortMenu();}} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm hover:bg-zinc-500/10"><span>{t(value==='none'?'dashboard.groupNone':value==='folder'?'dashboard.groupFolder':'dashboard.groupFeature')}</span><span aria-hidden>{grouping===value?'✓':''}</span></button>)}
+              </div>
+            </div>,sortPortal)}
           </div>
         )}
       </div>
 
-      <label className="flex shrink-0 min-w-0 items-center gap-2 px-3 py-1 text-xs">{t('dashboard.grouping')}<select aria-label={t('dashboard.grouping')} value={grouping} onChange={e=>setGrouping(e.target.value as 'none'|'folder'|'feature')} className="min-h-11 min-w-0 flex-1 rounded border bg-[var(--color-bg)] px-2"><option value="none">{t('dashboard.groupNone')}</option><option value="folder">{t('dashboard.groupFolder')}</option><option value="feature">{t('dashboard.groupFeature')}</option></select></label>
       {folderDialog}
       {isSelectMode && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b text-xs" style={{ borderColor: "var(--color-border)" }}>
