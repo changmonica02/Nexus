@@ -45,7 +45,7 @@ function App() {
       {view?.todos ? <TodoView pages={own} onCreate={() => {}} onUpdate={() => {}} onDelete={() => {}} onSelectPage={open}/>
       : page?.kind === 'study_set' ? <StudySetView managementOnly={view.mode==='manage'} page={page} repository={repo} initialMode={view.mode} onTitleChange={() => {}} onBackToInterface={() => setView(null)}/>
       : page ? <p>{page.title}</p>
-      : <HomeScreen key={owner} owner={owner} pages={pages} repository={repo} onStudy={(id, mode) => setView({ id, mode })} onOpenPage={open} onCreateStudySet={() => { window.studySetsOpened = true; }} onOpenTodos={() => setView({ todos: true })}
+      : <HomeScreen key={owner} owner={owner} pages={pages} repository={repo} onStudy={(id, mode) => setView({ id, mode })} onOpenPage={open} onCreateStudySet={() => { window.studySetsOpened = true; }} onOpenTodos={date => {window.openedHomeLifeDate=date.getTime();setView({ todos: true });}}
         classic={<Dashboard pages={own} onSelectPage={open} onDeletePages={() => {}} onPinPages={() => {}} onReorderPages={() => {}} onSetFolder={() => {}}/>}/>}
     </div></WorkspaceNavigationProvider>
   </LanguageProvider>;

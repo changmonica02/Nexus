@@ -1,6 +1,7 @@
 "use client";
+import {prepareStudySpeech} from "../features/study/prepareStudySpeech";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, CalendarDays, Play, Check } from 'lucide-react';
+import { BookOpen, CalendarDays, Play, Check, X } from 'lucide-react';
 import type { Page } from '../lib/types';
 import { useLanguage } from '../lib/LanguageContext';
 import { calendarDaysForMonth, localDateKey, todosForDay } from '../lib/todoCalendar';
@@ -39,6 +40,7 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
   const [picker, setPicker] = useState(false);
   const pickerTrigger=useRef<HTMLButtonElement>(null),calendarTrigger=useRef<HTMLButtonElement>(null);
   const [previewDate, setPreviewDate] = useState<Date | null>(null);
+  const calendarDate=useRef(new Date());
   const [now, setNow] = useState(() => Date.now());
   const [result, setResult] = useState<{ deckId: string; snapshot?: StudySnapshot; error?: string } | null>(null);
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
   const sheet = 'm-auto mb-0 max-h-[85dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[var(--color-text)] shadow-xl backdrop:bg-black/40 sm:p-6';
   const calendar = (expanded = false) => <div className="grid grid-cols-7 gap-1" aria-label={t('home.calendar')}>
     {Array.from({ length: 7 }, (_, day) => <span key={day} className="py-1 text-center text-xs opacity-60">{new Intl.DateTimeFormat(language, { weekday: 'narrow' }).format(new Date(2026, 10, 1 + day))}</span>)}
-    {monthDays.map(date => <button key={localDateKey(date)} type="button" onClick={() => setPreviewDate(date)}
+    {monthDays.map(date => <button key={localDateKey(date)} type="button" onClick={() => {calendarDate.current=date;setPreviewDate(date);}}
       aria-label={date.toLocaleDateString(language) + (taskDates.has(localDateKey(date)) ? ` · ${t('home.hasTasks')}` : '')}
       aria-current={localDateKey(date) === localDateKey(today) ? 'date' : undefined}
       className={`${expanded ? 'min-h-11' : 'min-h-8'} relative min-w-0 rounded-lg text-xs hover:bg-zinc-500/10 ${date.getMonth() !== month.getMonth() ? 'opacity-35' : ''} ${localDateKey(date) === localDateKey(today) ? 'bg-blue-600 font-semibold text-white' : ''}`}>
@@ -94,14 +96,14 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
         </p>
         <div className="flex items-center justify-center gap-3 sm:gap-6">
           <button ref={pickerTrigger} aria-label={t('home.chooseDeck')} title={t('home.chooseDeck')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPicker(true)}><BookOpen aria-hidden="true" size={23}/></button>
-          <button disabled={!snapshot?.settings.direction_confirmed||cardCount===0} onClick={()=>{if(deck)onStudy(deck.id,'scheduled');}} className="flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-4 text-base font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-500 disabled:opacity-40 sm:min-h-16 sm:text-xl"><Play aria-hidden="true" size={22}/>{t('study.start')}</button>
-          <button ref={calendarTrigger} aria-label={t('home.calendar')} title={t('home.calendar')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPreviewDate(today)}><CalendarDays aria-hidden="true" size={23}/></button>
+          <button disabled={!snapshot?.settings.direction_confirmed||cardCount===0} onClick={()=>{if(deck){prepareStudySpeech();onStudy(deck.id,'scheduled');}}} className="flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-4 text-base font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-500 disabled:opacity-40 sm:min-h-16 sm:text-xl"><Play aria-hidden="true" size={22}/>{t('study.start')}</button>
+          <button ref={calendarTrigger} aria-label={t('home.calendar')} title={t('home.calendar')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPreviewDate(calendarDate.current)}><CalendarDays aria-hidden="true" size={23}/></button>
         </div>
 
       </section>
     </main>}
-    {picker && !suspended && <ModalDialog returnFocusRef={pickerTrigger} aria-label={t('home.chooseDeck')} onDismiss={()=>setPicker(false)} className={sheet}>
-      <header className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t('home.chooseDeck')}</h2><button className={button} onClick={()=>setPicker(false)}>{t('home.close')}</button></header>
+    {picker && !suspended && <ModalDialog dismissOnBackdrop returnFocusRef={pickerTrigger} aria-label={t('home.chooseDeck')} onDismiss={()=>setPicker(false)} className={sheet}>
+      <header className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t('home.chooseDeck')}</h2><button className={button} aria-label={t('home.close')} onClick={()=>setPicker(false)}><X aria-hidden="true" size={20}/></button></header>
       <div role="radiogroup" aria-label={t('home.chooseDeck')} className="space-y-2">{decks.map(item=><div key={item.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--color-border)] p-2">
         <label className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 p-1">
           <span className="relative flex shrink-0"><input type="radio" autoFocus={item.id===deck?.id} name="home-study-set" checked={item.id===deck?.id} onChange={()=>change({deckId:item.id})} aria-label={item.title||t('common.untitled')} className="peer h-5 w-5 appearance-none rounded border border-[var(--color-border)] checked:border-blue-600 checked:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"/><Check aria-hidden="true" size={17} className="pointer-events-none absolute left-0.5 top-0.5 hidden text-white peer-checked:block"/></span>
@@ -112,13 +114,13 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
       {!decks.length&&<p className="py-3 text-sm">{t('home.chooseHint')}</p>}
       <button className={button+' mt-4 w-full'} onClick={onCreateStudySet}>＋ {t('deck.create')}</button>
     </ModalDialog>}
-    {previewDate && !suspended && <ModalDialog returnFocusRef={calendarTrigger} aria-label={t('home.calendar')} onDismiss={() => setPreviewDate(null)} className={sheet}>
-      <header className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t('home.calendar')}</h2><button className={button} onClick={()=>setPreviewDate(null)}>{t('home.close')}</button></header>
+    {previewDate && !suspended && <ModalDialog dismissOnBackdrop returnFocusRef={calendarTrigger} aria-label={t('home.calendar')} onDismiss={() => setPreviewDate(null)} className={sheet}>
+      <header className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{t('home.calendar')}</h2><button className={button} aria-label={t('home.close')} onClick={()=>setPreviewDate(null)}><X aria-hidden="true" size={20}/></button></header>
       <div className="mb-3 flex items-center justify-between gap-2"><button aria-label={t('home.previousMonth')} className={button} onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}>←</button><span>{month.toLocaleDateString(language,{year:'numeric',month:'long'})}</span><button aria-label={t('home.nextMonth')} className={button} onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}>→</button></div>{calendar(true)}
       <h3 className="my-4 font-semibold">{previewDate.toLocaleDateString(language)}</h3>
       <ul className="space-y-1">{todosForDay(ownedPages, previewDate).map(todo => <li key={todo.id}><button className={`${button} w-full break-words text-left ${todo.completed ? 'line-through opacity-60' : ''}`} onClick={() => onOpenPage(todo.id)}>{todo.title || t('common.untitled')}</button></li>)}</ul>
       {!todosForDay(ownedPages, previewDate).length && <p className="py-2 text-sm opacity-60">{t('home.noTodos')}</p>}
-      <div className="mt-5 flex flex-wrap justify-end gap-2"><button className={button} onClick={()=>onOpenTodos(previewDate??today)}>{t('home.openTodos')}</button><button className={button} onClick={() => setPreviewDate(null)}>{t('home.close')}</button></div>
+      <div className="mt-5 flex flex-wrap justify-end gap-2"><button className={button} onClick={()=>onOpenTodos(previewDate??today)}>{t('home.openTodos')}</button></div>
     </ModalDialog>}
   </div>;
 }
