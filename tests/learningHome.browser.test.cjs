@@ -35,12 +35,12 @@ test('learning home: actual IDB and study session, responsive layout, preview qu
       await page.setViewportSize({width,height:1000});
       await page.getByRole('button',{name:'日曆與待辦',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Task 3',exact:true}).waitFor();await page.keyboard.press('Escape');
       await page.reload();assert.equal(await mode().inputValue(),'learning');await page.getByText('新卡 1｜學習中 0｜待複習 0',{exact:true}).waitFor();
-      await context.setOffline(true);await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
+      await context.setOffline(true);await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'翻至答案',exact:true}).waitFor();
       const session=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
       assert.equal(session.sessions.length,1);assert.equal(session.events.filter(e=>e.kind==='introduce').length,1);
       await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('Other words');
       await page.getByRole('button',{name:'切換學習組',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'管理 Other words',exact:true}).click();await page.getByLabel('排程方法',{exact:true}).waitFor();assert.equal(await page.getByRole('table',{name:'單字列表',exact:true}).count(),0);await page.getByRole('button',{name:/^查看字卡/}).click();await page.getByRole('table',{name:'單字列表',exact:true}).waitFor();
-      await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('English words');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'顯示答案',exact:true}).waitFor();
+      await page.getByRole('button',{name:'Nexus Home',exact:true}).click();await choose('English words');await page.getByRole('button',{name:'開始學習',exact:true}).click();await page.getByRole('button',{name:'翻至答案',exact:true}).waitFor();
       const resumed=await page.evaluate(async()=>{const pages=await window.homeStorage.listPages();return window.homeStorage.getStudyRepository().readDeck(pages.find(p=>p.title==='English words').id,true);});
       assert.equal(resumed.sessions[0].id,session.sessions[0].id);assert.equal(resumed.events.filter(e=>e.kind==='introduce').length,1);
       await page.getByRole('button',{name:'Nexus Home',exact:true}).click();

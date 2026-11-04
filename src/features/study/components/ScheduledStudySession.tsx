@@ -15,7 +15,7 @@ import StudyCompositionSummary from "./StudyCompositionSummary";
 import type { StudyStyle } from "../studyStyles";
 
 type Data={session:StudySession;snapshot:StudySnapshot};
-export default function ScheduledStudySession({repository,deckId,onExit,readingStyle}:{repository:StudyRepository;deckId:string;onExit:()=>void;readingStyle?:StudyStyle}) {
+export default function ScheduledStudySession({repository,deckId,readingStyle,onProgress}:{repository:StudyRepository;deckId:string;onExit:()=>void;readingStyle?:StudyStyle;onProgress?:(done:number,total:number)=>void}) {
   const {t,language}=useLanguage();
   const [data,setData]=useState<Data|null>(null),[revealed,setRevealed]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[hasAttempt,setHasAttempt]=useState(false);
   const [dictionaryEditing,setDictionaryEditing]=useState(false);
@@ -23,7 +23,7 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
   const editingChanged=useCallback((open:boolean)=>{dictionaryOpen.current=open;setDictionaryEditing(open);},[]);
   const [now,setNow]=useState(()=>Date.now());
   const alive=useRef(true),busy=useRef(false),opening=useRef<Promise<StudySession>|null>(null),current=useRef<string|null>(null),formal=useRef<string|null>(null);
-  const revealButton=useRef<HTMLButtonElement>(null),firstRating=useRef<HTMLButtonElement>(null);
+  const revealButton=useRef<HTMLButtonElement>(null);
   const availability=useRef<{nextDue:number|null;day:string}|null>(null);
   const question=useRef<string|null>(null);
   const loading=useRef<Promise<void>|null>(null);
@@ -66,9 +66,10 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
   const cardId=card?.id,head=state?.head;
   const readingQuestion=JSON.stringify([session?.id,cardId,head,card?.content_revision]);
-  useEffect(()=>{if(cardId){if(revealed)firstRating.current?.focus();else revealButton.current?.focus();}},[cardId,head,revealed]);
+  useEffect(()=>{if(cardId)revealButton.current?.focus();},[cardId,head]);
   const status=session&&data?scheduledStatus(session,data.snapshot,now):null;
   useEffect(()=>{availability.current=status?{nextDue:status.nextDue,day:new Date().toDateString()}:null;},[status]);
+  useEffect(()=>onProgress?.(status?.completed??0,session?.targets.length??0),[status?.completed,session?.targets.length,onProgress]);
   const reading=readingStyle??session?.settings_snapshot;
   const preview=!practice&&state&&revealed?previewStudy(state,now,session?.settings_snapshot):null;
   async function mark(rating:Grade){
@@ -92,27 +93,24 @@ export default function ScheduledStudySession({repository,deckId,onExit,readingS
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
   const interval=(due:number)=>{if(session?.settings_snapshot?.scheduling_method==='fixed'){const seconds=Math.max(1,Math.round((due-now)/1000));const unit=[86400,3600,60,1].find(u=>seconds%u===0)!;return `${seconds/unit} ${t('styles.unit'+unit)}`;}const mins=Math.max(1,Math.round((due-now)/60000));return mins<60?t('study.minutes',{n:mins}):mins<1440?t('study.hours',{n:Math.round(mins/60)}):t('study.days',{n:Math.round(mins/1440)});};
-  if(!practice&&session?.completed_at!=null)return <div className="mx-auto space-y-5 py-8 text-center"><p role="status">{t('study.finished',{n:status?.completed??0})}</p><button type="button" className="text-sm underline opacity-70" onClick={onExit}>{t('study.back')}</button></div>;
-  return <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 px-2 pt-6 pb-8">
-    <h2 className="text-lg font-semibold">{t(practice?'study.practice':'study.start')} · {t('study.direction')}{session&&!practice&&<> · {session.settings_snapshot?.scheduling_method==='fixed'?t('styles.fixed'):'FSRS-6'}</>}</h2>
-    {session&&status&&<p aria-live="polite" className="text-sm opacity-70">{practice?t('study.practiceAnswers',{n:session.answers}):t('study.progress',{done:status.completed,total:session.targets.length,slots:status.slots,limit:session.quota_limit??100})}</p>}
-    <p className="text-xs leading-6 opacity-70">{t(practice?'study.endlessHint':'study.formalHint')}</p>
+  const flip=()=>{if(!saving&&!error&&!dictionaryOpen.current){setNow(Date.now());setRevealed(value=>!value);}};
+  return <div className="mx-auto flex min-h-[65dvh] w-full max-w-4xl flex-col items-center justify-center gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]" data-scheduled-study>
     {session?.compatibility_notice&&<p role="status" className="text-xs">{t('styles.legacySession')}</p>}
-    {typeof navigator!=='undefined'&&!navigator.onLine&&<p role="status" className="text-xs">{t('study.offlineHint')}</p>}
     {card&&state?<>
-      <div className="w-full rounded-2xl border bg-[var(--color-sidebar-bg)] p-6 text-center sm:p-8">
-        <p className="whitespace-pre-wrap break-words text-2xl font-medium" lang="en">{card.front}</p>
-        {revealed&&<><p className="mt-6 whitespace-pre-wrap break-words border-t pt-6 text-xl" lang="zh">{card.back}</p>{card.dictionary_entry_id&&<StudyCompositionSummary key={`${card.id}:${card.dictionary_entry_id}`} entryId={card.dictionary_entry_id} front={card.front} answer={card.back}/>}<CardDictionaryPanel onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/></>}
-      </div>
-      <StudyPronunciation key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/>
-      {!revealed?<button ref={revealButton} type="button" disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-6 py-3 disabled:opacity-40" onClick={()=>{setNow(Date.now());setRevealed(true);}}>{t('study.showAnswer')}</button>:<>
-        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button ref={rating===1?firstRating:undefined} type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
-
+      <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 text-center shadow-sm sm:p-10" data-study-card data-side={revealed?'back':'front'}>
+        <button ref={revealButton} type="button" className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-4" aria-label={t(revealed?'study.flipFront':'study.flipBack')} aria-pressed={revealed} disabled={saving||!!error||dictionaryEditing} onClick={flip}/>
+        <div className="pointer-events-none relative flex min-w-0 items-center justify-center gap-2">
+          <p className={'min-w-0 whitespace-pre-wrap break-words '+(revealed?'text-xl opacity-60':'text-4xl font-medium sm:text-6xl')} lang={card.direction==='en-zh'?'en':undefined}>{card.front}</p>
+          <span className="pointer-events-auto shrink-0" data-card-audio><StudyPronunciation key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/></span>
+        </div>
+        <div className="pointer-events-none relative motion-safe:animate-[study-flip_160ms_ease-out]" key={revealed?'back-content':'front-content'}>
+          {revealed&&<><p className="my-7 whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p>{card.dictionary_entry_id&&<StudyCompositionSummary key={`${card.id}:${card.dictionary_entry_id}`} entryId={card.dictionary_entry_id} front={card.front} answer={card.back}/>}</>}
+        </div>
+      </article>
+      {revealed&&<><CardDictionaryPanel onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
       </>}
-    </>:<div className="space-y-3 py-8 text-center">
-      <p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p>
-    </div>}
+    </>:<div className="space-y-3 py-8 text-center"><p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p></div>}
     <AnswerSaveNotice saving={saving} error={error} onRetry={hasAttempt?()=>void mark(attempt.current!.rating):undefined} onReload={()=>void change('reload')}/>
-    <button type="button" disabled={saving} className="text-sm underline opacity-70" onClick={onExit}>{t(practice?'study.stopPractice':'study.back')}</button>
   </div>;
 }

@@ -1,4 +1,5 @@
 "use client";
+import {prepareStudySpeech} from "../features/study/prepareStudySpeech";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BookOpen, CalendarDays, Play, Check } from 'lucide-react';
 import type { Page } from '../lib/types';
@@ -94,7 +95,7 @@ export default function HomeScreen({ owner, pages, repository, classic, onStudy,
         </p>
         <div className="flex items-center justify-center gap-3 sm:gap-6">
           <button ref={pickerTrigger} aria-label={t('home.chooseDeck')} title={t('home.chooseDeck')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPicker(true)}><BookOpen aria-hidden="true" size={23}/></button>
-          <button disabled={!snapshot?.settings.direction_confirmed||cardCount===0} onClick={()=>{if(deck)onStudy(deck.id,'scheduled');}} className="flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-4 text-base font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-500 disabled:opacity-40 sm:min-h-16 sm:text-xl"><Play aria-hidden="true" size={22}/>{t('study.start')}</button>
+          <button disabled={!snapshot?.settings.direction_confirmed||cardCount===0} onClick={()=>{if(deck){prepareStudySpeech();onStudy(deck.id,'scheduled');}}} className="flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-4 text-base font-semibold text-white shadow-sm hover:bg-blue-700 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-500 disabled:opacity-40 sm:min-h-16 sm:text-xl"><Play aria-hidden="true" size={22}/>{t('study.start')}</button>
           <button ref={calendarTrigger} aria-label={t('home.calendar')} title={t('home.calendar')} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-zinc-500/10 sm:h-14 sm:w-14" onClick={()=>setPreviewDate(today)}><CalendarDays aria-hidden="true" size={23}/></button>
         </div>
 

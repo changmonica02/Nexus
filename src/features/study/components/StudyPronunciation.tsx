@@ -15,14 +15,14 @@ export default function StudyPronunciation({text,direction,question,frontVisible
 }) {
   const {t}=useLanguage();
   const [notice,setNotice]=useState(''),[voicesVersion,setVoicesVersion]=useState(0);
-  const attempted=useRef(false),utterance=useRef<SpeechSynthesisUtterance|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  const attempted=useRef(false),utterance=useRef<SpeechSynthesisUtterance|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),startTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const english=englishFront(text,direction);
   const stop=useCallback(()=>{
-    clearTimeout(timer.current);
+    clearTimeout(timer.current);clearTimeout(startTimer.current);
     if(utterance.current&&activeUtterance===utterance.current){activeUtterance=null;try{window.speechSynthesis?.cancel();}catch{/* Engine shutdown must not block learning. */}}
     utterance.current=null;
   },[]);
-  const play=useCallback(()=>{
+  const play=useCallback((manual=false)=>{
     if(!active||document.hidden)return;
     if(!english){setNotice('speech.language');return;}
     const synth=window.speechSynthesis;
@@ -31,25 +31,29 @@ export default function StudyPronunciation({text,direction,question,frontVisible
       const voices=synth.getVoices().filter(voice=>/^en(?:-|$)/i.test(voice.lang)&&(navigator.onLine||voice.localService));
       voices.sort((a,b)=>Number(b.localService)-Number(a.localService)||Number(b.lang.toLowerCase()==='en-us')-Number(a.lang.toLowerCase()==='en-us'));
       if(!voices.length){setNotice('speech.noVoice');return;}
-      attempted.current=true;stop();synth.cancel();
+      attempted.current=true;stop();synth.cancel();setNotice('');
       const next=new SpeechSynthesisUtterance(english);next.voice=voices[0];next.lang=voices[0].lang;next.rate=rate;
       utterance.current=next;activeUtterance=next;
       const current=()=>utterance.current===next&&activeUtterance===next;
       next.onstart=()=>{if(current()){clearTimeout(timer.current);setNotice('');}};
       next.onend=()=>{if(current()){clearTimeout(timer.current);activeUtterance=null;utterance.current=null;setNotice('');}};
-      next.onerror=()=>{if(current()){stop();setNotice('speech.retry');}};
+      next.onerror=(event)=>{if(current()){stop();if(!['canceled','interrupted'].includes(event?.error))setNotice('speech.retry');}};
       // Some iOS engines silently ignore autoplay rather than emitting an error.
-      timer.current=setTimeout(()=>{if(current()){stop();setNotice('speech.retry');}},2500);
-      synth.resume();synth.speak(next);
+      timer.current=setTimeout(()=>{if(current()&&!synth.speaking){setNotice('speech.retry');}},8000);
+      const speak=()=>{if(current()&&!document.hidden){synth.resume();synth.speak(next);}};
+      // WebKit can process cancel asynchronously: defer AUTO playback only.
+      // Manual replay must stay inside its user gesture.
+      if(manual||navigator.userActivation?.isActive)speak();else startTimer.current=setTimeout(speak,50);
     } catch {stop();setNotice('speech.retry');}
   },[active,english,rate,stop]);
   useEffect(()=>{
     const synth=window.speechSynthesis;
     const changed=()=>setVoicesVersion(version=>version+1);
     synth?.addEventListener?.('voiceschanged',changed);
+    const polls=[100,400,1000,2000].map(ms=>setTimeout(changed,ms));
     const hidden=()=>{if(document.hidden)stop();};
     document.addEventListener('visibilitychange',hidden);window.addEventListener('pagehide',stop);
-    return()=>{synth?.removeEventListener?.('voiceschanged',changed);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',stop);stop();};
+    return()=>{polls.forEach(clearTimeout);synth?.removeEventListener?.('voiceschanged',changed);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',stop);stop();};
   },[stop]);
   useEffect(()=>{
     if(!active||!automatic)stop();
@@ -61,8 +65,8 @@ export default function StudyPronunciation({text,direction,question,frontVisible
     const pending=setTimeout(()=>{if(!attempted.current)play();},0);
     return()=>clearTimeout(pending);
   },[question,frontVisible,automatic,active,play,voicesVersion]);
-  return <div className="space-y-1 text-center">
-    <button type="button" disabled={!active} onClick={play} className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-40"><Volume2 size={18} aria-hidden="true"/>{t('speech.replay')}</button>
-    {notice&&<p role="status" className="text-xs opacity-65">{t(notice)}</p>}
-  </div>;
+  return <span className="relative inline-flex flex-col items-center text-center">
+    <button type="button" disabled={!active} aria-label={t('speech.replay')} title={t('speech.replay')} onClick={event=>{event.stopPropagation();play(true);}} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-sm disabled:opacity-40"><Volume2 size={22} aria-hidden="true"/></button>
+    {notice&&<span role="status" className="absolute right-0 top-full z-10 w-52 rounded-lg border bg-[var(--color-editor-bg)] p-2 text-xs">{t(notice)}</span>}
+  </span>;
 }

@@ -1,4 +1,5 @@
 "use client";
+import {prepareStudySpeech} from "../prepareStudySpeech";
 import {officialPrivateCardsAvailable,downloadOfficialPack,deleteOfficialPack,packDeleteMessage} from '../officialPacks';
 import {SidebarToggle} from "../../../components/WorkspaceNavigation";
 import {Pagination} from "../../../components/pagination/Pagination";
@@ -211,6 +212,8 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   useEffect(()=>registerSettingsSave?.(()=>settingsFlush.current()),[registerSettingsSave]);
   const [showCards,setShowCards]=useState(false);
   const [officialBusy,setOfficialBusy]=useState(false);
+  const [sessionProgress,setSessionProgress]=useState({done:0,total:0});
+  const reportProgress=useCallback((done:number,total:number)=>setSessionProgress({done,total}),[]);
   const leave=async()=>{try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();await settingsFlush.current();if(managementOnly&&showCards&&mode==="manage"){setShowCards(false);return;}await onBackToInterface?.();}catch(e){setError(String(e));}};
   const officialAction=async(remove=false)=>{
     if(officialBusy)return;
@@ -264,14 +267,14 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   return <main data-study-management={managementOnly?page.id:undefined} className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
     <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-3" style={{borderColor:"var(--color-border)"}}>
-        <div className="flex items-center gap-2"><SidebarToggle/>{(onBackToInterface||(managementOnly&&showCards))&&<button autoFocus={managementOnly} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border" onClick={()=>void leave()} aria-label={managementOnly&&showCards?t("deck.backSettings"):backLabel??t("study.backToStudySets")}>←</button>}<span>{t(managementOnly&&!showCards?"deck.manageTitle":"deck.viewCards")} · {t("study.direction")}</span></div>
-        <div className="flex flex-wrap gap-2">{mode==="manage"?<>
-          {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>void settingsFlush.current().then(async()=>{setSnapshot(await repository.readScheduledDeck(page.id));setMode("scheduled");}).catch(e=>setError(String(e)))}>{t("study.start")}</button>}
+        <div className="flex items-center gap-2"><SidebarToggle/>{(onBackToInterface||(managementOnly&&showCards))&&<button autoFocus={managementOnly} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border" onClick={()=>void leave()} aria-label={managementOnly&&showCards?t("deck.backSettings"):backLabel??t("study.backToStudySets")}>←</button>}<span className="min-w-0 break-words">{mode==="scheduled"?page.title:<>{t(managementOnly&&!showCards?"deck.manageTitle":"deck.viewCards")} · {t("study.direction")}</>}</span></div>
+        <div className="flex flex-wrap items-center gap-2">{mode==="scheduled"&&<span aria-label={t("study.batchProgress")} aria-live="polite">{sessionProgress.done}／{sessionProgress.total}</span>}{mode==="manage"?<>
+          {mode==="manage"&&<button className="rounded border px-3 py-2 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>{prepareStudySpeech();void settingsFlush.current().then(async()=>{setSnapshot(await repository.readScheduledDeck(page.id));setMode("scheduled");}).catch(e=>setError(String(e)));}}>{t("study.start")}</button>}
           <button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("history")}>{t("study.history")}</button>
-        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>{t("study.back")}</button>}</div>
+        </>:<button className="rounded border px-3 py-2 text-sm" onClick={()=>setMode("manage")}>{t("study.previewAll")}</button>}</div>
       </div>
 
-      <input readOnly={!!page.official_pack_id} aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>
+      {mode!=="scheduled"&&<input readOnly={!!page.official_pack_id} aria-label="學習集標題" value={page.title} onChange={event=>onTitleChange(event.target.value)} className="mb-5 w-full border-none bg-transparent text-3xl font-semibold outline-none"/>}
       {error&&<div role="alert" className="mb-3 rounded border border-red-400 p-3 text-sm text-red-600">{error}</div>}
       {mode==="manage"&&managementOnly&&!showCards&&<button className="mb-6 min-h-11 rounded-lg border px-4 py-3 font-medium" onClick={()=>void settingsFlush.current().then(()=>setShowCards(true)).catch(e=>setError(String(e)))}>{t("deck.viewCards")} · {t("studySet.cardCount",{count:cards.length})}</button>}
       {mode==="manage"&&!snapshot.settings.direction_confirmed&&!showingCards&&<p className="mb-4 text-sm">{t("study.direction")}</p>}
@@ -283,7 +286,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
         <CardManageList allowOfficialDelete={privateOfficialEditing} official={!!page.official_pack_id} studyItems={cards} onAddCard={()=>setEditingCard({front:"",back:""})} onEditCard={setEditingCard} onDeleteCard={id=>void act(async()=>{if(await confirmDialog('刪除這張私人字卡？字典詞條與其他學習集不受影響。'))await repository.updateCard(id,{deleted_at:Date.now()});})} onImportCsv={()=>setShowCsvImport(true)}/>
       </>}
       {managementOnly&&mode==="manage"&&!showCards&&<div className="max-w-3xl"><StudyPreferences repository={repository} deckId={page.id} registerFlush={registerSettingsFlush}/>{page.official_pack_id&&<section className="mt-6 border-t pt-4"><h2 className="mb-3 font-semibold">{t('ui.officialInfo')}</h2><p className="mb-3 text-sm">{t('ui.officialVersion',{n:page.official_pack_version??0})}</p><div className="flex flex-wrap gap-2"><a className="rounded border px-3 py-2 text-sm" href={`/study/official/${page.official_pack_id}`}>{t('ui.officialInfo')}</a><button disabled={officialBusy||!onOfficialChanged} className="rounded border px-3 py-2 text-sm" onClick={()=>void officialAction()}>{t('ui.syncOfficial')}</button><button disabled={officialBusy||!onOfficialChanged} className="rounded border px-3 py-2 text-sm" onClick={()=>void officialAction(true)}>{t('ui.delete')}</button></div></section>}</div>}
-      {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} readingStyle={snapshot.settings.style} onExit={()=>setMode("manage")}/>}
+      {mode==="scheduled"&&<ScheduledStudySession key="scheduled" repository={repository} deckId={page.id} onProgress={reportProgress} readingStyle={snapshot.settings.style} onExit={()=>setMode("manage")}/>}
       {mode==="history"&&<div><h2 className="mb-3 text-lg font-semibold">{t("study.history")}</h2><p className="mb-3 text-xs opacity-60">{t("study.historyHint")}</p>
         {historyEvents.slice(0,historyLimit).map(event=><div key={event.id} className="grid grid-cols-2 gap-2 border-b py-3 text-sm"><span>{event.question} → {event.answer}</span><span>{event.source==="daily_initialization"?"排程初始化 Again（每日學習 Easy）":["","忘記","困難","知道","熟記"][event.rating!]} · {event.scheduling_method==="fixed"?t("styles.fixed"):"FSRS-6"}・{new Date(event.at).toLocaleString()}<br/>下次：{new Date(dueAt(event.after,event.at)).toLocaleString()}</span></div>)}
         {historyEvents.length>historyLimit&&<button className="mt-3 underline" onClick={()=>setHistoryLimit(n=>n+50)}>顯示更多紀錄</button>}
