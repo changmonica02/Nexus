@@ -130,7 +130,10 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
 
   async init(): Promise<void> {
-    this.db = await openDB(DB_NAME, DB_VERSION, {
+    let rejectBlocked:(reason:Error)=>void=()=>{};
+    const blocked=new Promise<never>((_,reject)=>{rejectBlocked=reject;});
+    const opening = openDB(DB_NAME, DB_VERSION, {
+      blocked(){rejectBlocked(new Error('本機資料升級被其他 Nexus 頁籤阻擋。請關閉其他 Nexus 頁籤後重新載入；尚未同步資料會保留，請勿清除網站資料。'));},
       upgrade(db, oldVersion, _newVersion, transaction) {
         for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
@@ -163,6 +166,14 @@ export class IndexedDBAdapter implements StorageAdapter {
         // 但程式碼不再讀寫；未來可在 DB_VERSION 4 的 upgrade 中清理。
       },
     });
+    try { this.db=await Promise.race([opening,blocked]); }
+    catch(error){
+      // An IndexedDB open request cannot be cancelled while blocked. If it opens
+      // after the user closes the old tab, release that abandoned connection.
+      void opening.then(db=>db.close(),()=>{});
+      if((error as Error).name==='VersionError')throw new Error('本機資料來自較新版本 Nexus，請重新載入最新版本；請勿降版或清除網站資料。');
+      throw error;
+    }
   }
 
   async getPage(id: ID): Promise<Page | null> {

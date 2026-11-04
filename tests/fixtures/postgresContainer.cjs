@@ -9,7 +9,7 @@ for(const name of ['DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS','DOCKER_TLS_VERIF
 async function docker(args,input){
  // execFile has no stdin option; write to the explicitly selected local process.
  let child;
- const promise=new Promise((resolve,reject)=>{child=execFile('docker',['--host=unix:///var/run/docker.sock',...args],{env,maxBuffer:8*1024*1024},(error,stdout,stderr)=>{if(error)reject(new Error(stderr||error.message));else resolve(stdout);});});
+ const promise=new Promise((resolve,reject)=>{child=execFile('docker',['--host=unix:///var/run/docker.sock',...args],{env,maxBuffer:8*1024*1024},(error,stdout,stderr)=>{if(error){const failure=new Error(stderr||error.message);failure.code=stderr?.match(/ERROR:\s+([0-9A-Z]{5}):/)?.[1];reject(failure);}else resolve(stdout);});});
  if(input!==undefined)child.stdin.end(input);
  return promise;
 }
@@ -21,7 +21,7 @@ class PGlite {
   if(guard!=='pr46-local none')throw Error('Refusing a database without the local isolation label / network=none');
   await this.psql('postgres',`CREATE DATABASE ${this.database};`);
  }
- async psql(database,sql){return docker(['exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d',database],sql);}
+ async psql(database,sql){return docker(['exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose','-U','postgres','-d',database],sql);}
  prefix(){return `${this.role?`SET ROLE ${this.role};`:''}${this.jwt!==null?`SET request.jwt.claim.sub = ${literal(this.jwt)};`:''}`;}
  async exec(sql){
   await this.ready;const output=await this.psql(this.database,this.prefix()+sql);

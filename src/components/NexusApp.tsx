@@ -130,6 +130,7 @@ function NexusAppInner({
   const { t } = useLanguage();
 
   const [isReady, setIsReady] = useState(false);
+  const [storageInitError,setStorageInitError]=useState<string|null>(null);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
@@ -435,6 +436,7 @@ function NexusAppInner({
 
     init().catch((error) => {
       console.error(error);
+      if(!storageRef.current){setStorageInitError(error instanceof Error?error.message:String(error));return;}
       setIsAuthResolved(true);
       setIsReady(true);
     });
@@ -1732,6 +1734,17 @@ function NexusAppInner({
   const managementPage=managementActive?pages.find(p=>p.id===deckManagement.id&&!p.deleted_at&&p.kind==='study_set'&&(p.workspace_owner_id??null)===deckManagement.owner):undefined;
   const refreshStudyPages=async()=>{const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.();await syncEngineRef.current?.fullSync();const next=await storage.listPages();if(storage.getWorkspaceOwner?.()===owner)setPages(next);};
 
+  if (storageInitError && !externalContent) return (
+    <main role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6"
+      style={{color:'var(--color-text)',background:'var(--color-editor-bg)'}}>
+      <h1>{t('storage.unavailable')}</h1>
+      <p className="max-w-xl whitespace-pre-wrap break-words">{storageInitError}</p>
+      <p>{t('storage.keepData')}</p>
+      <button type="button" className="min-h-11 rounded border px-4 py-2" onClick={()=>window.location.reload()}>
+        {t('storage.reload')}
+      </button>
+    </main>
+  );
   if ((!isReady || !isAuthResolved) && !externalContent) {
     return <div className="flex h-screen w-screen items-center justify-center text-base" style={{ color: "var(--color-sidebar-text)" }}>{t("common.loading")}</div>;
   }

@@ -29,7 +29,13 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 `WorkspacePersistence.mutate` 在原交易內校驗帳號、版本、欄位保值、分類與附件引用，並追加同一 outbox；本機 life revision 隨待傳操作前進。`apply_workspace_operations` 擴充三個實體，沿用 owner advisory lock、CAS 與 durable receipt，在整批提交前驗證分類循環、同帳號／同清單引用及附件。RLS 僅允許 owner SELECT，寫入只走驗權 RPC；life 不提供 hard purge，軟刪除保留重連保護。刪清單以單批軟刪項目、分類與清單，非空分類需先移走內容。
 
-Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，須先核准並套用資料庫再發布前端；只經本機 SQL 測試，未套用正式環境。舊前端的 Page／Attachment RPC 契約保留，且不會收到新增 life 類型的 hard-delete tombstone。舊前端不具清單能力，也不能開啟新版本 IndexedDB。
+Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，未套用正式環境。隔離 PostgreSQL 17.11 已執行實際 SQL，驗證既有 Page 全欄位、Attachment／binary、舊 receipt／tombstone、新舊混合交易、RLS 與 Migration 失敗整批回滾。初始三表的建表 DDL 未納入版本庫，測試依目前欄位契約重建，再套用實際帳號／創作／章節／workspace migrations；不是正式 schema dump，不能推論不存在正式 schema 漂移。舊 RPC 呼叫與硬刪除標記類型不變，life 不產生舊前端不認得的 hard-delete tombstone。
+
+部署／回復契約：
+- 核准後先確認正式備份／PITR 可用、既有 schema／RPC 前置條件，再以單一交易套用 Migration；驗證 owner SELECT、RPC 與 PostgREST 新表可見性／Realtime publication 後才發布前端。不可重複套用已成功的 Migration，或把 PR／隔離測試視為正式驗收。
+- 若前端誤先發布，`pullWorkspace` 僅對新 life 表的缺表／schema-cache 缺表碼（42P01／PGRST205）保留本機副本並繼續舊同步；權限、網路及舊表錯誤不忽略。未獲支援的 life intents 保留並顯示同步失敗，資料庫就緒後原 ID 重試；不假稱本機保存已上雲。
+- SQL 交易失敗會回滾新表、publication 與 RPC，舊資料／呼叫仍可使用。成功後若已有清單資料，保留新增表與新版 RPC，不執行刪表或回復舊 RPC；修復前端需保留 v9、備份 v4 及 life outbox 契約，優先向前修復。
+- 原 v8 前端不能開啟已升級 v9 的 IndexedDB，不能直接作為同裝置回退版。升級遇舊頁籤阻擋時顯示復原提示，先於舊頁籤保存修改，再關閉並重新載入；延遲開啟的已放棄連線會關閉。遇較新 DB 版本亦顯示錯誤，不降版／刪庫。離線舊前端須恢復連線取得相容版本，禁止以清除網站資料修復。真實 Chromium 已驗證未同步 Page／附件／Blob／outbox 保留與重新載入復原。
 
 備份 v4 包含三種清單記錄；舊備份不清除本機清單及其附件。匯入校驗整個結構與引用，在同一交易新增記錄與恢復 intents，附件先於項目補傳；遇到不同本機版本或刪除屏障即中止，不靜默覆蓋。本機副本與雲端已有不同版本時，仍由 CAS 阻擋，備份不是強制覆寫雲端的工具。
 
