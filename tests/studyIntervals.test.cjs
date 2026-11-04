@@ -42,3 +42,9 @@ test('old due, history, unfinished Session ID and consumed quota survive transit
 test('presented but unanswered new card is not a review backlog that discards the rest of its batch',async()=>{
  const f=await fixture(2);try{await f.repo.configure('deck',{new_pause_threshold:1});const s=await f.repo.startSession('deck','scheduled',now);assert.equal(s.targets.length,2);await grade(f.repo,s.id,3,now);const d=await f.repo.presentScheduled(s.id,now);assert.equal(d.session.queue.length,1);assert.equal(d.session.targets.some(t=>t.skipped),false);await grade(f.repo,s.id,3,now);assert.equal(dailyNewUsed(await f.repo.readScheduledDeck('deck',now),now),2);}finally{await f.close();}
 });
+
+test('disconnect during sync stops subsequent RPCs and retains unsent operations',async()=>{
+ const owner='11111111-1111-4111-8111-111111111111',f=await fixture(1,owner),descriptor=Object.getOwnPropertyDescriptor(globalThis,'navigator');let online=true,calls=0;
+ try{Object.defineProperty(globalThis,'navigator',{configurable:true,value:{get onLine(){return online;}}});const before=await f.repo.pending();await require('../src/features/study/studySync.ts').syncStudy(f.repo,{rpc:async()=>{calls++;online=false;return{data:true,error:null};}},owner);assert.equal(calls,1);assert.equal((await f.repo.pending()).length,before.length-1);}
+ finally{if(descriptor)Object.defineProperty(globalThis,'navigator',descriptor);else delete globalThis.navigator;await f.close();}
+});

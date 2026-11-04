@@ -87,6 +87,8 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>', '<< /Length 0 >>\nstream\n\nendstream'];
   let pdf = '%PDF-1.4\n', offsets = [0]; objects.forEach((obj, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`; }); const xref = Buffer.byteLength(pdf); pdf += `xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map(n => String(n).padStart(10, '0') + ' 00000 n ').join('\n')}\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   const ids = await page.evaluate(async ({ A, pdf }) => window.pwaData.seed(A, pdf), { A, pdf });
+  // Seed writes through an isolated adapter; restart only after the complete fixture exists.
+  await page.reload();await page.locator('main').waitFor();await inject();
   await waitForAsync(page, async A => { const p = await window.pwaData.pending(A); return !p.workspace.length && !p.study.length; }, A);
   await waitForAsync(page, async () => !!await (await caches.open('nexus-shell-v2')).match('/'));
   await home();
@@ -119,21 +121,21 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await life.getByLabel('Complete PWA Task',{exact:true}).check();await life.getByRole('tab',{name:'Tasks',exact:true}).click();await life.getByRole('group',{name:'Task views'}).getByRole('button',{name:'Completed',exact:true}).click();await life.getByRole('button',{name:/^PWA Task/}).click();await page.getByLabel('Task date and time',{exact:true}).fill('2026-07-04T10:15');await page.locator('.ProseMirror').first().fill('OFFLINE_TASK_EDIT');await page.getByRole('button',{name:'回到功能介面',exact:true}).click();await life.getByRole('tab',{name:'Tasks',selected:true}).waitFor();assert.equal(await life.getByRole('group',{name:'Task views'}).getByRole('button',{name:'Completed',exact:true}).getAttribute('aria-pressed'),'true');
   const task=await page.evaluate(({A,id})=>window.pwaData.read(A,id),{A,id:ids.task});assert.equal(task.completed,true);assert.match(task.content_text,/OFFLINE_TASK_EDIT/);assert.equal(await page.evaluate(time=>new Date(time).getDate(),task.due_date),4);
   await home(); await page.getByLabel('Switch home', { exact: true }).selectOption('learning'); await page.getByRole('button', { name: 'Start learning', exact: true }).click();
-  assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Flip to answer|翻至答案/i, exact: true }).click();
+  assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Flip card to answer|翻至答案/i, exact: true }).click();
   // The actual Next/PWA history implementation must close the bottom sheet
   // without navigating away or changing the already presented formal question.
   const dictionaryBefore=await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),studyURL=page.url();
   await page.getByRole('button',{name:'View dictionary',exact:true}).click();const dictionary=page.getByRole('dialog');
   await dictionary.getByRole('heading',{name:'Search dictionary',exact:true}).waitFor();await dictionary.getByRole('alert').waitFor();
-  assert.equal(await page.getByRole('button',{name:/Easy|熟記/}).first().isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:/Remember|記得/}).first().isDisabled(),true);
   await page.evaluate(()=>history.back());await dictionary.waitFor({state:'detached'});assert.equal(page.url(),studyURL);
   assert.deepEqual(await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),dictionaryBefore);
   await page.getByRole('button',{name:'View dictionary',exact:true}).click();await dictionary.waitFor();await page.keyboard.press('Escape');await dictionary.waitFor({state:'detached'});
-  assert.equal(await page.getByRole('button',{name:/Flip to answer|翻至答案/i,exact:true}).count(),0);
-  await page.getByRole('button', { name: /Easy|熟記/ }).first().click();
+  assert.equal(await page.getByRole('button',{name:/Flip card to answer|翻至答案/i,exact:true}).count(),0);
+  await page.getByRole('button', { name: /Remember|記得/ }).first().click();
   await waitForAsync(page, async ({ A, id }) => (await window.pwaData.study(A, id)).events.some(e => e.kind === 'review'), { A, id: ids.deck });
   const learned = await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck });
-  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.scheduling_method, 'fsrs'); assert.ok(review.log); assert.ok(learned.states[0].fsrs);
+  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.engine,'nexus-interval@1');assert.equal(review.scheduling_method, 'fixed'); assert.ok(review.log); assert.ok(learned.states[0].fixed);
   await page.close(); page = await newPage(); await page.goto(origin); await page.locator('main').waitFor(); await inject();
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.filter(e => e.kind === 'review').length, 1);
   assert.deepEqual(offlineCalls.filter(name => /apply_workspace|apply_study|pull_study/.test(name)), []);
@@ -161,5 +163,5 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   assert.deepEqual(errors, []);
   fs.mkdirSync('test-results/pwa-stage2', { recursive: true });
   fs.writeFileSync('test-results/pwa-stage2/result.json', JSON.stringify({ offlineEdit: true, fsrsEvent: review.id, pdf: true, accountIsolation: true, conflictPreserved: true, cloudRequests: calls.length, pageErrors: errors }, null, 2));
-  console.log('PWA_STAGE2_VERIFIED', JSON.stringify({ offlineEdit: true, fsrs: true, pdf: true, isolation: true, conflict: true, pageErrors: errors.length }));
+  console.log('PWA_STAGE2_VERIFIED', JSON.stringify({ offlineEdit: true, intervals: true, pdf: true, isolation: true, conflict: true, pageErrors: errors.length }));
 });

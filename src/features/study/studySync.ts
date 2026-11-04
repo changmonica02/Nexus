@@ -66,6 +66,6 @@ async function runStudySync(repository:StudyRepository,client:SupabaseClient,own
 const activeSyncs=new WeakMap<StudyRepository,Promise<void>>();
 export function syncStudy(repository:StudyRepository,client:SupabaseClient,owner:string,stillActive:()=>boolean=()=>true):Promise<void>{
   const active=activeSyncs.get(repository);if(active)return active;
-  const task=runStudySync(repository,client,owner,stillActive).finally(()=>{if(activeSyncs.get(repository)===task)activeSyncs.delete(repository);});
+  const task=runStudySync(repository,client,owner,()=>stillActive()&&(typeof navigator==='undefined'||navigator.onLine!==false)).finally(()=>{if(activeSyncs.get(repository)===task)activeSyncs.delete(repository);});
   activeSyncs.set(repository,task);return task;
 }
