@@ -54,3 +54,6 @@ export async function linkedPrivateCards(client:SupabaseClient,entryId:string):P
  for(let i=0;i<decks.length;i+=200){const {data,error}=await client.from('pages').select('id,deleted_at').eq('owner_id',user.id).in('id',decks.slice(i,i+200));if(error)throw Error(error.message);for(const p of data??[])if(!p.deleted_at)active.add(p.id);}
  return [...cards.values()].filter(c=>active.has(c.deck_id));
 }
+
+/** Private study management deep link; dictionary reading does not enumerate private cards. */
+export const linkedCardHref=(card:LinkedPrivateCard)=>`/study?deck=${encodeURIComponent(card.deck_id)}&card=${encodeURIComponent(card.id)}`;

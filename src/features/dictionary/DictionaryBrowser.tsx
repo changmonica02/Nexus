@@ -14,7 +14,6 @@ import {getSupabase} from '../../infrastructure/supabase/client';
 import {primaryCategories,prefixCategories,searchGrouping,type GroupedDictionaryItem} from './grouping';
 import type {DictionaryKind} from './dictionary';
 import {readPublishedEntry,type DictionaryPage,type PublishedDetail} from './reader';
-import DictionaryFlashcardActions from './DictionaryFlashcardActions';
 import {candidateSummary,type DictionaryCandidate} from './flashcardLinks';
 import {DictionaryArticle} from './DictionaryArticle';
 export {DictionaryArticle} from './DictionaryArticle';
@@ -103,7 +102,7 @@ function ReaderEntry({id,data,from,admin}:{id:string;data:PublishedDetail|null;f
  if(editing)return <><Link className="mb-4 inline-block underline" href={from.replace(/([?&])edit=1(&|$)/,(_,a,b)=>b?a:'').replace(/[?&]$/,'')}>結束編輯，返回詞條</Link><DictionaryWorkspace key={id} entryId={id} embedded/></>;
  return <div style={{touchAction:'pan-y'}} onTouchStart={e=>{const t=e.touches[0];if(e.touches.length!==1||(e.target instanceof Element&&e.target.closest('button,a,input,textarea,select,summary')))start.current=null;else start.current={x:t.clientX,y:t.clientY,time:Date.now()};}} onTouchMove={e=>{if(e.touches.length!==1)start.current=null;}} onTouchCancel={()=>{start.current=null;}} onTouchEnd={e=>{const s=start.current;start.current=null;if(!s)return;const t=e.changedTouches[0],direction=swipeDirection(t.clientX-s.x,t.clientY-s.y,Date.now()-s.time,editing);if(direction&&neighbours[direction])move(neighbours[direction]!);}}>
  <div className="mb-4 flex justify-end"><ReaderEditButton admin={admin} onClick={()=>{const p=new URLSearchParams(params);p.set('edit','1');router.push(`/dictionary/${id}?${p}`);}}/></div>
- {data?<><nav aria-label="相鄰詞條" className="mb-4 flex justify-between gap-3">{neighbours.previous?<Link href={neighbours.previous} onClick={()=>setActiveSense(new URL(neighbours.previous!,'https://nexus.invalid').hash.replace('#sense-','')||undefined)}>← Previous</Link>:<span className="opacity-40">← Previous</span>}{neighbours.next?<Link href={neighbours.next} onClick={()=>setActiveSense(new URL(neighbours.next!,'https://nexus.invalid').hash.replace('#sense-','')||undefined)}>Next →</Link>:<span className="opacity-40">Next →</span>}</nav>{error&&<p role="status">{error}</p>}<DictionaryArticle data={data} from={from}/>{data.entry.kind==='word'&&<DictionaryFlashcardActions entryId={id}/>}</>:<p>此詞條尚未收錄或尚未發布。</p>}
+ {data?<><nav aria-label="相鄰詞條" className="mb-4 flex justify-between gap-3">{neighbours.previous?<Link href={neighbours.previous} onClick={()=>setActiveSense(new URL(neighbours.previous!,'https://nexus.invalid').hash.replace('#sense-','')||undefined)}>← Previous</Link>:<span className="opacity-40">← Previous</span>}{neighbours.next?<Link href={neighbours.next} onClick={()=>setActiveSense(new URL(neighbours.next!,'https://nexus.invalid').hash.replace('#sense-','')||undefined)}>Next →</Link>:<span className="opacity-40">Next →</span>}</nav>{error&&<p role="status">{error}</p>}<DictionaryArticle data={data} from={from}/></>:<p>此詞條尚未收錄或尚未發布。</p>}
  </div>;
 }
 export default function DictionaryBrowser({path}:{path:string[]}){
