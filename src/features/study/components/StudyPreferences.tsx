@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../../lib/LanguageContext';
 import type { StudyRepository } from '../StudyRepository';
-import type { StudyStyle } from '../studyStyles';
+import {defaultIntervalSettings,type StudyStyle} from '../studyStyles';
 
 function IntervalInput({
   seconds,
@@ -111,24 +111,6 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
                 <option value="endless">{t("study.endless")}</option>
               </select>
             </label>
-            <label className="flex flex-wrap justify-between gap-3">
-              {t("styles.method")}
-              <select
-                aria-label={t("styles.method")}
-                className={control}
-                value={style.scheduling_method}
-                onChange={(e) =>
-                  save({
-                    scheduling_method: e.target
-                      .value as StudyStyle["scheduling_method"],
-                  })
-                }
-              >
-                <option value="fsrs">FSRS-6</option>
-                <option value="fixed">{t("styles.fixed")}</option>
-              </select>
-            </label>
-            <p>{t("styles.switch")}</p>
             {count("review_limit", t("study.batchLimit"), 1)}
             <p>{t("study.batchHint")}</p>
             {count("new_limit", t("study.newLimit"), 0)}
@@ -165,42 +147,14 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
                   })
                 }
               >
-                {(["due", "retrievability", "random"] as const).map((v) => (
+                {(["due", "random"] as const).map((v) => (
                   <option key={v} value={v}>
                     {t("study." + v)}
                   </option>
                 ))}
               </select>
             </label>
-            {(["new", "relearning", "review"] as const).map((kind) => (
-              <section key={kind} className="space-y-3">
-                <h3 className="font-semibold">{t("styles." + kind)}</h3>
-                {([4, 3, 2, 1] as const).map((r) => (
-                  <IntervalInput
-                    key={
-                      style.id + kind + r + style.fixed_intervals[kind][r - 1]
-                    }
-                    label={t("styles." + kind) + " · " + t("styles.answer" + r)}
-                    seconds={style.fixed_intervals[kind][r - 1]}
-                    onSave={(seconds) => {
-                      const values = [...style.fixed_intervals[kind]] as [
-                        number,
-                        number,
-                        number,
-                        number,
-                      ];
-                      values[r - 1] = seconds;
-                      save({
-                        fixed_intervals: {
-                          ...style.fixed_intervals,
-                          [kind]: values,
-                        },
-                      });
-                    }}
-                  />
-                ))}
-              </section>
-            ))}
+            {(['general','forgotten'] as const).map(group=><section key={group} className="space-y-3"><h3 className="font-semibold">{t('interval.'+group)}</h3>{([1,2,3] as const).map(rating=>{const values=style.intervals??defaultIntervalSettings();return <IntervalInput key={style.id+group+rating+values[group][rating-1]} label={t('interval.'+group)+' · '+t('interval.response'+rating)} seconds={values[group][rating-1]} onSave={seconds=>{const next=[...values[group]] as [number,number,number];next[rating-1]=seconds;save({interval_version:1,intervals:{...values,[group]:next}});}}/>;})}</section>)}
             <p>{t("study.endlessHint")}</p>
             <section aria-label={t('speech.settings')} className="space-y-3">
               <h3 className="font-semibold">{t('deck.presentation')}</h3><p>{t('study.direction')}</p>

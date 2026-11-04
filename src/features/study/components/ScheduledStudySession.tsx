@@ -109,9 +109,9 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
         <p className="pointer-events-none absolute inset-x-3 bottom-3 text-xs opacity-50">{t(revealed?'study.flipHintBack':'study.flipHintFront')}</p>
       </article>
       {revealed&&<><CardDictionaryPanel onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
-        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3,4] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(session?.settings_snapshot?.scheduling_method==='fixed'?`styles.answer${rating}`:`study.rating${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
+        <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">{([1,2,3] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="rounded-lg border px-2 py-3 disabled:opacity-40" onClick={()=>void mark(rating)}><span className="block font-medium">{t(`interval.response${rating}`)}</span>{preview&&<span className="mt-2 block text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
       </>}
-    </>:<div className="space-y-3 py-8 text-center"><p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('study.finished',{n:status?.completed??0})}</p></div>}
+    </>:<div className="space-y-3 py-8 text-center"><p role="status">{!session?t('study.restoring'):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('interval.finished')}</p></div>}
     <AnswerSaveNotice saving={saving} error={error} onRetry={hasAttempt?()=>void mark(attempt.current!.rating):undefined} onReload={()=>void change('reload')}/>
   </div>;
 }

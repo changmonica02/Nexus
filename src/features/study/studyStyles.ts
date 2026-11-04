@@ -5,7 +5,11 @@ export type FixedIntervals = Record<
   "new" | "relearning" | "review",
   [number, number, number, number]
 >;
+export type IntervalSettings = Record<"general" | "forgotten", [number, number, number]>;
+export const defaultIntervalSettings = ():IntervalSettings => ({general:[60,600,604800],forgotten:[60,600,86400]});
 export interface StudyStyle {
+  interval_version?: 1;
+  intervals?: IntervalSettings;
   auto_speech?: boolean;
   speech_rate?: number;
   id: string;
@@ -28,16 +32,18 @@ export function defaultStudyStyle(owner: string | null): StudyStyle {
     auto_speech: true,
     speech_rate: 0.9,
     study_mode: "scheduled",
-    scheduling_method: "fsrs",
+    scheduling_method: "fixed",
+    interval_version: 1,
+    intervals: defaultIntervalSettings(),
     review_limit: 100,
     new_limit: 20,
     new_pause_threshold: 200,
     review_order: "due",
     card_order: "new-first",
     fixed_intervals: {
-      new: [60, 600, 86400, 345600],
-      relearning: [60, 600, 86400, 345600],
-      review: [300, 3600, 259200, 604800],
+      new: [60, 600, 604800, 604800],
+      relearning: [60, 600, 86400, 86400],
+      review: [60, 600, 604800, 604800],
     },
   };
 }
@@ -63,6 +69,10 @@ export function validateStudyStyle(style: StudyStyle) {
   ] as const)
     if (!Number.isInteger(style[key]) || style[key] < min || style[key] > 10000)
       throw Error(`${key}:  ${min}–10000`);
+  if(style.interval_version!==undefined){
+    if(style.interval_version!==1)throw Error('Unsupported interval schedule version');
+    for(const group of ['general','forgotten'] as const){const values=style.intervals?.[group];if(!Array.isArray(values)||values.length!==3||values.some(s=>!Number.isSafeInteger(s)||s<1||s>315360000))throw Error('Intervals must contain six positive durations');}
+  }
   for (const kind of ["new", "relearning", "review"] as const) {
     const times = style.fixed_intervals?.[kind];
     if (
@@ -110,4 +120,10 @@ export function applyStyle(
     style_id: style.id,
     style: structuredClone(style),
   };
+}
+
+/** Read-only normalization: old settings remain stored until the user saves this deck. */
+export function unifiedStudyStyle(style:StudyStyle):StudyStyle {
+ validateStudyStyle(style);
+ return {...structuredClone(style),scheduling_method:'fixed',interval_version:1,intervals:structuredClone(style.intervals??defaultIntervalSettings()),review_order:style.review_order==='random'?'random':'due'};
 }

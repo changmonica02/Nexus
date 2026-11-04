@@ -127,15 +127,15 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   const dictionaryBefore=await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),studyURL=page.url();
   await page.getByRole('button',{name:'View dictionary',exact:true}).click();const dictionary=page.getByRole('dialog');
   await dictionary.getByRole('heading',{name:'Search dictionary',exact:true}).waitFor();await dictionary.getByRole('alert').waitFor();
-  assert.equal(await page.getByRole('button',{name:/Easy|熟記/}).first().isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:/Remember|記得/}).first().isDisabled(),true);
   await page.evaluate(()=>history.back());await dictionary.waitFor({state:'detached'});assert.equal(page.url(),studyURL);
   assert.deepEqual(await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),dictionaryBefore);
   await page.getByRole('button',{name:'View dictionary',exact:true}).click();await dictionary.waitFor();await page.keyboard.press('Escape');await dictionary.waitFor({state:'detached'});
   assert.equal(await page.getByRole('button',{name:/Flip card to answer|翻至答案/i,exact:true}).count(),0);
-  await page.getByRole('button', { name: /Easy|熟記/ }).first().click();
+  await page.getByRole('button', { name: /Remember|記得/ }).first().click();
   await waitForAsync(page, async ({ A, id }) => (await window.pwaData.study(A, id)).events.some(e => e.kind === 'review'), { A, id: ids.deck });
   const learned = await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck });
-  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.scheduling_method, 'fsrs'); assert.ok(review.log); assert.ok(learned.states[0].fsrs);
+  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.engine,'nexus-interval@1');assert.equal(review.scheduling_method, 'fixed'); assert.ok(review.log); assert.ok(learned.states[0].fixed);
   await page.close(); page = await newPage(); await page.goto(origin); await page.locator('main').waitFor(); await inject();
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.filter(e => e.kind === 'review').length, 1);
   assert.deepEqual(offlineCalls.filter(name => /apply_workspace|apply_study|pull_study/.test(name)), []);
@@ -163,5 +163,5 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   assert.deepEqual(errors, []);
   fs.mkdirSync('test-results/pwa-stage2', { recursive: true });
   fs.writeFileSync('test-results/pwa-stage2/result.json', JSON.stringify({ offlineEdit: true, fsrsEvent: review.id, pdf: true, accountIsolation: true, conflictPreserved: true, cloudRequests: calls.length, pageErrors: errors }, null, 2));
-  console.log('PWA_STAGE2_VERIFIED', JSON.stringify({ offlineEdit: true, fsrs: true, pdf: true, isolation: true, conflict: true, pageErrors: errors.length }));
+  console.log('PWA_STAGE2_VERIFIED', JSON.stringify({ offlineEdit: true, intervals: true, pdf: true, isolation: true, conflict: true, pageErrors: errors.length }));
 });

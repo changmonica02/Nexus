@@ -15,9 +15,9 @@ export function reliableEvent(event:StudyEvent):boolean {
   if(event.before.head!==event.parent || event.after.head!==event.id || event.after.id!==event.card_id || event.before.id!==event.card_id || event.after.owner_id!==event.owner_id || event.before.owner_id!==event.owner_id)return false;
   try {
     const card={id:event.card_id,deck_id:event.deck_id,owner_id:event.owner_id,front:event.question,back:event.answer,content_revision:event.content_revision};
-    const rebuilt=createStudyEvent(card as Parameters<typeof createStudyEvent>[0],cleanState(event.before),event.kind,event.at,event.device_id,event.id,event.rating,event.source,event.style_snapshot);
+    const rebuilt=createStudyEvent(card as Parameters<typeof createStudyEvent>[0],cleanState(event.before),event.kind,event.at,event.device_id,event.id,event.rating,event.source,event.engine==='nexus-interval@1'?event.style_snapshot:event.style_snapshot?{...event.style_snapshot,interval_version:undefined}:undefined);
     if(event.engine!==rebuilt.engine || !sameStudyRecord(event.parameters,rebuilt.parameters))return false;
-    if(event.engine==="nexus-fixed@1"&&!sameStudyRecord(event.log,rebuilt.log))return false;
+    if((event.engine==="nexus-fixed@1"||event.engine==="nexus-interval@1")&&!sameStudyRecord(event.log,rebuilt.log))return false;
     const expected=cleanState(event.after);
     // Existing explicitly requested legacy reset annotates its result after scheduling.
     if(event.source==='legacy_test_reset')rebuilt.after.legacy_test_reset=true;

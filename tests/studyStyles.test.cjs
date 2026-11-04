@@ -40,20 +40,20 @@ for (const mode of ["scheduled", "endless"])
         const saved = await f.repo.readDeck("deck", true),
           event = saved.events.find((e) => e.kind === "review");
         assert.equal(reliableEvent(event), true);
-        assert.equal(event.scheduling_method, method);
+        assert.equal(event.scheduling_method, "fixed");
         assert.equal(event.at, now);
         assert.equal(event.rating, 3);
-        if (method === "fixed") {
-          assert.equal(event.log.method, "fixed");
-          assert.equal(event.log.interval_seconds, 86400);
-          assert.equal(event.engine, "nexus-fixed@1");
+        {
+          assert.equal(event.log.method, "interval");
+          assert.equal(event.log.interval_seconds, 604800);
+          assert.equal(event.engine, "nexus-interval@1");
           assert.equal(event.after.fsrs, null);
           assert.equal(event.after.fixed.state, State.Review);
-          assert.equal(dueAt(event.after, now), now + 86400000);
-          assert.ok(event.parameters.fixed_intervals);
-        } else assert.equal(event.engine, "ts-fsrs@5.4.2/FSRS-6");
-        await grade(f.repo, initial.id, 4, now);
-        await grade(f.repo, initial.id, 4, now);
+          assert.equal(dueAt(event.after, now), now + 604800000);
+          assert.ok(event.parameters.intervals);
+        }
+        await grade(f.repo, initial.id, 3, now);
+        await grade(f.repo, initial.id, 3, now);
         assert.ok(
           (await f.repo.readSession(initial.id, now)).session.completed_at,
         );
@@ -68,7 +68,7 @@ for (const mode of ["scheduled", "endless"])
             events.find(
               (e) => e.session_id === second.id && e.kind === "review",
             ).scheduling_method,
-            method,
+            "fixed",
           );
         }
       } finally {
@@ -78,6 +78,7 @@ for (const mode of ["scheduled", "endless"])
 test("fixed Review/ New / Relearning four-option transitions and independent configurable intervals; deterministic replay", async () => {
   const s = defaultStudyStyle(null);
   s.scheduling_method = "fixed";
+  delete s.interval_version; // Historical four-response event replay remains supported.
   s.fixed_intervals.relearning = [17, 29, 41, 59];
   const card = {
     id: "c",
@@ -150,26 +151,26 @@ test("fixed Review/ New / Relearning four-option transitions and independent con
     }),
   );
 });
-test("fixed forgotten Review uses five minutes first, then Relearning intervals; waiting/reopen/repeat does not consume another quota", async () => {
+test("Review becomes forgotten for one minute, then uses forgotten intervals; waiting/reopen/repeat does not consume another quota", async () => {
   const f = await fixture(1);
   try {
     await style(f, { scheduling_method: "fixed" });
     let session = await f.repo.startSession("deck", "scheduled", now);
-    await grade(f.repo, session.id, 4, now);
+    await grade(f.repo, session.id, 3, now);
     session = await f.repo.startSession(
       "deck",
       "scheduled",
-      now + 4 * 86400000,
+      now + 8 * 86400000,
     );
-    const forgotten = await grade(f.repo, session.id, 1, now + 4 * 86400000);
-    let data = await f.repo.readSession(session.id, now + 4 * 86400000);
+    const forgotten = await grade(f.repo, session.id, 1, now + 8 * 86400000);
+    let data = await f.repo.readSession(session.id, now + 8 * 86400000);
     assert.equal(
-      scheduledStatus(data.session, data.snapshot, now + 4 * 86400000).waiting,
+      scheduledStatus(data.session, data.snapshot, now + 8 * 86400000).waiting,
       1,
     );
     assert.equal(data.session.targets.length, 1);
     const due = data.snapshot.states[0].fixed.due;
-    assert.equal(due, now + 4 * 86400000 + 300000);
+    assert.equal(due, now + 8 * 86400000 + 60000);
     await assert.rejects(
       () =>
         f.repo.rateSession({
@@ -206,7 +207,7 @@ test("100 slots count every distinct card; 200 due threshold suspends and resume
           now - 8 * 86400000,
           "fixture",
           "old-" + card.id,
-          4,
+          3,
           "scheduled",
           { ...defaultStudyStyle(null), scheduling_method: "fixed" },
         );
@@ -227,7 +228,7 @@ test("100 slots count every distinct card; 200 due threshold suspends and resume
         dailyNewUsed(await f.repo.readScheduledDeck("deck", now), now),
         0,
       );
-      for (let i = 0; i < 100; i++) await grade(f.repo, session.id, 4, now);
+      for (let i = 0; i < 100; i++) await grade(f.repo, session.id, 3, now);
       const next = await f.repo.startSession("deck", "scheduled", now);
       assert.equal(next.targets.length, 100);
       assert.equal(
@@ -236,7 +237,7 @@ test("100 slots count every distinct card; 200 due threshold suspends and resume
         ).length,
         1,
       );
-      for (let i = 0; i < 100; i++) await grade(f.repo, next.id, 4, now);
+      for (let i = 0; i < 100; i++) await grade(f.repo, next.id, 3, now);
       assert.equal(
         dailyNewUsed(await f.repo.readScheduledDeck("deck", now), now),
         20,
@@ -285,10 +286,10 @@ test("shared styles use complete values; assignment and edits affect next sessio
     assert.deepEqual(recovered.session.settings_snapshot, custom);
     assert.equal(recovered.snapshot.settings.new_limit, 1);
     assert.equal((await f.repo.styleForDeck("other")).style.review_limit, 7);
-    await grade(f.repo, active.id, 4, now);
+    await grade(f.repo, active.id, 3, now);
     const next = await f.repo.startSession("deck", "scheduled", now);
     assert.equal(next.settings_snapshot.review_limit, 7);
-    assert.equal(next.settings_snapshot.scheduling_method, "fsrs");
+    assert.equal(next.settings_snapshot.scheduling_method, "fixed");
     await f.repo.ensureDeck({
       id: "legacy",
       workspace_owner_id: null,
@@ -308,16 +309,16 @@ test("shared styles use complete values; assignment and edits affect next sessio
     await f.close();
   }
 });
-test("FSRS ↔ fixed preserves memory/history, actual answers initialize missing memory, same action replay is idempotent, reset generation invalidates archived fixed state", async () => {
+test("Three-response policy retains legacy fields/history without synthesizing memory, same action replay is idempotent, reset generation invalidates archived fixed state", async () => {
   const f = await fixture(1);
   try {
     await style(f);
     let session = await f.repo.startSession("deck", "scheduled", now);
-    await grade(f.repo, session.id, 4, now);
+    await grade(f.repo, session.id, 3, now);
     const original = (await f.repo.readDeck("deck", true)).states[0].fsrs;
     await style(f, { scheduling_method: "fixed", study_mode: "endless" });
     session = await f.repo.startSession("deck", "scheduled", now + 1);
-    const action = await grade(f.repo, session.id, 4, now + 1);
+    const action = await grade(f.repo, session.id, 3, now + 1);
     const fixed = (await f.repo.readDeck("deck", true)).states[0];
     assert.deepEqual(fixed.fsrs, original);
     assert.ok(activeFixed(fixed));
@@ -326,13 +327,13 @@ test("FSRS ↔ fixed preserves memory/history, actual answers initialize missing
     assert.equal((await f.repo.readDeck("deck", true)).events.length, count);
     await style(f, { study_mode: "endless" });
     session = await f.repo.startSession("deck", "scheduled", now + 2);
-    await grade(f.repo, session.id, 4, now + 2);
+    await grade(f.repo, session.id, 3, now + 2);
     const final = await f.repo.readDeck("deck", true);
-    assert.equal(final.states[0].scheduling_method, "fsrs");
-    assert.deepEqual(final.states[0].fixed, fixed.fixed);
+    assert.equal(final.states[0].scheduling_method, "fixed");
+    assert.equal(final.states[0].fixed.due, now + 2 + 604800000);
     assert.equal(
       final.events.find((e) => e.id === final.states[0].head).method_transition,
-      "resume-preserved-fsrs-memory",
+      undefined,
     );
     assert.ok(final.events.every(reliableEvent));
     const resetByServer = {
@@ -405,7 +406,7 @@ test("actual workspace backup v3 retains style catalogue, fixed history and froz
     await deleteDB("nexus");
   }
 });
-test("legacy unfinished FSRS session cannot silently switch method when a newly selected style uses fixed intervals", async () => {
+test("legacy unfinished FSRS batch upgrades once with original snapshot retained", async () => {
   const f = await fixture(1);
   try {
     const created = await f.repo.startSession("deck", "scheduled", now);
@@ -414,14 +415,15 @@ test("legacy unfinished FSRS session cannot silently switch method when a newly 
     await f.db.put("study_sessions", created);
     await style(f, { scheduling_method: "fixed" });
     const recovered = await f.repo.readSession(created.id, now);
-    assert.equal(recovered.session.settings_snapshot.scheduling_method, "fsrs");
+    assert.equal(recovered.session.settings_snapshot.scheduling_method, "fixed");
     assert.equal(recovered.session.settings_snapshot.review_limit, 50);
     assert.equal(recovered.session.compatibility_notice, true);
-    await grade(f.repo, created.id, 4, now);
+    await grade(f.repo, created.id, 3, now);
     const e = (await f.repo.readDeck("deck", true)).events.find(
       (e) => e.kind === "review",
     );
-    assert.equal(e.engine, "ts-fsrs@5.4.2/FSRS-6");
+    assert.equal(e.engine, "nexus-interval@1");
+    assert.equal(recovered.session.legacy_settings_snapshot.scheduling_method,"fsrs");
   } finally {
     await f.close();
   }

@@ -141,9 +141,11 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 ### 學習排程
 
-`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用固定排程或 ts-fsrs；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。
+`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一三按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。
 
-固定 state 與 FSRS 記憶分開，方法切換保留真實事件／due，不偽造 FSRS 歷史。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
+正式學習僅使用三按鈕間隔排程。學習組樣式以 `interval_version: 1`、`intervals.general/forgotten` 各三個秒數保存，沿用既有樣式 JSON、IndexedDB 與同步 RPC。新作答事件使用 `nexus-interval@1`，目前排程沿用 `fixed` 狀態容器；舊 FSRS 記憶、due 與四級作答事實保留，歷史引擎只供重播驗證。舊未完成批次保留 ID、已退出卡片及額度，原快照留於 `legacy_settings_snapshot`，恢復時凍結新間隔；讀取不重寫卡片到期時間。忘記留在批次等待到期，模糊／記得退出，批次不追加不同卡片。
+
+目前排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
 
 官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
 
