@@ -1,5 +1,5 @@
 "use client";
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect,useLayoutEffect, useRef, useState, type ReactNode} from 'react';
 import type {Page, WorldMapRecord} from '../lib/types';
 import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import {MapCoreClient, downloadMapBlob} from '../features/worldMap/coreClient';
@@ -174,10 +174,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     let timer:ReturnType<typeof setTimeout>;
     const resized=()=>{clearTimeout(timer);timer=setTimeout(()=>{
       if(!latest.current.editing&&!latest.current.fullView&&canvas.current){
-        const host=surface.current?.closest<HTMLElement>('[data-map-scroll]');
-        const top=canvas.current.getBoundingClientRect().top+(host?.scrollTop??0);
-        const bottom=Math.min(window.visualViewport?.height??innerHeight,host?.getBoundingClientRect().bottom??innerHeight);
-        setPreviewHeight(Math.min(832,Math.max(140,Math.floor(bottom-top-12))));
+        setPreviewHeight(Math.min(384,Math.max(224,Math.floor((window.visualViewport?.height??innerHeight)*0.36))));
       }
       void client.current?.request('configure',undefined,{resize:true}).catch(e=>setError(String(e)));
     },80);};
@@ -192,14 +189,14 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     if(fullView)document.body.style.overflow='hidden';
     return ()=>{if(host)host.style.overflowY=old??'';if(fullView)document.body.style.overflow=bodyOverflow;};
   },[editing,fullView]);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!editing&&!fullView)return;
     const previous=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    surface.current?.querySelector<HTMLButtonElement>('button')?.focus();
-    return ()=>previous?.focus();
+    surface.current?.querySelector<HTMLButtonElement>('button')?.focus({preventScroll:true});
+    return ()=>previous?.focus({preventScroll:true});
   },[editing,fullView]);
   const report=(e:unknown)=>setError(String(e));
-  const runTool=(command:NativeToolCommand)=>{if(toolBusy)return;const checkpoint=command.action==='open'?actions.current.stage():Promise.resolve();setToolBusy(true);setError('');void checkpoint.then(()=>client.current!.request('tool',undefined,{toolCommand:command})).then(async result=>{if(result){const state=JSON.parse(await result.text()) as NativeToolState;setNativeState(state);await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await client.current!.request('configure',undefined,{resize:true});await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));if(!state.tool)surface.current?.querySelector<HTMLElement>('[data-world-tools] > summary')?.focus();}}).catch(report).finally(()=>setToolBusy(false));};
+  const runTool=(command:NativeToolCommand)=>{if(toolBusy)return;const checkpoint=command.action==='open'?actions.current.stage():Promise.resolve();setToolBusy(true);setError('');void checkpoint.then(()=>client.current!.request('tool',undefined,{toolCommand:command})).then(async result=>{if(result){const state=JSON.parse(await result.text()) as NativeToolState;setNativeState(state);await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));await client.current!.request('configure',undefined,{resize:true});await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));if(!state.tool)surface.current?.querySelector<HTMLElement>('[data-world-tools] > summary')?.focus({preventScroll:true});}}).catch(report).finally(()=>setToolBusy(false));};
   const toolControls:NativeToolControls={state:nativeState,pending:toolBusy,run:runTool};
   const captureView=async()=>{const snapshot=ready.current?await client.current?.request('view'):undefined;if(snapshot){const view=JSON.parse(await snapshot.text()) as MapView;if(!latest.current.editing)previewView.current=view;latest.current.onView?.(view);}};
   const enter=()=>{const id=map.id;void captureView().then(()=>{if(latest.current.mapId===id)onEdit?.();}).catch(report);};
@@ -251,7 +248,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     </div>}
     <div data-map-workspace className={editing?'flex min-h-0 min-w-0 flex-1 flex-col-reverse sm:flex-row':'contents'}>
     {editing&&humanTools&&<aside data-map-context className={nativeState.tool?'hidden':'max-h-[42dvh] min-w-0 shrink-0 overflow-y-auto border-t sm:max-h-none sm:w-64 sm:border-r sm:border-t-0 lg:w-72'}><fieldset disabled={!available||busy||toolBusy} className="m-0 min-w-0 border-0 p-0">{humanTools(toolControls)}</fieldset></aside>}
-    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 min-w-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(18rem, calc(100svh - 13rem), 52rem)'}:undefined}>
+    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 min-w-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(14rem, 36dvh, 24rem)'}:undefined}>
       <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>

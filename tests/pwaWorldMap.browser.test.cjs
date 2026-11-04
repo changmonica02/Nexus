@@ -45,11 +45,12 @@ test('PWA stage 2: native world map offline save and reopen with independent wor
   await waitForAsync(page,()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,120000);
   let frame=page.frames().find(f=>f.parentFrame()===page.mainFrame());
   await frame.evaluate(()=>{options.map.name='OFFLINE_STAGE2';});
-  await editor.getByRole('button',{name:'Markers',exact:true}).click();await editor.getByRole('button',{name:'Add place',exact:true}).click();await page.waitForTimeout(250);
+  if(!await editor.locator('[data-world-tools]').evaluate(el=>el.open))await editor.locator('[data-world-tools] > summary').click();
+  await editor.getByRole('button',{name:'Human geography',exact:true}).click();await editor.getByRole('button',{name:'Add place',exact:true}).click();await page.waitForTimeout(250);
   const point=await frame.evaluate(()=>{const p=new DOMPoint(options.map.graph.width*.5,options.map.graph.height*.5).matrixTransform(document.querySelector('#viewbox').getScreenCTM());return {x:p.x,y:p.y};}),box=await (await frame.frameElement()).boundingBox();await page.mouse.click(box.x+point.x,box.y+point.y);
   const place=page.getByRole('dialog',{name:'Edit place entry',exact:true});await place.getByLabel('Name',{exact:true}).fill('Offline ruin');await place.getByRole('button',{name:'Save entry',exact:true}).click();await place.waitFor({state:'detached'});
 
-  await editor.getByRole('button',{name:'Terrain',exact:true}).click();await editor.getByRole('button',{name:'Edit height',exact:true}).click();
+  await editor.getByRole('button',{name:'Natural geography',exact:true}).click();await editor.getByRole('button',{name:'Edit height',exact:true}).click();
   const nativeTool=editor.getByRole('region',{name:'Native map tool',exact:true});await nativeTool.waitFor();await page.waitForTimeout(250);await frame.locator('#brushRaise').click();
   const offlineTerrain=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom,i=grid.cells.i.find(i=>{const [px,py]=grid.points[i],x=z.x+px*z.k,y=z.y+py*z.k;return grid.cells.h[i]>=30&&grid.cells.h[i]<75&&x>20&&y>80&&x<innerWidth-20&&y<innerHeight-20&&document.elementFromPoint(x,y)?.closest('#viewbox');});if(i===undefined)throw Error('No visible offline terrain');return {i,h:grid.cells.h[i],x:z.x+grid.points[i][0]*z.k,y:z.y+grid.points[i][1]*z.k};});
   await frame.locator('#map').click({position:{x:offlineTerrain.x,y:offlineTerrain.y},force:true});assert.ok(await frame.evaluate(i=>grid.cells.h[i],offlineTerrain.i)>offlineTerrain.h);

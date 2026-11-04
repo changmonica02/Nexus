@@ -264,7 +264,6 @@ export const MAP_COMMANDS: MapCommand[] = [
     aliases: "precreated generation options",
     run: () => Controllers.HeightmapSelection.open()
   },
-  { id: "openSubmapTool", name: "Create Submap", aliases: "generate region", run: () => Controllers.SubmapTool.open() },
   {
     id: "openTransformTool",
     name: "Transform Map",

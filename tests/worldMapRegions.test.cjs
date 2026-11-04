@@ -8,6 +8,6 @@ test('disconnected land footprints sum exact polygon area and exclude ocean/lake
 });
 test('trusted planar km scale is squared; unknown scales and world projection never claim km²',()=>{
  const cells=[{height:30,polygon:square(0)}],scale={scope:'region',known:true,unit:'km',scale:3};
- assert.deepEqual(measureRegionArea(cells,scale),{relative:4,km2:36});
- for(const patch of [{known:false},{scope:'world'},{scope:'custom'},{unit:'mi'},{scale:0},{scale:Infinity},{scale:NaN}])assert.deepEqual(measureRegionArea(cells,{...scale,...patch}),{relative:4});
+ for(const scope of ['region','town','underground','sky'])assert.deepEqual(measureRegionArea(cells,{...scale,scope}),{relative:4,km2:36});
+ for(const patch of [{known:false},{scope:'world'},{scope:'surface'},{scope:'custom'},{unit:'mi'},{scale:0},{scale:Infinity},{scale:NaN}])assert.deepEqual(measureRegionArea(cells,{...scale,...patch}),{relative:4});
 });

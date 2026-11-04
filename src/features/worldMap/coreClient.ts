@@ -1,4 +1,4 @@
-export type NativeMapTool = 'height'|'coasts'|'rivers'|'climate'|'biomes'|'advanced';
+export type NativeMapTool = 'height'|'coasts'|'rivers'|'climate'|'biomes'|'routes'|'labels'|'style'|'advanced';
 export type NativeToolState = {tool:NativeMapTool|null;undo:boolean;redo:boolean};
 export type NativeToolCommand = {action:'open';tool:NativeMapTool}|{action:'confirm'|'cancel'|'undo'|'redo'};
 import type {WorldRegionGeometry,WorldMapPlacement} from '../../lib/types';

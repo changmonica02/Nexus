@@ -302,6 +302,7 @@ export interface WorldEntity {
   summary?: string;
   /** Optional creative settings, not demographic statistics. */
   cultureSettings?: { language?: string; customs?: string };
+  fields?: {id:string;name:string;type:"text"|"number"|"relation";value:string|number|null}[];
   /** Existing Tiptap JSON document, not a second map-owned body. */
   content?: Record<string, unknown>;
   relations: { type: string; entityId: ID }[];

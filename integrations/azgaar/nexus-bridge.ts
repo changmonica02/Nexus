@@ -24,7 +24,7 @@ previewStyle.textContent='body.nexus-preview > :not(#map):not(svg):not(script):n
 document.head.append(previewStyle);document.body.classList.add('nexus-preview');
 const compactTools=document.createElement('style');
 compactTools.textContent=`body:not(.nexus-preview) #optionsContainer{position:absolute;left:0;top:0;z-index:20;width:max-content;max-width:calc(100vw - 16px);max-height:55vh;overflow:auto;box-sizing:border-box}body:not(.nexus-preview) #collapsible{position:relative;margin:8px;max-width:100%}body:not(.nexus-preview) #options{position:relative;max-width:100%;box-sizing:border-box}body:not(.nexus-preview) #optionsTrigger{min-height:44px;min-width:44px}body:not(.nexus-preview) #options .tab{height:auto;min-height:44px}body:not(.nexus-preview) #options button,body:not(.nexus-preview) #options summary{min-height:44px} @media(max-width:600px){body:not(.nexus-preview) #optionsContainer{position:fixed;left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;max-height:45vh}body:not(.nexus-preview) #options{position:relative;margin:0;width:100%}}`;
-compactTools.textContent+=`body.nexus-managed-tools:not([data-nexus-tool="advanced"]):not([data-nexus-tool="height"]) #optionsContainer{display:none!important} body.nexus-managed-tools[data-nexus-tool="height"] #options .tab{display:none} body.nexus-managed-tools .ui-dialog{max-width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px);box-sizing:border-box}body.nexus-managed-tools .ui-dialog-content{max-height:60vh!important;overflow:auto!important}body.nexus-managed-tools .ui-dialog button{min-height:44px;min-width:44px} @media(max-width:600px){body.nexus-managed-tools .ui-dialog{left:8px!important;top:auto!important;bottom:8px!important;width:calc(100vw - 16px)!important;max-height:48vh}body.nexus-managed-tools .ui-dialog-content{max-height:32vh!important}}`;
+compactTools.textContent+=`body.nexus-managed-tools:not([data-nexus-tool="advanced"]):not([data-nexus-tool="height"]):not([data-nexus-tool="style"]) #optionsContainer{display:none!important} body.nexus-managed-tools[data-nexus-tool="height"] #options .tab{display:none} body.nexus-managed-tools .ui-dialog{max-width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px);box-sizing:border-box}body.nexus-managed-tools .ui-dialog-content{max-height:60vh!important;overflow:auto!important}body.nexus-managed-tools .ui-dialog button{min-height:44px;min-width:44px} @media(max-width:600px){body.nexus-managed-tools .ui-dialog{left:8px!important;top:auto!important;bottom:8px!important;width:calc(100vw - 16px)!important;max-height:48vh}body.nexus-managed-tools .ui-dialog-content{max-height:32vh!important}}`;
 document.head.append(compactTools);
 
 type Marker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean}};
@@ -103,7 +103,7 @@ const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) =
 const notify = (type: string) => port?.postMessage({ type });
 // Tool transactions use the existing native project snapshot/loader only. No Nexus
 // entities, persistence, credentials or alternate map model enter the iframe.
-const nativeTools = ['height','coasts','rivers','climate','biomes','advanced'] as const;
+const nativeTools = ['height','coasts','rivers','climate','biomes','routes','labels','style','advanced'] as const;
 type NativeTool = typeof nativeTools[number];
 let nativeTool:NativeTool|null=null,toolCheckpoint:Blob|null=null;
 function toolState(){
@@ -127,6 +127,9 @@ async function toolCommand(command:{action?:string;tool?:NativeTool}){
       else if(nativeTool==='rivers')await Controllers.RiversOverview.open();
       else if(nativeTool==='climate')await Controllers.WorldConfigurator.open();
       else if(nativeTool==='biomes')await Controllers.BiomesEditor.open();
+      else if(nativeTool==='routes')await Controllers.RoutesOverview.open();
+      else if(nativeTool==='labels')await Controllers.LabelsOverview.open();
+      else if(nativeTool==='style')await Controllers.StyleEditor.open();
       else openTab('toolsTab');
     }catch(error){
       // An editor may have modified the working project before its lazy load failed.
