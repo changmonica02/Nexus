@@ -1,7 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 test('freeform legacy note, per-note width and math edit/delete/undo preserve source',{timeout:90000},async t=>{
- const bundle=await build({entryPoints:['tests/fixtures/noteEditor.jsx'],outfile:'fixture.js',bundle:true,format:'esm',jsx:'automatic',write:false,loader:{'.woff2':'dataurl','.woff':'dataurl','.ttf':'dataurl'}});
+ // Match the browser build environment for framework imports (including shared navigation).
+ const bundle=await build({define:{'process.env':JSON.stringify({NODE_ENV:'development'})},entryPoints:['tests/fixtures/noteEditor.jsx'],outfile:'fixture.js',bundle:true,format:'esm',jsx:'automatic',write:false,loader:{'.woff2':'dataurl','.woff':'dataurl','.ttf':'dataurl'}});
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:process.cwd()})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.resolve('src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{res.setHeader('content-type','text/html');if(req.url==='/fixture.js'){res.setHeader('content-type','text/javascript');res.end(bundle.outputFiles.find(f=>f.path.endsWith('.js')).text);}else if(req.url==='/fixture.css'){res.setHeader('content-type','text/css');res.end(css+'\n'+bundle.outputFiles.find(f=>f.path.endsWith('.css')).text);}else res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><div id="root"></div><script type="module" src="/fixture.js"></script>');});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>{server.closeAllConnections();server.close(r);}));
