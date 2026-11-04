@@ -1,4 +1,4 @@
-import { activeFixed,State, localStudyDay, schedulerCard, studyScheduler, type StudyCard, type StudySnapshot, type StudyState } from './studyFSRS';
+import { activeFixed,State, localStudyDay, type StudyCard, type StudySnapshot, type StudyState } from './studyFSRS';
 import {isLearned, displayStudyCards, makeSession, type StudySession } from './studySessions';
 
 export function isUnintroduced(state: StudyState) {
@@ -39,12 +39,6 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   reviews.sort((a, b) => {
     const sa = states.get(a.id)!, sb = states.get(b.id)!;
     if (snapshot.settings.review_order === 'random') return randomKeys.get(a.id)! - randomKeys.get(b.id)!;
-    if (snapshot.settings.review_order === 'retrievability') {
-      const retrievability = (s: StudyState) => s.fsrs ? studyScheduler.get_retrievability(schedulerCard(s, now), new Date(now), false) : 0;
-      if(!!sa.fsrs!==!!sb.fsrs)return sa.fsrs?-1:1;
-      if(sa.fsrs&&sb.fsrs)return Number(retrievability(sa))-Number(retrievability(sb))||dueAt(sa,now)-dueAt(sb,now);
-      return dueAt(sa,now)-dueAt(sb,now)||a.id.localeCompare(b.id);
-    }
     return dueAt(sa, now) - dueAt(sb, now) || a.sort_order - b.sort_order;
   });
   let combined: StudyCard[];
@@ -56,7 +50,7 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   const earlyIds = new Set<string>();
   if (snapshot.settings.study_mode === 'endless' && planned.length < limit) {
     const selected = new Set(planned.map(c => c.id));
-    const future = cards.filter(c => !selected.has(c.id) && isLearned(states.get(c.id)!) && dueAt(states.get(c.id)!, now) > now)
+    const future = cards.filter(c => !selected.has(c.id) && isLearned(states.get(c.id)!) && !isShortStep(states.get(c.id)!,now) && dueAt(states.get(c.id)!, now) > now)
       .sort((a,b) => dueAt(states.get(a.id)!,now) - dueAt(states.get(b.id)!,now));
     for (const c of future.slice(0,limit-planned.length)) { planned.push(c); earlyIds.add(c.id); }
   }
@@ -76,6 +70,7 @@ export function scheduledCounts(snapshot:StudySnapshot,now:number) {
 export function makeScheduled(snapshot: StudySnapshot, now: number, id: string) {
   const plan = planScheduled(snapshot, now);
   const session = makeSession(snapshot, 'scheduled', plan.cards, now, id);
+  session.settings_snapshot = structuredClone(snapshot.settings.style!);
   session.study_mode = snapshot.settings.study_mode ?? 'scheduled';
   session.quota_limit = plan.limit;
   for (const t of session.targets) { t.counts_toward_limit = true; t.early_review = plan.earlyIds.has(t.card_id); }
@@ -88,7 +83,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   const activeCards = new Map(snapshot.cards.filter(c => !c.deleted_at && c.front.trim() && c.back.trim()).map(c => [c.id,c]));
   const targets = session.targets.filter(t => activeCards.has(t.card_id) && states.get(t.card_id)?.generation === t.generation).map(t => ({ ...t }));
   // Due learning steps may enter unused slots; repeat answers never add a second target.
-  if (session.completed_at == null) for (const c of cards.values()) {
+  if (session.completed_at == null&&session.settings_snapshot?.interval_version!==1) for (const c of cards.values()) {
     const s = states.get(c.id)!;
     if (isShortStep(s, now)&&dueAt(s,now)<=now&&targets.length<(session.quota_limit??100) && !targets.some(t => t.card_id === c.id)) targets.push({ card_id: c.id, generation: s.generation, easy_at: null, official_event_id: null, event_id: crypto.randomUUID(), attempts: 0, counts_toward_limit: true });
   }
@@ -98,7 +93,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   let blocked=0;
   for (const t of targets) {
     const s = states.get(t.card_id)!;
-    if (session.completed_at != null || t.skipped) continue;
+    if (session.completed_at != null || t.skipped || session.settings_snapshot?.interval_version===1&&t.easy_at!=null) continue;
     if(s.conflict){blocked++;continue;}
     if (isUnintroduced(s)) {
       if (newRemaining-- > 0) { t.easy_at = null; ready.push(t); }
@@ -119,7 +114,7 @@ export function scheduledStatus(session: StudySession, snapshot: StudySnapshot, 
   const waits = session.targets.filter(t => !t.skipped && t.easy_at == null).flatMap(t => {
     const state = states.get(t.card_id); return state && isShortStep(state, now) && dueAt(state, now) > now ? [dueAt(state, now)] : [];
   });
-  return { remainingDue, blocked:session.targets.filter(t=>states.get(t.card_id)?.conflict).length, waiting: waits.length, nextDue: waits.length ? Math.min(...waits) : null,
+  return { remainingDue, blocked:session.targets.filter(t=>!t.skipped&&t.easy_at==null&&states.get(t.card_id)?.conflict).length, waiting: waits.length, nextDue: waits.length ? Math.min(...waits) : null,
     slots: session.targets.filter(t => t.counts_toward_limit !== false).length,
     completed: session.targets.filter(t => t.easy_at != null).length };
 }

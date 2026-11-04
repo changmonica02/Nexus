@@ -1,4 +1,4 @@
-import {defaultStudyStyle,defaultStyleId,validateStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
+import {defaultStudyStyle,defaultStyleId,validateStudyStyle, unifiedStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import {cleanState, reliableEvent, type ScheduleCandidate} from "./studyReliability";
@@ -178,7 +178,7 @@ export class StudyRepository {
     }
     const selected:StudySettings|undefined=settings.style_id?await tx.objectStore('study_settings').get(settings.style_id):defaultRecord;
     if(!selected?.style)throw Error('Assigned study style is missing; sync or restore it before learning');
-    this.owned(selected);validateStudyStyle(selected.style);return structuredClone(selected.style);
+    this.owned(selected);validateStudyStyle(selected.style);return unifiedStudyStyle(selected.style);
   }
   async listStyles():Promise<StudyStyle[]>{return this.sessionWrite(async tx=>{
     const id=defaultStyleId(this.owner());if(!await tx.objectStore('study_settings').get(id))await this.styleRecord(tx,defaultStudyStyle(this.owner()),true);
@@ -198,6 +198,7 @@ export class StudyRepository {
       const settings:StudySettings=await tx.objectStore('study_settings').get(deckId);this.owned(settings);
       const current=await this.effectiveStyle(tx,settings);
       const style={...current,...patch,id:`study-style:deck:${this.owner()??'local'}:${deckId}`,name:current.name};
+      if(style.interval_version===1&&style.intervals){const [a,b,c]=style.intervals.general,[x,y,z]=style.intervals.forgotten;style.fixed_intervals={new:[a,b,c,c],review:[a,b,c,c],relearning:[x,y,z,z]};}
       await this.styleRecord(tx,style);
       const updated={...settings,style_id:style.id,style_version:1 as const,style_migration_notice:false,configured:true,updated_at:Math.max(Date.now(),settings.updated_at+1)};
       await tx.objectStore('study_settings').put(updated);
@@ -317,13 +318,15 @@ export class StudyRepository {
         if(event)snapshot.events.push(event);
       }
     }
+    let converted=false;
     if(session.mode==="scheduled"){
-      if(!session.settings_snapshot){const original:StudySettings=await tx.objectStore("study_settings").get(session.deck_id);session.settings_snapshot={...styleFromLegacy(original),review_limit:session.quota_limit??original.review_limit??50,study_mode:session.study_mode??original.study_mode??"scheduled",scheduling_method:"fsrs"};session.compatibility_notice=true;}
+      if(!session.settings_snapshot){const original:StudySettings=await tx.objectStore("study_settings").get(session.deck_id);session.settings_snapshot={...styleFromLegacy(original),review_limit:session.quota_limit??original.review_limit??50,study_mode:session.study_mode??original.study_mode??"scheduled",scheduling_method:"fsrs",interval_version:undefined};session.compatibility_notice=true;}
+      if(session.settings_snapshot.interval_version!==1){session.legacy_settings_snapshot??=structuredClone(session.settings_snapshot);session.settings_snapshot=unifiedStudyStyle(session.settings_snapshot);session.compatibility_notice=true;converted=true;}
       validateStudyStyle(session.settings_snapshot);snapshot.settings=applyStyle(snapshot.settings,session.settings_snapshot);
     }
     if(session.mode==="scheduled") snapshot.events=await this.dayIntroductions(session.deck_id,now,tx);
     const next=session.mode==="scheduled"?refreshScheduled(session,snapshot,now):reconcileSession(session,snapshot,now);
-    if(!sameStudyRecord(next,session)) {
+    if(converted||!sameStudyRecord(next,session)) {
       next.revision++; next.updated_at=Math.max(now,session.updated_at+1);
       await this.saveSession(tx,next);
     }
@@ -334,7 +337,8 @@ export class StudyRepository {
       const snapshot=await this.snapshotIn(tx,deckId);
       if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
       const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
-      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0];
+      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]??(mode==='scheduled'?sessions.filter(s=>(s.mode==='daily'||s.mode==='free')&&s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]:undefined);
+      if(unfinished&&mode==='scheduled'&&unfinished.mode!=='scheduled'){unfinished.legacy_mode=unfinished.mode as 'daily'|'free';unfinished.mode='scheduled';unfinished.settings_snapshot=unfinished.settings_snapshot?{...unfinished.settings_snapshot,interval_version:undefined}:{...styleFromLegacy(snapshot.settings),scheduling_method:'fsrs',interval_version:undefined};unfinished.quota_limit??=Math.max(unfinished.targets.length,snapshot.settings.review_limit??100);}
       if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
       if(mode==="scheduled") {
         snapshot.events=await this.dayIntroductions(deckId,now,tx);
@@ -401,6 +405,7 @@ export class StudyRepository {
       const card=snapshot.cards.find(c=>c.id===cardId)!;
       const state=snapshot.states.find(s=>s.id===cardId)!;
       if(state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
+      if(session.mode==='scheduled'&&session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
       const target=session.targets.find(t=>t.card_id===cardId)!;
       target.attempts=(target.attempts??0)+1;
       let event:StudyEvent|undefined;
@@ -411,7 +416,7 @@ export class StudyRepository {
         event.session_id=session.id;event.session_rating=rating;
         target.official_event_id=event.id;target.official_rating=rating;
         // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
-        if(!isShortStep(event.after,now))target.easy_at=now;
+        if(session.settings_snapshot?.interval_version===1?rating!==1:!isShortStep(event.after,now))target.easy_at=now;
         session.answers++;session.revision++;session.last_action_id=actionId;
         session.updated_at=Math.max(now,session.updated_at+1);
         snapshot.states=snapshot.states.map(s=>s.id===cardId?event!.after:s);

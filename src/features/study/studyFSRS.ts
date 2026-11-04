@@ -1,4 +1,4 @@
-import type {StudyStyle,FixedIntervals,ScheduleMethod} from './studyStyles';
+import {defaultIntervalSettings,type StudyStyle,type FixedIntervals,type ScheduleMethod,type IntervalSettings} from './studyStyles';
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
 import type { Page, StudyItem } from "../../lib/types";
 import type { StudySession } from "./studySessions";
@@ -10,6 +10,7 @@ export { Rating, State };
 export type { Grade };
 export type StoredFSRS = Omit<Card, "due" | "last_review"> & { due: number; last_review?: number };
 export interface FixedReviewLog {method:"fixed";rating:Grade;review:number;due:number;interval_seconds:number;state_before:State;state_after:State}
+export interface IntervalReviewLog extends Omit<FixedReviewLog,"method"> {method:"interval";version:1;group:"general"|"forgotten"}
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
@@ -56,8 +57,8 @@ export interface StudyEvent {
   id: string; card_id: string; deck_id: string; owner_id: string | null;
   kind: "review" | "introduce" | "reset"; at: number; local_day: string;
   device_id: string; parent: string | null; before: StudyState; after: StudyState;
-  rating: Grade | null; log: StoredReviewLog | FixedReviewLog | null;
-  engine: typeof STUDY_ENGINE | "nexus-fixed@1"; parameters: typeof STUDY_PARAMETERS | {fixed_intervals:FixedIntervals};
+  rating: Grade | null; log: StoredReviewLog | FixedReviewLog | IntervalReviewLog | null;
+  engine: typeof STUDY_ENGINE | "nexus-fixed@1" | "nexus-interval@1"; parameters: typeof STUDY_PARAMETERS | {fixed_intervals:FixedIntervals} | {intervals:IntervalSettings;version:1};
   scheduling_method?:ScheduleMethod;style_snapshot?:StudyStyle;method_transition?:string;
   content_revision: number; question: string; answer: string;
   session_id?: string;
@@ -109,7 +110,17 @@ export function schedulerCard(state: StudyState, now: number): Card {
   // Legacy due is an eligibility gate, never invented FSRS memory/history.
   return state.fsrs ? { ...state.fsrs, due: new Date(state.fsrs.due), last_review: state.fsrs.last_review == null ? undefined : new Date(state.fsrs.last_review) } : createEmptyCard(new Date(now));
 }
+/** Preserve actual old due/memory; classify only real learning/relearning states as forgotten. */
+export function forgottenStudyState(state:StudyState):boolean {
+ const card=activeFixed(state)?state.fixed:state.fsrs;
+ return !!card&&card.last_review!=null&&(card.state===State.Learning||card.state===State.Relearning);
+}
+export function intervalSeconds(state:StudyState,style:StudyStyle,rating:Grade):number {
+ if(![1,2,3].includes(rating))throw Error('Invalid interval response');
+ return (style.intervals??defaultIntervalSettings())[forgottenStudyState(state)?'forgotten':'general'][rating-1];
+}
 export function previewStudy(state: StudyState, now: number,style?:StudyStyle) {
+  if(style?.interval_version===1)return Object.fromEntries([1,2,3].map(r=>[r,{card:{due:new Date(now+intervalSeconds(state,style,r as Grade)*1000)}}])) as Record<Grade,{card:{due:Date}}>;
   if(style?.scheduling_method==="fixed")return Object.fromEntries([1,2,3,4].map(r=>{const event=createStudyEvent({id:state.id,deck_id:state.deck_id,owner_id:state.owner_id,front:"",back:"",content_revision:0} as StudyCard,state,"review",now,"preview","preview",r as Grade,"scheduled",style);return [r,{card:{due:new Date(event.after.fixed!.due)}}];})) as Record<Grade,{card:{due:Date}}>;
   return studyScheduler.repeat(schedulerCard(state, now), new Date(now));
 }
@@ -117,8 +128,15 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
   if (state.conflict) throw new Error("此卡有跨裝置排程衝突，紀錄已保留，請先處理衝突。");
   const previousMethod=activeFixed(state)?"fixed":state.fsrs?"fsrs":undefined;
   let after: StudyState = { ...state, head: id };
-  let log: StoredReviewLog | FixedReviewLog | null = null;
-  if (kind === "review" && style?.scheduling_method==="fixed") {
+  let log: StoredReviewLog | FixedReviewLog | IntervalReviewLog | null = null;
+  if(kind==='review'&&style?.interval_version===1){
+    const seconds=intervalSeconds(state,style,rating!);
+    const before=activeFixed(state)?state.fixed!.state:forgottenStudyState(state)?State.Relearning:state.fsrs!=null||state.legacy_due_at!=null||state.learned_at!=null?State.Review:State.New;
+    const next=rating===3?State.Review:State.Relearning;
+    after={...after,scheduling_method:'fixed',fixed:{state:next,due:now+seconds*1000,last_review:now,generation:state.generation},legacy_due_at:null};
+    log={method:'interval',version:1,group:forgottenStudyState(state)?'forgotten':'general',rating:rating!,review:now,due:after.fixed!.due,interval_seconds:seconds,state_before:before,state_after:next};
+    if(next===State.Review)after.learned_at??=now;
+  } else if (kind === "review" && style?.scheduling_method==="fixed") {
     if (![1,2,3,4].includes(rating!))throw Error("Invalid fixed rating");
     const phase=activeFixed(state)?state.fixed!.state:state.fsrs?.state??(state.learned_at!=null||state.legacy_due_at!=null?State.Review:State.New);
     const group=phase===State.Review?"review":phase===State.Relearning?"relearning":"new";
@@ -142,7 +160,7 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
   }
   return { id, card_id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, kind, at: now,
     local_day: localStudyDay(now), device_id: device, parent: state.head, before: structuredClone(state), after,
-    rating, log, engine: kind==="review"&&style?.scheduling_method==="fixed"?"nexus-fixed@1":STUDY_ENGINE, parameters: kind==="review"&&style?.scheduling_method==="fixed"?{fixed_intervals:structuredClone(style.fixed_intervals)}:structuredClone(STUDY_PARAMETERS),
+    rating, log, engine: kind==="review"&&style?.interval_version===1?"nexus-interval@1":kind==="review"&&style?.scheduling_method==="fixed"?"nexus-fixed@1":STUDY_ENGINE, parameters: kind==="review"&&style?.interval_version===1?{intervals:structuredClone(style.intervals??defaultIntervalSettings()),version:1}:kind==="review"&&style?.scheduling_method==="fixed"?{fixed_intervals:structuredClone(style.fixed_intervals)}:structuredClone(STUDY_PARAMETERS),
     content_revision: card.content_revision, question: card.front, answer: card.back,
     ...(source ? { source } : {}),
     ...(kind==="review"&&style?{scheduling_method:style.scheduling_method,style_snapshot:structuredClone(style),...(previousMethod&&previousMethod!==style.scheduling_method?{method_transition:style.scheduling_method==="fsrs"?(state.fsrs?"resume-preserved-fsrs-memory":"initialize-from-real-answer-without-estimated-memory"): "retain-fsrs-memory-use-fixed-state"}:{})}: {}) };

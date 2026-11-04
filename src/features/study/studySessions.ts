@@ -26,6 +26,7 @@ export interface StudySession {
   last_action_id?: string;
   conflict?: boolean;
   study_mode?: "scheduled" | "endless";
+  legacy_settings_snapshot?:StudyStyle;legacy_mode?:SessionMode;
   quota_limit?: number;settings_snapshot?:StudyStyle;compatibility_notice?:boolean;
 }
 // Only these explicitly authorized test records are reset, never cards matched by text.

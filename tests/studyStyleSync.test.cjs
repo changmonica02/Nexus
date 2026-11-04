@@ -11,7 +11,7 @@ const { reliableEvent } = require("../src/features/study/studyReliability.ts");
 const { activeFixed } = require("../src/features/study/studyFSRS.ts");
 const owner = "11111111-1111-4111-8111-111111111111",
   now = new Date(2026, 9, 14, 12).getTime();
-test("original Supabase SQL: style JSON, fixed events and method switches replay after dropped replies, second-device settings/state, backup and owner isolation", async () => {
+test("original Supabase SQL: style JSON, three-response events and interval edits replay after dropped replies, second-device settings/state, backup and owner isolation", async () => {
   const pg = new PGlite(),
     one = await fixture(1, owner),
     two = await fixture(0, owner),
@@ -46,7 +46,7 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
       "scheduled",
       now + 60001,
     );
-    await grade(one.repo, switched.id, 4, now + 60001);
+    await grade(one.repo, switched.id, 3, now + 60001);
     let lost = true;
     const client = {
       rpc: async (name, args) => {
@@ -77,10 +77,10 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
           if (
             lost &&
             args.operation.kind === "event" &&
-            args.operation.value.engine === "nexus-fixed@1"
+            args.operation.value.engine === "nexus-interval@1"
           ) {
             lost = false;
-            return { error: { message: "lost fixed receipt" } };
+            return { error: { message: "lost interval receipt" } };
           }
           return { data: true, error: null };
         } catch (e) {
@@ -90,24 +90,24 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
     };
     await assert.rejects(
       () => syncStudy(one.repo, client, owner),
-      /lost fixed receipt/,
+      /lost interval receipt/,
     );
     await syncStudy(one.repo, client, owner);
     assert.equal((await one.repo.pending()).length, 0);
     const events = (
       await pg.query("select payload from study_review_events")
     ).rows.map((r) => r.payload);
-    assert.equal(events.filter((e) => e.engine === "nexus-fixed@1").length, 2);
+    assert.equal(events.filter((e) => e.engine === "nexus-interval@1").length, 3);
     assert.ok(events.every(reliableEvent));
     await syncStudy(two.repo, client, owner);
     const remote = await two.repo.readScheduledDeck("deck", now + 60001);
-    assert.equal(remote.settings.style.scheduling_method, "fsrs");
+    assert.equal(remote.settings.style.scheduling_method, "fixed");
     assert.equal(remote.settings.style.auto_speech, false);
     assert.equal(remote.settings.style.speech_rate, 1.2);
     assert.equal(remote.settings.review_limit, 100);
-    assert.equal(remote.states[0].scheduling_method, "fsrs");
+    assert.equal(remote.states[0].scheduling_method, "fixed");
     assert.ok(remote.states[0].fixed);
-    assert.ok(remote.states[0].fsrs);
+    assert.equal(remote.states[0].fsrs, null);
     assert.equal(remote.states[0].conflict, false);
     await two.repo.saveStyle({ ...fixed, name: "共用自訂樣式" });
     const next = await two.repo.startSession("deck", "scheduled", now + 60002);
@@ -137,11 +137,11 @@ test("original Supabase SQL: style JSON, fixed events and method switches replay
     const branchOne = await one.repo.startSession(
         "deck",
         "scheduled",
-        now + 60003,
+        now + 660003,
       ),
-      branchTwo = await two.repo.startSession("deck", "scheduled", now + 60003);
-    await grade(one.repo, branchOne.id, 2, now + 60003);
-    await grade(two.repo, branchTwo.id, 1, now + 60003);
+      branchTwo = await two.repo.startSession("deck", "scheduled", now + 660003);
+    await grade(one.repo, branchOne.id, 2, now + 660003);
+    await grade(two.repo, branchTwo.id, 1, now + 660003);
     await syncStudy(one.repo, client, owner);
     await syncStudy(two.repo, client, owner);
     let conflict = (await two.repo.readDeck("deck", true)).states[0];
