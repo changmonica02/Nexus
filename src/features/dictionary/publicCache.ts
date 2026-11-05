@@ -72,3 +72,13 @@ export async function savePublicCache(key:string,data:unknown):Promise<void> {
 export function offline():boolean {
   return typeof navigator!=="undefined" && navigator.onLine===false;
 }
+
+/** Bounded batch access for official-card display; same store, expiry and capacity. */
+export async function readPublicCacheBatch(keys:string[]):Promise<Map<string,unknown>> {
+ if(typeof indexedDB==='undefined')return new Map();
+ try{return await transact<Map<string,unknown>>('readonly',(store,result)=>{const request=store.getAll();request.onsuccess=()=>{const wanted=new Set(keys);result(new Map((request.result as RecordValue[]).filter(row=>wanted.has(row.key)&&Date.now()-row.savedAt<MAX_AGE).map(row=>[row.key,row.data])));};});}catch{return new Map();}
+}
+export async function savePublicCacheBatch(entries:{key:string;data:unknown}[]):Promise<void>{
+ if(typeof indexedDB==='undefined')return;
+ try{await transact<void>('readwrite',store=>{const request=store.getAll();request.onsuccess=()=>{try{const now=Date.now(),replaced=new Set(entries.map(e=>e.key));const kept=(request.result as RecordValue[]).filter(row=>{if(replaced.has(row.key)||now-row.savedAt>=MAX_AGE){store.delete(row.key);return false;}return true;});const next=[...kept,...entries.filter(e=>e.data!=null).map(e=>({...e,savedAt:now}))].sort((a,b)=>a.savedAt-b.savedAt);for(const row of next.slice(0,Math.max(0,next.length-MAX_RECORDS)))store.delete(row.key);for(const row of next.slice(-MAX_RECORDS))store.put(row);}catch{store.transaction.abort();}};});}catch{/* Optional cache cannot block learning. */}
+}

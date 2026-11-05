@@ -11,7 +11,7 @@ test('variants preserve legacy text verbatim, unknown JSON and structured condit
  assert.deepEqual(parseVariants(null),[]);
 });
 test('variant editor has two placeholder inputs per row and immutable add/edit/delete callbacks',()=>{
- let value=serializeVariants([{variant:'cap',condition:'before x'}]);const render=()=>VariantEditor({value,onChange:v=>value=v});
+ let value=serializeVariants([{variant:'cap',condition:'before x'}]);const render=()=>{let tree;function Probe(){tree=VariantEditor({value,onChange:v=>value=v});return tree;}renderToStaticMarkup(React.createElement(Probe));return tree;};
  let tree=render(),row=tree.props.children[1][0];row.props.children[0].props.onChange({target:{value:'cept'}});
  assert.equal(parseVariants(value)[0].variant,'cept');assert.equal(parseVariants(value)[0].condition,'before x');
  tree=render();tree.props.children[0].props.children[1].props.onClick();assert.equal(parseVariants(value).length,2);

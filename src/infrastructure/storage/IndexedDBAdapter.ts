@@ -15,7 +15,7 @@ import type {
   WorkspaceBackup, WorkspaceBackupAttachmentEntry,
 } from "../../lib/types";
 import type { StorageAdapter } from "./StorageAdapter";
-import { WorkspacePersistence, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
+import { WorkspacePersistence, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
 const DB_VERSION = 9;
@@ -234,7 +234,6 @@ export class IndexedDBAdapter implements StorageAdapter {
       device_id: this.deviceId,
       kind: input?.kind ?? "note",
       ...(input?.kind==='todo'?{due_date:input.due_date??null,completed:input.completed??false}:{}),
-      study_items: input?.kind === "study_set" ? [] : undefined,
       presentation_data: input?.kind === "presentation" ? { theme: "minimal", slides: [] } : undefined,
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),
       sort_order: input?.sort_order,
@@ -451,7 +450,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       schema_version: BACKUP_SCHEMA_VERSION,
       exported_at: snapshotTime,
       device_id: this.deviceId,
-      pages: allPages.filter(row => (row.workspace_owner_id??null)===owner),
+      pages: allPages.filter(row => (row.workspace_owner_id??null)===owner).map(withoutRetiredStudyItems),
       attachments: attachmentEntries,
       settings: allSettingsRecords,
       study,
@@ -488,6 +487,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       if(draft.owner_id!==owner || !map || map.world_id!==draft.world_id || !Number.isSafeInteger(draft.base_revision)||draft.base_revision<1||!draft.binary_base64)throw Error("Invalid map recovery draft in backup");
     }
     if(this.workspaceOwnerId!==owner)throw Error("Account changed during backup validation");
+    backup.pages=backup.pages.map(page=>{const clean={...page} as Page & {study_items?:unknown};delete clean.study_items;return clean;});
     if (backup.study) {
       const study = backup.study;
       if (![study.cards, study.states, study.events, study.settings].every(Array.isArray)) throw new Error("字卡備份格式不完整。");
@@ -515,7 +515,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       }
     }
     // A file's clear metadata is informational, never authority. Fetch the account's
-    // barrier before restoring any study content, including old Page study_items.
+    // barrier before restoring modern study content; retired Page-only cards are ignored.
     if(owner&&((backup.study?.cards.length??0)>0||backup.pages.some(p=>p.kind==='study_set'))) {
       const client=getSupabase();if(!client||typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('study.clearOnline');
       const {data:{user},error}=await client.auth.getUser();if(error||user?.id!==owner)throw Error('study.clearOnline');

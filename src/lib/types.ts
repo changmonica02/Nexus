@@ -151,7 +151,6 @@ export interface Page {
   attachment_ids?: ID[];
   primary_attachment_id?: ID | null;
   kind?: PageKind;
-  study_items?: StudyItem[];
   presentation_data?: PresentationData;
   is_favorite?: boolean;
   format?: PageFormat;

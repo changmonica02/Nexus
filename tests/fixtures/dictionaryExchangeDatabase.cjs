@@ -111,4 +111,4 @@ const draft = (n, kind = "word") => ({
   lexical_annotations: [],
   relation_hints: [],
 });
-module.exports = { database, id, owner, sql, client, draft };
+module.exports = { database, id, owner, sql, client, draft, dictionaryMigrations:files };

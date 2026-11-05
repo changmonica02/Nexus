@@ -271,6 +271,8 @@ test('IPA editor is in basic information, orientation responsive and metadata-fr
  assert.ok(!reader.includes('p.locale&&'));
  assert.ok(!reader.includes('p.note&&'));
  const migration=fs.readFileSync('supabase/migrations/20261105033000_dictionary_ipa_only.sql','utf8');
- assert.ok(migration.includes('set locale = null, note = null'));
- assert.ok(migration.includes('before insert or update'));
+ assert.ok(migration.includes('superseded')||migration.includes('Superseded'));
+ const retirement=fs.readFileSync('supabase/migrations/20261105091518_dictionary_pronunciation_columns_retired.sql','utf8');
+ assert.ok(retirement.includes('drop column locale'));
+ assert.ok(retirement.includes('drop column note'));
 });

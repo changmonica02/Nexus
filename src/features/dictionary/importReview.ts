@@ -47,7 +47,7 @@ export function reconcileProposedContent(draft:DictionaryDraftInput,context:Impo
         const incoming=d[section]![i];let old=rows.find(r=>r.id===incoming.id);
         if(!old&&section!=='senses'&&proposed.has(incoming.id)){
           const slots=rows.filter(r=>equal(r.sense_id,incoming.sense_id)&&equal(r.kind,incoming.kind));
-          const exact=slots.filter(r=>section==='pronunciations'?r.ipa===incoming.ipa&&r.locale===incoming.locale:r.body===incoming.body);
+          const exact=slots.filter(r=>section==='pronunciations'?r.ipa===incoming.ipa:r.body===incoming.body);
           if(exact.length===1)old=exact[0];else if(slots.length===1)old=slots[0];
           if(old){proposed.delete(incoming.id);const {updated_at,entry_id,...content}=old;void updated_at;void entry_id;
             const replacement=section==='pronunciations'?{...content,...incoming,id:old.id}:{...content,body:incoming.body} as DraftRow;

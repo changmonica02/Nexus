@@ -2,44 +2,35 @@
 
 產品見 [SPEC](SPEC.md)，技術契約見 [ARCHITECTURE](ARCHITECTURE.md)。本輪不修改 HISTORY、不合併、不部署，也不寫入正式資料庫。
 
-## 字典三項功能（Issue #154／Draft PR #155）
+## 本輪 #157：官方連動、IPA／Page 舊欄位退役、構詞義項介面
 
-從最新 main `9f5cbaee` 建立 `feat/dictionary-composition-autosave-navigation`，同一個新 PR 交付：
+基線為最新 main `6fdedc1`，分支 `feat/official-linked-cards-schema-retirement`。PR #155 已合併（`452e233`），本輪不重做其構詞／自動保存／相鄰導覽功能；另建獨立 Draft PR，提交及最新 checks 以該 PR 為準。
 
-- Word 有序構詞格／自動串字／逐段中文提示／可選正式關聯；保留 Word/Sense ID、詞形、多義項、既有關聯、私人與官方卡連結、審核及完整 JSON／AI JSON。舊 Word 讀取時安全顯示原拼寫單格，不自動回填或建立字根；有效保存才寫入。
-- 單行 Enter／Done、失焦、選單與結構變更保存整份有效草稿；IME／無效內容保留，textarea Enter 換行。佇列序列化、快照基線及原 CAS 保護延遲回覆，保留手動重試。自動保存不發布、不關閉嵌入編輯器；發布仍人工核准。
-- 編輯頁上一筆／下一筆沿用管理清單搜尋、篩選與頁碼，跨頁；缺少上下文使用同類型 headword/id 穩定排序。切換前等待有效保存，無效／失敗／衝突停留原表單。嵌入學習面板不導向獨立相鄰頁。
-- 字卡背面從已發布資料讀取字形／提示，英文自然連續，獨立底線及依英文寬度換行的提示，不均分欄寬；正式連結在查看字典探索。學習事件、排程、due、Session、清除屏障、IndexedDB v9、備份 v4 與同步協定沒有修改。
+- 已實作官方卡共享已發布內容解析、既有公共快取與離線備援、明確改為私人自訂。新下載連動；舊卡嚴格驗證未修改才轉換，其餘保留私人文字。來源去重／刪除結果／可變字典連結維持。列表、搜尋、預覽、正常及無盡 Session 共用解析；發布不改學習身份／版本／排程，新作答只保存一次實際顯示文字。
+- 已移除 IPA locale/note 的型別、AI／完整交換輸出、RPC 及快照相依；舊 JSON 僅忽略此二已知欄位，未知仍拒絕。舊 Review 可核准、實際 IPA／版本差異仍保護，不改 #156 審核架構。
+- 構詞關聯預設共用詞條；勾選後才選特定義項。缺少／單一義項與既有關聯的載入、取消、保存皆保留 ID 與原資料。
+- Page study_items 實體退役；移除 migrateStudyDeck 及 Page-only 轉換。ensureDeck 直接建現行設定，備份／同步忽略已知舊欄位而保留現行 Study 資料、有效 outbox 與其他 Page 內容。不清 IndexedDB，維持 v9／備份 v4。
+- SPEC 補充最小實作細節；ARCHITECTURE 記錄解析優先序、帳號邊界、退役相容、鎖與發布／回復限制；HISTORY 未修改。
 
-### PR #155 審查阻擋修正
+### Migration／正式狀態
 
-- 已修正 Migration 前 Review 因新增 null 欄位而誤判 stale 的問題；比對僅正規化 word_segments 缺少／null。空陣列、實際內容與排序不合併，原版本與權限驗證保留，不改寫歷史草稿基底。
-- 補正完整儲存對省略關聯／詞形陣列的誤刪邊界；null 子陣列拒絕、空陣列需通過原 FK／分段連結驗證。修正 JSONB 包含判斷會略過空／重排分段的問題，保留真正變更與 CHECK。
-- 已補 Migration 前 Word／Prefix／Root 草稿核准、舊交換指紋失效與重新預覽、完整儲存、省略／null／空陣列、正式 relation ID 保留、真實內容／版本衝突及交易回滾測試。
-- 舊 GitHub Actions run 41990616986 的筆記匯出失敗原因為視窗可見後立即斷言，而資產與分頁尚未完成；只改測試等待既有列印就緒狀態，不省略原斷言，不修改匯出產品邏輯。CI 增加字典 Migration 相容性測試；最新遠端結果以 PR checks 與交付註記為準。
-- 本輪本機：7 項構詞／隔離 SQL 測試、12 個字典／交換／刪除／版本／同步／筆記排版回歸檔，以及 noteEditor、dictionaryDraftPublish、dictionaryAutosave、dictionaryPersistent、dictionaryExchange 瀏覽器測試通過；TypeScript、Build 通過，字典／匯出元件與測試 ESLint 0 errors／18 既有 warnings。
-- 正式核准失敗仍為獨立待查問題；此次未修改整套審核流程，也不將新 Migration 的相容修正宣稱能解決目前正式故障。
+三份獨立交易依序：`20261105091439_official_card_linked_content.sql`、`20261105091518_dictionary_pronunciation_columns_retired.sql`、`20261105091519_page_study_items_retired.sql`。均只在隔離 PGlite PostgreSQL 執行，**未套用正式**。DROP 的舊 IPA 資料與經使用者授權捨棄的未轉換 Page-only 卡不可直接回滾；須有事前備份並向前修復。
 
-### Migration 與資料相容性
+正式唯讀預檢確認三個待刪欄仍存在，study_cards／study_card_states 各 10,155 筆；實際執行前重查 Page 非空內容、卡／狀態／事件／設定筆數、RLS／ACL 及 RPC。Word segments 已以 `20261105083358` 登錄；舊 IPA 清空 Migration `20261105033000` 尚未登錄，repo 改為明確 superseded no-op，新刪欄位 Migration 亦能處理已執行舊觸發器的隔離環境。正式 ledger 與 repo 部分版本不同，不可直接 db push 所有 pending Migration。另行授權後指定套用，先資料庫、後前端。
 
-`20261105065440_dictionary_word_segments.sql` **只在隔離 PGlite PostgreSQL 驗證，未套用正式**。新增 nullable JSONB 及 CHECK／延遲正式關聯約束，擴充既有 bundle／草稿 RPC／published reader，沒有回填或資料清理。沿用既有 `replace_editor_children` 的交易／版本保護處理明確提供的子資料刪除；舊客戶端省略的陣列保留，外部引用依既有 FK 阻擋。
+### 驗證與剩餘工作
 
-舊 JSON 省略分段仍可匯入並保留已存分段；舊客戶端只更名已有分段的 Word 會被拼寫一致性約束拒絕，不會悄悄破壞資料。Migration 偵測既有 RPC 原始碼漂移就整筆回滾。正式啟用需另獲授權、核對正式 schema／備份，先套用這一份 Migration 並驗證權限，再合併／發布相容前端；不要順帶套用 IPA 清理，也不要 drop 新欄位或清庫回退。main 可能自動觸發 Production，現階段不直接合併。
-
-### 驗證
-
-- TypeScript `npx tsc --noEmit`、Webpack production Build 通過；修改範圍 ESLint 為 0 errors／2 warnings（既有 effect 同步 setState，未停用規則）。全字典目錄擴大檢查為 0 errors／19 warnings。
-- 33 個字典非瀏覽器測試檔全部通過：整批 32 個通過，舊 IPA 顯示測試依已合併 #153 更新後單獨重跑 5 項通過；更新後的編輯器 UI 20 項、新構詞／佇列／導覽／隔離 SQL 5 項也單獨重跑通過。大型交換、持久匯入、RLS／ID／衝突／舊資料回歸包含於這些測試。
-- 19 個學習／同步／資料回歸檔整批通過（不包含瀏覽器）：含 studyClear 的 6,301 卡、雙裝置、離線事件、有效投影、舊備份、失敗恢復；另含 scheduledStudy、unifiedStudySync、officialStudyPacks、workspaceSync、lifeLists、pwaDictionaryCache。
-- Chromium 瀏覽器測試通過：`dictionaryAutosave`（新增）、`dictionaryEditor`、`dictionaryDraftPublish`、`dictionaryEntryDeletion`、`dictionaryExchange`、`dictionaryPersistent`、`dictionaryRefresh`、`studyDictionaryEditor`、`studyDictionaryPanel`、`studyReading`、`studyClear` 及 `pwa.browser`。涵蓋 1280／820／390／320px（各測試尺寸不同）、中英文、IME、不完整輸入保留、延遲回覆／重試、草稿不發布、詞形／既有關聯／嵌入編輯、英文段寬不被中文提示撐開、真實隔離 SQL／IndexedDB 與離線殼層。
-- 新 Migration 另驗：預覽不落地、正式關聯缺失／跨組限制、CHECK、ACL／RLS、舊客戶端省略保留、AI／完整 JSON 往返及 RPC 原始碼漂移整筆回滾。沒有套用正式 Migration，也沒有刪除正式審核資料。
-- 未執行：真實 Safari／Android 安裝 PWA、正式登入後審核操作、真實帳號跨裝置新功能驗收及世界觀／地圖全套 UI；不宣稱這些通過。
+- 已通過新隔離 SQL 四項：舊草稿核准、舊交換欄位、未知欄拒絕、官方保守轉換與發布／解除、下載去重、權限／帳號隔離、獨立交易失敗回滾、刪欄後現行 cards／states／events／settings 完全保留。官方純模型包含 6,301 卡分批解析與有界快取、離線、私人卡、一次作答與排程不變；新增相同時間 metadata 合併／待傳私人修改保護。
+- Chromium 官方連動流程通過：1280／820／390px，發布重讀、離線快取、私人自訂、重新載入、正常與無盡 Session、作答事件及版本穩定。構詞編輯器中英文／多尺寸及勾選取消保存回歸通過。
+- 擴大單元／同步／清除／交換回歸、TypeScript、ESLint、Build、PWA、遠端 GitHub Actions／Vercel 正在完成；最終結果需更新本節與 PR，不宣稱尚未執行的檢查通過。
+- 待實機：Safari／iPad、Android 安裝 PWA、真實帳號雙裝置更新與離線私人修改交錯。Chromium 觸控 viewport 不等於實機。受保護部署不建立分享連結或改權限，正式審核 #156 仍獨立待查。
+- 不合併／部署／正式 Migration。合併建議須等 CI、Migration 審查及指定正式發布授權；未因本地測試自動解除限制。
 
 ## 已合併工作與正式狀態
 
 - PR #151、#152、#153 已合併，以使用者最新交接及 main 為準，不重新實作。#151 squash `9f5cbaee` 的 GitHub Production deployment `7566581489` 狀態為 success（2026-11-05 06:06:57 UTC）。這是部署狀態，不能代替真實帳號／裝置功能驗收。
 - 整組清除沿用最後伺服器時間與原事件有效投影，不使用整組重置世代。使用者已接受裝置時間誤差。使用者確認 study clear Migration 已正式套用；本輪唯讀 migration 紀錄也可見名稱 `study_deck_clear_20261105032115`，實際登錄版本 `20261105060444`。本輪沒有重新套用。
-- `20261105033000_dictionary_ipa_only.sql` 本輪唯讀核對仍不在正式 migration 紀錄。涉及既有資料清理，**未代為套用**；新構詞 Migration 不依賴這項清理，也不清除既有 locale/note。
+- `20261105033000_dictionary_ipa_only.sql` 尚未正式登錄，本輪已由指定實體刪欄位方案取代（見上），未代為套用。
 - `/dictionary/admin/reviews` 的正式版本網址轉向 Vercel 保護登入。Vercel 連線的 team scope 回傳 403；受保護頁面讀取工具又因可能建立臨時分享連結遭自動審查拒絕，沒有繞過或改動存取設定。因此正式登入後審核操作及資料顯示未驗證，未修改審核資料。
 - 詞形選單僅檢查／回報：`inflections.ts` 可辨識獨立 n./v./adj./adv.，但 `adj./n.` 等複合標記無法依各詞性提供完整合法類型；正式資料確有這類標記。本輪沒有修改選單或詞性驗證，需另行授權修正。
 

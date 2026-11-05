@@ -96,6 +96,7 @@ export function parseJSONBundle(raw:string):Bundle {
       for(const key of schema.required)if(!Object.hasOwn(row,key))fail(`缺少 ${key}`);
       if(['source_id','citation','license'].some(key=>Object.hasOwn(row,key)))fail('source_id / citation / license 已淘汰，請移除舊來源欄位');
       for(const [key,v]of Object.entries(row)) {
+        if(table==='dictionary_pronunciations'&&['locale','note'].includes(key)){delete row[key];continue;}
         if(!schema.required.includes(key)&&!schema.optional.includes(key))fail(`不允許欄位 ${key}（僅匯入草稿內容）`);
         if(key==='word_segments'){const issue=requireSegmentValidation(v,String(row.headword),String(row.kind));if(issue)fail(issue);continue;}
         if(key==='sort_order'){if(!Number.isSafeInteger(v)||Number(v)<0)fail('sort_order 必須為非負整數');continue;}

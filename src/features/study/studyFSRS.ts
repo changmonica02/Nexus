@@ -1,6 +1,6 @@
 import {defaultIntervalSettings,type StudyStyle,type FixedIntervals,type ScheduleMethod,type IntervalSettings} from './studyStyles';
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
-import type { Page, StudyItem } from "../../lib/types";
+import type { StudyItem } from "../../lib/types";
 import type { StudySession } from "./studySessions";
 
 export const STUDY_ENGINE = "ts-fsrs@5.4.2/FSRS-6";
@@ -14,6 +14,7 @@ export interface IntervalReviewLog extends Omit<FixedReviewLog,"method"> {method
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
+  official_custom?: boolean;
   official_source_entry_id?: string;
   official_pack_id?: string;
   official_pack_version?: number;
@@ -100,19 +101,6 @@ export function emptyStudyState(card: StudyCard): StudyState {
   return { id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, fsrs: null,
     legacy_due_at: card.legacy?.item.daily_due_at ?? null,
     introduced_at: card.legacy?.item.daily_introduced_at ?? null, head: null, generation: 0, conflict: false };
-}
-export function migrateStudyDeck(page: Page, now: number): StudySnapshot {
-  const cards = (page.study_items ?? []).map((item, index): StudyCard => ({
-    id: JSON.stringify([page.id, item.id]), deck_id: page.id, owner_id: page.workspace_owner_id ?? null,
-    front: item.front, back: item.back, direction: "en-zh", sort_order: index, content_revision: 1,
-    created_at: now, updated_at: now, deleted_at: null,
-    legacy: { item: structuredClone(item), migrated_at: now, schema: 1 }, migration_only: true,
-  }));
-  if (new Set(cards.map(card => card.id)).size !== cards.length) throw new Error("舊字卡 ID 重複，遷移已停止，原始資料未變更。");
-  return { cards, states: cards.map(emptyStudyState), events: [], settings: {
-    id: page.id, owner_id: page.workspace_owner_id ?? null, new_limit: 20,
-    direction_confirmed: cards.length === 0, updated_at: now, schema: 2,
-  } };
 }
 export function serializeFSRS(card: Card): StoredFSRS {
   return { ...card, due: card.due.getTime(), last_review: card.last_review?.getTime() };

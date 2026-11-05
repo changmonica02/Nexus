@@ -1,3 +1,4 @@
+import {cleanPronunciation} from './retiredPronunciation';
 export type DraftSaveStatus='pending'|'saving'|'saved'|'failed';
 /** Serializes complete snapshots. A response only checkpoints the snapshot it saved. */
 export class DraftAutosaveQueue<T> {
@@ -36,6 +37,7 @@ export function draftRevisions<T extends Record<string,Record<string,unknown>[]>
 /** Only an identical full stored candidate can acknowledge an unknown write result. */
 export function draftContentSignature(value:unknown):string {
   return JSON.stringify(value,(key,v)=>{
+    if(['pronunciations','dictionary_pronunciations'].includes(key)&&Array.isArray(v))v=v.map(row=>row&&typeof row==='object'?cleanPronunciation(row):row);
     if(['revision','updated_at','published_at','status','origin','row','proposed_ids'].includes(key))return undefined;
     if(key==='word_segments'&&v===null)return undefined;
     if(Array.isArray(v)&&key!=='word_segments'&&v.every(r=>r&&typeof r==='object'&&typeof r.id==='string'))return [...v].sort((a,b)=>a.id.localeCompare(b.id));

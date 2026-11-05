@@ -29,14 +29,6 @@ export interface StudySession {
   legacy_settings_snapshot?:StudyStyle;legacy_mode?:SessionMode;
   quota_limit?: number;settings_snapshot?:StudyStyle;compatibility_notice?:boolean;
 }
-// Only these explicitly authorized test records are reset, never cards matched by text.
-const testItems = new Set([
-  "item_da626310-0b85-4ecd-88d0-dee59e00599d", "item_831a5e05-5425-460a-84ca-502930470f4e",
-  "item_f860f930-920e-4a2f-8f4e-611e367c04e1", "item_1da0c904-f70a-4e2b-98ff-baecf5628c2c",
-]);
-export function isLegacyTestCard(card: StudyCard) {
-  return card.deck_id === "page_kXB_pon1cdluNzbAk2EBJ" && !!card.legacy && testItems.has(card.legacy.item.id);
-}
 export function isLearned(state: StudyState) {
   // Graduation follows real FSRS; retain legacy explicit mastery without inventing history.
   return (activeFixed(state)&&(state.fixed?.state===State.Review||state.fixed?.state===State.Relearning))||state.learned_at != null || state.fsrs?.state === State.Review || state.fsrs?.state === State.Relearning;

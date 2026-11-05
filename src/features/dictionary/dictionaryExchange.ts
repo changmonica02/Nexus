@@ -1,3 +1,4 @@
+import {cleanIpaRecord} from './retiredPronunciation';
 import {mergeCoreConcepts} from './coreConcept';
 import type { AISnapshot } from "./aiDictionary";
 import type { DictionaryReview } from "./revisionLifecycle";
@@ -82,14 +83,14 @@ export function parseExchange(raw: string): ExchangeDocument {
     typeof doc.scope.query !== "string"
   )
     throw Error("Invalid scope");
-  return doc as unknown as ExchangeDocument;
+  return {...doc,records:doc.records.map(cleanIpaRecord)} as unknown as ExchangeDocument;
 }
 const rowFields: Record<string, string[]> = {
   senses: ["part_of_speech", "gloss_zh_tw"],
   relations: ["sense_id", "target_entry_id", "target_sense_id"],
   etymologies: ["sense_id", "body", "data_source"],
   learning_notes: ["sense_id", "kind", "body"],
-  pronunciations: ["sense_id", "locale", "ipa", "note", "sort_order"],
+  pronunciations: ["sense_id", "ipa", "sort_order"],
   inflections: ["sense_id", "form_kind", "form", "sort_order"],
   examples: ["sense_id", "body", "sort_order"],
   lexical_annotations: ["sense_id", "kind", "body", "sort_order"],
@@ -99,6 +100,7 @@ export function draftFromExchange(
   row = 1,
 ): DictionaryDraftInput {
   keys(record, ["snapshot", "reviews", "version"], "record");
+  record=cleanIpaRecord(record);
   if (
     record.version !== null &&
     (typeof record.version !== "string" ||

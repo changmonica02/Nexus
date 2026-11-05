@@ -1,4 +1,5 @@
 "use client";
+import {useOfficialContent} from "../useOfficialContent";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StudyRepository } from '../StudyRepository';
 import { previewStudy, type Grade, type StudySnapshot } from '../studyFSRS';
@@ -62,7 +63,8 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     return()=>{alive.current=false;window.removeEventListener('nexus-study-changed',changed);window.clearInterval(timer);};
   },[load,start,t]);
   const session=data?.session, practice=session?.mode==='practice';
-  const card=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
+  const rawCard=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
+  const [card]=useOfficialContent(rawCard?[rawCard]:[],`${session?.id}:${session?.revision}`);
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
   const cardId=card?.id,head=state?.head;
   const readingQuestion=JSON.stringify([session?.id,cardId,head,card?.content_revision]);
@@ -76,7 +78,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     if(!session||!card||!state||!revealed||busy.current||dictionaryOpen.current)return;
     busy.current=true;setSaving(true);setError('');setHasAttempt(true);
     try{
-      attempt.current??={sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating,actionId:crypto.randomUUID(),now:Date.now(),practice};
+      attempt.current??={sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,displayContent:{front:card.front,back:card.back},expectedHead:state.head,rating,actionId:crypto.randomUUID(),now:Date.now(),practice};
       const input=attempt.current;
       if(input.practice)await repository.ratePractice(input);else await repository.rateSession(input);
       await load();attempt.current=null;if(alive.current)setHasAttempt(false);

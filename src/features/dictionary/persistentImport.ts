@@ -342,7 +342,7 @@ export function classifyPersistent(
           : section === "relations"
             ? r.target_sense_id === row.target_sense_id
             : section === "pronunciations"
-              ? r.ipa === row.ipa && r.locale === row.locale
+              ? r.ipa === row.ipa
               : normalized(r.body) === normalized(row.body),
       );
       if (duplicate)

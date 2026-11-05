@@ -10,15 +10,15 @@ const {withoutSense}=require('../src/features/dictionary/draftEditing.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const bundle=()=>({dictionary_entries:[{id:id(10),kind:'word',headword:'record'}],dictionary_senses:[{id:id(11),entry_id:id(10),part_of_speech:'noun',gloss_zh_tw:'紀錄'},{id:id(12),entry_id:id(10),part_of_speech:'verb',gloss_zh_tw:'記錄'}],dictionary_pronunciations:[{id:id(20),entry_id:id(10),sense_id:null,locale:null,ipa:'/shared/',note:null,sort_order:2},{id:id(21),entry_id:id(10),sense_id:id(11),locale:'en-GB',ipa:'/ˈrek.ɔːd/',note:'名詞',sort_order:0},{id:id(22),entry_id:id(10),sense_id:id(12),locale:'en-US',ipa:'/rɪˈkɔːrd/',note:'動詞',sort_order:1}]});
 const snapshot=()=>({detail:{entry:{...bundle().dictionary_entries[0],revision:1,status:'draft'},senses:bundle().dictionary_senses,pronunciations:bundle().dictionary_pronunciations,etymologies:[],learning_notes:[],relations:[],examples:[],lexical_annotations:[]},grouping:null,sense_groups:{},metadata:null});
-test('JSON and canonical draft preserve entry/sense scope, multiple locales, ordering and reject invalid content',()=>{
+test('JSON and canonical draft preserve entry/sense scope, retired metadata omission, ordering and reject invalid content',()=>{
  const b=parseJSONBundle(JSON.stringify(bundle())),d=draftsFromBundle(b)[0];assert.deepEqual(mapDictionaryDraft(d).pronunciations,b.dictionary_pronunciations);assert.equal(validateDictionaryDraft([d]).length,0);
- for(const bad of [{ipa:''},{sense_id:id(99)},{sort_order:-1},{locale:''}]){const invalid=structuredClone(d);Object.assign(invalid.pronunciations[0],bad);assert.ok(validateDictionaryDraft([invalid]).length);}
+ for(const bad of [{ipa:''},{sense_id:id(99)},{sort_order:-1}]){const invalid=structuredClone(d);Object.assign(invalid.pronunciations[0],bad);assert.ok(validateDictionaryDraft([invalid]).length);}
  assert.throws(()=>parseJSONBundle(JSON.stringify({...bundle(),dictionary_pronunciations:[{...bundle().dictionary_pronunciations[0],sort_order:'1'}]})),/sort_order/);
  assert.throws(()=>withoutSense(b,id(11)),/引用/);
 });
 test('AI export/import preserves pronunciation IDs and scope; omission retains rows and cannot delete',()=>{
  const s=snapshot(),ai=toAI(s,new Map());const parsed=parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[ai]})).entries[0];
- const plan=planAI(parsed,s,new Map());assert.deepEqual(plan.bundle.dictionary_pronunciations,s.detail.pronunciations);
+ const plan=planAI(parsed,s,new Map());assert.deepEqual(plan.bundle.dictionary_pronunciations,s.detail.pronunciations.map(({locale,note,...row})=>row));
  delete parsed.pronunciations;assert.equal(planAI(parsed,s,new Map()).bundle.dictionary_pronunciations.length,3);
  const changed={...ai,pronunciations:[{id:id(21),ipa:'/changed/',meaning_id:id(12),locale:'en-AU',sort_order:3}]};const update=planAI(changed,s,new Map());assert.equal(update.bundle.dictionary_pronunciations.find(r=>r.id===id(21)).sense_id,id(12));
  assert.throws(()=>planAI({...ai,pronunciations:[{id:id(99),ipa:'x'}]},s,new Map()),/不屬於/);
@@ -38,7 +38,7 @@ test('local PostgreSQL: import/preview rollback, Safe/Review, ownership/RLS, Pub
  await saveDictionaryDraft(client,drafts,true);assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),0);assert.equal(await sql('select count(*)::int v from dictionary_audit'),0);
  let session=await buildImportSession(client,id(1),'json',drafts);assert.equal(session.items[0].bucket,'safe');let applied=await applyImportItems(client,session,false,async()=>{});assert.equal(applied.items[0].status,'applied');assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),3);
  session=await buildImportSession(client,id(1),'json',drafts);assert.equal(session.items[0].bucket,'safe');assert.equal(session.items[0].safeAction,'unchanged');
- const altered=structuredClone(drafts);altered[0].pronunciations[0].note='updated';session=await buildImportSession(client,id(1),'json',altered);assert.equal(session.items[0].bucket,'review');for(const issue of session.items[0].issues)session.items[0]=chooseIssue(session.items[0],issue.id,'incoming');applied=await applyImportItems(client,session,true,async()=>{});assert.equal(applied.items[0].status,'applied');
+ const altered=structuredClone(drafts);altered[0].pronunciations[0].ipa='/updated/';session=await buildImportSession(client,id(1),'json',altered);assert.equal(session.items[0].bucket,'review');for(const issue of session.items[0].issues)session.items[0]=chooseIssue(session.items[0],issue.id,'incoming');applied=await applyImportItems(client,session,true,async()=>{});assert.equal(applied.items[0].status,'applied');
  let s=await sql('select get_dictionary_ai_snapshot($1) v',[id(10)]);assert.equal(s.detail.pronunciations.length,3);
  await assert.rejects(pg.query('select delete_dictionary_draft_sense($1,$2,$3,$4)',[id(10),id(11),s.detail.entry.revision,s.detail.senses.find(x=>x.id===id(11)).revision]),/pronunciations/);
  // Cross-entry sense FK and child identity collision both roll back all writes.
