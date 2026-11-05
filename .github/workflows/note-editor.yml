@@ -25,7 +25,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: PDF verification tools
@@ -48,6 +48,13 @@ jobs:
           node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
           node tests/officialLinkedContent.browser.test.cjs
           node tests/dictionaryEditor.browser.test.cjs
+      - name: Dictionary approval and mobile speech regression
+        run: |
+          node --test tests/dictionaryApproval.test.cjs tests/dictionaryImportApproval.test.cjs tests/studySpeech.test.cjs tests/studyReading.test.cjs tests/dictionaryPersistentImport.test.cjs
+          node tests/studySpeech.browser.test.cjs
+          SPEECH_BROWSER=webkit node tests/studySpeech.browser.test.cjs
+          node tests/studyReading.browser.test.cjs
+          node tests/dictionaryPersistent.browser.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
       - name: Existing map metadata, IDB and localization contracts
         run: |

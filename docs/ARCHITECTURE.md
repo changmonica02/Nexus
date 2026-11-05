@@ -258,3 +258,15 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 `study_set` Page 只保存學習組身份與設定連結；`ensureDeck()` 直接建立現行 schema2 設定，字卡／狀態沿用 Study stores 與原 RPC。已刪除 `migrateStudyDeck()`／Page 字卡轉換及舊測試卡自動重設。已轉換的現行 legacy 事件／狀態仍保留原驗證與備份契約。新建／複製／官方下載／工作區同步不輸出 study_items，備份 v4 匯入／匯出與遠端 Page 合併忽略此已知欄位，其他有效內容保留；已排隊 workspace 操作不改寫其 receipt payload，伺服器忽略該舊欄位。IndexedDB 仍為 v9，不清庫、不變更帳號隔離／有效學習同步。
 
 指定順序：既有 Study clear／官方來源身份／Word segments 先就緒，接著 `20261105091439_official_card_linked_content.sql` → `20261105091518_dictionary_pronunciation_columns_retired.sql` → `20261105091519_page_study_items_retired.sql`，各自獨立交易；SQL 原始碼錨點漂移即整筆失敗。第二、三項分別實體 DROP IPA 舊欄與 Page 舊欄，不更新現行 Study 資料。尚未正式執行的 `20261105033000_dictionary_ipa_only.sql` 明確改為 superseded no-op；若環境已執行舊版，第二項會先移除舊觸發器再刪欄，不重做資料清空。正式環境 ledger 的部分版本與 repo 檔名不同，不可直接 db push 補套所有 pending 檔案；須另行授權、核對 Schema／RPC／備份及指定版本後，先資料庫、後相容前端。DROP 的歷史 locale/note 與未轉換 Page-only 卡不可由 down migration 復原，必要時從事前備份還原至隔離環境並向前修復。舊裝置 Page-only 卡經使用者授權捨棄，其現行 study outbox／卡／狀態不受此授權影響。
+
+### 字典核准診斷與英文語音相容（#156／#159）
+
+獨立審核頁的「套用」走 `apply_dictionary_import_reviews`，只更新匯入決策／正式草稿或 Review，不等於發布；編輯器經人工確認才走三參數 `approve_dictionary_review`。前者仍逐項驗證原始 proposal、完整 context／exchange version、revision CAS、子資料身份與權限；後者沿用 Published base snapshot／revision、內容驗證及交易發布，成功時可移除已完成 Review。HTTP 200 不能代表每個匯入項目成功，必須檢查 result.status／request_conflict。
+
+`applyDecidedImportRecord` 在手動套用前沿用 inspect → classify → save_dictionary_import_review（CAS）取得新上下文。`comparableImportPreview` 只決定 UI 是否必須再次確認：剔除已知 IPA 退役鍵、分段 null／缺省差異，並在完整 snapshot、identities、Reviews、targets 等比對下忽略舊的派生 exchange hash；保留實際欄位、陣列順序、Entry／Review revision／時間及 target version。這不是伺服器的授權比較，也不覆寫原版本；實際套用仍提交新完整 context／exchange fingerprint，通過原 RPC 所有驗證。真正上下文或決策變動只更新比對結果，不套用內容。決策僅依原 issue 規則在 existing／incoming 相同時保留。
+
+`reviewApproval.ts` 保留錯誤 message／code／details／hint 與 RPC 名稱，分類權限、過期、內容、格式、網路／未知與刷新失敗；元件保留結構化錯誤 ref，普通 UI 只顯示本地化分類訊息，不輸出 SQL／私密欄位。同步 ref／controller 鎖防重複點擊；已知核准成功後只允許重讀。未知核准先查 Review 與公開快照，Review 消失本身不證明發布。未知匯入先依既有表的 RLS 讀取項目 revision／result，再沿用原 receipts 與操作識別；僅保存記憶體中的 id／entry_id／revision，不另建權威表或同步。刷新失敗與交易失敗分開，保留草稿、決策及選取；重新讀取仍經既有未儲存導覽保護。
+
+`StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動空清單立即請求同一備援以保留 activation；只有已知非英文清單時不選錯語音，提示重新檢查。清單事件不重複啟播已開始的備援。
+
+播放由 onstart／onend／onerror 判定；not-allowed、language-unavailable、voice-unavailable 與一般失敗各有訊息，僅 language-unavailable 提示啟用／安裝英文。8 秒啟動檢查不會取消仍 speaking 的引擎，另有 15–90 秒有限完成期限；沒有無限重試。全域單一播放 ownership＋世代 token 只用於音訊生命週期，與學習單卡 generation 無關。新題、手動重播、背景、pagehide／離開或卸載會取消舊播放及 timers／listener；舊回呼不能污染新題，翻面不重播。WebKit 自動播放讓出 cancel 事件迴圈，手動播放留在 gesture 內。Chromium／WebKit 的模擬語音測試驗證控制邏輯，不能證明 Android／Safari 原生語音或實際發音語言已驗收。
