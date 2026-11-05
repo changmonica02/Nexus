@@ -15,6 +15,9 @@ test('IPA physical retirement preserves old Review approval, stable identity and
   await assert.rejects(sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]),/snapshot|stale|changed/i);await pg.exec('rollback;set role authenticated');
   await sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]);
   const published=await sql(pg,'select get_published_dictionary_entry($1) v',[id(10)]);assert.equal(published.pronunciations[0].id,id(20));assert.equal(published.pronunciations[0].ipa,'/a/');assert.equal('locale' in published.pronunciations[0],false);assert.equal('note' in published.pronunciations[0],false);
+  const imported=mapDictionaryDraft(draft(30));imported.pronunciations=[{id:id(31),entry_id:id(30),sense_id:null,ipa:'/b/',sort_order:0,locale:'legacy',note:'ignored'}];
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([imported])]);const saved=await sql(pg,'select get_dictionary_entry($1) v',[id(30)]);assert.equal(saved.pronunciations[0].ipa,'/b/');assert.equal('locale' in saved.pronunciations[0],false);
+  const invalid=mapDictionaryDraft(draft(40));invalid.pronunciations=[{id:id(41),entry_id:id(40),sense_id:null,ipa:'/c/',sort_order:0,unknown:true}];await assert.rejects(sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([invalid])]),/Unknown|unknown|unsupported|invalid/i);
  }finally{await pg.close();}
 });
 test('official linked downloads and page retirement preserve new study rows, source IDs and workspace writes',async()=>{

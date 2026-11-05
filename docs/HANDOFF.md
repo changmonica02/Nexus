@@ -16,7 +16,7 @@
 
 三份獨立交易依序：`20261105091439_official_card_linked_content.sql`、`20261105091518_dictionary_pronunciation_columns_retired.sql`、`20261105091519_page_study_items_retired.sql`。均只在隔離 PGlite PostgreSQL 執行，**未套用正式**。DROP 的舊 IPA 資料與經使用者授權捨棄的未轉換 Page-only 卡不可直接回滾；須有事前備份並向前修復。
 
-正式唯讀預檢確認三個待刪欄仍存在，study_cards／study_card_states 各 10,155 筆；唯讀亦確認 Page 舊欄僅 2 筆非 NULL，全部 []；實際執行前仍須重查非空內容、卡／狀態／事件／設定筆數、RLS／ACL 及 RPC。Word segments 已以 `20261105083358` 登錄；舊 IPA 清空 Migration `20261105033000` 尚未登錄，repo 改為明確 superseded no-op，新刪欄位 Migration 亦能處理已執行舊觸發器的隔離環境。正式 ledger 與 repo 部分版本不同，不可直接 db push 所有 pending Migration。另行授權後指定套用，先資料庫、後前端。
+正式唯讀預檢確認三個待刪欄仍存在，study_cards／study_card_states 各 10,155 筆、事件 84、設定 11、IPA 7 筆（locale 非 NULL 2 筆、note 0）；刪欄會捨棄這 2 筆 locale 值，保留 IPA 與識別；唯讀亦確認 Page 舊欄僅 2 筆非 NULL，全部 []；實際執行前仍須重查非空內容、卡／狀態／事件／設定筆數、RLS／ACL 及 RPC。Word segments 已以 `20261105083358` 登錄；舊 IPA 清空 Migration `20261105033000` 尚未登錄，repo 改為明確 superseded no-op，新刪欄位 Migration 亦能處理已執行舊觸發器的隔離環境。正式 ledger 與 repo 部分版本不同，不可直接 db push 所有 pending Migration。另行授權後指定套用，先資料庫、後前端。
 
 ### 驗證與剩餘工作
 
@@ -24,9 +24,9 @@
 - Chromium 官方連動流程通過：1280／820／390px，發布重讀、離線快取、私人自訂、重新載入、正常與無盡 Session、作答事件及版本穩定。構詞編輯器中英文／多尺寸及勾選取消保存回歸通過。
 - 本機擴大 51 個字典／學習／同步非瀏覽器測試檔：50 個整批通過（含 6,300 筆完整交換與 6,301 卡清除），既有 VariantEditor 測試直接呼叫 Hook 的錯誤修正為 React render 後單獨 5 項通過；另 3 個官方身份／PWA cache／scheduledStudy 檔通過。新版隔離 SQL 四項與官方模型四項再跑通過。
 - TypeScript、完整 Webpack production Build 通過，範圍 ESLint 0 errors／43 warnings。Chromium 編輯器、官方連動、既有官方私人卡與 PWA 殼層通過；production build 的隔離 PWA Data／Dictionary 流程通過（離線編輯／作答／PDF／重連／衝突／帳號隔離）。測試的 autosave 等待競態以等待真正保存狀態／明確失敗場景修正，不停用產品保存或安全驗證。
-- Vercel checks 已成功；GitHub Actions 最終提交的結果待更新，不將先前提交結果當最終通過。
+- 程式提交 `71a405c` 的 [GitHub Actions 42032937046](https://github.com/changmonica02/Nexus/actions/runs/42032937046) 全部成功（含本輪 SQL／官方卡／編輯器、舊清除與同步、筆記／地圖、TypeScript、ESLint、Build）；Vercel checks 成功。後續僅補隔離 SQL 舊 IPA RPC insert／未知欄位斷言（本機四項再跑成功）及本交接資料；該提交的最終狀態以 PR #158 checks 為準。
 - 待實機：Safari／iPad、Android 安裝 PWA、真實帳號雙裝置更新與離線私人修改交錯。Chromium 觸控 viewport 不等於實機。受保護部署不建立分享連結或改權限，正式審核 #156 仍獨立待查。
-- 不合併／部署／正式 Migration。合併建議須等 CI、Migration 審查及指定正式發布授權；未因本地測試自動解除限制。
+- 已完成本輪程式自查，未發現其他重大阻擋，可進入合併前人工審查。維持 Draft；正式 Migration 必須另獲授權，因 main 可能自動發布，不建議在指定資料庫 Migration 就緒前直接合併。實機驗收與 #156 仍按上列限制保留。
 
 ## 已合併工作與正式狀態
 
