@@ -31,7 +31,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
         </div>
       </DetailSection></div>;
     })}
-    {!!data.pronunciations?.length&&<DetailSection title="讀音">{scoped([...data.pronunciations].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)),p=><div key={p.id}><p>{p.locale&&<span className="mr-2 text-sm">{p.locale}</span>}{p.ipa}</p>{p.note&&<p className="whitespace-pre-wrap text-sm">{p.note}</p>}</div>,true)}</DetailSection>}
+    {!!data.pronunciations?.length&&<DetailSection title="讀音">{scoped([...data.pronunciations].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)),p=><p key={p.id}>{p.ipa}</p>,true)}</DetailSection>}
     {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title="核心概念">{scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
     {!!data.etymologies.some(n=>n.body.trim())&&<DetailSection title="歷史詞源">{scoped(data.etymologies.filter(n=>n.body.trim()),h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">資料來源：<SourceText text={h.data_source}/></p>}</div>)}</DetailSection>}
     {!!data.lexical_annotations?.length&&<DetailSection title="補充說明">{scoped([...data.lexical_annotations].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}

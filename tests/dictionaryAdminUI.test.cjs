@@ -253,3 +253,21 @@ test('dictionary review queue remains reachable without a modal and reports unav
  assert.ok(page.includes('useDictionaryAdminAccess'));
  assert.ok(page.includes('<PersistentReviewPanel'));
 });
+
+test('IPA editor is in basic information, orientation responsive and metadata-free',()=>{
+ const editor=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ const basic=editor.indexOf('<EditorSection title="基本資訊">');
+ const inflections=editor.indexOf('<EditorSection title="義項"');
+ const ipa=editor.indexOf('data-pronunciation-row');
+ assert.ok(basic>=0&&ipa>basic&&ipa<inflections);
+ assert.ok(editor.includes('portrait:grid-cols-1 landscape:grid-cols-2'));
+ assert.ok(!editor.includes('地區／語言（選填'));
+ assert.ok(!editor.includes('備註（選填）'));
+ assert.ok(editor.includes('<Field label="IPA"'));
+ const reader=fs.readFileSync('src/features/dictionary/DictionaryArticle.tsx','utf8');
+ assert.ok(!reader.includes('p.locale&&'));
+ assert.ok(!reader.includes('p.note&&'));
+ const migration=fs.readFileSync('supabase/migrations/20261105033000_dictionary_ipa_only.sql','utf8');
+ assert.ok(migration.includes('set locale = null, note = null'));
+ assert.ok(migration.includes('before insert or update'));
+});
