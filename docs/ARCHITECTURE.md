@@ -151,7 +151,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 目前排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
 
-#### 整組清除與有效排程投影（PR #151 已實作；正式 Migration 未套用）
+#### 整組清除與有效排程投影（PR #151 已合併；正式 Migration 已套用）
 
 `study_deck_clears` 只保存目前 owner／deck 的伺服器 `cleared_at`、最後操作 ID 與該操作預期的前次時間。前次時間只用於同 ID 碰撞／重試比對，不建立清除歷史、世代或版本列表。`clear_study_deck` 先驗證目前帳號、未刪除的 study_set Page 與設定，再依原順序取得 workspace／study-sync 帳號鎖，以單一交易更新屏障、刪除指定組事件／舊決策並清空該組 state。字卡、排序、字典連結、官方來源、設定及其他組保留。相同最後操作重試不再清除；預期時間過期則回傳目前結果，不執行新清除。伺服器時間以毫秒保存，同毫秒連續清除亦嚴格前進。
 
@@ -165,7 +165,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括 v1 Page-only legacy）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
 
-Migration `20261105032115_study_deck_clear.sql` 僅在隔離 PGlite PostgreSQL 執行。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；沒有讀寫正式資料庫。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
+Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite PostgreSQL 驗證；使用者已確認正式套用，本輪唯讀記錄可見對應名稱（登錄版本 `20261105060444`）。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；本輪沒有正式資料庫寫入。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
 
 發布／回復界線：獲授權後先核對正式 schema 與備份／PITR，單一交易套用指定 Migration，再發布前端並更新所有學習裝置。舊前端不理解投影，在清除後會被伺服器拒絕過期學習寫入；保留本機 outbox 並更新至相容版本，不清庫／降版。Migration 未就緒時新版學習同步在屏障核對處失敗並保留待傳資料，普通本機離線學習仍可用。成功清除後不可回退舊 RPC 或刪除屏障來「恢復」舊進度，應保留資料向前修復。正式套用、實際 schema 漂移、Safari／iPad／Android PWA 與真實帳號跨裝置仍待獨立授權／驗收。
 
@@ -224,3 +224,14 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 - 技術契約隨程式維護於本文件，狀態放 HANDOFF；不再新增 archive、reference、追溯副本或逐批交付流水帳。
 
 次級頁面共用 `WorkspaceNavigation.PageHeader`，沿用 SidebarToggle、來源返回 callback／Next Link 與既有功能總覽。SidebarToggle 在 layout effect 登記／解除頁首，工作區外殼於子頁自有導覽時讓出泛用 Nexus 頁首；專業編輯器保留原工具列。創作總覽在資源庫／模板管理開啟時保持掛載，保留集合查詢與捲動。側欄與首頁共用 dashboardGroups、同一 collection/grouping 裝置偏好及 sort_order；分組不改寫資料，子項目排序使用同一 comparator。側欄排序方向與三選一分類集中於既有 ⇅ 選單，沿用 useAnchoredMenu／useMenuDismiss 的定位、鍵盤與關閉行為，沒有獨立分類下拉列或第二套偏好。資料夾仍為 Page.folder，選單重用既有分類寫入，不引入資料夾表。登出入口透過既有未儲存導覽防護與 flushAllSaves，再呼叫原 auth.signOut；帳號切換清理與 owner-scoped outbox 不變。
+
+
+### 字典構詞與逐欄草稿（#154，工作分支已實作，正式未啟用）
+
+- `dictionary_entries.word_segments` 是 nullable JSONB 的有序展示資料：`id/text/hint/relation_id`。拼寫直接串接，正式連結引用原 `dictionary_relations.id`，不新增另一套詞條或私人權威資料。省略／null 的舊 Word 在編輯器以原 headword 建立單格；讀取不回填資料，第一次有效保存才寫入。保留 Entry/Sense、詞形、既有關聯與字卡連結。
+- `20261105065440_dictionary_word_segments.sql` 為加法 Migration，不清理 IPA 或回填舊資料。CHECK 驗證字形、順序、唯一段 ID 與拼寫；延遲約束驗證正式關聯同屬詞條，預覽於回滾前也驗證。擴充既有 bundle 白名單與 published reader，保留原驗權／RLS／CAS／審核契約；偵測 RPC 原始碼漂移即整筆回滾。只在隔離 PostgreSQL 驗證，未套用正式。
+- 完整 JSON 與 AI JSON 沿用原格式、可選欄位與原匯入疑義審核；舊檔省略構詞欄位保留既有值。舊客戶端若嘗試只更名已具分段的 Word，因拼寫不一致而拒絕，避免靜默破壞。回復前端時保留新欄位，不能 drop 欄位或清庫。
+- `DraftAutosaveQueue` 序列化整份有效候選，180ms 合併欄位完成事件；IME 暫停，textarea Enter 保留換行。回覆僅更新所送快照基線及技術 revision，不覆寫後續輸入。正常草稿沿用 `apply_dictionary_drafts`、已發布詞條沿用 review RPC，自動保存不觸發嵌入編輯器的結束回呼；未知回覆只有在重讀的整份候選相符時才能確認成功。失敗／無效內容保留手動重試與未儲存離開保護，不自動發布。
+- `adminNavigation` 在 URL 保存原管理清單搜尋、類型／狀態／工作篩選及頁碼，跨頁讀取原排序。無上下文採同類型 `headword,id` keyset 順序；找不到原項目則提示清單改變，不猜測跳轉。切換前等待佇列與有效保存。
+- `studyComposition` 只讀已發布的明示字形與提示，不從正式詞條名稱（例如 `ab-`）猜展示字形（`ab`）。背面 inline spans 寬度由英文決定，中文絕對定位並依實際英文寬度換行；不改動 FSRS、due、Session、事件、備份或 IndexedDB v9。
+- PR #151 的正式套用狀態依使用者確認及本輪唯讀 migration 記錄核對更新；其清除機制未重新實作。IPA cleanup `20261105033000_dictionary_ipa_only.sql` 本輪唯讀核對仍未列入正式紀錄，未代為套用。Production 部署與真實裝置驗收另列 HANDOFF。

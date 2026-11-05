@@ -1,4 +1,6 @@
 "use client";
+import {useDictionaryText} from './useDictionaryText';
+import {adminContext,adminListHref,adminEntryHref,adminNeighbours} from './adminNavigation';
 import {invalidateDictionary,observeDictionaryInvalidation} from './dictionaryInvalidation';
 import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import AutoTextarea from "./AutoTextarea";
@@ -9,6 +11,9 @@ import {PersistentReviewPanel} from './PersistentImportReview';
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
 
+import {DraftAutosaveQueue,draftRevisions,draftContentSignature,type DraftSaveStatus} from './draftAutosave';
+import {legacyWordSegments,wordSpelling,type WordSegment} from './wordSegments';
+import WordSegmentsEditor from './WordSegmentsEditor';
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
 import {listAdminEntries,listAdminWork,adminSummaries,adminPageSize} from './adminQueries';
@@ -18,7 +23,7 @@ import {DictionaryBulkPublish} from './DictionaryBulkPublish';
 import {confirmDialog} from '../../lib/confirmDialog';
 
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import {VariantEditor} from './variants';
 import DictionaryExchangeExport from './DictionaryExchangeExport';
@@ -29,13 +34,13 @@ import {emptyGrouping,primaryCategories,prefixCategories,readGrouping,readSenseG
 import { getSupabase } from '../../infrastructure/supabase/client';
 import { getDictionaryEntry, publishDictionaryEntry, type DictionaryDetail, type DictionaryEntry, type DictionarySense } from './dictionary';
 import {dictionaryCSVExample,dictionaryCSVHeaders} from './dictionaryCSV';
-import {draftsFromBundle,saveDictionaryDraft,previewDictionaryDraft,validateDictionaryDraft,DraftValidationError} from './draftPipeline';
+import {draftsFromBundle,saveDictionaryDraft,previewDictionaryDraft,validateDictionaryDraft} from './draftPipeline';
 import {type Bundle} from './adminImport';
 import {reviewSnapshot,type DictionaryReview} from './revisionLifecycle';
 import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
-import {deleteDraftSense,deleteDraftContent,withoutSense} from './draftEditing';
+import {withoutSense} from './draftEditing';
 import {deleteDictionaryEntry} from './deleteEntry';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
@@ -50,25 +55,30 @@ function Field({label,value,onChange,multiline=false,placeholder,compact=false}:
 
 function clean(row:object):Row { const result={...row} as Row;for(const key of ['updated_at','published_at','status','source_id'])delete result[key];return result; }
 export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technical?:boolean}) {
+  const tr=useDictionaryText();
   const order=['dictionary_entries','dictionary_senses','dictionary_pronunciations','dictionary_inflections','dictionary_relations','dictionary_learning_notes','dictionary_etymologies','dictionary_examples'];
   const rank=(table:string)=>order.includes(table)?order.indexOf(table):order.length;
-  return <div className="space-y-2" aria-label="字典預覽">{Object.entries(bundle).filter(([table,rows])=>technical||rows.length>0&&table!=='dictionary_lexical_annotations').sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
-    <h3 className="font-semibold">{{dictionary_entries:'詞條',dictionary_inflections:'詞形變化',dictionary_pronunciations:'讀音',dictionary_senses:'義項',dictionary_relations:'構詞關聯',dictionary_etymologies:'歷史詞源',dictionary_learning_notes:'核心概念'}[table]??table}</h3>
+  return <div className="space-y-2" aria-label={tr("字典預覽")}>{Object.entries(bundle).filter(([table,rows])=>technical||rows.length>0&&table!=='dictionary_lexical_annotations').sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
+    <h3 className="font-semibold">{{dictionary_entries:tr('詞條'),dictionary_inflections:tr('詞形變化'),dictionary_pronunciations:tr('讀音'),dictionary_senses:tr('義項'),dictionary_relations:tr('構詞關聯'),dictionary_etymologies:tr('歷史詞源'),dictionary_learning_notes:tr('核心概念')}[table]??table}</h3>
     {rows.map(row=><article key={String(row.id)} className="my-2 space-y-2 whitespace-pre-wrap break-words rounded border p-3 text-sm">
       {<>
-        {(technical||table==='dictionary_entries')&&!!row.kind&&<p>類型：{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??'義項關聯')}</p>
-        {!!row.part_of_speech&&<p>詞性：{String(row.part_of_speech)}</p>}
-        {table==='dictionary_etymologies'&&!!row.data_source&&<p>資料來源：{String(row.data_source)}</p>}
-        {technical&&!!row.target_sense_id&&<p>目標義項：{String(row.target_sense_id)}</p>}
+        {(technical||table==='dictionary_entries')&&!!row.kind&&<p>{tr("類型：")}{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??tr('義項關聯'))}</p>
+        {!!row.part_of_speech&&<p>{tr("詞性：")}{String(row.part_of_speech)}</p>}
+        {table==='dictionary_etymologies'&&!!row.data_source&&<p>{tr("資料來源：")}{String(row.data_source)}</p>}
+        {technical&&!!row.target_sense_id&&<p>{tr("目標義項：")}{String(row.target_sense_id)}</p>}
 
       </>}
-      {technical&&<details><summary>穩定識別與資料欄位</summary><pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(row,null,2)}</pre></details>}
+      {technical&&<details><summary>{tr("穩定識別與資料欄位")}</summary><pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(row,null,2)}</pre></details>}
     </article>)}
   </section>)}</div>;
 }
-export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false}:{deletionEntry?:DictionaryEntry;onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string)=>Promise<void>}) {
+function editorBundle(detail:DictionaryDetail):Bundle {
+  return {dictionary_entries:[clean(detail.entry)],...Object.fromEntries(['senses','relations','etymologies','learning_notes','pronunciations','inflections','examples','lexical_annotations'].map(key=>['dictionary_'+key,((detail as unknown as Record<string,object[]>)[key]??[]).map(clean)]))};
+}
+export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry,initialGrouping=emptyGrouping(),initialSenseGroups={},reviewDraft=false,saveReview,onPublish,canPublish=false,publicationBusy=false,neighbours}:{neighbours?:{previous:string|null;next:string|null};deletionEntry?:DictionaryEntry;onDeleted?:()=>void;onPublish?:(expectedRevision?:number)=>Promise<void>;canPublish?:boolean;publicationBusy?:boolean;saveReview?:(draft:DictionaryDraftInput)=>Promise<DictionaryReview|void>;reviewDraft?:boolean;initialSenseGroups?:SenseGroupMap;initialGrouping?:DictionaryGrouping;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];onSaved:(id:string,checkpoint?:DictionaryDetail)=>Promise<void>}) {
+  const tr=useDictionaryText();
   const {t}=usePaginationLanguage();
-  const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[clean(detail.entry)],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
+  const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[{...clean(detail.entry),...(detail.entry.kind==='word'?{word_segments:legacyWordSegments(detail.entry.id,detail.entry.headword,detail.entry.word_segments)}:{})}],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
   const [grouping,setGrouping]=useState(initialGrouping);
   const [senseGroups,setSenseGroups]=useState(initialSenseGroups);
@@ -80,32 +90,68 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const headword=String(bundle.dictionary_entries[0].headword);
   useEffect(()=>{let active=true;setMatches([]);if(!headword.trim())return;const timer=setTimeout(()=>{const client=getSupabase();if(client)void listAdminEntries(client,{kinds:[detail.entry.kind],statuses:[],query:headword,page:0}).then(r=>{if(active)setMatches(r.items);}).catch(()=>{});},250);return()=>{active=false;clearTimeout(timer);};},[headword,detail.entry.kind]);
   const matching=[...entries,...matches].filter((e,i,all)=>all.findIndex(x=>x.id===e.id)===i).filter(e=>e.id!==detail.entry.id&&entryKey(e.kind,e.headword)===entryKey(detail.entry.kind,String(bundle.dictionary_entries[0].headword)));
-  const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>適用義項</span><select aria-label="適用義項" className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>請選擇義項</option><option value="__shared__">{table==='dictionary_relations'?'不分義項／詞條共用':'詞條共用（不限定義項）'}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>義項 {i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
+  const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{tr("適用義項")}</span><select aria-label={tr("適用義項")} className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>{tr("請選擇義項")}</option><option value="__shared__">{table==='dictionary_relations'?tr('不分義項／詞條共用'):tr('詞條共用（不限定義項）')}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>{tr("義項")}{i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
   const newContentSense=()=>bundle.dictionary_senses.length===1?bundle.dictionary_senses[0].id:'';
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline)||JSON.stringify(grouping)!==JSON.stringify(groupBaseline)||bundle.dictionary_senses.some(row=>(senseGroups[String(row.id)]??null)!==(senseBaseline[String(row.id)]??null)));
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
   const add=(table:string,values:Row)=>setBundle(b=>({...b,[table]:[...b[table],{id:crypto.randomUUID(),entry_id:detail.entry.id,...values}]}));
   const addSense=async()=>{
     const shared=['dictionary_pronunciations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations'].some(table=>bundle[table]?.some(row=>row.sense_id===null));
-    if(bundle.dictionary_senses.length&&shared&&!await confirmDialog('既有內容有未限定義項的資料。新增義項後仍保留為詞條共用；若只屬於原義項，請取消並先指定適用義項。確認繼續？'))return;
+    if(bundle.dictionary_senses.length&&shared&&!await confirmDialog(tr('既有內容有未限定義項的資料。新增義項後仍保留為詞條共用；若只屬於原義項，請取消並先指定適用義項。確認繼續？')))return;
     add('dictionary_senses',{part_of_speech:detail.entry.kind==='word'?'noun':null,gloss_zh_tw:''});
   };
-  const save=async()=>{
-    setBusy(true);setMessage('');
-    try{
-      if(matching.length)throw Error('同類同拼寫已有 Entry，請開啟既有詞條新增義項；不會建立第二詞條。');
-      const next=prepareEditorBundle(bundle);
-      const drafts=draftsFromBundle(next,detail.entry.kind==='word'?undefined:grouping,senseGroups);
-      const issues=validateDictionaryDraft(drafts);if(issues.length)throw new DraftValidationError(issues);
-      if(saveReview){await saveReview(drafts[0]);setBaseline(bundle);setGroupBaseline(grouping);setSenseBaseline(senseGroups);setMessage('已儲存審核草稿；公開內容尚未變更。');}else{await saveDictionaryDraft(getSupabase()!,drafts,false,true,undefined,true);await onSaved(detail.entry.id);}
-      return true;
-    }catch(e){setMessage(e instanceof Error?e.message:String(e));return false;}finally{setBusy(false);}
-  };
-  const navigation=useUnsavedDraft(dirty,busy||publicationBusy,()=>save());
+  const [saveStatus,setSaveStatus]=useState<DraftSaveStatus>('saved');
+  type EditorValue={bundle:Bundle;grouping:DictionaryGrouping;senseGroups:SenseGroupMap};
+  const stateRef=useRef({bundle,grouping,senseGroups,baseline,groupBaseline,senseBaseline,dirty});
+  useLayoutEffect(()=>{stateRef.current={bundle,grouping,senseGroups,baseline,groupBaseline,senseBaseline,dirty};},[bundle,grouping,senseGroups,baseline,groupBaseline,senseBaseline,dirty]);
+  const services=useRef({matching,saveReview,onSaved,t});
+  useLayoutEffect(()=>{services.current={matching,saveReview,onSaved,t};},[matching,saveReview,onSaved,t]);
+  const statusRef=useRef(saveStatus);
+  const queue=useRef<DraftAutosaveQueue<EditorValue>|null>(null);
+  queue.current??=new DraftAutosaveQueue<EditorValue>({
+    read:()=>({bundle:stateRef.current.bundle,grouping:stateRef.current.grouping,senseGroups:stateRef.current.senseGroups}),
+    dirty:()=>stateRef.current.dirty,
+    valid:value=>!services.current.matching.length&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle),detail.entry.kind==='word'?undefined:value.grouping,value.senseGroups)).length,
+    save:async value=>{
+      const drafts=draftsFromBundle(prepareEditorBundle(value.bundle),detail.entry.kind==='word'?undefined:value.grouping,value.senseGroups);
+      const review=services.current.saveReview?await services.current.saveReview(drafts[0]):null;
+      let stored:import('./aiDictionary').AISnapshot|null=null;
+      let writeError:unknown;
+      if(!services.current.saveReview){
+        try{await saveDictionaryDraft(getSupabase()!,drafts,false,true,undefined,true);}catch(error){writeError=error;}
+        stored=await readAI(getSupabase()!,detail.entry.id).catch(()=>null);
+        if(!stored||stored.detail.entry.status!=='draft')throw writeError??Error('draft.conflict');
+        const currentDraft=draftsFromBundle(editorBundle(stored.detail),detail.entry.kind==='word'?undefined:stored.grouping??undefined,stored.sense_groups)[0];
+        const actual={...mapDictionaryDraft(currentDraft),component_order:stored.metadata?.component_order??currentDraft.relations.map(r=>r.id)};
+        const sent={...mapDictionaryDraft(drafts[0]),component_order:drafts[0].relations.map(r=>r.id)};
+        if(draftContentSignature(actual)!==draftContentSignature(sent))throw writeError??Error('draft.conflict');
+      }
+      const saved=review?reviewSnapshot(review).detail:stored?.detail;
+      const ack={...value,bundle:saved?draftRevisions(value.bundle,editorBundle(saved)):value.bundle};
+      if(!services.current.saveReview)await services.current.onSaved(detail.entry.id,saved);
+      return ack;
+    },
+    checkpoint:(_sent,ack)=>{
+      const latest=stateRef.current,live=draftRevisions(latest.bundle,ack.bundle);
+      const stillDirty=JSON.stringify(live)!==JSON.stringify(ack.bundle)||JSON.stringify(latest.grouping)!==JSON.stringify(ack.grouping)||JSON.stringify(latest.senseGroups)!==JSON.stringify(ack.senseGroups);
+      stateRef.current={...latest,bundle:live,baseline:ack.bundle,groupBaseline:ack.grouping,senseBaseline:ack.senseGroups,dirty:stillDirty};
+      setBundle(live);setBaseline(ack.bundle);setGroupBaseline(ack.grouping);setSenseBaseline(ack.senseGroups);
+    },
+    status:(status,error)=>{statusRef.current=status;setSaveStatus(status);if(status==='saving'||status==='saved')setMessage('');if(error)setMessage(services.current.t(error instanceof Error?error.message:String(error)));},
+  });
+  const timer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const complete=useCallback(()=>{if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>{if(!locked&&!queue.current!.composing)void queue.current!.flush();},180);},[locked]);
+  useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
+  const save=async()=>{if(timer.current)clearTimeout(timer.current);setMessage('');const ok=await queue.current!.flush();if(!ok&&statusRef.current!=='failed')setMessage(t('draft.invalidLeave'));return ok;};
+  const saving=saveStatus==='saving';
+  const navigation=useUnsavedDraft(dirty,busy||saving||publicationBusy,()=>save());
+  const moving=useRef(false);
+  const adjacent=async(href:string|null)=>{if(!href||moving.current)return;moving.current=true;try{if(await save())navigation.leave(()=>window.location.assign(href));}finally{moving.current=false;}};
   const deletePending=useRef(false),deleteOperation=useRef<{id:string;snapshot?:{detail:{entry:{revision:number}}}}|null>(null);
   const deleteTarget=deletionEntry??{...detail.entry,revision:Number(baseline.dictionary_entries[0].revision)};
   const removeEntry=async()=>{
-    if(deletePending.current||busy||publicationBusy||!onDeleted||deleteTarget.revision===0)return;
+    if(deletePending.current||busy||queue.current!.saving||publicationBusy||!onDeleted||deleteTarget.revision===0)return;
+    if(timer.current)clearTimeout(timer.current);
     deletePending.current=true;setBusy(true);setMessage('');
     try{
       if(deleteOperation.current?.snapshot&&deleteOperation.current.snapshot.detail.entry.revision!==deleteTarget.revision)deleteOperation.current=null;
@@ -116,55 +162,45 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   };
   const removeSense=async(row:Row)=>{
     if(busy||locked)return;
-    setMessage('');
-    try{
-      const next=withoutSense(bundle,String(row.id));
-      const saved=baseline.dictionary_senses.find(s=>s.id===row.id&&Number(s.revision)>0);
-      if(!saved){setBundle(next);return;}
-      if(saveReview){if(await confirmDialog('從 Review Draft 移除此義項？儲存及核准前不影響公開內容。'))setBundle(next);return;}
-      if(!await confirmDialog('永久刪除此已儲存的草稿義項？其他義項及構詞資料不會刪除。此操作立即儲存。'))return;
-      setBusy(true);
-      const revision=await deleteDraftSense(getSupabase()!,detail.entry.id,String(row.id),Number(baseline.dictionary_entries[0].revision),Number(saved.revision));
-      setBundle({...next,dictionary_entries:next.dictionary_entries.map(e=>({...e,revision}))});
-      setBaseline(b=>({...b,dictionary_entries:b.dictionary_entries.map(e=>({...e,revision})),dictionary_senses:b.dictionary_senses.filter(s=>s.id!==row.id)}));
-      setMessage('義項已刪除。其他尚未儲存的修改仍保留在表單。');
-    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+    try{withoutSense(bundle,String(row.id));if(Number(row.revision)>0&&!await confirmDialog(t('draft.confirmRemove')))return;const next=withoutSense(stateRef.current.bundle,String(row.id));setBundle(next);complete();}catch(error){setMessage(error instanceof Error?error.message:String(error));}
   };
-  const removeContent=async(table:'dictionary_etymologies'|'dictionary_learning_notes'|'dictionary_examples'|'dictionary_lexical_annotations'|'dictionary_pronunciations',row:Row,title:string)=>{
+  const removeContent=async(table:'dictionary_etymologies'|'dictionary_learning_notes'|'dictionary_examples'|'dictionary_lexical_annotations'|'dictionary_pronunciations',row:Row,_title:string)=>{
+    void _title;
     if(busy||locked)return;
-    const id=String(row.id),saved=baseline[table].find(r=>r.id===id&&Number(r.revision)>0);
-    const remove=(b:Bundle)=>({...b,[table]:b[table].filter(r=>r.id!==id)});
-    if(!saved){setBundle(remove);return;}
-    if(saveReview){if(await confirmDialog('從 Review Draft 移除此內容？儲存及核准前不影響公開內容。'))setBundle(remove);return;}
-    if(!await confirmDialog({title:`刪除${title}`,message:'永久刪除此已儲存的草稿內容？此操作立即儲存，其他內容與尚未儲存的修改會保留。',confirmLabel:'刪除',danger:true}))return;
-    setBusy(true);setMessage('');
-    try{const revision=await deleteDraftContent(getSupabase()!,detail.entry.id,table,id,Number(baseline.dictionary_entries[0].revision),Number(saved.revision));
-      const apply=(b:Bundle)=>({...remove(b),dictionary_entries:b.dictionary_entries.map(e=>({...e,revision}))});setBundle(apply);setBaseline(apply);setMessage(`${title}已刪除。`);
-    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+    if(Number(row.revision)>0&&!await confirmDialog(t('draft.confirmRemove')))return;
+    setBundle(b=>({...b,[table]:b[table].filter(r=>r.id!==row.id)}));complete();
   };
-  return <section className="min-w-0 space-y-3" aria-label="詞條編輯器">
+  return <section className="min-w-0 space-y-3" aria-label={tr("詞條編輯器")}>
     <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b bg-[var(--color-bg)] py-2">
-      <h2 className="min-w-0 flex-1 truncate font-semibold">{headword||'新增詞條'} <span className="ml-2 text-xs font-normal opacity-60">{labels[detail.entry.kind]} · {locked?'最新版本':dirty?'未儲存':detail.entry.status==='published'?'已發布':'草稿'}</span></h2>
-      {onDeleted&&deleteTarget.revision>0&&<button type="button" className={`${button} shrink-0 border-red-600 text-red-600 hover:bg-red-500/10`} disabled={busy||publicationBusy} onClick={()=>void removeEntry()}>{t('dictionary.deleteEntry')}</button>}
-      <button type="button" className={`${button} shrink-0`} disabled={busy||publicationBusy||locked||!dirty} onClick={()=>void save()}>{busy?'儲存中…':'儲存'}</button>
-      {onPublish&&<button type="button" className={button} disabled={busy||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage('尚有未儲存變更，請先儲存後再發布。');return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?'處理中…':'發布'}</button>}
+      {neighbours&&<button type="button" className={button} disabled={!neighbours.previous||busy||publicationBusy} onClick={()=>void adjacent(neighbours?.previous??null)}>{t('draft.previous')}</button>}
+      <h2 className="min-w-0 flex-1 truncate font-semibold">{headword||tr('新增詞條')} <span role="status" aria-live="polite" className="ml-2 text-xs font-normal opacity-60">{tr(labels[detail.entry.kind])} · {locked?t('draft.latest'):t('draft.'+(saving?'saving':dirty&&saveStatus==='failed'?'failed':dirty?'pending':'saved'))}</span></h2>
+      {neighbours&&<button type="button" className={button} disabled={!neighbours.next||busy||publicationBusy} onClick={()=>void adjacent(neighbours?.next??null)}>{t('draft.next')}</button>}
+      {onDeleted&&deleteTarget.revision>0&&<button type="button" className={`${button} shrink-0 border-red-600 text-red-600 hover:bg-red-500/10`} disabled={busy||saving||publicationBusy} onClick={()=>void removeEntry()}>{t('dictionary.deleteEntry')}</button>}
+      <button type="button" className={`${button} shrink-0`} disabled={busy||publicationBusy||locked||(!dirty&&!saving)} onClick={()=>void save()}>{t(saving?'draft.saving':'draft.save')}</button>
+      {onPublish&&<button type="button" className={button} disabled={busy||saving||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage(tr('尚有未儲存變更，請先儲存後再發布。'));return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?tr('處理中…'):tr('發布')}</button>}
     </header>
-    {navigation.pending&&<DictionaryModal title="離開編輯" onClose={navigation.cancel} busy={busy||publicationBusy}><p>有尚未儲存的修改。</p><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||publicationBusy} onClick={()=>void navigation.saveAndLeave()}>儲存變更</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.discard}>放棄變更</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.cancel}>繼續編輯</button></div></DictionaryModal>}
+    {navigation.pending&&<DictionaryModal title={tr("離開編輯")} onClose={navigation.cancel} busy={busy||publicationBusy}><p>{tr("有尚未儲存的修改。")}</p><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||publicationBusy} onClick={()=>void navigation.saveAndLeave()}>{tr("儲存變更")}</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.discard}>{tr("放棄變更")}</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.cancel}>{tr("繼續編輯")}</button></div></DictionaryModal>}
     {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
-    {matching.length>0&&<div role="alert" className="space-y-2"><p>同類同拼寫已有詞條，請在既有詞條新增中文義項。</p>{matching.map(e=><button key={e.id} className={button} onClick={()=>void (async()=>{if(await confirmDialog('開啟既有詞條？目前尚未儲存的表單將捨棄，請先保留需要的內容。'))await onSaved(e.id);})()}>開啟 {e.headword} · {e.status==='published'?'已發布（需 Review Draft）':'草稿'}</button>)}</div>}
-    {locked&&<p>目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。</p>}
-    <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2">
-      <EditorSection title="基本資訊">
-        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
+    {matching.length>0&&<div role="alert" className="space-y-2"><p>{tr("同類同拼寫已有詞條，請在既有詞條新增中文義項。")}</p>{matching.map(e=><button key={e.id} className={button} onClick={()=>void (async()=>{if(await confirmDialog(tr('開啟既有詞條？目前尚未儲存的表單將捨棄，請先保留需要的內容。')))await onSaved(e.id);})()}>{tr("開啟")}{e.headword} · {e.status==='published'?tr('已發布（需 Review Draft）'):tr('草稿')}</button>)}</div>}
+    {locked&&<p>{tr("目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。")}</p>}
+    <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2"
+      onCompositionStartCapture={()=>{queue.current!.composing=true;}}
+      onCompositionEndCapture={()=>{queue.current!.composing=false;complete();}}
+      onBlurCapture={complete}
+      onChangeCapture={event=>{if(event.target instanceof HTMLSelectElement||event.target instanceof HTMLInputElement&&['checkbox','radio'].includes(event.target.type))complete();}}
+      onClickCapture={event=>{if(event.target instanceof Element&&event.target.closest('button'))complete();}}
+      onKeyDownCapture={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){event.preventDefault();complete();}}}>
+      <EditorSection title={tr("基本資訊")}>
+        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2">{detail.entry.kind==='word'?<WordSegmentsEditor entryId={detail.entry.id} segments={bundle.dictionary_entries[0].word_segments as WordSegment[]} relations={bundle.dictionary_relations} onChange={(segments,relations)=>{setBundle(b=>({...b,dictionary_entries:b.dictionary_entries.map(e=>({...e,word_segments:segments,headword:wordSpelling(segments)})),dictionary_relations:relations}));}}/>:<Field label={tr(labels[detail.entry.kind])} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>}
         {detail.entry.kind!=='word'&&<>
-          {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select aria-label="主要分類" className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
+          {detail.entry.kind==='root'&&<label className="block text-sm">{tr("主要分類")}<select aria-label={tr("主要分類")} className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">{tr("未分類")}</option>{primaryCategories.map(c=><option key={c} value={c}>{tr(c)}</option>)}</select></label>}
         </>}
         <div className="min-w-0 space-y-2">
-          <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">讀音（IPA）</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label="＋新增讀音">＋新增讀音</button></div>
+          <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{tr("讀音（IPA）")}</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label={tr("＋新增讀音")}>{tr("＋新增讀音")}</button></div>
           {(bundle.dictionary_pronunciations??[]).map((row,i,rows)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-end gap-2">
             <div className="min-w-0 flex-1"><Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/></div>
-            <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,'讀音')} aria-label="刪除讀音"><FeatureIcon feature="delete" size={16}/></button>
-            {rows.length>1&&<><button type="button" className={addButton} aria-label="上移讀音" disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label="下移讀音" disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
+            <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,tr('讀音'))} aria-label={tr("刪除讀音")}><FeatureIcon feature="delete" size={16}/></button>
+            {rows.length>1&&<><button type="button" className={addButton} aria-label={tr("上移讀音")} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label={tr("下移讀音")} disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
           </div>)}
         </div>
         </div>
@@ -172,54 +208,54 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
           <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
         </>}
       </EditorSection>
-      <EditorSection title="義項" count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?'＋新增義項':'＋新增中文義項'}>＋新增義項</button>}>
+      <EditorSection title={tr("義項")} count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?tr('＋新增義項'):tr('＋新增中文義項')}>{tr("＋新增義項")}</button>}>
       {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
         {bundle.dictionary_senses.length>1&&<span className="pt-7 text-xs opacity-50">{i+1}</span>}
         <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={"grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 "+(detail.entry.kind==='root'?'':"sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]")}>
-        {detail.entry.kind==='word'&&<Field label="詞性" placeholder="未設定" value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>}
-        <div className={detail.entry.kind==='word'?"col-start-1 sm:col-start-auto":""}><Field label="中文意思" value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div>
-        {detail.entry.kind==='prefix'&&<label className="col-start-1 min-w-0 text-sm sm:col-start-auto">分類<select className={control} aria-label={`義項 ${i+1} 的分類`} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">未分類</option>{prefixCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
-        <button type="button" aria-label={`刪除義項 ${i+1}`} className="col-start-2 row-start-1 min-h-11 shrink-0 p-2 opacity-70 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
+        {detail.entry.kind==='word'&&<Field label={tr("詞性")} placeholder={tr("未設定")} value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>}
+        <div className={detail.entry.kind==='word'?"col-start-1 sm:col-start-auto":""}><Field label={tr("中文意思")} value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div>
+        {detail.entry.kind==='prefix'&&<label className="col-start-1 min-w-0 text-sm sm:col-start-auto">{tr("分類")}<select className={control} aria-label={t('draft.senseCategory',{number:i+1})} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">{tr("未分類")}</option>{prefixCategories.map(c=><option key={c} value={c}>{tr(c)}</option>)}</select></label>}
+        <button type="button" aria-label={tr('刪除義項')+' '+(i+1)} className="col-start-2 row-start-1 min-h-11 shrink-0 p-2 opacity-70 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
       </div>)}
       </EditorSection>
       {detail.entry.kind==='word'&&<>
-      <EditorSection title="詞形變化" count={bundle.dictionary_inflections.length} actions={<button type="button" className={addButton} aria-label="＋新增詞形變化" onClick={()=>add('dictionary_inflections',{sense_id:null,form_kind:availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],null)[0]??'',form:'',sort_order:bundle.dictionary_inflections.length})}>＋新增詞形變化</button>}>
-      {!bundle.dictionary_inflections.length&&<p className="text-sm opacity-60">尚無詞形</p>}
-      {!!bundle.dictionary_inflections.length&&<div aria-hidden className="hidden gap-2 text-xs opacity-60 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]"><span>變化類型</span><span>詞形</span><span>適用義項</span><span/></div>}
+      <EditorSection title={tr("詞形變化")} count={bundle.dictionary_inflections.length} actions={<button type="button" className={addButton} aria-label={tr("＋新增詞形變化")} onClick={()=>add('dictionary_inflections',{sense_id:null,form_kind:availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],null)[0]??'',form:'',sort_order:bundle.dictionary_inflections.length})}>{tr("＋新增詞形變化")}</button>}>
+      {!bundle.dictionary_inflections.length&&<p className="text-sm opacity-60">{tr("尚無詞形")}</p>}
+      {!!bundle.dictionary_inflections.length&&<div aria-hidden className="hidden gap-2 text-xs opacity-60 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]"><span>{tr("變化類型")}</span><span>{tr("詞形")}</span><span>{tr("適用義項")}</span><span/></div>}
       {bundle.dictionary_inflections.map((row,i)=>{const types=availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],String(row.sense_id??'')||null);return <div key={String(row.id)} data-inflection-row className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 border-t border-[var(--color-border)] py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]">
-      <label className="min-w-0 text-sm"><span className="sm:sr-only">變化類型</span><select className={control} value={String(row.form_kind)} onChange={e=>change('dictionary_inflections',i,'form_kind',e.target.value)}><option value="">請選擇</option>{!types.includes(row.form_kind as keyof typeof inflectionLabels)&&!!row.form_kind&&<option value={String(row.form_kind)}>詞性不符：{String(row.form_kind)}</option>}{types.map(t=><option key={t} value={t}>{inflectionLabels[t]}</option>)}</select>{!types.length&&<span className="text-sm">請先在義項設定 verb／noun／adjective／adverb 詞性。</span>}</label>
-      <div className="col-start-1 sm:col-start-auto"><Field compact label="詞形" value={row.form} onChange={v=>change('dictionary_inflections',i,'form',v)}/></div>
+      <label className="min-w-0 text-sm"><span className="sm:sr-only">{tr("變化類型")}</span><select className={control} value={String(row.form_kind)} onChange={e=>change('dictionary_inflections',i,'form_kind',e.target.value)}><option value="">{tr("請選擇")}</option>{!types.includes(row.form_kind as keyof typeof inflectionLabels)&&!!row.form_kind&&<option value={String(row.form_kind)}>{tr("詞性不符：")}{String(row.form_kind)}</option>}{types.map(t=><option key={t} value={t}>{tr(inflectionLabels[t])}</option>)}</select>{!types.length&&<span className="text-sm">{tr("請先在義項設定 verb／noun／adjective／adverb 詞性。")}</span>}</label>
+      <div className="col-start-1 sm:col-start-auto"><Field compact label={tr("詞形")} value={row.form} onChange={v=>change('dictionary_inflections',i,'form',v)}/></div>
       <div className="col-start-1 sm:col-start-auto">{contentSense('dictionary_inflections',i,row,true)}</div>
-      <button type="button" aria-label="移除詞形" className="col-start-2 row-start-1 min-h-11 self-start p-2 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>setBundle(b=>({...b,dictionary_inflections:b.dictionary_inflections.filter(r=>r.id!==row.id)}))}><FeatureIcon feature="delete" size={16}/></button>
+      <button type="button" aria-label={tr("移除詞形")} className="col-start-2 row-start-1 min-h-11 self-start p-2 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>setBundle(b=>({...b,dictionary_inflections:b.dictionary_inflections.filter(r=>r.id!==row.id)}))}><FeatureIcon feature="delete" size={16}/></button>
       </div>;})}
       </EditorSection>
-      <EditorSection title="構詞關聯" count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label="＋新增構詞關聯">＋新增構詞關聯</button>}>
-      {!bundle.dictionary_relations.length&&<p className="text-sm">尚無構詞關聯</p>}
+      <EditorSection title={tr("構詞關聯")} count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label={tr("＋新增構詞關聯")}>{tr("＋新增構詞關聯")}</button>}>
+      {!bundle.dictionary_relations.length&&<p className="text-sm">{tr("尚無構詞關聯")}</p>}
       {bundle.dictionary_relations.map((row,i)=><div key={String(row.id)} className="grid min-w-0 gap-2 py-1 sm:grid-cols-[minmax(0,1fr)_auto]">
         {bundle.dictionary_senses.length>1&&<div className="sm:col-span-2">{contentSense('dictionary_relations',i,row)}</div>}
         <RelationTargetPicker entryId={String(row.target_entry_id)} senseId={String(row.target_sense_id)} excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.id!==row.id&&r.sense_id===row.sense_id).map(r=>String(r.target_sense_id))} onChange={(entry,sense)=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.map((r,index)=>index===i?{...r,target_entry_id:entry,target_sense_id:sense}:r)}))}/>
-        <div className="flex flex-wrap items-center gap-1">{bundle.dictionary_relations.length>1&&<><button className={addButton} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,-1)}))}>上移</button><button className={addButton} disabled={i===bundle.dictionary_relations.length-1} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,1)}))}>下移</button></>}<button className={addButton} onClick={()=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.filter(r=>r.id!==row.id)}))} aria-label="移除構詞關聯"><FeatureIcon feature="delete" size={16}/></button></div>
+        <div className="flex flex-wrap items-center gap-1">{bundle.dictionary_relations.length>1&&<><button className={addButton} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,-1)}))}>{tr("上移")}</button><button className={addButton} disabled={i===bundle.dictionary_relations.length-1} onClick={()=>setBundle(b=>({...b,dictionary_relations:moveRow(b.dictionary_relations,i,1)}))}>{tr("下移")}</button></>}<button className={addButton} onClick={()=>setBundle(b=>({...b,dictionary_relations:b.dictionary_relations.filter(r=>r.id!==row.id),dictionary_entries:b.dictionary_entries.map(e=>({...e,...(e.word_segments?{word_segments:(e.word_segments as WordSegment[]).map(s=>s.relation_id===row.id?{...s,relation_id:null}:s)}:{})}))}))} aria-label={tr("移除構詞關聯")}><FeatureIcon feature="delete" size={16}/></button></div>
       </div>)}
       {addingRelation&&<RelationSelectionDialog excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.sense_id==null).map(r=>String(r.target_sense_id))} onClose={()=>setAddingRelation(false)} onSelect={(entry,sense)=>{add('dictionary_relations',{sense_id:null,target_entry_id:entry,target_sense_id:sense});setAddingRelation(false);}}/>}
       </EditorSection>
       </>}
-      <EditorSection title="補充資料" count={bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length}>
-      {([{table:'dictionary_learning_notes',title:'核心概念'},{table:'dictionary_etymologies',title:'歷史詞源'},{table:'dictionary_examples',title:'例詞'}] as const).map(({table,title})=><section key={title} className="min-w-0 space-y-2" data-content-section={title}>
-        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={`新增${title}`}>＋新增{title}</button></div>
+      <EditorSection title={tr("補充資料")} count={bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length}>
+      {([{table:'dictionary_learning_notes',title:tr('核心概念')},{table:'dictionary_etymologies',title:tr('歷史詞源')},{table:'dictionary_examples',title:tr('例詞')}] as const).map(({table,title})=><section key={title} className="min-w-0 space-y-2" data-content-section={title}>
+        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr("＋新增")}{title}</button></div>
         {bundle[table].map((row,i)=><div key={String(row.id)} className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-2">
             {bundle.dictionary_senses.length>1&&contentSense(table,i,row)}
             <Field label={title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
-            {table==='dictionary_etymologies'&&<Field label="資料來源" multiline value={row.data_source} onChange={v=>change(table,i,'data_source',v)}/>}
+            {table==='dictionary_etymologies'&&<Field label={tr("資料來源")} multiline value={row.data_source} onChange={v=>change(table,i,'data_source',v)}/>}
           </div>
-          <button type="button" aria-label={`刪除${title}`} className={addButton+" mt-5 shrink-0"} onClick={()=>void removeContent(table,row,title)}><FeatureIcon feature="delete" size={16}/></button>
+          <button type="button" aria-label={t('ui.delete')+' '+title} className={addButton+" mt-5 shrink-0"} onClick={()=>void removeContent(table,row,title)}><FeatureIcon feature="delete" size={16}/></button>
         </div>)}
       </section>)}
       </EditorSection>
     </fieldset>
-    <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle),detail.entry.kind==='word'?undefined:grouping,senseGroups),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>切換完整預覽</button>
+    <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle),detail.entry.kind==='word'?undefined:grouping,senseGroups),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>{tr("切換完整預覽")}</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
-    {reviewDraft&&<p>這是舊版複製型審核草稿，沒有可靠的 base revision，不能直接核准。請從原 Published 建立新版 Review Draft 並重新比對；舊資料保留。</p>}
+    {reviewDraft&&<p>{tr("這是舊版複製型審核草稿，沒有可靠的 base revision，不能直接核准。請從原 Published 建立新版 Review Draft 並重新比對；舊資料保留。")}</p>}
   </section>;
 }
 
@@ -236,33 +272,43 @@ export function DictionaryListActions({busy,onNew,onImport,onExport}:{busy:boole
  const {t}=usePaginationLanguage();
  return <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>{t("ui.new")}</button><button className={button} disabled={busy} onClick={onImport}>{t("exchange.import")}</button><button className={button} disabled={busy} onClick={onExport}>{t("exchange.export")}</button></div>;
 }
-export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{onCommitted?:()=>void;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
+export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted,neighbours}:{neighbours?:{previous:string|null;next:string|null};onCommitted?:()=>void;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
+  const tr=useDictionaryText();
   const [reviews,setReviews]=useState<DictionaryReview[]>([]),[chosen,setChosen]=useState<DictionaryReview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [view,setView]=useState<'latest'|'draft'>('draft');
   const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}};
+  const chosenRef=useRef(chosen);useLayoutEffect(()=>{chosenRef.current=chosen;},[chosen]);
   const [editorEpoch,setEditorEpoch]=useState(0);
   const [base,setBase]=useState<import('./aiDictionary').AISnapshot|null>(null),[ready,setReady]=useState(false);
   useEffect(()=>{let active=true;void (async()=>{try{const snapshot=await readAI(getSupabase()!,detail.entry.id);const {data,error}=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active').order('updated_at',{ascending:false});if(error)throw Error(error.message);if(active){setBase(snapshot);setReviews(data??[]);if(data?.length===1)setChosen(data[0]);setReady(true);}}catch(e){if(active)setError(String(e));}})();return()=>{active=false;};},[detail.entry.id]);
-  if(!ready||!base)return <section><p role="status">{error||'正在讀取編輯內容…'}</p></section>;
+  if(!ready||!base)return <section><p role="status">{error||tr('正在讀取編輯內容…')}</p></section>;
   const activeReviews=reviews.filter(r=>r.state==='active');
   const snapshot=chosen?reviewSnapshot(chosen):base;
   const stale=!!chosen&&chosen.base_revision!==detail.entry.revision;
   const saveCurrent=async(draft:DictionaryDraftInput)=>{
-    if(stale)throw Error('此草稿的 Published 基底已變更。請保留輸入，重新載入版本資訊後比對；不會覆蓋公開內容。');
+    if(stale)throw Error(tr('此草稿的 Published 基底已變更。請保留輸入，重新載入版本資訊後比對；不會覆蓋公開內容。'));
     let saved:DictionaryReview;
-    if(chosen){const {data,error}=await getSupabase()!.rpc('save_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請重新開啟詞條確認最新內容。`);saved=data;}
-    else {const {data,error}=await getSupabase()!.rpc('create_dictionary_edit_review',{entry_uuid:detail.entry.id,expected_snapshot:base,candidate:{...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)}});if(error)throw Error(`${error.message}。輸入已保留；請重新開啟詞條確認既有修改。`);saved=data;}
-    setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);onCommitted?.();
+    const current=chosenRef.current;
+    const candidate={...mapDictionaryDraft(draft),component_order:draft.relations.map(r=>r.id)};
+    const result=current?await getSupabase()!.rpc('save_dictionary_review',{review_uuid:current.id,expected_revision:current.revision,candidate}):await getSupabase()!.rpc('create_dictionary_edit_review',{entry_uuid:detail.entry.id,expected_snapshot:base,candidate});
+    if(result.error){
+      const found=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active');
+      const rows=found.data as DictionaryReview[]|null;
+      if(found.error||rows?.length!==1||(current&&rows[0].id!==current.id)||rows[0].base_revision!==base.detail.entry.revision||draftContentSignature(rows[0].candidate)!==draftContentSignature(candidate))throw Error(result.error.message);
+      saved=rows[0];
+    }else saved=result.data;
+
+    chosenRef.current=saved;setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);return saved;
   };
-  const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:'核准發布新版本',message:'我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。發布後將取代目前公開版本，不保留舊內容。',confirmLabel:'發布'}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);await refresh(detail.entry.id);onCommitted?.();});
+  const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:tr('核准發布新版本'),message:tr('我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。發布後將取代目前公開版本，不保留舊內容。'),confirmLabel:tr('發布')}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);await refresh(detail.entry.id);onCommitted?.();});
   const latestBundle:Bundle={dictionary_entries:[base.detail.entry as unknown as Row],dictionary_senses:base.detail.senses as unknown as Row[],dictionary_relations:base.detail.relations as unknown as Row[],dictionary_etymologies:base.detail.etymologies as unknown as Row[],dictionary_learning_notes:base.detail.learning_notes as unknown as Row[],dictionary_inflections:(base.detail.inflections??[]) as unknown as Row[],dictionary_pronunciations:(base.detail.pronunciations??[]) as unknown as Row[],dictionary_examples:(base.detail.examples??[]) as unknown as Row[],dictionary_lexical_annotations:(base.detail.lexical_annotations??[]) as unknown as Row[]};
   return <section className="min-w-0 space-y-3">
-    {!!activeReviews.length&&<div role="tablist" aria-label="詞條版本" className="flex gap-2">{(['latest','draft'] as const).map(tab=><button type="button" role="tab" tabIndex={view===tab?0:-1} onKeyDown={e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?'latest':e.key==='End'?'draft':view==='latest'?'draft':'latest';setView(next);const tabs=e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');tabs?.[next==='latest'?0:1]?.focus();}} aria-selected={view===tab} key={tab} onClick={()=>setView(tab)} className="min-h-11 rounded px-4 text-sm" style={{background:view===tab?'var(--color-border)':undefined}}>{tab==='latest'?'最新版本':'草稿'}</button>)}</div>}
-    {!!activeReviews.length&&view==='latest'&&<section aria-label="最新版本"><h2 className="text-xl">{detail.entry.headword} · {labels[detail.entry.kind]} · 已發布</h2><DictionaryPreview bundle={latestBundle} technical={false}/></section>}
+    {!!activeReviews.length&&<div role="tablist" aria-label={tr("詞條版本")} className="flex gap-2">{(['latest','draft'] as const).map(tab=><button type="button" role="tab" tabIndex={view===tab?0:-1} onKeyDown={e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?'latest':e.key==='End'?'draft':view==='latest'?'draft':'latest';setView(next);const tabs=e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');tabs?.[next==='latest'?0:1]?.focus();}} aria-selected={view===tab} key={tab} onClick={()=>setView(tab)} className="min-h-11 rounded px-4 text-sm" style={{background:view===tab?'var(--color-border)':undefined}}>{tab==='latest'?tr('最新版本'):tr('草稿')}</button>)}</div>}
+    {!!activeReviews.length&&view==='latest'&&<section aria-label={tr("最新版本")}><h2 className="text-xl">{detail.entry.headword} · {tr(labels[detail.entry.kind])} {tr("· 已發布")}</h2><DictionaryPreview bundle={latestBundle} technical={false}/></section>}
     <div hidden={!!activeReviews.length&&view==='latest'}>
-    {activeReviews.length>1&&<label className="block text-sm">選擇草稿<select aria-label="選擇草稿" className={control} value={chosen?.id??''} onChange={e=>{const reviewId=e.currentTarget.value;navigateDictionary(()=>{setChosen(activeReviews.find(r=>r.id===reviewId)??null);setEditorEpoch(n=>n+1);});}}><option value="">請選擇</option>{activeReviews.map((r,i)=><option key={r.id} value={r.id}>草稿 {i+1} · {r.source}</option>)}</select></label>}
-    {activeReviews.length>1&&!chosen?<p role="alert">有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。</p>:<DictionaryEditor key={`${chosen?.id??'published'}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} deletionEntry={detail.entry} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')} saveReview={saveCurrent} onPublish={publish} canPublish={!!chosen&&!stale} publicationBusy={busy}/>}
-    {stale&&<p role="alert">最新版本已變更，這份草稿不能發布。請保留輸入並重新開啟詞條確認最新內容。</p>}
+    {activeReviews.length>1&&<label className="block text-sm">{tr("選擇草稿")}<select aria-label={tr("選擇草稿")} className={control} value={chosen?.id??''} onChange={e=>{const reviewId=e.currentTarget.value;navigateDictionary(()=>{setChosen(activeReviews.find(r=>r.id===reviewId)??null);setEditorEpoch(n=>n+1);});}}><option value="">{tr("請選擇")}</option>{activeReviews.map((r,i)=><option key={r.id} value={r.id}>{tr("草稿")}{i+1} · {r.source}</option>)}</select></label>}
+    {activeReviews.length>1&&!chosen?<p role="alert">{tr("有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。")}</p>:<DictionaryEditor key={`${detail.entry.id}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} deletionEntry={detail.entry} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')} saveReview={saveCurrent} neighbours={neighbours} onPublish={publish} canPublish={!!chosen&&!stale} publicationBusy={busy}/>}
+    {stale&&<p role="alert">{tr("最新版本已變更，這份草稿不能發布。請保留輸入並重新開啟詞條確認最新內容。")}</p>}
 
     </div>
     {error&&<p role="alert" className="whitespace-pre-wrap">{error}</p>}
@@ -272,13 +318,14 @@ export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted}:{
 
 export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}:{onCommitted?:()=>void;entryId?:string;newKind?:DictionaryEntry['kind'];embedded?:boolean}){
   const senses:DictionarySense[]=[];
-  const [page,setPage]=useState(0),[reload,setReload]=useState(0),[work,setWork]=useState<string[]>([]),[reviewTarget,setReviewTarget]=useState<string|null>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('review')?new URLSearchParams(window.location.search).get('review')==='all'?'*':new URLSearchParams(window.location.search).get('review'):null);
+  const source=typeof window==='undefined'?null:adminContext(entryId?new URLSearchParams(window.location.search).get('from'):window.location.pathname+window.location.search);
+  const [page,setPage]=useState(source?.page??0),[reload,setReload]=useState(0),[work,setWork]=useState<string[]>(Array.isArray(source?.work)?source.work:[]),[reviewTarget,setReviewTarget]=useState<string|null>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('review')?new URLSearchParams(window.location.search).get('review')==='all'?'*':new URLSearchParams(window.location.search).get('review'):null);
   const [detail,setDetail]=useState<DictionaryDetail|null>(()=>{
     if(!newKind)return null;
     const id=crypto.randomUUID();
     return {entry:{id,kind:newKind,headword:'',status:'draft',published_at:null,revision:0,updated_at:''},senses:[{id:crypto.randomUUID(),entry_id:id,part_of_speech:newKind==='word'?'noun':null,gloss_zh_tw:'',revision:0,updated_at:''}],relations:[],etymologies:[],learning_notes:[]};
   }),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
-  const [kinds,setKinds]=useState<string[]>([]),[statuses,setStatuses]=useState<string[]>([]),[query,setQuery]=useState('');
+  const [kinds,setKinds]=useState<string[]>(source?.kinds??[]),[statuses,setStatuses]=useState<string[]>(source?.statuses??[]),[query,setQuery]=useState(source?.query??'');
   const {t}=usePaginationLanguage();
   const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('json');
   const [fileText,setFileText]=useState(''),[sourceName,setSourceName]=useState('');
@@ -290,7 +337,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   const closeModal=async ()=>{if(!busy&&(!fileText||await confirmDialog('有尚未匯入的內容，確定關閉？'))){setModal(null);setFileText('');}};
   async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d?.entry.kind==='prefix'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
   useUnsavedDraft(!detail&&!!fileText,busy);
-  async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}`);}}
+  async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}${source?'&from='+encodeURIComponent(adminListHref(source)):''}`);}}
   const listing=usePagedList(JSON.stringify([kinds,statuses,query,work,reload,entryId,newKind]),page,adminPageSize,async p=>{
     if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false,summaries:{} as Record<string,string>};
     const result=await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p});
@@ -302,6 +349,11 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   const entries=listing.data?.items??[],loading=listing.loading;
   async function action(work:()=>Promise<void>){setBusy(true);setMessage('');try{await work();}catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
   useEffect(()=>{if(!entryId)return;let active=true;void loadDetail(entryId).then(({d,g,sg,review})=>{if(active){setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!d)setMessage('找不到此詞條。');}}).catch(e=>{if(active)setMessage(String(e));});return()=>{active=false;};},[entryId]);
+  const [neighbours,setNeighbours]=useState<{previous:string|null;next:string|null}>({previous:null,next:null});
+  const neighbourEntry=useRef(detail);useLayoutEffect(()=>{neighbourEntry.current=detail;},[detail]);
+  const neighbourId=detail&&detail.entry.revision>0?detail.entry.id:undefined;
+  useEffect(()=>{if(embedded||!neighbourId||!neighbourEntry.current)return;let active=true;void adminNeighbours(getSupabase()!,neighbourEntry.current.entry,new URLSearchParams(window.location.search).get('from')).then(value=>{if(active)setNeighbours(value);}).catch(error=>{if(active)setMessage(t(error instanceof Error?error.message:String(error)));});return()=>{active=false;};},[neighbourId,t,embedded]);
+  useEffect(()=>{if(entryId||newKind||embedded)return;const href=new URL(adminListHref({kinds,statuses,query,work,page}),window.location.origin),current=new URLSearchParams(window.location.search);for(const key of ['review','deleted'])if(current.has(key))href.searchParams.set(key,current.get(key)!);window.history.replaceState(window.history.state,'',href.pathname+href.search);},[entryId,newKind,embedded,kinds,statuses,query,work,page]);
   const visible=entries;
 
   const publishDraft=(expectedRevision=detail?.entry.revision)=>action(async()=>{
@@ -314,8 +366,8 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     await refresh(detail.entry.id);
     onCommitted?.();
   });
-  if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh} onCommitted={onCommitted}/></>;
-  if(detail)return <>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}<PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} entries={entries} senses={senses} onPublish={reviewDraft?undefined:publishDraft} canPublish={detail.entry.revision>0&&!reviewDraft} publicationBusy={busy} onSaved={refresh} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')}/></>;
+  if(detail?.entry.status==='published')return <><PersistentReviewPanel entryId={detail.entry.id} compact/><PublishedWorkspace key={`${detail.entry.id}:${detail.entry.revision}`} detail={detail} entries={entries} senses={senses} refresh={refresh} onCommitted={onCommitted} neighbours={embedded?undefined:neighbours}/></>;
+  if(detail)return <>{message&&<p role="alert" className="whitespace-pre-wrap">{message}</p>}<PersistentReviewPanel entryId={detail.entry.id} compact/><DictionaryEditor key={detail.entry.id} detail={detail} initialGrouping={grouping} initialSenseGroups={senseGroups} reviewDraft={reviewDraft} neighbours={embedded?undefined:neighbours} entries={entries} senses={senses} onPublish={reviewDraft?undefined:publishDraft} canPublish={detail.entry.revision>0&&!reviewDraft} publicationBusy={busy} onSaved={async(id,checkpoint)=>{if(!checkpoint){await refresh(id);return;}setDetail(checkpoint);setReload(n=>n+1);if(!embedded)window.history.replaceState(window.history.state,'',source?adminEntryHref(id,source):'/dictionary/admin?entry='+encodeURIComponent(id));}} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')}/></>;
   if(entryId)return <div><p role="status">{message||'正在讀取詞條…'}</p></div>;
   return <div className="space-y-5">
     {typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('deleted')==='1'&&<p role="status">{t('dictionary.entryDeleted')}</p>}
@@ -335,7 +387,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     </div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     {listing.data?.workAvailable&&<p role="status" className="text-sm">{t('ui.redCount',{n:listing.data.stats!.red})}</p>}
-    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin/reviews?entry=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
+    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin/reviews?entry=${encodeURIComponent(e.id)}`:adminEntryHref(e.id,{kinds,statuses,query,work,page:listing.data?.page??page})}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
       <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>
@@ -362,5 +414,5 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
 }
 export default function DictionaryAdmin({entryId,newKind}:{entryId?:string;newKind?:DictionaryEntry['kind']}={}){
   const {access,error}=useDictionaryAdminAccess();
-  return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><PageHeader title="字典管理" backHref={entryId||newKind?'/dictionary/admin':'/dictionary'}/>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<DictionaryWorkspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
+  return <main className="h-full min-w-0 flex-1 overflow-y-auto" style={{color:'var(--color-text)',background:'var(--color-bg)'}}><div className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6 [&_*]:border-[var(--color-border)]"><PageHeader title="字典管理" backHref={entryId||newKind?(typeof window!=='undefined'&&adminContext(new URLSearchParams(window.location.search).get('from'))?adminListHref(adminContext(new URLSearchParams(window.location.search).get('from'))!):'/dictionary/admin'):'/dictionary'}/>{!getSupabase()?<p>尚未設定 Supabase。</p>:error?<p role="alert">{error}</p>:access?.allowed?<DictionaryWorkspace key={`${access.owner}:${entryId??newKind??"list"}`} entryId={entryId} newKind={newKind}/>:access?<p>此帳號沒有字典管理權限。</p>:<p>確認管理權限中…</p>}</div></main>;
 }

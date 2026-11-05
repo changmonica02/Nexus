@@ -61,13 +61,13 @@ test('local PostgreSQL: import/preview rollback, Safe/Review, ownership/RLS, Pub
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),2);await pg.exec('reset role;set role anon');await assert.rejects(pg.query('select * from dictionary_pronunciations'),/permission/);
  }finally{await pg.close();}
 });
-test('Admin and Reader render editable scopes/locales and escaped, ordered pronunciation details',()=>{
+test('Admin and Reader show IPA only while legacy locale/note data remain in the model',()=>{
  const ts=require('typescript');require.extensions['.tsx']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,f);
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
  const {DictionaryEditor}=require('../src/features/dictionary/DictionaryAdmin.tsx');
  const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
  const detail=snapshot().detail;detail.pronunciations[0].note='<script>unsafe</script>';
- const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));for(const label of ['IPA','適用義項','en-GB','新增讀音','刪除讀音'])assert.ok(html.includes(label),label);
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));for(const label of ['IPA','新增讀音','刪除讀音'])assert.ok(html.includes(label),label);
  assert.ok(!html.includes('>排序<'));assert.ok(html.includes('上移讀音'));assert.ok(html.includes('下移讀音'));
- const reader=renderToStaticMarkup(React.createElement(DictionaryArticle,{data:{...detail,related:[]},showConnections:false}));for(const text of ['讀音','en-US','紀錄','記錄'])assert.ok(reader.includes(text),text);assert.ok(reader.indexOf('/ˈrek.ɔːd/')<reader.indexOf('/rɪˈkɔːrd/'));assert.ok(!reader.includes('<script>'));assert.ok(reader.includes('&lt;script&gt;'));
+ const reader=renderToStaticMarkup(React.createElement(DictionaryArticle,{data:{...detail,related:[]},showConnections:false}));for(const text of ['讀音','紀錄','記錄'])assert.ok(reader.includes(text),text);assert.ok(reader.indexOf('/ˈrek.ɔːd/')<reader.indexOf('/rɪˈkɔːrd/'));assert.ok(!reader.includes('<script>'));assert.ok(!reader.includes('unsafe'));assert.ok(!reader.includes('en-US'));assert.ok(!html.includes('en-GB'));
 });

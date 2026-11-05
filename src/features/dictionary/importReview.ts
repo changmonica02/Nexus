@@ -83,6 +83,7 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
       if(shared.length)addIssue(item,'shared_content_scope','sense_id',shared,null,'既有內容未限定義項；新增義項前請確認保留為詞條共用，或先在編輯器指定義項。',['keep','skip','later']);
     }
     compare('entry',undefined,'headword',current.detail.entry.headword,draft.headword);
+    if(draft.word_segments!==undefined)compare('entry',undefined,'word_segments',current.detail.entry.word_segments??null,draft.word_segments);
     if(draft.component_order!==undefined)compare('entry',undefined,'component_order',current.metadata?.component_order??[],draft.component_order);
     if(draft.grouping)for(const field of ['tags','variant_group'] as const)compare('grouping',undefined,field,current.grouping?.[field]??(field==='tags'?[]:null),draft.grouping[field]);
     if(draft.grouping&&draft.kind==='root')compare('grouping',undefined,'primary_category',current.grouping?.primary_category,draft.grouping.primary_category);
@@ -125,7 +126,7 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
     if(issue.selectedAction==='keep'){
-      if(t.section==='entry'){if(t.field==='component_order')d.component_order=issue.existing as string[];else d.headword=String(issue.existing);}
+      if(t.section==='entry'){if(t.field==='component_order')d.component_order=issue.existing as string[];else if(t.field==='word_segments')d.word_segments=issue.existing as DictionaryDraftInput['word_segments'];else d.headword=String(issue.existing);}
       else if(t.section==='grouping'&&d.grouping){if(t.field==='tags')d.grouping.tags=issue.existing as string[];else if(t.field==='variant_group')d.grouping.variant_group=issue.existing as string|null;else d.grouping.primary_category=issue.existing as string|null;}
       else if(t.section!=='grouping'){
         const rows=d[t.section]??[];const row=rows.find(r=>r.id===t.id);

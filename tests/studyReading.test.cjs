@@ -6,13 +6,14 @@ const {defaultStudyStyle,validateStudyStyle}=require('../src/features/study/stud
 const {readPublishedEntry}=require('../src/features/dictionary/reader.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const detail=()=>({entry:{id:id(1),status:'published',kind:'word',headword:'preview'},senses:[{id:id(2)}],relations:[{sense_id:id(2),target_entry_id:id(3),target_sense_id:id(4)},{sense_id:null,target_entry_id:id(5),target_sense_id:id(6)}],related:[{id:id(3),sense_id:id(4),headword:'pre-',gloss_zh_tw:'預先'},{id:id(5),sense_id:id(6),headword:'view',gloss_zh_tw:'觀看'}],learning_notes:[{kind:'core_concept',sense_id:null,body:'預先觀看。第二句不必顯示。'}]});
-test('composition uses only complete explicit published relations, ordered meanings and scoped stored concept',()=>{
- const d=detail();assert.deepEqual(studyComposition(d,'preview','預覽'),{parts:[{name:'pre-',meaning:'預先'},{name:'view',meaning:'觀看'}],concept:'預先觀看。'});
- for(const bad of [null,{...d,entry:{...d.entry,status:'draft'}},{...d,relations:[]},{...d,related:[]},{...d,related:[{...d.related[0],gloss_zh_tw:''},d.related[1]]}])assert.equal(studyComposition(bad,'preview','預覽'),null);
+test('composition uses explicit display segments, optional links, legacy singleton and stored concept',()=>{
+ const d=detail();d.entry.word_segments=[{id:id(100),text:'pre',hint:'預先',relation_id:null},{id:id(101),text:'view',hint:'觀看',relation_id:null}];
+ assert.deepEqual(studyComposition(d,'preview','預覽'),{parts:[{name:'pre',meaning:'預先'},{name:'view',meaning:'觀看'}],concept:'預先觀看。'});
+ assert.deepEqual(studyComposition({...d,relations:[],related:[]},'preview','預覽').parts,studyComposition(d,'preview','預覽').parts);
+ for(const bad of [null,{...d,entry:{...d.entry,status:'draft'}},{...d,entry:{...d.entry,word_segments:[]}}])assert.equal(studyComposition(bad,'preview','預覽'),null);
  assert.equal(studyComposition(d,'private edited prompt','預覽'),null);
  assert.equal(studyComposition(d,'preview','預先觀看。').concept,null);
- const multi={...d,senses:[{id:id(2)},{id:id(7)}],relations:[d.relations[0]],learning_notes:[]};assert.equal(studyComposition(multi,'preview','預覽'),null);
- const shared={...multi,relations:[d.relations[1]]};assert.deepEqual(studyComposition(shared,'preview','預覽').parts,[{name:'view',meaning:'觀看'}]);
+ delete d.entry.word_segments;assert.deepEqual(studyComposition(d,'preview','預覽').parts,[{name:'preview',meaning:''}]);
 });
 test('per-deck speech settings persist offline without touching frozen sessions, progress, FSRS or another account/deck',async()=>{
  const f=await fixture(2,'owner-a');try{

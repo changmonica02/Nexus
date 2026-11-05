@@ -376,7 +376,7 @@ test(
         await page
           .getByRole("button", { name: "刪除詞條", exact: true })
           .waitFor();
-        await page.getByLabel("單字", { exact: true }).fill("unsaved item1");
+        await page.getByLabel("英文字形 1", { exact: true }).fill("unsaved item1");
         await page
           .getByRole("button", { name: "刪除詞條", exact: true })
           .click();
@@ -389,7 +389,7 @@ test(
           .getByRole("button", { name: "取消", exact: true })
           .click();
         assert.equal(
-          await page.getByLabel("單字", { exact: true }).inputValue(),
+          await page.getByLabel("英文字形 1", { exact: true }).inputValue(),
           "unsaved item1",
         );
         assert.equal(
@@ -412,7 +412,7 @@ test(
           .filter({ hasText: "fixture referenced entry" })
           .waitFor();
         assert.equal(
-          await page.getByLabel("單字", { exact: true }).inputValue(),
+          await page.getByLabel("英文字形 1", { exact: true }).inputValue(),
           "unsaved item1",
         );
         await page.evaluate(() => (window.failDelete = false));
@@ -433,8 +433,8 @@ test(
           0,
         );
         await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000003");
-        await page.getByRole('button',{name:'儲存',exact:true}).waitFor();
-        assert.equal(await page.getByLabel('單字',{exact:true}).inputValue(),'item3');
+        await page.getByRole('button',{name:'儲存／重試',exact:true}).waitFor();
+        assert.equal(await page.getByLabel('英文字形 1',{exact:true}).inputValue(),'item3');
         assert.equal(await page.getByText(/Published revision/).count(),0);
         assert.equal(
           await page

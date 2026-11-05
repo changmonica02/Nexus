@@ -21,6 +21,8 @@ test(
       pg = await database();
     let browser, server;
     try {
+      await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg,{persistentInstalled:true});
+      await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261105065440_dictionary_word_segments.sql','utf8'));await pg.exec('set role authenticated');
       await build({
         entryPoints: ["tests/fixtures/dictionaryDraftPublish.jsx"],
         outfile: path.join(tmp, "fixture.js"),
@@ -153,7 +155,7 @@ test(
               name: "發布",
               exact: true,
             }),
-            save = page.getByRole("button", { name: "儲存", exact: true });
+            save = page.getByRole("button", { name: "儲存／重試", exact: true });
           await publish.waitFor().catch(async (e) => {
             throw Error(
               JSON.stringify({
@@ -165,7 +167,7 @@ test(
             );
           });
           assert.equal(await publish.isDisabled(), true);
-          const label = { prefix: "字首", root: "字根", word: "單字" }[kind],
+          const label = { prefix: "字首", root: "字根", word: "英文字形 1" }[kind],
             headword =
               kind === "prefix"
                 ? width === 1280
@@ -206,10 +208,8 @@ test(
             .getByRole("dialog")
             .getByRole("button", { name: "確認", exact: true })
             .click();
-          await page
-            .getByRole("alert")
-            .filter({ hasText: "義項已刪除" })
-            .waitFor();
+          await page.waitForFunction(()=>document.querySelectorAll('[data-word-sense-row]').length<=1);
+          await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor().catch(async e=>{console.error(await page.locator('body').innerText(),calls.slice(-5));throw e;});
           await page.getByLabel("中文意思", { exact: true }).fill("尚未儲存");
           const count = calls.filter(
             (x) => x.name === "publish_dictionary_entry",
@@ -226,6 +226,7 @@ test(
           await page
             .getByLabel("中文意思", { exact: true })
             .fill(retainedGloss);
+          if(await save.isEnabled())await save.click();
           await publish.click();
           await page
             .getByRole("dialog", { name: "發布詞條", exact: true })
@@ -243,6 +244,7 @@ test(
           await page.reload();
           await publish.waitFor();
           await page.evaluate(() => (window.failPublish = true));
+          if(await save.isEnabled())await save.click();
           await publish.click();
           await page
             .getByRole("dialog", { name: "發布詞條", exact: true })
@@ -269,6 +271,7 @@ test(
             [entry],
           );
           await pg.exec("set role authenticated");
+          if(await save.isEnabled())await save.click();
           await publish.click();
           await page
             .getByRole("dialog", { name: "發布詞條", exact: true })
@@ -284,14 +287,14 @@ test(
           );
           await page.reload();
           await publish.waitFor();
+          if(await save.isEnabled())await save.click();
           await publish.click();
           await page
             .getByRole("dialog", { name: "發布詞條", exact: true })
             .getByRole("button", { name: "發布", exact: true })
             .click();
-          await page
-            .getByRole("heading", { name: /已發布/ })
-            .waitFor();
+          for(let attempt=0;attempt<100;attempt++){if((await sql(pg,'select get_dictionary_entry($1) v',[entry])).entry.status==='published')break;await new Promise(r=>setTimeout(r,50));}
+          await page.getByLabel(label,{exact:true}).waitFor();
           const published = await sql(pg, "select get_dictionary_entry($1) v", [
             entry,
           ]);
