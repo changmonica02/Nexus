@@ -321,7 +321,7 @@ export function PersistentImportReview({
           </button>
         </details>
       )}
-      <Link className="underline" href="/dictionary/admin?review=all">
+      <Link className="underline" href="/dictionary/admin/reviews">
         {t("persistent.openQueue")}
       </Link>
       {error && (
@@ -410,7 +410,7 @@ export function PersistentReviewPanel({
     ) : <p role="status">{t("common.loading")}</p>;
   if(compact){
     if(!total&&!error)return null;
-    return <aside className="flex flex-wrap items-center gap-2 py-2 text-sm" aria-label={t('persistent.queue')}>{error?<span role="alert">{error}</span>:<span>{t('persistent.red')}</span>}<a className="underline" href={'/dictionary/admin?review='+encodeURIComponent(entryId??'')}>{t('persistent.openQueue')}</a>{error&&<button onClick={refresh}>{t('persistent.reload')}</button>}</aside>;
+    return <aside className="flex flex-wrap items-center gap-2 py-2 text-sm" aria-label={t('persistent.queue')}>{error?<span role="alert">{error}</span>:<span>{t('persistent.red')}</span>}<a className="underline" href={'/dictionary/admin/reviews'+(entryId?'?entry='+encodeURIComponent(entryId):'')}>{t('persistent.openQueue')}</a>{error&&<button onClick={refresh}>{t('persistent.reload')}</button>}</aside>;
   }
   return (
     <section className="min-w-0 space-y-3 rounded border p-3">
