@@ -658,7 +658,7 @@ export class StudyRepository {
         // Server-only preference backfills preserve LWW timestamps. Adopt only an
         // otherwise identical record, never a competing offline content edit.
         if(store==='study_cards'&&local&&typeof (value as StudyCard).official_custom==='boolean'){
-          const candidate={...local,official_custom:(value as StudyCard).official_custom};
+          const candidate={...local,...(!local.official_source_entry_id&&(value as StudyCard).official_source_entry_id?{official_source_entry_id:(value as StudyCard).official_source_entry_id}:{}),official_custom:(value as StudyCard).official_custom};
           if(sameStudyRecord(candidate,value))await tx.objectStore(store).put(candidate);
         }
         if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);

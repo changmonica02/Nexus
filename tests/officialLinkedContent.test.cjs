@@ -35,6 +35,8 @@ test('metadata-only backfill preserves offline edits and adopts equal-version se
  const raw=(await f.repo.readDeck('deck')).cards[0],old={...raw,official_pack_id:'pack',official_source_entry_id:'word',dictionary_entry_id:'word'};await f.db.put('study_cards',old);
  const remote={...old,official_custom:false},empty={cards:[remote],states:[],events:[],settings:[],sessions:[]};
  await f.repo.mergeRemote(empty);assert.deepEqual(await f.db.get('study_cards',old.id),remote);
+ const withoutSource={...old};delete withoutSource.official_source_entry_id;await f.db.put('study_cards',withoutSource);
+ await f.repo.mergeRemote(empty,[{sequence:1,owner_id:'owner',entity:'study_cards',id:old.id,deleted:false}]);assert.deepEqual(await f.db.get('study_cards',old.id),remote);
  await f.db.put('study_cards',old);await f.repo.updateCard(old.id,{front:'offline private'});const edited=await f.db.get('study_cards',old.id),pending=await f.repo.pending();
  await f.repo.mergeRemote(empty);assert.deepEqual(await f.db.get('study_cards',old.id),edited);assert.deepEqual(await f.repo.pending(),pending);
  await f.repo.mergeRemote({...empty,cards:[{...edited,official_custom:true}]});assert.equal((await f.db.get('study_cards',old.id)).official_custom,true);
