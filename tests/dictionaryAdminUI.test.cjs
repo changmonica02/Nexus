@@ -239,3 +239,35 @@ test('normal preview places core concept before etymology without legacy kind or
  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
  assert.ok(html.indexOf('核心概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });
+
+test('dictionary review queue remains reachable without a modal and reports unavailable capability',()=>{
+ const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ const queue=fs.readFileSync('src/features/dictionary/PersistentImportReview.tsx','utf8');
+ const route=fs.readFileSync('src/app/dictionary/admin/reviews/page.tsx','utf8');
+ const page=fs.readFileSync('src/features/dictionary/DictionaryReviewPage.tsx','utf8');
+ assert.ok(admin.includes('href="/dictionary/admin/reviews"'));
+ assert.ok(admin.includes('/dictionary/admin/reviews?entry='));
+ assert.ok(queue.includes('此環境尚未提供字典審核功能'));
+ assert.ok(queue.includes('role="status"'));
+ assert.ok(route.includes('DictionaryReviewPage'));
+ assert.ok(page.includes('useDictionaryAdminAccess'));
+ assert.ok(page.includes('<PersistentReviewPanel'));
+});
+
+test('IPA editor is in basic information, orientation responsive and metadata-free',()=>{
+ const editor=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ const basic=editor.indexOf('<EditorSection title="基本資訊">');
+ const inflections=editor.indexOf('<EditorSection title="義項"');
+ const ipa=editor.indexOf('data-pronunciation-row');
+ assert.ok(basic>=0&&ipa>basic&&ipa<inflections);
+ assert.ok(editor.includes('portrait:grid-cols-1 landscape:grid-cols-2'));
+ assert.ok(!editor.includes('地區／語言（選填'));
+ assert.ok(!editor.includes('備註（選填）'));
+ assert.ok(editor.includes('<Field label="IPA"'));
+ const reader=fs.readFileSync('src/features/dictionary/DictionaryArticle.tsx','utf8');
+ assert.ok(!reader.includes('p.locale&&'));
+ assert.ok(!reader.includes('p.note&&'));
+ const migration=fs.readFileSync('supabase/migrations/20261105033000_dictionary_ipa_only.sql','utf8');
+ assert.ok(migration.includes('set locale = null, note = null'));
+ assert.ok(migration.includes('before insert or update'));
+});

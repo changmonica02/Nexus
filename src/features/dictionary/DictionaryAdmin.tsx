@@ -155,10 +155,18 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     {locked&&<p>目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。</p>}
     <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2">
       <EditorSection title="基本資訊">
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
+        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
         {detail.entry.kind!=='word'&&<>
           {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select aria-label="主要分類" className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
         </>}
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">讀音（IPA）</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label="＋新增讀音">＋新增讀音</button></div>
+          {(bundle.dictionary_pronunciations??[]).map((row,i,rows)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-end gap-2">
+            <div className="min-w-0 flex-1"><Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/></div>
+            <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,'讀音')} aria-label="刪除讀音"><FeatureIcon feature="delete" size={16}/></button>
+            {rows.length>1&&<><button type="button" className={addButton} aria-label="上移讀音" disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label="下移讀音" disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
+          </div>)}
+        </div>
         </div>
         {detail.entry.kind!=='word'&&<>
           <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
@@ -195,20 +203,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       {addingRelation&&<RelationSelectionDialog excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.sense_id==null).map(r=>String(r.target_sense_id))} onClose={()=>setAddingRelation(false)} onSelect={(entry,sense)=>{add('dictionary_relations',{sense_id:null,target_entry_id:entry,target_sense_id:sense});setAddingRelation(false);}}/>}
       </EditorSection>
       </>}
-      <EditorSection title="補充資料" count={bundle.dictionary_pronunciations.length+bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length}>
-      <section className="min-w-0 space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="font-semibold">讀音</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',locale:null,note:null,sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label="＋新增讀音">＋新增讀音</button></div>
-      {(bundle.dictionary_pronunciations??[]).map((row,i,rows)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-start gap-2">
-        <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-          <Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/>
-          <Field label="地區／語言（選填，例如 en-GB）" value={row.locale} onChange={v=>change('dictionary_pronunciations',i,'locale',v||null)}/>
-          <div className="sm:col-span-2"><Field label="備註（選填）" multiline value={row.note} onChange={v=>change('dictionary_pronunciations',i,'note',v||null)}/></div>
-          {bundle.dictionary_senses.length>1&&contentSense('dictionary_pronunciations',i,row)}
-        </div>
-        <div className="flex shrink-0 flex-col pt-5">
-          <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,'讀音')} aria-label="刪除讀音"><FeatureIcon feature="delete" size={16}/></button>
-          {rows.length>1&&<><button type="button" className={addButton} aria-label="上移讀音" disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label="下移讀音" disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
-        </div>
-      </div>)}</section>
+      <EditorSection title="補充資料" count={bundle.dictionary_etymologies.length+bundle.dictionary_learning_notes.length+bundle.dictionary_examples.length}>
       {([{table:'dictionary_learning_notes',title:'核心概念'},{table:'dictionary_etymologies',title:'歷史詞源'},{table:'dictionary_examples',title:'例詞'}] as const).map(({table,title})=><section key={title} className="min-w-0 space-y-2" data-content-section={title}>
         <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={`新增${title}`}>＋新增{title}</button></div>
         {bundle[table].map((row,i)=><div key={String(row.id)} className="flex min-w-0 items-start gap-2">
@@ -325,7 +320,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   return <div className="space-y-5">
     {typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('deleted')==='1'&&<p role="status">{t('dictionary.entryDeleted')}</p>}
     {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
-    <div className="flex flex-wrap items-center justify-between gap-3"><DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/><div className="flex flex-wrap items-center gap-2">{listing.data?.workAvailable&&<button className={button} onClick={()=>setReviewTarget('*')}>{t('persistent.openQueue')}</button>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/><div className="flex flex-wrap items-center gap-2">{listing.data?.workAvailable&&<Link className={button} href="/dictionary/admin/reviews">{t('persistent.openQueue')}</Link>}
      <DictionaryBulkPublish disabled={busy||loading}/></div></div>
      {loading&&<p role="status">{t('common.loading')}</p>}
     {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
@@ -340,7 +335,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     </div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     {listing.data?.workAvailable&&<p role="status" className="text-sm">{t('ui.redCount',{n:listing.data.stats!.red})}</p>}
-    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin?review=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
+    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin/reviews?entry=${encodeURIComponent(e.id)}`:`/dictionary/admin?entry=${encodeURIComponent(e.id)}`}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3"><h2 className="font-semibold">{t("exchange.importHeader")}</h2>
       <details><summary>{t("exchange.jsonHelp")}</summary><p className="text-sm leading-6">{t("exchange.editHelp")}</p><p className="text-sm leading-6">{t("exchange.newHelp")}</p></details>
