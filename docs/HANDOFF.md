@@ -17,8 +17,8 @@
 - 根因一：IPA Migration 漏改 `search_dictionary_relation_targets()` 的 PL/pgSQL 發音搜尋，DROP 後會在呼叫時才失敗。現改為先精準替換舊欄位表達式為 p.ipa；其餘搜尋來源、rank、分頁／總數及管理員權限不變。
 - 根因二：先前重寫 snapshot normalizer 遺漏正式版 `dictionary_without_verification()`／`dictionary_core_content()`。現依正式定義外包 IPA 清理，保留查證退役、詞源來源、核心概念、word_segments、關聯與詞形的完整相容；未知／真實內容與 revision 差異仍拒絕，不改 #156 架構。
 - 正式唯讀核對 ledger 最後仍為 `20261105083358`；三個待刪欄均存在，資料基準與下節一致。函式／trigger 本體及 pg_depend 掃描沒有其他未處理的實體欄位相依；僅 locale CHECK 隨欄位移除，沒有 CASCADE。保留的 locale/note JSON 字串是已知舊交換相容，並非實體欄位存取。
-- 發現隔離 fixture 原 workspace RPC 尚缺生活清單分支，已補載既有 Migration。現在相關 11 個正式函式與隔離基線除 CRLF 外逐字一致，以唯讀 hash fixture 固定；隔離 auth／資料仍為測試替身，未聲稱全庫 Schema／基礎設施完全一致。
-- 新 5 項相容測試已通過：三份指定 Migration 依序、完整正規化／舊 Review 核准、真實來源／核心內容／版本衝突、構詞搜尋全部來源／排序／20 筆跨頁與權限、各交易失敗回滾（含未知 view 相依保留）。原 4 項 Migration 回歸也通過。本次 TypeScript、完整 Build 通過；範圍 ESLint 0 errors／21 既有 warnings。擴大回歸及本次遠端 checks 待收尾，最終結果以 PR #158 本輪交付註記為準；不沿用 183b84c 的綠燈作為本次證據。
+- 發現隔離 fixture 原 workspace RPC 尚缺生活清單分支，已補載既有 Migration。現在相關 11 個正式函式與隔離基線除 CRLF 外逐字一致，以唯讀 hash fixture 固定。另補正式既有 service_role 函式 EXECUTE／default grant，11 個函式 ACL 也完全對齊並驗證 Migration 保留；沒有正式權限變更。隔離 auth／資料仍為測試替身，未聲稱全庫 Schema／基礎設施完全一致。
+- 新 5 項相容測試已通過：三份指定 Migration 依序、完整正規化／舊 Review 核准、真實來源／核心內容／版本衝突、構詞搜尋全部來源／排序／20 筆跨頁與權限、各交易失敗回滾（含未知 view 相依保留）。原 4 項 Migration 回歸也通過。本次 19 個相關回歸檔全通過（含 6,301 卡清除／同步、生活清單、字典／交換／構詞）；正式發布與官方卡 Chromium 回歸、TypeScript、完整 Build 通過；範圍 ESLint 0 errors／21 既有 warnings。程式提交 `610252e` 的 [GitHub Actions 42061834916](https://github.com/changmonica02/Nexus/actions/runs/42061834916) 與 Vercel 全部成功；後續只補 service_role ACL fixture／斷言（本機 9 項 SQL 再跑通過）及交接，最終結果以 PR #158 本輪交付註記為準，不沿用 183b84c 綠燈作為本次證據。
 - SPEC 產品需求未改，故不修改 SPEC；ARCHITECTURE 已補完整正規化與搜尋相依。HISTORY 未修改。所有正式操作限制保留，修正後仍維持 Draft，等待人工審查與另外的指定 Migration 授權。
 
 ### Migration／正式狀態
@@ -35,7 +35,7 @@
 - TypeScript、完整 Webpack production Build 通過，範圍 ESLint 0 errors／43 warnings。Chromium 編輯器、官方連動、既有官方私人卡與 PWA 殼層通過；production build 的隔離 PWA Data／Dictionary 流程通過（離線編輯／作答／PDF／重連／衝突／帳號隔離）。測試的 autosave 等待競態以等待真正保存狀態／明確失敗場景修正，不停用產品保存或安全驗證。
 - 程式提交 `71a405c` 的 [GitHub Actions 42032937046](https://github.com/changmonica02/Nexus/actions/runs/42032937046) 全部成功（含本輪 SQL／官方卡／編輯器、舊清除與同步、筆記／地圖、TypeScript、ESLint、Build）；Vercel checks 成功。後續僅補隔離 SQL 舊 IPA RPC insert／未知欄位斷言（本機四項再跑成功）及本交接資料；該提交的最終狀態以 PR #158 checks 為準。
 - 待實機：Safari／iPad、Android 安裝 PWA、真實帳號雙裝置更新與離線私人修改交錯。Chromium 觸控 viewport 不等於實機。受保護部署不建立分享連結或改權限，正式審核 #156 仍獨立待查。
-- 183b84c 後的兩項發布阻擋已依上節修正；仍須本次最終回歸／CI 與人工審查。維持 Draft；正式 Migration 必須另獲授權，因 main 可能自動發布，不建議在指定資料庫 Migration 就緒前直接合併。實機驗收與 #156 仍按上列限制保留。
+- 183b84c 後的兩項發布阻擋已依上節修正並通過隔離／程式 CI，可提交人工審查以考慮授權三份指定 Migration。正式操作前仍須重查 ledger／函式／相依物件／筆數並確認備份／PITR及先資料庫後前端順序；本次沒有正式執行授權。維持 Draft；正式 Migration 必須另獲授權，因 main 可能自動發布，不建議在指定資料庫 Migration 就緒前直接合併。實機驗收與 #156 仍按上列限制保留。
 
 ## 已合併工作與正式狀態
 

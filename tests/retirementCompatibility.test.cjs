@@ -11,7 +11,7 @@ const save=async(pg,d)=>{await sql(pg,'select apply_dictionary_drafts($1,false,t
 test('read-only production function baseline matches the isolated schema; ordered migrations change only intended normalizer/search logic',async()=>{
  const pg=await database();try{
   await pg.exec('reset role');
-  for(const f of baseline){const actual=await definition(pg,f.identity);assert.equal(createHash('sha256').update(actual.replace(/\r\n/g,'\n')).digest('hex'),f.sha256,f.identity);}
+  for(const f of baseline){const actual=await definition(pg,f.identity);assert.equal(createHash('sha256').update(actual.replace(/\r\n/g,'\n')).digest('hex'),f.sha256,f.identity);const acl=await sql(pg,'select proacl::text v from pg_proc where oid=$1::regprocedure',[f.identity]);assert.deepEqual(acl.slice(1,-1).split(',').sort(),f.acl,f.identity+' ACL');}
   const normalizer=await definition(pg,'dictionary_normalize_snapshot(jsonb)'),finder=await definition(pg,'search_dictionary_relation_targets(text,integer)');
   const metadata=()=>pg.query("select proname,proacl::text,prosecdef,proconfig from pg_proc where oid in ('dictionary_normalize_snapshot(jsonb)'::regprocedure,'search_dictionary_relation_targets(text,integer)'::regprocedure) order by proname");const before=(await metadata()).rows;
   await migrate(pg,'official');await migrate(pg,'ipa');await migrate(pg,'page');await pg.exec('reset role');

@@ -253,7 +253,7 @@ IPA schema 僅保留 id、entry_id、sense_id、ipa、sort_order、revision／�
 
 IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(text,integer)`：發音搜尋只讀 `p.ipa`。詞條／Word／Prefix／Root、中文、詞源與來源、核心概念、例句、變體、詞形、分類／標籤搜尋與既有 rank／20 筆分頁／總數完全保留；原管理員檢查、長度／頁碼上限、SECURITY DEFINER、search_path 與 EXECUTE ACL 不變。搜尋或正規化錨點漂移即回滾整份 IPA Migration，不以 CASCADE 刪除未知相依。
 
-發布前測試 fixture 已補載正式生活清單版 workspace RPC；`retirementFunctionBaseline.cjs` 以正式 ledger `20261105083358` 唯讀擷取的 11 個相關函式定義 SHA-256（只正規化 CRLF）驗證 Migration 前基線，不包含正式資料／憑證。`retirementCompatibility.test.cjs` 驗證完整函式比對、三份依序、刪欄後多欄搜尋／排序／跨頁、舊快照／Review、真實內容及版本衝突、錨點漂移與未知 view 相依的交易回滾。隔離 auth／樣本資料不是完整正式環境複本；正式套用前仍須重做函式／相依物件／資料筆數檢查。
+發布前測試 fixture 已補載正式生活清單版 workspace RPC；`retirementFunctionBaseline.cjs` 以正式 ledger `20261105083358` 唯讀擷取的 11 個相關函式定義 SHA-256（只正規化 CRLF）及 EXECUTE ACL 驗證 Migration 前基線，不包含正式資料／憑證。`retirementCompatibility.test.cjs` 驗證完整函式比對、三份依序、刪欄後多欄搜尋／排序／跨頁、舊快照／Review、真實內容及版本衝突、錨點漂移與未知 view 相依的交易回滾。fixture 亦模擬正式 service_role 的既有函式預設 grant，驗證 CREATE OR REPLACE 保留權限；不調整正式角色／grant。隔離 auth／樣本資料不是完整正式環境複本；正式套用前仍須重做函式／相依物件／資料筆數檢查。
 
 `study_set` Page 只保存學習組身份與設定連結；`ensureDeck()` 直接建立現行 schema2 設定，字卡／狀態沿用 Study stores 與原 RPC。已刪除 `migrateStudyDeck()`／Page 字卡轉換及舊測試卡自動重設。已轉換的現行 legacy 事件／狀態仍保留原驗證與備份契約。新建／複製／官方下載／工作區同步不輸出 study_items，備份 v4 匯入／匯出與遠端 Page 合併忽略此已知欄位，其他有效內容保留；已排隊 workspace 操作不改寫其 receipt payload，伺服器忽略該舊欄位。IndexedDB 仍為 v9，不清庫、不變更帳號隔離／有效學習同步。
 
