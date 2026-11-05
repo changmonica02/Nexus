@@ -11,6 +11,15 @@
 - 編輯頁上一筆／下一筆沿用管理清單搜尋、篩選與頁碼，跨頁；缺少上下文使用同類型 headword/id 穩定排序。切換前等待有效保存，無效／失敗／衝突停留原表單。嵌入學習面板不導向獨立相鄰頁。
 - 字卡背面從已發布資料讀取字形／提示，英文自然連續，獨立底線及依英文寬度換行的提示，不均分欄寬；正式連結在查看字典探索。學習事件、排程、due、Session、清除屏障、IndexedDB v9、備份 v4 與同步協定沒有修改。
 
+### PR #155 審查阻擋修正
+
+- 已修正 Migration 前 Review 因新增 null 欄位而誤判 stale 的問題；比對僅正規化 word_segments 缺少／null。空陣列、實際內容與排序不合併，原版本與權限驗證保留，不改寫歷史草稿基底。
+- 補正完整儲存對省略關聯／詞形陣列的誤刪邊界；null 子陣列拒絕、空陣列需通過原 FK／分段連結驗證。修正 JSONB 包含判斷會略過空／重排分段的問題，保留真正變更與 CHECK。
+- 已補 Migration 前 Word／Prefix／Root 草稿核准、舊交換指紋失效與重新預覽、完整儲存、省略／null／空陣列、正式 relation ID 保留、真實內容／版本衝突及交易回滾測試。
+- 舊 GitHub Actions run 41990616986 的筆記匯出失敗原因為視窗可見後立即斷言，而資產與分頁尚未完成；只改測試等待既有列印就緒狀態，不省略原斷言，不修改匯出產品邏輯。CI 增加字典 Migration 相容性測試；最新遠端結果以 PR checks 與交付註記為準。
+- 本輪本機：7 項構詞／隔離 SQL 測試、12 個字典／交換／刪除／版本／同步／筆記排版回歸檔，以及 noteEditor、dictionaryDraftPublish、dictionaryAutosave、dictionaryPersistent、dictionaryExchange 瀏覽器測試通過；TypeScript、Build 通過，字典／匯出元件與測試 ESLint 0 errors／18 既有 warnings。
+- 正式核准失敗仍為獨立待查問題；此次未修改整套審核流程，也不將新 Migration 的相容修正宣稱能解決目前正式故障。
+
 ### Migration 與資料相容性
 
 `20261105065440_dictionary_word_segments.sql` **只在隔離 PGlite PostgreSQL 驗證，未套用正式**。新增 nullable JSONB 及 CHECK／延遲正式關聯約束，擴充既有 bundle／草稿 RPC／published reader，沒有回填或資料清理。沿用既有 `replace_editor_children` 的交易／版本保護處理明確提供的子資料刪除；舊客戶端省略的陣列保留，外部引用依既有 FK 阻擋。

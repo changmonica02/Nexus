@@ -230,8 +230,13 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 - `dictionary_entries.word_segments` 是 nullable JSONB 的有序展示資料：`id/text/hint/relation_id`。拼寫直接串接，正式連結引用原 `dictionary_relations.id`，不新增另一套詞條或私人權威資料。省略／null 的舊 Word 在編輯器以原 headword 建立單格；讀取不回填資料，第一次有效保存才寫入。保留 Entry/Sense、詞形、既有關聯與字卡連結。
 - `20261105065440_dictionary_word_segments.sql` 為加法 Migration，不清理 IPA 或回填舊資料。CHECK 驗證字形、順序、唯一段 ID 與拼寫；延遲約束驗證正式關聯同屬詞條，預覽於回滾前也驗證。擴充既有 bundle 白名單與 published reader，保留原驗權／RLS／CAS／審核契約；偵測 RPC 原始碼漂移即整筆回滾。只在隔離 PostgreSQL 驗證，未套用正式。
+- PR #155 相容修正：只在 `dictionary_normalize_snapshot` 比對時移除 `detail.entry.word_segments:null`，與缺少欄位等價；不改寫已存 base snapshot／candidate、不移除其他 null，非空分段與順序仍比對。既有 revision／base snapshot／權限與 FK 驗證保留。完整編輯器子陣列省略保留、null 拒絕、[] 明確刪除；被分段引用的正式 relation 不能單獨刪除。bundle 的分段跳過判斷改用精確 JSONB 相等，避免 `@>` 把空陣列／不同順序誤當無變更。
+- 舊交換／待決匯入的 raw snapshot 版本指紋可能因 schema 新增欄位而失效，沿用原 stale／重新預覽契約，保留原檔、草稿與決策資料，不自動重設版本。隔離測試覆蓋 Migration 前三種詞條 Review、舊交換再預覽與真實內容變更仍阻擋。
 - 完整 JSON 與 AI JSON 沿用原格式、可選欄位與原匯入疑義審核；舊檔省略構詞欄位保留既有值。舊客戶端若嘗試只更名已具分段的 Word，因拼寫不一致而拒絕，避免靜默破壞。回復前端時保留新欄位，不能 drop 欄位或清庫。
 - `DraftAutosaveQueue` 序列化整份有效候選，180ms 合併欄位完成事件；IME 暫停，textarea Enter 保留換行。回覆僅更新所送快照基線及技術 revision，不覆寫後續輸入。正常草稿沿用 `apply_dictionary_drafts`、已發布詞條沿用 review RPC，自動保存不觸發嵌入編輯器的結束回呼；未知回覆只有在重讀的整份候選相符時才能確認成功。失敗／無效內容保留手動重試與未儲存離開保護，不自動發布。
 - `adminNavigation` 在 URL 保存原管理清單搜尋、類型／狀態／工作篩選及頁碼，跨頁讀取原排序。無上下文採同類型 `headword,id` keyset 順序；找不到原項目則提示清單改變，不猜測跳轉。切換前等待佇列與有效保存。
 - `studyComposition` 只讀已發布的明示字形與提示，不從正式詞條名稱（例如 `ab-`）猜展示字形（`ab`）。背面 inline spans 寬度由英文決定，中文絕對定位並依實際英文寬度換行；不改動 FSRS、due、Session、事件、備份或 IndexedDB v9。
 - PR #151 的正式套用狀態依使用者確認及本輪唯讀 migration 記錄核對更新；其清除機制未重新實作。IPA cleanup `20261105033000_dictionary_ipa_only.sql` 本輪唯讀核對仍未列入正式紀錄，未代為套用。Production 部署與真實裝置驗收另列 HANDOFF。
+
+
+筆記匯出瀏覽器回歸等待既有列印按鈕啟用，確認 `NoteExportPreview` 已完成資產準備與分頁，再驗證正文、頁首頁尾、版面及 PDF；視窗可見／頁面殼層存在不代表準備完成。此次未改匯出產品邏輯，保留原內容與來源不變斷言。

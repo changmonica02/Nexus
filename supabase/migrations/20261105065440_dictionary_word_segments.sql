@@ -36,21 +36,34 @@ create constraint trigger dictionary_segment_relation_links after delete or upda
 
 -- Change only explicit extension points; fail/rollback on unexpected RPC source drift.
 do $$ declare definition text;before text;begin
+ -- Missing/null represent legacy unsplit content only in comparison snapshots.
+ -- Do not rewrite stored snapshots or strip other nulls; [] and real segments stay distinct.
+ definition:=pg_get_functiondef('public.dictionary_normalize_snapshot(jsonb)'::regprocedure);
+ before:=$anchor$jsonb_set(jsonb_set(s,'{detail,inflections}'$anchor$;
+ if (length(definition)-length(replace(definition,before,'')))/length(before)<>1 then raise exception 'Unexpected snapshot normalizer; inspect schema';end if;
+ definition:=replace(definition,before,$anchor$jsonb_set(jsonb_set(case when s#>'{detail,entry,word_segments}'='null'::jsonb then s#-'{detail,entry,word_segments}' else s end,'{detail,inflections}'$anchor$);execute definition;
  definition:=pg_get_functiondef('public.apply_dictionary_bundle(jsonb,boolean,boolean)'::regprocedure);
  before:=$anchor$array['id','kind','headword','revision']$anchor$;
  if (length(definition)-length(replace(definition,before,'')))/length(before)<>1 then raise exception 'Unexpected bundle whitelist; inspect schema';end if;
- definition:=replace(definition,before,$anchor$array['id','kind','headword','revision','word_segments']$anchor$);execute definition;
+ definition:=replace(definition,before,$anchor$array['id','kind','headword','revision','word_segments']$anchor$);
+ -- JSONB containment ignores array ordering and treats [] as contained in every array.
+ -- Optional segment writes require exact equality before they can be skipped.
+ before:='if existing @> incoming then';
+ if (length(definition)-length(replace(definition,before,'')))/length(before)<>1 then raise exception 'Unexpected bundle comparison; inspect schema';end if;
+ definition:=replace(definition,before,$anchor$if existing @> incoming and (t<>'dictionary_entries' or not(incoming ? 'word_segments') or (existing->'word_segments') is not distinct from (incoming->'word_segments')) then$anchor$);execute definition;
 
  -- The existing full-editor replacement only removed relations/inflections.
  -- Extend that same CAS-guarded transaction to explicitly supplied child arrays.
  -- Omitted arrays from older clients retain their rows. FK guards still reject references.
  definition:=pg_get_functiondef('public.apply_dictionary_drafts(jsonb,boolean,boolean)'::regprocedure);
- before:=$anchor$delete from public.dictionary_relations where entry_id=eid and not(id in(select (x->>'id')::uuid from jsonb_array_elements(coalesce(b->'dictionary_relations','[]')) x));$anchor$;
- if strpos(definition,before)=0 then raise exception 'Unexpected full editor replacement; inspect schema';end if;
- definition:=replace(definition,before,before||$anchor$
-   foreach tbl in array array['dictionary_pronunciations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations','dictionary_senses'] loop
-    k:=case tbl when 'dictionary_pronunciations' then 'pronunciations' when 'dictionary_examples' then 'examples' when 'dictionary_lexical_annotations' then 'annotations' else tbl end;
+ before:=$anchor$delete from public.dictionary_inflections where entry_id=eid and not(id in(select (x->>'id')::uuid from jsonb_array_elements(coalesce(d->'inflections','[]')) x));
+   delete from public.dictionary_relations where entry_id=eid and not(id in(select (x->>'id')::uuid from jsonb_array_elements(coalesce(b->'dictionary_relations','[]')) x));$anchor$;
+ if (length(definition)-length(replace(definition,before,'')))/length(before)<>1 then raise exception 'Unexpected full editor replacement; inspect schema';end if;
+ definition:=replace(definition,before,$anchor$
+   foreach tbl in array array['dictionary_inflections','dictionary_relations','dictionary_pronunciations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations','dictionary_senses'] loop
+    k:=case tbl when 'dictionary_inflections' then 'inflections' when 'dictionary_pronunciations' then 'pronunciations' when 'dictionary_examples' then 'examples' when 'dictionary_lexical_annotations' then 'annotations' else tbl end;
     if (k=tbl and b ? k) or (k<>tbl and d ? k) then
+     if jsonb_typeof(case when k=tbl then b->k else d->k end) is distinct from 'array' then raise exception 'Full editor child content must be an array: %',k;end if;
      execute format('delete from public.%I where entry_id=$1 and not(id in(select (x->>''id'')::uuid from jsonb_array_elements($2) x))',tbl)
       using eid,case when k=tbl then b->k else d->k end;
     end if;

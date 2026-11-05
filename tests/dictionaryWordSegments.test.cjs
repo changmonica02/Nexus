@@ -83,3 +83,81 @@ test('migration source drift fails atomically without cleanup or losing original
  assert.equal(await sql(pg,"select pg_get_functiondef('public.apply_dictionary_drafts(jsonb,boolean,boolean)'::regprocedure) v"),definition.replace("if preview then raise exception using errcode='ZX713',detail=total::text;end if;","if preview then raise exception using errcode='ZX713',detail=(total)::text;end if;"));
  }finally{await pg.close();}
 });
+
+test('pre-migration reviews and legacy exchanges survive migration; real content/revision conflicts remain protected',async()=>{
+ const pg=await database();try{
+  await applyDictionaryRetention(pg);
+  const target=draft(90,'root');await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(target)])]);await sql(pg,'select publish_dictionary_entry($1,true) v',[id(90)]);
+  const saved=[];
+  for(const [n,kind] of [[10,'word'],[30,'prefix'],[50,'root']]){
+   const d=draft(n,kind);if(kind==='word')d.relations=[{id:id(80),sense_id:null,target_entry_id:id(90),target_sense_id:id(91)}];
+   await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(d)])]);await sql(pg,'select publish_dictionary_entry($1,true) v',[id(n)]);
+   const base=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(n)]),candidate=mapDictionaryDraft({...d,senses:d.senses.map(s=>({...s,gloss_zh_tw:'legacy review'}))});
+   const review=await sql(pg,'select create_dictionary_edit_review($1,$2,$3) v',[id(n),JSON.stringify(base),JSON.stringify(candidate)]);saved.push({n,base,candidate,review});
+  }
+  await pg.exec('reset role');const legacyRecord=await sql(pg,'select dictionary_exchange_record($1) v',[id(10)]);await pg.exec(fs.readFileSync(migration,'utf8'));
+  const base=saved[0].base,withValue=value=>({...base,detail:{...base.detail,entry:{...base.detail.entry,word_segments:value}}});
+  const normalized=value=>sql(pg,'select dictionary_normalize_snapshot($1) v',[JSON.stringify(value)]);
+  assert.deepEqual(await normalized(base),await normalized(withValue(null)));
+  assert.notDeepEqual(await normalized(base),await normalized(withValue([])));
+  assert.notDeepEqual(await normalized(base),await normalized(withValue(segments())));
+  const changedOtherNull=structuredClone(base);changedOtherNull.detail.entry.other_field=null;assert.notDeepEqual(await normalized(base),await normalized(changedOtherNull));
+  await pg.exec('set role authenticated');
+  const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
+  const old=draftFromExchange({snapshot:base,reviews:[],version:null});assert.equal(old.word_segments,undefined);assert.equal(old.relations[0].id,id(80));
+  const {previewExchange}=require('../src/features/dictionary/dictionaryExchange.ts'),c=require('./fixtures/dictionaryExchangeDatabase.cjs').client(pg);
+  const doc=record=>({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]});
+  const staleImport=await previewExchange(c,owner,doc(legacyRecord));assert.ok(staleImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+  assert.equal((await sql(pg,'select get_dictionary_entry($1) v',[id(10)])).relations[0].id,id(80));
+  await pg.exec('reset role');const refreshedRecord=await sql(pg,'select dictionary_exchange_record($1) v',[id(10)]);await pg.exec('set role authenticated');
+  const refreshedImport=await previewExchange(c,owner,doc(refreshedRecord));assert.ok(!refreshedImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+
+  for(const {n,base,review} of saved){
+   const current=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(n)]);assert.equal(current.detail.entry.revision,base.detail.entry.revision);
+   // Stored historical base and candidate are not rewritten to force compatibility.
+   assert.deepEqual(await sql(pg,'select base_snapshot v from dictionary_review_drafts where id=$1',[review.id]),base);
+   await assert.rejects(()=>sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision+1]),/revision conflict/);
+   await sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]);
+   const published=await sql(pg,'select get_dictionary_entry($1) v',[id(n)]);assert.equal(published.senses[0].gloss_zh_tw,'legacy review');assert.equal(published.entry.id,id(n));
+  }
+  assert.equal(await sql(pg,'select count(*)::int v from dictionary_relations where id=$1',[id(80)]),1);
+  // A real segment change must still invalidate an older base snapshot.
+  const current=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(10)]);
+  const review=await sql(pg,'select create_dictionary_edit_review($1,$2,$3) v',[id(10),JSON.stringify(current),JSON.stringify(saved[0].candidate)]);
+  const competing=structuredClone(saved[0].candidate);competing.bundle.dictionary_entries[0].word_segments=[{id:id(100),text:current.detail.entry.headword,hint:'actual change',relation_id:null}];
+  const other=await sql(pg,"select create_dictionary_review($1,$2,$3,'manual',false) v",[id(10),JSON.stringify(current),JSON.stringify(competing)]);
+  await sql(pg,'select approve_dictionary_review($1,$2,true) v',[other.id,other.revision]);
+  await assert.rejects(()=>sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]),/Stale Review Draft/);
+  assert.equal(await sql(pg,'select count(*)::int v from dictionary_review_drafts where id=$1',[review.id]),1);
+ }finally{await pg.close();}
+});
+
+test('full save distinguishes omitted/null/empty children and segments, preserves canonical links and rolls back invalid clearing',async()=>{
+ const pg=await database();try{
+  await applyDictionaryRetention(pg);await pg.exec('reset role');await pg.exec(fs.readFileSync(migration,'utf8'));await pg.exec('set role authenticated');
+  const target=draft(90,'root');await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(target)])]);await sql(pg,'select publish_dictionary_entry($1,true) v',[id(90)]);
+  const d={...draft(10),headword:'abortion',word_segments:segments(),relations:[{id:id(80),sense_id:null,target_entry_id:id(90),target_sense_id:id(91)}]};d.word_segments[0].relation_id=id(80);
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(d)])]);
+  const read=()=>sql(pg,'select get_dictionary_entry($1) v',[id(10)]);
+  const save=async(extra={},entry={})=>{const current=await read();return sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([{bundle:{dictionary_entries:[{id:id(10),kind:'word',headword:'abortion',revision:current.entry.revision,...entry}]},replace_editor_children:true,...extra}])]);};
+  await save();assert.deepEqual((await read()).entry.word_segments,d.word_segments);assert.equal((await read()).relations[0].id,id(80));
+  const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
+  const legacySnapshot={detail:await read(),grouping:null,sense_groups:{},metadata:null};delete legacySnapshot.detail.entry.word_segments;
+  const imported=draftFromExchange({snapshot:legacySnapshot,reviews:[],version:null});
+  await require('../src/features/dictionary/draftPipeline.ts').prepareDictionaryDrafts(require('./fixtures/dictionaryExchangeDatabase.cjs').client(pg),[imported]);
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([{...mapDictionaryDraft(imported),replace_editor_children:true}])]);
+  assert.deepEqual((await read()).entry.word_segments,d.word_segments);assert.deepEqual((await read()).relations.map(r=>r.id),[id(80)]);
+
+  for(const value of [null,[]]){const current=await read();await assert.rejects(save({bundle:{dictionary_entries:[{id:id(10),kind:'word',headword:'abortion',revision:current.entry.revision}],dictionary_relations:value}}),value===null?/must be an array/:/segment relation/);assert.equal((await read()).relations[0].id,id(80));}
+  await assert.rejects(save({}, {word_segments:[]}),/word_segments_valid/);assert.deepEqual((await read()).entry.word_segments,d.word_segments);
+  // Explicit null clears display segmentation only. It must not delete the canonical relation.
+  await save({}, {word_segments:null});assert.equal((await read()).entry.word_segments,null);assert.equal((await read()).relations[0].id,id(80));
+  // Containment would incorrectly skip reordered arrays with the same spelling.
+  const repeated={...draft(30),headword:'aa',word_segments:[{id:id(101),text:'a',hint:'first',relation_id:null},{id:id(102),text:'a',hint:'second',relation_id:null}]};
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(repeated)])]);
+  const beforeReorder=await sql(pg,'select get_dictionary_entry($1) v',[id(30)]);repeated.revision=beforeReorder.entry.revision;repeated.word_segments.reverse();
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(repeated)])]);
+  assert.deepEqual((await sql(pg,'select get_dictionary_entry($1) v',[id(30)])).entry.word_segments.map(s=>s.id),[id(102),id(101)]);
+  const current=await read();await save({bundle:{dictionary_entries:[{id:id(10),kind:'word',headword:'abortion',revision:current.entry.revision}],dictionary_relations:[]}});assert.equal((await read()).relations.length,0);assert.equal((await read()).senses[0].id,id(11));
+ }finally{await pg.close();}
+});

@@ -96,9 +96,13 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   const beforeExport=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
   await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();
   const preview=page.getByRole('dialog',{name:'筆記匯出預覽'});await preview.waitFor();
+  // Visible dialog/page shells precede async font/image loading and pagination.
+  const waitForExportReady=()=>page.waitForFunction(()=>{const dialog=document.querySelector('.nexus-export-preview');return !!dialog&&[...dialog.querySelectorAll('button')].some(b=>b.textContent==='列印／儲存 PDF'&&!b.disabled);},null,{timeout:15000});
+  await waitForExportReady();
   assert.match(await preview.innerText(),/Left content/);assert.match(await preview.innerText(),/Right content/);
   await preview.getByLabel('紙張方向').selectOption('landscape');await preview.getByLabel('頁面邊界').selectOption('20');
   await preview.getByLabel('匯出頁首').fill('Preview header');await preview.getByLabel('匯出頁尾').fill('Preview footer');
+  await waitForExportReady();
   assert.match(await preview.locator('.nexus-export-header').first().innerText(),/Preview header/);
   assert.match(await preview.locator('.nexus-export-footer').first().innerText(),/Preview footer/);
   assert.equal(await preview.locator('.nexus-export-paper').first().getAttribute('style').then(s=>s.includes('297mm')),true);
@@ -110,7 +114,7 @@ test('freeform legacy note, per-note width and math edit/delete/undo preserve so
   await fold.locator('summary').click();await page.waitForFunction(()=>window.currentNote.content_json.content[0].attrs?.open===false);
   const closedSource=await page.evaluate(()=>JSON.stringify(window.currentNote.content_json));
   await page.getByTitle('檔案選單').click();await page.getByRole('button',{name:/匯出為 PDF/}).click();
-  const foldPreview=page.getByRole('dialog',{name:'筆記匯出預覽'});await foldPreview.waitFor();
+  const foldPreview=page.getByRole('dialog',{name:'筆記匯出預覽'});await foldPreview.waitFor();await waitForExportReady();
   assert.equal(await foldPreview.locator('details').first().evaluate(el=>el.open),true);
   assert.equal(await fold.first().evaluate(el=>el.open),false);await foldPreview.getByRole('button',{name:'關閉'}).click();
   assert.equal(await page.evaluate(()=>JSON.stringify(window.currentNote.content_json)),closedSource);
