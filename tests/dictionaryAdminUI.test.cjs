@@ -239,3 +239,17 @@ test('normal preview places core concept before etymology without legacy kind or
  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
  assert.ok(html.indexOf('核心概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });
+
+test('dictionary review queue remains reachable without a modal and reports unavailable capability',()=>{
+ const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ const queue=fs.readFileSync('src/features/dictionary/PersistentImportReview.tsx','utf8');
+ const route=fs.readFileSync('src/app/dictionary/admin/reviews/page.tsx','utf8');
+ const page=fs.readFileSync('src/features/dictionary/DictionaryReviewPage.tsx','utf8');
+ assert.ok(admin.includes('href="/dictionary/admin/reviews"'));
+ assert.ok(admin.includes('/dictionary/admin/reviews?entry='));
+ assert.ok(queue.includes('此環境尚未提供字典審核功能'));
+ assert.ok(queue.includes('role="status"'));
+ assert.ok(route.includes('DictionaryReviewPage'));
+ assert.ok(page.includes('useDictionaryAdminAccess'));
+ assert.ok(page.includes('<PersistentReviewPanel'));
+});
