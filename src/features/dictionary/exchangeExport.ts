@@ -1,3 +1,4 @@
+import {cleanIpaRecord} from './retiredPronunciation';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   dictionaryJobDatabase,
@@ -148,7 +149,7 @@ export async function exportDocument(
     schema_version: 1,
     exported_at: job.exported_at,
     scope: job.scope,
-    records,
+    records:records.map(cleanIpaRecord),
   };
 }
 export function downloadDictionaryJSON(value: unknown, name: string) {

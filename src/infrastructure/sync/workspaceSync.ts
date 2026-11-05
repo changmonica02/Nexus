@@ -1,6 +1,6 @@
 import {LIFE_STORES} from '../../features/life/lists';
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type EntityType, type WorkspaceResult, WorkspacePersistence } from "./workspacePersistence";
+import { type EntityType, type WorkspaceResult, WorkspacePersistence,withoutRetiredStudyItems } from "./workspacePersistence";
 
 /** Keyset pagination remains complete even when the API caps responses below our limit. */
 export async function readWorkspaceRows(client: SupabaseClient, table: string, owner: string, columns = "*", alive = () => true): Promise<Record<string, unknown>[]> {
@@ -25,7 +25,7 @@ export async function readWorkspaceRows(client: SupabaseClient, table: string, o
 export function remoteResult(type: EntityType, row: Record<string, unknown>): WorkspaceResult {
   if (!Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1) throw new Error(`${type}: missing server revision`);
   return { entity_type: type, entity_id: String(row.id), revision: Number(row.revision),
-    deleted_at: row.deleted_at == null ? null : Number(row.deleted_at), hard_deleted: false, row };
+    deleted_at: row.deleted_at == null ? null : Number(row.deleted_at), hard_deleted: false, row:type==='pages'?withoutRetiredStudyItems(row):row };
 }
 
 export async function pullWorkspace(client: SupabaseClient, local: WorkspacePersistence, owner: string, alive = () => true): Promise<void> {

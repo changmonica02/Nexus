@@ -1,0 +1,3 @@
+// Already converted records from historical backup fixtures, not a Page conversion path.
+function snapshot(items,now){const {emptyStudyState}=require('../../src/features/study/studyFSRS.ts');const cards=items.map((item,i)=>({id:JSON.stringify(['deck',item.id]),deck_id:'deck',owner_id:null,front:item.front,back:item.back,direction:'en-zh',sort_order:i,content_revision:1,created_at:now,updated_at:now,deleted_at:null,legacy:{item:structuredClone(item),migrated_at:now,schema:1}}));return{cards,states:cards.map(emptyStudyState),events:[],settings:{id:'deck',owner_id:null,new_limit:20,direction_confirmed:true,updated_at:now,schema:2}};}
+module.exports={snapshot};

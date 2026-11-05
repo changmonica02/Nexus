@@ -1312,7 +1312,6 @@ function NexusAppInner({
       ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? (source.character_data.isTemplate ? {...snapshotCharacterTemplate(source.character_data),resourceSource:source.character_data.resourceSource} : structuredClone(source.character_data)) : undefined,
-      study_items: source.kind === "study_set" ? [] : duplicated.study_items,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
       updated_at: Date.now(),
       revision: duplicated.revision + 1,

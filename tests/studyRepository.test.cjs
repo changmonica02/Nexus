@@ -30,7 +30,7 @@ test('upgrading a v3 database preserves legacy pages and migrates only once',asy
  const original={id:'old',kind:'study_set',updated_at:1,deleted_at:null,study_items:[{id:'one',front:'one',back:'一',mastery:'mastered',review_count:10,last_reviewed_at:1,daily_due_at:now+1000}]};
  await legacy.put('pages',original);legacy.close();
  const adapter=new IndexedDBAdapter();await adapter.init();
- try{const page=await adapter.getPage('old');assert.deepEqual(page,original);const repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.ensureDeck(page);const snapshot=await repo.readDeck('old',true);assert.equal(snapshot.cards.length,1);assert.equal(snapshot.events.length,0);assert.equal(snapshot.states[0].legacy_due_at,now+1000);}
+ try{const page=await adapter.getPage('old');assert.deepEqual(page,original);const repo=adapter.getStudyRepository();await repo.ensureDeck(page);await repo.ensureDeck(page);const snapshot=await repo.readDeck('old',true);assert.equal(snapshot.cards.length,0);assert.equal(snapshot.events.length,0);assert.equal(snapshot.states.length,0);}
  finally{await adapter.close();await deleteDB('nexus');}
 });
 test('anonymous claim includes review events and pending operations, and account switch stays isolated',async()=>{
@@ -71,14 +71,14 @@ test('failure of outbox write rolls back event and state, preserving retry on sa
  assert.equal(snapshot.states.find(s=>s.id===q.card.id).head,q.state.head);
  }finally{await f.close();}
 });
-test('legacy migration idempotent; text changes preserve schedule unless explicitly reset; copies start New',async()=>{
+test('Page-only cards are ignored; new cards preserve scheduling on edits and copies start New',async()=>{
  const f=await fixture();try{
  const item={id:'x',front:'word',back:'字',mastery:'mastered',review_count:50,last_reviewed_at:1,daily_due_at:now+10000};
  const page={id:'old',study_items:[item]};
- let snapshot=await f.repo.ensureDeck(page);assert.deepEqual(snapshot.cards[0].legacy.item,item);
+ let snapshot=await f.repo.ensureDeck(page);assert.equal(snapshot.cards.length,0);await f.repo.addCards('old',[{front:item.front,back:item.back}]);snapshot=await f.repo.readDeck('old',true);
  await f.repo.ensureDeck(page);assert.equal((await f.repo.readDeck('old',true)).cards.length,1);
  assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.events.length,0);
- await f.repo.configure('old',{direction_confirmed:true});assert.equal(await f.repo.presentNext('old',now),null);
+ await f.repo.configure('old',{direction_confirmed:true});assert.ok(await f.repo.presentNext('old',now));
  const q=await f.repo.presentNext('old',now+10000);await f.repo.review(q.card.id,q.state.head,1,3,'legacy-real',now+10000);
  const state=(await f.repo.readDeck('old',true)).states[0];await f.repo.updateCard(q.card.id,{back:'單字'});
  assert.deepEqual((await f.repo.readDeck('old',true)).states[0],state);

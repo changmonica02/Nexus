@@ -187,7 +187,7 @@ test('free first rating atomically rolls back session, FSRS event/state and outb
 
 test('review selection uses caller time: New, random Due, then nearest not-due; excludes unlearned',()=>{
  const api=require('../src/features/study/studyFSRS.ts');
- const snapshot=api.migrateStudyDeck({id:'deck',study_items:Array.from({length:9},(_,i)=>({id:String(i),front:String(i),back:'字'}))},day);
+ const snapshot=require('./fixtures/studySnapshot.cjs').snapshot(Array.from({length:9},(_,i)=>({id:String(i),front:String(i),back:'字'})),day);
  snapshot.states.forEach((s,i)=>{
    if(i<8)s.learned_at=day-1000;
    if(i>=3&&i<8)s.fsrs={...api.serializeFSRS(api.schedulerCard(s,day)),due:[day-5000,day,day+3000,day+1000,day+2000][i-3]};
@@ -269,14 +269,7 @@ test('A–Z is live and independent of custom order; blank New state has no edit
  await assert.rejects(()=>f.repo.reorder('deck',snapshot.cards.map(c=>c.id)),/A–Z/);
  }finally{await f.close();}
 });
-test('only four authorized legacy IDs reset, keeping snapshot/history without fabricated reviews',async()=>{
- const f=await fixture(0);try{
- const page={id:'page_kXB_pon1cdluNzbAk2EBJ',study_items:[{id:'item_da626310-0b85-4ecd-88d0-dee59e00599d',front:'raise',back:'升起',review_count:99,mastery:'mastered',daily_due_at:day+100000,daily_introduced_at:day-1000}]};
- await f.repo.ensureDeck(page);await f.repo.ensureDeck(page);const snapshot=await f.repo.readDeck(page.id,true);
- assert.equal(isLearned(snapshot.states[0]),false);assert.equal(snapshot.states[0].legacy_due_at,null);assert.equal(snapshot.cards[0].legacy.item.review_count,99);
- assert.equal(snapshot.events.length,1);assert.equal(snapshot.events[0].kind,'reset');assert.equal(snapshot.events[0].source,'legacy_test_reset');
- }finally{await f.close();}
-});
+test('retired Page cards never create test resets or progress',async()=>{const f=await fixture(0);try{const page={id:'page_kXB_pon1cdluNzbAk2EBJ',study_items:[{id:'item_da626310-0b85-4ecd-88d0-dee59e00599d',front:'discard',back:'discard'}]};await f.repo.ensureDeck(page);await f.repo.ensureDeck(page);const snapshot=await f.repo.readDeck(page.id,true);assert.equal(snapshot.cards.length,0);assert.equal(snapshot.states.length,0);assert.equal(snapshot.events.length,0);}finally{await f.close();}});
 
 test('free fills not-due cards by nearest due, respects limit and freezes its targets',async()=>{
  const f=await fixture();try{

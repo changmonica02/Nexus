@@ -1,3 +1,4 @@
+import {cleanPronunciation} from './retiredPronunciation';
 import {validateWordSegments,type WordSegment} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
 import {compositionRow} from './composition';
@@ -11,7 +12,7 @@ import {emptyGrouping,prefixCategories,primaryCategories,type DictionaryGrouping
 export interface AIMeaning {id?:string;zh_tw?:string;classification?:string|null;grouping?:{primary_category:string|null}}
 export interface AIText {id?:string;text?:string;meaning_id?:string|null;data_source?:string;order?:number}
 export interface AIComponent {target_id:string;headword:string;zh_tw:string;order:number;meaning_id?:string|null}
-export interface AIPronunciation {id?:string;meaning_id?:string|null;locale?:string|null;ipa?:string;note?:string|null;sort_order?:number}
+export interface AIPronunciation {id?:string;meaning_id?:string|null;ipa?:string;sort_order?:number}
 export interface AIInflection {id?:string;meaning_id?:string|null;form_kind?:import('./inflections').InflectionKind;form?:string;sort_order?:number}
 export interface AIEntry {word_segments?:WordSegment[]|null;inflections?:AIInflection[];pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root';headword?:string;classification?:string|null;grouping?:Partial<DictionaryGrouping>;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];core_concept?:AIText[];examples?:AIText[];relation_hints?:AIText[]}
 export interface AIDocument {format:'nexus-dictionary-ai';version:1;entries:AIEntry[]}
@@ -58,8 +59,8 @@ export function parseAI(raw:string):AIDocument{
      if(row.meaning_id!==undefined&&row.meaning_id!==null)identifier(row.meaning_id,'meaning_id');
     }else if(field==='pronunciations'){
      if(row.ipa!==undefined)text(row.ipa,'ipa');else if(!row.id)throw Error('新增讀音缺少 ipa');
-     if(row.locale!==undefined)text(row.locale,'locale',true);
-     if(row.note!==undefined&&row.note!==null&&typeof row.note!=='string')throw Error('note 必須為文字或 null');
+     delete row.locale;delete row.note;
+
      if(row.sort_order!==undefined&&(!Number.isSafeInteger(row.sort_order)||Number(row.sort_order)<0))throw Error('sort_order 必須為非負整數');
      if(row.meaning_id!==undefined&&row.meaning_id!==null){identifier(row.meaning_id,'meaning_id');row.meaning_id=String(row.meaning_id).toLowerCase();}
     }else if(field==='meanings'){
@@ -102,7 +103,7 @@ export function toAI(s:AISnapshot,targets:Map<string,AISnapshot>):AIEntry{
  meanings:d.senses.map(r=>({id:r.id,zh_tw:r.gloss_zh_tw,...(e.kind==='word'?{classification:r.part_of_speech}:e.kind==='prefix'?{grouping:{primary_category:s.sense_groups[r.id]??null}}:{})})),
  ...(e.kind==='word'?{components:[...d.relations].sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999)||a.id.localeCompare(b.id)).map((r,i)=>{const t=targets.get(r.target_entry_id)?.detail;const sense=t?.senses.find(x=>x.id===r.target_sense_id);if(!t||!sense)throw Error('構詞目標無法讀取，已停止匯出');return {target_id:r.target_entry_id,headword:t.entry.headword,zh_tw:sense.gloss_zh_tw,order:i,meaning_id:r.sense_id};})}:{}),
  inflections:(d.inflections??[]).map(p=>({id:p.id,meaning_id:p.sense_id,form_kind:p.form_kind,form:p.form,sort_order:p.sort_order})),
- pronunciations:(d.pronunciations??[]).map(p=>({id:p.id,meaning_id:p.sense_id,locale:p.locale,ipa:p.ipa,note:p.note,sort_order:p.sort_order})),
+ pronunciations:(d.pronunciations??[]).map(p=>({id:p.id,meaning_id:p.sense_id,ipa:p.ipa,sort_order:p.sort_order})),
  examples:(d.examples??[]).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),relation_hints:(d.lexical_annotations??[]).filter(r=>r.kind==='relation_hint').map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),
  etymology:content('etymology'),core_concept:content('core_concept'),
  };
@@ -128,7 +129,7 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
  }
  if(current){
   bundle.dictionary_entries=[clean(current.detail.entry)];
-  for(const [key,rows] of [['dictionary_inflections',current.detail.inflections??[]],['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]],['dictionary_lexical_annotations',current.detail.lexical_annotations??[]]] as const)bundle[key]=rows.map(row=>key==='dictionary_relations'?compositionRow(clean(row)):clean(row));
+  for(const [key,rows] of [['dictionary_inflections',current.detail.inflections??[]],['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]],['dictionary_lexical_annotations',current.detail.lexical_annotations??[]]] as const)bundle[key]=rows.map(row=>key==='dictionary_relations'?compositionRow(clean(row)):key==='dictionary_pronunciations'?cleanPronunciation(clean(row)):clean(row));
  }
  const entry=bundle.dictionary_entries[0]??{id:target,kind:input.type};bundle.dictionary_entries=[{...entry,headword:input.headword??entry.headword,...(input.word_segments!==undefined?{word_segments:input.word_segments}:{})}];
  const group={...(current?.grouping??emptyGrouping()),...input.grouping};
@@ -169,9 +170,9 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
   const old=p.id?current?.detail.pronunciations?.find(r=>r.id===p.id):null;
   if(p.id&&!old)throw Error('pronunciation id 不屬於此詞條');
   const rid=p.id??makeID(),rows=bundle.dictionary_pronunciations;
-  const row=rows.find(r=>r.id===rid)??{id:rid,entry_id:target,sense_id:null,locale:null,note:null,sort_order:rows.length};
+  const row=rows.find(r=>r.id===rid)??{id:rid,entry_id:target,sense_id:null,sort_order:rows.length};
   if(p.ipa!==undefined)row.ipa=p.ipa;
-  if(p.locale!==undefined)row.locale=p.locale;if(p.note!==undefined)row.note=p.note;
+
   if(p.meaning_id!==undefined)row.sense_id=ownSense(p.meaning_id);
   if(p.sort_order!==undefined)row.sort_order=p.sort_order;
   if(!rows.includes(row))rows.push(row);

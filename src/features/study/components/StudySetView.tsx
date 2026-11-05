@@ -1,4 +1,7 @@
 "use client";
+import {useOfficialContent} from "../useOfficialContent";
+import ModalDialog from "../../../components/ModalDialog";
+import {isOfficialLinked,resolveOfficialContent} from "../officialContent";
 import ClearStudyHistoryDialog from './ClearStudyHistoryDialog';
 import {effectiveEvent} from '../studyReliability';
 import {prepareStudySpeech} from "../prepareStudySpeech";
@@ -236,6 +239,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   const [showLinkSuggestions,setShowLinkSuggestions]=useState(false);
   const [error,setError]=useState("");
   const [historyLimit,setHistoryLimit]=useState(50);
+  const [customizing,setCustomizing]=useState(false),customizingRef=useRef(false);
   const [editingCard,setEditingCard]=useState<(Pick<StudyCard,"front"|"back"> & {id?:string})|null>(null);
   const refresh=useRef(()=>{});
   const openedCard=useRef(false);
@@ -247,9 +251,11 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
     return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
   },[repository,page,t]);
   useEffect(()=>{let active=true;if(mode==='history')void repository.readHistory(page.id,historyLimit+1).then(events=>{if(active)setHistoryEvents(events);}).catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[mode,historyLimit,page.id,repository,snapshot]);
-  const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(e instanceof Error?e.message:String(e));}};
+  const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(t(e instanceof Error?e.message:String(e)));}};
+  const customize=async()=>{if(customizingRef.current||!editingCard?.id)return;customizingRef.current=true;setCustomizing(true);try{await act(async()=>{const [card]=await resolveOfficialContent([cards.find(c=>c.id===editingCard.id)!],getSupabase());await repository.updateCard(card.id,{front:card.front,back:card.back,official_custom:true});setEditingCard(null);});}finally{customizingRef.current=false;setCustomizing(false);}};
   const showingCards=mode==="manage"&&(!managementOnly||showCards);
-  const cards=snapshot?.cards.filter(card=>!card.deleted_at)??[];
+  const displayedCards=useOfficialContent(snapshot?.cards??[]);
+  const cards=displayedCards.filter(card=>!card.deleted_at);
   const createRequest=useRef(crypto.randomUUID());
   const savedCard=useRef<{id:string;signature:string}|null>(null);
   useEffect(()=>{savedCard.current=null;createRequest.current=crypto.randomUUID();},[editingCard]);
@@ -296,7 +302,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
     {showClear&&<ClearStudyHistoryDialog repository={repository} deckId={page.id} title={page.title} owner={page.workspace_owner_id??null} beforeClear={()=>settingsFlush.current()} onClose={()=>setShowClear(false)} onCleared={()=>{setClearStatus(t('study.clearDone'));setHistoryEvents([]);setSessionProgress({done:0,total:0});refresh.current();}}/>}
     {showLinkSuggestions&&<StudyLinkSuggestions cards={cards} onClose={()=>setShowLinkSuggestions(false)} onEdit={card=>{setShowLinkSuggestions(false);setEditingCard(card);}} onLink={async(card,id)=>{const client=getSupabase();if(!client)throw Error('請先登入');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,card.id,id);await repository.updateCard(card.id,{dictionary_entry_id:id});refresh.current();}}/>}
     {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}
-    {editingCard&&<StudyCardEditor key={editingCard.id??"new"} card={editingCard} officialSource={!!page.official_pack_id} lockDictionaryLink={!!page.official_pack_id&&!privateOfficialEditing}
+    {editingCard&&editingCard.id&&isOfficialLinked(cards.find(c=>c.id===editingCard.id))?<ModalDialog busy={customizing} onDismiss={()=>setEditingCard(null)} aria-label={t('official.customize')} className="fixed inset-8 z-50 rounded-xl border bg-[var(--color-bg)] p-5"><p>{t('official.linked')}</p><button disabled={customizing} className="min-h-11 rounded border px-3" onClick={()=>void customize()}>{t('official.customize')}</button><button disabled={customizing} className="min-h-11 rounded border px-3" onClick={()=>setEditingCard(null)}>{t('common.cancel')}</button></ModalDialog>:editingCard&&<StudyCardEditor key={editingCard.id??"new"} card={editingCard} officialSource={!!page.official_pack_id} lockDictionaryLink={!!page.official_pack_id&&!privateOfficialEditing}
       requiresScheduleChoice={!!editingCard.id&&hasLearningData(snapshot.states.find(state=>state.id===editingCard.id),snapshot.sessions)}
       onSave={saveCard} onClose={()=>setEditingCard(null)} onCopy={()=>setEditingCard({front:editingCard.front,back:editingCard.back})}/>}
   </main>;

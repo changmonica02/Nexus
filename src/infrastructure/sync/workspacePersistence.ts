@@ -3,6 +3,7 @@ import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
 import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
 
+export function withoutRetiredStudyItems<T extends object>(row:T):T {const clean={...row} as T & {study_items?:unknown};delete clean.study_items;return clean;}
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore;
 export type WorkspaceRecord = Page | Attachment | LifeRecord;
@@ -65,7 +66,7 @@ export class WorkspacePersistence {
       const operations: WorkspaceOperation[] = [];
       for (const change of changes) {
         const { type, kind } = change;
-        const value = structuredClone(change.value);
+        const value = type==='pages'?withoutRetiredStudyItems(structuredClone(change.value)):structuredClone(change.value);
         if ((value.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         const store = tx.objectStore(type);
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
@@ -153,7 +154,7 @@ export class WorkspacePersistence {
           if (result.entity_type === "attachments") await tx.objectStore("binaries").delete(result.entity_id);
         } else if (result.row && (!related.length || result.deleted_at != null)) {
           const { owner_id: _owner, ...row } = result.row;
-          await store.put({ ...row, workspace_owner_id: owner });
+          await store.put({ ...(result.entity_type==='pages'?withoutRetiredStudyItems(row):row), workspace_owner_id: owner });
         }
       }
       await tx.done;

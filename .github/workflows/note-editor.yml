@@ -43,6 +43,11 @@ jobs:
           node tests/unifiedWorkspace.browser.test.cjs
       - name: Dictionary migration compatibility
         run: node tests/dictionaryWordSegments.test.cjs
+      - name: Official content and retired schema regression
+        run: |
+          node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
+          node tests/officialLinkedContent.browser.test.cjs
+          node tests/dictionaryEditor.browser.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
       - name: Existing map metadata, IDB and localization contracts
         run: |

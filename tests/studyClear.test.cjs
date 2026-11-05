@@ -232,6 +232,8 @@ test('actual v4 backup import checks cloud barrier, preserves content, cannot re
   f.loss.name='get_study_clear_times';await assert.rejects(()=>adapter.importWorkspaceBackup(backup),/clearCheckFailed/);
   assert.equal((await adapter.listPages()).length,0);
   await adapter.importWorkspaceBackup(backup);
+  assert.ok((await adapter.listPages()).every(page=>!('study_items' in page)));
+  assert.ok((await adapter.exportWorkspaceBackup()).pages.every(page=>!('study_items' in page)));
   let snapshot=await adapter.getStudyRepository().readDeck('deck',true);assert.equal(snapshot.events.length,0);assert.equal(snapshot.sessions.length,0);assert.equal(snapshot.states[0].introduced_at,null);assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.cards[0].front,old.snapshot.cards[0].front);
   await syncStudy(adapter.getStudyRepository(),f.client,owner);assert.equal((await f.pg.query('select count(*)::int n from study_review_events')).rows[0].n,0);
   // A current projected backup may omit cleared original parents, but remains verifiable.

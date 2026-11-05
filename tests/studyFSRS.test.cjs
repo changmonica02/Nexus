@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const api = require('../src/features/study/studyFSRS.ts');
 const now = new Date(2026,8,22,12).getTime();
 const item = {id:'one',front:'word',back:'中文',mastery:'mastered',review_count:99,last_reviewed_at:now-1000,daily_due_at:now+60000};
-const migrated = () => api.migrateStudyDeck({id:'deck',study_items:[item]},now);
+const migrated = () => require('./fixtures/studySnapshot.cjs').snapshot([item],now);
 
 test('legacy exposure is distinct from daily-learning graduation; neither creates FSRS state',()=>{
  const {isLearned}=require('../src/features/study/studySessions.ts');
@@ -30,7 +30,8 @@ test('fixed FSRS configuration has real 10 minute steps; Good/Easy graduate; Rev
  assert.deepEqual(good.after.fsrs,api.serializeFSRS(preview[3].card));
  assert.equal(good.after.fsrs.reps,1);
 });
-test('migration preserves all legacy data without fabricating a single review or memory state',()=>{
+test('already converted backups retain legacy state; Page migration is retired',()=>{
+ assert.equal(api.migrateStudyDeck,undefined);
  const snapshot=migrated();
  assert.deepEqual(snapshot.cards[0].legacy.item,item);
  assert.equal(snapshot.events.length,0); assert.equal(snapshot.states[0].fsrs,null);
@@ -39,7 +40,7 @@ test('migration preserves all legacy data without fabricating a single review or
  assert.equal(api.nextDailyCard(snapshot,now+60000).id,snapshot.cards[0].id);
 });
 test('due relearning outranks new cards; no early review; introductions consume local-day quota',()=>{
- const snapshot=api.migrateStudyDeck({id:'deck',study_items:Array.from({length:22},(_,i)=>({...item,id:String(i),daily_due_at:undefined,mastery:'new'}))},now);
+ const snapshot=require('./fixtures/studySnapshot.cjs').snapshot(Array.from({length:22},(_,i)=>({...item,id:String(i),daily_due_at:undefined,mastery:'new'})),now);
  snapshot.settings.direction_confirmed=true;
  for(let i=0;i<20;i++) {
    const card=api.nextDailyCard(snapshot,now); assert.ok(card);

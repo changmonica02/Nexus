@@ -3,9 +3,9 @@ import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, i
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
-import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
+import { isLearned, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
 import { localStudyDay, Rating } from "./studyFSRS";
-import { createStudyEvent, emptyStudyState, migrateStudyDeck, nextDailyCard, sameStudyRecord,
+import { createStudyEvent, emptyStudyState, nextDailyCard, sameStudyRecord,
   type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
   type StudySettings, type StudySnapshot, type StudyState, type StudyClear } from "./studyFSRS";
 
@@ -149,31 +149,10 @@ export class StudyRepository {
     const existing = await tx.objectStore("study_settings").get(page.id);
     if (!existing) {
       if(page.official_pack_id)throw new Error('正在同步官方學習集，請稍後再試。');
-      const migrated = migrateStudyDeck(page, Date.now());
-      for (const card of migrated.cards) {
-        await tx.objectStore("study_cards").put(card);
-        await this.enqueue(tx, { owner_id: this.owner(), kind: "card", value: card, initial: true });
-      }
-      for (const state of migrated.states) {
-        const clear=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'clear',page.id]));
-        const safe=clear?clearedStudyState(state,clear.clear.cleared_at):state;
-        await tx.objectStore("study_states").put(safe);
-        await this.enqueue(tx, { owner_id: this.owner(), kind: "seed", value: safe });
-      }
-      await tx.objectStore("study_settings").put(migrated.settings);
-      await this.enqueue(tx, { owner_id: this.owner(), kind: "settings", value: migrated.settings, initial: true });
+      const settings:StudySettings={id:page.id,owner_id:this.owner(),new_limit:20,direction_confirmed:true,updated_at:Date.now(),schema:2};
+      await tx.objectStore("study_settings").put(settings);
+      await this.enqueue(tx,{owner_id:this.owner(),kind:"settings",value:settings,initial:true});
     } else this.owned(existing);
-    // Explicitly requested reset of four legacy test cards. Preserve content, snapshots and all history.
-    const deckCards: StudyCard[] = await tx.objectStore("study_cards").index("deck").getAll(page.id);
-    for (const card of deckCards.filter(isLegacyTestCard)) {
-      const state: StudyState = await tx.objectStore("study_states").get(card.id);
-      if (!state.legacy_test_reset) {
-        const event = createStudyEvent(card, {...state,conflict:false}, "reset", Date.now(), this.device, newId());
-        event.before = state; event.source = "legacy_test_reset";
-        event.after.legacy_test_reset = true;
-        await this.persistEvent(tx,event);
-      }
-    }
     await tx.done;
     if (includeSnapshot) return this.readDeck(page.id,false);
     } catch (error) {
@@ -234,11 +213,13 @@ export class StudyRepository {
     await tx.objectStore("study_states").put(effectiveEvent(event).after);
     await this.enqueue(tx, {owner_id:this.owner(),kind:"event",value:event});
   }
-  async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at"|"dictionary_entry_id">>, reset = false) {
+  async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at"|"dictionary_entry_id"|"official_custom">>, reset = false) {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
     const card: StudyCard = await tx.objectStore("study_cards").get(id); this.owned(card);
-    if(card.official_pack_id&&Object.keys(patch).some(k=>!['front','back','dictionary_entry_id','deleted_at'].includes(k)))throw new Error('官方來源身份不可修改。');
+    if(card.official_pack_id&&Object.keys(patch).some(k=>!['front','back','dictionary_entry_id','deleted_at','official_custom'].includes(k)))throw new Error('官方來源身份不可修改。');
+    if(card.official_pack_id&&card.official_custom===false&&card.dictionary_entry_id&&('front' in patch||'back' in patch)&&patch.official_custom!==true)throw Error('official.customize');
+    if(card.official_custom===true&&patch.official_custom===false)throw Error('Official customization cannot be reversed');
     const source=card.official_pack_id?card.official_source_entry_id??(('dictionary_entry_id' in patch||'deleted_at' in patch)?card.dictionary_entry_id:undefined):undefined;
     if(card.official_pack_id&&('dictionary_entry_id' in patch||'deleted_at' in patch)&&!source)throw new Error('缺少官方來源識別，請先同步後重試。');
     if(card.official_pack_id&&card.deleted_at!=null&&'deleted_at' in patch&&patch.deleted_at!==card.deleted_at)throw new Error('已刪除官方卡不可自動恢復。');
@@ -513,7 +494,7 @@ export class StudyRepository {
     if(introduced)this.changed();
     return result;
   }
-  async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number}):Promise<StudySession> {
+  async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number;displayContent?:{front:string;back:string}}):Promise<StudySession> {
     return this.sessionWrite(async tx=>{
       const {sessionId,cardId,rating,actionId,now}=input;
       if(![1,2,3,4].includes(rating)) throw new Error("無效評分。");
@@ -522,7 +503,9 @@ export class StudyRepository {
       const snapshot=await this.snapshotIn(tx,saved.deck_id);
       const session=await this.reconciled(tx,saved,snapshot,now);
       if((session.mode==="batch" || session.mode==="practice") || session.completed_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
-      const card=snapshot.cards.find(c=>c.id===cardId)!;
+      const storedCard=snapshot.cards.find(c=>c.id===cardId)!;
+      const display=input.displayContent;
+      const card=storedCard.official_custom===false&&storedCard.official_pack_id&&storedCard.dictionary_entry_id&&display?.front.trim()&&display.back.trim()?{...storedCard,front:display.front,back:display.back}:storedCard;
       const state=snapshot.states.find(s=>s.id===cardId)!;
       if(state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
       if(session.mode==='scheduled'&&session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
@@ -672,6 +655,12 @@ export class StudyRepository {
         if(store==='study_settings'&&(value as StudySettings).record_type==='style'){const record=value as StudySettings;validateStudyStyle(record.style!);if(record.style!.id!==record.id)throw Error('Style identity mismatch');}
         const local=await tx.objectStore(store).get(value.id);
         if(store==='study_cards'&&local&&!local.official_source_entry_id&&(value as StudyCard).official_source_entry_id&&local.official_pack_id===(value as StudyCard).official_pack_id&&local.deck_id===(value as StudyCard).deck_id&&local.updated_at>=value.updated_at)await tx.objectStore(store).put({...local,official_source_entry_id:(value as StudyCard).official_source_entry_id});
+        // Server-only preference backfills preserve LWW timestamps. Adopt only an
+        // otherwise identical record, never a competing offline content edit.
+        if(store==='study_cards'&&local&&typeof (value as StudyCard).official_custom==='boolean'){
+          const candidate={...local,...(!local.official_source_entry_id&&(value as StudyCard).official_source_entry_id?{official_source_entry_id:(value as StudyCard).official_source_entry_id}:{}),official_custom:(value as StudyCard).official_custom};
+          if(sameStudyRecord(candidate,value))await tx.objectStore(store).put(candidate);
+        }
         if(!local || local.updated_at<value.updated_at || (store==="study_cards" && local.migration_only) || (store==="study_settings" && !local.configured)) await tx.objectStore(store).put(value);
       }
     }

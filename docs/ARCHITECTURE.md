@@ -163,7 +163,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 `apply_study_operation` 在既有鎖內重新驗證卡片實際所屬組、帳號與清除時間；清除後只接受晚於屏障且帶目前投影的事件。發生時間必須為整數毫秒，不接受超過伺服器目前時間 24 小時的未來事件；這是異常值檢查，不是精確校時。seed 一律轉成無 legacy 進度的空白 state；card 不可跨組移動；舊 resolution 不能恢復原 after。投影先通過原事件結構檢查，再驗證目前有效轉換、canonical predecessor／決策證明與清除時間，同一 ID 原始內容不同仍報 collision，同一清除時間的不同投影也不靜默取代。正式三按鈕間隔與歷史 fixed 轉換在 SQL 另核對排程公式／due；歷史 FSRS 仍由固定版本 TypeScript 引擎驗證完整計算，SQL 保留結構驗證並增加前置狀態／計數檢查，**不宣稱 SQL 已實作完整 FSRS 公式**。官方更新 SQL 直接插入的新 state 亦經 guard trigger 清空過期 seed。
 
-備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括 v1 Page-only legacy）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
+備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括含 v1 Page-only legacy 欄位的備份；該欄位已退役且忽略）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
 
 Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite PostgreSQL 驗證；使用者已確認正式套用，本輪唯讀記錄可見對應名稱（登錄版本 `20261105060444`）。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；本輪沒有正式資料庫寫入。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
 
@@ -226,10 +226,10 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 次級頁面共用 `WorkspaceNavigation.PageHeader`，沿用 SidebarToggle、來源返回 callback／Next Link 與既有功能總覽。SidebarToggle 在 layout effect 登記／解除頁首，工作區外殼於子頁自有導覽時讓出泛用 Nexus 頁首；專業編輯器保留原工具列。創作總覽在資源庫／模板管理開啟時保持掛載，保留集合查詢與捲動。側欄與首頁共用 dashboardGroups、同一 collection/grouping 裝置偏好及 sort_order；分組不改寫資料，子項目排序使用同一 comparator。側欄排序方向與三選一分類集中於既有 ⇅ 選單，沿用 useAnchoredMenu／useMenuDismiss 的定位、鍵盤與關閉行為，沒有獨立分類下拉列或第二套偏好。資料夾仍為 Page.folder，選單重用既有分類寫入，不引入資料夾表。登出入口透過既有未儲存導覽防護與 flushAllSaves，再呼叫原 auth.signOut；帳號切換清理與 owner-scoped outbox 不變。
 
 
-### 字典構詞與逐欄草稿（#154，工作分支已實作，正式未啟用）
+### 字典構詞與逐欄草稿（#154／已合併 PR #155）
 
 - `dictionary_entries.word_segments` 是 nullable JSONB 的有序展示資料：`id/text/hint/relation_id`。拼寫直接串接，正式連結引用原 `dictionary_relations.id`，不新增另一套詞條或私人權威資料。省略／null 的舊 Word 在編輯器以原 headword 建立單格；讀取不回填資料，第一次有效保存才寫入。保留 Entry/Sense、詞形、既有關聯與字卡連結。
-- `20261105065440_dictionary_word_segments.sql` 為加法 Migration，不清理 IPA 或回填舊資料。CHECK 驗證字形、順序、唯一段 ID 與拼寫；延遲約束驗證正式關聯同屬詞條，預覽於回滾前也驗證。擴充既有 bundle 白名單與 published reader，保留原驗權／RLS／CAS／審核契約；偵測 RPC 原始碼漂移即整筆回滾。只在隔離 PostgreSQL 驗證，未套用正式。
+- `20261105065440_dictionary_word_segments.sql` 為加法 Migration，不清理 IPA 或回填舊資料。CHECK 驗證字形、順序、唯一段 ID 與拼寫；延遲約束驗證正式關聯同屬詞條，預覽於回滾前也驗證。擴充既有 bundle 白名單與 published reader，保留原驗權／RLS／CAS／審核契約；偵測 RPC 原始碼漂移即整筆回滾。開發時在隔離 PostgreSQL 驗證；本輪唯讀正式 ledger 已確認 Word segments 以版本 `20261105083358` 登錄。
 - PR #155 相容修正：只在 `dictionary_normalize_snapshot` 比對時移除 `detail.entry.word_segments:null`，與缺少欄位等價；不改寫已存 base snapshot／candidate、不移除其他 null，非空分段與順序仍比對。既有 revision／base snapshot／權限與 FK 驗證保留。完整編輯器子陣列省略保留、null 拒絕、[] 明確刪除；被分段引用的正式 relation 不能單獨刪除。bundle 的分段跳過判斷改用精確 JSONB 相等，避免 `@>` 把空陣列／不同順序誤當無變更。
 - 舊交換／待決匯入的 raw snapshot 版本指紋可能因 schema 新增欄位而失效，沿用原 stale／重新預覽契約，保留原檔、草稿與決策資料，不自動重設版本。隔離測試覆蓋 Migration 前三種詞條 Review、舊交換再預覽與真實內容變更仍阻擋。
 - 完整 JSON 與 AI JSON 沿用原格式、可選欄位與原匯入疑義審核；舊檔省略構詞欄位保留既有值。舊客戶端若嘗試只更名已具分段的 Word，因拼寫不一致而拒絕，避免靜默破壞。回復前端時保留新欄位，不能 drop 欄位或清庫。
@@ -240,3 +240,21 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 
 筆記匯出瀏覽器回歸等待既有列印按鈕啟用，確認 `NoteExportPreview` 已完成資產準備與分頁，再驗證正文、頁首頁尾、版面及 PDF；視窗可見／頁面殼層存在不代表準備完成。此次未改匯出產品邏輯，保留原內容與來源不變斷言。
+
+### 官方連動與欄位退役（#157）
+
+官方來源仍是私人 `study_cards.payload` 的 `official_pack_id`／`official_source_entry_id`；目前連結獨立存於 `dictionary_entry_id`。只有來源完整、有正式連結且 `official_custom === false` 的卡採連動解析；true 或缺少狀態維持私人文字。新下載 false；舊卡只在 revision=1、created_at=updated_at、未刪除、來源與目前連結一致、有效下載且字面完全符合已發布詞條時回填 false。回填按 owner 取得既有 workspace advisory lock，只改標記，不改時間、內容版本或排程；客戶端相同時間／版本僅接受其他內容完全一致的狀態補充，離線私人修改仍依原 LWW／outbox 同步。舊客戶端寫入有內容修改時伺服器保守轉成自訂，不能反向解除已確認自訂。
+
+`resolveOfficialContent` 共用於列表／搜尋／預覽、正常與無盡 Session。原卡為安全備援；既有 public cache 的 responses store 保存最後可信發布文字；線上透過 authenticated `get_published_study_content(uuid[])` 每批至多 200 筆取得 published Word／正式義項（沿用按義項 ID 的中文串接），更新同一有容量／期限限制的公共快取。未發布／不存在目標清除該快取並用原卡，不讀草稿；暫時網路失敗使用可信快取。發布、focus／pageshow 與 online 重新解析。公共資料可跨帳號快取，私人卡／事件／outbox 仍嚴格 owner-scoped。
+
+解析只產生顯示投影，不寫 study card、content_revision、狀態、due、Session 或額度。作答仍產生一個原事件，保存當下實際顯示答案與原卡版本；不改原事件驗證或清除重建契約。「改為私人自訂」先解析並透過既有 updateCard／outbox 保存當前發布文字與 true；後續字典發布不覆寫。解除連結時伺服器亦保存可取得的已發布文字及自訂狀態，來源識別保留供去重。
+
+IPA schema 僅保留 id、entry_id、sense_id、ipa、sort_order、revision／既有必要時間。RPC bundle／published reader／交換及型別移除 locale/note；舊 JSON 僅在 pronunciation 與已知審核快照路徑忽略這兩個欄位，其餘未知欄位仍拒絕。快照正規化以正式 `pg_get_functiondef` 為基礎，只在原 `dictionary_core_content(dictionary_without_verification(...))` 外加入 `dictionary_clean_ipa_snapshot`；不重建／取代舊正規化。保留查證欄位退役、詞源 verification_note→data_source（兩者真實衝突仍拒絕）、舊核心概念按 Entry＋Sense 合併與原 ID／revision 規則、word_segments 缺少/null 等價、詞形缺省 []、關聯舊欄剔除與 ID 排序。[] 與非空分段、真正 IPA／來源／核心內容／關聯／排序／revision 差異仍比對；未知內容不剔除，原 raw_candidate／operation 保護不變，歷史草稿不改寫。
+
+IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(text,integer)`：發音搜尋只讀 `p.ipa`。詞條／Word／Prefix／Root、中文、詞源與來源、核心概念、例句、變體、詞形、分類／標籤搜尋與既有 rank／20 筆分頁／總數完全保留；原管理員檢查、長度／頁碼上限、SECURITY DEFINER、search_path 與 EXECUTE ACL 不變。搜尋或正規化錨點漂移即回滾整份 IPA Migration，不以 CASCADE 刪除未知相依。
+
+發布前測試 fixture 已補載正式生活清單版 workspace RPC；`retirementFunctionBaseline.cjs` 以正式 ledger `20261105083358` 唯讀擷取的 11 個相關函式定義 SHA-256（只正規化 CRLF）及 EXECUTE ACL 驗證 Migration 前基線，不包含正式資料／憑證。`retirementCompatibility.test.cjs` 驗證完整函式比對、三份依序、刪欄後多欄搜尋／排序／跨頁、舊快照／Review、真實內容及版本衝突、錨點漂移與未知 view 相依的交易回滾。fixture 亦模擬正式 service_role 的既有函式預設 grant，驗證 CREATE OR REPLACE 保留權限；不調整正式角色／grant。隔離 auth／樣本資料不是完整正式環境複本；正式套用前仍須重做函式／相依物件／資料筆數檢查。
+
+`study_set` Page 只保存學習組身份與設定連結；`ensureDeck()` 直接建立現行 schema2 設定，字卡／狀態沿用 Study stores 與原 RPC。已刪除 `migrateStudyDeck()`／Page 字卡轉換及舊測試卡自動重設。已轉換的現行 legacy 事件／狀態仍保留原驗證與備份契約。新建／複製／官方下載／工作區同步不輸出 study_items，備份 v4 匯入／匯出與遠端 Page 合併忽略此已知欄位，其他有效內容保留；已排隊 workspace 操作不改寫其 receipt payload，伺服器忽略該舊欄位。IndexedDB 仍為 v9，不清庫、不變更帳號隔離／有效學習同步。
+
+指定順序：既有 Study clear／官方來源身份／Word segments 先就緒，接著 `20261105091439_official_card_linked_content.sql` → `20261105091518_dictionary_pronunciation_columns_retired.sql` → `20261105091519_page_study_items_retired.sql`，各自獨立交易；SQL 原始碼錨點漂移即整筆失敗。第二、三項分別實體 DROP IPA 舊欄與 Page 舊欄，不更新現行 Study 資料。尚未正式執行的 `20261105033000_dictionary_ipa_only.sql` 明確改為 superseded no-op；若環境已執行舊版，第二項會先移除舊觸發器再刪欄，不重做資料清空。正式環境 ledger 的部分版本與 repo 檔名不同，不可直接 db push 補套所有 pending 檔案；須另行授權、核對 Schema／RPC／備份及指定版本後，先資料庫、後相容前端。DROP 的歷史 locale/note 與未轉換 Page-only 卡不可由 down migration 復原，必要時從事前備份還原至隔離環境並向前修復。舊裝置 Page-only 卡經使用者授權捨棄，其現行 study outbox／卡／狀態不受此授權影響。
