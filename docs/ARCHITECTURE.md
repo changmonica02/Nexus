@@ -129,7 +129,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 世界觀 WorldEntity 保存正式正文、穩定 ID／relations；地圖 placement 引用 entity ID，point／cells 幾何獨立，cells 帶 mesh 指紋，不能靠名稱或原生陣列索引連結。Page 級 CAS／outbox 交易維持新增條目及配置原子性，重試使用穩定 ID；移除配置／刪圖不連鎖刪正式條目。metadata 修改不重傳原生 binary；原生 `.map` 不包含 Nexus 正式條目，完整資料用工作區備份。
 
-世界觀首頁由適中高度的唯讀地圖預覽、依類型分組的正式條目及既有 CharacterBlockWorkspace 撰寫區組成；完整編輯器才展開自然地理／人文地理／顯示與樣式工作區；路線、標籤及樣式沿用具名白名單指令開啟原生工具與既有確認／取消 checkpoint，不讓宿主直接操作 iframe DOM。WorldEntity 的可選 `fields` 以穩定欄位 ID 保存文字／數字／條目關聯，不另建實體表；舊紀錄缺少欄位仍有效。首頁詳細表單鎖定正式名稱，定位會沿用 placement ID、既有 MessagePort 及 MapView。正文保存檢查 Page revision 並保留目前 world_maps／world_entities，完整刪除條目須確認並拒絕尚被引用的條目。新空間 scope 使用 surface／underground／sky；舊 scope、parent_map_id 與附件不改寫，新主地表禁止重複建立，附屬空間刪除仍保留條目。
+世界觀首頁沿用 CharacterBlockWorkspace 的一般區塊編排；group 區塊的可選 `worldMapView` 保存獨立 mapId、layer、overlays、views、detailsOpen 與等高線顯示設定，不保存地圖 binary 或正文副本。`worldMapBlocksVersion:1` 與穩定 legacy window ID 做惰性轉換，最後一個視窗刪除後不重新生成；原 sections、tabs、world_maps、world_entities 與附件保留。`WorldMapBlock` 合併預覽視角寫入並註冊既有離開保存屏障，`saveMapBlockView` 讀取最新 Page 後只修改指定區塊，仍走 Page CAS／workspace outbox。多個視窗引用同一正式專案；MessagePort ready 帶每份 iframe 文件的 documentId，預覽因區塊重排而重新載入時重建連線並載入正式專案；編輯期間意外重新載入則停用工具、保留既有本機 checkpoint。編輯工具須等 configure 與畫面切換穩定後啟用，區塊顯示設定的待保存內容也先經原保存屏障才寫地圖；已提交 attachment 變更重新載入其他預覽，編輯中的 working copy 不因預覽設定寫入重載。詳細資料依目前空間有效 placement 讀取正式條目正文，Tiptap 以不可編輯模式顯示，圖層可見性不篩掉正文。既有全世界觀分類清單保留未配置條目；完整編輯器才展開自然地理／人文地理／顯示與樣式工作區；路線、標籤及樣式沿用具名白名單指令開啟原生工具與既有確認／取消 checkpoint，不讓宿主直接操作 iframe DOM。WorldEntity 的可選 `fields` 以穩定欄位 ID 保存文字／數字／條目關聯，不另建實體表；舊紀錄缺少欄位仍有效。首頁詳細表單鎖定正式名稱，定位會沿用 placement ID、既有 MessagePort 及 MapView。正文保存檢查 Page revision 並保留目前 world_maps／world_entities，完整刪除條目須確認並拒絕尚被引用的條目。新空間 scope 使用 surface／underground／sky；舊 scope、parent_map_id 與附件不改寫，新主地表禁止重複建立，附屬空間刪除仍保留條目。
 
 內嵌編輯器 i18n 僅使用本機固定介面目錄，涵蓋動態面板、選項、說明及按鈕屬性；SVG、輸入內容、富文字與原生資料中的名稱／正文不翻譯。語言切換使用保留的原文還原，不使用外部翻譯服務。
 
@@ -145,7 +145,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 ### 學習排程
 
-`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一三按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。
+`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一三按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。新批次以 partial Fisher–Yates 從全部合資格未引入卡抽樣，再沿既有額度／批次順序限制組成目標；複習排序不控制新卡，恢復未完成 Session 不重新抽樣。
 
 正式學習僅使用三按鈕間隔排程。學習組樣式以 `interval_version: 1`、`intervals.general/forgotten` 各三個秒數保存，沿用既有樣式 JSON、IndexedDB 與同步 RPC。新作答事件使用 `nexus-interval@1`，目前排程沿用 `fixed` 狀態容器；舊 FSRS 記憶、due 與四級作答事實保留，歷史引擎只供重播驗證。舊未完成批次保留 ID、已退出卡片及額度，原快照留於 `legacy_settings_snapshot`，恢復時凍結新間隔；讀取不重寫卡片到期時間。忘記留在批次等待到期，模糊／記得退出，批次不追加不同卡片。
 

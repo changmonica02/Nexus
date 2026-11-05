@@ -2,6 +2,14 @@
 
 產品見 [SPEC](SPEC.md)，技術契約見 [ARCHITECTURE](ARCHITECTURE.md)，決策見 [HISTORY](HISTORY.md)。
 
+## 本輪待確認
+
+世界觀地圖顯示窗沿用區塊與 Page／附件同步；新卡使用固定隨機抽樣，進行中 Session 不重抽。測試證據與尚未驗收項目以本輪 Draft PR 為準，未合併／未部署。
+
+整組清除仍待使用者確認 Migration 方案，尚未提供可操作清除入口，也未新增或套用 Migration。現有單卡 generation 與事件聯集不能代表整組重置；建議以 owner／deck 的伺服器重置世代、穩定操作 ID 與既有鎖／outbox／增量 feed 完成原子重置，拒收舊世代 event／seed／resolution。字卡內容與設定不刪除；本機 Session、待同步事件及備份匯入必須遵守同一世代屏障，未核對伺服器世代的舊備份不可直接重新上傳正式進度。需先在隔離 SQL 測試驗證重試、舊客戶端、離線兩裝置與備份後，才可決定資料庫先行的發布順序；正式套用另需人工批准。
+
+完整 `worldMapUI.browser.test.cjs` 的原生工具確認流程有間歇性逾時，相同環境下 main 也可重現；預設測試仍保留全部斷言。`MAP_SKIP_NATIVE_TRANSACTIONS=1` 可獨立驗證本輪區塊、人文正文、六次 SVG／PNG 匯出、共享更新與重新排序，不代表完整原生工具已驗收。Safari／iPad／Android 安裝版及既有離線工具快取的實機操作仍待確認。
+
 ## 目前工作
 
 - 使用者確認清單資料基礎已合併且 Migration 已套用正式；本輪不重新套用、合併或部署。
