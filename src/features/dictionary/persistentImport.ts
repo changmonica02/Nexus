@@ -1,5 +1,5 @@
 import {cleanPronunciation,cleanIpaRecord} from './retiredPronunciation';
-import {reviewFailure,ReviewFailure} from './reviewApproval';
+import {reviewFailure,ReviewFailure,withReviewDeadline} from './reviewApproval';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AISnapshot } from "./aiDictionary";
 import { canonical } from "./dictionaryExchange";
@@ -59,7 +59,7 @@ export async function reviewRPC<T>(
   name: string,
   args: Record<string, unknown>,
 ): Promise<T> {
-  try{const {data,error}=await client.rpc(name,args);if(error)throw error;return data as T;}catch(error){throw reviewFailure(error,name);}
+  try{const {data,error}=await withReviewDeadline(name,()=>client.rpc(name,args));if(error)throw error;return data as T;}catch(error){throw reviewFailure(error,name);}
 }
 export async function persistentImportAvailable(client: ReviewClient) {
   const { data, error } = await client.rpc(

@@ -53,6 +53,7 @@ const en: Dictionary = {
   "approval.pending": "The server still shows this draft pending. Compare the current version before manually approving again.",
   "approval.changed": "The server state has changed. Compare the published version; this request will not be sent again.",
   "approval.check": "Check publication status",
+  "approval.waiting": "The request has not finished. Check again shortly; approval will not be sent again.",
   "approval.recompared": "The comparison was updated. Content or decisions changed; review them before applying again. Nothing was applied.",
 
   "study.flipBack":"Flip card to answer",
@@ -1110,6 +1111,7 @@ const zhTW: Dictionary = {
   "approval.pending": "伺服器目前仍顯示此草稿待審核，請比對目前版本後再手動核准。",
   "approval.changed": "正式狀態已有變更，請比對公開版本；不會再次送出原核准請求。",
   "approval.check": "確認發布結果",
+  "approval.waiting": "請求尚未結束，請稍候再確認；不會再次送出核准。",
   "approval.recompared": "已更新比對。內容或決策已有變動，請確認後再套用；本次尚未套用內容。",
 
   "study.flipBack":"翻至答案",

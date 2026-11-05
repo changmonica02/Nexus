@@ -1,6 +1,6 @@
 # Nexus — 當前狀態與下一步
 
-產品見 SPEC，資料契約見 ARCHITECTURE。最新基線 `4fbf0fa`（PR #158 已合併），本輪分支 `fix/review-approval-android-speech`，新 Draft PR 追蹤 #156／#159；不合併、不正式部署、不寫正式 DB、不修改 HISTORY，不建立分享連結或調整部署權限。
+產品見 SPEC，資料契約見 ARCHITECTURE。最新基線 `4fbf0fa`（PR #158 已合併），本輪分支 `fix/review-approval-android-speech`，[Draft PR #160](https://github.com/changmonica02/Nexus/pull/160) 追蹤 #156／#159；不合併、不正式部署、不寫正式 DB、不修改 HISTORY，不建立分享連結或調整部署權限。
 
 ## #156 匯入審核「套用」
 
@@ -10,7 +10,7 @@
 
 - 修正：手動套用前沿用既有 inspect／classify／save_dictionary_import_review 重新比對，再以新完整 context／指紋送原 apply RPC。只有純結構相容且原決策仍有效時續行；實際內容、revision／Review／target 或決策改變則停下要求確認，不自動套用、不直接發布。
 - 新的前端相容比較只決定是否要再次確認，不是版本或內容驗證權威。原 RPC 的管理員、身份、CAS、真正衝突、人工發布及交易驗證完全不改；舊字卡／字典 ID、構詞與 IPA 原資料保留。
-- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
+- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送與 30 秒請求期限（逾時不表示伺服器回滾，晚到成功仍可查核）；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
 - 不需新增 Migration。本輪只唯讀核對正式資料，沒有重新套用 #158 Migration 或修改正式審核資料。
 
 ## #159 Android 英文語音
@@ -26,7 +26,7 @@
 - 新單元：結構化錯誤、安全顯示、防重送、未知結果只讀確認、聲音立即／延遲清單／無事件輪詢／空清單備援、中文拒選、事件／逾時／取消。
 - 新隔離 SQL：重現舊 word_segments／IPA 預覽 stale，修正後只保存 Review、保留既有 IPA／ID；真正並行 Review 改動要求確認。原伺服器 CAS、RLS、內容與發布驗證未停用。
 - 本機 Chromium 編輯器（含核准成功但刷新失敗／未知結果）、實際 SQL 匯入頁、正式學習閱讀生命週期通過。Chromium Android viewport 與 WebKit iPad viewport 的模擬 Web Speech 測試通過；不等於原生裝置已驗收。
-- TypeScript、Build 通過，修改範圍 ESLint 0 errors／2 既有 warnings。最後擴大回歸及本輪 GitHub Actions／Vercel 以新 PR checks／交付註記為準，不沿用 #158 綠燈。
+- TypeScript、Build 通過，修改範圍 ESLint 0 errors／2 既有 warnings。本機最後 9 個相關回歸檔全通過（包含 Study clear／sync／reading、舊資料／三份 Migration 與 persistent import）；新核准 6、匯入 SQL 3、語音 7 案例分別驗證。本輪 GitHub Actions／Vercel 以 PR #160 checks／交付註記為準，不沿用 #158 綠燈。
 
 ## 正式狀態與限制
 
