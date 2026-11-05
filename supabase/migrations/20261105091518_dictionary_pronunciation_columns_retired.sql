@@ -9,12 +9,22 @@ $$;
 create function public.dictionary_clean_ipa_candidate(c jsonb) returns jsonb language sql immutable set search_path='' as $$
  select case when c ? 'pronunciations' then jsonb_set(c,'{pronunciations}',public.dictionary_clean_ipa_rows(c->'pronunciations')) else c end;
 $$;
--- Retired metadata is excluded from comparison only, preserving all other content/CAS.
-create or replace function public.dictionary_normalize_snapshot(s jsonb) returns jsonb language sql immutable set search_path='' as $$
- with cleaned as (select public.dictionary_clean_ipa_snapshot(s) as v), segments as (select case when v#>'{detail,entry,word_segments}'='null'::jsonb then v#-'{detail,entry,word_segments}' else v end as v from cleaned)
- select case when v is null then null else jsonb_set(jsonb_set(v,'{detail,inflections}',coalesce(v#>'{detail,inflections}','[]'::jsonb)),'{detail,relations}',coalesce((select jsonb_agg(value-'relation_kind'-'verification'-'verification_note' order by value->>'id') from jsonb_array_elements(coalesce(v#>'{detail,relations}','[]'::jsonb))),'[]'::jsonb)) end from segments;
-$$;
+-- Extend the live normalizer rather than reconstructing it: retain verification,
+-- etymology source, core-concept, segments, relations and inflections compatibility.
 do $$declare definition text;anchor text;begin
+ definition:=pg_get_functiondef('public.dictionary_normalize_snapshot(jsonb)'::regprocedure);
+ anchor:=$a$select public.dictionary_core_content(public.dictionary_without_verification($a$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1
+ or (length(definition)-length(replace(definition,'end));','')))/length('end));')<>1
+ or strpos(definition,'{detail,entry,word_segments}')=0 then raise exception 'Unexpected snapshot normalizer; inspect schema';end if;
+ definition:=replace(definition,anchor,$a$select public.dictionary_clean_ipa_snapshot(public.dictionary_core_content(public.dictionary_without_verification($a$);
+ definition:=replace(definition,'end));','end)));');execute definition;
+ -- Change exactly the retired pronunciation expression. Every other ranking,
+ -- search source, page bound and admin check remains in the original function.
+ definition:=pg_get_functiondef('public.search_dictionary_relation_targets(text,integer)'::regprocedure);
+ anchor:=$a$p.ipa||' '||coalesce(p.locale,'')||' '||coalesce(p.note,'')$a$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'Unexpected relation pronunciation search; inspect schema';end if;
+ definition:=replace(definition,anchor,'p.ipa');execute definition;
  definition:=pg_get_functiondef('public.apply_dictionary_drafts(jsonb,boolean,boolean)'::regprocedure);
  anchor:=$a$elsif tbl='dictionary_pronunciations' then$a$;
  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>3 then raise exception 'Unexpected pronunciation branches';end if;
