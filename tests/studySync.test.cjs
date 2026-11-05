@@ -1,3 +1,4 @@
+const {installStudyClear,clearTimes}=require('./fixtures/studyClearDatabase.cjs');
 require('./loadStudy.cjs');require('fake-indexeddb/auto');
 const {PGlite}=require('@electric-sql/pglite');
 const {openDB,deleteDB}=require('idb');
@@ -15,6 +16,7 @@ test('real PostgreSQL migration: retry after lost response, event deduplication,
  const sql=fs.readFileSync('supabase/migrations/20260922_study_fsrs.sql','utf8');
  await pg.exec(sql);await pg.exec(sql);
  await pg.exec(fs.readFileSync('supabase/migrations/20261016_study_reliability.sql','utf8'));
+ await installStudyClear(pg);
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
  db=await openDB(dbName,1,{upgrade(db){for(const name of STUDY_STORES){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
  const repo=new StudyRepository(db,()=>owner,'device');
@@ -29,7 +31,8 @@ test('real PostgreSQL migration: retry after lost response, event deduplication,
    try{await pg.query('select apply_study_operation($1::jsonb)',[JSON.stringify(operation)]);return {error:null};}
    catch(e){return {error:{message:e.message}};}
  };
- const client={rpc:async(name,{operation,after_sequence})=>{
+ const client={rpc:async(name,{operation,after_sequence}={})=>{
+   if(name==='get_study_clear_times')return clearTimes(pg);
    if(name==='pull_study_changes')return {data:(await pg.query('select pull_study_changes($1) as changes',[after_sequence])).rows[0].changes,error:null};
    if(name==='apply_study_resolution')return {data:(await pg.query('select apply_study_resolution($1) as ok',[JSON.stringify(operation)])).rows[0].ok,error:null};
    assert.equal('session' in operation,false,'even old queued session envelopes must stay local');

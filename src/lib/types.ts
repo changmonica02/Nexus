@@ -252,7 +252,19 @@ export interface CharacterStatisticItem {
 }
 export interface CharacterExternalLink { label: string; url: string; }
 
+export interface WorldMapBlockView {
+  mapId?: string;
+  layer: string;
+  overlays: string[];
+  views?: Record<string, {x:number;y:number;scale:number}>;
+  detailsOpen?: boolean;
+  contourInterval?: number;
+  contourLabels?: boolean;
+}
+
 export interface CharacterSection {
+  /** A display window only; canonical map projects and entities remain on the world. */
+  worldMapView?: WorldMapBlockView;
   retainedContent?: boolean;
   retained_template_node_id?: string;
   size?: { span: number; height?: number };
@@ -356,6 +368,7 @@ export interface CharacterProfileData {
   /** Authoritative world entries. Missing in older worlds; never infer entries from legacy prose. */
   world_entities?: WorldEntity[];
   /** World-owned maps, including tombstones; never included in reusable templates. */
+  worldMapBlocksVersion?: 1;
   world_maps?: WorldMapRecord[];
   resourceSource?: {postId:string;version:number;author:string;licenseSnapshot:unknown};
   templateUpdateSnapshots?: {id:string;at:number;sourceId:string;title?:string;attachmentIds?:string[];data:CharacterProfileData}[];

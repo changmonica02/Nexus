@@ -1,13 +1,13 @@
 import {defaultStudyStyle,defaultStyleId,validateStudyStyle, unifiedStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
-import {cleanState, reliableEvent, type ScheduleCandidate} from "./studyReliability";
+import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
 import { isLearned, isLegacyTestCard, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
 import { localStudyDay, Rating } from "./studyFSRS";
 import { createStudyEvent, emptyStudyState, migrateStudyDeck, nextDailyCard, sameStudyRecord,
   type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
-  type StudySettings, type StudySnapshot, type StudyState } from "./studyFSRS";
+  type StudySettings, type StudySnapshot, type StudyState, type StudyClear } from "./studyFSRS";
 
 export const STUDY_STORES = ["study_cards", "study_states", "study_events", "study_settings", "study_sessions", "study_outbox", "study_sync_meta"];
 type Write = IDBPTransaction<unknown, string[], "readwrite">;
@@ -25,6 +25,121 @@ export class StudyRepository {
   private changed() {
     if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-study-changed"));
   }
+  async clearTimes():Promise<StudyClear[]> {
+    return (await this.db.getAll('study_sync_meta')).filter(r=>r.owner_id===this.owner()&&r.clear).map(r=>r.clear);
+  }
+  async recoveryEvents(deckId?:string):Promise<StudyEvent[]> {
+    return (await this.db.getAll('study_sync_meta')).filter(r=>r.owner_id===this.owner()&&r.notice==='study.clearInvalidEvent'&&r.event&&(!deckId||r.deck_id===deckId)).map(r=>r.event);
+  }
+  /** Persist unknown-result requests before the network call; retry the exact operation. */
+  async clearRequest(deckId:string):Promise<{operation_id:string;expected_cleared_at:number}> {
+    return this.sessionWrite(async tx=>{
+      this.owned(await tx.objectStore('study_settings').get(deckId));
+      if(!this.owner())throw Error('study.clearOnline');
+      const id=JSON.stringify([this.owner(),'clear-request',deckId]);
+      const saved=await tx.objectStore('study_sync_meta').get(id);
+      if(saved)return saved.request;
+      const known=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'clear',deckId]));
+      const request={operation_id:newId(),expected_cleared_at:known?.clear?.cleared_at??0};
+      await tx.objectStore('study_sync_meta').put({id,owner_id:this.owner(),request});return request;
+    },false);
+  }
+  async finishClearRequest(deckId:string,operationId:string) {
+    const id=JSON.stringify([this.owner(),'clear-request',deckId]);
+    await this.sessionWrite(async tx=>{const row=await tx.objectStore('study_sync_meta').get(id);if(row?.request.operation_id===operationId)await tx.objectStore('study_sync_meta').delete(id);},false);
+  }
+  async applyClearTimes(clears:StudyClear[]) {
+    if(!clears.length)return;
+    let applied=false;
+    await this.sessionWrite(async tx=>{
+      for(const clear of clears) {
+        if(clear.owner_id!==this.owner()||!Number.isSafeInteger(clear.cleared_at)||clear.cleared_at<=0||!clear.deck_id||!clear.operation_id)throw Error('study.clearInvalidEvent');
+        const id=JSON.stringify([this.owner(),'clear',clear.deck_id]);
+        const known=await tx.objectStore('study_sync_meta').get(id);
+        if((known?.clear?.cleared_at??0)>=clear.cleared_at)continue;
+        applied=true;
+        await tx.objectStore('study_sync_meta').put({id,owner_id:this.owner(),clear});
+        for(const recovery of await tx.objectStore('study_sync_meta').getAll())if(recovery.owner_id===this.owner()&&recovery.deck_id===clear.deck_id&&recovery.event&&Number.isSafeInteger(recovery.event.at)&&recovery.event.at<=clear.cleared_at)await tx.objectStore('study_sync_meta').delete(recovery.id);
+        for(const session of await tx.objectStore('study_sessions').getAll())if(session.owner_id===this.owner()&&session.deck_id===clear.deck_id)await tx.objectStore('study_sessions').delete(session.id);
+        const cards:StudyCard[]=await tx.objectStore('study_cards').index('deck').getAll(clear.deck_id);
+        const cardIds=new Set(cards.filter(c=>c.owner_id===this.owner()).map(c=>c.id));
+        // Decisions derived before this barrier may not authorize an old checkpoint.
+        for(const meta of await tx.objectStore('study_sync_meta').getAll())if(meta.owner_id===this.owner()&&meta.state&&cardIds.has(meta.state.id))await tx.objectStore('study_sync_meta').delete(meta.id);
+        for(const op of await tx.objectStore('study_outbox').getAll() as StudyOperation[]) {
+          if(op.owner_id!==this.owner())continue;
+          if(op.kind==='resolution'&&cardIds.has(op.value.card_id)||op.kind==='session'&&op.value.deck_id===clear.deck_id)await tx.objectStore('study_outbox').delete(op.id);
+        }
+        await this.rebuildClearedDeck(tx,clear);
+      }
+    },false);
+    if(applied)this.changed();
+  }
+  /** Called inside the existing all-or-nothing workspace backup transaction. */
+  async reconcileBackupIn(tx:Write) {
+    const clears:StudyClear[]=(await tx.objectStore('study_sync_meta').getAll()).filter(r=>r.owner_id===this.owner()&&r.clear).map(r=>r.clear);
+    const decks=new Set(clears.map(c=>c.deck_id));
+    for(const event of await tx.objectStore('study_events').getAll() as StudyEvent[])if(event.owner_id===this.owner()&&event.projection&&!decks.has(event.deck_id))throw Error('study.clearInvalidEvent');
+    for(const state of await tx.objectStore('study_states').getAll() as StudyState[])if(state.owner_id===this.owner()&&state.cleared_at&&!decks.has(state.deck_id))throw Error('study.clearInvalidEvent');
+    for(const clear of clears) {
+      await this.rebuildClearedDeck(tx,clear);
+      for(const session of await tx.objectStore('study_sessions').getAll())if(session.owner_id===this.owner()&&session.deck_id===clear.deck_id)await tx.objectStore('study_sessions').delete(session.id);
+      for(const op of await tx.objectStore('study_outbox').getAll() as StudyOperation[])if(op.owner_id===this.owner()&&op.kind==='session'&&op.value.deck_id===clear.deck_id)await tx.objectStore('study_outbox').delete(op.id);
+    }
+  }
+  /** One fact per ID, one current projection. A linear traversal, including offline forks. */
+  private async rebuildClearedDeck(tx:Write,clear:StudyClear) {
+    const cards:StudyCard[]=(await tx.objectStore('study_cards').index('deck').getAll(clear.deck_id)).filter(c=>c.owner_id===this.owner());
+    const cardMap=new Map(cards.map(c=>[c.id,c]));
+    const events:StudyEvent[]=(await tx.objectStore('study_events').index('deck').getAll(clear.deck_id)).filter(e=>e.owner_id===this.owner());
+    const valid=new Map<string,StudyEvent>();
+    for(const event of events) {
+      if(Number.isSafeInteger(event.at)&&event.at>clear.cleared_at&&cardMap.has(event.card_id)&&reliableEvent(originalEvent(event)))valid.set(event.id,event);
+      else {
+        if(!Number.isSafeInteger(event.at)||event.at>clear.cleared_at)await tx.objectStore('study_sync_meta').put({id:JSON.stringify([this.owner(),'clear-recovery',event.id]),owner_id:this.owner(),deck_id:clear.deck_id,event:originalEvent(event),notice:'study.clearInvalidEvent'});
+        await tx.objectStore('study_events').delete(event.id);
+      }
+    }
+    const children=new Map<string,StudyEvent[]>(),queue:StudyEvent[]=[];
+    for(const event of valid.values()) {
+      const parent=event.parent?valid.get(event.parent):undefined;
+      if(parent&&parent.card_id===event.card_id){const list=children.get(parent.id)??[];list.push(event);children.set(parent.id,list);}else queue.push(event);
+    }
+    const projected=new Map<string,StudyEvent>(),tips=new Map<string,Map<string,StudyState>>(),provenGeneration=new Map<string,number>();
+    for(let i=0;i<queue.length;i++) {
+      const event=queue[i],parent=event.parent?projected.get(event.parent):undefined;
+      let before=parent?effectiveEvent(parent).after:clearedStudyState(cardMap.get(event.card_id)!,clear.cleared_at);
+      if(event.before.resolution_id) {
+        const proof=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',event.before.resolution_id]));
+        if(proof?.state?.cleared_at===clear.cleared_at&&sameStudyRecord(cleanState(event.before),cleanState(proof.state))){before=proof.state;provenGeneration.set(event.card_id,Math.max(provenGeneration.get(event.card_id)??0,before.generation));}
+      }
+      const next=projectStudyEvent(event,before,clear.cleared_at);projected.set(event.id,next);
+      if(event.kind==='reset')provenGeneration.set(event.card_id,Math.max(provenGeneration.get(event.card_id)??0,next.projection!.after.generation));
+      await tx.objectStore('study_events').put(next);
+      const heads=tips.get(event.card_id)??new Map();heads.delete(before.head);heads.set(event.id,next.projection!.after);tips.set(event.card_id,heads);
+      queue.push(...(children.get(event.id)??[]));
+    }
+    if(projected.size!==valid.size)throw Error('study.clearInvalidEvent');
+    for(const card of cards) {
+      const heads=[...(tips.get(card.id)?.values()??[])].filter(s=>s.generation>=(provenGeneration.get(card.id)??0));
+      const local:StudyState|undefined=await tx.objectStore('study_states').get(card.id);
+      const proof=local?.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',local.resolution_id])):null;
+      if(proof?.state?.cleared_at===clear.cleared_at&&sameStudyRecord(cleanState(local!),cleanState(proof.state)))continue;
+      const state=heads[0]??clearedStudyState(card,clear.cleared_at);
+      const eventMeta=heads.length>1?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'event-version',card.id])):null;
+      const stateMeta=heads.length>1?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_card_states',card.id])):null;
+      await tx.objectStore('study_states').put(heads.length>1?{...state,conflict:true,ambiguity:{device:heads[0],cloud:heads[1],candidates:heads,event_version:eventMeta?.sequence??0,state_version:stateMeta?.sequence??0}}:state);
+    }
+    const queued:StudyOperation[]=await tx.objectStore('study_outbox').getAll();
+    const queuedEvents=new Set(queued.filter(op=>op.owner_id===this.owner()&&op.kind==='event').map(op=>op.value.id));
+    for(const event of projected.values())if(!queuedEvents.has(event.id))await this.enqueue(tx,{owner_id:this.owner(),kind:'event',value:event});
+    for(const op of queued) {
+      if(op.owner_id!==this.owner())continue;
+      if(op.kind==='event'&&op.value.deck_id===clear.deck_id) {
+        const event=projected.get(op.value.id);
+        if(event)await tx.objectStore('study_outbox').put({...op,value:event});else await tx.objectStore('study_outbox').delete(op.id);
+      }else if(op.kind==='seed'&&op.value.deck_id===clear.deck_id)await tx.objectStore('study_outbox').put({...op,value:clearedStudyState(op.value,clear.cleared_at)});
+    }
+  }
   async ensureDeck(page: Page): Promise<StudySnapshot>;
   async ensureDeck(page: Page, includeSnapshot: false): Promise<void>;
   async ensureDeck(page: Page, includeSnapshot = true): Promise<StudySnapshot | void> {
@@ -40,8 +155,10 @@ export class StudyRepository {
         await this.enqueue(tx, { owner_id: this.owner(), kind: "card", value: card, initial: true });
       }
       for (const state of migrated.states) {
-        await tx.objectStore("study_states").put(state);
-        await this.enqueue(tx, { owner_id: this.owner(), kind: "seed", value: state });
+        const clear=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'clear',page.id]));
+        const safe=clear?clearedStudyState(state,clear.clear.cleared_at):state;
+        await tx.objectStore("study_states").put(safe);
+        await this.enqueue(tx, { owner_id: this.owner(), kind: "seed", value: safe });
       }
       await tx.objectStore("study_settings").put(migrated.settings);
       await this.enqueue(tx, { owner_id: this.owner(), kind: "settings", value: migrated.settings, initial: true });
@@ -95,7 +212,8 @@ export class StudyRepository {
       const card: StudyCard = { id: newId(), deck_id: deckId, owner_id: this.owner(), front: pair.front, back: pair.back,
         direction: "en-zh", sort_order: first + i, content_revision: 1, created_at: now, updated_at: now, deleted_at: null, ...(pair.dictionary_entry_id?{dictionary_entry_id:pair.dictionary_entry_id}:{}) };
       added.push(card);
-      const state = emptyStudyState(card);
+      const clear=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'clear',deckId]));
+      const state = clear?clearedStudyState(card,clear.clear.cleared_at):emptyStudyState(card);
       await tx.objectStore("study_cards").add(card);
       await tx.objectStore("study_states").add(state);
       await this.enqueue(tx, {owner_id: this.owner(),kind:"card",value:card});
@@ -110,8 +228,10 @@ export class StudyRepository {
     }
   }
   private async persistEvent(tx: Write, event: StudyEvent) {
+    const clear=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'clear',event.deck_id]));
+    if(clear)event=projectStudyEvent(event,event.before,clear.clear.cleared_at);
     await tx.objectStore("study_events").add(event);
-    await tx.objectStore("study_states").put(event.after);
+    await tx.objectStore("study_states").put(effectiveEvent(event).after);
     await this.enqueue(tx, {owner_id:this.owner(),kind:"event",value:event});
   }
   async updateCard(id: string, patch: Partial<Pick<StudyCard,"front"|"back"|"deleted_at"|"dictionary_entry_id">>, reset = false) {
@@ -365,7 +485,7 @@ export class StudyRepository {
   }
   async readSession(id:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
     return this.sessionWrite(async tx=>{
-      const value:StudySession=await tx.objectStore("study_sessions").get(id);this.owned(value);
+      const value:StudySession=await tx.objectStore("study_sessions").get(id);if(!value)throw Error('study.sessionCleared');this.owned(value);
       const snapshot=await this.snapshotIn(tx,value.deck_id);
       const session=await this.reconciled(tx,value,snapshot,now);
       return {session,snapshot};
@@ -481,7 +601,7 @@ export class StudyRepository {
       const ambiguity=state.ambiguity;if(!ambiguity)throw new Error('請先同步取得最新候選排程。');
       const selected=choice==='device'?ambiguity.device:choice==='cloud'?ambiguity.cloud:null;
       if(choice!=='relearn'&&(!selected||!ambiguity.candidates.some(s=>sameStudyRecord(cleanState(s),cleanState(selected)))))throw new Error('此候選狀態尚未通過驗證。');
-      await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value:{id:newId(),owner_id:this.owner(),card_id:id,event_version:ambiguity.event_version,state_version:ambiguity.state_version,choice:selected,relearn:choice==='relearn'}});
+      await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value:{id:newId(),owner_id:this.owner(),card_id:id,event_version:ambiguity.event_version,state_version:ambiguity.state_version,choice:selected,relearn:choice==='relearn',cleared_at:state.cleared_at}});
       // Remain blocked until the guarded server transaction succeeds.
     });
   }
@@ -509,6 +629,11 @@ export class StudyRepository {
     const tx=this.db.transaction([...STUDY_STORES,...(hasWorkspace?['workspace_sync_meta']:[])],"readwrite",{durability:"strict"});
     try {
     const receivedCursor=changes?.length?Math.max(...changes.map(c=>c.sequence)):0;
+    const clears:StudyClear[]=(await tx.objectStore('study_sync_meta').getAll()).filter(r=>r.owner_id===this.owner()&&r.clear).map(r=>r.clear);
+    const cutoffs=new Map(clears.map(c=>[c.deck_id,c.cleared_at]));
+    data={...data,events:data.events.filter(e=>!cutoffs.has(e.deck_id)||e.at>cutoffs.get(e.deck_id)!),states:data.states.filter(s=>!cutoffs.has(s.deck_id)||s.cleared_at===cutoffs.get(s.deck_id)),sessions:(data.sessions??[]).filter(s=>!cutoffs.has(s.deck_id))};
+    for(const event of data.events)if(cutoffs.has(event.deck_id)&&(!reliableEvent(event)||event.projection?.cleared_at!==cutoffs.get(event.deck_id)))throw Error('study.clearInvalidEvent');
+
     if(changes){
       const latest=new Map<string,StudyChange>();
       for(const change of changes){
@@ -538,8 +663,8 @@ export class StudyRepository {
     for(const event of data.events) {
       this.owned(event);
       const existing=await tx.objectStore("study_events").get(event.id);
-      if(existing && !sameStudyRecord(existing,event)) throw new Error("同一事件 ID 出現不同內容，已停止同步並保留本地紀錄。");
-      if(!existing){await tx.objectStore("study_events").add(event);affected.add(event.card_id);}
+      if(existing && !sameStudyRecord(originalEvent(existing),originalEvent(event))) throw new Error("同一事件 ID 出現不同內容，已停止同步並保留本地紀錄。");
+      if(!existing||!sameStudyRecord(existing,event)){await tx.objectStore("study_events").put(event);affected.add(event.card_id);}
     }
     for(const [store,values] of [["study_cards",data.cards],["study_settings",data.settings]] as const) {
       for(const value of values) {
@@ -556,7 +681,7 @@ export class StudyRepository {
       const seen=new Set<string>();
       while(head && head!==ancestor && !seen.has(head)) {
         seen.add(head);const event=await findEvent(head);
-        if(!event) return false;head=event.parent;
+        if(!event) return false;head=effectiveEvent(event).parent;
       }
       return head===ancestor;
     };
@@ -570,13 +695,22 @@ export class StudyRepository {
         await tx.objectStore('study_sync_meta').put({id:key,owner_id:this.owner(),sequence:Math.max(old?.sequence??0,change.sequence)});
       }
     }
+    for(const event of data.events)if(event.projection) {
+      const cutoff=cutoffs.get(event.deck_id);
+      const view=effectiveEvent(event);
+      const card:StudyCard|undefined=await tx.objectStore('study_cards').get(event.card_id);
+      if(!card||card.owner_id!==this.owner()||card.deck_id!==event.deck_id||cutoff!==event.projection.cleared_at)throw Error('study.clearInvalidEvent');
+      let before=view.parent?effectiveEvent((await tx.objectStore('study_events').get(view.parent))??event).after:clearedStudyState(card,cutoff);
+      if(!sameStudyRecord(cleanState(before),cleanState(view.before))&&view.before.resolution_id){const proof=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',view.before.resolution_id]));if(!proof?.state||proof.state.cleared_at!==cutoff)throw Error('study.clearInvalidEvent');before=proof.state;}
+      if(!sameStudyRecord(cleanState(before),cleanState(view.before)))throw Error('study.clearInvalidEvent');
+    }
     const unsent:StudyOperation[]=await tx.objectStore("study_outbox").getAll();
     for(const id of affected) {
       const remote=data.states.find(s=>s.id===id);
       if(remote)this.owned(remote);
       const local:StudyState|undefined=await tx.objectStore("study_states").get(id);
       const cardFacts=data.events.filter(e=>e.card_id===id);
-      const parents=new Set(cardFacts.map(e=>e.parent));
+      const parents=new Set(cardFacts.map(e=>effectiveEvent(e).parent));
       const facts=cardFacts.filter(e=>!parents.has(e.id));
       if(changes&&unsent.some(op=>op.kind==="event"&&op.value.card_id===id))continue;
       if(!changes){
@@ -587,11 +721,11 @@ export class StudyRepository {
       }
       for(const head of [local?.head,remote?.head])if(head&&!facts.some(e=>e.id===head)){const event=await findEvent(head);if(event)facts.push(event);}
       const candidates:ScheduleCandidate[]=[];
-      for(const [state,source] of [[local,'device'],[remote,'cloud'],...(local?.ambiguity?.candidates??[]).map(s=>[s,'event']),...facts.filter(e=>![local,remote].some(s=>s?.resolution_id&&s.head===e.id)).map(e=>[e.after,'event'])] as [StudyState|undefined,ScheduleCandidate['source']][]){
+      for(const [state,source] of [[local,'device'],[remote,'cloud'],...(local?.ambiguity?.candidates??[]).map(s=>[s,'event']),...facts.filter(e=>![local,remote].some(s=>s?.resolution_id&&s.head===e.id)).map(e=>[effectiveEvent(e).after,'event'])] as [StudyState|undefined,ScheduleCandidate['source']][]){
         if(!state)continue;
         const proof=state.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',state.resolution_id])):null;
         const trustedDecision=proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state));
-        if(state.head&&!trustedDecision){const event=await findEvent(state.head);if(!event||!reliableEvent(event)||!sameStudyRecord(cleanState(state),cleanState(event.after)))continue;}
+        if(state.head&&!trustedDecision){const event=await findEvent(state.head);if(!event||!reliableEvent(event)||!sameStudyRecord(cleanState(state),cleanState(effectiveEvent(event).after)))continue;}
         const meta=state.head?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_review_events',state.head])):null;
         if(!candidates.some(c=>sameStudyRecord(cleanState(c.state),cleanState(state))))candidates.push({state:cleanState(state),sequence:meta?.order_sequence??0,source});
       }
@@ -607,10 +741,10 @@ export class StudyRepository {
           if(proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state)))proven=Math.max(proven,state.generation);
           let head=state.head;const seen=new Set<string>();
           while(head&&!seen.has(head)){seen.add(head);const e=await findEvent(head);if(!e||!reliableEvent(e))break;
-            if(e.kind==='reset'&&e.after.generation===state.generation){proven=Math.max(proven,state.generation);break;}
-            const prior=e.before.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',e.before.resolution_id])):null;
-            if(prior?.state&&prior.state.generation===state.generation&&sameStudyRecord(cleanState(e.before),cleanState(prior.state))){proven=Math.max(proven,state.generation);break;}
-            head=e.parent;
+            if(e.kind==='reset'&&effectiveEvent(e).after.generation===state.generation){proven=Math.max(proven,state.generation);break;}
+            const prior=effectiveEvent(e).before.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',effectiveEvent(e).before.resolution_id])):null;
+            if(prior?.state&&prior.state.generation===state.generation&&sameStudyRecord(cleanState(effectiveEvent(e).before),cleanState(prior.state))){proven=Math.max(proven,state.generation);break;}
+            head=effectiveEvent(e).parent;
           }
         }
         if(proven>=0)for(let n=tips.length-1;n>=0;n--)if(tips[n].state.generation<proven)tips.splice(n,1);
@@ -625,7 +759,7 @@ export class StudyRepository {
       if(ambiguous)next=null; // New SPEC: divergent facts require explicit recovery, never automatic policy selection.
       const decisionNeeded=!!next && (ambiguous || !!remote?.conflict || (!!remote&&!sameStudyRecord(cleanState(remote),next)));
       if(decisionNeeded){
-        const value={id:newId(),owner_id:this.owner(),card_id:id,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0,choice:next,relearn:false};
+        const value={id:newId(),owner_id:this.owner(),card_id:id,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0,choice:next,relearn:false,cleared_at:next?.cleared_at};
         await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value});
       }
       const base=next??local??remote;

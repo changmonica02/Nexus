@@ -39,6 +39,7 @@ import ColorPaletteButton from "./ColorPaletteButton";
 import TableGridPicker from "./TableGridPicker";
 
 interface TiptapEditorProps {
+  readOnly?: boolean;
   lessonDocument?: JSONContent;
   onNavigateLesson?: (id: string) => void;
   content: any;
@@ -291,7 +292,7 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
+export default function TiptapEditor({ readOnly = false, content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
   const lessonDocumentRef = useRef(lessonDocument);
   lessonDocumentRef.current = lessonDocument;
   const navigateLessonRef = useRef(onNavigateLesson);
@@ -376,6 +377,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
     if (!ref.current) return;
     const editor = new Editor({
       element: ref.current,
+      editable: !readOnly,
       extensions: [
         StarterKit.configure({
           link: false,
@@ -419,7 +421,7 @@ export default function TiptapEditor({ content, onChange, variant = "rich", tool
         ] : []),
         // A fixed Floating UI anchor keeps the block handle aligned when the
         // editor lives inside a scrolling pane or a resized split editor.
-        ...(variant !== "novel" ? [DragHandle.configure({
+        ...(variant !== "novel" && !readOnly ? [DragHandle.configure({
           computePositionConfig: { placement: "left-start", strategy: "fixed" },
           nested: true,
           onElementDragStart: (event) => {

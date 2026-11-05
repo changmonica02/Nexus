@@ -245,3 +245,25 @@ test('IDB: writing-first details preserve geography, fields and stable identitie
  const latest=(await d.adapter.getPage('world')).character_data.world_entities.find(e=>e.entityId==='country');await repo.deleteEntity('world','country',latest.revision);await repo.deleteEntity('world','town',entity.revision);assert.equal((await repo.listEntities('world')).length,0);
  d.adapter.setWorkspaceOwner('other');await assert.rejects(repo.listEntities('world'),{code:'owner'});
 });
+
+test('IDB: map display blocks share canonical project, preserve independent preferences and delete only windows through backup',async t=>{
+ const {withWorldMapBlocks,newWorldMapBlock}=require('../src/lib/worldMapBlocks.ts');
+ const d=await device(t);await d.adapter.savePage(world());const repo=new WorldMapRepository(d.adapter);
+ const created=await repo.createSpace('world','Surface','surface',project('shared'));
+ const legacy=withWorldMapBlocks(created.world.character_data,'world'),first=legacy.sections[0];
+ const second=newWorldMapBlock('second-window',{...first.worldMapView,layer:'political',detailsOpen:true});
+ legacy.sections.push(second);let page=await repo.saveWorldContent('world',created.world.revision,legacy);
+ const attachmentIds=[...page.attachment_ids],maps=structuredClone(page.character_data.world_maps);
+ await repo.saveMapBlockView('world',first.id,{...first.worldMapView,mapId:created.map.id,views:{[created.map.id]:{x:12,y:34,scale:2}}});
+ page=await d.adapter.getPage('world');assert.equal(page.character_data.sections.find(b=>b.id===second.id).worldMapView.layer,'political');
+ assert.deepEqual(page.attachment_ids,attachmentIds);assert.deepEqual(page.character_data.world_maps,maps);
+ const activeBackup=await d.adapter.exportWorkspaceBackup(),activeRestore=await device(t);await activeRestore.adapter.importWorkspaceBackup(activeBackup);assert.deepEqual((await activeRestore.adapter.getPage('world')).character_data,page.character_data);
+ const invalid=structuredClone(activeBackup);invalid.pages.find(p=>p.id==='world').character_data.sections[0].worldMapView.views={broken:{x:0,y:0,scale:0}};const rejected=await device(t);await assert.rejects(rejected.adapter.importWorkspaceBackup(invalid),/地圖區塊/);assert.equal(await rejected.adapter.getPage('world'),null);
+ const removed={...page.character_data,sections:page.character_data.sections.filter(b=>b.id!==first.id&&b.id!==second.id)};
+ page=await repo.saveWorldContent('world',page.revision,removed);
+ assert.equal(withWorldMapBlocks(page.character_data,'world').sections.some(b=>b.worldMapView),false,'last window does not reappear');
+ assert.equal(await (await repo.read('world',created.map.id)).blob.text(),await project('shared').text());
+ await assert.rejects(repo.saveMapBlockView('world',first.id,first.worldMapView),/removed/);
+ await d.reopen();assert.deepEqual((await d.adapter.getPage('world')).character_data.world_maps,maps);
+ const exported=await d.adapter.exportWorkspaceBackup(),target=await device(t);await target.adapter.importWorkspaceBackup(exported);assert.deepEqual((await target.adapter.getPage('world')).character_data,page.character_data);
+});

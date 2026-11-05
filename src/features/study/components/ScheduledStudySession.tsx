@@ -8,7 +8,7 @@ import { useLanguage } from '../../../lib/LanguageContext';
 import AnswerSaveNotice from "./AnswerSaveNotice";
 import CardDictionaryPanel from '../../dictionary/CardDictionaryPanel';
 import { getSupabase } from '../../../infrastructure/supabase/client';
-import { syncStudy } from '../studySync';
+import { syncStudy,studyErrorMessage } from '../studySync';
 
 import StudyPronunciation from "./StudyPronunciation";
 import StudyCompositionSummary from "./StudyCompositionSummary";
@@ -33,7 +33,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     if(!current.current||!alive.current)return Promise.resolve();
     const id=current.current;
     const task=(async()=>{
-      const next=await repository.readSession(id);
+      const next=await repository.readSession(id).catch(error=>{if(error instanceof Error&&error.message==='study.sessionCleared'){current.current=null;formal.current=null;attempt.current=null;setHasAttempt(false);setData(null);}throw error;});
       if(!alive.current||current.current!==id)return;
       const presented=next.session.mode==='scheduled'?await repository.presentScheduled(id):next;
       if(alive.current&&current.current===id){
@@ -55,12 +55,12 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   useEffect(()=>{
     alive.current=true;
     opening.current??=start();
-    void opening.current.then(async session=>{current.current=session.id;formal.current=session.id;await load();}).catch(e=>{if(alive.current)setError(String(e));});
-    const changed=()=>{if(!busy.current&&!dictionaryOpen.current)void load().catch(e=>{if(alive.current)setError(String(e));});};
+    void opening.current.then(async session=>{current.current=session.id;formal.current=session.id;await load();}).catch(e=>{if(alive.current)setError(studyErrorMessage(e,t));});
+    const changed=()=>{if(!busy.current&&!dictionaryOpen.current)void load().catch(e=>{if(alive.current)setError(studyErrorMessage(e,t));});};
     window.addEventListener('nexus-study-changed',changed);
-    const timer=window.setInterval(()=>{const schedule=availability.current;if(schedule&&(schedule.nextDue!=null&&schedule.nextDue<=Date.now()||schedule.day!==new Date().toDateString())&&!busy.current&&!dictionaryOpen.current&&!document.hidden)void load().catch(e=>{if(alive.current)setError(String(e));});},1000);
+    const timer=window.setInterval(()=>{const schedule=availability.current;if(schedule&&(schedule.nextDue!=null&&schedule.nextDue<=Date.now()||schedule.day!==new Date().toDateString())&&!busy.current&&!dictionaryOpen.current&&!document.hidden)void load().catch(e=>{if(alive.current)setError(studyErrorMessage(e,t));});},1000);
     return()=>{alive.current=false;window.removeEventListener('nexus-study-changed',changed);window.clearInterval(timer);};
-  },[load,start]);
+  },[load,start,t]);
   const session=data?.session, practice=session?.mode==='practice';
   const card=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
@@ -89,7 +89,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
       attempt.current=null;setHasAttempt(false);
       if(kind==='batch'||(!current.current&&kind==='reload')){const next=await start();current.current=next.id;formal.current=next.id;}
       await load();
-    }catch(e){if(alive.current)setError(String(e));}
+    }catch(e){if(alive.current)setError(studyErrorMessage(e,t));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
   const interval=(due:number)=>{if(session?.settings_snapshot?.scheduling_method==='fixed'){const seconds=Math.max(1,Math.round((due-now)/1000));const unit=[86400,3600,60,1].find(u=>seconds%u===0)!;return `${seconds/unit} ${t('styles.unit'+unit)}`;}const mins=Math.max(1,Math.round((due-now)/60000));return mins<60?t('study.minutes',{n:mins}):mins<1440?t('study.hours',{n:Math.round(mins/60)}):t('study.days',{n:Math.round(mins/1440)});};

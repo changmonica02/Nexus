@@ -1,3 +1,4 @@
+const {installStudyClear,clearTimes}=require('./fixtures/studyClearDatabase.cjs');
 require('./loadStudy.cjs');require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
 const {PGlite}=require('@electric-sql/pglite');
@@ -57,9 +58,11 @@ async function fixture(){
  const pg=new PGlite(),dbs=[];
  await pg.exec(`create schema auth;create role authenticated;create role anon;create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;`);
  for(const file of ['20260922_study_fsrs.sql','20261016_study_reliability.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ await installStudyClear(pg);
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
  const stats={pulls:[],lose:null};
  const client={rpc:async(name,args)=>{
+   if(name==='get_study_clear_times')return clearTimes(pg);
    try{
     const argument=name==='pull_study_changes'?args.after_sequence:JSON.stringify(args.operation);
     const data=(await pg.query(`select ${name}($1) as result`,[argument])).rows[0].result;

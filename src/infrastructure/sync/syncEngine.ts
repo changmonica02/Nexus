@@ -1,6 +1,7 @@
 import { flushWorkspace, pullWorkspace, remoteResult } from "./workspaceSync";
 import type { EntityType } from "./workspacePersistence";
-import { syncStudy } from "../../features/study/studySync";
+import { syncStudy,studyErrorMessage } from "../../features/study/studySync";
+import {translate,type Language} from '../../lib/i18n';
 /**
  * Nexus Sync Engine ??Shared Workspace
  * Per-account workspace sync via Supabase.
@@ -96,7 +97,10 @@ export class SyncEngine {
         }
       } catch (error) {
         if (!this.destroyed) {
-          this.studyError = error instanceof Error ? error.message : String(error);
+          const saved=await this.storage.getLanguagePreference().catch(()=>null);
+          if(this.destroyed)return;
+          const language:Language=saved==='en'||saved==='zh-TW'?saved:typeof navigator!=='undefined'&&navigator.language?.startsWith('zh')?'zh-TW':'en';
+          this.studyError = studyErrorMessage(error,key=>translate(language,key));
           const repository=this.storage.getStudyRepository();
           this.setState({ status: "error", error: this.studyError, pendingPushes: (await repository.pending()).length });
         }

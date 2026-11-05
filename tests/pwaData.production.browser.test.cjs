@@ -99,7 +99,10 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await page.evaluate(()=>window.dispatchEvent(new Event('nexus-study-changed')));
   await waitForAsync(page,async A=>!(await window.pwaData.pending(A)).study.length,A);
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.length, 0, 'home preview does not consume new-card quota');
-  offline = true; await context.setOffline(true); await setNetwork(page, true); await page.close(); page = await newPage(); page.setDefaultTimeout(10000);
+  // Start offline assertions after both navigator and transport have changed; an online
+  // pull already starting during the transition is not an offline cold-launch request.
+  await setNetwork(page, true); await context.setOffline(true); offline = true;
+  await page.close(); page = await newPage(); page.setDefaultTimeout(10000);
   await page.goto(origin); await page.locator('main').waitFor(); await inject();
   assert.equal(await page.getByLabel('Switch home', { exact: true }).inputValue(), 'learning');
   await page.getByRole('heading', { name: 'Learning home', exact: true }).waitFor();

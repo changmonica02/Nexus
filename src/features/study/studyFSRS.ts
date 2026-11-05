@@ -26,6 +26,7 @@ export interface StudyCard {
   migration_only?: boolean;
 }
 export interface StudyState {
+  cleared_at?: number;
   id: string; deck_id: string; owner_id: string | null;
   scheduling_method?:ScheduleMethod;
   fixed?:{state:State;due:number;last_review:number;generation:number};
@@ -54,6 +55,7 @@ export interface StudySettings {
   quiz_direction?: "zh-en" | "en-zh";
 }
 export interface StudyEvent {
+  projection?: StudyProjection;
   id: string; card_id: string; deck_id: string; owner_id: string | null;
   kind: "review" | "introduce" | "reset"; at: number; local_day: string;
   device_id: string; parent: string | null; before: StudyState; after: StudyState;
@@ -65,8 +67,17 @@ export interface StudyEvent {
   source?: "daily_initialization" | "daily_learning" | "free_review" | "legacy_test_reset" | "scheduled";
   session_rating?: Grade;
 }
+export interface StudyProjection {
+  cleared_at: number;
+  parent: string | null;
+  before: StudyState;
+  after: StudyState;
+  log: StudyEvent['log'];
+  method_transition?: string;
+}
+export interface StudyClear {owner_id:string;deck_id:string;cleared_at:number;operation_id:string}
 export interface StudySnapshot { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings; sessions?: StudySession[] }
-export interface StudyBackup { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings[]; sessions?: StudySession[] }
+export interface StudyBackup { cards: StudyCard[]; states: StudyState[]; events: StudyEvent[]; settings: StudySettings[]; sessions?: StudySession[]; clears?:StudyClear[]; recovery_events?:StudyEvent[] }
 export function activeFixed(s:StudyState){return s.scheduling_method==="fixed"&&s.fixed?.generation===s.generation;}
 export function sameStudyRecord(a:unknown,b:unknown):boolean {
   const canonical = (_key:string,value:unknown) => value && typeof value === "object" && !Array.isArray(value)
@@ -74,7 +85,7 @@ export function sameStudyRecord(a:unknown,b:unknown):boolean {
   return JSON.stringify(a,canonical) === JSON.stringify(b,canonical);
 }
 export type StudyOperation = (
-  | { id:string;owner_id:string|null;kind:'resolution';value:{id:string;owner_id:string|null;card_id:string;event_version:number;state_version:number;choice:StudyState|null;relearn:boolean} }
+  | { id:string;owner_id:string|null;kind:'resolution';value:{id:string;owner_id:string|null;card_id:string;event_version:number;state_version:number;choice:StudyState|null;relearn:boolean;cleared_at?:number} }
   | { id: string; owner_id: string | null; kind: "card"; value: StudyCard }
   | { id: string; owner_id: string | null; kind: "settings"; value: StudySettings }
   | { id: string; owner_id: string | null; kind: "seed"; value: StudyState }

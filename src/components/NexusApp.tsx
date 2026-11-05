@@ -1,4 +1,5 @@
 "use client";
+import {studyErrorMessage} from '../features/study/studySync';
 import { cloneWorldReferences } from "../features/worldMap/worldMapRepository";
 import StudySetView from "../features/study/components/StudySetView";
 import { defaultStudyStyle } from "../features/study/studyStyles";
@@ -1445,7 +1446,7 @@ function NexusAppInner({
       await storage.importWorkspaceBackup(JSON.parse(text) as WorkspaceBackup);
       await notifyDialog(t("app.backupImportedReload"));
       window.location.reload();
-    } catch (error) { console.error(error); await notifyDialog(t("app.backupImportFailed")); }
+    } catch (error) { console.error(error); await notifyDialog(error instanceof Error&&error.message.startsWith('study.')?studyErrorMessage(error,t):t("app.backupImportFailed")); }
   }, [storageRef, t]);
 
   const handleImportPdfFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
