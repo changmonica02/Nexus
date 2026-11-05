@@ -2,7 +2,7 @@
 
 產品見 [SPEC](SPEC.md)，技術契約見 [ARCHITECTURE](ARCHITECTURE.md)。本輪不修改 HISTORY、不合併、不部署，也不寫入正式資料庫。
 
-## 字典三項功能（Issue #154）
+## 字典三項功能（Issue #154／Draft PR #155）
 
 從最新 main `9f5cbaee` 建立 `feat/dictionary-composition-autosave-navigation`，同一個新 PR 交付：
 
