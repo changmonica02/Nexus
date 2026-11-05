@@ -399,8 +399,8 @@ export function PersistentReviewPanel({
     setBusy(true);
     setError("");
     try {
-      await fn();
-      refresh();
+      const result=await fn();
+      if(result!==false)refresh();
     } catch (e) {
       lastFailure.current=reviewFailure(e);setError(reviewFailureText(lastFailure.current,t));
     } finally {
@@ -480,18 +480,7 @@ export function PersistentReviewPanel({
                 onChange={(e) => {
                   const decision = e.target.value;
                   if (decision)
-                    void run(() =>
-                      reviewRPC(
-                        getSupabase()!,
-                        "decide_dictionary_import_review",
-                        {
-                          review_item_id: r.id,
-                          expected_revision: r.revision,
-                          issue_id: i.id,
-                          decision,
-                        },
-                      ),
-                    );
+                    void run(async()=>{const saved=await reviewRPC<ImportReviewRecord>(getSupabase()!,'decide_dictionary_import_review',{review_item_id:r.id,expected_revision:r.revision,issue_id:i.id,decision});setRecords(rows=>rows.map(row=>row.id===saved.id?saved:row));return false;});
                 }}
               >
                 <option value="">{t("exchange.chooseAction")}</option>
@@ -527,7 +516,8 @@ export function PersistentReviewPanel({
                   ) {
                     const result=await applyDecidedImportRecord(getSupabase()!,r,record=>setRecords(rows=>rows.map(row=>row.id===record.id?record:row)));
                     const results=result.records;
-                    if(result.needsReview){setNotice(t('approval.recompared'));return;}
+                    if(result.needsReview){setNotice(t('approval.recompared'));return false;}
+                    const failed=results.find(row=>persistentOutcome(row)==='failed');if(failed)throw reviewFailure({...failed.result,message:failed.request_conflict??failed.result?.message},'apply_dictionary_import_reviews');
                     setNotice(
                       results
                         .map((result) =>

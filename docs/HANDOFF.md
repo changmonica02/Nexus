@@ -10,8 +10,8 @@
 
 - 修正：手動套用前沿用既有 inspect／classify／save_dictionary_import_review 重新比對，再以新完整 context／指紋送原 apply RPC。只有純結構相容且原決策仍有效時續行；實際內容、revision／Review／target 或決策改變則停下要求確認，不自動套用、不直接發布。
 - 新的前端相容比較只決定是否要再次確認，不是版本或內容驗證權威。原 RPC 的管理員、身份、CAS、真正衝突、人工發布及交易驗證完全不改；舊字卡／字典 ID、構詞與 IPA 原資料保留。
-- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送與 30 秒請求期限（逾時不表示伺服器回滾，晚到成功仍可查核）；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
-- 不需新增 Migration。本輪只唯讀核對正式資料，沒有重新套用 #158 Migration 或修改正式審核資料。
+- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。決策直接更新原列；失敗或需重新確認時保留目前項目位置。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送與 30 秒請求期限（逾時不表示伺服器回滾，晚到成功仍可查核）；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
+- 不需新增 Migration。正式關鍵 5 個函式定義（含兩個 approve overload）與最新 Migration 建立的隔離版本去除 CRLF 後一致。本輪只唯讀核對正式資料，沒有重新套用 #158 Migration 或修改正式審核資料。
 
 ## #159 Android 英文語音
 

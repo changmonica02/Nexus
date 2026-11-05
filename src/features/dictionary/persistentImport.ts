@@ -847,7 +847,7 @@ async function applyRecordsInOrder(
     if(operations.some(op=>uncertain?.has(op.id))){
       const checked:ImportReviewRecord[]=[];
       for(const op of operations){const sent=uncertain?.get(op.id);if(!sent){checked.push(ordered.find(r=>r.id===op.id)!);continue;}let found:ImportReviewRecord|undefined;
-        if(client.from){const read=await client.from('dictionary_import_review_items').select('*').eq('id',op.id).maybeSingle();if(read.error)throw reviewFailure(read.error,'dictionary_import_review_items','unknown');found=read.data??undefined;}
+        if(client.from){const read=await withReviewDeadline('dictionary_import_review_items',()=>client.from!('dictionary_import_review_items').select('*').eq('id',op.id).maybeSingle());if(read.error)throw reviewFailure(read.error,'dictionary_import_review_items','unknown');found=read.data??undefined;}
         else for(let page=0;page<100;page++){const read=await reviewRPC<{items:ImportReviewRecord[];total:number}>(client,'get_dictionary_import_reviews',{entry_key:sent.entry_id,page_number:page});found=read.items.find(row=>row.id===op.id);if(found||!read.items.length||(page+1)*50>=read.total)break;}
         if(!found||found.revision<=sent.revision)throw new ReviewFailure('unknown','apply_dictionary_import_reviews','Result is not confirmed; recompare before another write');checked.push(found);
       }
