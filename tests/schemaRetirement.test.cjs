@@ -10,6 +10,9 @@ test('IPA physical retirement preserves old Review approval, stable identity and
   await migrate(pg,'ipa');
   assert.equal(await sql(pg,"select count(*)::int v from information_schema.columns where table_name='dictionary_pronunciations' and column_name in('locale','note')"),0);
   await pg.exec('reset role');const record=await sql(pg,'select dictionary_exchange_record($1) v',[id(10)]);assert.equal('locale' in record.reviews[0].base_snapshot.detail.pronunciations[0],false);assert.equal('note' in record.reviews[0].candidate.pronunciations[0],false);await pg.exec('set role authenticated');
+  await assert.rejects(sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision+1]),/revision|conflict/i);
+  await pg.exec("begin;reset role;update dictionary_pronunciations set ipa='/changed/' where id='"+id(20)+"';set role authenticated");
+  await assert.rejects(sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]),/snapshot|stale|changed/i);await pg.exec('rollback;set role authenticated');
   await sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]);
   const published=await sql(pg,'select get_published_dictionary_entry($1) v',[id(10)]);assert.equal(published.pronunciations[0].id,id(20));assert.equal(published.pronunciations[0].ipa,'/a/');assert.equal('locale' in published.pronunciations[0],false);assert.equal('note' in published.pronunciations[0],false);
  }finally{await pg.close();}

@@ -22,7 +22,9 @@
 
 - 已通過新隔離 SQL 四項：舊草稿核准、舊交換欄位、未知欄拒絕、官方保守轉換與發布／解除、下載去重、權限／帳號隔離、獨立交易失敗回滾、刪欄後現行 cards／states／events／settings 完全保留。官方純模型包含 6,301 卡分批解析與有界快取、離線、私人卡、一次作答與排程不變；新增相同時間 metadata 合併／待傳私人修改保護。
 - Chromium 官方連動流程通過：1280／820／390px，發布重讀、離線快取、私人自訂、重新載入、正常與無盡 Session、作答事件及版本穩定。構詞編輯器中英文／多尺寸及勾選取消保存回歸通過。
-- 擴大單元／同步／清除／交換回歸、TypeScript、ESLint、Build、PWA、遠端 GitHub Actions／Vercel 正在完成；最終結果需更新本節與 PR，不宣稱尚未執行的檢查通過。
+- 本機擴大 51 個字典／學習／同步非瀏覽器測試檔：50 個整批通過（含 6,300 筆完整交換與 6,301 卡清除），既有 VariantEditor 測試直接呼叫 Hook 的錯誤修正為 React render 後單獨 5 項通過；另 3 個官方身份／PWA cache／scheduledStudy 檔通過。新版隔離 SQL 四項與官方模型四項再跑通過。
+- TypeScript、完整 Webpack production Build 通過，範圍 ESLint 0 errors／43 warnings。Chromium 編輯器、官方連動、既有官方私人卡與 PWA 殼層通過；production build 的隔離 PWA Data／Dictionary 流程通過（離線編輯／作答／PDF／重連／衝突／帳號隔離）。測試的 autosave 等待競態以等待真正保存狀態／明確失敗場景修正，不停用產品保存或安全驗證。
+- Vercel checks 已成功；GitHub Actions 最終提交的結果待更新，不將先前提交結果當最終通過。
 - 待實機：Safari／iPad、Android 安裝 PWA、真實帳號雙裝置更新與離線私人修改交錯。Chromium 觸控 viewport 不等於實機。受保護部署不建立分享連結或改權限，正式審核 #156 仍獨立待查。
 - 不合併／部署／正式 Migration。合併建議須等 CI、Migration 審查及指定正式發布授權；未因本地測試自動解除限制。
 

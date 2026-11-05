@@ -226,7 +226,7 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 次級頁面共用 `WorkspaceNavigation.PageHeader`，沿用 SidebarToggle、來源返回 callback／Next Link 與既有功能總覽。SidebarToggle 在 layout effect 登記／解除頁首，工作區外殼於子頁自有導覽時讓出泛用 Nexus 頁首；專業編輯器保留原工具列。創作總覽在資源庫／模板管理開啟時保持掛載，保留集合查詢與捲動。側欄與首頁共用 dashboardGroups、同一 collection/grouping 裝置偏好及 sort_order；分組不改寫資料，子項目排序使用同一 comparator。側欄排序方向與三選一分類集中於既有 ⇅ 選單，沿用 useAnchoredMenu／useMenuDismiss 的定位、鍵盤與關閉行為，沒有獨立分類下拉列或第二套偏好。資料夾仍為 Page.folder，選單重用既有分類寫入，不引入資料夾表。登出入口透過既有未儲存導覽防護與 flushAllSaves，再呼叫原 auth.signOut；帳號切換清理與 owner-scoped outbox 不變。
 
 
-### 字典構詞與逐欄草稿（#154，工作分支已實作，正式未啟用）
+### 字典構詞與逐欄草稿（#154／已合併 PR #155）
 
 - `dictionary_entries.word_segments` 是 nullable JSONB 的有序展示資料：`id/text/hint/relation_id`。拼寫直接串接，正式連結引用原 `dictionary_relations.id`，不新增另一套詞條或私人權威資料。省略／null 的舊 Word 在編輯器以原 headword 建立單格；讀取不回填資料，第一次有效保存才寫入。保留 Entry/Sense、詞形、既有關聯與字卡連結。
 - `20261105065440_dictionary_word_segments.sql` 為加法 Migration，不清理 IPA 或回填舊資料。CHECK 驗證字形、順序、唯一段 ID 與拼寫；延遲約束驗證正式關聯同屬詞條，預覽於回滾前也驗證。擴充既有 bundle 白名單與 published reader，保留原驗權／RLS／CAS／審核契約；偵測 RPC 原始碼漂移即整筆回滾。開發時在隔離 PostgreSQL 驗證；本輪唯讀正式 ledger 已確認 Word segments 以版本 `20261105083358` 登錄。
