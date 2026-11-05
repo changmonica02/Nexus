@@ -155,7 +155,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     {locked&&<p>目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。</p>}
     <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2">
       <EditorSection title="基本資訊">
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
+        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2"><Field label={labels[detail.entry.kind]} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>
         {detail.entry.kind!=='word'&&<>
           {detail.entry.kind==='root'&&<label className="block text-sm">主要分類<select aria-label="主要分類" className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">未分類</option>{primaryCategories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>}
         </>}
