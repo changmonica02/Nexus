@@ -86,3 +86,29 @@ test('removed low-retrievability preference falls back to stable due order with 
  const order=planScheduled(snapshot,now).cards.map(c=>c.id);assert.deepEqual(new Set(order.slice(0,2)),new Set(['c0','c2']));assert.deepEqual(order.slice(2),['c3','c1']);
  snapshot.cards.reverse();assert.deepEqual(planScheduled(snapshot,now).cards.map(c=>c.id),order);
 });
+
+test('new-card sampling reaches every original position, has no duplicates and leaves input progress unchanged',()=>{
+ const {sampleNewCards}=require('../src/features/study/scheduledStudy.ts');
+ const values=[0,1,2,3],counts=new Map(values.map(v=>[v,0]));
+ // Enumerate the complete Fisher-Yates choice space: every ordered pair equally represented.
+ for(let a=0;a<4;a++)for(let b=0;b<3;b++){
+  const draws=[(a+.5)/4,(b+.5)/3];const pair=sampleNewCards(values,2,()=>draws.shift());
+  assert.equal(new Set(pair).size,2);for(const v of pair)counts.set(v,counts.get(v)+1);
+ }
+ assert.deepEqual([...counts.values()],[6,6,6,6]);assert.deepEqual(values,[0,1,2,3]);
+ const snapshot=pure(8);snapshot.states=snapshot.cards.map(emptyStudyState);snapshot.settings.new_limit=2;snapshot.settings.review_limit=2;snapshot.settings.sort_mode='az';
+ const before=structuredClone(snapshot);
+ const selected=planScheduled(snapshot,now,()=>.99999).cards.map(c=>c.id);
+ assert.ok(selected.includes('c7'),'the end of the deck is eligible even with an A-Z display preference');
+ assert.equal(new Set(selected).size,2);assert.deepEqual(snapshot,before);
+});
+
+test('resuming an unfinished batch never samples again or mutates unpresented due/quota',async()=>{
+ const f=await fixture(60);try{
+   await f.repo.configure('deck',{new_limit:10,review_limit:5});
+   const session=await f.repo.startSession('deck','scheduled',now),before=await f.repo.exportData(),pending=await f.repo.pending();
+   const original=Math.random;Math.random=()=>{throw Error('existing session must not sample');};
+   try{const resumed=await f.repo.startSession('deck','scheduled',now);assert.equal(resumed.id,session.id);assert.deepEqual(resumed.targets,session.targets);assert.deepEqual(resumed.queue,session.queue);}finally{Math.random=original;}
+   const after=await f.repo.exportData();assert.deepEqual(after.states,before.states);assert.deepEqual(after.events,before.events);assert.deepEqual(await f.repo.pending(),pending);
+ }finally{await f.close();}
+});

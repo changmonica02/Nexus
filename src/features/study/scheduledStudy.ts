@@ -29,6 +29,15 @@ function eligible(snapshot: StudySnapshot) {
   return displayStudyCards(snapshot.cards, snapshot.settings.sort_mode ?? 'custom')
     .filter(c => !c.deleted_at && c.front.trim() && c.back.trim() && states.has(c.id) && !states.get(c.id)!.conflict);
 }
+/** Partial Fisher–Yates: every eligible new card has the same chance of a batch slot. */
+export function sampleNewCards<T>(candidates: readonly T[], count: number, random = Math.random): T[] {
+  const pool = [...candidates], size = Math.min(pool.length, Math.max(0, count));
+  for (let i = 0; i < size && i < pool.length - 1; i++) {
+    const j = i + Math.floor(random() * (pool.length - i));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, size);
+}
 export function planScheduled(snapshot: StudySnapshot, now: number, random = Math.random) {
   const states = new Map(snapshot.states.map(s => [s.id, s]));
   const cards = eligible(snapshot);
@@ -36,8 +45,6 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   const short = cards.filter(c => isShortStep(states.get(c.id)!, now)&&dueAt(states.get(c.id)!,now)<=now).sort((a,b)=>dueAt(states.get(a.id)!,now)-dueAt(states.get(b.id)!,now)||a.sort_order-b.sort_order);
   const dueBacklog = cards.filter(c => countsAsBacklog(states.get(c.id)!,now)).length;
   const canIntroduce = dueBacklog < (snapshot.settings.new_pause_threshold ?? 200);
-  const fresh = canIntroduce ? cards.filter(c => isUnintroduced(states.get(c.id)!))
-    .slice(0, Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now))) : [];
   const reviews = cards.filter(c => !isUnintroduced(states.get(c.id)!) && !isShortStep(states.get(c.id)!, now) && dueAt(states.get(c.id)!, now) <= now);
   const randomKeys = new Map(snapshot.settings.review_order === 'random' ? reviews.map(c => [c.id, random()]) : []);
   reviews.sort((a, b) => {
@@ -45,6 +52,8 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
     if (snapshot.settings.review_order === 'random') return randomKeys.get(a.id)! - randomKeys.get(b.id)!;
     return dueAt(sa, now) - dueAt(sb, now) || a.sort_order - b.sort_order;
   });
+  const fresh = canIntroduce ? sampleNewCards(cards.filter(c => isUnintroduced(states.get(c.id)!)),
+    Math.max(0, snapshot.settings.new_limit - dailyNewUsed(snapshot, now)), random) : [];
   let combined: StudyCard[];
   if (snapshot.settings.card_order === 'review-first') combined = [...reviews, ...fresh];
   else if (snapshot.settings.card_order === 'mixed') {
