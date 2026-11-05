@@ -1,4 +1,5 @@
 "use client";
+import {reviewFailure,reviewFailureText,type ReviewFailure} from './reviewApproval';
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getSupabase } from "../../infrastructure/supabase/client";
@@ -17,6 +18,7 @@ import type { ImportSession } from "./importReview";
 import { previewImportSource } from "./importSource";
 import {
   applyPersistentRecords,
+  applyDecidedImportRecord,
   persistentOutcome,
   persistentImportAvailable,
   recheckPersistent,
@@ -68,14 +70,16 @@ export function PersistentImportReview({
         }
       })
       .catch((e) => {
-        if (active) setError(String(e));
+        if (active) setError(reviewFailureText(e,t));
       });
     return () => {
       active = false;
       controller.current?.abort();
     };
-  }, []);
+  }, [t]);
+  const running=useRef(false),lastFailure=useRef<ReviewFailure|null>(null);
   const run = async (fn: () => Promise<void>) => {
+    if(running.current)return;running.current=true;
     setBusy(true);
     onBusy(true);
     setError("");
@@ -83,9 +87,9 @@ export function PersistentImportReview({
     try {
       await fn();
     } catch (e) {
-      setError(String(e));
+      lastFailure.current=reviewFailure(e);setError(reviewFailureText(lastFailure.current,t));
     } finally {
-      setBusy(false);
+      running.current=false;setBusy(false);
       onBusy(false);
     }
   };
@@ -123,7 +127,7 @@ export function PersistentImportReview({
     setRecords((old) =>
       old.map((r) => results.find((x) => x.id === r.id) ?? r),
     );
-    await onSaved();
+    try{await onSaved();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}
   };
   return (
     <section className="space-y-3">
@@ -313,7 +317,7 @@ export function PersistentImportReview({
                 )
                   return;
                 await stage(legacy);
-                await onSaved();
+                try{await onSaved();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}
               })
             }
           >
@@ -382,23 +386,25 @@ export function PersistentReviewPanel({
           setTotal(result.total);
         }
       } catch (e) {
-        if (active) setError(String(e));
+        if (active) setError(reviewFailureText(e,t));
       }
     })();
     return () => {
       active = false;
     };
-  }, [entryId, page, epoch]);
+  }, [entryId, page, epoch, t]);
+  const running=useRef(false),lastFailure=useRef<ReviewFailure|null>(null);
   const run = async (fn: () => Promise<unknown>) => {
+    if(running.current)return;running.current=true;
     setBusy(true);
     setError("");
     try {
       await fn();
       refresh();
     } catch (e) {
-      setError(String(e));
+      lastFailure.current=reviewFailure(e);setError(reviewFailureText(lastFailure.current,t));
     } finally {
-      setBusy(false);
+      running.current=false;setBusy(false);
     }
   };
   if (!available)
@@ -439,11 +445,11 @@ export function PersistentReviewPanel({
             {String(r.source.name)} · {String(r.source.preview_at)} · Entry{" "}
             {r.entry_id}
           </p>
-          <p>{String(r.result?.message ?? "")}</p>
+          <p>{r.request_conflict?reviewFailureText({message:r.request_conflict},t):r.result?.message?reviewFailureText(r.result,t):""}</p>
           {r.item.issues.map((i) => (
             <div key={i.id} className="space-y-2 rounded border p-2">
               <p>
-                {i.type} · {i.field} · {i.reason}
+                {i.type} · {i.field} · {["apply_failed","preview_changed"].includes(i.type)?reviewFailureText({message:i.reason},t):i.reason}
               </p>
               <p className="break-all text-xs">
                 Sense {String(i.sense_id ?? "—")} · {t("persistent.dependency")}{" "}
@@ -519,11 +525,9 @@ export function PersistentReviewPanel({
                       confirmLabel: t("persistent.applyDecided"),
                     })
                   ) {
-                    const results = await applyPersistentRecords(
-                      getSupabase()!,
-                      [r],
-                      true,
-                    );
+                    const result=await applyDecidedImportRecord(getSupabase()!,r,record=>setRecords(rows=>rows.map(row=>row.id===record.id?record:row)));
+                    const results=result.records;
+                    if(result.needsReview){setNotice(t('approval.recompared'));return;}
                     setNotice(
                       results
                         .map((result) =>

@@ -1,3 +1,5 @@
+import {cleanPronunciation,cleanIpaRecord} from './retiredPronunciation';
+import {reviewFailure,ReviewFailure} from './reviewApproval';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AISnapshot } from "./aiDictionary";
 import { canonical } from "./dictionaryExchange";
@@ -38,7 +40,7 @@ export interface ImportReviewRecord {
   result?: Record<string, unknown>;
   updated_at: string;
 }
-export type ReviewClient = Pick<SupabaseClient, "rpc">;
+export type ReviewClient = Pick<SupabaseClient,"rpc"> & Partial<Pick<SupabaseClient,"from">>;
 const uuid =
   /^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
 export const hardIssues = new Set([
@@ -57,9 +59,7 @@ export async function reviewRPC<T>(
   name: string,
   args: Record<string, unknown>,
 ): Promise<T> {
-  const { data, error } = await client.rpc(name, args);
-  if (error) throw Error(error.message);
-  return data as T;
+  try{const {data,error}=await client.rpc(name,args);if(error)throw error;return data as T;}catch(error){throw reviewFailure(error,name);}
 }
 export async function persistentImportAvailable(client: ReviewClient) {
   const { data, error } = await client.rpc(
@@ -807,7 +807,7 @@ export async function stagePersistentSession(
   }
   return records;
 }
-export async function applyPersistentRecords(
+async function applyRecordsInOrder(
   client: ReviewClient,
   records: ImportReviewRecord[],
   manual = false,
@@ -843,20 +843,27 @@ export async function applyPersistentRecords(
         effect: plan.effect,
       };
     });
-    const batch = await reviewRPC<ImportReviewRecord[]>(
-      client,
-      "apply_dictionary_import_reviews",
-      { operations },
-    );
-    if (batch.length !== operations.length)
-      throw Error("Invalid durable import response");
+    const uncertain=uncertainImports.get(client);
+    if(operations.some(op=>uncertain?.has(op.id))){
+      const checked:ImportReviewRecord[]=[];
+      for(const op of operations){const sent=uncertain?.get(op.id);if(!sent){checked.push(ordered.find(r=>r.id===op.id)!);continue;}let found:ImportReviewRecord|undefined;
+        if(client.from){const read=await client.from('dictionary_import_review_items').select('*').eq('id',op.id).maybeSingle();if(read.error)throw reviewFailure(read.error,'dictionary_import_review_items','unknown');found=read.data??undefined;}
+        else for(let page=0;page<100;page++){const read=await reviewRPC<{items:ImportReviewRecord[];total:number}>(client,'get_dictionary_import_reviews',{entry_key:sent.entry_id,page_number:page});found=read.items.find(row=>row.id===op.id);if(found||!read.items.length||(page+1)*50>=read.total)break;}
+        if(!found||found.revision<=sent.revision)throw new ReviewFailure('unknown','apply_dictionary_import_reviews','Result is not confirmed; recompare before another write');checked.push(found);
+      }
+      for(const found of checked){uncertain?.delete(found.id);results.push(found);onProgress?.(found);}continue;
+    }
+    let batch:ImportReviewRecord[];
+    try{batch=await reviewRPC<ImportReviewRecord[]>(client,'apply_dictionary_import_reviews',{operations});}
+    catch(error){const failure=reviewFailure(error,'apply_dictionary_import_reviews');if(['network','unknown'].includes(failure.kind)){const pending=uncertainImports.get(client)??new Map();for(const op of operations){const record=ordered.find(r=>r.id===op.id)!;pending.set(record.id,{id:record.id,entry_id:record.entry_id,revision:record.revision});}uncertainImports.set(client,pending);}throw failure;}
+    if (!Array.isArray(batch)||batch.length!==operations.length){const pending=uncertainImports.get(client)??new Map();for(const op of operations)pending.set(op.id,pendingIdentity(ordered.find(r=>r.id===op.id)!));uncertainImports.set(client,pending);throw new ReviewFailure('unknown','apply_dictionary_import_reviews','Invalid durable import response');}
     for (let r of batch) {
       if (
         !r.request_conflict &&
         r.result?.status === "applied" &&
         r.pending_count > 0
       )
-        r = await recheckPersistent(client, r);
+        try{onProgress?.(r);r=await recheckPersistent(client,r);}catch(error){const pending=uncertainImports.get(client)??new Map();for(const op of operations)pending.set(op.id,pendingIdentity(ordered.find(row=>row.id===op.id)!));uncertainImports.set(client,pending);throw reviewFailure(error,'recheck_dictionary_import_review','refresh');}
       results.push(r);
       onProgress?.(r);
     }
@@ -874,4 +881,41 @@ export function persistentOutcome(r: ImportReviewRecord) {
   return r.item.issues.some((i) => i.applied && i.selectedAction === "keep")
     ? "kept"
     : "unchanged";
+}
+
+// Existing server receipts remain authoritative; uncertain attempts must be read
+// before another write. No additional server state or approval authority.
+const pendingIdentity=(r:ImportReviewRecord)=>({id:r.id,entry_id:r.entry_id,revision:r.revision});
+const uncertainImports=new WeakMap<ReviewClient,Map<string,Pick<ImportReviewRecord,'id'|'entry_id'|'revision'>>>();
+const applyingImports=new WeakSet<ReviewClient>();
+export async function applyPersistentRecords(...args:Parameters<typeof applyRecordsInOrder>){
+ const client=args[0];if(applyingImports.has(client))throw new ReviewFailure('busy','apply_dictionary_import_reviews','busy');applyingImports.add(client);try{return await applyRecordsInOrder(...args);}finally{applyingImports.delete(client);}
+}
+
+/** UI preflight equivalence only. The server still compares the NEW complete
+ * context/version and enforces its original CAS and validation on every write. */
+export function comparableImportPreview(context:ImportContext|undefined){
+ if(!context)return canonical(context);const c=structuredClone(context);
+ const entry=(r:Record<string,unknown>)=>{if(r.word_segments===null)delete r.word_segments;return r;};
+ const snapshot=(s:AISnapshot|null|undefined)=>{if(s){entry(s.detail.entry as unknown as Record<string,unknown>);s.detail.pronunciations=s.detail.pronunciations?.map(cleanPronunciation);}return s;};
+ snapshot(c.snapshot);
+ const identities=c.identities as Record<string,Record<string,unknown>[]>;
+ if(identities.dictionary_entries)identities.dictionary_entries=identities.dictionary_entries.map(entry);
+ if(identities.dictionary_pronunciations)identities.dictionary_pronunciations=identities.dictionary_pronunciations.map(cleanPronunciation);
+ if(c.exchange){const cleaned=cleanIpaRecord({reviews:c.exchange.reviews as Array<{base_snapshot?:AISnapshot;candidate?:ReturnType<typeof mapDictionaryDraft>}>});
+  for(const review of cleaned.reviews??[]){snapshot(review.base_snapshot);review.candidate?.bundle.dictionary_entries.forEach(entry);}
+  c.exchange={...c.exchange,reviews:cleaned.reviews} as typeof c.exchange;delete (c.exchange as {version?:unknown}).version;
+ }
+ return canonical(c);
+}
+const preparingDecisions=new WeakSet<ReviewClient>();
+export async function applyDecidedImportRecord(client:ReviewClient,record:ImportReviewRecord,onProgress?:(record:ImportReviewRecord)=>void){
+ if(preparingDecisions.has(client))throw new ReviewFailure('busy','apply_dictionary_import_reviews','busy');preparingDecisions.add(client);
+ try{
+  if(uncertainImports.get(client)?.has(record.id))return {records:await applyPersistentRecords(client,[record],true,undefined,onProgress),needsReview:false};
+  const fresh=await recheckPersistent(client,record);onProgress?.(fresh);
+  const kept=record.item.issues.filter(i=>i.selectedAction&&!i.applied).every(old=>fresh.item.issues.some(i=>i.id===old.id&&i.selectedAction===old.selectedAction));
+  if(!kept||comparableImportPreview(record.item.context)!==comparableImportPreview(fresh.item.context))return {records:[fresh],needsReview:true};
+  return {records:await applyPersistentRecords(client,[fresh],true,undefined,onProgress),needsReview:false};
+ }finally{preparingDecisions.delete(client);}
 }

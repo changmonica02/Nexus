@@ -1,4 +1,5 @@
 "use client";
+import {ReviewApproval,reviewFailure,reviewFailureText,type ReviewFailure} from './reviewApproval';
 import {useDictionaryText} from './useDictionaryText';
 import {adminContext,adminListHref,adminEntryHref,adminNeighbours} from './adminNavigation';
 import {invalidateDictionary,observeDictionaryInvalidation} from './dictionaryInvalidation';
@@ -273,19 +274,21 @@ export function DictionaryListActions({busy,onNew,onImport,onExport}:{busy:boole
  return <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={onNew}>{t("ui.new")}</button><button className={button} disabled={busy} onClick={onImport}>{t("exchange.import")}</button><button className={button} disabled={busy} onClick={onExport}>{t("exchange.export")}</button></div>;
 }
 export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted,neighbours}:{neighbours?:{previous:string|null;next:string|null};onCommitted?:()=>void;detail:DictionaryDetail;entries:DictionaryEntry[];senses:DictionarySense[];refresh:(id:string)=>Promise<void>}){
-  const tr=useDictionaryText();
+  const tr=useDictionaryText(),{t}=usePaginationLanguage();
   const [reviews,setReviews]=useState<DictionaryReview[]>([]),[chosen,setChosen]=useState<DictionaryReview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const [view,setView]=useState<'latest'|'draft'>('draft');
-  const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}};
+  const running=useRef(false),failure=useRef<ReviewFailure|null>(null);const [approval]=useState(()=>new ReviewApproval());
+  const run=async(work:()=>Promise<void>)=>{if(running.current)return;running.current=true;setBusy(true);setError('');try{await work();}catch(e){failure.current=reviewFailure(e);setError(reviewFailureText(failure.current,t));}finally{running.current=false;setBusy(false);}};
   const chosenRef=useRef(chosen);useLayoutEffect(()=>{chosenRef.current=chosen;},[chosen]);
   const [editorEpoch,setEditorEpoch]=useState(0);
   const [base,setBase]=useState<import('./aiDictionary').AISnapshot|null>(null),[ready,setReady]=useState(false);
-  useEffect(()=>{let active=true;void (async()=>{try{const snapshot=await readAI(getSupabase()!,detail.entry.id);const {data,error}=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active').order('updated_at',{ascending:false});if(error)throw Error(error.message);if(active){setBase(snapshot);setReviews(data??[]);if(data?.length===1)setChosen(data[0]);setReady(true);}}catch(e){if(active)setError(String(e));}})();return()=>{active=false;};},[detail.entry.id]);
+  useEffect(()=>{let active=true;void (async()=>{try{const snapshot=await readAI(getSupabase()!,detail.entry.id);const {data,error}=await getSupabase()!.from('dictionary_review_drafts').select('*').eq('entry_id',detail.entry.id).eq('state','active').order('updated_at',{ascending:false});if(error)throw Error(error.message);if(active){setBase(snapshot);setReviews(data??[]);if(data?.length===1)setChosen(data[0]);setReady(true);}}catch(e){if(active){failure.current=reviewFailure(e,'get_dictionary_ai_snapshot');setError(reviewFailureText(failure.current,t));}}})();return()=>{active=false;};},[detail.entry.id,t]);
   if(!ready||!base)return <section><p role="status">{error||tr('正在讀取編輯內容…')}</p></section>;
   const activeReviews=reviews.filter(r=>r.state==='active');
   const snapshot=chosen?reviewSnapshot(chosen):base;
   const stale=!!chosen&&chosen.base_revision!==detail.entry.revision;
   const saveCurrent=async(draft:DictionaryDraftInput)=>{
+    if(approval.blocked)throw reviewFailure({message:t('approval.unknown')},'approve_dictionary_review','unknown');
     if(stale)throw Error(tr('此草稿的 Published 基底已變更。請保留輸入，重新載入版本資訊後比對；不會覆蓋公開內容。'));
     let saved:DictionaryReview;
     const current=chosenRef.current;
@@ -300,18 +303,20 @@ export function PublishedWorkspace({detail,entries,senses,refresh,onCommitted,ne
 
     chosenRef.current=saved;setChosen(saved);setReviews(rs=>[saved,...rs.filter(r=>r.id!==saved.id)]);return saved;
   };
-  const publish=async()=>run(async()=>{if(!chosen||stale)return;if(!await confirmDialog({title:tr('核准發布新版本'),message:tr('我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。發布後將取代目前公開版本，不保留舊內容。'),confirmLabel:tr('發布')}))return;const {error}=await getSupabase()!.rpc('approve_dictionary_review',{review_uuid:chosen.id,expected_revision:chosen.revision,content_verified:true});if(error)throw Error(`${error.message}。請保留內容並重新載入版本資訊後比對。`);invalidateDictionary();await refresh(detail.entry.id);onCommitted?.();});
+  const publish=async()=>run(async()=>{const selected=chosenRef.current;if(!selected||stale)return;if(!await confirmDialog({title:tr('核准發布新版本'),message:tr('我已完成內容與構詞依據的查證，確認發布已儲存的審核草稿。發布後將取代目前公開版本，不保留舊內容。'),confirmLabel:tr('發布')}))return;await approval.approve(getSupabase()!,selected);invalidateDictionary();try{await refresh(detail.entry.id);onCommitted?.();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}});
+  const checkPublication=()=>navigateDictionary(()=>void run(async()=>{const status=await approval.check(getSupabase()!);if(status==='committed'){try{await refresh(detail.entry.id);onCommitted?.();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}}else setError(t('approval.'+status));}));
   const latestBundle:Bundle={dictionary_entries:[base.detail.entry as unknown as Row],dictionary_senses:base.detail.senses as unknown as Row[],dictionary_relations:base.detail.relations as unknown as Row[],dictionary_etymologies:base.detail.etymologies as unknown as Row[],dictionary_learning_notes:base.detail.learning_notes as unknown as Row[],dictionary_inflections:(base.detail.inflections??[]) as unknown as Row[],dictionary_pronunciations:(base.detail.pronunciations??[]) as unknown as Row[],dictionary_examples:(base.detail.examples??[]) as unknown as Row[],dictionary_lexical_annotations:(base.detail.lexical_annotations??[]) as unknown as Row[]};
   return <section className="min-w-0 space-y-3">
     {!!activeReviews.length&&<div role="tablist" aria-label={tr("詞條版本")} className="flex gap-2">{(['latest','draft'] as const).map(tab=><button type="button" role="tab" tabIndex={view===tab?0:-1} onKeyDown={e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?'latest':e.key==='End'?'draft':view==='latest'?'draft':'latest';setView(next);const tabs=e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');tabs?.[next==='latest'?0:1]?.focus();}} aria-selected={view===tab} key={tab} onClick={()=>setView(tab)} className="min-h-11 rounded px-4 text-sm" style={{background:view===tab?'var(--color-border)':undefined}}>{tab==='latest'?tr('最新版本'):tr('草稿')}</button>)}</div>}
     {!!activeReviews.length&&view==='latest'&&<section aria-label={tr("最新版本")}><h2 className="text-xl">{detail.entry.headword} · {tr(labels[detail.entry.kind])} {tr("· 已發布")}</h2><DictionaryPreview bundle={latestBundle} technical={false}/></section>}
     <div hidden={!!activeReviews.length&&view==='latest'}>
     {activeReviews.length>1&&<label className="block text-sm">{tr("選擇草稿")}<select aria-label={tr("選擇草稿")} className={control} value={chosen?.id??''} onChange={e=>{const reviewId=e.currentTarget.value;navigateDictionary(()=>{setChosen(activeReviews.find(r=>r.id===reviewId)??null);setEditorEpoch(n=>n+1);});}}><option value="">{tr("請選擇")}</option>{activeReviews.map((r,i)=><option key={r.id} value={r.id}>{tr("草稿")}{i+1} · {r.source}</option>)}</select></label>}
-    {activeReviews.length>1&&!chosen?<p role="alert">{tr("有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。")}</p>:<DictionaryEditor key={`${detail.entry.id}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} deletionEntry={detail.entry} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')} saveReview={saveCurrent} neighbours={neighbours} onPublish={publish} canPublish={!!chosen&&!stale} publicationBusy={busy}/>}
+    {activeReviews.length>1&&!chosen?<p role="alert">{tr("有多筆既有草稿，請選擇要續編的草稿；不會新增或覆蓋。")}</p>:<DictionaryEditor key={`${detail.entry.id}:${editorEpoch}`} detail={snapshot.detail} initialGrouping={snapshot.grouping??emptyGrouping()} initialSenseGroups={snapshot.sense_groups} entries={entries} senses={senses} onSaved={async()=>{}} deletionEntry={detail.entry} onDeleted={()=>window.location.assign('/dictionary/admin?deleted=1')} saveReview={saveCurrent} neighbours={neighbours} onPublish={publish} canPublish={!!chosen&&!stale&&!approval.blocked} publicationBusy={busy}/>}
     {stale&&<p role="alert">{tr("最新版本已變更，這份草稿不能發布。請保留輸入並重新開啟詞條確認最新內容。")}</p>}
 
     </div>
     {error&&<p role="alert" className="whitespace-pre-wrap">{error}</p>}
+    {approval.blocked&&<button type="button" className={button} disabled={busy} onClick={checkPublication}>{t("approval.check")}</button>}
 
   </section>;
 }
