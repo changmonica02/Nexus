@@ -1247,7 +1247,7 @@ test(
             })
             .waitFor();
           await page
-            .getByRole("button", {
+            .getByRole("link", {
               name: "Open unreviewed entries",
               exact: true,
             })
