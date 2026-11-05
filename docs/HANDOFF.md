@@ -4,7 +4,7 @@
 
 ## 本輪 #157：官方連動、IPA／Page 舊欄位退役、構詞義項介面
 
-基線為最新 main `6fdedc1`，分支 `feat/official-linked-cards-schema-retirement`。PR #155 已合併（`452e233`），本輪不重做其構詞／自動保存／相鄰導覽功能；另建獨立 Draft PR，提交及最新 checks 以該 PR 為準。
+基線為最新 main `6fdedc1`，分支 `feat/official-linked-cards-schema-retirement`。PR #155 已合併（`452e233`），本輪不重做其構詞／自動保存／相鄰導覽功能；獨立 Draft PR [#158](https://github.com/changmonica02/Nexus/pull/158)，首筆提交 `c70895b`；最新 checks 以該 PR 為準。
 
 - 已實作官方卡共享已發布內容解析、既有公共快取與離線備援、明確改為私人自訂。新下載連動；舊卡嚴格驗證未修改才轉換，其餘保留私人文字。來源去重／刪除結果／可變字典連結維持。列表、搜尋、預覽、正常及無盡 Session 共用解析；發布不改學習身份／版本／排程，新作答只保存一次實際顯示文字。
 - 已移除 IPA locale/note 的型別、AI／完整交換輸出、RPC 及快照相依；舊 JSON 僅忽略此二已知欄位，未知仍拒絕。舊 Review 可核准、實際 IPA／版本差異仍保護，不改 #156 審核架構。
@@ -16,7 +16,7 @@
 
 三份獨立交易依序：`20261105091439_official_card_linked_content.sql`、`20261105091518_dictionary_pronunciation_columns_retired.sql`、`20261105091519_page_study_items_retired.sql`。均只在隔離 PGlite PostgreSQL 執行，**未套用正式**。DROP 的舊 IPA 資料與經使用者授權捨棄的未轉換 Page-only 卡不可直接回滾；須有事前備份並向前修復。
 
-正式唯讀預檢確認三個待刪欄仍存在，study_cards／study_card_states 各 10,155 筆；實際執行前重查 Page 非空內容、卡／狀態／事件／設定筆數、RLS／ACL 及 RPC。Word segments 已以 `20261105083358` 登錄；舊 IPA 清空 Migration `20261105033000` 尚未登錄，repo 改為明確 superseded no-op，新刪欄位 Migration 亦能處理已執行舊觸發器的隔離環境。正式 ledger 與 repo 部分版本不同，不可直接 db push 所有 pending Migration。另行授權後指定套用，先資料庫、後前端。
+正式唯讀預檢確認三個待刪欄仍存在，study_cards／study_card_states 各 10,155 筆；唯讀亦確認 Page 舊欄僅 2 筆非 NULL，全部 []；實際執行前仍須重查非空內容、卡／狀態／事件／設定筆數、RLS／ACL 及 RPC。Word segments 已以 `20261105083358` 登錄；舊 IPA 清空 Migration `20261105033000` 尚未登錄，repo 改為明確 superseded no-op，新刪欄位 Migration 亦能處理已執行舊觸發器的隔離環境。正式 ledger 與 repo 部分版本不同，不可直接 db push 所有 pending Migration。另行授權後指定套用，先資料庫、後前端。
 
 ### 驗證與剩餘工作
 
