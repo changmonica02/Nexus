@@ -151,6 +151,24 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 目前排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
 
+#### 整組清除與有效排程投影（PR #151 已實作；正式 Migration 未套用）
+
+`study_deck_clears` 只保存目前 owner／deck 的伺服器 `cleared_at`、最後操作 ID 與該操作預期的前次時間。前次時間只用於同 ID 碰撞／重試比對，不建立清除歷史、世代或版本列表。`clear_study_deck` 先驗證目前帳號、未刪除的 study_set Page 與設定，再依原順序取得 workspace／study-sync 帳號鎖，以單一交易更新屏障、刪除指定組事件／舊決策並清空該組 state。字卡、排序、字典連結、官方來源、設定及其他組保留。相同最後操作重試不再清除；預期時間過期則回傳目前結果，不執行新清除。伺服器時間以毫秒保存，同毫秒連續清除亦嚴格前進。
+
+`StudyEvent` 的原始欄位（包含未知欄位）與 ID 不變；只增加可選 `projection`，保存目前 `cleared_at`、有效 parent／before／after／log 及必要的 method_transition。`originalEvent` 只移除此投影以完整比對原始事實；`effectiveEvent` 僅覆蓋白名單內的排程轉換，不允許投影改寫時間／評分／卡片等識別。每事件只有一份目前投影，state.head 與歷史計數仍使用原事件 ID，不產生重播作答或額外對照表。
+
+`projectStudyEvent` 使用原事件引擎與快照，從不讀取 legacy.item 的空白狀態或已驗證前置有效狀態重算。`reliableEvent` 保留原轉換驗證，並另外重建／驗證投影；Repository 在套用 feed 時再核對權威清除時間、同帳號／同組／同卡與實際前置事件／決策證明。只有 projection 內自稱的 cleared_at 不構成授權。事件 parent 拓撲序保留；兩裝置競爭分支仍標記衝突，既有單卡 reset／受控 relearn 決策可排除舊單卡分支，不採整組 generation。resolution 僅選有效 after／受控 checkpoint，沿用 event／state sequence CAS；feed 同時提供有效前置狀態所需的決策證明，支援裝置跳過多次更新後重連。
+
+每輪 `studySync` 在任何學習上傳前呼叫 `get_study_clear_times`。`applyClearTimes` 在原 v9 Study stores 的單一 IndexedDB 交易保存權威時間、失效該組 Session／舊決策、移除清除前事件及 outbox、按依賴順序重建合法晚事件並更新同一 outbox。圖遍歷與 pending 事件排序採 Map／queue，重複還原 intents 仍按原事件順序送出並逐個 ack；所有學習寫入由原 RPC 路徑處理。原操作 ID 在本機 study_sync_meta 先行保存，網路回覆／本機提交不明時重試原清除操作，延遲回覆不能降低本機已知清除時間。完成本機交易後發出既有 nexus-study-changed，讓 Session、歷史、首頁統計與每日新卡額度重讀；已失效的正式 Session 需重新開始。
+
+`apply_study_operation` 在既有鎖內重新驗證卡片實際所屬組、帳號與清除時間；清除後只接受晚於屏障且帶目前投影的事件。發生時間必須為整數毫秒，不接受超過伺服器目前時間 24 小時的未來事件；這是異常值檢查，不是精確校時。seed 一律轉成無 legacy 進度的空白 state；card 不可跨組移動；舊 resolution 不能恢復原 after。投影先通過原事件結構檢查，再驗證目前有效轉換、canonical predecessor／決策證明與清除時間，同一 ID 原始內容不同仍報 collision，同一清除時間的不同投影也不靜默取代。正式三按鈕間隔與歷史 fixed 轉換在 SQL 另核對排程公式／due；歷史 FSRS 仍由固定版本 TypeScript 引擎驗證完整計算，SQL 保留結構驗證並增加前置狀態／計數檢查，**不宣稱 SQL 已實作完整 FSRS 公式**。官方更新 SQL 直接插入的新 state 亦經 guard trigger 清空過期 seed。
+
+備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括 v1 Page-only legacy）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
+
+Migration `20261105032115_study_deck_clear.sql` 僅在隔離 PGlite PostgreSQL 執行。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；沒有讀寫正式資料庫。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
+
+發布／回復界線：獲授權後先核對正式 schema 與備份／PITR，單一交易套用指定 Migration，再發布前端並更新所有學習裝置。舊前端不理解投影，在清除後會被伺服器拒絕過期學習寫入；保留本機 outbox 並更新至相容版本，不清庫／降版。Migration 未就緒時新版學習同步在屏障核對處失敗並保留待傳資料，普通本機離線學習仍可用。成功清除後不可回退舊 RPC 或刪除屏障來「恢復」舊進度，應保留資料向前修復。正式套用、實際 schema 漂移、Safari／iPad／Android PWA 與真實帳號跨裝置仍待獨立授權／驗收。
+
 官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
 
 ### 公共字典

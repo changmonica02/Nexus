@@ -5,6 +5,9 @@ import {validateStudyStyle} from '../../features/study/studyStyles';
 import {createScore} from "../../features/score/score";
 import { sameStudyRecord } from "../../features/study/studyFSRS";
 import { StudyRepository, STUDY_STORES } from "../../features/study/StudyRepository";
+import {originalEvent,effectiveEvent,reliableEvent} from '../../features/study/studyReliability';
+import {getSupabase} from '../supabase/client';
+import {syncStudy,StudyRecoveryNotice} from '../../features/study/studySync';
 import { openDB, type IDBPDatabase } from "idb";
 import { nanoid } from "nanoid";
 import type {
@@ -49,12 +52,14 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
   getLifeRepository():LifeRepository {if(!this.db)throw Error("DB not initialized");const owner=this.workspaceOwnerId;return new LifeRepository(this.db,()=>{if(this.workspaceOwnerId!==owner)throw Error("帳號已切換");return owner;});}
   private studyRepository: StudyRepository | null = null;
+  private studyRepositoryDB: IDBPDatabase | null = null;
   private studyRepositoryOwner: string | null | undefined;
   getStudyRepository(): StudyRepository {
     if (!this.db) throw new Error("DB not initialized");
-    if (!this.studyRepository || this.studyRepositoryOwner !== this.workspaceOwnerId) {
+    if (!this.studyRepository || this.studyRepositoryDB!==this.db || this.studyRepositoryOwner !== this.workspaceOwnerId) {
       const owner = this.workspaceOwnerId;
       this.studyRepositoryOwner = owner;
+      this.studyRepositoryDB = this.db;
       this.studyRepository = new StudyRepository(this.db, () => owner, this.deviceId);
     }
     return this.studyRepository;
@@ -411,12 +416,12 @@ export class IndexedDBAdapter implements StorageAdapter {
     const snapshotTime = Date.now();
     const owner = this.workspaceOwnerId;
     const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES], "readonly");
-    const [allPages, allAttachments, allSettingsRecords, cards, states, events, settings, sessions] = await Promise.all(
-      ["pages", "attachments", "settings", "study_cards", "study_states", "study_events", "study_settings", "study_sessions"].map(name => tx.objectStore(name).getAll())
+    const [allPages, allAttachments, allSettingsRecords, cards, states, events, settings, sessions,studyMeta] = await Promise.all(
+      ["pages", "attachments", "settings", "study_cards", "study_states", "study_events", "study_settings", "study_sessions","study_sync_meta"].map(name => tx.objectStore(name).getAll())
     );
     await tx.done;
     const owned = <T extends {owner_id?:string|null}>(rows:T[]) => rows.filter(row => (row.owner_id??null)===owner);
-    const study = { cards:owned(cards), states:owned(states), events:owned(events), settings:owned(settings), sessions:owned(sessions) };
+    const study = { cards:owned(cards), states:owned(states), events:owned(events), settings:owned(settings), sessions:owned(sessions), clears:studyMeta.filter(r=>r.owner_id===owner&&r.clear).map(r=>r.clear), recovery_events:studyMeta.filter(r=>r.owner_id===owner&&r.notice==='study.clearInvalidEvent'&&r.event).map(r=>r.event) };
     const attachmentEntries: WorkspaceBackupAttachmentEntry[] = [];
     for (const attachment of allAttachments.filter(row => (row.workspace_owner_id??null)===owner)) {
       const binaryRecord = await this.db.get("binaries", attachment.id);
@@ -463,7 +468,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     if(!Array.isArray(backup.pages)||!Array.isArray(backup.attachments))throw Error("Invalid backup records");
     if(backup.pages.some(row=>(row.workspace_owner_id??null)!==owner)
       ||backup.attachments.some(entry=>(entry.attachment.workspace_owner_id??null)!==owner)
-      ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
+      ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[]),...(backup.study?.recovery_events??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
     if(backup.schema_version>=4&&!backup.life)throw Error('新版備份缺少清單資料');
     if(backup.life)validateLife(backup.life,owner,backup.attachments.map(e=>e.attachment));
     for(const page of backup.pages) validateWorldEntities(page);
@@ -494,7 +499,9 @@ export class IndexedDBAdapter implements StorageAdapter {
       const events = new Map(study.events.map(event => [event.id, event]));
       if (events.size !== study.events.length || cards.size !== study.cards.length) throw new Error("備份有重複 ID。");
       for (const event of study.events) {
-        if (!cards.has(event.card_id) || (event.parent && !events.has(event.parent))) throw new Error("備份缺少卡片或前序作答，還原已停止。");
+        const parent=effectiveEvent(event).parent;
+        if (!cards.has(event.card_id) || (parent && !events.has(parent))) throw new Error("備份缺少卡片或前序作答，還原已停止。");
+        if(event.projection&&!reliableEvent(event))throw Error('study.clearInvalidEvent');
       }
       for (const state of study.states) {
         if (!cards.has(state.id) || (state.head && !events.has(state.head))) throw new Error("備份排程缺少對應的歷史，還原已停止。");
@@ -506,6 +513,14 @@ export class IndexedDBAdapter implements StorageAdapter {
           if(!cards.has(target.card_id) || target.official_event_id && (!event || event.session_id!==session.id || event.card_id!==target.card_id)) throw new Error("練習備份缺少對應正式評分。");
         }
       }
+    }
+    // A file's clear metadata is informational, never authority. Fetch the account's
+    // barrier before restoring any study content, including old Page study_items.
+    if(owner&&((backup.study?.cards.length??0)>0||backup.pages.some(p=>p.kind==='study_set'))) {
+      const client=getSupabase();if(!client||typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('study.clearOnline');
+      const {data:{user},error}=await client.auth.getUser();if(error||user?.id!==owner)throw Error('study.clearOnline');
+      await syncStudy(this.getStudyRepository(),client,owner,()=>this.workspaceOwnerId===owner).catch(error=>{if(!(error instanceof StudyRecoveryNotice))throw error;});
+      if(this.workspaceOwnerId!==owner)throw Error('Account changed during backup validation');
     }
     const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES], "readwrite", { durability: "strict" });
     try {
@@ -546,9 +561,18 @@ export class IndexedDBAdapter implements StorageAdapter {
     }
     // Never erase review history when importing an older or partial backup.
     if (backup.study) {
+      for(const record of [...backup.study.events.filter(e=>e.projection),...backup.study.states.filter(s=>s.cleared_at)]) {
+        if(!await tx.objectStore('study_sync_meta').get(JSON.stringify([owner,'clear',record.deck_id])))throw Error('study.clearInvalidEvent');
+      }
+      for(const event of backup.study.recovery_events??[]) {
+        if(!event.id||!event.deck_id||!event.card_id)throw Error('Invalid study recovery fact');
+        const id=JSON.stringify([owner,'clear-recovery',event.id]),existing=await tx.objectStore('study_sync_meta').get(id);
+        if(existing&&!sameStudyRecord(originalEvent(existing.event),originalEvent(event)))throw Error('Study recovery event ID collision');
+        await tx.objectStore('study_sync_meta').put({id,owner_id:owner,deck_id:event.deck_id,event:originalEvent(event),notice:'study.clearInvalidEvent'});
+      }
       for (const event of backup.study.events) {
         const existing = await tx.objectStore("study_events").get(event.id);
-        if (existing && !sameStudyRecord(existing, event)) throw new Error("備份中的事件 ID 與既有內容衝突，還原已停止。");
+        if (existing && !sameStudyRecord(originalEvent(existing), originalEvent(event))) throw new Error("備份中的事件 ID 與既有內容衝突，還原已停止。");
         if (!existing) await tx.objectStore("study_events").add(event);
       }
       for (const [store, records] of [["study_cards", backup.study.cards], ["study_settings", backup.study.settings]] as const) {
@@ -580,6 +604,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         }
       }
     }
+    await this.getStudyRepository().reconcileBackupIn(tx);
     // A backup is not an explicit restore of a deleted cloud object. Preserve
     // delete barriers and unacknowledged local work even when replacing the cache.
     const queued = (await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]).flatMap(batch => batch.operations);

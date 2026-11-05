@@ -1,3 +1,4 @@
+const {installStudyClear,clearTimes}=require('./fixtures/studyClearDatabase.cjs');
 require("./loadStudy.cjs");
 require("fake-indexeddb/auto");
 const test = require("node:test"),
@@ -25,6 +26,7 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
       "20261016_study_reliability.sql",
     ])
       await pg.exec(fs.readFileSync("supabase/migrations/" + file, "utf8"));
+    await installStudyClear(pg);
     await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [
       owner,
     ]);
@@ -50,6 +52,7 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
     let lost = true;
     const client = {
       rpc: async (name, args) => {
+        if(name==='get_study_clear_times')return clearTimes(pg);
         try {
           if (name === "pull_study_changes")
             return {

@@ -44,7 +44,8 @@ test('presented but unanswered new card is not a review backlog that discards th
 });
 
 test('disconnect during sync stops subsequent RPCs and retains unsent operations',async()=>{
- const owner='11111111-1111-4111-8111-111111111111',f=await fixture(1,owner),descriptor=Object.getOwnPropertyDescriptor(globalThis,'navigator');let online=true,calls=0;
- try{Object.defineProperty(globalThis,'navigator',{configurable:true,value:{get onLine(){return online;}}});const before=await f.repo.pending();await require('../src/features/study/studySync.ts').syncStudy(f.repo,{rpc:async()=>{calls++;online=false;return{data:true,error:null};}},owner);assert.equal(calls,1);assert.equal((await f.repo.pending()).length,before.length-1);}
+ const owner='11111111-1111-4111-8111-111111111111',f=await fixture(1,owner),descriptor=Object.getOwnPropertyDescriptor(globalThis,'navigator');let online=true;const calls=[];
+ try{Object.defineProperty(globalThis,'navigator',{configurable:true,value:{get onLine(){return online;}}});const before=await f.repo.pending();await require('../src/features/study/studySync.ts').syncStudy(f.repo,{rpc:async name=>{calls.push(name);online=false;return{data:[],error:null};}},owner);assert.deepEqual(calls,['get_study_clear_times']);assert.equal((await f.repo.pending()).length,before.length);
+ online=true;calls.length=0;await require('../src/features/study/studySync.ts').syncStudy(f.repo,{rpc:async name=>{calls.push(name);if(name==='get_study_clear_times')return{data:[],error:null};online=false;return{data:true,error:null};}},owner);assert.deepEqual(calls,['get_study_clear_times','apply_study_operation']);assert.equal((await f.repo.pending()).length,before.length-1);}
  finally{if(descriptor)Object.defineProperty(globalThis,'navigator',descriptor);else delete globalThis.navigator;await f.close();}
 });
