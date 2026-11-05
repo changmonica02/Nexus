@@ -121,6 +121,7 @@ export function draftFromExchange(
       "id",
       "kind",
       "headword",
+      "word_segments",
       "status",
       "published_at",
       "revision",

@@ -36,6 +36,8 @@ window.dictionaryClient = {
         filters.push([k, v]);
         return q;
       },
+      or(){return q;},
+      async limit(){return {data:[]};},
       order() {
         return q;
       },

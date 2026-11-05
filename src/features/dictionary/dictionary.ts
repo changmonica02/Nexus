@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DictionaryKind = "word" | "prefix" | "root";
 export interface DictionaryEntry {
+  word_segments?:import('./wordSegments').WordSegment[]|null;
   id: string;
   kind: DictionaryKind;
   headword: string;

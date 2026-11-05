@@ -1,3 +1,4 @@
+import {validateWordSegments as requireSegmentValidation} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
 import {parseCSV} from './csvRows';
 import {draftsFromBundle,saveDictionaryDraft,mapDictionaryDraft} from './draftPipeline';
@@ -77,7 +78,7 @@ export function parseJSONBundle(raw:string):Bundle {
   const schemas:Record<string,{required:string[];optional:string[]}>= {
     dictionary_inflections:{required:['id','entry_id','form_kind','form'],optional:['sense_id','sort_order','revision']},
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
-    dictionary_entries:{required:['id','kind','headword'],optional:['revision']},
+    dictionary_entries:{required:['id','kind','headword'],optional:['revision','word_segments']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision']},
     dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','relation_kind','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
@@ -96,6 +97,7 @@ export function parseJSONBundle(raw:string):Bundle {
       if(['source_id','citation','license'].some(key=>Object.hasOwn(row,key)))fail('source_id / citation / license 已淘汰，請移除舊來源欄位');
       for(const [key,v]of Object.entries(row)) {
         if(!schema.required.includes(key)&&!schema.optional.includes(key))fail(`不允許欄位 ${key}（僅匯入草稿內容）`);
+        if(key==='word_segments'){const issue=requireSegmentValidation(v,String(row.headword),String(row.kind));if(issue)fail(issue);continue;}
         if(key==='sort_order'){if(!Number.isSafeInteger(v)||Number(v)<0)fail('sort_order 必須為非負整數');continue;}
         if(key==='revision'){if(!Number.isSafeInteger(v)||Number(v)<1)fail('revision 必須為正整數');continue;}
         if(v===null&&['sense_id','part_of_speech','locale','note'].includes(key)&&!schema.required.includes(key))continue;

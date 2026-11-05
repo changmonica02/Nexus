@@ -41,6 +41,8 @@ jobs:
           node tests/noteEditor.browser.test.cjs
           node tests/attachmentSync.browser.test.cjs
           node tests/unifiedWorkspace.browser.test.cjs
+      - name: Dictionary migration compatibility
+        run: node tests/dictionaryWordSegments.test.cjs
       - run: node --test tests/workspaceSync.test.cjs
       - name: Existing map metadata, IDB and localization contracts
         run: |

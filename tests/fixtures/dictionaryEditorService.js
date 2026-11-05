@@ -26,6 +26,7 @@ window.dictionaryClient={
  if(name==='quick_create_dictionary_component'){window.quickCalls=(window.quickCalls||0)+1;if(window.failQuick)return {error:{message:'quick creation network failure'}};let target=targets.find(t=>t.entry.kind===args.component_kind&&t.entry.headword.replace(/^-+|-+$/g,'').toLowerCase()===args.component_name.replace(/^-+|-+$/g,'').toLowerCase());if(!target){target=detail(300,args.component_name,args.component_kind,null,'');targets.push(target);}return {data:{...target.entry,senses:target.senses}};}
  if(name==='search_dictionary_relation_targets'){window.searchCalls++;if(window.failSearch)return {error:{message:'fixture search failure'}};const matches=targets.filter(t=>t.entry.headword.includes(args.query_text)||t.senses.some(s=>s.gloss_zh_tw.includes(args.query_text))).map(t=>({...t.entry,senses:t.senses}));return {data:{items:matches,has_more:args.query_text==='page'}};}
  if(name==='create_dictionary_edit_review'||name==='save_dictionary_review'){
+  if(window.saveDelay)await new Promise(r=>setTimeout(r,window.saveDelay));
   if(window.failSave)return {error:{message:'Review revision conflict (fixture)'}};
   let review=f.reviews.find(r=>r.id===args.review_uuid);
   if(name==='create_dictionary_edit_review'){if(f.reviews.some(r=>r.state==='active'))return {error:{message:'Active Review Draft already exists'}};review={id:id(100),entry_id:id(10),base_revision:f.snapshot.detail.entry.revision,base_snapshot:structuredClone(f.snapshot),revision:1,state:'active',source:'manual'};f.reviews.push(review);}

@@ -39,8 +39,10 @@ export function useLanguage(): LanguageContextValue {
 export type { Language };
 export { DEFAULT_LANGUAGE };
 
+const paginationFallback=(key:string,params?:Record<string,string|number>)=>translate('zh-TW',key,params);
+
 /** Standalone dictionary routes retain their existing Chinese default without an app provider. */
 export function usePaginationLanguage() {
  const ctx=useContext(LanguageContext);
- return {t:ctx?.t??((key:string,params?:Record<string,string|number>)=>translate('zh-TW',key,params))};
+ return {t:ctx?.t??paginationFallback};
 }
