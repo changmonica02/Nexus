@@ -1,19 +1,10 @@
-const { test, before } = require('node:test');
+const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const { stripTypeScriptTypes } = require('node:module');
 const { gzipSync } = require('node:zlib');
 
-// Native TS transform on recent Node; use the project's existing TypeScript on older Node.
-let WorldMapRepository, inspectMapProject;
-before(async () => {
-  const source = fs.readFileSync('src/features/worldMap/worldMapRepository.ts', 'utf8');
-  const js = stripTypeScriptTypes ? stripTypeScriptTypes(source, { mode: 'transform' }) : (() => {
-    const ts = require('typescript');
-    return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 } }).outputText;
-  })();
-  ({ WorldMapRepository, inspectMapProject } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64')));
-});
+// Resolve the repository's shared block helpers through the existing TS test loader.
+require('./loadStudy.cjs');
+const {WorldMapRepository,inspectMapProject}=require('../src/features/worldMap/worldMapRepository.ts');
 
 function project(label = 'alpha') {
   return new Blob([[
@@ -341,11 +332,7 @@ test('unplaced town, multi-map references, rename, move and marker removal never
  await assert.rejects(repo.placeEntity('world-a','town_one',{placementId:'p_one',mapId:one.id,x:22,y:44}),{code:'conflict'});
 });
 
-async function importRepo(){
- const source=fs.readFileSync('src/features/worldMap/worldMapRepository.ts','utf8');
- const js=stripTypeScriptTypes?stripTypeScriptTypes(source,{mode:'transform'}):require('typescript').transpileModule(source,{compilerOptions:{module:99,target:9}}).outputText;
- return import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
-}
+async function importRepo(){return require('../src/features/worldMap/worldMapRepository.ts');}
 
 test('failed atomic writes and explicit retries leave no half-created entries or orphan references',async()=>{
  const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');

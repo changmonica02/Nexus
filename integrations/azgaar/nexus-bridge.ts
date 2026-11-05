@@ -98,6 +98,7 @@ for(const type of ['pointerup','wheel','touchend'])document.addEventListener(typ
 
 
 const session = window.nexusSession ?? new URL(location.href).searchParams.get('nexus');
+const documentId=crypto.randomUUID();
 let port: MessagePort | undefined, busy = false, ready = false, sequence = 0;
 const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 const notify = (type: string) => port?.postMessage({ type });
@@ -251,7 +252,7 @@ window.addEventListener('message', event => {
 
 window.addEventListener('map:generated', () => {
   ready = true;drawMarkers();
-  if (!port) setTimeout(() => parent.postMessage({ type: 'nexus-map-ready', session }, '*'), 0);
+  if (!port) setTimeout(() => parent.postMessage({ type: 'nexus-map-ready', session, documentId }, '*'), 0);
   else if (!busy&&!preview) notify('dirty');
 });
 for (const type of ['input', 'change', 'pointerup', 'keyup']) document.addEventListener(type, event => {

@@ -252,6 +252,16 @@ export function validateCharacterBlocks(data: CharacterProfileData) {
     for (const block of blocks) {
       check(block.id);
       if (block.type !== "group") throw Error("無效區塊");
+      if(block.worldMapView){
+        const view=block.worldMapView;
+        if(!['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].includes(view.layer)
+          ||!Array.isArray(view.overlays)||view.overlays.some(id=>!['lakes','rivers','borders','labels','burgIcons','routes','scaleBar'].includes(id))
+          ||(view.mapId!==undefined&&typeof view.mapId!=='string')
+          ||(view.detailsOpen!==undefined&&typeof view.detailsOpen!=='boolean')
+          ||(view.contourInterval!==undefined&&![2,5,10,20].includes(view.contourInterval))
+          ||(view.contourLabels!==undefined&&typeof view.contourLabels!=='boolean')
+          ||(view.views!==undefined&&(!view.views||typeof view.views!=='object'||Array.isArray(view.views)||Object.values(view.views).some(v=>!v||![v.x,v.y,v.scale].every(Number.isFinite)||v.scale<=0))))throw Error('地圖區塊顯示設定不合法');
+      }
       for (const component of block.contents ?? []) {
         check(component.id);
         if (

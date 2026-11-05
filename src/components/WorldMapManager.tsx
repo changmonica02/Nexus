@@ -1,9 +1,11 @@
 "use client";
 import {useEffect,useMemo,useState,useRef,useCallback,type ReactNode} from 'react';
-import type {Page,WorldMapRecord,WorldEntity,WorldEntityType,WorldRegionGeometry} from '../lib/types';
+import type {Page,WorldMapRecord,WorldEntity,WorldEntityType,WorldRegionGeometry,WorldMapBlockView} from '../lib/types';
 import type {StorageAdapter} from '../infrastructure/storage/StorageAdapter';
 import {WorldMapRepository,projectWorldPlacements,projectWorldRegions,worldRegionWarnings} from '../features/worldMap/worldMapRepository';
 import {downloadMapBlob,type MapView,type RegionDraft,type RegionStat,type RegionCommand,type RegionArea} from '../features/worldMap/coreClient';
+import {placedWorldEntities,preferredWorldMap} from '../lib/worldMapBlocks';
+import TiptapEditor from './TiptapEditor';
 import {mapMessage} from '../features/worldMap/mapMessages';
 import {prepareOfflineMapCore} from '../features/worldMap/offlineCore';
 import {useLanguage} from '../lib/LanguageContext';
@@ -13,20 +15,21 @@ import {ArrowLeft,MoreHorizontal,Plus,Upload,X} from 'lucide-react';
 import ModalDialog from './ModalDialog';
 import WorldEntityPanel,{WorldEntityForm} from './WorldEntityPanel';
 import WorldMapCreator from './WorldMapCreator';
-import WorldMapEditor,{type RegisterMapFlush,type NativeToolControls} from './WorldMapEditor';
+import WorldMapEditor,{WorldMapSyncStatus,type RegisterMapFlush,type NativeToolControls} from './WorldMapEditor';
 
 export function WorldMapUnavailable({onBack}:{onBack?:()=>void}) {
   const {t}=useLanguage();
   return <section className="min-w-0 p-4"><SidebarToggle/><button onClick={onBack}>{t('worldMap.back')}</button><p>{t('worldMap.unavailable')}</p></section>;
 }
 type Opened={map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob}};
-export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack,worldContent}: {
+export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack,worldContent,blockView,onBlockViewChange}: {
+ blockView?:WorldMapBlockView;onBlockViewChange?:(view:WorldMapBlockView)=>void;
  world:Page;storage:StorageAdapter;beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null;pendingPushes?:number};readOnly?:boolean;onBack?:()=>void;worldContent?:ReactNode;
 }) {
  const {language,t}=useLanguage(),{askText,askConfirm,dialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('worldMap.confirm')});
  const repository=useMemo(()=>new WorldMapRepository(storage),[storage]);
  const maps=world.character_data?.world_maps??[],active=maps.filter(m=>m.deleted_at==null);
- const [selected,setSelected]=useState<string|null>(null),[editing,setEditing]=useState(false),[layer,setLayer]=useState('physical');
+ const [selected,setSelected]=useState<string|null>(blockView?.mapId??null),[editing,setEditing]=useState(false),[layer,setLayer]=useState(blockView?.layer??'physical');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
  const [entityPanel,setEntityPanel]=useState(false),[entityForm,setEntityForm]=useState<{entity:WorldEntity;fresh:boolean;region?:boolean;point?:{mapId:string;x:number;y:number;placementId:string}}|null>(null);
  const [toolsOpen,setToolsOpen]=useState(false);
@@ -35,13 +38,13 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const [toolGroup,setToolGroup]=useState<'terrain'|'human'|'layers'>('terrain');
  const [intent,setIntent]=useState<{id:string;kind:'new'|'existing'|'move';entityType?:'settlement'|'site';entityId?:string;placementId?:string;mapId:string}|null>(null),[markerId,setMarkerId]=useState<string|null>(null);
  const entities=world.character_data?.world_entities;
- const projections=useMemo(()=>projectWorldPlacements(world,selected??maps.find(m=>m.deleted_at===null)?.id??''),[entities,maps,selected,world]);
+ const projections=useMemo(()=>projectWorldPlacements(world,preferredWorldMap(world,selected)?.id??''),[world,selected]);
  const newEntity=(type:WorldEntityType='settlement'):WorldEntity=>({schemaVersion:1,entityId:`entity_${crypto.randomUUID()}`,worldId:world.id,type,name:'',aliases:[],relations:[],createdAt:Date.now(),updatedAt:Date.now(),revision:1});
  const regionCommand=useRef<((command:RegionCommand)=>Promise<void>)|null>(null);
  const registerRegionCommand=useCallback((run:(command:RegionCommand)=>Promise<void>)=>{regionCommand.current=run;return()=>{regionCommand.current=null;};},[]);
  const [regionEdit,setRegionEdit]=useState<{id:string;mapId:string;entity:WorldEntity;fresh:boolean;placementId:string;revision:number;geometry?:WorldRegionGeometry}|null>(null);
  const [regionDraft,setRegionDraft]=useState<RegionDraft|null>(null),[regionStats,setRegionStats]=useState<RegionStat[]>([]),[regionPoints,setRegionPoints]=useState<{placementId:string;cell:number}[]>([]);
- const regionProjections=useMemo(()=>projectWorldRegions(world,selected??maps.find(m=>m.deleted_at===null)?.id??''),[world,entities,maps,selected]);
+ const regionProjections=useMemo(()=>projectWorldRegions(world,preferredWorldMap(world,selected)?.id??''),[world,selected]);
  const [highlight,setHighlight]=useState<string|null>(null),[query,setQuery]=useState<string[]|null>(null);
  const regionView=useMemo(()=>({layer,selected:highlight}),[layer,highlight]);
  const distributionRegions=regionProjections.filter(r=>r.entityType===(layer==='cultural'?'culture':layer==='religions'?'religion':''));
@@ -52,28 +55,35 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const [managing,setManaging]=useState(false);
  const [newSpace,setNewSpace]=useState<'underground'|'sky'>('underground');
  const [creation,setCreation]=useState<{name:string;scope?:string}|null>(null);
- const [overlays,setOverlays]=useState(['lakes','rivers','scaleBar']),[contourInterval,setContourInterval]=useState(5),[contourLabels,setContourLabels]=useState(false);
- const [views,setViews]=useState(()=>new Map<string,MapView>());
- const current=active.find(m=>m.id===selected)??active[0],selectedId=current?.id;
+ const [overlays,setOverlays]=useState(blockView?.overlays??['lakes','rivers','scaleBar']),[contourInterval,setContourInterval]=useState(blockView?.contourInterval??5),[contourLabels,setContourLabels]=useState(blockView?.contourLabels??false);
+ const [views,setViews]=useState(()=>new Map<string,MapView>(Object.entries(blockView?.views??{})));
+ const current=preferredWorldMap(world,selected),selectedId=current?.id;
+ const isBlock=!!blockView,projectAttachment=current?.attachment_id,openedMapId=opened?.map.id;
+ const loadedSource=useRef<string|null>(null);
+ const [detailsOpen,setDetailsOpen]=useState(blockView?.detailsOpen??false);
+ useEffect(()=>{if(isBlock)onBlockViewChange?.({mapId:selectedId,layer,overlays,views:Object.fromEntries(views),detailsOpen,contourInterval,contourLabels});},[selectedId,layer,overlays,views,detailsOpen,contourInterval,contourLabels,onBlockViewChange,isBlock]);
  useEffect(()=>{browser.current?.scrollTo(0,0);},[selectedId]);
  const scope=current?.scope??'world';
  const mainSurface=active.find(m=>m.scope==='surface')??active.find(m=>!['underground','sky'].includes(m.scope??''));
  useEffect(()=>{
    let live=true;
    if(!selectedId)return;
+   const source=JSON.stringify([world.id,selectedId,projectAttachment,epoch]);
+   if(loadedSource.current===source||editing&&openedMapId===selectedId)return;
    void (async()=>{
      const saved=await repository.read(world.id,selectedId),draft=await repository.readDraft(world.id,selectedId);
      if(!live)return;
+     loadedSource.current=source;
      setOpened(draft&&draft.base_revision===saved.map.revision?{map:saved.map,blob:draft.blob,draftToken:draft.token}:{...saved,draftConflict:draft?{token:draft.token,blob:draft.blob}:undefined});
      void prepareOfflineMapCore().catch(()=>{/* Public cache is optional online; never replace a project. */});
    })().catch(e=>{if(live)setError(String(e));});
    return ()=>{live=false;};
- },[repository,world.id,selectedId,epoch]);
+ },[repository,world.id,selectedId,epoch,projectAttachment,editing,openedMapId]);
  const run=async(operation:()=>Promise<void>)=>{
    if(busy||readOnly)return;setBusy(true);setError('');
    try{await beforeSave();await operation();}catch(e){setError(String(e));}finally{setBusy(false);}
  };
- const choose=(id:string)=>{if(regionEdit&&!window.confirm(t('worldRegion.discard')))return false;if(regionEdit)void regionCommand.current?.({action:'cancel'}).catch(e=>setError(String(e)));setRegionEdit(null);setRegionDraft(null);setIntent(null);setMarkerId(null);setEditing(false);setError('');if(id!==selectedId)setViews(old=>{const next=new Map(old);next.delete(id);return next;});setSelected(id);setManaging(false);return true;};
+ const choose=(id:string)=>{if(regionEdit&&!window.confirm(t('worldRegion.discard')))return false;if(regionEdit)void regionCommand.current?.({action:'cancel'}).catch(e=>setError(String(e)));setRegionEdit(null);setRegionDraft(null);setIntent(null);setMarkerId(null);setEditing(false);setError('');setSelected(id);setManaging(false);return true;};
  const create=async(blob?:Blob,defaultName?:string)=>{
    if(!blob){setCreation({name:defaultName??t('worldMap.new'),scope:active.length?newSpace:'surface'});setManaging(false);return;}
    const name=(await askText(t('worldMap.name'),defaultName??t('worldMap.new')))?.trim();if(!name)return;
@@ -112,19 +122,19 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   <p className="w-full text-xs opacity-70">{t('worldDistribution.overlapHint')}</p>
   <button onClick={()=>setHighlight(null)}>{t('worldDistribution.showAll')}</button>
   {distributionRegions.map(r=>{const p=current?.placements?.find(p=>p.placementId===r.placementId);return <div key={r.placementId} className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border p-1">
-   <label className="flex items-center gap-1"><span aria-hidden="true" className="h-3 w-3 rounded-full" style={{background:r.distribution?.color??['#527fc4','#d08040','#49996b','#ac60b5','#c25065','#4c9fa8'][Array.from(r.entityId).reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,0)%6]}}/><input type="checkbox" aria-label={t('worldDistribution.visible')+' '+r.name} checked={r.visible} disabled={busy||readOnly||!!regionEdit} onChange={e=>{const visible=e.target.checked;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible,distribution:p.distribution}));});}}/>{r.name}</label>
+   <label className="flex items-center gap-1"><span aria-hidden="true" className="h-3 w-3 rounded-full" style={{background:r.distribution?.color??['#527fc4','#d08040','#49996b','#ac60b5','#c25065','#4c9fa8'][Array.from(r.entityId).reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,0)%6]}}/><input type="checkbox" aria-label={t('worldDistribution.visible')+' '+r.name} checked={r.visible} disabled={busy||readOnly||!!regionEdit||!editing} onChange={e=>{const visible=e.target.checked;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible,distribution:p.distribution}));});}}/>{r.name}</label>
    <button aria-pressed={highlight===r.placementId} onClick={()=>setHighlight(highlight===r.placementId?null:r.placementId)}>{t('worldDistribution.highlight')}</button>
-   <input type="color" aria-label={t('worldDistribution.color')+' '+r.name} value={r.distribution?.color??['#527fc4','#d08040','#49996b','#ac60b5','#c25065','#4c9fa8'][Array.from(r.entityId).reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,0)%6]} disabled={busy||readOnly||!!regionEdit} onChange={e=>{const color=e.target.value;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible:p.visible,distribution:{...p.distribution,color}}));});}}/>
-   <label>{t('worldDistribution.opacity')}<select aria-label={t('worldDistribution.opacity')+' '+r.name} value={r.distribution?.opacity??0.4} disabled={busy||readOnly||!!regionEdit} onChange={e=>{const opacity=+e.target.value;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible:p.visible,distribution:{...p.distribution,opacity}}));});}}>{[0.2,0.4,0.6,0.8,1].map(v=><option key={v} value={v}>{v*100}%</option>)}</select></label>
+   <input type="color" aria-label={t('worldDistribution.color')+' '+r.name} value={r.distribution?.color??['#527fc4','#d08040','#49996b','#ac60b5','#c25065','#4c9fa8'][Array.from(r.entityId).reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,0)%6]} disabled={busy||readOnly||!!regionEdit||!editing} onChange={e=>{const color=e.target.value;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible:p.visible,distribution:{...p.distribution,color}}));});}}/>
+   <label>{t('worldDistribution.opacity')}<select aria-label={t('worldDistribution.opacity')+' '+r.name} value={r.distribution?.opacity??0.4} disabled={busy||readOnly||!!regionEdit||!editing} onChange={e=>{const opacity=+e.target.value;void run(async()=>{if(p)await onSaved(await repository.setDistribution(world.id,current!.id,p.placementId,p.revision,{visible:p.visible,distribution:{...p.distribution,opacity}}));});}}>{[0.2,0.4,0.6,0.8,1].map(v=><option key={v} value={v}>{v*100}%</option>)}</select></label>
    <button onClick={()=>setMarkerId(r.placementId)}>{t('worldEntity.open')}</button>
   </div>;})}
  </section>:null;
  const humanTools=(native:NativeToolControls)=><details data-world-tools open={toolsOpen||!!regionEdit||!!intent} className="min-w-0 border-b">
   <summary aria-label={t('worldMap.tools')} onClick={event=>{event.preventDefault();setToolsOpen(open=>!open);}} className="min-h-11 cursor-pointer break-words px-3 py-2 font-medium">☰ <span className={toolsOpen||regionEdit||intent?'':'sm:hidden'}>{t('worldMap.tools')}</span></summary>
   <nav aria-label={t('worldMap.toolGroups')} className="grid grid-cols-3 gap-1 p-2 sm:grid-cols-1 [&_button]:min-h-11 [&_button]:rounded [&_button]:border">
-   {(['terrain','human','layers'] as const).map(group=><button key={group} aria-pressed={toolGroup===group} disabled={(!!regionEdit||!!intent)&&toolGroup!==group} onClick={()=>setToolGroup(group)}>{t('worldMap.group.'+group)}</button>)}
+   {(['terrain','human','layers'] as const).map(group=><button key={group} aria-pressed={toolGroup===group} disabled={!native.available||native.pending||((!!regionEdit||!!intent)&&toolGroup!==group)} onClick={()=>setToolGroup(group)}>{t('worldMap.group.'+group)}</button>)}
   </nav>
-  <div className="flex min-w-0 flex-col gap-3 p-3 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
+  <fieldset disabled={!native.available||native.pending||busy} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-3 text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3">
    {error&&<p role="alert" className="break-words text-red-600">{mapMessage(language,error)}</p>}
    {!regionEdit&&!intent&&toolGroup==='terrain'&&<>
     <p>{t('worldMap.terrainHint')}</p>
@@ -155,9 +165,15 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    </div>}
    {warnings.map((warning,index)=><p key={index} role="alert" className="w-full break-words text-amber-700 dark:text-amber-400">{warning.name}: {t('worldRegion.'+warning.key)}</p>)}
    {intent&&<><span role="status">{t('worldEntity.pick')}</span><button disabled={busy} onClick={()=>setIntent(null)}>{t('ui.cancel')}</button></>}
- </div></details>;
+ </fieldset></details>;
  const scopeName=(value?:string)=>['surface','underground','sky'].includes(value??'')?t('worldHome.space.'+value):t('worldHome.legacySpace');
  const locateEntity=(entity:WorldEntity)=>{const map=active.find(m=>m.placements?.some(p=>p.entityId===entity.entityId&&p.deletedAt===null))??current;if(!map||!choose(map.id))return;setDetailEntity(null);setEditing(true);setToolsOpen(true);setToolGroup('human');const p=map.placements?.find(p=>p.entityId===entity.entityId&&p.deletedAt===null);setHighlight(p?.placementId??null);if(!p)setEntityPanel(true);if(p){setMarkerId(p.placementId);setHighlight(p.placementId);if(p.geometry.type==='point'){const {x,y}=p.geometry;setViews(old=>new Map(old).set(map.id,{x,y,scale:3}));}}};
+ const blockEntities=placedWorldEntities(world,selectedId??'');
+ const blockDetails=<details data-map-block-details open={detailsOpen} onToggle={e=>setDetailsOpen(e.currentTarget.open)} className="min-w-0 px-3 py-2">
+   <summary className="min-h-11 cursor-pointer py-2">{t('worldHome.details')}</summary>
+   {!blockEntities.length&&<p className="py-2 opacity-70">{t('worldEntity.empty')} <button onClick={()=>setEntityPanel(true)}>{t('worldEntity.title')}</button></p>}
+   {(['country','administrative_area','settlement','culture','religion','site','geographic_region'] as const).filter(type=>blockEntities.some(e=>e.type===type)).map(type=><section key={type} className="min-w-0 space-y-3 border-t py-3"><h3 className="font-semibold">{t('worldRegion.type.'+type)}</h3>{blockEntities.filter(e=>e.type===type).map(entity=><article key={entity.entityId} className="min-w-0 break-words"><button className="font-medium" onClick={()=>setDetailEntity(entity)}>{entity.name}</button>{entity.summary&&<p>{entity.summary}</p>}{current?.placements?.filter(p=>p.entityId===entity.entityId&&p.deletedAt===null).map(p=><p key={p.placementId} className="text-xs opacity-70">{p.geometry.type==='point'?`X: ${p.geometry.x}, Y: ${p.geometry.y}`:areaText(regionStats.find(stat=>stat.placementId===p.placementId)?.area)}</p>)}{detailsOpen&&entity.content&&<div className="min-w-0 overflow-x-auto [&_.nexus-tiptap-editor]:min-h-0 [&_.nexus-tiptap-editor]:p-0"><TiptapEditor content={entity.content} onChange={()=>{}} readOnly showToolbar={false}/></div>}{entity.fields?.map(f=><p key={f.id}>{f.name}：{f.type==='relation'?(entities??[]).find(e=>e.entityId===f.value)?.name??'—':String(f.value??'—')}</p>)}</article>)}</section>)}
+ </details>;
  const rows=(deleted:boolean)=>maps.filter(m=>(m.deleted_at!=null)===deleted).map(map=><li key={map.id} className="flex min-w-0 items-start gap-2 rounded-xl border p-3">
    <div className="min-w-0 flex-1"><button type="button" disabled={busy||deleted} onClick={()=>choose(map.id)} className="block w-full truncate text-left font-medium">{map.title}</button><p className="px-3 text-xs opacity-60">{scopeName(map.scope)}{map.parent_map_id&&<span> · {active.find(m=>m.id===map.parent_map_id)?.title??t('worldMap.parent')}</span>}</p></div>
    {deleted?<button disabled={busy} onClick={()=>void run(async()=>{await onSaved(await repository.restore(world.id,map.id,map.revision));})}>{t('worldMap.restore')}</button>:!readOnly&&<details className="relative shrink-0"><summary aria-label={t('worldMap.actions')} className="grid min-h-11 min-w-11 cursor-pointer list-none place-items-center rounded-lg border"><MoreHorizontal size={20}/></summary><div className="absolute right-0 z-10 grid w-48 gap-1 rounded-xl border bg-[var(--color-bg)] p-2 shadow-xl">
@@ -167,37 +183,46 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     <button className="text-red-600 dark:text-red-400" disabled={busy||map.id===mainSurface?.id} onClick={()=>void(async()=>{if(await askConfirm(t('worldMap.deleteConfirm')))await run(async()=>{await onSaved(await repository.remove(world.id,map.id,map.revision));});})()}>{t('worldMap.delete')}</button>
    </div></details>}
  </li>);
- return <section ref={browser} data-map-scroll aria-label={t('worldMap.home')} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3 [&_button:disabled]:opacity-40">
-  <header inert={editing} className="flex shrink-0 items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4">
+ return <section ref={browser} data-map-scroll aria-label={t('worldMap.home')} className={`${blockView?"":"h-full min-h-0 flex-1 overflow-y-auto"} flex min-w-0 flex-col overflow-x-hidden overscroll-y-contain text-sm [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3 [&_button:disabled]:opacity-40`}>
+  {!blockView&&<header inert={editing} className="flex shrink-0 items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4">
    <SidebarToggle/>{onBack&&<button type="button" onClick={onBack} aria-label={t('worldMap.back')} className="shrink-0"><ArrowLeft size={20}/></button>}
    <h1 className="min-w-0 flex-1 truncate text-base font-semibold sm:text-xl" title={world.title}>{world.title}</h1>
    <button type="button" disabled={!current} onClick={()=>{if(!readOnly){setEditing(true);setToolsOpen(true);setToolGroup('human');}setEntityPanel(true);}}>{t('worldEntity.title')}</button>
    <button type="button" aria-label={t('worldMap.management')} disabled={editing} onClick={()=>setManaging(true)} className="shrink-0 border"><MoreHorizontal size={20}/></button>
-  </header>
+  </header>}
+  {worldContent&&<div hidden={editing} inert={editing} className="min-w-0 shrink-0" data-world-writing>{worldContent}</div>}
   {error&&<p role="alert" className="break-words px-4 py-2 text-red-600">{mapMessage(language,error)}</p>}
-  {current?<>
-   <div inert={editing} className="shrink-0 space-y-2 px-3 pb-3 sm:px-5">
-    <label className="block min-w-0"><span className="sr-only">{t('worldMap.select')}</span><select aria-label={t('worldMap.select')} className="min-h-11 w-full min-w-0 truncate rounded-xl border bg-[var(--color-bg)] px-3 font-medium sm:max-w-md" value={current.id} disabled={busy||editing} onChange={e=>choose(e.target.value)}>{active.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select></label>
+  {(!worldContent||editing)&&(current?<>
+   <div inert={editing} className="flex shrink-0 flex-wrap items-start gap-3 px-3 pb-3 sm:px-5">
+    <label className="block min-w-0 flex-1 basis-40"><span className="sr-only">{t('worldMap.select')}</span><select aria-label={t('worldMap.select')} className="min-h-11 w-full min-w-0 truncate rounded-xl border bg-[var(--color-bg)] px-3 font-medium sm:max-w-md" value={current.id} disabled={busy||editing} onChange={e=>choose(e.target.value)}>{active.map(m=><option key={m.id} value={m.id}>{m.id===mainSurface?.id?t('worldHome.space.surface'):scopeName(m.scope)} · {m.title}</option>)}</select></label>
     <div className="flex min-w-0 flex-wrap gap-2 pb-1 [&_label]:flex [&_label]:shrink-0 [&_label]:items-center [&_label]:gap-2 [&_label]:rounded-lg [&_label]:border [&_label]:pl-3 [&_label]:text-xs [&_select]:min-h-11 [&_select]:max-w-40 [&_select]:rounded-lg [&_select]:bg-[var(--color-bg)] [&_select]:px-2">
      <span>{current.id===mainSurface?.id?t('worldHome.space.surface'):scopeName(scope)}</span>
      <label>{t('worldMap.layer')}<select aria-label={t('worldMap.layer')} value={layer} onChange={e=>setLayer(e.target.value)}>{['physical','contours','temperature','precipitation','biomes','political','cultural','religions'].map(s=><option key={s} value={s}>{t('worldMap.'+s)}</option>)}</select></label>
     </div>
-    <details className="text-xs"><summary className="cursor-pointer py-1">{t('worldMap.overlays')}</summary><div className="flex flex-wrap gap-3 pt-2">{['lakes','rivers','borders','labels','burgIcons','routes','scaleBar'].map(id=><label key={id} className="flex items-center gap-1"><input type="checkbox" checked={overlays.includes(id)} onChange={e=>setOverlays(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{t('worldMap.overlay.'+id)}</label>)}</div></details>
+    <div className="min-w-0 flex-1 basis-64 text-xs"><span>{t('worldMap.overlays')}</span><div className="flex flex-wrap gap-3 pt-2">{['lakes','rivers','borders','labels','burgIcons','routes','scaleBar'].map(id=><label key={id} className="flex items-center gap-1"><input type="checkbox" checked={overlays.includes(id)} onChange={e=>setOverlays(old=>e.target.checked?[...old,id]:old.filter(item=>item!==id))}/>{t('worldMap.overlay.'+id)}</label>)}</div></div>
     {!editing&&legend&&<details data-map-preview-legend className="text-xs"><summary className="min-h-11 cursor-pointer py-2">{t('worldDistribution.legend')}</summary><div className="max-h-64 overflow-y-auto">{legend}</div></details>}
     {layer==='contours'&&<div className="flex flex-wrap items-center gap-3 text-xs"><span>{t('worldMap.relativeHeight')}</span><label>{t('worldMap.contourInterval')}<select value={contourInterval} onChange={e=>setContourInterval(+e.target.value)}>{[2,5,10,20].map(n=><option key={n}>{n}</option>)}</select></label><label><input type="checkbox" checked={contourLabels} onChange={e=>setContourLabels(e.target.checked)}/>{t('worldMap.contourLabels')}</label></div>}
    </div>
-   {opened?<div className="min-w-0 shrink-0" style={{display:opened.map.id===current.id&&(opened.blob||current.attachment_id||editing)?undefined:'none'}}><WorldMapEditor key={world.id} reloadKey={epoch} {...opened} map={{...opened.map,title:opened.map.id===current.id?current.title:opened.map.title}} editing={opened.map.id===current.id&&editing&&!readOnly} onEdit={readOnly?undefined:()=>setEditing(true)} layer={layer} overlays={overlays} contourInterval={contourInterval} contourLabels={contourLabels} view={views.get(current.id)} onView={view=>setViews(old=>new Map(old).set(opened.map.id,view))} markers={projections} pickPoint={intent?.mapId===current.id?intent.id:null} onMapPoint={picked} onMarker={setMarkerId} regions={regionProjections} regionView={regionView} onRegionQuery={setQuery} regionScope={scope} regionStart={regionStart} regionDirty={!!regionEdit} onBeforeClose={()=>{if(!regionEdit)return true;if(!window.confirm(t('worldRegion.discard')))return false;cancelRegion();return true;}} registerRegionCommand={registerRegionCommand} onRegionDraft={draft=>{if(draft.requestId===regionEdit?.id)setRegionDraft(draft);}} onRegionStats={setRegionStats} onRegionPoints={setRegionPoints} humanTools={humanTools}  repository={repository} beforeSave={beforeSave} onSaved={onSaved} registerFlush={registerFlush} cloudState={cloudState} onClose={()=>{setIntent(null);setEditing(false);}}/></div>:null}
+   {opened?<div className="min-w-0 shrink-0" style={{display:opened.map.id===current.id&&(opened.blob||current.attachment_id||editing)?undefined:'none'}}><WorldMapEditor key={world.id} reloadKey={epoch} previewFooter={blockView?blockDetails:undefined} {...opened} map={{...opened.map,title:opened.map.id===current.id?current.title:opened.map.title}} editing={opened.map.id===current.id&&editing&&!readOnly} onEdit={readOnly||opened.map.attachment_id!==current.attachment_id?undefined:()=>setEditing(true)} layer={layer} overlays={overlays} contourInterval={contourInterval} contourLabels={contourLabels} view={views.get(current.id)} onView={view=>{if(!editing)setViews(old=>new Map(old).set(opened.map.id,view));}} markers={projections} pickPoint={intent?.mapId===current.id?intent.id:null} onMapPoint={picked} onMarker={setMarkerId} regions={regionProjections} regionView={regionView} onRegionQuery={setQuery} regionScope={scope} regionStart={regionStart} regionDirty={!!regionEdit} onBeforeClose={()=>{if(!regionEdit)return true;if(!window.confirm(t('worldRegion.discard')))return false;cancelRegion();return true;}} registerRegionCommand={registerRegionCommand} onRegionDraft={draft=>{if(draft.requestId===regionEdit?.id)setRegionDraft(draft);}} onRegionStats={setRegionStats} onRegionPoints={setRegionPoints} humanTools={humanTools}  repository={repository} beforeSave={beforeSave} onSaved={async saved=>{
+     const committed=saved.character_data?.world_maps?.find(m=>m.id===opened.map.id);
+     if(editing&&committed){
+       // Our editor already holds this committed native project. Do not reload a stale Blob on return.
+       loadedSource.current=JSON.stringify([world.id,committed.id,committed.attachment_id,epoch]);
+       setOpened(previous=>previous?.map.id===committed.id?{...previous,map:committed}:previous);
+     }
+     await onSaved(saved);
+   }} registerFlush={registerFlush} cloudState={cloudState} onClose={()=>{setIntent(null);setEditing(false);}}/></div>:null}
    {(!opened||opened.map.id!==current.id||(!opened.blob&&!current.attachment_id&&!editing))&&<><div className="grid min-h-[14rem] place-items-center p-4"><div><p>{opened?t('worldMap.noProject'):t('worldMap.loading')}</p>{opened&&!readOnly&&<button onClick={()=>setEditing(true)}>{t('worldMap.edit')}</button>}</div></div></>}
-  </>:<div className="grid min-h-[14rem] place-items-center p-6 text-center"><div><p className="mb-3 opacity-60">{t('worldMap.empty')}</p>{!readOnly&&<button className="border" onClick={()=>setManaging(true)}>{t('worldMap.management')}</button>}</div></div>}
+  </>:<div className="grid min-h-[14rem] place-items-center p-6 text-center"><div><p className="mb-3 opacity-60">{t('worldMap.empty')}</p>{!readOnly&&<button className="border" onClick={()=>setManaging(true)}>{t('worldMap.management')}</button>}</div></div>)}
+  {blockView&&!editing&&(!opened||opened.map.id!==selectedId||!opened.blob&&!current?.attachment_id)&&<>{blockDetails}<WorldMapSyncStatus localLabel={t(!current?'worldMap.empty':opened?'worldMap.noProject':'worldMap.loading')} cloudState={cloudState}/></>}
   {!editing&&warnings.map((warning,index)=><p key={index} role="alert" className="break-words px-4 py-2 text-amber-700 dark:text-amber-400">{warning.name}: {t('worldRegion.'+warning.key)}</p>)}
-  <section data-world-details inert={editing} className="min-w-0 space-y-4 px-3 py-5 sm:px-5">
+  {!blockView&&<section data-world-details inert={editing} className="min-w-0 space-y-4 px-3 py-5 sm:px-5">
    <h2 className="text-lg font-semibold">{t('worldHome.details')}</h2>
    <p className="text-sm opacity-70">{t('worldHome.mapIdentity')}</p>
    <nav aria-label={t('worldHome.categories')} className="flex flex-wrap gap-2"><button aria-pressed={entityCategory==='all'} className="border" onClick={()=>setEntityCategory('all')}>{t('worldHome.all')}</button>{(['country','administrative_area','settlement','culture','religion','site','geographic_region'] as const).map(type=><button className="border" aria-pressed={entityCategory===type} key={type} onClick={()=>setEntityCategory(type)}>{t('worldRegion.type.'+type)} · {(entities??[]).filter(e=>e.type===type).length}</button>)}</nav>
    {entityCategory==='all'&&!(entities??[]).length&&<p className="opacity-60">{t('worldEntity.empty')}</p>}
    {(['country','administrative_area','settlement','culture','religion','site','geographic_region'] as const).filter(type=>entityCategory==='all'?(entities??[]).some(e=>e.type===type):entityCategory===type).map(type=><section id={'world-type-'+type} key={type} className="space-y-2 rounded-xl border p-3"><h3 className="font-semibold">{t('worldRegion.type.'+type)}</h3>{!(entities??[]).some(e=>e.type===type)&&<p className="text-sm opacity-60">{t('worldEntity.empty')}</p>}{(entities??[]).filter(e=>e.type===type).map(e=><div key={e.entityId} className="flex min-w-0 flex-wrap items-center gap-2"><button className="min-w-0 flex-1 break-words text-left" onClick={()=>setDetailEntity(e)}>{e.name}</button><span>{t(active.some(m=>m.placements?.some(p=>p.entityId===e.entityId&&p.deletedAt===null))?'worldEntity.placed':'worldEntity.unplaced')}</span><button disabled={!current} onClick={()=>locateEntity(e)}>{t('worldHome.locate')}</button></div>)}</section>)}
-   {worldContent&&<section data-world-writing className="h-[max(28rem,70dvh)] min-w-0"><h2 className="mb-3 text-lg font-semibold">{t('worldHome.original')}</h2>{worldContent}</section>}
-  </section>
+  </section>}
   {detailEntity&&<WorldEntityForm key={detailEntity.entityId} readOnly={readOnly} entity={detailEntity} entities={entities??[]} identityLocked metadata={<section aria-label={t('worldHome.location')} className="mb-3 space-y-1 break-words rounded border p-2">{active.flatMap(m=>(m.placements??[]).filter(p=>p.entityId===detailEntity.entityId&&p.deletedAt===null).map(p=><p key={p.placementId}>{m.title} · {p.geometry.type==='point'?`X: ${p.geometry.x}, Y: ${p.geometry.y}`:m.id===current?.id?areaText(regionStats.find(s=>s.placementId===p.placementId)?.area):`${p.geometry.cells.length} ${t('azgaar.cells')}`}</p>))}{!active.some(m=>m.placements?.some(p=>p.entityId===detailEntity.entityId&&p.deletedAt===null))&&<p>{t('worldEntity.unplaced')}</p>}</section>} onLocate={()=>locateEntity(detailEntity)} onCancel={()=>setDetailEntity(null)} onSave={async draft=>{if(readOnly)throw Error(t('worldHome.readOnly'));await beforeSave();await onSaved(await repository.updateEntity(world.id,draft.entityId,detailEntity.revision,{summary:draft.summary,content:draft.content,fields:draft.fields,relations:draft.relations,cultureSettings:draft.cultureSettings,subtype:draft.subtype}));setDetailEntity(null);}}/>}
   {managing&&<ModalDialog aria-label={t('worldMap.management')} onDismiss={()=>setManaging(false)} busy={busy} dismissOnBackdrop className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[88dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] shadow-xl backdrop:bg-black/40 sm:inset-y-0 sm:left-auto sm:right-0 sm:h-dvh sm:max-h-none sm:w-[26rem] sm:rounded-none [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3">
    <header className="mb-4 flex items-center gap-2"><h2 className="flex-1 text-lg font-semibold">{t('worldMap.management')}</h2><button aria-label={t('worldMap.closePanel')} onClick={()=>setManaging(false)} disabled={busy}><X size={20}/></button></header>

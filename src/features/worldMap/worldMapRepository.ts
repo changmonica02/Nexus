@@ -1,4 +1,6 @@
-import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData, WorldRegionGeometry } from "../../lib/types";
+import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData, WorldRegionGeometry, WorldMapBlockView } from "../../lib/types";
+import {withWorldMapBlocks} from "../../lib/worldMapBlocks";
+import {validateCharacterBlocks} from "../../lib/characterBlocks";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 
 /** Fixed source for the integration. This module does not execute imported SVG. */
@@ -77,6 +79,7 @@ export function entityParent(entity: WorldEntity): string | undefined { return e
  * No names are used as foreign keys; even tombstones must retain valid references. */
 export function validateWorldEntities(world: Pick<Page, "id" | "character_data">): void {
   const data = world.character_data;
+  if(data?.worldMapBlocksVersion===1)validateCharacterBlocks(data);
   if (!data) return;
   const entities = data.world_entities ?? [];
   if (!Array.isArray(entities)) entityError("Invalid world entity collection");
@@ -333,6 +336,18 @@ export class WorldMapRepository {
     const project=blob?await this.project(blob):undefined,now=Date.now();
     const map:WorldMapRecord={metadata_version:1,id:`map_${crypto.randomUUID()}`,world_id:worldId,title:titleOf(title),engine:'azgaar',engine_version:AZGAAR_SOURCE.version,scope,parent_map_id:null,attachment_id:project?.attachment.id??null,project_sha256:project?.sha256??null,revision:1,created_at:now,updated_at:now,deleted_at:null};
     return {world:await this.commit(world,[...mapsOf(world),map],project),map};
+  }
+  async saveMapBlockView(worldId:string,blockId:string,view:WorldMapBlockView){
+    const world=await this.world(worldId),data=withWorldMapBlocks(world.character_data!,worldId);
+    let found=false;
+    const update=(sections:CharacterProfileData['sections'])=>sections.map(block=>{
+      if(block.id!==blockId||!block.worldMapView)return block;
+      found=true;return {...block,worldMapView:structuredClone(view)};
+    });
+    const next={...data,sections:update(data.sections),tabs:data.tabs?.map(tab=>({...tab,sections:update(tab.sections)}))};
+    if(!found)throw new WorldMapError('conflict','Map block was removed; display settings were not written');
+    validateCharacterBlocks(next);
+    return this.commit({...world,character_data:next},mapsOf(world));
   }
   async saveWorldContent(worldId:string,revision:number,data:CharacterProfileData){
     const world=await this.world(worldId);if(world.revision!==revision)throw new WorldMapError('conflict','World content changed; reload before retrying');
