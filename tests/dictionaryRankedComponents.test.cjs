@@ -101,6 +101,6 @@ test('reader renders every meaning exactly once for Word/Prefix/Root; no duplica
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const {DictionaryArticle}=require('../src/features/dictionary/DictionaryBrowser.tsx');
  for(const kind of ['word','prefix','root'])for(const count of [1,2]){
  const data={entry:{id:id(10),kind,headword:'test'},senses:[{id:id(11),part_of_speech:'noun',gloss_zh_tw:'唯一中文甲'},{id:id(12),part_of_speech:'verb',gloss_zh_tw:'唯一中文乙'}].slice(0,count),relations:[],related:[],learning_notes:[{id:id(21),sense_id:id(11),kind:'core_concept',body:'core text'}],etymologies:[{id:id(22),sense_id:null,body:'history text',data_source:'https://example.test/source'}]};
- const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data}));for(const sense of data.senses)assert.equal(html.split(sense.gloss_zh_tw).length-1,1);assert.ok(!html.includes('切換義項'));assert.ok(!html.includes('>中文義<'));assert.ok(html.indexOf('核心概念')<html.indexOf('歷史詞源'));assert.ok(html.includes('href="https://example.test/source"'));if(kind!=='word')assert.ok(!html.includes('(noun)'));
+ const html=renderToStaticMarkup(React.createElement(DictionaryArticle,{data}));for(const sense of data.senses)assert.equal(html.split(sense.gloss_zh_tw).length-1,1);assert.ok(!html.includes('切換義項'));assert.ok(!html.includes('>中文義<'));assert.ok(html.indexOf('概念')<html.indexOf('歷史詞源'));assert.ok(html.includes('href="https://example.test/source"'));if(kind!=='word')assert.ok(!html.includes('(noun)'));
  }
 });

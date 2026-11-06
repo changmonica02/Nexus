@@ -69,3 +69,13 @@ export async function readPublishedEntry(client:Client,id:string,revalidate=fals
   pending.set(modeKey,request);
   try{return await request;}finally{pending.delete(modeKey);}
 }
+
+/** Deduplicate linked targets and bound concurrency; no second cache or draft reads. */
+export async function readPublishedTargets(client:Client,ids:string[],active:()=>boolean=()=>true):Promise<Map<string,PublishedDetail>> {
+  const queue=[...new Set(ids)],result=new Map<string,PublishedDetail>();
+  let cursor=0;
+  await Promise.all(Array.from({length:Math.min(4,queue.length)},async()=>{
+    while(active()&&cursor<queue.length){const id=queue[cursor++];try{const detail=await readPublishedEntry(client,id);if(active()&&detail?.entry.id===id&&detail.entry.status==='published')result.set(id,detail);}catch{/* A reading aid cannot block the published article. */}}
+  }));
+  return result;
+}

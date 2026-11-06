@@ -83,7 +83,7 @@ export function parseAI(raw:string):AIDocument{
 }
 function canonicalAIEntry(input:AIEntry):AIEntry{
  const {story,learning_decomposition,...entry}=input as AIEntry & {story?:AIText[];learning_decomposition?:AIText[]};
- const ids=[...(entry.core_concept??[]),...(learning_decomposition??[]),...(story??[])].flatMap(r=>r.id?[r.id]:[]);if(new Set(ids).size!==ids.length)throw Error('核心概念重複 ID；請保留原檔並確認。');
+ const ids=[...(entry.core_concept??[]),...(learning_decomposition??[]),...(story??[])].flatMap(r=>r.id?[r.id]:[]);if(new Set(ids).size!==ids.length)throw Error('概念重複 ID；請保留原檔並確認。');
  return {...entry,...(story!==undefined||learning_decomposition!==undefined?{core_concept:[...(entry.core_concept??[]),...(learning_decomposition??[]),...(story??[])]}:{})};
 }
 export async function readAI(client:Client,id:string):Promise<AISnapshot>{const {data,error}=await client.rpc('get_dictionary_ai_snapshot',{entry_uuid:id});if(error)throw Error(error.message);if(!data)throw Error('找不到詞條');return data as AISnapshot;}
