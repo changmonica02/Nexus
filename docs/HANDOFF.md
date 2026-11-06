@@ -1,53 +1,45 @@
 # Nexus — 當前狀態與下一步
 
-產品見 [SPEC](SPEC.md)，技術契約見 [ARCHITECTURE](ARCHITECTURE.md)。使用者於 2026-11-06 授權指定三份正式 Migration，已依序執行且驗證；HISTORY 11/05 紀錄已補齊。
+產品見 SPEC，資料契約見 ARCHITECTURE。最新基線 `4fbf0fa`（PR #158 已合併），本輪分支 `fix/review-approval-android-speech`，[Draft PR #160](https://github.com/changmonica02/Nexus/pull/160) 追蹤 #156／#159；不合併、不正式部署、不寫正式 DB、不修改 HISTORY，不建立分享連結或調整部署權限。
 
-## 本輪 #157：官方連動、IPA／Page 舊欄位退役、構詞義項介面
+## #156 匯入審核「套用」
 
-基線為 main `6fdedc1`，分支 `feat/official-linked-cards-schema-retirement`；PR #155 已合併（`452e233`），本輪不重做其功能。PR [#158](https://github.com/changmonica02/Nexus/pull/158) 已完成正式資料庫前置 Migration，等待程式合併及發布後實機驗收。
+使用者本輪確認失敗入口為獨立審核頁，操作「以匯入版本 → 套用」。正式唯讀捕捉 2026-11-05 17:04:24 UTC 的新結果：`apply_dictionary_import_reviews` 回傳 `stale / Preview changed; recompare before applying`。HTTP 200 包含逐項失敗，不能以 HTTP 狀態認定成功。
 
-- 已實作官方卡共享已發布內容解析、既有公共快取與離線備援、明確改為私人自訂。新下載連動；舊卡嚴格驗證未修改才轉換，其餘保留私人文字。來源去重／刪除結果／可變字典連結維持。列表、搜尋、預覽、正常及無盡 Session 共用解析；發布不改學習身份／版本／排程，新作答只保存一次實際顯示文字。
-- 已移除 IPA locale/note 的型別、AI／完整交換輸出、RPC 及快照相依；舊 JSON 僅忽略此二已知欄位，未知仍拒絕。舊 Review 可核准、實際 IPA／版本差異仍保護，不改 #156 審核架構。
-- 構詞關聯預設共用詞條；勾選後才選特定義項。缺少／單一義項與既有關聯的載入、取消、保存皆保留 ID 與原資料。
-- Page study_items 實體退役；移除 migrateStudyDeck 及 Page-only 轉換。ensureDeck 直接建現行設定，備份／同步忽略已知舊欄位而保留現行 Study 資料、有效 outbox 與其他 Page 內容。不清 IndexedDB，維持 v9／備份 v4。
-- SPEC 與 ARCHITECTURE 已更新正式資料與相容規則；HISTORY 11/05 已依使用者要求加入當日成果，並區分 11/06 的正式資料庫套用日期。
+該項目已存預覽與正式 Entry revision 相同，原始快照不等；差異欄位為舊快照缺少 word_segments、新欄位為 null，經既有 dictionary_normalize_snapshot 後完全相同，舊 exchange hash 也能由已存 snapshot／Reviews 重建。匯入仍嚴格比較原始完整 context／exchange version，前端直接沿用舊預覽套用，故編輯器的正規化相容修正沒有解除此流程的阻擋。這是已定位／隔離重現的故障路徑，不代表所有可能的審核故障均已排除。
 
-### 183b84c 發布前審查修正
+- 修正：手動套用前沿用既有 inspect／classify／save_dictionary_import_review 重新比對，再以新完整 context／指紋送原 apply RPC。只有純結構相容且原決策仍有效時續行；實際內容、revision／Review／target 或決策改變則停下要求確認，不自動套用、不直接發布。
+- 新的前端相容比較只決定是否要再次確認，不是版本或內容驗證權威。原 RPC 的管理員、身份、CAS、真正衝突、人工發布及交易驗證完全不改；舊字卡／字典 ID、構詞與 IPA 原資料保留。
+- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。決策直接更新原列；失敗或需重新確認時保留目前項目位置。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送與 30 秒請求期限（逾時不表示伺服器回滾，晚到成功仍可查核）；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
+- 不需新增 Migration。正式關鍵 5 個函式定義（含兩個 approve overload）與最新 Migration 建立的隔離版本去除 CRLF 後一致。本輪只唯讀核對正式資料，沒有重新套用 #158 Migration 或修改正式審核資料。
 
-- 根因一：IPA Migration 漏改 `search_dictionary_relation_targets()` 的 PL/pgSQL 發音搜尋，DROP 後會在呼叫時才失敗。現改為先精準替換舊欄位表達式為 p.ipa；其餘搜尋來源、rank、分頁／總數及管理員權限不變。
-- 根因二：先前重寫 snapshot normalizer 遺漏正式版 `dictionary_without_verification()`／`dictionary_core_content()`。現依正式定義外包 IPA 清理，保留查證退役、詞源來源、核心概念、word_segments、關聯與詞形的完整相容；未知／真實內容與 revision 差異仍拒絕，不改 #156 架構。
-- 先前的唯讀檢查確認三個待刪欄及相依；2026-11-06 正式執行後再次驗證欄位已不存在，字卡、狀態、事件及 IPA 數量維持不變。原本 `locale` CHECK 隨欄位移除，沒有 CASCADE。
-- 發現隔離 fixture 原 workspace RPC 尚缺生活清單分支，已補載既有 Migration。現在相關 11 個正式函式與隔離基線除 CRLF 外逐字一致，以唯讀 hash fixture 固定。另補正式既有 service_role 函式 EXECUTE／default grant，11 個函式 ACL 也完全對齊並驗證 Migration 保留；沒有正式權限變更。隔離 auth／資料仍為測試替身，未聲稱全庫 Schema／基礎設施完全一致。
-- 新 5 項相容測試已通過：三份指定 Migration 依序、完整正規化／舊 Review 核准、真實來源／核心內容／版本衝突、構詞搜尋全部來源／排序／20 筆跨頁與權限、各交易失敗回滾（含未知 view 相依保留）。原 4 項 Migration 回歸也通過。本次 19 個相關回歸檔全通過（含 6,301 卡清除／同步、生活清單、字典／交換／構詞）；正式發布與官方卡 Chromium 回歸、TypeScript、完整 Build 通過；範圍 ESLint 0 errors／21 既有 warnings。程式提交 `610252e` 的 [GitHub Actions 42061834916](https://github.com/changmonica02/Nexus/actions/runs/42061834916) 與 Vercel 全部成功；後續只補 service_role ACL fixture／斷言（本機 9 項 SQL 再跑通過）及交接，最終結果以 PR #158 本輪交付註記為準，不沿用 183b84c 綠燈作為本次證據。
-- SPEC 需求未再變動；ARCHITECTURE 保留搜尋、正規化與交換相容技術契約；HISTORY 已更新。正式 Migration 已獲使用者授權執行，實機與跨裝置仍待驗收。
+## #159 Android 英文語音
 
-### Migration／正式狀態
+使用者實機證據：同一 Android 的 Chrome／安裝 PWA 不播、系統 Google TTS 英文正常，iPad PWA 正常。已確認舊程式在未取得可選英文 voice 時直接退出，且把清單未就緒當成缺少語音；裝置實際 getVoices 清單尚未取得，不能宣稱這是所有 Android 故障的唯一原因。
 
-三份獨立交易已依序正式套用並在 Supabase ledger 登錄：`20261105163818`（`official_card_linked_content_20261105091439`）、`20261105163846`（`dictionary_pronunciation_columns_retired_20261105091518`）、`20261105163922`（`page_study_items_retired_20261105091519`）。事後查核新版字卡 10,155、狀態 10,155、事件 84、設定 11、IPA 7 筆均保留；`locale`、`note`、`study_items` 已不存在。原 2 筆 `locale` 舊值被實體刪除。備份／PITR 可用復原點未能透過目前工具查證，不能宣稱可直接還原已刪內容。
+- 沿用原 Web Speech，不新增服務／音訊檔，不依賴 IPA。啟動 priming、voiceschanged＋有限輪詢、手動重讀清單，英文本機 voice 優先；不因 localService／onLine 旗標單獨否定英文能力。
+- 自動空清單最多等待 1800ms 再只指定 en-US、不指定 voice；手動空清單保留 gesture 立即嘗試同一備援。已知只有非英文清單時不強選中文，提示重查。事件／有限逾時區分未就緒、限制與失敗；只有 language-unavailable 才提示安裝／啟用英文。
+- 全域單一音訊 ownership、取消與舊回呼隔離；切卡／背景／卸載停止，翻面不重複，自動與手動／語速及正常／無盡共用元件。不讀寫卡片、Session、事件、due、FSRS 或 outbox。
 
-正式套用前的唯讀基準：字卡／狀態各 10,155、事件 84、設定 11、IPA 7；原 `locale` 非 NULL 2 筆、`note` 0 筆；Page 舊欄 2 筆 []。正式套用後數量不變，三個欄位均已移除，官方內容 RPC 存在、authenticated 有權執行而 anon 無權執行，工作區／官方包 Page RPC 已清除 `study_items` 相依。舊 IPA 清空 Migration `20261105033000` 尚未登錄，由本輪實體刪欄方案取代；不得再對正式資料庫盲目執行全部 pending migrations。
+## 本輪驗證
 
-### 驗證與剩餘工作
+- 新單元：結構化錯誤、安全顯示、防重送、未知結果只讀確認、聲音立即／延遲清單／無事件輪詢／空清單備援、中文拒選、事件／逾時／取消。
+- 新隔離 SQL：重現舊 word_segments／IPA 預覽 stale，修正後只保存 Review、保留既有 IPA／ID；真正並行 Review 改動要求確認。原伺服器 CAS、RLS、內容與發布驗證未停用。
+- 本機 Chromium 編輯器（含核准成功但刷新失敗／未知結果）、實際 SQL 匯入頁、正式學習閱讀生命週期通過。Chromium Android viewport 與 WebKit iPad viewport 的模擬 Web Speech 測試通過；不等於原生裝置已驗收。
+- TypeScript、Build 通過，修改範圍 ESLint 0 errors／2 既有 warnings。本機最後 9 個相關回歸檔全通過（包含 Study clear／sync／reading、舊資料／三份 Migration 與 persistent import）；新核准 6、匯入 SQL 3、語音 7 案例分別驗證。本輪 GitHub Actions／Vercel 以 PR #160 checks／交付註記為準，不沿用 #158 綠燈。
 
-- 已通過新隔離 SQL 四項：舊草稿核准、舊交換欄位、未知欄拒絕、官方保守轉換與發布／解除、下載去重、權限／帳號隔離、獨立交易失敗回滾、刪欄後現行 cards／states／events／settings 完全保留。官方純模型包含 6,301 卡分批解析與有界快取、離線、私人卡、一次作答與排程不變；新增相同時間 metadata 合併／待傳私人修改保護。
-- Chromium 官方連動流程通過：1280／820／390px，發布重讀、離線快取、私人自訂、重新載入、正常與無盡 Session、作答事件及版本穩定。構詞編輯器中英文／多尺寸及勾選取消保存回歸通過。
-- 本機擴大 51 個字典／學習／同步非瀏覽器測試檔：50 個整批通過（含 6,300 筆完整交換與 6,301 卡清除），既有 VariantEditor 測試直接呼叫 Hook 的錯誤修正為 React render 後單獨 5 項通過；另 3 個官方身份／PWA cache／scheduledStudy 檔通過。新版隔離 SQL 四項與官方模型四項再跑通過。
-- TypeScript、完整 Webpack production Build 通過，範圍 ESLint 0 errors／43 warnings。Chromium 編輯器、官方連動、既有官方私人卡與 PWA 殼層通過；production build 的隔離 PWA Data／Dictionary 流程通過（離線編輯／作答／PDF／重連／衝突／帳號隔離）。測試的 autosave 等待競態以等待真正保存狀態／明確失敗場景修正，不停用產品保存或安全驗證。
-- 程式提交 `71a405c` 的 [GitHub Actions 42032937046](https://github.com/changmonica02/Nexus/actions/runs/42032937046) 全部成功（含本輪 SQL／官方卡／編輯器、舊清除與同步、筆記／地圖、TypeScript、ESLint、Build）；Vercel checks 成功。後續僅補隔離 SQL 舊 IPA RPC insert／未知欄位斷言（本機四項再跑成功）及本交接資料；該提交的最終狀態以 PR #158 checks 為準。
-- 待實機：Safari／iPad、Android 安裝 PWA、真實帳號雙裝置更新與離線私人修改交錯。Chromium 觸控 viewport 不等於實機。受保護部署不建立分享連結或改權限，正式審核 #156 仍獨立待查。
-- 兩項發布前阻擋已修正；正式 Migration 於 2026-11-06 依使用者授權套用成功且事後核對通過。接下來驗證 PR #158 合併後的建置、正式前端與真實裝置；Safari／Android、雙裝置離線交錯與 #156 均未宣稱完成。
+## 正式狀態與限制
 
-## 已合併工作與正式狀態
+唯讀核對：#158 三份 Migration 已由正式 ledger 登錄為 `20261105163818`（official linkage）、`20261105163846`（IPA drop）、`20261105163922`（Page 舊欄退役）；GitHub 檔名版本仍為 091439／091518／091519。IPA 實體舊欄已不存在。本輪沒有執行這些 Migration。禁止直接 db push 補套所有 pending 檔案；舊清空 IPA 檔仍 superseded no-op。
 
-- PR #151、#152、#153 已合併，以使用者最新交接及 main 為準，不重新實作。#151 squash `9f5cbaee` 的 GitHub Production deployment `7566581489` 狀態為 success（2026-11-05 06:06:57 UTC）。這是部署狀態，不能代替真實帳號／裝置功能驗收。
-- 整組清除沿用最後伺服器時間與原事件有效投影，不使用整組重置世代。使用者已接受裝置時間誤差。使用者確認 study clear Migration 已正式套用；本輪唯讀 migration 紀錄也可見名稱 `study_deck_clear_20261105032115`，實際登錄版本 `20261105060444`。本輪沒有重新套用。
-- `20261105033000_dictionary_ipa_only.sql` 尚未正式登錄，本輪已由指定實體刪欄位方案取代（見上），未代為套用。
-- `/dictionary/admin/reviews` 的正式版本網址轉向 Vercel 保護登入。Vercel 連線的 team scope 回傳 403；受保護頁面讀取工具又因可能建立臨時分享連結遭自動審查拒絕，沒有繞過或改動存取設定。因此正式登入後審核操作及資料顯示未驗證，未修改審核資料。
-- 詞形選單僅檢查／回報：`inflections.ts` 可辨識獨立 n./v./adj./adv.，但 `adj./n.` 等複合標記無法依各詞性提供完整合法類型；正式資料確有這類標記。本輪沒有修改選單或詞性驗證，需另行授權修正。
+#151／#152／#153／#155／#158 已合併，不重做。整組清除仍依伺服器 cleared_at 與原事件有效投影；裝置時間誤差風險已接受，IndexedDB v9／備份 v4／來源與同步隔離保留。詞形複合 POS 選單問題仍僅記錄，不在本輪修改。
 
-## 待驗收／合併前條件
+## 待實機／正式驗收步驟
 
-- 正式 Migration 已套用；後續仍須確認 PR #158 合併結果、Vercel Production 部署狀態，以及真實帳號／裝置操作。
-- Safari／iPad、Android 安裝 PWA、虛擬鍵盤完成／中英文輸入法及真實跨裝置同步／清除仍待實機驗收。Chromium 觸控 viewport 不等於實機 Safari／Android。
-- 受保護 Production 審核頁需有已授權的存取方式後再驗證；若工具會建立臨時分享連結，須另獲明確授權，不調低部署保護。
-- 世界觀／地圖／內建範本全站語系與既有地圖原生工具的實機待辦沿用 #60，未因本輪字典測試而宣稱完成。已儲存的使用者內容不自動翻譯。
+1. 在另行授權的測試版本登入管理員，獨立審核頁選一筆舊預覽，選「以匯入版本」再套用；確認純結構差異可保存 Review、公開答案不會提前變更。若內容真的改變，應停下要求比對；切換帳號／非管理員不得核准。
+2. 測試核准斷線／逾時、成功但重讀失敗：輸入與選取保留；再次操作先查結果，不增加第二次套用／核准。未知／真實版本衝突不得強制覆蓋。
+3. Android Chrome 與既有安裝 PWA 各測試英文卡自動／手動、0.9／1.2 語速、快速切卡、翻面、背景與離開；確認實際發音是英文、沒有重疊。重新開啟取得新版本，不清 IndexedDB。
+4. 同一 Android 測試連線及已安裝離線英文語音的離線播放；若失敗，記錄畫面分類、是否手動啟動、語音清單是否延遲、實際 error code。不要傳私人字卡文字或憑證。
+5. iPad Safari／PWA 在正常與無盡模式重測相同行為。僅播放／重播不得增加事件、額度或改排程。WebKit／Chromium 模擬不代表已完成這些實機驗收。
+
+本輪修正需前端正式發布後才能驗收正式 #156 與 Android 原生語音；尚未自行部署。維持 Draft，等人工審查與實機結果再決定合併。

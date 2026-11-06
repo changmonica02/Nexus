@@ -34,10 +34,10 @@ window.dictionaryClient={
   review.candidate=structuredClone(args.candidate);review.revision++;f.writes++;persist();return {data:structuredClone(review)};
  }
  if(name==='discard_dictionary_review'){const review=f.reviews.find(r=>r.id===args.review_uuid);if(!review||review.state!=='active'||review.revision!==args.expected_revision)return {error:{message:'Review revision conflict'}};review.state='discarded';review.revision++;f.writes++;persist();return {data:structuredClone(review)};}
- if(name==='approve_dictionary_review'){
+ if(name==='approve_dictionary_review'){window.approvalWrites=(window.approvalWrites||0)+1;
   if(window.failPublish)return {error:{message:'Stale Review Draft (fixture)'}};
   const review=f.reviews.find(r=>r.id===args.review_uuid),c=review.candidate,b=c.bundle;f.history.push({entry_id:id(10),revision:f.snapshot.detail.entry.revision,snapshot:structuredClone(f.snapshot)});
-  f.snapshot.detail={entry:{...f.snapshot.detail.entry,...b.dictionary_entries[0],revision:f.snapshot.detail.entry.revision+1,status:'published'},senses:b.dictionary_senses,relations:b.dictionary_relations,inflections:c.inflections,pronunciations:c.pronunciations,lexical_annotations:c.annotations,examples:c.examples,learning_notes:b.dictionary_learning_notes,etymologies:b.dictionary_etymologies};review.state='approved';persist();return {data:review};
+  f.snapshot.detail={entry:{...f.snapshot.detail.entry,...b.dictionary_entries[0],revision:f.snapshot.detail.entry.revision+1,status:'published'},senses:b.dictionary_senses,relations:b.dictionary_relations,inflections:c.inflections,pronunciations:c.pronunciations,lexical_annotations:c.annotations,examples:c.examples,learning_notes:b.dictionary_learning_notes,etymologies:b.dictionary_etymologies};review.state='approved';persist();if(window.losePublishResponse)return {error:{message:'Failed to fetch',code:'',details:'SQLPRIVATE',hint:'SQLPRIVATE'}};return {data:review};
  }
  return {error:{message:'Unexpected fixture RPC '+name}};
  }
