@@ -7,7 +7,7 @@ const owner='00000000-0000-4000-8000-000000000001',entry='00000000-0000-4000-800
 const metrics=window.metrics={reads:0,records:0,methods:{},calls:[],idbOpen:0,first:0};
 const storage=new IndexedDBAdapter(),opened=performance.now();await storage.init();metrics.idbOpen=performance.now()-opened;storage.setWorkspaceOwner(owner);
 const repo=storage.getStudyRepository(),page=await storage.createPage({title:'Startup benchmark',kind:'study_set'});
-await repo.ensureDeck(page);await repo.addCards(page.id,Array.from({length:count},(_,i)=>({front:'word'+i,back:'字'+i,dictionary_entry_id:entry})));await repo.configure(page.id,{direction_confirmed:true});
+await repo.ensureDeck(page);await repo.addCards(page.id,Array.from({length:count},(_,i)=>({front:params.has('preferences')?'preview':'word'+i,back:'字'+i,dictionary_entry_id:entry})));await repo.configure(page.id,{direction_confirmed:true});
 await repo.saveDeckStyle(page.id,{auto_speech:false});
 if(params.has('endless'))await repo.saveDeckStyle(page.id,{study_mode:'endless'});
 let existing;if(resumed){existing=await repo.startSession(page.id,'scheduled');await repo.presentScheduled(existing.id);}
@@ -16,7 +16,7 @@ if(params.has('pending')){const d=await repo.presentScheduled((existing??await r
 const remoteCard=(await repo.exportData()).cards[0];
 if(params.has('official')){const cards=(await repo.exportData()).cards,tx=repo.db.transaction('study_cards','readwrite');for(const card of cards)await tx.store.put({...card,official_pack_id:'fixture',official_source_entry_id:entry,official_custom:false});await tx.done;}
 const getAll=IDBIndex.prototype.getAll;IDBIndex.prototype.getAll=function(...args){const request=getAll.apply(this,args);if(['study_cards','study_states'].includes(this.objectStore.name)){metrics.reads++;request.addEventListener('success',()=>metrics.records+=request.result.length);}return request;};
-for(const key of ['snapshotIn','reconciled','readScheduledDeck','startSession','openScheduledSession','readSession','presentScheduled','readPresentedSession']){const original=repo[key];if(!original)continue;repo[key]=async function(...args){const begin=performance.now();try{return await original.apply(this,args);}finally{const m=metrics.methods[key]??={calls:0,ms:0};m.calls++;m.ms+=performance.now()-begin;m.start=begin-metrics.begin;}};}
+for(const key of ['snapshotIn','reconciled','readScheduledDeck','startSession','openScheduledSession','readSession','presentScheduled','readPresentedSession','styleForDeck']){const original=repo[key];if(!original)continue;repo[key]=async function(...args){const begin=performance.now();try{return await original.apply(this,args);}finally{const m=metrics.methods[key]??={calls:0,ms:0};m.calls++;m.ms+=performance.now()-begin;m.start=begin-metrics.begin;}};}
 let sequence=0;
 window.dictionaryClient={auth:{getUser:async()=>{const begin=performance.now();await new Promise(r=>setTimeout(r,params.has('cancel')?150:5));metrics.calls.push({name:'auth',ms:performance.now()-begin,start:begin-metrics.begin});return{data:{user:{id:owner}}};},onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},rpc:async(name,args={})=>{
  const begin=performance.now();await new Promise(r=>setTimeout(r,5));metrics.calls.push({name,ms:performance.now()-begin,start:begin-metrics.begin});

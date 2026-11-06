@@ -7,12 +7,12 @@
 - 構詞編輯橫向字形／提示／刪除，移除排序、末尾新增；正式連結收合且保留原 relation ID／Sense。編輯區塊依基本資料、概念、義項、詞形、歷史詞源、其餘排列，原 autosave／IME／CAS／發布不變。
 - 字卡背面英文略放大、仍小於中文，底線各內縮 1px；中文提示不撐開字形。已發布概念原文放提示右側，可換行，沒有概念不顯示等號。使用者名稱統一「概念」，底層 `core_concept` 不改。
 - 共用 DictionaryArticle 分段小方格（一般手機兩欄、320px 單欄）。詞源僅從正式連結目標的 published 共用／適用義項取得；原公開 reader/cache 去重、最多四個並行，保留探索返回與完整 Word 自身詞源。未對應分段的舊正式關聯保留。
-- Session 開啟由同一交易讀一次 snapshot，再建立／恢復及 present；後續 readPresentedSession 不再先 readSession 又 present。保留帳號驗證與完整原 syncStudy 屏障，不以未核對進度作答。管理父層停止開啟時與 Session 事件的整組重讀，官方解析只需當前卡；回管理才重新載入。
+- Session 開啟由同一交易讀一次 snapshot，再建立／恢復及 present；後續 readPresentedSession 不再先 readSession 又 present。保留帳號驗證與完整原 syncStudy 屏障，不以未核對進度作答。管理父層停止開啟時與 Session 事件的整組重讀，僅以 styleForDeck 讀設定以保留即時閱讀偏好，官方解析只需當前卡；回管理才重新載入。
 
 ## 量測與測試
 
 - 隔離 fake-indexeddb 單次基準：20 卡新建 22.32→5.03ms、恢復 4.99→2.02ms；6,300 卡新建 478.38→129.68ms、恢復 414.83→93.06ms。本機四讀流程 8→2 次 cards／states 全讀，50,400→12,600 筆；不含正式網路與實機。
-- 實際 Chromium StudySetView 按鈕／IndexedDB v9 的前後矩陣（基準 main `8a4ec6a`，程式基準亦等同 b78bb11；改善後 `108a201` 與本輪最終程式（含生命週期補強））如下。每個 RPC 受控延遲5ms，改善前為單次毫秒、改善後為兩次完整跑測的範圍，並非正式服務／手機保證；6300卡改善前恢復數值受重複讀取排隊影響，不能當穩定分位數。20卡各情境沒有穩定加速，保留原始結果。
+- 實際 Chromium StudySetView 按鈕／IndexedDB v9 的前後矩陣（基準 main `8a4ec6a`，程式基準亦等同 b78bb11；改善後 `108a201`／`0e4903c`（含生命週期補強，讀取設定的最後補強另由新矩陣核對））如下。每個 RPC 受控延遲5ms，改善前為單次毫秒、改善後為兩次完整跑測的範圍，並非正式服務／手機保證；6300卡改善前恢復數值受重複讀取排隊影響，不能當穩定分位數。20卡各情境沒有穩定加速，保留原始結果。
 
 | 情境 | 20卡前→後 ms | 6300卡前→後 ms |
 |---|---:|---:|
@@ -29,8 +29,9 @@
 - 重現：`BASELINE=1 node tests/studyStartup.performance.test.cjs` 與一般模式比較原四讀／新單交易；瀏覽器以 `BASELINE=1 BASELINE_DIR=<從8a4ec6a取出的三個同名來源檔目錄> node tests/studyStartup.browser.test.cjs` 比較原版，再一般模式跑新版。來源是 StudyRepository.ts、StudySetView.tsx、ScheduledStudySession.tsx；測試輸出完整各階段JSON至stdout及/tmp，不保存私人資料。預設兩種大小完整矩陣，不依賴正式 Supabase。
 - 20 個相關回歸檔已全通過：清除／離線事件／同步／排程／Session／字典／舊交換／原審核與官方卡。新增 bounded published target 與單交易回滾／權限／clear／重複開始保護通過。
 - Chromium 原編輯器、autosave（含320px／IME／延遲／失敗／新增刪除）、正式學習閱讀回歸通過；新構詞方格／字卡標註 Chromium 與 WebKit 通過。WebKit Session 全矩陣亦通過，包含快速重複開始、雲端核對期間離開不新增事件；最後 Chromium 全矩陣、autosave刪除競態、原編輯器及官方連動回歸均通過；遠端結果見 PR checks／交付註記。
+- 最後自查重現：若完全忽略 Session 期間的父層事件，讀取偏好會停留舊值。最小修正為只讀 styleForDeck，不重新讀卡片；以實際元件改設定後手動播放的速率驗證，修正前失敗、Chromium／WebKit 修正後通過，cards／states／events／sessions逐項不變，不修改語音 API 或排程。
 - 本機隔離 production PWA（正式 Next build／SDK／IndexedDB，假API，沒有正式Supabase連線）通過：pwaData 的離線作答／間隔／重連／衝突／帳號隔離與 pwaDictionary 的離線閱讀／搜尋、未快取提示、發布失效／空間不足。兩者 page errors=0；字典斷線時 public RPC=0。此為桌面 Chromium 的實際 SW／資料流程，不代替 Android／iPad 安裝驗收。
-- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Webpack Build 通過。程式提交108a201與0e4903c的Vercel成功；首輪GitHub Actions [42148823988](https://github.com/changmonica02/Nexus/actions/runs/42148823988) 已成功；0e4903c的 [42150348053](https://github.com/changmonica02/Nexus/actions/runs/42150348053) 及最後文件提交檢查於交接時執行中；最終結果以 [#162 checks](https://github.com/changmonica02/Nexus/pull/162/checks)／交付註記核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
+- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Webpack Build 通過。程式提交108a201與0e4903c的Vercel成功；首輪GitHub Actions [42148823988](https://github.com/changmonica02/Nexus/actions/runs/42148823988) 已成功；47b5be7的 [42150931781](https://github.com/changmonica02/Nexus/actions/runs/42150931781) 亦已成功；0e4903c的42150348053因新提交自動取消，不列為通過。最後設定更新補強的新檢查待提交；最終結果以 [#162 checks](https://github.com/changmonica02/Nexus/pull/162/checks)／交付註記核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
 
 ## 資料、發布與限制
 

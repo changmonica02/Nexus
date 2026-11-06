@@ -250,7 +250,10 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
     let active=true;
     const read=()=>{void repository.ensureDeck(page, false).then(()=>repository.readScheduledDeck(page.id)).then(async data=>{const recovery=await repository.recoveryEvents(page.id);if(active){loadedDeck.current=page.id;setSnapshot(data);if(recovery.length)setError(t('study.clearInvalidEvent'));}}).catch(e=>{if(active)setError(String(e));});};
     refresh.current=read;if(mode!=='scheduled'||loadedDeck.current!==page.id)read();
-    const changed=()=>{if(mode!=='scheduled')read();};window.addEventListener("nexus-study-changed",changed);
+    const changed=()=>{if(mode!=='scheduled'){read();return;}
+      // Reading preferences remain live; frozen scheduling stays in the Session.
+      void repository.styleForDeck(page.id).then(({style})=>{if(active)setSnapshot(previous=>previous?{...previous,settings:{...previous.settings,style}}:previous);}).catch(e=>{if(active)setError(String(e));});
+    };window.addEventListener("nexus-study-changed",changed);
     return()=>{active=false;window.removeEventListener("nexus-study-changed",changed);};
   },[repository,page,t,mode]);
   useEffect(()=>{let active=true;if(mode==='history')void repository.readHistory(page.id,historyLimit+1).then(events=>{if(active)setHistoryEvents(events);}).catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[mode,historyLimit,page.id,repository,snapshot]);

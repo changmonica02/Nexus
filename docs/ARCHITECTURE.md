@@ -251,7 +251,7 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 `ScheduledStudySession` 線上仍先 `auth.getUser` → 原 single-flight `syncStudy`（包括每輪 clear times、outbox、feed 與衝突核對），成功且畫面仍掛載才 `openScheduledSession`。本機一次嚴格 readwrite 交易讀取 settings／cards／states，以同一 snapshot 呼叫原建立／恢復演算法並正式呈現首卡；原 introduce、每日額度及 CAS 完全保留，整筆失敗回滾。後續載入使用 `readPresentedSession` 在同一交易 reconcile＋present 一次，practice 不產生正式 introduce；原 startSession／readSession／presentScheduled API 保留供既有呼叫。沒有跨交易快照快取，也不以過期本機資料略過雲端清除核對。
 
-`StudySetView` 開始前只等待設定 flush，不再重讀全組；同步 ref 阻止快速重複開始。管理畫面離開後不為 Session 事件重載管理清單或解析全組官方內容；原官方解析器接收仍有效的請求檢查，停止後續未送出的批次並忽略晚回覆，返回管理時重新讀取。正式 Session 的官方解析仍只對當前卡片，沿用可信公開備援及原內容更新事件。載入提示區分本機恢復／帳號確認／雲端進度與待同步變更；同步失敗仍阻止正式呈現與作答。IndexedDB v9、備份 v4、帳號邊界、原清除投影與事件去重不變，沒有 Migration。
+`StudySetView` 開始前只等待設定 flush，不再重讀全組；同步 ref 阻止快速重複開始。管理畫面離開後不為 Session 事件重載管理清單或解析全組官方內容；事件改以既有 styleForDeck 只讀取當前設定，讓閱讀偏好即時生效，排程仍用 Session 凍結快照；原官方解析器接收仍有效的請求檢查，停止後續未送出的批次並忽略晚回覆，返回管理時重新讀取。正式 Session 的官方解析仍只對當前卡片，沿用可信公開備援及原內容更新事件。載入提示區分本機恢復／帳號確認／雲端進度與待同步變更；同步失敗仍阻止正式呈現與作答。IndexedDB v9、備份 v4、帳號邊界、原清除投影與事件去重不變，沒有 Migration。
 
 測量程式位於 `studyStartup.performance.test.cjs`（fake-indexeddb、原四讀流程 vs 單交易）與 `studyStartup.browser.test.cjs`（實際 StudySetView 按鈕、IndexedDB v9、受控 RPC）。後者輸出首卡、DB 開啟、各 repository 階段、全組讀取筆數、auth／RPC 耗時；BASELINE 模式從指定目錄讀取 main 基準的三個來源檔，沒有產品內平行實作。測試 RPC 每次受控延遲 5ms，不能當作正式 Supabase 或原生 PWA 效能；數值與未完成實機驗收見 HANDOFF。
 
