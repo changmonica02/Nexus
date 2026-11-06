@@ -244,6 +244,10 @@ test(
             exact: true,
           })
           .waitFor();
+        // Wait for the failed operation to finish cleanup before simulating a reload.
+        await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='一次套用安全項目／恢復作業'&&!b.disabled));
+        const savedStatuses=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=indexedDB.open('nexus-dictionary-import-review',2);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,tx=db.transaction('items'),rows=tx.objectStore('items').getAll();rows.onsuccess=()=>{resolve(rows.result.map(r=>r.item.status));db.close();};rows.onerror=()=>reject(rows.error);};}));
+        assert.equal(savedStatuses.filter(s=>s==='applied').length,25,'receipt checkpoint failure must retain the last committed 25-item checkpoint');
         const uncertain = await page.evaluate(() =>
           window.calls
             .filter((c) => c.name === "apply_dictionary_import_batch")

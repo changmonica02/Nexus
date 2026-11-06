@@ -20,7 +20,7 @@
 - 新隔離 PostgreSQL／PGlite 測試涵蓋候選完整交換、真正 pending／空狀態、分類、獨立新增與混合差異、ID／版本衝突、Published 隔離、精確 issue 清理、無寫入不清理、強制清理失敗全回滾、相同 operation 重試、RLS／非管理員及其他詞條保護；1,001筆、11頁、暫停恢復與完成工作重新下載。原生 PostgreSQL 17（無網路、無主機資料掛載）及 PGlite 六項已通過，包含 Migration DDL 失敗回滾與最小權限；提交版亦已在原生 PostgreSQL 重跑六項通過。另補同一待審核提案的來源／義項重排去重，保留原 proposal key，避免反覆交換產生重複審核；安全取代操作仍保留獨立 proof。
 - Chromium 新匯出／分析／原常駐審核 UI 與 OAuth 實際 SDK URL 測試已通過，包含桌面、平板、320px／390px、分析不寫入、來源文字保留與安全結案；原完整交換的 checkpoint／quota／receipt／版本回歸通過。WebKit 新流程亦通過；1,001筆分析 Chromium 約2916–7057ms、WebKit 約7085–8731ms（最後一輪與 Build／原生 PostgreSQL 並行，故保留範圍），收合詳細列0筆、展開每頁25筆；受控本機 API，非正式服務保證。
 - 原6,300筆完整交換測試通過（本機 PGlite 約223秒，包含匯出、預覽、收據恢復、發布與報告）；不宣稱正式服務耗時。新增11頁測試不取代原大型回歸。
-- TypeScript、修改範圍 ESLint（0 errors／2既有 warnings）與 Webpack Build 通過；原審核、匯入決策、常駐、完整交換 quota／receipt、官方連動、舊資料、Session、清除及同步回歸通過。程式提交 `987e510` 的 Vercel 成功；完整 GitHub Actions 正在驗證，後續交接提交亦須通過。最終結果以 [#164 最新 checks](https://github.com/changmonica02/Nexus/pull/164/checks) 及同 PR 的「最終驗證」交付註記為準，註記須列實際 head／run；被新提交取消的 run 不列通過。沒有略過或弱化既有資料驗證。
+- TypeScript、修改範圍 ESLint（0 errors／2既有 warnings）與 Webpack Build 通過；原審核、匯入決策、常駐、完整交換 quota／receipt、官方連動、舊資料、Session、清除及同步回歸通過。程式提交 `987e510` 的 Vercel 成功；GitHub Actions `42162214479` 的既有交換瀏覽器測試在收據失敗後重新整理的進度斷言逾時，後續步驟未執行，不能列通過。補強測試等待作業結束並直接驗證 IndexedDB 的25筆 durable checkpoint；同 CI Chromium 1234 本機通過，修正後須重新驗證完整 Actions。最終結果以 [#164 最新 checks](https://github.com/changmonica02/Nexus/pull/164/checks) 及同 PR 的「最終驗證」交付註記為準，註記須列實際 head／run；被新提交取消的 run 不列通過。沒有略過或弱化既有資料驗證。
 
 ## 尚待驗收與阻擋
 
