@@ -1,0 +1,22 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
+test('shared published morphology: compact tiles, target-only etymology, concept, underline and continuous glyph widths at 320/tablet/desktop',{timeout:90000},async()=>{
+ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-morphology-'));
+ await build({entryPoints:['tests/fixtures/dictionaryMorphology.jsx'],outfile:path.join(tmp,'app.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})},plugins:[{name:'client',setup(b){b.onLoad({filter:/infrastructure\/supabase\/client.ts$/},()=>({contents:'export const getSupabase=()=>window.dictionaryClient;',loader:'js'}));}}]});
+ const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(root,'src/app/globals.css')})).css;
+ const server=http.createServer((req,res)=>{if(req.url==='/app.js'){res.setHeader('content-type','text/javascript');res.end(fs.readFileSync(path.join(tmp,'app.js')));}else if(req.url==='/app.css')res.end(css);else res.end('<html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><div id="root"></div><script type="module" src="/app.js"></script></html>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium,browser=await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:engine===chromium?['--no-sandbox']:[]}),errors=[];
+ try{for(const width of [1280,820,390,320])for(const scenario of ['normal','long','empty','english']){
+  const context=await browser.newContext({viewport:{width,height:1000}}),p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto('http://127.0.0.1:'+server.address().port+'/?'+(scenario==='english'?'lang=en':scenario));
+  await p.locator('[data-composition-tile]').first().waitFor();assert.equal(await p.locator('[data-composition-tile]').count(),2);
+  if(scenario!=='empty'){
+   await p.getByText('ad- 已發布的歷史詞源',{exact:true}).waitFor();assert.equal(await p.getByText('不可洩漏的草稿詞源').count(),0);assert.equal(await p.getByText('其他義項的隱藏詞源').count(),0);
+   assert.equal(await p.locator('[data-composition-tile]').filter({hasText:'完整單字的歷史詞源'}).count(),0);await p.locator('[data-word-concept]').waitFor();
+   assert.equal(await p.getByRole('heading',{name:scenario==='english'?'Concept':'概念',exact:true}).count(),1);
+   await p.getByRole('button',{name:'Toggle embedded'}).click();await p.locator('[data-composition-tile] a').first().click();assert.match(await p.locator('output').innerText(),/dictionary.*sense/);
+  }else{assert.equal(await p.locator('[data-word-concept]').count(),0);assert.equal(await p.locator('[data-composition-tile] a').count(),0);}
+  await p.locator('[data-segment-spelling]').first().waitFor();
+  const layout=await p.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,spelling:[...document.querySelectorAll('[data-segment-spelling]')].map(e=>e.textContent).join(''),word:document.querySelector('article h1').textContent,widths:[...document.querySelectorAll('[data-word-segment]')].map(e=>({outer:e.getBoundingClientRect().width,glyph:e.querySelector('[data-segment-spelling]').getBoundingClientRect().width,line:e.querySelector('[data-segment-underline]')?.getBoundingClientRect().width})),tile:[...document.querySelectorAll('[data-composition-tile]')].map(e=>e.getBoundingClientRect().y)}));
+  assert.equal(layout.overflow,false);assert.equal(layout.spelling,layout.word);for(const w of layout.widths){assert.ok(Math.abs(w.outer-w.glyph)<1);assert.ok(w.line<w.glyph);}if(width===390&&scenario==='normal')assert.equal(layout.tile[0],layout.tile[1]);
+  await context.close();
+ }assert.deepEqual(errors,[]);}finally{await browser.close();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
+});

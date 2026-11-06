@@ -1,45 +1,32 @@
 # Nexus — 當前狀態與下一步
 
-產品見 SPEC，資料契約見 ARCHITECTURE。最新基線 `4fbf0fa`（PR #158 已合併），本輪分支 `fix/review-approval-android-speech`，[Draft PR #160](https://github.com/changmonica02/Nexus/pull/160) 追蹤 #156／#159；不合併、不正式部署、不寫正式 DB、不修改 HISTORY，不建立分享連結或調整部署權限。
+本輪追蹤 #161；分支 `feat/compact-morphology-study-startup`，基於最新 main `b78bb11`（#158、#160 已合併）。新 Draft PR 尚待提交後填入；不重做審核／Android 語音，也不實作 main 最新另列的匯入匯出規劃。
 
-## #156 匯入審核「套用」
+## 本輪實作
 
-使用者本輪確認失敗入口為獨立審核頁，操作「以匯入版本 → 套用」。正式唯讀捕捉 2026-11-05 17:04:24 UTC 的新結果：`apply_dictionary_import_reviews` 回傳 `stale / Preview changed; recompare before applying`。HTTP 200 包含逐項失敗，不能以 HTTP 狀態認定成功。
+- 構詞編輯橫向字形／提示／刪除，移除排序、末尾新增；正式連結收合且保留原 relation ID／Sense。編輯區塊依基本資料、概念、義項、詞形、歷史詞源、其餘排列，原 autosave／IME／CAS／發布不變。
+- 字卡背面英文略放大、仍小於中文，底線各內縮 1px；中文提示不撐開字形。已發布概念原文放提示右側，可換行，沒有概念不顯示等號。使用者名稱統一「概念」，底層 `core_concept` 不改。
+- 共用 DictionaryArticle 分段小方格（一般手機兩欄、320px 單欄）。詞源僅從正式連結目標的 published 共用／適用義項取得；原公開 reader/cache 去重、最多四個並行，保留探索返回與完整 Word 自身詞源。未對應分段的舊正式關聯保留。
+- Session 開啟由同一交易讀一次 snapshot，再建立／恢復及 present；後續 readPresentedSession 不再先 readSession 又 present。保留帳號驗證與完整原 syncStudy 屏障，不以未核對進度作答。管理父層停止開啟時與 Session 事件的整組重讀，官方解析只需當前卡；回管理才重新載入。
 
-該項目已存預覽與正式 Entry revision 相同，原始快照不等；差異欄位為舊快照缺少 word_segments、新欄位為 null，經既有 dictionary_normalize_snapshot 後完全相同，舊 exchange hash 也能由已存 snapshot／Reviews 重建。匯入仍嚴格比較原始完整 context／exchange version，前端直接沿用舊預覽套用，故編輯器的正規化相容修正沒有解除此流程的阻擋。這是已定位／隔離重現的故障路徑，不代表所有可能的審核故障均已排除。
+## 量測與測試
 
-- 修正：手動套用前沿用既有 inspect／classify／save_dictionary_import_review 重新比對，再以新完整 context／指紋送原 apply RPC。只有純結構相容且原決策仍有效時續行；實際內容、revision／Review／target 或決策改變則停下要求確認，不自動套用、不直接發布。
-- 新的前端相容比較只決定是否要再次確認，不是版本或內容驗證權威。原 RPC 的管理員、身份、CAS、真正衝突、人工發布及交易驗證完全不改；舊字卡／字典 ID、構詞與 IPA 原資料保留。
-- 兩條流程分開：編輯器用 approve_dictionary_review；獨立頁用 apply_dictionary_import_reviews。決策直接更新原列；失敗或需重新確認時保留目前項目位置。錯誤物件／元件 ref 保留 message/code/details/hint，普通畫面只顯示本地化分類，不輸出完整 SQL／私密資料。同步防重送與 30 秒請求期限（逾時不表示伺服器回滾，晚到成功仍可查核）；成功但刷新失敗只重讀，未知結果先查伺服器，不將 Review 消失直接當成功。匯入沿用既有 RLS 讀取與 receipt，不新增伺服器狀態。
-- 不需新增 Migration。正式關鍵 5 個函式定義（含兩個 approve overload）與最新 Migration 建立的隔離版本去除 CRLF 後一致。本輪只唯讀核對正式資料，沒有重新套用 #158 Migration 或修改正式審核資料。
+- 隔離 fake-indexeddb 單次基準：20 卡新建 22.32→5.03ms、恢復 4.99→2.02ms；6,300 卡新建 478.38→129.68ms、恢復 414.83→93.06ms。本機四讀流程 8→2 次 cards／states 全讀，50,400→12,600 筆；不含正式網路與實機。
+- 真實 Chromium 按鈕／IDB v9／受控 5ms RPC 的完整矩陣正在重跑，會補前後時間、auth、sync、IDB、reconcile 與官方解析數字。涵蓋 20／6300、新建／恢復、離線／重連、待傳作答、遠端變更、無盡與官方卡。並行執行其他測試時的首卡數據波動明顯，不把單次較快本機 repository 數字宣稱為端到端改善。
+- 20 個相關回歸檔已全通過：清除／離線事件／同步／排程／Session／字典／舊交換／原審核與官方卡。新增 bounded published target 與單交易回滾／權限／clear／重複開始保護通過。
+- Chromium 原編輯器、autosave（含320px／IME／延遲／失敗／新增刪除）、正式學習閱讀回歸通過；新構詞方格／字卡標註 Chromium 與 WebKit 通過。最後修改後的瀏覽器與 WebKit Session 矩陣仍待收尾。
+- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Build 與遠端 Actions／Vercel 待最後提交核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
 
-## #159 Android 英文語音
+## 資料、發布與限制
 
-使用者實機證據：同一 Android 的 Chrome／安裝 PWA 不播、系統 Google TTS 英文正常，iPad PWA 正常。已確認舊程式在未取得可選英文 voice 時直接退出，且把清單未就緒當成缺少語音；裝置實際 getVoices 清單尚未取得，不能宣稱這是所有 Android 故障的唯一原因。
+沒有 Schema／Migration、正式 DB 查詢或寫入、合併、正式部署、分享連結、權限調整、IndexedDB 清除或 HISTORY 修改。SPEC 只對齊構詞排序的過期敘述並引用 #161；ARCHITECTURE 記錄共用閱讀來源及單交易載入邊界。
 
-- 沿用原 Web Speech，不新增服務／音訊檔，不依賴 IPA。啟動 priming、voiceschanged＋有限輪詢、手動重讀清單，英文本機 voice 優先；不因 localService／onLine 旗標單獨否定英文能力。
-- 自動空清單最多等待 1800ms 再只指定 en-US、不指定 voice；手動空清單保留 gesture 立即嘗試同一備援。已知只有非英文清單時不強選中文，提示重查。事件／有限逾時區分未就緒、限制與失敗；只有 language-unavailable 才提示安裝／啟用英文。
-- 全域單一音訊 ownership、取消與舊回呼隔離；切卡／背景／卸載停止，翻面不重複，自動與手動／語速及正常／無盡共用元件。不讀寫卡片、Session、事件、due、FSRS 或 outbox。
+既有正式 ledger 狀態沿用上一輪唯讀交接，沒有在本輪重驗：#158 三份登錄 `20261105163818`（official）、`20261105163846`（IPA DROP）、`20261105163922`（Page 舊欄退役）；Word segments 為 `20261105083358`。不可直接 db push 補套所有 pending 檔案；舊 IPA 清空檔已 superseded no-op。整組清除仍用 cleared_at＋原事件有效投影，裝置時鐘風險已接受。
 
-## 本輪驗證
+## 尚待驗收
 
-- 新單元：結構化錯誤、安全顯示、防重送、未知結果只讀確認、聲音立即／延遲清單／無事件輪詢／空清單備援、中文拒選、事件／逾時／取消。
-- 新隔離 SQL：重現舊 word_segments／IPA 預覽 stale，修正後只保存 Review、保留既有 IPA／ID；真正並行 Review 改動要求確認。原伺服器 CAS、RLS、內容與發布驗證未停用。
-- 本機 Chromium 編輯器（含核准成功但刷新失敗／未知結果）、實際 SQL 匯入頁、正式學習閱讀生命週期通過。Chromium Android viewport 與 WebKit iPad viewport 的模擬 Web Speech 測試通過；不等於原生裝置已驗收。
-- TypeScript、Build 通過，修改範圍 ESLint 0 errors／2 既有 warnings。本機最後 9 個相關回歸檔全通過（包含 Study clear／sync／reading、舊資料／三份 Migration 與 persistent import）；新核准 6、匯入 SQL 3、語音 7 案例分別驗證。本輪 GitHub Actions／Vercel 以 PR #160 checks／交付註記為準，不沿用 #158 綠燈。
+- Android Chrome／安裝 PWA、iPad Safari／PWA 的真實開啟耗時、離線冷啟動／重新連線與雙裝置清除／衝突；受控 RPC 與桌面 WebKit 不能代替原生裝置。
+- 在授權 Preview／正式版本測長中文提示、長單字、概念換行、正式連結更換解除、IME與虛擬鍵盤完成。不得建立分享連結或更改部署保護以取得測試存取。
+- #156 正式匯入套用與 #159 Android 原生語音依已合併 #160 的原實機步驟驗收，本輪不宣稱再次修復；詞形複合 POS 選單仍僅記錄。
 
-## 正式狀態與限制
-
-唯讀核對：#158 三份 Migration 已由正式 ledger 登錄為 `20261105163818`（official linkage）、`20261105163846`（IPA drop）、`20261105163922`（Page 舊欄退役）；GitHub 檔名版本仍為 091439／091518／091519。IPA 實體舊欄已不存在。本輪沒有執行這些 Migration。禁止直接 db push 補套所有 pending 檔案；舊清空 IPA 檔仍 superseded no-op。
-
-#151／#152／#153／#155／#158 已合併，不重做。整組清除仍依伺服器 cleared_at 與原事件有效投影；裝置時間誤差風險已接受，IndexedDB v9／備份 v4／來源與同步隔離保留。詞形複合 POS 選單問題仍僅記錄，不在本輪修改。
-
-## 待實機／正式驗收步驟
-
-1. 在另行授權的測試版本登入管理員，獨立審核頁選一筆舊預覽，選「以匯入版本」再套用；確認純結構差異可保存 Review、公開答案不會提前變更。若內容真的改變，應停下要求比對；切換帳號／非管理員不得核准。
-2. 測試核准斷線／逾時、成功但重讀失敗：輸入與選取保留；再次操作先查結果，不增加第二次套用／核准。未知／真實版本衝突不得強制覆蓋。
-3. Android Chrome 與既有安裝 PWA 各測試英文卡自動／手動、0.9／1.2 語速、快速切卡、翻面、背景與離開；確認實際發音是英文、沒有重疊。重新開啟取得新版本，不清 IndexedDB。
-4. 同一 Android 測試連線及已安裝離線英文語音的離線播放；若失敗，記錄畫面分類、是否手動啟動、語音清單是否延遲、實際 error code。不要傳私人字卡文字或憑證。
-5. iPad Safari／PWA 在正常與無盡模式重測相同行為。僅播放／重播不得增加事件、額度或改排程。WebKit／Chromium 模擬不代表已完成這些實機驗收。
-
-本輪修正需前端正式發布後才能驗收正式 #156 與 Android 原生語音；尚未自行部署。維持 Draft，等人工審查與實機結果再決定合併。
+維持 Draft。待完整量測、最後本機檢查與新提交的遠端 CI／Vercel 成功後再評估人工審查；不自行合併或正式部署。

@@ -433,9 +433,7 @@ export class StudyRepository {
     }
     return next;
   }
-  async startSession(deckId: string, mode: SessionMode, now = Date.now()): Promise<StudySession> {
-    return this.sessionWrite(async tx=>{
-      const snapshot=await this.snapshotIn(tx,deckId);
+  private async startSessionIn(tx:Write,deckId:string,mode:SessionMode,now:number,snapshot:StudySnapshot):Promise<StudySession> {
       if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
       const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
       const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]??(mode==='scheduled'?sessions.filter(s=>(s.mode==='daily'||s.mode==='free')&&s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]:undefined);
@@ -462,6 +460,17 @@ export class StudyRepository {
       const session=makeSession(snapshot,mode,cards,now,newId(),batch?.id);
       await this.saveSession(tx,session);
       return session;
+  }
+  async startSession(deckId:string,mode:SessionMode,now=Date.now()):Promise<StudySession> {
+    return this.sessionWrite(async tx=>this.startSessionIn(tx,deckId,mode,now,await this.snapshotIn(tx,deckId)));
+  }
+  /** Opening uses one fresh snapshot, after the caller's authoritative sync barrier. */
+  async openScheduledSession(deckId:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+    return this.sessionWrite(async tx=>{
+      const snapshot=await this.snapshotIn(tx,deckId);
+      const session=await this.startSessionIn(tx,deckId,'scheduled',now,snapshot);
+      await this.presentIn(tx,session,snapshot,now);
+      return {session,snapshot};
     });
   }
   async readSession(id:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
@@ -472,13 +481,8 @@ export class StudyRepository {
       return {session,snapshot};
     },false);
   }
-  async presentScheduled(sessionId:string, now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+  private async presentIn(tx:Write,session:StudySession,snapshot:StudySnapshot,now:number):Promise<boolean> {
     let introduced=false;
-    const result=await this.sessionWrite(async tx=>{
-      const saved:StudySession=await tx.objectStore("study_sessions").get(sessionId);this.owned(saved);
-      if(saved.mode!=="scheduled")throw new Error("非正式排程 Session。");
-      const snapshot=await this.snapshotIn(tx,saved.deck_id);
-      const session=await this.reconciled(tx,saved,snapshot,now);
       const id=session.queue[0];
       const card=snapshot.cards.find(c=>c.id===id), state=snapshot.states.find(s=>s.id===id);
       if(card && state && isUnintroduced(state)) {
@@ -489,10 +493,24 @@ export class StudyRepository {
         snapshot.states=snapshot.states.map(s=>s.id===id?event.after:s);
         snapshot.events.push(event);
       }
+    return introduced;
+  }
+  /** Reconcile and present once. Practice sessions remain read-only presentations. */
+  async readPresentedSession(sessionId:string,now=Date.now(),requireScheduled=false):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+    let introduced=false;
+    const result=await this.sessionWrite(async tx=>{
+      const saved:StudySession=await tx.objectStore('study_sessions').get(sessionId);
+      if(!saved)throw Error('study.sessionCleared');this.owned(saved);
+      if(requireScheduled&&saved.mode!=='scheduled')throw Error('非正式排程 Session。');
+      const snapshot=await this.snapshotIn(tx,saved.deck_id);
+      const session=await this.reconciled(tx,saved,snapshot,now);
+      if(session.mode==='scheduled')introduced=await this.presentIn(tx,session,snapshot,now);
       return {session,snapshot};
     },false);
-    if(introduced)this.changed();
-    return result;
+    if(introduced)this.changed();return result;
+  }
+  async presentScheduled(sessionId:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
+    return this.readPresentedSession(sessionId,now,true);
   }
   async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number;displayContent?:{front:string;back:string}}):Promise<StudySession> {
     return this.sessionWrite(async tx=>{

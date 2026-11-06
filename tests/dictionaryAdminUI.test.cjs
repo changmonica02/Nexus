@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','詞性','中文意思','歷史詞源','核心概念','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['單字','詞性','中文意思','歷史詞源','概念','構詞關聯','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -28,7 +28,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
 });
 test('import preview escapes Markdown and distinguishes mnemonic from historical content',()=>{
   const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{dictionary_etymologies:[{id:'h',body:'Unverified history',verification:'pending'}],dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],dictionary_sources:[{id:'s',citation:'Self authored',license:'test-only',raw_text:'raw original'}]}}));
-  assert.ok(html.includes('核心概念'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('概念'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
 });
 
 test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
@@ -45,7 +45,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資訊','義項','詞形變化','構詞關聯','補充資料','核心概念','歷史詞源']){
+  for(const label of ['基本資訊','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
@@ -59,7 +59,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
   assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>義項</h3>'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
-  assert.ok(html.includes('sm:grid-cols-2'));
+  assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
   const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(source.includes("modal==='import'&&<DictionaryModal"));
@@ -207,7 +207,7 @@ test('return sits beside page title and shared copyright information is reachabl
 
 test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
  const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
- try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','核心概念']]){
+ try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','概念']]){
   let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
   const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{data_source:''})};
   const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
@@ -222,7 +222,7 @@ test('all three editor content types remove new items locally and confirm persis
 test('empty classification uses unset placeholder and empty composition hides sense placeholder headings',()=>{
  const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
- assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>歷史詞源</h3>'));assert.ok(section.includes('新增構詞關聯'));assert.ok(!section.includes('待補'));
+ assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>例詞</h3>'));assert.ok(section.includes('新增構詞關聯'));assert.ok(!section.includes('待補'));
 });
 
 
@@ -240,7 +240,7 @@ test('Word Sense rows keep stable identities and blank legacy values; basic info
 
 test('normal preview places core concept before etymology without legacy kind or retired hint controls',()=>{
  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
- assert.ok(html.indexOf('核心概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
+ assert.ok(html.indexOf('概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });
 
 test('dictionary review queue remains reachable without a modal and reports unavailable capability',()=>{

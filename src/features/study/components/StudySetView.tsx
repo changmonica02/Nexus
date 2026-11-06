@@ -233,6 +233,8 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   const [privateOfficialStatus,setPrivateOfficialStatus]=useState<{pack:string;available:boolean}|null>(null);
   const privateOfficialEditing=privateOfficialStatus?.pack===page.official_pack_id&&privateOfficialStatus?.available===true;
   useEffect(()=>{let active=true;const client=getSupabase(),pack=page.official_pack_id;if(pack&&client)void officialPrivateCardsAvailable(client).then(available=>{if(active)setPrivateOfficialStatus({pack,available});});return()=>{active=false;};},[page.official_pack_id]);
+  const starting=useRef(false);
+  const [startingStudy,setStartingStudy]=useState(false);
   const [requestedMode,setMode]=useState<"manage"|"scheduled"|"history">(initialMode);
   const mode = requestedMode === "scheduled" && snapshot && !snapshot.settings.direction_confirmed ? "manage" : requestedMode;
   const [showCsvImport,setShowCsvImport]=useState(false);
@@ -242,20 +244,21 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
   const [customizing,setCustomizing]=useState(false),customizingRef=useRef(false);
   const [editingCard,setEditingCard]=useState<(Pick<StudyCard,"front"|"back"> & {id?:string})|null>(null);
   const refresh=useRef(()=>{});
-  const openedCard=useRef(false);
+  const openedCard=useRef(false),loadedDeck=useRef<string|null>(null);
   useEffect(()=>{if(openedCard.current||!snapshot)return;const id=new URLSearchParams(window.location.search).get('card');const card=snapshot.cards.find(c=>c.id===id&&!c.deleted_at);if(card){openedCard.current=true;setEditingCard(card);}},[snapshot]);
   useEffect(()=>{
     let active=true;
-    const read=()=>{void repository.ensureDeck(page, false).then(()=>repository.readScheduledDeck(page.id)).then(async data=>{const recovery=await repository.recoveryEvents(page.id);if(active){setSnapshot(data);if(recovery.length)setError(t('study.clearInvalidEvent'));}}).catch(e=>{if(active)setError(String(e));});};
-    refresh.current=read;read();window.addEventListener("nexus-study-changed",read);
-    return()=>{active=false;window.removeEventListener("nexus-study-changed",read);};
-  },[repository,page,t]);
+    const read=()=>{void repository.ensureDeck(page, false).then(()=>repository.readScheduledDeck(page.id)).then(async data=>{const recovery=await repository.recoveryEvents(page.id);if(active){loadedDeck.current=page.id;setSnapshot(data);if(recovery.length)setError(t('study.clearInvalidEvent'));}}).catch(e=>{if(active)setError(String(e));});};
+    refresh.current=read;if(mode!=='scheduled'||loadedDeck.current!==page.id)read();
+    const changed=()=>{if(mode!=='scheduled')read();};window.addEventListener("nexus-study-changed",changed);
+    return()=>{active=false;window.removeEventListener("nexus-study-changed",changed);};
+  },[repository,page,t,mode]);
   useEffect(()=>{let active=true;if(mode==='history')void repository.readHistory(page.id,historyLimit+1).then(events=>{if(active)setHistoryEvents(events);}).catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[mode,historyLimit,page.id,repository,snapshot]);
   const act=async(action:()=>Promise<unknown>)=>{setError("");try{await action();refresh.current();}catch(e){setError(t(e instanceof Error?e.message:String(e)));}};
   const customize=async()=>{if(customizingRef.current||!editingCard?.id)return;customizingRef.current=true;setCustomizing(true);try{await act(async()=>{const [card]=await resolveOfficialContent([cards.find(c=>c.id===editingCard.id)!],getSupabase());await repository.updateCard(card.id,{front:card.front,back:card.back,official_custom:true});setEditingCard(null);});}finally{customizingRef.current=false;setCustomizing(false);}};
   const showingCards=mode==="manage"&&(!managementOnly||showCards);
-  const displayedCards=useOfficialContent(snapshot?.cards??[]);
-  const cards=displayedCards.filter(card=>!card.deleted_at);
+  const displayedCards=useOfficialContent(showingCards?snapshot?.cards??[]:[]);
+  const cards=(showingCards?displayedCards:snapshot?.cards??[]).filter(card=>!card.deleted_at);
   const createRequest=useRef(crypto.randomUUID());
   const savedCard=useRef<{id:string;signature:string}|null>(null);
   useEffect(()=>{savedCard.current=null;createRequest.current=crypto.randomUUID();},[editingCard]);
@@ -278,7 +281,7 @@ function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface,
       <PageHeader autoFocusBack={managementOnly} globalActions={mode!=='scheduled'} title={mode==='scheduled'?page.title:t(mode==='history'?'study.history':managementOnly&&!showCards?'deck.manageTitle':'deck.viewCards')+'。'+page.title} onBack={(onBackToInterface||(managementOnly&&showCards))?()=>void leave():undefined} backLabel={managementOnly&&showCards?t('deck.backSettings'):backLabel??t('study.backToStudySets')} actions={mode==='scheduled'?<><span aria-label={t('study.batchProgress')} aria-live="polite">{sessionProgress.done}／{sessionProgress.total}</span><button className="min-h-11 rounded border px-2 text-sm" onClick={()=>setMode('manage')}>{t('study.previewAll')}</button></>:mode==='history'?<button className="min-h-11 rounded border border-red-400 px-3 text-sm text-red-600" onClick={()=>setShowClear(true)}>{t('study.clearHistory')}</button>:undefined}/>
       {mode!=='scheduled'&&<div data-study-actions className="my-3 flex flex-wrap items-center gap-2">{mode==='manage'?<>
         {managementOnly&&!showCards&&<button className="min-h-11 rounded border px-3 text-sm" onClick={()=>void settingsFlush.current().then(()=>setShowCards(true)).catch(e=>setError(String(e)))}>{t('deck.viewCards')} · {t('studySet.cardCount',{count:cards.length})}</button>}
-        <button className="min-h-11 rounded border px-3 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed} onClick={()=>{prepareStudySpeech();void settingsFlush.current().then(async()=>{setSnapshot(await repository.readScheduledDeck(page.id));setMode('scheduled');}).catch(e=>setError(String(e)));}}>{t('study.start')}</button>
+        <button className="min-h-11 rounded border px-3 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed||startingStudy} onClick={()=>{if(starting.current)return;starting.current=true;setStartingStudy(true);prepareStudySpeech();void settingsFlush.current().then(()=>setMode('scheduled')).catch(e=>setError(String(e))).finally(()=>{starting.current=false;setStartingStudy(false);});}}>{t('study.start')}</button>
         <button className="min-h-11 rounded border px-3 text-sm" onClick={()=>setMode('history')}>{t('study.history')}</button>
       </>:<button className="min-h-11 rounded border px-3 text-sm" onClick={()=>setMode('manage')}>{t('study.previewAll')}</button>}</div>}
       {clearStatus&&<p role="status" className="mb-3 text-sm">{clearStatus}</p>}

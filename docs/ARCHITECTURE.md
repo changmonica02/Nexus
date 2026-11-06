@@ -241,6 +241,20 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 筆記匯出瀏覽器回歸等待既有列印按鈕啟用，確認 `NoteExportPreview` 已完成資產準備與分頁，再驗證正文、頁首頁尾、版面及 PDF；視窗可見／頁面殼層存在不代表準備完成。此次未改匯出產品邏輯，保留原內容與來源不變斷言。
 
+### 緊湊構詞與 Session 開啟（#161）
+
+`WordSegmentsEditor` 保留原有有序 `word_segments` 與 relation ID／Sense 契約；單行字形、提示與 44px 刪除操作同列，至少一格，新增只附加，移除排序控制。原生 details 收合正式連結，已連結時沿用 `RelationTargetPicker` 顯示正式名稱與狀態；更換保留 relation ID 及適用義項，解除段落引用不刪既有正式關聯。欄位仍由原編輯器完整候選／IME／序列化 autosave／CAS 保護，收合不卸載輸入。基本資料、概念、義項、詞形、歷史詞源及其餘區塊只重排呈現，不觸發初始化寫入。使用者名稱為「概念」，`core_concept`／RPC／交換識別不變。
+
+`DictionaryArticle` 是獨立閱讀與學習內面板共用來源。有效 Word 分段以依序排列的兩欄小方格呈現，窄於 360px 改單欄；已由方格呈現的關聯不再重複縱排，未對應段落的正式關聯及反向探索保留。`readPublishedTargets` 先按正式 Entry ID 去重、最多四個 worker，沿用 `readPublishedEntry` 的 in-flight 去重及原公共離線快取，不另建資料庫；離開後停止尚未排入的請求並忽略晚回覆。只有回傳身份一致且 published 的目標可提供詞源，並限制共用／被連結義項；目前完整 Word 的詞源仍位於自己的歷史詞源區域。概念位於構詞下方，缺少內容不建立占位。
+
+`StudyCompositionSummary` 只在翻面後讀原公開詞條，且正式拼寫相符才標註。段落寬度由實際字形決定，中文絕對定位且可換行；底線左右各內縮 1px，不插入英文字元／空格。概念完整使用已發布原文，不截句或生成，置於提示右側且可換行；不再另發一次摘要元件讀取。英文為 24／30px，小於中文 30／48px。不依賴 IPA，不改語音控制、作答或排程。
+
+`ScheduledStudySession` 線上仍先 `auth.getUser` → 原 single-flight `syncStudy`（包括每輪 clear times、outbox、feed 與衝突核對），成功後才 `openScheduledSession`。本機一次嚴格 readwrite 交易讀取 settings／cards／states，以同一 snapshot 呼叫原建立／恢復演算法並正式呈現首卡；原 introduce、每日額度及 CAS 完全保留，整筆失敗回滾。後續載入使用 `readPresentedSession` 在同一交易 reconcile＋present 一次，practice 不產生正式 introduce；原 startSession／readSession／presentScheduled API 保留供既有呼叫。沒有跨交易快照快取，也不以過期本機資料略過雲端清除核對。
+
+`StudySetView` 開始前只等待設定 flush，不再重讀全組；同步 ref 阻止快速重複開始。管理畫面離開後不為 Session 事件重載管理清單或解析全組官方內容，返回管理時重新讀取。正式 Session 的官方解析仍只對當前卡片，沿用可信公開備援及原內容更新事件。載入提示區分本機恢復／帳號確認／雲端進度與待同步變更；同步失敗仍阻止正式呈現與作答。IndexedDB v9、備份 v4、帳號邊界、原清除投影與事件去重不變，沒有 Migration。
+
+測量程式位於 `studyStartup.performance.test.cjs`（fake-indexeddb、原四讀流程 vs 單交易）與 `studyStartup.browser.test.cjs`（實際 StudySetView 按鈕、IndexedDB v9、受控 RPC）。後者輸出首卡、DB 開啟、各 repository 階段、全組讀取筆數、auth／RPC 耗時；BASELINE 模式從指定目錄讀取 main 基準的三個來源檔，沒有產品內平行實作。測試 RPC 每次受控延遲 5ms，不能當作正式 Supabase 或原生 PWA 效能；數值與未完成實機驗收見 HANDOFF。
+
 ### 官方連動與欄位退役（#157）
 
 官方來源仍是私人 `study_cards.payload` 的 `official_pack_id`／`official_source_entry_id`；目前連結獨立存於 `dictionary_entry_id`。只有來源完整、有正式連結且 `official_custom === false` 的卡採連動解析；true 或缺少狀態維持私人文字。新下載 false；舊卡只在 revision=1、created_at=updated_at、未刪除、來源與目前連結一致、有效下載且字面完全符合已發布詞條時回填 false。回填按 owner 取得既有 workspace advisory lock，只改標記，不改時間、內容版本或排程；客戶端相同時間／版本僅接受其他內容完全一致的狀態補充，離線私人修改仍依原 LWW／outbox 同步。舊客戶端寫入有內容修改時伺服器保守轉成自訂，不能反向解除已確認自訂。

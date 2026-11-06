@@ -11,7 +11,6 @@ export function studyComposition(detail:PublishedDetail|null,front:string,answer
   let offset=0;
   const parts=segments?.map(s=>{const name=front.trim().slice(offset,offset+s.text.length);offset+=s.text.length;return {name,meaning:s.hint};})??[{name:front,meaning:''}];
   const stored=detail.learning_notes.find(note=>note.kind==='core_concept'&&scoped(note.sense_id)&&note.body.trim())?.body.trim();
-  const first=stored?.split(/\r?\n|(?<=[。！？])|(?<=[.!?])\s+/u)[0]?.trim();
-  const concept=first&&first.replace(/\s+/g,'')!==answer.trim().replace(/\s+/g,'')?(first.length>160?first.slice(0,160)+'…':first):null;
+  const concept=stored&&stored.replace(/\s+/g,'')!==answer.trim().replace(/\s+/g,'')?stored:null;
   return {parts,concept};
 }
