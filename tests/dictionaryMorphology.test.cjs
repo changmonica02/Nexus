@@ -20,3 +20,10 @@ test('one-transaction opening retains resume, settings, quota, clear barrier, co
   await f.db.put('study_sessions',{...cleared.session,conflict:true});const unchanged=await f.repo.exportData();await assert.rejects(f.repo.openScheduledSession('deck',now+30),/衝突/);assert.deepEqual(await f.repo.exportData(),unchanged);
  }finally{await f.close();}
 });
+
+test('leaving a large official list stops unneeded queued batches without mutating cards or creating another cache',async()=>{
+ const {resolveOfficialContent}=require('../src/features/study/officialContent.ts');
+ const cards=Array.from({length:6300},(_,i)=>({id:id(i+1),official_pack_id:'fixture',official_source_entry_id:id(i+1),dictionary_entry_id:id(i+1),official_custom:false,front:'original',back:'原文'}));
+ let active=true,calls=0;const client={rpc:async(_,args)=>{calls++;assert.equal(args.entry_ids.length,200);active=false;return{data:[]};}};
+ const before=structuredClone(cards);await resolveOfficialContent(cards,client,()=>active);assert.equal(calls,1);assert.deepEqual(cards,before);
+});

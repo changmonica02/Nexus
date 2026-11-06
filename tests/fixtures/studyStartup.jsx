@@ -18,7 +18,7 @@ if(params.has('official')){const cards=(await repo.exportData()).cards,tx=repo.d
 const getAll=IDBIndex.prototype.getAll;IDBIndex.prototype.getAll=function(...args){const request=getAll.apply(this,args);if(['study_cards','study_states'].includes(this.objectStore.name)){metrics.reads++;request.addEventListener('success',()=>metrics.records+=request.result.length);}return request;};
 for(const key of ['snapshotIn','reconciled','readScheduledDeck','startSession','openScheduledSession','readSession','presentScheduled','readPresentedSession']){const original=repo[key];if(!original)continue;repo[key]=async function(...args){const begin=performance.now();try{return await original.apply(this,args);}finally{const m=metrics.methods[key]??={calls:0,ms:0};m.calls++;m.ms+=performance.now()-begin;m.start=begin-metrics.begin;}};}
 let sequence=0;
-window.dictionaryClient={auth:{getUser:async()=>{const begin=performance.now();await new Promise(r=>setTimeout(r,5));metrics.calls.push({name:'auth',ms:performance.now()-begin,start:begin-metrics.begin});return{data:{user:{id:owner}}};},onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},rpc:async(name,args={})=>{
+window.dictionaryClient={auth:{getUser:async()=>{const begin=performance.now();await new Promise(r=>setTimeout(r,params.has('cancel')?150:5));metrics.calls.push({name:'auth',ms:performance.now()-begin,start:begin-metrics.begin});return{data:{user:{id:owner}}};},onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},rpc:async(name,args={})=>{
  const begin=performance.now();await new Promise(r=>setTimeout(r,5));metrics.calls.push({name,ms:performance.now()-begin,start:begin-metrics.begin});
  if(name==='get_study_clear_times')return{data:[]};
  if(name==='apply_study_operation')return{data:true};
@@ -30,5 +30,6 @@ window.dictionaryClient={auth:{getUser:async()=>{const begin=performance.now();a
 }};
 if(offline)Object.defineProperty(navigator,'onLine',{get:()=>false,configurable:true});
 window.startupRepo=repo;window.startupExisting=existing?.id;
-createRoot(document.getElementById('root')).render(<LanguageProvider initialLanguage="zh-TW"><StudySetView page={page} repository={repo} onTitleChange={()=>{}}/></LanguageProvider>);
+function App(){const [open,setOpen]=React.useState(true);return <LanguageProvider initialLanguage="zh-TW"><button onClick={()=>setOpen(false)}>Close fixture</button>{open&&<StudySetView page={page} repository={repo} onTitleChange={()=>{}}/>}</LanguageProvider>;}
+createRoot(document.getElementById('root')).render(<App/>);
 window.measureStart=()=>{metrics.reads=0;metrics.records=0;metrics.methods={};metrics.calls=[];metrics.first=0;metrics.begin=performance.now();const watch=new MutationObserver(()=>{if(document.querySelector('[data-study-card]')){metrics.first=performance.now()-metrics.begin;watch.disconnect();}});watch.observe(document.getElementById('root'),{childList:true,subtree:true});};

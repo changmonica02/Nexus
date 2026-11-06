@@ -13,7 +13,7 @@ export default function StudyCompositionSummary({entryId,front,answer,inline=fal
   useEffect(()=>{
     let active=true;
     const client=getSupabase();if(!client)return;
-    void readPublishedEntry(client,entryId).then(detail=>{if(active)setResult({key,summary:studyComposition(detail,front,answer)});}).catch(()=>{/* Reading aids never block reveal or grading. */});
+    void readPublishedEntry(client,entryId).then(detail=>{if(active)setResult({key,summary:studyComposition(detail,front)});}).catch(()=>{/* Reading aids never block reveal or grading. */});
     return()=>{active=false;};
   },[entryId,front,answer,key]);
   const summary=result?.key===key?result.summary:null;

@@ -63,7 +63,7 @@ jobs:
           STUDY_BROWSER=webkit node tests/dictionaryMorphology.browser.test.cjs
           node tests/studyStartup.browser.test.cjs
           STUDY_BROWSER=webkit node tests/studyStartup.browser.test.cjs
-          npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/DictionaryArticle.tsx src/features/dictionary/WordSegmentsEditor.tsx src/features/dictionary/RelationTargetPicker.tsx src/features/dictionary/reader.ts src/features/dictionary/studyComposition.ts src/features/study/StudyRepository.ts src/features/study/components/StudySetView.tsx src/features/study/components/ScheduledStudySession.tsx src/features/study/components/StudyCompositionSummary.tsx src/lib/i18n.ts src/components/DataSourcesAndCopyright.tsx src/features/dictionary/DictionaryAI.tsx src/features/dictionary/aiDictionary.ts
+          npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/DictionaryArticle.tsx src/features/dictionary/WordSegmentsEditor.tsx src/features/dictionary/RelationTargetPicker.tsx src/features/dictionary/reader.ts src/features/dictionary/studyComposition.ts src/features/study/StudyRepository.ts src/features/study/officialContent.ts src/features/study/useOfficialContent.ts src/features/study/components/StudySetView.tsx src/features/study/components/ScheduledStudySession.tsx src/features/study/components/StudyCompositionSummary.tsx src/lib/i18n.ts src/components/DataSourcesAndCopyright.tsx src/features/dictionary/DictionaryAI.tsx src/features/dictionary/aiDictionary.ts
       - run: node --test tests/workspaceSync.test.cjs
       - name: Existing map metadata, IDB and localization contracts
         run: |

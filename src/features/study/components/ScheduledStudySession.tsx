@@ -51,7 +51,8 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     // Online starts synchronize the shared daily introduction history before selecting a new batch.
     const client=getSupabase();
     if(client&&navigator.onLine){if(alive.current)setPhase('account');const {data:{user},error}=await client.auth.getUser();if(error)throw error;if(user){if(alive.current)setPhase('cloud');await syncStudy(repository,client,user.id);}}
-    if(alive.current)setPhase('local');
+    if(!alive.current)throw new DOMException('Study view closed','AbortError');
+    setPhase('local');
     return repository.openScheduledSession(deckId);
   },[repository,deckId]);
   useEffect(()=>{
