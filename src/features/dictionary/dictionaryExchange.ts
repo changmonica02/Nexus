@@ -1,4 +1,4 @@
-import {replacementIssueIds} from "./persistentImport";
+import {replacementIssueIds,sameImportProposal,type PersistentItem} from "./persistentImport";
 import {cleanIpaRecord} from './retiredPronunciation';
 import {mergeCoreConcepts} from './coreConcept';
 import type { AISnapshot } from "./aiDictionary";
@@ -124,7 +124,7 @@ export function draftFromExchange(
     keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","grouping","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
     for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections"] as const){
-      if(draft[section]===undefined){draft[section]=[];continue;}
+      if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="inflections")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
       for(const value of draft[section]??[]){
         const fields=section==="relation_hints"?["body","sense_id","sort_order"]:rowFields[section];
@@ -545,7 +545,11 @@ export async function previewExchange(
       const current=context.exchange?.import_review_refs??[];
       const matching=record.import_reviews.every(r=>r.entry_id===item.draft.entry_id&&current.some(x=>x.id===r.id&&x.entry_id===r.entry_id&&x.revision===r.revision&&x.version===r.version));
       if(!matching)issue("revision_conflict","Pending review changed or provenance is missing; export and analyze again.");
-      else item.replacement_refs=record.import_reviews.map(r=>({id:r.id,entry_id:r.entry_id,revision:r.revision,version:r.version,issue_ids:replacementIssueIds(item.draft,context,r.item.issues)}));
+      else {
+        item.replacement_refs=record.import_reviews.map(r=>({id:r.id,entry_id:r.entry_id,revision:r.revision,version:r.version,issue_ids:replacementIssueIds(item.draft,context,r.item.issues)}));
+        const same=record.import_reviews.find(r=>sameImportProposal(r.item.draft,item.draft));
+        if(same)(item as PersistentItem).original=structuredClone(same.item.draft);
+      }
     }
 
   }

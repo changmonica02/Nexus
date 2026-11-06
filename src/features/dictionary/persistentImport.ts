@@ -79,13 +79,27 @@ export async function persistentImportAvailable(client: ReviewClient) {
     );
   return true;
 }
+/** Compare effective draft content without server metadata or arbitrary row-array order. */
+export function sameImportProposal(a:DictionaryDraftInput,b:DictionaryDraftInput){
+ const normalize=(value:unknown):unknown=>{
+  if(Array.isArray(value)){
+   const rows=value.map(normalize);
+   return rows.length&&rows.every(r=>r&&typeof r==="object"&&("id" in r||"sense_id" in r))?rows.sort((a,b)=>String((a as DraftRow).id??(a as DraftRow).sense_id).localeCompare(String((b as DraftRow).id??(b as DraftRow).sense_id))):rows;
+  }
+  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).filter(([k])=>!["row","revision","updated_at"].includes(k)).map(([k,v])=>[k,normalize(v)]));
+  return value;
+ };
+ return canonical(normalize(mapDictionaryDraft(a)))===canonical(normalize(mapDictionaryDraft(b)));
+}
 /** Identity of the proposal, not of its transient browser Session. Generated CSV IDs are placeholders only in the deduplication key. */
 export function proposalKey(item: ImportItem) {
+  const original=(item as PersistentItem).original;
+  const draft=item.replacement_refs?.length&&importSafety(item)==="review"&&original&&sameImportProposal(original,item.draft)?original:item.draft;
   const proposed = new Map(
-    (item.draft.proposed_ids ?? []).map((id, i) => [id, "proposed:" + i]),
+    (draft.proposed_ids ?? []).map((id, i) => [id, "proposed:" + i]),
   );
   const cleaned = JSON.parse(
-    JSON.stringify(item.draft, (key, v) =>
+    JSON.stringify(draft, (key, v) =>
       ["row", "revision", "proposed_ids"].includes(key)
         ? undefined
         : typeof v === "string" && proposed.has(v)
@@ -96,7 +110,7 @@ export function proposalKey(item: ImportItem) {
   return canonical({
     draft: cleaned,
     raw_candidate: item.raw_candidate ?? null,
-    ...(item.replacement_refs?.length?{replacement_refs:item.replacement_refs}:{}),
+    ...(item.replacement_refs?.length&&importSafety(item)==="safe"?{replacement_refs:item.replacement_refs}:{}),
   });
 }
 const issueKey = (i: ImportIssue) =>

@@ -187,7 +187,7 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 匯出 RPC 保留原五參數，新增七參數 overload 與 capability：類型必須非空，全部／真正進行中審核可組合，管理清單搜尋／分頁不限制匯出。pending 為未處理差異／失敗待恢復的常駐來源或 active editor Review，不是所有 Draft；依穩定 Entry 去重。preview-only 先取得筆數與固定 scope version，每批至多100筆，範圍包含 canonical 與候選版本，任一變更要求重啟。既有 owner 分區 IndexedDB jobs／export_pages 原子 checkpoint 繼續使用；暫停可恢復，重新下載只讀原完成工作，不再查伺服器。
 
-第一層保留檔案／貼上內容，JSON 文字區有高度上限；分析只解析、查詢與保存本機 checkpoint。第二層原生 dialog 提供分類說明、每詞條計數、三個預設收合區塊，每頁25筆且展開才繪製細節。`classifyPersistent`／`partialImportPlan` 仍為既有判定與欄位安全套用來源；獨立新增／空白補充屬安全，修改、取代、歸屬不明或混合內容屬待審核，結構、身分、版本或參照阻擋屬不通過。全筆安全才能使用「匯入安全詞條」；「匯入全部」也只對爭議部分建立／更新原常駐審核，不自動接受或發布。排除只略過本次作業。原 local operation、archive 與常駐來源保留，帳號分區不變。
+第一層保留檔案／貼上內容，JSON 文字區有高度上限；分析只解析、查詢與保存本機 checkpoint。第二層原生 dialog 提供分類說明、每詞條計數、三個預設收合區塊，每頁25筆且展開才繪製細節。`classifyPersistent`／`partialImportPlan` 仍為既有判定與欄位安全套用來源；獨立新增／空白補充屬安全，修改、取代、歸屬不明或混合內容屬待審核，結構、身分、版本或參照阻擋屬不通過。全筆安全才能使用「匯入安全詞條」；「匯入全部」也只對爭議部分建立／更新原常駐審核，不自動接受或發布。排除只略過本次作業。原 local operation、archive 與常駐來源保留，帳號分區不變。來源 proof 已確認且有效內容相同的待審核提案，沿用來源原 proposal key；僅重排具固定 ID 的義項／子資料不產生重複常駐列，構詞順序與實際內容差異仍保留。
 
 `20261106032651_dictionary_exchange_safe_replacement.sql` 不新增資料表，也不改人工核准架構。`apply_dictionary_safe_import_reviews` 在原 advisory lock／CAS／receipt 管線中，獨立驗證候選確為新增而非覆寫，並以相同 Entry、來源 ID、revision、完整 fingerprint 與確切 issue target 證明取代。先鎖來源，再呼叫原 apply RPC；只有實際草稿寫入成功，才將確實涵蓋的舊 issues 標為 applied 並重算 pending_count。保留原來源與收據供追溯，不按拼寫刪除、不清不相關項目、不建立歷史版本。清理失敗的子交易回滾草稿、Review、收據與清理；未變更、失敗、過期或仍有爭議不清理。操作身分沿用 row ID＋revision 的既有冪等收據；結果不明仍先查正式常駐狀態，不換 operation 猜測重送。
 
