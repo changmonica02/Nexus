@@ -1,48 +1,31 @@
 # Nexus — 當前狀態與下一步
 
-本輪追蹤 #161；分支 `feat/compact-morphology-study-startup`，基於最新 main `b78bb11`（#158、#160 已合併）。Draft PR [#162](https://github.com/changmonica02/Nexus/pull/162)，程式提交 `108a201`、`0e4903c`，最後交接提交見 PR head；不重做審核／Android 語音，也不實作 main 最新另列的匯入匯出規劃。
+本輪追蹤 #163；分支 `feat/dictionary-exchange-safe-replacement`，基於最新 main `6dd9e1b`（#158、#160、#162 已合併）。新的 Draft PR／提交以本分支 PR head 為準，待下方遠端結果核對；不改上述歷史提交、HISTORY、正式 DB、部署或存取保護。
 
 ## 本輪實作
 
-- 構詞編輯橫向字形／提示／刪除，移除排序、末尾新增；正式連結收合且保留原 relation ID／Sense。編輯區塊依基本資料、概念、義項、詞形、歷史詞源、其餘排列，原 autosave／IME／CAS／發布不變。
-- 字卡背面英文略放大、仍小於中文，底線各內縮 1px；中文提示不撐開字形。已發布概念原文放提示右側，可換行，沒有概念不顯示等號。使用者名稱統一「概念」，底層 `core_concept` 不改。
-- 共用 DictionaryArticle 分段小方格（一般手機兩欄、320px 單欄）。詞源僅從正式連結目標的 published 共用／適用義項取得；原公開 reader/cache 去重、最多四個並行，保留探索返回與完整 Word 自身詞源。未對應分段的舊正式關聯保留。
-- Session 開啟由同一交易讀一次 snapshot，再建立／恢復及 present；後續 readPresentedSession 不再先 readSession 又 present。保留帳號驗證與完整原 syncStudy 屏障，不以未核對進度作答。管理父層停止開啟時與 Session 事件的整組重讀，僅以 styleForDeck 讀設定以保留即時閱讀偏好，官方解析只需當前卡；回管理才重新載入。
+- 完整交換匯出採獨立類型核取方塊與全部／真正待審核範圍；preview 筆數與固定版本、100筆分頁、暫停恢復及同一完成工作的重新下載。完整保留 canonical snapshot、editor Review 與常駐候選／來源／ID／版本；未建立正式詞條的候選也可匯出，以 null snapshot 明確區別。
+- 第一層格式說明預設收合，檔案／貼上內容保留且高度受限；分析不寫伺服器。第二層獨立 dialog、分類說明、詞條計數、三類預設收合、25筆分頁、完整差異、單筆／批次操作、排除、重查、原審核入口與工作恢復。原 AI JSON 人工 Diff 相容保留，不自動清理缺少完整來源證明的資料。
+- 沿用 classifyPersistent／partialImportPlan、stage／apply、原 Review 與 receipt。移除完整 JSON 曾把修改自動視為可接受的選項；獨立新增可草稿寫入，修改／混合爭議仍進原審核，正式 Published 不變。安全寫入與確切舊 issue 結案在同一交易，來源列保留供追溯。未變更不清理、不按拼寫配對，不建立另一套匯入資料庫或 AI 審核。
+- Google OAuth 加入 `prompt=select_account`，不改登出、redirect 或 owner／離線資料邊界。
 
-## 量測與測試
+## Migration 與正式條件
 
-- 隔離 fake-indexeddb 單次基準：20 卡新建 22.32→5.03ms、恢復 4.99→2.02ms；6,300 卡新建 478.38→129.68ms、恢復 414.83→93.06ms。本機四讀流程 8→2 次 cards／states 全讀，50,400→12,600 筆；不含正式網路與實機。
-- 實際 Chromium StudySetView 按鈕／IndexedDB v9 的前後矩陣（基準 main `8a4ec6a`，程式基準亦等同 b78bb11；改善後 `108a201`／`0e4903c`（含生命週期補強，讀取設定的最後補強另由新矩陣核對））如下。每個 RPC 受控延遲5ms，改善前為單次毫秒、改善後為兩次完整跑測的範圍，並非正式服務／手機保證；6300卡改善前恢復數值受重複讀取排隊影響，不能當穩定分位數。20卡各情境沒有穩定加速，保留原始結果。
+新增 `20261106032651_dictionary_exchange_safe_replacement.sql`：新增 capability、七參數匯出 overload、安全 apply wrapper 與內部 helpers；inspect 僅附加來源 fingerprint 摘要。沒有新表、刪欄、內容回填或自動發布；人工核准 #156 架構與既有事件／排程／同步不改。依賴 Word segments、#158 退役與常駐審核 RPC；正式 ledger 名稱可能不同，不能直接 db push 全部 pending 檔。
 
-| 情境 | 20卡前→後 ms | 6300卡前→後 ms |
-|---|---:|---:|
-| 新 Session | 104.8→77.3–83.4 | 810.5→444.9–518.9 |
-| 恢復未完成 | 87.1→78.7–108.2 | 2244.9→477.7–535.9 |
-| 離線恢復 | 55.2→46.4–65.6 | 729.4→502.3–503.1 |
-| 重連恢復 | 82.6→84.9–89.9 | 850.5→402.8–420.3 |
-| 有待傳作答 | 94.5→89.7–99.0 | 823.9→509.9–1197.0 |
-| 遠端卡片變更 | 88.4→89.6–114.7 | 1008.9→498.4–520.5 |
-| 無盡模式 | 96.9→76.3–159.9 | 833.3→466.0–487.2 |
-| 官方連動首卡／可信備援 | 74.7→73.0–175.2 | 1257.8→539.1–647.5 |
+正式 DB 本輪完全未查詢或修改，Migration **未套用正式**。上一輪 ledger 交接僅供參考：Word segments `20261105083358`，#158 `20261105163818`／`20261105163846`／`20261105163922`；需獨立授權後再核對實際 schema、備份及 ledger，只套指定 Migration，先 DB 後前端。capability 未就緒時新流程禁止執行匯出／安全寫入，保留分析、輸入與原工作。不因回退 UI 恢復已結案來源或撤除收據。
 
-- 首輪瀏覽器6300卡恢復：完整讀取12→2次、75,600→12,600筆；snapshot階段累計2557.7→152.8ms（舊父層讀取並行，累計不是wall time），reconcile累計65.2→11.0ms；auth 9.5→5.2ms，sync wall 377.3→28.8ms（原RPC往返累計48.5→20.6ms，差異包含重複本機讀取造成的等待，不曾略過同步）。首輪新Session單交易讀取109.3ms、建立／呈現階段約25ms；DB冷開啟另量測約16–116ms，發生於按開始之前，未以數據清理優化。一般私人首卡不需要額外字典請求；官方6300卡觀察到發布內容就緒1525.4→697.1ms，含首卡可信備援後更新，獨立RPC仍每次5ms。完整事件數／ID／Session恢復及遠端變更斷言保留。最終矩陣待傳情境曾出現1197ms，因此另以完全相同fixture、每次新瀏覽器，只選該情境交錯跑3組：改善前869.6／954.6／837.1，改善後541.7／423.9／516.4ms，中位數869.6→516.4ms；讀取仍為2次。這是診斷跑測，不取代完整矩陣或裝置驗收。
-- 重現：`BASELINE=1 node tests/studyStartup.performance.test.cjs` 與一般模式比較原四讀／新單交易；瀏覽器以 `BASELINE=1 BASELINE_DIR=<從8a4ec6a取出的三個同名來源檔目錄> node tests/studyStartup.browser.test.cjs` 比較原版，再一般模式跑新版。來源是 StudyRepository.ts、StudySetView.tsx、ScheduledStudySession.tsx；測試輸出完整各階段JSON至stdout及/tmp，不保存私人資料。預設兩種大小完整矩陣，不依賴正式 Supabase。
-- 20 個相關回歸檔已全通過：清除／離線事件／同步／排程／Session／字典／舊交換／原審核與官方卡。新增 bounded published target 與單交易回滾／權限／clear／重複開始保護通過。
-- Chromium 原編輯器、autosave（含320px／IME／延遲／失敗／新增刪除）、正式學習閱讀回歸通過；新構詞方格／字卡標註 Chromium 與 WebKit 通過。WebKit Session 全矩陣亦通過，包含快速重複開始、雲端核對期間離開不新增事件；最後 Chromium 全矩陣、autosave刪除競態、原編輯器及官方連動回歸均通過；遠端結果見 PR checks／交付註記。
-- 最後自查重現：若完全忽略 Session 期間的父層事件，讀取偏好會停留舊值。最小修正為只讀 styleForDeck，不重新讀卡片；以實際元件改設定後手動播放的速率驗證，修正前失敗、Chromium／WebKit 修正後通過，cards／states／events／sessions逐項不變，不修改語音 API 或排程。
-- 本機隔離 production PWA（正式 Next build／SDK／IndexedDB，假API，沒有正式Supabase連線）通過：pwaData 的離線作答／間隔／重連／衝突／帳號隔離與 pwaDictionary 的離線閱讀／搜尋、未快取提示、發布失效／空間不足。兩者 page errors=0；字典斷線時 public RPC=0。此為桌面 Chromium 的實際 SW／資料流程，不代替 Android／iPad 安裝驗收。
-- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Webpack Build 通過。程式提交108a201與0e4903c的Vercel成功；首輪GitHub Actions [42148823988](https://github.com/changmonica02/Nexus/actions/runs/42148823988) 已成功；47b5be7的 [42150931781](https://github.com/changmonica02/Nexus/actions/runs/42150931781) 亦已成功；0e4903c的42150348053因新提交自動取消，不列為通過。最後設定更新補強的新檢查待提交；最終結果以 [#162 checks](https://github.com/changmonica02/Nexus/pull/162/checks)／交付註記核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
+## 測試與目前狀態
 
-## 資料、發布與限制
+- 新隔離 PostgreSQL／PGlite 測試涵蓋候選完整交換、真正 pending／空狀態、分類、獨立新增與混合差異、ID／版本衝突、Published 隔離、精確 issue 清理、無寫入不清理、強制清理失敗全回滾、相同 operation 重試、RLS／非管理員及其他詞條保護；1,001筆、11頁、暫停恢復與完成工作重新下載。原生 PostgreSQL 17（無網路、無主機資料掛載）及 PGlite 六項已通過，包含 Migration DDL 失敗回滾與最小權限；最後來源類型保護另由遠端原生 PostgreSQL 重跑。
+- Chromium 新匯出／分析／原常駐審核 UI 與 OAuth 實際 SDK URL 測試已通過，包含桌面、平板、320px／390px、分析不寫入、來源文字保留與安全結案；原完整交換的 checkpoint／quota／receipt／版本回歸通過。WebKit 新流程亦通過；1,001筆分析 Chromium 約2916ms、WebKit 約7085ms，收合詳細列0筆、展開每頁25筆；受控本機 API，非正式服務保證。
+- 原6,300筆完整交換測試通過（本機 PGlite 約223秒，包含匯出、預覽、收據恢復、發布與報告）；不宣稱正式服務耗時。新增11頁測試不取代原大型回歸。
+- TypeScript、修改範圍 ESLint（0 errors／2既有 warnings）與 Webpack Build 通過；原審核、匯入決策、常駐、完整交換 quota／receipt、官方連動、舊資料、Session、清除及同步回歸通過。GitHub Actions 與 Vercel 結果待本輪 PR checks 核對。沒有略過或弱化既有資料驗證。
 
-沒有 Schema／Migration、正式 DB 查詢或寫入、合併、正式部署、分享連結、權限調整、IndexedDB 清除或 HISTORY 修改。SPEC 只對齊構詞排序的過期敘述並引用 #161；ARCHITECTURE 記錄共用閱讀來源及單交易載入邊界。
+## 尚待驗收與阻擋
 
-既有正式 ledger 狀態沿用上一輪唯讀交接，沒有在本輪重驗：#158 三份登錄 `20261105163818`（official）、`20261105163846`（IPA DROP）、`20261105163922`（Page 舊欄退役）；Word segments 為 `20261105083358`。不可直接 db push 補套所有 pending 檔案；舊 IPA 清空檔已 superseded no-op。整組清除仍用 cleared_at＋原事件有效投影，裝置時鐘風險已接受。
-
-## 尚待驗收
-
-- Android Chrome／安裝 PWA、iPad Safari／PWA 的真實開啟耗時、離線冷啟動／重新連線與雙裝置清除／衝突；受控 RPC 與桌面 WebKit 不能代替原生裝置。
-- 在授權 Preview／正式版本測長中文提示、長單字、概念換行、正式連結更換解除、IME與虛擬鍵盤完成。不得建立分享連結或更改部署保護以取得測試存取。
-- #156 正式匯入套用與 #159 Android 原生語音依已合併 #160 的原實機步驟驗收，本輪不宣稱再次修復；詞形複合 POS 選單仍僅記錄。
-
-維持 Draft。本機量測與回歸未發現資料或排程阻擋；程式提交108a201的遠端已通過；最後生命週期補強／文件提交亦須以 #162 的最新 checks 為準，成功後可進入人工合併前審查，裝置待驗收項目仍保留；不自行合併或正式部署。
+- 必須確認最後完整回歸與遠端 CI／Vercel；維持 Draft，不合併、不正式部署。若任一資料交易／相容性檢查失敗，仍為合併阻擋。
+- 正式 Migration 需另行人工授權及 schema／ledger 預檢，本輪隔離 fixture 不是正式 schema 漂移的證明；未執行正式資料安全取代驗收。
+- Android Chrome／安裝 PWA、iPad Safari／PWA 與桌面真實 Google 多帳號選擇、登出再登入、未同步資料與 owner 隔離；測試只驗 SDK authorize URL，不能替 Google 頁面保證。
+- 使用真實待審核完整 JSON 做外部整理，保留來源 proof／固定 ID／版本，再於授權環境驗收。遺失或過期 proof 不猜補、不清理，需重新匯出分析。多來源未自動選候選；只有合法且對應明確的 issue 可以結案，其餘保留。
+- #162 原有 Android／iPad 開啟耗時、離線冷啟動、跨裝置清除／衝突及構詞虛擬鍵盤驗收仍保留；#160 原生語音與 #156 正式匯入套用不在本輪重新設計。詞形選單問題仍僅記錄。

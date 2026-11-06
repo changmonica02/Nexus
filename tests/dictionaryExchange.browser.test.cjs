@@ -104,9 +104,11 @@ test(
           fs.readFileSync(await downloaded.path(), "utf8"),
         );
         assert.equal(doc.schema_version, 1);
-        assert.equal(doc.records.length, 1);
-        assert.equal(doc.scope.query, "item1");
-        await page.getByLabel("匯出範圍", { exact: true }).selectOption("all");
+        assert.equal(doc.records.length, 3);
+        assert.equal(doc.scope.query, "");
+        await page.getByRole("checkbox",{name:"全部類型",exact:true}).uncheck();
+        assert.equal(await page.getByRole("button",{name:"開始完整匯出",exact:true}).isDisabled(),true);
+        await page.getByRole("checkbox",{name:"全部類型",exact:true}).check();
         const allPromise = page.waitForEvent("download");
         await page
           .getByRole("button", { name: "開始完整匯出", exact: true })

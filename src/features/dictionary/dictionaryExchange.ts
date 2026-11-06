@@ -1,3 +1,4 @@
+import {replacementIssueIds} from "./persistentImport";
 import {cleanIpaRecord} from './retiredPronunciation';
 import {mergeCoreConcepts} from './coreConcept';
 import type { AISnapshot } from "./aiDictionary";
@@ -22,9 +23,13 @@ export interface ExchangeScope {
   kinds: string[];
   statuses: string[];
   query: string;
+  pending_only?: boolean;
 }
 export interface ExchangeRecord {
   snapshot: AISnapshot;
+  entry_id?: string;
+  import_candidate?: DictionaryDraftInput;
+  import_reviews?: {id:string;entry_id:string;revision:number;version:string;item:import("./importReview").ImportItem}[];
   reviews: DictionaryReview[];
   version: string | null;
 }
@@ -74,12 +79,13 @@ export function parseExchange(raw: string): ExchangeDocument {
     !Number.isFinite(Date.parse(doc.exported_at))
   )
     throw Error("Invalid exported_at");
-  keys(doc.scope, ["kinds", "statuses", "query"], "scope");
+  keys(doc.scope, ["kinds", "statuses", "query", "pending_only"], "scope");
   if (
     !Array.isArray(doc.scope.kinds) ||
     doc.scope.kinds.some((k) => !["word", "prefix", "root"].includes(k)) ||
     !Array.isArray(doc.scope.statuses) ||
     doc.scope.statuses.some((s) => !["draft", "published"].includes(s)) ||
+    (doc.scope.pending_only!==undefined&&typeof doc.scope.pending_only!=="boolean")||
     typeof doc.scope.query !== "string"
   )
     throw Error("Invalid scope");
@@ -99,7 +105,7 @@ export function draftFromExchange(
   record: ExchangeRecord,
   row = 1,
 ): DictionaryDraftInput {
-  keys(record, ["snapshot", "reviews", "version"], "record");
+  keys(record, ["snapshot", "reviews", "version", "entry_id", "import_reviews", "import_candidate"], "record");
   record=cleanIpaRecord(record);
   if (
     record.version !== null &&
@@ -109,6 +115,34 @@ export function draftFromExchange(
     throw Error("Invalid version stamp");
   if (!Array.isArray(record.reviews))
     throw Error("Missing active Review information");
+  if(record.import_reviews!==undefined){
+    if(!Array.isArray(record.import_reviews)||record.import_reviews.some(r=>!r||typeof r.id!=="string"||typeof r.entry_id!=="string"||!Number.isSafeInteger(r.revision)||!r.version?.match(/^[0-9a-f]{32}$/)||!r.item))throw Error("Invalid pending review provenance");
+  }
+  if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
+  if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
+  if(record.import_candidate){
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","grouping","proposed_ids","lexical_annotations"],"import_candidate");
+    const draft=structuredClone(record.import_candidate);
+    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections"] as const){
+      if(draft[section]===undefined){draft[section]=[];continue;}
+      if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
+      for(const value of draft[section]??[]){
+        const fields=section==="relation_hints"?["body","sense_id","sort_order"]:rowFields[section];
+        keys(value,["id","entry_id","revision","updated_at","row",...(section==="senses"?["category"]:[]),...fields],section);
+        if(value.entry_id!==undefined&&value.entry_id!==draft.entry_id)throw Error("Foreign candidate child ownership");
+      }
+    }
+    if(draft.grouping)keys(draft.grouping,["primary_category","tags","variant_group"],"candidate.grouping");
+    if(draft.entry_id!==(record.entry_id??record.snapshot?.detail.entry.id)||!record.import_reviews?.length||record.import_reviews.some(r=>r.entry_id!==draft.entry_id||r.item.draft?.kind!==draft.kind)||validateDictionaryDraft([draft]).length)throw Error("Invalid import candidate identity or content");
+    return {...draft,row};
+  }
+  if(!record.snapshot){
+    if(record.version!==null||record.reviews.length||!record.entry_id||record.import_reviews?.length!==1)throw Error("Pending-only entry needs one unambiguous original candidate");
+    const draft=structuredClone(record.import_reviews[0].item.draft);
+    if(draft.entry_id!==record.entry_id||record.import_reviews[0].entry_id!==record.entry_id)throw Error("Pending candidate identity mismatch");
+    if(validateDictionaryDraft([draft]).length)throw Error("Invalid pending candidate; correct its original draft with stable IDs");
+    return {...draft,row};
+  }
   const snapshot = record.snapshot;
   keys(
     snapshot,
@@ -301,7 +335,7 @@ function invalidDraft(
   index: number,
 ): DictionaryDraftInput {
   return {
-    entry_id: String(record?.snapshot?.detail?.entry?.id ?? ""),
+    entry_id: String(record?.entry_id??record?.snapshot?.detail?.entry?.id ?? ""),
     kind: record?.snapshot?.detail?.entry?.kind ?? "word",
     headword: String(
       record?.snapshot?.detail?.entry?.headword ?? "Invalid record",
@@ -416,7 +450,7 @@ export async function previewExchange(
         selectedAction: null,
       });
     };
-    if (context.snapshot && record.version === context.exchange?.version) {
+    if (record.snapshot && context.snapshot && record.version === context.exchange?.version) {
       for (const field of [
         "status",
         "revision",
@@ -470,9 +504,9 @@ export async function previewExchange(
       );
     if (
       !sameNewReplay &&
-      (record.snapshot.metadata || context.snapshot?.metadata)
+      (record.snapshot?.metadata || context.snapshot?.metadata)
     ) {
-      const { component_order, ...incoming } = record.snapshot.metadata ?? {};
+      const { component_order, ...incoming } = record.snapshot?.metadata ?? {};
       const { component_order: oldOrder, ...existing } = context.snapshot
         ?.metadata ?? {
         entry_id: item.draft.entry_id,
@@ -506,31 +540,14 @@ export async function previewExchange(
         "existing_review",
         "An active Review exists; continue editing it in the existing editor.",
       );
-    // Explicit IDs + frozen full version permit one overall confirmation, never implicit homograph decisions.
-    if (
-      !item.issues.some(
-        (i) =>
-          ![
-            "published_change",
-            "content_difference",
-            "category_missing",
-            "category_difference",
-            "new_content",
-          ].includes(i.type),
-      )
-    ) {
-      for (const i of item.issues)
-        i.selectedAction =
-          context.snapshot?.detail.entry.status === "published"
-            ? "review"
-            : "incoming";
-      item.bucket = "safe";
-      item.safeAction = item.issues.length
-        ? "normalize"
-        : context.snapshot
-          ? "unchanged"
-          : "new";
+    // Provenance is opaque, frozen server identity; never match pending sources by spelling.
+    if(record.import_reviews?.length){
+      const current=context.exchange?.import_review_refs??[];
+      const matching=record.import_reviews.every(r=>r.entry_id===item.draft.entry_id&&current.some(x=>x.id===r.id&&x.entry_id===r.entry_id&&x.revision===r.revision&&x.version===r.version));
+      if(!matching)issue("revision_conflict","Pending review changed or provenance is missing; export and analyze again.");
+      else item.replacement_refs=record.import_reviews.map(r=>({id:r.id,entry_id:r.entry_id,revision:r.revision,version:r.version,issue_ids:replacementIssueIds(item.draft,context,r.item.issues)}));
     }
+
   }
   return session;
 }

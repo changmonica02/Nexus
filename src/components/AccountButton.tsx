@@ -28,7 +28,7 @@ export default function AccountButton({ accountEmail, required = false }: { acco
     setMessage(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin, queryParams: { prompt: "select_account" } },
     });
     if (error) setMessage(error.message);
   };

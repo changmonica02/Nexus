@@ -22,12 +22,14 @@ export interface ExportJob {
   processed: number;
   total: number;
   complete: boolean;
+  transfer?: boolean;
 }
 export const loadExportJob = (owner: string) =>
   loadDictionaryJob<ExportJob>(owner, "export");
 export async function createExportJob(
   owner: string,
   scope: ExchangeScope,
+  preview?: {scope_version:string;total:number},
 ): Promise<ExportJob> {
   const job: ExportJob = {
     id: crypto.randomUUID(),
@@ -35,11 +37,12 @@ export async function createExportJob(
     scope: structuredClone(scope),
     exported_at: new Date().toISOString(),
     cursor: null,
-    scope_version: null,
+    scope_version: preview?.scope_version??null,
     pages: 0,
     processed: 0,
-    total: 0,
+    total: preview?.total??0,
     complete: false,
+    transfer: !!preview,
   };
   await saveDictionaryJob(owner, "export", job);
   return job;
@@ -60,6 +63,7 @@ export async function continueExport(
         query_text: job.scope.query,
         after_id: job.cursor,
         expected_scope: job.scope_version,
+        ...(job.transfer?{pending_only:!!job.scope.pending_only,preview_only:false}:{}),
       },
     );
     if (error) throw Error(error.message);
@@ -140,7 +144,7 @@ export async function exportDocument(
   }
   if (
     records.length !== job.total ||
-    new Set(records.map((r) => r.snapshot.detail.entry.id)).size !==
+    new Set(records.map((r) => r.entry_id??r.snapshot?.detail.entry.id)).size !==
       records.length
   )
     throw Error("Export checkpoint is incomplete or contains duplicate IDs");
@@ -163,4 +167,13 @@ export function downloadDictionaryJSON(value: unknown, name: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Freeze the same membership/version used by the paginated export, without exporting a page. */
+export async function previewExport(client:Pick<SupabaseClient,"rpc">,scope:ExchangeScope){
+ if(!scope.kinds.length)throw Error("Select at least one entry type");
+ const {data,error}=await client.rpc("export_dictionary_exchange_page",{kind_filters:scope.kinds,status_filters:[],query_text:"",after_id:null,expected_scope:null,pending_only:!!scope.pending_only,preview_only:true});
+ if(error)throw Error(error.message);
+ if(!data||!Number.isSafeInteger(data.total)||typeof data.scope_version!=="string")throw Error("Invalid export preview");
+ return {total:data.total as number,scope_version:data.scope_version as string};
 }

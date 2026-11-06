@@ -1,5 +1,9 @@
 "use client";
-import {reviewFailure,reviewFailureText,type ReviewFailure} from './reviewApproval';
+import {
+  reviewFailure,
+  reviewFailureText,
+  type ReviewFailure,
+} from "./reviewApproval";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getSupabase } from "../../infrastructure/supabase/client";
@@ -18,6 +22,9 @@ import type { ImportSession } from "./importReview";
 import { previewImportSource } from "./importSource";
 import {
   applyPersistentRecords,
+  importSafety,
+  persistentPreview,
+  exchangeTransferAvailable,
   applyDecidedImportRecord,
   persistentOutcome,
   persistentImportAvailable,
@@ -26,6 +33,7 @@ import {
   stagePersistentSession,
   type ImportReviewRecord,
 } from "./persistentImport";
+import { DictionaryModal } from "./DictionaryModal";
 const button = "rounded border px-3 py-2 text-sm disabled:opacity-40";
 export function PersistentImportReview({
   raw,
@@ -38,48 +46,54 @@ export function PersistentImportReview({
   format: "csv" | "json" | "md";
   sourceName?: string;
   onSaved: () => Promise<unknown>;
-  onBusy: (v: boolean) => void;
+  onBusy: (busy: boolean) => void;
 }) {
-  const { t } = usePaginationLanguage(),
-    controller = useRef<AbortController | null>(null);
-  const [archives, setArchives] = useState<
-    Awaited<ReturnType<typeof listArchivedImportSessions>>
-  >([]);
+  const { t } = usePaginationLanguage();
   const [session, setSession] = useState<ImportSession | null>(null),
     [records, setRecords] = useState<ImportReviewRecord[]>([]),
-    [legacy, setLegacy] = useState<ImportSession | null>(null),
+    [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [progress, setProgress] = useState("");
+    [progress, setProgress] = useState(""),
+    [ready, setReady] = useState(false),
+    [pages, setPages] = useState<Record<string, number>>({}),
+    [archives, setArchives] = useState<
+      Awaited<ReturnType<typeof listArchivedImportSessions>>
+    >([]),
+    [legacy, setLegacy] = useState<ImportSession | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const controller = useRef<AbortController | null>(null),
+    running = useRef(false);
   useEffect(() => {
     let active = true;
-    void getSupabase()!
-      .auth.getUser()
-      .then(async ({ data }) => {
-        if (data.user) {
-          const saved = await loadImportSession(data.user.id);
-          const archiveList = await listArchivedImportSessions(data.user.id);
-          if (active) setArchives(archiveList);
-          const previous = saved?.durable_review
-            ? await loadArchivedImportSession(data.user.id)
-            : saved;
-          if (active) {
-            if (saved?.durable_review) setSession(saved);
-            setLegacy(previous);
-          }
+    void (async () => {
+      try {
+        const client = getSupabase()!;
+        const { data, error } = await client.auth.getUser();
+        if (error || !data.user) throw Error(t("transfer.signIn"));
+        const [saved, available, archived] = await Promise.all([
+          loadImportSession(data.user.id),
+          exchangeTransferAvailable(client),
+          listArchivedImportSessions(data.user.id),
+        ]);
+        if (active) {
+          if (saved?.durable_review) setSession(saved);
+          else setLegacy(saved);
+          setReady(available);
+          setArchives(archived);
         }
-      })
-      .catch((e) => {
-        if (active) setError(reviewFailureText(e,t));
-      });
+      } catch (e) {
+        if (active) setError(reviewFailureText(e, t));
+      }
+    })();
     return () => {
       active = false;
       controller.current?.abort();
     };
   }, [t]);
-  const running=useRef(false),lastFailure=useRef<ReviewFailure|null>(null);
   const run = async (fn: () => Promise<void>) => {
-    if(running.current)return;running.current=true;
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     onBusy(true);
     setError("");
@@ -87,193 +101,397 @@ export function PersistentImportReview({
     try {
       await fn();
     } catch (e) {
-      lastFailure.current=reviewFailure(e);setError(reviewFailureText(lastFailure.current,t));
+      setError(reviewFailureText(e, t));
     } finally {
-      running.current=false;setBusy(false);
+      running.current = false;
+      setBusy(false);
       onBusy(false);
     }
   };
-  const stage = async (s: ImportSession) => {
-    const rows = await stagePersistentSession(
-      getSupabase()!,
-      s,
-      s.source_name || sourceName || t("persistent.pasted"),
-      (done, total) => setProgress(`${done} / ${total}`),
-      controller.current?.signal,
-    );
-    setRecords(rows);
-    return rows;
+  const persist = async (next: ImportSession) => {
+    await persistImportSession(next);
+    setSession(structuredClone(next));
   };
-  const apply = async () => {
+  const analyze = async () => {
+    const client = getSupabase()!;
+    const { data, error } = await client.auth.getUser();
+    if (error || !data.user) throw Error(t("transfer.signIn"));
+    if (format === "json") {
+      const value = JSON.parse(raw.replace(/^\uFEFF/, ""));
+      if (
+        value?.owner_id &&
+        Array.isArray(value.items) &&
+        value.id &&
+        value.preview_at
+      ) {
+        if (value.owner_id !== data.user.id)
+          throw Error(t("transfer.otherAccount"));
+        await archiveImportSession(value);
+        setLegacy(value);
+        setArchives(await listArchivedImportSessions(data.user.id));
+        return;
+      }
+    }
+    if (session) await archiveImportSession(session);
+    if (legacy) await archiveImportSession(legacy);
+    const next = persistentPreview({
+      ...(await previewImportSource(
+        client,
+        data.user.id,
+        raw,
+        format,
+        (n, total) => setProgress(`${n} / ${total}`),
+      )),
+      durable_review: true,
+      source_name: sourceName,
+    });
+    await persist(next);
+    setRecords([]);
+    setPages({});
+    setExpanded({});
+    setOpen(true);
+    setArchives(await listArchivedImportSessions(data.user.id));
+  };
+  const eligible = (item: ImportSession["items"][number]) =>
+    !item.excluded &&
+    !["applied", "unchanged", "skipped"].includes(item.status) &&
+    importSafety(item) !== "invalid";
+  const apply = async (all: boolean, only?: string) => {
+    if (!session || !ready) return;
+    const items = session.items.filter(
+      (i) =>
+        eligible(i) &&
+        (!only || i.id === only) &&
+        (all || importSafety(i) === "safe"),
+    );
+    if (!items.length) return;
+    const safe = items.filter((i) => importSafety(i) === "safe"),
+      review = items.filter((i) => importSafety(i) === "review");
     if (
-      !session ||
       !(await confirmDialog({
-        title: t("persistent.import"),
-        message: t("persistent.confirm"),
-        confirmLabel: t("persistent.import"),
+        title: t(all ? "transfer.importAll" : "transfer.importSafe"),
+        message: t("transfer.impact", {
+          safe: safe.length,
+          review: review.length,
+        }),
+        confirmLabel: t(all ? "transfer.importAll" : "transfer.importSafe"),
       }))
     )
       return;
-    const rows = await stage(session);
-    const results = await applyPersistentRecords(
-      getSupabase()!,
-      rows,
-      false,
-      controller.current?.signal,
-      (r) => {
-        setRecords((old) => old.map((x) => (x.id === r.id ? r : x)));
-      },
+    const client = getSupabase()!,
+      staged = await stagePersistentSession(
+        client,
+        { ...session, items },
+        session.source_name || sourceName || t("persistent.pasted"),
+        (n, total) => setProgress(`${n} / ${total}`),
+        controller.current?.signal,
+      );
+    setRecords((previous) => [
+      ...previous.filter((r) => !staged.some((n) => n.id === r.id)),
+      ...staged,
+    ]);
+    const safeEntries = new Set(safe.map((i) => i.draft.entry_id));
+    const update = (row: ImportReviewRecord) =>
+      setRecords((previous) =>
+        previous.map((r) => (r.id === row.id ? row : r)),
+      );
+    const results = [
+      ...(await applyPersistentRecords(
+        client,
+        staged.filter(
+          (r) => safeEntries.has(r.entry_id) && importSafety(r.item) === "safe",
+        ),
+        false,
+        controller.current?.signal,
+        update,
+        true,
+      )),
+      ...(await applyPersistentRecords(
+        client,
+        staged.filter(
+          (r) =>
+            !safeEntries.has(r.entry_id) || importSafety(r.item) !== "safe",
+        ),
+        false,
+        controller.current?.signal,
+        update,
+      )),
+    ];
+    setRecords((previous) =>
+      previous.map((r) => results.find((n) => n.id === r.id) ?? r),
     );
-    setRecords((old) =>
-      old.map((r) => results.find((x) => x.id === r.id) ?? r),
+    // Failed/unknown outcomes retain their durable row and proposal. Original RPC recovery checks status before retry.
+    const byEntry = new Map(
+      [...staged, ...results].map((r) => [r.entry_id, r]),
     );
-    try{await onSaved();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}
-  };
-  return (
-    <section className="space-y-3">
-      <p>{t("persistent.summaryHint")}</p>
-      <button
-        className={button}
-        disabled={busy || !raw}
-        onClick={() =>
-          void run(async () => {
-            const { data } = await getSupabase()!.auth.getUser();
-            if (!data.user) throw Error("Sign in required");
-            if (format === "json") {
-              const possible = JSON.parse(raw.replace(/^\uFEFF/, ""));
-              if (
-                possible?.owner_id &&
-                Array.isArray(possible.items) &&
-                possible.preview_at &&
-                possible.id
-              ) {
-                if (possible.owner_id !== data.user.id)
-                  throw Error("Import Session belongs to another account");
-                if (session && session.id !== possible.id)
-                  await archiveImportSession(session);
-                if (legacy && legacy.id !== possible.id)
-                  await archiveImportSession(legacy);
-                await archiveImportSession(possible);
-                setSession(null);
-                setLegacy(possible);
-                setArchives(await listArchivedImportSessions(data.user.id));
-                return;
-              }
+    await persist({
+      ...session,
+      items: session.items.map((i) => {
+        const r = byEntry.get(i.draft.entry_id);
+        return r
+          ? {
+              ...i,
+              status: r.item.status,
+              message: r.request_conflict ?? r.item.message,
             }
-            if (
-              legacy &&
-              !(await confirmDialog({
-                title: t("persistent.backupLegacy"),
-                message: t("persistent.backupBeforeReplace"),
-                confirmLabel: t("persistent.analyze"),
-              }))
-            )
-              return;
-            const next = {
-              ...(await previewImportSource(
-                getSupabase()!,
-                data.user.id,
-                raw,
-                format,
-                (n, total) => setProgress(`${n} / ${total}`),
-              )),
-              durable_review: true as const,
-              source_name: sourceName,
-            };
-            if (legacy) await archiveImportSession(legacy);
-            if (session && session.id !== legacy?.id)
-              await archiveImportSession(session);
-            setArchives(await listArchivedImportSessions(data.user.id));
-            await persistImportSession(next);
-            setSession(next);
-          })
-        }
-      >
-        {t("persistent.analyze")}
-      </button>
-      {session && (
-        <>
-          <p>
-            {sourceName || t("persistent.pasted")} · {session.items.length}{" "}
-            {t("persistent.entries")} ·{" "}
-            {session.items.filter((i) => i.issues.length).length}{" "}
-            {t("persistent.withDifferences")}
-          </p>
+          : i;
+      }),
+    });
+    try {
+      await onSaved();
+    } catch (e) {
+      throw reviewFailure(e, "refresh_dictionary", "refresh");
+    }
+  };
+  const reanalyzeItem = async (id: string) => {
+    if (!session) return;
+    const old = session.items.find((i) => i.id === id);
+    if (!old) return;
+    const record = records.find((r) => r.entry_id === old.draft.entry_id);
+    if (record) {
+      const fresh = await recheckPersistent(getSupabase()!, record);
+      setRecords((rows) => rows.map((r) => (r.id === fresh.id ? fresh : r)));
+      await persist({
+        ...session,
+        items: session.items.map((i) =>
+          i.id === id ? { ...fresh.item, id } : i,
+        ),
+      });
+    } else await analyze();
+  };
+  const categories = ["safe", "review", "invalid"] as const;
+  return (
+    <section className="min-w-0 space-y-3">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          className={button}
+          disabled={busy || !raw.trim()}
+          onClick={() => void run(analyze)}
+        >
+          {t("persistent.analyze")}
+        </button>
+        {session && (
           <button
             className={button}
             disabled={busy}
-            onClick={() => void run(apply)}
+            onClick={() => setOpen(true)}
           >
-            {t("persistent.import")}
+            {t("transfer.resumeAnalysis")}
           </button>
-        </>
-      )}
-      {busy && (
-        <button className={button} onClick={() => controller.current?.abort()}>
-          {t("exchange.pause")}
-        </button>
-      )}
-      <p role="status">{progress}</p>
-      {records.length > 0 && (
-        <>
-          <p>
-            {t("persistent.processed", {
-              n: records.filter(
-                (r) =>
-                  r.result?.status === "applied" ||
-                  ["applied", "unchanged"].includes(r.item.status),
+        )}
+      </div>
+      {busy && <p role="status">{progress}</p>}
+      {error && !open && <p role="alert">{error}</p>}
+      {open && session && (
+        <DictionaryModal
+          title={t("transfer.analysis")}
+          busy={busy}
+          onClose={() => setOpen(false)}
+          headerActions={
+            <details className="max-w-full">
+              <summary
+                aria-label={t("transfer.classificationHelp")}
+                className="cursor-pointer rounded-full border px-2"
+              >
+                ⓘ
+              </summary>
+              <div className="space-y-2 py-2 text-sm">
+                {categories.map((c) => (
+                  <p key={c}>
+                    <strong>{t("transfer." + c)}</strong>：
+                    {t("transfer.help." + c)}
+                  </p>
+                ))}
+                <p>{t("transfer.notAI")}</p>
+              </div>
+            </details>
+          }
+        >
+          <p role="status">
+            {t("transfer.total", { n: session.items.length })} ·{" "}
+            {t("transfer.new", {
+              n: session.items.filter(
+                (i) => !i.context?.snapshot && importSafety(i) === "safe",
               ).length,
-              total: records.length,
             })}{" "}
             ·{" "}
-            {t("persistent.pending", {
-              n: records.reduce((n, r) => n + r.pending_count, 0),
-            })}
-          </p>
-          <ul className="space-y-1">
-            {records.slice(0, 50).map((r) => (
-              <li key={r.id}>
-                {r.item.draft.headword} ·{" "}
-                {t("persistent.result." + persistentOutcome(r))} ·{" "}
-                {t("persistent.pending", { n: r.pending_count })}
-              </li>
-            ))}
-          </ul>
-          <button
-            className={button}
-            onClick={() =>
-              downloadDictionaryJSON(
-                {
-                  format: "nexus-persistent-import-results",
-                  records: records.map((r) => ({
-                    ...r,
-                    outcome: persistentOutcome(r),
-                  })),
-                },
-                "dictionary-import-results.json",
+            {categories
+              .map(
+                (c) =>
+                  `${t("transfer." + c)} ${session.items.filter((i) => importSafety(i) === c).length}`,
               )
+              .join(" · ")}{" "}
+            · {t("exchange.unchanged")}{" "}
+            {
+              session.items.filter(
+                (i) => i.safeAction === "unchanged" || i.status === "unchanged",
+              ).length
             }
+          </p>
+          <p className="break-words text-xs opacity-70">
+            {session.source_name || t("persistent.pasted")} ·{" "}
+            {session.preview_at}
+          </p>
+          {categories.map((category) => {
+            const items = session.items.filter(
+                (i) => importSafety(i) === category,
+              ),
+              page = Math.min(
+                pages[category] ?? 0,
+                Math.max(0, Math.ceil(items.length / 25) - 1),
+              );
+            return (
+              <details
+                open={!!expanded[category]}
+                onToggle={(e) => {
+                  const open = e.currentTarget.open;
+                  setExpanded((old) =>
+                    old[category] === open ? old : { ...old, [category]: open },
+                  );
+                }}
+                key={category}
+                className="min-w-0 rounded border p-3"
+              >
+                <summary className="cursor-pointer">
+                  {t("transfer." + category)}（{items.length}）
+                </summary>
+                {expanded[category] && (
+                  <AnalysisItems
+                    items={items.slice(page * 25, (page + 1) * 25)}
+                    session={session}
+                    records={records}
+                    busy={busy}
+                    onExclude={(item, keep) =>
+                      void run(() =>
+                        persist({
+                          ...session,
+                          items: session.items.map((i) =>
+                            i.id === item.id
+                              ? keep
+                                ? { ...i, status: "skipped" }
+                                : { ...i, excluded: !i.excluded }
+                              : i,
+                          ),
+                        }),
+                      )
+                    }
+                    onImport={(id) => void run(() => apply(true, id))}
+                    onRecheck={(id) => void run(() => reanalyzeItem(id))}
+                  />
+                )}
+                <Pagination
+                  label={t("exchange.previewPages")}
+                  page={page}
+                  total={items.length}
+                  pageSize={25}
+                  disabled={busy}
+                  onPageChange={(n) =>
+                    setPages((p) => ({ ...p, [category]: n }))
+                  }
+                />
+              </details>
+            );
+          })}
+          {!ready && <p role="alert">{t("transfer.migrationRequired")}</p>}
+          {error && (
+            <p role="alert" className="break-words">
+              {error}
+            </p>
+          )}
+          {busy&&<div role="status" className="flex flex-wrap items-center justify-between gap-2"><span>{progress}</span><button className={button} onClick={()=>controller.current?.abort()}>{t("exchange.pause")}</button></div>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              className={button}
+              disabled={
+                busy ||
+                !ready ||
+                !session.items.some(
+                  (i) => eligible(i) && importSafety(i) === "safe",
+                )
+              }
+              onClick={() => void run(() => apply(false))}
+            >
+              {t("transfer.importSafe")}
+            </button>
+            <button
+              className={button}
+              disabled={busy || !ready || !session.items.some(eligible)}
+              onClick={() => void run(() => apply(true))}
+            >
+              {t("transfer.importAll")}
+            </button>
+          </div>
+          {records.length > 0 && (
+            <>
+              <p role="status">
+                {t("transfer.results", {
+                  success: records.filter(
+                    (r) =>
+                      !r.request_conflict && r.result?.status === "applied",
+                  ).length,
+                  unchanged: records.filter(
+                    (r) => r.item.status === "unchanged",
+                  ).length,
+                  review: records.filter((r) => r.pending_count > 0).length,
+                  excluded: session.items.filter(
+                    (i) => i.excluded || i.status === "skipped",
+                  ).length,
+                  failed: records.filter(
+                    (r) =>
+                      !!r.request_conflict ||
+                      ["failed", "stale"].includes(r.item.status),
+                  ).length,
+                })}
+              </p>
+              <ul className="space-y-1 text-sm">
+                {records.slice(0, 50).map((r) => (
+                  <li key={r.id}>
+                    {r.item.draft.headword} ·{" "}
+                    {t("persistent.result." + persistentOutcome(r))} ·{" "}
+                    {t("persistent.pending", { n: r.pending_count })}
+                    {r.request_conflict && (
+                      <span role="alert"> · {t("transfer.reanalyze")}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <button
+                className={button}
+                onClick={() =>
+                  downloadDictionaryJSON(
+                    { format: "nexus-persistent-import-results", records },
+                    "dictionary-import-results.json",
+                  )
+                }
+              >
+                {t("exchange.report")}
+              </button>
+            </>
+          )}
+          <Link
+            className="inline-block underline"
+            href="/dictionary/admin/reviews"
           >
-            {t("exchange.report")}
-          </button>
-        </>
+            {t("persistent.openQueue")}
+          </Link>
+        </DictionaryModal>
       )}
       {archives.length > 0 && (
-        <label>
-          {t("persistent.archives")}
+        <details>
+          <summary>{t("persistent.archives")}</summary>
           <select
             aria-label={t("persistent.archives")}
-            className="max-w-full rounded border bg-transparent p-2"
+            className="max-w-full rounded border p-2"
             value={legacy?.id ?? ""}
             disabled={busy}
-            onChange={(e) =>
+            onChange={(e) => {
+              const id = e.target.value;
               void run(async () => {
-                const id = e.target.value;
                 const { data } = await getSupabase()!.auth.getUser();
                 if (data.user)
                   setLegacy(await loadArchivedImportSession(data.user.id, id));
-              })
-            }
+              });
+            }}
           >
             <option value="">—</option>
             {archives.map((a) => (
@@ -282,18 +500,16 @@ export function PersistentImportReview({
               </option>
             ))}
           </select>
-        </label>
+        </details>
       )}
       {legacy && (
         <details>
           <summary>{t("persistent.legacy")}</summary>
           <p>
-            {legacy.items.length} {t("persistent.entries")} ·{" "}
-            {legacy.preview_at} · {t("persistent.preserveLocal")}
+            {legacy.items.length} · {t("persistent.preserveLocal")}
           </p>
           <button
             className={button}
-            disabled={busy}
             onClick={() =>
               downloadDictionaryJSON(
                 legacy,
@@ -308,16 +524,12 @@ export function PersistentImportReview({
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                if (
-                  !(await confirmDialog({
-                    title: t("persistent.transfer"),
-                    message: t("persistent.preserveLocal"),
-                    confirmLabel: t("persistent.transfer"),
-                  }))
-                )
-                  return;
-                await stage(legacy);
-                try{await onSaved();}catch(error){throw reviewFailure(error,'refresh_dictionary','refresh');}
+                await stagePersistentSession(
+                  getSupabase()!,
+                  legacy,
+                  legacy.source_name || t("persistent.pasted"),
+                );
+                await onSaved();
               })
             }
           >
@@ -325,15 +537,127 @@ export function PersistentImportReview({
           </button>
         </details>
       )}
-      <Link className="underline" href="/dictionary/admin/reviews">
-        {t("persistent.openQueue")}
-      </Link>
-      {error && (
-        <p role="alert" className="whitespace-pre-wrap break-words">
-          {error}
-        </p>
-      )}
     </section>
+  );
+}
+function AnalysisItems({
+  items,
+  records,
+  busy,
+  onExclude,
+  onImport,
+  onRecheck,
+}: {
+  items: ImportSession["items"];
+  session: ImportSession;
+  records: ImportReviewRecord[];
+  busy: boolean;
+  onExclude: (item: ImportSession["items"][number], keep?: boolean) => void;
+  onImport: (id: string) => void;
+  onRecheck: (id: string) => void;
+}) {
+  const { t } = usePaginationLanguage();
+  return (
+    <ul className="min-w-0 space-y-3 py-3">
+      {items.map((item) => {
+        const safety = importSafety(item),
+          record = records.find((r) => r.entry_id === item.draft.entry_id);
+        return (
+          <li
+            key={item.id}
+            className="min-w-0 space-y-2 rounded border p-3 [overflow-wrap:anywhere]"
+          >
+            <h3 className="font-semibold">
+              {item.draft.headword} · {t("ui." + item.draft.kind)}
+            </h3>
+            <p className="text-xs">
+              {item.draft.entry_id} · {t("transfer." + safety)} ·{" "}
+              {item.excluded ? t("transfer.excluded") : item.status}
+            </p>
+            {item.message&&<p role="alert">{t("transfer.reanalyze")}</p>}
+            {item.issues
+              .filter((i) => !(i as { applied?: boolean }).applied)
+              .slice(0, 8)
+              .map((i) => (
+                <p key={i.id} className="text-sm">
+                  {i.field} · {i.reason}
+                </p>
+              ))}
+            <AnalysisPreview item={item} />
+            <div className="flex flex-wrap gap-2">
+              {!record && !["applied", "unchanged"].includes(item.status) && (
+                <>
+                  <button
+                    className={button}
+                    disabled={busy}
+                    onClick={() => onExclude(item)}
+                  >
+                    {t(item.excluded ? "transfer.include" : "transfer.exclude")}
+                  </button>
+                  {item.context?.snapshot && (
+                    <button
+                      className={button}
+                      disabled={busy}
+                      onClick={() => onExclude(item, true)}
+                    >
+                      {t("transfer.keep")}
+                    </button>
+                  )}
+                  {safety !== "invalid" && !item.excluded && (
+                    <button
+                      className={button}
+                      disabled={busy}
+                      onClick={() => onImport(item.id)}
+                    >
+                      {t("persistent.import")}
+                    </button>
+                  )}
+                </>
+              )}
+              {(safety === "invalid" || record?.request_conflict) && (
+                <button
+                  className={button}
+                  disabled={busy}
+                  onClick={() => onRecheck(item.id)}
+                >
+                  {t("exchange.recheck")}
+                </button>
+              )}
+              {record && (
+                <Link
+                  className="underline"
+                  href={`/dictionary/admin/reviews?entry=${encodeURIComponent(item.draft.entry_id)}`}
+                >
+                  {t("persistent.openQueue")}
+                </Link>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+function AnalysisPreview({ item }: { item: ImportSession["items"][number] }) {
+  const { t } = usePaginationLanguage();
+  const [open, setOpen] = useState(false);
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>{t("transfer.fullDiff")}</summary>
+      {open && (
+        <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-xs">
+          {JSON.stringify(
+            {
+              existing: item.context?.snapshot,
+              incoming: item.raw_candidate ?? item.draft,
+              differences: item.issues,
+            },
+            null,
+            2,
+          )}
+        </pre>
+      )}
+    </details>
   );
 }
 export function PersistentReviewPanel({

@@ -12,10 +12,11 @@ export interface ImportIssue {
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
   target?:{section:Section;id?:string;field?:string};batchKey?:string;proposedSenseID?:string;proposedChildIDs?:Record<string,string>;
 }
-export interface ImportContext {snapshot:AISnapshot|null;similar:{id:string;kind:string;headword:string;status:string;revision:number}[];identities:Record<string,DraftRow[]>;exchange?:{version:string|null;reviews:unknown[];targets:{entry_id:string;sense_id:string}[]}}
+export interface ReplacementReference {id:string;entry_id:string;revision:number;version:string;issue_ids:string[]}
+export interface ImportContext {snapshot:AISnapshot|null;similar:{id:string;kind:string;headword:string;status:string;revision:number}[];identities:Record<string,DraftRow[]>;exchange?:{version:string|null;reviews:unknown[];targets:{entry_id:string;sense_id:string}[];import_review_refs?:Omit<ReplacementReference,'issue_ids'>[]}}
 export interface ImportOperation {owner_id:string;session_id:string;operation_id:string;source_type:string;preview_at:string;observed:ReturnType<typeof mapDictionaryDraft>;candidate:ReturnType<typeof mapDictionaryDraft>;expected_context:ImportContext;effect:'write'|'unchanged'|'review';exchange_version?:string|null}
 export interface ImportItem {
-  id:string;raw_candidate?:unknown;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
+  id:string;replacement_refs?:ReplacementReference[];excluded?:boolean;raw_candidate?:unknown;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
   bucket:'safe'|'review';safeAction:'new'|'unchanged'|'normalize';issues:ImportIssue[];
   status:'pending'|'applied'|'unchanged'|'skipped'|'stale'|'failed';message?:string;
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;

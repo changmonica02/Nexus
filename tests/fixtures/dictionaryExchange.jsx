@@ -153,8 +153,9 @@ window.dictionaryClient = {
       persist();
       return { data: {deleted:true,entry_id:entry.id}, error: null };
     }
+    if(name==="dictionary_exchange_transfer_capabilities")return {data:{version:1,pending_export:true,safe_replacement:true},error:null};
     if (name === "export_dictionary_exchange_page") {
-      if (window.failExport) {
+      if (window.failExport && !args.preview_only) {
         window.failExport = false;
         return { error: { message: "fixture network failure" } };
       }
@@ -173,7 +174,7 @@ window.dictionaryClient = {
       );
       return {
         data: {
-          records: structuredClone(records),
+          records: args.preview_only?[]:structuredClone(records),
           total: selected.length,
           cursor: records.at(-1)?.snapshot.detail.entry.id ?? null,
           scope_version: stamp,
