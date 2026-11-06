@@ -1,6 +1,6 @@
 # Nexus — 當前狀態與下一步
 
-本輪追蹤 #161；分支 `feat/compact-morphology-study-startup`，基於最新 main `b78bb11`（#158、#160 已合併）。Draft PR [#162](https://github.com/changmonica02/Nexus/pull/162)，首個程式提交 `108a201`；不重做審核／Android 語音，也不實作 main 最新另列的匯入匯出規劃。
+本輪追蹤 #161；分支 `feat/compact-morphology-study-startup`，基於最新 main `b78bb11`（#158、#160 已合併）。Draft PR [#162](https://github.com/changmonica02/Nexus/pull/162)，程式提交 `108a201`、`0e4903c`，最後交接提交見 PR head；不重做審核／Android 語音，也不實作 main 最新另列的匯入匯出規劃。
 
 ## 本輪實作
 
@@ -29,7 +29,8 @@
 - 重現：`BASELINE=1 node tests/studyStartup.performance.test.cjs` 與一般模式比較原四讀／新單交易；瀏覽器以 `BASELINE=1 BASELINE_DIR=<從8a4ec6a取出的三個同名來源檔目錄> node tests/studyStartup.browser.test.cjs` 比較原版，再一般模式跑新版。來源是 StudyRepository.ts、StudySetView.tsx、ScheduledStudySession.tsx；測試輸出完整各階段JSON至stdout及/tmp，不保存私人資料。預設兩種大小完整矩陣，不依賴正式 Supabase。
 - 20 個相關回歸檔已全通過：清除／離線事件／同步／排程／Session／字典／舊交換／原審核與官方卡。新增 bounded published target 與單交易回滾／權限／clear／重複開始保護通過。
 - Chromium 原編輯器、autosave（含320px／IME／延遲／失敗／新增刪除）、正式學習閱讀回歸通過；新構詞方格／字卡標註 Chromium 與 WebKit 通過。WebKit Session 全矩陣亦通過，包含快速重複開始、雲端核對期間離開不新增事件；最後 Chromium 全矩陣、autosave刪除競態、原編輯器及官方連動回歸均通過；遠端結果見 PR checks／交付註記。
-- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Webpack Build 通過。首提交 Vercel成功，GitHub Actions [42148823988](https://github.com/changmonica02/Nexus/actions/runs/42148823988) 已成功；最後修正後的 CI 以 #162 checks／交付註記核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
+- 本機隔離 production PWA（正式 Next build／SDK／IndexedDB，假API，沒有正式Supabase連線）通過：pwaData 的離線作答／間隔／重連／衝突／帳號隔離與 pwaDictionary 的離線閱讀／搜尋、未快取提示、發布失效／空間不足。兩者 page errors=0；字典斷線時 public RPC=0。此為桌面 Chromium 的實際 SW／資料流程，不代替 Android／iPad 安裝驗收。
+- TypeScript 通過；修改範圍 ESLint 0 errors／3 既有 warnings。Webpack Build 通過。程式提交108a201與0e4903c的Vercel成功；首輪GitHub Actions [42148823988](https://github.com/changmonica02/Nexus/actions/runs/42148823988) 已成功；0e4903c的 [42150348053](https://github.com/changmonica02/Nexus/actions/runs/42150348053) 及最後文件提交檢查於交接時執行中；最終結果以 [#162 checks](https://github.com/changmonica02/Nexus/pull/162/checks)／交付註記核對，未完成不宣稱通過。CI 增加本輪測試，保留全部既有驗證，因新增雙引擎大型矩陣將 job 上限由20調為30分鐘。
 
 ## 資料、發布與限制
 
