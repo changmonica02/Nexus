@@ -232,7 +232,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     className={editing||fullView?'fixed inset-0 z-50 m-0 flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
     {editing&&<header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm [&_button]:min-h-11 [&_button]:rounded [&_button]:border [&_button]:px-3">
       <button type="button" onClick={close} disabled={busy||toolBusy||!!nativeState.tool}>{t('worldMap.editor11')}</button>
-      {humanTools&&<button data-map-sidebar-toggle className="min-w-11" aria-expanded={sidebarOpen} aria-controls="world-map-tools-panel" aria-label={t('worldWorkspace.toggle')} onClick={()=>setSidebarOpen(open=>!open)}>☰</button>}
+      {humanTools&&<button data-map-sidebar-toggle className="min-w-11" disabled={!!nativeState.tool} title={nativeState.tool?t('worldMap.toolFinishFirst'):undefined} aria-expanded={sidebarOpen&&!nativeState.tool} aria-controls="world-map-tools-panel" aria-label={t('worldWorkspace.toggle')} onClick={()=>setSidebarOpen(open=>!open)}>☰</button>}
       <strong className="mr-auto min-w-0 flex-1 truncate">{map.title}</strong>
       <button type="button" disabled={!interactive||busy||toolBusy||!!nativeState.tool||Boolean(conflict)||!!regionDirty} onClick={()=>void actions.current.save().catch(report)}>{t('worldMap.editor12')}</button>
       <nav aria-label={t('worldMap.actions')} className="ml-auto flex shrink-0 gap-2">
@@ -255,7 +255,7 @@ export default function WorldMapEditor({map, blob, draftToken, draftConflict, re
     {editing&&humanTools&&<aside id="world-map-tools-panel" data-map-context style={{position:"relative",zIndex:1,isolation:"isolate"}} className={!sidebarOpen||nativeState.tool?'hidden':'max-h-[42dvh] min-w-0 shrink-0 overflow-y-auto border-t sm:max-h-none sm:w-64 sm:border-r sm:border-t-0 lg:w-72'}>{humanTools(toolControls)}</aside>}
     <div data-map-main className={editing?"flex min-h-0 min-w-0 flex-1 flex-col":"contents"}>
     {editing&&displayControls&&<div data-map-display-controls className="min-w-0 shrink-0 border-b bg-[var(--color-bg)] p-2">{displayControls(toolControls)}</div>}
-    <div ref={canvas} data-map-canvas className={editing||fullView?'relative min-h-0 min-w-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(14rem, 36dvh, 24rem)'}:undefined}>
+    <div ref={canvas} data-map-canvas aria-busy={!interactive} className={editing||fullView?'relative min-h-0 min-w-0 flex-1 overflow-hidden':'relative mx-2 shrink-0 overflow-hidden rounded-2xl border bg-[var(--color-bg)] sm:mx-4'} style={!editing&&!fullView?{height:previewHeight??'clamp(14rem, 36dvh, 24rem)'}:undefined}>
       <iframe ref={frame} title={editing?t('worldMap.editor22'):t('worldMap.preview')} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1&language=${initialLanguage}`} srcDoc={offlineHTML}
         sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full border-0"/>
       {!editing&&<>

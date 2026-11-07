@@ -30,7 +30,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
   let frame;
-  const currentMapFrame=async()=>{const active=page.getByRole('dialog',{name:'World map editor',exact:true});const target=await active.isVisible()?active.locator('iframe'):page.locator('iframe:visible').first();return (await target.elementHandle()).contentFrame();};
+  const currentMapFrame=async()=>{const active=page.getByRole('dialog',{name:'World map editor',exact:true});const target=await active.isVisible()?active.locator('iframe'):page.locator('iframe:visible').first();await page.waitForFunction(el=>el.parentElement?.getAttribute('aria-busy')==='false',await target.elementHandle(),{timeout:120000});return (await target.elementHandle()).contentFrame();};
   const confirmName=async name=>{if(name==='Atlas One')await page.getByLabel('Seed',{exact:true}).fill('nexus-natural-v2-browser');if(name==='Detail Created'){await page.getByLabel('Terrain source',{exact:true}).selectOption('precreated');await page.getByLabel('Terrain template',{exact:true}).selectOption('world');await page.getByRole('dialog',{name:'Create map',exact:true}).locator('summary').filter({hasText:'Advanced settings'}).click();await page.getByLabel('Geographic width (km, optional)',{exact:true}).fill('1000');}await page.getByRole('textbox',{name:'Map name'}).fill(name);await page.getByRole('button',{name:await page.getByRole('button',{name:'Confirm creation',exact:true}).count()?'Confirm creation':'Confirm',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),null,{timeout:120000});frame=await currentMapFrame();};
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   const openManage=async()=>{if(!await manage.isVisible())await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();};
@@ -347,18 +347,18 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await touches([{x:px-35,y:py,id:1},{x:px+35,y:py,id:2}]);
   for(let d=40;d<=90;d+=10)await moveTouches([{x:px-d,y:py,id:1},{x:px+d,y:py,id:2}]);
   await endTouches();
-  assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)>beforePinch.k*1.5,'two fingers zoom smoothly');
+  await frame.waitForFunction(k=>document.querySelector('#map').__zoom.k>k*1.5,beforePinch.k);assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)>beforePinch.k*1.5,'two fingers zoom smoothly');
   assert.equal(await mapScroll(),pageBeforePinch);
   const zoomed=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
   await touches([{x:px-85,y:py,id:1},{x:px+85,y:py,id:2}]);
   for(let d=75;d>=50;d-=5)await moveTouches([{x:px-d,y:py,id:1},{x:px+d,y:py,id:2}]);
   await endTouches();
-  assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)<zoomed,'pinch inward zooms out');
+  await frame.waitForFunction(k=>document.querySelector('#map').__zoom.k<k,zoomed);assert.ok(await frame.evaluate(()=>document.querySelector('#map').__zoom.k)<zoomed,'pinch inward zooms out');
   const pinchPosition=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y}));
   await touches([{x:px-45,y:py,id:1},{x:px+45,y:py,id:2}]);
   for(let d=5;d<=25;d+=5)await moveTouches([{x:px-45+d,y:py+15,id:1},{x:px+45+d,y:py+15,id:2}]);
   await endTouches();
-  assert.ok(await frame.evaluate(p=>{const z=document.querySelector('#map').__zoom;return Math.abs(z.x-p.x)>1||Math.abs(z.y-p.y)>1;},pinchPosition),'two-finger pan moves the map');
+  await frame.waitForFunction(p=>{const z=document.querySelector('#map').__zoom;return Math.abs(z.x-p.x)>1||Math.abs(z.y-p.y)>1;},pinchPosition);assert.ok(await frame.evaluate(p=>{const z=document.querySelector('#map').__zoom;return Math.abs(z.x-p.x)>1||Math.abs(z.y-p.y)>1;},pinchPosition),'two-finger pan moves the map');
   const gestureScale=await frame.evaluate(()=>document.querySelector('#map').__zoom.k);
   await page.getByLabel('Display mode',{exact:true}).selectOption('physical');
   await page.waitForTimeout(250);
@@ -366,7 +366,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const stableView=await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y,k:document.querySelector('#map').__zoom.k}));
   await page.evaluate(()=>{window.setMapCloud({status:'error',error:'simulated',pendingPushes:1});window.setMapTitle('A very long world title '.repeat(20));});
   await page.getByRole('alert').filter({hasText:'Sync failed'}).waitFor();
-  assert.ok(await page.locator('h1').evaluate(el=>el.scrollWidth>el.clientWidth),'long title is truncated');
+  await page.locator('h1').filter({hasText:'A very long world title'}).waitFor();assert.ok(await page.locator('h1').evaluate(el=>el.scrollWidth>el.clientWidth),'long title is truncated');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
   assert.deepEqual(await frame.evaluate(()=>({x:document.querySelector('#map').__zoom.x,y:document.querySelector('#map').__zoom.y,k:document.querySelector('#map').__zoom.k})),stableView,'sync/title updates preserve the view');
   await page.evaluate(()=>window.setMapCloud({status:'connected',error:null,pendingPushes:2}));
@@ -645,7 +645,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
   await openExports();
-  for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
+  for(const type of ['SVG','PNG']){console.log('DISTRIBUTION_EXPORT_START',type);const pending=page.waitForEvent('download',{timeout:60000}).catch(async error=>{console.log('DISTRIBUTION_EXPORT_FAILURE',type,(await editor.innerText()).slice(-3000),await frame.evaluate(()=>({customization,graph:options.map.graph,groups:document.querySelectorAll('#nexus-regions [data-members]').length})));throw error;});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
   assert.equal(await frame.evaluate(async()=>{const text=await Services.Save.prepareMapData();return String(text).includes('nexus-regions');}),false);
   await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('religions');const religionIds=(await readTowns()).maps.find(m=>m.id===regionMapId).placements.filter(p=>p.deletedAt===null&&(distributions.entities.find(e=>e.entityId===p.entityId)?.type==='religion')).map(p=>p.placementId);await frame.waitForFunction(ids=>{const rows=[...document.querySelectorAll('#nexus-regions [data-members]')];return rows.length>0&&rows.every(row=>row.dataset.members.split(' ').every(id=>ids.includes(id)));},religionIds);await openWorldTools('Human geography','Religions');await editor.locator('[data-map-entity-list]').getByRole('button',{name:'Moon faith',exact:true}).waitFor();
   assert.equal(await dataDigest(),distributionDigest);

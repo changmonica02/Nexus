@@ -213,10 +213,10 @@ window.addEventListener('message', event => {
         document.body.classList.toggle('nexus-preview',preview);
         configurePreviewGestures(preview,freePan);
         if(modeChanged||settings.resize){
-          const view=settings.view??{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale};
-          const wasFit=Math.abs(viewport.scale-fitScale())<0.001;
+          // fitMapToScreen already retains manual center/scale. Replaying an earlier
+          // implicit view on the next frame would overwrite a pinch that just started.
           fitMapToScreen();
-          await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit||wasFit&&!settings.view)fitView();else zoomTo(view.x,view.y,view.scale,0);resolve();}));
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit)fitView();else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);resolve();}));
         }else if(settings.fit)fitView();
         else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
         if(settings.layer)applyNaturalView(settings.layer,settings.overlays,settings.contourInterval,settings.contourLabels);
