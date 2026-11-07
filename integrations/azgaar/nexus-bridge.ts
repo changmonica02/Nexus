@@ -25,20 +25,21 @@ document.head.append(previewStyle);document.body.classList.add('nexus-preview');
 const compactTools=document.createElement('style');
 compactTools.textContent=`body:not(.nexus-preview) #optionsContainer{position:absolute;left:0;top:0;z-index:20;width:max-content;max-width:calc(100vw - 16px);max-height:55vh;overflow:auto;box-sizing:border-box}body:not(.nexus-preview) #collapsible{position:relative;margin:8px;max-width:100%}body:not(.nexus-preview) #options{position:relative;max-width:100%;box-sizing:border-box}body:not(.nexus-preview) #optionsTrigger{min-height:44px;min-width:44px}body:not(.nexus-preview) #options .tab{height:auto;min-height:44px}body:not(.nexus-preview) #options button,body:not(.nexus-preview) #options summary{min-height:44px} @media(max-width:600px){body:not(.nexus-preview) #optionsContainer{position:fixed;left:8px!important;right:8px!important;bottom:8px!important;top:auto!important;width:auto!important;max-height:45vh}body:not(.nexus-preview) #options{position:relative;margin:0;width:100%}}`;
 compactTools.textContent+=`body.nexus-managed-tools:not([data-nexus-tool="advanced"]):not([data-nexus-tool="height"]):not([data-nexus-tool="style"]) #optionsContainer{display:none!important} body.nexus-managed-tools[data-nexus-tool="height"] #options .tab{display:none} body.nexus-managed-tools .ui-dialog{max-width:calc(100vw - 16px)!important;max-height:calc(100vh - 16px);box-sizing:border-box}body.nexus-managed-tools .ui-dialog-content{max-height:60vh!important;overflow:auto!important}body.nexus-managed-tools .ui-dialog button{min-height:44px;min-width:44px} @media(max-width:600px){body.nexus-managed-tools .ui-dialog{left:8px!important;top:auto!important;bottom:8px!important;width:calc(100vw - 16px)!important;max-height:48vh}body.nexus-managed-tools .ui-dialog-content{max-height:32vh!important}}`;
+compactTools.textContent+=`body.nexus-managed-tools .ui-dialog input:not([type=checkbox]):not([type=radio]),body.nexus-managed-tools .ui-dialog select{min-height:44px;max-width:100%;box-sizing:border-box}`;
 document.head.append(compactTools);
 
 type Marker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean}};
-let markers:Marker[]=[],pickPoint:string|null=null;
+let markers:Marker[]=[],pickPoint:string|null=null,selectedPlacement:string|null=null;
 const SVG_NS='http://www.w3.org/2000/svg';
 function drawMarkers(){
   document.getElementById('nexus-placements')?.remove();
   const view=document.getElementById('viewbox');if(!view)return;
   const group=document.createElementNS(SVG_NS,'g');group.id='nexus-placements';
   for(const marker of markers){
-    if(!marker.visible||!Number.isFinite(marker.x)||!Number.isFinite(marker.y))continue;
+    if(!marker.visible&&marker.placementId!==selectedPlacement||!Number.isFinite(marker.x)||!Number.isFinite(marker.y))continue;
     const item=document.createElementNS(SVG_NS,'g');item.dataset.placementId=marker.placementId;
     item.setAttribute('transform',`translate(${marker.x},${marker.y})`);item.style.cursor='pointer';
-    const dot=document.createElementNS(SVG_NS,'circle');dot.setAttribute('r','5');dot.setAttribute('fill','#8c3e24');dot.setAttribute('stroke','white');dot.setAttribute('stroke-width','1.5');item.append(dot);
+    const dot=document.createElementNS(SVG_NS,'circle');dot.setAttribute('r','5');dot.setAttribute('fill','#8c3e24');dot.setAttribute('stroke','white');dot.setAttribute('stroke-width','1.5');item.append(dot);if(marker.placementId===selectedPlacement){const ring=document.createElementNS(SVG_NS,'circle');ring.setAttribute('r','10');ring.setAttribute('fill','none');ring.setAttribute('stroke','#c96a20');ring.setAttribute('stroke-width','3');item.append(ring);}
     if(marker.label?.visible!==false){const text=document.createElementNS(SVG_NS,'text');text.textContent=marker.name;text.setAttribute('x','8');text.setAttribute('y','4');text.setAttribute('font-size','12');text.setAttribute('fill','#221b14');text.setAttribute('stroke','white');text.setAttribute('stroke-width','3');text.setAttribute('paint-order','stroke');item.append(text);}
     group.append(item);
   }
@@ -104,7 +105,7 @@ const pendingSaves = new Map<number, { resolve: () => void; reject: (e: Error) =
 const notify = (type: string) => port?.postMessage({ type });
 // Tool transactions use the existing native project snapshot/loader only. No Nexus
 // entities, persistence, credentials or alternate map model enter the iframe.
-const nativeTools = ['height','coasts','rivers','climate','biomes','routes','labels','style','advanced'] as const;
+const nativeTools = ['height','coasts','lakes','rivers','climate','biomes','routes','labels','style','advanced'] as const;
 type NativeTool = typeof nativeTools[number];
 let nativeTool:NativeTool|null=null,toolCheckpoint:Blob|null=null;
 function toolState(){
@@ -124,7 +125,7 @@ async function toolCommand(command:{action?:string;tool?:NativeTool}){
     closeDialogs();hideOptions();
     try{
       if(nativeTool==='height')await Controllers.HeightmapEditor.open({mode:'keep',tool:'brushes'});
-      else if(nativeTool==='coasts')await Controllers.FeaturesOverview.open();
+      else if(nativeTool==='coasts'||nativeTool==='lakes'){await Controllers.FeaturesOverview.open();if(nativeTool==='lakes'){const filter=document.getElementById('featuresFilterType') as HTMLSelectElement|null;if(filter){filter.value='lake';filter.dispatchEvent(new Event('change'));}}}
       else if(nativeTool==='rivers')await Controllers.RiversOverview.open();
       else if(nativeTool==='climate')await Controllers.WorldConfigurator.open();
       else if(nativeTool==='biomes')await Controllers.BiomesEditor.open();
@@ -145,6 +146,7 @@ async function toolCommand(command:{action?:string;tool?:NativeTool}){
     nativeTool=null;toolCheckpoint=null;delete document.body.dataset.nexusTool;hideOptions();
   }else if(command.action==='confirm'){
     if(!nativeTool)throw Error('No active map tool');
+    if(document.querySelector('#routeCreatorBody .editorLine'))throw Error('Complete or cancel route creation before confirming this tool');
     if(customization===1)await Controllers.HeightmapEditor.finalize();
     if(customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
     closeDialogs();hideOptions();nativeTool=null;toolCheckpoint=null;delete document.body.dataset.nexusTool;notify('dirty');
@@ -198,7 +200,7 @@ window.addEventListener('message', event => {
         const settings=data.settings??{};
         if(nativeTool&&(settings.pickPoint||settings.preview===true))throw Error('Confirm or cancel the active tool before switching.');
         if(typeof settings.managedTools==='boolean')document.body.classList.toggle('nexus-managed-tools',settings.managedTools);
-        if(settings.regionView)NexusRegions.setView(settings.regionView);
+        if(settings.regionView){NexusRegions.setView(settings.regionView);selectedPlacement=settings.regionView.selected??null;drawMarkers();}
         if('regions' in settings)await NexusRegions.configure(settings.regions??[],settings.regionScope??'world',value=>port?.postMessage(value));
         if(settings.pickPoint&&customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');
         if('markers' in settings){markers=settings.markers??[];drawMarkers();}
@@ -211,15 +213,16 @@ window.addEventListener('message', event => {
         document.body.classList.toggle('nexus-preview',preview);
         configurePreviewGestures(preview,freePan);
         if(modeChanged||settings.resize){
-          const view=settings.view??{x:(viewport.width/2-viewport.x)/viewport.scale,y:(viewport.height/2-viewport.y)/viewport.scale,scale:viewport.scale};
-          const wasFit=Math.abs(viewport.scale-fitScale())<0.001;
+          // fitMapToScreen already retains manual center/scale. Replaying an earlier
+          // implicit view on the next frame would overwrite a pinch that just started.
           fitMapToScreen();
-          await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit||wasFit&&!settings.view)fitView();else zoomTo(view.x,view.y,view.scale,0);resolve();}));
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>{if(settings.fit)fitView();else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);resolve();}));
         }else if(settings.fit)fitView();
         else if(settings.view)zoomTo(settings.view.x,settings.view.y,settings.view.scale,0);
         if(settings.layer)applyNaturalView(settings.layer,settings.overlays,settings.contourInterval,settings.contourLabels);
         if(typeof settings.zoom==='number'&&settings.zoom>0&&Number.isFinite(settings.zoom))changeMapZoom(settings.zoom);
         if('regions' in settings||'markers' in settings)port?.postMessage({type:'region-points',points:NexusRegions.pointCells(settings.markers??markers)});
+        if(typeof settings.focusPlacement==='string'){const point=markers.find(p=>p.placementId===settings.focusPlacement);if(point)zoomTo(point.x,point.y,Math.max(viewport.scale,3),0);else NexusRegions.focus(settings.focusPlacement);}
         reportView();
       }else if(data.type==='region'){
         if(preview&&data.settings?.regionCommand?.action!=='cancel')throw Error('Nexus storage is not ready');

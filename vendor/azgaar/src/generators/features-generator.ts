@@ -521,6 +521,12 @@ class FeatureModule {
   }
 
   getName(feature: Feature): string {
+    const generated = this.getOriginalName(feature); // preserve the original PRNG consumption
+    const chinese = (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW';
+    return chinese ? `${feature.type==='lake'?'湖泊':feature.type==='ocean'?'海域':'島嶼'} ${feature.i}` : generated;
+  }
+
+  private getOriginalName(feature: Feature): string {
     if (feature.type === "ocean") return this.getOceanName(feature);
     if (P(0.1)) return ra(ADJECTIVES);
     const cell = feature.type === "lake" ? feature.shoreline?.[0] || feature.firstCell : feature.firstCell;

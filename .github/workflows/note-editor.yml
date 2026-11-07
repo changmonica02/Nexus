@@ -102,3 +102,44 @@ jobs:
             test-results/note-pagination
           if-no-files-found: ignore
 
+
+  world-map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: Production build
+        id: map-build
+        env:
+          NODE_ENV: production
+          NPM_CONFIG_OMIT: dev
+        run: npm run build
+      - name: Native project and distribution regression
+        run: node tests/worldMap.browser.test.cjs
+      - name: Chromium workspace
+        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
+        run: node tests/worldMapUI.browser.test.cjs
+      - name: WebKit workspace
+        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
+        run: MAP_BROWSER=webkit node tests/worldMapUI.browser.test.cjs
+      - name: Offline PWA
+        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
+        run: node tests/pwaWorldMap.browser.test.cjs
+      - name: Map workspace visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-map-workspace-evidence
+          path: test-results/world-map-ui/**/*.png
+          if-no-files-found: ignore

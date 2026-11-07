@@ -67,9 +67,9 @@ export function initializeEmptyCivilization(): void {
   pack.cells.s = new Int16Array(n);
   pack.cells.pop = new Float32Array(n);
   pack.cells.routes = {};
-  pack.cultures = [{i: 0, name: "Wildlands", base: 1, shield: "round", type: "Generic"} as typeof pack.cultures[number]];
-  pack.states = [{i: 0, name: "Neutrals", salesTax: 0, pollTax: 0, treasury: 0, provinces: []} as unknown as typeof pack.states[number]];
-  pack.religions = [{i: 0, name: "No religion"} as typeof pack.religions[number]];
+  pack.cultures = [{i: 0, name: (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?"荒野":"Wildlands", base: 1, shield: "round", type: "Generic"} as typeof pack.cultures[number]];
+  pack.states = [{i: 0, name: (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?"中立區":"Neutrals", salesTax: 0, pollTax: 0, treasury: 0, provinces: []} as unknown as typeof pack.states[number]];
+  pack.religions = [{i: 0, name: (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?"無宗教":"No religion"} as typeof pack.religions[number]];
   pack.burgs = [0 as unknown as typeof pack.burgs[number]];
   pack.provinces = [0 as unknown as typeof pack.provinces[number]];
   pack.routes = []; pack.goods = []; pack.markets = []; pack.deals = [];
@@ -85,11 +85,11 @@ export const naturalGenerationSteps: readonly PipelineStep<string, GenerationCon
   {id: "naturalRiverNames", run: () => {
     for (const river of pack.rivers) {
       river.parent = Rivers.getParent(river.i); river.basin = Rivers.getBasin(river.i);
-      river.name = `River ${river.i}`; river.type = "River";
+      river.name = (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?`河流 ${river.i}`:`River ${river.i}`; river.type = "River";
     }
   }},
   {id: "naturalFeatureNames", run: () => {
-    for (const feature of pack.features) if (feature && !feature.name) feature.name = `${feature.type} ${feature.i}`;
+    for (const feature of pack.features) if (feature && !feature.name) feature.name = (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?`${feature.type==='lake'?'湖泊':feature.type==='ocean'?'海域':'島嶼'} ${feature.i}`:`${feature.type} ${feature.i}`;
   }}
 ];
 export const NaturalGenerationPipeline = new Pipeline("Natural Geography", naturalGenerationSteps);

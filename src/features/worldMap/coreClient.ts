@@ -1,4 +1,4 @@
-export type NativeMapTool = 'height'|'coasts'|'rivers'|'climate'|'biomes'|'routes'|'labels'|'style'|'advanced';
+export type NativeMapTool = 'height'|'coasts'|'lakes'|'rivers'|'climate'|'biomes'|'routes'|'labels'|'style'|'advanced';
 export type NativeToolState = {tool:NativeMapTool|null;undo:boolean;redo:boolean};
 export type NativeToolCommand = {action:'open';tool:NativeMapTool}|{action:'confirm'|'cancel'|'undo'|'redo'};
 import type {WorldRegionGeometry,WorldMapPlacement} from '../../lib/types';
@@ -6,11 +6,11 @@ export type RegionArea={relative:number;km2?:number};
 export type RegionProjection={placementId:string;entityId:string;name:string;entityType:string;geometry:WorldRegionGeometry;visible:boolean;distribution?:WorldMapPlacement["distribution"]};
 export type RegionDraft={requestId:string;geometry:WorldRegionGeometry;area:RegionArea;undo:boolean;redo:boolean};
 export type RegionStat={placementId:string;compatible:boolean;area:RegionArea|null};
-export type RegionCommand={action:string;id?:string;placementId?:string;name?:string;geometry?:WorldRegionGeometry;radius?:number;erase?:boolean};
+export type RegionCommand={appearance?:Pick<WorldMapPlacement,"visible"|"distribution">;action:string;id?:string;placementId?:string;name?:string;geometry?:WorldRegionGeometry;radius?:number;erase?:boolean};
 export type MapMarker = {placementId:string;entityId:string;name:string;x:number;y:number;visible:boolean;label?:{visible:boolean};icon?:string};
 export type MapView = {x:number;y:number;scale:number};
 export type NaturalMapSettings = {widthKm?:number;template:string;seed:string;width:number;height:number;points:number;equator:number;precipitation:number};
-export type MapPresentation = {managedTools?:boolean;toolCommand?:NativeToolCommand;regionView?:{layer:string;selected?:string|null};regions?:RegionProjection[];regionScope?:string;regionCommand?:RegionCommand;markers?:MapMarker[];pickPoint?:string|null;generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
+export type MapPresentation = {focusPlacement?:string;managedTools?:boolean;toolCommand?:NativeToolCommand;regionView?:{layer:string;selected?:string|null};regions?:RegionProjection[];regionScope?:string;regionCommand?:RegionCommand;markers?:MapMarker[];pickPoint?:string|null;generation?:NaturalMapSettings;overlays?:string[];contourInterval?:number;contourLabels?:boolean;preview?:boolean;freePan?:boolean;resize?:boolean;fit?:boolean;language?:string;layer?:string;zoom?:number;view?:MapView};
 /** Only a private MessagePort crosses the opaque-origin core boundary. */
 export class MapCoreClient {
   private sequence = 0;
