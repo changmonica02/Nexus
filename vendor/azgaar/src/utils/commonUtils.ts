@@ -160,32 +160,15 @@ export const parseError = (error: Error): string => {
  * @param callback - Callback function that receives the base64 data
  */
 export const getBase64 = (url: string, callback: (result: string | ArrayBuffer | null) => void): void => {
-  const xhr = new XMLHttpRequest();
-  xhr.onload = () => {
-    const blob = xhr.response as Blob | null;
-    // don't inline error pages (e.g. a 404 html document) as image data
-    if (xhr.status < 200 || xhr.status >= 300 || !blob?.type.startsWith("image/")) {
-      ERROR && console.error(`Cannot load image ${url}: status ${xhr.status}, type ${blob?.type || "unknown"}`);
-      return callback(null);
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      callback(reader.result);
-    };
-    reader.readAsDataURL(blob);
-  };
-  xhr.onerror = () => {
-    ERROR && console.error(`Cannot load image ${url}: network error`);
-    callback(null);
-  };
-  xhr.ontimeout = () => {
-    ERROR && console.error(`Cannot load image ${url}: timed out`);
-    callback(null);
-  };
-  xhr.open("GET", url);
-  xhr.timeout = 15000; // a host that never answers must not hang an export
-  xhr.responseType = "blob";
-  xhr.send();
+  // fetch uses Nexus's existing public-asset broker in an opaque frame; XHR cannot.
+  const controller = new AbortController();let settled=false;
+  const finish=(result:string|ArrayBuffer|null)=>{if(settled)return;settled=true;clearTimeout(timer);callback(result);};
+  const timer=setTimeout(()=>{controller.abort();finish(null);},15000);
+  void fetch(url,{signal:controller.signal}).then(async response=>{
+    const blob=await response.blob();
+    if(!response.ok||!blob.type.startsWith("image/"))throw Error("Invalid image response");
+    const reader=new FileReader();reader.onloadend=()=>finish(reader.result);reader.onerror=()=>finish(null);reader.readAsDataURL(blob);
+  }).catch(()=>{ERROR&&console.error(`Cannot load image ${url}: network error`);finish(null);});
 };
 
 /**

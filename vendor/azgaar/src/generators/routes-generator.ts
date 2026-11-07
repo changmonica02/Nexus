@@ -1002,6 +1002,13 @@ class RoutesModule {
   }
 
   generateName({ group, points }: { group: string; points: number[][] }): string | undefined {
+    const generated = this.generateOriginalName({group, points}); // retain original PRNG consumption
+    if (points.length<2 || (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()!=="zh-TW") return generated;
+    const kind=group==="searoutes"?"航線":group==="trails"?"小徑":"道路";
+    return `${kind} ${points[0][2]}–${points.at(-1)![2]}`;
+  }
+
+  private generateOriginalName({ group, points }: { group: string; points: number[][] }): string | undefined {
     if (points.length < 4) return undefined;
 
     function getBurgName() {

@@ -42,7 +42,7 @@ test('asset broker reads only public map cache entries and never fetches private
   assert.equal(network,0);
 });
 
-test('online opaque-frame broker forwards only heightmap PNGs and authenticates parent replies',async()=>{
+test('online opaque-frame broker forwards only public images and authenticates parent replies',async()=>{
  const previous={window:global.window,parent:global.parent},messages=[],network=[];let receive;
  global.parent={postMessage:data=>messages.push(data)};
  global.window={addEventListener:(type,fn)=>{if(type==='message')receive=fn;},fetch:async input=>{network.push(input);return new Response('direct');}};
@@ -53,8 +53,9 @@ test('online opaque-frame broker forwards only heightmap PNGs and authenticates 
   receive({source:parent,data:{type:'nexus-map-asset-result',session:'other-session',id:1,blob:new Blob(['wrong session'])}});
   receive({source:parent,data:{type:'nexus-map-asset-result',session:'preview-session',id:1,blob:new Blob(['PNG'],{type:'image/png'})}});
   const result=await response;assert.equal(await result.text(),'PNG');assert.equal(result.headers.get('content-type'),'image/png');
+  const texture=window.fetch('./images/pattern1.png');assert.equal(messages[1].url,'https://nexus.invalid/world-map/core/images/pattern1.png');receive({source:parent,data:{type:'nexus-map-asset-result',session:'preview-session',id:2,blob:new Blob(['texture'],{type:'image/png'})}});assert.equal(await (await texture).text(),'texture');
   for(const input of ['/api/account','./private.json','https://outside.invalid/world-map/core/heightmaps/world.png','./heightmaps/%2e%2e%2fprivate.png','data:image/png;base64,AAAA'])assert.equal(await (await window.fetch(input)).text(),'direct');
-  assert.equal(messages.length,1);assert.equal(network.length,5);
+  assert.equal(messages.length,2);assert.equal(network.length,5);
  }finally{for(const [key,value] of Object.entries(previous)){if(value===undefined)delete global[key];else global[key]=value;}}
 });
 
@@ -64,7 +65,8 @@ test('online heightmap fallback omits credentials, rejects queries/other assets 
  global.fetch=async(url,options)=>{requests.push({url,options});return new Response('PNG',{headers:{'content-type':'image/png'}});};
  try{
   assert.equal(await (await readPublicMapAsset('/world-map/core/heightmaps/world.png')).text(),'PNG');assert.deepEqual(requests,[{url:'https://nexus.test/world-map/core/heightmaps/world.png',options:{credentials:'omit',mode:'same-origin'}}]);
-  for(const path of ['/world-map/core/heightmaps/world.png?private=1','/world-map/core/heightmaps/%2e%2e%2fprivate.png','/api/account','/world-map/core/private.json'])await assert.rejects(readPublicMapAsset(path));
-  Object.defineProperty(global,'navigator',{configurable:true,value:{onLine:false}});await assert.rejects(readPublicMapAsset('/world-map/core/heightmaps/world.png'));assert.equal(requests.length,1);
+  assert.equal(await (await readPublicMapAsset('/world-map/core/images/pattern1.png')).text(),'PNG');assert.equal(requests[1].options.credentials,'omit');
+  for(const path of ['https://user:password@nexus.test/world-map/core/images/pattern1.png','/world-map/core/images/pattern1.png?private=1','/world-map/core/heightmaps/world.png?private=1','/world-map/core/heightmaps/%2e%2e%2fprivate.png','/api/account','/world-map/core/private.json'])await assert.rejects(readPublicMapAsset(path));
+  Object.defineProperty(global,'navigator',{configurable:true,value:{onLine:false}});await assert.rejects(readPublicMapAsset('/world-map/core/heightmaps/world.png'));assert.equal(requests.length,2);
  }finally{for(const key of ['location','caches','fetch']){if(previous[key]===undefined)delete global[key];else global[key]=previous[key];}if(previous.navigator)Object.defineProperty(global,'navigator',previous.navigator);else delete global.navigator;}
 });

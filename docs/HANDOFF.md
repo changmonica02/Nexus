@@ -1,31 +1,29 @@
 # Nexus — 當前狀態與下一步
 
-本輪追蹤 #163；分支 `feat/dictionary-exchange-safe-replacement`，基於最新 main `6dd9e1b`（#158、#160、#162 已合併）。Draft PR [#164](https://github.com/changmonica02/Nexus/pull/164)，程式提交 `05ce24c`、`987e510`；最後交接提交見 PR head；不改上述歷史提交、HISTORY、正式 DB、部署或存取保護。
+本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。新增 Draft PR 的號碼與最終提交／checks 見本輪交付；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。
 
 ## 本輪實作
 
-- 完整交換匯出採獨立類型核取方塊與全部／真正待審核範圍；preview 筆數與固定版本、100筆分頁、暫停恢復及同一完成工作的重新下載。完整保留 canonical snapshot、editor Review 與常駐候選／來源／ID／版本；未建立正式詞條的候選也可匯出，以 null snapshot 明確區別。
-- 第一層格式說明預設收合，檔案／貼上內容保留且高度受限；分析不寫伺服器。第二層獨立 dialog、分類說明、詞條計數、三類預設收合、25筆分頁、完整差異、單筆／批次操作、排除、重查、原審核入口與工作恢復。原 AI JSON 人工 Diff 相容保留，不自動清理缺少完整來源證明的資料。
-- 沿用 classifyPersistent／partialImportPlan、stage／apply、原 Review 與 receipt。移除完整 JSON 曾把修改自動視為可接受的選項；獨立新增可草稿寫入，修改／混合爭議仍進原審核，正式 Published 不變。安全寫入與確切舊 issue 結案在同一交易，來源列保留供追溯。未變更不清理、不按拼寫配對，不建立另一套匯入資料庫或 AI 審核。
-- Google OAuth 加入 `prompt=select_account`，不改登出、redirect 或 owner／離線資料邊界。
+- 地圖完整編輯器：256／288px 桌面側欄與手機底部面板；自然地理／人文地理相連雙分頁。人文六類依2／3／置中1格排列，第二級原位返回、搜尋、配置篩選、25筆分頁、正式條目選取／定位／高亮、新增、名稱與詳細資料、解除配置及具影響確認的刪除。
+- 新增正式條目先保存為未配置；其後才放置點位或編輯區域，取消繪圖不刪除已建立的條目。地標保留 settlement／site，政治體沿用 country；路線仍由原生管理器保存，不新增 route WorldEntityType。文化／宗教的範圍、顏色、透明度與可見性作為同一份未提交編輯，確認才走 saveRegion／Page CAS，取消不留下部分樣式。
+- 地區／顯示方式／圖層位於右側畫布上方，共用首頁解析，側欄收合一起伸縮；不因工具分類切換重新載入 iframe。點位／筆刷與原生工具未完成時保留離開屏障，切換空間先保存 working copy；既有 contain／手動視角與 ResizeObserver 沿用。
+- 自然地理分類整合高度、海岸、湖泊、河流、氣候、生態、標籤、樣式及進階原生工具。固定 i18n 目錄補動態類型／提示、大小寫及計數；語言由 MessagePort 更新。新地理命名只在真正生成／新增名稱路徑處理，不監聽 map:generated 批次改名（載入也會發出該事件）；保留原 PRNG 消耗及已有名稱。第三方授權移到設定→關於 Nexus，保留 MIT 原文、來源與 notices 檔案。
 
-## Migration 與正式條件
+## 資料與能力邊界
 
-新增 `20261106032651_dictionary_exchange_safe_replacement.sql`：新增 capability、七參數匯出 overload、安全 apply wrapper 與內部 helpers；inspect 僅附加來源 fingerprint 摘要。沒有新表、刪欄、內容回填或自動發布；人工核准 #156 架構與既有事件／排程／同步不改。依賴 Word segments、#158 退役與常駐審核 RPC；正式 ledger 名稱可能不同，不能直接 db push 全部 pending 檔。
+無 Schema 或 Migration；穩定 entity／map／placement ID、附件 SHA、原生格式、Page CAS、owner、workspace outbox 與離線 checkpoint 不變。正式正文與地理配置仍分離，多個地圖區塊共用資料。分布 appearance／focus 僅擴充既有白名單指令的設定，不開放宿主任意控制 iframe DOM；sandbox 未放寬。
 
-正式 DB 本輪完全未查詢或修改，Migration **未套用正式**。上一輪 ledger 交接僅供參考：Word segments `20261105083358`，#158 `20261105163818`／`20261105163846`／`20261105163922`；需獨立授權後再核對實際 schema、備份及 ledger，只套指定 Migration，先 DB 後前端。capability 未就緒時新流程禁止執行匯出／安全寫入，保留分析、輸入與原工作。不因回退 UI 恢復已結案來源或撤除收據。
+區域筆刷具 draw／erase、大小、面積、undo／redo、重疊確認與取消。國界互斥仍需明確確認轉移；文化／宗教可跨國重疊。特殊宗教語意只保存現有正式 relations／可用分布，不新增無法持久化設定。原生工具全部有 checkpoint 確認／取消；宿主 undo／redo 僅提供原生高度工具確實具備的歷史，其餘沿用工具自身可用操作，不提供假全域歷史。原生路線不另存 React／正式路線資料庫。
 
-## 測試與目前狀態
+## 驗證狀態
 
-- 新隔離 PostgreSQL／PGlite 測試涵蓋候選完整交換、真正 pending／空狀態、分類、獨立新增與混合差異、ID／版本衝突、Published 隔離、精確 issue 清理、無寫入不清理、強制清理失敗全回滾、相同 operation 重試、RLS／非管理員及其他詞條保護；1,001筆、11頁、暫停恢復與完成工作重新下載。原生 PostgreSQL 17（無網路、無主機資料掛載）及 PGlite 六項已通過，包含 Migration DDL 失敗回滾與最小權限；提交版亦已在原生 PostgreSQL 重跑六項通過。另補同一待審核提案的來源／義項重排去重，保留原 proposal key，避免反覆交換產生重複審核；安全取代操作仍保留獨立 proof。
-- Chromium 新匯出／分析／原常駐審核 UI 與 OAuth 實際 SDK URL 測試已通過，包含桌面、平板、320px／390px、分析不寫入、來源文字保留與安全結案；原完整交換的 checkpoint／quota／receipt／版本回歸通過。WebKit 新流程亦通過；1,001筆分析 Chromium 約2916–7057ms、WebKit 約7085–8731ms（最後一輪與 Build／原生 PostgreSQL 並行，故保留範圍），收合詳細列0筆、展開每頁25筆；受控本機 API，非正式服務保證。
-- 原6,300筆完整交換測試通過（本機 PGlite 約223秒，包含匯出、預覽、收據恢復、發布與報告）；不宣稱正式服務耗時。新增11頁測試不取代原大型回歸。
-- TypeScript、修改範圍 ESLint（0 errors／2既有 warnings）與 Webpack Build 通過；原審核、匯入決策、常駐、完整交換 quota／receipt、官方連動、舊資料、Session、清除及同步回歸通過。程式提交 `987e510` 的 Vercel 成功；GitHub Actions `42162214479` 的既有交換瀏覽器測試在收據失敗後重新整理的進度斷言逾時，後續步驟未執行，不能列通過。補強測試等待作業結束並直接驗證 IndexedDB 的25筆 durable checkpoint；同 CI Chromium 1234 本機通過，修正後須重新驗證完整 Actions。最終結果以 [#164 最新 checks](https://github.com/changmonica02/Nexus/pull/164/checks) 及同 PR 的「最終驗證」交付註記為準，註記須列實際 head／run；被新提交取消的 run 不列通過。沒有略過或弱化既有資料驗證。
+- 已通過 repository／core／IndexedDB、區域與 i18n 回歸，包含分布樣式與幾何同次提交、失敗回滾、CAS、重試不新增 outbox、正文／附件保持、冷開啟與備份。
+- Chromium 原生工具交易、圖像／原生匯出、三尺寸布局、明暗主題、六類開啟返回、多地圖區塊與共用專案回歸已通過一輪；實際檢視桌面／320px／深色及繁中海岸截圖。新增繁中預製地圖驗證 features／rivers／biomes 名稱，並驗證語言切換保留既有名稱。
+- Chromium PWA 實際離線開啟、地標／地形編輯、保存、重新開啟與重連保留 outbox 已通過一輪。公開材質離線未快取警告仍可能出現，不影響已保存專案；未放寬 CSP。
+- 完整舊地圖瀏覽器回歸、大量清單／授權入口新測試、最終 Chromium／WebKit、Build／ESLint／TypeScript 與遠端 CI 尚在執行，完成前不能列為全數通過。截圖由 CI `world-map-workspace-evidence` artifact 保存，依瀏覽器分目錄；本機結果在 test-results，不提交原生測試專案或大量二進位。
 
-## 尚待驗收與阻擋
+## 正式與實機待驗收
 
-- 必須確認最後完整回歸與遠端 CI／Vercel；維持 Draft，不合併、不正式部署。若任一資料交易／相容性檢查失敗，仍為合併阻擋。
-- 正式 Migration 需另行人工授權及 schema／ledger 預檢，本輪隔離 fixture 不是正式 schema 漂移的證明；未執行正式資料安全取代驗收。
-- Android Chrome／安裝 PWA、iPad Safari／PWA 與桌面真實 Google 多帳號選擇、登出再登入、未同步資料與 owner 隔離；測試只驗 SDK authorize URL，不能替 Google 頁面保證。
-- 使用真實待審核完整 JSON 做外部整理，保留來源 proof／固定 ID／版本，再於授權環境驗收。遺失或過期 proof 不猜補、不清理，需重新匯出分析。多來源未自動選候選；只有合法且對應明確的 issue 可以結案，其餘保留。
-- #162 原有 Android／iPad 開啟耗時、離線冷啟動、跨裝置清除／衝突及構詞虛擬鍵盤驗收仍保留；#160 原生語音與 #156 正式匯入套用不在本輪重新設計。詞形選單問題仍僅記錄。
+- Android Chrome／安裝 PWA 與 iPad Safari／PWA：44px 觸控、虛擬鍵盤、安全區、雙指縮放與平移、筆刷／側欄、全螢幕、離線冷開啟及保存恢復。桌面 WebKit 不替代 iPad 實機結論。
+- 真實既有世界觀／多地圖區塊與大量條目、特殊宗教關聯、原生路線建立／取消／保存及跨裝置 Page 衝突仍需人工驗收；失敗保留既有草稿，不以重試覆蓋遠端版本。
+- #164 的 `20261106032651_dictionary_exchange_safe_replacement.sql` 是否已正式套用，本輪未查證；舊交接為未套用。既有正式 ledger 名稱可能不同，不可 db push 全部 pending。任何正式 Migration 仍需獨立人工授權。本輪不改匯入／審核、OAuth、Android 語音或學習排程。

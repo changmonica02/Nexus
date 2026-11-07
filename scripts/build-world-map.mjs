@@ -54,7 +54,7 @@ run('npx',['vite','build','--base=/world-map/core/']);
 const output = path.join(root, 'public/world-map/core');
 await rm(output, { recursive: true, force: true });
 await cp(path.join(work, 'dist'), output, { recursive: true });
-// WebKit cannot fetch same-site heightmaps directly from an opaque sandbox.
+// WebKit cannot fetch same-site heightmaps or export textures directly from an opaque sandbox.
 // Reuse the existing cache-only public broker; offline documents install it themselves.
 await build({stdin:{contents:`import {assetBroker} from './src/features/worldMap/offlineCore';const session=new URL(location.href).searchParams.get('nexus');if(session)assetBroker(session,new URL('./',location.href).href,true);`,resolveDir:root},bundle:true,format:'iife',target:'es2022',outfile:path.join(output,'nexus-assets.js')});
 await cp(path.join(source, 'LICENSE'), path.join(output, 'AZGAAR-LICENSE.txt'));

@@ -10,6 +10,7 @@ type Template={id:string;name:string;kind:string};
 /** An isolated disposable core. Until confirm succeeds this has no map ID or persistence API. */
 export default function WorldMapCreator({initialName,onCancel,onCreate}:{initialName:string;onCancel:()=>void;onCreate:(name:string,blob:Blob)=>Promise<void>}){
  const {language,t}=useLanguage(),[session]=useState(()=>crypto.randomUUID());
+ const [initialLanguage]=useState(language);
  const frame=useRef<HTMLIFrameElement>(null),core=useRef<MapCoreClient|null>(null),active=useRef(false);
  const [offline]=useState(()=>!navigator.onLine),[html,setHTML]=useState<string>(),[connected,setConnected]=useState(false);
  const [name,setName]=useState(initialName),[kind,setKind]=useState('procedural'),[catalog,setCatalog]=useState<Template[]>([]);
@@ -75,6 +76,6 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
   </fieldset>
   {error&&<p role="alert" className="my-2 break-words text-red-600">{mapMessage(language,error)}</p>}
   <div className="mt-4 flex justify-end gap-2"><button disabled={creating} onClick={onCancel}>{t('ui.cancel')}</button><button disabled={!connected||working||previewKey!==JSON.stringify(settings)||creating||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{t(creating?'worldMap.generating':'worldMap.confirmCreate')}</button></div>
-  <iframe ref={frame} title={t('worldMap.creationCore')} aria-hidden="true" tabIndex={-1} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1`} srcDoc={html} sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="pointer-events-none fixed -left-[9999px] h-[800px] w-[1280px] border-0"/>
+  <iframe ref={frame} title={t('worldMap.creationCore')} aria-hidden="true" tabIndex={-1} src={offline?undefined:`/world-map/core/index.html?nexus=${session}&preview=1&language=${initialLanguage}`} srcDoc={html} sandbox="allow-scripts allow-downloads allow-modals allow-pointer-lock" referrerPolicy="no-referrer" className="pointer-events-none fixed -left-[9999px] h-[800px] w-[1280px] border-0"/>
  </ModalDialog>;
 }

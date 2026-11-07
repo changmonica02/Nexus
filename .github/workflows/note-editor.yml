@@ -92,6 +92,19 @@ jobs:
           NODE_ENV: production
           NPM_CONFIG_OMIT: dev
         run: npm run build
+      - name: Map workspace, native tools and offline regressions
+        run: |
+          node tests/worldMap.browser.test.cjs
+          node tests/worldMapUI.browser.test.cjs
+          MAP_BROWSER=webkit node tests/worldMapUI.browser.test.cjs
+          node tests/pwaWorldMap.browser.test.cjs
+      - name: Map workspace visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-map-workspace-evidence
+          path: test-results/world-map-ui/**/*.png
+          if-no-files-found: ignore
       - name: Synthetic export evidence
         if: always()
         uses: actions/upload-artifact@v4

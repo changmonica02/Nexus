@@ -543,7 +543,7 @@ export class WorldMapRepository {
 
   /** Candidate geometry and optional new formal entity commit together. No native project attachment is touched. */
   async saveRegion(worldId: string, mapId: string, entityId: string, placementId: string, expectedRevision: number,
-    geometry: WorldRegionGeometry, reassign = false, newEntity?: WorldEntity): Promise<Page> {
+    geometry: WorldRegionGeometry, reassign = false, newEntity?: WorldEntity, presentation?: Pick<WorldMapPlacement,"visible"|"distribution">): Promise<Page> {
     const world = await this.world(worldId), map = mapOf(world, mapId);
     let entities = world.character_data!.world_entities ?? [];
     let entity = entities.find(item => item.entityId === entityId);
@@ -551,13 +551,14 @@ export class WorldMapRepository {
       const now = Date.now();entity = {...newEntity,createdAt:now,updatedAt:now,revision:1};entities = [...entities,entity];
     }
     if (!entity || !["country", "administrative_area", "culture", "religion"].includes(entity.type) || !validRegion(geometry)) entityError("Invalid region");
+    if(presentation&&!["culture","religion"].includes(entity.type))entityError("Invalid distribution settings");
     const current = map.placements?.find(item => item.placementId === placementId);
-    if (current && current.entityId === entityId && current.deletedAt === null && JSON.stringify(current.geometry) === JSON.stringify(geometry)) return world;
+    if (current && (!presentation||current.visible===presentation.visible&&JSON.stringify(current.distribution)===JSON.stringify(presentation.distribution)) && current.entityId === entityId && current.deletedAt === null && JSON.stringify(current.geometry) === JSON.stringify(geometry)) return world;
     if ((current?.revision ?? 0) !== expectedRevision || current?.deletedAt != null || (current && (current.entityId !== entityId || current.geometry.type !== "cells"))) throw new WorldMapError("conflict", "Placement changed; reload before retrying");
     if (!current && mapsOf(world).some(item => item.placements?.some(p => p.placementId === placementId))) entityError("Placement operation already exists");
     if (!current && !geometry.cells.length) entityError("Empty territory cannot be created");
     const cells = new Set(geometry.cells), now = Date.now();
-    const placement: WorldMapPlacement = {schemaVersion:1,placementId,mapId,entityId,geometry,visible:current?.visible??true,distribution:current?.distribution,
+    const placement: WorldMapPlacement = {schemaVersion:1,placementId,mapId,entityId,geometry,visible:presentation?.visible??current?.visible??true,distribution:presentation?.distribution??current?.distribution,
       revision:expectedRevision+1,createdAt:current?.createdAt??now,updatedAt:now,deletedAt:geometry.cells.length?null:now};
     const updated = (map.placements ?? []).filter(item => item.placementId !== placementId).map(item => {
       if (item.deletedAt !== null || item.geometry.type !== "cells" || item.geometry.meshId !== geometry.meshId || item.entityId === entityId || entity!.type !== "country"

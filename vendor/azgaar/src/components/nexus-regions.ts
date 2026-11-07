@@ -1,5 +1,6 @@
 // Presentation-only Nexus regions; never writes native states/provinces or geography.
 import {measureRegionArea} from './nexus-region-geometry';
+import {zoomTo} from './zoom';
 import {viewport} from './viewport';
 export type CellRegion={type:'cells';meshId:string;cellCount:number;cells:number[]};
 type Region={placementId:string;entityId:string;name:string;entityType:string;geometry:CellRegion;visible:boolean;distribution?:{color?:string;opacity?:number}};
@@ -12,6 +13,7 @@ let distributionCache:SVGGElement|null=null,cacheDraft:string|null|undefined;
 const NS='http://www.w3.org/2000/svg';
 let regions:Region[]=[],scope='world',send:(data:unknown)=>void=()=>{},meshId='',vertices:unknown;
 let draft:{id:string;placementId:string;name:string;geometry:CellRegion}|null=null,undo:number[][]=[],redo:number[][]=[],before:number[]|null=null;
+let appearance:{visible:boolean;distribution?:{color?:string;opacity?:number}}={visible:true};
 let radius=24,erase=false,last:{x:number;y:number}|null=null,pinching=false;
 const pointers=new Set<number>();
 let previousTouchAction:string|null=null;
@@ -30,15 +32,16 @@ function schedule(){if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redra
 
 function draw(includeDraft=true){
  document.getElementById('nexus-regions')?.remove();const view=document.getElementById('viewbox');if(!view)return;const group=document.createElementNS(NS,'g');group.id='nexus-regions';
- const sources=regions.filter(r=>r.visible&&compatible(r.geometry)&&(!includeDraft||!draft||r.placementId!==draft.placementId));
- for(const r of [...sources].filter(r=>!distribution(r)).sort((a,b)=>Number(a.entityType==='administrative_area')-Number(b.entityType==='administrative_area')))add(r.geometry.cells,r.placementId,r.entityType==='country'?'#627fc4':'#bc8450',r.name);
+ const sources=regions.filter(r=>(r.visible||r.placementId===viewMode.selected)&&compatible(r.geometry)&&(!includeDraft||!draft||r.placementId!==draft.placementId));
+ for(const r of [...sources].filter(r=>!distribution(r)).sort((a,b)=>Number(a.entityType==='administrative_area')-Number(b.entityType==='administrative_area')))add(r.geometry.cells,r.placementId,r.placementId===viewMode.selected?'#c96a20':r.entityType==='country'?'#627fc4':'#bc8450',r.name);
  const draftKey=includeDraft?draft?.placementId:null;if(cacheDraft!==draftKey){distributionCache=null;cacheDraft=draftKey;}
  if(!distributionCache){distributionCache=document.createElementNS(NS,'g');
  // Equal-weight RGB mean is commutative: membership, not paint order, determines overlap.
- const kind=viewMode.layer==='cultural'?'culture':viewMode.layer==='religions'?'religion':null;
+ const selectedRegion=regions.find(r=>r.placementId===viewMode.selected);
+ const kind=selectedRegion&&distribution(selectedRegion)?selectedRegion.entityType:viewMode.layer==='cultural'?'culture':viewMode.layer==='religions'?'religion':null;
  const activeSelection=sources.some(r=>r.entityType===kind&&r.placementId===viewMode.selected)?viewMode.selected:null;
  const buckets=new Map<string,{cells:number[];color:string;opacity:number;ids:string[]}>();
- for(const [cell,members] of membership){const visible=members.filter(r=>r.visible&&r.entityType===kind&&(!includeDraft||!draft||r.placementId!==draft.placementId));if(!visible.length)continue;
+ for(const [cell,members] of membership){const visible=members.filter(r=>(r.visible||r.placementId===viewMode.selected)&&r.entityType===kind&&(!includeDraft||!draft||r.placementId!==draft.placementId));if(!visible.length)continue;
   const selected=visible.find(r=>r.placementId===activeSelection),active=selected?[selected]:visible;
   const ids=active.map(r=>r.placementId).sort(),key=ids.join('|');let bucket=buckets.get(key);
   if(!bucket){const rgb=[0,0,0];for(const r of active){const c=color(r);for(let i=0;i<3;i++)rgb[i]+=parseInt(c.slice(1+i*2,3+i*2),16)/active.length;}
@@ -48,8 +51,8 @@ function draw(includeDraft=true){
  for(const bucket of buckets.values()){const item=document.createElementNS(NS,'path');item.setAttribute('d',path(bucket.cells).fill);item.setAttribute('fill',bucket.color);item.setAttribute('fill-opacity',String(bucket.opacity));item.dataset.members=bucket.ids.join(' ');item.style.pointerEvents='none';distributionCache.append(item);}
  }
  group.append(distributionCache.cloneNode(true));
- if(includeDraft&&draft)add(draft.geometry.cells,draft.placementId,'#d45b2b',draft.name);
- function add(cells:number[],id:string,color:string,name:string){const item=document.createElementNS(NS,'g');item.dataset.placementId=id;const d=path(cells),fill=document.createElementNS(NS,'path'),border=document.createElementNS(NS,'path');fill.setAttribute('d',d.fill);fill.setAttribute('fill',color);fill.setAttribute('fill-opacity','.24');fill.setAttribute('stroke','none');border.setAttribute('d',d.border);border.setAttribute('stroke',color);border.setAttribute('stroke-width','1.5');border.setAttribute('vector-effect','non-scaling-stroke');border.setAttribute('fill','none');item.append(fill,border);
+ if(includeDraft&&draft)add(draft.geometry.cells,draft.placementId,appearance.distribution?.color??'#d45b2b',draft.name);
+ function add(cells:number[],id:string,color:string,name:string){const item=document.createElementNS(NS,'g');item.dataset.placementId=id;const d=path(cells),fill=document.createElementNS(NS,'path'),border=document.createElementNS(NS,'path');fill.setAttribute('d',d.fill);fill.setAttribute('fill',color);fill.setAttribute('fill-opacity',String(includeDraft&&draft?.placementId===id?(appearance.visible?appearance.distribution?.opacity??.24:0):.24));fill.setAttribute('stroke','none');border.setAttribute('d',d.border);border.setAttribute('stroke',color);border.setAttribute('stroke-width','1.5');border.setAttribute('vector-effect','non-scaling-stroke');border.setAttribute('fill','none');item.append(fill,border);
  const valid=cells.filter(land);if(valid.length){const center=valid.reduce((p,c)=>[p[0]+pack.cells.p[c][0]/valid.length,p[1]+pack.cells.p[c][1]/valid.length],[0,0]);const anchor=valid.reduce((a,c)=>Math.hypot(pack.cells.p[c][0]-center[0],pack.cells.p[c][1]-center[1])<Math.hypot(pack.cells.p[a][0]-center[0],pack.cells.p[a][1]-center[1])?c:a,valid[0]);const label=document.createElementNS(NS,'text');label.textContent=name;label.setAttribute('x',String(pack.cells.p[anchor][0]));label.setAttribute('y',String(pack.cells.p[anchor][1]));label.setAttribute('text-anchor','middle');label.setAttribute('font-size','14');label.setAttribute('fill','#221b14');label.setAttribute('stroke','white');label.setAttribute('stroke-width','3');label.setAttribute('paint-order','stroke');item.append(label);}
  group.append(item);}
  // Keep native city icons/labels selectable above the new territorial fill.
@@ -58,9 +61,10 @@ function draw(includeDraft=true){
  view.insertBefore(group,anchor??null);
 }
 async function configure(value:Region[],mapScope:string,notify:(data:unknown)=>void){clearTimeout(queryTimer);regions=value;distributionCache=null;scope=mapScope;send=notify;await mesh();membership=new Map();for(const r of regions){if(!distribution(r)||!compatible(r.geometry))continue;for(const c of r.geometry.cells){if(!land(c))continue;const members=membership.get(c)??[];members.push(r);membership.set(c,members);}}draw();report();}
-async function command(s:{action:string;id?:string;placementId?:string;name?:string;geometry?:CellRegion;radius?:number;erase?:boolean}){
+async function command(s:{appearance?:{visible:boolean;distribution?:{color?:string;opacity?:number}};action:string;id?:string;placementId?:string;name?:string;geometry?:CellRegion;radius?:number;erase?:boolean}){
  await mesh();
- if(s.action==='start'){if(customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');if(s.geometry&&!compatible(s.geometry))throw Error('Region mesh changed; keep the saved territory');if(draft?.id===s.id)return;if(!draft)previousTouchAction=document.getElementById('map')?.style.touchAction??'';draft={id:s.id!,placementId:s.placementId!,name:s.name??'',geometry:s.geometry?structuredClone(s.geometry):{type:'cells',meshId,cellCount:pack.cells.i.length,cells:[]}};undo=[];redo=[];radius=24;erase=false;}
+ if(s.action==='appearance'){if(!draft||!s.appearance)throw Error('No active region');const {color,opacity}=s.appearance.distribution??{};if(typeof s.appearance.visible!=='boolean'||color!==undefined&&!/^#[0-9a-f]{6}$/i.test(color)||opacity!==undefined&&(!Number.isFinite(opacity)||opacity<0||opacity>1))throw Error('Invalid distribution settings');appearance=s.appearance;draw();return;}
+ if(s.action==='start'){if(customization)throw Error('Complete the active heightmap/edit mode before saving or exporting');if(s.geometry&&!compatible(s.geometry))throw Error('Region mesh changed; keep the saved territory');if(draft?.id===s.id)return;appearance={visible:true};if(!draft)previousTouchAction=document.getElementById('map')?.style.touchAction??'';draft={id:s.id!,placementId:s.placementId!,name:s.name??'',geometry:s.geometry?structuredClone(s.geometry):{type:'cells',meshId,cellCount:pack.cells.i.length,cells:[]}};undo=[];redo=[];radius=24;erase=false;}
  else if(s.action==='cancel'){draft=null;before=null;last=null;pointers.clear();pinching=false;}
  else if(s.action==='brush'){radius=Math.max(4,Math.min(100,s.radius??radius));erase=s.erase??erase;}
  else if(s.action==='undo'&&draft&&undo.length){redo.push(draft.geometry.cells);draft.geometry={...draft.geometry,cells:undo.pop()!};}
@@ -83,5 +87,5 @@ document.addEventListener('pointerdown',e=>{clearTimeout(queryTimer);queryDown=e
 document.addEventListener('pointermove',e=>{if(queryDown&&Math.hypot(e.clientX-queryDown.x,e.clientY-queryDown.y)>5)queryDown=null;},{capture:true,passive:true});
 document.addEventListener('dblclick',()=>clearTimeout(queryTimer),{capture:true});
 document.addEventListener('click',e=>{if(!queryEnabled||draft||customization||!queryDown||!['cultural','religions'].includes(viewMode.layer)||(e.target as Element)?.closest?.('#nexus-placements')||!(e.target as Element)?.closest?.('#map'))return;const p=point(e as PointerEvent);if(!p)return;queryDown=null;e.stopImmediatePropagation();const cell=Pack.findCell(p.x,p.y);const members=(cell===undefined?[]:membership.get(cell)??[]).map(r=>r.placementId);queryTimer=setTimeout(()=>send({type:'region-query',members}),250);},{capture:true});
-export const NexusRegions={configure,setView,setQueryEnabled:(value:boolean)=>{queryEnabled=value;if(!value)clearTimeout(queryTimer);},command,draw,querying:(e:Event)=>queryEnabled&&!!queryDown&&!customization&&['cultural','religions'].includes(viewMode.layer)&&!!(e.target as Element)?.closest?.('#map'),active:()=>!!draft,pointCells:(points:{placementId:string;x:number;y:number}[])=>points.map(p=>({placementId:p.placementId,cell:Pack.findCell(p.x,p.y),meshId}))};
+export const NexusRegions={focus:(id:string)=>{const r=regions.find(r=>r.placementId===id&&r.geometry.meshId===meshId);if(!r?.geometry.cells.length)return;const cells=r.geometry.cells.filter(land),points=cells.map(c=>pack.cells.p[c]);if(!points.length)return;const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const x of xs){minX=Math.min(minX,x);maxX=Math.max(maxX,x);}for(const y of ys){minY=Math.min(minY,y);maxY=Math.max(maxY,y);}zoomTo((minX+maxX)/2,(minY+maxY)/2,Math.min(viewport.width/(maxX-minX+60),viewport.height/(maxY-minY+60)),0);},configure,setView,setQueryEnabled:(value:boolean)=>{queryEnabled=value;if(!value)clearTimeout(queryTimer);},command,draw,querying:(e:Event)=>queryEnabled&&!!queryDown&&!customization&&['cultural','religions'].includes(viewMode.layer)&&!!(e.target as Element)?.closest?.('#map'),active:()=>!!draft,pointCells:(points:{placementId:string;x:number;y:number}[])=>points.map(p=>({placementId:p.placementId,cell:Pack.findCell(p.x,p.y),meshId}))};
 
