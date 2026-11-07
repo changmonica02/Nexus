@@ -160,7 +160,7 @@ test(
       session = await applyImportItems(
         c,
         session,
-        false,
+        true,
         persistImportSession,
         { batched: true },
       );
@@ -188,7 +188,9 @@ test(
       prefixRecord.snapshot.grouping.tags.push("edited-prefix");
       prefixRecord.snapshot.sense_groups[id(51)] = categories[2];
       session = await previewExchange(c, owner, modified);
-      assert.ok(session.items.every((i) => exchangeCategory(i) === "modified"));
+      assert.ok(session.items.every((i) => exchangeCategory(i) === "review"));
+      // Explicit human decisions are now required for overwrites; the receipt test retains its original write path.
+      for(const item of session.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
       await persistImportSession(session);
       let lose = true;
       const transport = {
@@ -204,7 +206,7 @@ test(
       session = await applyImportItems(
         transport,
         session,
-        false,
+        true,
         persistImportSession,
         { batched: true },
       );
@@ -212,7 +214,7 @@ test(
       session = await applyImportItems(
         c,
         await loadImportSession(owner),
-        false,
+        true,
         persistImportSession,
         { batched: true },
       );
@@ -620,11 +622,12 @@ test(
       const doc = await exportAll(c);
       doc.records[0].snapshot.detail.entry.headword = "proposed";
       let s = await previewExchange(c, owner, doc);
+      for(const item of s.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
       await pg.query(
         "update dictionary_senses set gloss_zh_tw='newer' where entry_id=$1",
         [id(100)],
       );
-      s = await applyImportItems(c, s, false, async () => {}, {
+      s = await applyImportItems(c, s, true, async () => {}, {
         batched: true,
       });
       assert.equal(s.items[0].status, "stale");

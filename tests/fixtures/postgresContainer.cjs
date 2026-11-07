@@ -38,6 +38,6 @@ class PGlite {
   }
   await this.psql(this.database,this.prefix()+statement);return {rows:[]};
  }
- async close(){await this.ready;await this.psql('postgres',`DROP DATABASE ${this.database}; DROP ROLE authenticated; DROP ROLE anon;`);}
+ async close(){await this.ready;await this.psql('postgres',`DROP DATABASE ${this.database}; DROP ROLE authenticated; DROP ROLE anon; DROP ROLE IF EXISTS service_role;`);}
 }
 module.exports={PGlite};

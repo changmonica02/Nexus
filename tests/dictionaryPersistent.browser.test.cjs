@@ -5,14 +5,14 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { chromium,webkit } = require("playwright");
 const {
   database,
   client,
   draft,
   id,
   sql,
-} = require("./fixtures/persistentImportDatabase.cjs");
+} = require("./fixtures/dictionaryTransferDatabase.cjs");
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
@@ -84,15 +84,12 @@ test(
         );
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
-    const browser = await chromium.launch({
-      executablePath: process.env.BROWSER_EXECUTABLE || "/usr/bin/chromium",
-      args: ["--no-sandbox"],
-    });
+    const engine=process.env.TRANSFER_BROWSER==="webkit"?webkit:chromium;
+    const browser = await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||"/usr/bin/chromium",args:engine===chromium?["--no-sandbox"]:[]});
     const errors = [];
     try {
       for (const width of [1280, 820, 390]) {
         pg = await database();
-        await require('./fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg, { persistentInstalled: true });
         const d = draft(100);
         d.headword = "throw";
         d.inflections = [
@@ -160,22 +157,22 @@ test(
             buffer: Buffer.from(raw),
           });
         await page
-          .getByRole("button", { name: "解析匯入摘要", exact: true })
+          .getByRole("button", { name: "分析", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "確認自動匯入", exact: true })
+          .getByRole("button", { name: "匯入全部", exact: true })
           .waitFor();
         await page
-          .getByRole("button", { name: "確認自動匯入", exact: true })
+          .getByRole("button", { name: "匯入全部", exact: true })
           .click();
         await page
           .getByRole("dialog")
           .last()
-          .getByRole("button", { name: "確認自動匯入", exact: true })
+          .getByRole("button", { name: "匯入全部", exact: true })
           .click();
         try {
           await page
-            .getByText("已處理 1 / 1", { exact: false })
+            .getByText(/throw · 已建立／更新 Review Draft/)
             .waitFor({ timeout: 7000 });
         } catch (e) {
           console.error(

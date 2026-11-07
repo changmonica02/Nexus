@@ -181,6 +181,20 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 `delete_dictionary_entry` 在交易內驗證管理員、revision、完整 snapshot 及其他構詞／Review／官方 manifest 引用；有相依即拒絕。私人卡僅解除 join，不刪 payload／state／events／來源身份；Published 歷史及 Audit 保留，收據與退場標記阻擋舊 ID 被重建。未知外鍵／收據失敗完整回滾。核心概念沿用 `dictionary_learning_notes`；退場 ID／alias 與相容匯入 guard 防止舊資料重建重複內容。
 
+#### 完整交換與安全取代（#163）
+
+完整 `nexus-dictionary-exchange` v1 保持正式 snapshot／editor reviews／版本分離；新增 `entry_id`、完整常駐 `import_reviews`（含原始候選、來源、固定 ID、revision 與不透明 fingerprint），單一來源時另提供可整理的 `import_candidate`。未建立 Entry 的常駐候選使用明確 `snapshot:null`，不假造正式版本；多來源不猜選候選，須提供合法且保留穩定 ID 的明確候選。既有 v1 檔仍可匯入；缺少欄位不刪內容，未知欄位、失去識別或版本的檔案不能安全取代。舊 AI JSON 仍維持原人工 Diff 路徑，沒有完整交換來源證明就不自動清理。
+
+匯出 RPC 保留原五參數，新增七參數 overload 與 capability：類型必須非空，全部／真正進行中審核可組合，管理清單搜尋／分頁不限制匯出。pending 為未處理差異／失敗待恢復的常駐來源或 active editor Review，不是所有 Draft；依穩定 Entry 去重。preview-only 先取得筆數與固定 scope version，每批至多100筆，範圍包含 canonical 與候選版本，任一變更要求重啟。既有 owner 分區 IndexedDB jobs／export_pages 原子 checkpoint 繼續使用；暫停可恢復，重新下載只讀原完成工作，不再查伺服器。
+
+第一層保留檔案／貼上內容，JSON 文字區有高度上限；分析只解析、查詢與保存本機 checkpoint。第二層原生 dialog 提供分類說明、每詞條計數、三個預設收合區塊，每頁25筆且展開才繪製細節。`classifyPersistent`／`partialImportPlan` 仍為既有判定與欄位安全套用來源；獨立新增／空白補充屬安全，修改、取代、歸屬不明或混合內容屬待審核，結構、身分、版本或參照阻擋屬不通過。全筆安全才能使用「匯入安全詞條」；「匯入全部」也只對爭議部分建立／更新原常駐審核，不自動接受或發布。排除只略過本次作業。原 local operation、archive 與常駐來源保留，帳號分區不變。來源 proof 已確認且有效內容相同的待審核提案，沿用來源原 proposal key；僅重排具固定 ID 的義項／子資料不產生重複常駐列，構詞順序與實際內容差異仍保留。
+
+`20261106032651_dictionary_exchange_safe_replacement.sql` 不新增資料表，也不改人工核准架構。`apply_dictionary_safe_import_reviews` 在原 advisory lock／CAS／receipt 管線中，獨立驗證候選確為新增而非覆寫，並以相同 Entry、來源 ID、revision、完整 fingerprint 與確切 issue target 證明取代。先鎖來源，再呼叫原 apply RPC；只有實際草稿寫入成功，才將確實涵蓋的舊 issues 標為 applied 並重算 pending_count。保留原來源與收據供追溯，不按拼寫刪除、不清不相關項目、不建立歷史版本。清理失敗的子交易回滾草稿、Review、收據與清理；未變更、失敗、過期或仍有爭議不清理。操作身分沿用 row ID＋revision 的既有冪等收據；結果不明仍先查正式常駐狀態，不換 operation 猜測重送。
+
+匯出用的 `import_review_refs` 僅為清理來源證明；不加入一般人工決策的 UI 内容等價比較（同一列的決策本就改變其 fingerprint），實際 core context／scope／revision／內容驗證及 safe-transfer RPC 的嚴格證明仍保留。新 RPC 僅 authenticated 且 admin 可執行，內部 helpers 對 PUBLIC／anon／authenticated／service_role 撤權、固定空 search_path。Migration 在 Word segments／IPA／Page 退役與現有常駐審核之後；需另行授權後先 DB 再前端，capability 未就緒禁止新匯出與安全寫入，仍保留分析和原工作。沒有資料刪欄或回填；回退 UI 不撤除已確認的收據或恢復已取代差異，優先向前修復。
+
+Google 登入仍為 `AccountButton` 的同一 Supabase OAuth，僅加入 `queryParams.prompt=select_account`、保留 origin redirect。帳號切換仍由既有 Auth／owner 邊界處理，登入選擇本身不清 IndexedDB 或未同步資料；瀏覽器測試驗證實際 SDK URL，Google 是否顯示選擇畫面仍須裝置驗收。
+
 管理介面入口見 DictionaryAdmin／DictionaryWorkspace；查詢、交換、刪除實作位於 [dictionary](../src/features/dictionary)。詳細 SQL 以 [migrations](../supabase/migrations) 為準，單一 migration 檔存在不代表遠端已套用。
 
 ### 角色卡與模板

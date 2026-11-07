@@ -55,6 +55,22 @@ jobs:
           SPEECH_BROWSER=webkit node tests/studySpeech.browser.test.cjs
           node tests/studyReading.browser.test.cjs
           node tests/dictionaryPersistent.browser.test.cjs
+      - name: Dictionary exchange and atomic replacement regression
+        run: |
+          node tests/dictionaryTransfer.test.cjs
+          node tests/dictionaryExchangeSafety.test.cjs
+          node tests/dictionaryExchange.browser.test.cjs
+          node tests/dictionaryTransfer.browser.test.cjs
+          TRANSFER_BROWSER=webkit node tests/dictionaryTransfer.browser.test.cjs
+      - name: Native isolated PostgreSQL transfer transaction regression
+        run: |
+          docker run -d --name nexus46-transfer-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f nexus46-transfer-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec nexus46-transfer-ci pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-transfer-ci node tests/dictionaryTransfer.test.cjs
       - name: Compact morphology and Session opening regression
         run: |
           node --test tests/dictionaryMorphology.test.cjs tests/studyStartup.performance.test.cjs tests/dictionaryAdminUI.test.cjs tests/dictionaryReader.test.cjs tests/studyStyles.test.cjs tests/studyIntervals.test.cjs tests/studySync.test.cjs

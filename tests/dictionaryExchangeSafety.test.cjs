@@ -264,7 +264,8 @@ test("local JSON versus newer Nexus edits is Conflict; Review-only changes block
       "unchanged",
     );
     const planned = await previewExchange(c, owner, local);
-    assert.equal(exchangeCategory(planned.items[0]), "modified");
+    assert.equal(exchangeCategory(planned.items[0]), "review");
+    for(const item of planned.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
     await persistImportSession(planned);
     const base = original.records[0].snapshot;
     const review = await sql(
@@ -328,6 +329,8 @@ test("IndexedDB quota/DataClone failures abort whole checkpoints; exact committe
     const source = await doc(c);
     source.records[0].snapshot.detail.senses[0].gloss_zh_tw = "imported";
     const initial = await previewExchange(c, owner, source);
+    // Explicitly decide the edit before exercising checkpoint/receipt failures.
+    for(const item of initial.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
     await persistImportSession(initial);
     let calls = 0;
     const counted = {

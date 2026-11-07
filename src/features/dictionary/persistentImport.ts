@@ -79,13 +79,27 @@ export async function persistentImportAvailable(client: ReviewClient) {
     );
   return true;
 }
+/** Compare effective draft content without server metadata or arbitrary row-array order. */
+export function sameImportProposal(a:DictionaryDraftInput,b:DictionaryDraftInput){
+ const normalize=(value:unknown):unknown=>{
+  if(Array.isArray(value)){
+   const rows=value.map(normalize);
+   return rows.length&&rows.every(r=>r&&typeof r==="object"&&("id" in r||"sense_id" in r))?rows.sort((a,b)=>String((a as DraftRow).id??(a as DraftRow).sense_id).localeCompare(String((b as DraftRow).id??(b as DraftRow).sense_id))):rows;
+  }
+  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).filter(([k])=>!["row","revision","updated_at"].includes(k)).map(([k,v])=>[k,normalize(v)]));
+  return value;
+ };
+ return canonical(normalize(mapDictionaryDraft(a)))===canonical(normalize(mapDictionaryDraft(b)));
+}
 /** Identity of the proposal, not of its transient browser Session. Generated CSV IDs are placeholders only in the deduplication key. */
 export function proposalKey(item: ImportItem) {
+  const original=(item as PersistentItem).original;
+  const draft=item.replacement_refs?.length&&importSafety(item)==="review"&&original&&sameImportProposal(original,item.draft)?original:item.draft;
   const proposed = new Map(
-    (item.draft.proposed_ids ?? []).map((id, i) => [id, "proposed:" + i]),
+    (draft.proposed_ids ?? []).map((id, i) => [id, "proposed:" + i]),
   );
   const cleaned = JSON.parse(
-    JSON.stringify(item.draft, (key, v) =>
+    JSON.stringify(draft, (key, v) =>
       ["row", "revision", "proposed_ids"].includes(key)
         ? undefined
         : typeof v === "string" && proposed.has(v)
@@ -96,6 +110,7 @@ export function proposalKey(item: ImportItem) {
   return canonical({
     draft: cleaned,
     raw_candidate: item.raw_candidate ?? null,
+    ...(item.replacement_refs?.length&&importSafety(item)==="safe"?{replacement_refs:item.replacement_refs}:{}),
   });
 }
 const issueKey = (i: ImportIssue) =>
@@ -195,6 +210,7 @@ export function classifyPersistent(
   item.context = context;
   item.observed = mapDictionaryDraft(draft);
   item.original = prior?.original ?? originalDraft;
+  if(prior?.replacement_refs)item.replacement_refs=structuredClone(prior.replacement_refs);
   if (prior?.raw_candidate) item.raw_candidate = prior.raw_candidate;
   if (context.snapshot) {
     if (
@@ -442,7 +458,7 @@ function independentlySafe(item: PersistentItem, i: ImportIssue) {
   if (i.type === "category_missing") return true;
   if (t.field)
     return (
-      i.existing == null &&
+      (i.existing == null || i.existing === "") &&
       i.incoming !== null &&
       i.incoming !== "" &&
       ![
@@ -813,6 +829,7 @@ async function applyRecordsInOrder(
   manual = false,
   signal?: AbortSignal,
   onProgress?: (record: ImportReviewRecord) => void,
+  safeTransfer=false,
 ) {
   const results: ImportReviewRecord[] = [];
   // Reuse the existing target-before-dependent ordering, without resetting any stable identities.
@@ -841,6 +858,7 @@ async function applyRecordsInOrder(
         handled: plan.handled,
         candidate: plan.draft ? mapDictionaryDraft(plan.draft) : null,
         effect: plan.effect,
+        ...(safeTransfer?{replaces:record.item.replacement_refs??[]}:{}),
       };
     });
     const uncertain=uncertainImports.get(client);
@@ -854,7 +872,7 @@ async function applyRecordsInOrder(
       for(const found of checked){uncertain?.delete(found.id);results.push(found);onProgress?.(found);}continue;
     }
     let batch:ImportReviewRecord[];
-    try{batch=await reviewRPC<ImportReviewRecord[]>(client,'apply_dictionary_import_reviews',{operations});}
+    try{batch=await reviewRPC<ImportReviewRecord[]>(client,safeTransfer?'apply_dictionary_safe_import_reviews':'apply_dictionary_import_reviews',{operations});}
     catch(error){const failure=reviewFailure(error,'apply_dictionary_import_reviews');if(['network','unknown'].includes(failure.kind)){const pending=uncertainImports.get(client)??new Map();for(const op of operations){const record=ordered.find(r=>r.id===op.id)!;pending.set(record.id,{id:record.id,entry_id:record.entry_id,revision:record.revision});}uncertainImports.set(client,pending);}throw failure;}
     if (!Array.isArray(batch)||batch.length!==operations.length){const pending=uncertainImports.get(client)??new Map();for(const op of operations)pending.set(op.id,pendingIdentity(ordered.find(r=>r.id===op.id)!));uncertainImports.set(client,pending);throw new ReviewFailure('unknown','apply_dictionary_import_reviews','Invalid durable import response');}
     for (let r of batch) {
@@ -905,6 +923,8 @@ export function comparableImportPreview(context:ImportContext|undefined){
  if(c.exchange){const cleaned=cleanIpaRecord({reviews:c.exchange.reviews as Array<{base_snapshot?:AISnapshot;candidate?:ReturnType<typeof mapDictionaryDraft>}>});
   for(const review of cleaned.reviews??[]){snapshot(review.base_snapshot);review.candidate?.bundle.dictionary_entries.forEach(entry);}
   c.exchange={...c.exchange,reviews:cleaned.reviews} as typeof c.exchange;delete (c.exchange as {version?:unknown}).version;
+  // Transfer fingerprints change with decisions on the same durable row; only the safe-transfer RPC consumes these proofs.
+  delete c.exchange.import_review_refs;
  }
  return canonical(c);
 }
@@ -918,4 +938,43 @@ export async function applyDecidedImportRecord(client:ReviewClient,record:Import
   if(!kept||comparableImportPreview(record.item.context)!==comparableImportPreview(fresh.item.context))return {records:[fresh],needsReview:true};
   return {records:await applyPersistentRecords(client,[fresh],true,undefined,onProgress),needsReview:false};
  }finally{preparingDecisions.delete(client);}
+}
+
+/** Data-safety categories, independent of whether a valid draft would ultimately need a Review. */
+export function importSafety(item:ImportItem):'safe'|'review'|'invalid' {
+ const pending=item.issues.filter(i=>!(i as ReviewIssue).applied);
+ if(item.raw_candidate||['stale','failed'].includes(item.status)||pending.some(i=>hardIssues.has(i.type)||i.type==='invalid_reference'||i.type==='invalid_content'))return 'invalid';
+ return pending.some(i=>!independentlySafe(item as PersistentItem,i))?'review':'safe';
+}
+export function persistentPreview(session:ImportSession):ImportSession {
+ return {...session,items:session.items.map(item=>{
+  if(!item.context)return item;
+  const next=classifyPersistent(item.draft,item.context,item as PersistentItem);
+  next.id=item.id;next.exchange_version=item.exchange_version;next.replacement_refs=item.replacement_refs;
+  // Exchange/source failures cannot disappear during structural reclassification.
+  for(const issue of item.issues)if(hardIssues.has(issue.type)&&!next.issues.some(i=>issueKey(i)===issueKey(issue)))next.issues.push(issue);
+  return next;
+ })};
+}
+export async function exchangeTransferAvailable(client:ReviewClient){
+ const {data,error}=await client.rpc('dictionary_exchange_transfer_capabilities');
+ if(error){if(['PGRST202','42883'].includes(error.code)||/does not exist|Could not find the function/.test(error.message))return false;throw reviewFailure(error,'dictionary_exchange_transfer_capabilities');}
+ return data?.version===1&&data.safe_replacement===true&&data.pending_export===true;
+}
+
+/** Propose exact old issue IDs only for actual additions; SQL independently verifies coverage. */
+export function replacementIssueIds(draft:DictionaryDraftInput,context:ImportContext,issues:ReviewIssue[]){
+ const snapshot=candidateSnapshot(context);
+ return issues.filter(issue=>{
+  if(issue.applied||!issue.target)return false;
+  const {section,id,field}=issue.target;
+  if(section==="entry"&&field==="word_segments")return !snapshot?.detail.entry.word_segments&&!!draft.word_segments?.length;
+  if(!contentSections.includes(section as typeof contentSections[number]))return false;
+  const incoming=(draft[section as typeof contentSections[number]]??[]) as DraftRow[];
+  const rows=(section==="relation_hints"?snapshot?.detail.lexical_annotations:snapshot?.detail[section as keyof typeof snapshot.detail]) as DraftRow[]|undefined;
+  const row=incoming.find(r=>r.id===id),old=rows?.find(r=>r.id===id);
+  if(!row)return false;
+  if(field)return !!old&&(old[field]==null||old[field]==="")&&row[field]!=null&&row[field]!==""&&canonical(row[field])!==canonical(old[field]);
+  return !old&&((issue.incoming&&typeof issue.incoming==="object"? (issue.incoming as {sense_id?:unknown}).sense_id:null)??null)===(row.sense_id??null);
+ }).map(i=>i.id);
 }
