@@ -1,6 +1,7 @@
 import {azgaarUiZhTW} from './azgaarUiTranslations';
 // Shared Nexus and fixed map-core UI catalog. User map data is never a translation source.
 export const worldMapEn:Record<string,string> = {
+ "worldWorkspace.brushMode":"Brush mode",
  "worldWorkspace.addPolity":"Add polity",
  "worldWorkspace.toggle":"Toggle map tools",
  "worldWorkspace.search":"Search objects",
@@ -843,6 +844,7 @@ export const worldMapEn:Record<string,string> = {
 "worldHome.all":"All entries",
 };
 export const worldMapZhTW:Record<string,string> = {
+ "worldWorkspace.brushMode":"筆刷模式",
  "worldWorkspace.addPolity":"新增政治體",
  "worldWorkspace.toggle":"開合地圖工具",
  "worldWorkspace.search":"搜尋對象",

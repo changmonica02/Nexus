@@ -79,6 +79,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const enterEditor=async()=>{if(await editor.isVisible())return;await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled&&b.getClientRects().length));frame=await currentMapFrame();await waitMapLayout();await page.getByRole('button',{name:'Edit map',exact:true}).press('Enter');await editor.waitFor({state:'visible'});frame=await currentMapFrame();};
   const openWorldTools=async(group='Human geography',category='Landmarks')=>{if(!await editor.locator('[data-map-context]').isVisible())await editor.locator('[data-map-sidebar-toggle]').click();if(group==='Display and style')return;await editor.getByRole('tab',{name:group,exact:true}).click();if(group==='Human geography'){if(await editor.locator('[data-map-category-back]').count())await editor.locator('[data-map-category-back]').click();await editor.getByRole('button',{name:category,exact:true}).click();}else{if(await editor.locator('[data-map-natural-back]').count())await editor.locator('[data-map-natural-back]').click();await editor.getByRole('button',{name:'Height',exact:true}).click();}};
   const refreshPreviewFrame=async()=>{frame=await currentMapFrame();await frame.waitForFunction(()=>typeof pack!=='undefined'&&pack.cells?.i?.length,null,{timeout:120000});};
+  const regionSelect=async()=>await editor.isVisible()?editor.getByLabel('Region',{exact:true}):page.getByLabel('Region',{exact:true});
   const openEntries=async()=>{if(await editor.isVisible()){await openWorldTools('Human geography');await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();}else await page.getByRole('button',{name:'World entries',exact:true}).click();};
   const openExports=async()=>{if(!await editor.locator('[data-map-export]').evaluate(el=>el.open))await editor.locator('[data-map-export] > summary').click();};
   assert.equal(await frame.evaluate(()=>{try{void parent.document.body;return false;}catch{return true;}}),true,'core cannot access Nexus document');
@@ -269,7 +270,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.evaluate(async()=>Services.Load.quickLoad());
   await frame.waitForFunction(id=>pack.burgs[id].name==='Nexus Port',burgId);
   await openExports();
-  let downloadEvent=page.waitForEvent('download');await editor.getByRole('button',{name:'.map ↓',exact:true}).click();
+  let downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:'.map ↓',exact:true}).click();
   const native=await downloadEvent,file=path.join(tmp,'roundtrip.map');await native.saveAs(file);assert.ok(fs.statSync(file).size>10000);
   await openExports();
   for(const type of ['SVG','PNG']){downloadEvent=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const image=await downloadEvent;const p=path.join(tmp,type.toLowerCase());await image.saveAs(p);assert.ok(fs.statSync(p).size>1000);}
@@ -442,7 +443,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
   assert.equal(await page.evaluate(async()=>{const backup=await window.mapStorage.exportWorkspaceBackup();return backup.pages[0].character_data.world_maps.filter(m=>m.deleted_at==null).length;}),2);
   // A second native project references the same canonical body, rather than copying it.
-  await page.getByLabel('Region',{exact:true}).selectOption(await page.getByLabel('Region',{exact:true}).locator('option').filter({hasText:'Atlas One'}).getAttribute('value'));
+  await (await regionSelect()).selectOption(await (await regionSelect()).locator('option').filter({hasText:'Atlas One'}).getAttribute('value'));
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
   await openEntries();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Atlas Imported'});
@@ -463,7 +464,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal(await page.evaluate(async()=>{const p=await window.mapStorage.getPage('world-browser');return p.character_data.world_maps.filter(m=>m.deleted_at==null).length;}),3);
   frame=await currentMapFrame();const sessionBeforeSwitch=await frame.evaluate(()=>location.href);
   await manage.getByRole('button',{name:'Atlas Imported copy',exact:true}).click();
-  await page.getByLabel('Region',{exact:true}).selectOption(await page.getByLabel('Region',{exact:true}).locator('option').filter({hasText:'Atlas Imported copy'}).getAttribute('value'));
+  await (await regionSelect()).selectOption(await (await regionSelect()).locator('option').filter({hasText:'Atlas Imported copy'}).getAttribute('value'));
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Zoom in'&&!b.disabled),{},{timeout:120000});
   assert.equal(await frame.evaluate(()=>location.href),sessionBeforeSwitch,'switching maps reuses the core');
   assert.ok(await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom;return Math.abs(z.k-Math.min(m.width.baseVal.value/options.map.graph.width,m.height.baseVal.value/options.map.graph.height))<0.0001;}),'switching maps returns to fit');
@@ -478,11 +479,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled),{},{timeout:120000});
   for(const [width,height] of [[1600,400],[400,1600]]){
     frame=await currentMapFrame();
-    await frame.evaluate(async size=>{await window.generateMapOnLoad(size);}, {width,height});assert.deepEqual(await frame.evaluate(()=>[options.map.graph.width,options.map.graph.height]),[width,height]);
+    await openWorldTools('Natural geography');await editor.locator('[data-map-natural-back]').click();await editor.getByRole('button',{name:'Advanced tools',exact:true}).click();await editor.getByRole('button',{name:'Open native editor',exact:true}).click();await nativeToolPanel.waitFor();
+    await frame.evaluate(async size=>{await window.generateMapOnLoad(size);}, {width,height});assert.deepEqual(await frame.evaluate(()=>[options.map.graph.width,options.map.graph.height]),[width,height]);await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});
     await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
     await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
+    const aspectMapId=await (await regionSelect()).locator('option').filter({hasText:'Aspect map'}).getAttribute('value');await (await regionSelect()).selectOption(aspectMapId);await refreshPreviewFrame();await frame.waitForFunction(({width,height})=>options.map.graph.width===width&&options.map.graph.height===height,{width,height});
     await page.getByRole('button',{name:'Reset view',exact:true}).click();await frame.waitForFunction(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return z.x>=-1&&z.y>=-1&&z.x+w*z.k<=m.width.baseVal.value+1&&z.y+h*z.k<=m.height.baseVal.value+1&&Math.abs(z.k-Math.min(m.width.baseVal.value/w,m.height.baseVal.value/h))<0.0001;});
     const bounds=await frame.evaluate(()=>{const m=document.querySelector('#map'),z=m.__zoom,w=options.map.graph.width,h=options.map.graph.height;return {left:z.x,top:z.y,right:z.x+w*z.k,bottom:z.y+h*z.k,vw:m.width.baseVal.value,vh:m.height.baseVal.value,k:z.k,w,h};});
+    const storedGraph=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser'),m=w.character_data.world_maps.find(m=>m.title==='Aspect map');return JSON.parse((await(await mapStorage.readBinary(m.attachment_id)).text()).split('\r\n')[1]).graph;});assert.deepEqual([storedGraph.width,storedGraph.height],[width,height],'canonical attachment preserves the edited extent');
     assert.equal(bounds.w,width);assert.equal(bounds.h,height);
     assert.ok(bounds.left>=-1&&bounds.top>=-1&&bounds.right<=bounds.vw+1&&bounds.bottom<=bounds.vh+1,'all four map edges fit inside the container');
     assert.ok(Math.abs(bounds.k-Math.min(bounds.vw/bounds.w,bounds.vh/bounds.h))<0.0001);
@@ -490,7 +494,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   }
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
   // V2-2B: real canonical country/admin forms, manual candidate geometry and derived area.
-  await page.getByLabel('Region',{exact:true}).selectOption(await page.getByLabel('Region',{exact:true}).locator('option').filter({hasText:'Detail Created'}).getAttribute('value'));
+  await (await regionSelect()).selectOption(await (await regionSelect()).locator('option').filter({hasText:'Detail Created'}).getAttribute('value'));
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
   frame=await currentMapFrame();
   await openEntries();
@@ -514,16 +518,17 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
   await editor.getByRole('button',{name:'Edit territory',exact:true}).click();
   const paintTools=page.getByLabel('Territory painting',{exact:true}),areaOutput=page.getByLabel('Territory area',{exact:true});
-  await paintTools.waitFor();await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await paintTools.waitFor();assert.equal(await paintTools.getByRole('group',{name:'Brush mode',exact:true}).getByRole('button').count(),2);await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
   assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled Realm'),true,'cancel painting preserves the separately saved unplaced entry');
   await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
   await townPanel.locator('li').filter({hasText:'North Republic'}).getByRole('button',{name:'Place on selected map',exact:true}).click();
   await areaOutput.waitFor();await page.waitForTimeout(250);
-  const regionMapId=await page.getByLabel('Region',{exact:true}).inputValue();
+  frame=await currentMapFrame();const regionMapId=await (await regionSelect()).inputValue();
   const nativeBefore=(await readTowns()).maps.find(m=>m.id===regionMapId).attachment_id,politicalDigest=await dataDigest();
-  const candidates=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom;const cells=pack.cells.i.filter(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return pack.cells.h[i]>=20&&x>100&&x<innerWidth-100&&y>130&&y<innerHeight-70&&document.elementFromPoint(x,y)?.closest('#viewbox');});const a=cells[Math.floor(cells.length/3)];const b=cells.find(i=>Math.hypot(pack.cells.p[i][0]-pack.cells.p[a][0],pack.cells.p[i][1]-pack.cells.p[a][1])*z.k>180);if(a===undefined||b===undefined)throw Error('No separated visible land cells');return [a,b];});
-  const stroke=async(cell,touch=false)=>{await page.waitForFunction(()=>/[0-9]/.test(document.querySelector('output[aria-label="Territory area"]')?.textContent??''));await waitMapLayout();const p=await frame.evaluate(i=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};},cell),box=await (await frame.frameElement()).boundingBox();if(touch){await touches([{id:61,x:box.x+p.x,y:box.y+p.y}]);await moveTouches([{id:61,x:box.x+p.x+8,y:box.y+p.y+1}]);await endTouches();}else{await page.mouse.move(box.x+p.x,box.y+p.y);await page.mouse.down();await page.mouse.move(box.x+p.x+8,box.y+p.y+1,{steps:4});await page.mouse.up();}await page.waitForTimeout(200);};
+  await page.waitForFunction(()=>/:\s*[0-9]/.test(document.querySelector('output[aria-label="Territory area"]')?.textContent??''));await waitMapLayout();
+  const candidates=await frame.evaluate(()=>{const z=document.querySelector('#map').__zoom;const cells=pack.cells.i.filter(i=>{const p=pack.cells.p[i],x=z.x+p[0]*z.k,y=z.y+p[1]*z.k;return pack.cells.h[i]>=20&&x>100&&x<innerWidth-100&&y>130&&y<innerHeight-70&&document.elementFromPoint(x,y)?.closest('#viewbox');});const a=cells[Math.floor(cells.length/3)];const b=cells.find(i=>Math.hypot(pack.cells.p[i][0]-pack.cells.p[a][0],pack.cells.p[i][1]-pack.cells.p[a][1])*z.k>180);if(a===undefined||b===undefined)throw Error('No separated visible land cells '+JSON.stringify({visible:cells.length,graph:options.map.graph,viewport:[innerWidth,innerHeight],zoom:z}));return [a,b];});
+  const stroke=async(cell,touch=false)=>{frame=await currentMapFrame();await page.waitForFunction(()=>/[0-9]/.test(document.querySelector('output[aria-label="Territory area"]')?.textContent??''));await waitMapLayout();const p=await frame.evaluate(i=>{const z=document.querySelector('#map').__zoom;return {x:z.x+pack.cells.p[i][0]*z.k,y:z.y+pack.cells.p[i][1]*z.k};},cell),box=await (await frame.frameElement()).boundingBox();if(touch){await touches([{id:61,x:box.x+p.x,y:box.y+p.y}]);await moveTouches([{id:61,x:box.x+p.x+8,y:box.y+p.y+1}]);await endTouches();}else{await page.mouse.move(box.x+p.x,box.y+p.y);await page.mouse.down();await page.mouse.move(box.x+p.x+8,box.y+p.y+1,{steps:4});await page.mouse.up();}await page.waitForTimeout(200);};
   await stroke(candidates[0]);await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).waitFor();
   const firstArea=await areaOutput.innerText();assert.match(firstArea,/km²/,'calibrated region uses a labelled planar estimate');
   assert.equal((await readTowns()).maps.find(m=>m.id===regionMapId).placements?.some(p=>p.entityId===countryId)??false,false,'painting is not persisted before confirmation');
@@ -548,7 +553,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   territory=regionWorld.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===territory.placementId);
   assert.equal(await dataDigest(),politicalDigest,'confirmed reassignment does not regenerate native geography');
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
-  const openRegionInfo=async name=>{if(await editor.isVisible()){await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();}await page.locator('[data-world-details]').getByRole('button',{name,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Locate in editor',exact:true}).click().catch(async error=>{console.log('DETAIL_LOCATE_STATE',await page.locator('dialog[open]').allTextContents());throw error;});};
+  const openRegionInfo=async name=>{if(await editor.isVisible()){await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();}await page.locator('[data-world-details]').getByRole('button',{name,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Locate in editor',exact:true}).click().catch(async error=>{console.log('DETAIL_LOCATE_STATE',await page.locator('dialog[open]').allTextContents());throw error;});frame=await currentMapFrame();await waitMapLayout();};
   await openRegionInfo('North Republic');const regionInfo=page.getByRole('dialog',{name:'Territory details',exact:true});
   await regionInfo.getByRole('button',{name:'Open world entry',exact:true}).click();await countryForm.getByLabel('Name',{exact:true}).fill('North Union');
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
@@ -563,10 +568,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.equal((await readTowns()).entities.find(e=>e.name==='North Province').relations.find(r=>r.type==='parent').entityId,countryId);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
   // Explicit world scope does not claim calibrated spherical km², even with a known width.
-  await page.getByLabel('Region',{exact:true}).selectOption(await page.getByLabel('Region',{exact:true}).locator('option').filter({hasText:'Atlas One'}).getAttribute('value'));await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.includes('North Union')&&!b.textContent.includes('km²')));
+  await (await regionSelect()).selectOption(await (await regionSelect()).locator('option').filter({hasText:'Atlas One'}).getAttribute('value'));await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.includes('North Union')&&!b.textContent.includes('km²')));
   await page.getByRole('button',{name:/North Union/}).waitFor();assert.doesNotMatch(await page.getByRole('button',{name:/North Union/}).innerText(),/km²/);
   await page.evaluate(async()=>{const backup=await mapStorage.exportWorkspaceBackup();await mapStorage.importWorkspaceBackup(backup);});await page.reload();
-  await page.getByLabel('Region',{exact:true}).selectOption(regionMapId);await page.getByRole('button',{name:/North Union/}).waitFor();
+  await (await regionSelect()).selectOption(regionMapId);await page.getByRole('button',{name:/North Union/}).waitFor();
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});frame=await currentMapFrame();
   assert.equal(await page.getByText('Grid differs; saved territory is preserved but cannot be overlaid.',{exact:true}).count(),0,'mesh fingerprint survives native project reload');
   assert.match(JSON.stringify((await readTowns()).entities.find(e=>e.entityId===countryId).content),/Constitution and history/);
@@ -640,13 +645,13 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
   await openExports();
-  for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download');await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
+  for(const type of ['SVG','PNG']){const pending=page.waitForEvent('download',{timeout:60000});await editor.getByRole('button',{name:type+' ↓',exact:true}).click();const download=await pending,file=path.join(tmp,'distribution.'+type.toLowerCase());await download.saveAs(file);assert.ok(fs.statSync(file).size>1000);if(type==='SVG')assert.match(fs.readFileSync(file,'utf8'),/data-members/);}
   assert.equal(await frame.evaluate(async()=>{const text=await Services.Save.prepareMapData();return String(text).includes('nexus-regions');}),false);
-  await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('religions');await openWorldTools('Human geography','Religions');await editor.locator('[data-map-entity-list]').getByRole('button',{name:'Moon faith',exact:true}).waitFor();
+  await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('religions');const religionIds=(await readTowns()).maps.find(m=>m.id===regionMapId).placements.filter(p=>p.deletedAt===null&&(distributions.entities.find(e=>e.entityId===p.entityId)?.type==='religion')).map(p=>p.placementId);await frame.waitForFunction(ids=>{const rows=[...document.querySelectorAll('#nexus-regions [data-members]')];return rows.length>0&&rows.every(row=>row.dataset.members.split(' ').every(id=>ids.includes(id)));},religionIds);await openWorldTools('Human geography','Religions');await editor.locator('[data-map-entity-list]').getByRole('button',{name:'Moon faith',exact:true}).waitFor();
   assert.equal(await dataDigest(),distributionDigest);
   await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
   await page.evaluate(async()=>{const b=await mapStorage.exportWorkspaceBackup();await mapStorage.importWorkspaceBackup(b);});await page.reload();
-  await page.getByLabel('Region',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
+  await (await regionSelect()).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});
   distributions=await readTowns();assert.match(JSON.stringify(distributions.entities.find(e=>e.entityId===dawn.entityId).content),/Canonical cultural history/);
   assert.equal(distributions.maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===dawnPlacement.placementId).distribution.opacity,0.6);
@@ -661,14 +666,14 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
     for(let i=0;i<50;i++){const id='stress-culture-'+i;p.character_data.world_entities.push({...source,entityId:id,name:'Overlap culture '+i,relations:[],content:undefined});map.placements.push({...placement,placementId:'stress-placement-'+i,entityId:id,visible:true,distribution:undefined});}p.revision++;p.updated_at=Date.now();await mapStorage.getWorkspacePersistence().mutate(mapStorage.getWorkspaceOwner(),[{type:'pages',kind:'save',value:p}],[{type:'pages',id:p.id,revision}]);await mapStorage.exportWorkspaceBackup();
   },{mapId:regionMapId,entityId:dawn.entityId});
   assert.equal((await readTowns()).entities.filter(e=>e.entityId.startsWith('stress-culture-')).length,50,'synthetic stress fixture is durable before reloading');
-  await page.reload();await page.getByLabel('Region',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
+  await page.reload();await (await regionSelect()).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.getAttribute('aria-label')==='Edit map'&&!b.disabled),{},{timeout:120000});frame=await currentMapFrame();
   await frame.waitForFunction(()=>[...document.querySelectorAll('#nexus-regions [data-members]')].some(p=>p.dataset.members.split(' ').length>=50));
-  const frameTimings=await frame.evaluate(async()=>{const samples=[];let last=performance.now();for(let i=0;i<12;i++){await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}return {max:Math.max(...samples),mean:samples.reduce((a,b)=>a+b,0)/samples.length,cells:pack.cells.i.length};});
+  await page.locator('[data-map-canvas]').first().scrollIntoViewIfNeeded();const frameTimings=await frame.evaluate(async()=>{const samples=[];let last=performance.now();for(let i=0;i<12;i++){await new Promise(requestAnimationFrame);const now=performance.now();samples.push(now-last);last=now;}return {max:Math.max(...samples),mean:samples.reduce((a,b)=>a+b,0)/samples.length,cells:pack.cells.i.length};});
   console.log('V2-3 synthetic overlap load:',JSON.stringify({extraDistributions:50,loadMs:Date.now()-stressStarted,...frameTimings}));
   // A foreign mesh is preserved but is neither rendered nor accepted for editing.
   await page.evaluate(async({meta,mapId,placementId})=>{const p=await mapStorage.getPage('world-browser'),revision=p.revision;p.character_data.world_entities=meta.entities;p.character_data.world_maps=meta.maps;const target=p.character_data.world_maps.find(m=>m.id===mapId).placements.find(p=>p.placementId===placementId);target.geometry.meshId='f'.repeat(64);p.revision++;p.updated_at=Date.now();await mapStorage.getWorkspacePersistence().mutate(mapStorage.getWorkspaceOwner(),[{type:'pages',kind:'save',value:p}],[{type:'pages',id:p.id,revision}]);await mapStorage.exportWorkspaceBackup();},{meta:stressMeta,mapId:regionMapId,placementId:dawnPlacement.placementId});
-  await page.reload();await page.getByLabel('Region',{exact:true}).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
+  await page.reload();await (await regionSelect()).selectOption(regionMapId);await page.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   await page.getByRole('alert').filter({hasText:'Grid differs; saved territory is preserved but cannot be overlaid.'}).first().waitFor();
   await openRegionInfo('Dawn renamed');await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Region mesh changed; keep the saved territory'}).waitFor();

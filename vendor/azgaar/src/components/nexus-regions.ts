@@ -38,7 +38,7 @@ function draw(includeDraft=true){
  if(!distributionCache){distributionCache=document.createElementNS(NS,'g');
  // Equal-weight RGB mean is commutative: membership, not paint order, determines overlap.
  const selectedRegion=regions.find(r=>r.placementId===viewMode.selected);
- const kind=selectedRegion&&distribution(selectedRegion)?selectedRegion.entityType:viewMode.layer==='cultural'?'culture':viewMode.layer==='religions'?'religion':null;
+ const kind=viewMode.layer==='cultural'?'culture':viewMode.layer==='religions'?'religion':selectedRegion&&distribution(selectedRegion)?selectedRegion.entityType:null;
  const activeSelection=sources.some(r=>r.entityType===kind&&r.placementId===viewMode.selected)?viewMode.selected:null;
  const buckets=new Map<string,{cells:number[];color:string;opacity:number;ids:string[]}>();
  for(const [cell,members] of membership){const visible=members.filter(r=>(r.visible||r.placementId===viewMode.selected)&&r.entityType===kind&&(!includeDraft||!draft||r.placementId!==draft.placementId));if(!visible.length)continue;

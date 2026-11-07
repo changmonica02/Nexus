@@ -1,6 +1,6 @@
 # Nexus — 當前狀態與下一步
 
-本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。新增 Draft PR 的號碼與最終提交／checks 見本輪交付；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。
+本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。Draft PR [#166](https://github.com/changmonica02/Nexus/pull/166)，首筆程式提交 `25d185d`；最終 head／checks 見 PR；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。
 
 ## 本輪實作
 
@@ -20,7 +20,9 @@
 - 已通過 repository／core／IndexedDB、區域與 i18n 回歸，包含分布樣式與幾何同次提交、失敗回滾、CAS、重試不新增 outbox、正文／附件保持、冷開啟與備份。
 - Chromium 原生工具交易、圖像／原生匯出、三尺寸布局、明暗主題、六類開啟返回、多地圖區塊與共用專案回歸已通過一輪；實際檢視桌面／320px／深色及繁中海岸截圖。新增繁中預製地圖驗證 features／rivers／biomes 名稱，並驗證語言切換保留既有名稱。
 - Chromium PWA 實際離線開啟、地標／地形編輯、保存、重新開啟與重連保留 outbox 已通過一輪。公開材質離線未快取警告仍可能出現，不影響已保存專案；未放寬 CSP。
-- 完整舊地圖瀏覽器回歸、大量清單／授權入口新測試、最終 Chromium／WebKit、Build／ESLint／TypeScript 與遠端 CI 尚在執行，完成前不能列為全數通過。截圖由 CI `world-map-workspace-evidence` artifact 保存，依瀏覽器分目錄；本機結果在 test-results，不提交原生測試專案或大量二進位。
+- 本機完整新介面測試：Chromium 約151秒、WebKit約227秒（與其他回歸並行），包含1,000筆清單／25筆DOM、授權入口、實際原生路線新增／保存／取消、未完成路線保護、三尺寸與明暗主題、雙語自然工具／湖泊子編輯器、生成名稱與既有名稱保留。WebKit 使用隔離持久設定檔驗證真正 IDB Blob；其暫存情境連獨立 Blob probe 也會失敗，沒有以替換儲存或略過驗證使測試通過。
+- TypeScript、修改範圍 ESLint（0 errors／9 warnings）與本機 Webpack Build 通過；PWA 最後一輪約38秒。首提交 `25d185d` 的 Vercel 成功，Actions [42330471683](https://github.com/changmonica02/Nexus/actions/runs/42330471683) 的舊有功能回歸、隔離 PostgreSQL、資料／IDB／i18n、TypeScript、Build 全部成功，但完整地圖瀏覽器回歸讀到原地圖區塊的另一張預覽（1280≠1600），失敗。已獨立驗證附件正確保存1600，並改為明確選擇目標地圖、活躍 iframe、等待真實區域回覆；維持原幾何／SHA／資料保留斷言。亦補獨立筆刷模式無障礙名稱、樣式控制標示及顯示模式優先於舊高亮。
+- 完整舊地圖／區域／文化／宗教瀏覽器回歸與修正後 CI 尚在進行，不列為通過、不建議合併。完整最終結果須核對 [PR checks](https://github.com/changmonica02/Nexus/pull/166/checks) 與交付註記的 head／run；舊失敗或被取消的 run 不能列成功。截圖由 CI `world-map-workspace-evidence` artifact 分瀏覽器保存；本機 test-results，不提交大量二進位。
 
 ## 正式與實機待驗收
 
