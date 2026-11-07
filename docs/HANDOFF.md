@@ -21,8 +21,11 @@
 - Chromium 原生工具交易、圖像／原生匯出、三尺寸布局、明暗主題、六類開啟返回、多地圖區塊與共用專案回歸已通過一輪；實際檢視桌面／320px／深色及繁中海岸截圖。新增繁中預製地圖驗證 features／rivers／biomes 名稱，並驗證語言切換保留既有名稱。
 - Chromium PWA 實際離線開啟、地標／地形編輯、保存、重新開啟與重連保留 outbox 已通過一輪。公開材質離線未快取警告仍可能出現，不影響已保存專案；未放寬 CSP。
 - 本機最後完整新介面測試：Chromium 約61秒、WebKit約169秒（各環境與並行負載不同，不作效能比較），包含1,000筆清單／25筆DOM、授權入口、實際原生路線新增／保存／取消、未完成路線保護、三尺寸與明暗主題、雙語自然工具／湖泊子編輯器、生成名稱與既有名稱保留。WebKit 使用隔離持久設定檔驗證真正 IDB Blob；其暫存情境連獨立 Blob probe 也會失敗，沒有以替換儲存或略過驗證使測試通過。
-- TypeScript、修改範圍 ESLint（0 errors／9 warnings）與本機 Webpack Build 通過；PWA 最後一輪約25秒。首提交 `25d185d` 的 Vercel 成功，Actions [42330471683](https://github.com/changmonica02/Nexus/actions/runs/42330471683) 的舊有功能回歸、隔離 PostgreSQL、資料／IDB／i18n、TypeScript、Build 全部成功，但完整地圖瀏覽器回歸讀到原地圖區塊的另一張預覽（1280≠1600），失敗。已獨立驗證附件正確保存1600，並改為明確選擇目標地圖、活躍 iframe、等待真實區域回覆；維持原幾何／SHA／資料保留斷言。亦補獨立筆刷模式無障礙名稱、樣式控制標示及顯示模式優先於舊高亮。
-- 完整舊地圖／區域／文化／宗教瀏覽器回歸本機通過（約134秒，6,692格、額外50個分布，無瀏覽器程式錯誤），含衝突、觸控、SVG／PNG、備份、異網格保護。修正 resize 不再於下一影格重播過期視角，避免覆蓋剛開始的雙指手勢；測試等待實際載入／手勢完成而非讀取過渡狀態。第二輪 Actions [42349952940](https://github.com/changmonica02/Nexus/actions/runs/42349952940) 前置檢查全過，但分布圖像下載逾時；已補路線拒絕確認後等待畫布實際尺寸同步才繼續指標操作（保留實際新增／保存／取消斷言）；Chromium 最後一輪通過。`57fec73` 的 Actions [42351871924](https://github.com/changmonica02/Nexus/actions/runs/42351871924) 前置驗證及 Build 通過，但分布 SVG 下載仍逾時；本機相同 Turbopack 產物完整回歸約185秒通過，尚未確認遠端根因。已補匯出點擊、未完成網路請求及失敗截圖，等待真正套用分布模式後再匯出；地圖四項檢查移至同一 workflow 獨立工作並行，個別失敗不略過其他地圖測試、任何失敗仍使 job 失敗。最終修正版 CI 尚待確認，不以本機通過取代遠端結果、不建議在紅燈時合併。完整最終結果須核對 [PR checks](https://github.com/changmonica02/Nexus/pull/166/checks) 與交付註記的 head／run；舊失敗或被取消的 run 不能列成功。截圖由 CI `world-map-workspace-evidence` artifact 分瀏覽器保存；本機 test-results，不提交大量二進位。
+- TypeScript、修改範圍 ESLint（0 errors／9既有 warnings）、本機 Webpack與Turbopack Production Build通過。完整舊地圖回歸本機約134秒；相同Turbopack產物約185秒，含國界衝突、行政關聯、觸控、分布、SVG／PNG、備份及異網格保護。
+- 最終程式提交 `405276b` 的 [Actions 42353453682](https://github.com/changmonica02/Nexus/actions/runs/42353453682) 兩份工作成功：地圖原生／分布183秒、Chromium62秒、WebKit134秒、PWA10秒；既有筆記／字典／學習／同步、隔離PostgreSQL、資料／IDB／i18n、TypeScript、ESLint與Build皆成功。Vercel成功。此後本提交僅更新交接文件；文件提交自身狀態仍以 [PR checks](https://github.com/changmonica02/Nexus/pull/166/checks) 為準。
+- 早期CI失敗保留：`25d185d` 測試讀到原地圖區塊的另一張預覽（1280≠1600），附件獨立核對仍為1600；後續已明確選擇目標及活躍iframe、等待真正載入／筆刷／分布模式完成。`2bcb51f`與`57fec73`分布SVG下載逾時，本機曾通過；補模式套用與布局等待、點擊／網路／截圖診斷後，最終遠端完整下載及內容斷言通過，不將早期失敗列成功。`405276b`既有字典批次測試首次等待52／25／0／27暫停中間狀態逾時，原樣重試成功，未改字典程式／斷言／逾時。原始run與attempt仍可查證。
+- resize不再於下一影格重播過期視角，避免覆蓋新雙指手勢。地圖四項瀏覽器檢查在同workflow獨立工作並行；個別失敗不略過其他地圖項目，任何失敗仍使job失敗。[桌面／820px／320px／明暗／第二級／繁中原生工具截圖artifact](https://github.com/changmonica02/Nexus/actions/runs/42353453682/artifacts/13566536957)分瀏覽器保存，本機test-results不提交大量二進位。技術檢查可進人工合併前審查，維持Draft，先完成下列實機與真實資料驗收。
+
 
 ## 正式與實機待驗收
 
