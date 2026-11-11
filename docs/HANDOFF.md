@@ -1,6 +1,6 @@
 # Nexus — 階段 B：學習 Session 與私人字卡隱藏
 
-本輪追蹤 #167；分支 `feat/study-session-hidden-cards`，基於 main `350882c`。A 階段另見 Draft PR #168；本分支不重做 A。維持 Draft，不合併、不部署、不操作正式 DB、不修改 HISTORY。C 的三項根因須先報告再修正；D 尚未轉換任何正式資料。
+本輪追蹤 #167；分支 `feat/study-session-hidden-cards`，基於 main `350882c`，Draft PR [#169](https://github.com/changmonica02/Nexus/pull/169)，程式提交 `2c97a97`；最新 HEAD／checks 見 PR。A 階段另見 Draft PR #168；本分支不重做 A。維持 Draft，不合併、不部署、不操作正式 DB、不修改 HISTORY。C 的三項根因須先報告再修正；D 尚未轉換任何正式資料。
 
 - 已實作：首頁啟動來源返回；右上離開確認與 durable Session 結束；保留忘記卡已作答、額度及 outbox，未作答不標完成，下次以最新設定新建 Session。
 - 搶卡根因已有失敗重現：到期 refreshScheduled 把短間隔卡排到 queue[0]，正式評分前再次 reconcile 亦可能拒絕正在顯示題目的 CAS。現在保留實際呈現身份，計時器只處理等待；背景資料真正改變時保留畫面並要求重新載入，不跳過正式事件驗證。

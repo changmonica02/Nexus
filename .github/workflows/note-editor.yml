@@ -171,3 +171,19 @@ jobs:
           export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
           node tests/studyVisibility.browser.test.cjs
           STUDY_BROWSER=webkit node tests/studyVisibility.browser.test.cjs
+      - name: Production offline PWA and account regression
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+        run: |
+          npm run build
+          npx next start --hostname 127.0.0.1 --port 32131 > /tmp/nexus-study-pwa.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:32131 >/dev/null; then break; fi
+            sleep 1
+          done
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          NEXUS_PWA_URL=http://127.0.0.1:32131 NEXUS_PWA_AUTH_FIXTURE=1 node tests/pwa.production.browser.test.cjs
+          NEXUS_PWA_URL=http://127.0.0.1:32131 node tests/pwaData.production.browser.test.cjs
