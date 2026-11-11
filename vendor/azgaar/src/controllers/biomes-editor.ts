@@ -438,7 +438,7 @@ function togglePercentageMode(): void {
 
 function addCustomBiome(): void {
   try {
-    Biomes.add("Custom", getRandomColor(), 50);
+    Biomes.add((window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW'?"自訂生態區":"Custom", getRandomColor(), 50);
   } catch {
     tip("Maximum number of biomes reached (255), data cleansing is required", false, "error");
     return;

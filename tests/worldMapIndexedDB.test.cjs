@@ -213,7 +213,7 @@ test('IDB: overlapping culture/religion settings survive cold reopen, offline re
   const entityId=type+i;await repo.createEntity('world',{entityId,type,name:entityId,...(type==='culture'?{cultureSettings:{language:'Language',customs:'Custom'}}:{})});
   await repo.saveRegion('world',map.id,entityId,'p'+entityId,0,geometry);
  }
- await repo.setDistribution('world',map.id,'pculture0',1,{visible:false,distribution:{color:'#aa2244',opacity:0.6,category:'secondary'}});
+ await repo.saveRegion('world',map.id,'culture0','pculture0',1,geometry,false,undefined,{visible:false,distribution:{color:'#aa2244',opacity:0.6,category:'secondary'}});
  const pending=(await source.adapter.getWorkspacePersistence().pending(owner)).length;await source.reopen();
  await new WorldMapRepository(source.adapter).saveRegion('world',map.id,'culture0','pculture0',0,geometry);
  assert.equal((await source.adapter.getWorkspacePersistence().pending(owner)).length,pending);

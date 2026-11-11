@@ -70,9 +70,11 @@ function getDefaultBiomes(): Biome[] {
   );
   const cost = [10, 200, 150, 60, 50, 70, 70, 80, 90, 200, 1000, 5000, 150];
 
+  const zh=["海洋","炎熱沙漠","寒冷沙漠","熱帶稀樹草原","草原","熱帶季節林","溫帶落葉林","熱帶雨林","溫帶雨林","針葉林","苔原","冰河","濕地"];
+  const chinese=(window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW';
   return name.map((name, i) => ({
     i,
-    name,
+    name:chinese?zh[i]:name,
     color: color[i],
     habitability: habitability[i],
     iconsDensity: iconsDensity[i],

@@ -601,13 +601,15 @@ class RiverModule {
     for (const river of rivers) {
       river.parent = this.getParent(river.i);
       river.basin = this.getBasin(river.i);
-      river.name = this.getName(river.mouth);
+      const generatedName = this.getName(river.mouth);
+      if (!river.name) river.name = generatedName;
       river.type = this.getType(river);
     }
   }
 
   getName(cell: number) {
-    return pack.cells.culture[cell] ? Names.getCulture(pack.cells.culture[cell]) : `River ${this.getNextId(pack.rivers)}`;
+    const generated = pack.cells.culture[cell] ? Names.getCulture(pack.cells.culture[cell]) : `River ${this.getNextId(pack.rivers)}`;
+    return (window as unknown as {nexusCurrentLanguage?:()=>string}).nexusCurrentLanguage?.()==='zh-TW' ? `河流 ${cell}` : generated;
   }
 
   getType({ i, length, parent }: River) {

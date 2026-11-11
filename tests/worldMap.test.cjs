@@ -515,3 +515,18 @@ test('site markers reuse canonical entities, atomic placement, retry and conflic
  assert.equal((await repo.listEntities('world-a')).length,1,'multiple locations never duplicate the body');
  await assert.rejects(repo.updateEntity('world-a','site_one',0,{name:'stale'}),{code:'conflict'});
 });
+
+test('workspace brush appearance commits with geometry, rolls back failures and preserves body/CAS/idempotency',async()=>{
+ const {repo,state}=fixture(),{map}=await repo.create('world-a','Map',project());
+ await repo.createEntity('world-a',{entityId:'faith-style',type:'religion',name:'Faith',content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Canonical text'}]}]}});
+ await repo.saveRegion('world-a',map.id,'faith-style','appearance',0,cellGeometry([1,2]));
+ const before=structuredClone(state.pages.get('world-a')),presentation={visible:false,distribution:{color:'#aa2288',opacity:0.6}};
+ state.fail=true;await assert.rejects(repo.saveRegion('world-a',map.id,'faith-style','appearance',1,cellGeometry([1,3]),false,undefined,presentation),/Disk full/);
+ assert.deepEqual(state.pages.get('world-a'),before);state.fail=false;
+ await repo.saveRegion('world-a',map.id,'faith-style','appearance',1,cellGeometry([1,3]),false,undefined,presentation);
+ const after=structuredClone(state.pages.get('world-a')),placement=after.character_data.world_maps[0].placements[0],count=state.outbox.length;
+ assert.deepEqual(placement.distribution,presentation.distribution);assert.equal(placement.visible,false);assert.deepEqual(after.character_data.world_entities,before.character_data.world_entities);assert.equal(after.character_data.world_maps[0].attachment_id,map.attachment_id);
+ await repo.saveRegion('world-a',map.id,'faith-style','appearance',1,cellGeometry([1,3]),false,undefined,presentation);assert.equal(state.outbox.length,count);
+ await assert.rejects(repo.saveRegion('world-a',map.id,'faith-style','appearance',1,cellGeometry([2,3]),false,undefined,presentation),{code:'conflict'});
+ await assert.rejects(repo.saveRegion('world-a',map.id,'faith-style','appearance',2,cellGeometry([1,3]),false,undefined,{visible:true,distribution:{opacity:2}}));assert.deepEqual(state.pages.get('world-a'),after);
+});
