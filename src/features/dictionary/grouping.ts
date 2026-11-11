@@ -31,7 +31,7 @@ export async function readSenseGroups(client:Pick<SupabaseClient,'from'>,senseId
 export async function savePrefixDraft(client:Pick<SupabaseClient,'rpc'>,bundle:Bundle,grouping:DictionaryGrouping,senses:SenseGroupMap){
   await saveDictionaryDraft(client,draftsFromBundle(bundle,grouping,senses),false,true);
 }
-export interface GroupedDictionaryItem {id:string;kind:'prefix'|'root';headword:string;sense_id?:string;gloss_zh_tw?:string}
+export interface GroupedDictionaryItem {id:string;kind:'prefix'|'root';headword:string;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string}
 export interface GroupedDictionaryPage {items:GroupedDictionaryItem[];has_more:boolean;page:number;total?:number}
 export async function searchGrouping(client:Pick<SupabaseClient,'rpc'>,kind:'prefix'|'root',query:string,page:number,category:string):Promise<GroupedDictionaryPage>{
   if(offline())throw new Error('此分類或關聯搜尋尚未離線保存，請連線後閱讀。');

@@ -1,3 +1,17 @@
+# Nexus — 階段 C：字典缺陷重現與修正
+
+追蹤 #167；分支 `fix/dictionary-defects-stage-c`，基於 main `350882c`。A 見 Draft #168，B 見 Draft #169；本分支不重做 A／B。維持 Draft，不合併、不部署、不寫正式 DB、不修改 HISTORY。
+
+- C1：正式唯讀核對 RPC、外鍵與 triggers；隔離最新 Schema 下含構詞格、IPA、active Review 的獨立 Word 刪除成功，官方清單引用則正確拒絕並回滾。尚缺使用者實際失敗詞條／RPC 錯誤，不能宣稱原問題已修復；只補上已知引用、版本、權限及未知結果的精確雙語提示，保留 message／code／details／hint 診斷，不修改刪除／審核保護。
+- C2：確認 Prefix 分類按 sense 回傳，UI 卻重複顯示完整摘要；修正前雙義項為兩列，修正後以正式 entry ID 先分組再分頁，保留義項定位。不同正式類型的同字形 ID 不合併，刪除一個不影響另一個。
+- C3：確認管理 red 只含匯入審核，完整 pending 匯出另含 active 編輯 Review。單一編輯 Review 在原管理為0、匯出為1的失敗已重現；現在兩者按真正工作與 entry ID 統一，普通草稿不算待審核；匯入與編輯來源仍導向各自既有頁面，不刪工作紀錄。
+- 正式唯讀基準（2026-11-11，非寫入）：published Word 6,163／Prefix77／Root107；義項10,866、關聯145、詞源102、IPA152、active editor Review3,802、匯入待處理 entry1,369、官方清單 entry6,134、私人正式字典連結6,135。同類型同字形未見重複正式 entry。不同工作可能對應同一 entry，禁止把上述計數直接相加當待審核詞條總數。
+- Migration `20261111145758_dictionary_pending_identity.sql`：只修查詢／計數，無資料改寫；正式尚未套用，須另行授權。相容前端可先、DB查詢後；B payload Migration 的發布順序另依 B PR，不可 db push 全部 pending。
+- 已通過 PGlite 重現／修正及 PostgreSQL 17 真實 RPC／RLS；不同義項、跨頁、同字形不同類型、缺少正式 entry 的候選、失敗待恢復、範圍計數、重入與回滾；Chromium／WebKit 實際 SQL 刪除、取消、失敗及未存內容保護通過。六項隔離資料庫測試、六組既有字典／安全匯入回歸通過；TypeScript、ESLint（0 errors／3既有 warnings）、Production Turbopack Build通過。遠端 Actions／Vercel 待本 HEAD 核對，Android／iPad 未實機驗收。
+- 阻擋：C1 實際失敗仍待證據。D 可以先設計，不能在此問題尚未查明時對正式字典作合併轉換；本輪從未執行正式轉換。Android／iPad、正式問題詞條及真實使用者資料仍待人工驗收。
+
+以下為 main 原交接背景，最新狀態以上述記錄及 PR checks 為準。
+
 # Nexus — 當前狀態與下一步
 
 本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。Draft PR [#166](https://github.com/changmonica02/Nexus/pull/166)，首筆程式提交 `25d185d`；最終 head／checks 見 PR；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。

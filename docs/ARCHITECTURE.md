@@ -302,3 +302,14 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 `StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動空清單立即請求同一備援以保留 activation；只有已知非英文清單時不選錯語音，提示重新檢查。清單事件不重複啟播已開始的備援。
 
 播放由 onstart／onend／onerror 判定；not-allowed、language-unavailable、voice-unavailable 與一般失敗各有訊息，僅 language-unavailable 提示啟用／安裝英文。8 秒啟動檢查不會取消仍 speaking 的引擎，另有 15–90 秒有限完成期限；沒有無限重試。全域單一播放 ownership＋世代 token 只用於音訊生命週期，與學習單卡 generation 無關。新題、手動重播、背景、pagehide／離開或卸載會取消舊播放及 timers／listener；舊回呼不能污染新題，翻面不重播。WebKit 自動播放讓出 cancel 事件迴圈，手動播放留在 gesture 內。Chromium／WebKit 的模擬語音測試驗證控制邏輯，不能證明 Android／Safari 原生語音或實際發音語言已驗收。
+
+
+### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
+
+分類查詢仍依義項篩選，但 `search_prefix_dictionary` 先按正式 entry ID 分組再 20 筆分頁；保留首個符合的 sense_id 與 matched_sense_ids，不按拼寫合併，分類計數改為詞條數。返回／相鄰閱讀可辨識同列中的匹配義項。舊分類資料與既有正式 ID 不改寫；新構詞分類契約仍屬後續 D 階段。
+
+`list_dictionary_admin_work` 與完整 JSON 匯出的真正待處理範圍同時包含原 dictionary_transfer_pending 匯入工作及 state=active 的編輯 Review，依 entry ID 去重；只有普通未發布草稿維持 yellow，不當成 pending。多項差異與多筆 Review 不增加詞條總數。row 的 import_pending_count／editor_pending_count 用於導向原有匯入審核頁或編輯器，不共用另一套核准流程；pending_count 為該詞條工作量，stats.red 為詞條數。缺少正式詞條的合法匯入候選仍可計入，失敗／過期工作保留，查詢不刪任何資料。
+
+刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）隔離刪除正常；使用者原本的失敗尚缺對應詞條與 RPC 證據，不視為已修復根因。
+
+Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，可先發布相容前端，再於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
