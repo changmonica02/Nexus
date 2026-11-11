@@ -12,6 +12,7 @@ import {offline} from './publicCache';
 import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import {DictionaryModal} from './DictionaryModal';
 import {navigateDictionary} from './useUnsavedDraft';
+import { Pencil, Search, X } from 'lucide-react';
 const DictionaryWorkspace=lazy(()=>import('./DictionaryAdmin').then(module=>({default:module.DictionaryWorkspace})));
 
 type Visit={href:string;scroll:number};
@@ -60,6 +61,8 @@ function ReadingSheet({initialHref,rate,onClose,returnFocusRef,editorBackRef}:{i
   const href=navigation.current.href,restoreScroll=navigation.current.scroll;
   // Keep the editor target stable while the reader refreshes in the background.
   const [editing,setEditing]=useState<{id:string;owner:string}|null>(null);
+  const [drag,setDrag]=useState(0);
+  const pointer=useRef<{id:number;x:number;y:number}|null>(null);
   const {access}=useDictionaryAdminAccess();
   const [version,setVersion]=useState(0),[result,setResult]=useState<{key:string;reading?:Reading;error?:string}|null>(null),[input,setInput]=useState('');
   const heading=useRef<HTMLHeadingElement>(null);
@@ -107,23 +110,30 @@ function ReadingSheet({initialHref,rate,onClose,returnFocusRef,editorBackRef}:{i
   },[current?.reading,href,restoreScroll]);
   const searchParams=new URLSearchParams(url.search),kind=searchParams.get('kind')??'all';
   const search=(query:string,category=kind)=>{const params=new URLSearchParams({kind:category,q:query.trim()});go('/dictionary?'+params);};
-  return <ModalDialog returnFocusRef={returnFocusRef} onDismiss={onClose} aria-labelledby={titleId} className="fixed inset-x-0 bottom-0 top-auto m-0 mx-auto h-[88dvh] max-h-[88dvh] w-full max-w-3xl overflow-hidden rounded-t-2xl border border-[var(--color-border)] bg-[var(--color-sidebar-bg)] p-0 text-[var(--color-text)] shadow-xl backdrop:bg-black/45">
+  const cancelDrag=()=>{pointer.current=null;setDrag(0);};
+  return <ModalDialog returnFocusRef={returnFocusRef} onDismiss={onClose} aria-labelledby={titleId} style={{transform:`translateY(${drag}px)`}} className="fixed inset-x-0 bottom-0 top-auto m-0 mx-auto h-[88dvh] max-h-[88dvh] w-full max-w-3xl overflow-hidden rounded-t-2xl border border-[var(--color-border)] bg-[var(--color-sidebar-bg)] p-0 text-[var(--color-text)] shadow-xl backdrop:bg-black/45">
     <div className="flex h-full min-w-0 flex-col pb-[env(safe-area-inset-bottom)]">
       <header className="z-10 shrink-0 space-y-2 border-b border-[var(--color-border)] px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <button type="button" disabled={!navigation.previous.length} onClick={previous} className="min-h-11 rounded-lg border px-3 disabled:opacity-40">{t('studyDictionary.previous')}</button>
-          <button type="button" onClick={onClose} className="min-h-11 rounded-lg border px-3">{t('studyDictionary.close')}</button>
-          {detail&&access?.allowed&&<button type="button" className="min-h-11 rounded-lg border px-3" onClick={()=>setEditing({id:detail.entry.id,owner:access.owner})}>{t('studyDictionary.edit')}</button>}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+          <button type="button" aria-label={t('studyDictionary.previous')} disabled={!navigation.previous.length} onClick={previous} className="min-h-11 justify-self-start rounded-lg px-2 disabled:opacity-40">{t('ui.back')}</button>
+          <button type="button" data-dictionary-drag-handle aria-label={t('studyDictionary.drag')} disabled={editingAllowed} className="grid min-h-11 min-w-20 place-items-center rounded-lg" style={{touchAction:'none'}}
+            onPointerDown={event=>{if(event.button!==0)return;pointer.current={id:event.pointerId,x:event.clientX,y:event.clientY};event.currentTarget.setPointerCapture(event.pointerId);}}
+            onPointerMove={event=>{const start=pointer.current;if(start?.id===event.pointerId)setDrag(Math.abs(event.clientX-start.x)<Math.max(16,event.clientY-start.y)?Math.max(0,event.clientY-start.y):0);}}
+            onPointerCancel={cancelDrag}
+            onPointerUp={event=>{const start=pointer.current;const dismiss=start?.id===event.pointerId&&event.clientY-start.y>=80&&Math.abs(event.clientX-start.x)<event.clientY-start.y;cancelDrag();if(dismiss&&!editingAllowed)onClose();}}
+            onClick={event=>{if(event.detail===0&&!editingAllowed)onClose();}}><span aria-hidden className="h-1 w-12 rounded-full bg-current opacity-40"/></button>
+          <button type="button" aria-label={t('studyDictionary.close')} onClick={onClose} className="grid min-h-11 min-w-11 justify-self-end place-items-center rounded-lg"><X size={20}/></button>
         </div>
-        <h2 ref={heading} tabIndex={-1} id={titleId} lang={detail?'en':undefined} className="break-words text-xl font-semibold [overflow-wrap:anywhere]">{detail?.entry.headword??t(entryId?'studyDictionary.reading':'studyDictionary.search')}</h2>
-        {detail&&<><p className="line-clamp-2 break-words text-sm [overflow-wrap:anywhere]">{[...detail.senses].sort((a,b)=>a.id.localeCompare(b.id)).find(sense=>sense.gloss_zh_tw.trim())?.gloss_zh_tw??t('studyDictionary.noMeaning')}</p><StudyPronunciation key={detail.entry.id} question={detail.entry.id} text={detail.entry.headword} direction="en-zh" frontVisible={false} automatic={false} rate={rate}/></>}
-      </header>
-      <div ref={scroll} className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 [overflow-wrap:anywhere]" style={{touchAction:'pan-y'}}>
-        <form className="flex min-w-0 flex-wrap gap-2" onSubmit={event=>{event.preventDefault();search(input);}}>
+        <form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();search(input);}}>
           <label className="sr-only" htmlFor={titleId+'-query'}>{t('studyDictionary.query')}</label><input id={titleId+'-query'} value={input} onChange={event=>setInput(event.target.value)} maxLength={120} placeholder={t('studyDictionary.query')} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/>
-          <select aria-label={t('studyDictionary.kind')} value={kind} className="min-h-11 max-w-full rounded-lg border bg-[var(--color-sidebar-bg)] px-2" onChange={event=>search(input,event.target.value)}>{['all','word','prefix','root'].map(value=><option key={value} value={value}>{t('studyDictionary.'+value)}</option>)}</select>
-          <button type="submit" className="min-h-11 rounded-lg border px-3">{t('studyDictionary.search')}</button>
+          <button type="submit" aria-label={t('studyDictionary.search')} className="grid min-h-11 min-w-11 place-items-center rounded-lg border"><Search size={20}/></button>
         </form>
+      </header>
+      <div ref={scroll} data-dictionary-scroll className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 [overflow-wrap:anywhere]" style={{touchAction:'pan-y'}}>
+        <div className="flex min-w-0 items-start justify-between gap-3"><h2 ref={heading} tabIndex={-1} id={titleId} lang={detail?'en':undefined} className="min-w-0 break-words text-xl font-semibold [overflow-wrap:anywhere]">{detail?.entry.headword??t(entryId?'studyDictionary.reading':'studyDictionary.search')}</h2>
+        {detail&&access?.allowed&&<button type="button" aria-label={t('studyDictionary.edit')} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border" onClick={()=>setEditing({id:detail.entry.id,owner:access.owner})}><Pencil size={18}/></button>}</div>
+        {detail&&<><p className="break-words text-sm [overflow-wrap:anywhere]">{[...detail.senses].sort((a,b)=>a.id.localeCompare(b.id)).find(sense=>sense.gloss_zh_tw.trim())?.gloss_zh_tw??t('studyDictionary.noMeaning')}</p><StudyPronunciation key={detail.entry.id} question={detail.entry.id} text={detail.entry.headword} direction="en-zh" frontVisible={false} automatic={false} rate={rate}/></>}
+        {list&&<select aria-label={t('studyDictionary.kind')} value={kind} className="min-h-11 max-w-full rounded-lg border bg-[var(--color-sidebar-bg)] px-2" onChange={event=>search(input,event.target.value)}>{['all','word','prefix','root'].map(value=><option key={value} value={value}>{t('studyDictionary.'+value)}</option>)}</select>}
         {!current&&<p role="status">{t('common.loading')}</p>}
         {current?.error&&<div role="alert"><p>{current.error}</p><button type="button" className="min-h-11 underline" onClick={retry}>{t('studyDictionary.retry')}</button></div>}
         {current?.reading&&entryId&&!detail&&<div role="status"><p>{t('studyDictionary.missing')}</p><button type="button" className="min-h-11 underline" onClick={retry}>{t('studyDictionary.retry')}</button></div>}

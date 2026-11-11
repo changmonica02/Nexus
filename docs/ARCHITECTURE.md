@@ -175,6 +175,14 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
 
+### 2026-11-11 介面整理（#167／階段 A）
+
+`StudyPreferences` 保留原 saveDeckStyle／串行 flush 與 Session 快照規則，管理頁僅移除清除入口及冗餘提示；模式說明由原 ModalDialog 提供焦點、Escape 與觸控。清除仍只由複習紀錄頂欄開啟原 ClearStudyHistoryDialog，RPC、冪等及失敗恢復未變。
+
+`NexusApp` 以目前實際編輯頁的 note（含缺省舊 note）／presentation 白名單控制 RightPanel 及其 ResizablePanel／手機開關掛載；首頁、管理面板、外部字典、世界觀、學習與其他 kind 都不預留側欄。既有 assistant_blocks 不改寫、不刪除，未掛載時沒有講稿操作或專屬保存回呼。
+
+學習內 `CardDictionaryPanel` 沿用原 history marker、30筆內部瀏覽／捲動紀錄、已發布查詢快取及 owner/admin 驗權。首列返回／拖曳把手／叉叉，第二列搜尋／放大鏡，詳細內容在捲動區、鉛筆在內容右上。拖曳只從把手開始，使用 pointer capture；向下至少80px且垂直位移較大才關閉，短／水平／取消拖曳復原，不從內文接管捲動。把手支援鍵盤啟動；有管理員編輯 Modal 時停用，仍走原未儲存保護。開啟期間仍由原 Session editing guard 停用評分，不新增作答。EditorSection 的基本資料／概念／義項使用固定展開模式，其他有意義的區塊仍沿用原 details，欄位不重新掛載、草稿 queue/CAS 未變。
+
 ### 公共字典
 
 字典獨立 Reader 與正式學習閱讀面板僅讀取已發布詞條與必要管理員驗權，不掛載私人字卡建立／計數／跳轉元件，也不為顯示這些操作查詢私人字卡；私人字卡管理及既有連結流程維持原資料來源。

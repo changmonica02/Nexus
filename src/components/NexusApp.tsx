@@ -204,7 +204,6 @@ function NexusAppInner({
   const [refreshError, setRefreshError] = useState("");
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
-  const isActiveNovel = !!activePage && isNovelPage(activePage);
   const activeAttachment = activePage?.primary_attachment_id
     ? attachments.find((a) => a.id === activePage.primary_attachment_id) || null
     : null;
@@ -1743,6 +1742,7 @@ function NexusAppInner({
   };
   const managementActive=deckManagement&&(storageRef.current?.getWorkspaceOwner?.()??null)===deckManagement.owner;
   const managementPage=managementActive?pages.find(p=>p.id===deckManagement.id&&!p.deleted_at&&p.kind==='study_set'&&(p.workspace_owner_id??null)===deckManagement.owner):undefined;
+  const showAssistantPanel=!isFeatureInterface&&!managementActive&&!trashRoute&&!isTrashMode&&!!activePage&&(!activePage.kind||activePage.kind==='note'||activePage.kind==='presentation');
   const refreshStudyPages=async()=>{const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.();await syncEngineRef.current?.fullSync();const next=await storage.listPages();if(storage.getWorkspaceOwner?.()===owner)setPages(next);};
 
   if (storageInitError && !externalContent) return (
@@ -1912,7 +1912,7 @@ function NexusAppInner({
         />
       </FloatingSidebar>
 
-      {!isFeatureInterface && isTabletViewport && !isActiveNovel && (
+      {showAssistantPanel && isTabletViewport && (
         <button
           type="button"
           onClick={() => { setIsNavigationOpen(false); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
@@ -2070,7 +2070,7 @@ function NexusAppInner({
         </div>
       ) : renderPane(activePage))}
 
-      {!isFeatureInterface && isTabletViewport && (
+      {showAssistantPanel && isTabletViewport && (
         <>
           {!isRightPanelCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsRightPanelCollapsed(true)} aria-label="關閉輔助頁" />}
           <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} collapsedWidth={0} isCollapsed={isRightPanelCollapsed} overlay>
@@ -2079,7 +2079,7 @@ function NexusAppInner({
         </>
       )}
 
-      {!isFeatureInterface && !isTabletViewport && (
+      {showAssistantPanel && !isTabletViewport && (
         <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} isCollapsed={isRightPanelCollapsed}>
           <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
         </ResizablePanel>

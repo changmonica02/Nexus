@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../../lib/LanguageContext';
 import type { StudyRepository } from '../StudyRepository';
 import {defaultIntervalSettings,type StudyStyle} from '../studyStyles';
+import ModalDialog from '../../../components/ModalDialog';
+import { CircleHelp } from 'lucide-react';
 
 function IntervalInput({
   seconds,
@@ -70,6 +72,8 @@ function IntervalInput({
 }
 export default function StudyPreferences({repository,deckId,registerFlush}:{repository:StudyRepository;deckId:string;registerFlush:(flush:()=>Promise<void>)=>void}) {
   const {t}=useLanguage();
+  const [modeHelp,setModeHelp]=useState(false);
+  const modeHelpTrigger=useRef<HTMLButtonElement>(null);
   const [style,setStyle]=useState<StudyStyle|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const pending=useRef<Promise<void>>(Promise.resolve()),alive=useRef(true);
   useEffect(()=>{alive.current=true;registerFlush(()=>pending.current);return()=>{alive.current=false;};},[registerFlush]);
@@ -91,12 +95,12 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
   const control='max-w-full min-w-0 rounded border bg-transparent px-3 py-2 text-sm';
   const count=(key:'review_limit'|'new_limit'|'new_pause_threshold',label:string,min:number)=><label className="flex flex-wrap items-center justify-between gap-3">{label}<input key={style!.id+key+style![key]} aria-label={label} className={control+' w-24'} type="number" min={min} max={10000} defaultValue={style![key]} onBlur={e=>{const n=e.target.value.trim()?Number(e.target.value):NaN;if(n!==style![key])save({[key]:n});}} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/></label>;
   return <section aria-label={t('deck.schedule')} className="space-y-4 text-sm">
-    <h2 className="text-lg font-semibold">{t('deck.schedule')}</h2><p className="opacity-65">{t('deck.scope')}</p>
+    <h2 className="text-lg font-semibold">{t('deck.schedule')}</h2>
     {error&&<p role="alert">{error}</p>}
     <fieldset disabled={busy} className="space-y-5">
       {!style?<p>{t('common.loading')}</p>:<>
-            <label className="flex flex-wrap justify-between gap-3">
-              {t("study.mode")}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="flex items-center gap-1">{t("study.mode")}<button ref={modeHelpTrigger} type="button" aria-label={t('study.modeHelp')} aria-haspopup="dialog" onClick={()=>setModeHelp(true)} className="grid min-h-11 min-w-11 place-items-center rounded-lg hover:bg-zinc-500/10"><CircleHelp size={18}/></button></span>
               <select
                 aria-label={t("study.mode")}
                 className={control}
@@ -110,11 +114,9 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
                 <option value="scheduled">{t("study.scheduled")}</option>
                 <option value="endless">{t("study.endless")}</option>
               </select>
-            </label>
+            </div>
             {count("review_limit", t("study.batchLimit"), 1)}
-            <p>{t("study.batchHint")}</p>
             {count("new_limit", t("study.newLimit"), 0)}
-            <p>{t("study.newHint")}</p>
             {count("new_pause_threshold", t("styles.threshold"), 1)}
             <label className="flex flex-wrap justify-between gap-3">
               {t("study.cardOrder")}
@@ -155,15 +157,15 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
               </select>
             </label>
             {(['general','forgotten'] as const).map(group=><section key={group} className="space-y-3"><h3 className="font-semibold">{t('interval.'+group)}</h3>{([1,2,3] as const).map(rating=>{const values=style.intervals??defaultIntervalSettings();return <IntervalInput key={style.id+group+rating+values[group][rating-1]} label={t('interval.'+group)+' · '+t('interval.response'+rating)} seconds={values[group][rating-1]} onSave={seconds=>{const next=[...values[group]] as [number,number,number];next[rating-1]=seconds;save({interval_version:1,intervals:{...values,[group]:next}});}}/>;})}</section>)}
-            <p>{t("study.endlessHint")}</p>
             <section aria-label={t('speech.settings')} className="space-y-3">
-              <h3 className="font-semibold">{t('deck.presentation')}</h3><p>{t('study.direction')}</p>
+              <h3 className="font-semibold">{t('deck.presentation')}</h3>
               <label className="flex items-center justify-between gap-3">{t('speech.automatic')}<input type="checkbox" aria-label={t('speech.automatic')} checked={style.auto_speech??true} onChange={event=>save({auto_speech:event.target.checked})}/></label>
               <label className="flex flex-wrap items-center justify-between gap-3">{t('speech.rate')}<input key={style.id+String(style.speech_rate)} aria-label={t('speech.rate')} type="number" min="0.5" max="2" step="0.1" defaultValue={style.speech_rate??0.9} className={control+' w-24'} onBlur={event=>{const value=event.target.value.trim()?Number(event.target.value):NaN;if(value!==(style.speech_rate??0.9))save({speech_rate:value});}} onKeyDown={event=>{if(event.key==='Enter')event.currentTarget.blur();}}/></label>
             </section>
 
       </>}
     </fieldset>
+    {modeHelp&&<ModalDialog onDismiss={()=>setModeHelp(false)} dismissOnBackdrop returnFocusRef={modeHelpTrigger} aria-label={t('study.modeHelp')} className="fixed inset-0 m-auto max-h-[85dvh] w-[min(92vw,28rem)] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 text-[var(--color-text)] shadow-xl backdrop:bg-black/45"><h3 className="mb-3 font-semibold">{t('study.modeHelp')}</h3><p>{t('study.endlessHint')}</p><button autoFocus type="button" className="mt-4 min-h-11 rounded-lg border px-4" onClick={()=>setModeHelp(false)}>{t('home.close')}</button></ModalDialog>}
     <p role="status">{busy?t('study.savingSettings'):t('study.savedSettings')}</p>
   </section>;
 }

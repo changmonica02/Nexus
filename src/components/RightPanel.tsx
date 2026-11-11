@@ -51,14 +51,14 @@ export default function RightPanel({
 
   if (isCollapsed) {
     return (
-      <aside className="flex flex-col items-center pt-3.5 border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)" }}>
+      <aside data-assistant-panel className="flex flex-col items-center pt-3.5 border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)" }}>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-zinc-200 transition-all text-sm" style={{ color: "var(--color-text)" }} title={t("rightPanel.expand")}>«</button>
       </aside>
     );
   }
 
   return (
-    <aside className="flex flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)" }}>
+    <aside data-assistant-panel className="flex flex-col border select-none transition-all rounded-2xl overflow-hidden w-full h-full" style={{ backgroundColor: "var(--color-panel-bg)", borderColor: "var(--color-border)" }}>
       <div className="flex items-center justify-between px-4 py-3.5 border-b text-xs font-semibold tracking-wider opacity-60 uppercase" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
         <span>{t("rightPanel.relations")}</span>
         <button onClick={onToggleCollapse} className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-zinc-200 transition-all normal-case" style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }} title={t("rightPanel.collapse")}>»</button>

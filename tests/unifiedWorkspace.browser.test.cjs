@@ -5,7 +5,7 @@ const { test } = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { chromium, webkit } = require("playwright");
 const root = path.resolve(__dirname, "..").replaceAll('\\', '/');
 async function until(page, predicate, arg) {
   const deadline = Date.now() + 10000;
@@ -131,10 +131,10 @@ test(
         );
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
-    const browser = await chromium.launch({
+    const browser = await (process.env.STUDY_BROWSER==='webkit'?webkit:chromium).launch({
       headless: true,
-      executablePath: process.env.BROWSER_EXECUTABLE || "/usr/bin/chromium",
-      args: ["--no-sandbox"],
+      executablePath: process.env.STUDY_BROWSER==='webkit'?undefined:process.env.BROWSER_EXECUTABLE || "/usr/bin/chromium",
+      args: process.env.STUDY_BROWSER==='webkit'?[]:["--no-sandbox"],
     });
     const errors = [];
     try {
@@ -142,7 +142,7 @@ test(
         [1440, 900],
         [820, 1180],
         [1180, 820],
-        [(process.env.NEXUS_INTERFACE||process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE)?320:390, 844],
+        [(process.env.NEXUS_INTERFACE||process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE||process.env.NEXUS_STAGE_A)?320:390, 844],
       ]) {
         const context = await browser.newContext({
             viewport: { width, height },
@@ -154,6 +154,19 @@ test(
         page.on("pageerror", (e) => errors.push(e.message));
         if(process.env.NEXUS_LIFE)await page.clock.setFixedTime(new Date('2026-03-08T12:00:00Z'));
         await page.goto(`http://127.0.0.1:${server.address().port}`);
+        if(process.env.NEXUS_STAGE_A){
+          await page.getByLabel('切換首頁',{exact:true}).waitFor();assert.equal(await page.locator('[data-assistant-panel]').count(),0,'home mounts no assistant panel');
+          const records=await page.evaluate(async()=>{const rows=(await window.fixtureStorage.listPages()).filter(p=>p.title?.startsWith('Sample '));for(const row of rows)await window.fixtureStorage.savePage({...row,assistant_blocks:[{id:'legacy-'+row.id,title:'Retained notes',content:'Keep existing script',created_at:1,updated_at:1}]});return rows.map(r=>({id:r.id,title:r.title}));});await page.reload();await page.getByLabel('切換首頁',{exact:true}).waitFor();
+          for(const [title,allowed,visibleTitle] of [['Sample note',true,'Sample note'],['Sample creative',false,'Sample creative'],['Sample presentation',true,'Sample presentation'],['Sample study_set',false,'Sample study_set'],['Sample document',false,'Sample document'],['Sample web',false,'Sample web'],['Sample counter',false,'Sample counter'],['Sample draw',false,'Sample draw']]){
+            await page.keyboard.press('Control+k');const input=page.locator('input[placeholder]').filter({visible:true}).last();const placeholder=await input.getAttribute('placeholder');await input.fill(title);await page.getByText(title,{exact:true}).last().click();await page.getByPlaceholder(placeholder,{exact:true}).waitFor({state:'hidden'});
+            await page.waitForFunction(text=>[...document.querySelectorAll('input')].some(input=>input.value===text)||[...document.querySelectorAll('h1,h2,div.font-bold')].some(node=>node.getClientRects().length&&node.textContent.trim()===text),visibleTitle).catch(async error=>{console.log('ASSISTANT_PAGE',title,await page.locator('body').innerText());throw error;});
+            await page.waitForFunction(allowed=>document.querySelectorAll('[data-assistant-panel]').length===(allowed?1:0),allowed);assert.equal(await page.locator('[data-assistant-panel]').count(),allowed?1:0,title);
+            if(!allowed)assert.equal(await page.getByRole('button',{name:'開啟輔助頁',exact:true}).count(),0,title+' has no sidebar opener');
+            assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if(title==='Sample creative'){fs.mkdirSync('test-results/interface-a',{recursive:true});await page.screenshot({path:'test-results/interface-a/no-script-world-'+width+'.png'});}
+          }
+          for(const row of records)assert.deepEqual(await page.evaluate(async id=>(await window.fixtureStorage.getPage(id)).assistant_blocks,row.id),[{id:'legacy-'+row.id,title:'Retained notes',content:'Keep existing script',created_at:1,updated_at:1}]);
+          assert.deepEqual(errors,[]);await context.close();continue;
+        }
         if(process.env.NEXUS_INTERFACE){
           await page.getByLabel('切換首頁',{exact:true}).waitFor();
           const navigation=page.locator('aside').filter({has:page.getByRole('button',{name:'首頁',exact:true})}).last();
@@ -224,7 +237,7 @@ test(
           if(width===1440){
             await page.evaluate(()=>{const proto=Object.getPrototypeOf(window.fixtureStorage.getStudyRepository());window.restoreSettingsSave=proto.saveDeckStyle;proto.saveDeckStyle=async()=>{throw Error('Settings disk failure');};});
             await management.getByLabel('每日新卡上限',{exact:true}).fill('8');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');await management.getByRole('alert').getByText(/Settings disk failure/).waitFor();
-            await page.getByRole('button',{name:'Nexus',exact:true}).first().click();assert.equal(await management.isVisible(),true);assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'8');
+            await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();assert.equal(await management.isVisible(),true);assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'8');
             await page.evaluate(()=>{Object.getPrototypeOf(window.fixtureStorage.getStudyRepository()).saveDeckStyle=window.restoreSettingsSave;});
             await management.getByLabel('每日新卡上限',{exact:true}).fill('9');await management.getByLabel('每日新卡上限',{exact:true}).press('Enter');await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.new_limit===9);
             const notice=page.locator('[role=alert].fixed');if(await notice.count())await notice.click();
@@ -242,10 +255,10 @@ test(
           await home.dblclick();await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
           await page.getByRole('button',{name:'開啟導覽',exact:true}).click();const reopen=page.getByRole('button',{name:'首頁',exact:true});await reopen.focus();await page.keyboard.press('Enter');await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();
           if(width===320){await page.getByRole('button',{name:'開啟導覽',exact:true}).click();const touchHome=page.getByRole('button',{name:'首頁',exact:true});await touchHome.dispatchEvent('pointerdown',{pointerType:'touch',clientX:30,clientY:80});await page.waitForTimeout(650);await page.getByRole('dialog',{name:'開啟導覽',exact:true}).waitFor({state:'hidden'});assert.equal(await page.getByRole('dialog',{name:'開啟導覽',exact:true}).count(),0);}
-          await context.setOffline(true);await page.getByRole('button',{name:'切換學習組',exact:true}).click();await sheet.getByRole('button',{name:'管理 Sample study_set',exact:true}).click();await management.getByLabel('一般卡（新卡／複習卡） · 忘記',{exact:true}).waitFor();await management.getByLabel('單次複習上限',{exact:true}).fill('3');await management.getByLabel('單次複習上限',{exact:true}).press('Enter');await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.review_limit===3);await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();await page.keyboard.press('Escape');await context.setOffline(false);
+          await context.setOffline(true);await page.getByRole('button',{name:'切換學習組',exact:true}).click();await sheet.getByRole('button',{name:'管理 Sample study_set',exact:true}).click();await management.getByLabel('一般卡（新卡／複習卡） · 忘記',{exact:true}).waitFor();await management.getByLabel('單一批次上限',{exact:true}).fill('3');await management.getByLabel('單一批次上限',{exact:true}).press('Enter');await page.waitForFunction(async()=> (await window.fixtureStorage.getStudyRepository().styleForDeck(window.mainDeckId)).style.review_limit===3);await management.getByRole('button',{name:'返回學習組選擇',exact:true}).click();await page.keyboard.press('Escape');await context.setOffline(false);
           if(width===1440){
             await page.getByRole('button',{name:'切換學習組',exact:true}).click();await sheet.getByRole('button',{name:'新增學習組',exact:false}).click();await management.getByLabel('每日新卡上限',{exact:true}).waitFor();
-            assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'20');assert.equal(await management.getByLabel('單次複習上限',{exact:true}).inputValue(),'100');
+            assert.equal(await management.getByLabel('每日新卡上限',{exact:true}).inputValue(),'20');assert.equal(await management.getByLabel('單一批次上限',{exact:true}).inputValue(),'100');
             const otherOwner='00000000-0000-4000-8000-000000000002';await page.evaluate(owner=>window.switchFixtureAccount(owner),otherOwner);await page.waitForFunction(owner=>window.fixtureStorage.getWorkspaceOwner()===owner,otherOwner);assert.equal(await management.count(),0);await page.waitForFunction(()=>!document.body.innerText.includes('Sample study_set'));assert.equal(await toggle.inputValue(),'classic');
             await page.evaluate(()=>window.switchFixtureAccount('00000000-0000-4000-8000-000000000001'));await page.waitForFunction(()=>window.fixtureStorage.getWorkspaceOwner()==='00000000-0000-4000-8000-000000000001');assert.equal(await toggle.inputValue(),'learning');
           }

@@ -27,11 +27,11 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   assert.equal(await page.getByRole('complementary',{name:'匯入待審核',exact:true}).count(),0);assert.equal(await page.getByRole('tablist').count(),0);
   await settle();assert.ok(await page.evaluate(()=>window.fixture.reviews.length)<=1);assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.entry.status),'published');
   const senseRow=page.locator('[data-word-sense-row]').first(),senseId=await senseRow.getAttribute('data-word-sense-row');
-  assert.equal(await page.locator('[data-editor-section="基本資訊"]').getByLabel('詞性',{exact:true}).count(),0);
+  assert.equal(await page.locator('[data-editor-section="基本資料"]').getByLabel('詞性',{exact:true}).count(),0);
   const pos=await senseRow.getByLabel('詞性',{exact:true}).boundingBox(),gloss=await senseRow.getByLabel('中文意思',{exact:true}).boundingBox();
   if(viewport.width>=640)assert.ok(Math.abs(pos.y-gloss.y)<2,'Word POS and meaning share a row');else assert.ok(gloss.y>pos.y,'mobile keeps fields in one Sense');
   await senseRow.getByLabel('詞性',{exact:true}).fill('noun');await senseRow.getByLabel('中文意思',{exact:true}).fill('詞性與意思一起編輯');
-  const senseSection=page.locator('[data-editor-section="義項"]');await senseSection.locator('summary').first().click();await senseSection.locator('summary').first().click();
+  const senseSection=page.locator('[data-editor-section="義項"]');assert.equal(await senseSection.locator('summary').count(),0,'senses stay expanded');
   assert.equal(await senseRow.getAttribute('data-word-sense-row'),senseId);assert.equal(await senseRow.getByLabel('中文意思',{exact:true}).inputValue(),'詞性與意思一起編輯');
   await senseRow.getByLabel('詞性',{exact:true}).fill('verb');await senseRow.getByLabel('中文意思',{exact:true}).fill('go');
   await page.getByRole('button',{name:'＋新增義項',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'確認',exact:true}).click();assert.equal(await page.locator('[data-word-sense-row]').count(),2);
@@ -100,13 +100,13 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   await chooser.selectOption('00000000-0000-4000-8000-000000000101');await choice.getByRole('dialog',{name:'離開編輯',exact:true}).getByRole('button',{name:'放棄變更',exact:true}).click();assert.equal(await choice.getByLabel('英文字形 1',{exact:true}).inputValue(),'go review two');assert.equal(await choice.evaluate(()=>window.fixture.writes),1);assert.equal(await choice.evaluate(()=>window.fixture.snapshot.detail.entry.headword),'go');assert.equal(await choice.evaluate(()=>window.fixture.reviews.length),2);for(const name of ['捨棄草稿','重新載入版本與草稿','下載目前編輯內容'])assert.equal(await choice.getByRole('button',{name,exact:true}).count(),0);assert.equal(await choice.getByText('已儲存的內容差異',{exact:true}).count(),0);assert.equal(await choice.evaluate(()=>window.fixture.reviews.filter(r=>r.state==='active').length),2);await choiceContext.close();
   for(const kind of ['root','prefix']){
    const compactContext=await browser.newContext({viewport}),compact=await compactContext.newPage();compact.on('pageerror',e=>errors.push(e.message));await compact.goto(base+'/?kind='+kind);
-   const basic=compact.locator('[data-editor-section="基本資訊"]'),meaning=compact.locator('[data-sense-row]').first();
+   const basic=compact.locator('[data-editor-section="基本資料"]'),meaning=compact.locator('[data-sense-row]').first();
    assert.equal(await compact.getByLabel('詞性',{exact:true}).count(),0);assert.equal(await meaning.getByRole('heading').count(),0);
    if(kind==='root'&&viewport.width>viewport.height){const a=await basic.getByLabel('字根',{exact:true}).boundingBox(),b=await basic.getByLabel('主要分類',{exact:true}).boundingBox();assert.ok(Math.abs(a.y-b.y)<2);}
    await basic.getByRole('button',{name:'新增同字變體',exact:true}).click();await compact.getByLabel('變體 1',{exact:true}).fill('variant');await compact.getByLabel('出現條件 1',{exact:true}).fill('condition');
    await basic.getByRole('button',{name:'新增同字變體',exact:true}).click();await compact.getByLabel('變體 2',{exact:true}).fill('second');await compact.getByRole('button',{name:'刪除變體 2',exact:true}).click();
    await compact.getByRole('button',{name:'新增概念',exact:true}).click();await compact.getByLabel('概念',{exact:true}).fill('保存概念');
-   const supplemental=compact.locator('[data-editor-section="概念"]');await supplemental.locator('summary').first().click();await supplemental.locator('summary').first().click();assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');
+   const supplemental=compact.locator('[data-editor-section="概念"]');assert.equal(await supplemental.locator('summary').count(),0,'concept stays expanded');assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');
    assert.equal(await compact.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await compact.getByRole('button',{name:'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});await compact.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();await compact.getByRole('tab',{name:'草稿',exact:true}).waitFor();await compact.reload();assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');assert.equal(await compact.getByLabel('變體 1',{exact:true}).inputValue(),'variant');await compactContext.close();
   }
 

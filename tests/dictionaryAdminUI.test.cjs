@@ -45,7 +45,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資訊','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
+  for(const label of ['基本資料','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
@@ -229,7 +229,7 @@ test('empty classification uses unset placeholder and empty composition hides se
 test('Word Sense rows keep stable identities and blank legacy values; basic info has no Sense fields',()=>{
  const senses=[detail.senses[0],{...detail.senses[0],id:'blank-sense',part_of_speech:null,gloss_zh_tw:''}];
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,senses},entries:[],senses:[],onSaved:async()=>{}}));
- const basic=html.slice(html.indexOf('data-editor-section="基本資訊"'),html.indexOf('data-editor-section="義項"'));
+ const basic=html.slice(html.indexOf('data-editor-section="基本資料"'),html.indexOf('data-editor-section="義項"'));
  assert.ok(!basic.includes('詞性'));assert.ok(!html.includes('分類 · 義項'));
  assert.equal((html.match(/data-word-sense-row=/g)||[]).length,2);
  assert.ok(html.includes('data-word-sense-row="blank-sense"'));assert.equal((html.match(/>詞性<\/span>/g)||[]).length,2);
@@ -259,7 +259,7 @@ test('dictionary review queue remains reachable without a modal and reports unav
 
 test('IPA editor is in basic information, orientation responsive and metadata-free',()=>{
  const editor=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
- const basic=editor.indexOf('<EditorSection title={tr("基本資訊")}>');
+ const basic=editor.indexOf('<EditorSection title={tr("基本資料")}');
  const inflections=editor.indexOf('<EditorSection title={tr("義項")}');
  const ipa=editor.indexOf('data-pronunciation-row');
  assert.ok(basic>=0&&ipa>basic&&ipa<inflections);

@@ -143,3 +143,38 @@ jobs:
           name: world-map-workspace-evidence
           path: test-results/world-map-ui/**/*.png
           if-no-files-found: ignore
+
+  interface-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: Study settings and safe published reader
+        run: |
+          node tests/unifiedStudy.browser.test.cjs
+          node tests/studyDictionaryPanel.browser.test.cjs
+          node tests/studyDictionaryEditor.browser.test.cjs
+          node tests/dictionaryEditor.browser.test.cjs
+          NEXUS_STAGE_A=1 node tests/unifiedWorkspace.browser.test.cjs
+      - name: WebKit reader and assistant scope
+        run: |
+          STUDY_BROWSER=webkit node tests/studyDictionaryPanel.browser.test.cjs
+          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 node tests/unifiedWorkspace.browser.test.cjs
+      - name: Interface visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-a-evidence
+          path: test-results/interface-a/**/*.png
+          if-no-files-found: ignore
