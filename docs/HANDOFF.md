@@ -1,3 +1,16 @@
+# Nexus — 階段 B：學習 Session 與私人字卡隱藏
+
+本輪追蹤 #167；分支 `feat/study-session-hidden-cards`，基於 main `350882c`。A 階段另見 Draft PR #168；本分支不重做 A。維持 Draft，不合併、不部署、不操作正式 DB、不修改 HISTORY。C 的三項根因須先報告再修正；D 尚未轉換任何正式資料。
+
+- 已實作：首頁啟動來源返回；右上離開確認與 durable Session 結束；保留忘記卡已作答、額度及 outbox，未作答不標完成，下次以最新設定新建 Session。
+- 搶卡根因已有失敗重現：到期 refreshScheduled 把短間隔卡排到 queue[0]，正式評分前再次 reconcile 亦可能拒絕正在顯示題目的 CAS。現在保留實際呈現身份，計時器只處理等待；背景資料真正改變時保留畫面並要求重新載入，不跳過正式事件驗證。
+- 私人隱藏：總覽左側眼睛與灰列、背面確認；依 owner／deck／card 隔離，排除新卡／到期／忘記／無盡及後續 queue，保留 due、歷史、字典連結及卡片識別。沿用原 payload、outbox、feed，缺省／舊偏好不能覆蓋新設定；官方更新與舊備份不撤銷隱藏。
+- Migration：`20261111143124_study_card_visibility.sql`，只有 JSON 偏好合併與既有 RPC／官方 guard 修改。正式尚未套用；必須獨立人工授權後 DB 先、前端後，不可 db push 全部 pending。
+- 隔離 PGlite 與真正 PostgreSQL 17（無網路暫用容器）通過原 RPC、RLS、官方更新、舊裝置、獨立時間合併、feed、錯誤回滾與權限測試。Chromium／WebKit 實際 IDB 操作及舊備份合併已通過；最後離線／備份 Chromium、WebKit 通過；10 組學習／同步／清除回歸通過。兩個瀏覽器皆通過 20／6,300 張新建、恢復、離線、重連、待傳、遠端、無盡、官方及偏好案例，完整讀卡／狀態仍各一次，不增加全組掃描。Production Turbopack Build、TypeScript、ESLint（0 errors／23既有 warnings）通過；本機 Production PWA 冷離線安裝／重開及正式作答／返回首頁／帳號隔離／衝突測試通過。最終 HEAD 遠端 CI／Vercel 待核對。
+- 未完成驗收：Android／iPad 實機、真實跨裝置時鐘差與舊程式離線行為。舊離線程式不能知道尚未同步的隱藏設定，保留其合法作答；新程式仍先完成既有權威清除／同步核對再正式出題。未宣稱實機或正式資料通過。
+
+以下為 main 原交接背景，最新進度以上述階段記錄及 PR checks 為準。
+
 # Nexus — 當前狀態與下一步
 
 本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。Draft PR [#166](https://github.com/changmonica02/Nexus/pull/166)，首筆程式提交 `25d185d`；最終 head／checks 見 PR；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。

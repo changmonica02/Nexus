@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   note:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: '1'
@@ -104,7 +104,7 @@ jobs:
 
 
   world-map:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -143,3 +143,31 @@ jobs:
           name: world-map-workspace-evidence
           path: test-results/world-map-ui/**/*.png
           if-no-files-found: ignore
+
+  study-b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Session and visibility regression
+        run: node --test tests/studySessionStability.test.cjs tests/studySessionExit.test.cjs tests/studyCardVisibility.test.cjs tests/studyCardVisibilityDatabase.test.cjs
+      - name: Native isolated PostgreSQL visibility transaction
+        run: |
+          docker run -d --name nexus46-visibility-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f nexus46-visibility-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec nexus46-visibility-ci pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-visibility-ci node tests/studyCardVisibilityDatabase.test.cjs
+      - name: Chromium and WebKit offline visibility and backup
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/studyVisibility.browser.test.cjs
+          STUDY_BROWSER=webkit node tests/studyVisibility.browser.test.cjs

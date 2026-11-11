@@ -127,6 +127,9 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   assert.equal(await page.evaluate(()=>navigator.onLine),false); await page.getByRole('button', { name: /Flip card to answer|翻至答案/i, exact: true }).click();
   // The actual Next/PWA history implementation must close the bottom sheet
   // without navigating away or changing the already presented formal question.
+  await page.getByRole('button',{name:'Back to home',exact:true}).click();await page.getByRole('heading',{name:'Learning home',exact:true}).waitFor();
+  const exited=await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck});assert.ok(exited.sessions.some(s=>s.ended_at));assert.equal(exited.events.filter(e=>e.kind==='review').length,0);
+  await page.getByRole('button',{name:'Start learning',exact:true}).click();await page.getByRole('button',{name:/Flip card to answer|翻至答案/i,exact:true}).click();
   const dictionaryBefore=await page.evaluate(({A,id})=>window.pwaData.study(A,id),{A,id:ids.deck}),studyURL=page.url();
   await page.getByRole('button',{name:'View dictionary',exact:true}).click();const dictionary=page.getByRole('dialog');
   await dictionary.getByRole('heading',{name:'Search dictionary',exact:true}).waitFor();await dictionary.getByRole('alert').waitFor();
