@@ -10,7 +10,9 @@
 - C `cca0555` 修正實際 CI bulk 測試仍期待原始 SQL 錯誤；保留草稿、失敗重試檢查，不略過測試。a 仍因 gsat-1-2／gsat-all 正式引用被正確阻擋，不能解除保護。A 90f467b、B 7f4141f、D舊c53193b的 Actions／Vercel已核對成功，新D提交仍須重驗。
 - 整合 Draft #172 已建立；A／B／C／D 共用元件與六個CI工作已合併，整合 TypeScript、Production Build、ESLint（0 errors／25 warnings）、19項editor UI、7項reader/admin、3項身分、六組學習Session／隱藏／清除／同步回歸與真實SQL刪除（含suffix）通過。B→C→D依序在完整資料副本驗證通過，原72,281列逐主鍵雜湊保持一致。
 - CI新失敗已定位：D原生PG readiness讀到初始化暫存Unix服務，改驗最終127.0.0.1 TCP服務；舊editor瀏覽器測試仍尋找entry層級變體，改測義項內新增／刪除／重開保存，保留原本髒資料與發布保護。未提高逾時或略過測試。
-- 未完成：整合後離線 PWA／完整 Chromium／WebKit及最新遠端 CI；Android／iPad實機。原地圖曾出現一次 reorder 保存競態，後續 HEAD 通過不等於根因已修復，若重現必須依日誌排查，不提高逾時掩蓋。
+- 整合 Chromium／WebKit四組瀏覽器回歸通過：真實SQL刪除（含suffix）、完整構詞編輯、2B學習內字典、IndexedDB隱藏／恢復／Session離開。production PWA兩組通過，包含冷離線重開、離線作答／編輯、重連衝突與帳號隔離。6,300卡本機基準新Session204.58ms／恢復138.91ms，各一次cards/states完整讀取（共12,600列），ID／額度／事件不變；這是合成環境，非實機耗時。
+- 完整JSON交換3項與常駐匯入12項回歸通過；新HEAD TypeScript與Build通過，ESLint 0 errors／25 warnings。
+- 未完成：最新遠端 CI／Vercel核對及Android／iPad實機；Android／iPad實機。原地圖曾出現一次 reorder 保存競態，後續 HEAD 通過不等於根因已修復，若重現必須依日誌排查，不提高逾時掩蓋。
 - 正式 ledger 最後為 `20261107005039`（safe replacement），版本與 Git 檔名不同。B／C／D 皆未正式套用。C相容前端先行，B守衛及D契約先於各自依賴前端；逐項授權並依 B→C→D 隔離驗證結果執行，不能一次 db push。草稿轉換另需正式資料操作授權及人工發布；新資料寫入後不可盲目反向刪欄／恢復唯一索引。
 
 目前維持 Draft，尚不建議合併。
