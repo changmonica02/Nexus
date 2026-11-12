@@ -21,7 +21,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
   assert.ok(admin.includes('h-full min-w-0 flex-1 overflow-y-auto'));
   assert.ok(fs.readFileSync('src/components/NexusApp.tsx','utf8').includes('h-[calc(100dvh-3.5rem)]'));
   assert.ok(admin.includes('adminListHref(adminContext'));
-  assert.ok(admin.includes('useUnsavedDraft(dirty,busy||saving||publicationBusy,()=>save())'));
+  assert.ok(admin.includes('useUnsavedDraft(dirty,busy||saving||publicationBusy||linkBusy,()=>save())'));
   assert.ok(admin.includes('confirmDialog('));
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
   assert.match(fs.readFileSync('src/components/WorkspaceRoot.tsx','utf8'), /initialFeature=\{pathname\s*===\s*["']\/study["']\s*\?\s*["']study["']\s*:\s*["']home["']\}/);
@@ -45,19 +45,19 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資訊','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
+  for(const label of ['基本資料','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
   assert.equal((html.match(/←/g)||[]).length,0);
-  const rootHtml=render(root);for(const label of ['主要分類','同字變體','空間、位置與環境','時間、狀態、數量與邏輯'])assert.ok(rootHtml.includes(label));
+  const rootHtml=render(root);for(const label of ['構詞名稱','構詞分類','大分類','小分類','新增變體','概述','歷史詞源','連結單字'])assert.ok(rootHtml.includes(label),label);
   assert.ok(rootHtml.includes('var(--color-editor-bg)'));
   assert.ok(!rootHtml.includes('標籤'));assert.ok(!rootHtml.includes('構詞關聯'));
   const header=html.match(/<header[\s\S]*?<\/header>/)[0];
   assert.ok(header.includes('sticky top-0'));assert.ok(!header.includes('返回'));assert.ok(header.includes('儲存'));
   assert.ok(!html.includes('儲存整份草稿'));
-  assert.ok(rootHtml.indexOf('主要分類')<rootHtml.indexOf('同字變體'));
-  assert.ok(rootHtml.indexOf('同字變體')<rootHtml.indexOf('>義項</h3>'));
+  assert.ok(rootHtml.indexOf('構詞分類')<rootHtml.indexOf('>義項</h3>'));
+  assert.ok(!rootHtml.includes('同字變體'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
   assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
@@ -103,56 +103,17 @@ function nodes(root){
 function pick(root,predicate){const result=nodes(root).find(predicate);assert.ok(result,'expected editor control');return result;}
 const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&(node.props.children===text||node.props['aria-label']===text));
 
-test('Prefix selection snapshots DOM value, saves current sense_groups, preserves hidden tags, and reloads',async()=>{
-  const {prefixCategories,readSenseGroups}=require('../src/features/dictionary/grouping.ts');
-  const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
-  const prefix={...detail,entry:{...detail.entry,kind:'prefix'},senses:[{...detail.senses[0],part_of_speech:null},{...detail.senses[0],part_of_speech:null,id:'00000000-0000-4000-8000-000000000003',gloss_zh_tw:'第二義'}]};
-  const grouping={primary_category:'historical category',tags:[' unchanged ','unchanged','unchanged'],variant_group:'variants'};
-  const calls=[];let saved=false;
-  supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});if(name==='get_dictionary_ai_snapshot'){const c=calls.findLast(c=>c.name==='apply_dictionary_drafts').args.drafts[0];const b=c.bundle;return {data:{detail:{entry:{...b.dictionary_entries[0],status:'draft',revision:2},senses:b.dictionary_senses,relations:b.dictionary_relations,etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections,pronunciations:c.pronunciations,examples:c.examples,lexical_annotations:c.annotations},grouping:c.group_data,sense_groups:Object.fromEntries((c.sense_groups??[]).map(s=>[s.sense_id,s.primary_category])),metadata:{component_order:c.component_order??[]}}};}return {error:null};}});
-  try{
-    await withEditorState({detail:prefix,entries:[],senses:[],initialGrouping:grouping,initialSenseGroups:{[detail.senses[0].id]:prefixCategories[0],['00000000-0000-4000-8000-000000000003']:prefixCategories[2]},onSaved:async id=>{assert.equal(id,'00000000-0000-4000-8000-000000000001');saved=true;}},async render=>{
-      let tree=render();
-      const select=pick(tree,node=>node.props['aria-label']==='義項 1 的分類');
-      const target={value:prefixCategories[1]};select.props.onChange({currentTarget:target,target});
-      target.value=prefixCategories[0]; // controlled DOM restored before queued state runs
-      tree=render();assert.equal(pick(tree,n=>n.props['aria-label']==='義項 1 的分類').props.value,prefixCategories[1]);
-      assert.equal(pick(tree,n=>n.props['aria-label']==='義項 2 的分類').props.value,prefixCategories[2]);
-      buttonNamed(tree,'＋新增中文義項').props.onClick();tree=render();
-      const newTarget={value:prefixCategories[3]};
-      pick(tree,n=>n.props['aria-label']==='義項 3 的分類').props.onChange({currentTarget:newTarget,target:newTarget});
-      newTarget.value='';tree=render();nodes(tree).filter(n=>n.props.label==='中文意思')[2].props.onChange('新義項');tree=render();
-      tree=render();buttonNamed(tree,'儲存／重試').props.onClick();
-      await new Promise(resolve=>setImmediate(resolve));render();
-    });
-    assert.equal(saved,true);assert.equal(calls.length,2);
-    assert.equal(calls[0].name,'apply_dictionary_drafts');
-    const args=calls[0].args.drafts[0];
-    assert.deepEqual(args.group_data,{primary_category:'historical category',tags:grouping.tags,variant_group:'variants'});
-    assert.deepEqual(args.sense_groups.map(row=>row.primary_category),[prefixCategories[1],prefixCategories[2],prefixCategories[3]]);
-    assert.deepEqual(args.sense_groups.map(row=>row.sense_id),args.bundle.dictionary_senses.map(row=>row.id));
-    const reloaded=await readSenseGroups({from:()=>({select:()=>({in:async()=>({data:args.sense_groups,error:null})})})},args.sense_groups.map(row=>row.sense_id));
-    const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:prefix,entries:[],senses:[],initialGrouping:grouping,initialSenseGroups:reloaded,onSaved:async()=>{}}));
-    assert.ok(html.includes(`value="${prefixCategories[1]}" selected=""`));
-    assert.ok(!html.includes('標籤'));
-  }finally{supabase.getSupabase=original;}
-});
-
-test('Root category snapshots selection and saves unchanged tags via existing grouped RPC',async()=>{
-  const {primaryCategories}=require('../src/features/dictionary/grouping.ts');
-  const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase,calls=[];
-  supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});if(name==='get_dictionary_ai_snapshot'){const c=calls.findLast(c=>c.name==='apply_dictionary_drafts').args.drafts[0];const b=c.bundle;return {data:{detail:{entry:{...b.dictionary_entries[0],status:'draft',revision:2},senses:b.dictionary_senses,relations:b.dictionary_relations,etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections,pronunciations:c.pronunciations,examples:c.examples,lexical_annotations:c.annotations},grouping:c.group_data,sense_groups:Object.fromEntries((c.sense_groups??[]).map(s=>[s.sense_id,s.primary_category])),metadata:{component_order:c.component_order??[]}}};}return {error:null};}});
-  try{
-    await withEditorState({detail:{...detail,senses:detail.senses.map(s=>({...s,part_of_speech:null})),entry:{...detail.entry,kind:'root'}},entries:[],senses:[],initialGrouping:{primary_category:null,tags:[' old ','old'],variant_group:null},onSaved:async()=>{}},async render=>{
-      let tree=render();const select=pick(tree,n=>n.type==='select'&&n.props['aria-label']==='主要分類');
-      const target={value:primaryCategories[2]};select.props.onChange({currentTarget:target,target});target.value='';
-      tree=render();assert.equal(pick(tree,n=>n.type==='select').props.value,primaryCategories[2]);
-      pick(tree,n=>n.type?.name==='VariantEditor').props.onChange('cap/cept/cip');
-      tree=render();buttonNamed(tree,'儲存／重試').props.onClick();await new Promise(resolve=>setImmediate(resolve));render();
-    });
-    assert.equal(calls[0].name,'apply_dictionary_drafts');
-    assert.deepEqual(calls[0].args.drafts[0].group_data,{primary_category:primaryCategories[2],tags:[' old ','old'],variant_group:'cap/cept/cip'});
-  }finally{supabase.getSupabase=original;}
+test('morpheme subtype changes retain the stable entry and legacy grouping; semantic edits are sense-scoped',async()=>{
+ const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase,calls=[];
+ supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:null,error:null};}});
+ const grouping={primary_category:'legacy',tags:[' old ','old'],variant_group:'cap/cept'};
+ try{await withEditorState({detail:{...detail,entry:{...detail.entry,kind:'root'},senses:detail.senses.map(s=>({...s,part_of_speech:null}))},entries:[],senses:[],initialGrouping:grouping,onSaved:async()=>{}},async render=>{
+  let tree=render();const select=pick(tree,n=>n.type==='select'&&n.props['aria-label']==='構詞分類');const target={value:'suffix'};select.props.onChange({currentTarget:target,target});target.value='root';tree=render();
+  assert.equal(pick(tree,n=>n.props['aria-label']==='構詞分類').props.value,'suffix');
+  const sense=pick(tree,n=>n.type?.name==='MorphemeSenseEditor');sense.props.onChange({semantic_domain:'action',semantic_subdomain:'movement',gloss_zh_tw:'新概述'});tree=render();
+  buttonNamed(tree,'儲存／重試').props.onClick();await new Promise(r=>setImmediate(r));
+ });const value=calls.find(c=>c.name==='apply_dictionary_drafts').args.drafts[0];assert.equal(value.bundle.dictionary_entries[0].id,detail.entry.id);assert.equal(value.bundle.dictionary_entries[0].kind,'suffix');assert.deepEqual(value.group_data,grouping);assert.equal(value.bundle.dictionary_senses[0].id,detail.senses[0].id);assert.equal(value.bundle.dictionary_senses[0].gloss_zh_tw,'新概述');assert.equal(value.bundle.dictionary_senses[0].semantic_domain,'action');
+ }finally{supabase.getSupabase=original;}
 });
 
 const {visibleAdminEntries,DictionaryListActions}=require('../src/features/dictionary/DictionaryAdmin.tsx');
@@ -180,7 +141,7 @@ test('multi-select types and statuses intersect with search; empty groups impose
  assert.deepEqual(visibleAdminEntries(rows,['prefix'],'',['draft']),[]);
  const {DictionaryListFilters}=require('../src/features/dictionary/DictionaryAdmin.tsx');
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
- assert.equal((html.match(/type="checkbox"/g)||[]).length,5);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
+ assert.equal((html.match(/type="checkbox"/g)||[]).length,6);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
 });
 test('history source is optional; edits retain source content without recreating review-state metadata',async()=>{
  const d={...detail,etymologies:[{id:'00000000-0000-4000-8000-000000000004',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',sense_id:null,body:'old',data_source:'old source',revision:1}]};
@@ -229,7 +190,7 @@ test('empty classification uses unset placeholder and empty composition hides se
 test('Word Sense rows keep stable identities and blank legacy values; basic info has no Sense fields',()=>{
  const senses=[detail.senses[0],{...detail.senses[0],id:'blank-sense',part_of_speech:null,gloss_zh_tw:''}];
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,senses},entries:[],senses:[],onSaved:async()=>{}}));
- const basic=html.slice(html.indexOf('data-editor-section="基本資訊"'),html.indexOf('data-editor-section="義項"'));
+ const basic=html.slice(html.indexOf('data-editor-section="基本資料"'),html.indexOf('data-editor-section="義項"'));
  assert.ok(!basic.includes('詞性'));assert.ok(!html.includes('分類 · 義項'));
  assert.equal((html.match(/data-word-sense-row=/g)||[]).length,2);
  assert.ok(html.includes('data-word-sense-row="blank-sense"'));assert.equal((html.match(/>詞性<\/span>/g)||[]).length,2);
@@ -249,7 +210,7 @@ test('dictionary review queue remains reachable without a modal and reports unav
  const route=fs.readFileSync('src/app/dictionary/admin/reviews/page.tsx','utf8');
  const page=fs.readFileSync('src/features/dictionary/DictionaryReviewPage.tsx','utf8');
  assert.ok(admin.includes('href="/dictionary/admin/reviews"'));
- assert.ok(admin.includes('/dictionary/admin/reviews?entry='));
+ assert.ok(admin.includes('adminWorkHref('));const routing=require('../src/features/dictionary/adminNavigation.ts'),filter={kinds:[],statuses:[],query:'',page:0};assert.match(routing.adminWorkHref({id:'entry',work_status:'red',import_pending_count:1,editor_pending_count:0},filter),/\/dictionary\/admin\/reviews\?entry=entry/);assert.match(routing.adminWorkHref({id:'entry',work_status:'red',import_pending_count:0,editor_pending_count:1},filter),/\/dictionary\/admin\?entry=entry/);
  assert.ok(queue.includes('此環境尚未提供字典審核功能'));
  assert.ok(queue.includes('role="status"'));
  assert.ok(route.includes('DictionaryReviewPage'));
@@ -259,7 +220,7 @@ test('dictionary review queue remains reachable without a modal and reports unav
 
 test('IPA editor is in basic information, orientation responsive and metadata-free',()=>{
  const editor=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
- const basic=editor.indexOf('<EditorSection title={tr("基本資訊")}>');
+ const basic=editor.indexOf('<EditorSection title={tr("基本資料")}');
  const inflections=editor.indexOf('<EditorSection title={tr("義項")}');
  const ipa=editor.indexOf('data-pronunciation-row');
  assert.ok(basic>=0&&ipa>basic&&ipa<inflections);

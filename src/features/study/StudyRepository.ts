@@ -1,4 +1,5 @@
 import {defaultStudyStyle,defaultStyleId,validateStudyStyle, unifiedStudyStyle,styleFromLegacy,hasLegacyOverrides,applyStyle,type StudyStyle} from './studyStyles';
+import { mergeCardVisibility, validateCardVisibility } from './cardVisibility';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent, type ScheduleCandidate} from "./studyReliability";
@@ -239,6 +240,21 @@ export class StudyRepository {
       throw error;
     }
   }
+  async setCardHidden(deckId:string,id:string,hidden:boolean):Promise<StudyCard> {
+    if(typeof hidden!=='boolean')throw Error('study.invalidVisibility');
+    return this.sessionWrite(async tx=>{
+      this.owned(await tx.objectStore('study_settings').get(deckId));
+      const card:StudyCard=await tx.objectStore('study_cards').get(id);this.owned(card);
+      if(card.deck_id!==deckId||card.deleted_at!=null)throw Error('study.cardUnavailable');
+      validateCardVisibility(card);
+      if((card.hidden??false)===hidden)return card;
+      const changed=Math.max(Date.now(),(card.hidden_changed_at??0)+1);
+      const next={...card,hidden,hidden_changed_at:changed,updated_at:Math.max(changed,card.updated_at+1),migration_only:false};
+      await tx.objectStore('study_cards').put(next);
+      await this.enqueue(tx,{owner_id:this.owner(),kind:'card',value:next});
+      return next;
+    });
+  }
   async reorder(deckId: string, ids: string[]) {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
     try {
@@ -385,7 +401,7 @@ export class StudyRepository {
     }
     const card:StudyCard=await tx.objectStore("study_cards").get(id);this.owned(card);
     const state:StudyState=await tx.objectStore("study_states").get(id);
-    if(card.deleted_at || card.content_revision!==contentRevision || state.head!==expectedHead) throw new Error("這張卡已在其他視窗變更；此作答尚未提交，請重新載入題目。");
+    if(card.deleted_at || card.hidden || card.content_revision!==contentRevision || state.head!==expectedHead) throw new Error("這張卡已在其他視窗變更；此作答尚未提交，請重新載入題目。");
     const event=createStudyEvent(card,state,"review",now,this.device,eventId,rating);
     await this.persistEvent(tx,event);
     await tx.done;this.changed();return event;
@@ -413,6 +429,7 @@ export class StudyRepository {
   private async reconciled(tx: Write, session: StudySession, snapshot: StudySnapshot, now: number) {
     this.owned(session);
     if(session.conflict) throw new Error("此練習有跨裝置進度衝突，已保留本機進度，請先同步處理。");
+    if(session.ended_at!=null)return {...session,queue:[],presented_card_id:null};
     for(const target of session.targets) {
       if(target.official_rating===undefined && target.official_event_id) {
         const event=await tx.objectStore("study_events").get(target.official_event_id);
@@ -436,7 +453,7 @@ export class StudyRepository {
   private async startSessionIn(tx:Write,deckId:string,mode:SessionMode,now:number,snapshot:StudySnapshot):Promise<StudySession> {
       if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
       const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
-      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]??(mode==='scheduled'?sessions.filter(s=>(s.mode==='daily'||s.mode==='free')&&s.completed_at==null).sort((a,b)=>a.started_at-b.started_at)[0]:undefined);
+      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null&&s.ended_at==null).sort((a,b)=>a.started_at-b.started_at)[0]??(mode==='scheduled'?sessions.filter(s=>(s.mode==='daily'||s.mode==='free')&&s.completed_at==null&&s.ended_at==null).sort((a,b)=>a.started_at-b.started_at)[0]:undefined);
       if(unfinished&&mode==='scheduled'&&unfinished.mode!=='scheduled'){unfinished.legacy_mode=unfinished.mode as 'daily'|'free';unfinished.mode='scheduled';unfinished.settings_snapshot=unfinished.settings_snapshot?{...unfinished.settings_snapshot,interval_version:undefined}:{...styleFromLegacy(snapshot.settings),scheduling_method:'fsrs',interval_version:undefined};unfinished.quota_limit??=Math.max(unfinished.targets.length,snapshot.settings.review_limit??100);}
       if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
       if(mode==="scheduled") {
@@ -455,7 +472,7 @@ export class StudyRepository {
           await this.saveSession(tx,batch);
         }
         // The batch IDs are fixed. A new session binds to the current generation after a reset.
-        cards=batch.targets.flatMap(t=>snapshot.cards.filter(c=>c.id===t.card_id && !c.deleted_at));
+        cards=batch.targets.flatMap(t=>snapshot.cards.filter(c=>c.id===t.card_id && !c.deleted_at && !c.hidden));
       } else cards=selectSessionCards(snapshot,"free",now);
       const session=makeSession(snapshot,mode,cards,now,newId(),batch?.id);
       await this.saveSession(tx,session);
@@ -473,6 +490,15 @@ export class StudyRepository {
       return {session,snapshot};
     });
   }
+  async endSession(id:string,now=Date.now()):Promise<void>{
+    await this.sessionWrite(async tx=>{
+      const session:StudySession=await tx.objectStore('study_sessions').get(id);this.owned(session);
+      if(session.ended_at!=null)return;
+      session.ended_at=now;session.queue=[];session.presented_card_id=null;
+      session.revision++;session.updated_at=Math.max(now,session.updated_at+1);
+      await this.saveSession(tx,session);
+    });
+  }
   async readSession(id:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
     return this.sessionWrite(async tx=>{
       const value:StudySession=await tx.objectStore("study_sessions").get(id);if(!value)throw Error('study.sessionCleared');this.owned(value);
@@ -484,8 +510,13 @@ export class StudyRepository {
   private async presentIn(tx:Write,session:StudySession,snapshot:StudySnapshot,now:number):Promise<boolean> {
     let introduced=false;
       const id=session.queue[0];
+      if(session.presented_card_id!==(id??null)){
+        // Presentation identity is not an answer, a quota use or a completed target.
+        session.presented_card_id=id??null;
+        await this.saveSession(tx,session);
+      }
       const card=snapshot.cards.find(c=>c.id===id), state=snapshot.states.find(s=>s.id===id);
-      if(card && state && isUnintroduced(state)) {
+      if(card && !card.hidden && state && isUnintroduced(state)) {
         if(dailyNewUsed(snapshot,now)>=snapshot.settings.new_limit)throw new Error("今日新卡額度已用完。");
         const event=createStudyEvent(card,state,"introduce",now,this.device,newId(),null,"scheduled");
         event.session_id=session.id;
@@ -520,13 +551,14 @@ export class StudyRepository {
       if(saved.last_action_id===actionId) return saved;
       const snapshot=await this.snapshotIn(tx,saved.deck_id);
       const session=await this.reconciled(tx,saved,snapshot,now);
-      if((session.mode==="batch" || session.mode==="practice") || session.completed_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
+      if((session.mode==="batch" || session.mode==="practice") || session.completed_at!=null || session.ended_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
       const storedCard=snapshot.cards.find(c=>c.id===cardId)!;
       const display=input.displayContent;
       const card=storedCard.official_custom===false&&storedCard.official_pack_id&&storedCard.dictionary_entry_id&&display?.front.trim()&&display.back.trim()?{...storedCard,front:display.front,back:display.back}:storedCard;
       const state=snapshot.states.find(s=>s.id===cardId)!;
-      if(state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
+      if(card.hidden || state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
       if(session.mode==='scheduled'&&session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
+      session.presented_card_id=null;
       const target=session.targets.find(t=>t.card_id===cardId)!;
       target.attempts=(target.attempts??0)+1;
       let event:StudyEvent|undefined;
@@ -575,7 +607,7 @@ export class StudyRepository {
       const formal:StudySession=await tx.objectStore("study_sessions").get(formalSessionId);this.owned(formal);
       if(formal.mode!=="scheduled" || formal.completed_at==null || formal.study_mode!=="endless")throw new Error("請先完成無盡模式的正式學習批次。");
       const snapshot=await this.snapshotIn(tx,formal.deck_id);
-      const existing:StudySession|undefined=(await tx.objectStore("study_sessions").getAll()).find(s=>s.owner_id===this.owner()&&s.deck_id===formal.deck_id&&s.mode==="practice"&&s.completed_at==null);
+      const existing:StudySession|undefined=(await tx.objectStore("study_sessions").getAll()).find(s=>s.owner_id===this.owner()&&s.deck_id===formal.deck_id&&s.mode==="practice"&&s.completed_at==null&&s.ended_at==null);
       if(existing)return this.reconciled(tx,existing,snapshot,now);
       const session=makeSession(snapshot,"practice",practiceCards(snapshot),now,newId());
       await this.saveSession(tx,session);return session;
@@ -586,9 +618,9 @@ export class StudyRepository {
     return this.sessionWrite(async tx=>{
       const session:StudySession=await tx.objectStore("study_sessions").get(input.sessionId);this.owned(session);
       if(session.last_action_id===input.actionId)return session;
-      if(session.mode!=="practice" || session.revision!==input.revision || session.queue[0]!==input.cardId || ![1,2,3,4].includes(input.rating))throw new Error("額外練習已變更，請重新載入。");
+      if(session.mode!=="practice" || session.ended_at!=null || session.revision!==input.revision || session.queue[0]!==input.cardId || ![1,2,3,4].includes(input.rating))throw new Error("額外練習已變更，請重新載入。");
       const card:StudyCard=await tx.objectStore("study_cards").get(input.cardId);this.owned(card);
-      if(card.deleted_at || card.content_revision!==input.contentRevision)throw new Error("字卡內容已變更，請重新載入。");
+      if(card.deleted_at || card.hidden || card.content_revision!==input.contentRevision)throw new Error("字卡內容已變更，請重新載入。");
       session.targets.find(t=>t.card_id===input.cardId)!.attempts++;
       session.queue=[...session.queue.slice(1),input.cardId];session.answers++;session.revision++;
       session.last_action_id=input.actionId;session.updated_at=Math.max(input.now,session.updated_at+1);
@@ -668,10 +700,11 @@ export class StudyRepository {
       if(!existing||!sameStudyRecord(existing,event)){await tx.objectStore("study_events").put(event);affected.add(event.card_id);}
     }
     for(const [store,values] of [["study_cards",data.cards],["study_settings",data.settings]] as const) {
-      for(const value of values) {
+      for(let value of values) {
         this.owned(value);
         if(store==='study_settings'&&(value as StudySettings).record_type==='style'){const record=value as StudySettings;validateStudyStyle(record.style!);if(record.style!.id!==record.id)throw Error('Style identity mismatch');}
-        const local=await tx.objectStore(store).get(value.id);
+        let local=await tx.objectStore(store).get(value.id);
+        if(store==='study_cards'){const incoming=value as StudyCard;value=mergeCardVisibility(local,incoming);if(local){const retained=mergeCardVisibility(incoming,local);if(!sameStudyRecord(retained,local)){await tx.objectStore(store).put(retained);local=retained;}}}
         if(store==='study_cards'&&local&&!local.official_source_entry_id&&(value as StudyCard).official_source_entry_id&&local.official_pack_id===(value as StudyCard).official_pack_id&&local.deck_id===(value as StudyCard).deck_id&&local.updated_at>=value.updated_at)await tx.objectStore(store).put({...local,official_source_entry_id:(value as StudyCard).official_source_entry_id});
         // Server-only preference backfills preserve LWW timestamps. Adopt only an
         // otherwise identical record, never a competing offline content edit.

@@ -26,7 +26,7 @@ export function DictionaryConnections({data,from}:{data:PublishedDetail;from:str
     {current&&<>
       {data.entry.kind==='root'&&current.entry.primary_category&&<Link className={chip} href={browseHref('root',{category:current.entry.primary_category},from)}>{current.entry.primary_category}</Link>}
       {data.entry.kind==='prefix'&&data.senses.map(s=><div key={s.id} className="flex flex-wrap gap-2">{current.senses[s.id]&&<Link className={chip} href={browseHref('prefix',{category:current.senses[s.id]!},from)}>{data.senses.length>1?`義項 ${data.senses.indexOf(s)+1} · `:''}{current.senses[s.id]}</Link>}{data.senses.length>1&&<Link className={chip} href={browseHref('word',{component:data.entry.id,sense:s.id},from)}>義項 {data.senses.indexOf(s)+1} 相關單字</Link>}</div>)}
-      {parseVariants(current.entry.variant_group).length>0&&<div className="space-y-2"><h2 className="font-semibold">同字變體</h2>{parseVariants(current.entry.variant_group).map((row,i)=><VariantLink key={`${data.entry.id}:${i}:${row.variant}`} row={row} data={data} from={from} open={openVariant===i} onToggle={()=>setOpenVariant(v=>v===i?null:i)}/>)}</div>}
+      {!data.senses.some(s=>Array.isArray(s.variants))&&parseVariants(current.entry.variant_group).length>0&&<div className="space-y-2"><h2 className="font-semibold">同字變體</h2>{parseVariants(current.entry.variant_group).map((row,i)=><VariantLink key={`${data.entry.id}:${i}:${row.variant}`} row={row} data={data} from={from} open={openVariant===i} onToggle={()=>setOpenVariant(v=>v===i?null:i)}/>)}</div>}
     </>}
     {error&&<p role="alert">{error}<button className="ml-2 underline" onClick={()=>setRetry(n=>n+1)}>重試</button></p>}
   </section>;

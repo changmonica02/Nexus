@@ -1,3 +1,4 @@
+import catalogFixture from './catalogFixture.cjs';
 // Isolated services and records. Actual admin components and IndexedDB job checkpoints.
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -113,6 +114,7 @@ window.dictionaryClient = {
     return q;
   },
   async rpc(name, args = {}) {
+    if(name==='search_dictionary_catalog')return catalogFixture(server.records.map(r=>({...r.snapshot.detail.entry,summary:r.snapshot.detail.senses.map(s=>s.gloss_zh_tw).join('；')})),args);
     if(["dictionary_import_review_capabilities","list_dictionary_admin_work","dictionary_admin_first_senses"].includes(name))return {error:{code:"42883",message:"function does not exist (pre-migration fixture)"}};
     window.calls.push({ name, ...structuredClone(args) });
     if (name === "get_dictionary_entry")
@@ -204,7 +206,8 @@ window.dictionaryClient = {
         error: null,
       };
     if (name === "apply_dictionary_import_batch") {
-      await new Promise((r) => setTimeout(r, 220));
+      if(window.holdImportBatch)await new Promise(resolve=>{window.finishImportBatch=()=>{window.holdImportBatch=false;resolve();};});
+      else await new Promise((r) => setTimeout(r, 220));
       const results = args.operations.map((op) => {
         if (server.receipts[op.operation_id])
           return server.receipts[op.operation_id];

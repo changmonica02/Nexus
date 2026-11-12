@@ -2,6 +2,22 @@
 
 > 更新：2026-10-30；程式核對基準 main `27aa143`。本文只描述目前架構、有效資料契約、限制與建議。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
+## 階段 D：構詞編輯、搜尋與無損草稿契約（Draft #171，正式未套用）
+
+沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。九大類／42小類代碼由 `semanticDomains.ts` 與 SQL 驗證，分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
+
+`MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。原有 entry grouping、舊分類、來源及其他欄位留存。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。既有 RelationTargetPicker 共用選擇器支援三種構詞並顯示正確雙語類型；快速建立沿用原管理員確認／人工發布 RPC，不新增發布路徑。
+
+共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、九大類及小類；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
+
+快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。匯出範圍的類型與名稱沿用管理catalog的唯一active Review身分；多份Review則回到正式身分，不任選。這只影響範圍選取，匯出仍包含完整正式快照與全部Review，保留版本／固定範圍驗證。
+
+`preview_dictionary_morpheme_conversion` 管理員分頁預覽；`prepare_dictionary_morpheme_draft` 以原快照、操作 UUID、既有全域鎖及 Review 驗證建立待整理草稿，收據沿用 dictionary_import_operations，同交易回滾、重試冪等。已有草稿／active Review 不覆蓋；已準備過不無限重建。只有單義項且結構合法的舊變體可確定歸屬，依原 ID／原文產生穩定變體 ID；歸屬不明仍完整保留舊原文。Migration 本身不轉換資料、不發布。
+
+正式唯讀重核29表72,281列、85個函式與原備份一致；隔離副本建立174份 Review，保留10份既有 Review，54筆變體列可歸屬，1組歸屬不明；原有逐主鍵資料雜湊全部不變。私人備份不入 Git／CI／分享，僅字典及必要學習依賴，不是完整 Supabase／Auth 備份。正式操作前須重新盤點、備份、核對實際函式與 ledger；不能 db push 全部 pending。
+
+發布邊界：B `20261111143124_study_card_visibility.sql` 的守衛須先於 B 前端；C `20261111145758_dictionary_pending_identity.sql` 宜先發布兼容新舊結果的 C 前端，再改查詢，避免舊前端誤導 editor-only 待審入口。D Schema／RPC 須先於 D 前端；舊前端對 suffix 的管理不完整，亦不保證解析新增義項欄位的 JSON；切換期間暫停舊版分類編輯與匯入，不以舊版前端回復新資料。整合發布須另行授權並逐項驗證，不得把正式轉換混入 Migration。DDL 失敗整筆回滾；新 suffix／變體寫入後不能盲目刪欄位或恢復構詞唯一索引，應保留資料，以兼容前端及驗證過的備份制定人工回復方案。
+
 ## 1. 模組與資料來源
 
 
@@ -175,6 +191,16 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
 
+### 2026-11-11 介面整理（#167／階段 A）
+
+`CardDictionaryPanel` 的公開讀取完成時，只在搜尋框未被使用者聚焦時移動至標題，避免延遲回應中斷輸入／組字；提交直接讀取目前表單 query 值，不以較早 render 的 state 代表使用者輸入。原有請求生命週期、已發布快取、歷史及帳號清理不變。
+
+`StudyPreferences` 保留原 saveDeckStyle／串行 flush 與 Session 快照規則，管理頁僅移除清除入口及冗餘提示；模式說明由原 ModalDialog 提供焦點、Escape 與觸控。清除仍只由複習紀錄頂欄開啟原 ClearStudyHistoryDialog，RPC、冪等及失敗恢復未變。
+
+`NexusApp` 以目前實際編輯頁的 note（含缺省舊 note）／presentation 白名單控制 RightPanel 及其 ResizablePanel／手機開關掛載；首頁、管理面板、外部字典、世界觀、學習與其他 kind 都不預留側欄。既有 assistant_blocks 不改寫、不刪除，未掛載時沒有講稿操作或專屬保存回呼。
+
+學習內 `CardDictionaryPanel` 沿用原 history marker、30筆內部瀏覽／捲動紀錄、已發布查詢快取及 owner/admin 驗權。首列返回／拖曳把手／叉叉，第二列搜尋／放大鏡，詳細內容在捲動區、鉛筆在內容右上。拖曳只從把手開始，使用 pointer capture；向下至少80px且垂直位移較大才關閉，短／水平／取消拖曳復原，不從內文接管捲動。把手支援鍵盤啟動；有管理員編輯 Modal 時停用，仍走原未儲存保護。開啟期間仍由原 Session editing guard 停用評分，不新增作答。EditorSection 的基本資料／概念／義項使用固定展開模式，其他有意義的區塊仍沿用原 details，欄位不重新掛載、草稿 queue/CAS 未變。
+
 ### 公共字典
 
 字典獨立 Reader 與正式學習閱讀面板僅讀取已發布詞條與必要管理員驗權，不掛載私人字卡建立／計數／跳轉元件，也不為顯示這些操作查詢私人字卡；私人字卡管理及既有連結流程維持原資料來源。
@@ -302,3 +328,25 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 `StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動空清單立即請求同一備援以保留 activation；只有已知非英文清單時不選錯語音，提示重新檢查。清單事件不重複啟播已開始的備援。
 
 播放由 onstart／onend／onerror 判定；not-allowed、language-unavailable、voice-unavailable 與一般失敗各有訊息，僅 language-unavailable 提示啟用／安裝英文。8 秒啟動檢查不會取消仍 speaking 的引擎，另有 15–90 秒有限完成期限；沒有無限重試。全域單一播放 ownership＋世代 token 只用於音訊生命週期，與學習單卡 generation 無關。新題、手動重播、背景、pagehide／離開或卸載會取消舊播放及 timers／listener；舊回呼不能污染新題，翻面不重播。WebKit 自動播放讓出 cancel 事件迴圈，手動播放留在 gesture 內。Chromium／WebKit 的模擬語音測試驗證控制邏輯，不能證明 Android／Safari 原生語音或實際發音語言已驗收。
+
+
+### 學習 Session 穩定顯示與私人隱藏（2026-11-11，階段 B）
+
+字卡沿用 `study_cards.payload`、原 card outbox、apply_study_operation 與同步 feed；可選 `hidden`／`hidden_changed_at` 必須成對出現，舊資料缺省代表可見。不變更 IndexedDB v9、備份 v4、卡片 ID 或 content_revision。偏好以 owner＋deck＋card ID 隔離，不依拼寫；時間戳獨立於內容 LWW，缺省或較舊偏好不能覆蓋較新的設定，同時間衝突隱藏優先，明確恢復產生較新時間。原官方來源 trigger 保留這兩個可變欄位；舊裝置內容編輯及官方包更新仍受來源身分、自訂狀態與刪除保護。未支援此功能的舊離線程式無法即時知道新隱藏設定；不因此刪除合法舊裝置作答。
+
+隱藏只改私人偏好，保留內容、due、事件與歷史，不新增假作答。正式新卡、到期／短間隔、無盡提前候選與 Session 後續 queue 共用排除條件；已完成 target 的真實完成統計保留，未作答隱藏 target 不計完成。恢復使用原狀態重新取得候選資格。備份先走既有雲端清除核對，再於原還原交易合併偏好，舊檔缺少欄位不得撤銷較新設定。
+
+Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、版本或額度。refreshScheduled 保留仍合法的當前題，短間隔到期只重排後續候選；正式評分通過原 CAS／head／內容版本驗證後解除呈現標記。計時器只在明確等待、無當前卡時重新取卡；背景更新只讀取／核對，有實際題目變更時保留畫面並阻止舊題評分，要求重新載入。
+
+首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步、固定間隔與 FSRS 不變。
+
+Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。必須先人工授權資料庫 Migration，再發布支援新欄位的前端；舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
+### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
+
+分類查詢仍依義項篩選，但 `search_prefix_dictionary` 先按正式 entry ID 分組再 20 筆分頁；保留首個符合的 sense_id 與 matched_sense_ids，不按拼寫合併，分類計數改為詞條數。返回／相鄰閱讀可辨識同列中的匹配義項。舊分類資料與既有正式 ID 不改寫；新構詞分類契約仍屬後續 D 階段。
+
+`list_dictionary_admin_work` 與完整 JSON 匯出的真正待處理範圍同時包含原 dictionary_transfer_pending 匯入工作及 state=active 的編輯 Review，依 entry ID 去重；只有普通未發布草稿維持 yellow，不當成 pending。多項差異與多筆 Review 不增加詞條總數。row 的 import_pending_count／editor_pending_count 用於導向原有匯入審核頁或編輯器，不共用另一套核准流程；pending_count 為該詞條工作量，stats.red 為詞條數。缺少正式詞條的合法匯入候選仍可計入，失敗／過期工作保留，查詢不刪任何資料。
+
+刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）隔離刪除正常；使用者原本的失敗尚缺對應詞條與 RPC 證據，不視為已修復根因。
+
+Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，可先發布相容前端，再於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。

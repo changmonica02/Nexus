@@ -1,10 +1,10 @@
 name: Note editor audit
 on:
   pull_request:
-    paths: ['src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
+    paths: ['supabase/migrations/**', 'src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
   push:
     branches: [main, feat/note-export-batch-20261025]
-    paths: ['src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
+    paths: ['supabase/migrations/**', 'src/**', 'tests/**', 'scripts/**', 'integrations/**', 'vendor/**', 'package*.json', '.github/workflows/note-editor.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,8 +12,41 @@ concurrency:
   group: note-editor-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  morpheme-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node tests/morphemeContract.test.cjs && node tests/morphemeDatabase.test.cjs
+      - name: Native isolated morphology RPC and transaction tests
+        run: |
+          docker run --rm -d --name nexus46-morpheme-ci --network none --label nexus.test=pr46-local -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          for attempt in $(seq 1 30); do docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres && break; sleep 1; done
+          docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/morphemeDatabase.test.cjs
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - run: node tests/morphemeEditor.browser.test.cjs
+      - run: STUDY_BROWSER=webkit node tests/morphemeEditor.browser.test.cjs
+      - run: npx tsc --noEmit
+      - run: npx eslint src/features/dictionary/MorphemeSenseEditor.tsx src/features/dictionary/MorphemeWordLinks.tsx src/features/dictionary/MorphemeConversion.tsx src/features/dictionary/DictionaryCatalogNavigation.tsx src/features/dictionary/morphemeLinks.ts src/features/dictionary/catalog.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: morpheme-editor-evidence
+          path: test-results/morpheme-editor/**/*.png
+          if-no-files-found: ignore
+      - name: Remove isolated database
+        if: always()
+        run: docker rm -f nexus46-morpheme-ci || true
   note:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: '1'
@@ -67,7 +100,7 @@ jobs:
           docker run -d --name nexus46-transfer-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
           trap 'docker rm -f nexus46-transfer-ci' EXIT
           for attempt in $(seq 1 30); do
-            if docker exec nexus46-transfer-ci pg_isready -U postgres; then break; fi
+            if docker exec nexus46-transfer-ci pg_isready -h 127.0.0.1 -U postgres; then break; fi
             sleep 1
           done
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-transfer-ci node tests/dictionaryTransfer.test.cjs
@@ -104,7 +137,7 @@ jobs:
 
 
   world-map:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -143,3 +176,111 @@ jobs:
           name: world-map-workspace-evidence
           path: test-results/world-map-ui/**/*.png
           if-no-files-found: ignore
+
+  interface-a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: Study settings and safe published reader
+        run: |
+          node tests/unifiedStudy.browser.test.cjs
+          node tests/studyDictionaryPanel.browser.test.cjs
+          node tests/studyDictionaryEditor.browser.test.cjs
+          node tests/dictionaryEditor.browser.test.cjs
+          NEXUS_STAGE_A=1 node tests/unifiedWorkspace.browser.test.cjs
+      - name: WebKit reader and assistant scope
+        run: |
+          STUDY_BROWSER=webkit node tests/studyDictionaryPanel.browser.test.cjs
+          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 node tests/unifiedWorkspace.browser.test.cjs
+      - name: Interface visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-a-evidence
+          path: test-results/interface-a/**/*.png
+          if-no-files-found: ignore
+
+  study-b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Session and visibility regression
+        run: node --test tests/studySessionStability.test.cjs tests/studySessionExit.test.cjs tests/studyCardVisibility.test.cjs tests/studyCardVisibilityDatabase.test.cjs
+      - name: Native isolated PostgreSQL visibility transaction
+        run: |
+          docker run -d --name nexus46-visibility-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f nexus46-visibility-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec nexus46-visibility-ci pg_isready -h 127.0.0.1 -U postgres; then break; fi
+            sleep 1
+          done
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-visibility-ci node tests/studyCardVisibilityDatabase.test.cjs
+      - name: Chromium and WebKit offline visibility and backup
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/studyVisibility.browser.test.cjs
+          STUDY_BROWSER=webkit node tests/studyVisibility.browser.test.cjs
+      - name: Production offline PWA and account regression
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+        run: |
+          npm run build
+          npx next start --hostname 127.0.0.1 --port 32131 > /tmp/nexus-study-pwa.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:32131 >/dev/null; then break; fi
+            sleep 1
+          done
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          NEXUS_PWA_URL=http://127.0.0.1:32131 NEXUS_PWA_AUTH_FIXTURE=1 node tests/pwa.production.browser.test.cjs
+          NEXUS_PWA_URL=http://127.0.0.1:32131 node tests/pwaData.production.browser.test.cjs
+
+  dictionary-c:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Dictionary list identity and pending work regression
+        run: node --test tests/dictionaryDefects.test.cjs tests/dictionaryEntryDeletion.test.cjs tests/dictionaryPrefixGroups.test.cjs
+      - name: Isolated PostgreSQL and rollback
+        run: |
+          docker run -d --name nexus46-dictionary-c --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f nexus46-dictionary-c' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec nexus46-dictionary-c pg_isready -h 127.0.0.1 -U postgres; then break; fi
+            sleep 1
+          done
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-dictionary-c node tests/dictionaryDefects.test.cjs
+      - name: Chromium and WebKit protected deletion
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/dictionaryEntryDeletion.browser.test.cjs
+          STUDY_BROWSER=webkit node tests/dictionaryEntryDeletion.browser.test.cjs
+      - run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/adminNavigation.ts src/features/dictionary/adminQueries.ts src/features/dictionary/deleteEntry.ts src/features/dictionary/grouping.ts src/features/dictionary/readerNavigation.ts src/lib/i18n.ts

@@ -149,6 +149,7 @@ function NexusAppInner({
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+  const [studySource,setStudySource]=useState<"home"|"sets">("sets");
   const [studyLaunch, setStudyLaunch] = useState<string | null>(null);
   const [deckManagement,setDeckManagement]=useState<{id:string;owner:string|null;from:"home"|"sets"}|null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -204,7 +205,6 @@ function NexusAppInner({
   const [refreshError, setRefreshError] = useState("");
 
   const activePage = pages.find((p) => p.id === activePageId) || null;
-  const isActiveNovel = !!activePage && isNovelPage(activePage);
   const activeAttachment = activePage?.primary_attachment_id
     ? attachments.find((a) => a.id === activePage.primary_attachment_id) || null
     : null;
@@ -777,11 +777,12 @@ function NexusAppInner({
     if (storageRef.current) await storageRef.current.setActivePageId(id);
   }, [pages, storageRef]);
 
-  const handleSelectPage = useCallback(async (id: string, studyMode: "manage" | "scheduled" = "manage") => {
+  const handleSelectPage = useCallback(async (id: string, studyMode: "manage" | "scheduled" = "manage", source:"home"|"sets"="sets") => {
     const owner=storageRef.current?.getWorkspaceOwner?.();
     await flushAllSaves();
     if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
     setDeckManagement(null);
+    setStudySource(source);
     setStudyLaunch(studyMode === "scheduled" ? id : null);
     await activatePage(id);
   }, [activatePage, flushAllSaves, storageRef]);
@@ -1743,6 +1744,7 @@ function NexusAppInner({
   };
   const managementActive=deckManagement&&(storageRef.current?.getWorkspaceOwner?.()??null)===deckManagement.owner;
   const managementPage=managementActive?pages.find(p=>p.id===deckManagement.id&&!p.deleted_at&&p.kind==='study_set'&&(p.workspace_owner_id??null)===deckManagement.owner):undefined;
+  const showAssistantPanel=!isFeatureInterface&&!managementActive&&!trashRoute&&!isTrashMode&&!!activePage&&(!activePage.kind||activePage.kind==='note'||activePage.kind==='presentation');
   const refreshStudyPages=async()=>{const storage=storageRef.current;if(!storage)return;const owner=storage.getWorkspaceOwner?.();await syncEngineRef.current?.fullSync();const next=await storage.listPages();if(storage.getWorkspaceOwner?.()===owner)setPages(next);};
 
   if (storageInitError && !externalContent) return (
@@ -1768,7 +1770,7 @@ function NexusAppInner({
     const onTitleChange = (title: string) => { if (page) patchPage(page.id, { title }); };
     const patch = (value: Partial<Page>) => { if (page) patchPage(page.id, value); };
     return <WorkspacePane page={page}
-      study={{ onOfficialChanged:refreshStudyPages, initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), onBackToInterface: handleShowStudySets }}
+      study={{ onOfficialChanged:refreshStudyPages, initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), backLabel:studySource==="home"?t("study.backHome"):undefined, onBackToInterface: studySource==="home"?handleShowHome:handleShowStudySets }}
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
@@ -1912,7 +1914,7 @@ function NexusAppInner({
         />
       </FloatingSidebar>
 
-      {!isFeatureInterface && isTabletViewport && !isActiveNovel && (
+      {showAssistantPanel && isTabletViewport && (
         <button
           type="button"
           onClick={() => { setIsNavigationOpen(false); setIsRightPanelCollapsed((collapsed) => !collapsed); }}
@@ -1930,7 +1932,7 @@ function NexusAppInner({
       <div style={{display:managementActive?'none':'contents'}}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
         <HomeScreen key={storageRef.current!.getWorkspaceOwner?.() ?? 'anonymous'} owner={storageRef.current!.getWorkspaceOwner?.() ?? null} pages={pages} repository={storageRef.current!.getStudyRepository()}
-          suspended={!!managementActive} onCreateStudySet={()=>void createManagedStudySet()} onStudy={(id, mode) => mode==='manage'?void openDeckManagement(id):void handleSelectPage(id, mode)} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={date=>navigate(()=>{handleShowTodoList();const day=date??new Date();setLifeState({...initialLifeView(),date:day.getTime(),month:new Date(day.getFullYear(),day.getMonth(),1).getTime()});})}
+          suspended={!!managementActive} onCreateStudySet={()=>void createManagedStudySet()} onStudy={(id, mode) => {if(mode==='manage')void openDeckManagement(id);else void handleSelectPage(id, mode, 'home');}} onOpenPage={id => void handleSelectPage(id)} onOpenTodos={date=>navigate(()=>{handleShowTodoList();const day=date??new Date();setLifeState({...initialLifeView(),date:day.getTime(),month:new Date(day.getFullYear(),day.getMonth(),1).getTime()});})}
           classic={<Dashboard onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} onSelectPage={handleSelectPage} onDeletePages={handleBulkDeletePages} onPinPages={handlePinPages} onReorderPages={handleReorderPages} onSetFolder={handleSetPagesFolder} />} />
       ) : isQuickNoteMode ? (
         <QuickNotesView onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
@@ -2070,7 +2072,7 @@ function NexusAppInner({
         </div>
       ) : renderPane(activePage))}
 
-      {!isFeatureInterface && isTabletViewport && (
+      {showAssistantPanel && isTabletViewport && (
         <>
           {!isRightPanelCollapsed && <button type="button" className="fixed inset-0 z-40 cursor-default bg-black/25" onClick={() => setIsRightPanelCollapsed(true)} aria-label="關閉輔助頁" />}
           <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} collapsedWidth={0} isCollapsed={isRightPanelCollapsed} overlay>
@@ -2079,7 +2081,7 @@ function NexusAppInner({
         </>
       )}
 
-      {!isFeatureInterface && !isTabletViewport && (
+      {showAssistantPanel && !isTabletViewport && (
         <ResizablePanel side="right" defaultWidth={320} minWidth={240} maxWidth={520} isCollapsed={isRightPanelCollapsed}>
           <RightPanel page={activePage} pages={pages.filter((page) => page.kind !== "novel_chapter" && !page.character_data?.isTemplate)} isCollapsed={isRightPanelCollapsed} onToggleCollapse={() => setIsRightPanelCollapsed((prev) => !prev)} onSelectPageTitle={handleSelectPageByTitle} onUpdateAssistantBlocks={(blocks) => { if (activePage) patchPage(activePage.id, { assistant_blocks: blocks }); }} />
         </ResizablePanel>

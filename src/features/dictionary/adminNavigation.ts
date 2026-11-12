@@ -1,16 +1,20 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {adminPageSize,listAdminWork,type AdminFilter} from './adminQueries';
+import {adminPageSize,listAdminWork,type AdminFilter,type AdminWorkEntry} from './adminQueries';
 import type {DictionaryEntry} from './dictionary';
 export function adminContext(value:string|null):AdminFilter|null {
   if(!value||!value.startsWith('/dictionary/admin?'))return null;
   const url=new URL(value,'https://nexus.invalid');if(url.origin!=='https://nexus.invalid'||url.pathname!=='/dictionary/admin')return null;
-  const p=url.searchParams;if(['entry','new','from'].some(key=>p.has(key))||!['kinds','statuses','work','q','page'].some(key=>p.has(key)))return null;const page=Number(p.get('page')??0);if(!Number.isSafeInteger(page)||page<0)return null;const list=(key:string,allowed:string[])=>[...new Set((p.get(key)??'').split(',').filter(v=>allowed.includes(v)))];
-  return {kinds:list('kinds',['word','prefix','root']),statuses:list('statuses',['draft','published']),work:list('work',['red','yellow','green']),query:p.get('q')??'',page};
+  const p=url.searchParams;if(['entry','new','from'].some(key=>p.has(key))||!['kinds','statuses','work','q','page','catalog','scope','domain','subdomain'].some(key=>p.has(key)))return null;const page=Number(p.get('page')??0);if(!Number.isSafeInteger(page)||page<0)return null;const list=(key:string,allowed:string[])=>[...new Set((p.get(key)??'').split(',').filter(v=>allowed.includes(v)))];
+  return {kinds:list('kinds',['word','prefix','root','suffix']),statuses:list('statuses',['draft','published']),work:list('work',['red','yellow','green']),query:p.get('q')??'',page,...(p.get('catalog')==='1'?{catalog:true,scope:['word','morpheme'].includes(p.get('scope')??'')?p.get('scope') as 'word'|'morpheme':'all',domain:p.get('domain')||null,subdomain:p.get('subdomain')||null}:{})};
 }
 export function adminListHref(filter:AdminFilter):string {
-  return '/dictionary/admin?'+new URLSearchParams({kinds:filter.kinds.join(','),statuses:filter.statuses.join(','),work:Array.isArray(filter.work)?filter.work.join(','):filter.work??'',q:filter.query,page:String(filter.page)});
+  return '/dictionary/admin?'+new URLSearchParams({kinds:filter.kinds.join(','),statuses:filter.statuses.join(','),work:Array.isArray(filter.work)?filter.work.join(','):filter.work??'',q:filter.query,page:String(filter.page),...(filter.catalog?{catalog:'1',scope:filter.scope??'all',domain:filter.domain??'',subdomain:filter.subdomain??''}:{})});
 }
 export function adminEntryHref(id:string,filter:AdminFilter):string{return '/dictionary/admin?'+new URLSearchParams({entry:id,from:adminListHref(filter)});}
+/** Editor and import work share the red count, but keep their original review entry points. */
+export function adminWorkHref(entry:AdminWorkEntry,filter:AdminFilter):string {
+ return entry.work_status==='red'&&(entry.import_pending_count??entry.pending_count??0)>0?'/dictionary/admin/reviews?entry='+encodeURIComponent(entry.id):adminEntryHref(entry.id,filter);
+}
 type Client=Pick<SupabaseClient,'rpc'|'from'>;
 export async function adminNeighbours(client:Client,entry:DictionaryEntry,from:string|null):Promise<{previous:string|null;next:string|null}> {
   const context=adminContext(from);

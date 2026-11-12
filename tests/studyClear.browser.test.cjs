@@ -2,7 +2,7 @@ require('./loadStudy.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright'),{PGlite}=require('@electric-sql/pglite');
 const {installStudyClear}=require('./fixtures/studyClearDatabase.cjs');
-test('two clear entry points use the same named confirmation and real SQL; offline refusal, dropped reply retry, keyboard/focus and bilingual responsive layout',{timeout:120000},async()=>{
+test('history-only clear entry retains named confirmation and real SQL; offline refusal, dropped reply retry, keyboard/focus and bilingual responsive layout',{timeout:120000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-clear-')),root=path.resolve(__dirname,'..'),pg=new PGlite();let server,browser;
  try{
   await pg.exec(`create schema auth;create role authenticated;create role anon;create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
@@ -36,11 +36,11 @@ test('two clear entry points use the same named confirmation and real SQL; offli
    const context=await browser.newContext({viewport:{width,height:950}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}/?lang=${lang}`);
    const en=lang==='en',manage=page.getByRole('button',{name:en?'Clear learning history':'清除學習紀錄',exact:true}),history=page.getByRole('button',{name:en?'Review history':'複習紀錄',exact:true});
-   await manage.waitFor();assert.equal(await page.getByRole('dialog').count(),0);
-   await manage.click();const dialog=page.getByRole('dialog'),confirm=dialog.getByRole('button',{name:en?'Permanently clear':'確認清除',exact:true});
+   await history.waitFor();assert.equal(await manage.count(),0,'management has no clear action');assert.equal(await page.getByRole('dialog').count(),0);await history.click();const clearHistory=page.getByRole('button',{name:en?'Clear history':'清除紀錄',exact:true});
+   await clearHistory.click();const dialog=page.getByRole('dialog'),confirm=dialog.getByRole('button',{name:en?'Permanently clear':'確認清除',exact:true});
    assert.equal(await confirm.isDisabled(),true);await dialog.getByRole('textbox').fill('wrong');assert.equal(await confirm.isDisabled(),true);
-   await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});assert.equal(await manage.evaluate(el=>el===document.activeElement),true);
-   await history.click();const clearHistory=page.getByRole('button',{name:en?'Clear history':'清除紀錄',exact:true});await clearHistory.click();
+   await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});assert.equal(await clearHistory.evaluate(el=>el===document.activeElement),true);
+   await clearHistory.click();
    await dialog.getByRole('textbox').fill('清除測試');await context.setOffline(true);const initialCalls=clearCalls;await confirm.click();await dialog.getByRole('alert').waitFor();assert.equal(clearCalls,initialCalls);
    assert.equal((await page.evaluate(()=>window.clearFixture.repo.readDeck(window.clearFixture.page.id,true))).events.filter(e=>e.kind==='review').length,1);
    await context.setOffline(false);

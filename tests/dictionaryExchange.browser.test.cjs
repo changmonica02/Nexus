@@ -83,7 +83,7 @@ test(
           console.error(e.message);
         });
         await page.goto(url);
-        await page.getByLabel("搜尋管理詞條", { exact: true }).fill("item1");
+        await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
           .getByRole("button", { name: "匯出資料", exact: true })
           .click();
@@ -119,7 +119,7 @@ test(
         assert.equal(all.records.length, 3);
         assert.equal(all.scope.query, "");
         await page.getByRole("button", { name: "關閉", exact: true }).click();
-        await page.getByLabel("搜尋管理詞條", { exact: true }).fill("");
+        await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("");
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
@@ -183,16 +183,18 @@ test(
             exact: true,
           })
           .click();
+        await page.evaluate(()=>{window.holdImportBatch=true;});
         await page
           .getByRole("dialog", { name: "確認匯入" })
           .getByRole("button", { name: "確認匯入", exact: true })
           .click();
         await page.waitForFunction(() =>
-          window.calls.some((c) => c.name === "apply_dictionary_import_batch"),
+          typeof window.finishImportBatch === "function",
         );
         await page
           .getByRole("button", { name: "停止未開始的批次", exact: true })
           .click();
+        await page.evaluate(()=>window.finishImportBatch());
         await page
           .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
             exact: true,
@@ -301,9 +303,9 @@ test(
         await page.getByRole("button", { name: "關閉", exact: true }).click();
         // Filters can even hide every row; global publication is independent of them.
         await page
-          .getByLabel("搜尋管理詞條", { exact: true })
+          .getByLabel("搜尋單字或構詞", { exact: true })
           .fill("no-visible-match");
-        await page.getByRole("checkbox", { name: "字首", exact: true }).check();
+        await page.getByRole("tab", { name: "構詞", exact: true }).click();await page.getByRole("button",{name:"篩選構詞分類",exact:true}).click();await page.getByRole("checkbox", { name: "字首", exact: true }).check();
         assert.equal(await page.getByRole("checkbox", { name: "已發布", exact: true }).count(),0, "legacy publication-state checkboxes are replaced by work status");
         assert.equal(
           await page.getByRole("button", { name: "全選", exact: true }).count(),
@@ -415,7 +417,7 @@ test(
           .click();
         await page
           .getByRole("alert")
-          .filter({ hasText: "fixture referenced entry" })
+          .filter({ hasText: "刪除失敗，編輯內容已保留；請核對 RPC 錯誤碼後再重試。" })
           .waitFor();
         assert.equal(
           await page.getByLabel("英文字形 1", { exact: true }).inputValue(),
