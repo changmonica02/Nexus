@@ -27,16 +27,9 @@ test('sense groups load by stable sense IDs, including empty/unclassified and er
  assert.deepEqual(await readSenseGroups({},[]),{});
  await assert.rejects(readSenseGroups({from:()=>({select:()=>({in:async()=>({error:{message:'missing table'}})})})},['00000000-0000-4000-8000-000000000002']),/migration/);
 });
-test('prefix editor renders independent per-meaning categories; root and word retain their own fields',()=>{
- const render=(kind,groups={})=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,entry:{...detail.entry,kind}},entries:[],senses:[],onSaved:async()=>{},initialGrouping:{...emptyGrouping(),primary_category:primaryCategories[0]},initialSenseGroups:groups}));
- const html=render('prefix',{[detail.senses[0].id]:prefixCategories[1],[detail.senses[1].id]:prefixCategories[2]});
- assert.equal((html.match(/aria-label="義項 [12] 的分類"/g)||[]).length,2);
- for(const category of [prefixCategories[1],prefixCategories[2]])assert.ok(html.includes(`selected="">${category}</option>`));
- assert.ok(html.indexOf('上方')<html.indexOf('義項 1 的分類'));
- assert.ok(!html.includes(primaryCategories[0]));assert.ok(!html.includes('Sense ID'));assert.ok(!html.includes('所屬義項'));
- assert.ok(!html.includes('標籤'));assert.ok(!html.includes('主要分類'));assert.ok(!html.includes('構詞關聯'));assert.ok(html.includes('同字變體'));
- const root=render('root');assert.ok(root.includes(primaryCategories[0]));assert.ok(!root.includes(prefixCategories[0]));
- const word=render('word');assert.ok(!word.includes('主要分類'));assert.ok(!word.includes('同字變體'));
+test('unified morpheme editor scopes categories to stable senses and preserves legacy classifications read-only',()=>{
+ const render=kind=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,entry:{...detail.entry,kind},senses:detail.senses.map((s,i)=>({...s,semantic_domain:i?'nature':'action',semantic_subdomain:i?'geography':'movement'}))},entries:[],senses:[],onSaved:async()=>{},initialGrouping:{...emptyGrouping(),primary_category:primaryCategories[0]},initialSenseGroups:{[detail.senses[0].id]:prefixCategories[1],[detail.senses[1].id]:prefixCategories[2]}}));
+ for(const kind of ['prefix','root','suffix']){const html=render(kind);assert.equal((html.match(/data-morpheme-sense=/g)||[]).length,2);for(const sense of detail.senses)assert.ok(html.includes('data-morpheme-sense="'+sense.id+'"'));for(const code of ['action','nature','movement','geography'])assert.ok(html.includes('value="'+code+'" selected=""'));assert.ok(html.includes('連結單字'));assert.ok(!html.includes('aria-label="義項 1 的分類"'));assert.ok(!html.includes('同字變體'));}
  const locked=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,entry:{...detail.entry,status:'published'}},entries:[],senses:[],onSaved:async()=>{}}));assert.ok(locked.includes('<fieldset disabled'));
 });
 test('prefix and root browser use distinct categories and query contracts; prefix results carry meaning anchors',async()=>{
