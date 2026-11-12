@@ -1,3 +1,4 @@
+import {readCatalog,catalogFilter} from './catalog';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {offline,readPublicCache,savePublicCache} from './publicCache';
 import type { DictionaryDetail, DictionaryEntry, DictionaryKind } from './dictionary';
@@ -78,4 +79,9 @@ export async function readPublishedTargets(client:Client,ids:string[],active:()=
     while(active()&&cursor<queue.length){const id=queue[cursor++];try{const detail=await readPublishedEntry(client,id);if(active()&&detail?.entry.id===id&&detail.entry.status==='published')result.set(id,detail);}catch{/* A reading aid cannot block the published article. */}}
   }));
   return result;
+}
+
+export async function readPublishedCatalog(client:Pick<SupabaseClient,'rpc'>,context:string,page:number){
+ const filter=catalogFilter(new URL(context,'https://nexus.invalid').searchParams);
+ return publicRequest(JSON.stringify(['catalog',filter,page]),()=>readCatalog(client,filter,page),'字典目前無法讀取，請確認新版資料契約已啟用後重試。');
 }

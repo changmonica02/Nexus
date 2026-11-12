@@ -2,7 +2,7 @@ import {offline} from './publicCache';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
 import {searchGrouping} from './grouping';
-import {searchDictionaryWithInflections} from './reader';
+import {searchDictionaryWithInflections,readPublishedCatalog} from './reader';
 import type {DictionaryKind} from './dictionary';
 export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
 export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number;total?:number}
@@ -18,6 +18,7 @@ export function browseContext(from:string|null):string|null{
 }
 export async function loadBrowsePage(client:Client,context:string,pageOverride?:number):Promise<BrowsePage>{
  const p=new URL(context,'https://nexus.invalid').searchParams;
+ if(p.get('catalog')==='1'||p.get('kind')==='morpheme'||p.has('domain'))return readPublishedCatalog(client,context,pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)));
  const raw=p.get('kind'),kind=raw==='word'||raw==='prefix'||raw==='root'?raw:'all';
  const page=pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)),q=p.get('q')??'';
  if((kind==='prefix'||kind==='root')&&p.get('category')&&!p.get('variant'))return searchGrouping(client,kind,q,page,p.get('category')!);

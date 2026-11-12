@@ -1,4 +1,6 @@
 "use client";
+import DictionaryCatalogNavigation from './DictionaryCatalogNavigation';
+import {catalogFilter,catalogText,type CatalogItem} from './catalog';
 import {PageHeader} from "../../components/WorkspaceNavigation";
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
@@ -19,7 +21,6 @@ import {DictionaryArticle} from './DictionaryArticle';
 export {DictionaryArticle} from './DictionaryArticle';
 import {dictionaryReturn,entryHref} from './browseRelations';
 const box='rounded-xl border p-4';
-const kinds={word:'單字',prefix:'字首',root:'字根'};
 export function GroupedResult({item,from='/dictionary',summary}:{item:GroupedDictionaryItem;from?:string;summary?:string}){
   return <Link href={entryHref(item.id,from,item.sense_id)} className="block min-w-0 break-words rounded border border-[var(--color-border)] p-3 [overflow-wrap:anywhere]"><span>{item.headword}</span><p className="mt-1 line-clamp-2 text-sm opacity-70">{summary??'尚無中文意思'}</p></Link>;
 }
@@ -51,26 +52,27 @@ export function DictionaryGroups({kind,query,from='/dictionary'}:{kind:'prefix'|
 function Content({path,admin}:{path:string[];admin:boolean}){
   const params=useSearchParams(),router=useRouter();
   const kind:DictionaryKind|'all'=params.get('kind')==='prefix'?'prefix':params.get('kind')==='root'?'root':params.get('kind')==='word'?'word':'all';
+  const navigationFilter=catalogFilter(new URLSearchParams(params));
   const query=params.get('q')??'',page=Math.max(0,Math.floor(Number(params.get('page'))||0));
   const category=params.get('category')??'';
   const component=kind==='word'?params.get('component')??'':'';
   const variant=(kind==='prefix'||kind==='root')?params.get('variant')??'':'';
   const sense=params.get('sense')??'';
-  const [input,setInput]=useState(query),[retry,setRetry]=useState(0);
+  const [retry,setRetry]=useState(0);
   const [result,setResult]=useState<{key:string;list?:DictionaryPage;candidates?:DictionaryCandidate[];detail?:PublishedDetail|null;error?:string}|null>(null);
   const id=path[0],from=`/dictionary${id?`/${id}`:''}${params.size?`?${params}`:''}`;
   const key=JSON.stringify([id,kind,query,page,component,sense,variant,category,retry,params.get('edit')]);
-  const change=(values:Record<string,string>)=>{const next=new URLSearchParams(params);for(const [k,v]of Object.entries(values)){if(v)next.set(k,v);else next.delete(k);}const href=`/dictionary?${next}`;if(offline())window.history.pushState(null,'',href);else router.push(href);};
-  useEffect(()=>setInput(query),[query]);
+  const change=(values:Record<string,string>)=>{const next=new URLSearchParams(params);for(const [k,v]of Object.entries(values)){if(v||k==='types')next.set(k,v);else next.delete(k);}const href=`/dictionary?${next}`;if(offline())window.history.pushState(null,'',href);else router.push(href);};
   useEffect(()=>{const refresh=()=>setRetry(n=>n+1);window.addEventListener('online',refresh);return()=>window.removeEventListener('online',refresh);},[]);
   useEffect(()=>{if(!id)return;let active=true;void readPublishedEntry(getSupabase()!,id).then(detail=>{if(active)setResult({key,detail});}).catch(e=>{if(active)setResult({key,error:String(e)});});return()=>{active=false;};},[id,key]);
-  const browse=usePagedList(JSON.stringify([kind,query,component,sense,variant,category,id,retry]),page,20,async p=>{
-    if(id||(kind!=='all'&&kind!=='word'&&!variant))return {items:[],has_more:false,total:undefined,page:p,candidates:[]};
-    const list=await loadBrowsePage(getSupabase()!,from,p);
-    const details=await Promise.all(list.items.map(e=>readPublishedEntry(getSupabase()!,e.id)));
+  const browse=usePagedList(JSON.stringify([kind,query,component,sense,variant,category,id,retry,navigationFilter]),page,20,async p=>{
+    if(id||((kind==='prefix'||kind==='root')&&!!category&&!variant))return {items:[],has_more:false,total:undefined,page:p,candidates:[]};
+    const catalogFrom=new URL(from,'https://nexus.invalid');if(!component&&!variant&&!category)catalogFrom.searchParams.set('catalog','1');
+    const list=await loadBrowsePage(getSupabase()!,catalogFrom.pathname+catalogFrom.search,p);
+    const details=await Promise.all(list.items.filter(e=>!('summary' in e)).map(e=>readPublishedEntry(getSupabase()!,e.id)));
     return {...list,candidates:details.filter((d):d is PublishedDetail=>!!d).map(detail=>({detail,summary:candidateSummary(detail)}))};
   },p=>change({page:String(p)}));
-  const browseFrom=new URL(from,'https://nexus.invalid');browseFrom.searchParams.set('page',String(browse.data?.page??page));
+  const browseFrom=new URL(from,'https://nexus.invalid');if(!component&&!variant&&!category)browseFrom.searchParams.set('catalog','1');browseFrom.searchParams.set('page',String(browse.data?.page??page));
   const current:typeof result=id?(result?.key===key?result:null):browse.data?{key,list:browse.data,candidates:browse.data.candidates}:null;
   if(path.length>1)return <p>找不到此詞條。</p>;
   return <>
@@ -78,13 +80,11 @@ function Content({path,admin}:{path:string[];admin:boolean}){
     {!id&&browse.error&&<p role="alert">{browse.error}<button className="ml-2 underline" onClick={browse.retry}>重試</button></p>}
     {!id&&<>
 
-      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="詞條類別">{Object.entries({all:"全部",...kinds}).map(([k,label])=><button key={k} aria-pressed={kind===k} className="rounded border px-4 py-2" onClick={()=>change({kind:k,page:'',category:'',component:'',sense:'',variant:''})}>{label}</button>)}</div>
-      <form className="mb-4 flex gap-2" onSubmit={e=>{e.preventDefault();change({q:input.trim(),page:''});}}><input className="min-w-0 flex-1 rounded border bg-transparent p-2" aria-label="搜尋英文單字、字首或字根" placeholder={`搜尋英文${kind==='all'?'單字、字首或字根':kinds[kind]}`} maxLength={120} value={input} onChange={e=>setInput(e.target.value)}/><button className="rounded border px-4 py-2">搜尋</button></form>
-      {(kind==='prefix'||kind==='root')&&<div className="mb-4 flex flex-wrap gap-2"><select className="min-w-0 max-w-full rounded border bg-[var(--color-editor-bg)] p-2" aria-label="分類篩選" value={category} onChange={e=>change({category:e.target.value,variant:'',page:''})}><option value="">所有分類</option>{(kind==='prefix'?prefixCategories:primaryCategories).map(c=><option key={c}>{c}</option>)}<option value="__ungrouped__">未分類</option></select><input className="min-w-0 rounded border bg-transparent p-2" aria-label="同字變體篩選" placeholder="同字變體（Enter 搜尋）" defaultValue={variant} key={variant} onKeyDown={e=>{if(e.key==='Enter')change({variant:e.currentTarget.value.trim(),category:'',page:''});}}/></div>}
+      <DictionaryCatalogNavigation filter={navigationFilter} onChange={next=>change({kind:next.scope,q:next.query,types:next.kinds.join(','),domain:next.domain??'',subdomain:next.subdomain??'',catalog:'1',page:'',category:'',component:'',sense:'',variant:''})}/>
       {(component||variant||category)&&<div className="mb-4 flex flex-wrap gap-2 text-sm">{component&&<Link className="underline" href={entryHref(component,from,sense)}>目前條件：使用此字首／字根{ sense?'義項':''}的單字</Link>}{variant&&<span>同字變體：{variant}</span>}{category&&<span>分類：{category==='__ungrouped__'?'未分類':category}</span>}<button className="underline" onClick={()=>change({component:'',sense:'',variant:'',category:'',page:''})}>清除條件</button></div>}
     </>}
-    {!id&&(kind==='prefix'||kind==='root')&&!variant?(category?<GroupPage key={`${kind}:${query}:${category}`} kind={kind} query={query} category={category} from={from}/>:<DictionaryGroups key={`${kind}:${query}`} kind={kind} query={query} from={from}/>):!current?<p role="status">讀取中…</p>:current.error?<div role="alert"><p>{current.error}</p><button onClick={()=>setRetry(n=>n+1)}>重試</button></div>:id?<ReaderEntry key={id} id={id} data={current.detail??null} from={from} admin={admin}/>:current.list&&<>
-      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id} className="min-w-0"><Link className={`${box} block break-words [overflow-wrap:anywhere]`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search)}>{e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 line-clamp-2 text-sm opacity-70">{current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
+    {!id&&(kind==='prefix'||kind==='root')&&!!category&&!variant?(category?<GroupPage key={`${kind}:${query}:${category}`} kind={kind} query={query} category={category} from={from}/>:<DictionaryGroups key={`${kind}:${query}`} kind={kind} query={query} from={from}/>):!current?<p role="status">讀取中…</p>:current.error?<div role="alert"><p>{current.error}</p><button onClick={()=>setRetry(n=>n+1)}>重試</button></div>:id?<ReaderEntry key={id} id={id} data={current.detail??null} from={from} admin={admin}/>:current.list&&<>
+      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id} className="min-w-0"><Link className={`${box} block break-words [overflow-wrap:anywhere]`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search,'sense_id' in e?String(e.sense_id??''):undefined)}>{'summary' in e?catalogText(e as CatalogItem):e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 line-clamp-2 text-sm opacity-70">{'summary' in e?'':current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
       <Pagination label="搜尋結果分頁" page={current.list.page} total={current.list.total} pageSize={20} hasMore={current.list.has_more} loading={browse.loading} onPageChange={p=>change({page:String(p)})}/>
 
     </>}

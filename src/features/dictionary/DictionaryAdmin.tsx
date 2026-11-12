@@ -1,4 +1,7 @@
 "use client";
+import MorphemeConversion from './MorphemeConversion';
+import DictionaryCatalogNavigation from './DictionaryCatalogNavigation';
+import {catalogScope,type CatalogFilter} from './catalog';
 import {ReviewApproval,reviewFailure,reviewFailureText,type ReviewFailure} from './reviewApproval';
 import {useDictionaryText} from './useDictionaryText';
 import {adminContext,adminListHref,adminEntryHref,adminNeighbours,adminWorkHref} from './adminNavigation';
@@ -26,7 +29,9 @@ import {confirmDialog} from '../../lib/confirmDialog';
 
 import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
-import {VariantEditor} from './variants';
+import MorphemeWordLinks from './MorphemeWordLinks';
+import MorphemeSenseEditor from './MorphemeSenseEditor';
+import type {MorphemeSenseFields,MorphemeVariant} from './morphemeContract';
 import DictionaryExchangeExport from './DictionaryExchangeExport';
 import {usePaginationLanguage} from '../../lib/LanguageContext';
 import {AIImport} from './DictionaryAI';
@@ -48,7 +53,7 @@ import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 const control='scroll-mt-24 w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm text-[var(--color-text)]';
 const button='min-h-11 rounded border border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-2 text-sm text-[var(--color-text)] disabled:opacity-40';
 const addButton='min-h-11 rounded px-2 py-1 text-sm hover:bg-zinc-500/10 disabled:opacity-40';
-const labels={word:'單字',prefix:'字首',root:'字根'};
+const labels={word:'單字',prefix:'字首',root:'字根',suffix:'字尾'};
 type Row=Record<string,unknown>;
 function Field({label,value,onChange,multiline=false,placeholder,compact=false}:{label:string;value:unknown;onChange:(v:string)=>void;multiline?:boolean;placeholder?:string;compact?:boolean}) {
   return <label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{label}</span>{multiline?<AutoTextarea aria-label={label} className={control} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>:<input aria-label={label} className={control} placeholder={placeholder} value={String(value??'')} onChange={e=>onChange(e.target.value)}/>}</label>;
@@ -81,8 +86,9 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const {t}=usePaginationLanguage();
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_inflections:(detail.inflections??[]).map(clean),dictionary_entries:[{...clean(detail.entry),...(detail.entry.kind==='word'?{word_segments:legacyWordSegments(detail.entry.id,detail.entry.headword,detail.entry.word_segments)}:{})}],dictionary_senses:detail.senses.map(clean),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
   const [addingRelation,setAddingRelation]=useState(false);
-  const [grouping,setGrouping]=useState(initialGrouping);
-  const [senseGroups,setSenseGroups]=useState(initialSenseGroups);
+  const [linkBusy,setLinkBusy]=useState(false);const linkOwner=useRef<string|null>(null);
+  const [grouping]=useState(initialGrouping);
+  const [senseGroups]=useState(initialSenseGroups);
   const [baseline,setBaseline]=useState(bundle);
   const [groupBaseline,setGroupBaseline]=useState(initialGrouping),[senseBaseline,setSenseBaseline]=useState(initialSenseGroups);
   const [preview,setPreview]=useState(false);const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
@@ -90,7 +96,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const [matches,setMatches]=useState<DictionaryEntry[]>([]);
   const headword=String(bundle.dictionary_entries[0].headword);
   useEffect(()=>{let active=true;setMatches([]);if(!headword.trim())return;const timer=setTimeout(()=>{const client=getSupabase();if(client)void listAdminEntries(client,{kinds:[detail.entry.kind],statuses:[],query:headword,page:0}).then(r=>{if(active)setMatches(r.items);}).catch(()=>{});},250);return()=>{active=false;clearTimeout(timer);};},[headword,detail.entry.kind]);
-  const matching=[...entries,...matches].filter((e,i,all)=>all.findIndex(x=>x.id===e.id)===i).filter(e=>e.id!==detail.entry.id&&entryKey(e.kind,e.headword)===entryKey(detail.entry.kind,String(bundle.dictionary_entries[0].headword)));
+  const matching=(detail.entry.kind==='word'?[...entries,...matches].filter((e,i,all)=>all.findIndex(x=>x.id===e.id)===i).filter(e=>e.id!==detail.entry.id&&entryKey(e.kind,e.headword)===entryKey(detail.entry.kind,String(bundle.dictionary_entries[0].headword))):[]);
   const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{tr("適用義項")}</span><select aria-label={tr("適用義項")} className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>{tr("請選擇義項")}</option><option value="__shared__">{table==='dictionary_relations'?tr('不分義項／詞條共用'):tr('詞條共用（不限定義項）')}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>{tr("義項")}{i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
   const newContentSense=()=>bundle.dictionary_senses.length===1?bundle.dictionary_senses[0].id:'';
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline)||JSON.stringify(grouping)!==JSON.stringify(groupBaseline)||bundle.dictionary_senses.some(row=>(senseGroups[String(row.id)]??null)!==(senseBaseline[String(row.id)]??null)));
@@ -145,13 +151,13 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
   const save=async()=>{if(timer.current)clearTimeout(timer.current);setMessage('');const ok=await queue.current!.flush();if(!ok&&statusRef.current!=='failed')setMessage(t('draft.invalidLeave'));return ok;};
   const saving=saveStatus==='saving';
-  const navigation=useUnsavedDraft(dirty,busy||saving||publicationBusy,()=>save());
+  const navigation=useUnsavedDraft(dirty,busy||saving||publicationBusy||linkBusy,()=>save());
   const moving=useRef(false);
-  const adjacent=async(href:string|null)=>{if(!href||moving.current)return;moving.current=true;try{if(await save())navigation.leave(()=>window.location.assign(href));}finally{moving.current=false;}};
+  const adjacent=async(href:string|null)=>{if(!href||moving.current||linkOwner.current)return;moving.current=true;try{if(await save())navigation.leave(()=>window.location.assign(href));}finally{moving.current=false;}};
   const deletePending=useRef(false),deleteOperation=useRef<{id:string;snapshot?:{detail:{entry:{revision:number}}}}|null>(null);
   const deleteTarget=deletionEntry??{...detail.entry,revision:Number(baseline.dictionary_entries[0].revision)};
   const removeEntry=async()=>{
-    if(deletePending.current||busy||queue.current!.saving||publicationBusy||!onDeleted||deleteTarget.revision===0)return;
+    if(deletePending.current||busy||linkOwner.current||queue.current!.saving||publicationBusy||!onDeleted||deleteTarget.revision===0)return;
     if(timer.current)clearTimeout(timer.current);
     deletePending.current=true;setBusy(true);setMessage('');
     try{
@@ -172,9 +178,9 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     setBundle(b=>({...b,[table]:b[table].filter(r=>r.id!==row.id)}));complete();
   };
   const contentSection=(table:'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_examples',title:string)=>(
-    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].length} actions={<button type="button" className={addButton} onClick={()=>add(table,{sense_id:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
+    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].filter(row=>table!=='dictionary_etymologies'||detail.entry.kind==='word'||row.sense_id==null).length} actions={<button type="button" className={addButton} onClick={()=>add(table,{sense_id:table==='dictionary_etymologies'&&detail.entry.kind!=='word'?null:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
       <section className="min-w-0 space-y-2" data-content-section={title}>
-        {bundle[table].map((row,i)=><div key={String(row.id)} className="flex min-w-0 items-start gap-2">
+        {bundle[table].map((row,i)=>table==='dictionary_etymologies'&&detail.entry.kind!=='word'&&row.sense_id!=null?null:<div key={String(row.id)} className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-2">
             {bundle.dictionary_senses.length>1&&contentSense(table,i,row)}
             <Field label={title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
@@ -192,7 +198,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       {neighbours&&<button type="button" className={button} disabled={!neighbours.next||busy||publicationBusy} onClick={()=>void adjacent(neighbours?.next??null)}>{t('draft.next')}</button>}
       {onDeleted&&deleteTarget.revision>0&&<button type="button" className={`${button} shrink-0 border-red-600 text-red-600 hover:bg-red-500/10`} disabled={busy||saving||publicationBusy} onClick={()=>void removeEntry()}>{t('dictionary.deleteEntry')}</button>}
       <button type="button" className={`${button} shrink-0`} disabled={busy||publicationBusy||locked||(!dirty&&!saving)} onClick={()=>void save()}>{t(saving?'draft.saving':'draft.save')}</button>
-      {onPublish&&<button type="button" className={button} disabled={busy||saving||publicationBusy||!canPublish} onClick={()=>{if(dirty){setMessage(tr('尚有未儲存變更，請先儲存後再發布。'));return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?tr('處理中…'):tr('發布')}</button>}
+      {onPublish&&<button type="button" className={button} disabled={busy||saving||publicationBusy||linkBusy||!canPublish} onClick={()=>{if(dirty){setMessage(tr('尚有未儲存變更，請先儲存後再發布。'));return;}void onPublish(Number(baseline.dictionary_entries[0].revision));}}>{publicationBusy?tr('處理中…'):tr('發布')}</button>}
     </header>
     {navigation.pending&&<DictionaryModal title={tr("離開編輯")} onClose={navigation.cancel} busy={busy||publicationBusy}><p>{tr("有尚未儲存的修改。")}</p><div className="flex flex-wrap gap-2"><button className={button} disabled={busy||publicationBusy} onClick={()=>void navigation.saveAndLeave()}>{tr("儲存變更")}</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.discard}>{tr("放棄變更")}</button><button className={button} disabled={busy||publicationBusy} onClick={navigation.cancel}>{tr("繼續編輯")}</button></div></DictionaryModal>}
     {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
@@ -204,33 +210,29 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       onBlurCapture={complete}
       onChangeCapture={event=>{if(event.target instanceof HTMLSelectElement||event.target instanceof HTMLInputElement&&['checkbox','radio'].includes(event.target.type))complete();}}
       onClickCapture={event=>{if(event.target instanceof Element&&event.target.closest('button'))complete();}}
-      onKeyDownCapture={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){event.preventDefault();complete();}}}>
+      onKeyDownCapture={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&!event.target.closest('[data-morpheme-links]')&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){event.preventDefault();complete();}}}>
       <EditorSection title={tr("基本資料")} collapsible={false}>
-        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2">{detail.entry.kind==='word'?<WordSegmentsEditor entryId={detail.entry.id} segments={bundle.dictionary_entries[0].word_segments as WordSegment[]} relations={bundle.dictionary_relations} onChange={(segments,relations)=>{setBundle(b=>({...b,dictionary_entries:b.dictionary_entries.map(e=>({...e,word_segments:segments,headword:wordSpelling(segments)})),dictionary_relations:relations}));}}/>:<Field label={tr(labels[detail.entry.kind])} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>}
-        {detail.entry.kind!=='word'&&<>
-          {detail.entry.kind==='root'&&<label className="block text-sm">{tr("主要分類")}<select aria-label={tr("主要分類")} className={control} value={grouping.primary_category??''} onChange={event=>{const category=event.currentTarget.value||null;setGrouping(g=>({...g,primary_category:category}));}}><option value="">{tr("未分類")}</option>{primaryCategories.map(c=><option key={c} value={c}>{tr(c)}</option>)}</select></label>}
-        </>}
-        <div className="min-w-0 space-y-2">
+        <div className="grid min-w-0 gap-2 portrait:grid-cols-1 landscape:grid-cols-2">{detail.entry.kind==='word'?<WordSegmentsEditor entryId={detail.entry.id} segments={bundle.dictionary_entries[0].word_segments as WordSegment[]} relations={bundle.dictionary_relations} onChange={(segments,relations)=>{setBundle(b=>({...b,dictionary_entries:b.dictionary_entries.map(e=>({...e,word_segments:segments,headword:wordSpelling(segments)})),dictionary_relations:relations}));}}/>:<Field label={tr('構詞名稱')} value={bundle.dictionary_entries[0].headword} onChange={v=>change('dictionary_entries',0,'headword',v)}/>}
+        {detail.entry.kind!=='word'&&<label className="block text-sm">{tr('構詞分類')}<select aria-label={tr('構詞分類')} className={control} value={String(bundle.dictionary_entries[0].kind)} onChange={e=>change('dictionary_entries',0,'kind',e.target.value)}>{(['prefix','root','suffix'] as const).map(k=><option key={k} value={k}>{tr(labels[k])}</option>)}</select></label>}
+        {detail.entry.kind==='word'&&        <div className="min-w-0 space-y-2">
           <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">{tr("讀音（IPA）")}</h3><button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',sort_order:Math.max(-1,...(bundle.dictionary_pronunciations??[]).map(r=>Number(r.sort_order)))+1})} aria-label={tr("＋新增讀音")}>{tr("＋新增讀音")}</button></div>
           {(bundle.dictionary_pronunciations??[]).map((row,i,rows)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-end gap-2">
             <div className="min-w-0 flex-1"><Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/></div>
             <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,tr('讀音'))} aria-label={tr("刪除讀音")}><FeatureIcon feature="delete" size={16}/></button>
             {rows.length>1&&<><button type="button" className={addButton} aria-label={tr("上移讀音")} disabled={i===0} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,-1).map((r,n)=>({...r,sort_order:n}))}))}>↑</button><button type="button" className={addButton} aria-label={tr("下移讀音")} disabled={i===rows.length-1} onClick={()=>setBundle(b=>({...b,dictionary_pronunciations:moveRow(b.dictionary_pronunciations,i,1).map((r,n)=>({...r,sort_order:n}))}))}>↓</button></>}
           </div>)}
+        </div>}
         </div>
-        </div>
-        {detail.entry.kind!=='word'&&<>
-          <VariantEditor value={grouping.variant_group} onChange={v=>setGrouping(g=>({...g,variant_group:v}))}/>
-        </>}
       </EditorSection>
+      {detail.entry.kind!=='word'&&(grouping.primary_category||grouping.variant_group||Object.values(senseGroups).some(Boolean))&&<details className="rounded border p-3"><summary className="min-h-11 cursor-pointer py-2">{tr('待整理的舊資料')}</summary><p className="whitespace-pre-wrap text-sm">{tr('舊分類（待整理）')}：{grouping.primary_category??Object.values(senseGroups).filter(Boolean).join('；')}</p>{grouping.variant_group&&<pre className="whitespace-pre-wrap break-all text-xs">{grouping.variant_group}</pre>}</details>}
       {contentSection('dictionary_learning_notes',tr('概念'))}
       <EditorSection title={tr("義項")} collapsible={false} count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?tr('＋新增義項'):tr('＋新增中文義項')}>{tr("＋新增義項")}</button>}>
-      {bundle.dictionary_senses.map((row,i)=><div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
+      {bundle.dictionary_senses.map((row,i)=>detail.entry.kind!=='word'?<MorphemeSenseEditor key={String(row.id)} sense={row as unknown as {id:string;gloss_zh_tw:string}&MorphemeSenseFields} histories={bundle.dictionary_etymologies.filter(h=>h.sense_id===row.id) as unknown as {id:string;body:unknown;data_source?:unknown}[]} onChange={patch=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,...patch}:s)}))} onVariants={update=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,variants:update((s.variants??[]) as MorphemeVariant[])}:s)}))} onHistory={(id,patch)=>setBundle(b=>({...b,dictionary_etymologies:b.dictionary_etymologies.map(h=>h.id===id?{...h,...patch}:h)}))} onAddHistory={()=>add('dictionary_etymologies',{sense_id:row.id,body:'',data_source:''})} onRemoveHistory={id=>{const h=bundle.dictionary_etymologies.find(h=>h.id===id);if(h)void removeContent('dictionary_etymologies',h,tr('歷史詞源'));}} onRemove={()=>void removeSense(row)}><MorphemeWordLinks entryId={detail.entry.id} senseId={String(row.id)} beforeWrite={async()=>{if(linkOwner.current)return false;linkOwner.current=String(row.id);setLinkBusy(true);return save();}} afterWrite={()=>{if(linkOwner.current===String(row.id)){linkOwner.current=null;setLinkBusy(false);}}}/></MorphemeSenseEditor>:<div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
         {bundle.dictionary_senses.length>1&&<span className="pt-7 text-xs opacity-50">{i+1}</span>}
-        <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={"grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 "+(detail.entry.kind==='root'?'':"sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]")}>
+        <div data-word-sense-row={detail.entry.kind==='word'?String(row.id):undefined} className={"grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 "+"sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]"}>
         {detail.entry.kind==='word'&&<Field label={tr("詞性")} placeholder={tr("未設定")} value={row.part_of_speech} onChange={v=>change('dictionary_senses',i,'part_of_speech',v||null)}/>}
         <div className={detail.entry.kind==='word'?"col-start-1 sm:col-start-auto":""}><Field label={tr("中文意思")} value={row.gloss_zh_tw} onChange={v=>change('dictionary_senses',i,'gloss_zh_tw',v)}/></div>
-        {detail.entry.kind==='prefix'&&<label className="col-start-1 min-w-0 text-sm sm:col-start-auto">{tr("分類")}<select className={control} aria-label={t('draft.senseCategory',{number:i+1})} value={senseGroups[String(row.id)]??''} onChange={event=>{const category=event.currentTarget.value||null;setSenseGroups(g=>({...g,[String(row.id)]:category}));}}><option value="">{tr("未分類")}</option>{prefixCategories.map(c=><option key={c} value={c}>{tr(c)}</option>)}</select></label>}
+
         <button type="button" aria-label={tr('刪除義項')+' '+(i+1)} className="col-start-2 row-start-1 min-h-11 shrink-0 p-2 opacity-70 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>void removeSense(row)}><FeatureIcon feature="delete" size={16}/></button></div>
       </div>)}
       </EditorSection>
@@ -246,7 +248,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       </div>;})}
       </EditorSection>
       </>}
-      {contentSection('dictionary_etymologies',tr('歷史詞源'))}
+      {(detail.entry.kind==='word'||bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind==='word'&&<>
       <EditorSection title={tr("構詞關聯")} count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label={tr("＋新增構詞關聯")}>{tr("＋新增構詞關聯")}</button>}>
       {!bundle.dictionary_relations.length&&<p className="text-sm">{tr("尚無構詞關聯")}</p>}
@@ -337,21 +339,22 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     return {entry:{id,kind:newKind,headword:'',status:'draft',published_at:null,revision:0,updated_at:''},senses:[{id:crypto.randomUUID(),entry_id:id,part_of_speech:newKind==='word'?'noun':null,gloss_zh_tw:'',revision:0,updated_at:''}],relations:[],etymologies:[],learning_notes:[]};
   }),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const [kinds,setKinds]=useState<string[]>(source?.kinds??[]),[statuses,setStatuses]=useState<string[]>(source?.statuses??[]),[query,setQuery]=useState(source?.query??'');
+  const [scope,setScope]=useState<CatalogFilter['scope']>(source?.scope??catalogScope(source?.kinds??[])),[domain,setDomain]=useState<string|null>(source?.domain??null),[subdomain,setSubdomain]=useState<string|null>(source?.subdomain??null);
   const {t}=usePaginationLanguage();
   const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('json');
   const [fileText,setFileText]=useState(''),[sourceName,setSourceName]=useState('');
 
-  const [modal,setModal]=useState<'new'|'import'|'export'|null>(null),[createKind,setCreateKind]=useState<DictionaryEntry['kind']>('word');
+  const [modal,setModal]=useState<'new'|'import'|'export'|'conversion'|null>(null),[createKind,setCreateKind]=useState<DictionaryEntry['kind']>('word');
   const [grouping,setGrouping]=useState<DictionaryGrouping>(emptyGrouping);
   const [senseGroups,setSenseGroups]=useState<SenseGroupMap>({});
   const [reviewDraft,setReviewDraft]=useState(false);
   const closeModal=async ()=>{if(!busy&&(!fileText||await confirmDialog('有尚未匯入的內容，確定關閉？'))){setModal(null);setFileText('');}};
-  async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d?.entry.kind==='prefix'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
+  async function loadDetail(id:string){const d=await getDictionaryEntry(getSupabase()!,id);const g=d&&d.entry.kind!=='word'?await readGrouping(getSupabase()!,id):emptyGrouping();const sg=d&&d.entry.kind!=='word'?await readSenseGroups(getSupabase()!,d.senses.map(s=>s.id)):{};const {data:meta,error}=await getSupabase()!.from('dictionary_ai_metadata').select('published_entry_id,component_order').eq('entry_id',id).maybeSingle();if(error)throw new Error(error.message);if(d&&meta?.component_order){const order:string[]=meta.component_order;d.relations.sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999));}return {d,g,sg,review:!!meta?.published_entry_id};}
   useUnsavedDraft(!detail&&!!fileText,busy);
   async function refresh(id?:string){setReload(n=>n+1);if(id){const {d,g,sg,review}=await loadDetail(id);setReviewDraft(review);setSenseGroups(sg);setGrouping(g);setDetail(d);if(!embedded)window.history.replaceState(window.history.state,"",`/dictionary/admin?entry=${encodeURIComponent(id)}${source?'&from='+encodeURIComponent(adminListHref(source)):''}`);}}
-  const listing=usePagedList(JSON.stringify([kinds,statuses,query,work,reload,entryId,newKind]),page,adminPageSize,async p=>{
+  const listing=usePagedList(JSON.stringify([kinds,statuses,query,work,reload,entryId,newKind,scope,domain,subdomain]),page,adminPageSize,async p=>{
     if(entryId||newKind)return {items:[],total:0,page:0,stats:null,workAvailable:false,summaries:{} as Record<string,string>};
-    const result=await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p});
+    const result=await listAdminWork(getSupabase()!,{kinds,statuses,query,work,page:p,catalog:true,scope,domain,subdomain});
     return {...result,summaries:await adminSummaries(getSupabase()!,result.items),page:p};
   },p=>{setPage(p);});
   const revalidate=useRef(listing.retry);
@@ -364,7 +367,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
   const neighbourEntry=useRef(detail);useLayoutEffect(()=>{neighbourEntry.current=detail;},[detail]);
   const neighbourId=detail&&detail.entry.revision>0?detail.entry.id:undefined;
   useEffect(()=>{if(embedded||!neighbourId||!neighbourEntry.current)return;let active=true;void adminNeighbours(getSupabase()!,neighbourEntry.current.entry,new URLSearchParams(window.location.search).get('from')).then(value=>{if(active)setNeighbours(value);}).catch(error=>{if(active)setMessage(t(error instanceof Error?error.message:String(error)));});return()=>{active=false;};},[neighbourId,t,embedded]);
-  useEffect(()=>{if(entryId||newKind||embedded)return;const href=new URL(adminListHref({kinds,statuses,query,work,page}),window.location.origin),current=new URLSearchParams(window.location.search);for(const key of ['review','deleted'])if(current.has(key))href.searchParams.set(key,current.get(key)!);window.history.replaceState(window.history.state,'',href.pathname+href.search);},[entryId,newKind,embedded,kinds,statuses,query,work,page]);
+  useEffect(()=>{if(entryId||newKind||embedded)return;const href=new URL(adminListHref({kinds,statuses,query,work,page,catalog:true,scope,domain,subdomain}),window.location.origin),current=new URLSearchParams(window.location.search);for(const key of ['review','deleted'])if(current.has(key))href.searchParams.set(key,current.get(key)!);window.history.replaceState(window.history.state,'',href.pathname+href.search);},[entryId,newKind,embedded,kinds,statuses,query,work,page,scope,domain,subdomain]);
   const visible=entries;
 
   const publishDraft=(expectedRevision=detail?.entry.revision)=>action(async()=>{
@@ -384,21 +387,21 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     {typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('deleted')==='1'&&<p role="status">{t('dictionary.entryDeleted')}</p>}
     {reviewTarget&&<DictionaryModal title={t('persistent.queue')} onClose={()=>setReviewTarget(null)}><PersistentReviewPanel entryId={reviewTarget==='*'?undefined:reviewTarget} onChanged={()=>setReload(n=>n+1)}/></DictionaryModal>}
     <div className="flex flex-wrap items-center justify-between gap-3"><DictionaryListActions busy={busy||loading} onNew={()=>setModal('new')} onImport={()=>setModal('import')} onExport={()=>setModal('export')}/><div className="flex flex-wrap items-center gap-2">{listing.data?.workAvailable&&<Link className={button} href="/dictionary/admin/reviews">{t('persistent.openQueue')}</Link>}
-     <DictionaryBulkPublish disabled={busy||loading}/></div></div>
+     <DictionaryBulkPublish disabled={busy||loading}/><button type="button" className={button} disabled={busy||loading} onClick={()=>setModal('conversion')}>{t('dictionary.text.整理舊構詞草稿')}</button></div></div>
      {loading&&<p role="status">{t('common.loading')}</p>}
     {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
 
 
+    {modal==='conversion'&&<DictionaryModal title={t('dictionary.text.整理舊構詞草稿')} onClose={closeModal} busy={busy}><MorphemeConversion onBusy={setBusy}/></DictionaryModal>}
     {modal==='export'&&<DictionaryModal title={t("exchange.export")} onClose={closeModal} busy={busy}><DictionaryExchangeExport scope={{kinds,statuses,query}} onBusy={setBusy}/></DictionaryModal>}
-    {modal==='new'&&<DictionaryModal title="新增詞條" onClose={closeModal}><label className="block text-sm">詞條類別<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}>{Object.entries(labels).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>開始新增</Link></DictionaryModal>}
-    <input aria-label={t("ui.searchDictionary")} placeholder={t("ui.searchDictionary")} className={control} value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}/>
+    {modal==='new'&&<DictionaryModal title={t('dictionary.text.新增詞條')} onClose={closeModal}><label className="block text-sm">{t('dictionary.text.詞條類別')}<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}><option value="word">{t('ui.word')}</option><option value="root">{t('ui.morpheme')}</option></select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>{t('dictionary.text.開始新增')}</Link></DictionaryModal>}
+    <DictionaryCatalogNavigation filter={{scope,query,kinds:scope==='morpheme'?kinds:['prefix','root','suffix'],domain,subdomain}} onChange={next=>{setScope(next.scope);setKinds(next.scope==='word'?['word']:next.scope==='morpheme'?next.kinds:[]);setQuery(next.query);setDomain(next.domain);setSubdomain(next.subdomain);setPage(0);}}/>
     <div data-dictionary-filters className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-3">
-    <DictionaryListFilters kinds={kinds} statuses={statuses} onKinds={values=>{setKinds(values);setPage(0);}} onStatuses={values=>{setStatuses(values);setPage(0);}} hideStatuses/>
     {listing.data?.workAvailable&&<fieldset className="flex flex-wrap gap-3 text-sm"><legend className="mb-2">{t('persistent.workFilter')}</legend>{(['red','yellow','green'] as const).map(color=><label key={color} className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={work.includes(color)} onChange={e=>{setWork(e.target.checked?[...work,color]:work.filter(v=>v!==color));setPage(0);}}/>{t('persistent.'+color)}</label>)}</fieldset>}
     </div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     {listing.data?.workAvailable&&<p role="status" className="text-sm">{t('ui.redCount',{n:listing.data.stats!.red})}</p>}
-    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={adminWorkHref(e,{kinds,statuses,query,work,page:listing.data?.page??page})}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
+    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={adminWorkHref(e,{kinds,statuses,query,work,page:listing.data?.page??page,catalog:true,scope,domain,subdomain})}>{listing.data?.summaries[e.id]??e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span></Link></li>)}</ul></div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3">
 

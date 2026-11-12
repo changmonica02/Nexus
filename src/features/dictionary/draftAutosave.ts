@@ -39,8 +39,9 @@ export function draftContentSignature(value:unknown):string {
   return JSON.stringify(value,(key,v)=>{
     if(['pronunciations','dictionary_pronunciations'].includes(key)&&Array.isArray(v))v=v.map(row=>row&&typeof row==='object'?cleanPronunciation(row):row);
     if(['revision','updated_at','published_at','status','origin','row','proposed_ids'].includes(key))return undefined;
+    if(['semantic_domain','semantic_subdomain','variants'].includes(key)&&v==null)return undefined;
     if(key==='word_segments'&&v===null)return undefined;
-    if(Array.isArray(v)&&key!=='word_segments'&&v.every(r=>r&&typeof r==='object'&&typeof r.id==='string'))return [...v].sort((a,b)=>a.id.localeCompare(b.id));
+    if(Array.isArray(v)&&key!=='word_segments'&&key!=='variants'&&v.every(r=>r&&typeof r==='object'&&typeof r.id==='string'))return [...v].sort((a,b)=>a.id.localeCompare(b.id));
     return v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v;
   });
 }

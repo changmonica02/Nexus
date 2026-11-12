@@ -2,6 +2,22 @@
 
 > 更新：2026-10-30；程式核對基準 main `27aa143`。本文只描述目前架構、有效資料契約、限制與建議。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
+## 階段 D：構詞編輯、搜尋與無損草稿契約（Draft #171，正式未套用）
+
+沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。九大類／42小類代碼由 `semanticDomains.ts` 與 SQL 驗證，分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
+
+`MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。原有 entry grouping、舊分類、來源及其他欄位留存。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。
+
+共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、九大類及小類；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
+
+快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。
+
+`preview_dictionary_morpheme_conversion` 管理員分頁預覽；`prepare_dictionary_morpheme_draft` 以原快照、操作 UUID、既有全域鎖及 Review 驗證建立待整理草稿，收據沿用 dictionary_import_operations，同交易回滾、重試冪等。已有草稿／active Review 不覆蓋；已準備過不無限重建。只有單義項且結構合法的舊變體可確定歸屬，依原 ID／原文產生穩定變體 ID；歸屬不明仍完整保留舊原文。Migration 本身不轉換資料、不發布。
+
+正式唯讀重核29表72,281列、85個函式與原備份一致；隔離副本建立174份 Review，保留10份既有 Review，54筆變體列可歸屬，1組歸屬不明；原有逐主鍵資料雜湊全部不變。私人備份不入 Git／CI／分享，僅字典及必要學習依賴，不是完整 Supabase／Auth 備份。正式操作前須重新盤點、備份、核對實際函式與 ledger；不能 db push 全部 pending。
+
+發布邊界：B `20261111143124_study_card_visibility.sql` 的守衛須先於 B 前端；C `20261111145758_dictionary_pending_identity.sql` 宜先發布兼容新舊結果的 C 前端，再改查詢，避免舊前端誤導 editor-only 待審入口。D Schema／RPC 須先於 D 前端；舊前端對 suffix 的管理不完整。整合發布須另行授權並逐項驗證，不得把正式轉換混入 Migration。DDL 失敗整筆回滾；新 suffix／變體寫入後不能盲目刪欄位或恢復構詞唯一索引，應保留資料，以兼容前端及驗證過的備份制定人工回復方案。
+
 ## 1. 模組與資料來源
 
 

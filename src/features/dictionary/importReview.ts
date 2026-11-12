@@ -65,7 +65,7 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
   const item:ImportItem={id:crypto.randomUUID(),draft,context,observed:mapDictionaryDraft(draft),bucket:'safe',safeAction:context.snapshot?'unchanged':'new',issues:[],status:'pending'};
   for(const e of validation)addIssue(item,'invalid',e.field,null,null,e.error,['skip','later'],undefined,e.row);
   const current=context.snapshot;
-  if(current&&current.detail.entry.kind!==draft.kind)addIssue(item,'identity_kind','kind',current.detail.entry.kind,draft.kind,'Stable ID 指向不同類型，不能轉型。',['skip','later']);
+  if(current&&current.detail.entry.kind!==draft.kind&&(current.detail.entry.kind==='word'||draft.kind==='word'))addIssue(item,'identity_kind','kind',current.detail.entry.kind,draft.kind,'Stable ID 指向不同類型，不能轉型。',['skip','later']);
   for(const section of contentSections)for(const row of draft[section]??[]){
     const collision=context.identities[tables[section]]?.find(r=>r.id===row.id&&r.entry_id!==draft.entry_id);
     if(collision)addIssue(item,'identity_owner',section,collision,row,'Stable ID 已屬於其他詞條，不能挪用。',['skip','later']);
@@ -83,6 +83,7 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
       const shared=contentSections.filter(s=>s!=='senses'&&s!=='relations').flatMap(section=>storedRows(context,section).filter(r=>!r.sense_id));
       if(shared.length)addIssue(item,'shared_content_scope','sense_id',shared,null,'既有內容未限定義項；新增義項前請確認保留為詞條共用，或先在編輯器指定義項。',['keep','skip','later']);
     }
+    compare('entry',undefined,'kind',current.detail.entry.kind,draft.kind);
     compare('entry',undefined,'headword',current.detail.entry.headword,draft.headword);
     if(draft.word_segments!==undefined)compare('entry',undefined,'word_segments',current.detail.entry.word_segments??null,draft.word_segments);
     if(draft.component_order!==undefined)compare('entry',undefined,'component_order',current.metadata?.component_order??[],draft.component_order);
@@ -127,7 +128,7 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
     if(issue.selectedAction==='keep'){
-      if(t.section==='entry'){if(t.field==='component_order')d.component_order=issue.existing as string[];else if(t.field==='word_segments')d.word_segments=issue.existing as DictionaryDraftInput['word_segments'];else d.headword=String(issue.existing);}
+      if(t.section==='entry'){if(t.field==='kind')d.kind=issue.existing as DictionaryDraftInput['kind'];else if(t.field==='component_order')d.component_order=issue.existing as string[];else if(t.field==='word_segments')d.word_segments=issue.existing as DictionaryDraftInput['word_segments'];else d.headword=String(issue.existing);}
       else if(t.section==='grouping'&&d.grouping){if(t.field==='tags')d.grouping.tags=issue.existing as string[];else if(t.field==='variant_group')d.grouping.variant_group=issue.existing as string|null;else d.grouping.primary_category=issue.existing as string|null;}
       else if(t.section!=='grouping'){
         const rows=d[t.section]??[];const row=rows.find(r=>r.id===t.id);

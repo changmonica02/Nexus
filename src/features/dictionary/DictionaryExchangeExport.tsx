@@ -13,7 +13,7 @@ import {
 } from "./exchangeExport";
 import { exchangeTransferAvailable } from "./persistentImport";
 import type { ExchangeScope } from "./dictionaryExchange";
-const allKinds = ["word", "prefix", "root"];
+const allKinds = ["word", "prefix", "root", "suffix"];
 export default function DictionaryExchangeExport({
   onBusy,
 }: {
@@ -126,7 +126,7 @@ export default function DictionaryExchangeExport({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={kinds.length === 3}
+              checked={allKinds.every(kind=>kinds.includes(kind))}
               ref={(el) => {
                 if (el) el.indeterminate = kinds.length > 0 && kinds.length < 3;
               }}

@@ -1,3 +1,4 @@
+import {validateMorphemeSenseFields} from './morphemeContract';
 import {replacementIssueIds,sameImportProposal,type PersistentItem} from "./persistentImport";
 import {cleanIpaRecord} from './retiredPronunciation';
 import {mergeCoreConcepts} from './coreConcept';
@@ -82,7 +83,7 @@ export function parseExchange(raw: string): ExchangeDocument {
   keys(doc.scope, ["kinds", "statuses", "query", "pending_only"], "scope");
   if (
     !Array.isArray(doc.scope.kinds) ||
-    doc.scope.kinds.some((k) => !["word", "prefix", "root"].includes(k)) ||
+    doc.scope.kinds.some((k) => !["word", "prefix", "root", "suffix"].includes(k)) ||
     !Array.isArray(doc.scope.statuses) ||
     doc.scope.statuses.some((s) => !["draft", "published"].includes(s)) ||
     (doc.scope.pending_only!==undefined&&typeof doc.scope.pending_only!=="boolean")||
@@ -92,7 +93,7 @@ export function parseExchange(raw: string): ExchangeDocument {
   return {...doc,records:doc.records.map(cleanIpaRecord)} as unknown as ExchangeDocument;
 }
 const rowFields: Record<string, string[]> = {
-  senses: ["part_of_speech", "gloss_zh_tw"],
+  senses: ["part_of_speech", "gloss_zh_tw", "semantic_domain", "semantic_subdomain", "variants"],
   relations: ["sense_id", "target_entry_id", "target_sense_id"],
   etymologies: ["sense_id", "body", "data_source"],
   learning_notes: ["sense_id", "kind", "body"],
@@ -207,7 +208,7 @@ export function draftFromExchange(
           "entry_id",
           "revision",
           "updated_at",
-          ...fields,
+          ...fields.filter(f=>!["semantic_domain","semantic_subdomain","variants"].includes(f)),
         ])
           if (!Object.hasOwn(r, field))
             throw Error(`${section}: missing ${field}`);
@@ -219,6 +220,7 @@ export function draftFromExchange(
           throw Error(`${section}: invalid identity/timestamp types`);
         for (const field of fields) {
           const value = r[field];
+          if(["semantic_domain","semantic_subdomain","variants"].includes(field))continue;
           if (field === "sort_order") {
             if (!Number.isSafeInteger(value) || Number(value) < 0)
               throw Error(`${section}: invalid sort_order`);
@@ -247,6 +249,7 @@ export function draftFromExchange(
           )
         )
           throw Error("Invalid learning note kind");
+        if(section==="senses"){const issue=validateMorphemeSenseFields(r);if(issue)throw Error(issue);}
         if (r.entry_id !== entry.id)
           throw Error(`${section}: foreign entry ownership`);
         if (!Number.isSafeInteger(r.revision) || Number(r.revision) < 0)
@@ -273,8 +276,6 @@ export function draftFromExchange(
         snapshot.grouping.primary_category)
     )
       throw Error("Word grouping is unsupported");
-    if (entry.kind === "prefix" && snapshot.grouping.primary_category)
-      throw Error("Prefix categories belong to Sense IDs");
     if (
       !Array.isArray(snapshot.grouping.tags) ||
       snapshot.grouping.tags.some((t) => typeof t !== "string" || !t.trim())

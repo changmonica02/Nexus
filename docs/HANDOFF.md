@@ -1,18 +1,19 @@
-# Nexus — 階段 C：字典缺陷重現與修正
+# Nexus — A／B／C／D 接續實作（2026-11-12）
 
-追蹤 #167；分支 `fix/dictionary-defects-stage-c`，基於 main `350882c`。A 見 Draft #168，B 見 Draft #169；本分支不重做 A／B。維持 Draft，不合併、不部署、不寫正式 DB、不修改 HISTORY。
+追蹤 #167；main 基準 `350882c`，Draft #168／#169／#170／#171。本輪未操作正式資料、Migration、合併或部署，HISTORY 未改。
 
-- C1 根因已確認（使用者提供 a 與完整錯誤後）：正式唯讀查得 a 為已發布 Word，同時被 gsat-1-2／gsat-all 引用，觸發 delete_dictionary_entry 的官方清單保護，並非通用刪除交易失效。6,163個 Word 中6,134個有官方引用，足以解釋大量單字皆被阻擋，但不宣稱每個詞條都不能刪。保留既有保護；本 PR 改為清楚雙語依賴提示，保留 message／code／details／hint 診斷，沒有自動解除官方引用。隔離非官方 Word 可刪、官方引用阻擋及交易回滾測試已涵蓋。
-- C2：確認 Prefix 分類按 sense 回傳，UI 卻重複顯示完整摘要；修正前雙義項為兩列，修正後以正式 entry ID 先分組再分頁，保留義項定位。不同正式類型的同字形 ID 不合併，刪除一個不影響另一個。
-- C3：確認管理 red 只含匯入審核，完整 pending 匯出另含 active 編輯 Review。單一編輯 Review 在原管理為0、匯出為1的失敗已重現；現在兩者按真正工作與 entry ID 統一，普通草稿不算待審核；匯入與編輯來源仍導向各自既有頁面，不刪工作紀錄。
-- 正式唯讀基準（2026-11-11，非寫入）：published Word 6,163／Prefix77／Root107；義項10,866、關聯145、詞源102、IPA152、active editor Review3,802、匯入待處理 entry1,369、官方清單 entry6,134、私人正式字典連結6,135。同類型同字形未見重複正式 entry。不同工作可能對應同一 entry，禁止把上述計數直接相加當待審核詞條總數。
-- 正式資料完整副本的追加隔離驗證：29表72,281列逐主鍵完整列雜湊一致、所有約束有效、RPC／跨帳號 RLS 通過。套用 C 查詢後，管理與完整 pending 匯出皆為5,166個唯一詞條（原管理1,369）；29個非官方清單 Word 刪除均成功並在強制延遲約束檢查後回滾，原資料不變。追加使用者證據與正式唯讀引用核對後，C1 已定位為官方清單保護；本測試不代表移除保護。
-- 隔離 fixture 差異：兩個官方包 CHECK 未包含正式既有 gsat-all，以及缺少既有 set_study_dictionary_link 定義；副本依正式唯讀定義／原 ACL 補齊，未放寬約束或修改正式 Schema。私人恢復備份不提交 Git。
-- Migration `20261111145758_dictionary_pending_identity.sql`：只修查詢／計數，無資料改寫；正式尚未套用，須另行授權。相容前端可先、DB查詢後；B payload Migration 的發布順序另依 B PR，不可 db push 全部 pending。
-- 已通過 PGlite 重現／修正及 PostgreSQL 17 真實 RPC／RLS；不同義項、跨頁、同字形不同類型、缺少正式 entry 的候選、失敗待恢復、範圍計數、重入與回滾；Chromium／WebKit 實際 SQL 刪除、取消、失敗及未存內容保護通過。六項隔離資料庫測試、六組既有字典／安全匯入回歸通過；TypeScript、ESLint（0 errors／3既有 warnings）、Production Turbopack Build通過。379ccae 的 Actions 43130203635：dictionary-c 與 world-map 成功，note 在 bulk UI 等待原始 fixture 錯誤文字失敗。診斷已改為安全翻譯提示，補修該舊斷言，保留失敗後輸入與重試檢查；本機完整 bulk UI 通過，新 HEAD 待核對。Vercel成功，Android／iPad 未實機驗收。
-- 後續邊界：C1 已查明；如要刪除官方引用詞條，須另行設計明確的官方來源清單調整及影響確認，不可把依賴保護當 bug 移除。本輪不執行該調整。D 可繼續隔離設計／實作，正式轉換仍須獨立授權；Android／iPad 與正式錯誤提示仍待人工驗收。
+- #171 已接入完整構詞編輯、形式改類、義項分類／變體／概述／詞源、反向單字連結及四行共用導覽、搜尋與分類分頁；沿用既有 Review／CAS／JSON／公開快取。新增 Migration `20261112012042_dictionary_morpheme_senses.sql`，只建立契約，不自動轉換或發布。
+- 舊資料安全：缺省／null 新欄位兼容，明確 [] 保持清除；舊完整儲存不抹除新版變體，真正內容／版本衝突仍拒絕。完整交換與 AI JSON 保留新欄位、既有 ID、舊分類／原文。舊匯出工作 fingerprint 不因新增 null 假失效。
+- 最新正式唯讀核對：24張字典／審核／官方表、5張學習依賴、85個函式與備份一致。entries6,347／morphemes184／morpheme senses250；10個構詞 active Review 保留。學習卡10,155、狀態10,155、事件2,567、設定15。本次數字只作核對基準，正式前重查。
+- 完整私人備份29表72,281列及 SHA256／逐主鍵雜湊／還原已驗證，不在 Git 或外部分享，非完整 Supabase／Auth 備份。最終 D Migration 在原生 PostgreSQL 的完整副本重驗：174份待整理 Review、10份既有 Review保留、54筆可歸屬變體列、1組歸屬不明原文保留；全部原始列未變，重送結果一致、無重複 Review／收據，非管理員拒絕。
+- 已通過：D PGlite 八項 Migration／RPC／相容／回滾測試；Chromium／WebKit 真實 SQL 編輯、保存、重開、排序／刪除精確變體、Word雙向草稿連結，1280／820／390／320與中英文；完整匯出 bulk UI、分頁、發布／恢復刷新及共用 workspace 瀏覽器回歸。19項 editor UI、9項 AI JSON 回歸通過。TypeScript、ESLint（0 errors，23 warnings）、Production Build、原生 PostgreSQL八項測試通過；最終新 HEAD CI仍待重驗。原生回滾測試修正測試注入函式的跨連線生命週期，沒有改動正式驗證或提高逾時。
+- C `cca0555` 修正實際 CI bulk 測試仍期待原始 SQL 錯誤；保留草稿、失敗重試檢查，不略過測試。a 仍因 gsat-1-2／gsat-all 正式引用被正確阻擋，不能解除保護。A 90f467b、B 7f4141f、D舊c53193b的 Actions／Vercel已核對成功，新D提交仍須重驗。
+- 未完成：四分支整合、整合後 IndexedDB／離線 PWA／學習回歸及最新遠端 CI；Android／iPad實機。原地圖曾出現一次 reorder 保存競態，後續 HEAD 通過不等於根因已修復，若重現必須依日誌排查，不提高逾時掩蓋。
+- 正式 ledger 最後為 `20261107005039`（safe replacement），版本與 Git 檔名不同。B／C／D 皆未正式套用。C相容前端先行，B守衛及D契約先於各自依賴前端；逐項授權並依 B→C→D 隔離驗證結果執行，不能一次 db push。草稿轉換另需正式資料操作授權及人工發布；新資料寫入後不可盲目反向刪欄／恢復唯一索引。
 
-以下為 main 原交接背景，最新狀態以上述記錄及 PR checks 為準。
+目前維持 Draft，尚不建議合併。
+
+以下保留 main 交接背景；本輪狀態以上述紀錄為準。
 
 # Nexus — 當前狀態與下一步
 

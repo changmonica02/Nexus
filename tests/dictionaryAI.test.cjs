@@ -24,13 +24,13 @@ test('AI export scopes select draft/published and deduplicate linked drafts with
 });
 test('Word/Prefix/Root AI projections preserve meanings and category levels without relation UUIDs',()=>{
  const w=toAI(word,targets);assert.equal(w.classification,'verb');assert.equal(w.meanings[0].zh_tw,'提議');assert.equal(w.components[0].target_id,id(20));assert.equal(w.components[0].zh_tw,'向前');assert.equal(w.components[0].order,0);assert.ok(!JSON.stringify(w).includes(id(15)));
- const p=toAI(prefix,new Map());assert.ok(!('primary_category' in p.grouping));assert.equal(p.meanings[0].grouping.primary_category,prefixCategories[1]);assert.equal(categoryMatches(prefix,prefixCategories[1]),true);
- const r=snapshot(30,'root');assert.equal(toAI(r,new Map()).grouping.primary_category,primaryCategories[0]);assert.equal(categoryMatches(r,primaryCategories[0]),true);assert.ok(!toAI(r,new Map()).meanings[0].grouping);
+ const p=toAI(prefix,new Map());assert.equal(p.grouping.primary_category,prefix.grouping.primary_category);assert.equal(p.meanings[0].grouping.primary_category,prefixCategories[1]);assert.equal(categoryMatches(prefix,prefixCategories[1]),true);
+ const r=snapshot(30,'root');assert.equal(toAI(r,new Map()).grouping.primary_category,primaryCategories[0]);assert.equal(categoryMatches(r,primaryCategories[0]),true);assert.deepEqual(toAI(r,new Map()).meanings[0].grouping,{primary_category:r.sense_groups[r.detail.senses[0].id]});
  assert.equal(parseAI(document([w,p,toAI(r,new Map())])).entries.length,3);
 });
 test('AI parser rejects identity/verification/delete/unknown fields and invalid classification',()=>{
  const base=toAI(word,targets);
- for(const changed of [{...base,type:'invalid'},{...base,revision:0},{...base,delete:true},{...base,sources:[{id:id(1),citation:'old',license:'old',url:null,verification:'verified'}]},{...base,meanings:[{id:'bad',zh_tw:'x'}]},{...toAI(prefix,new Map()),grouping:{primary_category:primaryCategories[0]}}])assert.throws(()=>parseAI(document([changed])));
+ for(const changed of [{...base,type:'invalid'},{...base,revision:0},{...base,delete:true},{...base,sources:[{id:id(1),citation:'old',license:'old',url:null,verification:'verified'}]},{...base,meanings:[{id:'bad',zh_tw:'x'}]},{...toAI(prefix,new Map()),meanings:[{id:id(21),zh_tw:'x',semantic_domain:'invalid'}]}])assert.throws(()=>parseAI(document([changed])));
  assert.throws(()=>parseAI(document([base,base])),/重複/);
  assert.throws(()=>parseAI('{'));
 });
