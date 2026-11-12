@@ -1,3 +1,17 @@
+# 字典 catalog 逾時修復（2026-11-12，驗證中）
+
+- 基準 main `f490cbe`；分支 `fix/dictionary-catalog-timeout`。使用者確認 A／B／C／D 已合併且所需正式 Migration 已套用；下方舊交接的未合併／未套用描述不是目前狀態。
+- 正式唯讀日誌定位共用 `search_dictionary_catalog` 內 SQL，57014；不是分頁 UI。列表、總數、管理三色統計共用同一 RPC，分類／搜尋為其中條件。
+- 已先回報再修改：原 `matches` 分頁前逐詞條重掃完整 materialized 義項／變體。新版集合匹配、完整範圍計數、分頁後組裝內容；不提高 timeout、不改 ID、權限、Review 或 CAS。
+- 新 `20261112120627_dictionary_catalog_query_plan.sql` 只交易替換函式；沒有資料更新／刪除／新表。正式未套用，須人工審查及另行授權；既有前端 RPC 契約相容。失敗交易回滾，回復採另授權替換舊函式，不回復資料。
+- 隔離 PostgreSQL 九組新舊完整 RPC JSON 一致（一般／管理、搜尋、構詞、分類、紅色、草稿），另驗證 generic／custom 計畫。私人診斷及備份不入 Git。新增 6,300 詞條／12,600 義項合成回歸，保護分頁前掃描次數、重複呼叫與資料不變。
+- Draft PR #173，程式提交 `0c81ea0`。PGlite／原生 PostgreSQL 各九項回歸通過，另原生補驗最新交易失敗回滾；閱讀／管理七項、字典缺陷六項、交換六項、構詞契約測試通過。TypeScript、相關 ESLint（0 errors）、Production Build、Chromium／WebKit 管理與公開字典實際畫面通過，包含草稿變體不洩漏與窄畫面。
+- 隔離副本 EXPLAIN ANALYZE：一般列表 9,280.868 → 51.222ms；管理列表 10,324.947 → 2,236.930ms；不是正式耗時。管理候選估算與 JIT 仍有成本，沒有調整 timeout／JIT 設定。副本為既有私人備份，詞條／義項規模與本次唯讀盤點一致，待審資料已有變動，不能當作正式完整現況；九組 JSON 相等證明只針對此隔離副本。
+- 正式唯讀 ledger 確認 B／C／D 分別登錄為 `20261112090122`／`20261112090153`／`20261112090218`，與 Git 檔名時間不同。禁止以 db push 套用所有 pending；本修復須單獨授權。
+- Vercel 程式提交成功；GitHub Actions `43216570696` 的構詞、字典C、學習B、介面A成功。world-map失敗於 `tests/worldMap.browser.test.cjs:355` 雙指縮放倍率等待20秒，根因未確認，本輪未修改地圖／測試或提高逾時；同工作的中英地圖UI及離線PWA子測試成功。整合note工作仍執行中，完成後核對。完整CI尚未通過，維持Draft。不新增產品行為，SPEC 不改；正式尚未套用修復，不能宣稱已恢復。沒有修改正式資料、HISTORY、合併或部署。
+
+---
+
 # Nexus — 學習／構詞整合交接（2026-11-12，待正式授權）
 
 追蹤 #167；main基準 `350882c`。A／B／C／D維持 Draft #168／#169／#170／#171，整合 Draft #172。沒有合併GitHub PR、部署、操作正式資料或修改HISTORY。
