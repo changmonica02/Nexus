@@ -1,25 +1,23 @@
-# Nexus — A／B／C／D 接續實作（2026-11-12）
+# Nexus — 學習／構詞整合交接（2026-11-12，待正式授權）
 
-追蹤 #167；main 基準 `350882c`，Draft #168／#169／#170／#171。本輪未操作正式資料、Migration、合併或部署，HISTORY 未改。
+追蹤 #167；main基準 `350882c`。A／B／C／D維持 Draft #168／#169／#170／#171，整合 Draft #172。沒有合併GitHub PR、部署、操作正式資料或修改HISTORY。
 
-- #171 已接入完整構詞編輯、形式改類、義項分類／變體／概述／詞源、反向單字連結及四行共用導覽、搜尋與分類分頁；沿用既有 Review／CAS／JSON／公開快取。新增 Migration `20261112012042_dictionary_morpheme_senses.sql`，只建立契約，不自動轉換或發布。
-- 構詞連結選擇器補齊 suffix 顯示與同一快速建立流程，保留管理員明確發布確認及操作冪等；SQL及完整editor瀏覽器回歸通過。
-- 舊資料安全：缺省／null 新欄位兼容，明確 [] 保持清除；舊完整儲存不抹除新版變體，真正內容／版本衝突仍拒絕。完整交換與 AI JSON 保留新欄位、既有 ID、舊分類／原文。舊匯出工作 fingerprint 不因新增 null 假失效。
-- 最新正式唯讀核對：24張字典／審核／官方表、5張學習依賴、85個函式與備份一致。entries6,347／morphemes184／morpheme senses250；10個構詞 active Review 保留。學習卡10,155、狀態10,155、事件2,567、設定15。本次數字只作核對基準，正式前重查。
-- 完整私人備份29表72,281列及 SHA256／逐主鍵雜湊／還原已驗證，不在 Git 或外部分享，非完整 Supabase／Auth 備份。最終 D Migration 在原生 PostgreSQL 的完整副本重驗：174份待整理 Review、10份既有 Review保留、54筆可歸屬變體列、1組歸屬不明原文保留；全部原始列未變，重送結果一致、無重複 Review／收據，非管理員拒絕。
-- 已通過：D PGlite 八項 Migration／RPC／相容／回滾測試；Chromium／WebKit 真實 SQL 編輯、保存、重開、排序／刪除精確變體、Word雙向草稿連結，1280／820／390／320與中英文；完整匯出 bulk UI、分頁、發布／恢復刷新及共用 workspace 瀏覽器回歸。19項 editor UI、9項 AI JSON 回歸通過。TypeScript、ESLint（0 errors，23 warnings）、Production Build、原生 PostgreSQL八項測試通過；最終新 HEAD CI仍待重驗。原生回滾測試修正測試注入函式的跨連線生命週期，沒有改動正式驗證或提高逾時。
-- C `cca0555` 修正實際 CI bulk 測試仍期待原始 SQL 錯誤；保留草稿、失敗重試檢查，不略過測試。a 仍因 gsat-1-2／gsat-all 正式引用被正確阻擋，不能解除保護。A 90f467b、B 7f4141f、D舊c53193b的 Actions／Vercel已核對成功，C最新80f1199的Actions43167852813與Vercel皆成功；新D提交仍須重驗。
-- 整合 Draft #172 已建立；A／B／C／D 共用元件與六個CI工作已合併，整合 TypeScript、Production Build、ESLint（0 errors／25 warnings）、19項editor UI、7項reader/admin、3項身分、六組學習Session／隱藏／清除／同步回歸與真實SQL刪除（含suffix）通過。B→C→D依序在完整資料副本驗證通過，原72,281列逐主鍵雜湊保持一致。
-- CI新失敗已定位：D原生PG readiness讀到初始化暫存Unix服務，改驗最終127.0.0.1 TCP服務；舊editor瀏覽器測試仍尋找entry層級變體，改測義項內新增／刪除／重開保存，保留原本髒資料與發布保護。未提高逾時或略過測試。
-- 整合 Chromium／WebKit四組瀏覽器回歸通過：真實SQL刪除（含suffix）、完整構詞編輯、2B學習內字典、IndexedDB隱藏／恢復／Session離開。production PWA兩組通過，包含冷離線重開、離線作答／編輯、重連衝突與帳號隔離。6,300卡本機基準新Session204.58ms／恢復138.91ms，各一次cards/states完整讀取（共12,600列），ID／額度／事件不變；這是合成環境，非實機耗時。
-- 編輯器IME／多行換行／失敗重試／離開保護、自動儲存，以及設定／凍結Session／每日額度／無盡複習中英文三尺寸回歸通過；五項舊分類相容測試改驗新義項控制，原RPC／歷史資料保留測試仍在。
-- 完整JSON交換3項與常駐匯入12項回歸通過；新HEAD TypeScript與Build通過，ESLint 0 errors／25 warnings。
-- 未完成：最新遠端 CI／Vercel核對及Android／iPad實機。原地圖曾出現一次 reorder 保存競態，後續 HEAD 通過不等於根因已修復，若重現必須依日誌排查，不提高逾時掩蓋。
-- 正式 ledger 最後為 `20261107005039`（safe replacement），版本與 Git 檔名不同。B／C／D 皆未正式套用。C相容前端先行，B守衛及D契約先於各自依賴前端；逐項授權並依 B→C→D 隔離驗證結果執行，不能一次 db push。草稿轉換另需正式資料操作授權及人工發布；新資料寫入後不可盲目反向刪欄／恢復唯一索引。
+- 程式完成：沿用A的學習設定／講稿範圍／2B字典面板、B的Session安全離開／忘記卡不搶畫面／私人隱藏、C的穩定ID列表／待審計數與官方引用刪除保護，完成D統一Prefix／Root／Suffix編輯、每義項九大類／42小類、具ID有序變體／條件、概述／獨立詞源、雙向Word關聯、四行搜尋分類分頁及無損待整理草稿。
+- D沿用DraftAutosaveQueue、Review／CAS、人工發布、既有relation／公開快取／JSON；不新增字典、同步或關聯表。原ID改形式分類，不改Word身分。合法同字形、同分類但不同ID保留；快速建立遇多個符合ID拒絕猜測。字尾使用同一構詞選擇器與原管理員確認流程。
+- 相容：新增欄位缺省／null不抹除舊值，明確variants:[]才清空；分類null可清除。快照完整保留查證／詞源／概念／IPA／word_segments規則及真正內容、排序與版本衝突。舊匯出fingerprint不因新增null假過期，完整JSON／AI JSON保留新欄位及舊原文；CSV仍為既有有限欄位格式，不是完整備份。
+- 正式唯讀重核24張字典／審核／官方表、5張學習依賴、85個函式與原備份一致。entries6,347、構詞184／義項250、學習卡及狀態各10,155、事件2,567、設定15；正式操作前重新盤點，不能視為永久基準。正式ledger最後20261107005039，與Git檔名不同，禁止db push全部pending。
+- 私人完整備份29表72,281列及SHA256／逐主鍵雜湊／還原已驗證，不入Git／CI／外部分享；只是字典及必要學習依賴，非完整Supabase／Auth備份。B→C→D在無網路PostgreSQL17完整副本依序套用及轉換，所有原列雜湊不變：184構詞中174份待整理Review建立、10份既有Review保留、54筆變體列可歸屬、1組歸屬不明原文保留；重送不重複，沒有自動發布。
+- 新Migration：B `20261111143124_study_card_visibility.sql`、C `20261111145758_dictionary_pending_identity.sql`、D `20261112012042_dictionary_morpheme_senses.sql`。全部正式未套用。D只增nullable義項欄位、suffix、驗證與搜尋／轉換RPC，不自動改資料。轉換操作仍須另行正式資料授權，管理員整理後人工發布。
+- 發布順序：先C相容前端避免舊red入口誤導；B守衛／D契約先於依賴前端，逐項授權並依B→C→D驗證，不一次推全部Migration。舊前端不能完整管理suffix或解析新義項JSON，切換期停用舊版匯入／分類編輯。DDL失敗全交易回滾；新資料寫入後不能盲目刪新欄位／恢復構詞唯一索引，須保留資料另定人工回復。
+- 本機通過：D的PGlite與原生PostgreSQL各8項RPC／RLS／回滾／舊Review／JSON相容測試；整合43項構詞／排程／同步回歸、14項C缺陷、19項editor UI、7項reader/admin、3項身分、完整交換與常駐匯入回歸。TypeScript、Production Build通過，相關ESLint 0 errors（D23／整合25 warnings）。
+- 瀏覽器通過：Chromium／WebKit實際SQL構詞編輯、重開、精確變體刪除與雙向草稿關聯，1280／820／390／320及中英文；2B面板、IDB隱藏／恢復／Session離開、IME／多行／失敗重試、批次匯出／匯入、地圖保存重開與多區塊。production PWA冷離線重開、離線編輯／作答、重連衝突與帳號隔離通過，沒有清空IndexedDB。
+- 6,300卡合成本機基準：新Session204.58ms／恢復138.91ms；各一次cards與states讀取，共12,600列，ID／額度／事件不變。不是Android／iPad實機耗時。開始學習瀏覽器測試另涵蓋線上／離線／重連／待傳／遠端變更／官方內容。
+- 遠端程式提交驗證：D `f9d5f80` 的 Actions **43173791931** 三工作成功；整合 `8358622` 的 Actions **43173859836** 六工作成功；兩者Vercel成功。A `90f467b`、B `7f4141f`及C `80f1199`亦各自核對Actions／Vercel成功（C run43167852813）。本次交接更新只改文件，前述SHA為已驗證程式基準。
+- CI實際修正：PG readiness改確認最終TCP服務，避免初始化暫存Unix服務；舊測試接入新搜尋RPC、義項變體及紅色active Review口徑；批次停止以可控在途RPC取代220ms競速；視角測試先初始化lazy iframe，再等本次持久化並確認另一區塊不變。未略過測試、弱化驗證或提高逾時。
+- 原生工具確認曾有一次CI未關閉；本機原樣／診斷重跑共三次通過，最終兩份CI亦通過，但**尚不能宣稱該偶發根因修復**。保留點擊／宿主錯誤／工具狀態診斷，若重現再依證據處理。Chromium本機外部字型受代理CA影響，以正常TLS驗證的公開字型轉送完成測試，未放寬部署或sandbox。
+- 仍待驗收：Android／iPad實機的學習返回／隱藏／離線重連／字典拖曳與IME、構詞編輯及正式帳號跨裝置；1組舊變體人工歸屬、舊分類人工整理。新義項若未發布，不能成為正式Word FK目標；多個Word Review須從原編輯器選擇，不任選草稿。a仍受gsat-1-2／gsat-all正式引用保護，未強制解除。
 
-最新整合 CI `fcabfa4`：interface-a／study-b／dictionary-c／morpheme-contract通過；note 的批次停止測試仍依賴220ms視窗，已用可控RPC閘門驗證第一批在途時停止，不改產品批次流程。D的WebKit地圖測試只等已存在的view，已改為暫緩持久寫入並等此次新視角、強化第二區塊不變檢查，WebKit完整回歸通過；Chromium另確認需先捲入並初始化第二個lazy iframe，補齊後完整回歸通過。原生地圖確認工具另有一次CI未關閉，原樣本機重跑及帶診斷重跑共三次通過，尚不能認定根因修復；補點擊次數／宿主錯誤／原生工具狀態診斷，維持原逾時及保存驗證。最終HEAD仍須完整CI重驗。Chromium本機字型下載受代理CA影響，以保留TLS驗證的公開字型轉送完成原生回歸，不改正式部署權限或停用TLS。
-
-目前維持 Draft，尚不建議合併。
+可進行人工合併前審查；正式Migration／轉換與裝置驗收未完成，維持Draft，不建議直接合併或部署。
 
 以下保留 main 交接背景；本輪狀態以上述紀錄為準。
 
