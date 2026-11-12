@@ -92,6 +92,17 @@ begin
    d:=replace(d,'if entry_kind is distinct from current_snapshot->''detail''->''entry''->>''kind'' then', 'if (entry_kind=''word'') is distinct from (current_snapshot->''detail''->''entry''->>''kind''=''word'') then');
   elsif f.proname='dictionary_exchange_record' then
    d:=replace(d,'md5(jsonb_build_array(s,reviews)::text)', 'md5(public.dictionary_normalize_morpheme_senses(jsonb_build_array(s,reviews))::text)');
+  elsif f.proname='export_dictionary_exchange_page' and position('pending_only boolean' in d)>0 then
+   -- Match the catalog's one-current-Review identity for scope selection only.
+   -- The exported canonical snapshot and every Review remain unchanged.
+   if position('with pending as (' in d)=0 or position('where e.kind=any(kind_filters)' in d)=0 or position('lower(e.headword)' in d)=0 then raise exception 'Unexpected installed exchange scope identity';end if;
+   d:=replace(d,$scope$with pending as ($scope$,$scope$with editor_scope as (
+    select entry_id,case when count(*)=1 then jsonb_agg(candidate order by id)->0 else null end candidate
+    from public.dictionary_review_drafts where state='active' group by entry_id
+   ), pending as ($scope$);
+   d:=replace(d,'select e.id::text key from public.dictionary_entries e','select e.id::text key from public.dictionary_entries e left join editor_scope ec on ec.entry_id=e.id');
+   d:=replace(d,'where e.kind=any(kind_filters)', $scope$where coalesce(ec.candidate#>>'{bundle,dictionary_entries,0,kind}',e.kind)=any(kind_filters)$scope$);
+   d:=replace(d,'lower(e.headword)', $scope$lower(coalesce(ec.candidate#>>'{bundle,dictionary_entries,0,headword}',e.headword))$scope$);
   elsif f.proname='dictionary_exchange_scope_version' then
    d:=replace(d,'md5(to_jsonb(x)::text)', 'md5((case when to_jsonb(x) ? ''''gloss_zh_tw'''' then public.dictionary_normalize_morpheme_senses(to_jsonb(x)) else to_jsonb(x) end)::text)');
   elsif f.proname='apply_dictionary_import_reviews' then

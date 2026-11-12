@@ -10,7 +10,7 @@
 
 共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、九大類及小類；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
 
-快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。
+快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。匯出範圍的類型與名稱沿用管理catalog的唯一active Review身分；多份Review則回到正式身分，不任選。這只影響範圍選取，匯出仍包含完整正式快照與全部Review，保留版本／固定範圍驗證。
 
 `preview_dictionary_morpheme_conversion` 管理員分頁預覽；`prepare_dictionary_morpheme_draft` 以原快照、操作 UUID、既有全域鎖及 Review 驗證建立待整理草稿，收據沿用 dictionary_import_operations，同交易回滾、重試冪等。已有草稿／active Review 不覆蓋；已準備過不無限重建。只有單義項且結構合法的舊變體可確定歸屬，依原 ID／原文產生穩定變體 ID；歸屬不明仍完整保留舊原文。Migration 本身不轉換資料、不發布。
 
