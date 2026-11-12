@@ -177,6 +177,8 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 ### 2026-11-11 介面整理（#167／階段 A）
 
+`CardDictionaryPanel` 的公開讀取完成時，只在搜尋框未被使用者聚焦時移動至標題，避免延遲回應中斷輸入／組字；提交直接讀取目前表單 query 值，不以較早 render 的 state 代表使用者輸入。原有請求生命週期、已發布快取、歷史及帳號清理不變。
+
 `StudyPreferences` 保留原 saveDeckStyle／串行 flush 與 Session 快照規則，管理頁僅移除清除入口及冗餘提示；模式說明由原 ModalDialog 提供焦點、Escape 與觸控。清除仍只由複習紀錄頂欄開啟原 ClearStudyHistoryDialog，RPC、冪等及失敗恢復未變。
 
 `NexusApp` 以目前實際編輯頁的 note（含缺省舊 note）／presentation 白名單控制 RightPanel 及其 ResizablePanel／手機開關掛載；首頁、管理面板、外部字典、世界觀、學習與其他 kind 都不預留側欄。既有 assistant_blocks 不改寫、不刪除，未掛載時沒有講稿操作或專屬保存回呼。

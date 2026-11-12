@@ -101,13 +101,15 @@ function ReadingSheet({initialHref,rate,onClose,returnFocusRef,editorBackRef}:{i
   },[href,entryId,key,t,version]);
   useEffect(()=>{
     if(!current?.reading||!scroll.current)return;
-    heading.current?.focus({preventScroll:true});
+    // A delayed public read must not interrupt typing or an IME composition.
+    const editingSearch=document.activeElement instanceof HTMLElement&&document.activeElement.id===titleId+'-query';
+    if(!editingSearch)heading.current?.focus({preventScroll:true});
     const hash=new URL(href,'https://nexus.invalid').hash.slice(1);
     const target=hash?Array.from(scroll.current.querySelectorAll<HTMLElement>('[id]')).find(element=>element.id===hash):null;
     if(restoreScroll)scroll.current.scrollTop=restoreScroll;
     else if(target)scroll.current.scrollTop=target.offsetTop-scroll.current.offsetTop;
     else scroll.current.scrollTop=0;
-  },[current?.reading,href,restoreScroll]);
+  },[current?.reading,href,restoreScroll,titleId]);
   const searchParams=new URLSearchParams(url.search),kind=searchParams.get('kind')??'all';
   const search=(query:string,category=kind)=>{const params=new URLSearchParams({kind:category,q:query.trim()});go('/dictionary?'+params);};
   const cancelDrag=()=>{pointer.current=null;setDrag(0);};
@@ -124,8 +126,8 @@ function ReadingSheet({initialHref,rate,onClose,returnFocusRef,editorBackRef}:{i
             onClick={event=>{if(event.detail===0&&!editingAllowed)onClose();}}><span aria-hidden className="h-1 w-12 rounded-full bg-current opacity-40"/></button>
           <button type="button" aria-label={t('studyDictionary.close')} onClick={onClose} className="grid min-h-11 min-w-11 justify-self-end place-items-center rounded-lg"><X size={20}/></button>
         </div>
-        <form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();search(input);}}>
-          <label className="sr-only" htmlFor={titleId+'-query'}>{t('studyDictionary.query')}</label><input id={titleId+'-query'} value={input} onChange={event=>setInput(event.target.value)} maxLength={120} placeholder={t('studyDictionary.query')} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/>
+        <form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();search(String(new FormData(event.currentTarget).get('query')??input));}}>
+          <label className="sr-only" htmlFor={titleId+'-query'}>{t('studyDictionary.query')}</label><input id={titleId+'-query'} name="query" value={input} onChange={event=>setInput(event.target.value)} maxLength={120} placeholder={t('studyDictionary.query')} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/>
           <button type="submit" aria-label={t('studyDictionary.search')} className="grid min-h-11 min-w-11 place-items-center rounded-lg border"><Search size={20}/></button>
         </form>
       </header>
