@@ -7,7 +7,6 @@ const test = require("node:test"),
 const { build } = require("esbuild"),
   { chromium, webkit } = require("playwright");
 const {
-  database,
   client,
   draft,
   id,
@@ -16,6 +15,7 @@ const {
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
+const {database,client:catalogClient}=require("./fixtures/morphemeDatabase.cjs");
 test(
   "real PostgreSQL API + transfer dialogs: frozen export, safe replacement, no-write analysis, mobile and OAuth URL",
   { timeout: 150000 },
@@ -68,7 +68,7 @@ test(
           let raw = "";
           for await (const part of req) raw += part;
           const { name, args } = JSON.parse(raw);
-          const result = await client(pg).rpc(name, args);
+          const result = await (name === "search_dictionary_catalog" ? catalogClient(pg) : client(pg)).rpc(name, args);
           res.setHeader("content-type", "application/json");
           res.end(JSON.stringify(result));
         } catch (e) {

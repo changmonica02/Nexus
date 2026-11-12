@@ -7,7 +7,6 @@ const test = require("node:test"),
 const { build } = require("esbuild"),
   { chromium,webkit } = require("playwright");
 const {
-  database,
   client,
   draft,
   id,
@@ -16,6 +15,7 @@ const {
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
+const {database,client:catalogClient}=require("./fixtures/morphemeDatabase.cjs");
 test(
   "real SQL + actual admin/import/review components: desktop/tablet/mobile, file summary, safe partial Review, cross-device saved decision, apply, color and English",
   { timeout: 150000 },
@@ -68,7 +68,7 @@ test(
           let raw = "";
           for await (const part of req) raw += part;
           const { name, args } = JSON.parse(raw);
-          const result = await client(pg).rpc(name, args);
+          const result = await (name === "search_dictionary_catalog" ? catalogClient(pg) : client(pg)).rpc(name, args);
           res.setHeader("content-type", "application/json");
           res.end(JSON.stringify(result));
         } catch (e) {
@@ -233,9 +233,10 @@ test(
           ),
           true,
         );
+        assert.equal(await sql(pg,"select count(*)::int v from dictionary_review_drafts where entry_id=$1 and state='active'",[d.entry_id]),1,'The applied import leaves an editor Review for manual publication');
         await other.goto(base + "/?en=1");
         await other
-          .getByRole("link", { name: /throw.*Draft exists/ })
+          .getByRole("link", { name: /throw.*Pending review/ })
           .waitFor();
         await second.close();
         await pg.close();
