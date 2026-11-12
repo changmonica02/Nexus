@@ -8,10 +8,12 @@
 - 最新正式唯讀核對：24張字典／審核／官方表、5張學習依賴、85個函式與備份一致。entries6,347／morphemes184／morpheme senses250；10個構詞 active Review 保留。學習卡10,155、狀態10,155、事件2,567、設定15。本次數字只作核對基準，正式前重查。
 - 完整私人備份29表72,281列及 SHA256／逐主鍵雜湊／還原已驗證，不在 Git 或外部分享，非完整 Supabase／Auth 備份。最終 D Migration 在原生 PostgreSQL 的完整副本重驗：174份待整理 Review、10份既有 Review保留、54筆可歸屬變體列、1組歸屬不明原文保留；全部原始列未變，重送結果一致、無重複 Review／收據，非管理員拒絕。
 - 已通過：D PGlite 八項 Migration／RPC／相容／回滾測試；Chromium／WebKit 真實 SQL 編輯、保存、重開、排序／刪除精確變體、Word雙向草稿連結，1280／820／390／320與中英文；完整匯出 bulk UI、分頁、發布／恢復刷新及共用 workspace 瀏覽器回歸。19項 editor UI、9項 AI JSON 回歸通過。TypeScript、ESLint（0 errors，23 warnings）、Production Build、原生 PostgreSQL八項測試通過；最終新 HEAD CI仍待重驗。原生回滾測試修正測試注入函式的跨連線生命週期，沒有改動正式驗證或提高逾時。
-- C `cca0555` 修正實際 CI bulk 測試仍期待原始 SQL 錯誤；保留草稿、失敗重試檢查，不略過測試。a 仍因 gsat-1-2／gsat-all 正式引用被正確阻擋，不能解除保護。A 90f467b、B 7f4141f、D舊c53193b的 Actions／Vercel已核對成功，新D提交仍須重驗。
+- C `cca0555` 修正實際 CI bulk 測試仍期待原始 SQL 錯誤；保留草稿、失敗重試檢查，不略過測試。a 仍因 gsat-1-2／gsat-all 正式引用被正確阻擋，不能解除保護。A 90f467b、B 7f4141f、D舊c53193b的 Actions／Vercel已核對成功，C最新80f1199的Actions43167852813與Vercel皆成功；新D提交仍須重驗。
 - D新 HEAD CI 發現原生 PostgreSQL readiness 命中初始化暫存 Unix 服務，已改驗最終 TCP127.0.0.1；舊editor瀏覽器測試仍找entry層級變體，改測義項內變體新增／刪除及重開保存，Chromium通過。未提高逾時或略過驗證。
 - 未完成：四分支整合後最新遠端 CI／完整回歸；Android／iPad實機。原地圖曾出現一次 reorder 保存競態，後續 HEAD 通過不等於根因已修復，若重現必須依日誌排查，不提高逾時掩蓋。
 - 正式 ledger 最後為 `20261107005039`（safe replacement），版本與 Git 檔名不同。B／C／D 皆未正式套用。C相容前端先行，B守衛及D契約先於各自依賴前端；逐項授權並依 B→C→D 隔離驗證結果執行，不能一次 db push。草稿轉換另需正式資料操作授權及人工發布；新資料寫入後不可盲目反向刪欄／恢復唯一索引。
+
+最新整合 CI `fcabfa4`：interface-a／study-b／dictionary-c／morpheme-contract通過；note 的批次停止測試仍依賴220ms視窗，已用可控RPC閘門驗證第一批在途時停止，不改產品批次流程。D的WebKit地圖測試只等已存在的view，已改為暫緩持久寫入並等此次新視角、強化第二區塊不變檢查，WebKit完整回歸通過。原生地圖確認工具另有一次CI未關閉，原樣本機重跑兩次通過，尚不能認定根因修復；補點擊次數／宿主錯誤／原生工具狀態診斷，維持原逾時及保存驗證。最終HEAD仍須完整CI重驗。Chromium本機字型下載受代理CA影響，以保留TLS驗證的公開字型轉送完成原生回歸，不改正式部署權限或停用TLS。
 
 目前維持 Draft，尚不建議合併。
 

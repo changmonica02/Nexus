@@ -16,7 +16,7 @@
 
 正式唯讀重核29表72,281列、85個函式與原備份一致；隔離副本建立174份 Review，保留10份既有 Review，54筆變體列可歸屬，1組歸屬不明；原有逐主鍵資料雜湊全部不變。私人備份不入 Git／CI／分享，僅字典及必要學習依賴，不是完整 Supabase／Auth 備份。正式操作前須重新盤點、備份、核對實際函式與 ledger；不能 db push 全部 pending。
 
-發布邊界：B `20261111143124_study_card_visibility.sql` 的守衛須先於 B 前端；C `20261111145758_dictionary_pending_identity.sql` 宜先發布兼容新舊結果的 C 前端，再改查詢，避免舊前端誤導 editor-only 待審入口。D Schema／RPC 須先於 D 前端；舊前端對 suffix 的管理不完整。整合發布須另行授權並逐項驗證，不得把正式轉換混入 Migration。DDL 失敗整筆回滾；新 suffix／變體寫入後不能盲目刪欄位或恢復構詞唯一索引，應保留資料，以兼容前端及驗證過的備份制定人工回復方案。
+發布邊界：B `20261111143124_study_card_visibility.sql` 的守衛須先於 B 前端；C `20261111145758_dictionary_pending_identity.sql` 宜先發布兼容新舊結果的 C 前端，再改查詢，避免舊前端誤導 editor-only 待審入口。D Schema／RPC 須先於 D 前端；舊前端對 suffix 的管理不完整，亦不保證解析新增義項欄位的 JSON；切換期間暫停舊版分類編輯與匯入，不以舊版前端回復新資料。整合發布須另行授權並逐項驗證，不得把正式轉換混入 Migration。DDL 失敗整筆回滾；新 suffix／變體寫入後不能盲目刪欄位或恢復構詞唯一索引，應保留資料，以兼容前端及驗證過的備份制定人工回復方案。
 
 ## 1. 模組與資料來源
 

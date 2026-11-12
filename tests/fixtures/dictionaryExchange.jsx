@@ -206,7 +206,8 @@ window.dictionaryClient = {
         error: null,
       };
     if (name === "apply_dictionary_import_batch") {
-      await new Promise((r) => setTimeout(r, 220));
+      if(window.holdImportBatch)await new Promise(resolve=>{window.finishImportBatch=()=>{window.holdImportBatch=false;resolve();};});
+      else await new Promise((r) => setTimeout(r, 220));
       const results = args.operations.map((op) => {
         if (server.receipts[op.operation_id])
           return server.receipts[op.operation_id];
