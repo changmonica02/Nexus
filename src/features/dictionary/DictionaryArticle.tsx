@@ -1,8 +1,6 @@
 "use client";
 import {useDictionaryText} from './useDictionaryText';
-import {useEffect,useState,type ReactNode} from "react";
-import {getSupabase} from "../../infrastructure/supabase/client";
-import {readPublishedTargets} from "./reader";
+import type {ReactNode} from "react";
 import Link from "./DictionaryReadLink";
 import type {PublishedDetail} from "./reader";
 import {inflectionLabels} from "./inflections";
@@ -14,21 +12,16 @@ function DetailSection({title,children}:{title?:ReactNode;children:ReactNode}){r
 function SourceText({text}:{text:string}){return <>{text.split(/(https?:\/\/[^\s]+)/g).map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all">{part}</a>:part)}</>;}
 function WordComposition({data,from}:{data:PublishedDetail;from:string}) {
   const tr=useDictionaryText();
-  const ids=JSON.stringify([...new Set((data.entry.word_segments??[]).flatMap(segment=>{const r=data.relations.find(r=>r.id===segment.relation_id);return r?[r.target_entry_id]:[];}))]);
-  const [loaded,setLoaded]=useState<{key:string;targets:Map<string,PublishedDetail>}|null>(null);
-  useEffect(()=>{let active=true;const client=getSupabase();if(client)void readPublishedTargets(client,JSON.parse(ids),()=>active).then(targets=>{if(active)setLoaded({key:ids,targets});});return()=>{active=false;};},[ids,data]);
   return <DetailSection title={tr('構詞')}><div data-composition-tiles className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] max-[359px]:grid-cols-1">{data.entry.word_segments!.map(segment=>{
     const relation=data.relations.find(r=>r.id===segment.relation_id);
-    const target=relation&&loaded?.key===ids?loaded.targets.get(relation.target_entry_id):null;
-    const sense=target?.senses.find(s=>s.id===relation?.target_sense_id);
     const related=relation?data.related.find(r=>r.id===relation.target_entry_id&&r.sense_id===relation.target_sense_id):null;
-    const history=target&&sense?(target.etymologies??[]).filter(h=>(h.sense_id===null||h.sense_id===sense.id)&&h.body.trim()):[];
     return <div key={segment.id} data-composition-tile className="min-w-0 rounded-lg border border-[var(--color-border)] p-3 text-sm [overflow-wrap:anywhere]">
       <h3 className="font-semibold">{segment.text}{segment.hint&&' · '+segment.hint}</h3>
-      {related&&<Link className="block underline" href={entryHref(related.id,from,related.sense_id)}>{related.headword} · {related.gloss_zh_tw}</Link>}
+      {related&&<Link className="block underline" href={entryHref(related.id,from,related.sense_id)}>{related.headword}</Link>}
+      {related?.gloss_zh_tw.trim()&&<p data-composition-overview className="whitespace-pre-wrap">{related.gloss_zh_tw}</p>}
       {related&&<Link className="block text-xs underline" href={browseHref('word',{component:related.id,sense:related.sense_id},from)}>{tr('查看使用')}{related.headword} {tr('的單字')}</Link>}
       {relation?.sense_id&&data.senses.length>1&&<p className="text-xs opacity-60">{data.senses.find(s=>s.id===relation.sense_id)?.gloss_zh_tw}</p>}
-      {history.map(h=><div key={h.id} className="mt-2 whitespace-pre-wrap"><p>{h.body}</p>{h.data_source&&<p className="text-xs opacity-70">{tr('資料來源：')}<SourceText text={h.data_source}/></p>}</div>)}
+
     </div>;
   })}</div></DetailSection>;
 }
