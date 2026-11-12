@@ -10,6 +10,7 @@ async function database(){const pg=await base();await pg.exec('reset role');awai
 function morph(n,kind='root'){return {...draft(n),kind,headword:'morph-'+n,senses:[{id:id(n+1),part_of_speech:null,gloss_zh_tw:'概述',semantic_domain:'action',semantic_subdomain:'movement',variants:[{id:id(n+2),form:'m-',condition:'before a vowel'}]}]};}
 test('morpheme drafts: suffix, reclassification with stable identity, exact variant order and clear, strict validation and old missing fields',async()=>{const pg=await database();try{
  const c=client(pg),d=morph(1200,'suffix');await saveDictionaryDraft(c,[d],false,true);
+ const quick=()=>sql(pg,'select quick_create_dictionary_component($1,$2,$3,true) v',[id(1199),'suffix','-fixture']);const created=await quick();assert.equal(created.kind,'suffix');assert.deepEqual(await quick(),created);assert.equal((await sql(pg,'select get_published_dictionary_entry($1) v',[created.id])).entry.kind,'suffix');
  let snap=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[d.entry_id]);assert.equal(snap.detail.entry.kind,'suffix');assert.deepEqual(snap.detail.senses[0].variants,d.senses[0].variants);
  const bundle=mapDictionaryDraft({...d,revision:snap.detail.entry.revision,senses:[{...snap.detail.senses[0],variants:[...d.senses[0].variants,{id:id(1204),form:'m-',condition:'other'}]}]}).bundle;
  const next=draftsFromBundle(bundle)[0];next.kind='prefix';await saveDictionaryDraft(c,[next],false,true);
