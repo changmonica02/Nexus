@@ -1,3 +1,14 @@
+# 字典 catalog 逾時修復（2026-11-12，驗證中）
+
+- 基準 main `f490cbe`；分支 `fix/dictionary-catalog-timeout`。使用者確認 A／B／C／D 已合併且所需正式 Migration 已套用；下方舊交接的未合併／未套用描述不是目前狀態。
+- 正式唯讀日誌定位共用 `search_dictionary_catalog` 內 SQL，57014；不是分頁 UI。列表、總數、管理三色統計共用同一 RPC，分類／搜尋為其中條件。
+- 已先回報再修改：原 `matches` 分頁前逐詞條重掃完整 materialized 義項／變體。新版集合匹配、完整範圍計數、分頁後組裝內容；不提高 timeout、不改 ID、權限、Review 或 CAS。
+- 新 `20261112120627_dictionary_catalog_query_plan.sql` 只交易替換函式；沒有資料更新／刪除／新表。正式未套用，須人工審查及另行授權；既有前端 RPC 契約相容。失敗交易回滾，回復採另授權替換舊函式，不回復資料。
+- 隔離 PostgreSQL 九組新舊完整 RPC JSON 一致（一般／管理、搜尋、構詞、分類、紅色、草稿），另驗證 generic／custom 計畫。私人診斷及備份不入 Git。新增 6,300 詞條／12,600 義項合成回歸，保護分頁前掃描次數、重複呼叫與資料不變。
+- TypeScript 通過；其餘測試、Build、Chromium／WebKit 與遠端 CI 待完成後更新。正式尚未套用修復，不能宣稱正式環境已恢復。沒有修改正式資料、HISTORY、合併或部署。
+
+---
+
 # Nexus — 學習／構詞整合交接（2026-11-12，待正式授權）
 
 追蹤 #167；main基準 `350882c`。A／B／C／D維持 Draft #168／#169／#170／#171，整合 Draft #172。沒有合併GitHub PR、部署、操作正式資料或修改HISTORY。

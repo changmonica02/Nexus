@@ -6,7 +6,7 @@ const {createDictionaryReview}=require('../src/features/dictionary/revisionLifec
 const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts');
 const {client}=require('./fixtures/morphemeDatabase.cjs');
 const migration='20261112012042_dictionary_morpheme_senses.sql';
-async function database(){const pg=await base();await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec('set role authenticated');return pg;}
+async function database(){const pg=await base();await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec(fs.readFileSync('supabase/migrations/20261112120627_dictionary_catalog_query_plan.sql','utf8'));await pg.exec('set role authenticated');return pg;}
 function morph(n,kind='root'){return {...draft(n),kind,headword:'morph-'+n,senses:[{id:id(n+1),part_of_speech:null,gloss_zh_tw:'概述',semantic_domain:'action',semantic_subdomain:'movement',variants:[{id:id(n+2),form:'m-',condition:'before a vowel'}]}]};}
 test('morpheme drafts: suffix, reclassification with stable identity, exact variant order and clear, strict validation and old missing fields',async()=>{const pg=await database();try{
  const c=client(pg),d=morph(1200,'suffix');await saveDictionaryDraft(c,[d],false,true);
@@ -29,7 +29,7 @@ test('morpheme snapshot aliases preserve old Review approvals, real conflicts an
  const c=client(pg),d={...draft(1300),kind:'prefix',headword:'old-',senses:[{id:id(1301),part_of_speech:null,gloss_zh_tw:'old overview'}]};await saveDictionaryDraft(c,[d],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);
  const before=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[d.entry_id]);const review=await createDictionaryReview(c,before);
  const oldExport=await c.rpc('export_dictionary_exchange_page',{kind_filters:['prefix'],status_filters:[],query_text:'',after_id:null,expected_scope:null,pending_only:false,preview_only:false});assert.ifError(oldExport.error);
- await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec('set role authenticated');
+ await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec(fs.readFileSync('supabase/migrations/20261112120627_dictionary_catalog_query_plan.sql','utf8'));await pg.exec('set role authenticated');
  const resumed=await c.rpc('export_dictionary_exchange_page',{kind_filters:['prefix'],status_filters:[],query_text:'',after_id:null,expected_scope:oldExport.data.scope_version,pending_only:false,preview_only:false});assert.ifError(resumed.error);assert.equal(resumed.data.records[0].version,oldExport.data.records[0].version);
  await pg.exec('reset role');assert.equal(await sql(pg,'select dictionary_normalize_snapshot($1)=dictionary_normalize_snapshot(get_dictionary_ai_snapshot($2)) v',[JSON.stringify(before),d.entry_id]),true);await pg.exec('set role authenticated');
  const candidate=structuredClone(review.candidate);candidate.bundle.dictionary_senses[0].semantic_domain='nature';candidate.bundle.dictionary_senses[0].semantic_subdomain='geography';candidate.bundle.dictionary_senses[0].variants=[{id:id(1302),form:'o-',condition:''}];candidate.bundle.dictionary_entries[0].kind='suffix';
@@ -119,3 +119,40 @@ test('unknown installed contract fails the whole schema transaction, preserving 
  await assert.rejects(pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8')),/Unexpected kind guard/);await pg.exec('rollback');
  assert.equal(await sql(pg,"select count(*)::int v from information_schema.columns where table_schema='public' and table_name='dictionary_senses' and column_name='variants'"),0);assert.equal(await sql(pg,"select to_regclass('public.dictionary_component_equivalent_name') is not null v"),true);assert.equal(await sql(pg,"select to_regprocedure('public.search_dictionary_catalog(text,text,text,text,text[],text[],integer,boolean,text[])') is null v"),true);
  }finally{await pg.close();}});
+
+test('catalog production-scale plan: page before enrichment, repeated RPC plans, exact results and read-only replacement',async()=>{
+ const pg=await database();try{
+  const seed=draft(800000);await saveDictionaryDraft(client(pg),[seed],false,true);
+  await pg.exec('reset role');
+  await pg.exec(`insert into dictionary_entries(id,kind,headword,status,published_at)
+   select md5('catalog-entry-'||n)::uuid,case when n%20=0 then 'root' else 'word' end,'catalog-'||lpad(n::text,5,'0'),'draft',null from generate_series(1,6300) n;
+   insert into dictionary_senses(id,entry_id,gloss_zh_tw,part_of_speech,semantic_domain,semantic_subdomain,variants)
+   select md5('catalog-sense-'||n||'-'||k)::uuid,md5('catalog-entry-'||n)::uuid,'scale overview '||k,case when n%20<>0 then 'n' end,case when n%20=0 then 'action' end,case when n%20=0 then 'movement' end,case when n%20=0 then jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'form','variant-'||n,'condition','fixture')) end from generate_series(1,6300) n cross join generate_series(1,2) k;
+   do $seed$ declare e uuid;begin for e in select id from dictionary_entries where headword like 'catalog-%' loop perform public.publish_dictionary_entry(e,true);end loop;end $seed$;
+   analyze dictionary_entries;analyze dictionary_senses;`);
+  const migrationSQL=fs.readFileSync('supabase/migrations/20261112120627_dictionary_catalog_query_plan.sql','utf8');
+  let body=migrationSQL.slice(migrationSQL.indexOf('with pending as'),migrationSQL.indexOf(' into result;'));
+  const substitutions={admin_mode:'false',status_filters:"'{}'::text[]",work_filters:"'{}'::text[]",kind_filters:"array['prefix','root','suffix']::text[]",query_text:"''::text",page_number:'0',subdomain:'null::text',domain:'null::text',scope:"'all'::text",size:'20'};
+  for(const [key,value] of Object.entries(substitutions))body=body.replace(new RegExp('\\b'+key+'\\b','g'),value);
+  // EXPLAIN JSON is supported directly by PGlite. Native adapter only wraps SELECT,
+  // so expose its result through a temporary test-only function for identical assertions.
+  await pg.exec(`create function public.catalog_test_plan() returns jsonb language plpgsql as $plan$ declare p jsonb;begin execute $query$EXPLAIN (ANALYZE,FORMAT JSON) ${body}$query$ into p;return p;end $plan$;`);
+  const plan=await sql(pg,'select catalog_test_plan() v');const scans=[];
+  function walk(n){if(n['Node Type']==='CTE Scan')scans.push(n);for(const child of n.Plans??[])walk(child);}walk(plan[0].Plan);
+  assert.ok(scans.length);assert.ok(scans.every(n=>n['Actual Loops']<=20),'full materialized data must not be rescanned once per entry');
+  await pg.exec('set role authenticated');
+  const call=(query='',admin=false,page=0,domain=null)=>sql(pg,'select search_dictionary_catalog($1,$2,$3,null,$4,$5,$6,$7,$8) v',['all',query,domain,['prefix','root','suffix'],[],page,admin,[]]);
+  for(let n=0;n<7;n++){const r=await call('',n%2===1,n%3);assert.equal(r.total,n%2===1?6301:6300);assert.equal(r.items.length,n%2===1?100:20);assert.equal(r.items[0].headword,'catalog-'+String((n%3)*(n%2===1?100:20)+1).padStart(5,'0'));}
+  const variant=await call('variant-6300');assert.equal(variant.total,1);assert.equal(variant.items[0].matched_sense_ids.length,2);assert.equal(variant.items[0].variants.length,1);
+  const category=await call('',false,0,'action');assert.equal(category.total,315);
+  assert.equal((await call('no-such-query')).total,0);
+  const before=await sql(pg,"select jsonb_build_object('entries',(select count(*) from dictionary_entries),'senses',(select count(*) from dictionary_senses),'reviews',(select count(*) from dictionary_review_drafts)) v");
+  await pg.exec('reset role');await pg.exec(migrationSQL);await pg.exec('set role authenticated');
+  const definitionHash=()=>sql(pg,"select md5(pg_get_functiondef('public.search_dictionary_catalog(text,text,text,text,text[],text[],integer,boolean,text[])'::regprocedure)) v");
+  const originalHash=await definitionHash();await pg.exec('reset role');
+  await assert.rejects(pg.exec(migrationSQL.replace('declare result jsonb;','-- isolated rollback probe\ndeclare result jsonb;').replace('commit;','select 1/0;commit;')),/division by zero/);
+  await pg.exec('rollback;set role authenticated');assert.equal(await definitionHash(),originalHash);
+  assert.deepEqual(await call('variant-6300'),variant);
+  assert.deepEqual(await sql(pg,"select jsonb_build_object('entries',(select count(*) from dictionary_entries),'senses',(select count(*) from dictionary_senses),'reviews',(select count(*) from dictionary_review_drafts)) v"),before);
+ }finally{await pg.close();}
+});

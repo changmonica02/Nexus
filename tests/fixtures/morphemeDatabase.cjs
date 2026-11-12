@@ -1,7 +1,7 @@
 require('../loadStudy.cjs');
 const base=require('./dictionaryTransferDatabase.cjs'),fs=require('node:fs');
 const migration='20261112012042_dictionary_morpheme_senses.sql';
-async function database(){const pg=await base.database();await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec('set role authenticated');return pg;}
+async function database(){const pg=await base.database();await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec(fs.readFileSync('supabase/migrations/20261112120627_dictionary_catalog_query_plan.sql','utf8'));await pg.exec('set role authenticated');return pg;}
 const identifier=value=>{if(!/^[a-z_]+$/.test(value))throw Error('Invalid test identifier');return '"'+value+'"';};
 function client(pg){return {rpc:async(name,args={})=>{try{identifier(name);const entries=Object.entries(args);const v=await base.sql(pg,`select public.${name}(${entries.map(([key],i)=>`${identifier(key)}=>$${i+1}`).join(',')}) v`,entries.map(([key,v])=>v!==null&&typeof v==='object'&&(!Array.isArray(v)||['drafts','operations','proposals'].includes(key))?JSON.stringify(v):v));return {data:v,error:null};}catch(error){return {error:{message:error.message,code:error.code}};}},from(table){return query(pg,{table,columns:'*',filters:[],orders:[],limit:100});}};}
 function query(pg,plan){
