@@ -12,6 +12,19 @@ concurrency:
   group: note-editor-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  morpheme-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node tests/morphemeContract.test.cjs
+      - run: npx tsc --noEmit
+      - run: npx eslint src/features/dictionary/morphemeContract.ts src/features/dictionary/semanticDomains.ts
   note:
     runs-on: ubuntu-latest
     timeout-minutes: 30
