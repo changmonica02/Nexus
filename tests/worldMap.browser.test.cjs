@@ -196,6 +196,11 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   frame=await currentMapFrame();await frame.locator('#nexus-placements text').filter({hasText:'Manager Harbor'}).waitFor();
   assert.equal((await readTowns()).entities.length,2,'towns survive backup and cold reopen');
   await openWorldTools('Natural geography');await editor.getByRole('button',{name:'Open native editor',exact:true}).click();
+  const confirmNativeTool=async()=>{
+    await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).evaluate(el=>{window.nativeConfirmClicks=0;el.addEventListener('click',()=>window.nativeConfirmClicks++);});
+    await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();
+    try{await nativeToolPanel.waitFor({state:'detached'});}catch(error){console.log('NATIVE_CONFIRM_FAILURE',await page.evaluate(()=>({clicks:window.nativeConfirmClicks,alerts:[...document.querySelectorAll('[role=alert]')].map(e=>e.textContent)})),await frame.evaluate(()=>({customization,tool:document.body.dataset.nexusTool,routeDraft:!!document.querySelector('#routeCreatorBody .editorLine')})));throw error;}
+  };
   const nativeToolPanel=editor.getByRole('region',{name:'Native map tool',exact:true});await nativeToolPanel.waitFor();await waitMapLayout();await frame.locator('#brushRaise').click();
   const terrain=await frame.evaluate(()=>{
     const z=document.querySelector('#map').__zoom;
@@ -206,7 +211,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h,'native raise brush edits height');
   await nativeToolPanel.getByRole('button',{name:'Undo stroke',exact:true}).click();assert.equal(await frame.evaluate(i=>grid.cells.h[i],terrain.i),terrain.h);
   await nativeToolPanel.getByRole('button',{name:'Redo stroke',exact:true}).click();assert.ok(await frame.evaluate(i=>grid.cells.h[i],terrain.i)>terrain.h);
-  await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});
+  await confirmNativeTool();
   assert.deepEqual(await frame.evaluate(()=>options.map.nexus.stale),['hydrology','climate','biomes']);
   assert.equal(await frame.evaluate(()=>pack.burgs.filter(b=>b?.i).length),0);
   await frame.evaluate(()=>{closeDialogs();});
@@ -263,7 +268,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await frame.locator('#toolsTab').click();
   const burgId=await frame.evaluate(async()=>{const burg=pack.burgs.find(b=>b.i&&!b.removed);if(!burg)throw Error('No burg generated');await Controllers.BurgEditor.open(burg.i);return burg.i;});
   await frame.locator('#burgName').fill('Nexus Port');
-  await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled));await frame.locator('#map').press('Control+s');
+  await confirmNativeTool();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Save'&&!b.disabled));await frame.locator('#map').press('Control+s');
   await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor({timeout:60000});
   await frame.evaluate(id=>{pack.burgs[id].name='Temporary unsaved name';for(const code of ['F1','F2','F6','F9'])document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));},burgId);
   assert.equal(await frame.evaluate(id=>pack.burgs[id].name,burgId),'Temporary unsaved name','removed standalone shortcuts cannot replace the project');
@@ -480,7 +485,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   for(const [width,height] of [[1600,400],[400,1600]]){
     frame=await currentMapFrame();
     await openWorldTools('Natural geography');await editor.locator('[data-map-natural-back]').click();await editor.getByRole('button',{name:'Advanced tools',exact:true}).click();await editor.getByRole('button',{name:'Open native editor',exact:true}).click();await nativeToolPanel.waitFor();
-    await frame.evaluate(async size=>{await window.generateMapOnLoad(size);}, {width,height});assert.deepEqual(await frame.evaluate(()=>[options.map.graph.width,options.map.graph.height]),[width,height]);await nativeToolPanel.getByRole('button',{name:'Confirm tool',exact:true}).click();await nativeToolPanel.waitFor({state:'detached'});
+    await frame.evaluate(async size=>{await window.generateMapOnLoad(size);}, {width,height});assert.deepEqual(await frame.evaluate(()=>[options.map.graph.width,options.map.graph.height]),[width,height]);await confirmNativeTool();
     await editor.getByRole('button',{name:'Save',exact:true}).click();await editor.getByRole('status').filter({hasText:'Saved on this device'}).waitFor();
     await editor.getByRole('button',{name:'← Save and return'}).click();await editor.waitFor({state:'detached'});await refreshPreviewFrame();
     const aspectMapId=await (await regionSelect()).locator('option').filter({hasText:'Aspect map'}).getAttribute('value');await (await regionSelect()).selectOption(aspectMapId);await refreshPreviewFrame();await frame.waitForFunction(({width,height})=>options.map.graph.width===width&&options.map.graph.height===height,{width,height});

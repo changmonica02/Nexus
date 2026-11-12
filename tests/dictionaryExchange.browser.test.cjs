@@ -183,16 +183,18 @@ test(
             exact: true,
           })
           .click();
+        await page.evaluate(()=>{window.holdImportBatch=true;});
         await page
           .getByRole("dialog", { name: "確認匯入" })
           .getByRole("button", { name: "確認匯入", exact: true })
           .click();
         await page.waitForFunction(() =>
-          window.calls.some((c) => c.name === "apply_dictionary_import_batch"),
+          typeof window.finishImportBatch === "function",
         );
         await page
           .getByRole("button", { name: "停止未開始的批次", exact: true })
           .click();
+        await page.evaluate(()=>window.finishImportBatch());
         await page
           .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
             exact: true,

@@ -181,10 +181,17 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   await secondWindow.getByRole('combobox',{name:'Display mode',exact:true}).selectOption('political');
   await waitForAsync(page,async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).some(b=>b.worldMapView.layer==='political');});
   assert.equal(await firstWindow.getByRole('combobox',{name:'Display mode',exact:true}).inputValue(),'physical');
+  // Both views already exist: existence cannot acknowledge this new gesture.
+  await waitForAsync(page,async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).every(b=>!!b.worldMapView.views?.[w.character_data.world_maps[0].id]);});
+  const beforeViews=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).map(b=>b.worldMapView.views);});
+  await page.evaluate(()=>{window.holdMapViewWrites=true;});
   await previewFrame.locator('#map').dblclick({position:{x:20,y:20}});
-  await waitForAsync(page,async()=>{const w=await mapStorage.getPage('world-browser');return !!w.character_data.sections.filter(b=>b.worldMapView)[0].worldMapView.views?.[w.character_data.world_maps[0].id];});
+  await page.waitForFunction(()=>typeof window.releaseMapViewWrites==='function');
+  assert.deepEqual(await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).map(b=>b.worldMapView.views);}),beforeViews,'a pending view write is not a persisted gesture');
+  await page.evaluate(()=>window.releaseMapViewWrites());
+  await waitForAsync(page,async before=>{const w=await mapStorage.getPage('world-browser'),views=w.character_data.sections.filter(b=>b.worldMapView).map(b=>b.worldMapView.views);return JSON.stringify(views[0])!==JSON.stringify(before[0])&&JSON.stringify(views[1])===JSON.stringify(before[1]);},beforeViews);
   const independentViews=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).map(b=>b.worldMapView.views);});
-  assert.notDeepEqual(independentViews[0],independentViews[1],'preview views belong to each block');
+  assert.notDeepEqual(independentViews[0],independentViews[1],'preview views belong to each block');assert.deepEqual(independentViews[1],beforeViews[1],'zooming the first block never changes the second');
   for(const viewport of [{width:320,height:700},{width:820,height:1180},{width:1440,height:1000}]){
     await page.setViewportSize(viewport);assert.ok(await page.locator('[data-map-scroll]').first().evaluate(el=>el.scrollWidth<=el.clientWidth+1),'multiple map blocks do not overflow');
   }

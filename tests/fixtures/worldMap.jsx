@@ -11,7 +11,7 @@ function LanguageSwitch(){const {setLanguage}=useLanguage();return <div><button 
 function Fixture(){const [settings,setSettings]=useState(false);const [page,setPage]=useState(world),[cloud,setCloud]=useState({status:'idle',error:null,pendingPushes:0});useEffect(()=>{window.setMapCloud=setCloud;window.setMapTitle=title=>setPage(old=>({...old,title}));return()=>{delete window.setMapCloud;delete window.setMapTitle;};},[]);return <LanguageProvider initialLanguage="en"><LanguageSwitch/><button onClick={()=>setSettings(true)}>Settings fixture</button>{settings&&<SettingsDialog theme="light" onThemeChange={()=>{}} onExportBackup={()=>{}} onImportBackup={()=>{}} onClose={()=>setSettings(false)}/>}<CharacterProfileView page={page} onTitleChange={()=>{}} onUpdateCharacterData={()=>{}} worldMapStorage={storage} worldMapCloudState={cloud} beforeWorldMapSave={async()=>{}} onWorldMapSaved={async next=>{setPage(next);}}/></LanguageProvider>;}
 window.mapStorage=storage;
 const persistence=storage.getWorkspacePersistence.bind(storage);
-storage.getWorkspacePersistence=()=>new Proxy(persistence(),{get(target,key){if(key==='mutate')return(...args)=>{if(window.failMapSave)throw Error('Simulated local save failure');return target.mutate(...args);};return Reflect.get(target,key);}});
+storage.getWorkspacePersistence=()=>new Proxy(persistence(),{get(target,key){if(key==='mutate')return(...args)=>{if(window.failMapSave)throw Error('Simulated local save failure');if(window.holdMapViewWrites)return new Promise(resolve=>{window.releaseMapViewWrites=()=>{window.holdMapViewWrites=false;resolve();};}).then(()=>target.mutate(...args));return target.mutate(...args);};return Reflect.get(target,key);}});
 createRoot(document.getElementById('root')).render(<Fixture/>);
 
 
