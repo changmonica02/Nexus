@@ -44,5 +44,5 @@ const paginationFallback=(key:string,params?:Record<string,string|number>)=>tran
 /** Standalone dictionary routes retain their existing Chinese default without an app provider. */
 export function usePaginationLanguage() {
  const ctx=useContext(LanguageContext);
- return {t:ctx?.t??paginationFallback};
+ return {t:ctx?.t??paginationFallback,language:ctx?.language??'zh-TW' as Language};
 }

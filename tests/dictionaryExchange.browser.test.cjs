@@ -83,7 +83,7 @@ test(
           console.error(e.message);
         });
         await page.goto(url);
-        await page.getByLabel("搜尋管理詞條", { exact: true }).fill("item1");
+        await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
           .getByRole("button", { name: "匯出資料", exact: true })
           .click();
@@ -119,7 +119,7 @@ test(
         assert.equal(all.records.length, 3);
         assert.equal(all.scope.query, "");
         await page.getByRole("button", { name: "關閉", exact: true }).click();
-        await page.getByLabel("搜尋管理詞條", { exact: true }).fill("");
+        await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("");
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
@@ -301,9 +301,9 @@ test(
         await page.getByRole("button", { name: "關閉", exact: true }).click();
         // Filters can even hide every row; global publication is independent of them.
         await page
-          .getByLabel("搜尋管理詞條", { exact: true })
+          .getByLabel("搜尋單字或構詞", { exact: true })
           .fill("no-visible-match");
-        await page.getByRole("checkbox", { name: "字首", exact: true }).check();
+        await page.getByRole("tab", { name: "構詞", exact: true }).click();await page.getByRole("button",{name:"篩選構詞分類",exact:true}).click();await page.getByRole("checkbox", { name: "字首", exact: true }).check();
         assert.equal(await page.getByRole("checkbox", { name: "已發布", exact: true }).count(),0, "legacy publication-state checkboxes are replaced by work status");
         assert.equal(
           await page.getByRole("button", { name: "全選", exact: true }).count(),

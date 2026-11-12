@@ -1,3 +1,4 @@
+import catalogFixture from './catalogFixture.cjs';
 import React from "react";
 import { createRoot } from "react-dom/client";
 import WorkspaceRoot from "../../src/components/WorkspaceRoot";
@@ -30,6 +31,7 @@ window.dictionaryClient = {
     },
   },
   rpc: async (name, args = {}) => {
+    if(name==='search_dictionary_catalog'){window.rpcCalls.push({name,args});return catalogFixture(entries,args);}
     window.rpcCalls.push({ name, args });
     if (name === "dictionary_admin_first_senses") return {data:[]};
     if (name === "is_dictionary_admin") return { data: true };

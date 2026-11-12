@@ -1172,19 +1172,10 @@ test(
           width >= 1180 ? 3 : width >= 820 ? 2 : 1,
         );
         const filter = page.locator("[data-dictionary-filters]");
-        assert.ok(
-          await filter.evaluate(
-            (e) =>
-              e.previousElementSibling.tagName === "INPUT" &&
-              e.nextElementSibling.tagName === "NAV",
-          ),
-        );
-        if (width >= 820) {
-          const boxes = await filter
-            .locator("fieldset")
-            .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().top));
-          assert.ok(Math.abs(boxes[0] - boxes[1]) < 3);
-        }
+        assert.equal(await page.getByRole('tablist').getByRole('tab').count(), 3);
+        assert.equal(await page.getByRole('tab', {name:'全部',exact:true}).getAttribute('aria-selected'),'true');
+        assert.equal(await filter.getByRole('checkbox').count(),3);
+        assert.ok(await filter.evaluate(e=>e.getBoundingClientRect().right<=innerWidth));
         assert.ok(await page.locator('[data-dictionary-list]').getByRole('img', {name:'🔴 待審核',exact:true}).count());
         await navs
           .first()
@@ -1197,8 +1188,9 @@ test(
           .getByRole("button", { name: "編輯第 1 頁", exact: true })
           .waitFor();
         await page
-          .getByRole("textbox", { name: "搜尋管理詞條", exact: true })
+          .getByRole("textbox", { name: "搜尋單字或構詞", exact: true })
           .fill("entry 000");
+        await page.getByRole("textbox", { name: "搜尋單字或構詞", exact: true }).press("Enter");
         await page.waitForFunction(
           () =>
             document.querySelectorAll("[data-dictionary-list] li").length === 7,

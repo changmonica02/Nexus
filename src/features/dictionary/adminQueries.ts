@@ -1,9 +1,10 @@
+import {readCatalog,catalogScope,catalogText,type CatalogItem} from './catalog';
 import {firstSenseSummary} from './flashcardLinks';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {DictionaryDetail,DictionaryEntry,DictionarySense} from './dictionary';
 export const adminPageSize=100;
 export const literalSearch=(text:string)=>text.replace(/[\\%_]/g,'\\$&');
-export interface AdminFilter {kinds:string[];statuses:string[];query:string;page:number;work?:string|string[]}
+export interface AdminFilter {kinds:string[];statuses:string[];query:string;page:number;work?:string|string[];catalog?:boolean;scope?:'all'|'word'|'morpheme';domain?:string|null;subdomain?:string|null}
 export async function listAdminEntries(client:Pick<SupabaseClient,'from'>,filter:AdminFilter){
  let request=client.from('dictionary_entries').select('id,kind,headword,status,published_at,revision,updated_at',{count:'exact'});
  if(filter.kinds.length)request=request.in('kind',filter.kinds);
@@ -15,7 +16,7 @@ export async function listAdminEntries(client:Pick<SupabaseClient,'from'>,filter
  return {items:(data??[]) as DictionaryEntry[],total:count??0};
 }
 export async function searchRelationTargets(client:Pick<SupabaseClient,'from'>,query:string){
- const {data,error}=await client.from('dictionary_entries').select('id,headword,kind,status').in('kind',['prefix','root']).ilike('headword',`%${literalSearch(query.trim())}%`).order('headword').order('id').limit(20);
+ const {data,error}=await client.from('dictionary_entries').select('id,headword,kind,status').in('kind',['prefix','root','suffix']).ilike('headword',`%${literalSearch(query.trim())}%`).order('headword').order('id').limit(20);
  if(error)throw Error(error.message);return data??[];
 }
 export async function readRelationTarget(client:Pick<SupabaseClient,'rpc'>,id:string):Promise<DictionaryDetail|null>{
@@ -26,8 +27,9 @@ export async function readRelationTarget(client:Pick<SupabaseClient,'rpc'>,id:st
 
 export async function relationTargetSenses(client:Pick<SupabaseClient,'rpc'>,id:string):Promise<DictionarySense[]>{return (await readRelationTarget(client,id))?.senses??[];}
 
-export interface AdminWorkEntry extends DictionaryEntry {work_status?:'red'|'yellow'|'green';pending_count?:number}
+export interface AdminWorkEntry extends DictionaryEntry {work_status?:'red'|'yellow'|'green';pending_count?:number;import_pending_count?:number;editor_pending_count?:number;summary?:string;variants?:{form:string}[];sense_id?:string}
 export async function listAdminWork(client:Pick<SupabaseClient,'rpc'|'from'>,filter:AdminFilter):Promise<{items:AdminWorkEntry[];total:number;stats:{red:number;yellow:number;green:number}|null;workAvailable:boolean}>{
+ if(filter.catalog){const data=await readCatalog(client,{scope:filter.scope??catalogScope(filter.kinds),kinds:filter.kinds.filter(k=>k!=='word'),query:filter.query,domain:filter.domain??null,subdomain:filter.subdomain??null},filter.page,true,Array.isArray(filter.work)?filter.work:filter.work?[filter.work]:[],filter.statuses);return {...data,workAvailable:true};}
  const requested=Array.isArray(filter.work)?[...new Set(filter.work)].filter(v=>['red','yellow','green'].includes(v)):[];
  // Existing production RPC accepts one color. Read its bounded, already-sorted
  // all-color stream for a two-color union; never filter just the current page.
@@ -53,6 +55,7 @@ export async function listAdminWork(client:Pick<SupabaseClient,'rpc'|'from'>,fil
 
 export async function adminSummaries(client:Pick<SupabaseClient,'rpc'>,items:DictionaryEntry[]){
  if(!items.length)return {} as Record<string,string>;
+ if(items.every(e=>'summary' in e))return Object.fromEntries(items.map(e=>[e.id,catalogText(e as CatalogItem)]));
  const {data,error}=await client.rpc('dictionary_admin_first_senses',{entry_ids:items.map(e=>e.id)});
  if(error){
   if(!['PGRST202','42883'].includes(error.code))throw Error(error.message);

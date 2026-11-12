@@ -1,3 +1,4 @@
+import {validateMorphemeSenseFields} from './morphemeContract';
 import {cleanPronunciation} from './retiredPronunciation';
 import {validateWordSegments,type WordSegment} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
@@ -30,20 +31,21 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
   for(const d of drafts){
     const issue=(field:string,error:string,row=d.row??1)=>errors.push({row,field,kind:d.kind,error});
     if(Array.isArray((d as unknown as Record<string,unknown>).lexical_annotations)&&((d as unknown as Record<string,unknown>).lexical_annotations as unknown[]).length)issue('lexical_annotations','此舊欄位已移除；請備份原檔並重新比對，不會自動轉為詞形。');
-    if(!['word','prefix','root'].includes(d.kind))issue('kind','必須是 word / prefix / root');
+    if(!['word','prefix','root','suffix'].includes(d.kind))issue('kind','必須是 word / prefix / root');
     if(!uuid.test(d.entry_id))issue('entry_id','必須為 UUID');
     if(seen.has(d.entry_id))issue('entry_id','重複 ID');seen.add(d.entry_id);
     if(!d.headword?.trim())issue('headword','必填');
     const segmentIssue=validateWordSegments(d.word_segments,d.headword,d.kind,d.relations);if(segmentIssue)issue('word_segments',segmentIssue);
     if(d.kind==='word'&&d.grouping?.primary_category)issue('category','Word 必須留空');
     if(options.csv&&!d.senses.length)issue('gloss_zh_tw','至少需要一個義項');
-    if(d.kind==='root'&&((options.csv&&!d.grouping?.primary_category)||(d.grouping?.primary_category&&!primaryCategories.includes(d.grouping.primary_category as typeof primaryCategories[number]))))issue('category',`不是合法 Root 分類；允許值：${primaryCategories.join('、')}`);
+    if(d.kind==='root'&&((d.grouping?.primary_category&&!primaryCategories.includes(d.grouping.primary_category as typeof primaryCategories[number]))))issue('category',`不是合法 Root 分類；允許值：${primaryCategories.join('、')}`);
     for(const s of d.senses){
+      const morphIssue=validateMorphemeSenseFields(s);if(morphIssue)issue('senses',morphIssue,s.row);
       if((d.kind==='word'||options.csv)&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
       if(d.kind==='word'&&!s.part_of_speech?.trim())issue('part_of_speech','Word 必須提供 part_of_speech',s.row);
       if(d.kind!=='word'&&s.part_of_speech)issue('part_of_speech','Prefix / Root 必須留空',s.row);
-      if(s.category&&d.kind!=='prefix')issue('category','只有 Prefix 義項使用分類',s.row);
-      if(d.kind==='prefix'&&((options.csv&&!s.category)||(s.category&&!prefixCategories.includes(s.category as typeof prefixCategories[number]))))issue('category',`不是合法 Prefix 分類；允許值：${prefixCategories.join('、')}`,s.row);
+      if(s.category&&d.kind==='word')issue('category','只有 Prefix 義項使用分類',s.row);
+      if(d.kind==='prefix'&&((s.category&&!prefixCategories.includes(s.category as typeof prefixCategories[number]))))issue('category',`不是合法 Prefix 分類；允許值：${prefixCategories.join('、')}`,s.row);
     }
     for(const [field,rows] of Object.entries({inflections:d.inflections??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,relation_hints:d.relation_hints}))for(const r of rows){
       if(!uuid.test(r.id))issue(field,'ID 必須為 UUID');
@@ -101,7 +103,7 @@ export async function prepareDictionaryDrafts(client:Client,drafts:DictionaryDra
   for(const d of drafts){
     const {data,error}=await client.rpc('get_dictionary_entry',{entry_uuid:d.entry_id});
     if(error)throw new Error(error.message);if(!data)continue;
-    if(data.entry.kind!==d.kind)throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'kind',error:'既有詞條類型不可修改'}]);
+    if(data.entry.kind!==d.kind&&(data.entry.kind==='word'||d.kind==='word'))throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'kind',error:'既有詞條類型不可修改'}]);
     if(data.entry.status==='published')throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'entry_id',error:'Published 不可直接覆蓋，請建立 Review Draft 並人工核准'}]);
     if(d.revision!==undefined&&d.revision!==data.entry.revision)throw new Error('Revision conflict');
     d.revision=data.entry.revision;

@@ -1,7 +1,8 @@
+import type {MorphemeSenseFields as importMorphemeSenseFields} from './morphemeContract';
 import {applyBundle} from './adminImport';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type DictionaryKind = "word" | "prefix" | "root";
+export type DictionaryKind = "word" | "prefix" | "root" | "suffix";
 export interface DictionaryEntry {
   word_segments?:import('./wordSegments').WordSegment[]|null;
   id: string;
@@ -18,7 +19,7 @@ interface ContentRow {
   revision: number;
   updated_at: string;
 }
-export interface DictionarySense extends ContentRow {
+export interface DictionarySense extends ContentRow, importMorphemeSenseFields {
   part_of_speech: string | null;
   gloss_zh_tw: string;
 }

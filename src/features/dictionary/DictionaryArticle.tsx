@@ -6,8 +6,10 @@ import type {PublishedDetail} from "./reader";
 import {inflectionLabels} from "./inflections";
 import {DictionaryConnections} from "./DictionaryConnections";
 import {browseHref,entryHref} from "./browseRelations";
+import {semanticDomains} from './semanticDomains';
+import {usePaginationLanguage} from '../../lib/LanguageContext';
 import {validateWordSegments} from './wordSegments';
-const kinds={word:"單字",prefix:"字首",root:"字根"};
+const kinds={word:"單字",prefix:"字首",root:"字根",suffix:"字尾"};
 function DetailSection({title,children}:{title?:ReactNode;children:ReactNode}){return <section className="min-w-0 space-y-3">{title&&<h2 className="text-lg font-semibold">{title}</h2>}{children}</section>;}
 function SourceText({text}:{text:string}){return <>{text.split(/(https?:\/\/[^\s]+)/g).map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline break-all">{part}</a>:part)}</>;}
 function WordComposition({data,from}:{data:PublishedDetail;from:string}) {
@@ -26,7 +28,7 @@ function WordComposition({data,from}:{data:PublishedDetail;from:string}) {
   })}</div></DetailSection>;
 }
 export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,showConnections=true,showHeading=true}:{data:PublishedDetail;from?:string;showConnections?:boolean;showHeading?:boolean}){
-  const tr=useDictionaryText();
+  const tr=useDictionaryText();const {language}=usePaginationLanguage();
   const sections=[...[...data.senses].sort((a,b)=>a.id.localeCompare(b.id)).map((s,i)=>({id:s.id,title:s.gloss_zh_tw,pos:data.entry.kind==='word'?s.part_of_speech:null,label:`義項 ${i+1}`})),{id:null,title:null,pos:null,label:null}];
   const section=(title:string,children:ReactNode)=><section className="space-y-2"><h3 className="font-semibold">{title}</h3>{children}</section>;
   function scoped<T extends {id:string;sense_id:string|null}>(rows:T[],render:(row:T)=>ReactNode,ordered=false){
@@ -39,6 +41,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
     {data.entry.kind==='word'&&data.entry.word_segments&&!validateWordSegments(data.entry.word_segments,data.entry.headword,'word',data.relations)&&<WordComposition data={data} from={from}/>}
     {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr("概念")}>{scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
     {sections.map(scope=>{
+      const sense=data.senses.find(s=>s.id===scope.id),domain=semanticDomains.find(d=>d.code===sense?.semantic_domain),subdomain=domain?.children.find(c=>c[0]===sense?.semantic_subdomain);
       const belongs=(row:{sense_id:string|null})=>row.sense_id===scope.id;
       const forms=(data.inflections??[]).filter(belongs).sort((a,b)=>a.sort_order-b.sort_order);
       const segmented=data.entry.kind==='word'&&data.entry.word_segments&&!validateWordSegments(data.entry.word_segments,data.entry.headword,'word',data.relations);
@@ -47,6 +50,8 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
       if(scope.id===null&&!forms.length&&!relations.length)return null;
       return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection title={scope.id?<>{scope.pos&&<span>({scope.pos}) </span>}<span>{scope.title||tr('尚無中文意思')}</span></>:scope.title}>
         <div className="min-w-0 space-y-4">
+        {data.entry.kind!=='word'&&domain&&<p className="text-sm opacity-70">{language==='en'?domain.en:domain.zh}{subdomain?' · '+subdomain[language==='en'?2:1]:''}</p>}
+        {data.entry.kind!=='word'&&!!sense?.variants?.length&&<dl className="space-y-1">{sense.variants.map(v=><div key={v.id} className="min-w-0"><dt className="inline font-medium">{v.form}</dt>{v.condition&&<dd className="ml-2 inline whitespace-pre-wrap">{v.condition}</dd>}</div>)}</dl>}
         {!!relations.length&&section(tr('構詞'),relations.map(r=>{const target=data.related.find(t=>t.sense_id===r.target_sense_id);return <div key={r.id}>{target?<><Link className="underline" href={entryHref(target.id,from,target.sense_id)}>{target.headword} · {tr(kinds[target.kind])} · {target.gloss_zh_tw}</Link><Link className="ml-2 text-sm underline" href={browseHref('word',{component:target.id,sense:target.sense_id},from)}>{tr("查看使用")}{target.headword} {tr("的單字")}</Link></>:<p>{tr("相關詞條尚未提供。")}</p>}</div>;}))}
         {!!forms.length&&section(tr('詞形變化'),<dl className="grid gap-2 sm:grid-cols-2">{forms.map(f=><div key={f.id}><dt className="inline">{inflectionLabels[f.form_kind]}：</dt><dd className="inline">{f.form}</dd></div>)}</dl>)}
 
