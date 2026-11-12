@@ -9,7 +9,7 @@
 - 正式資料完整副本的追加隔離驗證：29表72,281列逐主鍵完整列雜湊一致、所有約束有效、RPC／跨帳號 RLS 通過。套用 C 查詢後，管理與完整 pending 匯出皆為5,166個唯一詞條（原管理1,369）；29個非官方清單 Word 刪除均成功並在強制延遲約束檢查後回滾，原資料不變。追加使用者證據與正式唯讀引用核對後，C1 已定位為官方清單保護；本測試不代表移除保護。
 - 隔離 fixture 差異：兩個官方包 CHECK 未包含正式既有 gsat-all，以及缺少既有 set_study_dictionary_link 定義；副本依正式唯讀定義／原 ACL 補齊，未放寬約束或修改正式 Schema。私人恢復備份不提交 Git。
 - Migration `20261111145758_dictionary_pending_identity.sql`：只修查詢／計數，無資料改寫；正式尚未套用，須另行授權。相容前端可先、DB查詢後；B payload Migration 的發布順序另依 B PR，不可 db push 全部 pending。
-- 已通過 PGlite 重現／修正及 PostgreSQL 17 真實 RPC／RLS；不同義項、跨頁、同字形不同類型、缺少正式 entry 的候選、失敗待恢復、範圍計數、重入與回滾；Chromium／WebKit 實際 SQL 刪除、取消、失敗及未存內容保護通過。六項隔離資料庫測試、六組既有字典／安全匯入回歸通過；TypeScript、ESLint（0 errors／3既有 warnings）、Production Turbopack Build通過。f2ca34d 遠端 Actions 43055260609 為 cancelled，Vercel成功；文件更新後仍須核對最終 HEAD，Android／iPad 未實機驗收。
+- 已通過 PGlite 重現／修正及 PostgreSQL 17 真實 RPC／RLS；不同義項、跨頁、同字形不同類型、缺少正式 entry 的候選、失敗待恢復、範圍計數、重入與回滾；Chromium／WebKit 實際 SQL 刪除、取消、失敗及未存內容保護通過。六項隔離資料庫測試、六組既有字典／安全匯入回歸通過；TypeScript、ESLint（0 errors／3既有 warnings）、Production Turbopack Build通過。379ccae 的 Actions 43130203635：dictionary-c 與 world-map 成功，note 在 bulk UI 等待原始 fixture 錯誤文字失敗。診斷已改為安全翻譯提示，補修該舊斷言，保留失敗後輸入與重試檢查；本機完整 bulk UI 通過，新 HEAD 待核對。Vercel成功，Android／iPad 未實機驗收。
 - 後續邊界：C1 已查明；如要刪除官方引用詞條，須另行設計明確的官方來源清單調整及影響確認，不可把依賴保護當 bug 移除。本輪不執行該調整。D 可繼續隔離設計／實作，正式轉換仍須獨立授權；Android／iPad 與正式錯誤提示仍待人工驗收。
 
 以下為 main 原交接背景，最新狀態以上述記錄及 PR checks 為準。
