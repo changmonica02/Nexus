@@ -1,3 +1,4 @@
+import {mergeCardVisibility,validateCardVisibility} from '../../features/study/cardVisibility';
 import {LifeRepository} from '../../features/life/LifeRepository';
 import {LIFE_STORES,validateLife,type LifeRecord,type LifeData} from '../../features/life/lists';
 import { validateWorldEntities } from "../../features/worldMap/worldMapRepository";
@@ -495,6 +496,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       const styles=new Set(study.settings.filter(s=>s.record_type==='style').map(s=>s.id));
       for(const setting of study.settings)if(setting.style_id&&!styles.has(setting.style_id))throw Error('Backup is missing assigned study style');
       for(const session of study.sessions??[])if(session.settings_snapshot)validateStudyStyle(session.settings_snapshot);
+      for(const card of study.cards)validateCardVisibility(card);
       const cards = new Map(study.cards.map(card => [card.id, card]));
       const events = new Map(study.events.map(event => [event.id, event]));
       if (events.size !== study.events.length || cards.size !== study.cards.length) throw new Error("備份有重複 ID。");
@@ -578,7 +580,12 @@ export class IndexedDBAdapter implements StorageAdapter {
       for (const [store, records] of [["study_cards", backup.study.cards], ["study_settings", backup.study.settings]] as const) {
         for (const record of records) {
           const local = await tx.objectStore(store).get(record.id);
-          if (!local || local.updated_at < record.updated_at) await tx.objectStore(store).put(record);
+          if(store==='study_cards'){
+            const incoming=mergeCardVisibility(local,record as import('../../features/study/studyFSRS').StudyCard);
+            const retained=local?mergeCardVisibility(record as import('../../features/study/studyFSRS').StudyCard,local):null;
+            if(!local||local.updated_at<record.updated_at)await tx.objectStore(store).put(incoming);
+            else if(retained)await tx.objectStore(store).put(retained);
+          }else if (!local || local.updated_at < record.updated_at) await tx.objectStore(store).put(record);
         }
       }
       for (const state of backup.study.states) {

@@ -14,6 +14,8 @@ export interface IntervalReviewLog extends Omit<FixedReviewLog,"method"> {method
 export type StoredReviewLog = Omit<ReviewLog, "due" | "review"> & { due: number; review: number };
 
 export interface StudyCard {
+  hidden?: boolean;
+  hidden_changed_at?: number;
   official_custom?: boolean;
   official_source_entry_id?: string;
   official_pack_id?: string;
@@ -167,7 +169,7 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
 export function nextDailyCard(snapshot: StudySnapshot, now: number): StudyCard | null {
   if (!snapshot.settings.direction_confirmed) return null;
   const states = new Map(snapshot.states.map(state => [state.id, state]));
-  const cards = snapshot.cards.filter(card => !card.deleted_at && card.front.trim() && card.back.trim() && !states.get(card.id)?.conflict);
+  const cards = snapshot.cards.filter(card => !card.deleted_at && !card.hidden && card.front.trim() && card.back.trim() && !states.get(card.id)?.conflict);
   const due = cards.filter(card => {
     const state = states.get(card.id)!;
     return state.fsrs ? state.fsrs.due <= now : state.legacy_due_at != null ? state.legacy_due_at <= now : state.introduced_at != null;

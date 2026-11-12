@@ -178,3 +178,47 @@ jobs:
           name: interface-a-evidence
           path: test-results/interface-a/**/*.png
           if-no-files-found: ignore
+
+  study-b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Session and visibility regression
+        run: node --test tests/studySessionStability.test.cjs tests/studySessionExit.test.cjs tests/studyCardVisibility.test.cjs tests/studyCardVisibilityDatabase.test.cjs
+      - name: Native isolated PostgreSQL visibility transaction
+        run: |
+          docker run -d --name nexus46-visibility-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker rm -f nexus46-visibility-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec nexus46-visibility-ci pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-visibility-ci node tests/studyCardVisibilityDatabase.test.cjs
+      - name: Chromium and WebKit offline visibility and backup
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/studyVisibility.browser.test.cjs
+          STUDY_BROWSER=webkit node tests/studyVisibility.browser.test.cjs
+      - name: Production offline PWA and account regression
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+        run: |
+          npm run build
+          npx next start --hostname 127.0.0.1 --port 32131 > /tmp/nexus-study-pwa.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:32131 >/dev/null; then break; fi
+            sleep 1
+          done
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          NEXUS_PWA_URL=http://127.0.0.1:32131 NEXUS_PWA_AUTH_FIXTURE=1 node tests/pwa.production.browser.test.cjs
+          NEXUS_PWA_URL=http://127.0.0.1:32131 node tests/pwaData.production.browser.test.cjs

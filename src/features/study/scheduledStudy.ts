@@ -27,7 +27,7 @@ function countsAsBacklog(state:StudyState,now:number){
 function eligible(snapshot: StudySnapshot) {
   const states = new Map(snapshot.states.map(s => [s.id, s]));
   return displayStudyCards(snapshot.cards, snapshot.settings.sort_mode ?? 'custom')
-    .filter(c => !c.deleted_at && c.front.trim() && c.back.trim() && states.has(c.id) && !states.get(c.id)!.conflict);
+    .filter(c => !c.deleted_at && !c.hidden && c.front.trim() && c.back.trim() && states.has(c.id) && !states.get(c.id)!.conflict);
 }
 /** Partial Fisher–Yates: every eligible new card has the same chance of a batch slot. */
 export function sampleNewCards<T>(candidates: readonly T[], count: number, random = Math.random): T[] {
@@ -91,6 +91,7 @@ export function makeScheduled(snapshot: StudySnapshot, now: number, id: string) 
 }
 /** Derive availability from actual FSRS due, never a session-only mastery loop. */
 export function refreshScheduled(session: StudySession, snapshot: StudySnapshot, now: number): StudySession {
+  if(session.ended_at!=null)return {...session,queue:[],presented_card_id:null};
   const states = new Map(snapshot.states.map(s => [s.id, s]));
   const cards = new Map(eligible(snapshot).map(c => [c.id, c]));
   const activeCards = new Map(snapshot.cards.filter(c => !c.deleted_at && c.front.trim() && c.back.trim()).map(c => [c.id,c]));
@@ -106,6 +107,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   let blocked=0;
   for (const t of targets) {
     const s = states.get(t.card_id)!;
+    if(activeCards.get(t.card_id)?.hidden)continue;
     if (session.completed_at != null || t.skipped || session.settings_snapshot?.interval_version===1&&t.easy_at!=null) continue;
     if(s.conflict){blocked++;continue;}
     if (isUnintroduced(s)) {
@@ -118,18 +120,22 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   }
   ready.sort((a, b) => Number(isShortStep(states.get(b.card_id)!, now)) - Number(isShortStep(states.get(a.card_id)!, now))
     || (isShortStep(states.get(a.card_id)!, now) ? dueAt(states.get(a.card_id)!, now) - dueAt(states.get(b.card_id)!, now) : 0));
+  const presented=ready.findIndex(t=>t.card_id===session.presented_card_id);
+  if(presented>0)ready.unshift(...ready.splice(presented,1));
   return { ...session, targets, queue: ready.map(t => t.card_id), completed_at: session.completed_at ?? (!ready.length && !waiting.length && !blocked ? now : null) };
 }
 export function scheduledStatus(session: StudySession, snapshot: StudySnapshot, now: number) {
+  const hidden=new Set(snapshot.cards.filter(c=>c.hidden).map(c=>c.id));
+  const visibleTargets=session.targets.filter(t=>!hidden.has(t.card_id)||t.easy_at!=null);
   const targets = new Set(session.targets.map(t => t.card_id));
   const states = new Map(snapshot.states.map(s => [s.id, s]));
   const remainingDue = eligible(snapshot).filter(c => !targets.has(c.id) && countsAsBacklog(states.get(c.id)!,now)).length;
-  const waits = session.targets.filter(t => !t.skipped && t.easy_at == null).flatMap(t => {
+  const waits = visibleTargets.filter(t => !t.skipped && t.easy_at == null).flatMap(t => {
     const state = states.get(t.card_id); return state && isShortStep(state, now) && dueAt(state, now) > now ? [dueAt(state, now)] : [];
   });
-  return { remainingDue, blocked:session.targets.filter(t=>!t.skipped&&t.easy_at==null&&states.get(t.card_id)?.conflict).length, waiting: waits.length, nextDue: waits.length ? Math.min(...waits) : null,
-    slots: session.targets.filter(t => t.counts_toward_limit !== false).length,
-    completed: session.targets.filter(t => t.easy_at != null).length };
+  return { remainingDue, blocked:visibleTargets.filter(t=>!t.skipped&&t.easy_at==null&&states.get(t.card_id)?.conflict).length, waiting: waits.length, nextDue: waits.length ? Math.min(...waits) : null,
+    slots: visibleTargets.filter(t => t.counts_toward_limit !== false).length,
+    completed: visibleTargets.filter(t => t.easy_at != null).length };
 }
 export function practiceCards(snapshot: StudySnapshot) {
   const states = new Map(snapshot.states.map(s => [s.id, s]));

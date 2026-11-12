@@ -22,8 +22,12 @@ export interface StudySession {
   mode: SessionMode | "batch" | "practice"; day: string; batch_id?: string;
   targets: SessionTarget[]; queue: string[];
   started_at: number; completed_at: number | null;
+  /** Explicitly ended without fabricating completion for unanswered targets. */
+  ended_at?: number;
   revision: number; updated_at: number; answers: number;
   last_action_id?: string;
+  /** The question actually presented; due-time refreshes only reorder later candidates. */
+  presented_card_id?: string | null;
   conflict?: boolean;
   study_mode?: "scheduled" | "endless";
   legacy_settings_snapshot?:StudyStyle;legacy_mode?:SessionMode;
@@ -48,7 +52,7 @@ export function selectSessionCards(snapshot: StudySnapshot, mode: SessionMode, n
   const states = new Map(snapshot.states.map(s => [s.id,s]));
   const eligible = snapshot.cards.filter(c => {
     const s = states.get(c.id);
-    return !c.deleted_at && !!c.front.trim() && !!c.back.trim() && s && !s.conflict &&
+    return !c.deleted_at && !c.hidden && !!c.front.trim() && !!c.back.trim() && s && !s.conflict &&
       (mode === "daily" ? !isLearned(s) : isLearned(s));
   });
   eligible.sort((a,b) => a.sort_order-b.sort_order || a.id.localeCompare(b.id));
@@ -93,6 +97,6 @@ export function reconcileSession(session: StudySession, snapshot: StudySnapshot,
     const event = snapshot.events.find(e => e.id === t.official_event_id && e.card_id === t.card_id && e.kind === "review");
     return {...t, official_rating: event?.rating ?? null};
   });
-  const queue = session.queue.filter(id => targets.some(t=>t.card_id===id && t.easy_at == null));
+  const queue = session.queue.filter(id => !cards.get(id)?.hidden&&targets.some(t=>t.card_id===id && t.easy_at == null));
   return {...session, targets, queue, completed_at: session.completed_at ?? (queue.length ? null : now)};
 }

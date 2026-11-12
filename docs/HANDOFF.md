@@ -1,36 +1,47 @@
-本次追加驗證：runner DNS 恢復後重跑，interface-a 的 WebKit 空結果搜尋發生逾時，本機帶診斷重現搜尋值為空。受控延遲測試另確認背景詞條讀取會搶走正在輸入的搜尋焦點（修正前明確失敗）；修正為輸入中保留焦點，提交讀取即時表單值，不提高逾時或跳過測試。修正後 Chromium／WebKit 完整面板回歸（含延遲焦點、空結果、搜尋／返回／拖曳、離線、原 Session 不變）通過；TypeScript、修改範圍 ESLint與 Production Turbopack Build通過。新 HEAD CI 仍待核對，不能將舊 DNS 阻礙當成此次功能失敗原因。
+# Nexus — 階段 B：學習 Session 與私人字卡隱藏
 
-階段 A 驗證補充：廣泛字典單元測試發現舊讀者斷言仍要求讀音位於概念前，與 main 已有閱讀順序不符；改為逐一確認概念／IPA／歷史詞源均存在且依目前規格順序，保留不重複及權限斷言。原遠端工作於套件安裝發生 Ubuntu DNS 失敗；CI runner 明確固定 ubuntu-24.04 後重跑，未略過測試。遠端最終結果以 PR #168 checks 為準。
+本輪追蹤 #167；分支 `feat/study-session-hidden-cards`，基於 main `350882c`，Draft PR [#169](https://github.com/changmonica02/Nexus/pull/169)，程式提交 `2c97a97`；最新 HEAD／checks 見 PR。A 階段另見 Draft PR #168；本分支不重做 A。維持 Draft，不合併、不部署、不操作正式 DB、不修改 HISTORY。C 的三項根因須先報告再修正；D 尚未轉換任何正式資料。
+
+- 已實作：首頁啟動來源返回；右上離開確認與 durable Session 結束；保留忘記卡已作答、額度及 outbox，未作答不標完成，下次以最新設定新建 Session。
+- 搶卡根因已有失敗重現：到期 refreshScheduled 把短間隔卡排到 queue[0]，正式評分前再次 reconcile 亦可能拒絕正在顯示題目的 CAS。現在保留實際呈現身份，計時器只處理等待；背景資料真正改變時保留畫面並要求重新載入，不跳過正式事件驗證。
+- 私人隱藏：總覽左側眼睛與灰列、背面確認；依 owner／deck／card 隔離，排除新卡／到期／忘記／無盡及後續 queue，保留 due、歷史、字典連結及卡片識別。沿用原 payload、outbox、feed，缺省／舊偏好不能覆蓋新設定；官方更新與舊備份不撤銷隱藏。
+- Migration：`20261111143124_study_card_visibility.sql`，只有 JSON 偏好合併與既有 RPC／官方 guard 修改。正式尚未套用；必須獨立人工授權後 DB 先、前端後，不可 db push 全部 pending。
+- 隔離 PGlite 與真正 PostgreSQL 17（無網路暫用容器）通過原 RPC、RLS、官方更新、舊裝置、獨立時間合併、feed、錯誤回滾與權限測試。Chromium／WebKit 實際 IDB 操作及舊備份合併已通過；最後離線／備份 Chromium、WebKit 通過；10 組學習／同步／清除回歸通過。兩個瀏覽器皆通過 20／6,300 張新建、恢復、離線、重連、待傳、遠端、無盡、官方及偏好案例，完整讀卡／狀態仍各一次，不增加全組掃描。Production Turbopack Build、TypeScript、ESLint（0 errors／23既有 warnings）通過；本機 Production PWA 冷離線安裝／重開及正式作答／返回首頁／帳號隔離／衝突測試通過。最終 HEAD 遠端 CI／Vercel 待核對。
+- 未完成驗收：Android／iPad 實機、真實跨裝置時鐘差與舊程式離線行為。舊離線程式不能知道尚未同步的隱藏設定，保留其合法作答；新程式仍先完成既有權威清除／同步核對再正式出題。未宣稱實機或正式資料通過。
+
+以下為 main 原交接背景，最新進度以上述階段記錄及 PR checks 為準。
 
 # Nexus — 當前狀態與下一步
 
-## #167：學習與字典四階段改版
+本輪追蹤 #165；分支 `feat/world-map-workspace-tools`，基於 main `56cb937`（#158、#160、#162、#164 已合併）。Draft PR [#166](https://github.com/changmonica02/Nexus/pull/166)，首筆程式提交 `25d185d`；最終 head／checks 見 PR；不修改 HISTORY、不合併、不正式部署、不操作正式 DB 或存取保護。
 
-依 main `350882c` 的2026-11-11 SPEC新決策，優先於舊矛盾敘述。階段A分支 `feat/study-dictionary-ui-stage-a`，獨立Draft PR待建立；不合併、不操作正式Supabase、不執行正式Migration或部署、不修改HISTORY。
+## 本輪實作
 
-### A：已實作、驗證／交付中
+- 地圖完整編輯器：256／288px 桌面側欄與手機底部面板；自然地理／人文地理相連雙分頁。人文六類依2／3／置中1格排列，第二級原位返回、搜尋、配置篩選、25筆分頁、正式條目選取／定位／高亮、新增、名稱與詳細資料、解除配置及具影響確認的刪除。
+- 新增正式條目先保存為未配置；其後才放置點位或編輯區域，取消繪圖不刪除已建立的條目。地標保留 settlement／site，政治體沿用 country；路線仍由原生管理器保存，不新增 route WorldEntityType。文化／宗教的範圍、顏色、透明度與可見性作為同一份未提交編輯，確認才走 saveRegion／Page CAS，取消不留下部分樣式。
+- 地區／顯示方式／圖層位於右側畫布上方，共用首頁解析，側欄收合一起伸縮；不因工具分類切換重新載入 iframe。點位／筆刷與原生工具未完成時保留離開屏障，切換空間先保存 working copy；既有 contain／手動視角與 ResizeObserver 沿用。
+- 自然地理分類整合高度、海岸、湖泊、河流、氣候、生態、標籤、樣式及進階原生工具。固定 i18n 目錄補動態類型／提示、大小寫及計數；語言由 MessagePort 更新。新地理命名只在真正生成／新增名稱路徑處理，不監聽 map:generated 批次改名（載入也會發出該事件）；保留原 PRNG 消耗及已有名稱。第三方授權移到設定→關於 Nexus，保留 MIT 原文、來源與 notices 檔案。
 
-- 管理學習組移除清除入口，只保留複習紀錄頂欄原清除流程；批次標籤與四段冗餘提示精簡；模式問號沿原ModalDialog提供完整說明、焦點／Esc及關閉。
-- 講稿／輔助RightPanel與寬度容器、手機開關只在筆記及簡報編輯器掛載。既有各kind的assistant_blocks完整保留，其他功能不啟動該側欄保存操作。
-- 學習字典首行返回／連貫把手／叉叉，第二行搜尋／放大鏡；管理員鉛筆移到詳細內容右上，沿用驗權／Review草稿及未儲存保護。把手向下拖曳關閉，內文捲動／短距離／水平手勢不關閉；原學習翻面、作答、事件及Session不變。
-- 基本資料／概念／義項固定展開，保留其他功能分組與收合，移除冗餘區塊橫線。無資料契約、Schema或Migration變更。SPEC僅補#167追蹤及訂正重複標籤文字，ARCHITECTURE記錄實際掛載與面板契約。
-- 本機已通過TypeScript、ESLint（修改範圍0 errors／既有warnings另見log）、Production Build；既有字典編輯器、管理員面板權限／發布／離開保護、字典閱讀、學習設定／排程、四尺寸工作區與離線管理設定。Chromium與WebKit均驗證側欄白名單、舊講稿保留，以及字典面板瀏覽／搜尋／關閉／拖曳／學習資料不變。
-- 清除入口回歸使用隔離PGlite實際RPC，涵蓋雙語四尺寸、離線拒絕、回覆遺失重試與冪等，未修改正式DB。字典／學習相關單元測試與遠端CI結果以交付PR最新head／checks／驗證留言核對；未完成項不得列通過。測試畫面在interface-a-evidence artifact。
+## 資料與能力邊界
 
-### B：尚未實作
+無 Schema 或 Migration；穩定 entity／map／placement ID、附件 SHA、原生格式、Page CAS、owner、workspace outbox 與離線 checkpoint 不變。正式正文與地理配置仍分離，多個地圖區塊共用資料。分布 appearance／focus 僅擴充既有白名單指令的設定，不開放宿主任意控制 iframe DOM；sandbox 未放寬。
 
-最新main獨立分支／Draft PR：來源返回與離開結算、新Session設定；先重現到期搶卡再修；owner＋deck＋card隱藏須進全部候選、當前Session、離線outbox／feed、舊裝置與備份，不產生假作答、保留due與事件。沿原StudyRepository，先核對伺服器契約；需要Migration僅隔離驗證，正式套用另授權。
+區域筆刷具 draw／erase、大小、面積、undo／redo、重疊確認與取消。國界互斥仍需明確確認轉移；文化／宗教可跨國重疊。特殊宗教語意只保存現有正式 relations／可用分布，不新增無法持久化設定。原生工具全部有 checkpoint 確認／取消；宿主 undo／redo 僅提供原生高度工具確實具備的歷史，其餘沿用工具自身可用操作，不提供假全域歷史。原生路線不另存 React／正式路線資料庫。
 
-### C：尚未完成根因報告，未實作
+## 驗證狀態
 
-先重現並回報：Word無法刪除、Prefix重複及刪除連動、管理與完整匯出待審數量。需區分entry／sense／variant穩定ID、正式依賴、RPC/CAS、未決候選與唯一詞條統計，不能以刪資料或繞過依賴湊結果。先提供三項根因／重現／修正方案，再實作。
+- 已通過 repository／core／IndexedDB、區域與 i18n 回歸，包含分布樣式與幾何同次提交、失敗回滾、CAS、重試不新增 outbox、正文／附件保持、冷開啟與備份。
+- Chromium 原生工具交易、圖像／原生匯出、三尺寸布局、明暗主題、六類開啟返回、多地圖區塊與共用專案回歸已通過一輪；實際檢視桌面／320px／深色及繁中海岸截圖。新增繁中預製地圖驗證 features／rivers／biomes 名稱，並驗證語言切換保留既有名稱。
+- Chromium PWA 實際離線開啟、地標／地形編輯、保存、重新開啟與重連保留 outbox 已通過一輪。公開材質離線未快取警告仍可能出現，不影響已保存專案；未放寬 CSP。
+- 本機最後完整新介面測試：Chromium 約61秒、WebKit約169秒（各環境與並行負載不同，不作效能比較），包含1,000筆清單／25筆DOM、授權入口、實際原生路線新增／保存／取消、未完成路線保護、三尺寸與明暗主題、雙語自然工具／湖泊子編輯器、生成名稱與既有名稱保留。WebKit 使用隔離持久設定檔驗證真正 IDB Blob；其暫存情境連獨立 Blob probe 也會失敗，沒有以替換儲存或略過驗證使測試通過。
+- TypeScript、修改範圍 ESLint（0 errors／9既有 warnings）、本機 Webpack與Turbopack Production Build通過。完整舊地圖回歸本機約134秒；相同Turbopack產物約185秒，含國界衝突、行政關聯、觸控、分布、SVG／PNG、備份及異網格保護。
+- 最終程式提交 `405276b` 的 [Actions 42353453682](https://github.com/changmonica02/Nexus/actions/runs/42353453682) 兩份工作成功：地圖原生／分布183秒、Chromium62秒、WebKit134秒、PWA10秒；既有筆記／字典／學習／同步、隔離PostgreSQL、資料／IDB／i18n、TypeScript、ESLint與Build皆成功。Vercel成功。此後本提交僅更新交接文件；文件提交自身狀態仍以 [PR checks](https://github.com/changmonica02/Nexus/pull/166/checks) 為準。
+- 早期CI失敗保留：`25d185d` 測試讀到原地圖區塊的另一張預覽（1280≠1600），附件獨立核對仍為1600；後續已明確選擇目標及活躍iframe、等待真正載入／筆刷／分布模式完成。`2bcb51f`與`57fec73`分布SVG下載逾時，本機曾通過；補模式套用與布局等待、點擊／網路／截圖診斷後，最終遠端完整下載及內容斷言通過，不將早期失敗列成功。`405276b`既有字典批次測試首次等待52／25／0／27暫停中間狀態逾時，原樣重試成功，未改字典程式／斷言／逾時。原始run與attempt仍可查證。
+- resize不再於下一影格重播過期視角，避免覆蓋新雙指手勢。地圖四項瀏覽器檢查在同workflow獨立工作並行；個別失敗不略過其他地圖項目，任何失敗仍使job失敗。[桌面／820px／320px／明暗／第二級／繁中原生工具截圖artifact](https://github.com/changmonica02/Nexus/actions/runs/42353453682/artifacts/13566536957)分瀏覽器保存，本機test-results不提交大量二進位。技術檢查可進人工合併前審查，維持Draft，先完成下列實機與真實資料驗收。
 
-### D：尚未完成資料契約／盤點，未實作
 
-構詞統一與九類語意以最新SPEC為準，不用舊Prefix/Root分類覆寫新決策。先唯讀盤點正式資料／可恢復完整備份及ID、筆數基準，再做隔離可重入非破壞性轉換；保持已發布供閱讀／官方連動、只建立待整理草稿，未知歸屬保留原ID原文。C未查明前不做正式合併轉換。正式Migration須另行授權。
+## 正式與實機待驗收
 
-## 既有交接與實機待驗收
-
-- PR #166已由使用者合併至main（`339a5f7`）。原bd94928的地圖雙指放大等待曾失敗，2026-11-11原樣重跑Actions42355202515成功，根因未證實，不宣稱純環境問題或已修復競態。Android／iPad手勢、鍵盤、安全區、離線冷開啟、真實跨裝置Page衝突與特殊宗教配置仍待人工驗收。
-- 本輪A亦待Android／iPad真實拖曳與內文捲動、鍵盤／輔助技術、真實管理員離開保護驗收；桌面WebKit不等同iPad實機。
-- #164的20261106032651_dictionary_exchange_safe_replacement.sql正式套用狀態本輪未查證；不可db push全部pending。歷史正式ledger命名可能不同，任何正式Migration仍須獨立授權。
+- Android Chrome／安裝 PWA 與 iPad Safari／PWA：44px 觸控、虛擬鍵盤、安全區、雙指縮放與平移、筆刷／側欄、全螢幕、離線冷開啟及保存恢復。桌面 WebKit 不替代 iPad 實機結論。
+- 真實既有世界觀／多地圖區塊與大量條目、特殊宗教關聯、原生路線建立／取消／保存及跨裝置 Page 衝突仍需人工驗收；失敗保留既有草稿，不以重試覆蓋遠端版本。
+- #164 的 `20261106032651_dictionary_exchange_safe_replacement.sql` 是否已正式套用，本輪未查證；舊交接為未套用。既有正式 ledger 名稱可能不同，不可 db push 全部 pending。任何正式 Migration 仍需獨立人工授權。本輪不改匯入／審核、OAuth、Android 語音或學習排程。

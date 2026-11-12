@@ -312,3 +312,16 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 `StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動空清單立即請求同一備援以保留 activation；只有已知非英文清單時不選錯語音，提示重新檢查。清單事件不重複啟播已開始的備援。
 
 播放由 onstart／onend／onerror 判定；not-allowed、language-unavailable、voice-unavailable 與一般失敗各有訊息，僅 language-unavailable 提示啟用／安裝英文。8 秒啟動檢查不會取消仍 speaking 的引擎，另有 15–90 秒有限完成期限；沒有無限重試。全域單一播放 ownership＋世代 token 只用於音訊生命週期，與學習單卡 generation 無關。新題、手動重播、背景、pagehide／離開或卸載會取消舊播放及 timers／listener；舊回呼不能污染新題，翻面不重播。WebKit 自動播放讓出 cancel 事件迴圈，手動播放留在 gesture 內。Chromium／WebKit 的模擬語音測試驗證控制邏輯，不能證明 Android／Safari 原生語音或實際發音語言已驗收。
+
+
+### 學習 Session 穩定顯示與私人隱藏（2026-11-11，階段 B）
+
+字卡沿用 `study_cards.payload`、原 card outbox、apply_study_operation 與同步 feed；可選 `hidden`／`hidden_changed_at` 必須成對出現，舊資料缺省代表可見。不變更 IndexedDB v9、備份 v4、卡片 ID 或 content_revision。偏好以 owner＋deck＋card ID 隔離，不依拼寫；時間戳獨立於內容 LWW，缺省或較舊偏好不能覆蓋較新的設定，同時間衝突隱藏優先，明確恢復產生較新時間。原官方來源 trigger 保留這兩個可變欄位；舊裝置內容編輯及官方包更新仍受來源身分、自訂狀態與刪除保護。未支援此功能的舊離線程式無法即時知道新隱藏設定；不因此刪除合法舊裝置作答。
+
+隱藏只改私人偏好，保留內容、due、事件與歷史，不新增假作答。正式新卡、到期／短間隔、無盡提前候選與 Session 後續 queue 共用排除條件；已完成 target 的真實完成統計保留，未作答隱藏 target 不計完成。恢復使用原狀態重新取得候選資格。備份先走既有雲端清除核對，再於原還原交易合併偏好，舊檔缺少欄位不得撤銷較新設定。
+
+Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、版本或額度。refreshScheduled 保留仍合法的當前題，短間隔到期只重排後續候選；正式評分通過原 CAS／head／內容版本驗證後解除呈現標記。計時器只在明確等待、無當前卡時重新取卡；背景更新只讀取／核對，有實際題目變更時保留畫面並阻止舊題評分，要求重新載入。
+
+首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步、固定間隔與 FSRS 不變。
+
+Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。必須先人工授權資料庫 Migration，再發布支援新欄位的前端；舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
