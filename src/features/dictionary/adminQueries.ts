@@ -26,7 +26,7 @@ export async function readRelationTarget(client:Pick<SupabaseClient,'rpc'>,id:st
 
 export async function relationTargetSenses(client:Pick<SupabaseClient,'rpc'>,id:string):Promise<DictionarySense[]>{return (await readRelationTarget(client,id))?.senses??[];}
 
-export interface AdminWorkEntry extends DictionaryEntry {work_status?:'red'|'yellow'|'green';pending_count?:number}
+export interface AdminWorkEntry extends DictionaryEntry {work_status?:'red'|'yellow'|'green';pending_count?:number;import_pending_count?:number;editor_pending_count?:number}
 export async function listAdminWork(client:Pick<SupabaseClient,'rpc'|'from'>,filter:AdminFilter):Promise<{items:AdminWorkEntry[];total:number;stats:{red:number;yellow:number;green:number}|null;workAvailable:boolean}>{
  const requested=Array.isArray(filter.work)?[...new Set(filter.work)].filter(v=>['red','yellow','green'].includes(v)):[];
  // Existing production RPC accepts one color. Read its bounded, already-sorted

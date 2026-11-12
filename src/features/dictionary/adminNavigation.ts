@@ -1,5 +1,5 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {adminPageSize,listAdminWork,type AdminFilter} from './adminQueries';
+import {adminPageSize,listAdminWork,type AdminFilter,type AdminWorkEntry} from './adminQueries';
 import type {DictionaryEntry} from './dictionary';
 export function adminContext(value:string|null):AdminFilter|null {
   if(!value||!value.startsWith('/dictionary/admin?'))return null;
@@ -11,6 +11,10 @@ export function adminListHref(filter:AdminFilter):string {
   return '/dictionary/admin?'+new URLSearchParams({kinds:filter.kinds.join(','),statuses:filter.statuses.join(','),work:Array.isArray(filter.work)?filter.work.join(','):filter.work??'',q:filter.query,page:String(filter.page)});
 }
 export function adminEntryHref(id:string,filter:AdminFilter):string{return '/dictionary/admin?'+new URLSearchParams({entry:id,from:adminListHref(filter)});}
+/** Editor and import work share the red count, but keep their original review entry points. */
+export function adminWorkHref(entry:AdminWorkEntry,filter:AdminFilter):string {
+ return entry.work_status==='red'&&(entry.import_pending_count??entry.pending_count??0)>0?'/dictionary/admin/reviews?entry='+encodeURIComponent(entry.id):adminEntryHref(entry.id,filter);
+}
 type Client=Pick<SupabaseClient,'rpc'|'from'>;
 export async function adminNeighbours(client:Client,entry:DictionaryEntry,from:string|null):Promise<{previous:string|null;next:string|null}> {
   const context=adminContext(from);

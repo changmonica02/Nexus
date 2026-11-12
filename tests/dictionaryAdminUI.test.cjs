@@ -249,7 +249,7 @@ test('dictionary review queue remains reachable without a modal and reports unav
  const route=fs.readFileSync('src/app/dictionary/admin/reviews/page.tsx','utf8');
  const page=fs.readFileSync('src/features/dictionary/DictionaryReviewPage.tsx','utf8');
  assert.ok(admin.includes('href="/dictionary/admin/reviews"'));
- assert.ok(admin.includes('/dictionary/admin/reviews?entry='));
+ assert.ok(admin.includes('adminWorkHref('));const routing=require('../src/features/dictionary/adminNavigation.ts'),filter={kinds:[],statuses:[],query:'',page:0};assert.match(routing.adminWorkHref({id:'entry',work_status:'red',import_pending_count:1,editor_pending_count:0},filter),/\/dictionary\/admin\/reviews\?entry=entry/);assert.match(routing.adminWorkHref({id:'entry',work_status:'red',import_pending_count:0,editor_pending_count:1},filter),/\/dictionary\/admin\?entry=entry/);
  assert.ok(queue.includes('此環境尚未提供字典審核功能'));
  assert.ok(queue.includes('role="status"'));
  assert.ok(route.includes('DictionaryReviewPage'));

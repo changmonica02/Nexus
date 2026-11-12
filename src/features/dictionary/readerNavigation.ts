@@ -4,7 +4,7 @@ import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
 import {searchGrouping} from './grouping';
 import {searchDictionaryWithInflections} from './reader';
 import type {DictionaryKind} from './dictionary';
-export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
+export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
 export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number;total?:number}
 type Client=Pick<SupabaseClient,'from'|'rpc'>;
 export function browseContext(from:string|null):string|null{
@@ -33,7 +33,7 @@ export async function readerNeighbours(client:Client,id:string,headword:string,f
   const one=async(forward:boolean)=>{const op=forward?'gt':'lt';const {data,error}=await client.from('dictionary_entries').select('id,headword,kind').eq('status','published').or(`headword.${op}.${quoted},and(headword.eq.${quoted},id.${op}.${id})`).order('headword',{ascending:forward}).order('id',{ascending:forward}).limit(1);if(error)throw Error(error.message);return data?.[0]?`/dictionary/${data[0].id}`:null;};
   const [previous,next]=await Promise.all([one(false),one(true)]);return {previous,next};
  }
- const current=await loadBrowsePage(client,context),index=current.items.findIndex(row=>row.id===id&&(!sense||row.sense_id===sense));
+ const current=await loadBrowsePage(client,context),index=current.items.findIndex(row=>row.id===id&&(!sense||row.sense_id===sense||row.matched_sense_ids?.includes(sense)));
  if(index<0)return {previous:null,next:null};
  const href=(row:BrowseRow|undefined,page:number)=>{if(!row)return null;const u=new URL(context,'https://nexus.invalid');u.searchParams.set('page',String(page));return entryHref(row.id,u.pathname+u.search,row.sense_id);};
  let previous=href(current.items[index-1],current.page),next=href(current.items[index+1],current.page);

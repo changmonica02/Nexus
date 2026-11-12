@@ -415,7 +415,7 @@ test(
           .click();
         await page
           .getByRole("alert")
-          .filter({ hasText: "fixture referenced entry" })
+          .filter({ hasText: "刪除失敗，編輯內容已保留；請核對 RPC 錯誤碼後再重試。" })
           .waitFor();
         assert.equal(
           await page.getByLabel("英文字形 1", { exact: true }).inputValue(),

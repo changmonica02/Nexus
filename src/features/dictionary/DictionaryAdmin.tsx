@@ -1,7 +1,7 @@
 "use client";
 import {ReviewApproval,reviewFailure,reviewFailureText,type ReviewFailure} from './reviewApproval';
 import {useDictionaryText} from './useDictionaryText';
-import {adminContext,adminListHref,adminEntryHref,adminNeighbours} from './adminNavigation';
+import {adminContext,adminListHref,adminEntryHref,adminNeighbours,adminWorkHref} from './adminNavigation';
 import {invalidateDictionary,observeDictionaryInvalidation} from './dictionaryInvalidation';
 import {useDictionaryAdminAccess} from './useDictionaryAdminAccess';
 import AutoTextarea from "./AutoTextarea";
@@ -42,7 +42,7 @@ import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
 import {withoutSense} from './draftEditing';
-import {deleteDictionaryEntry} from './deleteEntry';
+import {deleteDictionaryEntry,deletionFailureText} from './deleteEntry';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
 const control='scroll-mt-24 w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2 text-sm text-[var(--color-text)]';
@@ -159,7 +159,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       deleteOperation.current??={id:crypto.randomUUID()};
       const removed=await deleteDictionaryEntry(getSupabase()!,deleteTarget,()=>confirmDialog({title:t('dictionary.deleteEntry'),message:t('dictionary.confirmDeleteEntry',{kind:t('ui.'+deleteTarget.kind),name:deleteTarget.headword}),confirmLabel:t('dictionary.confirmDeletion'),danger:true}),deleteOperation.current);
       if(removed){invalidateDictionary();navigation.leave(onDeleted);}
-    }catch(e){setMessage(e instanceof Error?e.message:String(e));}finally{deletePending.current=false;setBusy(false);}
+    }catch(e){setMessage(deletionFailureText(e,t));}finally{deletePending.current=false;setBusy(false);}
   };
   const removeSense=async(row:Row)=>{
     if(busy||locked)return;
@@ -398,7 +398,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     </div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     {listing.data?.workAvailable&&<p role="status" className="text-sm">{t('ui.redCount',{n:listing.data.stats!.red})}</p>}
-    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={e.work_status==='red'?`/dictionary/admin/reviews?entry=${encodeURIComponent(e.id)}`:adminEntryHref(e.id,{kinds,statuses,query,work,page:listing.data?.page??page})}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
+    <div className="@container"><ul data-dictionary-list className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">{visible.map(e=><li key={e.id} className="flex min-w-0 items-center gap-2 rounded border border-[var(--color-border)]"><Link className="block min-w-0 flex-1 break-words p-3 text-left [overflow-wrap:anywhere] hover:bg-[var(--color-panel-bg)]" href={adminWorkHref(e,{kinds,statuses,query,work,page:listing.data?.page??page})}>{e.headword} · {t("ui."+e.kind)} · <span role="img" aria-label={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'} title={e.work_status?t('persistent.'+e.work_status):e.status==='draft'?'草稿':'已發布'}>{e.work_status==='red'?'🔴':e.work_status==='yellow'||!e.work_status&&e.status==='draft'?'🟡':'🟢'}</span><p className="mt-1 line-clamp-2 text-sm opacity-65">{listing.data?.summaries[e.id]}</p></Link></li>)}</ul></div>
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3">
 

@@ -325,3 +325,12 @@ Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、
 首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步、固定間隔與 FSRS 不變。
 
 Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。必須先人工授權資料庫 Migration，再發布支援新欄位的前端；舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
+### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
+
+分類查詢仍依義項篩選，但 `search_prefix_dictionary` 先按正式 entry ID 分組再 20 筆分頁；保留首個符合的 sense_id 與 matched_sense_ids，不按拼寫合併，分類計數改為詞條數。返回／相鄰閱讀可辨識同列中的匹配義項。舊分類資料與既有正式 ID 不改寫；新構詞分類契約仍屬後續 D 階段。
+
+`list_dictionary_admin_work` 與完整 JSON 匯出的真正待處理範圍同時包含原 dictionary_transfer_pending 匯入工作及 state=active 的編輯 Review，依 entry ID 去重；只有普通未發布草稿維持 yellow，不當成 pending。多項差異與多筆 Review 不增加詞條總數。row 的 import_pending_count／editor_pending_count 用於導向原有匯入審核頁或編輯器，不共用另一套核准流程；pending_count 為該詞條工作量，stats.red 為詞條數。缺少正式詞條的合法匯入候選仍可計入，失敗／過期工作保留，查詢不刪任何資料。
+
+刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）隔離刪除正常；使用者原本的失敗尚缺對應詞條與 RPC 證據，不視為已修復根因。
+
+Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，可先發布相容前端，再於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
