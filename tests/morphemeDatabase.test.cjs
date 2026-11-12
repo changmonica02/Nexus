@@ -41,16 +41,16 @@ test('morpheme snapshot aliases preserve old Review approvals, real conflicts an
  await pg.exec('reset role');const normalized=await sql(pg,"select dictionary_normalize_snapshot($1) <> dictionary_normalize_snapshot(jsonb_set($1,'{detail,senses,0,variants}','[]')) v",[JSON.stringify(await sql(pg,'select get_dictionary_ai_snapshot($1) v',[d.entry_id]))]);assert.equal(normalized,true);
  }finally{await pg.close();}});
 test('shared catalog: stable homographs, sense-specific variant search, categories, paging, Review isolation and non-admin limits',async()=>{const pg=await database();try{
- const c=client(pg),a=morph(1400),b=morph(1500,'prefix');b.headword=a.headword;a.senses.push({id:id(1405),part_of_speech:null,gloss_zh_tw:'另一義項',semantic_domain:'nature',semantic_subdomain:'geography',variants:[{id:id(1406),form:'alternate',condition:'other sense'}]});
- for(const d of [a,b]){await saveDictionaryDraft(c,[d],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);}
+ const c=client(pg),a=morph(1400),b=morph(1500,'prefix'),sameKind=morph(1550);b.headword=a.headword;sameKind.headword=a.headword;a.senses.push({id:id(1405),part_of_speech:null,gloss_zh_tw:'另一義項',semantic_domain:'nature',semantic_subdomain:'geography',variants:[{id:id(1406),form:'alternate',condition:'other sense'}]});
+ for(const d of [a,b,sameKind]){await saveDictionaryDraft(c,[d],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);}
  let r=await sql(pg,"select search_dictionary_catalog('morpheme','alternate',null,null,array['prefix','root','suffix'],'{}',0,false) v");assert.equal(r.total,1);assert.equal(r.items[0].id,a.entry_id);assert.deepEqual(r.items[0].matched_sense_ids,[id(1405)]);assert.equal(r.items[0].variants.length,2);
  r=await sql(pg,"select search_dictionary_catalog('morpheme','', 'nature','geography',array['prefix','root','suffix'],'{}',0,false) v");assert.equal(r.total,1);
- r=await sql(pg,"select search_dictionary_catalog('morpheme','',null,null,array['prefix','root','suffix'],'{}',0,false) v");assert.equal(r.total,2);assert.equal(new Set(r.items.map(e=>e.id)).size,2);
+ r=await sql(pg,"select search_dictionary_catalog('morpheme','',null,null,array['prefix','root','suffix'],'{}',0,false) v");assert.equal(r.total,3);assert.equal(new Set(r.items.map(e=>e.id)).size,3);await assert.rejects(sql(pg,'select quick_create_dictionary_component($1,$2,$3,true) v',[id(1599),'root',a.headword]),/Ambiguous component identity/);
  const base=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[a.entry_id]);await createDictionaryReview(c,base);
  const pending=await sql(pg,"select search_dictionary_catalog('all','',null,null,array['prefix','root','suffix'],array['red'],0,true) v");assert.equal(pending.total,1);assert.equal(pending.stats.red,1);
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(900001)]);
  await assert.rejects(sql(pg,"select search_dictionary_catalog('all','',null,null,array['prefix','root','suffix'],'{}',0,true) v"),/admin required/);
- const publicResult=await sql(pg,"select search_dictionary_catalog('all','',null,null,array['prefix','root','suffix'],'{}',0,false) v");assert.equal(publicResult.total,2);assert.equal(publicResult.stats,null);assert.ok(publicResult.items.every(r=>r.editor_pending_count===0&&r.import_pending_count===0));
+ const publicResult=await sql(pg,"select search_dictionary_catalog('all','',null,null,array['prefix','root','suffix'],'{}',0,false) v");assert.equal(publicResult.total,3);assert.equal(publicResult.stats,null);assert.ok(publicResult.items.every(r=>r.editor_pending_count===0&&r.import_pending_count===0));
  }finally{await pg.close();}});
 test('legacy conversion: current Reviews preserved, unique variants assigned only in drafts, ambiguous source retained, atomic replay and stale proof rejection',async()=>{const pg=await database();try{
  const c=client(pg);
