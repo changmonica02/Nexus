@@ -181,6 +181,10 @@ test('stage 2 map UI: context tools, native transactions, responsive menus and r
   await secondWindow.getByRole('combobox',{name:'Display mode',exact:true}).selectOption('political');
   await waitForAsync(page,async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).some(b=>b.worldMapView.layer==='political');});
   assert.equal(await firstWindow.getByRole('combobox',{name:'Display mode',exact:true}).inputValue(),'physical');
+  // Chromium defers an offscreen lazy iframe; initialize both previews before comparing their views.
+  await secondWindow.locator('iframe').scrollIntoViewIfNeeded();
+  const secondPreviewFrame=await (await secondWindow.locator('iframe').elementHandle()).contentFrame();
+  await secondPreviewFrame.waitForFunction(()=>typeof grid!=='undefined'&&grid.cells?.h?.length);
   // Both views already exist: existence cannot acknowledge this new gesture.
   await waitForAsync(page,async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).every(b=>!!b.worldMapView.views?.[w.character_data.world_maps[0].id]);});
   const beforeViews=await page.evaluate(async()=>{const w=await mapStorage.getPage('world-browser');return w.character_data.sections.filter(b=>b.worldMapView).map(b=>b.worldMapView.views);});
