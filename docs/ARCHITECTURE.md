@@ -16,11 +16,11 @@ stage_dictionary_import_reviews 共用鎖，拒絕清理前預覽與已清來源
 
 ## 階段 D：構詞編輯、搜尋與無損草稿契約（已合併；舊格式部分由上節退役）
 
-沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。九大類／42小類代碼由 `semanticDomains.ts` 與 SQL 驗證，分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
+沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。十大類／58小類代碼由 `semanticDomains.ts` 與 SQL 驗證（`20261113061500_dictionary_semantic_ten_domains.sql`），分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
 
 `MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。來源及其餘有效欄位保留，舊 grouping／分類依上節退役。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。既有 RelationTargetPicker 共用選擇器支援三種構詞並顯示正確雙語類型；快速建立沿用原管理員確認／人工發布 RPC，不新增發布路徑。
 
-共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、九大類及小類；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
+共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、十大類及小類（派生構詞無小類）；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
 
 字典列表逾時修正（待正式套用）：`20261112120627_dictionary_catalog_query_plan.sql` 以單一交易替換既有九參數 `search_dictionary_catalog`，不改表、索引、回傳契約或 statement_timeout。一般閱讀經 `loadBrowsePage → readPublishedCatalog → readCatalog`；管理列表經 `listAdminWork(catalog:true) → readCatalog`，RPC 同次產生列表、總數及三色統計，當頁摘要不另讀完整詞條。原查詢在 `matches` 分頁前逐詞條重掃 materialized 義項／變體；新版按 entry ID 一次彙整搜尋與分類資格，統計仍依完整匹配集合，工作狀態過濾後才分頁，當頁再集合組裝摘要、變體、詞形及 matched_sense_ids。已發布讀取、唯一 active Review 身分、多 Review 回正式身分、明確空變體不復活舊資料及權限不變。依賴已套用的構詞契約；失敗交易回滾，回復須另經授權替換舊函式，不能回復舊資料或刪義項欄位。
 
