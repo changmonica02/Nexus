@@ -103,16 +103,16 @@ function nodes(root){
 function pick(root,predicate){const result=nodes(root).find(predicate);assert.ok(result,'expected editor control');return result;}
 const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&(node.props.children===text||node.props['aria-label']===text));
 
-test('morpheme subtype changes retain the stable entry and legacy grouping; semantic edits are sense-scoped',async()=>{
+test('morpheme subtype changes retain stable entry and sense variants without saving retired grouping',async()=>{
  const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase,calls=[];
  supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:null,error:null};}});
- const grouping={primary_category:'legacy',tags:[' old ','old'],variant_group:'cap/cept'};
- try{await withEditorState({detail:{...detail,entry:{...detail.entry,kind:'root'},senses:detail.senses.map(s=>({...s,part_of_speech:null}))},entries:[],senses:[],initialGrouping:grouping,onSaved:async()=>{}},async render=>{
+ const grouping={primary_category:'legacy',tags:[' old ','old'],variant_group:'cap/cept'},variants=[{id:'00000000-0000-4000-8000-000000000003',form:'modern-',condition:'current sense'}];
+ try{await withEditorState({detail:{...detail,entry:{...detail.entry,kind:'root'},senses:detail.senses.map(s=>({...s,part_of_speech:null,variants}))},entries:[],senses:[],initialGrouping:grouping,onSaved:async()=>{}},async render=>{
   let tree=render();const select=pick(tree,n=>n.type==='select'&&n.props['aria-label']==='構詞分類');const target={value:'suffix'};select.props.onChange({currentTarget:target,target});target.value='root';tree=render();
   assert.equal(pick(tree,n=>n.props['aria-label']==='構詞分類').props.value,'suffix');
   const sense=pick(tree,n=>n.type?.name==='MorphemeSenseEditor');sense.props.onChange({semantic_domain:'action',semantic_subdomain:'movement',gloss_zh_tw:'新概述'});tree=render();
   buttonNamed(tree,'儲存／重試').props.onClick();await new Promise(r=>setImmediate(r));
- });const value=calls.find(c=>c.name==='apply_dictionary_drafts').args.drafts[0];assert.equal(value.bundle.dictionary_entries[0].id,detail.entry.id);assert.equal(value.bundle.dictionary_entries[0].kind,'suffix');assert.deepEqual(value.group_data,grouping);assert.equal(value.bundle.dictionary_senses[0].id,detail.senses[0].id);assert.equal(value.bundle.dictionary_senses[0].gloss_zh_tw,'新概述');assert.equal(value.bundle.dictionary_senses[0].semantic_domain,'action');
+ });const value=calls.find(c=>c.name==='apply_dictionary_drafts').args.drafts[0];assert.equal(value.bundle.dictionary_entries[0].id,detail.entry.id);assert.equal(value.bundle.dictionary_entries[0].kind,'suffix');assert.equal('group_data'in value,false);assert.equal('sense_groups'in value,false);assert.deepEqual(value.bundle.dictionary_senses[0].variants,variants);assert.equal(value.bundle.dictionary_senses[0].id,detail.senses[0].id);assert.equal(value.bundle.dictionary_senses[0].gloss_zh_tw,'新概述');assert.equal(value.bundle.dictionary_senses[0].semantic_domain,'action');
  }finally{supabase.getSupabase=original;}
 });
 
