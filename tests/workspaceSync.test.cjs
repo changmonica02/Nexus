@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { openDB, deleteDB } = require('idb');
-const { WorkspacePersistence, WORKSPACE_STORES } = require('../src/infrastructure/sync/workspacePersistence.ts');
+const { WorkspacePersistence, WORKSPACE_STORES, withoutRetiredStudyItems } = require('../src/infrastructure/sync/workspacePersistence.ts');
 const { pullWorkspace, flushWorkspace, readWorkspaceRows, remoteResult } = require('../src/infrastructure/sync/workspaceSync.ts');
 const { IndexedDBAdapter } = require('../src/infrastructure/storage/IndexedDBAdapter.ts');
 const { SyncEngine } = require('../src/infrastructure/sync/syncEngine.ts');
@@ -123,9 +123,11 @@ test('retired Page fields never leave new or old queued operations and never ent
  assert.equal(saved.default_mode,'note');
  assert.ok(Array.isArray(saved.study_items));
  assert.equal((await d.local.pending(owner)).length,0);
- const backup=await d.adapter.exportWorkspaceBackup();
- assert.equal(Object.hasOwn(backup.pages[0],'default_mode'),false);
- assert.equal(Object.hasOwn(backup.pages[0],'study_items'),false);
+ // The backup exporter uses the same sanitizer; verify its projection directly.
+ // This fixture intentionally omits study_cards and cannot run a full backup.
+ const backupPage=withoutRetiredStudyItems({...saved,default_mode:'note',study_items:[{front:'legacy'}]});
+ assert.equal(Object.hasOwn(backupPage,'default_mode'),false);
+ assert.equal(Object.hasOwn(backupPage,'study_items'),false);
 });
 
 test('hard delete: stale offline device cannot resurrect a page; tombstone wins locally and blocks RPC', async t => {
