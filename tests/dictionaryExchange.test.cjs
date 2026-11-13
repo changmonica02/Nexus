@@ -9,7 +9,7 @@ const {
   sql,
   client,
   draft,
-} = require("./fixtures/dictionaryExchangeDatabase.cjs");
+} = require("./fixtures/morphemeRetirementDatabase.cjs");
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
@@ -51,18 +51,12 @@ test(
     const pg = await database();
     try {
       const root = draft(10, "root");
-      root.grouping = {
-        primary_category: "自然",
-        tags: ["tag"],
-        variant_group: "variant",
-      }; // Use an actual allowed Root category.
+      root.senses[0].variants=[{id:id(99901),form:'current',condition:'current'}];
       root.senses.push({
         id: id(14),
         part_of_speech: null,
         gloss_zh_tw: "第二義項",
       });
-      root.grouping.primary_category =
-        require("../src/features/dictionary/dictionaryCategories.ts").primaryCategories[0];
       await save(pg, root);
       await sql(pg, "select publish_dictionary_entry($1,true) v", [id(10)]);
       const word = draft(20);
@@ -131,20 +125,13 @@ test(
       ];
       await save(pg, word);
       const prefix = draft(50, "prefix");
-      const categories =
-        require("../src/features/dictionary/dictionaryCategories.ts").prefixCategories;
-      prefix.senses[0].category = categories[0];
+      const categories=['space_time','action','nature'];prefix.senses[0].semantic_domain=categories[0];
       prefix.senses.push({
         id: id(54),
         part_of_speech: null,
         gloss_zh_tw: "second prefix sense",
-        category: categories[1],
+        semantic_domain: categories[1],
       });
-      prefix.grouping = {
-        primary_category: null,
-        tags: ["prefix-tag"],
-        variant_group: "prefix-variant",
-      };
       await save(pg, prefix);
       const c = client(pg),
         original = await exportAll(c),
@@ -181,12 +168,12 @@ test(
       const rootRecord = modified.records.find(
         (r) => r.snapshot.detail.entry.id === id(10),
       );
-      rootRecord.snapshot.grouping.tags.push("second");
+      rootRecord.snapshot.detail.senses[0].variants.push({id:id(99902),form:'second',condition:'second'});
       const prefixRecord = modified.records.find(
         (r) => r.snapshot.detail.entry.id === id(50),
       );
-      prefixRecord.snapshot.grouping.tags.push("edited-prefix");
-      prefixRecord.snapshot.sense_groups[id(51)] = categories[2];
+
+      prefixRecord.snapshot.detail.senses[0].semantic_domain=categories[2];
       session = await previewExchange(c, owner, modified);
       assert.ok(session.items.every((i) => exchangeCategory(i) === "review"));
       // Explicit human decisions are now required for overwrites; the receipt test retains its original write path.
@@ -236,13 +223,13 @@ test(
       const changed = await exportAll(c);
       assert.equal(
         changed.records.find((r) => r.snapshot.detail.entry.id === id(10))
-          .snapshot.grouping.tags.length,
+          .snapshot.detail.senses[0].variants.length,
         1,
         "Published group change stays Review",
       );
       assert.equal(
         changed.records.find((r) => r.snapshot.detail.entry.id === id(10))
-          .reviews[0].candidate.group_data.tags.length,
+          .reviews[0].candidate.bundle.dictionary_senses[0].variants.length,
         2,
       );
       const legacyObserved = mapDictionaryDraft(root);
@@ -367,7 +354,7 @@ test(
       );
       assert.equal(filtered.records.length, 1);
       assert.equal(
-        filtered.records[0].snapshot.sense_groups[id(51)],
+        filtered.records[0].snapshot.detail.senses.find(s=>s.id===id(51)).semantic_domain,
         categories[2],
       );
       assert.equal(

@@ -2,11 +2,21 @@
 
 > 更新：2026-10-30；程式核對基準 main `27aa143`。本文只描述目前架構、有效資料契約、限制與建議。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
-## 階段 D：構詞編輯、搜尋與無損草稿契約（Draft #171，正式未套用）
+## 舊構詞退役與審核清理（本輪實作，正式未套用）
+
+`20261113035217_dictionary_legacy_morpheme_retired.sql` 依實際已安裝函式替換舊分組相依，保留公開／管理 catalog 集合篩選及分頁後彙整、正式內容／Review 隔離與 CAS。分類僅用 dictionary_senses.semantic_domain／semantic_subdomain，變體僅用每義項具 ID 的 variants；刪除舊 entry／sense groups 表及舊轉換、分組搜尋／保存 RPC，不使用 CASCADE。舊分組 tags 已盤點為全空；若執行時出現非空 tags，整筆 DDL 拒絕而不是捨棄。Word、構詞、義項、變體、關聯及其版本不被轉換或重寫。
+
+編輯器只佇列儲存完整當前 bundle，移除舊分組讀取／baseline 與待整理入口，保留 DraftAutosaveQueue、組字保護、保存順序及未儲存離開保護。舊分類深連結忽略退休條件，仍用同一正式 catalog；舊變體查詢文字交給新版搜尋，不讀舊表或猜測新分類。JSON 邊界只忽略明列的退休屬性，未知欄位、ID／revision、真實內容及變體陣列差異繼續驗證；SQL normalizer 包覆既有查證／詞源／概念／IPA／word_segments 規則。新完整 JSON／AI JSON 不輸出舊分組。CSV 改輸出義項的 semantic_domain／semantic_subdomain，舊 category 可讀但忽略；含變體的詞條須使用完整 JSON，不能假稱 CSV 無損。
+
+`20261113035226_dictionary_review_cleanup.sql` 只安裝管理員維護 RPC，本身不清理資料。preview_dictionary_review_cleanup 回傳精確 Review／匯入 ID、revision 及整列雜湊；clear_dictionary_pending_reviews(expected, operation_uuid) 在既有全域鎖與資料表鎖下重新比對完整集合後，於同一交易刪除仍未完成的指定工作。正常草稿、已完成工作、已發布內容及有效關聯不刪除。收據沿用 owner-scoped dictionary_import_operations 的既有 JSON 三日保留，不移除原重試收據，不建歷史或平行工作表；相同操作／請求回原結果，變更或不同請求拒絕。清理失敗時工作與收據同時回滾。
+
+stage_dictionary_import_reviews 共用鎖，拒絕清理前預覽與已清來源 session，並以同樣三日預覽期限防止收據到期後舊工作復活；新分析仍可建立新工作。不在 UI 新增清理按鈕，也不自動呼叫清理。發布順序為另授權的退役 Schema、維護 RPC、固定備份範圍清理、前端；暫停舊版編輯／匯入，不能以舊前端回復新版內容。回復須使用私人備份及原函式／權限／結構，在隔離副本驗證，僅補回已刪工作／舊欄位，不覆寫較新發布內容；正式回復亦須另行授權。
+
+## 階段 D：構詞編輯、搜尋與無損草稿契約（已合併；舊格式部分由上節退役）
 
 沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。九大類／42小類代碼由 `semanticDomains.ts` 與 SQL 驗證，分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
 
-`MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。原有 entry grouping、舊分類、來源及其他欄位留存。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。既有 RelationTargetPicker 共用選擇器支援三種構詞並顯示正確雙語類型；快速建立沿用原管理員確認／人工發布 RPC，不新增發布路徑。
+`MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。來源及其餘有效欄位保留，舊 grouping／分類依上節退役。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。既有 RelationTargetPicker 共用選擇器支援三種構詞並顯示正確雙語類型；快速建立沿用原管理員確認／人工發布 RPC，不新增發布路徑。
 
 共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、九大類及小類；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
 
@@ -15,7 +25,7 @@
 
 快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。匯出範圍的類型與名稱沿用管理catalog的唯一active Review身分；多份Review則回到正式身分，不任選。這只影響範圍選取，匯出仍包含完整正式快照與全部Review，保留版本／固定範圍驗證。
 
-`preview_dictionary_morpheme_conversion` 管理員分頁預覽；`prepare_dictionary_morpheme_draft` 以原快照、操作 UUID、既有全域鎖及 Review 驗證建立待整理草稿，收據沿用 dictionary_import_operations，同交易回滾、重試冪等。已有草稿／active Review 不覆蓋；已準備過不無限重建。只有單義項且結構合法的舊變體可確定歸屬，依原 ID／原文產生穩定變體 ID；歸屬不明仍完整保留舊原文。Migration 本身不轉換資料、不發布。
+舊草稿轉換 RPC 與入口已在本輪移除；不再從舊資料建立或補回新版變體。
 
 正式唯讀重核29表72,281列、85個函式與原備份一致；隔離副本建立174份 Review，保留10份既有 Review，54筆變體列可歸屬，1組歸屬不明；原有逐主鍵資料雜湊全部不變。私人備份不入 Git／CI／分享，僅字典及必要學習依賴，不是完整 Supabase／Auth 備份。正式操作前須重新盤點、備份、核對實際函式與 ledger；不能 db push 全部 pending。
 

@@ -22,11 +22,11 @@ test('Previous/Next preserve search filters and cross page boundaries with bound
  assert.ok(c.calls.filter(x=>x[0]==='rpc').every(x=>x[1]==='search_dictionary_with_inflections'));
  assert.equal(browseContext('/dictionary/'+id(1)+'?from='+encodeURIComponent(from)),from);assert.equal(browseContext('https://evil.test/dictionary'),null);
  const groupCalls=[];const group={rpc:async(name,args)=>{groupCalls.push({name,args});return {data:{items:[{id:id(args.page_number),sense_id:id(args.page_number+100),headword:'p',kind:'prefix'}],has_more:true,page:args.page_number}};}};
- const g=await readerNeighbours(group,id(1),'p','/dictionary?kind=prefix&q=p&category=作用與變化&page=1',id(101));assert.ok(g.next.includes(id(2)));assert.equal(groupCalls[0].args.primary_category_filter,'作用與變化');
+ const g=await readerNeighbours(group,id(1),'p','/dictionary?kind=prefix&q=p&category=作用與變化&page=1',id(101));assert.ok(g.next.includes(id(2)));assert.equal(groupCalls[0].name,'search_dictionary_catalog');assert.equal(groupCalls[0].args.domain,null);
 });
 test('relation and variant browse filters remain server-side; swipe ignores edit/vertical/short/slow gestures',async()=>{
  const c=mock([]);await loadBrowsePage(c,'/dictionary?kind=word&component='+id(1)+'&sense='+id(2)+'&page=3');assert.ok(c.calls.some(x=>x[1]==='relations.target_entry_id'&&x[2]===id(1)));assert.ok(c.calls.some(x=>x[1]==='relations.target_sense_id'));
- await loadBrowsePage(c,'/dictionary?kind=root&variant=cept&page=2');assert.ok(c.calls.some(x=>x[1]==='grouping.variant_group'));
+ const variantCalls=[];await loadBrowsePage({rpc:async(name,args)=>{variantCalls.push({name,args});return {data:{items:[],total:0,page:2,has_more:false}};}},'/dictionary?kind=root&variant=cept&page=2');assert.equal(variantCalls[0].name,'search_dictionary_catalog');assert.equal(variantCalls[0].args.query_text,'cept');
  assert.equal(swipeDirection(-100,10,300,false),'next');assert.equal(swipeDirection(100,10,300,false),'previous');for(const args of [[-100,10,300,true],[-50,0,300,false],[-100,90,300,false],[-100,0,800,false]])assert.equal(swipeDirection(...args),null);
 });
 const ts=require('typescript');require.extensions['.tsx']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,f);

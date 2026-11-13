@@ -1,6 +1,6 @@
 require('./loadStudy.cjs');const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
-const {database,client,executeQuery,sql,id,draft}=require('./fixtures/morphemeDatabase.cjs');const {saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
+const {database,client,executeQuery,sql,id,draft}=require('./fixtures/morphemeRetirementDatabase.cjs');const {saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 test('actual morpheme editor and SQL Reviews: stable senses/variants, autosave, reclassification, histories, links, bilingual responsive catalog',{timeout:180000},async()=>{
  const pg=await database(),c=client(pg),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-morpheme-editor-')),root=path.resolve(__dirname,'..');let server,browser;const errors=[];
  try{
@@ -12,7 +12,7 @@ test('actual morpheme editor and SQL Reviews: stable senses/variants, autosave, 
  const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium;browser=await engine.launch({executablePath:engine===chromium?process.env.BROWSER_EXECUTABLE:undefined,args:engine===chromium?['--no-sandbox']:[]});
  for(const [index,width]of [1280,820,390,320].entries()){
   const en=index===3,context=await browser.newContext({viewport:{width,height:1000}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));const entry=id(3000+index*100);
-  await page.goto(url+'/?entry='+entry+(en?'&lang=en':''));const row=page.locator('[data-morpheme-sense]').first();await row.waitFor();const label=(zh,enText)=>en?enText:zh;
+  await page.goto(url+'/?entry='+entry+(en?'&lang=en':''));const row=page.locator('[data-morpheme-sense]').first();await row.waitFor();assert.equal(await page.getByText('待整理的舊資料',{exact:true}).count(),0);const label=(zh,enText)=>en?enText:zh;
   assert.equal(await page.getByLabel(label('構詞分類','Morpheme type'),{exact:true}).inputValue(),'root');
   await row.getByLabel(label('概述','Overview'),{exact:true}).fill('UPDATED OVERVIEW '+index);
   await row.getByRole('button',{name:label('＋新增變體','＋ Add variant'),exact:true}).click();let variants=row.locator('[data-morpheme-variant]');await variants.first().getByLabel(label('變體字形','Variant'),{exact:true}).fill('alt-'+index);await variants.first().getByLabel(label('出現條件','Condition'),{exact:true}).fill('before vowel');const firstId=await variants.first().getAttribute('data-morpheme-variant');
@@ -22,7 +22,7 @@ test('actual morpheme editor and SQL Reviews: stable senses/variants, autosave, 
   await page.getByLabel(label('構詞分類','Morpheme type'),{exact:true}).selectOption('suffix');await page.evaluate(()=>document.activeElement?.blur());await page.getByRole('button',{name:en?'Save / retry':'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});
   await page.waitForFunction(async entry=>{const r=await window.dictionaryClient.from('dictionary_review_drafts').select('*').eq('entry_id',entry).eq('state','active');return r.data?.length===1&&r.data[0].candidate.bundle.dictionary_entries[0].kind==='suffix'&&r.data[0].candidate.bundle.dictionary_senses[0].variants?.length===1;},entry);
   const canonical=await sql(pg,'select get_published_dictionary_entry($1) v',[entry]);assert.equal(canonical.entry.kind,'root');assert.equal(canonical.senses[0].gloss_zh_tw,'原始概述');
-  await page.reload();await row.waitFor();assert.equal(await row.getByLabel(label('概述','Overview'),{exact:true}).inputValue(),'UPDATED OVERVIEW '+index);assert.equal(await row.getByLabel(label('歷史詞源','Historical etymology'),{exact:true}).inputValue(),'ORIGINAL HISTORY '+index);assert.equal(await variants.first().getAttribute('data-morpheme-variant'),firstId);
+  await page.reload();await row.waitFor();assert.equal(await page.getByText('待整理的舊資料',{exact:true}).count(),0);assert.equal(await row.getByLabel(label('概述','Overview'),{exact:true}).inputValue(),'UPDATED OVERVIEW '+index);assert.equal(await row.getByLabel(label('歷史詞源','Historical etymology'),{exact:true}).inputValue(),'ORIGINAL HISTORY '+index);assert.equal(await variants.first().getAttribute('data-morpheme-variant'),firstId);
   if(index===0){
    const links=row.locator('[data-morpheme-links]');await links.locator('summary').click();await links.getByLabel('搜尋連結單字',{exact:true}).fill('linkedword');await links.getByLabel('搜尋連結單字',{exact:true}).press('Enter');await links.getByRole('button',{name:'連結',exact:true}).click();await links.locator('a').filter({hasText:'linkedword'}).waitFor();assert.equal((await sql(pg,'select get_published_dictionary_entry($1) v',[id(4000)])).relations.length,0);await links.getByRole('button',{name:'解除關聯',exact:true}).click();await page.waitForFunction(async()=>{const r=await window.dictionaryClient.from('dictionary_review_drafts').select('*').eq('entry_id','00000000-0000-4000-8000-000000004000');return r.data?.length===1&&r.data[0].candidate.bundle.dictionary_relations.length===0;});
   }

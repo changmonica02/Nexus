@@ -15,7 +15,7 @@ const {
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
-const {database,client:catalogClient}=require("./fixtures/morphemeDatabase.cjs");
+const {database,client:catalogClient}=require("./fixtures/morphemeRetirementDatabase.cjs");
 test(
   "real SQL + actual admin/import/review components: desktop/tablet/mobile, file summary, safe partial Review, cross-device saved decision, apply, color and English",
   { timeout: 150000 },

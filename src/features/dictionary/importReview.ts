@@ -6,7 +6,7 @@ import {mapDictionaryDraft,validateDictionaryDraft,type DictionaryDraftInput,typ
 type Client=Pick<SupabaseClient,'rpc'>;
 export type ImportAction='review'|'keep'|'incoming'|'fill'|'new_sense'|'skip'|'later';
 export const actionLabels:Record<ImportAction,string>={keep:'保留現有',review:'建立 Review Draft',incoming:'使用匯入版本',fill:'補上缺失值',new_sense:'建立新的 Sense',skip:'略過',later:'暫不處理'};
-type Section='entry'|'grouping'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'inflections';
+type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'inflections';
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
@@ -41,7 +41,6 @@ export function reconcileProposedContent(draft:DictionaryDraftInput,context:Impo
   const d=structuredClone(draft),proposed=new Set(d.proposed_ids??[]);
   if(context.snapshot){
     d.revision=context.snapshot.detail.entry.revision;
-    if(d.grouping)d.grouping={...d.grouping,tags:context.snapshot.grouping?.tags??[],variant_group:context.snapshot.grouping?.variant_group??null};
     for(const section of contentSections){
       const rows=storedRows(context,section);
       for(let i=0;i<(d[section]??[]).length;i++){
@@ -73,10 +72,9 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
   if(context.similar.length&&(!current||current.detail.entry.headword!==draft.headword))addIssue(item,'homograph','headword',context.similar,draft.headword,'同類同拼寫必須共用 Entry；既有 ID 不可自動合併，請開啟既有詞條新增義項。',['skip','later']);
   const compare=(section:Section,id:string|undefined,field:string,old:unknown,incoming:unknown,row?:number)=>{
     if(equal(old,incoming))return;
-    const category=field==='category'||field==='primary_category',missing=category&&!old&&!!incoming;
-    const actions:ImportAction[]=current?.detail.entry.status==='published'?['review','keep','skip','later']:missing?['fill','keep','later']:['incoming','keep','later'];
+    const actions:ImportAction[]=current?.detail.entry.status==='published'?['review','keep','skip','later']:['incoming','keep','later'];
     if(section==='senses'&&field==='gloss_zh_tw'&&current?.detail.entry.status==='draft')actions.splice(1,0,'new_sense');
-    addIssue(item,current?.detail.entry.status==='published'?'published_change':missing?'category_missing':category?'category_difference':'content_difference',field,old,incoming,current?.detail.entry.status==='published'?'Published 不直接修改；接受後建立完整 Review Draft，核准後才發布。':missing?'既有分類未設定，可明確補上。':'相同 stable ID 的內容不同，需逐筆確認。',actions,{section,id,field},row);
+    addIssue(item,current?.detail.entry.status==='published'?'published_change':'content_difference',field,old,incoming,current?.detail.entry.status==='published'?'Published 不直接修改；接受後建立完整 Review Draft，核准後才發布。':'相同 stable ID 的內容不同，需逐筆確認。',actions,{section,id,field},row);
   };
   if(current){
     if(draft.senses.some(s=>!current.detail.senses.some(old=>old.id===s.id))){
@@ -87,8 +85,6 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
     compare('entry',undefined,'headword',current.detail.entry.headword,draft.headword);
     if(draft.word_segments!==undefined)compare('entry',undefined,'word_segments',current.detail.entry.word_segments??null,draft.word_segments);
     if(draft.component_order!==undefined)compare('entry',undefined,'component_order',current.metadata?.component_order??[],draft.component_order);
-    if(draft.grouping)for(const field of ['tags','variant_group'] as const)compare('grouping',undefined,field,current.grouping?.[field]??(field==='tags'?[]:null),draft.grouping[field]);
-    if(draft.grouping&&draft.kind==='root')compare('grouping',undefined,'primary_category',current.grouping?.primary_category,draft.grouping.primary_category);
     for(const section of contentSections)for(const row of draft[section]??[]){
       const old=storedRows(context,section).find(r=>r.id===row.id);
       if(!old){
@@ -99,7 +95,6 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
           if(['id','entry_id','revision','updated_at','row','category'].includes(field))continue;
           compare(section,row.id,field,old[field],value,Number(row.row??draft.row??1));
         }
-        if(section==='senses'&&draft.kind==='prefix'&&row.category!==undefined)compare('senses',row.id,'category',current.sense_groups[row.id],row.category,Number(row.row??draft.row??1));
       }
     }
   }
@@ -129,8 +124,7 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
     const t=issue.target;if(!t)continue;
     if(issue.selectedAction==='keep'){
       if(t.section==='entry'){if(t.field==='kind')d.kind=issue.existing as DictionaryDraftInput['kind'];else if(t.field==='component_order')d.component_order=issue.existing as string[];else if(t.field==='word_segments')d.word_segments=issue.existing as DictionaryDraftInput['word_segments'];else d.headword=String(issue.existing);}
-      else if(t.section==='grouping'&&d.grouping){if(t.field==='tags')d.grouping.tags=issue.existing as string[];else if(t.field==='variant_group')d.grouping.variant_group=issue.existing as string|null;else d.grouping.primary_category=issue.existing as string|null;}
-      else if(t.section!=='grouping'){
+      else{
         const rows=d[t.section]??[];const row=rows.find(r=>r.id===t.id);
         if(t.field&&row)row[t.field]=issue.existing??null;
         else {d[t.section]=rows.filter(r=>r.id!==t.id) as never;

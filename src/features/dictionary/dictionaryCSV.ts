@@ -1,9 +1,8 @@
 import {entryKey} from './entryIdentity';
 import {parseCSV} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
-import {emptyGrouping} from './grouping';
 
-export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','category','etymology','example_words','relation_hint','core_concept'];
+export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','relation_hint','core_concept'];
 export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
 export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
@@ -24,12 +23,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     if(!d){d={kind:kind as DictionaryDraftInput['kind'],entry_id,headword:r.headword,row,senses:[],etymologies:[],examples:[],relations:[],learning_notes:[],relation_hints:[],proposed_ids:[]};drafts.set(entry_id,d);}
     else if(d.kind!==kind||entryKey(d.kind,d.headword)!==key)error('entry_id','同一 entry_id 的 kind / headword 不一致');
     if(proposed.get(key)===entry_id&&!d.proposed_ids!.includes(entry_id))d.proposed_ids!.push(entry_id);if(!r.sense_id.trim())d.proposed_ids!.push(sense_id);
-    if(kind==='word'&&r.category?.trim())d.grouping={...emptyGrouping(),primary_category:r.category};
-    if(kind==='root'){
-      if(d.grouping&&d.grouping.primary_category!==r.category)error('category','同一 Root 的分類必須一致');
-      d.grouping={...emptyGrouping(),primary_category:r.category};
-    }
-    d.senses.push({id:sense_id,part_of_speech:r.part_of_speech||null,gloss_zh_tw:r.gloss_zh_tw,row,...(kind==='prefix'?{category:r.category}:{})});
+    d.senses.push({id:sense_id,part_of_speech:r.part_of_speech||null,gloss_zh_tw:r.gloss_zh_tw,...(r.semantic_domain!==undefined?{semantic_domain:r.semantic_domain||null}:{}),...(r.semantic_subdomain!==undefined?{semantic_subdomain:r.semantic_subdomain||null}:{}),row});
     for(const [field,list,extra] of [
       ['etymology',d.etymologies,{data_source:''}],
       ['example_words',d.examples,{sort_order:0}],
@@ -48,6 +42,7 @@ export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInpu
 export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
   const rows:string[][]=[];
   if(drafts.some(d=>d.inflections?.length))throw Error('CSV v1 無詞形欄位，請使用完整 JSON 匯出；不會省略詞形。');
+  if(drafts.some(d=>d.senses.some(s=>Array.isArray(s.variants)&&s.variants.length)))throw Error('CSV 不含構詞變體，請使用完整 JSON。');
   if(drafts.some(d=>d.pronunciations?.length))throw Error('CSV v1 不含讀音欄位，請使用 AI JSON 完整匯出，避免讀音遺失。');
   for(const d of drafts)for(const sense of d.senses){
     const content=(items:typeof d.examples)=>{
@@ -55,12 +50,12 @@ export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
       if(own.length>1||items.some(x=>!x.sense_id)&&d.senses.length>1)throw Error('此詞條有多筆或詞條級內容，請使用 AI JSON 完整匯出，避免 CSV 合併遺失關聯。');
       return String(own[0]?.body??'');
     };
-    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,d.kind==='prefix'?sense.category??'':d.kind==='root'?d.grouping?.primary_category??'':'',content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='core_concept'))]);
+    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,String(sense.semantic_domain??''),String(sense.semantic_subdomain??''),content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='core_concept'))]);
   }
   return dictionaryCSVHeaders.join(',')+'\n'+rows.map(r=>r.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');
 }
 export const dictionaryCSVExample=dictionaryCSVHeaders.join(',')+'\n'+[
-  ['word','','','example','noun','例子','','','an example','','用例子幫助記憶'],
-  ['prefix','','','pre-','','之前','位置、方向與關係','','preview','',''],
-  ['root','','','form','','形狀','空間、位置與環境','','formation','',''],
+  ['word','','','example','noun','例子','','','','an example','','用例子幫助記憶'],
+  ['prefix','','','pre-','','之前','space_time','time','','preview','',''],
+  ['root','','','form','','形狀','nature','geography','','formation','',''],
 ].map(row=>row.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');

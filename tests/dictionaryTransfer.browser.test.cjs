@@ -15,7 +15,7 @@ const {
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
-const {database,client:catalogClient}=require("./fixtures/morphemeDatabase.cjs");
+const {database,client:catalogClient}=require("./fixtures/morphemeRetirementDatabase.cjs");
 test(
   "real PostgreSQL API + transfer dialogs: frozen export, safe replacement, no-write analysis, mobile and OAuth URL",
   { timeout: 150000 },

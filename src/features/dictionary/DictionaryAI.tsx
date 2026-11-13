@@ -5,18 +5,17 @@ import {useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {literalSearch} from './adminQueries';
 import {getSupabase} from '../../infrastructure/supabase/client';
-import {primaryCategories,prefixCategories} from './grouping';
 import type {DictionaryEntry} from './dictionary';
-import {matchAIEntry,parseAI,readAI,chooseExport,categoryMatches,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
+import {matchAIEntry,parseAI,readAI,chooseExport,toAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot,type AIMeta} from './aiDictionary';
 const control='w-full rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2';
 const button='rounded border border-[var(--color-border)] px-3 py-2 disabled:opacity-40';
-const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',grouping:'學習分類／標籤／同字變體',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',core_concept:'概念'};
+const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',core_concept:'概念'};
 async function targetsFor(client:SupabaseClient,s:AISnapshot|null,input?:AIEntry){
  const ids=new Set([...(s?.detail.relations.map(r=>r.target_entry_id)??[]),...(input?.components?.map(c=>c.target_id)??[])]);
  return new Map(await Promise.all([...ids].map(async id=>[id,await readAI(client,id)] as const)));
 }
 export function AIExport({query,selected,onBusy,initialKind='all'}:{initialKind?:string;query:string;selected:string[];onBusy:(busy:boolean)=>void}){
- const [scope,setScope]=useState<'draft'|'published'|'all'>('draft'),[kind,setKind]=useState(initialKind),[subset,setSubset]=useState('search'),[category,setCategory]=useState('');
+ const [scope,setScope]=useState<'draft'|'published'|'all'>('draft'),[kind,setKind]=useState(initialKind),[subset,setSubset]=useState('search');
  const [output,setOutput]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const reset=()=>{setOutput('');setError('');};
  async function generate(){setBusy(true);onBusy(true);reset();try{
@@ -39,7 +38,7 @@ export function AIExport({query,selected,onBusy,initialKind='all'}:{initialKind?
     let companions:DictionaryEntry[]=[];
     if(scope==='all'&&companionIds.length){const {data,error}=await client.from('dictionary_entries').select('id,kind,headword,status,published_at,revision,updated_at').in('id',companionIds);if(error)throw Error(error.message);companions=data;}
     const chosen=chooseExport([...entries,...companions],meta as AIMeta[],scope,kind,subset==='search'?query:'',subset==='selected'?selectedIds:null).filter(e=>ids.includes(e.id));
-    for(const e of chosen){const s=await readAI(client,e.id);if((scope==='all'||s.detail.entry.status===scope)&&categoryMatches(s,category))exported.push(toAI(s,await targetsFor(client,s)));}
+    for(const e of chosen){const s=await readAI(client,e.id);if((scope==='all'||s.detail.entry.status===scope))exported.push(toAI(s,await targetsFor(client,s)));}
     if(entries.length<100)break;
   }
   if(!exported.length)throw Error('此範圍沒有符合的詞條');
@@ -47,10 +46,9 @@ export function AIExport({query,selected,onBusy,initialKind='all'}:{initialKind?
  }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);onBusy(false);}}
  return <div className="space-y-4"><fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
   <label>狀態<select className={control} value={scope} onChange={e=>{setScope(e.target.value as typeof scope);reset();}}><option value="draft">Draft</option><option value="published">Published</option><option value="all">Draft + Published（優先草稿）</option></select></label>
-  <label>類型<select className={control} value={kind} onChange={e=>{setKind(e.target.value);setCategory('');reset();}}><option value="all">全部</option><option value="word">Word</option><option value="prefix">Prefix</option><option value="root">Root</option></select></label>
+  <label>類型<select className={control} value={kind} onChange={e=>{setKind(e.target.value);reset();}}><option value="all">全部</option><option value="word">Word</option><option value="prefix">Prefix</option><option value="root">Root</option></select></label>
   <label>範圍<select className={control} value={subset} onChange={e=>{setSubset(e.target.value);reset();}}><option value="search">目前搜尋結果：{query||'全部'}</option><option value="selected">已勾選詞條（{selected.length}）</option><option value="all">全部詞條</option></select></label>
-  {kind!=='word'&&<label>主要分類<select className={control} value={category} onChange={e=>{setCategory(e.target.value);reset();}}><option value="">全部分類</option><option value="__ungrouped__">未分類</option>{kind!=='root'&&<optgroup label="Prefix（義項分類）">{prefixCategories.map(c=><option key={c}>{c}</option>)}</optgroup>}{kind!=='prefix'&&<optgroup label="Root（詞條分類）">{primaryCategories.map(c=><option key={c}>{c}</option>)}</optgroup>}</select></label>}
- </fieldset><p className="text-sm opacity-70">分類條件決定匯出哪些詞條；每個命中詞條仍完整保留所有義項。請保留 id、revision、type。來源不得自行標記 verified。</p>
+ </fieldset><p className="text-sm opacity-70">每個命中詞條完整保留所有義項及新版分類、變體。請保留 id、revision、type。來源不得自行標記 verified。</p>
  <button className={button} disabled={busy||(subset==='selected'&&!selected.length)} onClick={()=>void generate()}>產生 AI JSON</button>
  {error&&<p role="alert">{error}</p>}{output&&<><textarea aria-label="AI JSON 匯出預覽" className={`${control} font-mono text-xs`} rows={12} readOnly value={output}/><button className={button} onClick={()=>{const url=URL.createObjectURL(new Blob([output],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='nexus-dictionary-ai-v1.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>下載 JSON</button></>}
  </div>;

@@ -1,5 +1,5 @@
 require('./loadStudy.cjs');const test=require('node:test'),assert=require('node:assert/strict');
-const {validateMorphemeSenseFields,normalizeMorphemeSense,removeMorphemeVariant,inspectLegacyVariants}=require('../src/features/dictionary/morphemeContract.ts');
+const {validateMorphemeSenseFields,normalizeMorphemeSense,removeMorphemeVariant}=require('../src/features/dictionary/morphemeContract.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('semantic categories belong to a sense and enforce the selected major/minor relationship',()=>{
  assert.equal(validateMorphemeSenseFields({}),null);assert.equal(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:null}),null);
@@ -13,8 +13,8 @@ test('variant identities are required and deletion affects only that ID, even fo
 test('comparison treats only null/missing as aliases while retaining real content and revision conflicts',()=>{
  const before={id:id(1),revision:7,gloss_zh_tw:'概述'};assert.deepEqual(normalizeMorphemeSense({...before,variants:null,semantic_domain:null}),before);assert.notDeepEqual(normalizeMorphemeSense({...before,variants:[]}),before);assert.notDeepEqual(normalizeMorphemeSense({...before,revision:8}),before);assert.notDeepEqual(normalizeMorphemeSense({...before,gloss_zh_tw:'改寫'}),before);
 });
-test('legacy inspection preserves ambiguous/plain source and never resurrects an explicitly cleared variant list',()=>{
- const raw=JSON.stringify({format:'nexus-variants-v1',rows:[{variant:'in-',condition:'before'}]}),senses=[{id:id(1)},{id:id(2)}],snapshot=JSON.stringify({raw,senses});
- assert.equal(inspectLegacyVariants(senses,raw).status,'manual');assert.equal(inspectLegacyVariants([senses[0]],'in- / im-').status,'manual');assert.equal(JSON.stringify({raw,senses}),snapshot);
- assert.deepEqual(inspectLegacyVariants([senses[0]],raw),{status:'ready',sense_id:id(1),rows:[{form:'in-',condition:'before'}]});assert.equal(inspectLegacyVariants([{id:id(1),variants:[]}],raw).status,'current');
+test('known retired JSON fields are ignored without rebuilding current variants or changing IDs',()=>{
+ const {currentMorphemeFields}=require('../src/features/dictionary/retiredMorphemeFields.ts');
+ const original={detail:{entry:{id:id(1)},senses:[{id:id(2),variants:[]}]},grouping:{variant_group:'in- / im-'},sense_groups:{[id(2)]:'old'}};
+ const before=structuredClone(original),clean=currentMorphemeFields(original);assert.deepEqual(original,before);assert.deepEqual(clean,{detail:original.detail});assert.deepEqual(clean.detail.senses[0].variants,[]);
 });

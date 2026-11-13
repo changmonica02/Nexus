@@ -1,3 +1,14 @@
+# 舊構詞退役與待審核清理（2026-11-13，開發／隔離驗證中）
+
+- 基準 main `e06c631`，分支 `feat/retire-legacy-morpheme`。管理員已確認新版發布內容為準、舊差異不恢復、舊分類不映射、目前待審可全部清理。舊交接中的「待整理／轉換」不再是有效需求。
+- 已移除待整理區塊／轉換入口、舊分類／變體讀取及舊分組查詢；分類／變體只走新版每義項結構。草稿保存改為只追蹤完整 bundle，仍沿用原 autosave／IME／CAS／人工發布。JSON 忽略已知退休欄位，不輸出舊分組，不猜測 ID 或新版內容。舊 CSV category 忽略，缺少新欄位不清除現有分類。
+- 準備 `20261113035217_dictionary_legacy_morpheme_retired.sql`（依正式函式更新相依、無 CASCADE 刪舊表／函式）及 `20261113035226_dictionary_review_cleanup.sql`（只安裝 preview／原子清理 RPC，不自動清資料）。正式均未套用，清理也未執行。
+- 初次唯讀盤點：6,346詞條／10,855義項／145正式關聯；舊entry groups183、sense groups128，tags全空；待清active Review3,797、未完成匯入1,384（pending1,363／stale21），另4筆unchanged不清除。33筆既有操作收據保留。備份期間偵測學習與字典新增／修改，改採單次唯讀快照；以上不是永久現況，正式操作前必須重新預覽、備份與核對。
+- 本機五組退役／清理 RPC、權限／CAS／冪等／失敗回滾測試與 Chromium／WebKit 編輯閱讀已通過；相關交換／草稿／閱讀回歸已更新至新契約。TypeScript、修改範圍 ESLint（0 errors／5 warnings）、Production Build通過，備份完整還原／大資料隔離驗證及遠端 CI 尚待完成。
+- 正式流程：先完成私人完整相關備份及隔離還原、審查與另行授權，逐份套用退役／維護RPC，對固定ID／revision／整列雜湊的manifest取得清理授權後才執行；任一新增／變動工作則整筆拒絕。保留正常草稿、已發布內容、私人字卡與學習資料。已有收據及被清來源session保護防止舊預覽重建，三日後舊預覽亦須重分析。沒有公開備份或建立分享連結，不修改 HISTORY、不合併或部署。
+
+---
+
 # 字典 catalog 逾時修復（2026-11-12，驗證中）
 
 - 基準 main `f490cbe`；分支 `fix/dictionary-catalog-timeout`。使用者確認 A／B／C／D 已合併且所需正式 Migration 已套用；下方舊交接的未合併／未套用描述不是目前狀態。

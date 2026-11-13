@@ -63,7 +63,10 @@ test('legacy conversion: current Reviews preserved, unique variants assigned onl
   const d=morph(n);delete d.senses[0].variants;delete d.senses[0].semantic_domain;delete d.senses[0].semantic_subdomain;
   if(n===1700)d.senses.push({id:id(1703),part_of_speech:null,gloss_zh_tw:'ambiguous'});
   d.grouping={primary_category:'空間、位置與環境',tags:[],variant_group:JSON.stringify({format:'nexus-variants-v1',rows:[{variant:'legacy-form',condition:'original condition'}]})};
-  await saveDictionaryDraft(c,[d],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);
+  await saveDictionaryDraft(c,[d],false,true);
+  // Historical pre-retirement data fixture; the current editor never emits this format.
+  await pg.exec('reset role');await pg.query('insert into dictionary_entry_groups(id,primary_category,tags,variant_group) values($1,$2,$3,$4)',[d.entry_id,d.grouping.primary_category,[],d.grouping.variant_group]);await pg.exec('set role authenticated');
+  await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);
  }
  const protectedSnapshot=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(1800)]);const existing=await createDictionaryReview(c,protectedSnapshot);
  const before=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(1600)]);

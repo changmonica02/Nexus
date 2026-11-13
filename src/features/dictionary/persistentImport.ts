@@ -146,10 +146,6 @@ function candidateSnapshot(context: ImportContext): AISnapshot | null {
     pronunciations: c.pronunciations,
     inflections: c.inflections,
   } as unknown as AISnapshot["detail"];
-  s.grouping = c.group_data ?? s.grouping;
-  s.sense_groups = Object.fromEntries(
-    c.sense_groups.map((r) => [r.sense_id, r.primary_category ?? null]),
-  );
   return s;
 }
 const normalized = (s: unknown) =>
