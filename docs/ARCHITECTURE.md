@@ -341,6 +341,6 @@ Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併
 
 `list_dictionary_admin_work` 與完整 JSON 匯出的真正待處理範圍同時包含原 dictionary_transfer_pending 匯入工作及 state=active 的編輯 Review，依 entry ID 去重；只有普通未發布草稿維持 yellow，不當成 pending。多項差異與多筆 Review 不增加詞條總數。row 的 import_pending_count／editor_pending_count 用於導向原有匯入審核頁或編輯器，不共用另一套核准流程；pending_count 為該詞條工作量，stats.red 為詞條數。缺少正式詞條的合法匯入候選仍可計入，失敗／過期工作保留，查詢不刪任何資料。
 
-刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）隔離刪除正常；使用者原本的失敗尚缺對應詞條與 RPC 證據，不視為已修復根因。
+刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）可通過隔離刪除測試；若詞條仍受官方學習組或其他正式資料引用，伺服器按外鍵／引用保護拒絕刪除（先前個案 `a` 曾受 `gsat-1-2`／`gsat-all` 引用）。不得把合法引用阻擋敘述為刪除 RPC 一律失效，亦不得為刪除而解除保護。
 
 Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，此前已先發布相容前端並於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
