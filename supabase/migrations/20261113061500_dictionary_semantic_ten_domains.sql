@@ -1,7 +1,12 @@
 -- Ten semantic domains (58 subcategories). Retire invalid category combinations without changing other sense content.
 begin;
+-- The published-sense guard rejects direct maintenance updates. Disable only this named
+-- trigger within the transaction, while preserving CHECK/FK triggers and bumping revisions.
+-- Any failure rolls the entire migration (including trigger state) back.
+lock table public.dictionary_senses in access exclusive mode;
+alter table public.dictionary_senses disable trigger dictionary_guard;
 -- Clear invalid major categories and only invalid minor categories; do not guess equivalents.
--- This runs before replacing the validator, so existing CHECK remains satisfied.
+-- This runs before replacing the validator, so the existing CHECK also remains satisfied.
 with rules(domain, minors) as (
  values
  ('action',array['posture','movement','force','separation','joining','holding','operation']::text[]),
@@ -23,9 +28,11 @@ with rules(domain, minors) as (
  left join rules r on r.domain=s.semantic_domain
 )
 update public.dictionary_senses s
-set semantic_domain=a.new_domain, semantic_subdomain=a.new_subdomain
+set semantic_domain=a.new_domain, semantic_subdomain=a.new_subdomain,
+    revision=s.revision+1, updated_at=now()
 from affected a where s.id=a.id
 and (s.semantic_domain is distinct from a.new_domain or s.semantic_subdomain is distinct from a.new_subdomain);
+alter table public.dictionary_senses enable trigger dictionary_guard;
 create or replace function public.dictionary_valid_morpheme_sense(domain text, subdomain text, forms jsonb)
 returns boolean language plpgsql immutable set search_path='' as $body$
 declare categories jsonb:='{"action":["posture","movement","force","separation","joining","holding","operation"],"space_time":["orientation","distance","position","time","sequence","scope"],"nature":["celestial","geography","elements","plants","animals","natural_phenomena"],"life_body":["body","physiology","senses","life_activity","health_disease"],"language_mind":["speech","cognition","thinking","learning","memory","emotion","will"],"society_culture":["interpersonal","law","politics","power","culture","religion","conflict"],"life_work":["housing","food","clothing","manufacturing","agriculture","tools","trade"],"states_properties":["size","shape","quantity","degree","merit","quality","existence","change","part_whole"],"grammar_affixes":["negation","reversal","repetition","grammatical_relation"],"derivation":[]}'::jsonb; r jsonb; seen text[]:='{}';
