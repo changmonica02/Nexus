@@ -23,6 +23,5 @@ test('retire one-shot cleanup RPCs without deleting Review work or replay-blocki
   assert.equal(await sql(pg,"select count(*)::int v from dictionary_import_operations where request->>'maintenance'='review_cleanup'"),before);
   assert.deepEqual(await sql(pg,'select stage_dictionary_import_reviews($1) v',[JSON.stringify([])]),[]);
   assert.equal(await sql(pg,'select count(*)::int v from dictionary_review_drafts'),0);
- });
- finally{await pg.close();}
+ } finally {await pg.close();}
 });
