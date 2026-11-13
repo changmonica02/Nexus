@@ -303,7 +303,7 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 IPA schema 僅保留 id、entry_id、sense_id、ipa、sort_order、revision／既有必要時間。RPC bundle／published reader／交換及型別移除 locale/note；舊 JSON 僅在 pronunciation 與已知審核快照路徑忽略這兩個欄位，其餘未知欄位仍拒絕。快照正規化以正式 `pg_get_functiondef` 為基礎，只在原 `dictionary_core_content(dictionary_without_verification(...))` 外加入 `dictionary_clean_ipa_snapshot`；不重建／取代舊正規化。保留查證欄位退役、詞源 verification_note→data_source（兩者真實衝突仍拒絕）、舊核心概念按 Entry＋Sense 合併與原 ID／revision 規則、word_segments 缺少/null 等價、詞形缺省 []、關聯舊欄剔除與 ID 排序。[] 與非空分段、真正 IPA／來源／核心內容／關聯／排序／revision 差異仍比對；未知內容不剔除，原 raw_candidate／operation 保護不變，歷史草稿不改寫。
 
-IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(text,integer)`：發音搜尋只讀 `p.ipa`。詞條／Word／Prefix／Root、中文、詞源與來源、核心概念、例句、變體、詞形、分類／標籤搜尋與既有 rank／20 筆分頁／總數完全保留；原管理員檢查、長度／頁碼上限、SECURITY DEFINER、search_path 與 EXECUTE ACL 不變。搜尋或正規化錨點漂移即回滾整份 IPA Migration，不以 CASCADE 刪除未知相依。
+IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(text,integer)`：發音搜尋只讀 `p.ipa`。詞條／Word／Prefix／Root（後續構詞統一擴充 Suffix）、中文、詞源與來源、核心概念、例句、變體、詞形、分類／標籤搜尋與既有 rank／20 筆分頁／總數保留；原管理員檢查、長度／頁碼上限、SECURITY DEFINER、search_path 與 EXECUTE ACL 不變。搜尋或正規化錨點漂移即回滾整份 IPA Migration，不以 CASCADE 刪除未知相依。
 
 發布前測試 fixture 已補載正式生活清單版 workspace RPC；`retirementFunctionBaseline.cjs` 以正式 ledger `20261105083358` 唯讀擷取的 11 個相關函式定義 SHA-256（只正規化 CRLF）及 EXECUTE ACL 驗證 Migration 前基線，不包含正式資料／憑證。`retirementCompatibility.test.cjs` 驗證完整函式比對、三份依序、刪欄後多欄搜尋／排序／跨頁、舊快照／Review、真實內容及版本衝突、錨點漂移與未知 view 相依的交易回滾。fixture 亦模擬正式 service_role 的既有函式預設 grant，驗證 CREATE OR REPLACE 保留權限；不調整正式角色／grant。隔離 auth／樣本資料不是完整正式環境複本；正式套用前仍須重做函式／相依物件／資料筆數檢查。
 
