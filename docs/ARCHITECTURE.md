@@ -153,7 +153,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 ### 主程式 PWA（已建立，實機驗收仍需持續）
 
-主程式已具 Manifest 與公開頁面離線外殼，主 Service Worker 與世界觀地圖 `/world-map/` scope 分離；版本化快取只涵蓋明確允許的公開資源，Auth／API、私人資料、附件 Blob 不進公開快取，仍使用既有依帳號隔離的 IndexedDB 與 outbox。更新與離線重新開啟、Session 保留、帳號切換及重新連線已有自動化測試；Android Chrome／iPad Safari 的真實裝置行為、特殊網路錯誤及跨裝置衝突仍需人工驗收，不能把瀏覽器 CI 等同實機完成。
+主程式已具 `src/app/manifest.ts` 與 `/sw.js`。主 Service Worker 的 scope 是 `/`，會略過世界觀地圖的 `/world-map/` 路徑，交由地圖專用離線資源處理。`nexus-shell-v2` 只快取**匿名首頁 HTML**及明確允許的 `/_next/static/`、圖示資產；**不快取任意導覽回應**，離線時重新開啟 `/` 可使用已準備的首頁外殼，但直接離線開啟尚未能獨立準備的 `/study`、`/dictionary` 等深層網址會顯示 503 需連線提示，不可宣稱所有深層網址都有獨立離線 HTML。Auth／API、私人資料、附件 Blob 不進公開快取，仍使用既有依帳號隔離的 IndexedDB 與 outbox。首頁離線重新開啟、Session 保留、帳號切換及重新連線已有自動化測試；Android Chrome／iPad Safari 的真實裝置行為、特殊網路錯誤及跨裝置衝突仍需人工驗收，不能把瀏覽器 CI 等同實機完成。
 
 ## 5. 學習、字典與創作契約
 
