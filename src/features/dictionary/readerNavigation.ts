@@ -1,7 +1,6 @@
 import {offline} from './publicCache';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
-import {searchGrouping} from './grouping';
 import {searchDictionaryWithInflections,readPublishedCatalog} from './reader';
 import type {DictionaryKind} from './dictionary';
 export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
@@ -18,10 +17,13 @@ export function browseContext(from:string|null):string|null{
 }
 export async function loadBrowsePage(client:Client,context:string,pageOverride?:number):Promise<BrowsePage>{
  const p=new URL(context,'https://nexus.invalid').searchParams;
- if(p.get('catalog')==='1'||p.get('kind')==='morpheme'||p.has('domain'))return readPublishedCatalog(client,context,pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)));
+ if(p.get('catalog')==='1'||['morpheme','prefix','root','suffix'].includes(p.get('kind')??'')||p.has('domain')||p.has('variant')){
+  const current=new URL(context,'https://nexus.invalid');if(!p.get('q')&&p.get('variant'))current.searchParams.set('q',p.get('variant')!);
+  return readPublishedCatalog(client,current.pathname+current.search,pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)));
+ }
+
  const raw=p.get('kind'),kind=raw==='word'||raw==='prefix'||raw==='root'?raw:'all';
  const page=pageOverride??Math.max(0,Math.floor(Number(p.get('page'))||0)),q=p.get('q')??'';
- if((kind==='prefix'||kind==='root')&&p.get('category')&&!p.get('variant'))return searchGrouping(client,kind,q,page,p.get('category')!);
  if(kind!=='all'&&(p.get('component')||p.get('variant')))return searchRelations(client,kind,q,page,{component:kind==='word'?p.get('component')??'':'',sense:p.get('sense')??'',variant:kind!=='word'?p.get('variant')??'':''});
  return searchDictionaryWithInflections(client,kind,q,page);
 }

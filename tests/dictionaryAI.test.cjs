@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
-const {parseAI,chooseExport,categoryMatches,toAI,planAI,submitAI}=require('../src/features/dictionary/aiDictionary.ts');
-const {primaryCategories,prefixCategories}=require('../src/features/dictionary/grouping.ts');
+const {parseAI,chooseExport,toAI,planAI,submitAI}=require('../src/features/dictionary/aiDictionary.ts');
+const primaryCategories=['空間、位置與環境'],prefixCategories=['性質、評價與否定','位置、方向與關係'];
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const source={id:id(1),citation:'自建測試',license:'test-only',source_url:null,raw_text:'original',sha256:'a'.repeat(64),verification:'verified',verification_note:'manual',license_note:''};
 function snapshot(n,kind='word',status='draft'){
@@ -24,8 +24,7 @@ test('AI export scopes select draft/published and deduplicate linked drafts with
 });
 test('Word/Prefix/Root AI projections preserve meanings and category levels without relation UUIDs',()=>{
  const w=toAI(word,targets);assert.equal(w.classification,'verb');assert.equal(w.meanings[0].zh_tw,'提議');assert.equal(w.components[0].target_id,id(20));assert.equal(w.components[0].zh_tw,'向前');assert.equal(w.components[0].order,0);assert.ok(!JSON.stringify(w).includes(id(15)));
- const p=toAI(prefix,new Map());assert.equal(p.grouping.primary_category,prefix.grouping.primary_category);assert.equal(p.meanings[0].grouping.primary_category,prefixCategories[1]);assert.equal(categoryMatches(prefix,prefixCategories[1]),true);
- const r=snapshot(30,'root');assert.equal(toAI(r,new Map()).grouping.primary_category,primaryCategories[0]);assert.equal(categoryMatches(r,primaryCategories[0]),true);assert.deepEqual(toAI(r,new Map()).meanings[0].grouping,{primary_category:r.sense_groups[r.detail.senses[0].id]});
+ const p=toAI(prefix,new Map()),r=snapshot(30,'root');assert.equal('grouping'in p,false);assert.equal('grouping'in p.meanings[0],false);assert.equal('grouping'in toAI(r,new Map()),false);
  assert.equal(parseAI(document([w,p,toAI(r,new Map())])).entries.length,3);
 });
 test('AI parser rejects identity/verification/delete/unknown fields and invalid classification',()=>{
@@ -75,6 +74,6 @@ test('AI migration statically isolates writes, checks complete snapshots, rolls 
 require.extensions['.tsx']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
 test('export modal defaults Draft; editor hides initial publication for review drafts',()=>{
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const {AIExport}=require('../src/features/dictionary/DictionaryAI.tsx');const {DictionaryEditor}=require('../src/features/dictionary/DictionaryAdmin.tsx');
- const html=renderToStaticMarkup(React.createElement(AIExport,{query:'',selected:[],onBusy:()=>{}}));assert.ok(html.includes('value="draft" selected=""'));for(const label of ['Published','Draft + Published','已勾選詞條','目前搜尋结果'.replace('结果','結果'),'主要分類'])assert.ok(html.includes(label),label);
+ const html=renderToStaticMarkup(React.createElement(AIExport,{query:'',selected:[],onBusy:()=>{}}));assert.ok(html.includes('value="draft" selected=""'));for(const label of ['Published','Draft + Published','已勾選詞條','目前搜尋结果'.replace('结果','結果')])assert.ok(html.includes(label),label);
  const editor=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:word.detail,entries:[],senses:[],onSaved:async()=>{},reviewDraft:true}));assert.ok(editor.includes('審核草稿'));assert.ok(!editor.includes('確認首次發布已儲存草稿'));
 });

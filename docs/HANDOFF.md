@@ -1,3 +1,18 @@
+# 舊構詞退役與待審核清理（2026-11-13，Draft PR #174）
+
+- 基準 main `e06c631`，分支 `feat/retire-legacy-morpheme`，[Draft PR #174](https://github.com/changmonica02/Nexus/pull/174)。程式／SQL提交 `2734ce1`、`33e44e1`；後續測試修正與最終檢查以 PR HEAD 為準。新版發布內容為準；舊差異不恢復、舊分類不映射，分類可空。舊交接的「轉換／待整理」已退役。
+- 已移除舊資料區塊、轉換入口、分組分類與變體讀取／搜尋／保存。新版每義項分類／變體、正式ID／關聯、完整bundle、autosave／IME／CAS／人工發布保留。JSON僅忽略已知退休欄位，不輸出舊分組，不猜測ID；其他未知欄位仍拒絕。舊CSV category忽略，缺少新欄位不清空現有分類。公開catalog更換既有快取請求鍵，舊離線變體搜尋不復活；不清空IDB或學習資料。
+- Migration依序：`20261113035217_dictionary_legacy_morpheme_retired.sql`（依正式函式修訂相依、無CASCADE刪兩舊分組表／函式；未知非空tags或相依會中止）；`20261113035226_dictionary_review_cleanup.sql`（只安裝管理員preview／精確原子清理RPC及舊匯入預覽保護，Migration本身不清工作）。正式均未套用，正式清除0筆。
+- 正式只讀備份期間有正常使用者新增／修改；採逐表原子快照，受影響表重抓，完整來源雜湊核對。最終私人相關備份29表72,272列：詞條6,347／義項10,856／正式關聯148，舊entry groups184／sense groups128；active Review3,796、未完成匯入1,384（另4筆unchanged保留），原操作收據34；cards／states各10,155、events2,572、settings17。這是備份時點，不是永久正式現況。私人備份含結構／94函式／ACL／RLS／逐主鍵C排序雜湊及SHA256封存，未上傳或分享；不是完整Supabase Auth／Storage備份。
+- 無網路PostgreSQL17還原29表／72,272列，逐表來源雜湊、所有約束、公開讀取、管理RPC、非管理拒絕與owner RLS通過。正式與本機基礎Schema兩個官方包CHECK差異採實際正式定義，全部29表欄位一致、實際函式／ACL／RLS載入。完整副本依序套用兩Migration、清3,796 Review＋1,384匯入、保留4完成項目；24張有效內容／學習依賴表整列雜湊不變。清理交易ROLLBACK、同操作重送、兩審核表精確備份回復雜湊通過；退役的舊表原文保留私人備份，不還原至新版程式。
+- 五組退役／清理測試在PGlite及原生PG17通過，含權限、真實CAS／內容差異、舊快照、精確manifest、失敗回滾及未知相依中止。交換／安全匯入／草稿／AI／閱讀／管理與11項公開快取回歸通過。Chromium／WebKit實際SQL構詞編輯閱讀通過（320／390／820／1280、雙語、保存／重開、正式連結）；其餘本次更新瀏覽器與遠端狀態見PR最新結果。TypeScript、修改範圍ESLint零錯誤、含地圖prebuild的Production Build通過。
+- `33e44e1` Vercel成功，Actions43367015681學習B成功；C及構詞工作因ESLint仍列已刪檔案而失敗，介面A／note因舊瀏覽器fixture仍預期退休變體按鈕而失敗，已更新至新版義項變體並保留內容／權限／操作斷言。world-map仍在既有355行雙指縮放等待失敗，未改地圖／逾時，不能稱其根因已修復。完整CI未通過前維持Draft，不建議合併。
+- 後續 `eb8866d` Actions43370214242的A／B／C／構詞／world-map五工作成功，note通過交換與原生交易後，發現AdminUI舊測試仍要求保存group_data；改驗證不輸出退休分組並完整保留正式ID／新版變體／義項修改。本機對應回歸與Chromium／WebKit交換、學習字典面板通過，最新測試修正提交須再確認完整CI。這次地圖通過不代表先前偶發根因已修復。
+- 正式發布前須再盤點、重備份並取得獨立授權；停用舊版在途編輯／匯入，先退役Schema、維護RPC，再對固定ID／revision／整列雜湊manifest另授權清理，最後新版前端。任一新／變動工作整筆拒絕，不使用舊清單。既有owner收據與清除來源session保護舊預覽，三日期限後亦需重新分析，正常未來審核保留。
+- 回復：正式亦須另授權；依私人備份精確補回指定工作並核對雜湊，不覆寫較新發布／草稿。舊結構／函式回復只能在維護窗口先重建相依與原ACL，需先在隔離副本再驗證，不能直接退回舊前端。尚待Android／iPad PWA離線／IME及真實跨裝置驗收；本輪未改學習同步或清空IDB。未修改HISTORY、合併、正式部署或正式資料。
+
+---
+
 # 字典 catalog 逾時修復（2026-11-12，驗證中）
 
 - 基準 main `f490cbe`；分支 `fix/dictionary-catalog-timeout`。使用者確認 A／B／C／D 已合併且所需正式 Migration 已套用；下方舊交接的未合併／未套用描述不是目前狀態。

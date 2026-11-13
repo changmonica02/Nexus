@@ -1,3 +1,4 @@
+import {currentMorphemeFields} from './retiredMorphemeFields';
 import {validateMorphemeSenseFields} from './morphemeContract';
 import {replacementIssueIds,sameImportProposal,type PersistentItem} from "./persistentImport";
 import {cleanIpaRecord} from './retiredPronunciation';
@@ -107,7 +108,7 @@ export function draftFromExchange(
   row = 1,
 ): DictionaryDraftInput {
   keys(record, ["snapshot", "reviews", "version", "entry_id", "import_reviews", "import_candidate"], "record");
-  record=cleanIpaRecord(record);
+  record=currentMorphemeFields(cleanIpaRecord(record));
   if (
     record.version !== null &&
     (typeof record.version !== "string" ||
@@ -122,7 +123,7 @@ export function draftFromExchange(
   if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
   if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
   if(record.import_candidate){
-    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","grouping","proposed_ids","lexical_annotations"],"import_candidate");
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
     for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections"] as const){
       if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="inflections")draft[section]=[];continue;}
@@ -133,7 +134,6 @@ export function draftFromExchange(
         if(value.entry_id!==undefined&&value.entry_id!==draft.entry_id)throw Error("Foreign candidate child ownership");
       }
     }
-    if(draft.grouping)keys(draft.grouping,["primary_category","tags","variant_group"],"candidate.grouping");
     if(draft.entry_id!==(record.entry_id??record.snapshot?.detail.entry.id)||!record.import_reviews?.length||record.import_reviews.some(r=>r.entry_id!==draft.entry_id||r.item.draft?.kind!==draft.kind)||validateDictionaryDraft([draft]).length)throw Error("Invalid import candidate identity or content");
     return {...draft,row};
   }
@@ -147,7 +147,7 @@ export function draftFromExchange(
   const snapshot = record.snapshot;
   keys(
     snapshot,
-    ["detail", "grouping", "sense_groups", "metadata"],
+    ["detail", "metadata"],
     "snapshot",
   );
   keys(snapshot.detail, ["entry", ...Object.keys(rowFields)], "detail");
@@ -258,37 +258,6 @@ export function draftFromExchange(
       },
     );
   }
-  if (snapshot.grouping !== null) {
-    keys(
-      snapshot.grouping,
-      ["primary_category", "tags", "variant_group"],
-      "grouping",
-    );
-    if (
-      snapshot.grouping.variant_group !== null &&
-      typeof snapshot.grouping.variant_group !== "string"
-    )
-      throw Error("Invalid variant_group");
-    if (
-      entry.kind === "word" &&
-      (snapshot.grouping.tags.length ||
-        snapshot.grouping.variant_group ||
-        snapshot.grouping.primary_category)
-    )
-      throw Error("Word grouping is unsupported");
-    if (
-      !Array.isArray(snapshot.grouping.tags) ||
-      snapshot.grouping.tags.some((t) => typeof t !== "string" || !t.trim())
-    )
-      throw Error("Invalid grouping tags");
-  }
-  if (!object(snapshot.sense_groups)) throw Error("Invalid sense_groups");
-  for (const [sense, category] of Object.entries(snapshot.sense_groups))
-    if (
-      !snapshot.detail.senses.some((s) => s.id === sense) ||
-      (category !== null && typeof category !== "string")
-    )
-      throw Error("Invalid sense category");
   if (snapshot.metadata !== null) {
     keys(
       snapshot.metadata,
@@ -308,8 +277,6 @@ export function draftFromExchange(
   }
   const draft = draftsFromBundle(
     bundle,
-    snapshot.grouping ?? undefined,
-    snapshot.sense_groups,
   )[0];
   draft.learning_notes=mergeCoreConcepts(draft.learning_notes);
   draft.row = row;

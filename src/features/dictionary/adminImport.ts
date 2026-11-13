@@ -1,3 +1,4 @@
+import {currentMorphemeFields} from './retiredMorphemeFields';
 import {validateMorphemeSenseFields} from './morphemeContract';
 import {validateWordSegments as requireSegmentValidation} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
@@ -73,7 +74,7 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
 /** Only the existing RPC input contract; database-owned fields cannot be imported. */
 export function parseJSONBundle(raw:string):Bundle {
   let value:unknown;
-  try{value=JSON.parse(raw.replace(/^\uFEFF/,''));}catch{throw new Error('JSON 格式錯誤，請檢查引號、逗號及括號');}
+  try{value=currentMorphemeFields(JSON.parse(raw.replace(/^\uFEFF/,'')));}catch{throw new Error('JSON 格式錯誤，請檢查引號、逗號及括號');}
   const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
   const schemas:Record<string,{required:string[];optional:string[]}>= {

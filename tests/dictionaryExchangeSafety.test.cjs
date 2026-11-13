@@ -10,7 +10,7 @@ const {
   sql,
   client,
   draft,
-} = require("./fixtures/dictionaryExchangeDatabase.cjs");
+} = require("./fixtures/morphemeRetirementDatabase.cjs");
 const {
   mapDictionaryDraft,
 } = require("../src/features/dictionary/draftPipeline.ts");
@@ -126,13 +126,7 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
     ];
     await save(pg, word);
     const prefix = draft(30, "prefix");
-    prefix.senses[0].category =
-      require("../src/features/dictionary/dictionaryCategories.ts").prefixCategories[0];
-    prefix.grouping = {
-      primary_category: null,
-      tags: ["a"],
-      variant_group: null,
-    };
+    prefix.senses[0].semantic_domain='space_time';
     await save(pg, prefix);
     // >100 real rows, including changes before and after the UUID cursor.
     await pg.exec("reset role");
@@ -172,22 +166,14 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
       "update dictionary_inflections set form='changed' where id='" +
         id(28) +
         "'",
-      "update dictionary_entry_groups set tags=array['changed'] where id='" +
-        id(30) +
-        "'",
-      "update dictionary_sense_groups set primary_category='" +
-        require("../src/features/dictionary/dictionaryCategories.ts")
-          .prefixCategories[1] +
-        "' where sense_id='" +
-        id(31) +
-        "'",
+      "update dictionary_senses set semantic_domain='action',semantic_subdomain=null where id='"+id(31)+"'",
       'update dictionary_ai_metadata set origin_ids=\'{"external":"changed"}\' where entry_id=\'' +
         id(20) +
         "'",
       "update dictionary_review_drafts set revision=revision+1,candidate=jsonb_set(candidate,'{bundle,dictionary_entries,0,headword}','\"review edit\"') where entry_id='" +
         id(10) +
         "'",
-      "update dictionary_review_drafts set state='discarded' where entry_id='" +
+      "select discard_dictionary_review(id,revision) from dictionary_review_drafts where entry_id='" +
         id(10) +
         "'",
       "update dictionary_entries set headword='after-cursor' where id='" +
@@ -437,7 +423,7 @@ test("migration ACL/admin/actor/RLS/prerequisites, transport interruption, malfo
         [names],
       )
     ).rows;
-    assert.equal(functions.length, 6);
+    assert.equal(functions.length, 7);
     for (const f of functions) {
       assert.equal(f.prosecdef, true);
       assert.deepEqual(f.proconfig, ['search_path=""']);

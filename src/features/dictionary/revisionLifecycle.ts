@@ -2,7 +2,6 @@ import {compositionRow} from './composition';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {AISnapshot} from './aiDictionary';
 import type {DictionaryDetail} from './dictionary';
-import {emptyGrouping} from './grouping';
 import {mapDictionaryDraft,validateDictionaryDraft,DraftValidationError,type DictionaryDraftInput} from './draftPipeline';
 export type ReviewCandidate=ReturnType<typeof mapDictionaryDraft>&{component_order?:string[]};
 export interface DictionaryReview {id:string;entry_id:string;base_revision:number;base_snapshot:AISnapshot;candidate:ReviewCandidate;revision:number;state:'active';source:string;updated_at:string}
@@ -15,5 +14,5 @@ export async function createDictionaryReview(client:Client,snapshot:AISnapshot,d
 export function reviewSnapshot(review:DictionaryReview):AISnapshot{
  const c=review.candidate,b=c.bundle;
  const detail={entry:{...review.base_snapshot.detail.entry,...b.dictionary_entries[0],status:'draft',revision:review.revision},senses:b.dictionary_senses,relations:b.dictionary_relations.map(compositionRow),etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections??[],pronunciations:c.pronunciations??[],examples:c.examples,lexical_annotations:c.annotations} as unknown as DictionaryDetail;
- return {detail,grouping:c.group_data??emptyGrouping(),sense_groups:Object.fromEntries(c.sense_groups.map(g=>[g.sense_id,g.primary_category??null])),metadata:review.base_snapshot.metadata};
+ return {detail,metadata:review.base_snapshot.metadata};
 }

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
-const {build}=require('esbuild'),{chromium,webkit}=require('playwright');const {database,sql,id}=require('./fixtures/morphemeDatabase.cjs');
+const {build}=require('esbuild'),{chromium,webkit}=require('playwright');const {database,sql,id}=require('./fixtures/morphemeRetirementDatabase.cjs');
 test('actual SQL deletion on desktop/tablet/mobile: all kinds, cancel/failure dirty preservation, no removed tools, successful list refresh and new-entry protection',{timeout:180000},async()=>{
  const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-entry-delete-')),pg=await database();let server,browser;
  try{
