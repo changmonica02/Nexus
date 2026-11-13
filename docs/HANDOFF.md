@@ -1,9 +1,9 @@
 # Nexus — 十大構詞語意分類（2026-11-13，Draft／未套用正式 Migration）
 
 - 依新決策將九大類改為十大類、58 小類；「派生構詞」為無小類的第十大類。編輯器與讀者／管理列表共用 `semanticDomains.ts`；無小類時編輯器停用小分類，列表不顯示該列。
-- 保留已有資料的穩定代碼與義項 ID：`force` 顯示「作用」、`elements` 顯示「物質」、`quality` 顯示「特性」，`speech` 顯示「語言」、`sequence` 顯示「順序」。未自動改寫任何義項或重新猜測語意；舊版離線資料中的 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 仍可通過驗證，但不出現在新選單。
-- 新 Migration `20261113061500_dictionary_semantic_ten_domains.sql` 只交易性替換 `dictionary_valid_morpheme_sense`，保留變體 UUID／內容驗證，並在交易內檢查現有構詞義項仍合法。不改 schema、published、Review、學習資料；需於前端依賴新版分類之前另行正式授權套用。
-- 新增十大類／58 小類與舊代碼相容契約測試。未執行正式 Migration／合併；此 Draft PR 仍待 CI、完整回歸與人工審查。
+- 保留已有資料的穩定代碼與義項 ID：`force` 顯示「作用」、`elements` 顯示「物質」、`quality` 顯示「特性」，`speech` 顯示「語言」、`sequence` 顯示「順序」。未自動改寫任何義項或重新猜測語意；舊代碼 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 不再接受新寫入；分類值不合法時，Migration 只清空無效的大／小分類，不改寫其他義項內容。
+- 新 Migration `20261113061500_dictionary_semantic_ten_domains.sql` 交易性清理不合新版分類的義項分類值並替換 `dictionary_valid_morpheme_sense`，保留變體 UUID／內容驗證，檢查現有構詞義項仍合法。不改 schema、正式發布狀態、Review、學習資料；需於前端依賴新版分類之前另行正式授權套用。
+- 新增十大類／58 小類及舊代碼拒絕契約測試。未執行正式 Migration／合併；此 Draft PR 仍待 CI、完整回歸與人工審查。
 
 ---
 
