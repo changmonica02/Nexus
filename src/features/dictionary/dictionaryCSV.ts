@@ -3,7 +3,6 @@ import {parseCSV} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 
 export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','relation_hint','core_concept'];
-export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
 export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
   const rows=parseCSV(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
@@ -15,7 +14,9 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     const row=index+2,kind=r.kind??'word';
     const error=(field:string,message:string)=>issues.push({row,kind,field,error:message});
     const key=entryKey(kind,r.headword),known=explicit.get(key);
-    if(known&&known.size>1)error('entry_id','同類同拼寫提供了不同 Entry ID；請審核既有身分，不可建立第二詞條');
+    // Word has a canonical name; morphemes can intentionally have homographic IDs.
+    // A missing morpheme ID with multiple matching candidates is ambiguous.
+    if(known&&known.size>1&&(kind==='word'||!r.entry_id.trim()))error('entry_id',kind==='word'?'相同單字拼寫提供不同 Entry ID；請審核既有身分':'此構詞同形對應多個 Entry ID；請明確填入 entry_id，不自動合併');
     const entry_id=r.entry_id.trim().toLowerCase()||(known?.size===1?[...known][0]:proposed.get(key))||crypto.randomUUID();
     if(!r.entry_id.trim()&&!known?.size)proposed.set(key,entry_id);
     const sense_id=r.sense_id.trim().toLowerCase()||crypto.randomUUID();
