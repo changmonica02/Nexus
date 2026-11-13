@@ -3,7 +3,7 @@ const {validateMorphemeSenseFields,normalizeMorphemeSense,removeMorphemeVariant}
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('semantic categories belong to a sense and enforce the selected major/minor relationship',()=>{
  assert.equal(validateMorphemeSenseFields({}),null);assert.equal(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:null}),null);
- assert.equal(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'cutting'}),null);assert.ok(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'time'}));assert.ok(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:'cutting'}));assert.ok(validateMorphemeSenseFields({semantic_domain:'作用與變化'}),'legacy categories are not guessed into the new domains');
+ assert.ok(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'cutting'}));assert.ok(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'time'}));assert.ok(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:'cutting'}));assert.ok(validateMorphemeSenseFields({semantic_domain:'作用與變化'}),'legacy categories are not guessed into the new domains');
 });
 test('new taxonomy exposes ten domains and exactly 58 subcategories; derivation stands alone',()=>{
  const {semanticDomains,validSemanticCategory}=require('../src/features/dictionary/semanticDomains.ts');
@@ -18,9 +18,9 @@ test('new taxonomy exposes ten domains and exactly 58 subcategories; derivation 
  assert.equal(validSemanticCategory('states_properties','part_whole'),true);
  assert.equal(validSemanticCategory('society_culture','power'),true);
  assert.equal(validSemanticCategory('action','posture'),true);
- assert.equal(validSemanticCategory('grammar_affixes','derivation'),true,'retained older draft classification');
- assert.equal(validSemanticCategory('action','cutting'),true,'retained older draft classification');
- assert.equal(validSemanticCategory('nature','flora_fauna'),true,'retained older draft classification');
+ assert.equal(validSemanticCategory('grammar_affixes','derivation'),false,'retired minor is not valid');
+ assert.equal(validSemanticCategory('action','cutting'),false,'retired minor is not valid');
+ assert.equal(validSemanticCategory('nature','flora_fauna'),false,'retired minor is not valid');
 });
 test('variant identities are required and deletion affects only that ID, even for identical forms',()=>{
  const rows=[{id:id(1),form:'in-',condition:'one'},{id:id(2),form:'in-',condition:'two'}],other=[{id:id(3),form:'in-',condition:'another sense'}],before=structuredClone({rows,other});
