@@ -18,15 +18,15 @@ test('ten-domain migration clears only retired classifications and retains valid
   await pg.exec('set role authenticated');
   for(const n of [3300,3400,3500,3600])await sql(pg,'select publish_dictionary_entry($1,true) v',[id(n)]);
   await pg.exec('reset role');
-  const before=await sql(pg,'select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)]);
+  const before=(await pg.query('select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)])).rows[0];
   await pg.exec(fs.readFileSync('supabase/migrations/20261113061500_dictionary_semantic_ten_domains.sql','utf8'));
   const expected=[['action',null],['nature',null],['grammar_affixes',null],['states_properties','quality']];
   for(let i=0;i<expected.length;i++){
-   const row=await sql(pg,'select semantic_domain,semantic_subdomain,gloss_zh_tw,variants from dictionary_senses where id=$1',[id(3301+i*100)]);
+   const row=(await pg.query('select semantic_domain,semantic_subdomain,gloss_zh_tw,variants from dictionary_senses where id=$1',[id(3301+i*100)])).rows[0];
    assert.equal(row.semantic_domain,expected[i][0]);assert.equal(row.semantic_subdomain,expected[i][1]);
    assert.equal(row.gloss_zh_tw,'概述');assert.deepEqual(row.variants,morph(3300+i*100).senses[0].variants);
   }
-  const after=await sql(pg,'select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)]);
+  const after=(await pg.query('select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)])).rows[0];
   assert.deepEqual({...after,revision:before.revision},before,'classification-only cleanup preserves all other sense fields');
   assert.equal(after.revision,before.revision+1,'maintenance preserves revision tracking');
   for(const pair of [['action','cutting'],['nature','flora_fauna'],['grammar_affixes','derivation'],['derivation','derivation']])
