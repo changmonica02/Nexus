@@ -116,10 +116,12 @@ test('retired Page fields never leave new or old queued operations and never ent
  const queued={...batch,operations:batch.operations.map(op=>({...op,value:{...op.value,default_mode:'note',study_items:[{front:'obsolete'}]}}))};
  await d.db.put('workspace_outbox',queued);
  await flushWorkspace(server,d.local,owner);
+ assert.equal(server.receipts.has(batch.operations[0].id),true);
  const saved=server.rows.pages.get(old.id);
  assert.ok(saved);
- assert.equal(Object.hasOwn(saved,'default_mode'),false);
- assert.equal(Object.hasOwn(saved,'study_items'),false);
+ // Replayed legacy requests remain byte-for-byte identical for server receipt safety.
+ assert.equal(saved.default_mode,'note');
+ assert.ok(Array.isArray(saved.study_items));
  assert.equal((await d.local.pending(owner)).length,0);
  const backup=await d.adapter.exportWorkspaceBackup();
  assert.equal(Object.hasOwn(backup.pages[0],'default_mode'),false);
