@@ -16,7 +16,9 @@ export type SemanticSubdomainCode=typeof semanticDomains[number]['children'][num
 export function validSemanticCategory(domain:unknown,subdomain:unknown):boolean {
   if(domain==null)return subdomain==null;
   const selected=semanticDomains.find(d=>d.code===domain);
-  // An older saved grammar/derivation pair is preserved until explicitly edited.
-  if(domain==='grammar_affixes'&&subdomain==='derivation')return true;
+  // Preserve known legacy combinations for offline/older drafts; no new selector exposes them.
+  if((domain==='grammar_affixes'&&subdomain==='derivation')||
+     (domain==='action'&&subdomain==='cutting')||
+     (domain==='nature'&&subdomain==='flora_fauna'))return true;
   return !!selected&&(subdomain==null||selected.children.some(child=>child[0]===subdomain));
 }
