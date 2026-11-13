@@ -8,6 +8,29 @@ const {client}=require('./fixtures/morphemeDatabase.cjs');
 const migration='20261112012042_dictionary_morpheme_senses.sql';
 async function database(){const pg=await base();await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));await pg.exec(fs.readFileSync('supabase/migrations/20261112120627_dictionary_catalog_query_plan.sql','utf8'));await pg.exec('set role authenticated');return pg;}
 function morph(n,kind='root'){return {...draft(n),kind,headword:'morph-'+n,senses:[{id:id(n+1),part_of_speech:null,gloss_zh_tw:'概述',semantic_domain:'action',semantic_subdomain:'movement',variants:[{id:id(n+2),form:'m-',condition:'before a vowel'}]}]};}
+test('ten-domain migration clears only retired classifications and retains valid senses and variants',async()=>{
+ const pg=await database();try{
+  const c=client(pg);
+  for(const n of [3300,3400,3500,3600])await saveDictionaryDraft(c,[morph(n)],false,true);
+  await pg.exec('reset role');
+  const old=[['action','cutting'],['nature','flora_fauna'],['grammar_affixes','derivation'],['states_properties','quality']];
+  for(let i=0;i<old.length;i++)await pg.query('update dictionary_senses set semantic_domain=$1,semantic_subdomain=$2 where id=$3',[...old[i],id(3301+i*100)]);
+  const before=await sql(pg,'select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)]);
+  await pg.exec(fs.readFileSync('supabase/migrations/20261113061500_dictionary_semantic_ten_domains.sql','utf8'));
+  const expected=[['action',null],['nature',null],['grammar_affixes',null],['states_properties','quality']];
+  for(let i=0;i<expected.length;i++){
+   const row=await sql(pg,'select semantic_domain,semantic_subdomain,gloss_zh_tw,variants from dictionary_senses where id=$1',[id(3301+i*100)]);
+   assert.equal(row.semantic_domain,expected[i][0]);assert.equal(row.semantic_subdomain,expected[i][1]);
+   assert.equal(row.gloss_zh_tw,'概述');assert.deepEqual(row.variants,morph(3300+i*100).senses[0].variants);
+  }
+  const after=await sql(pg,'select id,entry_id,gloss_zh_tw,variants,revision from dictionary_senses where id=$1',[id(3301)]);
+  assert.deepEqual(after,before,'classification-only cleanup preserves all nonclassification fields');
+  for(const pair of [['action','cutting'],['nature','flora_fauna'],['grammar_affixes','derivation'],['derivation','derivation']])
+   assert.equal(await sql(pg,'select dictionary_valid_morpheme_sense($1,$2,null) v',pair),false);
+  for(const pair of [['derivation',null],['action','posture'],['nature','plants'],['grammar_affixes','grammatical_relation']])
+   assert.equal(await sql(pg,'select dictionary_valid_morpheme_sense($1,$2,null) v',pair),true);
+ }finally{await pg.close();}
+});
 test('morpheme drafts: suffix, reclassification with stable identity, exact variant order and clear, strict validation and old missing fields',async()=>{const pg=await database();try{
  const c=client(pg),d=morph(1200,'suffix');await saveDictionaryDraft(c,[d],false,true);
  const quick=()=>sql(pg,'select quick_create_dictionary_component($1,$2,$3,true) v',[id(1199),'suffix','-fixture']);const created=await quick();assert.equal(created.kind,'suffix');assert.deepEqual(await quick(),created);assert.equal((await sql(pg,'select get_published_dictionary_entry($1) v',[created.id])).entry.kind,'suffix');
