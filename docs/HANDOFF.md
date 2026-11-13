@@ -1,3 +1,12 @@
+# Nexus — 十大構詞語意分類（2026-11-13，Draft／未套用正式 Migration）
+
+- 依新決策將九大類改為十大類、58 小類；「派生構詞」為無小類的第十大類。編輯器與讀者／管理列表共用 `semanticDomains.ts`；無小類時編輯器停用小分類，列表不顯示該列。
+- 保留已有資料的穩定代碼與義項 ID：`force` 顯示「作用」、`elements` 顯示「物質」、`quality` 顯示「特性」，`speech` 顯示「語言」、`sequence` 顯示「順序」。未自動改寫任何義項或重新猜測語意；舊版離線資料中的 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 仍可通過驗證，但不出現在新選單。
+- 新 Migration `20261113061500_dictionary_semantic_ten_domains.sql` 只交易性替換 `dictionary_valid_morpheme_sense`，保留變體 UUID／內容驗證，並在交易內檢查現有構詞義項仍合法。不改 schema、published、Review、學習資料；需於前端依賴新版分類之前另行正式授權套用。
+- 新增十大類／58 小類與舊代碼相容契約測試。未執行正式 Migration／合併；此 Draft PR 仍待 CI、完整回歸與人工審查。
+
+---
+
 # 舊構詞退役與待審核清理（2026-11-13，Draft PR #174）
 
 - 基準 main `e06c631`，分支 `feat/retire-legacy-morpheme`，[Draft PR #174](https://github.com/changmonica02/Nexus/pull/174)。程式／SQL提交 `2734ce1`、`33e44e1`；後續測試修正與最終檢查以 PR HEAD 為準。新版發布內容為準；舊差異不恢復、舊分類不映射，分類可空。舊交接的「轉換／待整理」已退役。
