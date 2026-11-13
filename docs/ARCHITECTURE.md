@@ -1,37 +1,16 @@
 # Nexus — 技術架構與資料契約
 
-> 更新：2026-10-30；程式核對基準 main `27aa143`。本文只描述目前架構、有效資料契約、限制與建議。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
+> 更新：2026-11-13（#175 合併後）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
-## 舊構詞退役與審核清理（本輪實作，正式未套用）
+## 現行字典構詞架構（2026-11-13 已套用）
 
-`20261113035217_dictionary_legacy_morpheme_retired.sql` 依實際已安裝函式替換舊分組相依，保留公開／管理 catalog 集合篩選及分頁後彙整、正式內容／Review 隔離與 CAS。分類僅用 dictionary_senses.semantic_domain／semantic_subdomain，變體僅用每義項具 ID 的 variants；刪除舊 entry／sense groups 表及舊轉換、分組搜尋／保存 RPC，不使用 CASCADE。舊分組 tags 已盤點為全空；若執行時出現非空 tags，整筆 DDL 拒絕而不是捨棄。Word、構詞、義項、變體、關聯及其版本不被轉換或重寫。
-
-編輯器只佇列儲存完整當前 bundle，移除舊分組讀取／baseline 與待整理入口，保留 DraftAutosaveQueue、組字保護、保存順序及未儲存離開保護。舊分類深連結忽略退休條件，仍用同一正式 catalog；舊變體查詢文字交給新版搜尋，不讀舊表或猜測新分類。JSON 邊界只忽略明列的退休屬性，未知欄位、ID／revision、真實內容及變體陣列差異繼續驗證；SQL normalizer 包覆既有查證／詞源／概念／IPA／word_segments 規則。新完整 JSON／AI JSON 不輸出舊分組。CSV 改輸出義項的 semantic_domain／semantic_subdomain，舊 category 可讀但忽略；含變體的詞條須使用完整 JSON，不能假稱 CSV 無損。
-
-`20261113035226_dictionary_review_cleanup.sql` 只安裝管理員維護 RPC，本身不清理資料。preview_dictionary_review_cleanup 回傳精確 Review／匯入 ID、revision 及整列雜湊；clear_dictionary_pending_reviews(expected, operation_uuid) 在既有全域鎖與資料表鎖下重新比對完整集合後，於同一交易刪除仍未完成的指定工作。正常草稿、已完成工作、已發布內容及有效關聯不刪除。收據沿用 owner-scoped dictionary_import_operations 的既有 JSON 三日保留，不移除原重試收據，不建歷史或平行工作表；相同操作／請求回原結果，變更或不同請求拒絕。清理失敗時工作與收據同時回滾。
-
-stage_dictionary_import_reviews 共用鎖，拒絕清理前預覽與已清來源 session，並以同樣三日預覽期限防止收據到期後舊工作復活；新分析仍可建立新工作。不在 UI 新增清理按鈕，也不自動呼叫清理。發布順序為另授權的退役 Schema、維護 RPC、固定備份範圍清理、前端；暫停舊版編輯／匯入，不能以舊前端回復新版內容。回復須使用私人備份及原函式／權限／結構，在隔離副本驗證，僅補回已刪工作／舊欄位，不覆寫較新發布內容；正式回復亦須另行授權。
-
-公開 catalog 回應仍使用既有公開 IndexedDB 快取，但採用新的 `catalog-current-morphology` 請求鍵，避免離線沿用退役前的舊變體搜尋結果；不清空 IndexedDB、已發布詳情或私人學習資料。新鍵未取得過的範圍需連線取得一次。
-
-## 階段 D：構詞編輯、搜尋與無損草稿契約（已合併；舊格式部分由上節退役）
-
-沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。十大類／58小類代碼由 `semanticDomains.ts` 與 SQL 驗證（`20261113061500_dictionary_semantic_ten_domains.sql`），分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
-
-`MorphemeSenseEditor` 接入既有 `DraftAutosaveQueue`、IME／失焦／Enter、無效輸入保留及 CAS。基本資料為名稱與形式分類；義項編輯分類、概述（沿用 gloss_zh_tw）、變體排序及義項歷史詞源。來源及其餘有效欄位保留，舊 grouping／分類依上節退役。`MorphemeWordLinks` 預設收合，`get_dictionary_morpheme_links` 每頁50筆讀既有 Word 正式關聯及有效 Review；不建第二張關聯表。新增／解除精確 relation ID 經原 Word 草稿或 Review 保存，未知結果先重讀核對，單字已發布內容不直接變更。解除只清對應 segment 的 relation_id，不刪字形、提示、Word 或 Sense；目標尚未發布的新義項需先發布才可成為正式 FK 目標。既有 RelationTargetPicker 共用選擇器支援三種構詞並顯示正確雙語類型；快速建立沿用原管理員確認／人工發布 RPC，不新增發布路徑。
-
-共用 `DictionaryCatalogNavigation` 提供全部／單字／構詞、單一搜尋框、三種形式複選、十大類及小類（派生構詞無小類）；篩選重設頁碼。`search_dictionary_catalog` 公開帳號只取已發布內容，管理員可讀唯一有效 Review 候選與三色工作狀態，保留 admin 檢查及查詢限制。依 entry ID 分組後分頁，變體定位精確 matched_sense_ids；不同正式 ID 不合併。舊深連結仍走既有讀取契約，公開快取沿用 `reader.ts`，無新增離線資料庫。Word 共用構詞方格使用 related 精確目標義項已發布概述，不逐格查詞源；Word 自身歷史詞源保留。
-
-字典列表逾時修正（待正式套用）：`20261112120627_dictionary_catalog_query_plan.sql` 以單一交易替換既有九參數 `search_dictionary_catalog`，不改表、索引、回傳契約或 statement_timeout。一般閱讀經 `loadBrowsePage → readPublishedCatalog → readCatalog`；管理列表經 `listAdminWork(catalog:true) → readCatalog`，RPC 同次產生列表、總數及三色統計，當頁摘要不另讀完整詞條。原查詢在 `matches` 分頁前逐詞條重掃 materialized 義項／變體；新版按 entry ID 一次彙整搜尋與分類資格，統計仍依完整匹配集合，工作狀態過濾後才分頁，當頁再集合組裝摘要、變體、詞形及 matched_sense_ids。已發布讀取、唯一 active Review 身分、多 Review 回正式身分、明確空變體不復活舊資料及權限不變。依賴已套用的構詞契約；失敗交易回滾，回復須另經授權替換舊函式，不能回復舊資料或刪義項欄位。
-
-
-快照正規化包覆實際已安裝的原函式，完整保留查證／核心概念／詞源／IPA／word_segments 規則；只將新增 nullable 欄位缺省與 null 視為等價，實際內容、revision、變體陣列順序與 [] 差異仍有效。舊完整儲存／Review 缺少新增欄位保留現有值，variants:null 不抹除已指定變體，明確 [] 才清空；分類明確 null 是清除。完整 JSON／AI JSON 支援新欄位與 suffix，其他未知欄位及 ID／版本仍拒絕。完整匯出 record／scope fingerprint 只正規化新增 null，避免純 DDL 讓舊檔或暫停工作產生假過期。匯出範圍的類型與名稱沿用管理catalog的唯一active Review身分；多份Review則回到正式身分，不任選。這只影響範圍選取，匯出仍包含完整正式快照與全部Review，保留版本／固定範圍驗證。
-
-舊草稿轉換 RPC 與入口已在本輪移除；不再從舊資料建立或補回新版變體。
-
-正式唯讀重核29表72,281列、85個函式與原備份一致；隔離副本建立174份 Review，保留10份既有 Review，54筆變體列可歸屬，1組歸屬不明；原有逐主鍵資料雜湊全部不變。私人備份不入 Git／CI／分享，僅字典及必要學習依賴，不是完整 Supabase／Auth 備份。正式操作前須重新盤點、備份、核對實際函式與 ledger；不能 db push 全部 pending。
-
-發布邊界：B `20261111143124_study_card_visibility.sql` 的守衛須先於 B 前端；C `20261111145758_dictionary_pending_identity.sql` 宜先發布兼容新舊結果的 C 前端，再改查詢，避免舊前端誤導 editor-only 待審入口。D Schema／RPC 須先於 D 前端；舊前端對 suffix 的管理不完整，亦不保證解析新增義項欄位的 JSON；切換期間暫停舊版分類編輯與匯入，不以舊版前端回復新資料。整合發布須另行授權並逐項驗證，不得把正式轉換混入 Migration。DDL 失敗整筆回滾；新 suffix／變體寫入後不能盲目刪欄位或恢復構詞唯一索引，應保留資料，以兼容前端及驗證過的備份制定人工回復方案。
+- **資料與身分**：沿用 `dictionary_entries`、`dictionary_senses`、`dictionary_relations` 及草稿／Review／人工發布機制，不建立第二套字典。Entry `kind` 包含 Word、Prefix、Root、Suffix；Word 與構詞不可互換類型，三種構詞形式可在原 ID 內切換。合法同形的不同詞條按 ID 區分，不因拼寫相同合併。
+- **義項語意與變體**：`dictionary_senses.semantic_domain`／`semantic_subdomain` 對應 `src/features/dictionary/semanticDomains.ts` 的**十大類、58 小類**；`derivation` 是沒有小分類的第十大類，`NULL` 代表未分類。使用者已認可 `force`／`elements`／`quality`／`speech` 等既有代碼改名的新版語意。驗證只接受新版分類，禁止已退役的 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 組合。每個 Sense 的 `variants` 是依順序保存的 `{id,form,condition}` 陣列，UUID 與有效字形不可缺；`[]` 是明確清空，`NULL`／缺省不抹除原內容。舊類別欄位、分組表及轉換 RPC 已退役。
+- **編輯與查詢**：`MorphemeSenseEditor` 共用 `DraftAutosaveQueue` 的輸入法組字、Enter／失焦、CAS 及未存離開保護。`MorphemeWordLinks` 使用現有 Word／Sense 關聯與授權審核，目標義項尚未發布時不可建立正式連結。公開字典與管理端共用 `DictionaryCatalogNavigation` 及 `search_dictionary_catalog`；分類依義項匹配，詞條依穩定 Entry ID 去重、在分頁後組裝摘要及匹配變體；公開只讀已發布內容，管理端可看授權審核工作，維持原有權限與搜尋上限。公開快取使用退休後的 `catalog-current-morphology` 鍵，不清空 IDB。
+- **完整交換**：JSON／AI JSON 保存有效 sense 分類、變體及穩定 ID；僅忽略明列的舊退休欄位，未知欄位拒絕。CSV 只覆蓋其明列欄位，包含多變體／完整關聯的資料請用完整 JSON；無效分類不能因匯入或離線同步繞過現行驗證。快照正規化僅把新增 nullable 欄位的缺省和 `NULL` 視為等價，不忽略實際差異、順序、revision、刪除或明確空陣列。
+- **正式 Migration 完成狀態**：`20261112012042_dictionary_morpheme_senses.sql` 安裝構詞義項與 suffix；`20261112120627_dictionary_catalog_query_plan.sql` 改善列表查詢；`20261113035217_dictionary_legacy_morpheme_retired.sql` 移除舊分組及其 RPC；`20261113035226_dictionary_review_cleanup.sql` 安裝受限清理函式；`20261113061500_dictionary_semantic_ten_domains.sql` 先清空不合法分類（只變更必要分類欄位、維護修訂版本），再更新驗證函式。以上均已**套用正式**，不可重跑舊轉換或直接推送所有 pending SQL。
+- **清理與未來審核**：#174 的原子清理另經管理員授權執行，清除當時 3,796 個 active Review、1,384 個未決匯入項目；保留 4 個已完成項目及現有內容、詞條、學習資料。清理 RPC 使用固定 ID／revision／整列雜湊 manifest、全域鎖、冪等 operation ID 與防舊 session 重建；SQL Migration 本身不自動清除工作。未來新建的 Review 不受歷史一次性清理授權涵蓋，必須照正常流程處理。
+- **正式驗證範圍**：#175 套用後核對詞條 6,347、義項 10,856、字卡 10,155、構詞義項 240、分類失效 0，`dictionary_guard` 正常啟用。這些是當日核對結果，不是永不改變的業務常數。#175 六項 CI 工作（含 study-b 重跑）及 Vercel 檢查成功；真人裝置與真實跨裝置驗收另列 HANDOFF。
 
 ## 1. 模組與資料來源
 
@@ -172,9 +151,9 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 `offlineCore` 註冊 `/world-map/offline.js`，scope 為 `/world-map/`；只快取公開工具。opaque iframe 的離線文件由工具快取組裝，broker 不代理私人 API 或任意網路，私人專案保存在既有 owner 儲存。線上 opaque iframe 的 heightmap／內建圖像亦沿用同一 broker：固定 core 子路徑、無 query／credentials、檢查圖像 MIME；不代理 API／任意網址。原生圖像匯出改走 fetch 而非 XHR，讓 WebKit 依既有 broker 讀取材質，不放寬 CSP。預覽單指捲動沿實際可捲動祖先傳遞，非捲動的區塊容器不吞掉手勢，編輯／全螢幕仍隔離背景捲動。
 
-### 主程式 PWA（待實作）
+### 主程式 PWA（已建立，實機驗收仍需持續）
 
-目前沒有主 Manifest／全站離線外殼。IndexedDB 有資料不等於斷網能重新啟動網站。主 SW 應快取明確版本化的公開資源，與地圖 scope 分離；Auth/API、私人資料與附件 Blob 仍走現有帳號隔離儲存。重用 outbox／同步；Session 恢復、切帳號、未快取路由提示及更新不遺失待存內容須驗證。
+主程式已具 Manifest 與公開頁面離線外殼，主 Service Worker 與世界觀地圖 `/world-map/` scope 分離；版本化快取只涵蓋明確允許的公開資源，Auth／API、私人資料、附件 Blob 不進公開快取，仍使用既有依帳號隔離的 IndexedDB 與 outbox。更新與離線重新開啟、Session 保留、帳號切換及重新連線已有自動化測試；Android Chrome／iPad Safari 的真實裝置行為、特殊網路錯誤及跨裝置衝突仍需人工驗收，不能把瀏覽器 CI 等同實機完成。
 
 ## 5. 學習、字典與創作契約
 
@@ -355,13 +334,13 @@ Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、
 
 首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步、固定間隔與 FSRS 不變。
 
-Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。必須先人工授權資料庫 Migration，再發布支援新欄位的前端；舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
+Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。該資料庫 Migration 已經正式套用；後續發佈新欄位仍需遵守 guard 相容性，舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
 ### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
 
-分類查詢仍依義項篩選，但 `search_prefix_dictionary` 先按正式 entry ID 分組再 20 筆分頁；保留首個符合的 sense_id 與 matched_sense_ids，不按拼寫合併，分類計數改為詞條數。返回／相鄰閱讀可辨識同列中的匹配義項。舊分類資料與既有正式 ID 不改寫；新構詞分類契約仍屬後續 D 階段。
+分類查詢仍依義項篩選，但 `search_prefix_dictionary` 先按正式 entry ID 分組再 20 筆分頁；保留首個符合的 sense_id 與 matched_sense_ids，不按拼寫合併，分類計數改為詞條數。返回／相鄰閱讀可辨識同列中的匹配義項。舊分類資料與既有正式 ID 不改寫；新構詞分類契約已在後續 D 階段及 #175 完成；此處只記錄當時的查詢保護。
 
 `list_dictionary_admin_work` 與完整 JSON 匯出的真正待處理範圍同時包含原 dictionary_transfer_pending 匯入工作及 state=active 的編輯 Review，依 entry ID 去重；只有普通未發布草稿維持 yellow，不當成 pending。多項差異與多筆 Review 不增加詞條總數。row 的 import_pending_count／editor_pending_count 用於導向原有匯入審核頁或編輯器，不共用另一套核准流程；pending_count 為該詞條工作量，stats.red 為詞條數。缺少正式詞條的合法匯入候選仍可計入，失敗／過期工作保留，查詢不刪任何資料。
 
 刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）隔離刪除正常；使用者原本的失敗尚缺對應詞條與 RPC 證據，不視為已修復根因。
 
-Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，可先發布相容前端，再於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
+Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，此前已先發布相容前端並於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
