@@ -7,7 +7,7 @@
 - **四階段學習／字典整合**：#168～#172 已合併。學習 Session 的安全離開／恢復、忘記卡到期不搶畫面、私人隱藏，與公開字典的穩定 ID 列表、待審核口徑、刪除引用保護、統一構詞編輯、分類搜尋、變體及雙向單字關聯，沿用既有權限、CAS、草稿／Review 與人工發布。
 - **字典搜尋效能**：#173 的 `20261112120627_dictionary_catalog_query_plan.sql` 已套用正式 Supabase；`search_dictionary_catalog` 按詞條 ID 匹配、計數、分頁後再彙整內容，不因效能優化改變公開／管理權限或範圍。
 - **舊構詞退役與未決審核清理**：[#174](https://github.com/changmonica02/Nexus/pull/174) 已合併（`d83c3d3`）；`20261113035217_dictionary_legacy_morpheme_retired.sql` 和 `20261113035226_dictionary_review_cleanup.sql` 均已套用正式。管理員授權清理完成：3,796 筆 active Review、1,384 筆未決匯入項目已清；4 筆已完成匯入項目、正式詞條與學習資料保留。退役舊 grouping／轉換／待整理入口；新工作仍照正常 Review 流程，不應再次清除全部未決工作。
-- **十大構詞語意分類**：[#175](https://github.com/changmonica02/Nexus/pull/175) 已合併（`f26fd37695260df410bdab167dcf6aabbc9134d7`）；`20261113061500_dictionary_semantic_ten_domains.sql` 已套用正式（ledger `20261113072536`）。十個大類、58 個小分類；「派生構詞」為無小分類的大類。已確認代碼改名直接採新語意；新舊不合的分類只清空失效大／小分類、不猜測其他值，保留概述、變體、關聯與識別。驗證函式不再允許舊 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 等組合。
+- **十大構詞語意分類**：[#175](https://github.com/changmonica02/Nexus/pull/175) 已合併（`f26fd37695260df410bdab167dcf6aabbc9134d7`）；`20261113061500_dictionary_semantic_ten_domains.sql` 已套用正式（ledger `20261113072536`）。十個大類、58 個小分類；「派生構詞」為無小分類的大類。已確認代碼改名直接採新語意；Migration **僅一次性**清空當時失效的大／小分類，不猜測其他值，保留概述、變體、關聯與識別；往後的新寫入若帶無效分類則**拒絕**，不自動清空。驗證函式不再允許舊 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 等組合。
 - **測試基準**：#175 對應 [GitHub Actions](https://github.com/changmonica02/Nexus/actions/runs/43380211710) 六項工作（study-b 重跑、interface-a、morpheme-contract、world-map、note、dictionary-c）最終全成功，Vercel 檢查成功。這證明該提交的自動化檢查通過，不等於 Android／iPad 或真實跨裝置人工驗收已完成。
 
 ## 正式資料與重要邊界
@@ -16,6 +16,11 @@
 - 公共字典只有一套；Word、Prefix、Root、Suffix 是現行識別與內容。構詞形式分類在 Entry，語意大／小分類、帶 UUID 的變體在 Sense；`NULL` 表示未分類。只有新版語意代碼可新寫入。Word 與構詞使用既有關聯，公開閱讀只顯示已發布內容。
 - 草稿自動儲存與 CAS、人工 Review／核准及正式發布仍有區別；已發布內容不得由一般匯入直接覆寫。JSON 只忽略**明確已知**的退休欄位，未知欄位仍拒絕；CSV 不是包含所有變體與關聯的無損備份。舊字典分組表與舊草稿轉換 RPC 已退休，不要復活。
 - PWA／IndexedDB／帳號同步與既有 Session 保護不因文件清理或構詞分類變動而重設；新的正式 Migration 一律先比對依賴與遠端 ledger，不要盲目推送所有本機待套用 SQL。
+
+## 文件與功能的實作界線
+
+- **已核對的現行能力**：字典十大分類、有效 Prefix／Root／Suffix 快速建立、詞條身分與同形 ID、共用 catalog 查詢、主程式 PWA 的 Manifest／Service Worker、生活總覽／月曆／任務／自訂清單，以及基本製譜表單。這些是對應原始碼／SQL 的功能確認；不代表每項都已由真人裝置操作驗收。
+- **SPEC 保留但尚未實作的產品方向**：生活的週／日／時間軸日曆、獨立記帳、日記、特殊日、排班、週期任務、任務看板等；世界觀地圖 V2 的部分進階自然地理／文明配置流程，也不能因既有地圖編輯器存在就推論全部完成。請依 SPEC 的分期／現況註記區分，不要在下一輪將規劃誤當現行系統缺陷或已交付成果。
 
 ## 未完成的人工驗收（不要誤記為已完成）
 
