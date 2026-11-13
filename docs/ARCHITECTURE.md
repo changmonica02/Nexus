@@ -31,9 +31,9 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 ### 生活工作區
 
-`TodoView` 提供生活總覽、月曆及任務篩選，`PageCollection` 共用同一批 `kind: todo` Pages；內部 `calendar` 導覽識別與既有連結保留相容。`NexusApp` 只持有日期／月份／分頁／篩選／捲動等介面上下文，帳號切換時清除，任務編輯返回恢復上下文。學習首頁捷徑傳入選取的本地日期。
+`TodoView` 目前提供生活總覽、**月曆**、任務（全部／今日／即將到來／已完成）及自訂清單入口，`PageCollection` 共用同一批 `kind: todo` Pages；內部 `calendar` 導覽識別與既有連結保留相容。`NexusApp` 只持有日期／月份／分頁／篩選／捲動等介面上下文，帳號切換時清除，任務編輯返回恢復上下文。學習首頁捷徑傳入選取的本地日期。
 
-任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。日曆／任務沒有額外事件副本；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。
+任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。日曆／任務沒有額外事件副本；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。**目前沒有獨立記帳、日記、排班、週／日／時間軸日曆或任務看板的正式資料與操作介面**；這些若列於 SPEC，屬後續產品需求，不可用生活模組存在或自訂清單金額欄位推論已完成。
 
 自訂清單由 `features/life/LifeLists` 與 `LifeRepository` 提供。`life_lists` 保存欄位定義及 schema_version，`life_categories` 保存 parent_id，`life_items` 以固定 fieldId 保存 typed values、category_id 與 attachment_ids；三者獨立記錄／revision，不塞進 Page JSON。金額為十進位字串與幣別；圖片／附件只引用既有 Attachment，Blob 不放入項目。四種檢視共用項目；分類移動使用選擇操作。
 
@@ -283,7 +283,7 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 `WordSegmentsEditor` 保留原有有序 `word_segments` 與 relation ID／Sense 契約；單行字形、提示與 44px 刪除操作同列，至少一格，新增只附加，移除排序控制。原生 details 收合正式連結，已連結時沿用 `RelationTargetPicker` 顯示正式名稱與狀態；更換保留 relation ID 及適用義項，解除段落引用不刪既有正式關聯。欄位仍由原編輯器完整候選／IME／序列化 autosave／CAS 保護，收合不卸載輸入。基本資料、概念、義項、詞形、歷史詞源及其餘區塊只重排呈現，不觸發初始化寫入。使用者名稱為「概念」，`core_concept`／RPC／交換識別不變。
 
-`DictionaryArticle` 是獨立閱讀與學習內面板共用來源。有效 Word 分段以依序排列的兩欄小方格呈現，窄於 360px 改單欄；已由方格呈現的關聯不再重複縱排，未對應段落的正式關聯及反向探索保留。`readPublishedTargets` 先按正式 Entry ID 去重、最多四個 worker，沿用 `readPublishedEntry` 的 in-flight 去重及原公共離線快取，不另建資料庫；離開後停止尚未排入的請求並忽略晚回覆。只有回傳身份一致且 published 的目標可提供詞源，並限制共用／被連結義項；目前完整 Word 的詞源仍位於自己的歷史詞源區域。概念位於構詞下方，缺少內容不建立占位。
+`DictionaryArticle` 是獨立閱讀與學習內面板共用來源。有效 Word 分段以依序排列的兩欄小方格呈現，窄於 360px 改單欄；已由方格呈現的關聯不再重複縱排，未對應段落的正式關聯及反向探索保留。`readPublishedTargets` 先按正式 Entry ID 去重、最多四個 worker，沿用 `readPublishedEntry` 的 in-flight 去重及原公共離線快取，不另建資料庫；離開後停止尚未排入的請求並忽略晚回覆。只有回傳身分一致且已發布的正式目標，才可顯示**對應義項的概述 `gloss_zh_tw`**；沒有對應概述時不顯示佔位，也不得用目標歷史詞源替代。Word 自身的歷史詞源仍在獨立詞源區域。概念位於構詞下方，缺少內容不建立占位。
 
 `StudyCompositionSummary` 只在翻面後讀原公開詞條，且正式拼寫相符才標註。段落寬度由實際字形決定，中文絕對定位且可換行；底線左右各內縮 1px，不插入英文字元／空格。概念完整使用已發布原文，不截句或生成，置於提示右側且可換行；不再另發一次摘要元件讀取。英文為 24／30px，小於中文 30／48px。不依賴 IPA，不改語音控制、作答或排程。
 
@@ -332,7 +332,7 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 
 Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、版本或額度。refreshScheduled 保留仍合法的當前題，短間隔到期只重排後續候選；正式評分通過原 CAS／head／內容版本驗證後解除呈現標記。計時器只在明確等待、無當前卡時重新取卡；背景更新只讀取／核對，有實際題目變更時保留畫面並阻止舊題評分，要求重新載入。
 
-首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步、固定間隔與 FSRS 不變。
+首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步與**現行三按鈕間隔排程**不變；舊 FSRS 參數僅按既有歷史相容方式保留，不重新成為可切換的正式排程。
 
 Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。該資料庫 Migration 已經正式套用；後續發佈新欄位仍需遵守 guard 相容性，舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
 ### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
