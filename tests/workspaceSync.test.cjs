@@ -105,6 +105,27 @@ async function create(d, s, value = page(), type = 'pages') {
   await flushWorkspace(s, d.local, owner);
 }
 
+test('retired Page fields never leave new or old queued operations and never enter backups',async t=>{
+ const d=await device(t),server=new Server();
+ const old={...page(),study_items:[{front:'legacy',back:'ignored'}]};
+ await d.local.mutate(owner,[{type:'pages',kind:'save',value:old}]);
+ let [batch]=await d.local.pending(owner);
+ assert.equal(Object.hasOwn(batch.operations[0].value,'default_mode'),false);
+ assert.equal(Object.hasOwn(batch.operations[0].value,'study_items'),false);
+ // Simulate an outbox that was persisted before this release.
+ const queued={...batch,operations:batch.operations.map(op=>({...op,value:{...op.value,default_mode:'note',study_items:[{front:'obsolete'}]}}))};
+ await d.db.put('workspace_outbox',queued);
+ await flushWorkspace(server,d.local,owner);
+ const saved=server.rows.pages.get(old.id);
+ assert.ok(saved);
+ assert.equal(Object.hasOwn(saved,'default_mode'),false);
+ assert.equal(Object.hasOwn(saved,'study_items'),false);
+ assert.equal((await d.local.pending(owner)).length,0);
+ const backup=await d.adapter.exportWorkspaceBackup();
+ assert.equal(Object.hasOwn(backup.pages[0],'default_mode'),false);
+ assert.equal(Object.hasOwn(backup.pages[0],'study_items'),false);
+});
+
 test('hard delete: stale offline device cannot resurrect a page; tombstone wins locally and blocks RPC', async t => {
   const a = await device(t), b = await device(t), s = new Server();
   await create(a, s); await pullWorkspace(s, b.local, owner);
