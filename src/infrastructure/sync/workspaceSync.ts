@@ -94,11 +94,10 @@ export async function flushWorkspace(client: SupabaseClient, local: WorkspacePer
     const keys = batch.operations.map(op => `${op.entity_type}:${op.entity_id}`);
     if (keys.some(key => blocked.has(key))) { keys.forEach(key => blocked.add(key)); continue; }
     try {
-      // Pending operations from an earlier app version may still contain retired Page keys.
-      // Preserve the operation identity/revision and sanitize only the payload before RPC.
-      const operations = batch.operations.map(op => op.entity_type==='pages'&&op.value
-        ? {...op,value:withoutRetiredStudyItems(op.value)} : op);
-      const { data, error } = await client.rpc("apply_workspace_operations", { operations });
+      // Persisted outbox operations are immutable: the server fingerprints each original
+      // operation by ID. New writes are normalized in WorkspacePersistence.mutate.
+      // Historical retries must keep their original bytes until a server-side retirement.
+      const { data, error } = await client.rpc("apply_workspace_operations", { operations: batch.operations });
       if (error) throw new Error(error.message);
       if (!Array.isArray(data) || data.length !== batch.operations.length) throw new Error("Invalid workspace operation response");
       if (data.some((result, index) => result.entity_type !== batch.operations[index].entity_type || result.entity_id !== batch.operations[index].entity_id
