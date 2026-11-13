@@ -7,8 +7,8 @@ lock table public.study_card_quiz_states,public.study_quiz_attempt_receipts in a
 do $retire$
 declare
   d text;
-  old_receipts constant text := '  delete from public.study_quiz_attempt_receipts q using public.study_cards c where c.owner_id=actor and c.payload->>''deck_id''=delete_official_study_pack.deck_id and q.owner_id=actor and q.card_id=c.id;' || chr(13) || chr(10);
-  old_states constant text := '  delete from public.study_card_quiz_states q using public.study_cards c where c.owner_id=actor and c.payload->>''deck_id''=delete_official_study_pack.deck_id and q.owner_id=actor and q.card_id=c.id;' || chr(13) || chr(10);
+  old_receipts constant text := '  delete from public.study_quiz_attempt_receipts q using public.study_cards c where c.owner_id=actor and c.payload->>''deck_id''=delete_official_study_pack.deck_id and q.owner_id=actor and q.card_id=c.id;;
+  old_states constant text := '  delete from public.study_card_quiz_states q using public.study_cards c where c.owner_id=actor and c.payload->>''deck_id''=delete_official_study_pack.deck_id and q.owner_id=actor and q.card_id=c.id;;
 begin
   if exists(select 1 from public.study_card_quiz_states limit 1)
     or exists(select 1 from public.study_quiz_attempt_receipts limit 1) then
