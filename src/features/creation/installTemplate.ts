@@ -36,7 +36,6 @@ export async function installCreationTemplate(
     creative_type: data.kind,
     content_json: {},
     content_text: "",
-    default_mode: "note",
     created_at: existing?.created_at ?? now,
     updated_at: now,
     revision: (existing?.revision ?? 0) + 1,
