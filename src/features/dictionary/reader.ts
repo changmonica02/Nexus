@@ -83,5 +83,5 @@ export async function readPublishedTargets(client:Client,ids:string[],active:()=
 
 export async function readPublishedCatalog(client:Pick<SupabaseClient,'rpc'>,context:string,page:number){
  const filter=catalogFilter(new URL(context,'https://nexus.invalid').searchParams);
- return publicRequest(JSON.stringify(['catalog',filter,page]),()=>readCatalog(client,filter,page),'字典目前無法讀取，請確認新版資料契約已啟用後重試。');
+ return publicRequest(JSON.stringify(['catalog-current-morphology',filter,page]),()=>readCatalog(client,filter,page),'字典目前無法讀取，請確認新版資料契約已啟用後重試。');
 }

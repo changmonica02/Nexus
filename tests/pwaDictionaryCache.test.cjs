@@ -68,3 +68,13 @@ test('uncached categories/relations give connection hints without remote request
  for(const task of [()=>searchRelations(client,'word','',0,{component:id})])await assert.rejects(task,/請連線後閱讀/);
  assert.deepEqual(await readerNeighbours(client,id,'example',null),{previous:null,next:null});
 });
+
+test('retired legacy catalog cache cannot revive old variant search; current cache works offline',async()=>{
+ const {catalogFilter}=require('../src/features/dictionary/catalog.ts');
+ const context='/dictionary?scope=morpheme&q=retired';
+ const filter=catalogFilter(new URL(context,'https://nexus.invalid').searchParams);
+ await cache.savePublicCache(JSON.stringify(['catalog',filter,0]),page([{id,headword:'retired fallback'}]));
+ online(false);await assert.rejects(()=>reader.readPublishedCatalog(never,context,0),/尚未離線保存/);
+ online(true);await reader.readPublishedCatalog({rpc:async()=>({data:page(),error:null})},context,0);
+ online(false);assert.equal((await reader.readPublishedCatalog(never,context,0)).items.length,0);
+});

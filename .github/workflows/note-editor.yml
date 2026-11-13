@@ -36,7 +36,7 @@ jobs:
       - run: node tests/morphemeEditor.browser.test.cjs
       - run: STUDY_BROWSER=webkit node tests/morphemeEditor.browser.test.cjs
       - run: npx tsc --noEmit
-      - run: npx eslint src/features/dictionary/MorphemeSenseEditor.tsx src/features/dictionary/MorphemeWordLinks.tsx src/features/dictionary/MorphemeConversion.tsx src/features/dictionary/DictionaryCatalogNavigation.tsx src/features/dictionary/morphemeLinks.ts src/features/dictionary/catalog.ts
+      - run: npx eslint src/features/dictionary/MorphemeSenseEditor.tsx src/features/dictionary/MorphemeWordLinks.tsx src/features/dictionary/retiredMorphemeFields.ts src/features/dictionary/DictionaryCatalogNavigation.tsx src/features/dictionary/morphemeLinks.ts src/features/dictionary/catalog.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -284,4 +284,4 @@ jobs:
           export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
           node tests/dictionaryEntryDeletion.browser.test.cjs
           STUDY_BROWSER=webkit node tests/dictionaryEntryDeletion.browser.test.cjs
-      - run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/adminNavigation.ts src/features/dictionary/adminQueries.ts src/features/dictionary/deleteEntry.ts src/features/dictionary/grouping.ts src/features/dictionary/readerNavigation.ts src/lib/i18n.ts
+      - run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/adminNavigation.ts src/features/dictionary/adminQueries.ts src/features/dictionary/deleteEntry.ts src/features/dictionary/morphemeContract.ts src/features/dictionary/readerNavigation.ts src/lib/i18n.ts

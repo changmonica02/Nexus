@@ -12,6 +12,8 @@
 
 stage_dictionary_import_reviews 共用鎖，拒絕清理前預覽與已清來源 session，並以同樣三日預覽期限防止收據到期後舊工作復活；新分析仍可建立新工作。不在 UI 新增清理按鈕，也不自動呼叫清理。發布順序為另授權的退役 Schema、維護 RPC、固定備份範圍清理、前端；暫停舊版編輯／匯入，不能以舊前端回復新版內容。回復須使用私人備份及原函式／權限／結構，在隔離副本驗證，僅補回已刪工作／舊欄位，不覆寫較新發布內容；正式回復亦須另行授權。
 
+公開 catalog 回應仍使用既有公開 IndexedDB 快取，但採用新的 `catalog-current-morphology` 請求鍵，避免離線沿用退役前的舊變體搜尋結果；不清空 IndexedDB、已發布詳情或私人學習資料。新鍵未取得過的範圍需連線取得一次。
+
 ## 階段 D：構詞編輯、搜尋與無損草稿契約（已合併；舊格式部分由上節退役）
 
 沿用 `dictionary_entries`／`dictionary_senses`／`dictionary_relations` 與既有人工 Review；不新增字典或關聯表。`20261112012042_dictionary_morpheme_senses.sql` 在單一交易新增義項 nullable `semantic_domain`、`semantic_subdomain`、`variants`，擴充 entry kind 的 suffix。九大類／42小類代碼由 `semanticDomains.ts` 與 SQL 驗證，分類可留空，不猜測舊分類。變體是每義項具 UUID、form、condition 的有序陣列；同字形可屬不同義項。Word 身分不可改為構詞；Prefix／Root／Suffix 可以原 ID 改類型。保留 Word 唯一性，構詞同形不同 ID 不合併；快速建立遇多個符合對象拒絕，不任選 ID。
