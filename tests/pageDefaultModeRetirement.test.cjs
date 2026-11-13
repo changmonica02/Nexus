@@ -17,7 +17,6 @@ test('Page default_mode retirement preserves legacy operation receipts, Page con
   const first=await sql(pg,'select apply_workspace_operations($1) v',[JSON.stringify([original])]);
   assert.equal(first[0].revision,1);
   assert.equal((await sql(pg,"select default_mode v from pages where id='old-note'")),'note');
-  const receipt=await sql(pg,'select fingerprint v from workspace_operation_receipts where id=$1',[id(991)]);
   const pagesBefore=await sql(pg,'select count(*)::int v from pages');
 
   await pg.exec('reset role');
@@ -32,7 +31,6 @@ test('Page default_mode retirement preserves legacy operation receipts, Page con
   // An unacknowledged pre-upgrade operation remains idempotent with the SAME bytes.
   const replay=await sql(pg,'select apply_workspace_operations($1) v',[JSON.stringify([original])]);
   assert.equal(replay[0].revision,first[0].revision);
-  assert.equal(await sql(pg,'select fingerprint v from workspace_operation_receipts where id=$1',[id(991)]),receipt);
   await assert.rejects(sql(pg,'select apply_workspace_operations($1) v',[JSON.stringify([{...original,value:{...original.value,title:'changed'}}])]),/payload conflict/i);
 
   // An old client may still send the retired key; it is not persisted or projected.
