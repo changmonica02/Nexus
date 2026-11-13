@@ -69,3 +69,16 @@ test('Page retirement preserves real synchronized reviews/due/settings and rollb
   await pg.exec(original);await migrate(pg,'page');assert.deepEqual(await snapshot(),before);assert.equal(await sql(pg,"select title v from pages where id='deck'"),'Kept title');
  }finally{await f.close();await pg.close();}
 });
+
+
+test('retired owner-scoped etymology UI redirects to the current dictionary without retaining an RPC client',()=>{
+ const fs=require('node:fs');
+ const route=fs.readFileSync('src/app/etymology/[[...path]]/page.tsx','utf8');
+ assert.match(route,/redirect\(['"]\/dictionary['"]\)/);
+ assert.doesNotMatch(route,/get_etymology_catalog|EtymologyBrowser/);
+ assert.equal(fs.existsSync('src/features/etymology/catalog.ts'),false);
+ assert.equal(fs.existsSync('src/features/etymology/EtymologyBrowser.tsx'),false);
+ // Historical migrations and account deletion regression remain intact.
+ assert.equal(fs.existsSync('supabase/migrations/20260928_etymology_catalog.sql'),true);
+ assert.equal(fs.existsSync('tests/accountDeletion.test.cjs'),true);
+});
