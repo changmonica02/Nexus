@@ -181,7 +181,7 @@ SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背�
 
 Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite PostgreSQL 驗證；使用者已確認正式套用，本輪唯讀記錄可見對應名稱（登錄版本 `20261105060444`）。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；本輪沒有正式資料庫寫入。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
 
-發布／回復界線：獲授權後先核對正式 schema 與備份／PITR，單一交易套用指定 Migration，再發布前端並更新所有學習裝置。舊前端不理解投影，在清除後會被伺服器拒絕過期學習寫入；保留本機 outbox 並更新至相容版本，不清庫／降版。Migration 未就緒時新版學習同步在屏障核對處失敗並保留待傳資料，普通本機離線學習仍可用。成功清除後不可回退舊 RPC 或刪除屏障來「恢復」舊進度，應保留資料向前修復。正式套用、實際 schema 漂移、Safari／iPad／Android PWA 與真實帳號跨裝置仍待獨立授權／驗收。
+已完成的發布／回復邊界：整組清除 Migration 已依原授權正式套用，清除屏障、投影、伺服器驗證和版本保護繼續有效。舊前端不理解投影時，清除後的過期寫入仍須由伺服器拒絕；保留本機 outbox，應更新相容版本，不清庫／降版。成功清除後不可回退舊 RPC、移除清除屏障或重播舊進度，應保留資料並向前修復。Safari／iPad／Android PWA 與真實帳號跨裝置的實機行為仍待驗收；未來新的 Migration 仍需各自驗證及授權。
 
 官方包來源身份與私人字卡目前的字典連結分開；解除連結不改來源去重身份。更新只補缺卡，不覆寫私人字面／學習狀態，不復活使用者已刪除的來源卡。
 
@@ -215,7 +215,7 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 `20261106032651_dictionary_exchange_safe_replacement.sql` 不新增資料表，也不改人工核准架構。`apply_dictionary_safe_import_reviews` 在原 advisory lock／CAS／receipt 管線中，獨立驗證候選確為新增而非覆寫，並以相同 Entry、來源 ID、revision、完整 fingerprint 與確切 issue target 證明取代。先鎖來源，再呼叫原 apply RPC；只有實際草稿寫入成功，才將確實涵蓋的舊 issues 標為 applied 並重算 pending_count。保留原來源與收據供追溯，不按拼寫刪除、不清不相關項目、不建立歷史版本。清理失敗的子交易回滾草稿、Review、收據與清理；未變更、失敗、過期或仍有爭議不清理。操作身分沿用 row ID＋revision 的既有冪等收據；結果不明仍先查正式常駐狀態，不換 operation 猜測重送。
 
-匯出用的 `import_review_refs` 僅為清理來源證明；不加入一般人工決策的 UI 内容等價比較（同一列的決策本就改變其 fingerprint），實際 core context／scope／revision／內容驗證及 safe-transfer RPC 的嚴格證明仍保留。新 RPC 僅 authenticated 且 admin 可執行，內部 helpers 對 PUBLIC／anon／authenticated／service_role 撤權、固定空 search_path。Migration 在 Word segments／IPA／Page 退役與現有常駐審核之後；需另行授權後先 DB 再前端，capability 未就緒禁止新匯出與安全寫入，仍保留分析和原工作。沒有資料刪欄或回填；回退 UI 不撤除已確認的收據或恢復已取代差異，優先向前修復。
+匯出用的 `import_review_refs` 僅為清理來源證明；不加入一般人工決策的 UI 内容等價比較（同一列的決策本就改變其 fingerprint），實際 core context／scope／revision／內容驗證及 safe-transfer RPC 的嚴格證明仍保留。新 RPC 僅 authenticated 且 admin 可執行，內部 helpers 對 PUBLIC／anon／authenticated／service_role 撤權、固定空 search_path。Migration 已於 2026-11-07 依授權套用正式，並在既有 Word segments／IPA／Page 退役相依就緒後啟用；capability 未就緒時仍禁止新匯出與安全寫入，保留分析及原工作。沒有資料刪欄或回填；回退 UI 不撤除已確認的收據或恢復已取代差異，優先向前修復。
 
 Google 登入仍為 `AccountButton` 的同一 Supabase OAuth，僅加入 `queryParams.prompt=select_account`、保留 origin redirect。帳號切換仍由既有 Auth／owner 邊界處理，登入選擇本身不清 IndexedDB 或未同步資料；瀏覽器測試驗證實際 SDK URL，Google 是否顯示選擇畫面仍須裝置驗收。
 
