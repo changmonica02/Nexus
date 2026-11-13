@@ -39,9 +39,9 @@
 - 不捏造驗收、部署或變更日期；文件內容若與原始碼衝突，標示待核對，而非自行宣布完成。
 
 
-## 文件範圍與目前授權
+## 文件範圍與作業授權
 
-- 專案文件僅維護 docs/SPEC.md、ARCHITECTURE.md、HISTORY.md、HANDOFF.md 四份；不新增封存、reference、追溯副本或歷史交接檔。
-- 目前使用者明確要求直接在 main 修改；依此授權工作，仍先確認分支／未提交內容及變更範圍。main 推送可能觸發 Production，不推論授權包含 DB 寫入或資料刪除。
-- 本輪清理不修改 SPEC／HISTORY。被否決或過期內容可移除，不要求在其他檔案保存副本；有效資料相容性與安全契約仍以程式／migration 核對。
+- 專案主要產品／技術／歷史／交接文件僅維護 `docs/SPEC.md`、`docs/ARCHITECTURE.md`、`docs/HISTORY.md`、`docs/HANDOFF.md`；不新增歷史封存、重複交接或一次性 PR 狀態文件。README 與本 AGENTS 僅供入口與協作規則。
+- **授權依當次使用者要求判斷**：既往某輪曾允許直接修改 main，不是永久授權。預設使用獨立工作分支與 PR；未獲明確同意，不自行合併 PR、推送 main、修改正式 Supabase 或刪除正式資料。
+- 階段完成時，`SPEC` 保留現行要求、`ARCHITECTURE` 保留有效契約、`HISTORY` 記重要已完成事項、`HANDOFF` 只記目前狀態和真正待驗收項目；過時的 Draft／未套用／舊方案不留在現況交接。不可為精簡而刪除仍有效的相容性、安全或資料隔離規則。
 - Windows PowerShell 使用 npm.cmd／npx.cmd；語系變更核對覆蓋，未執行的驗證明確記錄。

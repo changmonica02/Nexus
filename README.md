@@ -21,4 +21,4 @@ npm run dev
 | [docs/HISTORY.md](docs/HISTORY.md) | 重要變更、原因與設計決策 |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | 目前狀態、待確認事項、下一步 |
 
-任務追蹤使用 GitHub Issues，變更審核使用 Pull Requests。注意：新文件是初步基線，部分完整歷史交接資料仍需逐項對照；計畫中的功能不等同已完成部署。
+任務追蹤使用 GitHub Issues，變更審核使用 Pull Requests。現行產品契約以 SPEC 為準；技術與正式 Migration 狀態以 ARCHITECTURE／HANDOFF 配合實際 GitHub、Supabase 核對。HISTORY 記錄當時成果，不能將歷史的 Draft／待套用敘述當成現況；自動化測試成功亦不等於真人裝置驗收完成。
