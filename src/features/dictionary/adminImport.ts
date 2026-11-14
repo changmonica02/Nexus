@@ -10,8 +10,8 @@ export type Bundle = Record<string, Record<string, unknown>[]>;
 export interface BundleResult { items?:{entry_id:string;kind:string;headword:string;status:'new'|'modified'|'unchanged'}[]; inserted: number; updated: number; skipped: number; preview: boolean; warnings: {table:string;id:string;similar_ids:string[]}[] }
 export async function normalizeDictionaryBundle(client: Pick<SupabaseClient,"rpc">, bundle: Bundle) {
   // Legacy Bundle/Markdown are adapters; partial child bundles resolve their owning entry.
-  parseJSONBundle(JSON.stringify(bundle));
-  const full:Bundle=structuredClone(bundle);full.dictionary_entries??=[];
+  // Reuse the exact validated, current-format projection; never retain the raw legacy keys.
+  const full:Bundle=parseJSONBundle(JSON.stringify(bundle));full.dictionary_entries??=[];
   const parents=new Set(Object.entries(full).filter(([t])=>t!=='dictionary_entries').flatMap(([,rs])=>rs.map(r=>String(r.entry_id))));
   for(const parent of parents){
     const entry=full.dictionary_entries.find(e=>e.id===parent);
@@ -82,7 +82,7 @@ export function parseJSONBundle(raw:string):Bundle {
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision','word_segments']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision','semantic_domain','semantic_subdomain','variants']},
-    dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','relation_kind','revision']},
+    dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
   };
@@ -97,6 +97,18 @@ export function parseJSONBundle(raw:string):Bundle {
       if(!object(row))return fail('資料必須為物件');
       for(const key of schema.required)if(!Object.hasOwn(row,key))fail(`缺少 ${key}`);
       if(['source_id','citation','license'].some(key=>Object.hasOwn(row,key)))fail('source_id / citation / license 已淘汰，請移除舊來源欄位');
+      // The only harmless legacy relation value is the old fixed SQL default.
+      // Do not erase historical relation types or explanatory notes.
+      if(table==='dictionary_relations'){
+        if(Object.hasOwn(row,'relation_kind')){
+          if(row.relation_kind!=='learning_decomposition')fail('舊 relation_kind 不是已確認的固定值，請人工確認關聯類型');
+          delete row.relation_kind;
+        }
+        if(Object.hasOwn(row,'verification_note')){
+          if(row.verification_note!==null&&(typeof row.verification_note!=='string'||row.verification_note.trim()))fail('verification_note 含有內容，不可忽略');
+          delete row.verification_note;
+        }
+      }
       for(const [key,v]of Object.entries(row)) {
         if(table==='dictionary_pronunciations'&&['locale','note'].includes(key)){delete row[key];continue;}
         if(!schema.required.includes(key)&&!schema.optional.includes(key))fail(`不允許欄位 ${key}（僅匯入草稿內容）`);
@@ -113,7 +125,7 @@ export function parseJSONBundle(raw:string):Bundle {
       }
       if(table==='dictionary_senses'){const issue=validateMorphemeSenseFields(row);if(issue)fail(issue);}
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
-      const enums:Record<string,string[]>={relation_kind:['historical_etymology','learning_decomposition']};
+      const enums:Record<string,string[]>={};
       if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root','suffix'];
       if(table==='dictionary_learning_notes')enums.kind=['core_concept','learning_decomposition','mnemonic_scenario'];
