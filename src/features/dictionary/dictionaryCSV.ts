@@ -1,12 +1,12 @@
 import {entryKey} from './entryIdentity';
-import {parseCSV} from './csvRows';
+import {parseCSVWithIgnored} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 
 export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','relation_hint','core_concept'];
 export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
-export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
-  const rows=parseCSV(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
+export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[];ignoredFields:string[]}>{
+  const {rows,ignoredFields}=parseCSVWithIgnored(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
   // Blank identities share a proposed Entry inside this preview. Explicit IDs are never rewritten.
   const explicit=new Map<string,Set<string>>();
   for(const r of rows)if(r.entry_id.trim()){const key=entryKey(r.kind??'word',r.headword);const ids=explicit.get(key)??new Set<string>();ids.add(r.entry_id.trim().toLowerCase());explicit.set(key,ids);}
@@ -33,7 +33,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
   }
   const result=[...drafts.values()];issues.push(...validateDictionaryDraft(result,{csv:true}));
   if(!result.length)issues.push({row:1,kind:'unknown',field:'CSV',error:'沒有資料列'});
-  return {drafts:result,issues};
+  return {drafts:result,issues,ignoredFields};
 }
 export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInput[]>{
   const {drafts,issues}=await parseDictionaryCSVPreview(raw);if(issues.length)throw new DraftValidationError(issues);return drafts;
