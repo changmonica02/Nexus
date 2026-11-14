@@ -2,8 +2,17 @@ require('./loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const {database}=require('./fixtures/retirementDatabase.cjs');
+const {database,migrate}=require('./fixtures/retirementDatabase.cjs');
 
+const baselineMigrations=[
+ '20261106032651_dictionary_exchange_safe_replacement.sql',
+ '20261111145758_dictionary_pending_identity.sql',
+ '20261112012042_dictionary_morpheme_senses.sql',
+ '20261112120627_dictionary_catalog_query_plan.sql',
+ '20261113035217_dictionary_legacy_morpheme_retired.sql',
+ '20261113035226_dictionary_review_cleanup.sql',
+ '20261113061500_dictionary_semantic_ten_domains.sql',
+];
 const migrations=[
  '20261114135000_dictionary_sense_derivations.sql',
  '20261114152000_dictionary_sense_extensions_draft_rpc.sql',
@@ -19,7 +28,14 @@ const migrations=[
 test('B phase retirement runs ordered migrations in isolated PostgreSQL, retains Review and B2 child tables',async()=>{
  const pg=await database();
  try{
+  // Install the actual main-branch migrations between the shared test
+  // fixture's 2026-11-05 baseline and the B2 branch.
+  for(const stage of ['official','ipa','page'])await migrate(pg,stage);
   await pg.exec('reset role');
+  for(const name of baselineMigrations){
+   const sql=fs.readFileSync('supabase/migrations/'+name,'utf8');
+   try{await pg.exec(sql)}catch(error){throw new Error('Baseline '+name+': '+error.message,{cause:error});}
+  }
   for(const name of migrations){
    const sql=fs.readFileSync('supabase/migrations/'+name,'utf8');
    try{await pg.exec(sql)}catch(error){throw new Error('Migration '+name+': '+error.message,{cause:error});}
