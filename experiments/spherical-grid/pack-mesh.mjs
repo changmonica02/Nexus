@@ -51,7 +51,9 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
    throw Error('Incremental Pack prefix is not valid');
   for(let i=0;i<startingPack.coastEdges.length;i++){
    const [a,b]=startingPack.coastEdges[i],[u,v]=coastEdges[i];
-   if(a!==u||b!==v)throw Error('Incremental Pack coast sequence is not a prefix');
+   if(a!==u||b!==v||
+      startingPack.sourceIds[grid.points.length+i] !== (ocean[u]?v:u))
+    throw Error('Incremental Pack coast sequence or land source is not a prefix');
   }
  }
  const firstNew=startingPack?.coastEdges.length??0;
@@ -133,7 +135,9 @@ export function canExtendSphericalPack(grid,ocean,priorPack){
   if(i<j&&ocean[i]!==ocean[j])edges.push([i,j]);
  if(priorPack.coastEdges.length>edges.length)return false;
  for(let i=0;i<priorPack.coastEdges.length;i++)
-  if(priorPack.coastEdges[i][0]!==edges[i][0]||priorPack.coastEdges[i][1]!==edges[i][1])return false;
+  if(priorPack.coastEdges[i][0]!==edges[i][0]||
+     priorPack.coastEdges[i][1]!==edges[i][1]||
+     priorPack.sourceIds[grid.points.length+i] !== (ocean[edges[i][0]]?edges[i][1]:edges[i][0]]))return false;
  return true;
 }
 
@@ -147,7 +151,8 @@ export function canShrinkSphericalPack(grid,ocean,priorPack){
  if(after.length>=priorPack.coastEdges.length)return false;
  for(let i=0;i<after.length;i++)
   if(after[i][0]!==priorPack.coastEdges[i][0]||
-     after[i][1]!==priorPack.coastEdges[i][1])return false;
+     after[i][1]!==priorPack.coastEdges[i][1]||
+     priorPack.sourceIds[grid.points.length+i] !== (ocean[after[i][0]]?after[i][1]:after[i][0]))return false;
  return true;
 }
 // Inverse of a suffix of recorded local insertions. Every touched existing
@@ -175,4 +180,69 @@ export function shrinkSphericalPack(grid,ocean,priorPack){
   inserted--;
  }
  return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,0,journal);
+}
+
+/**
+ * Replay the changed suffix of coastal point insertions rather than rebuilding
+ * the entire spherical triangulation. This accepts edits in the *middle* of
+ * the sorted coastline, but work still scales with the replayed suffix.
+ *
+ * A retained edge is safe only if both endpoint IDs AND its inland Grid parent
+ * match. Even when a coast edge survives, a land/sea inversion changes the
+ * auxiliary site and cannot reuse its previous insertion.
+ *
+ * Returns null if no nonempty prefix can be reused or the old insertion journal
+ * is incomplete. Callers must fall back to createSphericalPack in that case.
+ * Does not mutate priorPack, Grid geometry, or Grid height.
+ */
+export function replaySphericalPackSuffix(grid,ocean,priorPack){
+ if(!priorPack||priorPack.skipped||
+    !Array.isArray(priorPack.journal)||
+    priorPack.journal.length!==priorPack.inserted||
+    priorPack.inserted!==priorPack.coastEdges?.length||
+    priorPack.points?.length!==grid.points.length+priorPack.inserted||
+    priorPack.sourceIds?.length!==priorPack.points.length||
+    priorPack.siteKeys?.length!==priorPack.points.length)return null;
+ const nextEdges=[];
+ for(let a=0;a<grid.neighbors.length;a++)
+  for(const b of grid.neighbors[a])
+   if(a<b&&ocean[a]!==ocean[b])nextEdges.push([a,b]);
+ let prefix=0;
+ while(prefix<Math.min(nextEdges.length,priorPack.coastEdges.length)){
+  const [a,b]=nextEdges[prefix];
+  const [oldA,oldB]=priorPack.coastEdges[prefix];
+  if(a!==oldA||b!==oldB||
+     priorPack.sourceIds[grid.points.length+prefix]!==(ocean[a]?b:a))break;
+  prefix++;
+ }
+ if(prefix===0)return null;
+ // Undo journal entries from the end to the first affected insertion.
+ const points=priorPack.points.map(p=>p.slice());
+ const triangles=priorPack.triangles.map(t=>t.slice());
+ const sourceIds=[...priorPack.sourceIds],siteKeys=[...priorPack.siteKeys];
+ const journal=priorPack.journal.slice();
+ let flips=priorPack.flips,undone=0;
+ while(journal.length>prefix){
+  const step=journal.pop();
+  if(!step||!Number.isInteger(step.prevTriangles)||!Number.isInteger(step.prevPoints)||
+     step.prevTriangles<0||step.prevTriangles>triangles.length||
+     step.prevPoints<grid.points.length||step.prevPoints>points.length||
+     !Array.isArray(step.faces))throw Error('Invalid Pack insertion journal');
+  triangles.length=step.prevTriangles;
+  for(const [fid,face] of step.faces){
+   if(!Number.isInteger(fid)||fid<0||fid>=triangles.length||!Array.isArray(face)||face.length!==3)
+    throw Error('Invalid Pack triangle rollback record');
+   triangles[fid]=face.slice();
+  }
+  points.length=step.prevPoints;
+  sourceIds.length=step.prevPoints;
+  siteKeys.length=step.prevPoints;
+  flips=step.prevFlips;
+  undone++;
+ }
+ const retained={points,triangles,sourceIds,siteKeys,journal,
+   coastEdges:priorPack.coastEdges.slice(0,prefix),inserted:prefix,flips,skipped:0};
+ const pack=createSphericalPack(grid,ocean,{startingPack:retained});
+ return {pack,retainedCoastalSites:prefix,replayedCoastalSites:nextEdges.length-prefix,
+   undoneCoastalSites:undone};
 }
