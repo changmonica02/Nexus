@@ -82,3 +82,33 @@ test('versioned exchange reads B2 Word extensions without changing legacy row id
  assert.equal(old.derivations,undefined);
  assert.equal(old.examples[0].id,id(4));
 });
+
+test('B2 import review detects changed derived meaning by stable ID and safely remaps Sense branches',()=>{
+ const {classifyImport,resolveImportItem,reconcileProposedContent}=require('../src/features/dictionary/importReview.ts');
+ const item=draftsFromBundle(parseJSONBundleWithIgnored(JSON.stringify(base())).bundle)[0];
+ const saved=structuredClone(item);
+ const context={snapshot:{detail:{
+  entry:{id:id(1),kind:'word',headword:'occupation',status:'draft',revision:2},
+  senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業',revision:1}],
+  derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:2}],
+  examples:[{id:id(4),entry_id:id(1),sense_id:id(2),body:'An occupation',translation_zh_tw:'一份職業',derivation_id:id(3),sort_order:0,revision:1}],
+  inflections:[],pronunciations:[],relations:[],etymologies:[],learning_notes:[],lexical_annotations:[]
+ },metadata:null},similar:[],identities:{}};
+ saved.derivations[0].gloss_zh_tw='新的衍生意思';
+ const review=classifyImport(saved,context);
+ assert.ok(review.issues.some(x=>x.target?.section==='derivations'&&x.target.field==='gloss_zh_tw'));
+ const clone=structuredClone(item);
+ const targetSense=id(20);
+ const resolved=resolveImportItem({draft:clone,context:{snapshot:null,similar:[],identities:{}},issues:[
+  {selectedAction:'new_sense',target:{section:'senses',id:id(2)},proposedSenseID:targetSense}
+ ]});
+ assert.equal(resolved.draft.senses[0].id,targetSense);
+ assert.equal(resolved.draft.derivations[0].sense_id,targetSense);
+ assert.equal(resolved.draft.examples[0].sense_id,targetSense);
+ assert.equal(resolved.draft.examples[0].derivation_id,resolved.draft.derivations[0].id);
+ const proposal=structuredClone(item);
+ proposal.derivations[0].id=id(30);
+ proposal.proposed_ids=[id(30)];
+ const matched=reconcileProposedContent(proposal,context);
+ assert.equal(matched.derivations[0].id,id(3),'derive by same Sense plus gloss, not a missing body field');
+});
