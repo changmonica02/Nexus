@@ -30,18 +30,17 @@ test('exchange scope recognizes new Word content changes and keeps old stamped s
     return md5(out_text);
    end $$;
    create function public.dictionary_import_context(candidate jsonb)
-   returns jsonb language plpgsql as $$
-   declare t text; rows jsonb:='{}'; ids uuid[];
+   returns jsonb language plpgsql as $
+   declare t text; rows jsonb:='{}'; matched jsonb;
    begin
     foreach t in array array['dictionary_entries','dictionary_pronunciations','dictionary_inflections'] loop
-      ids:=case when t='dictionary_sense_derivations' then array(select (x->>'id')::uuid from jsonb_array_elements(coalesce(candidate->'derivations','[]'::jsonb)) x)
-         when t='dictionary_public_notes' then array(select (x->>'id')::uuid from jsonb_array_elements(coalesce(candidate->'public_notes','[]'::jsonb)) x)
-         when t='dictionary_inflections' then array(select (x->>'id')::uuid from jsonb_array_elements(coalesce(candidate->'inflections','[]'::jsonb)) x)
-         else '{}'::uuid[] end;
-      rows:=rows||jsonb_build_object(t,to_jsonb(ids));
+      matched:=case when t='dictionary_inflections' then candidate->'inflections'
+         else '[]'::jsonb end;
+      rows:=rows||jsonb_build_object(t,
+       coalesce((select jsonb_agg(value->>'id') from jsonb_array_elements(coalesce(matched,'[]'::jsonb))),'[]'::jsonb));
     end loop;
     return rows;
-   end $$;
+   end $;
   `);
   // The patch intentionally requires the installed legacy structure.
   await pg.exec(sql);
