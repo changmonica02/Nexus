@@ -37,7 +37,8 @@ begin
   -- Preserve older saved review candidates that lack the B2 section.
   -- Preserve the original review snapshot and fingerprint unchanged.
   f:=replace(f,oldtext,
-    ' if not(c ? ''derivations'') then '
+    ' if c#>>''{bundle,dictionary_entries,0,kind}'' <> ''word'' then c:=c-''derivations'';end if;'
+    ||chr(10)||' if not(c ? ''derivations'') and c#>>''{bundle,dictionary_entries,0,kind}'' = ''word'' then '
     ||'c:=jsonb_set(c,''{derivations}'',coalesce((select jsonb_agg(to_jsonb(x)-''updated_at'' '
     ||'order by x.sort_order,x.id) from public.dictionary_sense_derivations x '
     ||'where x.entry_id=eid),''[]''::jsonb));end if;'
@@ -53,12 +54,13 @@ begin
   oldtext:=' -- Rebase technical child revisions only after the complete base snapshot was checked.';
   if strpos(f,oldtext)=0 then raise exception 'Unexpected Review rebase anchor';end if;
   newtext:=
-    ' if jsonb_typeof(c->''derivations'') is distinct from ''array'' '
+    ' if c ? ''derivations'' then '
+    ||'if jsonb_typeof(c->''derivations'') is distinct from ''array'' '
     ||'then raise exception ''Invalid Review derivations'';end if;'
     ||chr(10)||
     ' delete from public.dictionary_sense_derivations x where x.entry_id=eid '
     ||'and not exists(select 1 from jsonb_array_elements(c->''derivations'') r '
-    ||'where (r->>''id'')::uuid=x.id);'
+    ||'where (r->>''id'')::uuid=x.id);end if;'
     ||chr(10)||
     ' delete from public.dictionary_senses x where x.entry_id=eid '
     ||'and not exists(select 1 from jsonb_array_elements(c->''bundle''->''dictionary_senses'') r '
@@ -70,7 +72,7 @@ begin
   -- renumbering any stable IDs or mutating the original stored candidate.
   oldtext:=' perform public.apply_dictionary_drafts(jsonb_build_array(c),false,true);';
   newtext:=
-    ' nextrows:=''[]''::jsonb;'
+    ' if c ? ''derivations'' then nextrows:=''[]''::jsonb;'
     ||chr(10)||
     ' for r in select value from jsonb_array_elements(c->''derivations'') loop'
     ||chr(10)||
@@ -93,7 +95,7 @@ begin
     ||chr(10)||
     ' c:=jsonb_set(c,''{derivations}'',nextrows);'
     ||chr(10)||
-    ' c:=jsonb_set(c,''{replace_editor_children}'',''true''::jsonb);'
+    ' c:=jsonb_set(c,''{replace_editor_children}'',''true''::jsonb);end if;'
     ||chr(10)||oldtext;
   f:=replace(f,oldtext,newtext);
   execute f;
