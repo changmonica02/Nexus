@@ -30,4 +30,4 @@ console.log(JSON.stringify({gridCells:36002,scenario:'undo last isolated island'
  incrementalMsMedian:incrementalMs,fullMsMedian:fullMs,
  speedup:+(fullMs/incrementalMs).toFixed(2),removedTriangleCount:affected,
  remainingTriangleCount:total,exactMatch:true,
- limitation:'reverse only a recorded trailing sequence of coastal sites; dual reconstruction still global'}));
+ limitation:'reverse only a recorded trailing sequence of coastal sites; dual areas are patched selectively; triangle difference scan and cache copies remain O(N)'}));
