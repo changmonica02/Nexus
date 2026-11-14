@@ -97,7 +97,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
   if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
   const schemas:Record<string,{required:string[];optional:string[]}>= {
     dictionary_inflections:{required:['id','entry_id','form_kind','form'],optional:['sense_id','sort_order','revision']},
-    dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','locale','note','sort_order','revision']},
+    dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision','word_segments']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision','semantic_domain','semantic_subdomain','variants']},
     dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','revision']},
