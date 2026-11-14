@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLandLayout,confirmLandLayout,reopenConfirmedLandLayout} from './land-generator.mjs';
+import {oceanConnected} from './pack.mjs';
 
 test('the three land presets are area-weighted, not pixel-count weighted',()=>{
  for(const landPercent of [25,32,45]){
@@ -37,4 +38,13 @@ test('confirmed land layout survives versioned snapshot and reopening',()=>{
  assert.deepEqual(reopened.state.grid.heights,draft.grid.heights);
  assert.equal(reopened.state.oceanSeed,draft.oceanSeed);
  assert.deepEqual(reopened.settings,confirmed.settings);
+});
+
+test('hydrological land area is close to intended land area',()=>{
+ for(const landPercent of [25,32,45]){
+  const {grid,oceanSeed}=createLandLayout({seed:1729,landPercent,continentCores:8});
+  const ocean=oceanConnected(grid,oceanSeed),total=grid.areas.reduce((a,b)=>a+b,0);
+  const actual=100*grid.areas.reduce((sum,area,i)=>sum+(ocean[i]?0:area),0)/total;
+  assert.ok(Math.abs(actual-landPercent)<1, `hydrological land fraction ${actual} differs from target ${landPercent}`);
+ }
 });
