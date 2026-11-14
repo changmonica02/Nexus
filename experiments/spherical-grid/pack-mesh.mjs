@@ -110,3 +110,14 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
 export function extendSphericalPack(grid,ocean,priorPack){
  return createSphericalPack(grid,ocean,{startingPack:priorPack});
 }
+
+export function canExtendSphericalPack(grid,ocean,priorPack){
+ if(!priorPack||priorPack.skipped||priorPack.inserted!==priorPack.coastEdges?.length)return false;
+ const edges=[];
+ for(let i=0;i<grid.neighbors.length;i++)for(const j of grid.neighbors[i])
+  if(i<j&&ocean[i]!==ocean[j])edges.push([i,j]);
+ if(priorPack.coastEdges.length>edges.length)return false;
+ for(let i=0;i<priorPack.coastEdges.length;i++)
+  if(priorPack.coastEdges[i][0]!==edges[i][0]||priorPack.coastEdges[i][1]!==edges[i][1])return false;
+ return true;
+}
