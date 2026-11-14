@@ -19,7 +19,8 @@ test('Grid coast and land area are authoritative regardless of Pack display geom
  const b=deriveSphericalGeography(grid,seed);
  assert.equal(b.landAreaKm2,before);
  // A real Grid edit may affect the canonical area only after derivation is rebuilt.
- const land=grid.heights.findIndex(v=>v>=0);
+ const land=grid.heights.findIndex((v,i)=>v>=0 && grid.neighbors[i].some(j=>a.ocean[j]));
+ assert.ok(land>=0);
  setHeight(grid,land,-20);
  const c=deriveSphericalGeography(grid,seed);
  assert.notEqual(c.landAreaKm2,before);
