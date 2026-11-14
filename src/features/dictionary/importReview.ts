@@ -78,7 +78,7 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
   };
   if(current){
     if(draft.senses.some(s=>!current.detail.senses.some(old=>old.id===s.id))){
-      const shared=contentSections.filter(s=>s!=='senses'&&s!=='relations').flatMap(section=>storedRows(context,section).filter(r=>!r.sense_id));
+      const shared=contentSections.filter(s=>s!=='senses'&&s!=='relations'&&s!=='public_notes').flatMap(section=>storedRows(context,section).filter(r=>!r.sense_id));
       if(shared.length)addIssue(item,'shared_content_scope','sense_id',shared,null,'既有內容未限定義項；新增義項前請確認保留為詞條共用，或先在編輯器指定義項。',['keep','skip','later']);
     }
     compare('entry',undefined,'kind',current.detail.entry.kind,draft.kind);
