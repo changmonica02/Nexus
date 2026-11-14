@@ -1,5 +1,4 @@
 // Standalone spherical Grid experiment. Does not import or modify Nexus runtime.
-import {performance} from "node:perf_hooks";
 export const RADIUS_KM=6371;
 const p=(1+Math.sqrt(5))/2;
 const base=[[-1,p,0],[1,p,0],[-1,-p,0],[1,-p,0],[0,-1,p],[0,1,p],[0,-1,-p],[0,1,-p],[p,0,-1],[p,0,1],[-p,0,-1],[-p,0,1]];
