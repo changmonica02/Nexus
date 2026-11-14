@@ -100,7 +100,8 @@ const rowFields: Record<string, string[]> = {
   learning_notes: ["sense_id", "kind", "body"],
   pronunciations: ["sense_id", "ipa", "sort_order"],
   inflections: ["sense_id", "form_kind", "form", "sort_order"],
-  examples: ["sense_id", "body", "sort_order"],
+  examples: ["sense_id", "body", "sort_order", "translation_zh_tw", "derivation_id"],
+  derivations: ["sense_id", "gloss_zh_tw", "sort_order"],
   lexical_annotations: ["sense_id", "kind", "body", "sort_order"],
 };
 export function draftFromExchange(
@@ -123,10 +124,10 @@ export function draftFromExchange(
   if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
   if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
   if(record.import_candidate){
-    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","proposed_ids","lexical_annotations"],"import_candidate");
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
-    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections"] as const){
-      if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="inflections")draft[section]=[];continue;}
+    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations"] as const){
+      if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="inflections"&&section!=="derivations")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
       for(const value of draft[section]??[]){
         const fields=section==="relation_hints"?["body","sense_id","sort_order"]:rowFields[section];
@@ -195,8 +196,9 @@ export function draftFromExchange(
   };
   for (const [section, fields] of Object.entries(rowFields)) {
     const values = snapshot.detail[section as keyof typeof snapshot.detail];
+    if (section==='derivations'&&values===undefined)continue; // Historical v1 snapshots omit B2 content entirely.
     if (!Array.isArray(values)) throw Error(`Missing array ${section}`);
-    bundle["dictionary_" + section] = values.map(
+    bundle[section==='derivations'?'dictionary_sense_derivations':"dictionary_" + section] = values.map(
       (r: Record<string, unknown>) => {
         keys(
           r,
@@ -208,7 +210,7 @@ export function draftFromExchange(
           "entry_id",
           "revision",
           "updated_at",
-          ...fields.filter(f=>!["semantic_domain","semantic_subdomain","variants"].includes(f)),
+          ...fields.filter(f=>!["semantic_domain","semantic_subdomain","variants","translation_zh_tw","derivation_id"].includes(f)),
         ])
           if (!Object.hasOwn(r, field))
             throw Error(`${section}: missing ${field}`);
@@ -221,6 +223,7 @@ export function draftFromExchange(
         for (const field of fields) {
           const value = r[field];
           if(["semantic_domain","semantic_subdomain","variants"].includes(field))continue;
+           if(["translation_zh_tw","derivation_id"].includes(field)&&(value===undefined||value===null))continue;
           if (field === "sort_order") {
             if (!Number.isSafeInteger(value) || Number(value) < 0)
               throw Error(`${section}: invalid sort_order`);
