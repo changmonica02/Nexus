@@ -113,9 +113,9 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
    assert.equal(await basic.getByLabel('構詞分類',{exact:true}).inputValue(),kind);
    await meaning.getByRole('button',{name:'＋新增變體',exact:true}).click();await meaning.getByLabel('變體字形',{exact:true}).first().fill('variant');await meaning.getByLabel('出現條件',{exact:true}).first().fill('condition');
    await meaning.getByRole('button',{name:'＋新增變體',exact:true}).click();await meaning.getByLabel('變體字形',{exact:true}).nth(1).fill('second');await meaning.getByRole('button',{name:'刪除變體',exact:true}).nth(1).click();
-   await compact.getByRole('button',{name:'新增記憶法',exact:true}).click();await compact.getByLabel('記憶法',{exact:true}).fill('保存概念');
-   const supplemental=compact.locator('[data-editor-section="記憶法"]');assert.equal(await supplemental.locator('summary').count(),0,'concept stays expanded');assert.equal(await compact.getByLabel('記憶法',{exact:true}).inputValue(),'保存概念');
-   assert.equal(await compact.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await compact.getByRole('button',{name:'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});await compact.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();await compact.getByRole('tab',{name:'草稿',exact:true}).waitFor();await compact.reload();assert.equal(await compact.getByLabel('記憶法',{exact:true}).inputValue(),'保存概念');assert.equal(await compact.getByLabel('變體字形',{exact:true}).inputValue(),'variant');await compactContext.close();
+   await compact.getByRole('button',{name:'新增概念',exact:true}).click();await compact.getByLabel('概念',{exact:true}).fill('保存概念');
+   const supplemental=compact.locator('[data-editor-section="概念"]');assert.equal(await supplemental.locator('summary').count(),0,'concept stays expanded');assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');
+   assert.equal(await compact.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await compact.getByRole('button',{name:'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});await compact.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();await compact.getByRole('tab',{name:'草稿',exact:true}).waitFor();await compact.reload();assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');assert.equal(await compact.getByLabel('變體字形',{exact:true}).inputValue(),'variant');await compactContext.close();
   }
 
  }

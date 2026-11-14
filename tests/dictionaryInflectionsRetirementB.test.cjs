@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {mapDictionaryDraft,draftsFromBundle,validateDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {parseAI}=require('../src/features/dictionary/aiDictionary.ts');
 const {draftFromExchange,parseExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
+const {withoutSense}=require('../src/features/dictionary/draftEditing.ts');
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 test('retired Inflections cannot be accidentally persisted in new Draft/AI formats',()=>{
  const d={kind:'word',entry_id:id(1),headword:'work',senses:[{id:id(2),part_of_speech:'verb',gloss_zh_tw:'工作'}],relations:[],etymologies:[],learning_notes:[],examples:[],relation_hints:[],derivations:[]};
@@ -10,6 +11,7 @@ test('retired Inflections cannot be accidentally persisted in new Draft/AI forma
  assert.equal(Object.hasOwn(mapDictionaryDraft(d),'inflections'),false);
  assert.equal(Object.hasOwn(draftsFromBundle({dictionary_entries:[{id:id(1),kind:'word',headword:'work'}],dictionary_senses:[{id:id(2),entry_id:id(1),part_of_speech:'verb',gloss_zh_tw:'工作'}],dictionary_inflections:[{id:id(3),entry_id:id(1),form_kind:'past',form:'worked'}]})[0],'inflections'),false);
  assert.ok(validateDictionaryDraft([{...d,inflections:[{id:id(3),form_kind:'past',form:'worked'}]}]).some(e=>e.field==='inflections'));
+ assert.equal(withoutSense({dictionary_senses:[{id:id(2)},{id:id(9)}],dictionary_inflections:[{id:id(3),sense_id:id(2)}]},id(2)).dictionary_senses.length,1);
  const current={format:'nexus-dictionary-ai',version:1,entries:[{type:'word',headword:'work',meanings:[{zh_tw:'工作',classification:'verb'}]}]};
  assert.equal(parseAI(JSON.stringify(current)).entries.length,1);
  current.entries[0].inflections=[{form_kind:'past',form:'worked'}];
