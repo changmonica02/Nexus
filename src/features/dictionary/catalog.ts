@@ -3,7 +3,7 @@ import type {DictionaryKind,DictionaryEntry} from './dictionary';
 import {validSemanticCategory} from './semanticDomains';
 export const morphemeKinds=['prefix','root','suffix'] as const;
 export interface CatalogFilter {scope:'all'|'word'|'morpheme';query:string;kinds:string[];domain:string|null;subdomain:string|null}
-export interface CatalogItem extends DictionaryEntry {summary:string;variants:{form:string}[];sense_id?:string;matched_sense_ids?:string[];work_status?:'red'|'yellow'|'green';import_pending_count?:number;editor_pending_count?:number;inflection_matches?:{form:string;form_kind:import('./inflections').InflectionKind;sense_id:string|null}[]}
+export interface CatalogItem extends DictionaryEntry {summary:string;variants:{form:string}[];sense_id?:string;matched_sense_ids?:string[];work_status?:'red'|'yellow'|'green';import_pending_count?:number;editor_pending_count?:number}
 export function catalogFilter(params:URLSearchParams):CatalogFilter {
  const kind=params.get('kind'),scope=kind==='word'?'word':kind==='morpheme'||morphemeKinds.includes(kind as typeof morphemeKinds[number])?'morpheme':'all';
  const kinds=params.has('types')?(params.get('types')??'').split(',').filter(k=>morphemeKinds.includes(k as typeof morphemeKinds[number])):morphemeKinds.includes(kind as typeof morphemeKinds[number])?[kind!]:[...morphemeKinds];
