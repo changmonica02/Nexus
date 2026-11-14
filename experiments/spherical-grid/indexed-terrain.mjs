@@ -5,7 +5,7 @@ import {setHeight} from './grid.mjs';
 import {assertGlobalGrid,HEIGHT_MIN,HEIGHT_MAX} from './global-config.mjs';
 import {openGlobalTerrain} from './terrain-edits.mjs';
 import {oceanConnected} from './pack.mjs';
-import {createSphericalPack} from './pack-mesh.mjs';
+import {createSphericalPack,extendSphericalPack,canExtendSphericalPack} from './pack-mesh.mjs';
 import {createCoastIndex,updateCoastIndex,coastSegments} from './coast-index.mjs';
 
 const areaTotal=grid=>grid.areas.reduce((s,v)=>s+v,0);
@@ -37,9 +37,13 @@ export function applyIndexedTerrainEdits(state,changes){
   for(const [id,height] of edited)setHeight(state.grid,id,height);
   const nextOcean=oceanConnected(state.grid,state.oceanSeed);
   const patch=updateCoastIndex(oldIndex,nextOcean);
+  const appendOnly=patch.changedCells!==0&&
+   canExtendSphericalPack(state.grid,nextOcean,oldGeography.pack);
   const newPack=patch.changedCells===0
    ?{...oldGeography.pack,heights:Int8Array.from(oldGeography.pack.sourceIds,id=>state.grid.heights[id])}
-   :createSphericalPack(state.grid,nextOcean);
+   :appendOnly
+    ?extendSphericalPack(state.grid,nextOcean,oldGeography.pack)
+    :createSphericalPack(state.grid,nextOcean);
   if(newPack.skipped!==0)throw Error('Pack refinement sites missing');
   const landAreaKm2=patch.index.landAreaKm2;
   state.coastIndex=patch.index;
@@ -50,7 +54,7 @@ export function applyIndexedTerrainEdits(state,changes){
   state.revision++;
   if(patch.changedCells)state.fullPackRebuilds++;
   else state.heightOnlySyncs++;
-  return {mode:patch.changedCells?'coast-patch-pack-rebuild':'reuse-pack-topology',
+  return {mode:patch.changedCells?(appendOnly?'incremental-pack-insert':'coast-patch-pack-rebuild'):'reuse-pack-topology',
    changed:edited.length,changedOceanCells:patch.changedCells,
    touchedCoastEdges:patch.touchedEdges,changedCoastEdges:patch.changedEdges,
    revision:state.revision};
