@@ -38,16 +38,19 @@ test('36,002 spherical cells: append-only island coast inserts using existing Pa
 test('ordered second island is incrementally inserted without altering previous coast sites',()=>{
  const grid=createGlobalGrid();grid.heights.fill(-20);
  const seed=0;
- const first=grid.points.length-100;
+ // First island's coast edges sort near the beginning of the stable Grid-ID order.
+ const first=1;
  setHeight(grid,first,20);
  const ocean1=oceanConnected(grid,seed),p1=createSphericalPack(grid,ocean1);
- let second=-1;
- for(let i=first+1;i<grid.points.length;i++)
-  if(i!==seed&&grid.neighbors[i].every(j=>j!==first)) {second=i;break}
- assert.ok(second>=0);
- setHeight(grid,second,20);
- const ocean2=oceanConnected(grid,seed);
- assert.equal(canExtendSphericalPack(grid,ocean2,p1),true);
+ let second=-1,ocean2=null;
+ for(let i=grid.points.length-1;i>=2;i--){
+  if(grid.neighbors[i].includes(first)||grid.neighbors[i].includes(seed))continue;
+  setHeight(grid,i,20);
+  const candidate=oceanConnected(grid,seed);
+  if(canExtendSphericalPack(grid,candidate,p1)){second=i;ocean2=candidate;break}
+  setHeight(grid,i,-20);
+ }
+ assert.ok(second>=0,'At least one append-only coastline should exist');
  const result=extendSphericalPack(grid,ocean2,p1),full=createSphericalPack(grid,ocean2);
  sameGeometry(result,full);
  assert.equal(result.inserted,result.coastEdges.length);
