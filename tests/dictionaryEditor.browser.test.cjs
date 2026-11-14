@@ -41,8 +41,9 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   await word().fill('go-edited');assert.equal(await save().isEnabled(),true);await word().fill('go');await settle();
   // History navigation is guarded before a router can unmount the editor.
   await word().fill('history draft');await page.evaluate(()=>{window.history.pushState(null,'','?history=1');window.history.back();});await page.getByRole('dialog').getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'history draft');await word().fill('go');
-  // Empty sections have no form inputs; adding/removing and reverting clears dirty.
-  assert.equal(await page.getByLabel('詞形',{exact:true}).count(),0);await page.getByRole('button',{name:'＋新增詞形變化'}).click();await page.getByLabel('變化類型').selectOption('past');await page.getByLabel('詞形',{exact:true}).fill('went');await page.getByRole('button',{name:'＋新增詞形變化'}).click();await page.getByLabel('變化類型').nth(1).selectOption('past_participle');await page.getByLabel('詞形',{exact:true}).nth(1).fill('gone');
+  // Retired Inflections must have no editing surface on any viewport.
+  assert.equal(await page.locator('[data-editor-section="詞形變化"]').count(),0);
+  assert.equal(await page.getByRole('button',{name:'＋新增詞形變化'}).count(),0);
   await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');await page.getByLabel('歷史詞源',{exact:true}).fill('Updated etymology');
   await page.getByRole('button',{name:'新增記憶法',exact:true}).click();await page.getByLabel('記憶法',{exact:true}).fill('核心意象\n'.repeat(12));
   await page.getByRole('button',{name:'＋新增讀音',exact:true}).click();assert.equal(await page.getByRole('button',{name:'上移讀音',exact:true}).count(),0);
@@ -54,15 +55,23 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   assert.deepEqual(await page.evaluate(()=>{const e=window.fixture.reviews[0].candidate.bundle.dictionary_etymologies[0];return {body:e.body,source:e.data_source,status:'verification' in e,note:'verification_note' in e};}),{body:'Updated etymology',source:'https://example.test/updated',status:false,note:false});
   assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.etymologies[0].body),'Synthetic etymology');
   assert.equal(await page.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_learning_notes[0].kind),'core_concept');assert.deepEqual(await page.evaluate(()=>window.fixture.reviews[0].candidate.pronunciations.map(p=>[p.ipa,p.sort_order])),[['/b/',0],['/a/',1]]);
-  // Subsequent changes do not publish the older saved draft, and reverting clears dirty.
-  await page.getByLabel('詞形',{exact:true}).first().fill('not-saved');await publish().click();await page.getByRole('alert').filter({hasText:'請先儲存'}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);await page.getByLabel('詞形',{exact:true}).first().fill('went');await settle();
-  await page.getByLabel('詞形',{exact:true}).first().fill('retained on tab');
+  // Subsequent changes do not publish the older saved draft; tabs retain unsaved entry content.
+  await word().fill('not-saved');
+  await publish().click();
+  await page.getByRole('alert').filter({hasText:'請先儲存'}).waitFor();
+  await word().fill('go');await settle();
+  await word().fill('retained on tab');
   const writesBefore=await page.evaluate(()=>window.fixture.writes);
   await page.getByRole('tab',{name:'最新版本',exact:true}).click();
   assert.equal(await page.getByRole('region',{name:'最新版本',exact:true}).getByText('retained on tab',{exact:true}).count(),0);
-  await page.getByRole('tab',{name:'草稿',exact:true}).click();assert.equal(await page.getByLabel('詞形',{exact:true}).first().inputValue(),'retained on tab');assert.ok(await page.evaluate(()=>window.fixture.writes)>=writesBefore);
-  const section=page.locator('[data-editor-section="詞形變化"]');await section.locator('summary').first().click();assert.equal(await page.getByLabel('詞形',{exact:true}).first().isVisible(),false);await section.locator('summary').first().click();assert.equal(await page.getByLabel('詞形',{exact:true}).first().inputValue(),'retained on tab');await page.getByLabel('詞形',{exact:true}).first().fill('went');await page.getByLabel('詞形',{exact:true}).first().press('Enter');await page.waitForFunction(()=>window.fixture.reviews[0].candidate.inflections[0].form==='went');
-  await page.reload();await page.getByLabel('詞形',{exact:true}).first().waitFor();assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'核心意象\n'.repeat(12));assert.equal(await page.getByLabel('詞形',{exact:true}).first().inputValue(),'went');assert.equal(await page.evaluate(()=>window.fixture.reviews.length),1);
+  await page.getByRole('tab',{name:'草稿',exact:true}).click();
+  assert.equal(await word().inputValue(),'retained on tab');
+  assert.ok(await page.evaluate(()=>window.fixture.writes)>=writesBefore);
+  await word().fill('go');await settle();
+  await page.reload();await word().waitFor();
+  assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');
+  assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'核心意象\\n'.repeat(12));
+  assert.equal(await page.evaluate(()=>window.fixture.reviews.length),1);
   // Picker zero results, errors, multi-sense choice, self rejection, cancel/Escape and focus restoration.
   const add=page.getByRole('button',{name:'＋新增構詞關聯'});await add.focus();await page.keyboard.press('Enter');let modal=page.getByRole('dialog');await modal.getByLabel('搜尋詞條或中文義項').fill('missing');await modal.getByText('查無可連結',{exact:false}).waitFor();await page.keyboard.press('Escape');assert.equal(await modal.count(),0);assert.equal(await add.evaluate(el=>el===document.activeElement),true);await settle();
   // Quick creation is explicit, cancellable, retryable, and preserves the dirty parent.
@@ -76,8 +85,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   await page.evaluate(()=>window.failSave=true);await word().fill('go changed');const protectedUnload=await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});assert.equal(protectedUnload,true);
   await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'go changed');await page.evaluate(()=>window.failSave=true);await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'儲存變更'}).click();await page.getByRole('alert').filter({hasText:'revision conflict'}).waitFor();assert.equal(await modal.count(),1);assert.equal(await word().inputValue(),'go changed');await page.evaluate(()=>window.failSave=false);await modal.getByRole('button',{name:'繼續編輯'}).click();await word().fill('go');await settle();
   // Publication conflict remains editable and retry succeeds only after confirmation.
-  await page.evaluate(()=>window.failPublish=true);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.getByRole('alert').filter({hasText:'版本已變更'}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);await page.evaluate(()=>window.failPublish=false);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.waitForFunction(()=>window.fixture.snapshot.detail.entry.revision===2);assert.equal(await page.getByText(/Published revision|Review Draft revision|基底 Published/).count(),0);assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),2);
-  await page.getByText('公開閱讀結果',{exact:true}).click();const reading=page.getByRole('article');await reading.getByText('(verb) go',{exact:true}).click();assert.ok(await reading.getByText('went',{exact:true}).count());assert.equal(await reading.getByRole('link',{name:'went',exact:true}).count(),0);
+  await page.evaluate(()=>window.failPublish=true);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.getByRole('alert').filter({hasText:'版本已變更'}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);await page.evaluate(()=>window.failPublish=false);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.waitForFunction(()=>window.fixture.snapshot.detail.entry.revision===2);assert.equal(await page.getByText(/Published revision|Review Draft revision|基底 Published/).count(),0);assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.inflections.length),0);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
   // Save-and-leave resumes the original destination, reopening continues the same review.
   await word().fill('go final');await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'儲存變更'}).click();await page.waitForURL(base+'/closed');await page.goto(base);await word().waitFor();assert.equal(await word().inputValue(),'go final');await page.evaluate(()=>window.failSave=true);await word().fill('discarded');await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'放棄變更'}).click();await page.waitForURL(base+'/closed');await page.goto(base);await word().waitFor();assert.equal(await word().inputValue(),'go final');
