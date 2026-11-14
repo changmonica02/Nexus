@@ -39,3 +39,19 @@ for(const f of [8,20,55,60,64])test('Pack has closed manifold and spherical Dela
  assert.equal(again.inserted,p.inserted);
  console.log(JSON.stringify({frequency:f,grid:g.points.length,pack:p.points.length,inserted:p.inserted,flips:p.flips,skipped:p.skipped}));
 });
+
+test('irregular coastlines do not drop planned refinement sites',()=>{
+ for(let seed=0;seed<10;seed++){
+  const g=generate(12);
+  for(let i=0;i<g.points.length;i++){
+   const [x,y,z]=g.points[i];
+   setHeight(g,i,Math.sin(x*14+seed)*Math.cos(y*13-seed)+z*.4>0?20:-20);
+  }
+  const ocean=oceanConnected(g,g.heights.findIndex(h=>h<0));
+  const p=createSphericalPack(g,ocean);
+  assert.equal(p.skipped,0);
+  assert.equal(p.inserted,p.coastEdges.length);
+  assert.equal(p.triangles.length,2*p.points.length-4);
+  assert.ok(p.areas.every(a=>a>0));
+ }
+});
