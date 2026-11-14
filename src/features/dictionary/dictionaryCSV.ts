@@ -42,7 +42,7 @@ export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInpu
 /** Export the imported projection with permanent Entry/Sense IDs; never flatten ambiguous content. */
 export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
   const rows:string[][]=[];
-  if(drafts.some(d=>d.inflections?.length))throw Error('CSV v1 無詞形欄位，請使用完整 JSON 匯出；不會省略詞形。');
+  if(drafts.some(d=>(d.derivations?.length??0)>0||d.examples.some(e=>e.translation_zh_tw!=null||e.derivation_id!=null)))throw Error('CSV 不支援衍生意思、中文翻譯或例句關聯；請使用新版 JSON，避免遺失資料。');
   if(drafts.some(d=>d.senses.some(s=>Array.isArray(s.variants)&&s.variants.length)))throw Error('CSV 不含構詞變體，請使用完整 JSON。');
   if(drafts.some(d=>d.pronunciations?.length))throw Error('CSV v1 不含讀音欄位，請使用 AI JSON 完整匯出，避免讀音遺失。');
   for(const d of drafts)for(const sense of d.senses){

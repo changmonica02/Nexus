@@ -42,6 +42,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
       if(d.kind==='word'&&!s.part_of_speech?.trim())issue('part_of_speech','Word 必須提供 part_of_speech',s.row);
       if(d.kind!=='word'&&s.part_of_speech)issue('part_of_speech','Prefix / Root 必須留空',s.row);
     }
+    if(d.derivations===undefined&&d.examples.some(r=>r.translation_zh_tw!==undefined||r.derivation_id!==undefined))issue('derivations','含中文翻譯或衍生連結的例句必須提供完整衍生意思清單');
     if(d.derivations!==undefined){
       for(const error of validateSenseExtensions(d.senses,d.derivations as DerivationRow[],d.examples as BilingualExampleRow[]))issue('derivations',error);
     }

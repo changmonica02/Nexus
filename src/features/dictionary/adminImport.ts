@@ -17,10 +17,12 @@ export async function normalizeDictionaryBundle(client: Pick<SupabaseClient,"rpc
     const entry=full.dictionary_entries.find(e=>e.id===parent);
     const ownSenses=new Set((full.dictionary_senses??[]).filter(r=>r.entry_id===parent).map(r=>r.id));
     const missingSense=Object.values(full).flat().some(r=>r.entry_id===parent&&r.sense_id&&!ownSenses.has(r.sense_id));
-    if(entry&&!missingSense)continue;
+    const usesB2=!!full.dictionary_sense_derivations?.some(r=>r.entry_id===parent)||!!full.dictionary_examples?.some(r=>r.entry_id===parent&&('translation_zh_tw' in r||'derivation_id' in r));
+    const hasDerivationRows=!!full.dictionary_sense_derivations?.some(r=>r.entry_id===parent);
+    if(entry&&!missingSense&&(!usesB2||hasDerivationRows))continue;
     const {data,error}=await client.rpc('get_dictionary_entry',{entry_uuid:parent});if(error)throw new Error(error.message);if(!data)throw new Error('foreign key: parent entry not found');
     if(!entry)full.dictionary_entries.push({id:data.entry.id,kind:data.entry.kind,headword:data.entry.headword,revision:data.entry.revision});
-    for(const [table,key]of [['dictionary_senses','senses'],['dictionary_relations','relations'],['dictionary_etymologies','etymologies'],['dictionary_learning_notes','learning_notes']] as const){
+    for(const [table,key]of [['dictionary_senses','senses'],['dictionary_relations','relations'],['dictionary_etymologies','etymologies'],['dictionary_learning_notes','learning_notes'],...(usesB2?[['dictionary_sense_derivations','derivations'] as const]:[])] as const){
       const rows=full[table]??=[];for(const old of data[key]??[])if(!rows.some(r=>r.id===old.id)){const {updated_at,source_id,...row}=old;void updated_at;void source_id;rows.push(row);}
     }
   }
@@ -96,14 +98,14 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
   const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
   const schemas:Record<string,{required:string[];optional:string[]}>= {
-    dictionary_inflections:{required:['id','entry_id','form_kind','form'],optional:['sense_id','sort_order','revision']},
     dictionary_pronunciations:{required:['id','entry_id','ipa'],optional:['sense_id','sort_order','revision']},
     dictionary_entries:{required:['id','kind','headword'],optional:['revision','word_segments']},
     dictionary_senses:{required:['id','entry_id','gloss_zh_tw'],optional:['part_of_speech','revision','semantic_domain','semantic_subdomain','variants']},
     dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
-    dictionary_examples:{required:['id','entry_id','body'],optional:['sense_id','sort_order','revision']},
+    dictionary_examples:{required:['id','entry_id','body'],optional:['sense_id','sort_order','revision','translation_zh_tw','derivation_id']},
+    dictionary_sense_derivations:{required:['id','entry_id','sense_id','gloss_zh_tw'],optional:['sort_order','revision']},
     dictionary_lexical_annotations:{required:['id','entry_id','kind','body'],optional:['sense_id','sort_order','revision']},
   };
   const bundle:Bundle={};let count=0;
@@ -144,7 +146,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
         if(key==='word_segments'){const issue=requireSegmentValidation(v,String(row.headword),String(row.kind));if(issue)fail(issue);continue;}
         if(key==='sort_order'){if(!Number.isSafeInteger(v)||Number(v)<0)fail('sort_order 必須為非負整數');continue;}
         if(key==='revision'){if(!Number.isSafeInteger(v)||Number(v)<1)fail('revision 必須為正整數');continue;}
-        if(v===null&&['sense_id','part_of_speech','locale','note'].includes(key)&&!schema.required.includes(key))continue;
+        if(v===null&&['sense_id','part_of_speech','locale','note','translation_zh_tw','derivation_id'].includes(key)&&!schema.required.includes(key))continue;
         if(typeof v!=='string')fail(`${key} 必須為文字`);
         const text=v as string;
         if(key==='id'||key.endsWith('_id')){if(!uuid.test(text))fail(`${key} 必須為穩定 UUID`);row[key]=text.toLowerCase();}
@@ -154,7 +156,6 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
       if(table==='dictionary_senses'){const issue=validateMorphemeSenseFields(row);if(issue)fail(issue);}
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
       const enums:Record<string,string[]>={};
-      if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root','suffix'];
       if(table==='dictionary_learning_notes')enums.kind=['core_concept','learning_decomposition','mnemonic_scenario'];
       if(table==='dictionary_lexical_annotations')enums.kind=['relation_hint'];
