@@ -23,3 +23,4 @@ jobs:
           node --expose-gc experiments/spherical-grid/benchmark.mjs
           node --expose-gc experiments/spherical-grid/edit-benchmark.mjs
           node --expose-gc experiments/spherical-grid/pack-update-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/coast-index-benchmark.mjs
