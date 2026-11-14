@@ -307,6 +307,11 @@ export function PersistentImportReview({
             </details>
           }
         >
+          {!!session.ignored_fields?.length && <div role="status" className="rounded border p-3 text-sm">
+            <strong>以下欄位不屬於 Nexus 現行格式，已略過，不會匯入：</strong>
+            <ul className="mt-1 list-disc pl-5">{session.ignored_fields.map(field=><li key={field}>{field}</li>)}</ul>
+            <p>其他符合格式的資料可繼續匯入。</p>
+          </div>}
           <p role="status">
             {t("transfer.total", { n: session.items.length })} ·{" "}
             {t("transfer.new", {
