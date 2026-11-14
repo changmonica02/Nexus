@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createLandLayout} from './land-generator.mjs';
+import {createLandLayout,confirmLandLayout,reopenConfirmedLandLayout} from './land-generator.mjs';
 
 test('the three land presets are area-weighted, not pixel-count weighted',()=>{
  for(const landPercent of [25,32,45]){
@@ -27,4 +27,14 @@ test('large-scale layout changes with different seeds',()=>{
  const a=createLandLayout({seed:100,landPercent:45,continentCores:6});
  const b=createLandLayout({seed:200,landPercent:45,continentCores:6});
  assert.notDeepEqual(a.grid.heights,b.grid.heights);
+});
+
+test('confirmed land layout survives versioned snapshot and reopening',()=>{
+ const draft=createLandLayout({seed:654,landPercent:25,continentCores:7});
+ const confirmed=confirmLandLayout(draft);
+ assert.equal(confirmed.stage,'confirmed-land');
+ const reopened=reopenConfirmedLandLayout(confirmed);
+ assert.deepEqual(reopened.state.grid.heights,draft.grid.heights);
+ assert.equal(reopened.state.oceanSeed,draft.oceanSeed);
+ assert.deepEqual(reopened.settings,confirmed.settings);
 });
