@@ -68,13 +68,31 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
       bundle.dictionary_learning_notes.push({...record,kind:'core_concept'});
     }
   }
-  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;return bundle;
+  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;
+  return {bundle,ignoredFields:[...ignored]};
+}
+export function parseJSONBundle(raw:string):Bundle {
+  return parseJSONBundleWithIgnored(raw).bundle;
 }
 
-/** Only the existing RPC input contract; database-owned fields cannot be imported. */
-export function parseJSONBundle(raw:string):Bundle {
-  let value:unknown;
-  try{value=currentMorphemeFields(JSON.parse(raw.replace(/^\uFEFF/,'')));}catch{throw new Error('JSON 格式錯誤，請檢查引號、逗號及括號');}
+/** Import only current-schema fields; report every skipped input key. */
+export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFields:string[]} {
+  let parsed:unknown;
+  try{parsed=JSON.parse(raw.replace(/^\uFEFF/,''));}catch{throw new Error('JSON 格式錯誤，請檢查引號、逗號及括號');}
+  const ignored=new Set<string>();
+  const retired=new Set(['grouping','group_data','sense_groups','primary_category','variant_group']);
+  const collect=(v:unknown,path:string):void=>{
+    if(Array.isArray(v)){v.forEach((item,i)=>collect(item,path+'['+i+']'));return;}
+    if(!v||typeof v!=='object')return;
+    const record=v as Record<string,unknown>;
+    for(const [key,child] of Object.entries(record)){
+      const location=path?path+'.'+key:key;
+      if(retired.has(key)||(key==='category'&&Object.hasOwn(record,'gloss_zh_tw')))ignored.add(location);
+      else collect(child,location);
+    }
+  };
+  collect(parsed,'');
+  const value=currentMorphemeFields(parsed);
   const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   if(!object(value))throw new Error('JSON Bundle 必須為資料表名稱對應陣列的物件');
   const schemas:Record<string,{required:string[];optional:string[]}>= {
@@ -88,30 +106,22 @@ export function parseJSONBundle(raw:string):Bundle {
   };
   const bundle:Bundle={};let count=0;
   for(const [table,rows] of Object.entries(value)) {
-    if(table==='dictionary_sources')throw new Error('dictionary_sources 已淘汰，請移除舊來源資料');
-    if(!Object.hasOwn(schemas,table))throw new Error(`未知資料表 ${table}`);
+    if(!Object.hasOwn(schemas,table)){ignored.add(table+'（不支援的資料表）');continue;}
     if(!Array.isArray(rows))throw new Error(`${table} 必須為陣列`);
     const schema=schemas[table],seen=new Set<string>();
     bundle[table]=rows.map((row,index)=>{
       const fail=(message:string):never=>{throw new Error(`${table} 第 ${index+1} 筆：${message}`);};
       if(!object(row))return fail('資料必須為物件');
       for(const key of schema.required)if(!Object.hasOwn(row,key))fail(`缺少 ${key}`);
-      if(['source_id','citation','license'].some(key=>Object.hasOwn(row,key)))fail('source_id / citation / license 已淘汰，請移除舊來源欄位');
-      // The only harmless legacy relation value is the old fixed SQL default.
-      // Do not erase historical relation types or explanatory notes.
-      if(table==='dictionary_relations'){
-        if(Object.hasOwn(row,'relation_kind')){
-          if(row.relation_kind!=='learning_decomposition')fail('舊 relation_kind 不是已確認的固定值，請人工確認關聯類型');
-          delete row.relation_kind;
-        }
-        if(Object.hasOwn(row,'verification_note')){
-          if(row.verification_note!==null&&(typeof row.verification_note!=='string'||row.verification_note.trim()))fail('verification_note 含有內容，不可忽略');
-          delete row.verification_note;
+      // Remove unsupported keys from the imported projection, not from the caller's
+      // original object. The ignored paths remain visible in the preview report.
+      for(const key of Object.keys(row)){
+        if(!schema.required.includes(key)&&!schema.optional.includes(key)){
+          ignored.add(table+'['+(index+1)+'].'+key);
+          delete row[key];
         }
       }
       for(const [key,v]of Object.entries(row)) {
-        if(table==='dictionary_pronunciations'&&['locale','note'].includes(key)){delete row[key];continue;}
-        if(!schema.required.includes(key)&&!schema.optional.includes(key))fail(`不允許欄位 ${key}（僅匯入草稿內容）`);
         if(table==='dictionary_senses'&&['semantic_domain','semantic_subdomain','variants'].includes(key))continue;
         if(key==='word_segments'){const issue=requireSegmentValidation(v,String(row.headword),String(row.kind));if(issue)fail(issue);continue;}
         if(key==='sort_order'){if(!Number.isSafeInteger(v)||Number(v)<0)fail('sort_order 必須為非負整數');continue;}
