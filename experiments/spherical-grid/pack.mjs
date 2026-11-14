@@ -33,8 +33,11 @@ export function buildCoastalSamples(grid,ocean){
   if(ocean[a]===ocean[b])continue;
   const start=centers[edge.triangles[0]],end=centers[edge.triangles[1]];
   const center=midpoint(start,end);
-  const inland=midpoint(center,points[a]),seaward=midpoint(center,points[b]);
-  samples.push({point:inland,sourceId:a,height:heights[a]},{point:seaward,sourceId:b,height:heights[b]});
+  // Edge ordering is arbitrary: orient samples by ocean membership, not a/b.
+  const landId=ocean[a]?b:a,seaId=ocean[a]?a:b;
+  const inland=midpoint(center,points[landId]),seaward=midpoint(center,points[seaId]);
+  samples.push({point:inland,sourceId:landId,height:heights[landId]},
+               {point:seaward,sourceId:seaId,height:heights[seaId]});
   coast.push({gridEdge:[a,b],start,end,arcKm:RADIUS_KM*Math.acos(Math.max(-1,Math.min(1,dot(start,end))))});
  }
  return {samples,coast,landAreaKm2:areas.reduce((sum,area,i)=>sum+(ocean[i]?0:area),0),
