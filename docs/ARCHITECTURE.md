@@ -201,6 +201,8 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 字典是獨立公共領域，Entry／Sense 使用穩定 ID；Published、Draft／Review、構詞及附屬內容有各自 revision／身份。Published 供讀取，管理員 UI 共用既有字典工作區；真正授權與 CAS 仍由伺服器 RPC 執行。草稿保存不等於公開發布，清單狀態在批次完成後重新讀取伺服器。
 
+字典匯入的前端契約採明確白名單：`csvRows` 只忽略已知且空白的額外退休欄，`parseJSONBundle` 只忽略經核對固定值或空值的舊關聯 metadata，任何未知或仍有實際意義的內容一律拒絕。`normalizeDictionaryBundle` 必須採用**驗證後的正規化輸出**，不能先檢查原始內容後又將未過濾的物件送入寫入流程。這是 PR #182 的待合併變更，尚不代表正式環境已部署；伺服器 SQL 欄位退役與寫入白名單另依獨立 Migration 驗證。
+
 字典交換由既有 export／preview／apply 管線處理。分頁匯出維持 scope version 一致，範圍變動要求重取；匯入先保存 operation UUID，再以原 RPC／receipt 重試，Published 修改產生 Review。checkpoint 與逐項狀態保存於獨立 `nexus-dictionary-import-review`；網路回覆遺失不換 UUID 重送。批次作業部分失敗保留結果，不能以新 preview 蓋掉尚待恢復的 operation。批次發布沿用 token／scope／人工確認，不繞過 Review 核准。
 
 `delete_dictionary_entry` 在交易內驗證管理員、revision、完整 snapshot 及其他構詞／Review／官方 manifest 引用；有相依即拒絕。私人卡僅解除 join，不刪 payload／state／events／來源身份；Published 歷史及 Audit 保留，收據與退場標記阻擋舊 ID 被重建。未知外鍵／收據失敗完整回滾。核心概念沿用 `dictionary_learning_notes`；退場 ID／alias 與相容匯入 guard 防止舊資料重建重複內容。
