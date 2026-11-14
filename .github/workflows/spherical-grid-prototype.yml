@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check experimental JavaScript module syntax
+        run: |
+          for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
       - name: Geometry and ocean / coast checks (no database, no deployment)
         run: node --test experiments/spherical-grid/*.test.mjs
       - name: Reproducible experimental benchmarks
