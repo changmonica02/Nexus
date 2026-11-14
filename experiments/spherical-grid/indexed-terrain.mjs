@@ -5,7 +5,7 @@ import {setHeight} from './grid.mjs';
 import {assertGlobalGrid,HEIGHT_MIN,HEIGHT_MAX} from './global-config.mjs';
 import {openGlobalTerrain} from './terrain-edits.mjs';
 import {oceanConnected} from './pack.mjs';
-import {createSphericalPack,extendSphericalPack,canExtendSphericalPack} from './pack-mesh.mjs';
+import {createSphericalPack,extendSphericalPack,canExtendSphericalPack,canShrinkSphericalPack,shrinkSphericalPack} from './pack-mesh.mjs';
 import {createCoastIndex,updateCoastIndex,coastSegments} from './coast-index.mjs';
 
 const areaTotal=grid=>grid.areas.reduce((s,v)=>s+v,0);
@@ -39,11 +39,15 @@ export function applyIndexedTerrainEdits(state,changes){
   const patch=updateCoastIndex(oldIndex,nextOcean);
   const appendOnly=patch.changedCells!==0&&
    canExtendSphericalPack(state.grid,nextOcean,oldGeography.pack);
+  const deleteSuffix=patch.changedCells!==0&&!appendOnly&&
+   canShrinkSphericalPack(state.grid,nextOcean,oldGeography.pack);
   const newPack=patch.changedCells===0
    ?{...oldGeography.pack,heights:Int8Array.from(oldGeography.pack.sourceIds,id=>state.grid.heights[id])}
    :appendOnly
     ?extendSphericalPack(state.grid,nextOcean,oldGeography.pack)
-    :createSphericalPack(state.grid,nextOcean);
+    :deleteSuffix
+     ?shrinkSphericalPack(state.grid,nextOcean,oldGeography.pack)
+     :createSphericalPack(state.grid,nextOcean);
   if(newPack.skipped!==0)throw Error('Pack refinement sites missing');
   const landAreaKm2=patch.index.landAreaKm2;
   state.coastIndex=patch.index;
@@ -52,12 +56,12 @@ export function applyIndexedTerrainEdits(state,changes){
    landAreaKm2,seaAreaKm2:areaTotal(state.grid)-landAreaKm2
   };
   state.revision++;
-  if(patch.changedCells&&appendOnly)
+  if(patch.changedCells&&(appendOnly||deleteSuffix))
    state.incrementalPackUpdates=(state.incrementalPackUpdates??0)+1;
   else if(patch.changedCells)
    state.fullPackRebuilds++;
   else state.heightOnlySyncs++;
-  return {mode:patch.changedCells?(appendOnly?'incremental-pack-insert':'coast-patch-pack-rebuild'):'reuse-pack-topology',
+  return {mode:patch.changedCells?(appendOnly?'incremental-pack-insert':deleteSuffix?'incremental-pack-remove':'coast-patch-pack-rebuild'):'reuse-pack-topology',
    changed:edited.length,changedOceanCells:patch.changedCells,
    touchedCoastEdges:patch.touchedEdges,changedCoastEdges:patch.changedEdges,
    revision:state.revision};
