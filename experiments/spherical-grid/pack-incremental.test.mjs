@@ -10,6 +10,7 @@ function sameGeometry(actual,expected){
  assert.deepEqual(actual.neighbors,expected.neighbors);
  assert.deepEqual(actual.areas,expected.areas);
  assert.deepEqual(actual.sourceIds,expected.sourceIds);
+ assert.deepEqual(actual.siteKeys,expected.siteKeys);
  assert.deepEqual(actual.heights,expected.heights);
  assert.deepEqual(actual.coastEdges,expected.coastEdges);
 }
@@ -34,6 +35,9 @@ test('36,002 spherical cells: append-only island coast inserts using existing Pa
  assert.equal(incremental.skipped,0);
  assert.deepEqual(original.triangles,beforeFaces,'incremental extension may not mutate old Pack');
  assert.equal(original.points.length,36002);
+ assert.equal(new Set(incremental.siteKeys).size,incremental.points.length);
+ assert.deepEqual(incremental.siteKeys.slice(0,36002),original.siteKeys);
+ assert.ok(incremental.siteKeys.slice(36002).every(key=>key.startsWith('coast:')));
 });
 test('ordered second island is incrementally inserted without altering previous coast sites',()=>{
  const grid=createGlobalGrid();grid.heights.fill(-20);
