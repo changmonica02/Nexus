@@ -66,6 +66,8 @@ test('indexed all-ocean world creates first island via incremental spherical Pac
  const original=state.geography.pack;
  const result=applyIndexedTerrainEdits(state,[{id:island,height:20}]);
  assert.equal(result.mode,'incremental-pack-insert');
+ assert.equal(state.incrementalPackUpdates,1);
+ assert.equal(state.fullPackRebuilds,1);
  assert.equal(result.changedOceanCells,1);
  assert.ok(state.geography.pack.points.length>original.points.length);
  assert.equal(state.geography.pack.skipped,0);
