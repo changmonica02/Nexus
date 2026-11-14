@@ -1,12 +1,11 @@
 import {entryKey} from './entryIdentity';
-import {parseCSV} from './csvRows';
+import {parseCSVWithIgnored} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 
 export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','relation_hint','core_concept'];
-export const legacyCSVHeaders=['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
-export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[]}>{
-  const rows=parseCSV(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
+export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[];ignoredFields:string[]}>{
+  const {rows,ignoredFields}=parseCSVWithIgnored(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
   // Blank identities share a proposed Entry inside this preview. Explicit IDs are never rewritten.
   const explicit=new Map<string,Set<string>>();
   for(const r of rows)if(r.entry_id.trim()){const key=entryKey(r.kind??'word',r.headword);const ids=explicit.get(key)??new Set<string>();ids.add(r.entry_id.trim().toLowerCase());explicit.set(key,ids);}
@@ -15,7 +14,9 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     const row=index+2,kind=r.kind??'word';
     const error=(field:string,message:string)=>issues.push({row,kind,field,error:message});
     const key=entryKey(kind,r.headword),known=explicit.get(key);
-    if(known&&known.size>1)error('entry_id','同類同拼寫提供了不同 Entry ID；請審核既有身分，不可建立第二詞條');
+    // Word stays unique by spelling; homographic morphemes remain distinct by explicit ID.
+    // An ambiguous blank morpheme ID must never silently choose a candidate.
+    if(known&&known.size>1&&(kind==='word'||!r.entry_id.trim()))error('entry_id',kind==='word'?'相同單字拼寫提供不同 Entry ID；請審核既有身分':'此構詞同形對應多個 Entry ID；請明確填入 entry_id，不自動合併');
     const entry_id=r.entry_id.trim().toLowerCase()||(known?.size===1?[...known][0]:proposed.get(key))||crypto.randomUUID();
     if(!r.entry_id.trim()&&!known?.size)proposed.set(key,entry_id);
     const sense_id=r.sense_id.trim().toLowerCase()||crypto.randomUUID();
@@ -33,7 +34,7 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
   }
   const result=[...drafts.values()];issues.push(...validateDictionaryDraft(result,{csv:true}));
   if(!result.length)issues.push({row:1,kind:'unknown',field:'CSV',error:'沒有資料列'});
-  return {drafts:result,issues};
+  return {drafts:result,issues,ignoredFields};
 }
 export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInput[]>{
   const {drafts,issues}=await parseDictionaryCSVPreview(raw);if(issues.length)throw new DraftValidationError(issues);return drafts;

@@ -22,7 +22,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node tests/morphemeContract.test.cjs && node tests/morphemeDatabase.test.cjs && node tests/morphemeRetirement.test.cjs
+      - run: node tests/currentImportBoundary.test.cjs && node tests/morphemeContract.test.cjs && node tests/morphemeDatabase.test.cjs && node tests/morphemeRetirement.test.cjs && node tests/maintenanceCleanupRetirement.test.cjs
       - name: Native isolated morphology RPC and transaction tests
         run: |
           docker run --rm -d --name nexus46-morpheme-ci --network none --label nexus.test=pr46-local -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
@@ -30,6 +30,7 @@ jobs:
           docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/morphemeDatabase.test.cjs
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/morphemeRetirement.test.cjs
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/maintenanceCleanupRetirement.test.cjs
       - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
@@ -79,7 +80,7 @@ jobs:
         run: node tests/dictionaryWordSegments.test.cjs
       - name: Official content and retired schema regression
         run: |
-          node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/studyQuizRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
+          node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/pageDefaultModeRetirement.test.cjs tests/studyQuizRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
           node tests/officialLinkedContent.browser.test.cjs
           node tests/dictionaryEditor.browser.test.cjs
       - name: Dictionary approval and mobile speech regression

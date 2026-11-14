@@ -48,12 +48,12 @@ test('official linked downloads and page retirement preserve new study rows, sou
  }finally{await pg.close();}
 });
 
-test('independent migration failure rolls back columns, helpers and data; known old JSON metadata is ignored but unknown fields reject',async()=>{
+test('independent migration failure rolls back columns, helpers and data; JSON bundle extras are projected away while versioned AI stays strict',async()=>{
  const pg=await database();try{
   await pg.exec('reset role');const normalizer=await sql(pg,"select pg_get_functiondef('dictionary_normalize_snapshot(jsonb)'::regprocedure) v");const reader=await sql(pg,"select pg_get_functiondef('get_published_dictionary_entry(uuid)'::regprocedure) v");await pg.exec(reader.replace('sense_id,locale,ipa,note,sort_order','sense_id,locale,ipa, note,sort_order'));
   await assert.rejects(migrate(pg,'ipa'),/Unexpected published pronunciation/);await pg.exec('rollback');assert.equal(await sql(pg,"select count(*)::int v from information_schema.columns where table_name='dictionary_pronunciations' and column_name in('locale','note')"),2);assert.equal(await sql(pg,"select pg_get_functiondef('dictionary_normalize_snapshot(jsonb)'::regprocedure) v"),normalizer);assert.equal(await sql(pg,"select count(*)::int v from pg_proc where proname='dictionary_clean_ipa_rows'"),0);
   await pg.exec(reader);await migrate(pg,'ipa');
-  const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts'),{parseAI}=require('../src/features/dictionary/aiDictionary.ts');const bundle={dictionary_pronunciations:[{id:id(20),entry_id:id(10),ipa:'/a/',locale:{discard:true},note:42}]};const parsed=parseJSONBundle(JSON.stringify(bundle));assert.equal('locale' in parsed.dictionary_pronunciations[0],false);assert.equal('note' in parsed.dictionary_pronunciations[0],false);assert.throws(()=>parseJSONBundle(JSON.stringify({dictionary_pronunciations:[{...bundle.dictionary_pronunciations[0],unknown:true}]})),/不允許欄位/);
+  const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts'),{parseAI}=require('../src/features/dictionary/aiDictionary.ts');const bundle={dictionary_pronunciations:[{id:id(20),entry_id:id(10),ipa:'/a/',locale:{discard:true},note:42}]};const parsed=parseJSONBundle(JSON.stringify(bundle));assert.equal('locale' in parsed.dictionary_pronunciations[0],false);assert.equal('note' in parsed.dictionary_pronunciations[0],false);assert.equal('unknown' in parseJSONBundle(JSON.stringify({dictionary_pronunciations:[{...bundle.dictionary_pronunciations[0],unknown:true}]})).dictionary_pronunciations[0],false);
   const ai={format:'nexus-dictionary-ai',version:1,entries:[{type:'word',headword:'a',pronunciations:[{ipa:'/a/',locale:42,note:{discard:true}}]}]};assert.equal('locale' in parseAI(JSON.stringify(ai)).entries[0].pronunciations[0],false);ai.entries[0].pronunciations[0].unknown=true;assert.throws(()=>parseAI(JSON.stringify(ai)),/不允許欄位/);
  }finally{await pg.close();}
 });
