@@ -21,6 +21,7 @@ test('CSV ignores every unsupported input column, reports its name and keeps val
 });
 
 
+// Combined regression: explicit morpheme IDs from #177 and ignored columns from #182.
 test('CSV keeps distinct homographic morpheme IDs while ignoring extra columns',async()=>{
  const csv=rows=>dictionaryCSVHeaders.join(',')+',unused_column\n'+rows.map(r=>dictionaryCSVHeaders.map(h=>r[h]??'').join(',')+',legacy').join('\n');
  const same=(kind,entry_id,sense_id)=>({kind,entry_id,sense_id,headword:'tri-',part_of_speech:'',gloss_zh_tw:'構詞'});
