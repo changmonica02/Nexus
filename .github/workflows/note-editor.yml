@@ -22,7 +22,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node tests/currentImportBoundary.test.cjs && node tests/morphemeContract.test.cjs && node tests/morphemeDatabase.test.cjs && node tests/morphemeRetirement.test.cjs && node tests/maintenanceCleanupRetirement.test.cjs
+      - run: node tests/dictionarySenseDerivations.test.cjs && node tests/dictionarySenseDraftRPC.test.cjs && node tests/dictionarySenseReview.test.cjs && node tests/dictionarySenseExchange.test.cjs && node tests/dictionaryExchangeB2Scope.test.cjs && node tests/dictionaryInflectionsRetirementB.test.cjs && node tests/dictionarySharedWordContent.test.cjs && node tests/dictionarySafeMarkdown.test.cjs && node tests/dictionaryStudyBack.test.cjs && node tests/dictionarySenseEditor.test.cjs && node tests/currentImportBoundary.test.cjs && node tests/morphemeContract.test.cjs && node tests/morphemeDatabase.test.cjs && node tests/morphemeRetirement.test.cjs && node tests/maintenanceCleanupRetirement.test.cjs
       - name: Native isolated morphology RPC and transaction tests
         run: |
           docker run --rm -d --name nexus46-morpheme-ci --network none --label nexus.test=pr46-local -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
