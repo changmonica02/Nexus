@@ -69,7 +69,7 @@ export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json')
     }
   }
   if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;
-  return {bundle,ignoredFields:[...ignored]};
+  return bundle;
 }
 export function parseJSONBundle(raw:string):Bundle {
   return parseJSONBundleWithIgnored(raw).bundle;
@@ -161,5 +161,6 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
   }
   if(!count)throw new Error('JSON Bundle 沒有資料');
   // References may point to existing database rows; the RPC preview validates all FKs.
-  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;return bundle;
+  if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;
+  return {bundle,ignoredFields:[...ignored]};
 }
