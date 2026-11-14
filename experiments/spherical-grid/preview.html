@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus 全球海陸生成 — 獨立預覽</title><style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;color:#23342f;background:#f4f6f3}
+*{box-sizing:border-box}body{max-width:1260px;margin:0 auto;padding:24px}h1{font-size:1.5rem;margin:0 0 6px}
+p{margin:0 0 16px;color:#566963}.panel{background:white;border:1px solid #d8e1d9;border-radius:14px;padding:18px;margin:14px 0}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}label{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:.92rem}
+select,input,button{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid #adbbb1;background:white}
+input[type=range]{padding:0;min-width:120px}button{cursor:pointer;background:#286a55;color:white;border:0;font-weight:600}
+button[disabled]{opacity:.5;cursor:not-allowed}button.secondary{background:#edf3ee;color:#275b49;border:1px solid #b7cbbd}
+canvas{display:block;width:100%;height:auto;background:#b1d3df;border-radius:10px}
+#status{min-height:1.5em;margin-top:12px;font-weight:600;color:#385c4c}
+.small{font-size:.86rem;color:#66756c}#details{margin-top:6px}
+@media(max-width:600px){body{padding:12px}.panel{padding:12px}.controls>*{flex:1 1 42%}}
+</style></head><body>
+<h1>Nexus 全球海陸生成預覽</h1>
+<p>獨立測試版（PR #189）。此預覽不連線至正式 Nexus，也不會更新使用者的世界觀資料。</p>
+<div class="panel"><div class="controls">
+<label>目標陸地比例<select id="land"><option value="25">25%</option><option value="32" selected>32%</option><option value="45">45%</option></select></label>
+<label>大陸核心：<span id="coresText">8</span><input id="cores" type="range" min="6" max="10" value="8"></label>
+<label>亂數種子<input id="seed" type="number" min="0" max="4294967295" value="1729"></label>
+<button id="generate">產生海陸</button><button id="random" class="secondary">隨機種子</button>
+<button id="confirm" disabled>確認海陸</button><button id="export" class="secondary" disabled>匯出快照</button>
+</div><div id="status" role="status"></div></div>
+<div class="panel"><canvas id="map" width="1200" height="600" aria-label="全球海陸平面預覽"></canvas>
+<div style="margin-top:10px">實際陸地比例：<strong id="measured">—</strong></div>
+<div id="details" class="small"></div>
+<p class="small" style="margin-top:12px">顯示為 36,002 格球面網格的簡化彩色預覽；目前未繪製正式海岸 Pack，也尚無板塊、氣候或地形筆刷。</p></div>
+<script type="module" src="./preview.js"></script>
+</body></html>
