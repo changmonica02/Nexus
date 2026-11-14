@@ -115,7 +115,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   queue.current??=new DraftAutosaveQueue<EditorValue>({
     read:()=>({bundle:stateRef.current.bundle}),
     dirty:()=>stateRef.current.dirty,
-    // B2 RPC persistence will be added in the next batch. Never acknowledge a write that the old RPC drops.
+    // Preserve CAS/Review validation for all shared Word content; never fake a successful save.
     valid:value=>!services.current.matching.length&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle))).length,
     save:async value=>{
       const drafts=draftsFromBundle(prepareEditorBundle(value.bundle));
@@ -176,11 +176,12 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     setBundle(b=>({...b,[table]:b[table].filter(r=>r.id!==row.id)}));complete();
   };
   const contentSection=(table:'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_examples',title:string)=>(
-    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].filter(row=>table!=='dictionary_etymologies'||detail.entry.kind==='word'||row.sense_id==null).length} actions={<button type="button" className={addButton} onClick={()=>add(table,{sense_id:table==='dictionary_etymologies'&&detail.entry.kind!=='word'?null:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
+    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].filter(row=>table!=='dictionary_etymologies'||detail.entry.kind==='word'||row.sense_id==null).length} actions={<button type="button" className={addButton} onClick={()=>add(table,{sense_id:detail.entry.kind==='word'&&table!=='dictionary_examples'?null:table==='dictionary_etymologies'&&detail.entry.kind!=='word'?null:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
       <section className="min-w-0 space-y-2" data-content-section={title}>
         {bundle[table].map((row,i)=>table==='dictionary_etymologies'&&detail.entry.kind!=='word'&&row.sense_id!=null?null:<div key={String(row.id)} className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-2">
-            {bundle.dictionary_senses.length>1&&contentSense(table,i,row)}
+            {bundle.dictionary_senses.length>1&&(detail.entry.kind!=='word'||table==='dictionary_examples')&&contentSense(table,i,row)}
+            {detail.entry.kind==='word'&&table!=='dictionary_examples'&&row.sense_id!=null&&<p className="text-xs opacity-65" data-legacy-note-scope={String(row.sense_id)}>{tr('既有義項來源保留；本欄位現在作為整個單字的共用內容顯示。')}</p>}
             <Field label={table==='dictionary_examples'?tr('英文例句'):title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
             {table==='dictionary_examples'&&extensionsLoaded&&<>
               <Field label={tr('中文翻譯')} multiline value={row.translation_zh_tw} onChange={v=>change(table,i,'translation_zh_tw',v)}/>
@@ -232,7 +233,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
         </div>}
         </div>
       </EditorSection>
-      {contentSection('dictionary_learning_notes',tr('概念'))}
+      {contentSection('dictionary_learning_notes',detail.entry.kind==='word'?tr('記憶法'):tr('概念'))}
       <EditorSection title={tr("義項")} collapsible={false} count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?tr('＋新增義項'):tr('＋新增中文義項')}>{tr("＋新增義項")}</button>}>
       {bundle.dictionary_senses.map((row,i)=>detail.entry.kind!=='word'?<MorphemeSenseEditor key={String(row.id)} sense={row as unknown as {id:string;gloss_zh_tw:string}&MorphemeSenseFields} histories={bundle.dictionary_etymologies.filter(h=>h.sense_id===row.id) as unknown as {id:string;body:unknown;data_source?:unknown}[]} onChange={patch=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,...patch}:s)}))} onVariants={update=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,variants:update((s.variants??[]) as MorphemeVariant[])}:s)}))} onHistory={(id,patch)=>setBundle(b=>({...b,dictionary_etymologies:b.dictionary_etymologies.map(h=>h.id===id?{...h,...patch}:h)}))} onAddHistory={()=>add('dictionary_etymologies',{sense_id:row.id,body:'',data_source:''})} onRemoveHistory={id=>{const h=bundle.dictionary_etymologies.find(h=>h.id===id);if(h)void removeContent('dictionary_etymologies',h,tr('歷史詞源'));}} onRemove={()=>void removeSense(row)}><MorphemeWordLinks entryId={detail.entry.id} senseId={String(row.id)} beforeWrite={async()=>{if(linkOwner.current)return false;linkOwner.current=String(row.id);setLinkBusy(true);return save();}} afterWrite={()=>{if(linkOwner.current===String(row.id)){linkOwner.current=null;setLinkBusy(false);}}}/></MorphemeSenseEditor>:<div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
         {bundle.dictionary_senses.length>1&&<span className="pt-7 text-xs opacity-50">{i+1}</span>}
@@ -267,7 +268,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       </div>;})}
       </EditorSection>
       </>}
-      {(detail.entry.kind==='word'||bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
+      {(detail.entry.kind!=='word'&&bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind==='word'&&<>
       <EditorSection title={tr("構詞關聯")} count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label={tr("＋新增構詞關聯")}>{tr("＋新增構詞關聯")}</button>}>
       {!bundle.dictionary_relations.length&&<p className="text-sm">{tr("尚無構詞關聯")}</p>}
@@ -280,6 +281,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       </EditorSection>
       </>}
       {contentSection('dictionary_examples',tr('例詞'))}
+      {detail.entry.kind==='word'&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
     </fieldset>
     <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle)),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>{tr("切換完整預覽")}</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
