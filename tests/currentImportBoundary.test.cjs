@@ -17,7 +17,7 @@ test('CSV ignores every unsupported input column, reports its name and keeps val
  assert.deepEqual(preview.ignoredFields,report.ignoredFields);
  assert.equal((await parseDictionaryCSV(expanded))[0].senses[0].gloss_zh_tw,'港口');
  assert.throws(()=>parseCSV(raw.replace(',headword,',',headwrod,')),/缺少必要欄位/);
- assert.throws(()=>parseCSV(expanded.slice(0,-7)),/欄數不符/);
+ assert.throws(()=>parseCSV(expanded.replace(',en,with content,'+id(7)+',legacy',',en,with content')),/欄數不符/);
 });
 
 test('JSON bundle ignores unsupported fields and tables but preserves current data',async()=>{
