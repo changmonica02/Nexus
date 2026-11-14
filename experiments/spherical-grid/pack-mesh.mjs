@@ -9,21 +9,33 @@ const edgeKey=(a,b)=>a<b?`${a}:${b}`:`${b}:${a}`;
 const triangleArea=(a,b,c)=>2*Math.atan2(Math.abs(dot(a,cross(b,c))),1+dot(a,b)+dot(b,c)+dot(c,a));
 function outward(face,pts){const [a,b,c]=face.map(i=>pts[i]);return dot(a,cross(b,c))>0?face:[face[0],face[2],face[1]]}
 function circumcenter(face,pts){const [a,b,c]=face.map(i=>pts[i]);let n=norm(cross(sub(b,a),sub(c,a)));return dot(n,a)>0?n:n.map(x=>-x)}
-export function createSphericalPack(grid,ocean,{maxInsertions=Infinity}={}){
- const points=grid.points.map(p=>p.slice());
- const sourceIds=points.map((_,i)=>i);
- const triangles=grid.triangles.map(t=>t.slice());
+export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingPack=null}={}){
+ // A previous Pack is reusable only if its coastal insertion sequence is an
+ // exact prefix of the new sorted sequence. Otherwise build from the Grid.
+ const points=(startingPack?.points??grid.points).map(p=>p.slice());
+ const sourceIds=startingPack?[...startingPack.sourceIds]:points.map((_,i)=>i);
+ const triangles=(startingPack?.triangles??grid.triangles).map(t=>t.slice());
  const incidence=new Map();
  function edgeFaces(a,b){return incidence.get(edgeKey(a,b))}
  function attach(fid){const t=triangles[fid];for(let j=0;j<3;j++){const k=edgeKey(t[j],t[(j+1)%3]);let s=incidence.get(k);if(!s){s=new Set();incidence.set(k,s)}s.add(fid)}}
  function detach(fid){const t=triangles[fid];for(let j=0;j<3;j++){const k=edgeKey(t[j],t[(j+1)%3]);const s=incidence.get(k);s.delete(fid);if(!s.size)incidence.delete(k)}}
  triangles.forEach((_,i)=>attach(i));
  function replace(f1,t1,f2,t2){detach(f1);detach(f2);triangles[f1]=outward(t1,points);triangles[f2]=outward(t2,points);attach(f1);attach(f2)}
- let inserted=0, flips=0, skipped=0;
+ let inserted=startingPack?.inserted??0, flips=startingPack?.flips??0, skipped=0;
  // Insert additional sites on Delaunay edges straddling ocean and land.
  const coastEdges=[];
  for(let i=0;i<grid.neighbors.length;i++)for(const j of grid.neighbors[i])if(i<j && ocean[i]!==ocean[j])coastEdges.push([i,j]);
- for(const [a,b] of coastEdges){
+ if(startingPack){
+  if(startingPack.skipped||startingPack.inserted!==startingPack.coastEdges.length||
+     startingPack.coastEdges.length>coastEdges.length)
+   throw Error('Incremental Pack prefix is not valid');
+  for(let i=0;i<startingPack.coastEdges.length;i++){
+   const [a,b]=startingPack.coastEdges[i],[u,v]=coastEdges[i];
+   if(a!==u||b!==v)throw Error('Incremental Pack coast sequence is not a prefix');
+  }
+ }
+ const firstNew=startingPack?.coastEdges.length??0;
+ for(const [a,b] of coastEdges.slice(firstNew)){
   if(inserted>=maxInsertions)break;
   const shared=edgeFaces(a,b);
   const m=points.length;
@@ -92,4 +104,9 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity}={}){
   for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
  }
  return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped};
+}
+// Exact sequential continuation when the existing coastal site sequence is
+// preserved. Changes that remove/reorder sites must use full rebuilding.
+export function extendSphericalPack(grid,ocean,priorPack){
+ return createSphericalPack(grid,ocean,{startingPack:priorPack});
 }
