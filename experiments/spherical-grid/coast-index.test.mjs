@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGlobalGrid,RADIUS_KM} from './global-config.mjs';
+import {createGlobalGrid} from './global-config.mjs';
 import {setHeight} from './grid.mjs';
 import {oceanConnected,buildCoastalSamples} from './pack.mjs';
 import {createCoastIndex,updateCoastIndex,coastSegments} from './coast-index.mjs';
