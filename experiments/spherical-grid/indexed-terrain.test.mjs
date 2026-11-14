@@ -28,10 +28,14 @@ function compare(state){
 test('indexed patch: single coastal edit equals full spherical regeneration',()=>{
  const state=create(),g=state.grid,coast=g.heights.findIndex((h,i)=>h>0&&g.neighbors[i].some(j=>state.geography.ocean[j]));
  const result=applyIndexedTerrainEdits(state,[{id:coast,height:-20}]);
- assert.equal(result.mode,'coast-patch-pack-rebuild');
+ assert.ok(['incremental-pack-replay','coast-patch-pack-rebuild'].includes(result.mode));
  assert.equal(result.changedOceanCells,1);
  assert.ok(result.touchedCoastEdges<=6);
- assert.equal(state.fullPackRebuilds,2);
+ assert.equal(state.fullPackRebuilds,result.mode==='coast-patch-pack-rebuild'?2:1);
+ if(result.mode==='incremental-pack-replay'){
+  assert.equal(state.geography.pack.dualUpdateMode,'incremental');
+  assert.ok(state.geography.pack.updatedDualCells<state.grid.points.length);
+ }
  compare(state);
 });
 test('indexed patch: same-sign edit reuses Pack topology exactly',()=>{
