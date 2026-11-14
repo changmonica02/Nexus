@@ -21,6 +21,18 @@ test('CSV/Markdown validation preserves original text, stable IDs and history se
   assert.equal(memory.dictionary_etymologies.length,0);assert.equal(memory.dictionary_learning_notes.length,1);
   await assert.rejects(parseDictionaryImport(md.replace('data_source: https://example.test/source','data_source: a\ndata_source: b'),'md'),/重複欄位/);
 });
+test('CSV compatibility only skips explicitly known empty retired columns',async()=>{
+  const baseline=parseCSV(csv);
+  const header='entry_id,sense_id,headword,part_of_speech,gloss_zh_tw';
+  const safe=csv.replace(header,header+',grouping,source_id').split('\n').map((line,i)=>i===0?line:line+',,').join('\n');
+  assert.deepEqual(parseCSV(safe),baseline);
+  assert.deepEqual(await parseDictionaryImport(safe,'csv'),await parseDictionaryImport(csv,'csv'));
+  assert.throws(()=>parseCSV(safe.replace('test,noun,測試,,','test,noun,測試,legacy,')),/舊欄位 grouping 含有內容/);
+  assert.throws(()=>parseCSV(safe.replace('test,noun,測試,,','test,noun,測試,,source-123')), /舊欄位 source_id 含有內容/);
+  const unknown=csv.replace(header,header+',unrecognized').split('\n').map((line,i)=>i===0?line:line+',').join('\n');
+  assert.throws(()=>parseCSV(unknown),/未知欄位/);
+  assert.throws(()=>parseCSV(safe.replace('test,noun,測試,,','test,noun,測試,')),/欄數不符/);
+});
 test('admin bundle: preview rollback, atomic import, replay/conflict, revisions, RLS and audit rollback',async()=>{
   const pg=new PGlite();
   try{
