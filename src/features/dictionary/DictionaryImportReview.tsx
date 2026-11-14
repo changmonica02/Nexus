@@ -28,10 +28,12 @@ function LegacyDictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;fo
     if(session?.items.some(i=>i.operation&&['pending','failed'].includes(i.status)))throw Error(t('exchange.pendingReply'));
     if(session&&session.items.some(i=>!['applied','unchanged','skipped'].includes(i.status))&&!await confirmDialog({title:t('exchange.preview'),message:t('exchange.replacePreview'),confirmLabel:t('exchange.preview')}))return;
     if(format==='json'&&JSON.parse(raw.replace(/^\uFEFF/,''))?.format===exchangeFormat){setReviewPage(0);const next=await previewExchange(getSupabase()!,owner,parseExchange(raw),(done,total)=>setPreviewProgress({done,total}));await persist(next);return;}
-    let drafts:DictionaryDraftInput[]=[],issues:DraftIssue[]=[];
-    if(format==='csv')({drafts,issues}=await parseDictionaryCSVPreview(raw));
+    let drafts:DictionaryDraftInput[]=[],issues:DraftIssue[]=[],ignoredFields:string[]=[];
+    if(format==='csv')({drafts,issues,ignoredFields}=await parseDictionaryCSVPreview(raw));
     else{
-      const bundle=await parseDictionaryImport(raw,format);
+      const parsed=format==='json'?parseJSONBundleWithIgnored(raw):null;
+      const bundle=parsed?.bundle??await parseDictionaryImport(raw,format);
+      ignoredFields=parsed?.ignoredFields??[];
       const ids=new Set([...(bundle.dictionary_entries??[]).map(e=>String(e.id)),...Object.entries(bundle).filter(([t])=>t!=='dictionary_entries').flatMap(([,rows])=>rows.map(r=>String(r.entry_id)))]);
       for(const id of ids){const part=Object.fromEntries(Object.entries(bundle).map(([table,rows])=>[table,rows.filter(r=>table==='dictionary_entries'?r.id===id:r.entry_id===id)]));
         try{drafts.push(...await normalizeDictionaryBundle(getSupabase()!,part));}catch(e){const d:DictionaryDraftInput={entry_id:id,kind:'word',headword:String(part.dictionary_entries?.[0]?.headword??'待審核內容'),row:drafts.length+1,senses:[],etymologies:[],examples:[],learning_notes:[],relation_hints:[],relations:[]};drafts.push(d);issues.push({row:d.row!,kind:d.kind,field:'legacy_mapping',error:String(e)});}
@@ -39,7 +41,7 @@ function LegacyDictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;fo
     }
     if(!drafts.length&&issues.length)throw new DraftValidationError(issues);
     const source=format==='csv'&&!raw.replace(/^\uFEFF/,'').split(/\r?\n/,1)[0].split(',').includes('kind')?'legacy_csv':format;
-    const next=await buildImportSession(getSupabase()!,owner,source,drafts,issues,crypto.randomUUID(),{onProgress:(done,total)=>setPreviewProgress({done,total})});setReviewPage(0);await persist(next);
+    const next=await buildImportSession(getSupabase()!,owner,source,drafts,issues,crypto.randomUUID(),{onProgress:(done,total)=>setPreviewProgress({done,total})});next.ignored_fields=ignoredFields;setReviewPage(0);await persist(next);
   }
   async function recheck(item:ImportItem){
     if(!session)return;
@@ -61,6 +63,7 @@ function LegacyDictionaryImportReview({raw,format,onSaved,onBusy}:{raw:string;fo
     {busy&&<button type="button" className={button} onClick={()=>controller.current?.abort()}>{t("exchange.pause")}</button>}
     {busy&&previewProgress.total>0&&<p role="status">{t("exchange.previewProgress",previewProgress)}</p>}
     {session&&counts&&<>
+      {!!session.ignored_fields?.length&&<div role="status" className="rounded border p-3 text-sm"><strong>以下欄位不屬於 Nexus 現行格式，已略過，不會匯入：</strong><ul className="list-disc pl-5">{session.ignored_fields.map(field=><li key={field}>{field}</li>)}</ul><p>其他符合格式的資料可繼續匯入。</p></div>}
       <h3 className="font-semibold">{t("exchange.preview")}</h3>
       <p>{(["new","modified","unchanged","review","invalid","conflict"] as const).map(c=>t(`exchange.${c}`)+" "+session.items.filter(i=>exchangeCategory(i)===c).length).join(" · ")}</p>
       <p role="status">{t("exchange.importProgress",{total:session.items.length,done:session.items.filter(i=>["applied","unchanged","skipped"].includes(i.status)).length,failed:counts.failed,remaining:session.items.filter(i=>i.status==="pending").length})}</p>
