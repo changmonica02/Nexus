@@ -6,7 +6,6 @@ type Client=Pick<SupabaseClient,'rpc'>;
 export interface DictionaryPage { items: (Pick<DictionaryEntry,'id'|'kind'|'headword'>)[]; has_more:boolean; page:number; total?:number }
 type PublicRow<T> = Omit<T,'revision'|'updated_at'>;
 export interface PublishedDetail {
-  inflections?:PublicRow<NonNullable<DictionaryDetail['inflections']>[number]>[];
   pronunciations?:PublicRow<NonNullable<DictionaryDetail['pronunciations']>[number]>[];
   examples?:{id:string;sense_id:string|null;body:string;sort_order:number;translation_zh_tw?:string|null;derivation_id?:string|null}[];
   public_notes?:{id:string;entry_id:string;body:string}[];
