@@ -95,7 +95,8 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const contentSense=(table:string,index:number,row:Row,compact=false)=><label className="block min-w-0 text-sm"><span className={compact?"sm:sr-only":undefined}>{tr("適用義項")}</span><select aria-label={tr("適用義項")} className={control} value={String(row.sense_id??'__shared__')} onChange={e=>change(table,index,'sense_id',e.target.value==='__shared__'?null:e.target.value)}><option value="" disabled>{tr("請選擇義項")}</option><option value="__shared__">{table==='dictionary_relations'?tr('不分義項／詞條共用'):tr('詞條共用（不限定義項）')}</option>{bundle.dictionary_senses.map((sense,i)=><option key={String(sense.id)} value={String(sense.id)}>{tr("義項")}{i+1} · {String(sense.part_of_speech??'')} · {String(sense.gloss_zh_tw)}</option>)}</select></label>;
   const newContentSense=()=>bundle.dictionary_senses.length===1?bundle.dictionary_senses[0].id:'';
   const extensionsLoaded=detail.entry.kind==='word'&&detail.derivations!==undefined;
-  const extensionsNeedBackend=!!bundle.dictionary_sense_derivations?.length||!!bundle.dictionary_examples?.some(x=>x.translation_zh_tw||x.derivation_id);
+  // Review/approval for published entries will be wired in a separate B phase.
+  const extensionsNeedBackend=!!saveReview&&((bundle.dictionary_sense_derivations??[]).length>0||!!bundle.dictionary_examples?.some(x=>x.translation_zh_tw||x.derivation_id));
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline));
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
   const add=(table:string,values:Row)=>setBundle(b=>({...b,[table]:[...b[table],{id:crypto.randomUUID(),entry_id:detail.entry.id,...values}]}));
@@ -116,7 +117,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     read:()=>({bundle:stateRef.current.bundle}),
     dirty:()=>stateRef.current.dirty,
     // B2 RPC persistence will be added in the next batch. Never acknowledge a write that the old RPC drops.
-    valid:value=>!services.current.matching.length&&!((value.bundle.dictionary_sense_derivations??[]).length>0||value.bundle.dictionary_examples?.some(x=>x.translation_zh_tw||x.derivation_id))&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle))).length,
+    valid:value=>!services.current.matching.length&&!(services.current.saveReview&&((value.bundle.dictionary_sense_derivations??[]).length>0||value.bundle.dictionary_examples?.some(x=>x.translation_zh_tw||x.derivation_id)))&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle))).length,
     save:async value=>{
       const drafts=draftsFromBundle(prepareEditorBundle(value.bundle));
       const review=services.current.saveReview?await services.current.saveReview(drafts[0]):null;
@@ -211,8 +212,8 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     {message&&<p role="alert" className="whitespace-pre-wrap break-words text-sm">{message}</p>}
     {matching.length>0&&<div role="alert" className="space-y-2"><p>{tr("同類同拼寫已有詞條，請在既有詞條新增中文義項。")}</p>{matching.map(e=><button key={e.id} className={button} onClick={()=>void (async()=>{if(await confirmDialog(tr('開啟既有詞條？目前尚未儲存的表單將捨棄，請先保留需要的內容。')))await onSaved(e.id);})()}>{tr("開啟")}{e.headword} · {e.status==='published'?tr('已發布（需 Review Draft）'):tr('草稿')}</button>)}</div>}
     {locked&&<p>{tr("目前公開版本為唯讀；請建立 Review Draft 後編輯及核准。")}</p>}
-    {extensionsLoaded&&<p role="status" className="text-sm opacity-70">{tr('B 階段：衍生意思與中文例句編輯已建立；新版資料的儲存／發布 RPC 尚未接通，相關修改目前不會提交，請勿以畫面狀態作為儲存成功的依據。')}</p>}
-    {extensionsLoaded&&extensionsNeedBackend&&<p role="alert" className="text-sm">{tr('新版衍生意思或中文例句內容尚未開放儲存；請先完成後端儲存功能。')}</p>}
+    {extensionsLoaded&&<p role="status" className="text-sm opacity-70">{tr(saveReview?'B 階段：新版衍生意思的 Review／核准流程尚在實作，請暫勿提交涉及新版欄位的審核草稿。':'B 階段：衍生意思與中文翻譯可在未發布的 Word 草稿內保存；Review／核准流程尚待接通。')}</p>}
+    {extensionsLoaded&&extensionsNeedBackend&&<p role="alert" className="text-sm">{tr('新版衍生意思或中文例句內容尚未支援 Review 儲存與核准。')}</p>}
     <fieldset disabled={busy||publicationBusy||locked} className="min-w-0 space-y-2"
       onCompositionStartCapture={()=>{queue.current!.composing=true;}}
       onCompositionEndCapture={()=>{queue.current!.composing=false;complete();}}
