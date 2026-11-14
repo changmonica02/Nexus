@@ -70,5 +70,6 @@ $('export').addEventListener('click',()=>{
  setTimeout(()=>URL.revokeObjectURL(url),1500);
 });
 $('cores').addEventListener('input',()=>{$('coresText').textContent=$('cores').value});
+$('status').dataset.ready='1';
 setStatus('請選擇參數後產生全球海陸。');
 run();
