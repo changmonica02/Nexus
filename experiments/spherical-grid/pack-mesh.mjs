@@ -137,7 +137,7 @@ export function canExtendSphericalPack(grid,ocean,priorPack){
  for(let i=0;i<priorPack.coastEdges.length;i++)
   if(priorPack.coastEdges[i][0]!==edges[i][0]||
      priorPack.coastEdges[i][1]!==edges[i][1]||
-     priorPack.sourceIds[grid.points.length+i] !== (ocean[edges[i][0]]?edges[i][1]:edges[i][0]]))return false;
+     priorPack.sourceIds[grid.points.length+i] !== (ocean[edges[i][0]]?edges[i][1]:edges[i][0]))return false;
  return true;
 }
 
