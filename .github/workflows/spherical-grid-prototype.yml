@@ -25,3 +25,4 @@ jobs:
           node --expose-gc experiments/spherical-grid/pack-update-benchmark.mjs
           node --expose-gc experiments/spherical-grid/coast-index-benchmark.mjs
           node --expose-gc experiments/spherical-grid/indexed-terrain-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/pack-incremental-benchmark.mjs
