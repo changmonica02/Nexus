@@ -10,6 +10,7 @@ export interface PublishedDetail {
   pronunciations?:PublicRow<NonNullable<DictionaryDetail['pronunciations']>[number]>[];
   examples?:{id:string;sense_id:string|null;body:string;sort_order:number;translation_zh_tw?:string|null;derivation_id?:string|null}[];
   public_notes?:{id:string;entry_id:string;body:string}[];
+  derivations?:{id:string;entry_id:string;sense_id:string;gloss_zh_tw:string;sort_order:number}[];
   lexical_annotations?:{id:string;sense_id:string|null;body:string;sort_order:number;kind:string}[];
   entry: PublicRow<DictionaryDetail['entry']>;
   senses: PublicRow<DictionaryDetail['senses'][number]>[];
