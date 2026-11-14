@@ -124,8 +124,11 @@ export function draftFromExchange(
   if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
   if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
   if(record.import_candidate){
-    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
+    // Legacy v1 candidates may still carry retired forms. Preserve the original
+    // review record/fingerprint, but never project forms into a new write.
+    delete (draft as Record<string,unknown>).inflections;
     for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes"] as const){
       if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
@@ -141,6 +144,7 @@ export function draftFromExchange(
   if(!record.snapshot){
     if(record.version!==null||record.reviews.length||!record.entry_id||record.import_reviews?.length!==1)throw Error("Pending-only entry needs one unambiguous original candidate");
     const draft=structuredClone(record.import_reviews[0].item.draft);
+    delete (draft as Record<string,unknown>).inflections;
     if(draft.entry_id!==record.entry_id||record.import_reviews[0].entry_id!==record.entry_id)throw Error("Pending candidate identity mismatch");
     if(validateDictionaryDraft([draft]).length)throw Error("Invalid pending candidate; correct its original draft with stable IDs");
     return {...draft,row};
