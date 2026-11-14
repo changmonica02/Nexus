@@ -30,7 +30,7 @@ test('exchange scope recognizes new Word content changes and keeps old stamped s
     return md5(out_text);
    end $$;
    create function public.dictionary_import_context(candidate jsonb)
-   returns jsonb language plpgsql as $
+   returns jsonb language plpgsql as $$
    declare t text; rows jsonb:='{}'; matched jsonb;
    begin
     foreach t in array array['dictionary_entries','dictionary_pronunciations','dictionary_inflections'] loop
@@ -40,7 +40,7 @@ test('exchange scope recognizes new Word content changes and keeps old stamped s
        coalesce((select jsonb_agg(value->>'id') from jsonb_array_elements(coalesce(matched,'[]'::jsonb))),'[]'::jsonb));
     end loop;
     return rows;
-   end $;
+   end $$;
   `);
   // The patch intentionally requires the installed legacy structure.
   await pg.exec(sql);
