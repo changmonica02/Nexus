@@ -1,4 +1,4 @@
-export function parseCSV(text:string): Record<string,string>[] {
+export function parseCSVWithIgnored(text:string): {rows:Record<string,string>[];ignoredFields:string[]} {
   const rows:string[][]=[];let row:string[]=[],value="",quoted=false,closed=false;
   text=text.replace(/^\uFEFF/,"");
   for(let i=0;i<text.length;i++) {
@@ -13,13 +13,18 @@ export function parseCSV(text:string): Record<string,string>[] {
   const headers=rows.shift();if(!headers||new Set(headers).size!==headers.length)throw new Error("CSV 缺少或重複欄名");
   const legacyStory=headers.includes('mnemonic_story');
   const allowed=headers.includes('kind')?['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw',...(headers.includes('category')?['category']:['semantic_domain','semantic_subdomain']),'etymology','example_words','relation_hint',legacyStory?'mnemonic_story':'core_concept']:['entry_id','sense_id','headword','part_of_speech','gloss_zh_tw'];
-  // Only known, content-free retired metadata may be omitted from a CSV.
-  // Unknown columns (even if empty) may be spelling mistakes and must not vanish.
-  const ignored=new Set(['locale','note','verification_note']);
-  if(allowed.some(h=>!headers.includes(h))||headers.some(h=>!allowed.includes(h)&&!ignored.has(h)))throw new Error(`CSV 欄位必須為 ${allowed.join(',')}；僅允許空白的 locale / note / verification_note 額外欄位；citation / license / source_id 已淘汰`);
-  return rows.filter(r=>r.some(Boolean)).map((r,i)=>{
+  // Only declared current columns reach the importer. All extra columns are reported
+  // verbatim (including nonempty values), but never copied into an outgoing record.
+  const ignoredFields=headers.filter(h=>!allowed.includes(h));
+  if(allowed.some(h=>!headers.includes(h)))throw new Error(`CSV 缺少必要欄位；現行欄位為 ${allowed.join(',')}`);
+  const imported=rows.filter(r=>r.some(Boolean)).map((r,i)=>{
     if(r.length!==headers.length)throw new Error(`第 ${i+2} 列欄數不符`);
-    for(let j=0;j<headers.length;j++)if(ignored.has(headers[j])&&r[j].trim())throw new Error(`第 ${i+2} 列：退休欄位 ${headers[j]} 仍有內容，為避免資料遺失請人工確認`);
-    return Object.fromEntries(headers.flatMap((h,j)=>ignored.has(h)?[]:[[h==='mnemonic_story'?'core_concept':h,r[j]]]));
+    return Object.fromEntries(headers.flatMap((h,j)=>allowed.includes(h)?[[h==='mnemonic_story'?'core_concept':h,r[j]]]:[]));
   });
+  return {rows:imported,ignoredFields};
+}
+/** Compatibility reader: current fields only. Preview callers should use
+ * parseCSVWithIgnored to display exactly which input columns were skipped. */
+export function parseCSV(text:string): Record<string,string>[] {
+  return parseCSVWithIgnored(text).rows;
 }
