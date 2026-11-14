@@ -23,7 +23,7 @@ test('B2 atomic helper persists and rereads bilingual examples and Sense derivat
   await pg.exec(schema);
   // The migration patches full historical RPC definitions separately. Execute
   // its helper in isolation here to cover data and FK behavior deterministically.
-  await pg.exec(patch.slice(0,patch.indexOf('do $patch);
+  await pg.exec(patch.slice(0,patch.indexOf('do $patch$'))+'commit;');
   await pg.query('insert into public.dictionary_entries(id,kind,status) values($1,$2,$3)',[id(1),'word','draft']);
   await pg.query('insert into public.dictionary_senses(id,entry_id) values($1,$2),($3,$4)',[id(2),id(1),id(3),id(1)]);
   await pg.query('insert into public.dictionary_examples(id,entry_id,sense_id,body) values($1,$2,$3,$4)',[id(4),id(1),id(2),'Original example']);
