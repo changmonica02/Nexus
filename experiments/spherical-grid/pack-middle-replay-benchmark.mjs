@@ -7,7 +7,7 @@ import {createSphericalPack,replaySphericalPackSuffix} from './pack-mesh.mjs';
 const median=xs=>[...xs].sort((a,b)=>a-b)[Math.floor(xs.length/2)];
 for(const scenario of ['middle-insert','middle-remove']){
  const incremental=[],full=[];
- let retained=0,undone=0,replayed=0,sites=0;
+ let retained=0,undone=0,replayed=0,sites=0,dualCells=0,dualFaces=0,dualMode='';
  for(let iteration=0;iteration<5;iteration++){
   global.gc?.();
   const g=createGlobalGrid();g.heights.fill(-20);
@@ -26,10 +26,12 @@ for(const scenario of ['middle-insert','middle-remove']){
    if(result.pack.areas[i]!==reference.areas[i])throw Error('area mismatch');
   retained=result.retainedCoastalSites;undone=result.undoneCoastalSites;
   replayed=result.replayedCoastalSites;sites=result.pack.points.length;
+  dualCells=result.pack.updatedDualCells;dualFaces=result.pack.updatedDualFaces;dualMode=result.pack.dualUpdateMode;
   if(iteration){incremental.push(t1-t0);full.push(t2-t1)}
  }
  const incrementalMs=+median(incremental).toFixed(2),fullMs=+median(full).toFixed(2);
  console.log(JSON.stringify({gridCells:36002,scenario,repeat:4,retained,undone,replayed,
-  packSites:sites,incrementalMs,fullMs,speedup:+(fullMs/incrementalMs).toFixed(2),
-  exactMatch:true,note:'journal suffix replay, not arbitrary bounded local mesh update; global dual area still recalculated'}));
+  packSites:sites,dualMode,updatedDualCells:dualCells,updatedDualFaces:dualFaces,
+  incrementalMs,fullMs,speedup:+(fullMs/incrementalMs).toFixed(2),
+  exactMatch:true,note:'journal suffix replay, not arbitrary bounded local mesh update; Voronoi dual cells updated selectively'}));
 }
