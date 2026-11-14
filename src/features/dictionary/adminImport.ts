@@ -24,6 +24,7 @@ export async function normalizeDictionaryBundle(client: Pick<SupabaseClient,"rpc
     if(!entry)full.dictionary_entries.push({id:data.entry.id,kind:data.entry.kind,headword:data.entry.headword,revision:data.entry.revision});
     for(const [table,key]of [['dictionary_senses','senses'],['dictionary_relations','relations'],['dictionary_etymologies','etymologies'],['dictionary_learning_notes','learning_notes'],...(usesB2?[['dictionary_sense_derivations','derivations'] as const]:[])] as const){
       const rows=full[table]??=[];for(const old of data[key]??[])if(!rows.some(r=>r.id===old.id)){const {updated_at,source_id,...row}=old;void updated_at;void source_id;rows.push(row);}
+      full[table]=rows;
     }
   }
   return draftsFromBundle(full);
@@ -153,6 +154,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
         else if(key==='gloss_zh_tw'&&table==='dictionary_senses'&&row.part_of_speech==null&&Array.isArray(value.dictionary_entries)&&value.dictionary_entries.some(e=>object(e)&&e.id===row.entry_id&&['prefix','root','suffix'].includes(String(e.kind))))continue;
         else if(key!=='raw_text'&&(schema.required.includes(key)||key==='part_of_speech')&&!text.trim())fail(`缺少 ${key}`);
       }
+      if(table==='dictionary_sense_derivations'&&row.sort_order===undefined)row.sort_order=0;
       if(table==='dictionary_senses'){const issue=validateMorphemeSenseFields(row);if(issue)fail(issue);}
       const rid=String(row.id);if(seen.has(rid))fail(`重複 ID ${rid}`);seen.add(rid);
       const enums:Record<string,string[]>={};
