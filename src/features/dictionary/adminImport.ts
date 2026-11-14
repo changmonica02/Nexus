@@ -113,6 +113,22 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
       const fail=(message:string):never=>{throw new Error(`${table} 第 ${index+1} 筆：${message}`);};
       if(!object(row))return fail('資料必須為物件');
       for(const key of schema.required)if(!Object.hasOwn(row,key))fail(`缺少 ${key}`);
+      // Also project nested, typed current content (variant/segment records).
+      // Malformed required nested values still fail the existing validators.
+      const projectChildren=(field:string,fields:string[])=>{
+        if(!Array.isArray(row[field]))return;
+        row[field]=(row[field] as unknown[]).map((child,i)=>{
+          if(!child||typeof child!=='object'||Array.isArray(child))return child;
+          const copy={...child as Record<string,unknown>};
+          for(const key of Object.keys(copy))if(!fields.includes(key)){
+            ignored.add(table+'['+(index+1)+'].'+field+'['+(i+1)+'].'+key);
+            delete copy[key];
+          }
+          return copy;
+        });
+      };
+      if(table==='dictionary_senses')projectChildren('variants',['id','form','condition']);
+      if(table==='dictionary_entries')projectChildren('word_segments',['id','text','hint','relation_id']);
       // Remove unsupported keys from the imported projection, not from the caller's
       // original object. The ignored paths remain visible in the preview report.
       for(const key of Object.keys(row)){
