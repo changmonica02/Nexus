@@ -2,7 +2,7 @@ require('./loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const {studyDictionaryBack}=require('../src/features/dictionary/studyDictionaryBack.ts');
+const {studyDictionaryBack}=require('../src/features/dictionary/studyBackProjection.ts');
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const base=()=>({
  entry:{id:id(1),kind:'word',status:'published',headword:'occupation',word_segments:[{id:id(11),text:'oc',hint:'朝向',relation_id:null},{id:id(12),text:'cupation',hint:'抓取',relation_id:null}]},

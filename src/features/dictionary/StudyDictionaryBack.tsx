@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {readPublishedEntry} from './reader';
-import {studyDictionaryBack,type BackExample} from './studyDictionaryBack';
+import {studyDictionaryBack,type BackExample} from './studyBackProjection';
 import {SafeMarkdown} from './SafeMarkdown';
 
 function Example({example}:{example:BackExample}){
