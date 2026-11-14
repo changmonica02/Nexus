@@ -37,12 +37,18 @@ export interface ExchangeRecord {
 }
 export interface ExchangeDocument {
   format: "nexus-dictionary-exchange";
-  schema_version: 1;
+  schema_version: 1 | 2;
   exported_at: string;
   scope: ExchangeScope;
   records: ExchangeRecord[];
 }
 export const exchangeFormat = "nexus-dictionary-exchange";
+/** Export v2 only when the database provided complete B2 Word sections. Older
+ * databases remain v1 rather than falsely promising a lossless B2 snapshot. */
+export function exchangeSchemaVersion(records:ExchangeRecord[]):1|2 {
+  return records.every(r=>!r.snapshot||r.snapshot.detail.entry.kind!=='word'||
+    (Array.isArray(r.snapshot.detail.derivations)&&Array.isArray(r.snapshot.detail.public_notes)))?2:1;
+}
 export const exchangeBatchSize = 25;
 export function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, v) =>
@@ -72,7 +78,7 @@ export function parseExchange(raw: string): ExchangeDocument {
     ["format", "schema_version", "exported_at", "scope", "records"],
     "exchange",
   );
-  if (doc.format !== exchangeFormat || doc.schema_version !== 1)
+  if (doc.format !== exchangeFormat || ![1,2].includes(doc.schema_version as number))
     throw Error("Unsupported dictionary exchange schema version");
   if (!Array.isArray(doc.records) || doc.records.length > 50000)
     throw Error("Expected at most 50,000 records");
@@ -91,6 +97,13 @@ export function parseExchange(raw: string): ExchangeDocument {
     typeof doc.scope.query !== "string"
   )
     throw Error("Invalid scope");
+  if(doc.schema_version===2){
+    for(const record of doc.records){
+      const detail=record.snapshot?.detail;
+      if(detail?.entry.kind==='word'&&(!Array.isArray(detail.derivations)||!Array.isArray(detail.public_notes)))
+        throw Error('Exchange v2 Word records require complete derivations and public notes arrays');
+    }
+  }
   return {...doc,records:doc.records.map(cleanIpaRecord)} as unknown as ExchangeDocument;
 }
 const rowFields: Record<string, string[]> = {
