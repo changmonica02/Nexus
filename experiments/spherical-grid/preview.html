@@ -21,10 +21,16 @@ canvas{display:block;width:100%;height:auto;background:#b1d3df;border-radius:10p
 <label>亂數種子<input id="seed" type="number" min="0" max="4294967295" value="1729"></label>
 <button id="generate">產生海陸</button><button id="random" class="secondary">隨機種子</button>
 <button id="confirm" disabled>確認海陸</button><button id="export" class="secondary" disabled>匯出快照</button>
-</div><div id="status" role="status"></div></div>
+</div><div id="status" role="status">正在載入預覽程式…如果畫面一直沒有變化，請確認 ZIP 已完整解壓縮，並使用新版預覽檔。</div></div>
 <div class="panel"><canvas id="map" width="1200" height="600" aria-label="全球海陸平面預覽"></canvas>
 <div style="margin-top:10px">實際陸地比例：<strong id="measured">—</strong></div>
 <div id="details" class="small"></div>
 <p class="small" style="margin-top:12px">顯示為 36,002 格球面網格的簡化彩色預覽；目前未繪製正式海岸 Pack，也尚無板塊、氣候或地形筆刷。</p></div>
-<script type="module" src="./preview.js"></script>
+<script>
+window.addEventListener('error', function(event) {
+ const status=document.getElementById('status');
+ if(status && !status.dataset.ready) status.textContent='預覽程式載入失敗：'+(event.message || '請確認 index.html 與 preview.js 位於同一資料夾。');
+});
+</script>
+<script src="./preview.js" onerror="document.getElementById('status').textContent='無法載入 preview.js；請完整解壓縮新版 ZIP，勿直接在壓縮檔內開啟 HTML。'"></script>
 </body></html>
