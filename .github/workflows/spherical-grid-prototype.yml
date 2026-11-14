@@ -31,3 +31,19 @@ jobs:
           node --expose-gc experiments/spherical-grid/pack-incremental-benchmark.mjs
           node --expose-gc experiments/spherical-grid/pack-shrink-benchmark.mjs
           node --expose-gc experiments/spherical-grid/pack-middle-replay-benchmark.mjs
+      - name: Bundle offline browser preview
+        run: |
+          mkdir -p /tmp/nexus-land-preview
+          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=iife --platform=browser --outfile=/tmp/nexus-preview-bundle.js
+          node --check /tmp/nexus-preview-bundle.js
+          node experiments/spherical-grid/build-offline-preview.mjs /tmp/nexus-preview-bundle.js /tmp/nexus-land-preview/index.html
+          test -s /tmp/nexus-land-preview/index.html
+          ! grep -q 'type="module"' /tmp/nexus-land-preview/index.html
+          ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
+      - name: Upload standalone offline preview (download ZIP and open index.html)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-global-land-preview
+          path: /tmp/nexus-land-preview/
+          if-no-files-found: error
+          retention-days: 14

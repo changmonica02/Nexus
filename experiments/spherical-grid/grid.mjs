@@ -56,4 +56,4 @@ export function bench(frequency){
  const pass=n===10*frequency**2+2&&g.triangles.length===20*frequency**2&&edges===3*n-6&&count5===12&&count6===n-12&&reciprocal&&locality&&rejected&&Math.abs(actual-expected)/expected<1e-9;
  return {frequency,cells:n,faces:g.triangles.length,edges,count5,count6,ms:+ms.toFixed(1),areaError:Math.abs(actual-expected)/expected,areaRatio:max/min,reciprocal,locality,specialCount:special.length,rejected,metres:[g.heights[0]*100,g.heights[1]*100],pass};
 }
-if(process.argv[1]&&import.meta.url===new URL("file://"+process.argv[1]).href)for(const f of [55,60,64])console.log(JSON.stringify(bench(f)));
+if(typeof process!=="undefined"&&process.argv?.[1]&&import.meta.url===new URL("file://"+process.argv[1]).href)for(const f of [55,60,64])console.log(JSON.stringify(bench(f)));
