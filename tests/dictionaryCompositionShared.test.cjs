@@ -10,7 +10,7 @@ const relation={id:id(22),entry_id:id(20),sense_id:null,target_entry_id:id(10),t
 test('composition interchange defaults shared, keeps explicit Sense/target IDs and removes retired attributes',()=>{
  const d=draft(20,'source');d.relations=[{...relation,relation_kind:'historical_etymology',verification:'verified',verification_note:'legacy'}];
  const mapped=mapDictionaryDraft(d).bundle.dictionary_relations[0];assert.deepEqual(mapped,relation);assert.deepEqual(validateDictionaryDraft([d]),[]);
- const parsed=parseJSONBundle(JSON.stringify({dictionary_relations:[relation]}));assert.deepEqual(parsed.dictionary_relations[0],relation);
+ const parsed=parseJSONBundle(JSON.stringify({dictionary_relations:[relation]}));assert.deepEqual(parsed.dictionary_relations[0],Object.fromEntries(Object.entries(relation).filter(([key])=>!['relation_kind','verification','verification_note'].includes(key))));
  const target={detail:{entry:{id:id(10),headword:'target',kind:'word'},senses:[{id:id(11),gloss_zh_tw:'target'}]}};
  const snapshot={detail:{entry:{id:id(20),headword:'source',kind:'word',revision:1,status:'draft'},senses:[{id:id(21),part_of_speech:'noun',gloss_zh_tw:'source'}],relations:[relation],etymologies:[],learning_notes:[]},metadata:null,sense_groups:{},grouping:null};
  const targets=new Map([[id(10),target]]),ai=toAI(snapshot,targets);assert.equal(ai.components[0].meaning_id,null);assert.equal('relation' in ai.components[0],false);

@@ -3,7 +3,13 @@ import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
 import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
 
-export function withoutRetiredStudyItems<T extends object>(row:T):T {const clean={...row} as T & {study_items?:unknown};delete clean.study_items;return clean;}
+/** Retired Page fields are read-only compatibility inputs, never persisted or sent again. */
+export function withoutRetiredStudyItems<T extends object>(row:T):T {
+  const clean={...row} as T & {study_items?:unknown;default_mode?:unknown};
+  delete clean.study_items;
+  delete clean.default_mode;
+  return clean;
+}
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore;
 export type WorkspaceRecord = Page | Attachment | LifeRecord;

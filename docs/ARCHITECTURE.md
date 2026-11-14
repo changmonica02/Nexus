@@ -7,7 +7,7 @@
 - **資料與身分**：沿用 `dictionary_entries`、`dictionary_senses`、`dictionary_relations` 及草稿／Review／人工發布機制，不建立第二套字典。Entry `kind` 包含 Word、Prefix、Root、Suffix；Word 與構詞不可互換類型，三種構詞形式可在原 ID 內切換。合法同形的不同詞條按 ID 區分，不因拼寫相同合併。
 - **義項語意與變體**：`dictionary_senses.semantic_domain`／`semantic_subdomain` 對應 `src/features/dictionary/semanticDomains.ts` 的**十大類、58 小類**；`derivation` 是沒有小分類的第十大類，`NULL` 代表未分類。使用者已認可 `force`／`elements`／`quality`／`speech` 等既有代碼改名的新版語意。驗證只接受新版分類，禁止已退役的 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 組合。每個 Sense 的 `variants` 是依順序保存的 `{id,form,condition}` 陣列，UUID 與有效字形不可缺；`[]` 是明確清空，`NULL`／缺省不抹除原內容。舊類別欄位、分組表及轉換 RPC 已退役。
 - **編輯與查詢**：`MorphemeSenseEditor` 共用 `DraftAutosaveQueue` 的輸入法組字、Enter／失焦、CAS 及未存離開保護。`MorphemeWordLinks` 使用現有 Word／Sense 關聯與授權審核，目標義項尚未發布時不可建立正式連結。公開字典與管理端共用 `DictionaryCatalogNavigation` 及 `search_dictionary_catalog`；分類依義項匹配，詞條依穩定 Entry ID 去重、在分頁後組裝摘要及匹配變體。**現行摘要使用 `string_agg(gloss_zh_tw,'；' order by id)` 串接所有義項**，因此尚未符合 SPEC 要求的「列表只顯示第一義項，Word 同時顯示詞性」；修正需由後續產品程式／RPC 工作完成，不能把文件改成接受串接。此 catalog RPC 目前要求 `auth.uid()` 非空，一般已登入使用者只讀已發布內容，管理端可看授權審核工作，維持既有權限與搜尋上限。公開快取使用退休後的 `catalog-current-morphology` 鍵，不清空 IDB。
-- **完整交換**：JSON／AI JSON 保存有效 sense 分類、變體及穩定 ID；僅忽略明列的舊退休欄位，未知欄位拒絕。CSV 只覆蓋其明列欄位，包含多變體／完整關聯的資料請用完整 JSON；無效分類不能因匯入或離線同步繞過現行驗證。快照正規化僅把新增 nullable 欄位的缺省和 `NULL` 視為等價，不忽略實際差異、順序、revision、刪除或明確空陣列。
+- **完整交換**：JSON／AI JSON 保存有效 sense 分類、變體及穩定 ID；一般 JSON Bundle 的額外欄位只告知並忽略，完整版本化交換仍依身分與版本契約嚴格驗證。CSV 只覆蓋其現行明列欄位，包含多變體／完整關聯的資料請用完整 JSON；無效分類不能因匯入或離線同步繞過現行驗證。快照正規化僅把新增 nullable 欄位的缺省和 `NULL` 視為等價，不忽略實際差異、順序、revision、刪除或明確空陣列。
 - **正式 Migration 完成狀態**：`20261112012042_dictionary_morpheme_senses.sql` 安裝構詞義項與 suffix；`20261112120627_dictionary_catalog_query_plan.sql` 改善列表查詢；`20261113035217_dictionary_legacy_morpheme_retired.sql` 移除舊分組及其 RPC；`20261113035226_dictionary_review_cleanup.sql` 安裝受限清理函式；`20261113061500_dictionary_semantic_ten_domains.sql` 先清空不合法分類（只變更必要分類欄位、維護修訂版本），再更新驗證函式。以上均已**套用正式**，不可重跑舊轉換或直接推送所有 pending SQL。
 - **清理與未來審核**：#174 的原子清理另經管理員授權執行，清除當時 3,796 個 active Review、1,384 個未決匯入項目；保留 4 個已完成項目及現有內容、詞條、學習資料。清理 RPC 使用固定 ID／revision／整列雜湊 manifest、全域鎖、冪等 operation ID 與防舊 session 重建；SQL Migration 本身不自動清除工作。未來新建的 Review 不受歷史一次性清理授權涵蓋，必須照正常流程處理。
 - **正式驗證範圍**：#175 套用後核對詞條 6,347、義項 10,856、字卡 10,155、構詞義項 240、分類失效 0，`dictionary_guard` 正常啟用。這些是當日核對結果，不是永不改變的業務常數。#175 六項 CI 工作（含 study-b 重跑）及 Vercel 檢查成功；真人裝置與真實跨裝置驗收另列 HANDOFF。
@@ -200,6 +200,8 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 字典獨立 Reader 與正式學習閱讀面板僅讀取已發布詞條與必要管理員驗權，不掛載私人字卡建立／計數／跳轉元件，也不為顯示這些操作查詢私人字卡；私人字卡管理及既有連結流程維持原資料來源。
 
 字典是獨立公共領域，Entry／Sense 使用穩定 ID；Published、Draft／Review、構詞及附屬內容有各自 revision／身份。Published 供讀取，管理員 UI 共用既有字典工作區；真正授權與 CAS 仍由伺服器 RPC 執行。草稿保存不等於公開發布，清單狀態在批次完成後重新讀取伺服器。
+
+一般字典 CSV／JSON Bundle 採**現行欄位投影**：`csvRows.parseCSVWithIgnored` 與 `adminImport.parseJSONBundleWithIgnored` 返回合法欄位及被忽略欄位的明細；額外欄位（包括非空舊欄位）可略過，並在持久化匯入 Session 的 `ignored_fields` 列表及預覽介面告知使用者。`normalizeDictionaryBundle` 只使用正規化後的 Bundle，不再把未過濾的原始物件送入寫入流程；重要欄位內容、型別、ID、revision、外鍵與分類依原驗證規則處理。完整版本化交換／備份仍維持版本、識別與交易安全保護，不能將欄位投影擴大成跳過這些保護。此段為 PR #182 **待合併**的實作描述，尚非正式部署結果。
 
 字典交換由既有 export／preview／apply 管線處理。分頁匯出維持 scope version 一致，範圍變動要求重取；匯入先保存 operation UUID，再以原 RPC／receipt 重試，Published 修改產生 Review。checkpoint 與逐項狀態保存於獨立 `nexus-dictionary-import-review`；網路回覆遺失不換 UUID 重送。批次作業部分失敗保留結果，不能以新 preview 蓋掉尚待恢復的 operation。批次發布沿用 token／scope／人工確認，不繞過 Review 核准。
 
