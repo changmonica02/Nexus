@@ -5,7 +5,7 @@ const {transformSync}=require('esbuild');
 const filename=path.resolve(__dirname,'../src/features/dictionary/SafeMarkdown.tsx');
 const source=fs.readFileSync(filename,'utf8');
 const mod={exports:{}};
-const compiled=transformSync(source,{loader:'tsx',format:'cjs',target:'es2022'}).code;
+const compiled=transformSync(source,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic'}).code;
 new Function('require','module','exports',compiled)(require,mod,mod.exports);
 const SafeMarkdown=mod.exports.SafeMarkdown;
 const render=text=>renderToStaticMarkup(React.createElement(SafeMarkdown,{source:text}));
