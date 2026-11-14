@@ -9,9 +9,74 @@ const edgeKey=(a,b)=>a<b?`${a}:${b}`:`${b}:${a}`;
 const triangleArea=(a,b,c)=>2*Math.atan2(Math.abs(dot(a,cross(b,c))),1+dot(a,b)+dot(b,c)+dot(c,a));
 function outward(face,pts){const [a,b,c]=face.map(i=>pts[i]);return dot(a,cross(b,c))>0?face:[face[0],face[2],face[1]]}
 function circumcenter(face,pts){const [a,b,c]=face.map(i=>pts[i]);let n=norm(cross(sub(b,a),sub(c,a)));return dot(n,a)>0?n:n.map(x=>-x)}
+// Reuse unchanged Voronoi dual cells by patching only faces and sites touched
+// by the mesh delta. Face IDs remain deterministic because insertion history
+// is replayed in the same canonical Grid-edge order as the full rebuild.
+function finishPackIncremental(grid,points,triangles,sourceIds,siteKeys,coastEdges,
+ inserted,flips,skipped,journal,previous){
+ if(!previous||!Array.isArray(previous.incident)||!Array.isArray(previous.centers)||
+    !Array.isArray(previous.neighbors)||!(previous.areas instanceof Float64Array)||
+    previous.incident.length!==previous.points.length||
+    previous.centers.length!==previous.triangles.length)return null;
+ const oldPoints=previous.points,oldFaces=previous.triangles;
+ const moved=new Set();
+ for(let i=0;i<Math.max(points.length,oldPoints.length);i++){
+  const p=points[i],q=oldPoints[i];
+  if(!p||!q||siteKeys[i]!==previous.siteKeys[i]||
+     p[0]!==q[0]||p[1]!==q[1]||p[2]!==q[2])moved.add(i);
+ }
+ const changed=new Set(),affected=new Set();
+ for(let fid=0;fid<Math.max(triangles.length,oldFaces.length);fid++){
+  const face=triangles[fid],old=oldFaces[fid];
+  if(!face||!old||face[0]!==old[0]||face[1]!==old[1]||face[2]!==old[2]||
+     face.some(id=>moved.has(id))){
+   changed.add(fid);
+   if(face)for(const id of face)affected.add(id);
+   if(old)for(const id of old)affected.add(id);
+  }
+ }
+ // Huge changes should use the original full path instead of caching overhead.
+ if(changed.size>triangles.length*.6)return null;
+ const nextIncident=previous.incident.slice(0,points.length);
+ const nextNeighbors=previous.neighbors.slice(0,points.length);
+ const nextCenters=previous.centers.slice(0,triangles.length);
+ const areas=new Float64Array(points.length);
+ areas.set(previous.areas.subarray(0,Math.min(previous.areas.length,points.length)));
+ const newFaceIds=new Map();
+ for(const fid of changed){
+  const face=triangles[fid];if(!face)continue;
+  nextCenters[fid]=circumcenter(face,points);
+  for(const id of face){
+   let a=newFaceIds.get(id);
+   if(!a){a=[];newFaceIds.set(id,a)}
+   a.push(fid);
+  }
+ }
+ for(const id of affected){
+  if(id>=points.length)continue;
+  const remaining=(previous.incident[id]??[]).filter(fid=>fid<triangles.length&&!changed.has(fid));
+  const next=remaining.concat(newFaceIds.get(id)??[]).sort((a,b)=>a-b);
+  nextIncident[id]=next;
+  const adjacent=new Set();
+  for(const fid of next)for(const v of triangles[fid])if(v!==id)adjacent.add(v);
+  nextNeighbors[id]=[...adjacent].sort((a,b)=>a-b);
+  const a=points[id],x=norm(Math.abs(a[2])<.9?cross([0,0,1],a):cross([0,1,0],a)),y=cross(a,x);
+  const around=next.map(fid=>nextCenters[fid]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
+  let area=0;
+  for(let j=0;j<around.length;j++)area+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
+  areas[id]=area;
+ }
+ return {points,triangles,neighbors:nextNeighbors,areas,sourceIds,siteKeys,
+  heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,
+  inserted,flips,skipped,journal,incident:nextIncident,centers:nextCenters,
+  dualUpdateMode:'incremental',updatedDualCells:affected.size,updatedDualFaces:changed.size};
+}
 // Build the global dual from an already triangulated surface. Both add and
 // undo paths use this identical calculation, including canonical area checks.
-function finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal){
+function finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal,previousPack=null){
+ const fast=finishPackIncremental(grid,points,triangles,sourceIds,siteKeys,coastEdges,
+  inserted,flips,skipped,journal,previousPack);
+ if(fast)return fast;
  const neighbors=Array.from({length:points.length},()=>new Set());
  const incident=Array.from({length:points.length},()=>[]);
  for(let t=0;t<triangles.length;t++)for(let j=0;j<3;j++){
@@ -24,9 +89,9 @@ function finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted
   const around=incident[i].map(t=>centers[t]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
   for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
  }
- return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped,journal};
+ return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped,journal,incident,centers,dualUpdateMode:'full',updatedDualCells:points.length,updatedDualFaces:triangles.length};
 }
-export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingPack=null}={}){
+export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingPack=null,areaReference=null}={}){
  // A previous Pack is reusable only if its coastal insertion sequence is an
  // exact prefix of the new sorted sequence. Otherwise build from the Grid.
  const points=(startingPack?.points??grid.points).map(p=>p.slice());
@@ -120,7 +185,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
   journal.push({prevTriangles,prevPoints,prevFlips,faces:[...touched]});
   recordFace=null;
  }
- return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal);
+ return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal,areaReference??startingPack);
 }
 // Exact sequential continuation when the existing coastal site sequence is
 // preserved. Changes that remove/reorder sites must use full rebuilding.
@@ -179,7 +244,7 @@ export function shrinkSphericalPack(grid,ocean,priorPack){
   flips=step.prevFlips;
   inserted--;
  }
- return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,0,journal);
+ return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,0,journal,priorPack);
 }
 
 /**
@@ -242,7 +307,7 @@ export function replaySphericalPackSuffix(grid,ocean,priorPack){
  }
  const retained={points,triangles,sourceIds,siteKeys,journal,
    coastEdges:priorPack.coastEdges.slice(0,prefix),inserted:prefix,flips,skipped:0};
- const pack=createSphericalPack(grid,ocean,{startingPack:retained});
+ const pack=createSphericalPack(grid,ocean,{startingPack:retained,areaReference:priorPack});
  return {pack,retainedCoastalSites:prefix,replayedCoastalSites:nextEdges.length-prefix,
    undoneCoastalSites:undone};
 }
