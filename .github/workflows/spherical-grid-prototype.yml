@@ -19,4 +19,6 @@ jobs:
       - name: Geometry and ocean / coast checks (no database, no deployment)
         run: node --test experiments/spherical-grid/*.test.mjs
       - name: Reproducible experimental benchmarks
-        run: node --expose-gc experiments/spherical-grid/benchmark.mjs
+        run: |
+          node --expose-gc experiments/spherical-grid/benchmark.mjs
+          node --expose-gc experiments/spherical-grid/edit-benchmark.mjs
