@@ -31,6 +31,9 @@ test('36,002: inserting an island in the middle of ordered coastal sites equals 
  assert.ok(result.replayedCoastalSites>result.undoneCoastalSites);
  exact(result.pack,createSphericalPack(g,ocean));
  assert.equal(result.pack.skipped,0);
+ assert.equal(result.pack.dualUpdateMode,'incremental');
+ assert.ok(result.pack.updatedDualCells<100);
+ assert.ok(result.pack.updatedDualFaces<100);
 });
 test('36,002: deleting a middle island rolls back and replays its coastal suffix',()=>{
  const g=createGlobalGrid();g.heights.fill(-20);
@@ -44,6 +47,8 @@ test('36,002: deleting a middle island rolls back and replays its coastal suffix
  assert.ok(result.retainedCoastalSites>0);
  assert.ok(result.undoneCoastalSites>0);
  exact(result.pack,createSphericalPack(g,ocean));
+ assert.equal(result.pack.dualUpdateMode,'incremental');
+ assert.ok(result.pack.updatedDualCells<100);
 });
 test('36,002: indexed terrain automatically uses middle-coast replay for insertion and removal',()=>{
  const g=createGlobalGrid();g.heights.fill(-20);
@@ -76,4 +81,24 @@ test('middle replay cannot claim incremental success without a retained prefix',
  g.heights.fill(-20);
  g.heights[1]=20;
  assert.equal(replaySphericalPackSuffix(g,oceanConnected(g,0),previous),null);
+});
+
+test('36,002: varied ordered coast changes preserve all dual polygons, adjacency and total area',()=>{
+ for(const indices of [[2,15000,35998],[7,19500,35994],[90,17000,35800]]){
+  const grid=createGlobalGrid();grid.heights.fill(-20);
+  const [first,middle,last]=indices;
+  grid.heights[first]=20;grid.heights[last]=20;
+  const state=openIndexedTerrain(grid,0);
+  for(const height of [20,-20,20]){
+   const result=applyIndexedTerrainEdits(state,[{id:middle,height}]);
+   const full=createSphericalPack(grid,oceanConnected(grid,0));
+   exact(state.geography.pack,full);
+   assert.ok(state.geography.pack.areas.every(a=>a>0));
+   assert.ok(['incremental-pack-replay','coast-patch-pack-rebuild'].includes(result.mode));
+   if(result.mode==='incremental-pack-replay'){
+    assert.equal(state.geography.pack.dualUpdateMode,'incremental');
+    assert.ok(state.geography.pack.updatedDualCells<grid.points.length/2);
+   }
+  }
+ }
 });
