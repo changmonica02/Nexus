@@ -9,6 +9,23 @@ const edgeKey=(a,b)=>a<b?`${a}:${b}`:`${b}:${a}`;
 const triangleArea=(a,b,c)=>2*Math.atan2(Math.abs(dot(a,cross(b,c))),1+dot(a,b)+dot(b,c)+dot(c,a));
 function outward(face,pts){const [a,b,c]=face.map(i=>pts[i]);return dot(a,cross(b,c))>0?face:[face[0],face[2],face[1]]}
 function circumcenter(face,pts){const [a,b,c]=face.map(i=>pts[i]);let n=norm(cross(sub(b,a),sub(c,a)));return dot(n,a)>0?n:n.map(x=>-x)}
+// Build the global dual from an already triangulated surface. Both add and
+// undo paths use this identical calculation, including canonical area checks.
+function finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal){
+ const neighbors=Array.from({length:points.length},()=>new Set());
+ const incident=Array.from({length:points.length},()=>[]);
+ for(let t=0;t<triangles.length;t++)for(let j=0;j<3;j++){
+  const a=triangles[t][j],b=triangles[t][(j+1)%3];neighbors[a].add(b);neighbors[b].add(a);incident[a].push(t);
+ }
+ const centers=triangles.map(face=>circumcenter(face,points));
+ const areas=new Float64Array(points.length);
+ for(let i=0;i<points.length;i++){
+  const a=points[i],x=norm(Math.abs(a[2])<.9?cross([0,0,1],a):cross([0,1,0],a)),y=cross(a,x);
+  const around=incident[i].map(t=>centers[t]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
+  for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
+ }
+ return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped,journal};
+}
 export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingPack=null}={}){
  // A previous Pack is reusable only if its coastal insertion sequence is an
  // exact prefix of the new sorted sequence. Otherwise build from the Grid.
@@ -16,12 +33,14 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
  const sourceIds=startingPack?[...startingPack.sourceIds]:points.map((_,i)=>i);
  const siteKeys=startingPack?[...startingPack.siteKeys]:points.map((_,i)=>`grid:${i}`);
  const triangles=(startingPack?.triangles??grid.triangles).map(t=>t.slice());
+ const journal=startingPack?[...startingPack.journal]:[];
+ let recordFace=null;
  const incidence=new Map();
  function edgeFaces(a,b){return incidence.get(edgeKey(a,b))}
  function attach(fid){const t=triangles[fid];for(let j=0;j<3;j++){const k=edgeKey(t[j],t[(j+1)%3]);let s=incidence.get(k);if(!s){s=new Set();incidence.set(k,s)}s.add(fid)}}
  function detach(fid){const t=triangles[fid];for(let j=0;j<3;j++){const k=edgeKey(t[j],t[(j+1)%3]);const s=incidence.get(k);s.delete(fid);if(!s.size)incidence.delete(k)}}
  triangles.forEach((_,i)=>attach(i));
- function replace(f1,t1,f2,t2){detach(f1);detach(f2);triangles[f1]=outward(t1,points);triangles[f2]=outward(t2,points);attach(f1);attach(f2)}
+ function replace(f1,t1,f2,t2){recordFace?.(f1);recordFace?.(f2);detach(f1);detach(f2);triangles[f1]=outward(t1,points);triangles[f2]=outward(t2,points);attach(f1);attach(f2)}
  let inserted=startingPack?.inserted??0, flips=startingPack?.flips??0, skipped=0;
  // Insert additional sites on Delaunay edges straddling ocean and land.
  const coastEdges=[];
@@ -38,6 +57,9 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
  const firstNew=startingPack?.coastEdges.length??0;
  for(const [a,b] of coastEdges.slice(firstNew)){
   if(inserted>=maxInsertions)break;
+  const prevTriangles=triangles.length,prevPoints=points.length,prevFlips=flips;
+  const touched=new Map();
+  recordFace=fid=>{if(fid<prevTriangles&&!touched.has(fid))touched.set(fid,triangles[fid].slice())};
   const shared=edgeFaces(a,b);
   const m=points.length;
   const chosen=midpoint(points[a],points[b]);
@@ -48,6 +70,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
    const [f1,f2]=[...shared],old1=triangles[f1],old2=triangles[f2];
    const c=old1.find(x=>x!==a&&x!==b),d=old2.find(x=>x!==a&&x!==b);
    points.push(chosen);
+   recordFace(f1);recordFace(f2);
    detach(f1);detach(f2);
    triangles[f1]=outward([a,m,c],points);triangles[f2]=outward([b,m,d],points);
    const f3=triangles.length;triangles.push(outward([m,b,c],points));
@@ -64,9 +87,9 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
     if(dot(cross(points[u],points[v]),target)<1e-12||dot(cross(points[v],points[w]),target)<1e-12||dot(cross(points[w],points[u]),target)<1e-12)continue;
     found=fid;break;
    }
-   if(found===-1){sourceIds.pop();siteKeys.pop();skipped++;continue}
+   if(found===-1){sourceIds.pop();siteKeys.pop();recordFace=null;skipped++;continue}
    points.push(target);
-   const [u,v,w]=triangles[found];detach(found);
+   const [u,v,w]=triangles[found];recordFace(found);detach(found);
    triangles[found]=outward([u,v,m],points);
    const f2=triangles.length;triangles.push(outward([v,w,m],points));
    const f3=triangles.length;triangles.push(outward([w,u,m],points));
@@ -92,20 +115,10 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
    replace(withM,flipA,other,flipB);flips++;
    stack.push([u,far],[v,far]);
   }
+  journal.push({prevTriangles,prevPoints,prevFlips,faces:[...touched]});
+  recordFace=null;
  }
- const neighbors=Array.from({length:points.length},()=>new Set());
- const incident=Array.from({length:points.length},()=>[]);
- for(let t=0;t<triangles.length;t++)for(let j=0;j<3;j++){
-  const a=triangles[t][j],b=triangles[t][(j+1)%3];neighbors[a].add(b);neighbors[b].add(a);incident[a].push(t);
- }
- const centers=triangles.map(face=>circumcenter(face,points));
- const areas=new Float64Array(points.length);
- for(let i=0;i<points.length;i++){
-  const a=points[i],x=norm(Math.abs(a[2])<.9?cross([0,0,1],a):cross([0,1,0],a)),y=cross(a,x);
-  const around=incident[i].map(t=>centers[t]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
-  for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
- }
- return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped};
+ return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,skipped,journal);
 }
 // Exact sequential continuation when the existing coastal site sequence is
 // preserved. Changes that remove/reorder sites must use full rebuilding.
