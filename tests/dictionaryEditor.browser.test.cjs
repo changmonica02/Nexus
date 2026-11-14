@@ -45,7 +45,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   assert.equal(await page.locator('[data-editor-section="詞形變化"]').count(),0);
   assert.equal(await page.getByRole('button',{name:'＋新增詞形變化'}).count(),0);
   await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');await page.getByLabel('歷史詞源',{exact:true}).fill('Updated etymology');
-  await page.getByRole('button',{name:'新增記憶法',exact:true}).click();await page.getByLabel('記憶法',{exact:true}).fill('核心意象\n'.repeat(12));
+  await page.locator('[data-editor-section="記憶法"]').getByRole('button').first().click();await page.getByLabel('記憶法',{exact:true}).fill('核心意象\n'.repeat(12));
   await page.getByRole('button',{name:'＋新增讀音',exact:true}).click();assert.equal(await page.getByRole('button',{name:'上移讀音',exact:true}).count(),0);
   await page.getByLabel('IPA',{exact:true}).fill('/a/');await page.getByRole('button',{name:'＋新增讀音',exact:true}).click();await page.getByLabel('IPA',{exact:true}).nth(1).fill('/b/');await page.getByRole('button',{name:'上移讀音',exact:true}).nth(1).click();assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');
   assert.equal(await page.getByLabel('排序',{exact:true}).count(),0);

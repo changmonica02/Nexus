@@ -128,7 +128,7 @@ export function draftFromExchange(
     const draft=structuredClone(record.import_candidate);
     // Legacy v1 candidates may still carry retired forms. Preserve the original
     // review record/fingerprint, but never project forms into a new write.
-    delete (draft as Record<string,unknown>).inflections;
+    delete (draft as unknown as Record<string,unknown>).inflections;
     for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes"] as const){
       if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
@@ -144,7 +144,7 @@ export function draftFromExchange(
   if(!record.snapshot){
     if(record.version!==null||record.reviews.length||!record.entry_id||record.import_reviews?.length!==1)throw Error("Pending-only entry needs one unambiguous original candidate");
     const draft=structuredClone(record.import_reviews[0].item.draft);
-    delete (draft as Record<string,unknown>).inflections;
+    delete (draft as unknown as Record<string,unknown>).inflections;
     if(draft.entry_id!==record.entry_id||record.import_reviews[0].entry_id!==record.entry_id)throw Error("Pending candidate identity mismatch");
     if(validateDictionaryDraft([draft]).length)throw Error("Invalid pending candidate; correct its original draft with stable IDs");
     return {...draft,row};
