@@ -79,7 +79,7 @@ jobs:
         run: node tests/dictionaryWordSegments.test.cjs
       - name: Official content and retired schema regression
         run: |
-          node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
+          node --test tests/retirementCompatibility.test.cjs tests/schemaRetirement.test.cjs tests/pageDefaultModeRetirement.test.cjs tests/officialLinkedContent.test.cjs tests/dictionaryPronunciations.test.cjs tests/dictionaryExchange.test.cjs tests/studyRepository.test.cjs tests/studyFSRS.test.cjs tests/studySessions.test.cjs tests/studyClear.test.cjs tests/officialPrivateIdentity.test.cjs tests/dictionaryConnections.test.cjs
           node tests/officialLinkedContent.browser.test.cjs
           node tests/dictionaryEditor.browser.test.cjs
       - name: Dictionary approval and mobile speech regression
