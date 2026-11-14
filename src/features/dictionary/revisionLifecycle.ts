@@ -13,6 +13,6 @@ export async function createDictionaryReview(client:Client,snapshot:AISnapshot,d
 }
 export function reviewSnapshot(review:DictionaryReview):AISnapshot{
  const c=review.candidate,b=c.bundle;
- const detail={entry:{...review.base_snapshot.detail.entry,...b.dictionary_entries[0],status:'draft',revision:review.revision},senses:b.dictionary_senses,relations:b.dictionary_relations.map(compositionRow),etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,inflections:c.inflections??[],pronunciations:c.pronunciations??[],examples:c.examples,lexical_annotations:c.annotations} as unknown as DictionaryDetail;
+ const detail={entry:{...review.base_snapshot.detail.entry,...b.dictionary_entries[0],status:'draft',revision:review.revision},senses:b.dictionary_senses,relations:b.dictionary_relations.map(compositionRow),etymologies:b.dictionary_etymologies,learning_notes:b.dictionary_learning_notes,...(c.derivations!==undefined?{derivations:c.derivations}:{}),inflections:c.inflections??[],pronunciations:c.pronunciations??[],examples:c.examples,lexical_annotations:c.annotations} as unknown as DictionaryDetail;
  return {detail,metadata:review.base_snapshot.metadata};
 }
