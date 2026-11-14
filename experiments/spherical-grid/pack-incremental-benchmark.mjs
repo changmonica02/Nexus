@@ -34,4 +34,4 @@ const extendMs=+median(results.extendMs).toFixed(2),fullMs=+median(results.fullM
 console.log(JSON.stringify({gridCells:36002,scenario:'first isolated island in all-ocean world',
  repeat:4,incrementalMsMedian:extendMs,fullMsMedian:fullMs,
  speedup:+(fullMs/extendMs).toFixed(2),trianglesChanged:changedFaces,totalTriangles:total,
- exactMatch:true,note:'append-only coastal insertion only; source/grid count and global dual area assembly remain O(N)'}));
+ exactMatch:true,note:'append-only coastal insertion only; topology insertion is local; triangle difference scan and dual caches still require global O(N) work'}));
