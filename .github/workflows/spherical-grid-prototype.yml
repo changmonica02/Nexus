@@ -34,13 +34,13 @@ jobs:
       - name: Bundle offline browser preview
         run: |
           mkdir -p /tmp/nexus-land-preview
-          cp experiments/spherical-grid/preview.html /tmp/nexus-land-preview/index.html
-          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=iife --platform=browser --outfile=/tmp/nexus-land-preview/preview.js
-          test -s /tmp/nexus-land-preview/preview.js
-          node --check /tmp/nexus-land-preview/preview.js
+          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=iife --platform=browser --outfile=/tmp/nexus-preview-bundle.js
+          node --check /tmp/nexus-preview-bundle.js
+          node experiments/spherical-grid/build-offline-preview.mjs /tmp/nexus-preview-bundle.js /tmp/nexus-land-preview/index.html
+          test -s /tmp/nexus-land-preview/index.html
           ! grep -q 'type="module"' /tmp/nexus-land-preview/index.html
-          ! grep -qE '^import |^export ' /tmp/nexus-land-preview/preview.js
-      - name: Upload offline preview (download ZIP and open index.html)
+          ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
+      - name: Upload standalone offline preview (download ZIP and open index.html)
         uses: actions/upload-artifact@v4
         with:
           name: nexus-global-land-preview
