@@ -1,6 +1,8 @@
 // Isolated P1 spherical land-layout prototype. No Nexus runtime or storage writes.
 // Original implementation; generated land fraction is measured by spherical Voronoi area.
 import {createGlobalGrid} from './global-config.mjs';
+import {openGlobalTerrain} from './terrain-edits.mjs';
+import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 
 export const LAND_TARGETS = Object.freeze([25, 32, 45]);
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -66,4 +68,18 @@ export function createLandLayout({seed,landPercent=32,continentCores=8}={}) {
   tolerancePercent:100*Math.max(...grid.areas)/total,
   stage:'unconfirmed-land'
  };
+}
+
+// Explicit confirmation is the sole conversion from an editable draft to a
+// versioned authoritative Grid snapshot. Existing restore validation is reused.
+export function confirmLandLayout(draft) {
+ if(draft?.stage!=='unconfirmed-land')throw Error('Expected an unconfirmed land layout');
+ const state=openGlobalTerrain(draft.grid,draft.oceanSeed);
+ const snapshot=exportGlobalTerrainSnapshot(state);
+ return {snapshot,settings:{...draft.settings},stage:'confirmed-land'};
+}
+export function reopenConfirmedLandLayout(confirmed) {
+ if(confirmed?.stage!=='confirmed-land')throw Error('Expected a confirmed land layout');
+ const state=importGlobalTerrainSnapshot(confirmed.snapshot);
+ return {state,settings:{...confirmed.settings},stage:'confirmed-land'};
 }
