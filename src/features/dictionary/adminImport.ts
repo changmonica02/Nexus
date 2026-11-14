@@ -107,6 +107,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
     dictionary_examples:{required:['id','entry_id','body'],optional:['sense_id','sort_order','revision','translation_zh_tw','derivation_id']},
     dictionary_sense_derivations:{required:['id','entry_id','sense_id','gloss_zh_tw'],optional:['sort_order','revision']},
+    dictionary_public_notes:{required:['id','entry_id','body'],optional:['revision']},
     dictionary_lexical_annotations:{required:['id','entry_id','kind','body'],optional:['sense_id','sort_order','revision']},
   };
   const bundle:Bundle={};let count=0;

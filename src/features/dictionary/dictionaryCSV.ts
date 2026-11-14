@@ -42,6 +42,7 @@ export async function parseDictionaryCSV(raw:string):Promise<DictionaryDraftInpu
 /** Export the imported projection with permanent Entry/Sense IDs; never flatten ambiguous content. */
 export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
   const rows:string[][]=[];
+  if(drafts.some(d=>d.public_notes?.length))throw Error('CSV 無法無損匯出公共筆記；請使用新版 JSON。');
   if(drafts.some(d=>d.inflections?.length))throw Error('獨立詞形變化已列為退役資料；CSV 不會輸出舊詞形，請先清理舊內容再匯出。');
   if(drafts.some(d=>(d.derivations?.length??0)>0||d.examples.some(e=>e.translation_zh_tw!=null||e.derivation_id!=null)))throw Error('CSV 不支援衍生意思、中文翻譯或例句關聯；請使用新版 JSON，避免遺失資料。');
   if(drafts.some(d=>d.senses.some(s=>Array.isArray(s.variants)&&s.variants.length)))throw Error('CSV 不含構詞變體，請使用完整 JSON。');
