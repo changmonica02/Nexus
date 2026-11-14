@@ -22,7 +22,7 @@ test('CSV ignores every unsupported input column, reports its name and keeps val
 
 
 test('CSV keeps distinct homographic morpheme IDs while ignoring extra columns',async()=>{
- const csv=rows=>dictionaryCSVHeaders.join(',')+',unused_column\\n'+rows.map(r=>dictionaryCSVHeaders.map(h=>r[h]??'').join(',')+',legacy').join('\\n');
+ const csv=rows=>dictionaryCSVHeaders.join(',')+',unused_column\n'+rows.map(r=>dictionaryCSVHeaders.map(h=>r[h]??'').join(',')+',legacy').join('\n');
  const same=(kind,entry_id,sense_id)=>({kind,entry_id,sense_id,headword:'tri-',part_of_speech:'',gloss_zh_tw:'構詞'});
  for(const kind of ['prefix','root','suffix']){
   const a=same(kind,id(201),id(202)),b=same(kind,id(203),id(204));
