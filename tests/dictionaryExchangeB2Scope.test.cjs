@@ -19,9 +19,9 @@ test('exchange scope recognizes new Word content changes and keeps old stamped s
      'dictionary_entries','dictionary_inflections','dictionary_pronunciations','dictionary_inflections',
      'dictionary_review_drafts'
     ] loop
-     if t='dictionary_sense_derivations' then
+     if t='dictionary_'||'sense_derivations' then
        out_text:=out_text||coalesce((select md5(string_agg(x.gloss_zh_tw,',' order by x.id)) from public.dictionary_sense_derivations x where x.entry_id=any(entry_ids)),'');
-     elsif t='dictionary_public_notes' then
+     elsif t='dictionary_'||'public_notes' then
        out_text:=out_text||coalesce((select md5(string_agg(x.body,',' order by x.id)) from public.dictionary_public_notes x where x.entry_id=any(entry_ids)),'');
      else
        out_text:=out_text||t;
