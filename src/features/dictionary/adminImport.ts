@@ -103,6 +103,8 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
     dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
+    dictionary_examples:{required:['id','entry_id','body'],optional:['sense_id','sort_order','revision']},
+    dictionary_lexical_annotations:{required:['id','entry_id','kind','body'],optional:['sense_id','sort_order','revision']},
   };
   const bundle:Bundle={};let count=0;
   for(const [table,rows] of Object.entries(value)) {
@@ -155,6 +157,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
       if(table==='dictionary_inflections')enums.form_kind=['past','past_participle','present_participle','third_person_singular','plural','comparative','superlative'];
       if(table==='dictionary_entries')enums.kind=['word','prefix','root','suffix'];
       if(table==='dictionary_learning_notes')enums.kind=['core_concept','learning_decomposition','mnemonic_scenario'];
+      if(table==='dictionary_lexical_annotations')enums.kind=['relation_hint'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
       count++;return row;
     });
