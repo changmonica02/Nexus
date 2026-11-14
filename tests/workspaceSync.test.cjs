@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { openDB, deleteDB } = require('idb');
-const { WorkspacePersistence, WORKSPACE_STORES } = require('../src/infrastructure/sync/workspacePersistence.ts');
+const { WorkspacePersistence, WORKSPACE_STORES, withoutRetiredStudyItems } = require('../src/infrastructure/sync/workspacePersistence.ts');
 const { pullWorkspace, flushWorkspace, readWorkspaceRows, remoteResult } = require('../src/infrastructure/sync/workspaceSync.ts');
 const { IndexedDBAdapter } = require('../src/infrastructure/storage/IndexedDBAdapter.ts');
 const { SyncEngine } = require('../src/infrastructure/sync/syncEngine.ts');
@@ -104,6 +104,31 @@ async function create(d, s, value = page(), type = 'pages') {
   await d.local.mutate(owner, [{ type, kind: 'save', value }]);
   await flushWorkspace(s, d.local, owner);
 }
+
+test('retired Page fields never leave new or old queued operations and never enter backups',async t=>{
+ const d=await device(t),server=new Server();
+ const old={...page(),study_items:[{front:'legacy',back:'ignored'}]};
+ await d.local.mutate(owner,[{type:'pages',kind:'save',value:old}]);
+ let [batch]=await d.local.pending(owner);
+ assert.equal(Object.hasOwn(batch.operations[0].value,'default_mode'),false);
+ assert.equal(Object.hasOwn(batch.operations[0].value,'study_items'),false);
+ // Simulate an outbox that was persisted before this release.
+ const queued={...batch,operations:batch.operations.map(op=>({...op,value:{...op.value,default_mode:'note',study_items:[{front:'obsolete'}]}}))};
+ await d.db.put('workspace_outbox',queued);
+ await flushWorkspace(server,d.local,owner);
+ assert.equal(server.receipts.has(batch.operations[0].id),true);
+ const saved=server.rows.pages.get(old.id);
+ assert.ok(saved);
+ // Replayed legacy requests remain byte-for-byte identical for server receipt safety.
+ assert.equal(saved.default_mode,'note');
+ assert.ok(Array.isArray(saved.study_items));
+ assert.equal((await d.local.pending(owner)).length,0);
+ // The backup exporter uses the same sanitizer; verify its projection directly.
+ // This fixture intentionally omits study_cards and cannot run a full backup.
+ const backupPage=withoutRetiredStudyItems({...saved,default_mode:'note',study_items:[{front:'legacy'}]});
+ assert.equal(Object.hasOwn(backupPage,'default_mode'),false);
+ assert.equal(Object.hasOwn(backupPage,'study_items'),false);
+});
 
 test('hard delete: stale offline device cannot resurrect a page; tombstone wins locally and blocks RPC', async t => {
   const a = await device(t), b = await device(t), s = new Server();

@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
-const {parseDictionaryCSV,dictionaryCSVHeaders,exportDictionaryCSV}=require('../src/features/dictionary/dictionaryCSV.ts');
+const {parseDictionaryCSV,parseDictionaryCSVPreview,dictionaryCSVHeaders,exportDictionaryCSV}=require('../src/features/dictionary/dictionaryCSV.ts');
 const {mapDictionaryDraft,saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {buildImportSession,chooseIssue,applyImportItems}=require('../src/features/dictionary/importReview.ts');
 const {normalizeDictionaryBundle}=require('../src/features/dictionary/adminImport.ts');
@@ -20,6 +20,23 @@ test('CSV normalized key groups senses, keeps explicit identities and distinguis
  const changed=await parseDictionaryCSV(csv([word({entry_id:id(10),sense_id:id(11),headword:'new spelling',gloss_zh_tw:'新義'})]));assert.equal(changed[0].entry_id,id(10));assert.equal(changed[0].senses[0].id,id(11));
  await assert.rejects(parseDictionaryCSV(csv([word({entry_id:id(20)}),word({entry_id:id(30)})])),/不同 Entry ID/);
 });
+test('CSV preserves homographic morphemes by explicit ID, never guesses an ambiguous blank ID',async()=>{
+ const same=(kind,entry_id,sense_id)=>word({kind,entry_id,sense_id,headword:'tri-',part_of_speech:'',gloss_zh_tw:'構詞'});
+ for(const kind of ['prefix','root','suffix']){
+  const a=same(kind,id(201),id(202)),b=same(kind,id(203),id(204));
+  const drafts=await parseDictionaryCSV(csv([a,b]));
+  assert.equal(drafts.length,2);
+  assert.deepEqual(drafts.map(d=>d.entry_id),[id(201),id(203)]);
+  assert.deepEqual(drafts.map(d=>d.senses[0].id),[id(202),id(204)]);
+  const roundtrip=await parseDictionaryCSV(exportDictionaryCSV(drafts));
+  assert.deepEqual(roundtrip.map(d=>d.entry_id),[id(201),id(203)]);
+  const preview=await parseDictionaryCSVPreview(csv([a,b,same(kind,'',id(205))]));
+  assert.ok(preview.issues.some(issue=>issue.field==='entry_id'&&/明確填入/.test(issue.error)));
+  await assert.rejects(parseDictionaryCSV(csv([a,b,same(kind,'',id(205))])),/明確填入/);
+ }
+ await assert.rejects(parseDictionaryCSV(csv([word({entry_id:id(206)}),word({entry_id:id(207)})])),/不同 Entry ID/);
+});
+
 test('PostgreSQL: canonical identity across CSV/JSON/AI/manual, review, stable senses, unique writes and Published protection',async()=>{
  const pg=await database();try{
  await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261017_dictionary_entry_identity.sql','utf8'));for(const f of ['20261018_dictionary_pronunciations.sql', '20261019_dictionary_admin_bulk_publish.sql', '20261020_dictionary_edit_inflections.sql', '20261021_dictionary_composition_shared.sql', '20261016060000_dictionary_retire_verification_state.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));await pg.exec('set role authenticated');const client=clientFor(pg);

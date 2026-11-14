@@ -231,7 +231,6 @@ export default function CreationTemplateLibraryView({
       character_data: data,
       content_json: {},
       content_text: "",
-      default_mode: "note",
       created_at: 0,
       updated_at: 0,
       revision: draft.revision,
