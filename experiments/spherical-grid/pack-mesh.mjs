@@ -136,3 +136,43 @@ export function canExtendSphericalPack(grid,ocean,priorPack){
   if(priorPack.coastEdges[i][0]!==edges[i][0]||priorPack.coastEdges[i][1]!==edges[i][1])return false;
  return true;
 }
+
+export function canShrinkSphericalPack(grid,ocean,priorPack){
+ if(!priorPack||priorPack.skipped||!Array.isArray(priorPack.journal)||
+  priorPack.journal.length!==priorPack.inserted||
+  priorPack.inserted!==priorPack.coastEdges?.length)return false;
+ const after=[];
+ for(let i=0;i<grid.neighbors.length;i++)for(const j of grid.neighbors[i])
+  if(i<j&&ocean[i]!==ocean[j])after.push([i,j]);
+ if(after.length>=priorPack.coastEdges.length)return false;
+ for(let i=0;i<after.length;i++)
+  if(after[i][0]!==priorPack.coastEdges[i][0]||
+     after[i][1]!==priorPack.coastEdges[i][1])return false;
+ return true;
+}
+// Inverse of a suffix of recorded local insertions. Every touched existing
+// face is restored to its pre-insertion value, then appended faces/sites go away.
+// Fails closed unless the *entire new* coast-edge sequence is an exact prefix.
+export function shrinkSphericalPack(grid,ocean,priorPack){
+ if(!canShrinkSphericalPack(grid,ocean,priorPack))
+  throw Error('Incremental Pack coast deletion is not a recorded suffix');
+ const coastEdges=[];
+ for(let i=0;i<grid.neighbors.length;i++)for(const j of grid.neighbors[i])
+  if(i<j&&ocean[i]!==ocean[j])coastEdges.push([i,j]);
+ const points=priorPack.points.map(p=>p.slice());
+ const triangles=priorPack.triangles.map(t=>t.slice());
+ const sourceIds=[...priorPack.sourceIds],siteKeys=[...priorPack.siteKeys];
+ const journal=[...priorPack.journal];
+ let inserted=priorPack.inserted,flips=priorPack.flips;
+ while(inserted>coastEdges.length){
+  const step=journal.pop();
+  triangles.length=step.prevTriangles;
+  for(const [fid,face] of step.faces)triangles[fid]=face.slice();
+  points.length=step.prevPoints;
+  sourceIds.length=step.prevPoints;
+  siteKeys.length=step.prevPoints;
+  flips=step.prevFlips;
+  inserted--;
+ }
+ return finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted,flips,0,journal);
+}
