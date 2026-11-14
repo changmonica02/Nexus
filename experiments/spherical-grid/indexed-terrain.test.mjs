@@ -95,3 +95,18 @@ test('indexed non-suffix coastal point deletion uses full rebuild fallback',()=>
  assert.equal(state.fullPackRebuilds,2);
  compare(state);
 });
+
+test('corrupt incremental journal falls back to complete Pack rebuild without partial mesh publication',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const first=1,middle=Math.floor(g.points.length/2),last=g.points.length-1;
+ g.heights[first]=20;g.heights[last]=20;
+ const state=openIndexedTerrain(g,0);
+ const journal=state.geography.pack.journal;
+ assert.ok(journal.length>0);
+ journal[journal.length-1].faces.push([-1,[0,1,2]]);
+ const result=applyIndexedTerrainEdits(state,[{id:middle,height:20}]);
+ assert.equal(result.mode,'coast-patch-pack-rebuild');
+ assert.ok(result.incrementalFallbackReason?.includes('rollback'));
+ assert.equal(state.fullPackRebuilds,2);
+ compare(state);
+});
