@@ -40,3 +40,19 @@ test('coast remains valid near longitude seam and polar regions',()=>{
  assert.ok(polar.length>0);
  assert.ok(p.coast.every(s=>Number.isFinite(s.arcKm)));
 });
+
+test('derived coastline forms closed loops across the full sphere',()=>{
+ const grid=generate(60);
+ for(let i=0;i<grid.points.length;i++){
+  const [x,y,z]=grid.points[i],lon=Math.atan2(y,x);
+  setHeight(grid,i,Math.abs(lon)>2.6 || z>.85?-20:20);
+ }
+ const seed=grid.points.findIndex((p,i)=>grid.heights[i]<0&&p[2]>.85);
+ const ocean=oceanConnected(grid,seed),p=buildCoastalSamples(grid,ocean);
+ const degree=new Map(),key=v=>v.map(x=>x.toFixed(10)).join(',');
+ for(const segment of p.coast)for(const point of [segment.start,segment.end]){
+  const k=key(point);degree.set(k,(degree.get(k)||0)+1);
+ }
+ assert.ok(degree.size>0);
+ assert.ok([...degree.values()].every(count=>count===2));
+});
