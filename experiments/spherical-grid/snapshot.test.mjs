@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGlobalGrid} from './global-config.mjs';
+import {setHeight} from './grid.mjs';
+import {openGlobalTerrain,applyGlobalHeightEdits} from './terrain-edits.mjs';
+import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
+test('fixed Grid IDs and heights survive full JSON export/import, Pack is derived again',()=>{
+ const grid=createGlobalGrid();
+ grid.points.forEach(([x],i)=>setHeight(grid,i,x<0?-20:20));
+ const seed=grid.heights.findIndex(h=>h<0);
+ const first=openGlobalTerrain(grid,seed);
+ const land=grid.heights.findIndex(h=>h>0);
+ applyGlobalHeightEdits(first,[{id:land,height:33}]);
+ const json=JSON.stringify(exportGlobalTerrainSnapshot(first));
+ const restored=importGlobalTerrainSnapshot(JSON.parse(json));
+ assert.deepEqual(restored.grid.heights,grid.heights);
+ assert.deepEqual(restored.grid.points,grid.points);
+ assert.deepEqual(restored.grid.neighbors,grid.neighbors);
+ assert.deepEqual(restored.grid.areas,grid.areas);
+ assert.equal(restored.revision,1);
+ assert.equal(restored.oceanSeed,seed);
+ assert.equal(restored.geography.landAreaKm2,first.geography.landAreaKm2);
+ assert.deepEqual(restored.geography.pack.sourceIds,first.geography.pack.sourceIds);
+ assert.equal(JSON.stringify(exportGlobalTerrainSnapshot(restored)),json);
+});
+test('reject invalid schema, altered heights, truncated arrays and invalid ocean seed',()=>{
+ const grid=createGlobalGrid();
+ grid.points.forEach(([x],i)=>setHeight(grid,i,x<0?-20:20));
+ const seed=grid.heights.findIndex(h=>h<0);
+ const snapshot=exportGlobalTerrainSnapshot(openGlobalTerrain(grid,seed));
+ const corrupt=(change)=>{const value=structuredClone(snapshot);change(value);return value};
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.cells=40962})));
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.version=2})));
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights.pop()})),RangeError);
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights[0]=101})),RangeError);
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights[0]=s.heights[0]===20?19:20})),/checksum/);
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.oceanSeed=s.heights.findIndex(h=>h>=0)})),RangeError);
+});

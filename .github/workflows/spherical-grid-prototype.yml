@@ -1,0 +1,33 @@
+name: Spherical Grid-Pack Prototype
+on:
+  pull_request:
+    paths:
+      - 'experiments/spherical-grid/**'
+      - '.github/workflows/spherical-grid-prototype.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check experimental JavaScript module syntax
+        run: |
+          for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
+      - name: Geometry and ocean / coast checks (no database, no deployment)
+        run: node --test experiments/spherical-grid/*.test.mjs
+      - name: Reproducible experimental benchmarks
+        run: |
+          node --expose-gc experiments/spherical-grid/benchmark.mjs
+          node --expose-gc experiments/spherical-grid/edit-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/pack-update-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/coast-index-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/indexed-terrain-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/pack-incremental-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/pack-shrink-benchmark.mjs
+          node --expose-gc experiments/spherical-grid/pack-middle-replay-benchmark.mjs

@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGlobalGrid,GLOBAL_GRID_CELLS,GLOBAL_GRID_FREQUENCY,HEIGHT_METRES_PER_STEP,assertGlobalGrid} from './global-config.mjs';
+import {setHeight} from './grid.mjs';
+import {openGlobalTerrain,applyGlobalHeightEdits} from './terrain-edits.mjs';
+
+test('all planets use fixed frequency 60 and 36,002 stable Grid IDs',()=>{
+ const a=createGlobalGrid(),b=createGlobalGrid();
+ assert.equal(GLOBAL_GRID_FREQUENCY,60);
+ assert.equal(a.points.length,GLOBAL_GRID_CELLS);
+ assert.deepEqual(a.points,b.points);
+ assert.deepEqual(a.neighbors,b.neighbors);
+ assert.equal(HEIGHT_METRES_PER_STEP,100);
+ assertGlobalGrid(a);
+ assert.throws(()=>assertGlobalGrid({points:[],heights:[],neighbors:[],areas:[]}),RangeError);
+});
+test('height-only edits synchronize Pack heights without changing topology, area, or IDs',()=>{
+ const grid=createGlobalGrid();
+ grid.points.forEach(([x],i)=>setHeight(grid,i,x<0?-20:20));
+ const seed=grid.heights.findIndex(h=>h<0);
+ const state=openGlobalTerrain(grid,seed);
+ const original=state.geography.pack;
+ const originalLand=state.geography.landAreaKm2;
+ const land=grid.heights.findIndex(h=>h>0);
+ const result=applyGlobalHeightEdits(state,[{id:land,height:90}]);
+ assert.deepEqual(result,{changed:1,mode:'height-only',revision:1});
+ assert.equal(state.geography.pack,original);
+ assert.equal(state.geography.landAreaKm2,originalLand);
+ assert.equal(grid.heights[land],90);
+ assert.ok(original.sourceIds.some(id=>id===land));
+ assert.ok(original.sourceIds.every((id,i)=>original.heights[i]===grid.heights[id]));
+ assert.equal(state.fullPackRebuilds,1);
+ assert.equal(state.heightOnlySyncs,1);
+ assert.equal(applyGlobalHeightEdits(state,[{id:land,height:90}]).mode,'unchanged');
+});
+test('coastline crossing rebuilds Pack and canonical area, retaining Grid ID/geometry',()=>{
+ const grid=createGlobalGrid();
+ grid.points.forEach(([x],i)=>setHeight(grid,i,x<0?-20:20));
+ const seed=grid.heights.findIndex(h=>h<0);
+ const state=openGlobalTerrain(grid,seed),initial=state.geography.pack;
+ const area=state.geography.landAreaKm2,coordinates=grid.points;
+ const land=grid.heights.findIndex((v,i)=>v>=0&&grid.neighbors[i].some(j=>state.geography.ocean[j]));
+ const result=applyGlobalHeightEdits(state,[{id:land,height:-20}]);
+ assert.equal(result.mode,'full-pack-rebuild');
+ assert.notEqual(state.geography.pack,initial);
+ assert.notEqual(state.geography.landAreaKm2,area);
+ assert.equal(grid.points,coordinates);
+ assert.equal(grid.heights[land],-20);
+ assert.equal(state.fullPackRebuilds,2);
+});
+test('invalid batches are atomic and seed must remain submerged',()=>{
+ const g=createGlobalGrid();
+ g.points.forEach(([x],i)=>setHeight(g,i,x<0?-20:20));
+ const seed=g.heights.findIndex(h=>h<0);
+ const state=openGlobalTerrain(g,seed);
+ const first=g.heights.findIndex(h=>h>0),old=g.heights[first];
+ const before=state.geography;
+ assert.throws(()=>applyGlobalHeightEdits(state,[{id:first,height:80},{id:first,height:90}]));
+ assert.throws(()=>applyGlobalHeightEdits(state,[{id:first,height:80},{id:1,height:101}]),RangeError);
+ assert.throws(()=>applyGlobalHeightEdits(state,[{id:first,height:80},{id:seed,height:30}]),RangeError);
+ assert.equal(g.heights[first],old);
+ assert.equal(state.geography,before);
+ assert.equal(state.revision,0);
+});
