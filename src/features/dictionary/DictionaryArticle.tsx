@@ -39,7 +39,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
     {showHeading&&<header><p className="text-sm opacity-60">{tr(kinds[data.entry.kind])}</p><h1 className="text-3xl font-semibold break-words">{data.entry.headword}</h1></header>}
     {showConnections&&<DictionaryConnections key={data.entry.id} data={data} from={from}/>}
     {data.entry.kind==='word'&&data.entry.word_segments&&!validateWordSegments(data.entry.word_segments,data.entry.headword,'word',data.relations)&&<WordComposition data={data} from={from}/>}
-    {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr("概念")}>{scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
+    {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr(data.entry.kind==='word'?"記憶法":"概念")}>{data.entry.kind==='word'?data.learning_notes.filter(n=>n.body.trim()).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>):scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
     {sections.map(scope=>{
       const sense=data.senses.find(s=>s.id===scope.id),domain=semanticDomains.find(d=>d.code===sense?.semantic_domain),subdomain=domain?.children.find(c=>c[0]===sense?.semantic_subdomain);
       const belongs=(row:{sense_id:string|null})=>row.sense_id===scope.id;
@@ -59,8 +59,8 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
       </DetailSection></div>;
     })}
     {!!data.pronunciations?.length&&<DetailSection title={tr("讀音")}>{scoped([...data.pronunciations].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)),p=><p key={p.id}>{p.ipa}</p>,true)}</DetailSection>}
-    {!!data.etymologies.some(n=>n.body.trim())&&<DetailSection title={tr("歷史詞源")}>{scoped(data.etymologies.filter(n=>n.body.trim()),h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">{tr("資料來源：")}<SourceText text={h.data_source}/></p>}</div>)}</DetailSection>}
+    {!!data.etymologies.some(n=>n.body.trim())&&<DetailSection title={tr("歷史詞源")}>{(data.entry.kind==='word'?data.etymologies.filter(n=>n.body.trim()).map(h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">{tr("資料來源：")}<SourceText text={h.data_source}/></p>}</div>):scoped(data.etymologies.filter(n=>n.body.trim()),h=><div key={h.id}><p className="whitespace-pre-wrap">{h.body}</p>{h.data_source&&<p className="text-sm whitespace-pre-wrap">{tr("資料來源：")}<SourceText text={h.data_source}/></p>}</div>))}</DetailSection>}
     {!!data.lexical_annotations?.length&&<DetailSection title={tr("補充說明")}>{scoped([...data.lexical_annotations].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}
-    {!!data.examples?.length&&<DetailSection title={tr("例詞")}>{scoped([...data.examples].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}
+    {!!data.examples?.length&&<DetailSection title={tr("例句")}>{scoped([...data.examples].sort((a,b)=>a.sort_order-b.sort_order),x=><div key={x.id} className="space-y-1"><p className="whitespace-pre-wrap">{x.body}</p>{x.translation_zh_tw&&<p className="whitespace-pre-wrap text-sm opacity-75">{x.translation_zh_tw}</p>}</div>,true)}</DetailSection>}
   </article>;
 }
