@@ -151,7 +151,7 @@ export function draftFromExchange(
     ["detail", "metadata"],
     "snapshot",
   );
-  keys(snapshot.detail, ["entry", ...Object.keys(rowFields)], "detail");
+  keys(snapshot.detail, ["entry", ...Object.keys(rowFields), "inflections"], "detail");
   const entry = snapshot.detail.entry;
   keys(
     entry,
