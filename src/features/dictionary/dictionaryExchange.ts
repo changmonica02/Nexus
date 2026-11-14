@@ -542,6 +542,7 @@ export function exchangeCategory(item: ImportSession["items"][number]) {
 export function importReport(session: ImportSession) {
   return {
     session_id: session.id,
+    ignored_fields: session.ignored_fields ?? [],
     created_at: new Date().toISOString(),
     items: session.items.map((i) => ({
       entry_id: i.draft.entry_id,

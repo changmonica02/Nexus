@@ -21,7 +21,7 @@ export interface ImportItem {
   status:'pending'|'applied'|'unchanged'|'skipped'|'stale'|'failed';message?:string;
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
-export interface ImportSession {durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
+export interface ImportSession {ignored_fields?:string[];durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
 export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','relation_hints'] as const;
 const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',relation_hints:'dictionary_lexical_annotations'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);

@@ -8,6 +8,7 @@ import { parseDictionaryCSVPreview } from "./dictionaryCSV";
 import {
   normalizeDictionaryBundle,
   parseDictionaryImport,
+  parseJSONBundleWithIgnored,
 } from "./adminImport";
 import { buildImportSession } from "./importReview";
 import type { DictionaryDraftInput, DraftIssue } from "./draftPipeline";
@@ -33,11 +34,14 @@ export async function previewImportSource(
   }
   const rawCandidates = new Map<string, unknown>();
   let drafts: DictionaryDraftInput[] = [],
-    issues: DraftIssue[] = [];
+    issues: DraftIssue[] = [],
+    ignoredFields: string[] = [];
   if (format === "csv")
-    ({ drafts, issues } = await parseDictionaryCSVPreview(raw));
+    ({ drafts, issues, ignoredFields } = await parseDictionaryCSVPreview(raw));
   else {
-    const bundle = await parseDictionaryImport(raw, format);
+    const parsed = format === "json" ? parseJSONBundleWithIgnored(raw) : null;
+    const bundle = parsed?.bundle ?? await parseDictionaryImport(raw, format);
+    ignoredFields = parsed?.ignoredFields ?? [];
     const ids = new Set([
       ...(bundle.dictionary_entries ?? []).map((e) => String(e.id)),
       ...Object.entries(bundle)
@@ -94,5 +98,6 @@ export async function previewImportSource(
   for (const item of session.items)
     if (rawCandidates.has(item.draft.entry_id))
       item.raw_candidate = rawCandidates.get(item.draft.entry_id);
+  session.ignored_fields = ignoredFields;
   return session;
 }

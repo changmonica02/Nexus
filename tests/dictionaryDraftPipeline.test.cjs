@@ -11,7 +11,7 @@ assert.equal(mapDictionaryDraft(ds[1]).bundle.dictionary_senses[0].semantic_doma
 test('canonical errors include row, kind, field; legacy and UUID validation',async()=>{
 for(const [field,value,pattern]of [['kind','bad',/kind/],['headword','',/headword/],['gloss_zh_tw','',/gloss_zh_tw/],['part_of_speech','',/part_of_speech/],['semantic_domain','x',/senses/],['entry_id','bad',/UUID/]]){const r={kind:'word',headword:'a',part_of_speech:'noun',gloss_zh_tw:'甲',[field]:value};const raw=dictionaryCSVHeaders.join(',')+'\n'+dictionaryCSVHeaders.map(h=>r[h]??'').join(',');await assert.rejects(parseDictionaryCSV(raw),e=>/第 2 列/.test(e.message)&&pattern.test(e.message));}
 const old=`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw\n${id(3)},${id(4)},a,noun,甲`;assert.equal((await parseDictionaryCSV(old))[0].kind,'word');
-for(const field of ['citation','license','source_id','level'])await assert.rejects(parseDictionaryCSV(old.replace('headword',field)),/欄位/);
+for(const field of ['citation','license','source_id','level'])await assert.rejects(parseDictionaryCSV(old.replace('headword',field)),/缺少必要欄位/);
 });
 test('SQL migration: complete preview rollback, replay, RLS, published protection, extension transactions',async()=>{
 const pg=await require('./fixtures/morphemeRetirementDatabase.cjs').database();try{
