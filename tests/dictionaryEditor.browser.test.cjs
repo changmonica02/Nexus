@@ -70,7 +70,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   await word().fill('go');await settle();
   await page.reload();await word().waitFor();
   assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');
-  assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'核心意象\\n'.repeat(12));
+  assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'核心意象\n'.repeat(12));
   assert.equal(await page.evaluate(()=>window.fixture.reviews.length),1);
   // Picker zero results, errors, multi-sense choice, self rejection, cancel/Escape and focus restoration.
   const add=page.getByRole('button',{name:'＋新增構詞關聯'});await add.focus();await page.keyboard.press('Enter');let modal=page.getByRole('dialog');await modal.getByLabel('搜尋詞條或中文義項').fill('missing');await modal.getByText('查無可連結',{exact:false}).waitFor();await page.keyboard.press('Escape');assert.equal(await modal.count(),0);assert.equal(await add.evaluate(el=>el===document.activeElement),true);await settle();
