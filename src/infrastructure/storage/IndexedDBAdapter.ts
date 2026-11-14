@@ -227,7 +227,6 @@ export class IndexedDBAdapter implements StorageAdapter {
       links: [],
       attachment_ids: input?.attachment_ids ?? [],
       primary_attachment_id: input?.primary_attachment_id ?? null,
-      default_mode: "note",
       created_at: now,
       updated_at: now,
       deleted_at: null,

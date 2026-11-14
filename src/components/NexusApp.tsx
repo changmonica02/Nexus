@@ -541,7 +541,7 @@ function NexusAppInner({
       sort_order: Math.max(-1, ...chapters.map((item) => item.sort_order)) + 1,
       title: `第${chapters.length + 1}章`, content_json: emptyNovelDocument(), content_text: "",
       created_at: now, updated_at: now, deleted_at: null, revision: 1,
-      device_id: await storage.getDeviceId(), default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+      device_id: await storage.getDeviceId(), workspace_owner_id: novel.workspace_owner_id,
     };
     await storage.savePage(chapter);
     setPages((prev) => [...prev, chapter]);
@@ -565,7 +565,7 @@ function NexusAppInner({
       const chapters: NovelChapter[] = parts.map((part, sort_order) => ({
         ...part, id: `chapter_${nanoid()}`, kind: "novel_chapter", parent_id: novelId, sort_order,
         created_at: now, updated_at: now, deleted_at: null, revision: 1, device_id,
-        default_mode: "note", workspace_owner_id: novel.workspace_owner_id,
+        workspace_owner_id: novel.workspace_owner_id,
       }));
       const updated: Page = { ...novel, novel_settings: { ...novel.novel_settings, chaptersEnabled: true },
         content_json: emptyNovelDocument(), content_text: "", updated_at: now, revision: novel.revision + 1 };
@@ -582,7 +582,7 @@ function NexusAppInner({
     const template: Page = {
       id: `template_${nanoid()}`, title, kind: "creative", creative_type: source.creative_type === "world" ? "world" : "character",
       character_data: {...snapshotCharacterTemplate(data),resourceSource:data.resourceSource}, content_json: emptyNovelDocument(), content_text: "",
-      default_mode: "note", created_at: now, updated_at: now, deleted_at: null, revision: 1,
+      created_at: now, updated_at: now, deleted_at: null, revision: 1,
       device_id: await storage.getDeviceId(), workspace_owner_id: source.workspace_owner_id,
       attachment_ids: [],
     };

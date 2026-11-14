@@ -138,8 +138,8 @@ export interface Page {
   title: string;
   content_json: object;
   content_text: string;
-  /** @deprecated 已被 kind 取代，僅為向後相容保留，新程式碼不應讀寫此欄位 (C2決策，需徵詢) */
-  default_mode: "note";
+  /** @deprecated Only accepted from old local/cloud records; never emit in new writes. */
+  default_mode?: "note";
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
