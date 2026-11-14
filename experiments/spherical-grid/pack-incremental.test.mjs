@@ -97,3 +97,21 @@ test('cannot roll back non-suffix coastal sites',()=>{
  assert.equal(canShrinkSphericalPack(g,ocean,before),false);
  assert.throws(()=>shrinkSphericalPack(g,ocean,before),/suffix/);
 });
+
+test('adding, removing and re-adding a coastal island preserves exact sphere mesh and stable site keys',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const seed=0,island=g.points.length-1;
+ const base=createSphericalPack(g,oceanConnected(g,seed));
+ setHeight(g,island,20);
+ const ocean1=oceanConnected(g,seed);
+ const added=extendSphericalPack(g,ocean1,base);
+ setHeight(g,island,-20);
+ const ocean2=oceanConnected(g,seed);
+ const removed=shrinkSphericalPack(g,ocean2,added);
+ sameGeometry(removed,base);
+ setHeight(g,island,20);
+ const ocean3=oceanConnected(g,seed);
+ const again=extendSphericalPack(g,ocean3,removed);
+ sameGeometry(again,createSphericalPack(g,ocean3));
+ assert.deepEqual(again.siteKeys,added.siteKeys);
+});
