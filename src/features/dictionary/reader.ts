@@ -8,7 +8,8 @@ type PublicRow<T> = Omit<T,'revision'|'updated_at'>;
 export interface PublishedDetail {
   inflections?:PublicRow<NonNullable<DictionaryDetail['inflections']>[number]>[];
   pronunciations?:PublicRow<NonNullable<DictionaryDetail['pronunciations']>[number]>[];
-  examples?:{id:string;sense_id:string|null;body:string;sort_order:number}[];
+  examples?:{id:string;sense_id:string|null;body:string;sort_order:number;translation_zh_tw?:string|null;derivation_id?:string|null}[];
+  public_notes?:{id:string;entry_id:string;body:string}[];
   lexical_annotations?:{id:string;sense_id:string|null;body:string;sort_order:number;kind:string}[];
   entry: PublicRow<DictionaryDetail['entry']>;
   senses: PublicRow<DictionaryDetail['senses'][number]>[];

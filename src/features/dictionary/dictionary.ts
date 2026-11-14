@@ -33,6 +33,7 @@ export interface DictionaryEtymology extends ContentRow {
   body: string;
   data_source: string;
 }
+export interface DictionaryPublicNote extends ContentRow {body:string}
 export interface DictionaryLearningNote extends ContentRow {
   sense_id: string | null;
   kind: "core_concept";
@@ -57,6 +58,7 @@ export interface DictionaryDetail {
   pronunciations?:DictionaryPronunciation[];
   examples?:DictionaryExample[];
   derivations?:DictionarySenseDerivation[];
+  public_notes?:DictionaryPublicNote[];
   lexical_annotations?:DictionaryExtra[];
   entry: DictionaryEntry;
   senses: DictionarySense[];
