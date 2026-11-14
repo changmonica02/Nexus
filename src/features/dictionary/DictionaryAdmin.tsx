@@ -116,7 +116,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     read:()=>({bundle:stateRef.current.bundle}),
     dirty:()=>stateRef.current.dirty,
     // B2 RPC persistence will be added in the next batch. Never acknowledge a write that the old RPC drops.
-    valid:value=>!services.current.matching.length&&!extensionsNeedBackend&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle))).length,
+    valid:value=>!services.current.matching.length&&!((value.bundle.dictionary_sense_derivations??[]).length>0||value.bundle.dictionary_examples?.some(x=>x.translation_zh_tw||x.derivation_id))&&!validateDictionaryDraft(draftsFromBundle(prepareEditorBundle(value.bundle))).length,
     save:async value=>{
       const drafts=draftsFromBundle(prepareEditorBundle(value.bundle));
       const review=services.current.saveReview?await services.current.saveReview(drafts[0]):null;
@@ -251,7 +251,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
             <div className="min-w-0 flex-1">
               <Field label={tr('衍生意思')+' '+(n+1)} value={derivation.gloss_zh_tw} onChange={v=>setBundle(b=>({...b,dictionary_sense_derivations:(b.dictionary_sense_derivations??[]).map(x=>x.id===derivation.id?{...x,gloss_zh_tw:v}:x)}))}/>
             </div>
-            <button type="button" className={addButton} aria-label={tr('刪除衍生意思')+' '+(n+1)} onClick={()=>{try{setBundle(b=>withoutDerivation(b,String(derivation.id)));}catch(error){setMessage(error instanceof Error?error.message:String(error));}}}><FeatureIcon feature="delete" size={16}/></button>
+            <button type="button" className={addButton} aria-label={tr('刪除衍生意思')+' '+(n+1)} onClick={()=>{try{const next=withoutDerivation(stateRef.current.bundle,String(derivation.id));setBundle(next);complete();}catch(error){setMessage(error instanceof Error?error.message:String(error));}}}><FeatureIcon feature="delete" size={16}/></button>
           </div>)}
         </section>}</div>
       </div>)}
