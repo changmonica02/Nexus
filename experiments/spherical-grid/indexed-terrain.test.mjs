@@ -59,3 +59,24 @@ test('indexed patch: bad batch rejected without mutating Grid or cached coastlin
  assert.strictEqual(state.geography,old);
  assert.strictEqual(state.coastIndex,index);
 });
+
+test('indexed all-ocean world creates first island via incremental spherical Pack insertion',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const state=openIndexedTerrain(g,0),island=g.points.length-1;
+ const original=state.geography.pack;
+ const result=applyIndexedTerrainEdits(state,[{id:island,height:20}]);
+ assert.equal(result.mode,'incremental-pack-insert');
+ assert.equal(result.changedOceanCells,1);
+ assert.ok(state.geography.pack.points.length>original.points.length);
+ assert.equal(state.geography.pack.skipped,0);
+ compare(state);
+});
+test('indexed island deletion falls back to full Pack rebuild safely',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const island=g.points.length-1;setHeight(g,island,20);
+ const state=openIndexedTerrain(g,0);
+ const result=applyIndexedTerrainEdits(state,[{id:island,height:-20}]);
+ assert.equal(result.mode,'coast-patch-pack-rebuild');
+ assert.equal(state.geography.pack.points.length,g.points.length);
+ compare(state);
+});
