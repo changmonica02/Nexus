@@ -9,7 +9,7 @@ import {downloadDictionaryJSON} from './exchangeExport';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {confirmDialog} from '../../lib/confirmDialog';
 import {parseDictionaryCSVPreview,exportDictionaryCSV} from './dictionaryCSV';
-import {normalizeDictionaryBundle,parseDictionaryImport} from './adminImport';
+import {normalizeDictionaryBundle,parseDictionaryImport,parseJSONBundleWithIgnored} from './adminImport';
 import {loadImportSession,persistImportSession} from './importSessionStore';
 import {applyBatchDecision,applyImportItems,buildImportSession,canBatchDecision,chooseIssue,sessionCounts,type ImportAction,type ImportItem,type ImportSession} from './importReview';
 import {DraftValidationError,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
