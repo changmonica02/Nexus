@@ -21,7 +21,6 @@ import {SafeMarkdown} from './SafeMarkdown';
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
 import {listAdminEntries,listAdminWork,adminSummaries,adminPageSize} from './adminQueries';
-import {inflectionLabels,availableInflections} from './inflections';
 import {RelationTargetPicker,RelationSelectionDialog} from './RelationTargetPicker';
 import {DictionaryBulkPublish} from './DictionaryBulkPublish';
 import {confirmDialog} from '../../lib/confirmDialog';
@@ -61,10 +60,10 @@ function Field({label,value,onChange,multiline=false,placeholder,compact=false}:
 function clean(row:object):Row { const result={...row} as Row;for(const key of ['updated_at','published_at','status','source_id'])delete result[key];return result; }
 export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technical?:boolean}) {
   const tr=useDictionaryText();
-  const order=['dictionary_entries','dictionary_senses','dictionary_pronunciations','dictionary_inflections','dictionary_relations','dictionary_learning_notes','dictionary_etymologies','dictionary_public_notes','dictionary_examples'];
+  const order=['dictionary_entries','dictionary_senses','dictionary_pronunciations','dictionary_relations','dictionary_learning_notes','dictionary_etymologies','dictionary_public_notes','dictionary_examples'];
   const rank=(table:string)=>order.includes(table)?order.indexOf(table):order.length;
   return <div className="space-y-2" aria-label={tr("字典預覽")}>{Object.entries(bundle).filter(([table,rows])=>technical||rows.length>0&&table!=='dictionary_lexical_annotations').sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
-    <h3 className="font-semibold">{{dictionary_entries:tr('詞條'),dictionary_inflections:tr('詞形變化'),dictionary_pronunciations:tr('讀音'),dictionary_senses:tr('義項'),dictionary_relations:tr('構詞關聯'),dictionary_etymologies:tr('歷史詞源'),dictionary_learning_notes:tr('記憶法'),dictionary_public_notes:tr('公共補充筆記')}[table]??table}</h3>
+    <h3 className="font-semibold">{{dictionary_entries:tr('詞條'),dictionary_pronunciations:tr('讀音'),dictionary_senses:tr('義項'),dictionary_relations:tr('構詞關聯'),dictionary_etymologies:tr('歷史詞源'),dictionary_learning_notes:tr('記憶法'),dictionary_public_notes:tr('公共補充筆記')}[table]??table}</h3>
     {rows.map(row=><article key={String(row.id)} className="my-2 space-y-2 whitespace-pre-wrap break-words rounded border p-3 text-sm">
       {<>
         {(technical||table==='dictionary_entries')&&!!row.kind&&<p>{tr("類型：")}{String(row.kind)}</p>}<p>{String(row.headword??row.gloss_zh_tw??row.form??row.ipa??row.body??tr('義項關聯'))}</p>
@@ -258,18 +257,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
         </section>}</div>
       </div>)}
       </EditorSection>
-      {detail.entry.kind==='word'&&<>
-      <EditorSection title={tr("詞形變化")} count={bundle.dictionary_inflections.length} actions={<button type="button" className={addButton} aria-label={tr("＋新增詞形變化")} onClick={()=>add('dictionary_inflections',{sense_id:null,form_kind:availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],null)[0]??'',form:'',sort_order:bundle.dictionary_inflections.length})}>{tr("＋新增詞形變化")}</button>}>
-      {!bundle.dictionary_inflections.length&&<p className="text-sm opacity-60">{tr("尚無詞形")}</p>}
-      {!!bundle.dictionary_inflections.length&&<div aria-hidden className="hidden gap-2 text-xs opacity-60 sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]"><span>{tr("變化類型")}</span><span>{tr("詞形")}</span><span>{tr("適用義項")}</span><span/></div>}
-      {bundle.dictionary_inflections.map((row,i)=>{const types=availableInflections(bundle.dictionary_senses as unknown as DictionarySense[],String(row.sense_id??'')||null);return <div key={String(row.id)} data-inflection-row className="grid min-w-0 grid-cols-[minmax(0,1fr)_44px] items-end gap-2 border-t border-[var(--color-border)] py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_44px]">
-      <label className="min-w-0 text-sm"><span className="sm:sr-only">{tr("變化類型")}</span><select className={control} value={String(row.form_kind)} onChange={e=>change('dictionary_inflections',i,'form_kind',e.target.value)}><option value="">{tr("請選擇")}</option>{!types.includes(row.form_kind as keyof typeof inflectionLabels)&&!!row.form_kind&&<option value={String(row.form_kind)}>{tr("詞性不符：")}{String(row.form_kind)}</option>}{types.map(t=><option key={t} value={t}>{tr(inflectionLabels[t])}</option>)}</select>{!types.length&&<span className="text-sm">{tr("請先在義項設定 verb／noun／adjective／adverb 詞性。")}</span>}</label>
-      <div className="col-start-1 sm:col-start-auto"><Field compact label={tr("詞形")} value={row.form} onChange={v=>change('dictionary_inflections',i,'form',v)}/></div>
-      <div className="col-start-1 sm:col-start-auto">{contentSense('dictionary_inflections',i,row,true)}</div>
-      <button type="button" aria-label={tr("移除詞形")} className="col-start-2 row-start-1 min-h-11 self-start p-2 hover:bg-zinc-500/10 sm:col-start-auto sm:row-start-auto" onClick={()=>setBundle(b=>({...b,dictionary_inflections:b.dictionary_inflections.filter(r=>r.id!==row.id)}))}><FeatureIcon feature="delete" size={16}/></button>
-      </div>;})}
-      </EditorSection>
-      </>}
+
       {(detail.entry.kind!=='word'&&bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind==='word'&&<>
       <EditorSection title={tr("構詞關聯")} count={bundle.dictionary_relations.length} actions={<button className={addButton} disabled={!bundle.dictionary_senses.length} onClick={()=>setAddingRelation(true)} aria-label={tr("＋新增構詞關聯")}>{tr("＋新增構詞關聯")}</button>}>
