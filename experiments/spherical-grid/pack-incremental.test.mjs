@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGlobalGrid} from './global-config.mjs';
 import {setHeight} from './grid.mjs';
 import {oceanConnected} from './pack.mjs';
-import {createSphericalPack,extendSphericalPack,canExtendSphericalPack} from './pack-mesh.mjs';
+import {createSphericalPack,extendSphericalPack,canExtendSphericalPack,canShrinkSphericalPack,shrinkSphericalPack} from './pack-mesh.mjs';
 function sameGeometry(actual,expected){
  assert.deepEqual(actual.points,expected.points);
  assert.deepEqual(actual.triangles,expected.triangles);
@@ -68,4 +68,32 @@ test('coastline point removal does not pass append-only eligibility',()=>{
  const after=oceanConnected(grid,seed);
  assert.equal(canExtendSphericalPack(grid,after,p),false);
  assert.throws(()=>extendSphericalPack(grid,after,p),/prefix/);
+});
+
+test('36,002: remove appended island by reversing local Delaunay edits exactly',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const seed=0,island=g.points.length-1;
+ const initial=createSphericalPack(g,oceanConnected(g,seed));
+ setHeight(g,island,20);
+ const withIsland=createSphericalPack(g,oceanConnected(g,seed));
+ assert.ok(withIsland.journal.length>0);
+ setHeight(g,island,-20);
+ const after=oceanConnected(g,seed);
+ assert.equal(canShrinkSphericalPack(g,after,withIsland),true);
+ const reduced=shrinkSphericalPack(g,after,withIsland);
+ const full=createSphericalPack(g,after);
+ sameGeometry(reduced,full);
+ assert.equal(reduced.inserted,0);
+ assert.equal(reduced.journal.length,0);
+ assert.equal(withIsland.points.length,initial.points.length+withIsland.inserted);
+});
+test('cannot roll back non-suffix coastal sites',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const seed=0,first=1,last=g.points.length-1;
+ setHeight(g,first,20);setHeight(g,last,20);
+ const before=createSphericalPack(g,oceanConnected(g,seed));
+ setHeight(g,first,-20);
+ const ocean=oceanConnected(g,seed);
+ assert.equal(canShrinkSphericalPack(g,ocean,before),false);
+ assert.throws(()=>shrinkSphericalPack(g,ocean,before),/suffix/);
 });
