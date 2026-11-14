@@ -14,6 +14,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
  // exact prefix of the new sorted sequence. Otherwise build from the Grid.
  const points=(startingPack?.points??grid.points).map(p=>p.slice());
  const sourceIds=startingPack?[...startingPack.sourceIds]:points.map((_,i)=>i);
+ const siteKeys=startingPack?[...startingPack.siteKeys]:points.map((_,i)=>`grid:${i}`);
  const triangles=(startingPack?.triangles??grid.triangles).map(t=>t.slice());
  const incidence=new Map();
  function edgeFaces(a,b){return incidence.get(edgeKey(a,b))}
@@ -41,6 +42,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
   const m=points.length;
   const chosen=midpoint(points[a],points[b]);
   sourceIds.push(ocean[a]?b:a);
+  siteKeys.push(`coast:${a}:${b}`);
   let stack;
   if(shared?.size===2){
    const [f1,f2]=[...shared],old1=triangles[f1],old2=triangles[f2];
@@ -62,7 +64,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
     if(dot(cross(points[u],points[v]),target)<1e-12||dot(cross(points[v],points[w]),target)<1e-12||dot(cross(points[w],points[u]),target)<1e-12)continue;
     found=fid;break;
    }
-   if(found===-1){sourceIds.pop();skipped++;continue}
+   if(found===-1){sourceIds.pop();siteKeys.pop();skipped++;continue}
    points.push(target);
    const [u,v,w]=triangles[found];detach(found);
    triangles[found]=outward([u,v,m],points);
@@ -103,7 +105,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
   const around=incident[i].map(t=>centers[t]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
   for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
  }
- return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped};
+ return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped};
 }
 // Exact sequential continuation when the existing coastal site sequence is
 // preserved. Changes that remove/reorder sites must use full rebuilding.
