@@ -1,7 +1,7 @@
 // Experimental coastal sampling layer; not a replacement for Azgaar's Voronoi Pack.
 import {RADIUS_KM} from './grid.mjs';
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]*a[0]-a[1]*b[0]];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const s=Math.hypot(...a);return a.map(v=>v/s)};
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const midpoint=(a,b)=>norm(a.map((x,i)=>x+b[i]));
