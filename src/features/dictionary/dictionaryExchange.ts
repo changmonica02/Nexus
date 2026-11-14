@@ -99,7 +99,6 @@ const rowFields: Record<string, string[]> = {
   etymologies: ["sense_id", "body", "data_source"],
   learning_notes: ["sense_id", "kind", "body"],
   pronunciations: ["sense_id", "ipa", "sort_order"],
-  inflections: ["sense_id", "form_kind", "form", "sort_order"],
   examples: ["sense_id", "body", "sort_order", "translation_zh_tw", "derivation_id"],
   derivations: ["sense_id", "gloss_zh_tw", "sort_order"],
   public_notes: ["body"],
@@ -125,10 +124,10 @@ export function draftFromExchange(
   if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
   if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
   if(record.import_candidate){
-    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
-    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","public_notes"] as const){
-      if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="inflections"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
+    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes"] as const){
+      if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
       for(const value of draft[section]??[]){
         const fields=section==="relation_hints"?["body","sense_id","sort_order"]:rowFields[section];
