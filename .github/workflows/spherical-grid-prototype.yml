@@ -35,8 +35,11 @@ jobs:
         run: |
           mkdir -p /tmp/nexus-land-preview
           cp experiments/spherical-grid/preview.html /tmp/nexus-land-preview/index.html
-          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=esm --platform=browser --outfile=/tmp/nexus-land-preview/preview.js
+          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=iife --platform=browser --outfile=/tmp/nexus-land-preview/preview.js
           test -s /tmp/nexus-land-preview/preview.js
+          node --check /tmp/nexus-land-preview/preview.js
+          ! grep -q 'type="module"' /tmp/nexus-land-preview/index.html
+          ! grep -qE '^import |^export ' /tmp/nexus-land-preview/preview.js
       - name: Upload offline preview (download ZIP and open index.html)
         uses: actions/upload-artifact@v4
         with:
