@@ -6,7 +6,7 @@
 
 - 工作分支 `prototype/global-land-generator-20261114`，Draft #189 建立於 Draft #188；#185 為規格 Draft。禁止自行合併、部署或修改正式資料。
 - 提交 `4e3c2b1` 的 Actions #43603816403 已成功，含單一 HTML 封裝及上傳；不能據此宣稱 Edge 本機問題已解決。
-- 本輪本機 58/58 幾何／生成／快照測試通過。新增封裝後 file:// Chromium 回歸流程，瀏覽器實際結果以新 CI 為準；本機 Chromium 因環境 socket 限制無法啟動。Windows Edge 真人驗收仍待完成。
+- 本輪本機 58/58 幾何／生成／快照測試通過。新增封裝後 file:// Chromium 回歸流程；提交 `1f71e84` 的 [Actions #43607999501](https://github.com/changmonica02/Nexus/actions/runs/43607999501) 已通過 58 項核心測試、既有效能量測、海陸像素／種子／參數／確認／下載／快照匯入及重開驗證，產物含 index.html 與 preview.png。本機 Chromium 因環境 socket 限制無法啟動；Windows Edge 真人驗收仍待完成。
 - 下一步先下載最新成功 CI 的 `nexus-global-land-preview`，解壓縮開啟 `index.html`，確認海陸繪圖、生成、確認及 JSON 匯出；再進行多種子外觀／連通性評估及高解析度資料架構比較，不重寫既有 Grid／Pack。
 
 ## 已完成的本階段
