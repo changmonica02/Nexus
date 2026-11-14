@@ -52,9 +52,7 @@ export interface DictionaryExample extends DictionaryExtra {
   derivation_id?: string | null;
 }
 export interface DictionaryPronunciation extends ContentRow {sense_id:string|null;ipa:string;sort_order:number}
-export interface DictionaryInflection extends ContentRow {sense_id:string|null;form_kind:import('./inflections').InflectionKind;form:string;sort_order:number}
 export interface DictionaryDetail {
-  inflections?:DictionaryInflection[];
   pronunciations?:DictionaryPronunciation[];
   examples?:DictionaryExample[];
   derivations?:DictionarySenseDerivation[];

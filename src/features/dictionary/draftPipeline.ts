@@ -4,7 +4,6 @@ import {validateWordSegments,type WordSegment} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
 import {compositionRow} from './composition';
 import {validateSenseExtensions,type DerivationRow,type BilingualExampleRow} from './senseDerivations';
-import {availableInflections,inflectionIdentity,inflectionLabels} from './inflections';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import type {Bundle, BundleResult} from './adminImport';
 import type {DictionaryKind} from './dictionary';
@@ -15,7 +14,7 @@ export interface DictionaryDraftInput {
   word_segments?:WordSegment[]|null;
   kind:DictionaryKind; entry_id:string; headword:string; revision?:number;
   senses:(DraftRow & {part_of_speech:string|null;gloss_zh_tw:string;row?:number})[];
-  pronunciations?:DraftRow[]; inflections?:DraftRow[];
+  pronunciations?:DraftRow[];
   etymologies:DraftRow[]; learning_notes:DraftRow[]; relations:DraftRow[];
   examples:DraftRow[]; derivations?:DraftRow[]; public_notes?:DraftRow[]; relation_hints:DraftRow[];
   component_order?:string[]; row?:number; proposed_ids?:string[];
@@ -29,6 +28,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
   const errors:DraftIssue[]=[],seen=new Set<string>();
   for(const d of drafts){
     const issue=(field:string,error:string,row=d.row??1)=>errors.push({row,field,kind:d.kind,error});
+    if('inflections' in (d as unknown as Record<string,unknown>)&&(d as unknown as Record<string,unknown>).inflections!==undefined)issue('inflections','獨立詞形已退役，請移除舊欄位；不再寫入資料庫。');
     if(Array.isArray((d as unknown as Record<string,unknown>).lexical_annotations)&&((d as unknown as Record<string,unknown>).lexical_annotations as unknown[]).length)issue('lexical_annotations','此舊欄位已移除；請備份原檔並重新比對，不會自動轉為詞形。');
     if(!['word','prefix','root','suffix'].includes(d.kind))issue('kind','必須是 word / prefix / root');
     if(!uuid.test(d.entry_id))issue('entry_id','必須為 UUID');
@@ -50,7 +50,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(d.derivations!==undefined){
       for(const error of validateSenseExtensions(d.senses,d.derivations as DerivationRow[],d.examples as BilingualExampleRow[]))issue('derivations',error);
     }
-    for(const [field,rows] of Object.entries({public_notes:d.public_notes??[],derivations:d.derivations??[],inflections:d.inflections??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,relation_hints:d.relation_hints}))for(const r of rows){
+    for(const [field,rows] of Object.entries({public_notes:d.public_notes??[],derivations:d.derivations??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,relation_hints:d.relation_hints}))for(const r of rows){
       if(!uuid.test(r.id))issue(field,'ID 必須為 UUID');
       if(seen.has(r.id))issue(field,'重複 ID');seen.add(r.id);
       if(['source_id','citation','license','level'].some(k=>k in r))issue(field,'不接受來源授權或 Study level 欄位');
@@ -59,13 +59,6 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
         if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
       }
       if(field==='etymologies'&&('verification' in r||'verification_note' in r))issue(field,'審核狀態欄位已移除；來源請使用 data_source。');
-      if(field==='inflections'){
-        if(d.kind!=='word')issue(field,'詞形僅適用單字');
-        if(typeof r.form!=='string'||!r.form.trim())issue(field,'詞形必填');
-        if(!(String(r.form_kind) in inflectionLabels)||!availableInflections(d.senses,String(r.sense_id??'')||null).includes(r.form_kind as keyof typeof inflectionLabels))issue(field,'詞形類型與義項詞性不符');
-        if((d.inflections??[]).filter(x=>inflectionIdentity(x)===inflectionIdentity(r)).length>1)issue(field,'完全相同的詞形記錄重複');
-        if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
-      }
       if(field==='relations'){
         if(!uuid.test(String(r.target_entry_id))||!uuid.test(String(r.target_sense_id)))issue(field,'請選擇有效的詞條與義項');
         if(r.target_entry_id===d.entry_id)issue(field,'不可連結自身');
@@ -92,7 +85,7 @@ export function draftsFromBundle(bundle:Bundle):DictionaryDraftInput[]{
       senses:rows('dictionary_senses').map(s=>({...s,part_of_speech:s.part_of_speech as string|null,gloss_zh_tw:String(s.gloss_zh_tw)})),
       ...(e.kind==='word'&&bundle.dictionary_public_notes?{public_notes:rows('dictionary_public_notes')}:{}),
       ...(e.kind==='word'&&bundle.dictionary_sense_derivations?{derivations:rows('dictionary_sense_derivations')}:{}),
-      inflections:rows('dictionary_inflections'),pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:mergeCoreConcepts(rows('dictionary_learning_notes')),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
+      pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:mergeCoreConcepts(rows('dictionary_learning_notes')),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
       relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint')};
   });
 }
@@ -102,7 +95,7 @@ export function mapDictionaryDraft(d:DictionaryDraftInput){
   return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),origin:{row:d.row??1,kind:d.kind},bundle,
     ...(d.public_notes!==undefined?{public_notes:own(d.public_notes)}:{}),
     ...(d.derivations!==undefined?{derivations:own(d.derivations)}:{}),
-    inflections:own(d.inflections??[]),pronunciations:own(d.pronunciations??[]).map(cleanPronunciation),examples:own(d.examples),annotations:own([...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
+    pronunciations:own(d.pronunciations??[]).map(cleanPronunciation),examples:own(d.examples),annotations:own([...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
 }
 type Client=Pick<SupabaseClient,'rpc'>;
 /** Resolve explicit IDs only. Freeze revisions in the candidate used by preview and apply. */
@@ -114,7 +107,7 @@ export async function prepareDictionaryDrafts(client:Client,drafts:DictionaryDra
     if(data.entry.status==='published')throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'entry_id',error:'Published 不可直接覆蓋，請建立 Review Draft 並人工核准'}]);
     if(d.revision!==undefined&&d.revision!==data.entry.revision)throw new Error('Revision conflict');
     d.revision=data.entry.revision;
-    for(const [field,table] of [['public_notes','public_notes'],['derivations','derivations'],['inflections','inflections'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples'],['relation_hints','lexical_annotations']] as const){
+    for(const [field,table] of [['public_notes','public_notes'],['derivations','derivations'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples'],['relation_hints','lexical_annotations']] as const){
       for(const row of d[field]??[]){const old=data[table]?.find((r:DraftRow)=>r.id===row.id);if(old)row.revision=old.revision;}
     }
   }
