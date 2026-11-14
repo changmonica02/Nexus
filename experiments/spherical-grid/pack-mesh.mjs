@@ -134,7 +134,7 @@ export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingP
   siteKeys.push(`coast:${a}:${b}`);
   let stack;
   if(shared?.size===2){
-   const [f1,f2]=[...shared],old1=triangles[f1],old2=triangles[f2];
+   const [f1,f2]=[...shared].sort((a,b)=>a-b),old1=triangles[f1],old2=triangles[f2];
    const c=old1.find(x=>x!==a&&x!==b),d=old2.find(x=>x!==a&&x!==b);
    points.push(chosen);
    recordFace(f1);recordFace(f2);
