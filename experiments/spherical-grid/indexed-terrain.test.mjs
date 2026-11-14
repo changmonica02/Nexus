@@ -73,12 +73,25 @@ test('indexed all-ocean world creates first island via incremental spherical Pac
  assert.equal(state.geography.pack.skipped,0);
  compare(state);
 });
-test('indexed island deletion falls back to full Pack rebuild safely',()=>{
+test('indexed island deletion can undo recorded suffix insertions safely',()=>{
  const g=createGlobalGrid();g.heights.fill(-20);
  const island=g.points.length-1;setHeight(g,island,20);
  const state=openIndexedTerrain(g,0);
  const result=applyIndexedTerrainEdits(state,[{id:island,height:-20}]);
- assert.equal(result.mode,'coast-patch-pack-rebuild');
+ assert.equal(result.mode,'incremental-pack-remove');
+ assert.equal(state.incrementalPackUpdates,1);
+ assert.equal(state.fullPackRebuilds,1);
  assert.equal(state.geography.pack.points.length,g.points.length);
+ compare(state);
+});
+
+test('indexed non-suffix coastal point deletion uses full rebuild fallback',()=>{
+ const g=createGlobalGrid();g.heights.fill(-20);
+ const first=1,last=g.points.length-1;
+ setHeight(g,first,20);setHeight(g,last,20);
+ const state=openIndexedTerrain(g,0);
+ const result=applyIndexedTerrainEdits(state,[{id:first,height:-20}]);
+ assert.equal(result.mode,'coast-patch-pack-rebuild');
+ assert.equal(state.fullPackRebuilds,2);
  compare(state);
 });
