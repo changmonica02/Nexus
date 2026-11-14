@@ -40,6 +40,14 @@ jobs:
           test -s /tmp/nexus-land-preview/index.html
           ! grep -q 'type="module"' /tmp/nexus-land-preview/index.html
           ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
+          /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
+      - name: Open packaged preview over file protocol (no network)
+        env:
+          NODE_PATH: /tmp/nexus-preview-tools/node_modules
+        run: node experiments/spherical-grid/offline-preview.browser.cjs /tmp/nexus-land-preview/index.html
       - name: Upload standalone offline preview (download ZIP and open index.html)
         uses: actions/upload-artifact@v4
         with:

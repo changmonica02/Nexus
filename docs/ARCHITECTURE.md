@@ -2,6 +2,13 @@
 
 > 更新：2026-11-13（#175 合併後）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
+## 全球海陸離線預覽原型（2026-11-14；Draft #189）
+
+- 隔離來源為 `experiments/spherical-grid/`，固定 36,002 格；尚未接入正式地圖、StorageAdapter、同步或資料庫。
+- `build-offline-preview.mjs` 將 esbuild 的 browser IIFE 內嵌於單一 HTML，避免 file:// 外部模組載入限制；Grid 的 Node CLI 入口受 `typeof process` 保護。
+- `offline-preview.browser.cjs` 直接開啟封裝後的 file:// HTML，攔截網路請求，檢查實際海陸像素、種子重現、參數變動、確認、下載及既有快照匯入驗證。CI 使用隔離的 Playwright Chromium；這不等於 Windows Edge 真人驗收。
+- 畫布只是三角面海陸示意，不是權威 Voronoi 海岸；面積由 Grid 計算。Pack 陣列索引不是永久識別碼。高解析度資料權威方案尚未決定。
+
 ## 現行字典構詞架構（2026-11-13 已套用）
 
 - **資料與身分**：沿用 `dictionary_entries`、`dictionary_senses`、`dictionary_relations` 及草稿／Review／人工發布機制，不建立第二套字典。Entry `kind` 包含 Word、Prefix、Root、Suffix；Word 與構詞不可互換類型，三種構詞形式可在原 ID 內切換。合法同形的不同詞條按 ID 區分，不因拼寫相同合併。
