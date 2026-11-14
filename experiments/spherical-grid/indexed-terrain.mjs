@@ -52,7 +52,10 @@ export function applyIndexedTerrainEdits(state,changes){
    landAreaKm2,seaAreaKm2:areaTotal(state.grid)-landAreaKm2
   };
   state.revision++;
-  if(patch.changedCells)state.fullPackRebuilds++;
+  if(patch.changedCells&&appendOnly)
+   state.incrementalPackUpdates=(state.incrementalPackUpdates??0)+1;
+  else if(patch.changedCells)
+   state.fullPackRebuilds++;
   else state.heightOnlySyncs++;
   return {mode:patch.changedCells?(appendOnly?'incremental-pack-insert':'coast-patch-pack-rebuild'):'reuse-pack-topology',
    changed:edited.length,changedOceanCells:patch.changedCells,
