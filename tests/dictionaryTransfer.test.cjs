@@ -84,7 +84,7 @@ test("isolated transfer SQL: pending export includes full absent-entry candidate
     const doc = parseExchange(
       JSON.stringify({
         format: "nexus-dictionary-exchange",
-        schema_version: 1,
+        schema_version: 2,
         exported_at: new Date().toISOString(),
         scope: { kinds: ["word"], statuses: [], query: "", pending_only: true },
         records: page.records,
@@ -175,7 +175,7 @@ test("atomic real RPC safe replacement clears only proven issues; replay idempot
       record = pending.records.find((r) => r.entry_id === original.entry_id);
     assert.ok(record);
     record.import_candidate.senses.reverse();
-    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]}))));
+    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]}))));
     assert.equal(importSafety(sameReview.items[0]),'review');
     const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,'same pending proposal must not grow duplicate review records because provenance is attached');
     const fresh = structuredClone(original);
@@ -464,7 +464,7 @@ test("Published content stays isolated; unchanged cannot consume proofs; stale r
     );
     const document = {
       format: "nexus-dictionary-exchange",
-      schema_version: 1,
+      schema_version: 2,
       exported_at: new Date().toISOString(),
       scope: { kinds: ["word"], statuses: [], query: "" },
       records: [record],
