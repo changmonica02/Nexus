@@ -59,12 +59,12 @@ begin
     ||'then raise exception ''Invalid Review derivations'';end if;'
     ||chr(10)||
     ' delete from public.dictionary_sense_derivations x where x.entry_id=eid '
-    ||'and not exists(select 1 from jsonb_array_elements(c->''derivations'') r '
-    ||'where (r->>''id'')::uuid=x.id);end if;'
+    ||'and not exists(select 1 from jsonb_array_elements(c->''derivations'') candidate_row(value) '
+    ||'where (candidate_row.value->>''id'')::uuid=x.id);end if;'
     ||chr(10)||
     ' delete from public.dictionary_senses x where x.entry_id=eid '
-    ||'and not exists(select 1 from jsonb_array_elements(c->''bundle''->''dictionary_senses'') r '
-    ||'where (r->>''id'')::uuid=x.id);'
+    ||'and not exists(select 1 from jsonb_array_elements(c->''bundle''->''dictionary_senses'') candidate_row(value) '
+    ||'where (candidate_row.value->>''id'')::uuid=x.id);'
     ||chr(10)||oldtext;
   f:=replace(f,oldtext,newtext);
 

@@ -2,6 +2,8 @@ require('./loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const {draft,id,sql}=require('./fixtures/dictionaryExchangeDatabase.cjs');
+const {mapDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {database,migrate}=require('./fixtures/retirementDatabase.cjs');
 
 const baselineMigrations=[
@@ -58,6 +60,37 @@ test('B phase retirement runs ordered migrations in isolated PostgreSQL, retains
    const check=await pg.query('select pg_get_functiondef($1::regprocedure) definition',['public.'+name]);
    assert.ok(check.rows[0].definition.includes('SECURITY DEFINER'),name);
   }
+
+  await pg.exec('set role authenticated');
+  const d=draft(9900);d.headword='b2-smoke';
+  d.derivations=[{id:id(9902),sense_id:id(9901),gloss_zh_tw:'延伸義',sort_order:0}];
+  d.examples=[{id:id(9903),sense_id:id(9901),body:'A smoke test.',translation_zh_tw:'驗證例句。',derivation_id:id(9902),sort_order:0}];
+  d.public_notes=[{id:id(9904),body:'共用筆記'}];
+  await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft(d)])]);
+  await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);
+  const published=await sql(pg,'select get_published_dictionary_entry($1) v',[d.entry_id]);
+  assert.equal(published.derivations[0].id,id(9902));
+  assert.equal(published.examples[0].translation_zh_tw,'驗證例句。');
+  assert.equal(published.public_notes[0].body,'共用筆記');
+  const snapshot=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[d.entry_id]);
+  await pg.exec('reset role');
+  const candidate=await sql(pg,'select dictionary_snapshot_candidate($1) v',[JSON.stringify(snapshot)]);
+  await pg.exec('set role authenticated');
+  candidate.public_notes[0].body='審核後的共用筆記';
+  candidate.derivations[0].gloss_zh_tw='審核後的延伸義';
+  candidate.examples[0].translation_zh_tw='審核後的中文例句。';
+  const review=await sql(pg,'select create_dictionary_edit_review($1,$2,$3) v',[d.entry_id,JSON.stringify(snapshot),JSON.stringify(candidate)]);
+  await sql(pg,'select approve_dictionary_review($1,$2,true) v',[review.id,review.revision]);
+  const reread=await sql(pg,'select get_published_dictionary_entry($1) v',[d.entry_id]);
+  assert.equal(reread.public_notes[0].body,'審核後的共用筆記');
+  assert.equal(reread.examples[0].derivation_id,id(9902));
+  assert.equal(reread.derivations[0].gloss_zh_tw,'審核後的延伸義');
+  assert.equal(reread.examples[0].translation_zh_tw,'審核後的中文例句。');
+  const latest=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[d.entry_id]);
+  const deleted=await sql(pg,'select delete_dictionary_entry($1,$2,$3,$4) v',[d.entry_id,latest.detail.entry.revision,JSON.stringify(latest),id(9999)]);
+  assert.equal(deleted.deleted,true);
+  assert.equal(await sql(pg,'select get_published_dictionary_entry($1) v',[d.entry_id]),null);
+  console.log('B2_FULL_CHAIN_DRAFT_PUBLISH_REVIEW_DELETE_VERIFIED');
  }finally{await pg.close();}
 });
 test('Final retirement refuses all external SQL table dependencies and never uses CASCADE',()=>{

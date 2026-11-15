@@ -31,6 +31,7 @@ jobs:
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/morphemeDatabase.test.cjs
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/morphemeRetirement.test.cjs
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/maintenanceCleanupRetirement.test.cjs
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionaryInflectionsSQLRetirement.test.cjs
       - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
