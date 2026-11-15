@@ -294,11 +294,17 @@ test(
       await bulkPage
         .getByRole("button", { name: "匯入資料", exact: true })
         .click();
-      const canonical = await sql(
+      // Database snapshots can include retired SQL-only fields; browser
+      // import fixtures must construct the exact current Exchange v2 shape.
+      const {currentMorphemeFields}=require("../src/features/dictionary/retiredMorphemeFields.ts");
+      const canonical=currentMorphemeFields(await sql(
         pg,
         "select get_dictionary_ai_snapshot($1) v",
         [d.entry_id],
-      );
+      ));
+      delete canonical.detail.inflections;
+      canonical.detail.derivations??=[];
+      canonical.detail.public_notes??=[];
       const records = Array.from({ length: 1001 }, (_, n) => {
         const entryId = id(7000 + n),
           snapshot = structuredClone(canonical);
@@ -332,7 +338,7 @@ test(
         .fill(
           JSON.stringify({
             format: "nexus-dictionary-exchange",
-            schema_version: 1,
+            schema_version: 2,
             exported_at: new Date().toISOString(),
             scope: { kinds: ["word"], statuses: [], query: "" },
             records,
