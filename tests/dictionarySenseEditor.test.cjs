@@ -56,3 +56,25 @@ test('Word editor contract requires a core sense and allows at most one reading,
  const single={...current,pronunciations:[{id:id(100),ipa:'test',sense_id:null}],learning_notes:[{id:id(101),kind:'core_concept',body:'memory',sense_id:null}],etymologies:[{id:id(102),body:'history',sense_id:null}],public_notes:[{id:id(103),body:'notes'}]};
  assert.deepEqual(validateDictionaryDraft([single]),[]);
 });
+
+test('Word-only singleton database guards reject second row while preserving morpheme multiplicity',async()=>{
+ const fs=require('node:fs');
+ const {PGlite}=require('@electric-sql/pglite');
+ const pg=new PGlite();
+ const sql=fs.readFileSync('supabase/migrations/20261115170000_dictionary_word_singleton_sections.sql','utf8');
+ try{
+  await pg.exec(`create table public.dictionary_entries(id uuid primary key,kind text not null);
+  create table public.dictionary_pronunciations(id uuid primary key,entry_id uuid references public.dictionary_entries(id));
+  create table public.dictionary_learning_notes(id uuid primary key,entry_id uuid references public.dictionary_entries(id));
+  create table public.dictionary_etymologies(id uuid primary key,entry_id uuid references public.dictionary_entries(id));`);
+  await pg.query('insert into public.dictionary_entries(id,kind) values ($1,$2),($3,$4)',[id(1),'word',id(2),'root']);
+  await pg.exec(sql);
+  for(const table of ['dictionary_pronunciations','dictionary_learning_notes','dictionary_etymologies']){
+    await pg.query(`insert into public.${table}(id,entry_id) values($1,$2)`,[id(100),id(1)]);
+    await assert.rejects(pg.query(`insert into public.${table}(id,entry_id) values($1,$2)`,[id(101),id(1)]),/at most one row/);
+    await pg.query(`insert into public.${table}(id,entry_id) values($1,$2),($3,$4)`,[id(102),id(2),id(103),id(2)]);
+    assert.equal((await pg.query(`select count(*)::int n from public.${table} where entry_id=$1`,[id(2)])).rows[0].n,2);
+    await pg.query(`delete from public.${table}`);
+  }
+ }finally{await pg.close();}
+});
