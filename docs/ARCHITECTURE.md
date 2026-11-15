@@ -2,7 +2,9 @@
 
 > 更新：2026-11-13（#175 合併後）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
-## B 階段分支契約（PR #186 已實作、正式資料庫未套用）
+## B 階段契約（PR #186，2026-11-15 正式資料庫已套用）
+
+- 正式 ledger `20261115054149` 將十份 B2 Migration 合為單一交易套用，名稱 `dictionary_b_phase_word_content_and_inflections_retirement_20261114`；依序涵蓋衍生意思／雙語例句、Draft、Review、公共筆記與刪除、交換版本、讀取／交易相依解除及 RESTRICT 退役。以暫存雜湊檢查保護原 dictionary／study 記錄；不要重跑已涵蓋的本機遷移。
 
 - Word 的衍生意思與雙語例句沿用既有 Entry／Sense 識別及原子 Draft／Review；共用公共筆記由 B2 子表承載。Exchange v2 僅輸出完整 B2 Word 快照；v1 歷史資料保留讀取相容性。
 - 新版 Draft／AI 輸入拒絕獨立 `inflections`；歷史 Exchange 可辨識舊欄位但不重新寫入。原始歷史審核收據保留，不為退役改寫。
