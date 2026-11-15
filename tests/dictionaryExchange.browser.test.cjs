@@ -103,7 +103,7 @@ test(
         const doc = JSON.parse(
           fs.readFileSync(await downloaded.path(), "utf8"),
         );
-        assert.equal(doc.schema_version, 1);
+        assert.equal(doc.schema_version, 2);
         assert.equal(doc.records.length, 3);
         assert.equal(doc.scope.query, "");
         await page.getByRole("checkbox",{name:"全部類型",exact:true}).uncheck();
