@@ -21,9 +21,12 @@ export function validateSenseExtensions(
     if(identities.has(d.id))issues.push('衍生意思 ID 重複');
     identities.add(d.id);
   }
+  const used=new Set<string>();
   for(const example of examples){
     if(example.translation_zh_tw!=null&&typeof example.translation_zh_tw!=='string')issues.push('中文翻譯必須是文字');
     if(example.derivation_id==null||example.derivation_id==='')continue;
+    if(used.has(example.derivation_id))issues.push('每個衍生意思最多只能連結一組例句與中文翻譯');
+    used.add(example.derivation_id);
     const target=derivations.find(d=>d.id===example.derivation_id);
     if(!target||target.entry_id!==example.entry_id||target.sense_id!==example.sense_id){
       issues.push('例句的衍生意思必須屬於同一個單字與義項');
