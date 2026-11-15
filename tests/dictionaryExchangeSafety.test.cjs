@@ -241,7 +241,8 @@ test("local JSON versus newer Nexus edits is Conflict; Review-only changes block
     assert.equal(exchangeCategory(planned.items[0]), "review");
     for(const item of planned.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
     await persistImportSession(planned);
-    const base = original.records[0].snapshot;
+    // Use SQL-native Published content for the Review CAS check, not exchange-v2's enriched export.
+    const base = await sql(pg, 'select get_dictionary_ai_snapshot($1) v', [id(300)]);
     const review = await sql(
       pg,
       "select create_dictionary_review($1,$2,null,'manual',false) v",
