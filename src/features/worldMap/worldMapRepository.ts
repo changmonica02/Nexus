@@ -29,7 +29,9 @@ export async function inspectMapProject(blob: Blob): Promise<{ sha256: string; s
       ? await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text()
       : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     if(source.trimStart().startsWith('{')) {
-      await readGlobalMapProject(new Blob([source]));engine=GLOBAL_MAP_ENGINE;engineVersion=GLOBAL_MAP_VERSION;
+      // Validate the actual stored bytes with the same reader used by the editor.
+      // In particular, native gzip support must not accept unreadable global files.
+      await readGlobalMapProject(blob);engine=GLOBAL_MAP_ENGINE;engineVersion=GLOBAL_MAP_VERSION;
     } else {
     text = source.substring(0, 10).includes("|") ? source : decodeURIComponent(atob(source.trim()));
     // Azgaar uses CRLF between fields, but permits CRLF inside the SVG field.

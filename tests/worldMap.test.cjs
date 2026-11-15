@@ -573,3 +573,17 @@ test('global snapshot validation rejects altered contract and detects engine/met
  state.pages.get('world-a').character_data.world_maps[0].engine_version='1.154.2';
  await assert.rejects(repo.read('world-a',map.id),{code:'project'});
 });
+
+
+test('global validation rejects unsupported compressed bytes before mutation while native gzip remains readable',async()=>{
+ const {repo,state}=fixture(),plain=await globalProject();
+ const compressed=new Blob([gzipSync(Buffer.from(await plain.text()))]);
+ await assert.rejects(inspectMapProject(compressed),{code:'project'});
+ await assert.rejects(repo.createSpace('world-a','Unsupported','surface',compressed),{code:'project'});
+ assert.equal(state.outbox.length,0);assert.equal(state.attachments.size,0);assert.equal(state.binaries.size,0);
+ const {map}=await repo.createSpace('world-a','Readable','surface',plain);
+ await assert.rejects(repo.save('world-a',map.id,1,compressed),{code:'project'});
+ assert.equal(await (await repo.read('world-a',map.id)).blob.text(),await plain.text());
+ const nativeCompressed=new Blob([gzipSync(Buffer.from(await project().text()))]);
+ assert.equal((await inspectMapProject(nativeCompressed)).engine,'azgaar');
+});
