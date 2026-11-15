@@ -208,6 +208,12 @@ export function draftFromExchange(
   };
   for (const [section, fields] of Object.entries(rowFields)) {
     const values = snapshot.detail[section as keyof typeof snapshot.detail];
+    // Derivations and public notes only belong to Word. Their absence on a
+    // Prefix/Root/Suffix snapshot is the current schema, not v1 compatibility.
+    if(entry.kind!=='word'&&['derivations','public_notes'].includes(section)&&values===undefined){
+      bundle[section==='derivations'?'dictionary_sense_derivations':'dictionary_public_notes']=[];
+      continue;
+    }
     if (!Array.isArray(values)) throw Error(`Missing array ${section}`);
     bundle[section==='derivations'?'dictionary_sense_derivations':"dictionary_" + section] = values.map(
       (r: Record<string, unknown>) => {
