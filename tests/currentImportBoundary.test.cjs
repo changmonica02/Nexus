@@ -41,29 +41,13 @@ test('CSV keeps distinct homographic morpheme IDs while ignoring extra columns',
  ])),/不同 Entry ID/);
 });
 
-test('JSON bundle ignores unsupported fields and tables but preserves current data',async()=>{
- const doc={
-  dictionary_entries:[{id:id(1),kind:'word',headword:'harbor',source_id:id(9),unexpected:'not imported'}],
-  dictionary_relations:[{id:id(3),entry_id:id(1),target_entry_id:id(4),target_sense_id:id(5),relation_kind:'historical_etymology',verification_note:'meaningful old content',additional:'other'}],
-  dictionary_sources:[{id:id(9),raw_text:'not imported'}],
-  custom_table:[{note:'extra'}],
- };
- const original=structuredClone(doc);
- const {bundle,ignoredFields}=parseJSONBundleWithIgnored(JSON.stringify(doc));
- assert.deepEqual(doc,original);
- assert.deepEqual(bundle.dictionary_entries,[{id:id(1),kind:'word',headword:'harbor'}]);
- assert.deepEqual(bundle.dictionary_relations,[{id:id(3),entry_id:id(1),target_entry_id:id(4),target_sense_id:id(5)}]);
- assert.deepEqual(ignoredFields.sort(),[
-  'dictionary_entries[1].source_id','dictionary_entries[1].unexpected','dictionary_relations[1].relation_kind',
-  'dictionary_relations[1].verification_note','dictionary_relations[1].additional',
-  'dictionary_sources（不支援的資料表）','custom_table（不支援的資料表）'
- ].sort());
- assert.deepEqual(parseJSONBundle(JSON.stringify(doc)),bundle);
- const drafts=await normalizeDictionaryBundle({rpc:async()=>{throw Error('Unexpected RPC')}},doc);
- assert.equal(drafts.length,1);
- assert.equal(Object.hasOwn(drafts[0].relations[0],'relation_kind'),false);
- assert.equal(Object.hasOwn(drafts[0].relations[0],'verification_note'),false);
- const make=(patch)=>JSON.stringify({...doc,dictionary_relations:[{...doc.dictionary_relations[0],...patch}]});
- assert.throws(()=>parseJSONBundle(make({target_entry_id:'not-a-uuid'})),/UUID/);
+test('JSON bundle rejects unsupported fields and retired tables rather than silently dropping them',async()=>{
+ const doc={dictionary_entries:[{id:id(1),kind:'word',headword:'harbor'}],dictionary_senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'港口'}],dictionary_sense_derivations:[],dictionary_examples:[]};
+ assert.deepEqual(parseJSONBundleWithIgnored(JSON.stringify(doc)).ignoredFields,[]);
+ assert.equal(parseJSONBundle(JSON.stringify(doc)).dictionary_entries[0].headword,'harbor');
+ const outdated={...doc,dictionary_entries:[{...doc.dictionary_entries[0],source_id:id(9)}]};
+ assert.throws(()=>parseJSONBundle(JSON.stringify(outdated)),/不接受過時或未知欄位/);
+ assert.throws(()=>parseJSONBundle(JSON.stringify({...doc,dictionary_sources:[]})),/不接受過時或未知欄位/);
  assert.throws(()=>parseJSONBundle(JSON.stringify({...doc,dictionary_entries:[{...doc.dictionary_entries[0],kind:'invalid'}]})),/未知 kind/);
+ assert.throws(()=>parseJSONBundle(JSON.stringify({...doc,dictionary_examples:[{id:id(3),entry_id:id(1),body:'Harbor'}]})),/缺少 sense_id|derivation_id/);
 });
