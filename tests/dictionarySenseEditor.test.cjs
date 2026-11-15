@@ -38,3 +38,21 @@ test('new derivation contract allows zero or one bilingual example; translation 
  const duplicated=data();duplicated.dictionary_examples.push({...example,id:id(9)});
  assert.ok(validateDictionaryDraft(draftsFromBundle(duplicated)).some(x=>JSON.stringify(x).includes('最多只能連結一組')));
 });
+
+test('Word editor contract requires a core sense and allows at most one reading, mnemonic, etymology and note',()=>{
+ const current=draftsFromBundle(data())[0];
+ assert.deepEqual(validateDictionaryDraft([current]),[]);
+ const missing={...current,senses:[]};
+ assert.ok(validateDictionaryDraft([missing]).some(issue=>issue.field==='senses'));
+ const fixture=(field)=>({...current,[field]:[
+  {id:id(100),entry_id:id(1),sense_id:null,ipa:'ipa',kind:'core_concept',body:'first'},
+  {id:id(101),entry_id:id(1),sense_id:null,ipa:'ipa2',kind:'core_concept',body:'second'}
+ ]});
+ for(const field of ['pronunciations','learning_notes','etymologies']){
+  assert.ok(validateDictionaryDraft([fixture(field)]).some(issue=>issue.field===field),field);
+ }
+ const notes={...current,public_notes:[{id:id(100),body:'a'},{id:id(101),body:'b'}]};
+ assert.ok(validateDictionaryDraft([notes]).some(issue=>issue.field==='public_notes'));
+ const single={...current,pronunciations:[{id:id(100),ipa:'test',sense_id:null}],learning_notes:[{id:id(101),kind:'core_concept',body:'memory',sense_id:null}],etymologies:[{id:id(102),body:'history',sense_id:null}],public_notes:[{id:id(103),body:'notes'}]};
+ assert.deepEqual(validateDictionaryDraft([single]),[]);
+});
