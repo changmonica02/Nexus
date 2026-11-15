@@ -10,9 +10,8 @@ const segments=()=>['ab','ort','ion'].map((text,i)=>({id:id(100+i),text,hint:['å
 // Legacy SQL fixtures still emit retired properties; create a current-format
 // Exchange v2 fixture explicitly instead of granting backwards import support.
 const currentExchangeRecord=(record)=>{
- const result=structuredClone(record);
  const {currentMorphemeFields}=require('../src/features/dictionary/retiredMorphemeFields.ts');
- result.snapshot.detail=currentMorphemeFields(result.snapshot.detail);
+ const result=currentMorphemeFields(structuredClone(record));
  delete result.snapshot.detail.inflections;
  for(const field of ['derivations','public_notes'])result.snapshot.detail[field]??=[];
  return result;
