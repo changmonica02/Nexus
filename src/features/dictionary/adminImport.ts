@@ -39,6 +39,7 @@ export {parseCSV} from './csvRows';
 /** Strict documented interchange, not a converter for legacy etymology notes. */
 export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json'):Promise<Bundle> {
   if(format==='json')return parseJSONBundle(raw);
+  throw new Error('只支援最新版 JSON 匯入；CSV 與 Markdown 舊格式已停用');
   const bundle:Bundle={dictionary_entries:[],dictionary_senses:[],dictionary_etymologies:[],dictionary_learning_notes:[]};
   if(format==='csv') {
     if(parseCSV(raw).some(row=>'kind' in row))throw new Error('Dictionary CSV v1 請使用 canonical parseDictionaryCSV 入口，避免遺漏例詞或分類');
@@ -105,7 +106,7 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
     dictionary_relations:{required:['id','entry_id','target_entry_id','target_sense_id'],optional:['sense_id','revision']},
     dictionary_etymologies:{required:['id','entry_id','body'],optional:['sense_id','data_source','revision']},
     dictionary_learning_notes:{required:['id','entry_id','kind','body'],optional:['sense_id','revision']},
-    dictionary_examples:{required:['id','entry_id','body'],optional:['sense_id','sort_order','revision','translation_zh_tw','derivation_id']},
+    dictionary_examples:{required:['id','entry_id','sense_id','derivation_id','body'],optional:['sort_order','revision','translation_zh_tw']},
     dictionary_sense_derivations:{required:['id','entry_id','sense_id','gloss_zh_tw'],optional:['sort_order','revision']},
     dictionary_public_notes:{required:['id','entry_id','body'],optional:['revision']},
     dictionary_lexical_annotations:{required:['id','entry_id','kind','body'],optional:['sense_id','sort_order','revision']},
@@ -169,5 +170,6 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
   if(!count)throw new Error('JSON Bundle 沒有資料');
   // References may point to existing database rows; the RPC preview validates all FKs.
   if(bundle.dictionary_learning_notes)bundle.dictionary_learning_notes=mergeCoreConcepts(bundle.dictionary_learning_notes as (Record<string,unknown>&{id:string})[]) as typeof bundle.dictionary_learning_notes;
-  return {bundle,ignoredFields:[...ignored]};
+  if(ignored.size)throw new Error('最新版 JSON 不接受過時或未知欄位：'+[...ignored].join('、'));
+  return {bundle,ignoredFields:[]};
 }
