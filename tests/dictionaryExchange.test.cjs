@@ -418,12 +418,11 @@ test(
         etymologies: [],
         learning_notes: [],
         pronunciations: [],
-        inflections: [],
+        derivations: [],
+        public_notes: [],
         examples: [],
         lexical_annotations: [],
       };
-      fresh.snapshot.grouping = null;
-      fresh.snapshot.sense_groups = {};
       fresh.snapshot.metadata = {
         entry_id: id(60),
         published_entry_id: null,
