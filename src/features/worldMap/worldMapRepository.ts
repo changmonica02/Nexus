@@ -1,3 +1,4 @@
+import {GLOBAL_MAP_ENGINE,GLOBAL_MAP_VERSION,readGlobalMapProject} from "./globalMapProject";
 import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData, WorldRegionGeometry, WorldMapBlockView } from "../../lib/types";
 import {withWorldMapBlocks} from "../../lib/worldMapBlocks";
 import {validateCharacterBlocks} from "../../lib/characterBlocks";
@@ -18,14 +19,18 @@ export class WorldMapError extends Error {
 }
 
 /** Structural validation only; NOT an SVG/HTML sanitizer or permission to render. */
-export async function inspectMapProject(blob: Blob): Promise<{ sha256: string; size: number }> {
+export async function inspectMapProject(blob: Blob): Promise<{ sha256: string; size: number; engine: WorldMapRecord["engine"]; engineVersion:string }> {
   if (!blob.size) throw new WorldMapError("project", "Empty map project");
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let text: string;
+  let engine:WorldMapRecord["engine"]="azgaar",engineVersion:string=AZGAAR_SOURCE.version;
   try {
     const source = bytes[0] === 0x1f && bytes[1] === 0x8b
       ? await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text()
       : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if(source.trimStart().startsWith('{')) {
+      await readGlobalMapProject(new Blob([source]));engine=GLOBAL_MAP_ENGINE;engineVersion=GLOBAL_MAP_VERSION;
+    } else {
     text = source.substring(0, 10).includes("|") ? source : decodeURIComponent(atob(source.trim()));
     // Azgaar uses CRLF between fields, but permits CRLF inside the SVG field.
     text = text.replace(/<svg\b[\s\S]*?<\/svg>/i, svg => svg.replace(/\r\n/g, "\n"));
@@ -38,11 +43,12 @@ export async function inspectMapProject(blob: Blob): Promise<{ sha256: string; s
     const grid: unknown = JSON.parse(fields[6]);
     if (!settings || typeof settings !== "object" || Array.isArray(settings)
       || !grid || typeof grid !== "object" || Array.isArray(grid)) throw new Error("Invalid map settings or grid");
+    }
   } catch {
     throw new WorldMapError("project", "Invalid or unsupported map project; the original file was not changed");
   }
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return { sha256: Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join(""), size: blob.size };
+  return { sha256: Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join(""), size: blob.size, engine, engineVersion };
 }
 
 function requireOwner(storage: StorageAdapter, expected?: string): string {
@@ -224,7 +230,7 @@ function mapsOf(world: Page): WorldMapRecord[] {
   const ids = new Set<string>();
   for (const map of maps) {
     if (!map || (map.metadata_version !== undefined && map.metadata_version !== 1) || !map.id || ids.has(map.id) || map.world_id !== world.id || !Number.isSafeInteger(map.revision) || map.revision < 1
-      || map.engine !== "azgaar" || map.engine_version !== AZGAAR_SOURCE.version
+      || !((map.engine === "azgaar" && map.engine_version === AZGAAR_SOURCE.version)||(map.engine === GLOBAL_MAP_ENGINE && map.engine_version === GLOBAL_MAP_VERSION))
       || ((map.attachment_id === null) !== (map.project_sha256 === null))
       || (map.attachment_id !== null && (typeof map.attachment_id !== "string" || !/^[a-f0-9]{64}$/.test(map.project_sha256 ?? "")))) {
       throw new WorldMapError("map", "Invalid map ownership or revision; nothing was changed");
@@ -300,16 +306,16 @@ export class WorldMapRepository {
     return next;
   }
 
-  private async project(blob: Blob): Promise<{ attachment: Attachment; blob: Blob; sha256: string }> {
+  private async project(blob: Blob): Promise<{ attachment: Attachment; blob: Blob; sha256: string; engine:WorldMapRecord["engine"]; engineVersion:string }> {
     const info = await inspectMapProject(blob);
     const now = Date.now(), id = `att_${crypto.randomUUID()}`;
     const attachment: Attachment = {
-      id, kind: "file", name: `${id}.map`, mime_type: "application/octet-stream", size_bytes: info.size,
+      id, kind: "file", name: `${id}.${info.engine===GLOBAL_MAP_ENGINE?"nexus-map.json":"map"}`, mime_type: info.engine===GLOBAL_MAP_ENGINE?"application/json":"application/octet-stream", size_bytes: info.size,
       storage_key: `bin_${crypto.randomUUID()}`, created_at: now, updated_at: now, deleted_at: null,
       device_id: await this.storage.getDeviceId(), workspace_owner_id: this.owner,
     };
     requireOwner(this.storage, this.owner);
-    return { attachment, blob, sha256: info.sha256 };
+    return { attachment, blob, sha256: info.sha256, engine:info.engine,engineVersion:info.engineVersion };
   }
 
   async create(worldId: string, title: string, blob?: Blob, presentation?: {scope:string;parentId:string}): Promise<{ world: Page; map: WorldMapRecord }> {
@@ -322,7 +328,7 @@ export class WorldMapRepository {
     const project = blob ? await this.project(blob) : undefined;
     const now = Date.now();
     const map: WorldMapRecord = {
-      metadata_version: 1, id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: "azgaar", engine_version: AZGAAR_SOURCE.version,
+      metadata_version: 1, id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: project?.engine ?? "azgaar", engine_version: project?.engineVersion ?? AZGAAR_SOURCE.version,
       attachment_id: project?.attachment.id ?? null, project_sha256: project?.sha256 ?? null,
       ...(presentation ? {scope:presentation.scope,parent_map_id:presentation.parentId} : {}),
       revision: 1, created_at: now, updated_at: now, deleted_at: null,
@@ -334,7 +340,7 @@ export class WorldMapRepository {
     const world=await this.world(worldId),active=mapsOf(world).filter(m=>m.deleted_at==null);
     if(scope==='surface'&&active.some(m=>m.scope==='surface'||!['underground','sky'].includes(m.scope??'')))throw new WorldMapError('map','A main surface map already exists');
     const project=blob?await this.project(blob):undefined,now=Date.now();
-    const map:WorldMapRecord={metadata_version:1,id:`map_${crypto.randomUUID()}`,world_id:worldId,title:titleOf(title),engine:'azgaar',engine_version:AZGAAR_SOURCE.version,scope,parent_map_id:null,attachment_id:project?.attachment.id??null,project_sha256:project?.sha256??null,revision:1,created_at:now,updated_at:now,deleted_at:null};
+    const map:WorldMapRecord={metadata_version:1,id:`map_${crypto.randomUUID()}`,world_id:worldId,title:titleOf(title),engine:project?.engine??'azgaar',engine_version:project?.engineVersion??AZGAAR_SOURCE.version,scope,parent_map_id:null,attachment_id:project?.attachment.id??null,project_sha256:project?.sha256??null,revision:1,created_at:now,updated_at:now,deleted_at:null};
     return {world:await this.commit(world,[...mapsOf(world),map],project),map};
   }
   async saveMapBlockView(worldId:string,blockId:string,view:WorldMapBlockView){
@@ -371,7 +377,7 @@ export class WorldMapRepository {
     requireOwner(this.storage, this.owner);
     if (!blob) throw new WorldMapError("unavailable", "Project is not on this device yet; retry synchronization");
     const info = await inspectMapProject(blob);
-    if (info.sha256 !== map.project_sha256 || info.size !== attachment.size_bytes) throw new WorldMapError("project", "Project integrity check failed");
+    if (info.engine !== map.engine || info.engineVersion !== map.engine_version || info.sha256 !== map.project_sha256 || info.size !== attachment.size_bytes) throw new WorldMapError("project", "Project integrity check failed");
     // Do not hand an editor stale content after deletion/account switch during an async read.
     const latest = mapOf(await this.world(worldId), id, map.revision);
     return { map: structuredClone(latest), blob };
@@ -380,6 +386,7 @@ export class WorldMapRepository {
   async save(worldId: string, id: string, expectedRevision: number, blob: Blob): Promise<{ world: Page; map: WorldMapRecord; changed: boolean }> {
     const world = await this.world(worldId), current = mapOf(world, id, expectedRevision);
     const project = await this.project(blob);
+    if(project.engine!==current.engine||project.engineVersion!==current.engine_version)throw new WorldMapError("project","Map engine cannot change during save");
     if (project.sha256 === current.project_sha256) {
       mapOf(await this.world(worldId), id, expectedRevision);
       return { world, map: structuredClone(current), changed: false };
@@ -390,8 +397,9 @@ export class WorldMapRepository {
   }
 
   async stageDraft(worldId: string, id: string, revision: number, blob: Blob): Promise<string> {
-    mapOf(await this.world(worldId), id, revision);
-    await inspectMapProject(blob);
+    const map=mapOf(await this.world(worldId), id, revision);
+    const info=await inspectMapProject(blob);
+    if(info.engine!==map.engine||info.engineVersion!==map.engine_version)throw new WorldMapError("project","Draft engine mismatch");
     requireOwner(this.storage, this.owner);
     return this.storage.getWorkspacePersistence().writeMapDraft(this.owner, worldId, id, revision, blob);
   }

@@ -8,7 +8,23 @@
 - 測試提交 `b842951` 的 GitHub Actions run `43681067158`：除使用者明確排除的世界地圖外，note、study-b、interface-a、dictionary-c、morpheme-contract 五組全部成功。包含 Chromium／WebKit、原生 PostgreSQL、完整 B2 草稿→發布→Review→核准→刪除、TypeScript、lint 與正式模式建置。
 - 正式 Supabase 已於 2026-11-15 套用整批 B2 SQL，ledger `20261115054149`／`dictionary_b_phase_word_content_and_inflections_retirement_20261114`。涵蓋本機十份 `20261114135000` 至 `20261114231000` B2 Migration；此 ledger 為合併交易，不可因本機檔名版本不同就重新套用。交易內比對既有 dictionary／study 資料雜湊，異常則整批回復。
 - 套用後：詞條 6,351、義項 10,857、字卡 10,155、FSRS 狀態 10,155、作答事件 2,800；以上完整資料雜湊與套用前一致。新衍生意思／公共筆記表存在，獨立詞形表已移除，public SQL 函式對舊表的殘留引用 0。這是套用當時的快照。
-- 使用者已授權合併 #186；合併會觸發 main 正式部署，部署狀態需另行核對。真實裝置人工驗收與世界地圖問題仍分開追蹤，不視為本次已驗收。
+- PR #186 已合併 main（`29902c9`）；正式部署狀態需另行核對。真實裝置人工驗收與世界地圖問題仍分開追蹤，不視為本次已驗收。
+
+## 新版全球地圖合併前整合（2026-11-15；Refs #191）
+
+- 工作分支 `integrate/global-map-main-20261115` 已整合最新 main `29902c9`（含 B 階段 #186），預備以完整 Draft PR 直接對 main；#188／#189／#192 仍保留歷史實作與驗證，不需先把這些堆疊 PR 逐一合入 main。禁止自行合併、部署或操作正式資料庫。
+- 新建地圖使用 36,002 格球面核心；已實作生成、候選預覽／取消／確認替換、平移縮放、Grid 海岸顯示、快照匯出、附件保存／離線重開與復原草稿。舊 Azgaar 原格式開啟與世界觀資料保留；人文、河湖、氣候與人工筆刷尚未接入。
+- 原程式提交 `3077098` 曾通過 Global map editor integration #43683080389 及 Note editor audit #43683080293；後續同程式碼提交 `ee6c9e7` 的 #43701756125 在 WebKit 手機寬度、離線恢復後導向 `/?en` 等待 load 時逾時。不能把前次成功當成此問題已解決。
+- 本輪把網路恢復與語系驗證分開：中斷測試伺服器所有連線驗證離線冷重開，以未快取的探測請求驗證重新連線，再依正式產品的 LanguageContext 切換語系。沒有延長逾時、放寬快照或略過離線檢查；整合後結果以新 PR 的 CI 為準。
+- Next 的 Worker 先以 `npm run map:global` 封裝，再發布為雜湊 JS，由原 SW 的靜態資產快取承接；predev／prebuild 已接此步驟。沒有新增或重新套用 SQL。
+- 待辦：在整合提交完成核心／B 階段／Chromium／WebKit／既有地圖與全套 CI 驗證，結果記錄後才提出合併建議。Edge／iPad 真人及真實跨裝置驗收仍分開保留。
+
+## 全球海陸原型接續（2026-11-14；Refs #190）
+
+- 工作分支 `prototype/global-land-generator-20261114`，Draft #189 建立於 Draft #188；#185 為規格 Draft。禁止自行合併、部署或修改正式資料。
+- 提交 `4e3c2b1` 的 Actions #43603816403 已成功，含單一 HTML 封裝及上傳；不能據此宣稱 Edge 本機問題已解決。
+- 本輪本機 58/58 幾何／生成／快照測試通過。新增封裝後 file:// Chromium 回歸流程；提交 `1f71e84` 的 [Actions #43607999501](https://github.com/changmonica02/Nexus/actions/runs/43607999501) 已通過 58 項核心測試、既有效能量測、海陸像素／種子／參數／確認／下載／快照匯入及重開驗證，產物含 index.html 與 preview.png。本機 Chromium 因環境 socket 限制無法啟動；Windows Edge 真人驗收仍待完成。
+- 下一步先下載最新成功 CI 的 `nexus-global-land-preview`，解壓縮開啟 `index.html`，確認海陸繪圖、生成、確認及 JSON 匯出；再進行多種子外觀／連通性評估及高解析度資料架構比較，不重寫既有 Grid／Pack。
 
 ## 已完成的本階段
 

@@ -267,3 +267,23 @@ test('IDB: map display blocks share canonical project, preserve independent pref
  await d.reopen();assert.deepEqual((await d.adapter.getPage('world')).character_data.world_maps,maps);
  const exported=await d.adapter.exportWorkspaceBackup(),target=await device(t);await target.adapter.importWorkspaceBackup(exported);assert.deepEqual((await target.adapter.getPage('world')).character_data,page.character_data);
 });
+
+test('IDB: global snapshots, recovery, replacement and backup retain authoritative heights',async t=>{
+ const {globalMapBlob}=require('../src/features/worldMap/globalMapProject.ts');
+ const {createLandLayout}=await import('../experiments/spherical-grid/land-generator.mjs');
+ const {exportGlobalTerrainSnapshot}=await import('../experiments/spherical-grid/snapshot.mjs');
+ const make=seed=>{const d=createLandLayout({seed,landPercent:32,continentCores:8});return globalMapBlob({format:'nexus-global-map',version:1,settings:d.settings,terrain:exportGlobalTerrainSnapshot({grid:d.grid,oceanSeed:d.oceanSeed,revision:0})});};
+ const source=await device(t),target=await device(t);await source.adapter.savePage(world());
+ const repo=new WorldMapRepository(source.adapter),original=make(1),replacement=make(2);
+ const {map}=await repo.createSpace('world','Global','surface',original);
+ const pending=(await source.adapter.getWorkspacePersistence().pending(owner)).length;
+ const token=await repo.stageDraft('world',map.id,1,replacement);await source.reopen();
+ assert.equal((await source.adapter.getWorkspacePersistence().pending(owner)).length,pending);
+ assert.equal(await (await repo.readDraft('world',map.id)).blob.text(),await replacement.text());
+ assert.equal(await (await repo.read('world',map.id)).blob.text(),await original.text());
+ await repo.save('world',map.id,1,replacement);await repo.clearDraft('world',map.id,token);
+ await source.reopen();assert.equal(await (await repo.read('world',map.id)).blob.text(),await replacement.text());
+ const backup=await source.adapter.exportWorkspaceBackup();await target.adapter.importWorkspaceBackup(backup);
+ const restored=await new WorldMapRepository(target.adapter).read('world',map.id);
+ assert.equal(restored.map.engine,'nexus-global');assert.equal(await restored.blob.text(),await replacement.text());
+});
