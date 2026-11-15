@@ -11,15 +11,15 @@ const base=()=>({
  dictionary_senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業'}],
  dictionary_sense_derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:2}],
  dictionary_examples:[{id:id(4),entry_id:id(1),sense_id:id(2),body:'An occupation',translation_zh_tw:'一份職業',derivation_id:id(3),sort_order:0}],
- dictionary_inflections:[{id:id(5),entry_id:id(1),sense_id:id(2),form_kind:'plural',form:'occupations'}],
-});
-test('B2 JSON Bundle preserves derivation and bilingual example IDs; drops standalone inflections with an explicit notice',()=>{
+ });
+test('B2 JSON Bundle preserves derivation and bilingual example IDs and rejects retired inflections',()=>{
  const {bundle,ignoredFields}=parseJSONBundleWithIgnored(JSON.stringify(base()));
+ assert.throws(()=>parseJSONBundleWithIgnored(JSON.stringify({...base(),dictionary_inflections:[{id:id(5),entry_id:id(1),form:'occupations'}]})),/不接受過時或未知欄位/);
  assert.deepEqual(bundle.dictionary_sense_derivations.map(x=>x.id),[id(3)]);
  assert.equal(bundle.dictionary_examples[0].translation_zh_tw,'一份職業');
  assert.equal(bundle.dictionary_examples[0].derivation_id,id(3));
  assert.equal(bundle.dictionary_inflections,undefined);
- assert.ok(ignoredFields.some(x=>x.startsWith('dictionary_inflections')));
+ assert.deepEqual(ignoredFields,[]);
  const drafts=draftsFromBundle(bundle);
  assert.deepEqual(validateDictionaryDraft(drafts),[]);
  assert.equal(mapDictionaryDraft(drafts[0]).derivations[0].id,id(3));
@@ -27,8 +27,10 @@ test('B2 JSON Bundle preserves derivation and bilingual example IDs; drops stand
  assert.throws(()=>exportDictionaryCSV(drafts),/CSV 不支援衍生意思/);
 });
 test('B2 JSON Bundle validates stable references, nullable translations and rejects invalid derivations',()=>{
- const b=base();b.dictionary_examples[0].translation_zh_tw=null;b.dictionary_examples[0].derivation_id=null;
+ const b=base();b.dictionary_examples[0].translation_zh_tw=null;
  assert.equal(parseJSONBundleWithIgnored(JSON.stringify(b)).bundle.dictionary_examples[0].translation_zh_tw,null);
+ const unlinked=base();unlinked.dictionary_examples[0].derivation_id=null;
+ assert.throws(()=>parseJSONBundleWithIgnored(JSON.stringify(unlinked)),/derivation_id/);
  const bad=base();bad.dictionary_sense_derivations[0].sense_id=id(9);
  assert.ok(validateDictionaryDraft(draftsFromBundle(parseJSONBundleWithIgnored(JSON.stringify(bad)).bundle)).some(x=>x.field==='derivations'));
  const badReference=base();badReference.dictionary_examples[0].derivation_id=id(10);
