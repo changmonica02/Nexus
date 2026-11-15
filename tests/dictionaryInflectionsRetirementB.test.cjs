@@ -17,15 +17,17 @@ test('retired Inflections cannot be accidentally persisted in new Draft/AI forma
  current.entries[0].inflections=[{form_kind:'past',form:'worked'}];
  assert.throws(()=>parseAI(JSON.stringify(current)),/不允許欄位 inflections/);
 });
-test('legacy v1 Exchange snapshot may mention Inflections without rehydrating them',()=>{
+test('legacy v1 Exchange and retired Inflections are rejected',()=>{
  const now='2026-11-14T00:00:00Z';
  const detail={entry:{id:id(1),kind:'word',headword:'work',word_segments:null,status:'draft',published_at:null,revision:1,updated_at:now},
  senses:[{id:id(2),entry_id:id(1),part_of_speech:'verb',gloss_zh_tw:'工作',revision:1,updated_at:now}],
  relations:[],etymologies:[],learning_notes:[],pronunciations:[],examples:[],lexical_annotations:[],inflections:[{id:id(3),entry_id:id(1),sense_id:id(2),form_kind:'past',form:'worked',sort_order:0,revision:1,updated_at:now}]};
  const doc={format:'nexus-dictionary-exchange',schema_version:1,exported_at:now,scope:{kinds:['word'],statuses:['draft'],query:''},records:[{entry_id:id(1),version:null,reviews:[],snapshot:{detail,metadata:null}}]};
- const draft=draftFromExchange(parseExchange(JSON.stringify(doc)).records[0]);
- assert.equal(Object.hasOwn(draft,'inflections'),false);
- assert.equal(draft.senses[0].id,id(2));
+ assert.throws(()=>parseExchange(JSON.stringify(doc)),/Unsupported dictionary exchange schema version/);
+ doc.schema_version=2;
+ doc.records[0].snapshot.detail.derivations=[];
+ doc.records[0].snapshot.detail.public_notes=[];
+ assert.throws(()=>draftFromExchange(parseExchange(JSON.stringify(doc)).records[0]),/unsupported field|Retired inflections/);
 });
 test('retirement SQL only changes selected RPC bodies and never drops production records prematurely',()=>{
  const sql=fs.readFileSync('supabase/migrations/20261114224000_dictionary_inflections_read_retired.sql','utf8');
