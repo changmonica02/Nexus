@@ -63,22 +63,13 @@ const decide = (c, r, i, a) =>
     issue_id: i.id,
     decision: a,
   });
-test("actual SQL: throw safe Sense + suspicious past form are independent; Published protected, stable IDs, active Review update, saved versus applied, repeat dedupe and colors", async () => {
+test("actual SQL: throw safe Sense + conflicting gloss are independent; Published protected, stable IDs, active Review update, saved versus applied, repeat dedupe and colors", async () => {
   const pg = await database(),
     c = client(pg);
   try {
     assert.equal(await persistentImportAvailable(c), true);
     const d = draft(100);
     d.headword = "throw";
-    d.inflections = [
-      {
-        id: id(102),
-        sense_id: id(101),
-        form_kind: "past",
-        form: "threw",
-        sort_order: 0,
-      },
-    ];
     await save(pg, d);
     await sql(pg, "select publish_dictionary_entry($1,true) v", [d.entry_id]);
     const incoming = structuredClone(d);
@@ -87,17 +78,11 @@ test("actual SQL: throw safe Sense + suspicious past form are independent; Publi
       part_of_speech: "noun",
       gloss_zh_tw: "投擲動作",
     });
-    incoming.inflections.push({
-      id: id(104),
-      sense_id: id(101),
-      form_kind: "past",
-      form: "throwed",
-      sort_order: 1,
-    });
+    incoming.senses[0].gloss_zh_tw = "投擲（需決策）";
     const { s, rows } = await stage(c, incoming);
     const plan = partialImportPlan(rows[0].item);
     assert.equal(plan.draft.senses.length, 2);
-    assert.equal(plan.draft.inflections.length, 1);
+    assert.equal(plan.draft.senses[0].gloss_zh_tw, d.senses[0].gloss_zh_tw);
     let [r] = await applyPersistentRecords(c, rows);
     assert.equal(r.pending_count, 1, JSON.stringify(r));
     assert.equal((await list(c)).stats.red, 1);
@@ -108,7 +93,7 @@ test("actual SQL: throw safe Sense + suspicious past form are independent; Publi
       )
     ).rows[0];
     assert.equal(review.candidate.bundle.dictionary_senses.length, 2);
-    assert.equal(review.candidate.inflections.length, 1);
+    assert.equal(review.candidate.bundle.dictionary_senses.find(s => s.id === id(101)).gloss_zh_tw, d.senses[0].gloss_zh_tw);
     assert.equal(
       (await pg.query("select * from dictionary_senses")).rows.length,
       1,
@@ -117,7 +102,7 @@ test("actual SQL: throw safe Sense + suspicious past form are independent; Publi
     let second = (await queue(client(pg))).items[0];
     assert.equal(second.id, r.id);
     const issue = second.item.issues.find((i) => !i.applied);
-    assert.equal(issue.type, "ambiguous_content");
+    assert.equal(issue.type, "published_change");
     second = await decide(c, second, issue, "keep");
     assert.equal(
       second.item.issues.find((i) => i.id === issue.id).applied,
@@ -155,14 +140,14 @@ test("actual SQL: throw safe Sense + suspicious past form are independent; Publi
     ]);
     assert.equal((await list(c)).stats.green, 1);
     assert.equal(
-      (await pg.query("select * from dictionary_inflections")).rows.length,
+      (await pg.query("select * from dictionary_senses where id=$1", [id(101)])).rows.length,
       1,
     );
   } finally {
     await pg.close();
   }
 });
-test("shoot/do: invalid POS form held with dependencies, new nonduplicate content automatic, identity conflicts never force, undecided fields do not block independent decisions", async () => {
+test("shoot/do: conflicting gloss held for review, new nonduplicate content automatic, identity conflicts never force, undecided fields do not block independent decisions", async () => {
   const pg = await database(),
     c = client(pg);
   try {
@@ -174,27 +159,17 @@ test("shoot/do: invalid POS form held with dependencies, new nonduplicate conten
     changed.examples = [
       { id: id(202), sense_id: null, body: "shoot the ball", sort_order: 0 },
     ];
-    changed.inflections = [
-      {
-        id: id(203),
-        sense_id: id(201),
-        form_kind: "plural",
-        form: "shoots",
-        sort_order: 0,
-      },
-    ];
     const { rows } = await stage(c, changed); // Existing builder can hold invalid content; recheck obtains a safe observed-ID context.
     let r = await recheckPersistent(c, rows[0]);
     let plan = partialImportPlan(r.item);
     assert.equal(plan.draft.examples.length, 1);
-    assert.equal(plan.draft.inflections.length, 0);
     [r] = await applyPersistentRecords(c, [r]);
     assert.equal(
       (await pg.query("select * from dictionary_examples")).rows.length,
       1,
       JSON.stringify(r.result),
     );
-    assert.ok(r.pending_count >= 2);
+    assert.equal(r.pending_count, 1);
     const gloss = r.item.issues.find((i) => i.field === "gloss_zh_tw");
     r = await decide(c, r, gloss, "incoming");
     [r] = await applyPersistentRecords(c, [r], true);
@@ -207,7 +182,7 @@ test("shoot/do: invalid POS form held with dependencies, new nonduplicate conten
       ).rows[0].gloss_zh_tw,
       "射擊（需決策）",
     );
-    assert.ok(r.pending_count > 0);
+    assert.equal(r.pending_count, 0);
     const other = draft(300);
     other.headword = "do";
     await save(pg, other);
@@ -817,7 +792,7 @@ test("a stale device item does not abort independent items in the same bounded b
     await pg.close();
   }
 });
-test("unresolved POS/inflection dependency and absent relation target do not block independent safe content", async () => {
+test("unresolved POS decision and absent relation target do not block independent safe content", async () => {
   const pg = await database(),
     c = client(pg);
   try {
@@ -825,15 +800,6 @@ test("unresolved POS/inflection dependency and absent relation target do not blo
     await save(pg, d);
     const incoming = structuredClone(d);
     incoming.senses[0].part_of_speech = "noun";
-    incoming.inflections = [
-      {
-        id: id(10002),
-        sense_id: id(10001),
-        form_kind: "plural",
-        form: "examples",
-        sort_order: 0,
-      },
-    ];
     incoming.relations = [
       {
         id: id(10003),
@@ -852,12 +818,11 @@ test("unresolved POS/inflection dependency and absent relation target do not blo
     ];
     const { rows } = await stage(c, incoming);
     const plan = partialImportPlan(rows[0].item);
-    assert.equal(plan.draft.inflections.length, 0);
     assert.equal(plan.draft.relations.length, 0);
     assert.equal(plan.draft.examples.length, 1);
     const [r] = await applyPersistentRecords(c, rows);
     assert.equal(r.result.status, "applied");
-    assert.ok(r.pending_count >= 3);
+    assert.ok(r.pending_count >= 2);
     assert.equal(
       (await pg.query("select count(*)::int n from dictionary_examples"))
         .rows[0].n,

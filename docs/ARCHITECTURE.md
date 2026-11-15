@@ -2,6 +2,13 @@
 
 > 更新：2026-11-13（#175 合併後）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
+## B 階段分支契約（PR #186 已實作、正式資料庫未套用）
+
+- Word 的衍生意思與雙語例句沿用既有 Entry／Sense 識別及原子 Draft／Review；共用公共筆記由 B2 子表承載。Exchange v2 僅輸出完整 B2 Word 快照；v1 歷史資料保留讀取相容性。
+- 新版 Draft／AI 輸入拒絕獨立 `inflections`；歷史 Exchange 可辨識舊欄位但不重新寫入。原始歷史審核收據保留，不為退役改寫。
+- 詞形退役依序解除讀取及交易函式相依，再更新 catalog／關聯搜尋並以 `DROP ... RESTRICT` 移除舊搜尋與詞形資料表。最後遷移會檢查 public 函式本文仍有無詞形表引用，禁止以 CASCADE 隱藏漏改相依。
+- 持續匯入回歸改以有效的義項／關聯決策驗證安全部分匯入；已發布詞條的內容衝突應分類為 `published_change`。退役輸入的拒絕與 v1 相容性由專項測試覆蓋。
+
 ## 現行字典構詞架構（2026-11-13 已套用）
 
 - **資料與身分**：沿用 `dictionary_entries`、`dictionary_senses`、`dictionary_relations` 及草稿／Review／人工發布機制，不建立第二套字典。Entry `kind` 包含 Word、Prefix、Root、Suffix；Word 與構詞不可互換類型，三種構詞形式可在原 ID 內切換。合法同形的不同詞條按 ID 區分，不因拼寫相同合併。
