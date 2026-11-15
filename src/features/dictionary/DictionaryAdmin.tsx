@@ -106,7 +106,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       if(rows.length>1)return b; // Never silently discard unexpected data.
       if(!value.trim())return {...b,[table]:[]};
       if(rows.length)return {...b,[table]:[{...rows[0],[key]:value}]};
-      return {...b,[table]:[{id:crypto.randomUUID(),entry_id:detail.entry.id,sense_id:null,...(table==='dictionary_pronunciations'?{sort_order:0}:table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{}),[key]:value}]};
+      return {...b,[table]:[{id:crypto.randomUUID(),entry_id:detail.entry.id,...(table==='dictionary_public_notes'?{}:{sense_id:null}),...(table==='dictionary_pronunciations'?{sort_order:0}:table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{}),[key]:value}]};
     });
   };
   const fixedValue=(table:'dictionary_pronunciations'|'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_public_notes',key:'ipa'|'body')=>String(bundle[table]?.[0]?.[key]??'');
