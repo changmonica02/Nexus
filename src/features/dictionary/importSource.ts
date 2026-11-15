@@ -19,6 +19,7 @@ export async function previewImportSource(
   format: "csv" | "json" | "md",
   progress?: (done: number, total: number) => void,
 ) {
+  if (format !== "json") throw Error("僅接受最新版 JSON 匯入；CSV 與 Markdown 舊格式已停用");
   if (
     format === "json" &&
     JSON.parse(raw.replace(/^\uFEFF/, ""))?.format === exchangeFormat
