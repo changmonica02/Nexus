@@ -280,12 +280,12 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
 
       {(detail.entry.kind!=='word'&&bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind!=='word'&&bundle.dictionary_examples.length>0&&contentSection('dictionary_examples',tr('例詞'))}
-      {detail.entry.kind==='word'&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
-      {detail.entry.kind==='word'&&<EditorSection title={tr('公共補充筆記')} collapsible={false} count={(bundle.dictionary_public_notes??[]).length} actions={(bundle.dictionary_public_notes??[]).length===0?<button type="button" className={addButton} onClick={()=>add('dictionary_public_notes',{body:''})}>{tr('＋新增公共筆記')}</button>:undefined}>
+      {detail.entry.kind==='word'&&contentSection('dictionary_etymologies',tr('詞源'))}
+      {detail.entry.kind==='word'&&<EditorSection title={tr('筆記')} collapsible={false} count={(bundle.dictionary_public_notes??[]).length} actions={(bundle.dictionary_public_notes??[]).length===0?<button type="button" className={addButton} onClick={()=>add('dictionary_public_notes',{body:''})}>{tr('＋新增公共筆記')}</button>:undefined}>
         <p className="text-xs opacity-70">{tr('公共筆記與記憶法、詞源分開儲存；支援安全的 Markdown 預覽。原始 HTML 及不安全連結只會作為文字顯示。')}</p>
         {(bundle.dictionary_public_notes??[]).length>0&&<button type="button" className={addButton} onClick={()=>setShowPublicNotePreview(x=>!x)}>{tr(showPublicNotePreview?'返回編輯':'預覽格式')}</button>}
         {(bundle.dictionary_public_notes??[]).map((note,i)=><div key={String(note.id)} className="flex min-w-0 items-start gap-2">
-          <div className="min-w-0 flex-1">{showPublicNotePreview?<div role="region" aria-label={tr('公共筆記預覽')} className="rounded border border-[var(--color-border)] p-3"><SafeMarkdown source={String(note.body??'')}/></div>:<Field label={tr('公共補充筆記')} multiline value={note.body} onChange={value=>change('dictionary_public_notes',i,'body',value)}/>}</div>
+          <div className="min-w-0 flex-1">{showPublicNotePreview?<div role="region" aria-label={tr('公共筆記預覽')} className="rounded border border-[var(--color-border)] p-3"><SafeMarkdown source={String(note.body??'')}/></div>:<Field label={tr('筆記')} multiline value={note.body} onChange={value=>change('dictionary_public_notes',i,'body',value)}/>}</div>
           <button type="button" className={addButton} aria-label={tr('刪除公共筆記')} onClick={()=>setBundle(b=>({...b,dictionary_public_notes:(b.dictionary_public_notes??[]).filter(x=>x.id!==note.id)}))}><FeatureIcon feature="delete" size={16}/></button>
         </div>)}
       </EditorSection>}
