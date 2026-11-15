@@ -82,6 +82,22 @@ test(
           errors.push(e.message);
           console.error(e.message);
         });
+        page.on("dialog", async dialog => {
+          assert.equal(dialog.type(), "beforeunload", "only the native reload confirmation is expected");
+          console.log("IMPORT_RELOAD_CONFIRMATION", { type: dialog.type(), viewport });
+          await dialog.accept();
+        });
+        const reload = async () => {
+          const previousDocument = await page.evaluate(() => performance.timeOrigin);
+          await page.reload();
+          assert.notEqual(await page.evaluate(() => performance.timeOrigin), previousDocument, "checkpoint recovery must load a fresh document");
+        };
+        const waitForProgress = async text => {
+          await page.getByText(text, { exact: true }).waitFor().catch(async error => {
+            console.error("IMPORT_CHECKPOINT_SCREEN", await page.locator("body").innerText());
+            throw error;
+          });
+        };
         await page.goto(url);
         await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
@@ -195,20 +211,12 @@ test(
           .getByRole("button", { name: "停止未開始的批次", exact: true })
           .click();
         await page.evaluate(()=>window.finishImportBatch());
-        await page
-          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
-            exact: true,
-          })
-          .waitFor();
-        await page.reload();
+        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
+        await reload();
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
-        await page
-          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
-            exact: true,
-          })
-          .waitFor();
+        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
         // Server commits, then local receipt checkpoint fails: UI must retain durable progress.
         await page.evaluate(() => {
           const before = window.calls.filter(
@@ -241,11 +249,7 @@ test(
           .getByRole("alert")
           .filter({ hasText: "fixture receipt quota exceeded" })
           .waitFor();
-        await page
-          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
-            exact: true,
-          })
-          .waitFor();
+        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
         // Wait for the failed operation to finish cleanup before simulating a reload.
         await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='一次套用安全項目／恢復作業'&&!b.disabled));
         const savedStatuses=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=indexedDB.open('nexus-dictionary-import-review',2);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,tx=db.transaction('items'),rows=tx.objectStore('items').getAll();rows.onsuccess=()=>{resolve(rows.result.map(r=>r.item.status));db.close();};rows.onerror=()=>reject(rows.error);};}));
@@ -258,15 +262,11 @@ test(
             .at(-1)
             .operations.map((op) => op.operation_id),
         );
-        await page.reload();
+        await reload();
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
-        await page
-          .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
-            exact: true,
-          })
-          .waitFor();
+        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
         await page
           .getByRole("button", {
             name: "一次套用安全項目／恢復作業",
@@ -339,7 +339,7 @@ test(
           .getByRole("button", { name: "停止未開始的批次", exact: true })
           .click();
         await page.getByText(/已發布 200 · 待處理 205/).waitFor();
-        await page.reload();
+        await reload();
         await page
           .getByRole("button", { name: "恢復已保存的批次發布", exact: true })
           .click();
