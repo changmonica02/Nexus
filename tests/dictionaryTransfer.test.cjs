@@ -55,6 +55,23 @@ const currentV2Record=(source)=>{
   }
   return record;
 };
+test('proposal identity ignores unordered child rows and omitted empty Word-only sections, but retains segment order',()=>{
+  const {proposalKey}=require('../src/features/dictionary/persistentImport.ts');
+  const d=draft(810);
+  d.senses.push({id:id(813),part_of_speech:'noun',gloss_zh_tw:'第二義'});
+  const item={draft:d};
+  const equivalent=structuredClone(d);
+  equivalent.senses.reverse();
+  equivalent.derivations=[];
+  equivalent.public_notes=[];
+  assert.equal(proposalKey(item),proposalKey({draft:equivalent}));
+  const changed=structuredClone(equivalent);
+  changed.senses[0].gloss_zh_tw='不同義項';
+  assert.notEqual(proposalKey(item),proposalKey({draft:changed}));
+  const withSegments={...equivalent,word_segments:[{id:id(817),text:'a',hint:'',relation_id:null},{id:id(818),text:'b',hint:'',relation_id:null}]};
+  const reversedSegments={...withSegments,word_segments:[...withSegments.word_segments].reverse()};
+  assert.notEqual(proposalKey({draft:withSegments}),proposalKey({draft:reversedSegments}));
+});
 const save = (pg, d) =>
   sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
     JSON.stringify([mapDictionaryDraft(d)]),
@@ -199,7 +216,7 @@ test("atomic real RPC safe replacement clears only proven issues; replay idempot
     record.import_candidate.senses.reverse();
     const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[currentV2Record(record)]}))));
     assert.equal(importSafety(sameReview.items[0]),'review',JSON.stringify(sameReview.items[0].issues));
-    const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,JSON.stringify({reason:'same pending proposal must not grow duplicate review records',previous:oldRow.item.draft,reimport:sameReview.items[0].draft,previousKey:require('../src/features/dictionary/persistentImport.ts').proposalKey(oldRow.item),reimportKey:require('../src/features/dictionary/persistentImport.ts').proposalKey(sameReview.items[0])}).slice(0,11000));
+    const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,'same pending proposal must not grow duplicate review records because provenance is attached');
     const fresh = structuredClone(original);
     fresh.senses.push({
       id: id(703),
