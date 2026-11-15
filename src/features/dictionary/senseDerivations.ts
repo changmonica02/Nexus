@@ -24,7 +24,7 @@ export function validateSenseExtensions(
   const used=new Set<string>();
   for(const example of examples){
     if(example.translation_zh_tw!=null&&typeof example.translation_zh_tw!=='string')issues.push('中文翻譯必須是文字');
-    if(example.derivation_id==null||example.derivation_id==='')continue;
+    if(example.derivation_id==null||example.derivation_id===''){issues.push('例句必須連結衍生意思；不接受舊版獨立例句');continue;}
     if(used.has(example.derivation_id))issues.push('每個衍生意思最多只能連結一組例句與中文翻譯');
     used.add(example.derivation_id);
     const target=derivations.find(d=>d.id===example.derivation_id);
