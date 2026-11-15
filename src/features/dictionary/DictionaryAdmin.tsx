@@ -184,7 +184,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
     setBundle(b=>({...b,[table]:b[table].filter(r=>r.id!==row.id)}));complete();
   };
   const contentSection=(table:'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_examples',title:string)=>(
-    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].filter(row=>(table!=='dictionary_etymologies'||detail.entry.kind==='word'||row.sense_id==null)&&!(table==='dictionary_examples'&&extensionsLoaded&&row.derivation_id)).length} actions={<button type="button" className={addButton} onClick={()=>add(table,{sense_id:detail.entry.kind==='word'&&table!=='dictionary_examples'?null:table==='dictionary_etymologies'&&detail.entry.kind!=='word'?null:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
+    <EditorSection title={title} collapsible={table!=='dictionary_learning_notes'} count={bundle[table].filter(row=>(table!=='dictionary_etymologies'||detail.entry.kind==='word'||row.sense_id==null)&&!(table==='dictionary_examples'&&extensionsLoaded&&row.derivation_id)).length} actions={table==='dictionary_examples'&&extensionsLoaded?undefined:<button type="button" className={addButton} onClick={()=>add(table,{sense_id:detail.entry.kind==='word'&&table!=='dictionary_examples'?null:table==='dictionary_etymologies'&&detail.entry.kind!=='word'?null:newContentSense(),body:'',...(table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{sort_order:bundle[table].length})})} aria-label={tr('新增')+title}>{tr('＋新增')}{title}</button>}>
       <section className="min-w-0 space-y-2" data-content-section={title}>
         {bundle[table].map((row,i)=>(table==='dictionary_examples'&&extensionsLoaded&&row.derivation_id||table==='dictionary_etymologies'&&detail.entry.kind!=='word'&&row.sense_id!=null)?null:<div key={String(row.id)} className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-2">
@@ -291,7 +291,7 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       {addingRelation&&<RelationSelectionDialog excludeEntryId={detail.entry.id} excludedSenseIds={bundle.dictionary_relations.filter(r=>r.sense_id==null).map(r=>String(r.target_sense_id))} onClose={()=>setAddingRelation(false)} onSelect={(entry,sense)=>{add('dictionary_relations',{sense_id:null,target_entry_id:entry,target_sense_id:sense});setAddingRelation(false);}}/>}
       </EditorSection>
       </>}
-      {contentSection('dictionary_examples',tr('例詞'))}
+      {(!extensionsLoaded||bundle.dictionary_examples.some(row=>!row.derivation_id))&&contentSection('dictionary_examples',tr('例詞'))}
       {detail.entry.kind==='word'&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind==='word'&&<EditorSection title={tr('公共補充筆記')} collapsible={false} count={(bundle.dictionary_public_notes??[]).length} actions={(bundle.dictionary_public_notes??[]).length===0?<button type="button" className={addButton} onClick={()=>add('dictionary_public_notes',{body:''})}>{tr('＋新增公共筆記')}</button>:undefined}>
         <p className="text-xs opacity-70">{tr('公共筆記與記憶法、詞源分開儲存；支援安全的 Markdown 預覽。原始 HTML 及不安全連結只會作為文字顯示。')}</p>
