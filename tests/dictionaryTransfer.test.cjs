@@ -33,6 +33,16 @@ const {
   continueExport,
   exportDocument,
 } = require("../src/features/dictionary/exchangeExport.ts");
+// SQL test fixtures may omit Word-only sections; construct a complete v2
+// document explicitly without accepting the omitted sections in production.
+const currentV2Record=(source)=>{
+  const record=structuredClone(source);
+  if(record.snapshot?.detail?.entry?.kind==='word'){
+    record.snapshot.detail.derivations??=[];
+    record.snapshot.detail.public_notes??=[];
+  }
+  return record;
+};
 const save = (pg, d) =>
   sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
     JSON.stringify([mapDictionaryDraft(d)]),
@@ -175,7 +185,7 @@ test("atomic real RPC safe replacement clears only proven issues; replay idempot
       record = pending.records.find((r) => r.entry_id === original.entry_id);
     assert.ok(record);
     record.import_candidate.senses.reverse();
-    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]}))));
+    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[currentV2Record(record)]}))));
     assert.equal(importSafety(sameReview.items[0]),'review');
     const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,'same pending proposal must not grow duplicate review records because provenance is attached');
     const fresh = structuredClone(original);
@@ -467,7 +477,7 @@ test("Published content stays isolated; unchanged cannot consume proofs; stale r
       schema_version: 2,
       exported_at: new Date().toISOString(),
       scope: { kinds: ["word"], statuses: [], query: "" },
-      records: [record],
+      records: [currentV2Record(record)],
     };
     document.records[0].import_candidate.unknown_field = "must reject";
     const invalid = persistentPreview(
