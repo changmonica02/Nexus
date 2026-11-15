@@ -36,6 +36,11 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(!d.headword?.trim())issue('headword','必填');
     const segmentIssue=validateWordSegments(d.word_segments,d.headword,d.kind,d.relations);if(segmentIssue)issue('word_segments',segmentIssue);
     if(options.csv&&!d.senses.length)issue('gloss_zh_tw','至少需要一個義項');
+    if(d.kind==='word'){
+      if(!d.senses.length)issue('senses','單詞至少需要一個義項');
+      for(const [field,rows] of [['pronunciations',d.pronunciations??[]],['learning_notes',d.learning_notes],['etymologies',d.etymologies]] as const)
+        if(rows.length>1)issue(field,'單詞的讀音、記憶法及詞源皆最多一筆');
+    }
     for(const s of d.senses){
       const morphIssue=validateMorphemeSenseFields(s);if(morphIssue)issue('senses',morphIssue,s.row);
       if((d.kind==='word'||options.csv)&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
