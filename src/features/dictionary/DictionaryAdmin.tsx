@@ -100,6 +100,13 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline));
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
   const add=(table:string,values:Row)=>setBundle(b=>({...b,[table]:[...b[table],{id:crypto.randomUUID(),entry_id:detail.entry.id,...values}]}));
+  // Newly created Sense extensions are edited as one derivation + one bilingual example.
+  // Do not rewrite older entries with multiple/unlinked examples during an ordinary edit.
+  const addPairedExample=(derivation:Row)=>{
+    const linked=bundle.dictionary_examples.filter(x=>x.derivation_id===derivation.id);
+    if(linked.length)return;
+    add('dictionary_examples',{sense_id:derivation.sense_id,derivation_id:derivation.id,body:'',translation_zh_tw:'',sort_order:bundle.dictionary_examples.length});
+  };
   const addSense=async()=>{
     const shared=['dictionary_pronunciations','dictionary_etymologies','dictionary_learning_notes','dictionary_examples','dictionary_lexical_annotations'].some(table=>bundle[table]?.some(row=>row.sense_id===null));
     if(bundle.dictionary_senses.length&&shared&&!await confirmDialog(tr('既有內容有未限定義項的資料。新增義項後仍保留為詞條共用；若只屬於原義項，請取消並先指定適用義項。確認繼續？')))return;
@@ -248,11 +255,25 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
             <h4 className="font-medium">{tr('衍生意思')}</h4>
             <button type="button" className={addButton} onClick={()=>add('dictionary_sense_derivations',{sense_id:row.id,gloss_zh_tw:'',sort_order:(bundle.dictionary_sense_derivations??[]).filter(x=>x.sense_id===row.id).length})}>{tr('＋新增衍生意思')}</button>
           </div>
-          {(bundle.dictionary_sense_derivations??[]).filter(x=>x.sense_id===row.id).map((derivation,n)=><div key={String(derivation.id)} className="flex min-w-0 items-end gap-2">
-            <div className="min-w-0 flex-1">
-              <Field label={tr('衍生意思')+' '+(n+1)} value={derivation.gloss_zh_tw} onChange={v=>setBundle(b=>({...b,dictionary_sense_derivations:(b.dictionary_sense_derivations??[]).map(x=>x.id===derivation.id?{...x,gloss_zh_tw:v}:x)}))}/>
+          {(bundle.dictionary_sense_derivations??[]).filter(x=>x.sense_id===row.id).map((derivation,n)=><div key={String(derivation.id)} data-derivation-pair={String(derivation.id)} className="min-w-0 space-y-2 rounded-lg border border-[var(--color-border)] p-3">
+            <div className="flex min-w-0 items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Field label={tr('衍生意思')+' '+(n+1)} value={derivation.gloss_zh_tw} onChange={v=>setBundle(b=>({...b,dictionary_sense_derivations:(b.dictionary_sense_derivations??[]).map(x=>x.id===derivation.id?{...x,gloss_zh_tw:v}:x)}))}/>
+              </div>
+              <button type="button" className={addButton} aria-label={tr('刪除衍生意思')+' '+(n+1)} onClick={()=>{try{const next=withoutDerivation(stateRef.current.bundle,String(derivation.id));setBundle(next);complete();}catch(error){setMessage(error instanceof Error?error.message:String(error));}}}><FeatureIcon feature="delete" size={16}/></button>
             </div>
-            <button type="button" className={addButton} aria-label={tr('刪除衍生意思')+' '+(n+1)} onClick={()=>{try{const next=withoutDerivation(stateRef.current.bundle,String(derivation.id));setBundle(next);complete();}catch(error){setMessage(error instanceof Error?error.message:String(error));}}}><FeatureIcon feature="delete" size={16}/></button>
+            {bundle.dictionary_examples.filter(example=>example.derivation_id===derivation.id).map(example=>{
+              const index=bundle.dictionary_examples.findIndex(x=>x.id===example.id);
+              return <div key={String(example.id)} className="grid min-w-0 gap-2" data-paired-example={String(example.id)}>
+                <Field label={tr('英文例句')} multiline value={example.body} onChange={v=>change('dictionary_examples',index,'body',v)}/>
+                <Field label={tr('中文翻譯')} multiline value={example.translation_zh_tw} onChange={v=>change('dictionary_examples',index,'translation_zh_tw',v)}/>
+                <button type="button" className={addButton+' justify-self-start'} onClick={()=>void removeContent('dictionary_examples',example,tr('英文例句'))}>{tr('刪除例句')}</button>
+              </div>;
+            })}
+            {!bundle.dictionary_examples.some(example=>example.derivation_id===derivation.id)&&
+              <button type="button" className={addButton} onClick={()=>addPairedExample(derivation)}>{tr('＋新增英文例句與中文翻譯')}</button>}
+            {bundle.dictionary_examples.filter(example=>example.derivation_id===derivation.id).length>1&&
+              <p className="text-xs opacity-70">此衍生義有多筆歷史例句，為避免資料遺失全部保留；新增資料請維持一組例句與翻譯。</p>}
           </div>)}
         </section>}</div>
       </div>)}
