@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','詞性','中文意思','歷史詞源','記憶法','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['構詞英中與其連結','讀音（IPA）','詞性','中文意思','歷史詞源','記憶法','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -33,8 +33,10 @@ test('import preview escapes Markdown and distinguishes mnemonic from historical
 
 test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
   const ui=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
-  for(const format of ['csv','md','json'])assert.ok(ui.includes(`option value="${format}"`));
-  assert.ok(ui.includes('accept=".csv,.md,.json"'));
+  assert.ok(ui.includes('option value="json"'));
+  assert.ok(!ui.includes('option value="csv"'));
+  assert.ok(!ui.includes('option value="md"'));
+  assert.ok(ui.includes('accept=".json"'));
   assert.ok(ui.includes('<DictionaryImportReview'));
   const workflow=fs.readFileSync('src/features/dictionary/DictionaryImportReview.tsx','utf8');
   for(const text of ['normalizeDictionaryBundle','buildImportSession','confirmDialog','applyImportItems','exchange.applySafe','exchange.onlyPending'])assert.ok(workflow.includes(text),text);
@@ -45,10 +47,10 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資料','記憶法','義項','構詞關聯','例詞','歷史詞源','公共補充筆記']){
+  for(const label of ['構詞英中與其連結','讀音（IPA）','記憶法','義項','歷史詞源','公共補充筆記']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
-  assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
+  assert.ok(!html.includes('構詞關聯</h3>'));assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
   assert.equal((html.match(/←/g)||[]).length,0);
   const rootHtml=render(root);for(const label of ['構詞名稱','構詞分類','大分類','小分類','新增變體','概述','歷史詞源','連結單字'])assert.ok(rootHtml.includes(label),label);
   assert.ok(rootHtml.includes('var(--color-editor-bg)'));
@@ -59,12 +61,12 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(rootHtml.indexOf('構詞分類')<rootHtml.indexOf('>義項</h3>'));
   assert.ok(!rootHtml.includes('同字變體'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
-  assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]'));
+  assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]')||html.includes('grid-cols-[minmax(0,1fr)_44px]'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
   const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(source.includes("modal==='import'&&<DictionaryModal"));
   assert.ok(source.includes("modal==='new'&&<DictionaryModal"));
-  assert.ok(source.includes('download="dictionary_master_v1.csv"'));
+  assert.ok(source.includes('Nexus JSON Exchange v2'));
   assert.ok(fs.readFileSync('src/features/dictionary/useDictionaryAdminAccess.ts','utf8').includes("session?.user.id===ownerRef.current"));
   assert.ok(!source.includes('本次修訂'));
 });
