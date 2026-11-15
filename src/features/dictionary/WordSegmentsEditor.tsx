@@ -5,7 +5,7 @@ import {RelationSelectionDialog,RelationTargetPicker} from './RelationTargetPick
 import {wordSpelling,type WordSegment} from './wordSegments';
 type Row=Record<string,unknown>;
 const control='min-h-11 w-full min-w-0 rounded border bg-transparent px-2';
-export default function WordSegmentsEditor({entryId,segments,relations,onChange}:{entryId:string;segments:WordSegment[];relations:Row[];onChange:(segments:WordSegment[],relations:Row[])=>void}) {
+export default function WordSegmentsEditor({entryId,segments,relations,senses=[],onChange}:{entryId:string;segments:WordSegment[];relations:Row[];senses?:Row[];onChange:(segments:WordSegment[],relations:Row[])=>void}) {
   const {t}=usePaginationLanguage(),[linking,setLinking]=useState<string|null>(null);
   const update=(id:string,patch:Partial<WordSegment>)=>onChange(segments.map(s=>s.id===id?{...s,...patch}:s),relations);
   const otherRelations=relations.filter(r=>!segments.some(segment=>segment.relation_id===r.id));
@@ -26,7 +26,13 @@ export default function WordSegmentsEditor({entryId,segments,relations,onChange}
       <summary className="cursor-pointer text-sm">其他構詞關聯（{otherRelations.length}）</summary>
       <p className="text-xs opacity-70">尚未連結到構詞分段的關聯保留在此，可重新指定或刪除。</p>
       {otherRelations.map(relation=><div key={String(relation.id)} className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0 flex-1"><RelationTargetPicker compact entryId={String(relation.target_entry_id)} senseId={String(relation.target_sense_id)} excludeEntryId={entryId} onChange={(entry,sense)=>onChange(segments,relations.map(r=>r.id===relation.id?{...r,target_entry_id:entry,target_sense_id:sense}:r))}/></div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <RelationTargetPicker compact entryId={String(relation.target_entry_id)} senseId={String(relation.target_sense_id)} excludeEntryId={entryId} onChange={(entry,sense)=>onChange(segments,relations.map(r=>r.id===relation.id?{...r,target_entry_id:entry,target_sense_id:sense}:r))}/>
+          <label className="block text-xs">適用義項<select className={control} value={String(relation.sense_id??'')} onChange={e=>onChange(segments,relations.map(r=>r.id===relation.id?{...r,sense_id:e.target.value||null}:r))}>
+            <option value="">詞條共用</option>
+            {senses.map((sense,index)=><option key={String(sense.id)} value={String(sense.id)}>{index+1} · {String(sense.gloss_zh_tw??'')}</option>)}
+          </select></label>
+        </div>
         <button type="button" className="min-h-11 shrink-0 rounded border px-2 text-sm" onClick={()=>onChange(segments,relations.filter(r=>r.id!==relation.id))} aria-label="刪除未指定構詞關聯">刪除</button>
       </div>)}
     </details>}
