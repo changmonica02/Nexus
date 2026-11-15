@@ -118,7 +118,8 @@ export function draftFromExchange(
   row = 1,
 ): DictionaryDraftInput {
   keys(record, ["snapshot", "reviews", "version", "entry_id", "import_reviews", "import_candidate"], "record");
-  record=currentMorphemeFields(cleanIpaRecord(record));
+  if(canonical(currentMorphemeFields(record))!==canonical(record))throw Error('Exchange v2 不接受過時的構詞欄位');
+  record=cleanIpaRecord(record);
   if (
     record.version !== null &&
     (typeof record.version !== "string" ||
