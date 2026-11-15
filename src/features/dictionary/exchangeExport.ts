@@ -124,6 +124,16 @@ export async function continueExport(
   }
   return job;
 }
+/** Export exactly the current v2 shape; never include the retired inflections section. */
+function currentExportRecord(record:ExchangeRecord):ExchangeRecord {
+  const detail=record.snapshot?.detail;
+  if(!detail)return cleanIpaRecord(record);
+  const retired=(detail as unknown as Record<string,unknown>).inflections;
+  if(Array.isArray(retired)&&retired.length)throw Error('字典仍有舊版詞形資料，請先人工整理，無法輸出最新版格式');
+  const {inflections:_retired,...current}=detail as typeof detail & {inflections?:unknown};
+  void _retired;
+  return cleanIpaRecord({...record,snapshot:{...record.snapshot!,detail:current}});
+}
 export async function exportDocument(
   job: ExportJob,
 ): Promise<ExchangeDocument> {
@@ -154,7 +164,7 @@ export async function exportDocument(
     schema_version: exchangeSchemaVersion(records),
     exported_at: job.exported_at,
     scope: job.scope,
-    records:records.map(cleanIpaRecord),
+    records:records.map(currentExportRecord),
   };
 }
 export function downloadDictionaryJSON(value: unknown, name: string) {
