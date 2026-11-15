@@ -9,7 +9,8 @@ const owner='global-browser-owner',storage=new IndexedDBAdapter();
 await storage.init();storage.setWorkspaceOwner(owner);
 let world=await storage.getPage('global-browser-world');
 if(!world){world={id:'global-browser-world',title:'World',kind:'creative',creative_type:'world',character_data:{basic:{name:'World'},sections:[{id:'story',type:'rich_text',title:'Story',richText:'Keep this story'}]},content_json:{type:'doc'},content_text:'Keep this story',default_mode:'note',created_at:1,updated_at:1,deleted_at:null,revision:1,device_id:'device',workspace_owner_id:owner,attachment_ids:[]};await storage.savePage(world);}
-const repo=new WorldMapRepository(storage),save=repo.save.bind(repo);
+const repo=new WorldMapRepository(storage),save=repo.save.bind(repo),createSpace=repo.createSpace.bind(repo);
+repo.createSpace=async(...args)=>{try{return await createSpace(...args);}catch(e){console.error('GLOBAL_CREATE_ERROR',e.message);throw e;}};
 repo.save=async(...args)=>{if(window.failSave)throw Error('Disk full');return save(...args);};
 window.testGlobal={storage,repo,async snapshot(){const w=await storage.getPage(world.id),m=w.character_data.world_maps?.[0];return m?JSON.parse(await (await repo.read(world.id,m.id)).blob.text()):null;},async stale(){const w=await storage.getPage(world.id),m=w.character_data.world_maps[0];await repo.rename(w.id,m.id,m.revision,'Other device');},async draft(){const w=await storage.getPage(world.id),m=w.character_data.world_maps[0];return repo.readDraft(w.id,m.id);}};
 function App(){

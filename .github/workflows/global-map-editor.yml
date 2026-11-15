@@ -38,8 +38,8 @@ jobs:
         run: |
           node -e 'const fs=require("fs"),p=".next/static/media/",files=fs.readdirSync(p).filter(n=>n.startsWith("global-map-worker.")&&n.endsWith(".js"));if(!files.length)throw Error("Missing compiled worker");for(const f of files)new (require("vm").Script)(fs.readFileSync(p+f,"utf8"));'
       - run: npx playwright install --with-deps chromium webkit
-      - run: node tests/globalMapEditor.browser.test.cjs
       - run: GLOBAL_MAP_BROWSER=webkit node tests/globalMapEditor.browser.test.cjs
+      - run: node tests/globalMapEditor.browser.test.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
