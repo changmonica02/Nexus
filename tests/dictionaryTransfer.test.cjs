@@ -43,6 +43,7 @@ const currentV2Record=(source)=>{
     if(record.snapshot.detail.entry?.kind==='word'){
       record.snapshot.detail.derivations??=[];
       record.snapshot.detail.public_notes??=[];
+      // Strict current-version records do not carry retired inflections.
     }
   }
   if(record.import_candidate){
