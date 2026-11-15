@@ -6,9 +6,9 @@
 
 - 分支 `feature/spherical-map-editor-20261115` 建立於 Draft #189 的 `8700c89`；新建地圖走新版球面核心，舊 Azgaar 依原格式繼續開啟。禁止自行合併／部署／正式資料庫操作。
 - 已實作生成、候選預覽／取消／確認替換、平移縮放、Grid 海岸顯示、快照匯出、附件保存／離線重開與復原草稿；人文、河湖、氣候與人工筆刷尚未接入。
-- 已補 storage／IDB／Worker／投影與瀏覽器流程測試；本機 TypeScript 與 Next 生產建置已執行。瀏覽器本機仍受 socket 限制，Chromium／WebKit 實際結果須查本分支的 Global map editor integration CI，不可先宣稱已驗收。
+- 提交 `3077098` 已通過 [Global map editor integration #43683080389](https://github.com/changmonica02/Nexus/actions/runs/43683080389)：65 項核心／儲存測試、TypeScript、ESLint、生產建置、Worker 資產語法，以及 Chromium／WebKit 的桌面與手機寬度生成、取消／確認替換、失敗復原與匯出、離線冷重開及中英切換。兩瀏覽器使用持久化設定檔；離線由測試伺服器直接中斷所有連線驗證，並等待實際地圖載入完成。相同提交的 Note editor audit #43683080293 六項工作亦全數成功（含既有 Azgaar 回歸）。這些不是 Edge／iPad 真人或真實跨裝置驗收。
 - 留意 Next 不會自動編譯所有 TypeScript Worker URL：先 `npm run map:global`，由 Next 發布封裝後雜湊 JS，避免 production 才失敗。正式 predev／prebuild 已接此步驟。
-- 後續依本輪 CI 修正，再做真實帳號跨裝置與 iPad／Edge 驗收；舊功能按需求適配，不先做舊格式轉換或高解析度資料權威決策。
+- 首版整合與自動化驗證已完成，保留 [Draft #192](https://github.com/changmonica02/Nexus/pull/192)；正式網站尚未切換。下一步為真實帳號跨裝置與 iPad／Edge 驗收，之後按需求加入人工筆刷等工具，不先做舊格式轉換或高解析度資料權威決策。
 
 ## 全球海陸原型接續（2026-11-14；Refs #190）
 
