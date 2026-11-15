@@ -83,8 +83,6 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const tr=useDictionaryText();
   const {t}=usePaginationLanguage();
   const [bundle,setBundle]=useState<Bundle>(()=>({dictionary_entries:[{...clean(detail.entry),...(detail.entry.kind==='word'?{word_segments:legacyWordSegments(detail.entry.id,detail.entry.headword,detail.entry.word_segments)}:{})}],dictionary_senses:detail.senses.map(clean),...(detail.derivations?{dictionary_sense_derivations:detail.derivations.map(clean)}:{}),...(detail.public_notes?{dictionary_public_notes:detail.public_notes.map(clean)}:{}),dictionary_relations:detail.relations.map(row=>compositionRow(clean(row))),dictionary_etymologies:detail.etymologies.map(clean),dictionary_learning_notes:detail.learning_notes.map(clean),dictionary_pronunciations:[...(detail.pronunciations??[])].sort((a,b)=>a.sort_order-b.sort_order||a.id.localeCompare(b.id)).map(clean),dictionary_examples:(detail.examples??[]).map(clean),dictionary_lexical_annotations:(detail.lexical_annotations??[]).map(clean)}));
-  const [showPublicNotePreview,setShowPublicNotePreview]=useState(false);
-  const [addingRelation,setAddingRelation]=useState(false);
   const [linkBusy,setLinkBusy]=useState(false);const linkOwner=useRef<string|null>(null);
   const [baseline,setBaseline]=useState(bundle);
   const [preview,setPreview]=useState(false);const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');
