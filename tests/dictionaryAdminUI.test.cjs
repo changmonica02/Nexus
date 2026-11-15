@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['構詞英中與其連結','讀音（IPA）','詞性','中文意思','歷史詞源','記憶法','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['構詞英中與其連結','讀音（IPA）','詞性','中文意思','詞源','記憶法','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -47,7 +47,7 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['構詞英中與其連結','讀音（IPA）','記憶法','義項','歷史詞源','公共補充筆記']){
+  for(const label of ['構詞英中與其連結','讀音（IPA）','記憶法','義項','詞源','筆記']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
   assert.ok(!html.includes('構詞關聯</h3>'));assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
