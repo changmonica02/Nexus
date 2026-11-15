@@ -100,6 +100,25 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   const dirty=!locked&&(JSON.stringify(bundle)!==JSON.stringify(baseline));
   const change=(table:string,index:number,key:string,value:unknown)=>setBundle(b=>({...b,[table]:b[table].map((r,i)=>i===index?{...r,[key]:value}:r)}));
   const add=(table:string,values:Row)=>setBundle(b=>({...b,[table]:[...b[table],{id:crypto.randomUUID(),entry_id:detail.entry.id,...values}]}));
+  // Fixed fields are always visible. Blank means zero persisted rows; a first
+  // keystroke creates the only row and clearing the field removes that row.
+  const setFixedField=(table:'dictionary_pronunciations'|'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_public_notes',key:'ipa'|'body',value:string)=>{
+    setBundle(b=>{
+      const rows=b[table]??[];
+      if(rows.length>1)return b; // Never silently discard unexpected data.
+      if(!value.trim())return {...b,[table]:[]};
+      if(rows.length)return {...b,[table]:[{...rows[0],[key]:value}]};
+      return {...b,[table]:[{id:crypto.randomUUID(),entry_id:detail.entry.id,sense_id:null,...(table==='dictionary_pronunciations'?{sort_order:0}:table==='dictionary_learning_notes'?{kind:'core_concept'}:table==='dictionary_etymologies'?{data_source:''}:{}),[key]:value}]};
+    });
+  };
+  const fixedValue=(table:'dictionary_pronunciations'|'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_public_notes',key:'ipa'|'body')=>String(bundle[table]?.[0]?.[key]??'');
+  const fixedSection=(table:'dictionary_pronunciations'|'dictionary_learning_notes'|'dictionary_etymologies'|'dictionary_public_notes',title:string,key:'ipa'|'body',multiline=false)=>(
+    <EditorSection title={tr(title)} collapsible={false}>
+      <div data-fixed-word-field={table}>
+        <Field label={tr(title)} value={fixedValue(table,key)} multiline={multiline} onChange={value=>setFixedField(table,key,value)}/>
+      </div>
+    </EditorSection>
+  );
   // Newly created Sense extensions are edited as one derivation + one bilingual example.
   // Do not rewrite older entries with multiple/unlinked examples during an ordinary edit.
   const addPairedExample=(derivation:Row)=>{
@@ -235,13 +254,10 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
           <label className="block text-sm">{tr('構詞分類')}<select aria-label={tr('構詞分類')} className={control} value={String(bundle.dictionary_entries[0].kind)} onChange={e=>change('dictionary_entries',0,'kind',e.target.value)}>{(['prefix','root','suffix'] as const).map(k=><option key={k} value={k}>{tr(labels[k])}</option>)}</select></label>
         </>}
       </EditorSection>
-      {detail.entry.kind==='word'&&<EditorSection title={tr('讀音（IPA）')} collapsible={false} count={bundle.dictionary_pronunciations.length} actions={!bundle.dictionary_pronunciations.length?<button type="button" className={addButton} onClick={()=>add('dictionary_pronunciations',{sense_id:null,ipa:'',sort_order:0})} aria-label={tr('＋新增讀音')}>{tr('＋新增讀音')}</button>:undefined}>
-        {bundle.dictionary_pronunciations.map((row,i)=><div key={String(row.id)} data-pronunciation-row={String(row.id)} className="flex min-w-0 items-end gap-2">
-          <div className="min-w-0 flex-1"><Field label="IPA" value={row.ipa} onChange={v=>change('dictionary_pronunciations',i,'ipa',v)}/></div>
-          <button type="button" className={addButton} onClick={()=>void removeContent('dictionary_pronunciations',row,tr('讀音'))} aria-label={tr('刪除讀音')}><FeatureIcon feature="delete" size={16}/></button>
-        </div>)}
-      </EditorSection>}
-      {contentSection('dictionary_learning_notes',detail.entry.kind==='word'?tr('記憶法'):tr('概念'))}
+      {detail.entry.kind==='word'?<>
+        {fixedSection('dictionary_pronunciations','讀音（IPA）','ipa')}
+        {fixedSection('dictionary_learning_notes','記憶法','body',true)}
+      </>:contentSection('dictionary_learning_notes',tr('概念'))}
       <EditorSection title={tr("義項")} collapsible={false} count={bundle.dictionary_senses.length} actions={<button type="button" className={addButton} onClick={()=>void addSense()} aria-label={detail.entry.kind==='word'?tr('＋新增義項'):tr('＋新增中文義項')}>{tr("＋新增義項")}</button>}>
       {bundle.dictionary_senses.map((row,i)=>detail.entry.kind!=='word'?<MorphemeSenseEditor key={String(row.id)} sense={row as unknown as {id:string;gloss_zh_tw:string}&MorphemeSenseFields} histories={bundle.dictionary_etymologies.filter(h=>h.sense_id===row.id) as unknown as {id:string;body:unknown;data_source?:unknown}[]} onChange={patch=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,...patch}:s)}))} onVariants={update=>setBundle(b=>({...b,dictionary_senses:b.dictionary_senses.map(s=>s.id===row.id?{...s,variants:update((s.variants??[]) as MorphemeVariant[])}:s)}))} onHistory={(id,patch)=>setBundle(b=>({...b,dictionary_etymologies:b.dictionary_etymologies.map(h=>h.id===id?{...h,...patch}:h)}))} onAddHistory={()=>add('dictionary_etymologies',{sense_id:row.id,body:'',data_source:''})} onRemoveHistory={id=>{const h=bundle.dictionary_etymologies.find(h=>h.id===id);if(h)void removeContent('dictionary_etymologies',h,tr('歷史詞源'));}} onRemove={()=>void removeSense(row)}><MorphemeWordLinks entryId={detail.entry.id} senseId={String(row.id)} beforeWrite={async()=>{if(linkOwner.current)return false;linkOwner.current=String(row.id);setLinkBusy(true);return save();}} afterWrite={()=>{if(linkOwner.current===String(row.id)){linkOwner.current=null;setLinkBusy(false);}}}/></MorphemeSenseEditor>:<div key={String(row.id)} data-sense-row={String(row.id)} className="flex min-w-0 items-start gap-2">
         {bundle.dictionary_senses.length>1&&<span className="pt-7 text-xs opacity-50">{i+1}</span>}
@@ -280,15 +296,10 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
 
       {(detail.entry.kind!=='word'&&bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind!=='word'&&bundle.dictionary_examples.length>0&&contentSection('dictionary_examples',tr('例詞'))}
-      {detail.entry.kind==='word'&&contentSection('dictionary_etymologies',tr('詞源'))}
-      {detail.entry.kind==='word'&&<EditorSection title={tr('筆記')} collapsible={false} count={(bundle.dictionary_public_notes??[]).length} actions={(bundle.dictionary_public_notes??[]).length===0?<button type="button" className={addButton} onClick={()=>add('dictionary_public_notes',{body:''})}>{tr('＋新增公共筆記')}</button>:undefined}>
-        <p className="text-xs opacity-70">{tr('公共筆記與記憶法、詞源分開儲存；支援安全的 Markdown 預覽。原始 HTML 及不安全連結只會作為文字顯示。')}</p>
-        {(bundle.dictionary_public_notes??[]).length>0&&<button type="button" className={addButton} onClick={()=>setShowPublicNotePreview(x=>!x)}>{tr(showPublicNotePreview?'返回編輯':'預覽格式')}</button>}
-        {(bundle.dictionary_public_notes??[]).map((note,i)=><div key={String(note.id)} className="flex min-w-0 items-start gap-2">
-          <div className="min-w-0 flex-1">{showPublicNotePreview?<div role="region" aria-label={tr('公共筆記預覽')} className="rounded border border-[var(--color-border)] p-3"><SafeMarkdown source={String(note.body??'')}/></div>:<Field label={tr('筆記')} multiline value={note.body} onChange={value=>change('dictionary_public_notes',i,'body',value)}/>}</div>
-          <button type="button" className={addButton} aria-label={tr('刪除公共筆記')} onClick={()=>setBundle(b=>({...b,dictionary_public_notes:(b.dictionary_public_notes??[]).filter(x=>x.id!==note.id)}))}><FeatureIcon feature="delete" size={16}/></button>
-        </div>)}
-      </EditorSection>}
+      {detail.entry.kind==='word'&&<>
+        {fixedSection('dictionary_etymologies','詞源','body',true)}
+        {fixedSection('dictionary_public_notes','筆記','body',true)}
+      </>}
     </fieldset>
     <button className={button} disabled={busy} onClick={()=>{if(preview){setPreview(false);return;}if(locked||saveReview){setPreview(true);return;}setBusy(true);setMessage('');void previewDictionaryDraft(getSupabase()!,draftsFromBundle(prepareEditorBundle(bundle)),true).then(()=>setPreview(true)).catch(e=>setMessage(e instanceof Error?e.message:String(e))).finally(()=>setBusy(false));}}>{tr("切換完整預覽")}</button>
     {preview&&<DictionaryPreview bundle={bundle} technical={false}/>}
