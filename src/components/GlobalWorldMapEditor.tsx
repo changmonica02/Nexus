@@ -102,7 +102,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   <p className="shrink-0 px-3 py-1 text-sm">{(replacing?candidate??model:model)&&`${text('measured')}：${(replacing?candidate??model:model)!.drawing.landPercent.toFixed(3)}%`}</p>
   {editing&&<p className="shrink-0 px-3 py-1 text-xs opacity-70">{text('help')}</p>}
   {!editing&&previewFooter}
-  <WorldMapSyncStatus localLabel={dirty?text('pending'):text('saved')} cloudState={cloudState}/>
+  <WorldMapSyncStatus localLabel={model?(dirty?text('pending'):text('saved')):text(working?'busy':'missing')} cloudState={cloudState}/>
   {discardPrompt&&<ModalDialog aria-label={text(conflict?'discardDraft':'discard')} onDismiss={()=>setDiscardPrompt(false)} busy={saving} className="w-[min(94vw,30rem)] rounded-xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40"><p>{text(conflict?'discardConfirm':'leaveCandidate')}</p><div className="mt-3 flex gap-2 [&_button]:min-h-11 [&_button]:border [&_button]:px-3"><button disabled={saving} onClick={()=>setDiscardPrompt(false)}>{text('cancel')}</button><button disabled={saving} onClick={()=>{if(conflict){setSaving(true);void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>{if(alive.current){setConflict(undefined);setDiscardPrompt(false);}}).catch(()=>setError(true)).finally(()=>{if(alive.current)setSaving(false);});}else{setCandidate(undefined);setReplacing(false);setDiscardPrompt(false);}}}>{text(conflict?'discardDraft':'discard')}</button></div></ModalDialog>}
  </div>;
 }

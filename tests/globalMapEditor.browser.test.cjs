@@ -11,25 +11,25 @@ test('Nexus global editor: generation, candidate isolation, replacement, recover
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+server.address().port;
   const engine=process.env.GLOBAL_MAP_BROWSER==='webkit'?webkit:chromium;browser=await engine.launch({executablePath:engine===chromium?process.env.BROWSER_EXECUTABLE:undefined,args:engine===chromium?['--no-sandbox']:[]});
   for(const width of [1280,390]){
-   const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-   await page.goto(url);await page.getByRole('button',{name:'New map',exact:true}).click();
+   const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage();page.setDefaultTimeout(25000);page.on('pageerror',e=>{errors.push(e.message);console.error('GLOBAL_PAGE_ERROR',e.message);});page.on('console',m=>{if(m.type()==='error')console.error('GLOBAL_CONSOLE',m.text());});
+   console.log('GLOBAL_STAGE',width,'create');await page.goto(url);await page.getByRole('button',{name:'New map',exact:true}).click();
    const create=page.getByRole('button',{name:'確認並建立',exact:true});await create.waitFor();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='確認並建立'&&!b.disabled));
    await page.getByLabel('亂數種子',{exact:true}).fill('42');await page.getByRole('button',{name:'生成海陸',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='確認並建立'&&!b.disabled));await create.click();
    await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();await page.waitForFunction(()=>document.querySelector('[data-global-map-canvas]')?.width>0);
-   const original=await page.evaluate(()=>window.testGlobal.snapshot());assert.equal(original.settings.seed,42);
+   console.log('GLOBAL_STAGE',width,'created');const original=await page.evaluate(()=>window.testGlobal.snapshot());assert.equal(original.settings.seed,42);
    const pixels=await page.locator('[data-global-map-canvas]').evaluate(c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]===162&&d[i+1]===186&&d[i+2]===129)n++;return n;});assert.ok(pixels>1000,'Actual Voronoi land must be visible');
    await page.getByRole('button',{name:'放大',exact:true}).click();await page.getByRole('button',{name:'重設視野',exact:true}).click();
    const candidate=async seed=>{await page.getByRole('button',{name:'重新生成海陸',exact:true}).click();await page.getByLabel('亂數種子',{exact:true}).fill(String(seed));await page.getByRole('button',{name:'生成海陸',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='確認替換'&&!b.disabled));};
-   await candidate(99);assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);await page.getByRole('button',{name:'取消替換',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);
+   console.log('GLOBAL_STAGE',width,'candidate');await candidate(99);assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);await page.getByRole('button',{name:'取消替換',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);
    await candidate(99);await page.getByRole('button',{name:'確認替換',exact:true}).click();await page.waitForFunction(async()=>(await window.testGlobal.snapshot()).settings.seed===99);await page.getByRole('button',{name:'儲存並返回',exact:true}).click();await page.getByRole('button',{name:'Reopen',exact:true}).click();await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();
    // Failed save retains the old canonical snapshot and a recoverable local draft.
-   await page.evaluate(()=>window.failSave=true);await candidate(101);await page.getByRole('button',{name:'確認替換',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal((await page.evaluate(()=>window.testGlobal.snapshot())).settings.seed,99);assert.ok(await page.evaluate(async()=>!!(await window.testGlobal.draft())));
+   console.log('GLOBAL_STAGE',width,'recovery');await page.evaluate(()=>window.failSave=true);await candidate(101);await page.getByRole('button',{name:'確認替換',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal((await page.evaluate(()=>window.testGlobal.snapshot())).settings.seed,99);assert.ok(await page.evaluate(async()=>!!(await window.testGlobal.draft())));
    const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'匯出快照',exact:true}).click();const dl=await downloading;assert.equal(JSON.parse(fs.readFileSync(await dl.path(),'utf8')).settings.seed,101);
    await page.evaluate(()=>window.failSave=false);await page.getByRole('button',{name:'儲存',exact:true}).click();await page.waitForFunction(async()=>(await window.testGlobal.snapshot()).settings.seed===101);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
    fs.mkdirSync('test-results/global-map',{recursive:true});await page.screenshot({path:`test-results/global-map/${process.env.GLOBAL_MAP_BROWSER??'chromium'}-${width}.png`,fullPage:true});
    // Production shell policy caches the hashed worker like any other public JS asset.
-   await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;});
+   console.log('GLOBAL_STAGE',width,'offline');await page.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;});
    await page.getByRole('button',{name:'儲存並返回',exact:true}).click();await page.reload();await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();
    await context.setOffline(true);await page.reload();await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();assert.equal((await page.evaluate(()=>window.testGlobal.snapshot())).settings.seed,101);
    await context.setOffline(false);await page.getByRole('button',{name:'儲存並返回',exact:true}).click();await page.goto(url+'/?en');await page.getByRole('button',{name:'Generate replacement',exact:true}).waitFor();
