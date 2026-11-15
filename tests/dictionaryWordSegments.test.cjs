@@ -114,12 +114,13 @@ test('pre-migration reviews and legacy exchanges survive migration; real content
   await pg.exec('set role authenticated');
   const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
   const old=draftFromExchange(currentExchangeRecord({snapshot:base,reviews:[],version:null}));assert.equal(old.word_segments,undefined);assert.equal(old.relations[0].id,id(80));
-  const {previewExchange}=require('../src/features/dictionary/dictionaryExchange.ts'),c=require('./fixtures/dictionaryExchangeDatabase.cjs').client(pg);
-  const doc=record=>({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]});
-  const staleImport=await previewExchange(c,owner,doc(legacyRecord));assert.ok(staleImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+  const {parseExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
+  const legacyDoc=record=>({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]});
+  // V1 exchange is deliberately forbidden; historic in-database Review CAS still works below.
+  assert.throws(()=>parseExchange(JSON.stringify(legacyDoc(legacyRecord))),/Unsupported dictionary exchange schema version/);
   assert.equal((await sql(pg,'select get_dictionary_entry($1) v',[id(10)])).relations[0].id,id(80));
   await pg.exec('reset role');const refreshedRecord=await sql(pg,'select dictionary_exchange_record($1) v',[id(10)]);await pg.exec('set role authenticated');
-  const refreshedImport=await previewExchange(c,owner,doc(refreshedRecord));assert.ok(!refreshedImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+  assert.throws(()=>parseExchange(JSON.stringify(legacyDoc(refreshedRecord))),/Unsupported dictionary exchange schema version/);
 
   for(const {n,base,review} of saved){
    const current=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(n)]);assert.equal(current.detail.entry.revision,base.detail.entry.revision);
