@@ -442,14 +442,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     <Pagination label={t("ui.dictionaryPagination")} page={listing.data?.page??0} total={listing.data?.total} pageSize={adminPageSize} loading={loading} disabled={busy||!listing.data} onPageChange={p=>{setPage(p);}}/>
     <>{modal==='import'&&<DictionaryModal title={t("exchange.import")} onClose={closeModal} busy={busy}><section className="space-y-3">
 
-      <details><summary>{t("transfer.formatHelp")}</summary><div className="space-y-2 text-sm">
-<p>共通必填：kind、headword、gloss_zh_tw。Word 另需 part_of_speech。構詞使用 semantic_domain／semantic_subdomain，允許留空；part_of_speech 留空。舊 category 匯入時忽略，不會還原舊分類。</p>
-<p>可選：entry_id、sense_id、example_words、relation_hint（舊檔相容）、core_concept（舊 mnemonic_story 相容）。每列一義項；同 kind 與正規化拼寫共用 Entry，不同詞性／語義／詞源使用不同義項。既有內容更新須保留穩定 ID；空 ID 僅在預覽時產生一次 proposed UUID；本次寫入使用相同 ID。寫入後請下載含永久 ID 的 CSV，後續修改保留 ID。</p>
-<p>例詞與字形原文完整保留；relation_hint 僅為待解析提示，不自動建立構詞關聯。不接受 citation、license、source_id 或 level。</p>
-<pre className="whitespace-pre-wrap break-words text-xs">{dictionaryCSVHeaders.join(',')}</pre>
-<a className={button} download="dictionary_master_v1.csv" href={'data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+dictionaryCSVExample)}>下載範例 CSV</a>
-<p>只接受最新版 Nexus JSON Exchange v2 或符合新版欄位的 JSON／AI Dictionary JSON。不再提供 CSV v1、舊版 Markdown 與舊版 JSON 匯入相容性。</p>
-</div></details>
+      <details><summary>{t("transfer.formatHelp")}</summary><div className="space-y-2 text-sm"><p>僅接受最新版 Nexus JSON Exchange v2、符合目前字典資料欄位的 JSON Bundle，以及目前版本 AI Dictionary JSON。</p><p>Word 的每筆例句必須指定 sense_id 與 derivation_id；同一衍生義最多一組英文例句，中文翻譯可留空。未連結例句、獨立詞形、過時或未知欄位及 CSV／Markdown 舊格式一律拒絕。</p></div></details>
       <fieldset disabled={busy} className="space-y-3">
 
       <label>{t("exchange.inputFormat")}<select aria-label={t("exchange.inputFormat")} className={control} value={format} onChange={e=>setFormat(e.target.value as 'csv'|'md'|'json'|'ai')}><option value="json">Nexus JSON Exchange v2／新版 JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></label>
