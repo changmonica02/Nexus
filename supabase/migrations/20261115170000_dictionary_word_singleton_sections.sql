@@ -1,29 +1,19 @@
 -- Word entries have zero or one pronunciation, mnemonic, and etymology row.
 -- Prefix/root/suffix content is unchanged; existing Word data is not rewritten.
 do $$
-declare section text;
 begin
-  foreach section in array array['dictionary_pronunciations','dictionary_learning_notes','dictionary_etymologies'] loop
-    if exists(
-      select 1 from public.dictionary_entries e
-      join lateral (
-        select p.entry_id,count(*) n from public.dictionary_pronunciations p where p.entry_id=e.id group by p.entry_id
-      ) p on section='dictionary_pronunciations'
-      where e.kind='word' and p.n>1
-    ) and section='dictionary_pronunciations' then
-      raise exception 'Word contains multiple pronunciations';
-    end if;
-    if section='dictionary_learning_notes' and exists(
-      select 1 from public.dictionary_entries e
-      join public.dictionary_learning_notes n on n.entry_id=e.id
-      where e.kind='word' group by e.id having count(*)>1
-    ) then raise exception 'Word contains multiple learning notes'; end if;
-    if section='dictionary_etymologies' and exists(
-      select 1 from public.dictionary_entries e
-      join public.dictionary_etymologies h on h.entry_id=e.id
-      where e.kind='word' group by e.id having count(*)>1
-    ) then raise exception 'Word contains multiple etymologies'; end if;
-  end loop;
+ if exists(select 1 from public.dictionary_entries e
+   join public.dictionary_pronunciations p on p.entry_id=e.id
+   where e.kind='word' group by e.id having count(*)>1)
+   then raise exception 'Word contains multiple pronunciations'; end if;
+ if exists(select 1 from public.dictionary_entries e
+   join public.dictionary_learning_notes n on n.entry_id=e.id
+   where e.kind='word' group by e.id having count(*)>1)
+   then raise exception 'Word contains multiple learning notes'; end if;
+ if exists(select 1 from public.dictionary_entries e
+   join public.dictionary_etymologies h on h.entry_id=e.id
+   where e.kind='word' group by e.id having count(*)>1)
+   then raise exception 'Word contains multiple etymologies'; end if;
 end $$;
 
 create or replace function public.dictionary_word_singleton_section_guard()
