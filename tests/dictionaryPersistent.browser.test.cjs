@@ -92,15 +92,6 @@ test(
         pg = await database();
         const d = draft(100);
         d.headword = "throw";
-        d.inflections = [
-          {
-            id: id(102),
-            sense_id: id(101),
-            form_kind: "past",
-            form: "threw",
-            sort_order: 0,
-          },
-        ];
         await sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
           JSON.stringify([mapDictionaryDraft(d)]),
         ]);
@@ -120,16 +111,7 @@ test(
           revision: 1,
           updated_at: record.snapshot.detail.entry.updated_at,
         });
-        record.snapshot.detail.inflections.push({
-          id: id(104),
-          entry_id: d.entry_id,
-          sense_id: id(101),
-          form_kind: "past",
-          form: "throwed",
-          sort_order: 1,
-          revision: 1,
-          updated_at: record.snapshot.detail.entry.updated_at,
-        });
+        record.snapshot.detail.senses[0].gloss_zh_tw = "投擲（需決策）";
         const raw = JSON.stringify({
           format: "nexus-dictionary-exchange",
           schema_version: 1,
@@ -209,9 +191,9 @@ test(
           other = await second.newPage();
         other.on("pageerror", (e) => errors.push(e.message));
         await other.goto(base + "/?review=all");
-        await other.getByText("throwed", { exact: false }).first().waitFor();
+        await other.getByText("投擲（需決策）", { exact: false }).first().waitFor();
         await other
-          .getByLabel("處理操作 inflections", { exact: true })
+          .getByLabel("處理操作 gloss_zh_tw", { exact: true })
           .selectOption("keep");
         await other.getByText("已決策，尚未套用", { exact: true }).waitFor();
         await other.reload();

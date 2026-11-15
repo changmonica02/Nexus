@@ -33,18 +33,30 @@ export interface DictionaryEtymology extends ContentRow {
   body: string;
   data_source: string;
 }
+export interface DictionaryPublicNote extends ContentRow {body:string}
 export interface DictionaryLearningNote extends ContentRow {
   sense_id: string | null;
   kind: "core_concept";
   body: string;
 }
 export interface DictionaryExtra extends ContentRow {sense_id:string|null;body:string;sort_order:number;kind?:"relation_hint"}
+/** New published Sense content. The existing Sense gloss remains its primary meaning. */
+export interface DictionarySenseDerivation extends ContentRow {
+  sense_id: string;
+  gloss_zh_tw: string;
+  sort_order: number;
+}
+/** Optional until an administrator explicitly connects an existing example. */
+export interface DictionaryExample extends DictionaryExtra {
+  translation_zh_tw?: string | null;
+  derivation_id?: string | null;
+}
 export interface DictionaryPronunciation extends ContentRow {sense_id:string|null;ipa:string;sort_order:number}
-export interface DictionaryInflection extends ContentRow {sense_id:string|null;form_kind:import('./inflections').InflectionKind;form:string;sort_order:number}
 export interface DictionaryDetail {
-  inflections?:DictionaryInflection[];
   pronunciations?:DictionaryPronunciation[];
-  examples?:DictionaryExtra[];
+  examples?:DictionaryExample[];
+  derivations?:DictionarySenseDerivation[];
+  public_notes?:DictionaryPublicNote[];
   lexical_annotations?:DictionaryExtra[];
   entry: DictionaryEntry;
   senses: DictionarySense[];

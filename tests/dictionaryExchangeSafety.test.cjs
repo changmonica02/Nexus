@@ -115,15 +115,6 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
         sort_order: 0,
       },
     ];
-    word.inflections = [
-      {
-        id: id(28),
-        sense_id: id(21),
-        form: "went",
-        form_kind: "past",
-        sort_order: 0,
-      },
-    ];
     await save(pg, word);
     const prefix = draft(30, "prefix");
     prefix.senses[0].semantic_domain='space_time';
@@ -162,9 +153,6 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
         "'",
       "update dictionary_pronunciations set ipa='changed' where id='" +
         id(27) +
-        "'",
-      "update dictionary_inflections set form='changed' where id='" +
-        id(28) +
         "'",
       "update dictionary_senses set semantic_domain='action',semantic_subdomain=null where id='"+id(31)+"'",
       'update dictionary_ai_metadata set origin_ids=\'{"external":"changed"}\' where entry_id=\'' +

@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','詞性','中文意思','歷史詞源','概念','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['單字','詞性','中文意思','歷史詞源','記憶法','構詞關聯','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -28,7 +28,7 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
 });
 test('import preview escapes Markdown and distinguishes mnemonic from historical content',()=>{
   const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{dictionary_etymologies:[{id:'h',body:'Unverified history',verification:'pending'}],dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],dictionary_sources:[{id:'s',citation:'Self authored',license:'test-only',raw_text:'raw original'}]}}));
-  assert.ok(html.includes('概念'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('記憶法'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
 });
 
 test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
@@ -45,10 +45,10 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資料','概念','義項','詞形變化','歷史詞源','構詞關聯','例詞']){
+  for(const label of ['基本資料','記憶法','義項','構詞關聯','例詞','歷史詞源','公共補充筆記']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
-  assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
+  assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
   assert.equal((html.match(/←/g)||[]).length,0);
   const rootHtml=render(root);for(const label of ['構詞名稱','構詞分類','大分類','小分類','新增變體','概述','歷史詞源','連結單字'])assert.ok(rootHtml.includes(label),label);
   assert.ok(rootHtml.includes('var(--color-editor-bg)'));
@@ -168,7 +168,7 @@ test('return sits beside page title and shared copyright information is reachabl
 
 test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
  const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
- try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','概念']]){
+ try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','記憶法']]){
   let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
   const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{data_source:''})};
   const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
@@ -201,7 +201,7 @@ test('Word Sense rows keep stable identities and blank legacy values; basic info
 
 test('normal preview places core concept before etymology without legacy kind or retired hint controls',()=>{
  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
- assert.ok(html.indexOf('概念')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
+ assert.ok(html.indexOf('記憶法')<html.indexOf('歷史詞源'));assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });
 
 test('dictionary review queue remains reachable without a modal and reports unavailable capability',()=>{

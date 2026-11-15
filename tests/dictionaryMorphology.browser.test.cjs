@@ -11,7 +11,7 @@ test('shared published morphology: compact tiles, exact linked-sense overview, c
   if(scenario!=='empty'){
    assert.deepEqual(await p.locator('[data-composition-overview]').allTextContents(),['向','說話']);assert.equal(await p.getByText('ad- 已發布的歷史詞源',{exact:true}).count(),0);assert.equal(await p.getByText('不可洩漏的草稿詞源').count(),0);assert.equal(await p.getByText('不屬於連結義項的概述',{exact:true}).count(),0);assert.equal(await p.getByText('其他義項的隱藏詞源').count(),0);
    assert.equal(await p.locator('[data-composition-tile]').filter({hasText:'完整單字的歷史詞源'}).count(),0);await p.locator('[data-word-concept]').waitFor();
-   assert.equal(await p.getByRole('heading',{name:scenario==='english'?'Concept':'概念',exact:true}).count(),1);
+   assert.equal(await p.getByRole('heading',{name:scenario==='english'?'Mnemonic':'記憶法',exact:true}).count(),1);
    await p.getByRole('button',{name:'Toggle embedded'}).click();await p.locator('[data-composition-tile] a').first().click();assert.match(await p.locator('output').innerText(),/dictionary.*sense/);
   }else{assert.equal(await p.locator('[data-composition-overview]').count(),0);assert.equal(await p.locator('[data-word-concept]').count(),0);assert.equal(await p.locator('[data-composition-tile] a').count(),0);}
   await p.locator('[data-segment-spelling]').first().waitFor();

@@ -144,7 +144,6 @@ function candidateSnapshot(context: ImportContext): AISnapshot | null {
     examples: c.examples,
     lexical_annotations: c.annotations,
     pronunciations: c.pronunciations,
-    inflections: c.inflections,
   } as unknown as AISnapshot["detail"];
   return s;
 }
@@ -326,36 +325,18 @@ export function classifyPersistent(
         );
         continue;
       }
-      if (
-        section === "inflections" &&
-        item.issues.some(
-          (i) =>
-            i.target?.section === "senses" &&
-            i.target.id === row.sense_id &&
-            i.field === "part_of_speech",
-        )
-      ) {
-        add(
-          item,
-          "ambiguous_content",
-          section,
-          row,
-          "詞形依賴尚未決策的詞性變更；請共同確認。",
-        );
-        continue;
-      }
       const slots = [
         ...(rows ?? []),
         ...(draft[section] ?? []).filter((other) => other.id !== row.id),
       ].filter((r) => (r.sense_id ?? null) === (row.sense_id ?? null));
       const duplicate = slots.some((r) =>
-        section === "inflections"
-          ? r.form_kind === row.form_kind
-          : section === "relations"
+        section === "relations"
             ? r.target_sense_id === row.target_sense_id
             : section === "pronunciations"
               ? r.ipa === row.ipa
-              : normalized(r.body) === normalized(row.body),
+              : section === "derivations"
+                  ? normalized(r.gloss_zh_tw) === normalized(row.gloss_zh_tw)
+                  : normalized(r.body) === normalized(row.body),
       );
       if (duplicate)
         add(

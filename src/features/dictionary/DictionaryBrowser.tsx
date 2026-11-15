@@ -5,7 +5,6 @@ import {PageHeader} from "../../components/WorkspaceNavigation";
 import {Pagination} from '../../components/pagination/Pagination';
 import {usePagedList} from '../../components/pagination/usePagedList';
 
-import {inflectionLabels} from './inflections';
 import Link from 'next/link';
 import {usePathname,useRouter,useSearchParams} from 'next/navigation';
 import {offline} from './publicCache';
@@ -55,7 +54,7 @@ function Content({path,admin}:{path:string[];admin:boolean}){
       {(component||variant||category)&&<div className="mb-4 flex flex-wrap gap-2 text-sm">{component&&<Link className="underline" href={entryHref(component,from,sense)}>目前條件：使用此字首／字根{ sense?'義項':''}的單字</Link>}{variant&&<span>同字變體：{variant}</span>}{category&&<span>分類：{category==='__ungrouped__'?'未分類':category}</span>}<button className="underline" onClick={()=>change({component:'',sense:'',variant:'',category:'',page:''})}>清除條件</button></div>}
     </>}
     {!current?<p role="status">讀取中…</p>:current.error?<div role="alert"><p>{current.error}</p><button onClick={()=>setRetry(n=>n+1)}>重試</button></div>:id?<ReaderEntry key={id} id={id} data={current.detail??null} from={from} admin={admin}/>:current.list&&<>
-      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id} className="min-w-0"><Link className={`${box} block break-words [overflow-wrap:anywhere]`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search,'sense_id' in e?String(e.sense_id??''):undefined)}>{'summary' in e?catalogText(e as CatalogItem):e.headword}{e.inflection_matches?.map((m,i)=><p key={i} className="text-sm">{m.form} · {e.headword} 的{inflectionLabels[m.form_kind]}</p>)}<p className="mt-1 line-clamp-2 text-sm opacity-70">{'summary' in e?'':current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
+      {!current.list.items.length?<p>沒有符合的已發布詞條。</p>:<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{current.list.items.map(e=><li key={e.id} className="min-w-0"><Link className={`${box} block break-words [overflow-wrap:anywhere]`} href={entryHref(e.id,browseFrom.pathname+browseFrom.search,'sense_id' in e?String(e.sense_id??''):undefined)}>{'summary' in e?catalogText(e as CatalogItem):e.headword}<p className="mt-1 line-clamp-2 text-sm opacity-70">{'summary' in e?'':current.candidates?.find(c=>c.detail.entry.id===e.id)?.summary}</p></Link></li>)}</ul>}
       <Pagination label="搜尋結果分頁" page={current.list.page} total={current.list.total} pageSize={20} hasMore={current.list.has_more} loading={browse.loading} onPageChange={p=>change({page:String(p)})}/>
 
     </>}

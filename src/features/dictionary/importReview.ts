@@ -6,7 +6,7 @@ import {mapDictionaryDraft,validateDictionaryDraft,type DictionaryDraftInput,typ
 type Client=Pick<SupabaseClient,'rpc'>;
 export type ImportAction='review'|'keep'|'incoming'|'fill'|'new_sense'|'skip'|'later';
 export const actionLabels:Record<ImportAction,string>={keep:'保留現有',review:'建立 Review Draft',incoming:'使用匯入版本',fill:'補上缺失值',new_sense:'建立新的 Sense',skip:'略過',later:'暫不處理'};
-type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'inflections';
+type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'derivations'|'public_notes';
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
@@ -22,8 +22,8 @@ export interface ImportItem {
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
 export interface ImportSession {ignored_fields?:string[];durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
-export const contentSections=['inflections','pronunciations','senses','etymologies','learning_notes','relations','examples','relation_hints'] as const;
-const tables:Record<typeof contentSections[number],string>={inflections:'dictionary_inflections',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',relation_hints:'dictionary_lexical_annotations'};
+export const contentSections=['pronunciations','derivations','public_notes','senses','etymologies','learning_notes','relations','examples','relation_hints'] as const;
+const tables:Record<typeof contentSections[number],string>={derivations:'dictionary_sense_derivations',public_notes:'dictionary_public_notes',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',relation_hints:'dictionary_lexical_annotations'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 function storedRows(c:ImportContext,section:typeof contentSections[number]):DraftRow[]{
   if(!c.snapshot)return [];
@@ -47,10 +47,10 @@ export function reconcileProposedContent(draft:DictionaryDraftInput,context:Impo
         const incoming=d[section]![i];let old=rows.find(r=>r.id===incoming.id);
         if(!old&&section!=='senses'&&proposed.has(incoming.id)){
           const slots=rows.filter(r=>equal(r.sense_id,incoming.sense_id)&&equal(r.kind,incoming.kind));
-          const exact=slots.filter(r=>section==='pronunciations'?r.ipa===incoming.ipa:r.body===incoming.body);
+          const exact=slots.filter(r=>section==='pronunciations'?r.ipa===incoming.ipa:section==='derivations'?r.gloss_zh_tw===incoming.gloss_zh_tw:r.body===incoming.body);
           if(exact.length===1)old=exact[0];else if(slots.length===1)old=slots[0];
           if(old){proposed.delete(incoming.id);const {updated_at,entry_id,...content}=old;void updated_at;void entry_id;
-            const replacement=section==='pronunciations'?{...content,...incoming,id:old.id}:{...content,body:incoming.body} as DraftRow;
+            const replacement=section==='pronunciations'||section==='derivations'?{...content,...incoming,id:old.id}:{...content,body:incoming.body} as DraftRow;
             d[section]![i]=replacement as never;
           }
         }
@@ -78,7 +78,7 @@ export function classifyImport(draft:DictionaryDraftInput,context:ImportContext,
   };
   if(current){
     if(draft.senses.some(s=>!current.detail.senses.some(old=>old.id===s.id))){
-      const shared=contentSections.filter(s=>s!=='senses'&&s!=='relations').flatMap(section=>storedRows(context,section).filter(r=>!r.sense_id));
+      const shared=contentSections.filter(s=>s!=='senses'&&s!=='relations'&&s!=='public_notes').flatMap(section=>storedRows(context,section).filter(r=>!r.sense_id));
       if(shared.length)addIssue(item,'shared_content_scope','sense_id',shared,null,'既有內容未限定義項；新增義項前請確認保留為詞條共用，或先在編輯器指定義項。',['keep','skip','later']);
     }
     compare('entry',undefined,'kind',current.detail.entry.kind,draft.kind);
@@ -136,7 +136,12 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
   for(const issue of item.issues)if(issue.selectedAction==='new_sense'&&issue.target?.id){
     const oldID=issue.target.id,newID=issue.proposedSenseID!;
     const sense=d.senses.find(s=>s.id===oldID);if(sense){sense.id=newID;delete sense.revision;}
-    for(const section of contentSections.filter(s=>s!=='senses'))for(const row of d[section]??[])if(row.sense_id===oldID){row.sense_id=newID;row.id=issue.proposedChildIDs?.[row.id]??crypto.randomUUID();delete row.revision;}
+    const derivedIds=new Map<string,string>();
+    for(const derivation of d.derivations??[])if(derivation.sense_id===oldID){const newDerivationId=issue.proposedChildIDs?.[derivation.id]??crypto.randomUUID();derivedIds.set(derivation.id,newDerivationId);}
+    for(const section of contentSections.filter(s=>s!=='senses'))for(const row of d[section]??[])if(row.sense_id===oldID){
+      row.sense_id=newID;row.id=derivedIds.get(row.id)??issue.proposedChildIDs?.[row.id]??crypto.randomUUID();delete row.revision;
+      if(section==='examples'&&typeof row.derivation_id==='string'&&derivedIds.has(row.derivation_id))row.derivation_id=derivedIds.get(row.derivation_id);
+    }
   }
   // Reclassify the resolved patch: only actual incoming differences require a write.
   const remaining=classifyImport(d,item.context!);

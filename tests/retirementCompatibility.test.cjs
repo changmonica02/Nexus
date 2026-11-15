@@ -28,15 +28,15 @@ test('relation candidate search retains all published sources, rank, totals, pag
  const pg=await database();try{
   const words=Array.from({length:25},(_,i)=>({...draft(100+i*10),headword:'pageword'+String(i).padStart(2,'0')}));
   const pre={...draft(500,'prefix'),headword:'pre-'},root={...draft(510,'root'),headword:'pre'},word={...draft(520),headword:'pre'},starts={...draft(530),headword:'prefixword'},variant={...draft(540,'root'),headword:'shift'},contains={...draft(550),headword:'xprex'},rich={...draft(560),headword:'richword'};
-  rich.senses[0].gloss_zh_tw='中文針 pre';rich.etymologies=[{id:id(562),sense_id:null,body:'originneedle',data_source:'sourceneedle'}];rich.learning_notes=[{id:id(563),sense_id:null,kind:'core_concept',body:'coreneedle'}];rich.examples=[{id:id(564),sense_id:null,body:'exampleneedle',sort_order:0}];rich.inflections=[{id:id(565),sense_id:null,form_kind:'past',form:'formsneedle',sort_order:0}];rich.pronunciations=[{id:id(566),sense_id:null,ipa:'/soundneedle/',sort_order:0}];
+  rich.senses[0].gloss_zh_tw='中文針 pre';rich.etymologies=[{id:id(562),sense_id:null,body:'originneedle',data_source:'sourceneedle'}];rich.learning_notes=[{id:id(563),sense_id:null,kind:'core_concept',body:'coreneedle'}];rich.examples=[{id:id(564),sense_id:null,body:'exampleneedle',sort_order:0}];rich.pronunciations=[{id:id(566),sense_id:null,ipa:'/soundneedle/',sort_order:0}];
   for(const d of [...words,pre,root,word,starts,variant,contains,rich])await save(pg,d);
   await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([mapDictionaryDraft({...draft(570),headword:'unpublishedneedle'})])]);
   await pg.exec('reset role');await pg.query("insert into dictionary_entry_groups(id,variant_group) values($1,$2)",[variant.entry_id,JSON.stringify({format:'nexus-variants-v1',rows:[{variant:'pre',condition:''}]})]);await pg.query("insert into dictionary_entry_groups(id,tags) values($1,array['tagneedle'])",[rich.entry_id]);await pg.query("update dictionary_pronunciations set locale='localeonlyneedle',note='noteonlyneedle' where id=$1",[id(566)]);await pg.exec('set role authenticated');
-  const queries=['pre','pre-','entry','中文針','originneedle','sourceneedle','coreneedle','exampleneedle','formsneedle','tagneedle','soundneedle','pageword','unpublishedneedle',''];
+  const queries=['pre','pre-','entry','中文針','originneedle','sourceneedle','coreneedle','exampleneedle','tagneedle','soundneedle','pageword','unpublishedneedle',''];
   const before=new Map();for(const q of queries)for(const p of [0,1,2])before.set(JSON.stringify([q,p]),await search(pg,q,p));
   assert.equal((await search(pg,'pageword')).total,25);assert.equal((await search(pg,'pageword')).items.length,20);assert.equal((await search(pg,'pageword',1)).items.length,5);assert.equal((await search(pg,'pageword',2)).items.length,0);
   assert.deepEqual((await search(pg,'pre')).items.map(x=>x.id),[root,word,pre,starts,variant,contains,rich].map(x=>x.entry_id));
-  for(const q of queries.slice(3,11))assert.deepEqual((await search(pg,q)).items.map(x=>x.id),[rich.entry_id]);assert.equal((await search(pg,'unpublishedneedle')).total,0);
+  for(const q of queries.slice(3,10))assert.deepEqual((await search(pg,q)).items.map(x=>x.id),[rich.entry_id]);assert.equal((await search(pg,'unpublishedneedle')).total,0);
   assert.equal((await search(pg,'localeonlyneedle')).total,1);
   await migrate(pg,'official');await migrate(pg,'ipa');await migrate(pg,'page');
   for(const [key,value] of before){const [q,p]=JSON.parse(key);assert.deepEqual(await search(pg,q,p),value,key);}

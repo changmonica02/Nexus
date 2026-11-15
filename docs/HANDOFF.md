@@ -1,6 +1,14 @@
 # Nexus — 現況與下階段交接
 
-> 更新：2026-11-13。這是**目前狀態**，不是逐次執行日誌；已完成的決策與過程收錄 [HISTORY](HISTORY.md)，產品要求見 [SPEC](SPEC.md)，資料契約與實作邊界見 [ARCHITECTURE](ARCHITECTURE.md)。舊的 Draft／未部署敘述不再作為本文件的現況依據。
+> 更新：2026-11-15。這是**目前狀態**，不是逐次執行日誌；已完成的決策與過程收錄 [HISTORY](HISTORY.md)，產品要求見 [SPEC](SPEC.md)，資料契約與實作邊界見 [ARCHITECTURE](ARCHITECTURE.md)。舊的 Draft／未部署敘述不再作為本文件的現況依據。
+
+## B 階段交付（2026-11-15，PR #186）
+
+- Word 衍生意思、雙語例句、整詞記憶法／歷史詞源／公共筆記、閱讀與學習背面、Exchange v2／v1 歷史相容及獨立 Inflections 退役已實作。
+- 測試提交 `b842951` 的 GitHub Actions run `43681067158`：除使用者明確排除的世界地圖外，note、study-b、interface-a、dictionary-c、morpheme-contract 五組全部成功。包含 Chromium／WebKit、原生 PostgreSQL、完整 B2 草稿→發布→Review→核准→刪除、TypeScript、lint 與正式模式建置。
+- 正式 Supabase 已於 2026-11-15 套用整批 B2 SQL，ledger `20261115054149`／`dictionary_b_phase_word_content_and_inflections_retirement_20261114`。涵蓋本機十份 `20261114135000` 至 `20261114231000` B2 Migration；此 ledger 為合併交易，不可因本機檔名版本不同就重新套用。交易內比對既有 dictionary／study 資料雜湊，異常則整批回復。
+- 套用後：詞條 6,351、義項 10,857、字卡 10,155、FSRS 狀態 10,155、作答事件 2,800；以上完整資料雜湊與套用前一致。新衍生意思／公共筆記表存在，獨立詞形表已移除，public SQL 函式對舊表的殘留引用 0。這是套用當時的快照。
+- 使用者已授權合併 #186；合併會觸發 main 正式部署，部署狀態需另行核對。真實裝置人工驗收與世界地圖問題仍分開追蹤，不視為本次已驗收。
 
 ## 已完成的本階段
 

@@ -7,6 +7,7 @@ import {
 } from "./importSessionStore";
 import {
   exchangeFormat,
+  exchangeSchemaVersion,
   type ExchangeDocument,
   type ExchangeRecord,
   type ExchangeScope,
@@ -150,7 +151,7 @@ export async function exportDocument(
     throw Error("Export checkpoint is incomplete or contains duplicate IDs");
   return {
     format: exchangeFormat,
-    schema_version: 1,
+    schema_version: exchangeSchemaVersion(records),
     exported_at: job.exported_at,
     scope: job.scope,
     records:records.map(cleanIpaRecord),
