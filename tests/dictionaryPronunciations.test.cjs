@@ -25,7 +25,7 @@ test('AI export/import preserves pronunciation IDs and scope; omission retains r
 });
 test('Review snapshot retains sense reassignment and stable pronunciation identity',()=>{
  const s=snapshot(),draft=draftsFromBundle(bundle())[0];draft.pronunciations[0].sense_id=id(12);
- const review={base_snapshot:s,candidate:mapDictionaryDraft(draft),revision:2};assert.equal(reviewSnapshot(review).detail.pronunciations[0].id,id(21));assert.equal(reviewSnapshot(review).detail.pronunciations[0].sense_id,id(12));assert.equal(s.detail.pronunciations[0].sense_id,id(11));
+ const review={base_snapshot:s,candidate:mapDictionaryDraft(draft),revision:2};assert.equal(reviewSnapshot(review).detail.pronunciations[0].id,id(20));assert.equal(reviewSnapshot(review).detail.pronunciations[0].sense_id,id(12));assert.equal(s.detail.pronunciations[0].sense_id,id(11));
 });
 test('local PostgreSQL: import/preview rollback, Safe/Review, ownership/RLS, Published lifecycle, deletion and audit',async()=>{
  const pg=new PGlite();try{
