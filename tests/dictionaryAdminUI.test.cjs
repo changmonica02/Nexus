@@ -239,3 +239,22 @@ test('IPA editor is in basic information, orientation responsive and metadata-fr
  assert.ok(retirement.includes('drop column locale'));
  assert.ok(retirement.includes('drop column note'));
 });
+
+test('Word fixed fields render exactly one editable control each without add or delete buttons',()=>{
+ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',kind:'word',headword:'test',status:'draft',revision:1,updated_at:''},
+ senses:[{id:'00000000-0000-4000-8000-000000000002',entry_id:'00000000-0000-4000-8000-000000000001',part_of_speech:'noun',gloss_zh_tw:'測試'}],
+ relations:[],pronunciations:[],learning_notes:[],etymologies:[],examples:[],derivations:[],public_notes:[]};
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));
+ for(const table of ['dictionary_pronunciations','dictionary_learning_notes','dictionary_etymologies','dictionary_public_notes']){
+   assert.equal((html.match(new RegExp('data-fixed-word-field="'+table+'"','g'))||[]).length,1,table);
+ }
+ for(const text of ['＋新增讀音','＋新增記憶法','＋新增詞源','＋新增公共筆記','刪除讀音','刪除公共筆記']){
+   assert.equal(html.includes(text),false,text);
+ }
+ for(const label of ['讀音（IPA）','記憶法','詞源','筆記']){
+   assert.ok(html.includes('>'+label+'</h3>'),label);
+ }
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ assert.match(source,/if\(!value\.trim\(\)\)return \{\.\.\.b,\[table\]:\[\]\}/);
+ assert.match(source,/if\(rows\.length\)return \{\.\.\.b,\[table\]:\[\{\.\.\.rows\[0\],\[key\]:value\}\]\}/);
+});
