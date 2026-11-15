@@ -46,7 +46,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
       if(d.kind!=='word'||d.public_notes.length>1)issue('public_notes','公共筆記僅適用 Word，且每個詞條限一筆');
       for(const note of d.public_notes)if(typeof note.body!=='string'||!note.body.trim()||note.body.length>100000||note.entry_id!==undefined&&note.entry_id!==d.entry_id)issue('public_notes','公共筆記內容或所屬詞條無效');
     }
-    if(d.kind==='word'&&d.derivations===undefined)issue('derivations','Word 必須提供最新版衍生意思清單');
+    if(d.kind==='word'&&d.examples.length>0&&d.derivations===undefined)issue('derivations','Word 例句必須提供衍生意思清單');
     if(d.kind!=='word'&&d.examples.length)issue('examples','構詞例詞欄位已退役；只接受 Word 衍生義例句');
     if(d.examples.some(r=>!r.derivation_id))issue('examples','舊版未連結衍生意思的例句已不支援');
     if(d.derivations!==undefined){
