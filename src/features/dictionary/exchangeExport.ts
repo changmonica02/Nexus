@@ -1,4 +1,5 @@
 import {cleanIpaRecord} from './retiredPronunciation';
+import {currentMorphemeFields} from './retiredMorphemeFields';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   dictionaryJobDatabase,
@@ -124,6 +125,19 @@ export async function continueExport(
   }
   return job;
 }
+/** Export exactly the current v2 shape; never include the retired inflections section. */
+function currentExportRecord(record:ExchangeRecord):ExchangeRecord {
+  const detail=record.snapshot?.detail;
+  if(!detail)return cleanIpaRecord(record);
+  const retired=(detail as unknown as Record<string,unknown>).inflections;
+  if(Array.isArray(retired)&&retired.length)throw Error('字典仍有舊版詞形資料，請先人工整理，無法輸出最新版格式');
+  const {inflections:_retired,...current}=detail as typeof detail & {inflections?:unknown};
+  void _retired;
+  // Word-only v2 sections are present even if the installed SQL snapshot
+  // predates them; this does not relax validation of nonempty example links.
+  const complete=detail.entry.kind==='word'?{...current,derivations:current.derivations??[],public_notes:current.public_notes??[]}:current;
+  return cleanIpaRecord(currentMorphemeFields({...record,snapshot:{...record.snapshot!,detail:complete}}));
+}
 export async function exportDocument(
   job: ExportJob,
 ): Promise<ExchangeDocument> {
@@ -154,7 +168,7 @@ export async function exportDocument(
     schema_version: exchangeSchemaVersion(records),
     exported_at: job.exported_at,
     scope: job.scope,
-    records:records.map(cleanIpaRecord),
+    records:records.map(currentExportRecord),
   };
 }
 export function downloadDictionaryJSON(value: unknown, name: string) {

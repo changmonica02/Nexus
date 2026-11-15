@@ -16,108 +16,59 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
  const errors=[];
  try{
  for(const viewport of [{width:1280,height:900},{width:820,height:1180},{width:390,height:844}]){
-  const context=await browser.newContext({viewport});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/?etymology');await page.getByRole('button',{name:'儲存／重試',exact:true}).waitFor();
-  assert.equal(await page.getByText(/不是已確認的詞源事實|未查證|已查證|有爭議/).count(),0);
-  assert.equal(await page.getByLabel('資料來源',{exact:true}).inputValue(),'https://example.test/source');
-  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');
-  await page.getByLabel('歷史詞源',{exact:true}).fill('Updated etymology');
-  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/source');await page.getByLabel('歷史詞源',{exact:true}).fill('Synthetic etymology');
-  const save=()=>page.getByRole('button',{name:'儲存／重試',exact:true}),publish=()=>page.getByRole('button',{name:'發布',exact:true}),word=()=>page.getByLabel('英文字形 1',{exact:true});
-  const settle=async()=>{await page.evaluate(()=>document.activeElement?.blur());await save().evaluate(button=>{if(!button.disabled)button.click();});await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();};
-  assert.equal(await page.getByRole('complementary',{name:'匯入待審核',exact:true}).count(),0);assert.equal(await page.getByRole('tablist').count(),0);
-  await settle();assert.ok(await page.evaluate(()=>window.fixture.reviews.length)<=1);assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.entry.status),'published');
-  const senseRow=page.locator('[data-word-sense-row]').first(),senseId=await senseRow.getAttribute('data-word-sense-row');
-  assert.equal(await page.locator('[data-editor-section="基本資料"]').getByLabel('詞性',{exact:true}).count(),0);
-  const pos=await senseRow.getByLabel('詞性',{exact:true}).boundingBox(),gloss=await senseRow.getByLabel('中文意思',{exact:true}).boundingBox();
-  if(viewport.width>=640)assert.ok(Math.abs(pos.y-gloss.y)<2,'Word POS and meaning share a row');else assert.ok(gloss.y>pos.y,'mobile keeps fields in one Sense');
-  await senseRow.getByLabel('詞性',{exact:true}).fill('noun');await senseRow.getByLabel('中文意思',{exact:true}).fill('詞性與意思一起編輯');
-  const senseSection=page.locator('[data-editor-section="義項"]');assert.equal(await senseSection.locator('summary').count(),0,'senses stay expanded');
-  assert.equal(await senseRow.getAttribute('data-word-sense-row'),senseId);assert.equal(await senseRow.getByLabel('中文意思',{exact:true}).inputValue(),'詞性與意思一起編輯');
-  await senseRow.getByLabel('詞性',{exact:true}).fill('verb');await senseRow.getByLabel('中文意思',{exact:true}).fill('go');
-  await page.getByRole('button',{name:'＋新增義項',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'確認',exact:true}).click();assert.equal(await page.locator('[data-word-sense-row]').count(),2);
-  const added=page.locator('[data-word-sense-row]').nth(1);assert.notEqual(await added.getAttribute('data-word-sense-row'),senseId);assert.equal(await added.getByLabel('詞性',{exact:true}).count(),1);assert.equal(await added.getByLabel('中文意思',{exact:true}).inputValue(),'');
-  await added.getByRole('button',{name:'刪除義項 2',exact:true}).click();await settle();
-
-  await word().fill('go-edited');assert.equal(await save().isEnabled(),true);await word().fill('go');await settle();
-  // History navigation is guarded before a router can unmount the editor.
-  await word().fill('history draft');await page.evaluate(()=>{window.history.pushState(null,'','?history=1');window.history.back();});await page.getByRole('dialog').getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'history draft');await word().fill('go');
-  // Retired Inflections must have no editing surface on any viewport.
-  assert.equal(await page.locator('[data-editor-section="詞形變化"]').count(),0);
-  assert.equal(await page.getByRole('button',{name:'＋新增詞形變化'}).count(),0);
-  await page.getByLabel('資料來源',{exact:true}).fill('https://example.test/updated');await page.getByLabel('歷史詞源',{exact:true}).fill('Updated etymology');
-  await page.locator('[data-editor-section="記憶法"]').getByRole('button').first().click();await page.getByLabel('記憶法',{exact:true}).fill('核心意象\n'.repeat(12));
-  await page.getByRole('button',{name:'＋新增讀音',exact:true}).click();assert.equal(await page.getByRole('button',{name:'上移讀音',exact:true}).count(),0);
-  await page.getByLabel('IPA',{exact:true}).fill('/a/');await page.getByRole('button',{name:'＋新增讀音',exact:true}).click();await page.getByLabel('IPA',{exact:true}).nth(1).fill('/b/');await page.getByRole('button',{name:'上移讀音',exact:true}).nth(1).click();assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');
-  assert.equal(await page.getByLabel('排序',{exact:true}).count(),0);
-  const coreHeight=await page.getByLabel('記憶法',{exact:true}).evaluate(n=>({height:n.clientHeight,scroll:n.scrollHeight}));assert.ok(coreHeight.height>=coreHeight.scroll-2);
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await settle();await page.getByRole('tab',{name:'草稿',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.fixture.reviews[0].revision)>=2,true);await settle();assert.equal(await page.evaluate(()=>(window.fixture.snapshot.detail.inflections??[]).length),0);assert.equal(await publish().isEnabled(),true);
-  assert.deepEqual(await page.evaluate(()=>{const e=window.fixture.reviews[0].candidate.bundle.dictionary_etymologies[0];return {body:e.body,source:e.data_source,status:'verification' in e,note:'verification_note' in e};}),{body:'Updated etymology',source:'https://example.test/updated',status:false,note:false});
-  assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.etymologies[0].body),'Synthetic etymology');
-  assert.equal(await page.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_learning_notes[0].kind),'core_concept');assert.deepEqual(await page.evaluate(()=>window.fixture.reviews[0].candidate.pronunciations.map(p=>[p.ipa,p.sort_order])),[['/b/',0],['/a/',1]]);
-  // Subsequent changes do not publish the older saved draft; tabs retain unsaved entry content.
-  await word().fill('not-saved');
-  await publish().click();
-  await page.getByRole('alert').filter({hasText:'請先儲存'}).waitFor();
-  await word().fill('go');await settle();
-  await word().fill('retained on tab');
-  const writesBefore=await page.evaluate(()=>window.fixture.writes);
-  await page.getByRole('tab',{name:'最新版本',exact:true}).click();
-  assert.equal(await page.getByRole('region',{name:'最新版本',exact:true}).getByText('retained on tab',{exact:true}).count(),0);
-  await page.getByRole('tab',{name:'草稿',exact:true}).click();
-  assert.equal(await word().inputValue(),'retained on tab');
-  assert.ok(await page.evaluate(()=>window.fixture.writes)>=writesBefore);
-  await word().fill('go');await settle();
-  await page.reload();await word().waitFor();
-  assert.equal(await page.getByLabel('IPA',{exact:true}).first().inputValue(),'/b/');
-  assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'核心意象\n'.repeat(12));
-  assert.equal(await page.evaluate(()=>window.fixture.reviews.length),1);
-  // Picker zero results, errors, multi-sense choice, self rejection, cancel/Escape and focus restoration.
-  const add=page.getByRole('button',{name:'＋新增構詞關聯'});await add.focus();await page.keyboard.press('Enter');let modal=page.getByRole('dialog');await modal.getByLabel('搜尋詞條或中文義項').fill('missing');await modal.getByText('查無可連結',{exact:false}).waitFor();await page.keyboard.press('Escape');assert.equal(await modal.count(),0);assert.equal(await add.evaluate(el=>el===document.activeElement),true);await settle();
-  // Quick creation is explicit, cancellable, retryable, and preserves the dirty parent.
-  await word().fill('go unsaved');await add.click();await modal.getByLabel('搜尋詞條或中文義項').fill('newprefix-');await modal.getByRole('button',{name:'＋ 建立構詞'}).click();let quick=page.getByRole('dialog',{name:'建立構詞',exact:true});assert.equal(await quick.getByLabel('詞條名稱').inputValue(),'newprefix-');await quick.getByRole('button',{name:'取消',exact:true}).click();assert.equal(await page.evaluate(()=>window.quickCalls||0),0);
-  await modal.getByRole('button',{name:'＋ 建立構詞'}).click();quick=page.getByRole('dialog',{name:'建立構詞',exact:true});assert.equal(await quick.getByRole('button',{name:'確認建立並發布'}).isDisabled(),true);await quick.getByLabel('詞條類型').selectOption('suffix');await quick.getByRole('checkbox').check();await page.evaluate(()=>window.failQuick=true);await quick.getByRole('button',{name:'確認建立並發布'}).click();await quick.getByRole('alert').waitFor();assert.equal(await word().inputValue(),'go unsaved');await page.evaluate(()=>window.failQuick=false);await quick.getByRole('button',{name:'確認建立並發布'}).click();await page.getByRole('dialog').waitFor({state:'detached'});assert.equal(await word().inputValue(),'go unsaved');assert.equal(await page.evaluate(()=>window.fixture.snapshot.detail.entry.status),'published');assert.equal(await page.evaluate(()=>window.fixture.reviews.length),1);assert.ok(await page.evaluate(()=>window.fixture.writes)>=writesBefore);await page.getByRole('link',{name:/newprefix-/}).waitFor();await page.getByRole('button',{name:'移除構詞關聯'}).click();await word().fill('go');await settle();
-  await page.evaluate(()=>window.failSearch=true);await add.click();await modal.getByRole('alert').waitFor();await page.evaluate(()=>window.failSearch=false);await modal.getByRole('button',{name:'重試'}).click();await modal.getByRole('button',{name:/go · 單字/}).waitFor();assert.equal(await modal.getByRole('button',{name:/go · 單字/}).isDisabled(),true);await modal.getByLabel('搜尋詞條或中文義項').fill('poly');await modal.getByRole('button',{name:/poly · 單字/}).click();await modal.getByRole('button',{name:/另一個義項/}).click();assert.equal(await modal.count(),0);assert.equal(await save().isEnabled(),true);
-  await page.getByRole('button',{name:'移除構詞關聯'}).click();await settle();
-  await add.click();await modal.getByLabel('搜尋詞條或中文義項').fill('un-');await modal.getByRole('button',{name:/un- · 字首/}).click();await add.click();await modal.getByLabel('搜尋詞條或中文義項').fill('happy');await modal.getByRole('button',{name:/happy · 單字/}).click();const composition=page.locator('section').filter({has:page.getByRole('heading',{name:'構詞關聯',exact:true})}).last();assert.equal(await composition.getByRole('combobox').count(),0);assert.equal(await composition.getByText(/關聯種類|查證狀態|查證說明/).count(),0);await page.getByRole('button',{name:'上移',exact:true}).nth(1).click();await settle();await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();assert.deepEqual(await page.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations.map(r=>r.target_entry_id)),['00000000-0000-4000-8000-000000000030','00000000-0000-4000-8000-000000000020']);
-  assert.equal(await page.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations.every(r=>r.sense_id===null&&!('relation_kind' in r)&&!('verification' in r)&&!('verification_note' in r))),true);
-  // Native unload protection, cancel and failed save on leave keep all input.
-  await page.evaluate(()=>window.failSave=true);await word().fill('go changed');const protectedUnload=await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;});assert.equal(protectedUnload,true);
-  await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'繼續編輯'}).click();assert.equal(await word().inputValue(),'go changed');await page.evaluate(()=>window.failSave=true);await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'儲存變更'}).click();await page.getByRole('alert').filter({hasText:'revision conflict'}).waitFor();assert.equal(await modal.count(),1);assert.equal(await word().inputValue(),'go changed');await page.evaluate(()=>window.failSave=false);await modal.getByRole('button',{name:'繼續編輯'}).click();await word().fill('go');await settle();
-  // Publication conflict remains editable and retry succeeds only after confirmation.
-  await page.evaluate(()=>window.failPublish=true);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.getByRole('alert').filter({hasText:'版本已變更'}).waitFor();assert.equal(await page.evaluate(()=>(window.fixture.snapshot.detail.inflections??[]).length),0);await page.evaluate(()=>window.failPublish=false);await publish().click();await modal.getByRole('button',{name:'發布',exact:true}).click();await page.waitForFunction(()=>window.fixture.snapshot.detail.entry.revision===2);assert.equal(await page.getByText(/Published revision|Review Draft revision|基底 Published/).count(),0);assert.equal(await page.evaluate(()=>(window.fixture.snapshot.detail.inflections??[]).length),0);
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
-  // Save-and-leave resumes the original destination, reopening continues the same review.
-  await word().fill('go final');await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'儲存變更'}).click();await page.waitForURL(base+'/closed');await page.goto(base);await word().waitFor();assert.equal(await word().inputValue(),'go final');await page.evaluate(()=>window.failSave=true);await word().fill('discarded');await page.getByRole('link',{name:'返回來源清單'}).click();await modal.getByRole('button',{name:'放棄變更'}).click();await page.waitForURL(base+'/closed');await page.goto(base);await word().waitFor();assert.equal(await word().inputValue(),'go final');
-  await page.getByRole('link',{name:'返回來源清單'}).click();await page.waitForURL(base+'/closed');
-  const readingPage=await browser.newPage({viewport});await readingPage.goto(base+'/?kind=prefix&reading');await readingPage.getByText('first variant condition',{exact:true}).waitFor();await readingPage.getByText('second variant condition',{exact:true}).waitFor();assert.equal(await readingPage.getByRole('button',{name:'un-',exact:true}).count(),0);assert.equal(await readingPage.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);await readingPage.close();
-  const pendingPage=await context.newPage();await pendingPage.goto(base+'/?pending');await pendingPage.getByRole('complementary',{name:'匯入待審核',exact:true}).waitFor();assert.equal(await pendingPage.getByRole('link',{name:'開啟未審核詞條',exact:true}).count(),1);assert.equal(await pendingPage.getByRole('button',{name:'套用已決策項目',exact:true}).count(),0);await pendingPage.close();
-  await context.close();
-  // Multi-sense admin starts shared; selecting a specific source Sense survives save/reopen.
-  const multiContext=await browser.newContext({viewport});const multi=await multiContext.newPage();multi.on('pageerror',e=>errors.push(e.message));await multi.goto(base+'/?multi');
-  await multi.getByRole('button',{name:'＋新增構詞關聯'}).click();const picker=multi.getByRole('dialog');await picker.getByLabel('搜尋詞條或中文義項').fill('happy');await picker.getByRole('button',{name:/happy · 單字/}).click();
-  const block=multi.locator('section').filter({has:multi.getByRole('heading',{name:'構詞關聯',exact:true})}).last(),scope=block.getByLabel('適用義項');assert.equal(await scope.count(),0);assert.equal(await block.getByText(/關聯種類|查證狀態|查證說明/).count(),0);
-  await multi.waitForFunction(()=>window.fixture.reviews.length===1&&!!window.fixture.reviews[0].candidate);await multi.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();assert.equal(await multi.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].sense_id),null);
-  await block.getByRole('checkbox',{name:'僅適用特定義項'}).check();await scope.selectOption('00000000-0000-4000-8000-000000000012');await multi.waitForFunction(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].sense_id==='00000000-0000-4000-8000-000000000012');await multi.reload();await scope.waitFor();assert.equal(await scope.inputValue(),'00000000-0000-4000-8000-000000000012');const relationId=await multi.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].id);await block.getByRole('checkbox',{name:'僅適用特定義項'}).uncheck();await multi.waitForFunction(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].sense_id===null);assert.equal(await scope.count(),0);assert.equal(await multi.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].id),relationId);
-  await multi.getByText('公開閱讀結果',{exact:true}).click();assert.equal(await multi.getByRole('article').getByRole('combobox').count(),0);await multiContext.close();
-  const legacyContext=await browser.newContext({viewport});const legacy=await legacyContext.newPage();await legacy.goto(base+'/?legacy');const legacyBlock=legacy.locator('section').filter({has:legacy.getByRole('heading',{name:'構詞關聯',exact:true})}).last();assert.equal(await legacyBlock.getByRole('combobox').count(),1);await legacy.getByLabel('英文字形 1',{exact:true}).fill('go legacy');await legacy.getByRole('button',{name:'儲存／重試',exact:true}).click();await legacy.waitForFunction(()=>window.fixture.reviews.length===1&&!!window.fixture.reviews[0].candidate);assert.equal(await legacy.evaluate(()=>window.fixture.reviews[0].candidate.bundle.dictionary_relations[0].sense_id),'00000000-0000-4000-8000-000000000011');await legacy.reload();assert.equal(await legacyBlock.getByRole('combobox').count(),1);await legacyContext.close();
-  const choiceContext=await browser.newContext({viewport}),choice=await choiceContext.newPage();choice.on('pageerror',e=>errors.push(e.message));await choice.goto(base);await choice.getByLabel('英文字形 1',{exact:true}).fill('go review one');await choice.getByRole('button',{name:'儲存／重試',exact:true}).click();await choice.getByRole('tab',{name:'草稿',exact:true}).waitFor();
-  await choice.evaluate(()=>{const second=structuredClone(window.fixture.reviews[0]);second.id='00000000-0000-4000-8000-000000000101';second.candidate.bundle.dictionary_entries[0].headword='go review two';second.candidate.bundle.dictionary_entries[0].word_segments[0].text='go review two';window.fixture.reviews.push(second);localStorage.setItem('dictionary-fixture',JSON.stringify(window.fixture));});await choice.reload();
-  // Force a genuine unsaved draft: otherwise blur autosave can finish between leave attempts.
-  await choice.evaluate(()=>window.failSave=true);const chooser=choice.getByLabel('選擇草稿',{exact:true});await chooser.selectOption('00000000-0000-4000-8000-000000000100');await choice.getByLabel('英文字形 1',{exact:true}).fill('unsaved review one');await chooser.selectOption('00000000-0000-4000-8000-000000000101');await choice.getByRole('dialog',{name:'離開編輯',exact:true}).getByRole('button',{name:'繼續編輯',exact:true}).click();assert.equal(await choice.getByLabel('英文字形 1',{exact:true}).inputValue(),'unsaved review one');
-  await chooser.selectOption('00000000-0000-4000-8000-000000000101');await choice.getByRole('dialog',{name:'離開編輯',exact:true}).getByRole('button',{name:'放棄變更',exact:true}).click();assert.equal(await choice.getByLabel('英文字形 1',{exact:true}).inputValue(),'go review two');assert.equal(await choice.evaluate(()=>window.fixture.writes),1);assert.equal(await choice.evaluate(()=>window.fixture.snapshot.detail.entry.headword),'go');assert.equal(await choice.evaluate(()=>window.fixture.reviews.length),2);for(const name of ['捨棄草稿','重新載入版本與草稿','下載目前編輯內容'])assert.equal(await choice.getByRole('button',{name,exact:true}).count(),0);assert.equal(await choice.getByText('已儲存的內容差異',{exact:true}).count(),0);assert.equal(await choice.evaluate(()=>window.fixture.reviews.filter(r=>r.state==='active').length),2);await choiceContext.close();
-  for(const kind of ['root','prefix','suffix']){
-   const compactContext=await browser.newContext({viewport}),compact=await compactContext.newPage();compact.on('pageerror',e=>errors.push(e.message));await compact.goto(base+'/?kind='+kind);
-   const basic=compact.locator('[data-editor-section="基本資料"]'),meaning=compact.locator('[data-morpheme-sense]').first();
-   assert.equal(await compact.getByLabel('詞性',{exact:true}).count(),0);assert.equal(await meaning.getByRole('heading').count(),0);
-   assert.equal(await basic.getByLabel('構詞分類',{exact:true}).inputValue(),kind);
-   await meaning.getByRole('button',{name:'＋新增變體',exact:true}).click();await meaning.getByLabel('變體字形',{exact:true}).first().fill('variant');await meaning.getByLabel('出現條件',{exact:true}).first().fill('condition');
-   await meaning.getByRole('button',{name:'＋新增變體',exact:true}).click();await meaning.getByLabel('變體字形',{exact:true}).nth(1).fill('second');await meaning.getByRole('button',{name:'刪除變體',exact:true}).nth(1).click();
-   await compact.getByRole('button',{name:'新增概念',exact:true}).click();await compact.getByLabel('概念',{exact:true}).fill('保存概念');
-   const supplemental=compact.locator('[data-editor-section="概念"]');assert.equal(await supplemental.locator('summary').count(),0,'concept stays expanded');assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');
-   assert.equal(await compact.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await compact.getByRole('button',{name:'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});await compact.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();await compact.getByRole('tab',{name:'草稿',exact:true}).waitFor();await compact.reload();assert.equal(await compact.getByLabel('概念',{exact:true}).inputValue(),'保存概念');assert.equal(await compact.getByLabel('變體字形',{exact:true}).inputValue(),'variant');await compactContext.close();
+  const context=await browser.newContext({viewport});
+  const page=await context.newPage();
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(base+'/?etymology');
+  const word=()=>page.getByLabel('英文字形 1',{exact:true});
+  const save=()=>page.getByRole('button',{name:'儲存／重試',exact:true});
+  await word().waitFor();
+  for(const [table,label] of [['dictionary_pronunciations','讀音（IPA）'],['dictionary_learning_notes','記憶法'],['dictionary_etymologies','詞源'],['dictionary_public_notes','筆記']]){
+    const fixed=page.locator('[data-fixed-word-field="'+table+'"]');
+    assert.equal(await fixed.count(),1,'fixed field '+label);
+    assert.equal(await fixed.getByLabel(label,{exact:true}).count(),1);
+    assert.equal(await fixed.getByRole('button').count(),0,'no add/remove '+label);
   }
-
+  assert.equal(await page.getByRole('button',{name:/新增讀音|刪除讀音|新增記憶法|刪除記憶法|新增詞源|刪除詞源|新增公共筆記|刪除公共筆記/}).count(),0);
+  assert.equal(await page.locator('[data-editor-section="構詞關聯"]').count(),0);
+  assert.equal(await page.locator('[data-editor-section="義項"]').count(),1);
+  assert.ok(await page.locator('[data-word-segments]').count());
+  assert.equal(await page.locator('[data-word-sense-row]').count(),1);
+  await page.getByLabel('讀音（IPA）',{exact:true}).fill('/goʊ/');
+  await page.getByLabel('記憶法',{exact:true}).fill('記憶提示');
+  await page.getByLabel('詞源',{exact:true}).fill('Updated etymology');
+  await page.getByLabel('筆記',{exact:true}).fill('公共備註');
+  await page.evaluate(()=>document.activeElement?.blur());
+  await save().evaluate(el=>{if(!el.disabled)el.click();});
+  await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();
+  const saved=await page.evaluate(()=>window.fixture.reviews[0].candidate);
+  assert.equal(saved.pronunciations.length,1);
+  assert.equal(saved.pronunciations[0].ipa,'/goʊ/');
+  assert.equal(saved.bundle.dictionary_learning_notes.length,1);
+  assert.equal(saved.bundle.dictionary_learning_notes[0].body,'記憶提示');
+  assert.equal(saved.bundle.dictionary_etymologies.length,1);
+  assert.equal(saved.bundle.dictionary_etymologies[0].body,'Updated etymology');
+  assert.equal(saved.public_notes.length,1);
+  assert.equal(saved.public_notes[0].body,'公共備註');
+  const {waitForAsync}=require('./pwaBrowser.cjs');
+  const fields=[['讀音（IPA）','/goʊ/'],['記憶法','記憶提示'],['詞源','Updated etymology'],['筆記','恢復筆記']];
+  for(const [label]of fields)await page.getByLabel(label,{exact:true}).fill('');
+  await page.evaluate(()=>document.activeElement?.blur());
+  // Exercise automatic storage, including deletion of the four existing rows.
+  await waitForAsync(page,()=>{const c=window.fixture.reviews[0].candidate;return c.pronunciations.length===0&&c.bundle.dictionary_learning_notes.length===0&&c.bundle.dictionary_etymologies.length===0&&c.public_notes.length===0;});
+  await page.reload();await word().waitFor();
+  for(const [label]of fields)assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'','cleared field survives reopen: '+label);
+  for(const [label,value]of fields)await page.getByLabel(label,{exact:true}).fill(value);
+  await page.evaluate(()=>document.activeElement?.blur());
+  await waitForAsync(page,()=>{const c=window.fixture.reviews[0].candidate;return c.pronunciations[0]?.ipa==='/goʊ/'&&c.bundle.dictionary_learning_notes[0]?.body==='記憶提示'&&c.bundle.dictionary_etymologies[0]?.body==='Updated etymology'&&c.public_notes[0]?.body==='恢復筆記';});
+  await page.reload();
+  await word().waitFor();
+  assert.equal(await page.getByLabel('讀音（IPA）',{exact:true}).inputValue(),'/goʊ/');
+  assert.equal(await page.getByLabel('記憶法',{exact:true}).inputValue(),'記憶提示');
+  assert.equal(await page.getByLabel('詞源',{exact:true}).inputValue(),'Updated etymology');
+  assert.equal(await page.getByLabel('筆記',{exact:true}).inputValue(),'恢復筆記');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await context.close();
  }
  for(const mode of ['refresh','unknown']){
   const context=await browser.newContext(),page=await context.newPage();await page.goto(base);const word=page.getByLabel('英文字形 1',{exact:true});await word.fill('preserved '+mode);await page.getByRole('button',{name:'儲存／重試',exact:true}).evaluate(button=>{if(!button.disabled)button.click();});await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();await page.evaluate(mode=>{window.approvalWrites=0;window.failRefresh=mode==='refresh';window.losePublishResponse=mode==='unknown';},mode);

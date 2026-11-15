@@ -112,12 +112,20 @@ test(
           updated_at: record.snapshot.detail.entry.updated_at,
         });
         record.snapshot.detail.senses[0].gloss_zh_tw = "投擲（需決策）";
+        // The isolated legacy SQL RPC may include retired fields. Build the
+        // current v2 import fixture explicitly; the public import remains strict.
+        const {currentMorphemeFields}=require("../src/features/dictionary/retiredMorphemeFields.ts");
+        const {cleanIpaRecord}=require("../src/features/dictionary/retiredPronunciation.ts");
+        const current=cleanIpaRecord(currentMorphemeFields(record));
+        delete current.snapshot.detail.inflections;
+        current.snapshot.detail.derivations??=[];
+        current.snapshot.detail.public_notes??=[];
         const raw = JSON.stringify({
           format: "nexus-dictionary-exchange",
-          schema_version: 1,
+          schema_version: 2,
           exported_at: new Date().toISOString(),
           scope: { kinds: [], statuses: [], query: "" },
-          records: [record],
+          records: [current],
         });
         const first = await browser.newContext({
             viewport: { width, height: 900 },

@@ -8,7 +8,7 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['單字','詞性','中文意思','歷史詞源','記憶法','構詞關聯','儲存'])assert.ok(html.includes(text),text);
+  for(const text of ['構詞英中與其連結','讀音（IPA）','詞性','中文意思','詞源','記憶法','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
   assert.ok(!html.includes('← 返回'));
@@ -33,8 +33,10 @@ test('import preview escapes Markdown and distinguishes mnemonic from historical
 
 test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
   const ui=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
-  for(const format of ['csv','md','json'])assert.ok(ui.includes(`option value="${format}"`));
-  assert.ok(ui.includes('accept=".csv,.md,.json"'));
+  assert.ok(ui.includes('option value="json"'));
+  assert.ok(!ui.includes('option value="csv"'));
+  assert.ok(!ui.includes('option value="md"'));
+  assert.ok(ui.includes('accept=".json"'));
   assert.ok(ui.includes('<DictionaryImportReview'));
   const workflow=fs.readFileSync('src/features/dictionary/DictionaryImportReview.tsx','utf8');
   for(const text of ['normalizeDictionaryBundle','buildImportSession','confirmDialog','applyImportItems','exchange.applySafe','exchange.onlyPending'])assert.ok(workflow.includes(text),text);
@@ -45,10 +47,10 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
   let previous=-1;
-  for(const label of ['基本資料','記憶法','義項','構詞關聯','例詞','歷史詞源','公共補充筆記']){
+  for(const label of ['構詞英中與其連結','讀音（IPA）','記憶法','義項','詞源','筆記']){
     const index=html.indexOf('>'+label+'</h3>');assert.ok(index>previous,label);previous=index;
   }
-  assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
+  assert.ok(!html.includes('構詞關聯</h3>'));assert.ok(!html.includes('詞形變化'));assert.ok(!html.includes('所屬義項'));assert.ok(!html.includes('義項 ID'));assert.ok(!html.includes('Sense'));
   assert.equal((html.match(/←/g)||[]).length,0);
   const rootHtml=render(root);for(const label of ['構詞名稱','構詞分類','大分類','小分類','新增變體','概述','歷史詞源','連結單字'])assert.ok(rootHtml.includes(label),label);
   assert.ok(rootHtml.includes('var(--color-editor-bg)'));
@@ -59,12 +61,12 @@ test('editor uses ordered sections, contextual meaning links, no Sense selector 
   assert.ok(rootHtml.indexOf('構詞分類')<rootHtml.indexOf('>義項</h3>'));
   assert.ok(!rootHtml.includes('同字變體'));
   assert.ok(html.includes('中文意思'));assert.ok(html.includes('＋新增義項'));
-  assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]'));
+  assert.ok(html.includes('grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]')||html.includes('grid-cols-[minmax(0,1fr)_44px]'));
   for(const match of html.matchAll(/<(?:input|select|textarea)\b[^>]*class="([^"]*)"/g)) assert.ok(match[1].includes('w-full'),match[0]);
   const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(source.includes("modal==='import'&&<DictionaryModal"));
   assert.ok(source.includes("modal==='new'&&<DictionaryModal"));
-  assert.ok(source.includes('download="dictionary_master_v1.csv"'));
+  assert.ok(source.includes('Nexus JSON Exchange v2'));
   assert.ok(fs.readFileSync('src/features/dictionary/useDictionaryAdminAccess.ts','utf8').includes("session?.user.id===ownerRef.current"));
   assert.ok(!source.includes('本次修訂'));
 });
@@ -143,15 +145,16 @@ test('multi-select types and statuses intersect with search; empty groups impose
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
  assert.equal((html.match(/type="checkbox"/g)||[]).length,6);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
 });
-test('history source is optional; edits retain source content without recreating review-state metadata',async()=>{
- const d={...detail,etymologies:[{id:'00000000-0000-4000-8000-000000000004',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',sense_id:null,body:'old',data_source:'old source',revision:1}]};
+test('fixed Word etymology edits retain its identity and source without exposing a second input',async()=>{
+ const row={id:'00000000-0000-4000-8000-000000000004',entry_id:detail.entry.id,source_id:'source',sense_id:null,body:'old',data_source:'old source',revision:1};
+ const d={...detail,etymologies:[row]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
- assert.ok(html.includes('資料來源'));for(const text of ['查證狀態','已查證必填','本次草稿來源','來源與授權','首次發布','← 返回'])assert.ok(!html.includes(text),text);
+ assert.ok(!html.includes('資料來源'));for(const text of ['查證狀態','已查證必填','本次草稿來源','來源與授權','首次發布','← 返回'])assert.ok(!html.includes(text),text);
  const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;let payload;
  supabase.getSupabase=()=>({rpc:async(name,args)=>{payload=args.drafts[0].bundle;return {error:null,data:{}};}});
  try{await withEditorState({detail:d,entries:[],senses:[],onSaved:async()=>{}},async render=>{
-  let tree=render();pick(tree,n=>n.props.label==='資料來源').props.onChange('');tree=render();buttonNamed(tree,'儲存／重試').props.onClick();await new Promise(r=>setImmediate(r));
- });assert.equal(payload.dictionary_etymologies[0].verification,undefined);assert.equal(payload.dictionary_etymologies[0].verification_note,undefined);assert.equal(payload.dictionary_etymologies[0].data_source,'');assert.equal(payload.dictionary_etymologies[0].source_id,undefined);assert.equal(payload.dictionary_sources,undefined);
+  let tree=render();pick(tree,n=>n.props.label==='詞源').props.onChange('updated');tree=render();buttonNamed(tree,'儲存／重試').props.onClick();await new Promise(r=>setImmediate(r));
+ });assert.equal(payload.dictionary_etymologies[0].id,row.id);assert.equal(payload.dictionary_etymologies[0].body,'updated');assert.equal(payload.dictionary_etymologies[0].revision,1);assert.equal(payload.dictionary_etymologies[0].data_source,'old source');assert.equal(payload.dictionary_etymologies[0].verification,undefined);assert.equal(payload.dictionary_etymologies[0].verification_note,undefined);assert.equal(payload.dictionary_etymologies[0].source_id,undefined);assert.equal(payload.dictionary_sources,undefined);
  }finally{supabase.getSupabase=original;}
 });
 test('manual drafts strip legacy attribution and never create placeholder sources',()=>{
@@ -166,24 +169,27 @@ test('return sits beside page title and shared copyright information is reachabl
  const {default:Page}=require('../src/components/DataSourcesAndCopyright.tsx');const html=renderToStaticMarkup(React.createElement(Page));assert.ok(html.includes('資料來源與版權'));assert.ok(html.includes('官方單字集'));assert.ok(html.includes('不代表已取得公開授權'));assert.ok(!/查證狀態|待審核標示/.test(html));
 });
 
-test('all three editor content types remove new items locally and confirm persisted deletion without losing other edits',async()=>{
- const dialogs=require('../src/lib/confirmDialog.ts'),supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
- try{for(const [table,kind,title]of [['dictionary_etymologies',null,'歷史詞源'],['dictionary_learning_notes','core_concept','記憶法']]){
-  let calls=0;supabase.getSupabase=()=>({rpc:async(name,args)=>{calls++;assert.equal(name,'delete_dictionary_draft_content');assert.equal(args.content_table,table);return {data:2,error:null};}});
-  const row={id:'content',entry_id:'00000000-0000-4000-8000-000000000001',source_id:'source',body:'content',sense_id:null,...(kind?{kind}:{data_source:''})};
-  const key=table==='dictionary_etymologies'?'etymologies':'learning_notes';
+test('clearing fixed Word fields keeps an editable empty control and unrelated Sense changes',async()=>{
+ const supabase=require('../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase;
+ try{for(const [key,title,field,extra]of [['etymologies','詞源','body',{data_source:'source'}],['learning_notes','記憶法','body',{kind:'core_concept'}],['pronunciations','讀音（IPA）','ipa',{sort_order:0}],['public_notes','筆記','body',{}]]){
+  const row={id:'00000000-0000-4000-8000-000000000004',entry_id:detail.entry.id,[field]:'content',...extra};
   for(const saved of [false,true])await withEditorState({detail:{...detail,[key]:[{...row,...(saved?{revision:1}:{})}]},entries:[],senses:[],onSaved:async()=>{}},async render=>{
    let tree=render();pick(tree,n=>n.props.label==='中文意思').props.onChange('待補');tree=render();
-   pick(tree,n=>n.props['aria-label']===`刪除 ${title}`).props.onClick();
-   if(saved){assert.ok(dialogs.currentDialog());dialogs.finishDialog(dialogs.currentDialog().id,false);await new Promise(r=>setImmediate(r));tree=render();assert.ok(nodes(tree).some(n=>n.props['aria-label']===`刪除 ${title}`));assert.equal(calls,0);pick(tree,n=>n.props['aria-label']===`刪除 ${title}`).props.onClick();dialogs.finishDialog(dialogs.currentDialog().id,true);}
-   await new Promise(r=>setImmediate(r));tree=render();assert.ok(!nodes(tree).some(n=>n.props['aria-label']===`刪除 ${title}`));assert.equal(pick(tree,n=>n.props.label==='中文意思').props.value,'待補');assert.equal(calls,0);
+   pick(tree,n=>n.props.label===title).props.onChange('');tree=render();
+   assert.equal(pick(tree,n=>n.props.label===title).props.value,'');
+   assert.equal(pick(tree,n=>n.props.label==='中文意思').props.value,'待補');
+   assert.ok(!nodes(tree).some(n=>n.props['aria-label']===`刪除 ${title}`));
+   // A cleared field can be populated again without an add button or another row.
+   pick(tree,n=>n.props.label===title).props.onChange('replacement');tree=render();
+   assert.equal(nodes(tree).filter(n=>n.props.label===title).length,1);
+   assert.equal(pick(tree,n=>n.props.label===title).props.value,'replacement');
   });
  }}finally{supabase.getSupabase=original;}
 });
 test('empty classification uses unset placeholder and empty composition hides sense placeholder headings',()=>{
  const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
- assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞關聯</h3>'),html.indexOf('>例詞</h3>'));assert.ok(section.includes('新增構詞關聯'));assert.ok(!section.includes('待補'));
+ assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞英中與其連結</h3>'),html.indexOf('>讀音（IPA）</h3>'));assert.ok(section.includes('英文字形 1'));assert.ok(section.includes('中文提示 1'));assert.ok(!section.includes('待補'));assert.ok(!html.includes('>構詞關聯</h3>'));
 });
 
 
@@ -218,16 +224,14 @@ test('dictionary review queue remains reachable without a modal and reports unav
  assert.ok(page.includes('<PersistentReviewPanel'));
 });
 
-test('IPA editor is in basic information, orientation responsive and metadata-free',()=>{
- const editor=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
- const basic=editor.indexOf('<EditorSection title={tr("基本資料")}');
- const inflections=editor.indexOf('<EditorSection title={tr("義項")}');
- const ipa=editor.indexOf('data-pronunciation-row');
- assert.ok(basic>=0&&ipa>basic&&ipa<inflections);
- assert.ok(editor.includes('portrait:grid-cols-1 landscape:grid-cols-2'));
- assert.ok(!editor.includes('地區／語言（選填'));
- assert.ok(!editor.includes('備註（選填）'));
- assert.ok(editor.includes('<Field label="IPA"'));
+test('IPA is a fixed standalone Word section before mnemonic and Senses without retired metadata',()=>{
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));
+ const composition=html.indexOf('>構詞英中與其連結</h3>'),ipa=html.indexOf('>讀音（IPA）</h3>'),mnemonic=html.indexOf('>記憶法</h3>'),senses=html.indexOf('>義項</h3>');
+ assert.ok(composition>=0&&ipa>composition&&mnemonic>ipa&&senses>mnemonic);
+ const section=html.slice(ipa,mnemonic);
+ assert.equal((section.match(/<input /g)||[]).length,1);
+ assert.ok(!section.includes('新增'));assert.ok(!section.includes('刪除'));
+ assert.ok(!html.includes('地區／語言（選填'));assert.ok(!html.includes('備註（選填）'));
  const reader=fs.readFileSync('src/features/dictionary/DictionaryArticle.tsx','utf8');
  assert.ok(!reader.includes('p.locale&&'));
  assert.ok(!reader.includes('p.note&&'));
@@ -236,4 +240,23 @@ test('IPA editor is in basic information, orientation responsive and metadata-fr
  const retirement=fs.readFileSync('supabase/migrations/20261105091518_dictionary_pronunciation_columns_retired.sql','utf8');
  assert.ok(retirement.includes('drop column locale'));
  assert.ok(retirement.includes('drop column note'));
+});
+
+test('Word fixed fields render exactly one editable control each without add or delete buttons',()=>{
+ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',kind:'word',headword:'test',status:'draft',revision:1,updated_at:''},
+ senses:[{id:'00000000-0000-4000-8000-000000000002',entry_id:'00000000-0000-4000-8000-000000000001',part_of_speech:'noun',gloss_zh_tw:'測試'}],
+ relations:[],pronunciations:[],learning_notes:[],etymologies:[],examples:[],derivations:[],public_notes:[]};
+ const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));
+ for(const table of ['dictionary_pronunciations','dictionary_learning_notes','dictionary_etymologies','dictionary_public_notes']){
+   assert.equal((html.match(new RegExp('data-fixed-word-field="'+table+'"','g'))||[]).length,1,table);
+ }
+ for(const text of ['＋新增讀音','＋新增記憶法','＋新增詞源','＋新增公共筆記','刪除讀音','刪除公共筆記']){
+   assert.equal(html.includes(text),false,text);
+ }
+ for(const label of ['讀音（IPA）','記憶法','詞源','筆記']){
+   assert.ok(html.includes('>'+label+'</h3>'),label);
+ }
+ const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
+ assert.match(source,/if\(!value\.trim\(\)\)return \{\.\.\.b,\[table\]:\[\]\}/);
+ assert.match(source,/if\(rows\.length\)return \{\.\.\.b,\[table\]:\[\{\.\.\.rows\[0\],\[key\]:value\}\]\}/);
 });

@@ -33,6 +33,45 @@ const {
   continueExport,
   exportDocument,
 } = require("../src/features/dictionary/exchangeExport.ts");
+// SQL test fixtures may omit Word-only sections; construct a complete v2
+// document explicitly without accepting the omitted sections in production.
+const currentV2Record=(source)=>{
+  const {currentMorphemeFields}=require('../src/features/dictionary/retiredMorphemeFields.ts');
+  const record=currentMorphemeFields(structuredClone(source));
+  if(record.snapshot?.detail){
+    delete record.snapshot.detail.inflections;
+    if(record.snapshot.detail.entry?.kind==='word'){
+      record.snapshot.detail.derivations??=[];
+      record.snapshot.detail.public_notes??=[];
+      // Strict current-version records do not carry retired inflections.
+    }
+  }
+  if(record.import_candidate){
+    delete record.import_candidate.inflections;
+    if(record.import_candidate.kind==='word'){
+      record.import_candidate.derivations??=[];
+      record.import_candidate.public_notes??=[];
+    }
+  }
+  return record;
+};
+test('proposal identity ignores unordered child rows and omitted empty Word-only sections, but retains segment order',()=>{
+  const {proposalKey}=require('../src/features/dictionary/persistentImport.ts');
+  const d=draft(810);
+  d.senses.push({id:id(813),part_of_speech:'noun',gloss_zh_tw:'第二義'});
+  const item={draft:d};
+  const equivalent=structuredClone(d);
+  equivalent.senses.reverse();
+  equivalent.derivations=[];
+  equivalent.public_notes=[];
+  assert.equal(proposalKey(item),proposalKey({draft:equivalent}));
+  const changed=structuredClone(equivalent);
+  changed.senses[0].gloss_zh_tw='不同義項';
+  assert.notEqual(proposalKey(item),proposalKey({draft:changed}));
+  const withSegments={...equivalent,word_segments:[{id:id(817),text:'a',hint:'',relation_id:null},{id:id(818),text:'b',hint:'',relation_id:null}]};
+  const reversedSegments={...withSegments,word_segments:[...withSegments.word_segments].reverse()};
+  assert.notEqual(proposalKey({draft:withSegments}),proposalKey({draft:reversedSegments}));
+});
 const save = (pg, d) =>
   sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
     JSON.stringify([mapDictionaryDraft(d)]),
@@ -84,7 +123,7 @@ test("isolated transfer SQL: pending export includes full absent-entry candidate
     const doc = parseExchange(
       JSON.stringify({
         format: "nexus-dictionary-exchange",
-        schema_version: 1,
+        schema_version: 2,
         exported_at: new Date().toISOString(),
         scope: { kinds: ["word"], statuses: [], query: "", pending_only: true },
         records: page.records,
@@ -175,8 +214,8 @@ test("atomic real RPC safe replacement clears only proven issues; replay idempot
       record = pending.records.find((r) => r.entry_id === original.entry_id);
     assert.ok(record);
     record.import_candidate.senses.reverse();
-    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]}))));
-    assert.equal(importSafety(sameReview.items[0]),'review');
+    const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[currentV2Record(record)]}))));
+    assert.equal(importSafety(sameReview.items[0]),'review',JSON.stringify(sameReview.items[0].issues));
     const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,'same pending proposal must not grow duplicate review records because provenance is attached');
     const fresh = structuredClone(original);
     fresh.senses.push({
@@ -464,10 +503,10 @@ test("Published content stays isolated; unchanged cannot consume proofs; stale r
     );
     const document = {
       format: "nexus-dictionary-exchange",
-      schema_version: 1,
+      schema_version: 2,
       exported_at: new Date().toISOString(),
       scope: { kinds: ["word"], statuses: [], query: "" },
-      records: [record],
+      records: [currentV2Record(record)],
     };
     document.records[0].import_candidate.unknown_field = "must reject";
     const invalid = persistentPreview(

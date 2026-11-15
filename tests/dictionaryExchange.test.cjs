@@ -114,9 +114,9 @@ test(
           body: "memory",
         },
       ];
-      word.examples = [
-        { id: id(29), sense_id: id(24), body: "example 中文", sort_order: 1 },
-      ];
+      // The pre-B2 SQL fixture has no derivation table. A latest-format
+      // Exchange must never export an unlinked legacy example as valid.
+      word.examples = [];
       word.relation_hints = [
         { id: id(30), sense_id: null, body: "source forms", sort_order: 0 },
       ];
@@ -326,7 +326,7 @@ test(
       );
       assert.equal(
         await sql(pg, "select count(*)::int v from dictionary_examples"),
-        1,
+        0,
       );
       const partial = structuredClone(changed);
       partial.records = partial.records.filter(
@@ -418,12 +418,11 @@ test(
         etymologies: [],
         learning_notes: [],
         pronunciations: [],
-        inflections: [],
+        derivations: [],
+        public_notes: [],
         examples: [],
         lexical_annotations: [],
       };
-      fresh.snapshot.grouping = null;
-      fresh.snapshot.sense_groups = {};
       fresh.snapshot.metadata = {
         entry_id: id(60),
         published_entry_id: null,

@@ -36,6 +36,11 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(!d.headword?.trim())issue('headword','必填');
     const segmentIssue=validateWordSegments(d.word_segments,d.headword,d.kind,d.relations);if(segmentIssue)issue('word_segments',segmentIssue);
     if(options.csv&&!d.senses.length)issue('gloss_zh_tw','至少需要一個義項');
+    if(d.kind==='word'){
+      if(!d.senses.length)issue('senses','單詞至少需要一個義項');
+      for(const [field,rows] of [['pronunciations',d.pronunciations??[]],['learning_notes',d.learning_notes],['etymologies',d.etymologies]] as const)
+        if(rows.length>1)issue(field,'單詞的讀音、記憶法及詞源皆最多一筆');
+    }
     for(const s of d.senses){
       const morphIssue=validateMorphemeSenseFields(s);if(morphIssue)issue('senses',morphIssue,s.row);
       if((d.kind==='word'||options.csv)&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
@@ -46,7 +51,9 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
       if(d.kind!=='word'||d.public_notes.length>1)issue('public_notes','公共筆記僅適用 Word，且每個詞條限一筆');
       for(const note of d.public_notes)if(typeof note.body!=='string'||!note.body.trim()||note.body.length>100000||note.entry_id!==undefined&&note.entry_id!==d.entry_id)issue('public_notes','公共筆記內容或所屬詞條無效');
     }
-    if(d.derivations===undefined&&d.examples.some(r=>r.translation_zh_tw!==undefined||r.derivation_id!==undefined))issue('derivations','含中文翻譯或衍生連結的例句必須提供完整衍生意思清單');
+    if(d.kind==='word'&&d.examples.length>0&&d.derivations===undefined)issue('derivations','Word 例句必須提供衍生意思清單');
+    if(d.kind!=='word'&&d.examples.length)issue('examples','構詞例詞欄位已退役；只接受 Word 衍生義例句');
+    if(d.examples.some(r=>!r.derivation_id))issue('examples','舊版未連結衍生意思的例句已不支援');
     if(d.derivations!==undefined){
       for(const error of validateSenseExtensions(d.senses,d.derivations as DerivationRow[],d.examples as BilingualExampleRow[]))issue('derivations',error);
     }

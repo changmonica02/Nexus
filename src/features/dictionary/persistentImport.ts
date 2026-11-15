@@ -107,6 +107,21 @@ export function proposalKey(item: ImportItem) {
           : v,
     ),
   );
+  // The database's older pending-review snapshots omit Word-only empty
+  // sections. Current v2 exports carry them explicitly. Both describe
+  // precisely the same proposal, so deduplicate without erasing content.
+  if(cleaned.kind==="word"){
+    cleaned.derivations??=[];
+    cleaned.public_notes??=[];
+  }
+  // These child collections have stable row identities; their JSON array
+  // order does not define meaning. Keep ordered content (word_segments and
+  // component_order) untouched: rearranging those is a distinct proposal.
+  for(const field of ["senses","relations","etymologies","learning_notes","examples","relation_hints","lexical_annotations","pronunciations","derivations","public_notes"]){
+    const rows=cleaned[field];
+    if(Array.isArray(rows)&&rows.every(row=>row&&typeof row==="object"&&typeof row.id==="string"))
+      rows.sort((a,b)=>a.id.localeCompare(b.id));
+  }
   return canonical({
     draft: cleaned,
     raw_candidate: item.raw_candidate ?? null,

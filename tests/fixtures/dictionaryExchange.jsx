@@ -34,12 +34,11 @@ const record = (n, status = "draft") => ({
       etymologies: [],
       learning_notes: [],
       pronunciations: [],
-      inflections: [],
+      derivations: [],
+      public_notes: [],
       examples: [],
       lexical_annotations: [],
     },
-    grouping: null,
-    sense_groups: {},
     metadata: null,
   },
   reviews: [],
@@ -58,7 +57,7 @@ window.failExport = false;
 window.loseResponse = false;
 window.newDocument = (count = 52) => ({
   format: "nexus-dictionary-exchange",
-  schema_version: 1,
+  schema_version: 2,
   exported_at: new Date().toISOString(),
   scope: { kinds: [], statuses: [], query: "" },
   records: Array.from({ length: count }, (_, i) => ({

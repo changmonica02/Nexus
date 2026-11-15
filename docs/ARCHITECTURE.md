@@ -6,10 +6,17 @@
 
 - 正式 ledger `20261115054149` 將十份 B2 Migration 合為單一交易套用，名稱 `dictionary_b_phase_word_content_and_inflections_retirement_20261114`；依序涵蓋衍生意思／雙語例句、Draft、Review、公共筆記與刪除、交換版本、讀取／交易相依解除及 RESTRICT 退役。以暫存雜湊檢查保護原 dictionary／study 記錄；不要重跑已涵蓋的本機遷移。
 
-- Word 的衍生意思與雙語例句沿用既有 Entry／Sense 識別及原子 Draft／Review；共用公共筆記由 B2 子表承載。Exchange v2 僅輸出完整 B2 Word 快照；v1 歷史資料保留讀取相容性。
-- 新版 Draft／AI 輸入拒絕獨立 `inflections`；歷史 Exchange 可辨識舊欄位但不重新寫入。原始歷史審核收據保留，不為退役改寫。
+- Word 的衍生意思與雙語例句沿用既有 Entry／Sense 識別及原子 Draft／Review；共用公共筆記由 B2 子表承載。Exchange v2 僅接受／輸出完整 Word 快照；PR #193 拒絕外部 v1 與已退役欄位，既有資料庫審核原文／收據保留。
+- 新版 Draft／AI 輸入拒絕獨立 `inflections`；外部 Exchange 的退役欄位亦拒絕。原始歷史審核收據保留，不為退役改寫。
 - 詞形退役依序解除讀取及交易函式相依，再更新 catalog／關聯搜尋並以 `DROP ... RESTRICT` 移除舊搜尋與詞形資料表。最後遷移會檢查 public 函式本文仍有無詞形表引用，禁止以 CASCADE 隱藏漏改相依。
-- 持續匯入回歸改以有效的義項／關聯決策驗證安全部分匯入；已發布詞條的內容衝突應分類為 `published_change`。退役輸入的拒絕與 v1 相容性由專項測試覆蓋。
+- 持續匯入回歸改以有效的義項／關聯決策驗證安全部分匯入；已發布詞條的內容衝突應分類為 `published_change`。退役輸入與 v1 的拒絕由專項測試覆蓋。
+
+## Word 固定欄位與單例約束（PR #193）
+
+- `DictionaryEditor` 的六區塊依 SPEC 排列。四個 `data-fixed-word-field` 欄位皆常駐：第一筆輸入建立子列，編輯保留 ID／revision／來源及其他資料，清空以空陣列交由原 Draft／Review 交易移除；讀到多筆則鎖定，不以第一筆覆寫其餘。義項與衍生義、例句沿原穩定 ID 關聯，自動儲存仍由既有 queue／CAS 保護。
+- 正式 Supabase 已有 `dictionary_word_pronunciation_singleton`、`dictionary_word_learning_note_singleton`、`dictionary_word_etymology_singleton`，2026-11-15 唯讀核對均啟用。ledger `20261115091246` 對應本機 `20261115170000`，不得重跑。衍生義例句唯一索引及 NOT NULL 已由 ledger `20261115073017`／`20261115073539` 套用，不刪現有字典或學習資料。
+- `sameImportProposal` 以固定 ID 排序無序子列後比對；構詞有序資料保留順序。匯入每批25筆，先原子保存 operation UUID 才送 RPC；收據儲存失敗不能前推 checkpoint，重整後重送原 UUID，由伺服器收據冪等保護。
+- Android TTS 無英文 voice inventory 時，以 `en-US` 請求系統備援而不指定 voice；實機發聲仍須人工驗收。PWA 瀏覽器測試的登入初始化僅作用於頂層文件，不能在 PDF／地圖沙盒讀取 localStorage。舊湖泊工具開啟前顯示湖泊圖層，沿用原原生 snapshot／取消復原，不更改地圖資料核心。
 
 ## 新版全球海陸編輯器整合（2026-11-15；Issue #191，Draft）
 
@@ -235,7 +242,7 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 #### 完整交換與安全取代（#163）
 
-完整 `nexus-dictionary-exchange` v1 保持正式 snapshot／editor reviews／版本分離；新增 `entry_id`、完整常駐 `import_reviews`（含原始候選、來源、固定 ID、revision 與不透明 fingerprint），單一來源時另提供可整理的 `import_candidate`。未建立 Entry 的常駐候選使用明確 `snapshot:null`，不假造正式版本；多來源不猜選候選，須提供合法且保留穩定 ID 的明確候選。既有 v1 檔仍可匯入；缺少欄位不刪內容，未知欄位、失去識別或版本的檔案不能安全取代。舊 AI JSON 仍維持原人工 Diff 路徑，沒有完整交換來源證明就不自動清理。
+完整 `nexus-dictionary-exchange` v2 保持正式 snapshot／editor reviews／版本分離；新增 `entry_id`、完整常駐 `import_reviews`（含原始候選、來源、固定 ID、revision 與不透明 fingerprint），單一來源時另提供可整理的 `import_candidate`。未建立 Entry 的常駐候選使用明確 `snapshot:null`，不假造正式版本；多來源不猜選候選，須提供合法且保留穩定 ID 的明確候選。外部 v1 檔拒絕；既有資料庫原文與收據保留，未知欄位、失去識別或版本的檔案不能安全取代。舊 AI JSON 仍維持原人工 Diff 路徑，沒有完整交換來源證明就不自動清理。
 
 匯出 RPC 保留原五參數，新增七參數 overload 與 capability：類型必須非空，全部／真正進行中審核可組合，管理清單搜尋／分頁不限制匯出。pending 為未處理差異／失敗待恢復的常駐來源或 active editor Review，不是所有 Draft；依穩定 Entry 去重。preview-only 先取得筆數與固定 scope version，每批至多100筆，範圍包含 canonical 與候選版本，任一變更要求重啟。既有 owner 分區 IndexedDB jobs／export_pages 原子 checkpoint 繼續使用；暫停可恢復，重新下載只讀原完成工作，不再查伺服器。
 

@@ -2,9 +2,16 @@
 
 > 更新：2026-11-15。這是**目前狀態**，不是逐次執行日誌；已完成的決策與過程收錄 [HISTORY](HISTORY.md)，產品要求見 [SPEC](SPEC.md)，資料契約與實作邊界見 [ARCHITECTURE](ARCHITECTURE.md)。舊的 Draft／未部署敘述不再作為本文件的現況依據。
 
+## PR #193 發布驗證（2026-11-15）
+
+- 工作分支 `fix/study-back-inline-extensions-20261115` 已整合 main `237a77f`（#194），保留新全球地圖與舊 Azgaar 分流。六區塊與四個固定欄位、衍生義一對一例句、Exchange v2-only、待審提案去重及 Android TTS 備援以本 PR 為準。
+- 正式 singleton、衍生義一對一例句及 NOT NULL 遷移均已套用；ledger 對照見 ARCHITECTURE。本輪僅唯讀核對，沒有重新套用 SQL 或刪除資料。
+- 發布門檻：最新 HEAD 的六組 Note editor audit 全通過，才合併；正式部署須另外確認 Vercel 的實際 main SHA 與 READY。不得拿舊提交的通過結果取代新版驗證；完整結果以 PR／Actions／Vercel 的對應 SHA 為準。
+- Android 實機發聲、iPad 與真實帳號跨裝置驗收仍保留於 #60；瀏覽器模擬不等於實機完成。
+
 ## B 階段交付（2026-11-15，PR #186）
 
-- Word 衍生意思、雙語例句、整詞記憶法／歷史詞源／公共筆記、閱讀與學習背面、Exchange v2／v1 歷史相容及獨立 Inflections 退役已實作。
+- Word 衍生意思、雙語例句、整詞記憶法／歷史詞源／公共筆記、閱讀與學習背面、Exchange v2 及獨立 Inflections 退役已實作；外部 v1 匯入依 #193 退役，資料庫歷史原文／收據保留。
 - 測試提交 `b842951` 的 GitHub Actions run `43681067158`：除使用者明確排除的世界地圖外，note、study-b、interface-a、dictionary-c、morpheme-contract 五組全部成功。包含 Chromium／WebKit、原生 PostgreSQL、完整 B2 草稿→發布→Review→核准→刪除、TypeScript、lint 與正式模式建置。
 - 正式 Supabase 已於 2026-11-15 套用整批 B2 SQL，ledger `20261115054149`／`dictionary_b_phase_word_content_and_inflections_retirement_20261114`。涵蓋本機十份 `20261114135000` 至 `20261114231000` B2 Migration；此 ledger 為合併交易，不可因本機檔名版本不同就重新套用。交易內比對既有 dictionary／study 資料雜湊，異常則整批回復。
 - 套用後：詞條 6,351、義項 10,857、字卡 10,155、FSRS 狀態 10,155、作答事件 2,800；以上完整資料雜湊與套用前一致。新衍生意思／公共筆記表存在，獨立詞形表已移除，public SQL 函式對舊表的殘留引用 0。這是套用當時的快照。
@@ -38,7 +45,7 @@
 
 - 2026-11-13 #175 套用後唯讀核對：`dictionary_entries` 6,347、`dictionary_senses` 10,856、`study_cards` 10,155；當時 240 個構詞義項，無效分類 0 筆；`dictionary_guard` 觸發器正常啟用。這是**當時快照**，後續以現況重新查詢，不寫死為永遠固定的筆數。
 - 公共字典只有一套；Word、Prefix、Root、Suffix 是現行識別與內容。構詞形式分類在 Entry，語意大／小分類、帶 UUID 的變體在 Sense；`NULL` 表示未分類。只有新版語意代碼可新寫入。Word 與構詞使用既有關聯，公開閱讀只顯示已發布內容。
-- 草稿自動儲存與 CAS、人工 Review／核准及正式發布仍有區別；已發布內容不得由一般匯入直接覆寫。JSON 只忽略**明確已知**的退休欄位，未知欄位仍拒絕；CSV 不是包含所有變體與關聯的無損備份。舊字典分組表與舊草稿轉換 RPC 已退休，不要復活。
+- 草稿自動儲存與 CAS、人工 Review／核准及正式發布仍有區別；已發布內容不得由一般匯入直接覆寫。最新版匯入拒絕退休／未知欄位及舊版格式，完整交換採 v2 JSON；既有資料庫審核原文／收據保留。舊字典分組表與舊草稿轉換 RPC 已退休，不要復活。
 - PWA／IndexedDB／帳號同步與既有 Session 保護不因文件清理或構詞分類變動而重設；新的正式 Migration 一律先比對依賴與遠端 ledger，不要盲目推送所有本機待套用 SQL。
 
 ## 文件與功能的實作界線

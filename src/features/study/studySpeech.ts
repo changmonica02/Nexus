@@ -35,11 +35,12 @@ export class StudySpeechPlayer {
   const check=()=>{if(begun||!current())return;const list=voices(),voice=choose(list);if(voice)begin(voice);};
   try{engine.resume();}catch{/* Continue to the actual speak result. */}
   const list=voices(),voice=choose(list);if(voice){begin(voice);return;}
-  // Preserve a manual user activation. An empty list is unknown capability,
-  // not evidence of a missing English engine. Never explicitly choose Chinese.
-  if(manual&&!list.length){begin(undefined);return;}
+  // On Android getVoices() may initially list only the system-language voices.
+  // A manual tap must keep its transient user activation: request en-US directly
+  // without selecting a known non-English voice or waiting for voiceschanged.
+  if(manual&&!voice){begin(undefined);return;}
   this.environment.notify('speech.preparing');engine.addEventListener?.('voiceschanged',check);this.detach=()=>engine.removeEventListener?.('voiceschanged',check);
   for(const ms of [100,400,1000])later(check,ms);
-  later(()=>{if(begun)return;const available=voices(),english=choose(available);if(english)begin(english);else if(!available.length)begin(undefined);else fail('speech.noVoice');},1800);
+  later(()=>{if(begun)return;const available=voices(),english=choose(available);if(english)begin(english);else begin(undefined);},1800);
  }
 }

@@ -37,18 +37,14 @@ export interface ExchangeRecord {
 }
 export interface ExchangeDocument {
   format: "nexus-dictionary-exchange";
-  schema_version: 1 | 2;
+  schema_version: 2;
   exported_at: string;
   scope: ExchangeScope;
   records: ExchangeRecord[];
 }
 export const exchangeFormat = "nexus-dictionary-exchange";
-/** Export v2 only when the database provided complete B2 Word sections. Older
- * databases remain v1 rather than falsely promising a lossless B2 snapshot. */
-export function exchangeSchemaVersion(records:ExchangeRecord[]):1|2 {
-  return records.every(r=>!r.snapshot||r.snapshot.detail.entry.kind!=='word'||
-    (Array.isArray(r.snapshot.detail.derivations)&&Array.isArray(r.snapshot.detail.public_notes)))?2:1;
-}
+/** Exchange v2 is the only supported import/export format. */
+export function exchangeSchemaVersion(_records:ExchangeRecord[]):2 { return 2; }
 export const exchangeBatchSize = 25;
 export function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, v) =>
@@ -78,7 +74,7 @@ export function parseExchange(raw: string): ExchangeDocument {
     ["format", "schema_version", "exported_at", "scope", "records"],
     "exchange",
   );
-  if (doc.format !== exchangeFormat || ![1,2].includes(doc.schema_version as number))
+  if (doc.format !== exchangeFormat || doc.schema_version !== 2)
     throw Error("Unsupported dictionary exchange schema version");
   if (!Array.isArray(doc.records) || doc.records.length > 50000)
     throw Error("Expected at most 50,000 records");
@@ -122,7 +118,8 @@ export function draftFromExchange(
   row = 1,
 ): DictionaryDraftInput {
   keys(record, ["snapshot", "reviews", "version", "entry_id", "import_reviews", "import_candidate"], "record");
-  record=currentMorphemeFields(cleanIpaRecord(record));
+  if(canonical(currentMorphemeFields(record))!==canonical(record))throw Error('Exchange v2 不接受過時的構詞欄位');
+  record=cleanIpaRecord(record);
   if (
     record.version !== null &&
     (typeof record.version !== "string" ||
@@ -139,9 +136,7 @@ export function draftFromExchange(
   if(record.import_candidate){
     keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
-    // Legacy v1 candidates may still carry retired forms. Preserve the original
-    // review record/fingerprint, but never project forms into a new write.
-    delete (draft as unknown as Record<string,unknown>).inflections;
+    if(Object.hasOwn(draft,"inflections"))throw Error("Retired inflections are not supported");
     for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes"] as const){
       if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
@@ -157,7 +152,7 @@ export function draftFromExchange(
   if(!record.snapshot){
     if(record.version!==null||record.reviews.length||!record.entry_id||record.import_reviews?.length!==1)throw Error("Pending-only entry needs one unambiguous original candidate");
     const draft=structuredClone(record.import_reviews[0].item.draft);
-    delete (draft as unknown as Record<string,unknown>).inflections;
+    if(Object.hasOwn(draft,"inflections"))throw Error("Retired inflections are not supported");
     if(draft.entry_id!==record.entry_id||record.import_reviews[0].entry_id!==record.entry_id)throw Error("Pending candidate identity mismatch");
     if(validateDictionaryDraft([draft]).length)throw Error("Invalid pending candidate; correct its original draft with stable IDs");
     return {...draft,row};
@@ -168,7 +163,7 @@ export function draftFromExchange(
     ["detail", "metadata"],
     "snapshot",
   );
-  keys(snapshot.detail, ["entry", ...Object.keys(rowFields), "inflections"], "detail");
+  keys(snapshot.detail, ["entry", ...Object.keys(rowFields)], "detail");
   const entry = snapshot.detail.entry;
   keys(
     entry,
@@ -213,7 +208,12 @@ export function draftFromExchange(
   };
   for (const [section, fields] of Object.entries(rowFields)) {
     const values = snapshot.detail[section as keyof typeof snapshot.detail];
-    if (['derivations','public_notes'].includes(section)&&values===undefined)continue; // Historical v1 snapshots omit B2 content entirely.
+    // Derivations and public notes only belong to Word. Their absence on a
+    // Prefix/Root/Suffix snapshot is the current schema, not v1 compatibility.
+    if(entry.kind!=='word'&&['derivations','public_notes'].includes(section)&&values===undefined){
+      bundle[section==='derivations'?'dictionary_sense_derivations':'dictionary_public_notes']=[];
+      continue;
+    }
     if (!Array.isArray(values)) throw Error(`Missing array ${section}`);
     bundle[section==='derivations'?'dictionary_sense_derivations':"dictionary_" + section] = values.map(
       (r: Record<string, unknown>) => {

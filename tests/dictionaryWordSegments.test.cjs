@@ -7,6 +7,15 @@ const {validateWordSegments,legacyWordSegments,wordSpelling}=require('../src/fea
 const {DraftAutosaveQueue,draftRevisions}=require('../src/features/dictionary/draftAutosave.ts');
 const migration='supabase/migrations/20261105065440_dictionary_word_segments.sql';
 const segments=()=>['ab','ort','ion'].map((text,i)=>({id:id(100+i),text,hint:['分離','出生','名詞'][i],relation_id:null}));
+// Legacy SQL fixtures still emit retired properties; create a current-format
+// Exchange v2 fixture explicitly instead of granting backwards import support.
+const currentExchangeRecord=(record)=>{
+ const {currentMorphemeFields}=require('../src/features/dictionary/retiredMorphemeFields.ts');
+ const result=currentMorphemeFields(structuredClone(record));
+ delete result.snapshot.detail.inflections;
+ for(const field of ['derivations','public_notes'])result.snapshot.detail[field]??=[];
+ return result;
+};
 test('segments concatenate without normalization, stable legacy singleton, optional canonical link and validation',()=>{
  assert.equal(wordSpelling(segments()),'abortion');assert.equal(validateWordSegments(segments(),'abortion','word',[]),null);
  assert.deepEqual(legacyWordSegments(id(1),'original'),[{id:id(1),text:'original',hint:'',relation_id:null}]);
@@ -47,8 +56,8 @@ test('real isolated SQL: additive storage, draft/review/publish, old clients, li
   const targets=new Map([[id(20),await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(20)])]]);
   const ai=parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[toAI(base,targets)]})).entries[0];
   assert.deepEqual(planAI(ai,base,targets).bundle.dictionary_entries[0].word_segments,d.word_segments);
-  assert.deepEqual(draftFromExchange({snapshot:base,reviews:[],version:null}).word_segments,d.word_segments);
-  const oldExchange=structuredClone(base);delete oldExchange.detail.entry.word_segments;assert.equal(draftFromExchange({snapshot:oldExchange,reviews:[],version:null}).word_segments,undefined);
+  assert.deepEqual(draftFromExchange(currentExchangeRecord({snapshot:base,reviews:[],version:null})).word_segments,d.word_segments);
+  const oldExchange=structuredClone(base);delete oldExchange.detail.entry.word_segments;assert.equal(draftFromExchange(currentExchangeRecord({snapshot:oldExchange,reviews:[],version:null})).word_segments,undefined);
 
   const candidate=mapDictionaryDraft({...d,word_segments:d.word_segments.map(s=>({...s,hint:s.hint+'改'}))});
   const review=await sql(pg,'select create_dictionary_edit_review($1,$2,$3) v',[id(10),JSON.stringify(base),JSON.stringify(candidate)]);
@@ -104,13 +113,14 @@ test('pre-migration reviews and legacy exchanges survive migration; real content
   const changedOtherNull=structuredClone(base);changedOtherNull.detail.entry.other_field=null;assert.notDeepEqual(await normalized(base),await normalized(changedOtherNull));
   await pg.exec('set role authenticated');
   const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
-  const old=draftFromExchange({snapshot:base,reviews:[],version:null});assert.equal(old.word_segments,undefined);assert.equal(old.relations[0].id,id(80));
-  const {previewExchange}=require('../src/features/dictionary/dictionaryExchange.ts'),c=require('./fixtures/dictionaryExchangeDatabase.cjs').client(pg);
-  const doc=record=>({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]});
-  const staleImport=await previewExchange(c,owner,doc(legacyRecord));assert.ok(staleImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+  const old=draftFromExchange(currentExchangeRecord({snapshot:base,reviews:[],version:null}));assert.equal(old.word_segments,undefined);assert.equal(old.relations[0].id,id(80));
+  const {parseExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
+  const legacyDoc=record=>({format:'nexus-dictionary-exchange',schema_version:1,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[record]});
+  // V1 exchange is deliberately forbidden; historic in-database Review CAS still works below.
+  assert.throws(()=>parseExchange(JSON.stringify(legacyDoc(legacyRecord))),/Unsupported dictionary exchange schema version/);
   assert.equal((await sql(pg,'select get_dictionary_entry($1) v',[id(10)])).relations[0].id,id(80));
   await pg.exec('reset role');const refreshedRecord=await sql(pg,'select dictionary_exchange_record($1) v',[id(10)]);await pg.exec('set role authenticated');
-  const refreshedImport=await previewExchange(c,owner,doc(refreshedRecord));assert.ok(!refreshedImport.items[0].issues.some(i=>i.type==='revision_conflict'));
+  assert.throws(()=>parseExchange(JSON.stringify(legacyDoc(refreshedRecord))),/Unsupported dictionary exchange schema version/);
 
   for(const {n,base,review} of saved){
    const current=await sql(pg,'select get_dictionary_ai_snapshot($1) v',[id(n)]);assert.equal(current.detail.entry.revision,base.detail.entry.revision);
@@ -143,7 +153,7 @@ test('full save distinguishes omitted/null/empty children and segments, preserve
   await save();assert.deepEqual((await read()).entry.word_segments,d.word_segments);assert.equal((await read()).relations[0].id,id(80));
   const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
   const legacySnapshot={detail:await read(),grouping:null,sense_groups:{},metadata:null};delete legacySnapshot.detail.entry.word_segments;
-  const imported=draftFromExchange({snapshot:legacySnapshot,reviews:[],version:null});
+  const imported=draftFromExchange(currentExchangeRecord({snapshot:legacySnapshot,reviews:[],version:null}));
   await require('../src/features/dictionary/draftPipeline.ts').prepareDictionaryDrafts(require('./fixtures/dictionaryExchangeDatabase.cjs').client(pg),[imported]);
   await sql(pg,'select apply_dictionary_drafts($1,false,true) v',[JSON.stringify([{...mapDictionaryDraft(imported),replace_editor_children:true}])]);
   assert.deepEqual((await read()).entry.word_segments,d.word_segments);assert.deepEqual((await read()).relations.map(r=>r.id),[id(80)]);

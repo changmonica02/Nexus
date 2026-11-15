@@ -4,10 +4,8 @@ import {
   previewExchange,
   exchangeFormat,
 } from "./dictionaryExchange";
-import { parseDictionaryCSVPreview } from "./dictionaryCSV";
 import {
   normalizeDictionaryBundle,
-  parseDictionaryImport,
   parseJSONBundleWithIgnored,
 } from "./adminImport";
 import { buildImportSession } from "./importReview";
@@ -19,8 +17,8 @@ export async function previewImportSource(
   format: "csv" | "json" | "md",
   progress?: (done: number, total: number) => void,
 ) {
+  if (format !== "json") throw Error("僅接受最新版 JSON 匯入；CSV 與 Markdown 舊格式已停用");
   if (
-    format === "json" &&
     JSON.parse(raw.replace(/^\uFEFF/, ""))?.format === exchangeFormat
   ) {
     const doc = parseExchange(raw),
@@ -36,12 +34,10 @@ export async function previewImportSource(
   let drafts: DictionaryDraftInput[] = [],
     issues: DraftIssue[] = [],
     ignoredFields: string[] = [];
-  if (format === "csv")
-    ({ drafts, issues, ignoredFields } = await parseDictionaryCSVPreview(raw));
-  else {
-    const parsed = format === "json" ? parseJSONBundleWithIgnored(raw) : null;
-    const bundle = parsed?.bundle ?? await parseDictionaryImport(raw, format);
-    ignoredFields = parsed?.ignoredFields ?? [];
+  {
+    const parsed = parseJSONBundleWithIgnored(raw);
+    const bundle = parsed.bundle;
+    ignoredFields = parsed.ignoredFields;
     const ids = new Set([
       ...(bundle.dictionary_entries ?? []).map((e) => String(e.id)),
       ...Object.entries(bundle)
