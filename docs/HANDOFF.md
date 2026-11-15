@@ -2,6 +2,14 @@
 
 > 更新：2026-11-13。這是**目前狀態**，不是逐次執行日誌；已完成的決策與過程收錄 [HISTORY](HISTORY.md)，產品要求見 [SPEC](SPEC.md)，資料契約與實作邊界見 [ARCHITECTURE](ARCHITECTURE.md)。舊的 Draft／未部署敘述不再作為本文件的現況依據。
 
+## 新版全球地圖接入（2026-11-15；Refs #191）
+
+- 分支 `feature/spherical-map-editor-20261115` 建立於 Draft #189 的 `8700c89`；新建地圖走新版球面核心，舊 Azgaar 依原格式繼續開啟。禁止自行合併／部署／正式資料庫操作。
+- 已實作生成、候選預覽／取消／確認替換、平移縮放、Grid 海岸顯示、快照匯出、附件保存／離線重開與復原草稿；人文、河湖、氣候與人工筆刷尚未接入。
+- 已補 storage／IDB／Worker／投影與瀏覽器流程測試；本機 TypeScript 與 Next 生產建置已執行。瀏覽器本機仍受 socket 限制，Chromium／WebKit 實際結果須查本分支的 Global map editor integration CI，不可先宣稱已驗收。
+- 留意 Next 不會自動編譯所有 TypeScript Worker URL：先 `npm run map:global`，由 Next 發布封裝後雜湊 JS，避免 production 才失敗。正式 predev／prebuild 已接此步驟。
+- 後續依本輪 CI 修正，再做真實帳號跨裝置與 iPad／Edge 驗收；舊功能按需求適配，不先做舊格式轉換或高解析度資料權威決策。
+
 ## 全球海陸原型接續（2026-11-14；Refs #190）
 
 - 工作分支 `prototype/global-land-generator-20261114`，Draft #189 建立於 Draft #188；#185 為規格 Draft。禁止自行合併、部署或修改正式資料。

@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useLayoutEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect,useLayoutEffect, useRef, useState, type ReactNode,type ComponentProps} from 'react';
 import type {Page, WorldMapRecord} from '../lib/types';
 import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import {MapCoreClient, downloadMapBlob} from '../features/worldMap/coreClient';
@@ -8,11 +8,12 @@ import {useLanguage} from '../lib/LanguageContext';
 import {useWorkspaceDialog} from './WorkspaceDialog';
 import {mapMessage} from '../features/worldMap/mapMessages';
 import type {MapView,MapMarker,RegionProjection,RegionDraft,RegionStat,RegionCommand,NativeToolState,NativeToolCommand} from '../features/worldMap/coreClient';
+import GlobalWorldMapEditor from './GlobalWorldMapEditor';
 import {Wrench,Maximize,Minimize,RotateCcw} from 'lucide-react';
 
 export type NativeToolControls={state:NativeToolState;pending:boolean;available:boolean;run:(command:NativeToolCommand)=>void;focus:(placementId:string)=>void;leave:()=>Promise<boolean>};
 export type RegisterMapFlush = (id: string, flush: () => Promise<void>) => () => void;
-export default function WorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,registerRegionCommand,onBeforeClose,regionStart,regionDirty,displayControls}: {
+function AzgaarWorldMapEditor({map, blob, draftToken, draftConflict, repository, beforeSave, onSaved, onClose, registerFlush,cloudState,editing=true,onEdit,layer,overlays,contourInterval,contourLabels,view,onView,reloadKey=0,previewFooter,markers,pickPoint,onMapPoint,onMarker,humanTools,regions,regionScope,regionView,onRegionQuery,onRegionDraft,onRegionStats,onRegionPoints,registerRegionCommand,onBeforeClose,regionStart,regionDirty,displayControls}: {
   regionView?:{layer:string;selected?:string|null};onRegionQuery?:(members:string[])=>void;regionStart?:RegionCommand;regionDirty?:boolean;regions?:RegionProjection[];regionScope?:string;onRegionDraft?:(draft:RegionDraft)=>void;onRegionStats?:(stats:RegionStat[])=>void;onRegionPoints?:(points:{placementId:string;cell:number}[])=>void;registerRegionCommand?:(run:(command:RegionCommand)=>Promise<void>)=>(()=>void);onBeforeClose?:()=>boolean;
   markers?:MapMarker[];pickPoint?:string|null;onMapPoint?:(id:string,x:number,y:number)=>void;onMarker?:(id:string)=>void;humanTools?:(tools:NativeToolControls)=>ReactNode;
   displayControls?:(tools:NativeToolControls)=>ReactNode;
@@ -290,4 +291,9 @@ export function WorldMapSyncStatus({localLabel,cloudState,warning=false}:{localL
   const {t}=useLanguage();
   const cloudLabel=cloudState?(cloudState.error||cloudState.status==='error'?t('worldMap.syncFailed'):cloudState.status==='syncing'?t('worldMap.syncing'):cloudState.status==='offline'?t('worldMap.offline'):cloudState.pendingPushes? t('worldMap.waitingSync'):cloudState.status==='connected'?t('worldMap.connected'):null):null;
   return <footer className="flex shrink-0 flex-wrap justify-end gap-x-3 gap-y-1 px-4 py-2 text-xs" role="status"><span className={warning?'font-medium text-amber-700 dark:text-amber-400':'opacity-60'}>{localLabel}</span>{cloudLabel&&<span role={cloudState?.error||cloudState?.status==='error'?'alert':undefined} className={cloudState?.error||cloudState?.status==='error'?'font-medium text-red-600 dark:text-red-400':'opacity-60'}>{cloudLabel}</span>}</footer>;
+}
+
+/** The engine is part of the validated project metadata, never inferred from UI settings. */
+export default function WorldMapEditor(props:ComponentProps<typeof AzgaarWorldMapEditor>){
+ return props.map.engine==='nexus-global'?<GlobalWorldMapEditor key={`${props.map.id}:${props.reloadKey??0}`} {...props}/>:<AzgaarWorldMapEditor {...props}/>;
 }

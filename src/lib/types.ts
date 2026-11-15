@@ -353,7 +353,7 @@ export interface WorldMapRecord {
   id: ID;
   world_id: ID;
   title: string;
-  engine: "azgaar";
+  engine: "azgaar" | "nexus-global";
   engine_version: string;
   attachment_id: ID | null;
   project_sha256: string | null;

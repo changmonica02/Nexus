@@ -2,6 +2,16 @@
 
 > 更新：2026-11-13（#175 合併後）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。
 
+## 新版全球海陸編輯器整合（2026-11-15；Issue #191，Draft）
+
+- `WorldMapCreator` 新建流程改用 `GlobalMapClient`／背景 Worker，固定 36,002 格。`WorldMapEditor` 依已驗證 metadata 分流：`nexus-global@1` 使用 `GlobalWorldMapEditor`，既有 `azgaar@1.154.2` 沿用原核心；不自動遷移或刪除舊資料。
+- `globalMapProject.ts` 定義 `nexus-global-map` v1 純 JSON 封裝，保存生成設定與完整版本化高度快照。格式／高度／格數／種子／海洋起點／checksum 在 repository 寫入前與 Worker 載入前驗證。重開依儲存高度重建幾何，種子不取代地形；Pack 索引不進永久身分契約。
+- `WorldMapRepository` 沿用原附件、SHA-256、帳號檢查、世界 revision CAS 及原子 outbox 批次。建立時辨識格式並記錄 engine/version，read 核對 metadata 與內容一致；save／stageDraft 禁止偷換引擎。快照沿既有工作區備份與草稿儲存，不增加 SQL/schema。
+- `globalMapWorker.ts` 暫時重用已測試的 `experiments/spherical-grid/` 球面生成／快照核心；`scripts/build-global-map.mjs` 先封裝為無外部依賴的 classic Worker，再由 Next 以雜湊 JS 資產發布。這避免將原始 TypeScript URL 當成可執行 Worker。`predev`／`prebuild` 先執行此步；Worker 無儲存、憑證或網路呼叫，主程式 SW 對 `/_next/static/` 的既有快取涵蓋該資產。
+- `globalMapGeometry.ts` 依 Grid Voronoi 外心形成平面顯示多邊形，處理經度接縫及極區封口，海岸以權威 Grid 海洋連通遮罩決定。`GlobalMapCanvas` 提供拖曳、雙指／滾輪與鍵盤縮放；顯示投影不修改球面高度及面積，不宣稱已有四級圖塊或高解析度地形。
+- 重新生成只建立記憶體候選，取消不寫入。確認替換後先寫可復原草稿，再以 CAS 保存正式附件；失敗保留舊正式檔與待存快照，可重試／匯出。未確認候選不進正式保存，離開需先處理候選。新核心不提供舊人文繪製／河湖／氣候／筆刷；世界觀條目與既有配置保留。
+- 本輪本機驗證與遠端瀏覽器結果見 HANDOFF；本段表示分支已實作，不代表 main／正式網站已替換。
+
 ## 全球海陸離線預覽原型（2026-11-14；Draft #189）
 
 - 隔離來源為 `experiments/spherical-grid/`，固定 36,002 格；尚未接入正式地圖、StorageAdapter、同步或資料庫。
