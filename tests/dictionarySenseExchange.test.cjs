@@ -51,18 +51,18 @@ test('B2 partial bundle loads existing derivations before an example translation
  assert.deepEqual(validateDictionaryDraft(drafts),[]);
 });
 
-test('versioned exchange reads B2 Word extensions without changing legacy row identities',()=>{
+test('versioned exchange reads current B2 Word extensions without changing row identities',()=>{
  const {parseExchange,draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
  const stamp='2026-11-14T08:00:00.000Z';
  const json={
-  format:'nexus-dictionary-exchange',schema_version:1,exported_at:stamp,
+  format:'nexus-dictionary-exchange',schema_version:2,exported_at:stamp,
   scope:{kinds:['word'],statuses:['draft'],query:''},
   records:[{
    entry_id:id(1),version:null,reviews:[],
    snapshot:{metadata:null,detail:{
     entry:{id:id(1),kind:'word',headword:'occupation',status:'draft',published_at:null,revision:1,updated_at:stamp},
     senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業',revision:1,updated_at:stamp}],
-    relations:[],etymologies:[],learning_notes:[],pronunciations:[],inflections:[],lexical_annotations:[],
+    relations:[],etymologies:[],learning_notes:[],pronunciations:[],public_notes:[],lexical_annotations:[],
     derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:2,updated_at:stamp}],
     examples:[{id:id(4),entry_id:id(1),sense_id:id(2),body:'An occupation',sort_order:0,translation_zh_tw:'一份職業',derivation_id:id(3),revision:1,updated_at:stamp}]
    }}
@@ -74,13 +74,9 @@ test('versioned exchange reads B2 Word extensions without changing legacy row id
  assert.equal(draft.examples[0].translation_zh_tw,'一份職業');
  assert.equal(draft.examples[0].derivation_id,id(3));
  assert.deepEqual(validateDictionaryDraft([draft]),[]);
- // A historical schema-1 export lacking B2 rows must still be readable.
- delete json.records[0].snapshot.detail.derivations;
- delete json.records[0].snapshot.detail.examples[0].translation_zh_tw;
- delete json.records[0].snapshot.detail.examples[0].derivation_id;
- const old=draftFromExchange(parseExchange(JSON.stringify(json)).records[0]);
- assert.equal(old.derivations,undefined);
- assert.equal(old.examples[0].id,id(4));
+ // v1 documents are no longer accepted, even when they contain otherwise valid rows.
+ json.schema_version=1;
+ assert.throws(()=>parseExchange(JSON.stringify(json)),/Unsupported dictionary exchange schema version/);
 });
 
 test('B2 import review detects changed derived meaning by stable ID and safely remaps Sense branches',()=>{
@@ -113,7 +109,7 @@ test('B2 import review detects changed derived meaning by stable ID and safely r
  assert.equal(matched.derivations[0].id,id(3),'derive by same Sense plus gloss, not a missing body field');
 });
 
-test('Exchange v2 requires complete B2 Word sections, while v1 preserves legacy access and Review identities',()=>{
+test('Exchange requires v2 and rejects omitted Word sections and retired fields',()=>{
  const {parseExchange,exchangeSchemaVersion,draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');
  const stamp='2026-11-14T08:00:00Z';
  const record={entry_id:id(1),version:null,reviews:[],snapshot:{metadata:null,detail:{
@@ -130,9 +126,9 @@ test('Exchange v2 requires complete B2 Word sections, while v1 preserves legacy 
  assert.equal(b2.derivations[0].id,id(3));
  assert.equal(b2.public_notes[0].id,id(4));
  const legacy=structuredClone(document);delete legacy.records[0].snapshot.detail.derivations;delete legacy.records[0].snapshot.detail.public_notes;
- assert.equal(exchangeSchemaVersion(legacy.records),1);
+ assert.equal(exchangeSchemaVersion(legacy.records),2);
  assert.throws(()=>parseExchange(JSON.stringify(legacy)),/Exchange v2 Word records require complete/);
- legacy.schema_version=1;assert.equal(draftFromExchange(parseExchange(JSON.stringify(legacy)).records[0]).derivations,undefined);
- const oldForms=structuredClone(legacy);oldForms.records[0].snapshot.detail.inflections=[{id:id(5),entry_id:id(1),sense_id:id(2),form_kind:'past',form:'occupied',sort_order:0,revision:1,updated_at:stamp}];
- assert.equal(Object.hasOwn(draftFromExchange(parseExchange(JSON.stringify(oldForms)).records[0]),'inflections'),false);
+ legacy.schema_version=1;assert.throws(()=>parseExchange(JSON.stringify(legacy)),/Unsupported dictionary exchange schema version/);
+ const oldForms=structuredClone(document);oldForms.records[0].snapshot.detail.inflections=[{id:id(5),entry_id:id(1),sense_id:id(2),form_kind:'past',form:'occupied',sort_order:0,revision:1,updated_at:stamp}];
+ assert.throws(()=>draftFromExchange(parseExchange(JSON.stringify(oldForms)).records[0]),/unsupported field|Retired inflections/);
 });
