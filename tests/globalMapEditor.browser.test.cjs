@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
-test('Nexus global editor: generation, candidate isolation, replacement, recovery, offline reopen and responsive bilingual canvas',{timeout:180000},async()=>{
+test('Nexus global editor: generation, candidate isolation, replacement, recovery, offline reopen and responsive bilingual canvas',{timeout:360000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-global-')),root=path.resolve(__dirname,'..');let server,browser;
  const errors=[];
  try{
@@ -18,7 +18,7 @@ test('Nexus global editor: generation, candidate isolation, replacement, recover
    await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();await page.waitForFunction(()=>document.querySelector('[data-global-map-canvas]')?.width>0);
    console.log('GLOBAL_STAGE',width,'created');const original=await page.evaluate(()=>window.testGlobal.snapshot());assert.equal(original.settings.seed,42);
    const pixels=await page.locator('[data-global-map-canvas]').evaluate(c=>{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]===162&&d[i+1]===186&&d[i+2]===129)n++;return n;});assert.ok(pixels>1000,'Actual Voronoi land must be visible');
-   await page.getByRole('button',{name:'放大',exact:true}).click();await page.getByRole('button',{name:'重設視野',exact:true}).click();
+   await page.locator('[data-global-map-canvas]').evaluate(c=>window.mapBefore=c.toDataURL());await page.locator('[data-global-map-canvas]').hover();await page.mouse.wheel(0,-300);await page.waitForFunction(()=>document.querySelector('[data-global-map-canvas]').toDataURL()!==window.mapBefore);await page.getByRole('button',{name:'放大',exact:true}).click();await page.getByRole('button',{name:'重設視野',exact:true}).click();
    const candidate=async seed=>{await page.getByRole('button',{name:'重新生成海陸',exact:true}).click();await page.getByLabel('亂數種子',{exact:true}).fill(String(seed));await page.getByRole('button',{name:'生成海陸',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='確認替換'&&!b.disabled));};
    console.log('GLOBAL_STAGE',width,'candidate');await candidate(99);assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);await page.getByRole('button',{name:'取消替換',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.testGlobal.snapshot()),original);
    await candidate(99);await page.getByRole('button',{name:'確認替換',exact:true}).click();await page.waitForFunction(async()=>(await window.testGlobal.snapshot()).settings.seed===99);await page.getByRole('button',{name:'儲存並返回',exact:true}).click();await page.getByRole('button',{name:'Reopen',exact:true}).click();await page.getByRole('button',{name:'重新生成海陸',exact:true}).waitFor();

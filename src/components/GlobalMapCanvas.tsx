@@ -23,9 +23,14 @@ export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
    ctx.strokeStyle='#547457';ctx.lineWidth=.7/s;ctx.stroke();ctx.restore();
   }
  },[drawing,view,size]);
+ useEffect(()=>{
+  const el=canvas.current!;
+  const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};
+  el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel);
+ },[size.h]);
  const zoom=(factor:number)=>setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*factor)),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});
  return <div className="relative h-full min-h-56 w-full overflow-hidden rounded-lg bg-[#b1d3df]">
-  <canvas ref={canvas} data-global-map-canvas tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" onWheel={e=>{e.preventDefault();zoom(e.deltaY<0?1.2:1/1.2);}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
+  <canvas ref={canvas} data-global-map-canvas tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
    const old=pointers.current.get(e.pointerId);if(!old)return;
    if(pointers.current.size===2){const other=[...pointers.current.entries()].find(([id])=>id!==e.pointerId)![1],before=Math.hypot(old.x-other.x,old.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(before>1)zoom(after/before);}
    else setView(v=>({...v,x:v.x+e.clientX-old.x,y:Math.max(-size.h*v.zoom/2,Math.min(size.h*v.zoom/2,v.y+e.clientY-old.y))}));
