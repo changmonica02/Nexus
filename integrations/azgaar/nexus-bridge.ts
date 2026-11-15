@@ -125,7 +125,7 @@ async function toolCommand(command:{action?:string;tool?:NativeTool}){
     closeDialogs();hideOptions();
     try{
       if(nativeTool==='height')await Controllers.HeightmapEditor.open({mode:'keep',tool:'brushes'});
-      else if(nativeTool==='coasts'||nativeTool==='lakes'){await Controllers.FeaturesOverview.open();if(nativeTool==='lakes'){const filter=document.getElementById('featuresFilterType') as HTMLSelectElement|null;if(filter){filter.value='lake';filter.dispatchEvent(new Event('change'));}}}
+      else if(nativeTool==='coasts'||nativeTool==='lakes'){if(nativeTool==='lakes')Layers.show('lakes');await Controllers.FeaturesOverview.open();if(nativeTool==='lakes'){const filter=document.getElementById('featuresFilterType') as HTMLSelectElement|null;if(filter){filter.value='lake';filter.dispatchEvent(new Event('change'));}}}
       else if(nativeTool==='rivers')await Controllers.RiversOverview.open();
       else if(nativeTool==='climate')await Controllers.WorldConfigurator.open();
       else if(nativeTool==='biomes')await Controllers.BiomesEditor.open();

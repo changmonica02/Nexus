@@ -82,6 +82,7 @@ test(
           errors.push(e.message);
           console.error(e.message);
         });
+        page.on("dialog", dialog => dialog.accept());
         await page.goto(url);
         await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
@@ -208,7 +209,10 @@ test(
           .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
             exact: true,
           })
-          .waitFor();
+          .waitFor().catch(async error => {
+            console.error('IMPORT_RESUME_FAILURE', await page.locator('body').innerText());
+            throw error;
+          });
         // Server commits, then local receipt checkpoint fails: UI must retain durable progress.
         await page.evaluate(() => {
           const before = window.calls.filter(

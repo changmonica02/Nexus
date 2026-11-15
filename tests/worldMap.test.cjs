@@ -530,3 +530,60 @@ test('workspace brush appearance commits with geometry, rolls back failures and 
  await assert.rejects(repo.saveRegion('world-a',map.id,'faith-style','appearance',1,cellGeometry([2,3]),false,undefined,presentation),{code:'conflict'});
  await assert.rejects(repo.saveRegion('world-a',map.id,'faith-style','appearance',2,cellGeometry([1,3]),false,undefined,{visible:true,distribution:{opacity:2}}));assert.deepEqual(state.pages.get('world-a'),after);
 });
+
+async function globalProject(seed=42) {
+ const {createLandLayout}=await import('../experiments/spherical-grid/land-generator.mjs');
+ const {exportGlobalTerrainSnapshot}=await import('../experiments/spherical-grid/snapshot.mjs');
+ const {globalMapBlob}=require('../src/features/worldMap/globalMapProject.ts');
+ const d=createLandLayout({seed,landPercent:32,continentCores:8});
+ return globalMapBlob({format:'nexus-global-map',version:1,settings:d.settings,terrain:exportGlobalTerrainSnapshot({grid:d.grid,oceanSeed:d.oceanSeed,revision:0})});
+}
+test('global map uses engine metadata and original snapshot through existing atomic repository',async()=>{
+ const {repo,state}=fixture(),blob=await globalProject();
+ const original=structuredClone(state.pages.get('world-a'));
+ const {map}=await repo.createSpace('world-a','Global','surface',blob);
+ assert.equal(map.engine,'nexus-global');assert.equal(map.engine_version,'1');
+ assert.deepEqual(state.outbox.at(-1).map(c=>c.kind),['save','binary','save']);
+ const loaded=await repo.read('world-a',map.id);
+ assert.equal(await loaded.blob.text(),await blob.text());
+ assert.deepEqual(state.pages.get('world-a').character_data.sections,original.character_data.sections);
+ assert.equal((await repo.save('world-a',map.id,1,loaded.blob)).changed,false);
+ await assert.rejects(repo.save('world-a',map.id,1,project()),{code:'project'});
+ assert.equal((await repo.read('world-a',map.id)).map.revision,1);
+});
+test('global replacement preserves committed map on disk failure, stale revisions and corrupt snapshots',async()=>{
+ const {repo,state}=fixture(),old=await globalProject(1),next=await globalProject(2);
+ const {map}=await repo.createSpace('world-a','Global','surface',old),before=state.outbox.length;
+ state.fail=true;await assert.rejects(repo.save('world-a',map.id,1,next),/Disk full/);state.fail=false;
+ assert.equal(state.outbox.length,before);assert.equal(await (await repo.read('world-a',map.id)).blob.text(),await old.text());
+ const committed=await repo.save('world-a',map.id,1,next);assert.equal(committed.map.revision,2);
+ await assert.rejects(repo.save('world-a',map.id,1,old),{code:'conflict'});
+ const bad=JSON.parse(await next.text());bad.terrain.heights[0]=101;
+ await assert.rejects(repo.save('world-a',map.id,2,new Blob([JSON.stringify(bad)])),{code:'project'});
+ assert.equal(await (await repo.read('world-a',map.id)).blob.text(),await next.text());
+ state.owner='different';await assert.rejects(repo.read('world-a',map.id),{code:'owner'});
+});
+test('global snapshot validation rejects altered contract and detects engine/metadata mismatch',async()=>{
+ const {repo,state}=fixture(),blob=await globalProject();const value=JSON.parse(await blob.text());
+ for(const change of [p=>p.version=2,p=>p.settings.seed=-1,p=>p.terrain.heights.pop(),p=>p.terrain.checksum='00000000',p=>p.terrain.oceanSeed=-1,p=>p.terrain.revision=-1]){
+  const bad=structuredClone(value);change(bad);await assert.rejects(inspectMapProject(new Blob([JSON.stringify(bad)])),{code:'project'});
+ }
+ const {map}=await repo.createSpace('world-a','Global','surface',blob);
+ state.pages.get('world-a').character_data.world_maps[0].engine='azgaar';
+ state.pages.get('world-a').character_data.world_maps[0].engine_version='1.154.2';
+ await assert.rejects(repo.read('world-a',map.id),{code:'project'});
+});
+
+
+test('global validation rejects unsupported compressed bytes before mutation while native gzip remains readable',async()=>{
+ const {repo,state}=fixture(),plain=await globalProject();
+ const compressed=new Blob([gzipSync(Buffer.from(await plain.text()))]);
+ await assert.rejects(inspectMapProject(compressed),{code:'project'});
+ await assert.rejects(repo.createSpace('world-a','Unsupported','surface',compressed),{code:'project'});
+ assert.equal(state.outbox.length,0);assert.equal(state.attachments.size,0);assert.equal(state.binaries.size,0);
+ const {map}=await repo.createSpace('world-a','Readable','surface',plain);
+ await assert.rejects(repo.save('world-a',map.id,1,compressed),{code:'project'});
+ assert.equal(await (await repo.read('world-a',map.id)).blob.text(),await plain.text());
+ const nativeCompressed=new Blob([gzipSync(Buffer.from(await project().text()))]);
+ assert.equal((await inspectMapProject(nativeCompressed)).engine,'azgaar');
+});

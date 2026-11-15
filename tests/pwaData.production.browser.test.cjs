@@ -26,7 +26,15 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   const calls = [], offlineCalls = [], sockets = [], studyReceipts = new Map(), receipts = new Map();
   const rows = { pages: new Map(), attachments: new Map(), binaries: new Map(), workspace_tombstones: new Map() };
   context.on('page', p => p.on('websocket', socket => { if (offline) sockets.push(socket.url()); }));
-  await context.addInitScript(({ origin, initial }) => { if (location.origin !== origin || localStorage.getItem('pwa-seeded-session')) return; localStorage.setItem('pwa-seeded-session', '1'); localStorage.setItem('sb-pwa-fixture-auth-token', JSON.stringify(initial)); }, { origin, initial: session(A) });
+  await context.addInitScript(({ origin, initial }) => {
+    // Only application documents seed authentication. PDF/map sandbox frames may
+    // retain the URL origin while exposing no localStorage.
+    if (window !== window.top || location.origin !== origin) return;
+    const storage = window.localStorage;
+    if (!storage || storage.getItem('pwa-seeded-session')) return;
+    storage.setItem('pwa-seeded-session', '1');
+    storage.setItem('sb-pwa-fixture-auth-token', JSON.stringify(initial));
+  }, { origin, initial: session(A) });
   await context.route('https://pwa-fixture.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url()), name = url.pathname.split('/').at(-1);
     if (offline) { offlineCalls.push(name); await route.abort('internetdisconnected'); return; }
