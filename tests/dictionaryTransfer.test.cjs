@@ -199,7 +199,7 @@ test("atomic real RPC safe replacement clears only proven issues; replay idempot
     record.import_candidate.senses.reverse();
     const sameReview=persistentPreview(await previewExchange(c,owner,parseExchange(JSON.stringify({format:'nexus-dictionary-exchange',schema_version:2,exported_at:new Date().toISOString(),scope:{kinds:['word'],statuses:[],query:''},records:[currentV2Record(record)]}))));
     assert.equal(importSafety(sameReview.items[0]),'review',JSON.stringify(sameReview.items[0].issues));
-    const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,'same pending proposal must not grow duplicate review records because provenance is attached');
+    const repeated=(await stagePersistentSession(c,sameReview,'same-review-again.json'))[0];assert.equal(repeated.id,oldRow.id,JSON.stringify({reason:'same pending proposal must not grow duplicate review records',previous:oldRow.item.draft,reimport:sameReview.items[0].draft,previousKey:require('../src/features/dictionary/persistentImport.ts').proposalKey(oldRow.item),reimportKey:require('../src/features/dictionary/persistentImport.ts').proposalKey(sameReview.items[0])}).slice(0,11000));
     const fresh = structuredClone(original);
     fresh.senses.push({
       id: id(703),
