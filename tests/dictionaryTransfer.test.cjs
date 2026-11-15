@@ -36,10 +36,21 @@ const {
 // SQL test fixtures may omit Word-only sections; construct a complete v2
 // document explicitly without accepting the omitted sections in production.
 const currentV2Record=(source)=>{
-  const record=structuredClone(source);
-  if(record.snapshot?.detail?.entry?.kind==='word'){
-    record.snapshot.detail.derivations??=[];
-    record.snapshot.detail.public_notes??=[];
+  const {currentMorphemeFields}=require('../src/features/dictionary/retiredMorphemeFields.ts');
+  const record=currentMorphemeFields(structuredClone(source));
+  if(record.snapshot?.detail){
+    delete record.snapshot.detail.inflections;
+    if(record.snapshot.detail.entry?.kind==='word'){
+      record.snapshot.detail.derivations??=[];
+      record.snapshot.detail.public_notes??=[];
+    }
+  }
+  if(record.import_candidate){
+    delete record.import_candidate.inflections;
+    if(record.import_candidate.kind==='word'){
+      record.import_candidate.derivations??=[];
+      record.import_candidate.public_notes??=[];
+    }
   }
   return record;
 };
