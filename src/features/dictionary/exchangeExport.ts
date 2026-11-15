@@ -1,4 +1,5 @@
 import {cleanIpaRecord} from './retiredPronunciation';
+import {currentMorphemeFields} from './retiredMorphemeFields';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   dictionaryJobDatabase,
@@ -132,7 +133,7 @@ function currentExportRecord(record:ExchangeRecord):ExchangeRecord {
   if(Array.isArray(retired)&&retired.length)throw Error('字典仍有舊版詞形資料，請先人工整理，無法輸出最新版格式');
   const {inflections:_retired,...current}=detail as typeof detail & {inflections?:unknown};
   void _retired;
-  return cleanIpaRecord({...record,snapshot:{...record.snapshot!,detail:current}});
+  return cleanIpaRecord(currentMorphemeFields({...record,snapshot:{...record.snapshot!,detail:current}}));
 }
 export async function exportDocument(
   job: ExportJob,
