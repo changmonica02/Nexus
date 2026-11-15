@@ -133,7 +133,10 @@ function currentExportRecord(record:ExchangeRecord):ExchangeRecord {
   if(Array.isArray(retired)&&retired.length)throw Error('字典仍有舊版詞形資料，請先人工整理，無法輸出最新版格式');
   const {inflections:_retired,...current}=detail as typeof detail & {inflections?:unknown};
   void _retired;
-  return cleanIpaRecord(currentMorphemeFields({...record,snapshot:{...record.snapshot!,detail:current}}));
+  // Word-only v2 sections are present even if the installed SQL snapshot
+  // predates them; this does not relax validation of nonempty example links.
+  const complete=detail.entry.kind==='word'?{...current,derivations:current.derivations??[],public_notes:current.public_notes??[]}:current;
+  return cleanIpaRecord(currentMorphemeFields({...record,snapshot:{...record.snapshot!,detail:complete}}));
 }
 export async function exportDocument(
   job: ExportJob,
