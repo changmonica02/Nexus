@@ -82,7 +82,6 @@ test(
           errors.push(e.message);
           console.error(e.message);
         });
-        page.on("dialog", dialog => dialog.accept());
         await page.goto(url);
         await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
@@ -209,10 +208,7 @@ test(
           .getByText("總共 52 · 已完成 25 · 失敗 0 · 未處理 27", {
             exact: true,
           })
-          .waitFor().catch(async error => {
-            console.error('IMPORT_RESUME_FAILURE', await page.locator('body').innerText());
-            throw error;
-          });
+          .waitFor();
         // Server commits, then local receipt checkpoint fails: UI must retain durable progress.
         await page.evaluate(() => {
           const before = window.calls.filter(
@@ -254,6 +250,8 @@ test(
         await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='一次套用安全項目／恢復作業'&&!b.disabled));
         const savedStatuses=await page.evaluate(()=>new Promise((resolve,reject)=>{const request=indexedDB.open('nexus-dictionary-import-review',2);request.onerror=()=>reject(request.error);request.onsuccess=()=>{const db=request.result,tx=db.transaction('items'),rows=tx.objectStore('items').getAll();rows.onsuccess=()=>{resolve(rows.result.map(r=>r.item.status));db.close();};rows.onerror=()=>reject(rows.error);};}));
         assert.equal(savedStatuses.filter(s=>s==='applied').length,25,'receipt checkpoint failure must retain the last committed 25-item checkpoint');
+        assert.equal(savedStatuses.filter(s=>s==='pending').length,27,'unconfirmed receipts remain pending for exact-operation replay');
+        assert.equal(savedStatuses.filter(s=>s==='failed').length,0,'a local receipt failure must not persist unconfirmed statuses');
         const uncertain = await page.evaluate(() =>
           window.calls
             .filter((c) => c.name === "apply_dictionary_import_batch")

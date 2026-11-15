@@ -50,15 +50,17 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   assert.equal(saved.bundle.dictionary_etymologies[0].body,'Updated etymology');
   assert.equal(saved.public_notes.length,1);
   assert.equal(saved.public_notes[0].body,'公共備註');
-  await page.getByLabel('筆記',{exact:true}).fill('');
+  const {waitForAsync}=require('./pwaBrowser.cjs');
+  const fields=[['讀音（IPA）','/goʊ/'],['記憶法','記憶提示'],['詞源','Updated etymology'],['筆記','恢復筆記']];
+  for(const [label]of fields)await page.getByLabel(label,{exact:true}).fill('');
   await page.evaluate(()=>document.activeElement?.blur());
-  await save().evaluate(el=>{if(!el.disabled)el.click();});
-  await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();
-  assert.equal(await page.evaluate(()=>window.fixture.reviews[0].candidate.public_notes.length),0);
-  await page.getByLabel('筆記',{exact:true}).fill('恢復筆記');
+  // Exercise automatic storage, including deletion of the four existing rows.
+  await waitForAsync(page,()=>{const c=window.fixture.reviews[0].candidate;return c.pronunciations.length===0&&c.bundle.dictionary_learning_notes.length===0&&c.bundle.dictionary_etymologies.length===0&&c.public_notes.length===0;});
+  await page.reload();await word().waitFor();
+  for(const [label]of fields)assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'','cleared field survives reopen: '+label);
+  for(const [label,value]of fields)await page.getByLabel(label,{exact:true}).fill(value);
   await page.evaluate(()=>document.activeElement?.blur());
-  await save().evaluate(el=>{if(!el.disabled)el.click();});
-  await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor();
+  await waitForAsync(page,()=>{const c=window.fixture.reviews[0].candidate;return c.pronunciations[0]?.ipa==='/goʊ/'&&c.bundle.dictionary_learning_notes[0]?.body==='記憶提示'&&c.bundle.dictionary_etymologies[0]?.body==='Updated etymology'&&c.public_notes[0]?.body==='恢復筆記';});
   await page.reload();
   await word().waitFor();
   assert.equal(await page.getByLabel('讀音（IPA）',{exact:true}).inputValue(),'/goʊ/');
