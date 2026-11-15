@@ -50,9 +50,12 @@ test('Study back isolates examples, skips orphan Sense links and allows legacy r
 test('Study display has tablet-only single dividing line and leaves grading / private FSRS untouched',()=>{
  const code=fs.readFileSync('src/features/dictionary/StudyDictionaryBack.tsx','utf8');
  const session=fs.readFileSync('src/features/study/components/ScheduledStudySession.tsx','utf8');
- assert.match(code,/md:grid-cols-2/);assert.match(code,/md:border-l/);
+ assert.match(code,/md:grid-cols-2/);assert.match(code,/md:even:border-l/);
  assert.match(code,/border-t/);assert.match(code,/readPublishedEntry/);
- assert.match(session,/revealed&&<>{card.dictionary_entry_id&&<StudyDictionaryBack/);
+ assert.match(session,/revealed&&card.dictionary_entry_id&&<StudyDictionaryBack/);
+ assert.match(session,/data-study-card/);
+ assert.doesNotMatch(session,/revealed&&<>{card.dictionary_entry_id&&<StudyDictionaryBack/);
+ assert.doesNotMatch(code,/data-study-back-shared|公共補充筆記|歷史詞源|<h3 className="font-semibold">義項/);
  assert.match(session,/rateSession\(input\)/);
  assert.match(session,/\(\[1,2,3\] as const\)/);
  assert.doesNotMatch(code,/rateSession|syncStudy|update.*study_card/i);
