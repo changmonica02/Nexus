@@ -78,3 +78,4 @@ test('Word-only singleton database guards reject second row while preserving mor
   }
  }finally{await pg.close();}
 });
+

@@ -32,3 +32,4 @@ export function withoutDerivation(bundle:Bundle,id:string):Bundle {
     (bundle.dictionary_examples??[]) as BilingualExampleRow[],id,
   )};
 }
+
