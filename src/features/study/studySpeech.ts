@@ -30,7 +30,7 @@ export class StudySpeechPlayer {
      if(current())begin(undefined,true);
      return true;
     };
-    const startup=later(()=>{if(!isCurrent()||started||engine.speaking)return;if(!recover())fail('speech.notReady');},8000);
+    const startup=later(()=>{if(!isCurrent()||started||engine.speaking)return;if(!recover())fail(recovery?'speech.retry':'speech.notReady');},8000);
     next.onstart=()=>{if(isCurrent()){started=true;clearTimeout(startup);this.environment.notify('');}};
     next.onend=()=>{if(isCurrent()){this.timers.forEach(clearTimeout);this.timers.clear();this.utterance=null;activePlayback=null;this.environment.notify('');}};
     next.onerror=event=>{if(!isCurrent())return;const error=event?.error;if(error==='canceled'||error==='interrupted'){this.stop();this.environment.notify('');return;}if(['voice-unavailable','language-unavailable','synthesis-unavailable','synthesis-failed'].includes(error)&&recover())return;fail(error==='not-allowed'?'speech.blocked':error==='language-unavailable'?'speech.englishUnavailable':error==='voice-unavailable'?'speech.noVoice':'speech.retry');};
