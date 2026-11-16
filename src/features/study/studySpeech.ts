@@ -15,15 +15,25 @@ export class StudySpeechPlayer {
   const later=(fn:()=>void,ms:number)=>{const timer=setTimeout(()=>{this.timers.delete(timer);if(current())fn();},ms);this.timers.add(timer);return timer;};
   const fail=(notice:SpeechNotice)=>{if(!current())return;this.stop();this.environment.notify(notice);};
   let begun=false;
-  const begin=(voice:SpeechSynthesisVoice|undefined)=>{
-   if(begun||!current())return;begun=true;this.detach();this.environment.notify('');
+  const begin=(voice:SpeechSynthesisVoice|undefined,recovery=false)=>{
+   if((begun&&!recovery)||!current())return;begun=true;this.detach();this.environment.notify('');
    try{
     const next=this.environment.utterance(text);if(voice)next.voice=voice;next.lang=voice?.lang??'en-US';next.rate=rate;this.utterance=next;
     let started=false;const isCurrent=()=>current()&&this.utterance===next;
-    const startup=later(()=>{if(!isCurrent()||started||engine.speaking)return;fail(voice?'speech.retry':'speech.notReady');},8000);
+    // A listed voice may still be unusable by Android's TTS engine. Invalidate
+    // the old utterance before cancel (which can emit synchronous late events),
+    // then let the engine resolve en-US itself. Never replay partially spoken text.
+    const recover=()=>{
+     if(!voice||started||!isCurrent())return false;
+     this.utterance=null;clearTimeout(startup);this.timers.delete(startup);
+     try{engine.cancel();}catch{}
+     if(current())begin(undefined,true);
+     return true;
+    };
+    const startup=later(()=>{if(!isCurrent()||started||engine.speaking)return;if(!recover())fail(recovery?'speech.retry':'speech.notReady');},8000);
     next.onstart=()=>{if(isCurrent()){started=true;clearTimeout(startup);this.environment.notify('');}};
     next.onend=()=>{if(isCurrent()){this.timers.forEach(clearTimeout);this.timers.clear();this.utterance=null;activePlayback=null;this.environment.notify('');}};
-    next.onerror=event=>{if(!isCurrent())return;const error=event?.error;if(error==='canceled'||error==='interrupted'){this.stop();this.environment.notify('');return;}fail(error==='not-allowed'?'speech.blocked':error==='language-unavailable'?'speech.englishUnavailable':error==='voice-unavailable'?'speech.noVoice':'speech.retry');};
+    next.onerror=event=>{if(!isCurrent())return;const error=event?.error;if(error==='canceled'||error==='interrupted'){this.stop();this.environment.notify('');return;}if(['voice-unavailable','language-unavailable','synthesis-unavailable','synthesis-failed'].includes(error)&&recover())return;fail(error==='not-allowed'?'speech.blocked':error==='language-unavailable'?'speech.englishUnavailable':error==='voice-unavailable'?'speech.noVoice':'speech.retry');};
     // Bound silent/hung engines too; an omitted onstart alone does not prove failure.
     later(()=>{if(isCurrent())fail('speech.retry');},Math.max(15000,Math.min(90000,text.length*200/Math.max(.5,rate)+10000)));
     const speak=()=>{if(isCurrent()){try{engine.resume();engine.speak(next);}catch{fail('speech.retry');}}};

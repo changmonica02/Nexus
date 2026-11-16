@@ -2,6 +2,12 @@
 
 > 更新：2026-11-15。這是**目前狀態**，不是逐次執行日誌；已完成的決策與過程收錄 [HISTORY](HISTORY.md)，產品要求見 [SPEC](SPEC.md)，資料契約與實作邊界見 [ARCHITECTURE](ARCHITECTURE.md)。舊的 Draft／未部署敘述不再作為本文件的現況依據。
 
+## Android Chrome／PWA 手動發音失敗（Issue #195，2026-11-16）
+
+- 使用者在正式版 `49cc70f` 回報點喇叭無聲，提示播放失敗／未啟動。原 en-US 清單備援仍存在；本輪重現「已列出英文 voice 卻 synthesis-failed，後續沒有語言備援」的程式缺口，尚無實機 error code。
+- 分支 `fix/android-speech-recovery-20261116` 加入一次啟動前語言備援，保留手動／自動、語速、跨卡取消、實際錯誤及所有學習資料。修正前新案例失敗，修正後10項單元與獨立 TypeScript 檢查通過。
+- 本機瀏覽器受 Unix socket 限制，Chromium／WebKit 由最新提交 CI 驗證；合併及部署證據以 PR #196 為準，Android 實機仍待驗收。後續須於使用者裝置確認手動、下一張自動、切卡取消與最終失敗提示。
+
 ## PR #193 發布驗證（2026-11-15）
 
 - 工作分支 `fix/study-back-inline-extensions-20261115` 已整合 main `237a77f`（#194），保留新全球地圖與舊 Azgaar 分流。六區塊與四個固定欄位、衍生義一對一例句、Exchange v2-only、待審提案去重及 Android TTS 備援以本 PR 為準。
