@@ -381,4 +381,4 @@ Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併
 Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，此前已先發布相容前端並於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
 
 
-Android 語音恢復（Issue #195）（2026-11-16，分支已實作、待 CI／實機驗收）：已列出的英文 voice 若在 onstart 前回報 voice-unavailable、language-unavailable、synthesis-unavailable、synthesis-failed，或8秒內沒有啟動且引擎未 speaking，僅嘗試一次不指定 voice 的 en-US 備援。先解除舊 utterance 身分再 cancel，避免同步或延遲取消事件誤停新播放；備援仍有啟動／最長播放期限。not-allowed、network、audio-busy、audio-hardware、取消／中斷與已開始朗讀的失敗不重播，最終失敗照原提示顯示。這是測試重現的程式備援缺口，尚未取得使用者 Android 的實際 error code，不宣稱已確定其實機根因。
+Android 語音恢復（Issue #195）（2026-11-16，已實作；自動化驗證與部署證據見 PR #196，實機待驗收）：已列出的英文 voice 若在 onstart 前回報 voice-unavailable、language-unavailable、synthesis-unavailable、synthesis-failed，或8秒內沒有啟動且引擎未 speaking，僅嘗試一次不指定 voice 的 en-US 備援。先解除舊 utterance 身分再 cancel，避免同步或延遲取消事件誤停新播放；備援仍有啟動／最長播放期限。not-allowed、network、audio-busy、audio-hardware、取消／中斷與已開始朗讀的失敗不重播，最終失敗照原提示顯示。這是測試重現的程式備援缺口，尚未取得使用者 Android 的實際 error code，不宣稱已確定其實機根因。
