@@ -78,6 +78,12 @@ test('outer Draft RPC patch routes new bilingual examples without a legacy inser
    begin
     for d in select value from jsonb_array_elements(drafts) loop
      b2_input:=d;b:=d->'bundle';eid:=(b->'dictionary_entries'->0->>'id')::uuid;
+     if coalesce((d->>'replace_editor_children')::boolean,false) then
+      foreach tbl in array array['dictionary_examples','dictionary_senses'] loop
+       execute format('delete from public.%I where entry_id=$1 and not(id in(select (x->>''id'')::uuid from jsonb_array_elements($2) x))',tbl)
+        using eid,case when tbl='dictionary_examples' then d->'examples' else b->'dictionary_senses' end;
+      end loop;
+     end if;
      foreach tbl in array array['dictionary_examples','dictionary_lexical_annotations','dictionary_pronunciations'] loop
       if tbl='dictionary_examples' then
        for r in select value from jsonb_array_elements(coalesce(d->'examples','[]'::jsonb)) loop
