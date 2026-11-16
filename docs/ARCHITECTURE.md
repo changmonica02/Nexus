@@ -354,7 +354,7 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 
 `reviewApproval.ts` 保留錯誤 message／code／details／hint 與 RPC 名稱，分類權限、過期、內容、格式、網路／未知與刷新失敗；元件保留結構化錯誤 ref，普通 UI 只顯示本地化分類訊息，不輸出 SQL／私密欄位。同步 ref／controller 鎖防重複點擊；RPC 30 秒客戶端期限只釋放等待，不宣稱伺服器回滾，不中斷或重送原交易，晚到成功仍可被查核；已知核准成功後只允許重讀。未知核准先查 Review 與公開快照，Review 消失本身不證明發布。未知匯入先依既有表的 RLS 讀取項目 revision／result，再沿用原 receipts 與操作識別；僅保存記憶體中的 id／entry_id／revision，不另建權威表或同步。刷新失敗與交易失敗分開，保留草稿、決策及選取；決策更新、錯誤或待確認結果不以列表刷新移走原項目；重新讀取仍經既有未儲存導覽保護。
 
-`StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動空清單立即請求同一備援以保留 activation；只有已知非英文清單時不選錯語音，提示重新檢查。清單事件不重複啟播已開始的備援。
+`StudySpeechPlayer` 是既有 Web Speech 的播放控制器，不讀寫學習資料或 IPA。開始學習仍以 `prepareStudySpeech` 在同步使用者操作內 getVoices／resume／靜音 priming；失敗可於下次開始重試。每次播放重新取得 voices，僅選 en-／en_ 語音，偏好本機與 en-US，不單憑 localService／navigator.onLine 宣告英文不可用。自動播放清單未就緒時聽 voiceschanged 並於 100／400／1000ms 重查、1800ms 截止；空清單可只設定 lang=en-US，不指定 voice。手動沒有可選英文 voice 時，立即以 lang=en-US、不指定 voice 請求系統語音，以保留 activation，不選用非英文 voice。清單事件不重複啟播已開始的備援。
 
 播放由 onstart／onend／onerror 判定；not-allowed、language-unavailable、voice-unavailable 與一般失敗各有訊息，僅 language-unavailable 提示啟用／安裝英文。8 秒啟動檢查不會取消仍 speaking 的引擎，另有 15–90 秒有限完成期限；沒有無限重試。全域單一播放 ownership＋世代 token 只用於音訊生命週期，與學習單卡 generation 無關。新題、手動重播、背景、pagehide／離開或卸載會取消舊播放及 timers／listener；舊回呼不能污染新題，翻面不重播。WebKit 自動播放讓出 cancel 事件迴圈，手動播放留在 gesture 內。Chromium／WebKit 的模擬語音測試驗證控制邏輯，不能證明 Android／Safari 原生語音或實際發音語言已驗收。
 
@@ -379,3 +379,6 @@ Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併
 刪除仍透過原 delete_dictionary_entry 的管理員、快照／revision CAS、穩定 operation ID、保護引用與原子交易。新增錯誤物件保留 RPC message／code／details／hint；使用者只看分類後的雙語阻擋訊息，不顯示完整 SQL。官方來源、其他詞條、進行中審核與未知外鍵不放行。最新 Schema 的無引用 Word（含構詞格、IPA、Review）可通過隔離刪除測試；若詞條仍受官方學習組或其他正式資料引用，伺服器按外鍵／引用保護拒絕刪除（先前個案 `a` 曾受 `gsat-1-2`／`gsat-all` 引用）。不得把合法引用阻擋敘述為刪除 RPC 一律失效，亦不得為刪除而解除保護。
 
 Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢函式，保留既有權限／RLS、排序、搜尋限制；交易前核對已安裝依賴及回傳契約，無資料轉換、刪除或發布。新前端可讀舊／新 row 契約，此前已先發布相容前端並於另行授權後套用資料庫查詢修正，避免舊前端把 editor-only red 列導向匯入審核。此順序與 B 的官方 payload guard 必須先套 DB 不同，不可把 pending Migration 一次推送。
+
+
+Android 語音恢復（Issue #195）（2026-11-16，分支已實作、待 CI／實機驗收）：已列出的英文 voice 若在 onstart 前回報 voice-unavailable、language-unavailable、synthesis-unavailable、synthesis-failed，或8秒內沒有啟動且引擎未 speaking，僅嘗試一次不指定 voice 的 en-US 備援。先解除舊 utterance 身分再 cancel，避免同步或延遲取消事件誤停新播放；備援仍有啟動／最長播放期限。not-allowed、network、audio-busy、audio-hardware、取消／中斷與已開始朗讀的失敗不重播，最終失敗照原提示顯示。這是測試重現的程式備援缺口，尚未取得使用者 Android 的實際 error code，不宣稱已確定其實機根因。
