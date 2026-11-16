@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-const migration=fs.readFileSync('supabase/migrations/20261116140000_dictionary_examples_atomic_draft.sql','utf8');
+const migration=fs.readFileSync('supabase/migrations/20261116070009_dictionary_examples_atomic_draft_20261116.sql','utf8');
 const schema=fs.readFileSync('supabase/migrations/20261114135000_dictionary_sense_derivations.sql','utf8');
 const helper=migration.slice(0,migration.indexOf('do $patch$'))+'commit;';
 
