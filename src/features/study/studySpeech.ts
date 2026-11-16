@@ -44,7 +44,16 @@ export class StudySpeechPlayer {
   const choose=(list:SpeechSynthesisVoice[])=>list.filter(v=>/^en(?:[-_]|$)/i.test(v.lang)).sort((a,b)=>Number(b.localService)-Number(a.localService)||Number(/^en[-_]us$/i.test(b.lang))-Number(/^en[-_]us$/i.test(a.lang)))[0];
   const check=()=>{if(begun||!current())return;const list=voices(),voice=choose(list);if(voice)begin(voice);};
   try{engine.resume();}catch{/* Continue to the actual speak result. */}
-  const list=voices(),voice=choose(list);if(voice){begin(voice);return;}
+  const list=voices(),voice=choose(list);
+
+  // Android 測試：不指定 voice，交由系統選擇 en-US
+  if (typeof navigator !== 'undefined' &&
+      /Android/i.test(navigator.userAgent)) {
+    begin(undefined);
+    return;
+  }
+  
+  if(voice){begin(voice);return;}
   // On Android getVoices() may initially list only the system-language voices.
   // A manual tap must keep its transient user activation: request en-US directly
   // without selecting a known non-English voice or waiting for voiceschanged.
