@@ -115,8 +115,8 @@ begin
  f:=replace(f,target,replacement);
  -- After removed Examples are deleted but before removed Senses are deleted,
  -- remove omitted Derivations. Otherwise their RESTRICT FK blocks Sense deletion.
- target:='    execute format(''delete from public.%I where entry_id=$1 and not(id in(select (x->>''''id'''')::uuid from jsonb_array_elements($2) x))'',tbl)';
- replacement:='    if tbl=''dictionary_senses'' and b2_input ? ''derivations'' then '
+ target:='execute format(''delete from public.%I where entry_id=$1 and not(id in(select (x->>''''id'''')::uuid from jsonb_array_elements($2) x))'',tbl)';
+ replacement:='if tbl=''dictionary_senses'' and b2_input ? ''derivations'' then '
     ||'delete from public.dictionary_sense_derivations x where x.entry_id=eid '
     ||'and not exists(select 1 from jsonb_array_elements(b2_input->''derivations'') v '
     ||'where (v->>''id'')::uuid=x.id);end if;'||chr(10)||target;
