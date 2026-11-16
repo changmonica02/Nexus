@@ -44,7 +44,7 @@ import {reviewSnapshot,type DictionaryReview} from './revisionLifecycle';
 import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
-import {withoutSense,withoutDerivation} from './draftEditing';
+import {withoutSense,withoutDerivation,linkExampleToDerivation} from './draftEditing';
 import {deleteDictionaryEntry,deletionFailureText} from './deleteEntry';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
@@ -212,9 +212,13 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
             {table==='dictionary_examples'&&extensionsLoaded&&<>
               <Field label={tr('中文翻譯')} multiline value={row.translation_zh_tw} onChange={v=>change(table,i,'translation_zh_tw',v)}/>
               <label className="block min-w-0 text-sm">{tr('對應衍生意思')}
-                <select className={control} value={String(row.derivation_id??'')} onChange={e=>change(table,i,'derivation_id',e.target.value||null)}>
-                  <option value="">{tr('不指定衍生意思')}</option>
-                  {(bundle.dictionary_sense_derivations??[]).filter(x=>x.sense_id===row.sense_id).map(x=><option key={String(x.id)} value={String(x.id)}>{String(x.gloss_zh_tw)}</option>)}
+                <select aria-label={tr('對應衍生意思')} className={control} value={String(row.derivation_id??'')} onChange={e=>{
+                  if(!e.target.value){setMessage(tr('例句必須連結衍生意思；請選擇有效的衍生意思或刪除此例句。'));return;}
+                  try{setBundle(b=>linkExampleToDerivation(b,String(row.id),e.target.value));setMessage('');complete();}
+                  catch(error){setMessage(error instanceof Error?error.message:String(error));}
+                }}>
+                  <option value="" disabled>{tr('請選擇衍生意思')}</option>
+                  {(bundle.dictionary_sense_derivations??[]).filter(x=>x.entry_id===row.entry_id).map(x=><option key={String(x.id)} value={String(x.id)}>{String(x.gloss_zh_tw)}</option>)}
                 </select>
               </label>
             </>}
