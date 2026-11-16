@@ -32,3 +32,16 @@ export function withoutDerivation(bundle:Bundle,id:string):Bundle {
     (bundle.dictionary_examples??[]) as BilingualExampleRow[],id,
   )};
 }
+
+/** Attach a legacy example to an explicit derivation without replacing its stable ID. */
+export function linkExampleToDerivation(bundle:Bundle,exampleId:string,derivationId:string):Bundle {
+  const example=(bundle.dictionary_examples??[]).find(row=>row.id===exampleId);
+  if(!example)throw new Error('找不到要修改的例句，請重新載入詞條。');
+  const derivation=(bundle.dictionary_sense_derivations??[]).find(row=>row.id===derivationId);
+  if(!derivation||derivation.entry_id!==example.entry_id)throw new Error('請選擇同一單字的有效衍生意思。');
+  if((bundle.dictionary_examples??[]).some(row=>row.id!==exampleId&&row.derivation_id===derivationId))
+    throw new Error('這個衍生意思已有例句，請先選擇其他衍生意思或刪除重複例句。');
+  return {...bundle,dictionary_examples:(bundle.dictionary_examples??[]).map(row=>
+    row.id===exampleId?{...row,derivation_id:derivationId,sense_id:derivation.sense_id}:row
+  )};
+}
