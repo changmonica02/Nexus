@@ -2,7 +2,7 @@ require('./loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {validateSenseExtensions,removeDerivationSafely}=require('../src/features/dictionary/senseDerivations.ts');
-const {withoutSense,withoutDerivation}=require('../src/features/dictionary/draftEditing.ts');
+const {withoutSense,withoutDerivation,linkExampleToDerivation}=require('../src/features/dictionary/draftEditing.ts');
 const {draftsFromBundle,mapDictionaryDraft,validateDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const derivation={id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'延伸意思',sort_order:0};
@@ -77,4 +77,27 @@ test('Word-only singleton database guards reject second row while preserving mor
     await pg.query(`delete from public.${table}`);
   }
  }finally{await pg.close();}
+});
+
+test('editor relinks legacy examples to an existing derivation and corrects sense ownership',()=>{
+  const bundle=data();
+  const legacy={...example,derivation_id:null,sense_id:null};
+  bundle.dictionary_examples=[legacy];
+  assert.ok(validateDictionaryDraft(draftsFromBundle(bundle)).length>0);
+  const linked=linkExampleToDerivation(bundle,legacy.id,derivation.id);
+  assert.equal(linked.dictionary_examples[0].id,legacy.id);
+  assert.equal(linked.dictionary_examples[0].derivation_id,derivation.id);
+  assert.equal(linked.dictionary_examples[0].sense_id,derivation.sense_id);
+  assert.deepEqual(validateDictionaryDraft(draftsFromBundle(linked)),[]);
+  assert.equal(bundle.dictionary_examples[0].derivation_id,null);
+});
+
+test('editor refuses duplicate or foreign derivation reassignment without changing examples',()=>{
+  const bundle=data();
+  bundle.dictionary_examples.push({...example,id:id(10),derivation_id:null});
+  assert.throws(()=>linkExampleToDerivation(bundle,id(10),derivation.id),/已有例句/);
+  assert.throws(()=>linkExampleToDerivation(bundle,id(10),id(999)),/有效衍生意思/);
+  assert.equal(bundle.dictionary_examples[1].derivation_id,null);
+  bundle.dictionary_sense_derivations.push({...derivation,id:id(11),entry_id:id(88)});
+  assert.throws(()=>linkExampleToDerivation(bundle,id(10),id(11)),/同一單字/);
 });
