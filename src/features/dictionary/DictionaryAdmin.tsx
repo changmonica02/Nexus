@@ -44,7 +44,7 @@ import {reviewSnapshot,type DictionaryReview} from './revisionLifecycle';
 import {readAI} from './aiDictionary';
 import {mapDictionaryDraft,type DictionaryDraftInput} from './draftPipeline';
 import {DictionaryImportReview} from './DictionaryImportReview';
-import {withoutSense,withoutDerivation,linkExampleToDerivation} from './draftEditing';
+import {withoutSense,withoutDerivation} from './draftEditing';
 import {deleteDictionaryEntry,deletionFailureText} from './deleteEntry';
 import {useUnsavedDraft,navigateDictionary} from './useUnsavedDraft';
 
@@ -206,19 +206,15 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
       <section className="min-w-0 space-y-2" data-content-section={title}>
         {bundle[table].map((row,i)=>(table==='dictionary_examples'&&extensionsLoaded&&row.derivation_id||table==='dictionary_etymologies'&&detail.entry.kind!=='word'&&row.sense_id!=null)?null:<div key={String(row.id)} className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-2">
-            {bundle.dictionary_senses.length>1&&(detail.entry.kind!=='word'||table==='dictionary_examples'&&!extensionsLoaded)&&contentSense(table,i,row)}
+            {bundle.dictionary_senses.length>1&&(detail.entry.kind!=='word'||table==='dictionary_examples')&&contentSense(table,i,row)}
             {detail.entry.kind==='word'&&table!=='dictionary_examples'&&row.sense_id!=null&&<p className="text-xs opacity-65" data-legacy-note-scope={String(row.sense_id)}>{tr('既有義項來源保留；本欄位現在作為整個單字的共用內容顯示。')}</p>}
             <Field label={table==='dictionary_examples'?tr('英文例句'):title} multiline value={row.body} onChange={v=>change(table,i,'body',v)}/>
             {table==='dictionary_examples'&&extensionsLoaded&&<>
               <Field label={tr('中文翻譯')} multiline value={row.translation_zh_tw} onChange={v=>change(table,i,'translation_zh_tw',v)}/>
               <label className="block min-w-0 text-sm">{tr('對應衍生意思')}
-                <select aria-label={tr('對應衍生意思')} className={control} value={String(row.derivation_id??'')} onChange={e=>{
-                  if(!e.target.value){setMessage(tr('例句必須連結衍生意思；請選擇有效的衍生意思或刪除此例句。'));return;}
-                  try{setBundle(b=>linkExampleToDerivation(b,String(row.id),e.target.value));setMessage('');complete();}
-                  catch(error){setMessage(error instanceof Error?error.message:String(error));}
-                }}>
-                  <option value="" disabled>{tr('請選擇衍生意思')}</option>
-                  {(bundle.dictionary_sense_derivations??[]).filter(x=>x.entry_id===row.entry_id).map(x=><option key={String(x.id)} value={String(x.id)}>{String(x.gloss_zh_tw)}</option>)}
+                <select className={control} value={String(row.derivation_id??'')} onChange={e=>change(table,i,'derivation_id',e.target.value||null)}>
+                  <option value="">{tr('不指定衍生意思')}</option>
+                  {(bundle.dictionary_sense_derivations??[]).filter(x=>x.sense_id===row.sense_id).map(x=><option key={String(x.id)} value={String(x.id)}>{String(x.gloss_zh_tw)}</option>)}
                 </select>
               </label>
             </>}
@@ -298,10 +294,6 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
 
       {(detail.entry.kind!=='word'&&bundle.dictionary_etymologies.some(h=>h.sense_id==null))&&contentSection('dictionary_etymologies',tr('歷史詞源'))}
       {detail.entry.kind!=='word'&&bundle.dictionary_examples.length>0&&contentSection('dictionary_examples',tr('例詞'))}
-      {detail.entry.kind==='word'&&extensionsLoaded&&bundle.dictionary_examples.some(row=>!row.derivation_id)&&<>
-        <p role="alert" className="text-sm">{tr('以下既有例句尚未連結衍生意思。請先在義項新增適當的衍生意思，再將例句指定到正確位置；完成前無法儲存草稿。')}</p>
-        {contentSection('dictionary_examples',tr('既有例句待連結'))}
-      </>}
       {detail.entry.kind==='word'&&<>
         {fixedSection('dictionary_etymologies','詞源','body',true)}
         {fixedSection('dictionary_public_notes','筆記','body',true)}
