@@ -111,5 +111,7 @@ test('migration bypasses only legacy Example writes for B2 while keeping other D
  assert.match(migration,/array\[''dictionary_lexical_annotations'',''dictionary_pronunciations''\]/);
  assert.match(migration,/public\.dictionary_apply_sense_extensions/);
  assert.match(migration,/Unexpected Draft RPC layout/);
+ assert.match(migration,/if tbl=''dictionary_senses'' and b2_input \? ''derivations''/);
+ assert.match(migration,/delete from public\.dictionary_sense_derivations x where x\.entry_id=eid/);
  assert.doesNotMatch(migration,/\bdrop\s+table\b|\btruncate\b|\bcascade\b/i);
 });
