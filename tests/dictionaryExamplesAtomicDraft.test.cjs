@@ -45,7 +45,7 @@ test('current Word example writer creates, updates and rereads linked bilingual 
   saved=(await pg.query('select * from public.dictionary_examples where id=$1',[id(4)])).rows[0];
   assert.equal(saved.body,'New example');
   assert.equal(saved.translation_zh_tw,'新例句');
-  assert.equal(saved.revision,2);
+  assert.equal(Number(saved.revision),2);
   await assert.rejects(run({...candidate,examples:[{...example,id:id(5)}]}),/unique|duplicate/i);
   await assert.rejects(run({...candidate,examples:[{...example,id:id(5),derivation_id:null}]}),/Invalid bilingual Example fields/);
   await assert.rejects(run({...candidate,examples:[{...example,id:id(5),sense_id:id(99)}]}),/same Word and Sense/);
