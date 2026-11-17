@@ -4,8 +4,27 @@ const {parseDictionaryCSV,dictionaryCSVExample,dictionaryCSVHeaders}=require('..
 const {mapDictionaryDraft,saveDictionaryDraft,draftsFromBundle}=require('../../src/features/dictionary/draftPipeline.ts');
 const {readAI,toAI,planAI,submitAI,parseAI}=require('../../src/features/dictionary/aiDictionary.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+
+function currentDrafts(){
+ const bundle={
+  dictionary_entries:[
+   {id:id(100),kind:'word',headword:'example'},
+   {id:id(200),kind:'prefix',headword:'pre-'},
+   {id:id(300),kind:'root',headword:'form'}],
+  dictionary_senses:[
+   {id:id(101),entry_id:id(100),part_of_speech:'noun',gloss_zh_tw:'例子'},
+   {id:id(201),entry_id:id(200),part_of_speech:null,gloss_zh_tw:'之前',semantic_domain:'space_time',semantic_subdomain:'time'},
+   {id:id(301),entry_id:id(300),part_of_speech:null,gloss_zh_tw:'形狀',semantic_domain:'nature',semantic_subdomain:'geography'}],
+  dictionary_sense_derivations:[{id:id(102),entry_id:id(100),sense_id:id(101),gloss_zh_tw:'舉例',sort_order:0}],
+  dictionary_examples:[{id:id(103),entry_id:id(100),sense_id:id(101),derivation_id:id(102),body:'an example',translation_zh_tw:'一個例子',sort_order:0}],
+  dictionary_lexical_annotations:[{id:id(105),entry_id:id(100),sense_id:id(101),kind:'relation_hint',body:'x + y?',sort_order:0}],
+  dictionary_learning_notes:[{id:id(104),entry_id:id(100),sense_id:id(101),kind:'core_concept',body:'用例子幫助記憶'}]
+ };
+ return draftsFromBundle(bundle);
+}
 test('internal CSV adapter is not a public import path; identity and draft projection remain isolated',async()=>{
-const ds=await parseDictionaryCSV(dictionaryCSVExample);assert.equal(ds.length,3);assert.notEqual(ds[0].entry_id,(await parseDictionaryCSV(dictionaryCSVExample))[0].entry_id);
+await assert.rejects(parseDictionaryCSV(dictionaryCSVExample),/derivations|examples/);
+const ds=currentDrafts();assert.equal(ds.length,3);assert.deepEqual(ds.map(d=>d.entry_id),currentDrafts().map(d=>d.entry_id));
 assert.equal(mapDictionaryDraft(ds[1]).bundle.dictionary_senses[0].semantic_domain,'space_time');assert.equal(mapDictionaryDraft(ds[2]).bundle.dictionary_senses[0].semantic_subdomain,'geography');assert.equal(ds[0].examples[0].body,'an example');assert.equal(ds[0].etymologies.length,0);assert.equal(ds[0].learning_notes[0].kind,'core_concept');
 });
 test('canonical errors identify row, kind, field and reject invalid UUIDs',async()=>{
@@ -16,7 +35,7 @@ test('SQL migration: complete preview rollback, replay, RLS, published protectio
 const pg=await require('../fixtures/morphemeRetirementDatabase.cjs').database();try{
 await pg.exec('reset role');
 await pg.query('insert into auth.users values($1),($2)',[id(1),id(2)]);await pg.query('insert into dictionary_admins(user_id) values($1)',[id(1)]);await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);
-const ds=await parseDictionaryCSV(dictionaryCSVExample);ds[0].relation_hints.push({id:id(901),sense_id:ds[0].senses[0].id,body:'unresolved x+y',sort_order:1});const client={rpc:async(name,args)=>{try{if(name==='create_dictionary_review')return {data:(await pg.query('select create_dictionary_review($1,$2,$3,$4,$5) as data',[args.entry_uuid,JSON.stringify(args.expected_snapshot),JSON.stringify(args.patch),args.source_type,args.preview])).rows[0].data};if(name==='get_dictionary_ai_snapshot')return {data:(await pg.query('select get_dictionary_ai_snapshot($1) as data',[args.entry_uuid])).rows[0].data};return {data:(await pg.query('select apply_dictionary_drafts($1,$2,$3) as data',[JSON.stringify(args.drafts),args.preview,args.allow_edits])).rows[0].data};}catch(error){return {error};}}};
+const ds=currentDrafts();ds[0].relation_hints.push({id:id(901),sense_id:ds[0].senses[0].id,body:'unresolved x+y',sort_order:1});const client={rpc:async(name,args)=>{try{if(name==='create_dictionary_review')return {data:(await pg.query('select create_dictionary_review($1,$2,$3,$4,$5) as data',[args.entry_uuid,JSON.stringify(args.expected_snapshot),JSON.stringify(args.patch),args.source_type,args.preview])).rows[0].data};if(name==='get_dictionary_ai_snapshot')return {data:(await pg.query('select get_dictionary_ai_snapshot($1) as data',[args.entry_uuid])).rows[0].data};return {data:(await pg.query('select apply_dictionary_drafts($1,$2,$3) as data',[JSON.stringify(args.drafts),args.preview,args.allow_edits])).rows[0].data};}catch(error){return {error};}}};
 await saveDictionaryDraft(client,ds,true);for(const t of ['dictionary_entries','dictionary_senses','dictionary_examples','dictionary_lexical_annotations','dictionary_import_operations'])assert.equal((await pg.query(`select count(*)::int as n from ${t}`)).rows[0].n,0,t);
 await saveDictionaryDraft(client,ds);const replay=await saveDictionaryDraft(client,ds);assert.ok(replay.items.every(i=>i.status==='unchanged'));assert.equal((await pg.query('select count(*)::int as n from dictionary_entries')).rows[0].n,3);assert.equal((await pg.query('select max(revision)::int as n from dictionary_entries')).rows[0].n,1);
 const snapshot=await readAI(client,ds[0].entry_id),ai=toAI(snapshot,new Map());assert.equal(ai.examples[0].text,'an example');assert.equal('source_forms' in ai,false);assert.equal(ai.relation_hints[0].text,'unresolved x+y');assert.deepEqual(parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[ai]})).entries[0],ai);
@@ -26,7 +45,7 @@ const published=await readAI(client,ds[0].entry_id),clone=planAI({...toAI(publis
 const review=await readAI(client,clone.target_id);assert.equal(review.detail.examples[0].body,'updated example');assert.equal(review.detail.lexical_annotations.length,1);assert.equal(review.detail.examples[0].id,published.detail.examples[0].id);assert.equal(created.candidate.examples[0].id,published.detail.examples[0].id);assert.equal((await readAI(client,ds[0].entry_id)).detail.entry.headword,'example');
 await pg.query('select discard_dictionary_review($1,$2)',[created.id,created.revision]);assert.equal((await pg.query('select count(*)::int as n from dictionary_examples where entry_id=$1',[clone.target_id])).rows[0].n,1);
 // Atomic extension failure rolls back a valid entry/sense and every audit write.
-const bad=await parseDictionaryCSV(dictionaryCSVExample);const mapped=bad.map(mapDictionaryDraft);mapped[0].bundle.dictionary_entries[0].id=id(400);mapped[0].bundle.dictionary_entries[0].headword='atomic failure unique';mapped[0].bundle.dictionary_senses=[];mapped[0].bundle.dictionary_learning_notes=[];mapped[0].examples=[{id:id(401),entry_id:id(400),sense_id:id(999),body:'x',sort_order:0}];const beforeAudit=(await pg.query('select count(*)::int as n from dictionary_import_operations')).rows[0].n;await assert.rejects(pg.query('select apply_dictionary_drafts($1,false,false)',[JSON.stringify([mapped[0]])]),/foreign key/);assert.equal((await pg.query('select count(*)::int as n from dictionary_import_operations')).rows[0].n,beforeAudit);assert.equal((await pg.query('select count(*)::int as n from dictionary_entries where id=$1',[id(400)])).rows[0].n,0);
+const bad=currentDrafts();const mapped=bad.map(mapDictionaryDraft);mapped[0].bundle.dictionary_entries[0].id=id(400);mapped[0].bundle.dictionary_entries[0].headword='atomic failure unique';mapped[0].bundle.dictionary_senses=[];mapped[0].bundle.dictionary_learning_notes=[];mapped[0].examples=[{id:id(401),entry_id:id(400),sense_id:id(999),body:'x',sort_order:0}];const beforeAudit=(await pg.query('select count(*)::int as n from dictionary_import_operations')).rows[0].n;await assert.rejects(pg.query('select apply_dictionary_drafts($1,false,false)',[JSON.stringify([mapped[0]])]),/foreign key/);assert.equal((await pg.query('select count(*)::int as n from dictionary_import_operations')).rows[0].n,beforeAudit);assert.equal((await pg.query('select count(*)::int as n from dictionary_entries where id=$1',[id(400)])).rows[0].n,0);
 // Cross-entry references work even when Word appears before its new Root in a Bundle.
 const cross={dictionary_entries:[{id:id(500),kind:'word',headword:'formative'},{id:id(501),kind:'root',headword:'test-form-root'}],dictionary_senses:[{id:id(510),entry_id:id(500),part_of_speech:'adjective',gloss_zh_tw:'形成的'},{id:id(511),entry_id:id(501),part_of_speech:null,gloss_zh_tw:'形狀'}],dictionary_relations:[{id:id(520),entry_id:id(500),sense_id:id(510),target_entry_id:id(501),target_sense_id:id(511),relation_kind:'learning_decomposition',verification:'pending',verification_note:''}]};await saveDictionaryDraft(client,draftsFromBundle(cross));assert.equal((await pg.query('select count(*)::int as n from dictionary_relations where id=$1',[id(520)])).rows[0].n,1);
 await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(2)]);assert.equal((await pg.query('select count(*)::int as n from dictionary_examples')).rows[0].n,1);await assert.rejects(saveDictionaryDraft(client,ds),/admin/);
