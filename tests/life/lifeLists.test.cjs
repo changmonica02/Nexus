@@ -1,13 +1,13 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 require("fake-indexeddb/auto");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { PGlite } = require("@electric-sql/pglite"),
   { openDB, deleteDB } = require("idb");
-const { IndexedDBAdapter } = require("../src/infrastructure/storage/IndexedDBAdapter.ts");
-const { LIFE_STORES, lifeBase } = require("../src/features/life/lists.ts");
-const { pullWorkspace, flushWorkspace } = require("../src/infrastructure/sync/workspaceSync.ts");
+const { IndexedDBAdapter } = require("../../src/infrastructure/storage/IndexedDBAdapter.ts");
+const { LIFE_STORES, lifeBase } = require("../../src/features/life/lists.ts");
+const { pullWorkspace, flushWorkspace } = require("../../src/infrastructure/sync/workspaceSync.ts");
 const owner = "11111111-1111-4111-8111-111111111111",
   other = "22222222-2222-4222-8222-222222222222";
 const migration = "20261103155520_life_custom_lists.sql";
