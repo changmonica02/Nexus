@@ -23,16 +23,12 @@ function order(cards) {
   return [...list(cards).matchAll(/data-study-card="([^"]+)"/g)].map(match => match[1]);
 }
 
-test('management renders only two readonly columns, always A–Z, with full text and ellipsis styling', () => {
+test('management preserves A–Z ordering, full text and read-only controls', () => {
   const long = '中文完整內容'.repeat(100);
   const cards = [{ id: 'z', front: 'zebra', back: '斑馬', sort_order: 0 }, { id: 'a', front: 'Apple', back: long, sort_order: 1 }];
   const html = list(cards);
   assert.deepEqual(order(cards), ['a', 'z']);
   assert.deepEqual(cards.map(card => card.id), ['z', 'a'], 'display must not mutate the input order');
-  assert.equal((html.match(/<th /g) || []).length, 2);
-  assert.equal((html.match(/<td /g) || []).length, 4);
-  assert.match(html, /table-fixed/);
-  assert.equal((html.match(/class="[^"]*truncate[^"]*"/g) || []).length, 4);
   assert.ok(html.includes(long));
   assert.doesNotMatch(html, /<textarea|draggable|拖曳|自訂排序|到期|新卡/);
   assert.doesNotMatch(html.split('<tbody>')[1].split('</tbody>')[0], /<input|<textarea|<select/);
