@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
 const {waitForAsync}=require('../helpers/pwaBrowser.cjs');
 test('Nexus global editor: generation, candidate isolation, replacement, recovery, offline reopen and responsive bilingual canvas',{timeout:360000},async()=>{
- const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-global-')),root=path.resolve(__dirname,'..');let server,browser,transportDown=false;
+ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-global-')),root=path.resolve(__dirname,'../..');let server,browser,transportDown=false;
  const errors=[];
  try{
   await build({entryPoints:['tests/fixtures/globalMapEditor.jsx'],outfile:path.join(tmp,'app.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'worker-url',setup(b){b.onLoad({filter:/globalMapClient\.ts$/},args=>({contents:fs.readFileSync(args.path,'utf8').replace("new URL('../../../.cache/global-map-worker.js',import.meta.url)","new URL('/_next/static/global-worker.js',location.href)"),loader:'ts',resolveDir:path.dirname(args.path)}));}}]});
