@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os'), path = require('node:path');
 const { chromium } = require('playwright');
-const { waitForAsync, setNetwork } = require('../pwaBrowser.cjs');
+const { waitForAsync, setNetwork } = require('../helpers/pwaBrowser.cjs');
 
 test('production Next shell: manifest, install icons, real JS/CSS and cold offline reopen', { timeout: 90000 }, async t => {
   const origin = process.env.NEXUS_PWA_URL || 'http://127.0.0.1:32120';
