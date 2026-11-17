@@ -18,6 +18,7 @@ test(
       bundle: true,
       format: "esm",
       jsx: "automatic",
+      loader: { ".woff": "dataurl", ".woff2": "dataurl", ".ttf": "dataurl" },
       define: { "process.env": JSON.stringify({ NODE_ENV: "development" }) },
       plugins: [
         {
