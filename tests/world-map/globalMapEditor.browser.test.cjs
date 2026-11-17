@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
-const {waitForAsync}=require('../pwaBrowser.cjs');
+const {waitForAsync}=require('../helpers/pwaBrowser.cjs');
 test('Nexus global editor: generation, candidate isolation, replacement, recovery, offline reopen and responsive bilingual canvas',{timeout:360000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-global-')),root=path.resolve(__dirname,'..');let server,browser,transportDown=false;
  const errors=[];
