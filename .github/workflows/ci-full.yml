@@ -42,8 +42,6 @@ jobs:
           for attempt in $(seq 1 30); do docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres && break; sleep 1; done
           docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionary/morphemeDatabase.test.cjs
-          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node
-          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node
       - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
