@@ -115,13 +115,6 @@ test('morpheme subtype changes retain stable entry and sense variants without sa
 });
 
 const {visibleAdminEntries,DictionaryListActions}=require('../../src/features/dictionary/DictionaryAdmin.tsx');
-test('list filtering retains search/type behavior without selection controls',()=>{
- const entries=[{id:'a',headword:'alpha',kind:'word'},{id:'b',headword:'beta',kind:'word'},{id:'c',headword:'alpha-',kind:'prefix'}];
- const visible=visibleAdminEntries(entries,'word','ALP');assert.deepEqual(visible.map(e=>e.id),['a']);
- assert.deepEqual(visibleAdminEntries(entries,'prefix','ALP').map(e=>e.id),['c']);
- assert.deepEqual(visibleAdminEntries(entries,[],'missing'),[]);
- assert.deepEqual(visibleAdminEntries(entries,[],'').map(e=>e.id),['a','b','c']);
-});
 test('dictionary toolbar supports import export and busy guards without obsolete bulk selection',()=>{
  const props={busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{}};
  const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
@@ -136,6 +129,7 @@ test('multi-select types and statuses intersect with search; empty groups impose
  assert.deepEqual(visibleAdminEntries(rows,['word','prefix'],'ALP',['draft','published']).map(r=>r.id),['a','b']);
  const visible=visibleAdminEntries(rows,[],'a',['draft']);assert.deepEqual(visible.map(e=>e.id),['a','c']);
  assert.deepEqual(visibleAdminEntries(rows,['prefix'],'',['draft']),[]);
+ assert.deepEqual(visibleAdminEntries(rows,[],'missing',[]),[]);
  const {DictionaryListFilters}=require('../../src/features/dictionary/DictionaryAdmin.tsx');
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
  assert.equal((html.match(/type="checkbox"/g)||[]).length,6);assert.ok(!html.includes('<select'));assert.match(html,/flex-wrap/);
