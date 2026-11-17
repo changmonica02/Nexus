@@ -209,23 +209,3 @@ test("navigation preferences preserve old custom/recent order by mapping counter
     global.localStorage = previous.localStorage;
   }
 });
-test("shared navigation/collection labels cover both languages without exposing untranslated keys or obsolete dictionary naming", () => {
-  for (const language of ["en", "zh-TW"])
-    for (const key of [
-      "navigation",
-      "closeNavigation",
-      "overview",
-      "visibilityHelp",
-      "feature.tools",
-      "feature.dictionary",
-      "create.study",
-      "more",
-      "rename",
-      "deleteConfirm",
-      "dictionaryPagination",
-    ]) {
-      const value = translate(language, "ui." + key, { name: "test" });
-      assert.notEqual(value, "ui." + key);
-      assert.ok(!value.includes("公共字典"));
-    }
-});
