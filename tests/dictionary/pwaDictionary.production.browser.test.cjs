@@ -21,6 +21,7 @@ test('PWA dictionary: public offline reading/search, invalidation, isolation and
   else if(name==='is_dictionary_admin')data=false;
   else if(name==='get_published_dictionary_entry')data=published&&args.entry_uuid===id?detail():null;
   else if(['search_published_dictionary','search_dictionary_with_inflections'].includes(name))data={items:published&&(!args.query_text||args.query_text==='example')?[{id,headword,kind:'word'}]:[],has_more:false,page:args.page_number||0,total:published?1:0};
+  else if(name==='search_dictionary_catalog'){const matched=published&&(!args.query_text||headword.includes(args.query_text));data={items:matched?[{id,headword,kind:'word',status:'published',summary:'公開詞義',variants:[]}]:[],has_more:false,page:args.page_number||0,total:matched?1:0,stats:null};}
   else if(name==='apply_workspace_operations')data={results:[]};
   else if(name==='pull_study_changes')data={changes:[],cursor:0};
   return route.fulfill({contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*','Content-Range':'0-0/0'},body:JSON.stringify(data)});
@@ -35,7 +36,7 @@ test('PWA dictionary: public offline reading/search, invalidation, isolation and
  offline=true;await context.setOffline(true);await setNetwork(page,true);
  await page.getByRole('link',{name:/^example/}).last().click();await page.getByRole('heading',{name:'example',exact:true}).waitFor();await page.getByText('公開詞義',{exact:true}).waitFor();
  await page.goBack();await page.getByRole('link',{name:/^example/}).last().waitFor();
- await page.getByLabel('搜尋英文單字、字首或字根').fill('unread');await page.getByRole('button',{name:'搜尋',exact:true}).click();await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
+ await page.getByLabel('搜尋單字或構詞').fill('unread');await page.getByRole('button',{name:'搜尋',exact:true}).click();await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
  await page.evaluate(id=>{const a=document.createElement('a');a.href='/dictionary/'+id;document.querySelector('main').append(a);a.click();a.remove();},missing);await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
  await inject();const missingMessage=await page.evaluate(async id=>{try{await window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id);}catch(e){return e.message;}},missing);assert.match(missingMessage,/尚未離線保存/);
  assert.equal(offlineCalls.filter(n=>/search_|get_published/.test(n)).length,0);
@@ -44,7 +45,7 @@ test('PWA dictionary: public offline reading/search, invalidation, isolation and
 await page.evaluate(id=>window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id),id);
  assert.equal((await cacheRows()).find(r=>r.key==='entry:'+id).data.entry.headword,'updated');
  for(const action of ['withdraw','delete']){
-  published=true;await page.evaluate(id=>window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id),id);await page.evaluate(()=>window.dictionaryProbe.searchDictionaryWithInflections(window.dictionaryProbe.client,'all','example'));
+  published=true;await page.evaluate(id=>window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id),id);await page.evaluate(()=>window.dictionaryProbe.readPublishedCatalog(window.dictionaryProbe.client,'/dictionary?q=example&catalog=1',0));
   published=false;assert.equal(await page.evaluate(id=>window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id),id),null);
   assert.ok(!(await cacheRows()).some(r=>r.key==='entry:'+id||r.data?.items?.some(e=>e.id===id)),action+' invalidates dependent snapshots');
  }
