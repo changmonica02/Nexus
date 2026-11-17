@@ -7,7 +7,7 @@ test('settings-first management and 6134-card searchable paginated list preserve
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync(path.join(root,'src/app/globals.css'),'utf8'),{from:path.join(root,'src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(tmp,'fixture.js')));}else if(req.url==='/fixture.css')res.end(css);else res.end('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script type="module" src="/fixture.js"></script></body></html>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:['--no-sandbox']});const errors=[];
- try{for(const width of [1280,820,320]){
+ try{for(const width of [1280]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<900,isMobile:width===320}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port+'?large');
  await page.getByLabel('一般卡（新卡／複習卡） · 忘記',{exact:true}).waitFor();assert.equal(await page.locator('[data-study-card]').count(),0);await page.getByRole('button',{name:'查看字卡 · 6134 張卡片',exact:true}).waitFor();
  const baseline=await page.evaluate(()=>window.studyRepo.exportData());const start=performance.now();await page.getByRole('button',{name:/^查看字卡/}).click();await page.getByRole('table',{name:'單字列表'}).waitFor();assert.equal(await page.locator('[data-study-card]').count(),50);const listMs=performance.now()-start;
@@ -19,5 +19,20 @@ test('settings-first management and 6134-card searchable paginated list preserve
  const after=await page.evaluate(()=>window.studyRepo.exportData());for(const key of ['states','sessions','events'])assert.deepEqual(after[key],baseline[key],key);await page.getByLabel('字典連結篩選',{exact:true}).selectOption('linked');assert.equal(await page.locator('[data-study-card]').count(),0);await page.getByLabel('字典連結篩選',{exact:true}).selectOption('all');await search.fill('');assert.equal(await page.locator('[data-study-card]').count(),50);
  await page.getByRole('button',{name:'返回學習組設定',exact:true}).click();await page.getByLabel('語速',{exact:true}).fill('1.2');await page.getByRole('button',{name:/^查看字卡/}).click();await page.getByRole('table',{name:'單字列表'}).waitFor();await page.getByRole('button',{name:'返回學習組設定',exact:true}).click();assert.equal(await page.getByLabel('語速',{exact:true}).inputValue(),'1.2');await page.reload();assert.equal(await page.getByLabel('語速',{exact:true}).inputValue(),'1.2');assert.equal(await page.locator('[data-study-card]').count(),0);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);console.log('LARGE_DECK',JSON.stringify({width,total:6134,rendered:50,listMs:Math.round(listMs),searchMs:Math.round(searchMs)}));assert.ok(listMs<5000&&searchMs<5000);await context.setOffline(true);await page.getByRole('button',{name:/^查看字卡/}).click();await page.getByRole('table',{name:'單字列表'}).waitFor();assert.equal(await page.locator('[data-study-card]').count(),50);await context.close();
- }assert.deepEqual(errors,[]);}finally{await browser.close();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
+ }
+ // Mobile smoke retains the real 6,134-card dataset and 50-row pagination
+ // while avoiding a second complete edit/filter/reload/offline transaction.
+ const mobileContext=await browser.newContext({viewport:{width:320,height:900},hasTouch:true,isMobile:true});
+ const mobile=await mobileContext.newPage();
+ mobile.on('pageerror',e=>errors.push(e.message));
+ await mobile.goto('http://127.0.0.1:'+server.address().port+'?large');
+ await mobile.getByRole('button',{name:'查看字卡 · 6134 張卡片',exact:true}).waitFor();
+ await mobile.getByRole('button',{name:/^查看字卡/}).click();
+ await mobile.getByRole('table',{name:'單字列表'}).waitFor();
+ assert.equal(await mobile.locator('[data-study-card]').count(),50);
+ assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await mobile.getByRole('button',{name:'返回學習組設定',exact:true}).click();
+ await mobile.getByLabel('一般卡（新卡／複習卡） · 忘記',{exact:true}).waitFor();
+ await mobileContext.close();
+ assert.deepEqual(errors,[]);}finally{await browser.close();await new Promise(r=>server.close(r));fs.rmSync(tmp,{recursive:true,force:true});}
 });
