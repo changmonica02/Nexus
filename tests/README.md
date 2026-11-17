@@ -196,3 +196,12 @@ node tests/tools/test-groups.mjs --check
 - `studyDictionaryPanel.browser.test.cjs`：學習中的字典面板保留桌面與 320px 手機流程，獨立閱讀頁面亦保留桌面與手機；離線、權限、導覽回復及 Session 不變性情境未移除。
 - `dictionaryExchange.browser.test.cjs` 暫保留桌面／手機兩組完整流程，因手機的內嵌操作路徑不同；`dictionaryDraftPublish` 仍保留實際資料庫發布，`dictionaryTransfer` 仍保留交易與安全取代，不以同名資料交換任意刪除。
 - 字典測試檔案數與清冊維持不變；本次降低重複的瀏覽器操作矩陣，並非移除核心功能安全測試。GitHub Actions 結果應另行確認。
+
+## 世界地圖改版前測試退役（2026-11-17）
+
+- 世界地圖尚未正式投入使用，舊資料僅為測試資料；舊版 UI、離線重開、視覺快照、介面翻譯及備份還原相容專項不再是 PR 必要保障。退役八份測試：`globalMapEditor.browser`、`pwaWorldMap.browser`、`worldMap.browser`、`worldMapPreview.browser`、`worldMapUI.browser`、`worldMapIndexedDB`、`worldMap.i18n`、`worldMapBlocks`（均為 `.test.cjs`）。
+- `ci-full.yml` 的 `world-map` 與 `global-editor` 兩個舊工作合併為 `world-map-core`，不安裝 Chromium / WebKit、不啟動舊版地圖 UI / PWA 瀏覽器測試。保留全球地圖建置與核心程式 lint。
+- `worldMap.test.cjs` 保留地圖專屬帳號隔離、原子寫入、失敗回復及驗證邊界；`worldMapCore.test.cjs` 保留 MessageChannel 操作順序、資源仲介與權限；`globalMap.test.cjs`、`worldMapRegions.test.cjs` 保留可沿用到新引擎的幾何與地理計算保障。
+- `experiments/spherical-grid/` 未修改；獨立球面實驗 CI 保留其原有測試。完整 CI 已停止啟動沒有剩餘補充測試的 `additional-regression (world-map)` 工作。
+- `package.json` 的 `test:world-map`、測試分組、快速測試選取器與補充回歸執行器已同步。分組清冊目前 **150** 份（包含 13 份球面實驗測試與 4 份世界地圖核心測試）。
+- **風險聲明**：此精簡是刻意取消對尚未投入使用之舊地圖 UI 與其測試資料升級路徑的回歸承諾；在新版正式投入使用前，仍需要為新版的持久化、離線與介面互動建立對應驗證。
