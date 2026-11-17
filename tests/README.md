@@ -159,3 +159,14 @@ node tests/tools/test-groups.mjs --check
 - `workspace-regression` 及 `additional-regression` 的字典、世界地圖、工作區群組下載此產物，不再各自執行相同設定的正式建置。額外測試只在需要瀏覽器時安裝 Chromium。
 - `world-map` 仍保留附有 `NODE_ENV=production`／`NPM_CONFIG_OMIT=dev` 的獨立正式建置，`global-editor` 仍獨立驗證 Worker 產物；未將不同條件的檢查視為等價。
 - 共用建置引入 `needs: production-fixture-build`：依賴此產物的群組會等候上游建置成功，無法視為減少了每個工作需各自安裝 npm 相依套件的成本。實際速度與可用性應以 GitHub Actions 結果驗證。
+
+## 低價值斷言及已停止支援的歷史測試清理（2026-11-17）
+
+- 第一輪：`shared/round3UI.test.cjs` 移除僅比對 `useCollectionPreferences.ts` 程式碼文字的斷言，保留排序方向及安全返回網址驗證。
+- 第一輪：`shared/post63UI.test.cjs` 移除固定下拉選單形式的整項呈現測試及部分裝飾屬性斷言；保留時間計算、內容類型與使用者文字顯示。
+- 第一輪：`dictionary/dictionaryAdminUI.test.cjs` 移除針對固定實作寫法的正規表示式斷言，保留 Word 欄位可編輯及主要資料操作測試。
+- 第二輪：移除 `study/studyQuizRetirement.test.cjs` 與 `shared/pageDefaultModeRetirement.test.cjs` 兩份舊升級路徑專項測試，並從完整 CI 及分組清冊刪除其引用；對應的正式遷移檔案並未刪除。
+- 第二輪：`study/studyStyles.test.cjs` 移除舊四級作答事件及未完成 FSRS 場次升級的兩項案例，保留現行三按鈕間隔排程、額度、備份與重試測試。
+- 第二輪：`world-map/worldMapBlocks.test.cjs` 移除歷史區塊轉換案例，保留目前地圖實體定位及可見性驗證；`workspace/workspaceDeployment.test.cjs` 移除「新介面搭配尚未更新的舊資料庫」案例，保留現行交易原子性、權限及升級失敗回復。
+- **政策範圍**：不再以每次 PR CI 驗證已停止支援的舊用戶端／舊版直接升級路徑，但現行資料安全、同步隔離、原子寫入及必要 SQL 遷移防護仍為必要測試；不等於保證舊用戶端與歷史資料已能安全升級。
+- 本輪分組清冊由 164 減至 **162** 份；更早的 `173` 份統計是歷史截面，不代表現況。GitHub Actions 完整通過與否應以本輪提交後的工作結果為準。
