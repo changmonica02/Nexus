@@ -1,23 +1,23 @@
 require("fake-indexeddb/auto");
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const {
   mergeCharacterTemplate,
   withTemplateSnapshot,
   restoreTemplateSnapshot,
-} = require("../src/lib/characterTemplateUpdate.ts");
+} = require("../../src/lib/characterTemplateUpdate.ts");
 const {
   instantiateCharacterTemplate,
-} = require("../src/lib/characterWorkspace.ts");
-const { normalizeCharacterBlocks } = require("../src/lib/characterBlocks.ts");
+} = require("../../src/lib/characterWorkspace.ts");
+const { normalizeCharacterBlocks } = require("../../src/lib/characterBlocks.ts");
 const {
   IndexedDBAdapter,
-} = require("../src/infrastructure/storage/IndexedDBAdapter.ts");
+} = require("../../src/infrastructure/storage/IndexedDBAdapter.ts");
 const {
   applyTemplateUpdate,
   restoreCharacterTemplateUpdate,
-} = require("../src/features/creation/applyTemplateUpdate.ts");
+} = require("../../src/features/creation/applyTemplateUpdate.ts");
 const source = () => ({
   blocks_version: 1,
   isTemplate: true,
