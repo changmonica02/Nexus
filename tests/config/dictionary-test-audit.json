@@ -4,9 +4,9 @@
   "status": "依現行規格直接精簡，已退役測試同步移出清冊與 CI",
   "decision_rule": "先確認正式支援規格、逐項斷言和測試環境，替代流程通過後才可刪減",
   "counts": {
-    "核心保留": 40,
+    "核心保留": 39,
     "整併候選": 13,
-    "更新現行規格": 6,
+    "更新現行規格": 5,
     "退役候選": 4
   },
   "records": [
@@ -15,12 +15,6 @@
       "area": "草稿與編輯",
       "action": "更新現行規格",
       "note": "舊 CSV 欄位規則與 JSON-only 入口需區分"
-    },
-    {
-      "file": "tests/dictionary/dictionaryAdmin.test.cjs",
-      "area": "草稿與編輯",
-      "action": "更新現行規格",
-      "note": "舊 CSV/Markdown 驗證應轉為現行 JSON；保留原子匯入與 RLS"
     },
     {
       "file": "tests/dictionary/dictionaryAdminUI.test.cjs",
@@ -457,12 +451,6 @@
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
     },
     {
-      "file": "tests/dictionary/dictionaryInflectionsRetirementB.test.cjs",
-      "area": "歷史退役",
-      "action": "核心保留",
-      "note": "保留新資料禁止重寫退役欄位，合併其他退役斷言"
-    },
-    {
       "file": "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
       "area": "歷史退役",
       "action": "退役候選",
@@ -534,7 +522,7 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "已按照目前 SPEC/Exchange v2 將七份主要使用舊 CSV、舊分組及歷史 Schema 的測試從測試清單移除；保留現行權限、Review、交換、衍生義及資料安全測試。待完整 CI 驗證。",
+  "progress_note": "已將字典 JSON 匯入測試整併至 currentImportBoundary，並以新版 AI/Exchange v2/正式 SQL 遷移測試覆蓋退役詞形檢查；重複檔案已刪除，核心保障保留。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -575,6 +563,8 @@
     "tests/dictionary/dictionaryDraftPipeline.test.cjs",
     "tests/dictionary/dictionaryGrouping.test.cjs",
     "tests/dictionary/dictionaryAI.test.cjs",
-    "tests/dictionary/dictionarySourceRetirement.test.cjs"
+    "tests/dictionary/dictionarySourceRetirement.test.cjs",
+    "tests/dictionary/dictionaryAdmin.test.cjs",
+    "tests/dictionary/dictionaryInflectionsRetirementB.test.cjs"
   ]
 }
