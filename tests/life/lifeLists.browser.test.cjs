@@ -6,7 +6,7 @@ const test = require("node:test"),
   http = require("node:http");
 const { build } = require("esbuild"),
   { chromium } = require("playwright");
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "../..");
 test(
   "life workspace: multiple lists, typed fields, nested categories, attachments, preserved field IDs, offline reload and responsive views",
   { timeout: 120000 },
