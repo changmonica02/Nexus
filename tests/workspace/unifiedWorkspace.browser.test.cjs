@@ -6,7 +6,7 @@ const { test } = require("node:test"),
   http = require("node:http");
 const { build } = require("esbuild"),
   { chromium, webkit } = require("playwright");
-const root = path.resolve(__dirname, "..").replaceAll('\\', '/');
+const root = path.resolve(__dirname, "../..").replaceAll('\\', '/');
 async function until(page, predicate, arg) {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
