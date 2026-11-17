@@ -138,13 +138,13 @@
       "tests/worldMapUI.browser.test.cjs"
     ],
     "note": [
-      "tests/lessonDocument.test.cjs",
-      "tests/noteEditor.browser.test.cjs",
-      "tests/noteExport.browser.test.cjs",
-      "tests/noteExportLayout.test.cjs",
-      "tests/notePagination.study.test.cjs",
-      "tests/noteTablePagination.browser.test.cjs",
-      "tests/noteTablePagination.test.cjs"
+      "tests/note/lessonDocument.test.cjs",
+      "tests/note/noteEditor.browser.test.cjs",
+      "tests/note/noteExport.browser.test.cjs",
+      "tests/note/noteExportLayout.test.cjs",
+      "tests/note/notePagination.study.test.cjs",
+      "tests/note/noteTablePagination.browser.test.cjs",
+      "tests/note/noteTablePagination.test.cjs"
     ],
     "creation": [
       "tests/characterBlocks.browser.test.cjs",
