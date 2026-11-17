@@ -103,9 +103,23 @@ test(
           .getByRole("button", { name: "匯出資料", exact: true })
           .click();
         await page.evaluate(() => (window.failExport = true));
-        await page
-          .getByRole("button", { name: "開始完整匯出", exact: true })
-          .click();
+        const startExport = page.getByRole("button", { name: "開始完整匯出", exact: true });
+        await startExport.waitFor({state:"visible", timeout:10000}).catch(async error => {
+          const diagnostics = await page.evaluate(() => ({
+            url: location.href,
+            dialogs: [...document.querySelectorAll("dialog")].map(d => ({
+              open: d.open, title: d.querySelector("h2")?.textContent,
+              text: d.innerText.slice(0, 1500),
+              buttons: [...d.querySelectorAll("button")].map(b=>({label:b.textContent,disabled:b.disabled}))
+            })),
+            alerts: [...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent),
+            body: document.body.innerText.slice(0, 1500)
+          }));
+          console.error("DICTIONARY_EXPORT_DIALOG_DIAGNOSTICS",JSON.stringify(diagnostics));
+          console.error("DICTIONARY_EXPORT_PAGE_ERRORS",errors);
+          throw error;
+        });
+        await startExport.click();
         await page
           .getByRole("alert")
           .getByText(/fixture network failure/)
