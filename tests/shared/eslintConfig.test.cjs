@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {ESLint}=require('eslint');
 test('repository lint handles CommonJS fixtures and preserves TypeScript and React safety rules',async()=>{
  const lint=new ESLint();
- const fixture=await lint.calculateConfigForFile('tests/dictionaryEditInflections.test.cjs');
+ const fixture=await lint.calculateConfigForFile('tests/dictionary/dictionaryInflectionsRetirementB.test.cjs');
  assert.equal(fixture.rules['react-hooks/refs'],undefined);
  const app=await lint.calculateConfigForFile('src/features/dictionary/DictionaryAdmin.tsx');
  assert.equal(app.rules['react-hooks/rules-of-hooks'][0],2);
