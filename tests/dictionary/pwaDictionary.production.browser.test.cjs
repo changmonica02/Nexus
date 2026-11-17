@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {build}=require('esbuild'),{chromium}=require('playwright');
-const {waitForAsync,setNetwork}=require('../pwaBrowser.cjs');
+const {waitForAsync,setNetwork}=require('../helpers/pwaBrowser.cjs');
 // Actual production UI/SDK/IndexedDB, synthetic sessions and isolated public API.
 test('PWA dictionary: public offline reading/search, invalidation, isolation and storage failures',{timeout:180000},async t=>{
  const origin=process.env.NEXUS_PWA_URL||'http://127.0.0.1:32142';
