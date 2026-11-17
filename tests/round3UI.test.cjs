@@ -90,7 +90,9 @@ test("daily editor no longer fetches or renders published history; backend histo
   assert.ok(!ui.includes("Published 版本歷史"));
   assert.ok(ui.includes("base_revision!==detail.entry.revision"));
   assert.ok(ui.includes("'approve_dictionary_review'"));
-  assert.ok(ui.includes("expected_revision:chosen.revision"));
+  assert.ok(ui.includes("approval.approve(getSupabase()!,selected)"));
+  const approval = fs.readFileSync("src/features/dictionary/reviewApproval.ts", "utf8");
+  assert.ok(approval.includes("expected_revision:review.revision"));
   const files = fs.readdirSync("supabase/migrations");
   assert.ok(
     files.some((f) =>
