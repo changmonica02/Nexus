@@ -20,7 +20,7 @@ test('2A: real Session, speech lifecycle, reveal-only composition, saved prefere
   if(width===820){
    await show().click();
    await page.getByRole('region',{name:'衍生與例句'}).waitFor();
-   await assertLayout();
+   for(const rating of ['忘記','模糊','記得'])assert.equal(await page.getByRole('button',{name:new RegExp('^'+rating)}).count(),1);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
    await context.close();
    continue;
