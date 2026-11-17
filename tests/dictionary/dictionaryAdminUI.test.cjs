@@ -27,6 +27,29 @@ test('current JSON preview keeps etymology attribution separate and escapes mnem
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('&lt;script&gt;'));
 });
+async function withEditorState(props,run){
+  const originalCallback=React.useCallback,originalLayout=React.useLayoutEffect;
+  const effects=[];
+  const originalState=React.useState,originalEffect=React.useEffect,originalRef=React.useRef,originalContext=React.useContext;
+  const values=[],pending=[];let cursor=0;
+  React.useState=initial=>{
+    const index=cursor++;
+    if(index>=values.length)values.push(typeof initial==='function'?initial():initial);
+    return [values[index],value=>pending.push(()=>{values[index]=typeof value==='function'?value(values[index]):value;})];
+  };
+  React.useCallback=fn=>fn;React.useLayoutEffect=fn=>effects.push(fn);
+  React.useContext=()=>null;React.useEffect=()=>{};React.useRef=initial=>{const [value]=React.useState({current:initial});return value;};
+  const render=()=>{while(pending.length)pending.shift()();cursor=0;const tree=DictionaryEditor(props);while(effects.length)effects.shift()();return tree;};
+  try{await run(render);}finally{React.useCallback=originalCallback;React.useLayoutEffect=originalLayout;React.useState=originalState;React.useEffect=originalEffect;React.useRef=originalRef;React.useContext=originalContext;}
+}
+function nodes(root){
+  if(Array.isArray(root))return root.flatMap(nodes);
+  if(!React.isValidElement(root))return [];
+  return [root,...nodes(root.props.children),...nodes(root.props.actions)];
+}
+function pick(root,predicate){const result=nodes(root).find(predicate);assert.ok(result,'expected editor control');return result;}
+const buttonNamed=(root,text)=>pick(root,node=>node.type==='button'&&(node.props.children===text||node.props['aria-label']===text));
+
 test('morpheme subtype changes retain stable entry and sense variants without saving retired grouping',async()=>{
  const supabase=require('../../src/infrastructure/supabase/client.ts'),original=supabase.getSupabase,calls=[];
  supabase.getSupabase=()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:null,error:null};}});
