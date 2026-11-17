@@ -13,7 +13,7 @@ test('world/map UI shares complete supported-language keys and English fallback'
 
 test('embedded source has no standalone entry points or first-visit initialization',()=>{
  const fs=require('node:fs');
- const read=p=>fs.readFileSync(require('node:path').join(__dirname,'..',p),'utf8');
+ const read=p=>fs.readFileSync(require('node:path').resolve(__dirname,'../..',p),'utf8');
  const index=read('vendor/azgaar/src/index.html');
  assert.doesNotMatch(index,/id="(?:aboutTab|aboutContent|tourPromptButton|loading|regenerate|newMapButton|saveButton|loadButton|saveMapData|loadMapData)"|googletagmanager|patreon|discord|reddit/i);
  assert.doesNotMatch(read('vendor/azgaar/src/components/shell.ts'),/initTourPromptButton|addDragToUpload|onbeforeunload/);
