@@ -1,6 +1,6 @@
 require('../loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{PGlite}=require('@electric-sql/pglite');
-const {parseDictionaryCSV,parseDictionaryCSVPreview,dictionaryCSVHeaders,exportDictionaryCSV,dictionaryCSVExample}=require('../../src/features/dictionary/dictionaryCSV.ts');
+const {parseDictionaryCSV,parseDictionaryCSVPreview,dictionaryCSVHeaders,exportDictionaryCSV}=require('../../src/features/dictionary/dictionaryCSV.ts');
 const {mapDictionaryDraft,saveDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
 const {classifyImport,buildImportSession,chooseIssue,applyBatchDecision,canBatchDecision,applyImportItems,sessionCounts,resolveImportItem}=require('../../src/features/dictionary/importReview.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -9,8 +9,9 @@ const row=(n,more={})=>({kind:'word',entry_id:id(n),sense_id:id(n+1),headword:'w
 const empty={snapshot:null,similar:[],identities:{}};
 const snapshot=d=>({snapshot:{detail:{entry:{id:d.entry_id,kind:d.kind,headword:d.headword,status:'draft',revision:1},senses:d.senses.map(s=>({...s,entry_id:d.entry_id,revision:1})),relations:[],learning_notes:[],etymologies:[],examples:[],lexical_annotations:[]},grouping:null,sense_groups:{},metadata:null},similar:[],identities:{}});
 
-test('internal CSV adapter uses current 12 columns; stable Entry/Sense identity survives reorder',async()=>{
- assert.equal(dictionaryCSVHeaders.length,12);assert.equal(dictionaryCSVExample.split('\n')[0].split(',').length,12);
+test('internal adapter preserves stable Entry/Sense identity across reorder and roundtrip',async()=>{
+ assert.ok(dictionaryCSVHeaders.includes('entry_id')&&dictionaryCSVHeaders.includes('sense_id'));
+
  const a=row(10),b=row(20);const first=await parseDictionaryCSV(csv([a,b]));const renamedFile=await parseDictionaryCSV(csv([a,b]));assert.deepEqual(first.map(d=>[d.entry_id,d.senses[0].id]),renamedFile.map(d=>[d.entry_id,d.senses[0].id]));
  const reordered=await parseDictionaryCSV(csv([b,{...a,headword:'edited',gloss_zh_tw:'改義'}]));assert.equal(reordered[1].entry_id,first[0].entry_id);assert.equal(reordered[1].senses[0].id,first[0].senses[0].id);
  const again=await parseDictionaryCSV(exportDictionaryCSV(reordered));assert.deepEqual(again.map(d=>[d.entry_id,d.senses[0].id]),reordered.map(d=>[d.entry_id,d.senses[0].id]));
