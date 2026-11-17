@@ -12,7 +12,7 @@ const old=['note-editor.yml','global-map-editor.yml','spherical-grid-prototype.y
 const explicit=new Set([...old.matchAll(/(?:tests|experiments\/spherical-grid)\/[\w./-]+(?:\.test\.cjs|\.test\.mjs)/g)].map(m=>m[0]));
 // Expand the two wildcard/script suites in the baseline.
 for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
-for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.test.cjs'])explicit.add('tests/'+n);
+for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.test.cjs'])explicit.add('tests/world-map/'+n);
 const deferred=new Set(['tests/note/notePagination.study.test.cjs']); // Exploratory A/B/C experiment, not product regression.
 export function coverage(){
  const all=Object.values(inv.groups).flat();
