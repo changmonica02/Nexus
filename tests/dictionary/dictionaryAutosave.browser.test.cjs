@@ -1,10 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
-const root=path.resolve(__dirname,'..');
+const root=path.resolve(__dirname,'../..');
 test('autosave composition and adjacent editing: IME, newline, serialization, retry, invalid leave and bilingual responsive forms',{timeout:120000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-editor-'));
- await build({entryPoints:[path.join(__dirname,'fixtures/dictionaryEditor.jsx')],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'isolated-services',setup(b){
+ await build({entryPoints:[path.join(root,'tests/fixtures/dictionaryEditor.jsx')],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'isolated-services',setup(b){
  b.onLoad({filter:/infrastructure\/supabase\/client\.ts$/},()=>({contents:'export const getSupabase=()=>window.dictionaryClient; export const isSupabaseConfigured=()=>true;',loader:'js'}));
  b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`import React from '${path.join(root,'node_modules/react/index.js')}';export default function Link({children,...props}){return React.createElement('a',props,children);}`,loader:'js',resolveDir:root}));
  b.onResolve({filter:/^next\/navigation$/},()=>({path:'navigation',namespace:'nav'}));b.onLoad({filter:/.*/,namespace:'nav'},()=>({contents:'export const useRouter=()=>({push:href=>window.location.assign(href)});export const useSearchParams=()=>new URLSearchParams(window.location.search);export const usePathname=()=>window.location.pathname;',loader:'js'}));
