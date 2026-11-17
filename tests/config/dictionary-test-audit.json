@@ -1,0 +1,619 @@
+{
+  "version": 1,
+  "source": "config/test-groups.json#groups.dictionary",
+  "status": "依現行規格直接精簡，已退役測試同步移出清冊與 CI",
+  "decision_rule": "先確認正式支援規格、逐項斷言和測試環境，替代流程通過後才可刪減",
+  "counts": {
+    "核心保留": 41,
+    "整併候選": 15,
+    "更新現行規格": 10,
+    "退役候選": 4
+  },
+  "records": [
+    {
+      "file": "tests/dictionary/currentImportBoundary.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "舊 CSV 欄位規則與 JSON-only 入口需區分"
+    },
+    {
+      "file": "tests/dictionary/dictionaryAdmin.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "舊 CSV/Markdown 驗證應轉為現行 JSON；保留原子匯入與 RLS"
+    },
+    {
+      "file": "tests/dictionary/dictionaryAdminUI.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "應驗證實際管理操作，減少只檢查字串的舊介面斷言"
+    },
+    {
+      "file": "tests/dictionary/dictionaryAutosave.browser.test.cjs",
+      "area": "草稿與編輯",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryCoreConcept.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "更新已退役入口、欄位或 API；保留現行規格的安全斷言"
+    },
+    {
+      "file": "tests/dictionary/dictionaryDraftPipeline.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "更新已退役入口、欄位或 API；保留現行規格的安全斷言"
+    },
+    {
+      "file": "tests/dictionary/dictionaryEditor.browser.test.cjs",
+      "area": "草稿與編輯",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryIdentity.test.cjs",
+      "area": "草稿與編輯",
+      "action": "核心保留",
+      "note": "刪除 2 項只針對舊 CSV 的重複單元測試；留下真正 PostgreSQL 跨入口身分、Review、Published 保護和重複身分遷移拒絕測試。正式 JSON 入口同形構詞由 currentImportBoundary 驗證"
+    },
+    {
+      "file": "tests/dictionary/dictionaryImportReview.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "刪除公開入口已停用的 CSV 空白 ID 預覽情境；保留匯入衝突、批次審核、修訂版本、收據、資料庫權限、原子回復等測試。現行 JSON 重複 ID 與身分由 currentImportBoundary 驗證"
+    },
+    {
+      "file": "tests/dictionary/dictionaryPersistentImport.test.cjs",
+      "area": "草稿與編輯",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryPersistentScale.test.cjs",
+      "area": "草稿與編輯",
+      "action": "整併候選",
+      "note": "大規模容量錯誤與資料保全不可移除，純效能可移出 CI",
+      "comparison": {
+        "compare": [
+          "dictionaryPersistentImport.test.cjs",
+          "dictionaryExchangeScale.test.cjs"
+        ],
+        "unique": "大量持久化匯入的正確性、檢查點及容量失敗回復",
+        "decision": "保留；可把純效能測量移出必要 CI，不可移除失敗回復情境"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryPronunciations.test.cjs",
+      "area": "草稿與編輯",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionarySenseEditor.test.cjs",
+          "dictionaryReader.test.cjs"
+        ],
+        "unique": "IPA 身分、排序、不同 Sense 的歸屬及 SQL/RLS",
+        "decision": "保留獨立資料庫測試；可合併 UI 文字檢查"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryRankedComponents.test.cjs",
+      "area": "草稿與編輯",
+      "action": "更新現行規格",
+      "note": "保留大量資料搜尋及順位；更新已移除的交換 API"
+    },
+    {
+      "file": "tests/dictionary/dictionaryTransfer.test.cjs",
+      "area": "草稿與編輯",
+      "action": "整併候選",
+      "note": "與 Exchange 交換場景比較，保留跨裝置重試與資料衝突",
+      "comparison": {
+        "compare": [
+          "dictionaryExchangeSafety.test.cjs",
+          "dictionaryPersistentImport.test.cjs"
+        ],
+        "unique": "跨裝置交換的身份對應、操作收據、確認後回復及 1001 筆處理",
+        "decision": "保留獨立交易情境；先對照收據斷言再拆出重複查核"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryTransfer.browser.test.cjs",
+      "area": "草稿與編輯",
+      "action": "整併候選",
+      "note": "與 Exchange 瀏覽器測試比較離線、衝突及收據場景",
+      "comparison": {
+        "compare": [
+          "dictionaryExchange.browser.test.cjs",
+          "dictionaryPersistent.browser.test.cjs"
+        ],
+        "unique": "真實介面轉移、操作確認與持久化行為",
+        "decision": "保留瀏覽器端到端；可縮短重疊的列表操作"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryWordSegments.test.cjs",
+      "area": "草稿與編輯",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryAdminActions.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryApproval.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "未知發布結果不可重送；保留版本檢查與防重複送出"
+    },
+    {
+      "file": "tests/dictionary/dictionaryBatchDeletion.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryBulkPublishBatches.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留大量發布的交易分批與重送保障"
+    },
+    {
+      "file": "tests/dictionary/dictionaryContentDeletion.test.cjs",
+      "area": "審核發布與權限",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionarySenseDeletion.test.cjs",
+          "dictionaryEntryDeletion.test.cjs"
+        ],
+        "unique": "單一草稿子項目刪除時保護其他子項、修訂及稽核紀錄",
+        "decision": "保留；與整筆詞條或義項刪除不同，無等效替代"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryDefects.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryDraftPublish.browser.test.cjs",
+      "area": "審核發布與權限",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionaryEditor.browser.test.cjs",
+          "dictionaryApproval.test.cjs"
+        ],
+        "unique": "真實瀏覽器發布及完整儲存／審核流程",
+        "decision": "保留至少一個真實瀏覽器發布流程，可整併重複 UI 步驟"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryEntryDeletion.browser.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryEntryDeletion.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryImportApproval.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryLifecycle.test.cjs",
+      "area": "審核發布與權限",
+      "action": "更新現行規格",
+      "note": "保留發布/審核/復原，更新舊群組與例句欄位"
+    },
+    {
+      "file": "tests/dictionary/dictionarySenseDeletion.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionarySenseReview.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/publicDictionary.test.cjs",
+      "area": "審核發布與權限",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryAI.test.cjs",
+      "area": "資料交換與安全",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionaryExchange.test.cjs",
+          "dictionaryLifecycle.test.cjs"
+        ],
+        "unique": "AI 格式欄位拒絕、Word/構詞投影及新增 ID 的安全邊界",
+        "decision": "保留解析器邊界測試；與 Exchange 重複的草稿差異可以合併"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryExchange.browser.test.cjs",
+      "area": "資料交換與安全",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryExchange.test.cjs",
+      "area": "資料交換與安全",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryExchangeB2Scope.test.cjs",
+      "area": "資料交換與安全",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionarySenseExchange.test.cjs",
+          "dictionaryExchangeSafety.test.cjs"
+        ],
+        "unique": "B2 範圍修訂、舊審核與私人學習紀錄不被覆寫",
+        "decision": "保留目前的相容性保障，移除前須驗證 Exchange v2 替代案例"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryExchangeSafety.test.cjs",
+      "area": "資料交換與安全",
+      "action": "核心保留",
+      "note": "保留衝突、重送、權限、容量錯誤的獨立保障"
+    },
+    {
+      "file": "tests/dictionary/dictionaryExchangeScale.test.cjs",
+      "area": "資料交換與安全",
+      "action": "整併候選",
+      "note": "大量交換的正確性保留，純效能可手動執行",
+      "comparison": {
+        "compare": [
+          "dictionaryPersistentScale.test.cjs",
+          "dictionaryExchangeSafety.test.cjs"
+        ],
+        "unique": "大量 Exchange 作業的資料正確性與分批重試",
+        "decision": "保留正確性檢查，純效能可手動執行"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryPersistent.browser.test.cjs",
+      "area": "資料交換與安全",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionarySenseExchange.test.cjs",
+      "area": "資料交換與安全",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionaryExchange.test.cjs",
+          "dictionarySenseEditor.test.cjs"
+        ],
+        "unique": "衍生義、雙語例句穩定 ID，部分匯入與版本化 Exchange",
+        "decision": "保留連動 B2 資料一致性；一般 JSON 重複案例可合併"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryConnections.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryFlashcardLoop.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "公開字典不可覆蓋私有字卡或學習紀錄"
+    },
+    {
+      "file": "tests/dictionary/dictionaryMorphology.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryMorphology.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionaryReader.test.cjs",
+          "dictionaryStudyBack.test.cjs"
+        ],
+        "unique": "跨字卡公開詞源資料的去重、同時查詢上限及取消後不得寫入",
+        "decision": "保留佇列／快取／取消時序測試，與 Reader 視圖不同"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryReader.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryReaderAdmin.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionaryReader.test.cjs",
+          "dictionaryBulkPublishBatches.test.cjs"
+        ],
+        "unique": "管理端的精確總數、排序、權限及越過 1000 筆分頁",
+        "decision": "保留分頁及權限；靜態介面斷言可移入 UI 專項"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryRefresh.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryStudyBack.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "整併候選",
+      "note": "與學習中公開資料呈現重疊，保留未發布資料隔離",
+      "comparison": {
+        "compare": [
+          "studyDictionaryPanel.browser.test.cjs",
+          "studyDictionary.test.cjs"
+        ],
+        "unique": "依 Sense 展示衍生義、雙語例句並阻止未發布資料外洩",
+        "decision": "保留資料投影斷言，瀏覽器重複樣式可再刪減"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionarySafeMarkdown.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "必須保留 HTML／危險 URL 的安全測試"
+    },
+    {
+      "file": "tests/dictionary/pagination.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/pagination.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/pwaDictionary.production.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留真實 PWA 離線、公開資料隔離"
+    },
+    {
+      "file": "tests/dictionary/pwaDictionaryCache.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留快取 TTL、離線重新讀取與線上失敗處理"
+    },
+    {
+      "file": "tests/dictionary/studyDictionary.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/studyDictionaryEditor.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/studyDictionaryPanel.browser.test.cjs",
+      "area": "查詢與字卡連動",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs",
+      "area": "Sense 與例句",
+      "action": "核心保留",
+      "note": "發生過的例句儲存故障，必須保留真實 SQL 寫入"
+    },
+    {
+      "file": "tests/dictionary/dictionarySenseDerivations.test.cjs",
+      "area": "Sense 與例句",
+      "action": "核心保留",
+      "note": "保留跨 Sense 參照約束與雙語例句資料完整性"
+    },
+    {
+      "file": "tests/dictionary/dictionarySenseEditor.test.cjs",
+      "area": "Sense 與例句",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "dictionarySenseDerivations.test.cjs",
+          "dictionaryExamplesAtomicDraft.test.cjs"
+        ],
+        "unique": "跨 Sense 禁止錯連、刪除仍被引用的義項及 Word 單筆欄位限制",
+        "decision": "保留這些非法資料被拒絕的斷言；可整併正常編輯路徑"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionarySharedWordContent.test.cjs",
+      "area": "Sense 與例句",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryCompositionShared.test.cjs",
+      "area": "構詞",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryGrouping.test.cjs",
+      "area": "構詞",
+      "action": "整併候選",
+      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "comparison": {
+        "compare": [
+          "morphemeDatabase.test.cjs",
+          "dictionaryIdentity.test.cjs"
+        ],
+        "unique": "歷史分組的資料庫升級、修訂遞增、RLS 及已發布分類限制",
+        "decision": "先保留升級兼容；若正式支援範圍排除舊分組資料才能整併"
+      }
+    },
+    {
+      "file": "tests/dictionary/morphemeContract.test.cjs",
+      "area": "構詞",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/morphemeDatabase.test.cjs",
+      "area": "構詞",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/morphemeEditor.browser.test.cjs",
+      "area": "構詞",
+      "action": "核心保留",
+      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+    },
+    {
+      "file": "tests/dictionary/dictionaryInflectionsRetirementB.test.cjs",
+      "area": "歷史退役",
+      "action": "核心保留",
+      "note": "保留新資料禁止重寫退役欄位，合併其他退役斷言"
+    },
+    {
+      "file": "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
+      "area": "歷史退役",
+      "action": "退役候選",
+      "note": "確認歷史升級支援期後才可刪減",
+      "retirement": {
+        "migration": "20261114231000_dictionary_inflections_final_drop.sql",
+        "unique": "驗證先安全遷移 B2 子表、Review 再移除 Inflections，以及未使用 CASCADE",
+        "decision": "保留；資料庫實體結構的遷移不可用新版編輯器測試替代"
+      }
+    },
+    {
+      "file": "tests/dictionary/dictionaryRetireSourceForms.test.cjs",
+      "area": "歷史退役",
+      "action": "更新現行規格",
+      "note": "保留不准舊來源欄位回寫；不再測試已停用匯入操作"
+    },
+    {
+      "file": "tests/dictionary/dictionarySourceRetirement.test.cjs",
+      "area": "歷史退役",
+      "action": "更新現行規格",
+      "note": "保留舊資料遷移安全及審核權限；對外入口改為 JSON"
+    },
+    {
+      "file": "tests/dictionary/dictionaryVerificationRetirement.test.cjs",
+      "area": "歷史退役",
+      "action": "退役候選",
+      "note": "確認仍支援的升級來源及移轉損失風險",
+      "retirement": {
+        "migration": "20261016060000_dictionary_retire_verification_state.sql",
+        "unique": "移轉時不可丟失詞源、來源 ID、Review CAS、稽核及資料庫權限",
+        "decision": "暫不刪；需明確確認最舊受支援升級版本已高於該遷移"
+      }
+    },
+    {
+      "file": "tests/dictionary/maintenanceCleanupRetirement.test.cjs",
+      "area": "歷史退役",
+      "action": "退役候選",
+      "note": "一次性清理 RPC 的支援期限尚待確認",
+      "retirement": {
+        "migration": "20261113195500_dictionary_one_shot_cleanup_retired.sql",
+        "unique": "一次性清理 RPC 退役後仍保留待審核資料與避免重放的操作收據",
+        "decision": "暫不刪；先確認正式資料庫升級路徑及其他收據保護測試能完全替代"
+      }
+    },
+    {
+      "file": "tests/dictionary/morphemeRetirement.test.cjs",
+      "area": "歷史退役",
+      "action": "退役候選",
+      "note": "先保留現行分類、變體與 ID 行為，才處理歷史退役部分",
+      "retirement": {
+        "migration": "由 morphemeRetirementDatabase fixture 載入的構詞遷移",
+        "unique": "已發布構詞 ID 與變體不變、審核／清理僅處理限定對象、原子回復及 RLS",
+        "decision": "保留核心情境；若整併應拆移到現行構詞測試，不能整份刪除"
+      }
+    }
+  ],
+  "review_phase": "已處理舊 B2 Draft RPC 重複測試，現行原子例句測試負責 SQL 與 Draft RPC 寫入；其餘候選持續依現行規格整併或刪減",
+  "completed_current_contract_edits": [
+    "tests/dictionary/dictionaryAdmin.test.cjs",
+    "tests/dictionary/currentImportBoundary.test.cjs",
+    "tests/dictionary/dictionaryCoreConcept.test.cjs",
+    "tests/dictionary/dictionaryRetireSourceForms.test.cjs",
+    "tests/dictionary/dictionaryAdminUI.test.cjs",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs",
+    "tests/dictionary/dictionaryRankedComponents.test.cjs",
+    "tests/dictionary/dictionaryImportReview.test.cjs",
+    "tests/dictionary/dictionarySourceRetirement.test.cjs",
+    "tests/dictionary/dictionaryIdentity.test.cjs"
+  ],
+  "comparison_verified": 15,
+  "retirement_reviewed": 4,
+  "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。",
+  "current_contract_remaining": [
+    "tests/dictionary/dictionaryLifecycle.test.cjs",
+    "tests/dictionary/dictionaryImportReview.test.cjs",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs"
+  ],
+  "progress_note": "七個功能測試群組已實體搬移完成；字典 70 份測試位於 tests/dictionary/，與 CI、群組清冊同步。完整 CI 待最新提交驗證。",
+  "current_contract_changes": {
+    "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
+    "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
+    "tests/dictionary/dictionaryCoreConcept.test.cjs": "已以 JSON 與 AI 的內容不遺失、穩定 ID 驗證取代舊 CSV 情境",
+    "tests/dictionary/dictionaryRetireSourceForms.test.cjs": "已將禁止舊欄位回寫改為透過正式 JSON 入口檢查；歷史 SQL 安全案例保留",
+    "tests/dictionary/dictionaryAdminUI.test.cjs": "已更新正式預覽為 data_source 歸屬與 HTML 安全輸出，不再依賴舊來源表",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs": "已移除重複的舊 CSV 下載 UI 斷言，更新 JSON 例句/衍生義及內部 CSV 轉接測試；大型 SQL 案例仍待修正；移除舊 CSV 相同拼寫與空白 Entry ID 分組的重複情境，由 currentImportBoundary 的正式 JSON 身分與重複 ID 拒絕測試取代",
+    "tests/dictionary/dictionaryRankedComponents.test.cjs": "已移除與構詞排名無關、且使用退役欄位的 Exchange 斷言；Exchange 專項仍保留",
+    "tests/dictionary/dictionaryImportReview.test.cjs": "已依現行 12 欄內部 CSV 結構與例句連動要求調整部分測試資料；批次審核與 SQL 案例待更新；已直接刪除舊 CSV 空白 ID 預覽測試",
+    "tests/dictionary/dictionarySourceRetirement.test.cjs": "已於先前提交改用 JSON-only 入口；SQL 遷移測試仍保留",
+    "tests/dictionary/dictionaryIdentity.test.cjs": "直接刪除兩項舊 CSV 分組／同形詞單元測試；JSON 身分由 currentImportBoundary 覆蓋，保留跨入口與資料庫身分完整性、原子交易及遷移失敗測試"
+  },
+  "current_contract_pending": [
+    "tests/dictionary/dictionaryLifecycle.test.cjs",
+    "tests/dictionary/dictionaryImportReview.test.cjs",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs"
+  ],
+  "completed_retirements": [
+    {
+      "file": "tests/dictionarySenseDraftRPC.test.cjs",
+      "reason": "舊版 B2 Draft RPC 使用過時的例句衍生義可空約束；現行原子例句寫入及 Draft RPC 實際 SQL 檢查已由 dictionaryExamplesAtomicDraft.test.cjs 覆蓋"
+    }
+  ]
+}
