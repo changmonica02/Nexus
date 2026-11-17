@@ -8,8 +8,13 @@ const config=JSON.parse(readFileSync(path.join(root,'config/test-groups.json'),'
 const groups=config.groups;
 const tracked=Object.values(groups).flat();
 function walk(directory,pattern){
- return readdirSync(path.join(root,directory),{withFileTypes:true})
-  .filter(entry=>entry.isFile()&&pattern.test(entry.name)).map(entry=>directory+'/'+entry.name);
+ const found=[];
+ for(const entry of readdirSync(path.join(root,directory),{withFileTypes:true})){
+  const current=directory+'/'+entry.name;
+  if(entry.isDirectory())found.push(...walk(current,pattern));
+  else if(entry.isFile()&&pattern.test(entry.name))found.push(current);
+ }
+ return found;
 }
 function check(){
  const actual=[...walk('tests',/\.test\.cjs$/),...walk('experiments/spherical-grid',/\.test\.mjs$/)];
