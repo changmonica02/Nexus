@@ -130,7 +130,7 @@ node tests/tools/test-groups.mjs --check
 
 - `dictionaryAdminUI.test.cjs`：將一般列表篩選案例整併至多條件篩選測試，補上搜尋無結果的斷言；刪除過時選取按鈕、舊說明文字、固定核取方塊數及 CSS 實作斷言。
 - `dictionaryReader.test.cjs`：移除補充資料區塊固定先後順序的斷言，保留 IPA 排序、義項與共用資料、來源安全及公開資料隔離。
-- `dictionaryVerificationRetirement.test.cjs`、`maintenanceCleanupRetirement.test.cjs`、`dictionaryInflectionsSQLRetirement.test.cjs`：核對真實 PostgreSQL 遷移、Review CAS、操作收據及 RLS 後保留；現階段不以名稱或時間舊為理由直接刪除。
+- `dictionaryVerificationRetirement.test.cjs`、`maintenanceCleanupRetirement.test.cjs`：目前仍涵蓋 Review CAS、操作收據及 RLS，故保留現行資料保障；`dictionaryInflectionsSQLRetirement.test.cjs` 已依停止支援的歷史升級政策退役。
 - 字典測試檔案仍維持 70 份，已刪減獨立重複案例及易碎斷言；需要最新完整 CI 結果才能宣告實際執行通過。
 
 ## 非字典測試清理（2026-11-17）
@@ -179,3 +179,11 @@ node tests/tools/test-groups.mjs --check
 - 生活：`lifeViews.browser.test.cjs` 的四種視圖切換與溢出測試由三組尺寸縮減為桌面與手機；`lifeLists.browser.test.cjs` 的平板版面檢查保留。
 - 世界地圖：`worldMap.browser.test.cjs`、`worldMapUI.browser.test.cjs`、`globalMapEditor.browser.test.cjs` 分別保障原生專案寫入、地圖編輯介面和全球地圖離線／重連；無等效取代之前不整檔合併或移除。
 - **範圍與限制**：本輪減少 7 個重複的瀏覽器尺寸／操作組合，但未刪除測試檔案，也未減少功能／資料安全斷言。每份仍由原 CI 路徑執行；最終通過與實際耗時仍以 GitHub Actions 為準。
+
+## 進一步精簡實作綁定與歷史升級測試（2026-11-17）
+
+- `dictionaryAdminUI.test.cjs` 從 17 個案例減至 8 個，移除 9 項固定介面文字、原始碼片段及過時入口檢查；保留內容跳脫、草稿編輯及識別碼穩定性等行為。
+- `shared/uiInteractions.test.cjs` 移除靜態元件標記與原始碼出現次數的測試，保留可操作的選單事件清理、Escape 與外部點擊。
+- 移除 `workspace/storageUpgrade.browser.test.cjs`、`shared/schemaRetirement.test.cjs`、`shared/retirementCompatibility.test.cjs`、`dictionary/dictionaryInflectionsSQLRetirement.test.cjs`。這些屬於已不支援的歷史直接升級路徑，不再列入 PR 必要測試；正式資料庫遷移檔案及現行功能檢查未刪除。
+- `ci-full.yml` 與分組清冊已移除相關引用；字典審查清冊同步修正。分組清冊目前 **158** 份測試檔案。歷史文件中的較大數字只描述當時狀態。
+- 這次退役代表不再承諾對歷史用戶端直接升級與舊式資料轉換執行每次 PR 回歸；資料庫版本及 PWA 的現行資料寫入、同步、安全保護仍為測試重點。
