@@ -6,7 +6,7 @@ const test = require("node:test"),
   http = require("node:http");
 const { build } = require("esbuild"),
   { chromium } = require("playwright");
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "../..");
 test(
   "shared Table v9 views, stable fields, category tree, pagination, device preferences, offline editing and account isolation",
   { timeout: 120000 },
