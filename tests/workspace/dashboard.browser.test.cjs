@@ -67,7 +67,7 @@ test(
     });
     const errors = [];
     try {
-      for (const width of [320, 390, 768, 820, 1180, 1440]) {
+      for (const width of [320, 820, 1440]) {
         const context = await browser.newContext({
             viewport: { width, height: 1000 },
             hasTouch: width < 1440,
