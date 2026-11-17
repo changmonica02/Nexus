@@ -6,16 +6,13 @@ const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const migration='20261012_dictionary_retire_sources.sql';
 const csv=`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw\n${id(40)},${id(41)},apple,noun,蘋果`;
 const currentBundle={dictionary_entries:[{id:id(40),kind:'word',headword:'apple'}],dictionary_senses:[{id:id(41),entry_id:id(40),part_of_speech:'noun',gloss_zh_tw:'蘋果'}]};
-test('current JSON import retains source-free content, rejects retired CSV/Markdown, and ignores legacy source columns explicitly',async()=>{
+test('current JSON import retains source-free content, rejects retired CSV/Markdown, and rejects legacy source columns explicitly',async()=>{
  const bundle=await parseDictionaryImport(JSON.stringify(currentBundle),'json');
  assert.deepEqual(bundle,currentBundle);
  await assert.rejects(parseDictionaryImport(csv,'csv'),/CSV 與 Markdown 舊格式已停用/);
  const md=`---\nid: ${id(42)}\nentry_id: ${id(40)}\nkind: historical_etymology\ndata_source: 書籍第 1 頁\n---\n歷史正文`;
  await assert.rejects(parseDictionaryImport(md,'md'),/CSV 與 Markdown 舊格式已停用/);
- const parsed=parseJSONBundleWithIgnored(JSON.stringify({dictionary_sources:[{id:id(3)}],dictionary_entries:[{...currentBundle.dictionary_entries[0],source_id:id(3)}],dictionary_senses:currentBundle.dictionary_senses}));
- assert.deepEqual(parsed.bundle,currentBundle);
- assert.ok(parsed.ignoredFields.some(f=>f.includes('dictionary_sources')));
- assert.ok(parsed.ignoredFields.some(f=>f.includes('source_id')));
+ assert.throws(()=>parseJSONBundleWithIgnored(JSON.stringify({dictionary_sources:[{id:id(3)}],dictionary_entries:[{...currentBundle.dictionary_entries[0],source_id:id(3)}],dictionary_senses:currentBundle.dictionary_senses})),/最新版 JSON 不接受過時或未知欄位.*dictionary_sources.*source_id/);
  assert.throws(()=>parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[{type:'word',headword:'a',sources:[]}]})),/已淘汰/);
 });
 test('migration preserves all legacy rows/audit; source-free RPCs, AI reviews, Reader isolation, deletions and rollback work',async()=>{
