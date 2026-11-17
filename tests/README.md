@@ -116,3 +116,10 @@ node tests/tools/test-groups.mjs --check
 - `dictionaryAI.test.cjs`：移除匯出視窗選項的固定顯示文字檢查；保留預設 Draft、審核草稿保護與 AI 資料安全驗證。
 - `dictionaryImportReview.test.cjs`：移除硬編碼 12 欄的畫面外觀／格式數量檢查，保留必要欄位存在、Entry／Sense 身分穩定、重排、審核、操作收據及資料庫回復。
 - 本輪修改未刪除任何正式測試檔案。已檢查三份測試程式語法、JSON 清冊解析，以及 70 份字典檔案與 70 筆審查紀錄一致；仍需以 GitHub 完整 CI 結果確認實際執行。
+
+## 字典資料交換與跨裝置測試精簡（2026-11-17）
+
+- 比對 `dictionaryTransfer.test.cjs`、`dictionaryExchangeSafety.test.cjs`、`dictionaryPersistentImport.test.cjs` 後，確認交換提案身分／中斷續傳、IndexedDB 容量錯誤與收據保全、跨裝置 CAS 與部分成功批次等保護不互相替代，故未刪除交易核心測試。
+- `dictionaryPersistent.browser.test.cjs`：移除依固定三／二／一欄 CSS 網格計算的版面斷言，保留實際匯入與審核操作。
+- `dictionaryExchange.browser.test.cjs`：移除已退役發布核取方塊、舊批次選取按鈕及歷史提示文字不存在的檢查，保留完整匯出、收據恢復、離線續傳與真正的全域發布。
+- 共刪除 5 項純舊介面／固定版面斷言；沒有刪除檔案或放寬原子交易、安全與資料完整性斷言。最新 CI 執行結果仍需檢查。
