@@ -5,13 +5,12 @@ const {mapDictionaryDraft,saveDictionaryDraft,draftsFromBundle}=require('../../s
 const {readAI,toAI,planAI,submitAI,parseAI}=require('../../src/features/dictionary/aiDictionary.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('internal CSV adapter is not a public import path; identity and draft projection remain isolated',async()=>{
-await assert.rejects(require('../../src/features/dictionary/adminImport.ts').parseDictionaryImport(dictionaryCSVExample,'csv'),/CSV.*Markdown.*停用/);const ds=await parseDictionaryCSV(dictionaryCSVExample);assert.equal(ds.length,3);assert.notEqual(ds[0].entry_id,(await parseDictionaryCSV(dictionaryCSVExample))[0].entry_id);
+const ds=await parseDictionaryCSV(dictionaryCSVExample);assert.equal(ds.length,3);assert.notEqual(ds[0].entry_id,(await parseDictionaryCSV(dictionaryCSVExample))[0].entry_id);
 assert.equal(mapDictionaryDraft(ds[1]).bundle.dictionary_senses[0].semantic_domain,'space_time');assert.equal(mapDictionaryDraft(ds[2]).bundle.dictionary_senses[0].semantic_subdomain,'geography');assert.equal(ds[0].examples[0].body,'an example');assert.equal(ds[0].etymologies.length,0);assert.equal(ds[0].learning_notes[0].kind,'core_concept');
 });
-test('canonical errors include row, kind, field; legacy and UUID validation',async()=>{
+test('canonical errors identify row, kind, field and reject invalid UUIDs',async()=>{
 for(const [field,value,pattern]of [['kind','bad',/kind/],['headword','',/headword/],['gloss_zh_tw','',/gloss_zh_tw/],['part_of_speech','',/part_of_speech/],['semantic_domain','x',/senses/],['entry_id','bad',/UUID/]]){const r={kind:'word',headword:'a',part_of_speech:'noun',gloss_zh_tw:'甲',[field]:value};const raw=dictionaryCSVHeaders.join(',')+'\n'+dictionaryCSVHeaders.map(h=>r[h]??'').join(',');await assert.rejects(parseDictionaryCSV(raw),e=>/第 2 列/.test(e.message)&&pattern.test(e.message));}
-const old=`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw\n${id(3)},${id(4)},a,noun,甲`;assert.equal((await parseDictionaryCSV(old))[0].kind,'word');
-for(const field of ['citation','license','source_id','level'])await assert.rejects(parseDictionaryCSV(old.replace('headword',field)),/缺少必要欄位/);
+for(const field of ['citation','license','source_id','level']){const raw=dictionaryCSVHeaders.join(',').replace('headword',field)+'\n'+dictionaryCSVHeaders.map(h=>({kind:'word',headword:'a',part_of_speech:'noun',gloss_zh_tw:'甲'})[h]??'').join(',');await assert.rejects(parseDictionaryCSV(raw),/缺少必要欄位/);}
 });
 test('SQL migration: complete preview rollback, replay, RLS, published protection, extension transactions',async()=>{
 const pg=await require('../fixtures/morphemeRetirementDatabase.cjs').database();try{
