@@ -429,7 +429,8 @@ function LifeEditor({
   const value = (id: string, v: unknown) =>
     setDraft((current) => {
       if (current.type !== "life_items") return current;
-      return { ...current, row: { ...current.row, values: { ...current.row.values, [id]: v } } } as Editor;
+      const item = current.row as LifeItem;
+      return { ...current, row: { ...item, values: { ...item.values, [id]: v } } } as Editor;
     });
   const fieldNames: Record<string, string> = en
     ? {
