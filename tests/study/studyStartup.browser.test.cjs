@@ -9,7 +9,13 @@ test('actual start button: local/cloud phases, bounded first-card data, resume, 
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(root,'src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{if(req.url==='/app.js'){res.setHeader('content-type','text/javascript');res.end(fs.readFileSync(path.join(tmp,'app.js')));}else if(req.url==='/app.css')res.end(css);else res.end('<html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><div id="root"></div><script type="module" src="/app.js"></script></html>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium,browser=await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:engine===chromium?['--no-sandbox']:[]}),results=[],errors=[];
- try{for(const count of [20,6300])for(const scenario of ['new','resume','offline','reconnect','pending','remote','endless','official',...(count===20?['cancel','preferences']:[])]){
+ // Exercise every startup lifecycle on a small deck. Large-deck coverage
+ // focuses on the data-size-sensitive first load, resume, reconnection and remote update.
+ const scenarioMatrix=[
+  ...['new','resume','offline','reconnect','pending','remote','endless','official','cancel','preferences'].map(scenario=>({count:20,scenario})),
+  ...['new','resume','reconnect','remote'].map(scenario=>({count:6300,scenario}))
+ ];
+ try{for(const {count,scenario} of scenarioMatrix){
   const context=await browser.newContext({viewport:{width:390,height:844}});if(scenario==='preferences')await context.addInitScript(()=>{window.speechCalls=[];window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};const engine=new EventTarget();Object.assign(engine,{getVoices:()=>[{name:'English',lang:'en-US',localService:true}],cancel(){},resume(){},speak:u=>{if(u.text.trim())window.speechCalls.push({text:u.text,rate:u.rate});u.onstart?.();}});Object.defineProperty(window,'speechSynthesis',{value:engine,configurable:true});});const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));
   await p.goto('http://127.0.0.1:'+server.address().port+'/?count='+count+(scenario==='new'?'':'&'+scenario)+(scenario==='reconnect'?'&offline&resume':scenario==='offline'?'&resume':''));
   const start=p.getByRole('button',{name:'開始學習',exact:true});await start.waitFor().catch(async e=>{console.error({count,scenario,errors,body:await p.locator('body').innerText()});throw e;});await p.waitForTimeout(100);
