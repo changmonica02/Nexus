@@ -50,7 +50,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
   assert.equal(saved.bundle.dictionary_etymologies[0].body,'Updated etymology');
   assert.equal(saved.public_notes.length,1);
   assert.equal(saved.public_notes[0].body,'公共備註');
-  const {waitForAsync}=require('../pwaBrowser.cjs');
+  const {waitForAsync}=require('../helpers/pwaBrowser.cjs');
   const fields=[['讀音（IPA）','/goʊ/'],['記憶法','記憶提示'],['詞源','Updated etymology'],['筆記','恢復筆記']];
   for(const [label]of fields)await page.getByLabel(label,{exact:true}).fill('');
   await page.evaluate(()=>document.activeElement?.blur());
