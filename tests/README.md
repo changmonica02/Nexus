@@ -152,3 +152,10 @@ node tests/tools/test-groups.mjs --check
 - 球面幾何 PR 測試與離線預覽照常執行，8 份球面效能基準不再隨 PR 自動執行；未修改 `experiments/spherical-grid/` 的實驗程式。
 - 效能與大量資料測試集中至 `.github/workflows/performance-manual.yml`，使用 GitHub Actions 的 `workflow_dispatch` 手動選擇 `all`、`dictionary`、`study` 或 `spherical-grid`。
 - `tests/tools/run-full-extras.mjs --audit` 的 `deferred` 列表會明確列出不作 PR 必要檢查的測試，以免補充執行器重新納入。這些測試**不是刪除**，需要大型資料的安全驗證仍可手動執行。
+
+## 正式建置與環境共用（2026-11-17）
+
+- `ci-full.yml` 新增 `production-fixture-build`，使用固定的合成 Supabase PWA 環境變數執行一次 `npm run build`，再以短期 GitHub Actions artifact 交付 `.next/`、`public/world-map/core/` 與 `public/world-map/offline.js`；隱藏的 `.next` 目錄須明確包含。
+- `workspace-regression` 及 `additional-regression` 的字典、世界地圖、工作區群組下載此產物，不再各自執行相同設定的正式建置。額外測試只在需要瀏覽器時安裝 Chromium。
+- `world-map` 仍保留附有 `NODE_ENV=production`／`NPM_CONFIG_OMIT=dev` 的獨立正式建置，`global-editor` 仍獨立驗證 Worker 產物；未將不同條件的檢查視為等價。
+- 共用建置引入 `needs: production-fixture-build`：依賴此產物的群組會等候上游建置成功，無法視為減少了每個工作需各自安裝 npm 相依套件的成本。實際速度與可用性應以 GitHub Actions 結果驗證。
