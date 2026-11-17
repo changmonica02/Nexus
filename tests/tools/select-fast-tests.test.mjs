@@ -25,12 +25,12 @@ test('shared infrastructure and unknown paths expand conservatively',()=>{
  }
 });
 test('explicit test changes are included once',()=>{
- const plan=selectFastTests(['tests/study/studyFSRS.test.cjs','tests/study/studyFSRS.test.cjs','docs/TEST_GROUPS.md']);
- assert.equal(plan.node.filter(x=>x==='tests/study/studyFSRS.test.cjs').length,1);
+ const plan=selectFastTests(['tests/study/studyIntervals.test.cjs','tests/study/studyIntervals.test.cjs','docs/SPEC.md']);
+ assert.equal(plan.node.filter(x=>x==='tests/study/studyIntervals.test.cjs').length,1);
  assert.deepEqual(plan.groups,['study']);
 });
 test('documentation-only changes select no test groups',()=>{
- const plan=selectFastTests(['docs/TEST_GROUPS.md']);
+ const plan=selectFastTests(['docs/SPEC.md']);
  assert.deepEqual(plan.groups,[]);
 });
 test('empty changed-file input is an error',()=>{
