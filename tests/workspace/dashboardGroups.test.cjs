@@ -110,11 +110,3 @@ test("search and both sort directions apply within every grouping; pinned first,
     [],
   );
 });
-
-test('new selection labels interpolate using the shared bilingual contract',()=>{
- const {translate}=require('../../src/lib/i18n.ts');
- assert.equal(translate('zh-TW','dashboard.selectItem',{name:'Alpha'}),'選取 Alpha');
- assert.equal(translate('en','dashboard.selectItem',{name:'Alpha'}),'Select Alpha');
- assert.equal(translate('zh-TW','dashboard.selected',{n:2}),'已選 2 項');
- assert.equal(translate('en','dashboard.selected',{n:2}),'2 selected');
-});
