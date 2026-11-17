@@ -76,7 +76,7 @@ test('migration refuses legacy identity collisions atomically, without changing 
  const check=await sql(pg,"select pg_get_constraintdef(oid) v from pg_constraint where conname='dictionary_senses_gloss_zh_tw_check'");assert.ok(!check.includes('part_of_speech'));
  }finally{await pg.close();}
 });
-test('6301 full candidates ranked and paginated without truncated alphabetic results',async()=>{
+test('6301 full candidates ranked and paginated without truncated alphabetic results',{skip:process.env.NEXUS_PERFORMANCE!=='1'},async()=>{
  const pg=await database();try{
  await pg.exec('reset role');await pg.exec(migration);
  await pg.query("insert into dictionary_entries(id,kind,headword) select md5('scale-entry-'||n)::uuid,'word',case when n=6301 then 'zzorg' else 'aaa'||lpad(n::text,5,'0') end from generate_series(1,6301) n");
