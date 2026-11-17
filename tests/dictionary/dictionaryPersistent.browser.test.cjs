@@ -21,7 +21,7 @@ test(
   { timeout: 150000 },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-persistent-")),
-      root = path.resolve(__dirname, "..");
+      root = path.resolve(__dirname, "../..");
     let pg;
     await build({
       entryPoints: ["tests/fixtures/persistentImport.jsx"],
