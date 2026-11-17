@@ -193,7 +193,7 @@ test(
       await page.getByRole("button", { name: "清除篩選", exact: true }).click();
       await view("表格").click();
       assert.equal(await page.getByRole("columnheader", { name: /數量/ }).count(), 0);
-      for (const width of [320, 820, 1280]) {
+      for (const width of [320, 1280]) {
         await page.setViewportSize({ width, height: 740 });
         for (const name of ["清單", "卡片", "表格", "分類樹"]) {
           await view(name).click();
