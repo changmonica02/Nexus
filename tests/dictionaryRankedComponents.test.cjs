@@ -35,7 +35,7 @@ test('quick component: minimal Prefix/Root, canonical reuse, lost-response retry
  const {validateDictionaryDraft,draftsFromBundle,mapDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
  const bundle={dictionary_entries:[{id:a.id,kind:'prefix',headword:a.headword,revision:snapshot.detail.entry.revision}],dictionary_senses:snapshot.detail.senses.map(({updated_at,...r})=>r)};
  const {parseJSONBundle}=require('../src/features/dictionary/adminImport.ts');assert.deepEqual(parseJSONBundle(JSON.stringify(bundle)),bundle);assert.deepEqual(validateDictionaryDraft(draftsFromBundle(bundle)),[]);
- const {draftFromExchange}=require('../src/features/dictionary/dictionaryExchange.ts');assert.equal(draftFromExchange({snapshot,reviews:[],version:null}).senses[0].gloss_zh_tw,'');
+ // Exchange v2 validation belongs to dictionarySenseExchange.test.cjs; this test verifies ranked component reuse.
  const {toAI,parseAI}=require('../src/features/dictionary/aiDictionary.ts');const ai=toAI(snapshot);assert.ok(parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[ai]})));
 
  const candidate=draftsFromBundle({...bundle,dictionary_senses:bundle.dictionary_senses.map(s=>({...s,gloss_zh_tw:'補充中文'}))})[0];
