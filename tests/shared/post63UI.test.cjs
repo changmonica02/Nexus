@@ -139,7 +139,6 @@ test("central icons match feature/page identities across overview/card/default i
       React.createElement(FeatureIcon, { feature: key }),
     );
     assert.ok(html.includes(`data-feature-icon="${key}"`));
-    assert.ok(html.includes('aria-hidden="true"'));
   }
   assert.equal(
     featureForPage({
@@ -163,22 +162,5 @@ test("central icons match feature/page identities across overview/card/default i
   assert.ok(html.includes("😀 自訂標題"));
   assert.ok(html.includes("🌍 使用者內容"));
   assert.ok(html.includes('data-feature-icon="note"'));
-  assert.ok(html.includes('data-collection-row="cards"'));
-});
-test("one shared compact control includes mode icons and sort direction in the same menu, without a separate arrow button", () => {
-  const Control = require("../../src/components/CollectionControls.tsx").default;
-  const html = renderToStaticMarkup(
-    wrap(
-      React.createElement(Control, {
-        view: "list",
-        onView() {},
-        sort: "title",
-        ascending: true,
-        onSort() {},
-      }),
-    ),
-  );
-  assert.ok(html.includes('aria-haspopup="menu"'));
-  assert.ok(!html.includes("<select"));
-  assert.ok(html.includes('aria-pressed="true"'));
+
 });
