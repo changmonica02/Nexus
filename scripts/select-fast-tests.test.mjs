@@ -14,8 +14,8 @@ test('map generation selects spherical land test',()=>{
 });
 test('speech edits include browser and unit regression',()=>{
  const plan=selectFastTests(['src/features/study/StudySpeechPlayer.tsx']);
- assert.ok(plan.browser.includes('tests/studySpeech.browser.test.cjs'));
- assert.ok(plan.node.includes('tests/studySpeech.test.cjs'));
+ assert.ok(plan.browser.includes('tests/study/studySpeech.browser.test.cjs'));
+ assert.ok(plan.node.includes('tests/study/studySpeech.test.cjs'));
 });
 test('shared infrastructure and unknown paths expand conservatively',()=>{
  for(const file of ['src/infrastructure/storage/IndexedDBAdapter.ts','supabase/migrations/new.sql','src/lib/i18n.ts','unknown/feature.ts']){
@@ -25,8 +25,8 @@ test('shared infrastructure and unknown paths expand conservatively',()=>{
  }
 });
 test('explicit test changes are included once',()=>{
- const plan=selectFastTests(['tests/studyFSRS.test.cjs','tests/studyFSRS.test.cjs','docs/TEST_GROUPS.md']);
- assert.equal(plan.node.filter(x=>x==='tests/studyFSRS.test.cjs').length,1);
+ const plan=selectFastTests(['tests/study/studyFSRS.test.cjs','tests/study/studyFSRS.test.cjs','docs/TEST_GROUPS.md']);
+ assert.equal(plan.node.filter(x=>x==='tests/study/studyFSRS.test.cjs').length,1);
  assert.deepEqual(plan.groups,['study']);
 });
 test('documentation-only changes select no test groups',()=>{
