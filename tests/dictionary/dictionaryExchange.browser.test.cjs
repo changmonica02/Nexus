@@ -263,6 +263,23 @@ test(
             .operations.map((op) => op.operation_id),
         );
         await reload();
+        await page.evaluate(() => {
+          window.importDialogLifecycle = [];
+          const show = HTMLDialogElement.prototype.showModal, close = HTMLDialogElement.prototype.close;
+          HTMLDialogElement.prototype.showModal = function(...args) {
+            window.importDialogLifecycle.push({event: "showModal", title: this.textContent?.slice(0, 80)});
+            return show.apply(this, args);
+          };
+          HTMLDialogElement.prototype.close = function(...args) {
+            window.importDialogLifecycle.push({event: "close", title: this.textContent?.slice(0, 80)});
+            return close.apply(this, args);
+          };
+          document.addEventListener("click", event => {
+            const button = event.target.closest?.("button");
+            if (button?.textContent?.trim() === "匯入資料")
+              window.importDialogLifecycle.push({event: "button-click", url: location.href});
+          }, true);
+        });
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
@@ -271,6 +288,8 @@ test(
         await page.getByRole("dialog", { name: "匯入資料", exact: true }).waitFor().catch(async error => {
           console.error("IMPORT_REOPEN_DIAGNOSTIC", {
             url: page.url(),
+            lifecycle: await page.evaluate(() => window.importDialogLifecycle),
+            errors,
             dialogs: await page.locator("dialog").evaluateAll(rows => rows.map(row => ({open: row.open, title: row.getAttribute("aria-labelledby"), text: row.innerText.slice(0, 300)}))),
             body: (await page.locator("body").innerText()).slice(0, 1200),
           });
