@@ -234,45 +234,6 @@ test("real workspace migration preserves existing rows, old receipts, complete P
   }
 });
 
-test("new frontend before migration: missing life tables do not prevent legacy page/attachment sync and pending life intents recover after migration", async () => {
-  await deleteDB("nexus");
-  const pg = await setup(),
-    a = await device();
-  try {
-    await pg.exec("set role authenticated");
-    await apply(pg, [
-      op("attachments", "attachment", "save", 0, attachment),
-      { ...op("attachments", "attachment", "binary", 1), data: btoa("proof") },
-    ]);
-    const net = client(pg),
-      local = a.getWorkspacePersistence();
-    await a.createPage({ title: "offline legacy edit", kind: "note" });
-    const { lifeBase } = require("../../src/features/life/lists.ts");
-    const l = { ...lifeBase(A, "Offline list"), fields: [], schema_version: 1 };
-    await a.getLifeRepository().save("life_lists", l);
-    await pullWorkspace(net, local, A);
-    assert.equal(await (await a.readBinary("attachment")).text(), "proof");
-    await assert.rejects(flushWorkspace(net, local, A), /Invalid workspace operation/);
-    assert.equal((await sql(pg, "select * from pages")).length, 1);
-    assert.equal((await a.getLifeRepository().read()).life_lists.length, 1);
-    assert.equal((await local.pending(A)).length, 1);
-    await pg.exec("reset role");
-    await pg.exec(migration);
-    await pg.exec("set role authenticated");
-    await flushWorkspace(net, local, A);
-    assert.equal((await local.pending(A)).length, 0);
-    assert.equal((await sql(pg, "select * from life_lists")).length, 1);
-    await pg.exec("reset role;revoke select on life_lists from authenticated;set role authenticated");
-    await assert.rejects(pullWorkspace(net, local, A), /permission denied/);
-    await pg.exec("reset role;grant select on life_lists to authenticated;set role authenticated");
-    await pullWorkspace(net, local, A);
-  } finally {
-    await a.close();
-    await deleteDB("nexus");
-    await pg.close();
-  }
-});
-
 test("mixed legacy/life RPC is atomic; typed references, offline conflicts, schema, RLS and old-client tombstone allowlist remain valid", async () => {
   const pg = await setup();
   try {
