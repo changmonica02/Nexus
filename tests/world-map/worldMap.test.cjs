@@ -532,8 +532,8 @@ test('workspace brush appearance commits with geometry, rolls back failures and 
 });
 
 async function globalProject(seed=42) {
- const {createLandLayout}=await import('../experiments/spherical-grid/land-generator.mjs');
- const {exportGlobalTerrainSnapshot}=await import('../experiments/spherical-grid/snapshot.mjs');
+ const {createLandLayout}=await import('../../experiments/spherical-grid/land-generator.mjs');
+ const {exportGlobalTerrainSnapshot}=await import('../../experiments/spherical-grid/snapshot.mjs');
  const {globalMapBlob}=require('../../src/features/worldMap/globalMapProject.ts');
  const d=createLandLayout({seed,landPercent:32,continentCores:8});
  return globalMapBlob({format:'nexus-global-map',version:1,settings:d.settings,terrain:exportGlobalTerrainSnapshot({grid:d.grid,oceanSeed:d.oceanSeed,revision:0})});
