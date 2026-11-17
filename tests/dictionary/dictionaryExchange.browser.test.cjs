@@ -6,14 +6,14 @@ const test = require("node:test"),
   http = require("node:http");
 const { build } = require("esbuild"),
   { chromium } = require("playwright");
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "../..");
 test(
   "desktop/tablet/mobile actual bulk UI: filtered complete export/retry, file preview, bounded pause/refresh/resume and publication token/report, English labels",
   { timeout: 120000 },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus44-browser-"));
     await build({
-      entryPoints: [path.join(__dirname, "fixtures/dictionaryExchange.jsx")],
+      entryPoints: [path.join(root, "tests/fixtures/dictionaryExchange.jsx")],
       outfile: path.join(tmp, "fixture.js"),
       bundle: true,
       jsx: "automatic",
