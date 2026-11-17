@@ -4,7 +4,7 @@ import {selectFastTests} from './select-fast-tests.mjs';
 test('dictionary edit stays within dictionary and tests atomic example writes',()=>{
  const plan=selectFastTests(['src/features/dictionary/DictionarySenseEditor.tsx']);
  assert.deepEqual(plan.groups,['dictionary']);
- assert.ok(plan.node.includes('tests/dictionaryExamplesAtomicDraft.test.cjs'));
+ assert.ok(plan.node.includes('tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs'));
  assert.ok(!plan.groups.includes('world-map'));
 });
 test('map generation selects spherical land test',()=>{
