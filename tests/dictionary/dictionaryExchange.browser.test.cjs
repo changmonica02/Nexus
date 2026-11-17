@@ -407,7 +407,18 @@ test(
       await mobilePage.goto(url + "/?embedded");
       await mobilePage.getByRole("button", { name: "匯出資料", exact: true }).click();
       const mobileExport = mobilePage.getByRole("dialog", { name: "匯出資料", exact: true });
-      await mobileExport.waitFor();
+      await mobileExport.waitFor({ timeout: 10000 }).catch(async error => {
+        const diagnostics = await mobilePage.evaluate(() => ({
+          url: location.href,
+          buttons: [...document.querySelectorAll('button')].filter(b => /匯出|匯入/.test(b.textContent ?? '')).map(b => ({ text: b.textContent?.trim(), disabled: b.disabled })),
+          dialogs: [...document.querySelectorAll('dialog')].map(d => ({
+            open: d.open, title: d.querySelector('h2')?.textContent, visible: !!d.getClientRects().length,
+          })),
+          alerts: [...document.querySelectorAll('[role="alert"]')].map(e => e.textContent),
+        }));
+        console.error('MOBILE_EXCHANGE_EXPORT_DIAGNOSTICS', JSON.stringify(diagnostics));
+        throw error;
+      });
       await mobileExport.getByRole("button", { name: "開始完整匯出", exact: true }).waitFor();
       await mobileExport.getByRole("button", { name: "關閉", exact: true }).click();
       await mobileExport.waitFor({ state: "detached" });
