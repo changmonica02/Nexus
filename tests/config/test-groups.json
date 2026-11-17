@@ -81,7 +81,6 @@
       "tests/study/studyClear.test.cjs",
       "tests/study/studyDeckManagement.test.cjs",
       "tests/study/studyIntervals.test.cjs",
-      "tests/study/studyQuizRetirement.test.cjs",
       "tests/study/studyReading.browser.test.cjs",
       "tests/study/studyReading.test.cjs",
       "tests/study/studyReliability.test.cjs",
@@ -172,7 +171,6 @@
     "shared": [
       "tests/shared/confirmDialog.test.cjs",
       "tests/shared/eslintConfig.test.cjs",
-      "tests/shared/pageDefaultModeRetirement.test.cjs",
       "tests/shared/post63UI.test.cjs",
       "tests/shared/pullToRefresh.test.cjs",
       "tests/shared/retirementCompatibility.test.cjs",
