@@ -16,7 +16,7 @@ test(
   "actual SQL draft publication: new and reopened Word/Prefix/Root, dirty/cancel/error/stale protection, success refresh and Review lifecycle",
   { timeout: 180000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-draft-publish-")),
       pg = await database();
     let browser, server;
