@@ -523,7 +523,8 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
   await editor.getByRole('button',{name:'Edit territory',exact:true}).click();
   const paintTools=page.getByLabel('Territory painting',{exact:true}),areaOutput=page.getByLabel('Territory area',{exact:true});
-  await paintTools.waitFor();assert.equal(await paintTools.getByRole('group',{name:'Brush mode',exact:true}).getByRole('button').count(),2);await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+   const cancelPainting=async()=>{await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();const prompt=page.getByRole('dialog').filter({has:page.getByRole('button',{name:'Confirm',exact:true})}).last();await prompt.getByRole('button',{name:'Confirm',exact:true}).click();await paintTools.waitFor({state:'detached'});};
+  await paintTools.waitFor();assert.equal(await paintTools.getByRole('group',{name:'Brush mode',exact:true}).getByRole('button').count(),2);await cancelPainting();
   assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled Realm'),true,'cancel painting preserves the separately saved unplaced entry');
   await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();
   await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
@@ -564,7 +565,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await countryForm.getByRole('button',{name:'Save entry',exact:true}).click();await countryForm.waitFor({state:'detached'});
   await openRegionInfo('North Union');await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
   await paintTools.getByRole('button',{name:'Erase cells',exact:true}).click();await stroke(candidates[1]);
-  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await cancelPainting();
   assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements.find(p=>p.placementId===territory.placementId).geometry,territory.geometry,'cancelled edit preserves saved geometry');
   await openWorldTools();await editor.getByRole('button',{name:'Place existing entry',exact:true}).click();await townPanel.getByLabel('Placement map',{exact:true}).selectOption({label:'Detail Created'});
   await townPanel.locator('li').filter({hasText:'North Province'}).getByRole('button',{name:'Place on selected map',exact:true}).click();await paintTools.waitFor();await areaOutput.waitFor();
@@ -643,10 +644,10 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   const savedCultureArea=await areaOutput.innerText();await paintTools.getByRole('button',{name:'Erase cells',exact:true}).click();await stroke(candidates[0]);assert.notEqual(await areaOutput.innerText(),savedCultureArea);
   await paintTools.getByRole('button',{name:'Undo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent===v,savedCultureArea);
   await paintTools.getByRole('button',{name:'Redo stroke',exact:true}).click();await page.waitForFunction(v=>document.querySelector('output[aria-label="Territory area"]')?.textContent!==v,savedCultureArea);
-  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await cancelPainting();
   assert.deepEqual((await readTowns()).maps.find(m=>m.id===regionMapId).placements,distributionSaved,'cancel restores all confirmed overlapping distributions');
   await openWorldTools('Human geography','Religions');await editor.getByRole('button',{name:'Add religion',exact:true}).click();await faithForm.getByLabel('Name',{exact:true}).fill('Cancelled faith');await faithForm.getByRole('button',{name:'Save entry',exact:true}).click();await faithForm.waitFor({state:'detached'});await editor.getByRole('button',{name:'Edit territory',exact:true}).click();await areaOutput.waitFor();
-  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled faith'),true);
+  await cancelPainting();assert.equal((await readTowns()).entities.some(e=>e.name==='Cancelled faith'),true);
   await openWorldTools('Display and style');await editor.getByLabel('Display mode',{exact:true}).selectOption('cultural');
   const cultureExportIds=(await readTowns()).maps.find(m=>m.id===regionMapId).placements.filter(p=>p.deletedAt===null&&distributions.entities.some(e=>e.entityId===p.entityId&&e.type==='culture')).map(p=>p.placementId);await frame.waitForFunction(ids=>{const rows=[...document.querySelectorAll('#nexus-regions [data-members]')];return rows.length>0&&rows.every(row=>row.dataset.members.split(' ').every(id=>ids.includes(id)));},cultureExportIds);await waitMapLayout();
   // All confirmed overlays export as images; native serialization excludes derived Nexus layers.
@@ -685,7 +686,7 @@ test('actual fork: isolated native editing, save/reopen, project roundtrip, imag
   await page.getByRole('alert').filter({hasText:'Grid differs; saved territory is preserved but cannot be overlaid.'}).first().waitFor();
   await openRegionInfo('Dawn renamed');await regionInfo.getByRole('button',{name:'Edit territory',exact:true}).click();
   await editor.getByRole('alert').filter({hasText:'Region mesh changed; keep the saved territory'}).waitFor();
-  await paintTools.getByRole('button',{name:'Cancel',exact:true}).click();await paintTools.waitFor({state:'detached'});
+  await cancelPainting();
   console.log('Browser errors observed:',JSON.stringify(errors));
   assert.deepEqual(errors,[]);
 });
