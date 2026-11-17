@@ -7,7 +7,7 @@ const inventory=JSON.parse(readFileSync(path.join(root,'config/test-groups.json'
 const groups=inventory.groups;
 const owners=new Map(Object.entries(groups).flatMap(([g,files])=>files.map(f=>[f,g])));
 const smoke={
- dictionary:['tests/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionarySenseDraftRPC.test.cjs','tests/dictionarySenseEditor.test.cjs'],
+ dictionary:['tests/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionarySenseEditor.test.cjs'],
  study:['tests/studyFSRS.test.cjs','tests/studySync.test.cjs','tests/studySpeech.test.cjs'],
  'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/globalMap.test.cjs','tests/worldMap.test.cjs'],
  note:['tests/noteExportLayout.test.cjs','tests/lessonDocument.test.cjs'],
