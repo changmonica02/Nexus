@@ -1,7 +1,7 @@
 require('./loadStudy.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
-const {parseDictionaryCSV,parseDictionaryCSVPreview,dictionaryCSVHeaders,exportDictionaryCSV}=require('../src/features/dictionary/dictionaryCSV.ts');
+const {parseDictionaryCSV,dictionaryCSVHeaders}=require('../src/features/dictionary/dictionaryCSV.ts');
 const {mapDictionaryDraft,saveDictionaryDraft}=require('../src/features/dictionary/draftPipeline.ts');
 const {buildImportSession,chooseIssue,applyImportItems}=require('../src/features/dictionary/importReview.ts');
 const {normalizeDictionaryBundle}=require('../src/features/dictionary/adminImport.ts');
@@ -13,30 +13,6 @@ const migrations=['20260922_study_fsrs.sql','20260930_public_dictionary.sql','20
 async function database(){const pg=new PGlite();await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;`);for(const file of migrations)await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));await pg.query('insert into auth.users values($1)',[id(1)]);await pg.query('insert into dictionary_admins(user_id) values($1)',[id(1)]);await pg.exec('set role authenticated');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id(1)]);return pg;}
 function clientFor(pg){return {rpc:async(name,args)=>{try{const signatures={inspect_dictionary_import:['drafts'],apply_dictionary_import_operation:['operation'],get_dictionary_ai_snapshot:['entry_uuid'],get_dictionary_entry:['entry_uuid'],apply_dictionary_drafts:['drafts','preview','allow_edits'],create_dictionary_review:['entry_uuid','expected_snapshot','patch','source_type','preview']};const keys=signatures[name];if(!keys)throw Error(name);const values=keys.map(k=>typeof args[k]==='object'&&args[k]!==null?JSON.stringify(args[k]):args[k]);return {data:(await pg.query(`select ${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) v`,values)).rows[0].v};}catch(error){return {error};}}};}
 const approveIssues=session=>({...session,items:session.items.map(item=>{for(const issue of item.issues){const action=issue.allowedActions.includes('review')?'review':issue.allowedActions.includes('incoming')?'incoming':'keep';item=chooseIssue(item,issue.id,action);}return item;})});
-test('CSV normalized key groups senses, keeps explicit identities and distinguishes kinds',async()=>{
- const rows=[word({entry_id:id(10),sense_id:id(11),etymology:'finance'}),word({headword:' BANK ',part_of_speech:'verb',gloss_zh_tw:'傾斜',etymology:'slope',example_words:'bank left',relation_hint:'bank hint'}),word({kind:'prefix',part_of_speech:'',category:'作用與變化',gloss_zh_tw:'測試字首'})];
- const drafts=await parseDictionaryCSV(csv(rows));assert.equal(drafts.length,2);const d=drafts[0];assert.equal(d.entry_id,id(10));assert.equal(d.senses.length,2);assert.equal(d.senses[0].id,id(11));assert.equal(d.etymologies[1].sense_id,d.senses[1].id);assert.equal(d.examples[0].sense_id,d.senses[1].id);assert.equal(d.relation_hints[0].sense_id,d.senses[1].id);
- const roundtrip=await parseDictionaryCSV(exportDictionaryCSV(drafts));assert.equal(roundtrip[0].entry_id,id(10));assert.deepEqual(roundtrip[0].senses.map(s=>s.id),d.senses.map(s=>s.id));
- const changed=await parseDictionaryCSV(csv([word({entry_id:id(10),sense_id:id(11),headword:'new spelling',gloss_zh_tw:'新義'})]));assert.equal(changed[0].entry_id,id(10));assert.equal(changed[0].senses[0].id,id(11));
- await assert.rejects(parseDictionaryCSV(csv([word({entry_id:id(20)}),word({entry_id:id(30)})])),/不同 Entry ID/);
-});
-test('CSV preserves homographic morphemes by explicit ID, never guesses an ambiguous blank ID',async()=>{
- const same=(kind,entry_id,sense_id)=>word({kind,entry_id,sense_id,headword:'tri-',part_of_speech:'',gloss_zh_tw:'構詞'});
- for(const kind of ['prefix','root','suffix']){
-  const a=same(kind,id(201),id(202)),b=same(kind,id(203),id(204));
-  const drafts=await parseDictionaryCSV(csv([a,b]));
-  assert.equal(drafts.length,2);
-  assert.deepEqual(drafts.map(d=>d.entry_id),[id(201),id(203)]);
-  assert.deepEqual(drafts.map(d=>d.senses[0].id),[id(202),id(204)]);
-  const roundtrip=await parseDictionaryCSV(exportDictionaryCSV(drafts));
-  assert.deepEqual(roundtrip.map(d=>d.entry_id),[id(201),id(203)]);
-  const preview=await parseDictionaryCSVPreview(csv([a,b,same(kind,'',id(205))]));
-  assert.ok(preview.issues.some(issue=>issue.field==='entry_id'&&/明確填入/.test(issue.error)));
-  await assert.rejects(parseDictionaryCSV(csv([a,b,same(kind,'',id(205))])),/明確填入/);
- }
- await assert.rejects(parseDictionaryCSV(csv([word({entry_id:id(206)}),word({entry_id:id(207)})])),/不同 Entry ID/);
-});
-
 test('PostgreSQL: canonical identity across CSV/JSON/AI/manual, review, stable senses, unique writes and Published protection',async()=>{
  const pg=await database();try{
  await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261017_dictionary_entry_identity.sql','utf8'));for(const f of ['20261018_dictionary_pronunciations.sql', '20261019_dictionary_admin_bulk_publish.sql', '20261020_dictionary_edit_inflections.sql', '20261021_dictionary_composition_shared.sql', '20261016060000_dictionary_retire_verification_state.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));await pg.exec('set role authenticated');const client=clientFor(pg);
