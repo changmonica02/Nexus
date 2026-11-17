@@ -44,7 +44,7 @@
       "file": "tests/dictionary/dictionaryDraftPipeline.test.cjs",
       "area": "草稿與編輯",
       "action": "更新現行規格",
-      "note": "更新已退役入口、欄位或 API；保留現行規格的安全斷言"
+      "note": "已移除與 currentImportBoundary 重複的公開 CSV 停用檢查及舊五欄 CSV 接受案例；保留內部轉接的列號／欄位錯誤、UUID、現行 JSON 與真實 SQL 回復。"
     },
     {
       "file": "tests/dictionary/dictionaryEditor.browser.test.cjs",
@@ -62,7 +62,7 @@
       "file": "tests/dictionary/dictionaryImportReview.test.cjs",
       "area": "草稿與編輯",
       "action": "更新現行規格",
-      "note": "刪除公開入口已停用的 CSV 空白 ID 預覽情境；保留匯入衝突、批次審核、修訂版本、收據、資料庫權限、原子回復等測試。現行 JSON 重複 ID 與身分由 currentImportBoundary 驗證"
+      "note": "移除硬編碼 CSV 12 欄數量斷言，以穩定 Entry／Sense ID 及匯入重排、回復、RLS 驗證為準。"
     },
     {
       "file": "tests/dictionary/dictionaryPersistentImport.test.cjs",
@@ -242,7 +242,7 @@
       "file": "tests/dictionary/dictionaryAI.test.cjs",
       "area": "資料交換與安全",
       "action": "整併候選",
-      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "note": "移除匯出視窗純顯示文字斷言；保留預設 Draft、審核草稿保護、格式解析及資料庫權限。",
       "comparison": {
         "compare": [
           "dictionaryExchange.test.cjs",
@@ -592,19 +592,20 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "第二輪精簡進行中：已修剪 dictionaryAdminUI 介面實作細節，刪除 2 個重複顯示測試；dictionaryReaderAdmin 刪除 1 個過時原始碼測試。字典測試檔案數量未減少（仍 70），保留原子寫入、發布、RLS 等核心保障；本輪 CI 尚未確認通過。",
+  "progress_note": "字典第二輪後續已精簡 DraftPipeline 的重複公開 CSV 停用與舊五欄格式斷言、AI 匯出標籤及 ImportReview 固定欄數檢查；字典仍 70 個檔案／70 筆審查記錄，SQL 原子回復、JSON 身分、安全、RLS 皆保留。語法與清冊靜態核對通過，完整 CI 結果待確認。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
     "tests/dictionary/dictionaryCoreConcept.test.cjs": "已以 JSON 與 AI 的內容不遺失、穩定 ID 驗證取代舊 CSV 情境",
     "tests/dictionary/dictionaryRetireSourceForms.test.cjs": "已將禁止舊欄位回寫改為透過正式 JSON 入口檢查；歷史 SQL 安全案例保留",
     "tests/dictionary/dictionaryAdminUI.test.cjs": "本輪移除固定 CSS、區塊排列與舊遷移檔字串檢查，刪除空白分類提示及 IPA 區塊排列兩個重複測試，保留功能與資料安全斷言。",
-    "tests/dictionary/dictionaryDraftPipeline.test.cjs": "已移除重複的舊 CSV 下載 UI 斷言，更新 JSON 例句/衍生義及內部 CSV 轉接測試；大型 SQL 案例仍待修正；移除舊 CSV 相同拼寫與空白 Entry ID 分組的重複情境，由 currentImportBoundary 的正式 JSON 身分與重複 ID 拒絕測試取代",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs": "已移除與 currentImportBoundary 重複的公開 CSV 停用檢查及舊五欄 CSV 接受案例；保留內部轉接的列號／欄位錯誤、UUID、現行 JSON 與真實 SQL 回復。",
     "tests/dictionary/dictionaryRankedComponents.test.cjs": "已移除與構詞排名無關、且使用退役欄位的 Exchange 斷言；Exchange 專項仍保留",
-    "tests/dictionary/dictionaryImportReview.test.cjs": "已依現行 12 欄內部 CSV 結構與例句連動要求調整部分測試資料；批次審核與 SQL 案例待更新；已直接刪除舊 CSV 空白 ID 預覽測試",
+    "tests/dictionary/dictionaryImportReview.test.cjs": "移除硬編碼 CSV 12 欄數量斷言，以穩定 Entry／Sense ID 及匯入重排、回復、RLS 驗證為準。",
     "tests/dictionary/dictionarySourceRetirement.test.cjs": "已於先前提交改用 JSON-only 入口；SQL 遷移測試仍保留",
     "tests/dictionary/dictionaryIdentity.test.cjs": "直接刪除兩項舊 CSV 分組／同形詞單元測試；JSON 身分由 currentImportBoundary 覆蓋，保留跨入口與資料庫身分完整性、原子交易及遷移失敗測試",
-    "tests/dictionary/dictionaryReaderAdmin.test.cjs": "移除過時列表選取原始碼檢查及閱讀內容的純排列斷言，保留非管理員權限、分頁、篩選及資料庫發布交易測試。"
+    "tests/dictionary/dictionaryReaderAdmin.test.cjs": "移除過時列表選取原始碼檢查及閱讀內容的純排列斷言，保留非管理員權限、分頁、篩選及資料庫發布交易測試。",
+    "tests/dictionary/dictionaryAI.test.cjs": "移除匯出視窗純顯示文字斷言；保留預設 Draft、審核草稿保護、格式解析及資料庫權限。"
   },
   "current_contract_pending": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
