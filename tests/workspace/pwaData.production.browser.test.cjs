@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { build } = require('esbuild');
 const { chromium } = require('playwright');
-const { waitForAsync, setNetwork } = require('../pwaBrowser.cjs');
+const { waitForAsync, setNetwork } = require('../helpers/pwaBrowser.cjs');
 
 // Production client + real IndexedDB/Repository/SyncEngine; isolated HTTP contract
 // double only. PostgreSQL event/conflict rules are covered by studySync tests.
