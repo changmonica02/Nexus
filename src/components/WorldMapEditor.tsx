@@ -7,6 +7,7 @@ import {offlineMapDocument,readPublicMapAsset} from '../features/worldMap/offlin
 import {useLanguage} from '../lib/LanguageContext';
 import {useWorkspaceDialog} from './WorkspaceDialog';
 import {mapMessage} from '../features/worldMap/mapMessages';
+import {confirmDialog} from '../lib/confirmDialog';
 import type {MapView,MapMarker,RegionProjection,RegionDraft,RegionStat,RegionCommand,NativeToolState,NativeToolCommand} from '../features/worldMap/coreClient';
 import GlobalWorldMapEditor from './GlobalWorldMapEditor';
 import {Wrench,Maximize,Minimize,RotateCcw} from 'lucide-react';
@@ -250,7 +251,7 @@ function AzgaarWorldMapEditor({map, blob, draftToken, draftConflict, repository,
     {conflict&&<div role="alert" className="shrink-0 bg-amber-50 p-3 text-sm text-amber-900">
       {t('worldMap.editor18')}
       <button type="button" onClick={()=>downloadMapBlob(conflict.blob,map.title+'-recovery','map')}>{t('worldMap.editor19')}</button>
-      <button type="button" onClick={()=>{if(window.confirm(t('worldMap.editor20')))void repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);}}>{t('worldMap.editor21')}</button>
+      <button type="button" onClick={()=>{void confirmDialog(t('worldMap.editor20')).then(ok=>{if(ok)return repository.clearDraft(map.world_id,map.id,conflict.token).then(()=>setConflict(undefined)).catch(report);});}}>{t('worldMap.editor21')}</button>
     </div>}
     <div data-map-workspace className={editing?'flex min-h-0 min-w-0 flex-1 flex-col-reverse sm:flex-row':'contents'}>
     {editing&&humanTools&&<aside id="world-map-tools-panel" data-map-context style={{position:"relative",zIndex:1,isolation:"isolate"}} className={!sidebarOpen||nativeState.tool?'hidden':'max-h-[42dvh] min-w-0 shrink-0 overflow-y-auto border-t sm:max-h-none sm:w-64 sm:border-r sm:border-t-0 lg:w-72'}>{humanTools(toolControls)}</aside>}
