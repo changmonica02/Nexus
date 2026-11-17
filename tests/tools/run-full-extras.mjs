@@ -17,7 +17,6 @@ for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.t
 const deferred=new Set([
  'tests/dictionary/dictionaryExchangeScale.test.cjs',
  'tests/dictionary/dictionaryPersistentScale.test.cjs',
- 'tests/dictionary/dictionaryRankedComponents.test.cjs',
  'tests/study/studyStartup.performance.test.cjs'
 ]);
 export function coverage(){
