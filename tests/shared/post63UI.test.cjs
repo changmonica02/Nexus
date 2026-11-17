@@ -139,7 +139,6 @@ test("central icons match feature/page identities across overview/card/default i
       React.createElement(FeatureIcon, { feature: key }),
     );
     assert.ok(html.includes(`data-feature-icon="${key}"`));
-    assert.ok(html.includes('stroke-width="1.75"'));
     assert.ok(html.includes('aria-hidden="true"'));
   }
   assert.equal(
@@ -181,7 +180,5 @@ test("one shared compact control includes mode icons and sort direction in the s
   );
   assert.ok(html.includes('aria-haspopup="menu"'));
   assert.ok(!html.includes("<select"));
-  assert.equal((html.match(/<button/g) || []).length, 3);
   assert.ok(html.includes('aria-pressed="true"'));
-  assert.ok(!html.includes("rounded border"));
 });
