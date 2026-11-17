@@ -1,4 +1,4 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -15,11 +15,11 @@ require.extensions[".tsx"] = (m, f) =>
     }).outputText,
     f,
   );
-const { formatEditedTime, localDate } = require("../src/lib/editedTime.ts");
-const { isCreativeCharacterPage, isNovelPage } = require("../src/lib/types.ts");
+const { formatEditedTime, localDate } = require("../../src/lib/editedTime.ts");
+const { isCreativeCharacterPage, isNovelPage } = require("../../src/lib/types.ts");
 const React = require("react"),
   { renderToStaticMarkup } = require("react-dom/server"),
-  { LanguageProvider } = require("../src/lib/LanguageContext.tsx");
+  { LanguageProvider } = require("../../src/lib/LanguageContext.tsx");
 const wrap = (child) =>
   React.createElement(LanguageProvider, { initialLanguage: "zh-TW" }, child);
 test("shared time formatting: minute/hour/local calendar days through day three, day four YYYY/MM/DD, future and invalid values", () => {
@@ -116,10 +116,10 @@ test("central icons match feature/page identities across overview/card/default i
     default: FeatureIcon,
     featureIcons,
     featureForPage,
-  } = require("../src/components/FeatureIcon.tsx");
+  } = require("../../src/components/FeatureIcon.tsx");
   const {
     default: Collection,
-  } = require("../src/components/PageCollection.tsx");
+  } = require("../../src/components/PageCollection.tsx");
   for (const key of [
     "notes",
     "study",
@@ -167,7 +167,7 @@ test("central icons match feature/page identities across overview/card/default i
   assert.ok(html.includes('data-collection-row="cards"'));
 });
 test("one shared compact control includes mode icons and sort direction in the same menu, without a separate arrow button", () => {
-  const Control = require("../src/components/CollectionControls.tsx").default;
+  const Control = require("../../src/components/CollectionControls.tsx").default;
   const html = renderToStaticMarkup(
     wrap(
       React.createElement(Control, {
