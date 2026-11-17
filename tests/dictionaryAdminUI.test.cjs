@@ -26,12 +26,18 @@ test('admin route owns scrolling and return links use fixed destinations',()=>{
   assert.ok(fs.readFileSync('src/features/dictionary/DictionaryBrowser.tsx','utf8').includes("path.length?'/dictionary':'/study'"));
   assert.match(fs.readFileSync('src/components/WorkspaceRoot.tsx','utf8'), /initialFeature=\{pathname\s*===\s*["']\/study["']\s*\?\s*["']study["']\s*:\s*["']home["']\}/);
 });
-test('import preview escapes Markdown and distinguishes mnemonic from historical content',()=>{
-  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{dictionary_etymologies:[{id:'h',body:'Unverified history',verification:'pending'}],dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],dictionary_sources:[{id:'s',citation:'Self authored',license:'test-only',raw_text:'raw original'}]}}));
-  assert.ok(html.includes('記憶法'));assert.ok(html.includes('pending'));assert.ok(html.includes('test-only'));assert.ok(html.includes('raw original'));assert.ok(!html.includes('<script>'));
+test('current JSON preview keeps etymology attribution separate and escapes mnemonic markup',()=>{
+  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{bundle:{
+    dictionary_etymologies:[{id:'h',body:'Unverified history',data_source:'Synthetic test source'}],
+    dictionary_learning_notes:[{id:'m',body:'<script>alert(1)</script>',kind:'mnemonic_scenario'}],
+  }}));
+  assert.ok(html.includes('記憶法'));
+  assert.ok(html.includes('Unverified history'));
+  assert.ok(html.includes('Synthetic test source'));
+  assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('&lt;script&gt;'));
 });
-
-test('JSON import shares preview and explicit draft confirmation with existing formats',()=>{
+test('JSON-only import retains preview and explicit draft confirmation',()=>{
   const ui=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(ui.includes('option value="json"'));
   assert.ok(!ui.includes('option value="csv"'));
