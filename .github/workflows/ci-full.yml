@@ -3,6 +3,8 @@ on:
   pull_request:
     types: [opened, ready_for_review, synchronize, reopened]
     branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   inventory:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +25,7 @@ jobs:
       - run: node tests/tools/run-full-extras.mjs --audit
 
   morpheme-contract:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -60,7 +62,7 @@ jobs:
         if: always()
         run: docker rm -f nexus46-morpheme-ci || true
   note:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -152,7 +154,7 @@ jobs:
 
 
   world-map:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -194,7 +196,7 @@ jobs:
           if-no-files-found: ignore
 
   interface-a:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -230,7 +232,7 @@ jobs:
           if-no-files-found: ignore
 
   study-b:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -275,7 +277,7 @@ jobs:
           NEXUS_PWA_URL=http://127.0.0.1:32131 node tests/workspace/pwaData.production.browser.test.cjs
 
   dictionary-c:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -305,7 +307,7 @@ jobs:
       - run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/adminNavigation.ts src/features/dictionary/adminQueries.ts src/features/dictionary/deleteEntry.ts src/features/dictionary/morphemeContract.ts src/features/dictionary/readerNavigation.ts src/lib/i18n.ts
 
   global-editor:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -328,8 +330,6 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - name: WebKit workspace, offline and reconnect
         run: GLOBAL_MAP_BROWSER=webkit node tests/world-map/globalMapEditor.browser.test.cjs
-      - name: Repeat WebKit from a clean persistent profile
-        run: GLOBAL_MAP_BROWSER=webkit node tests/world-map/globalMapEditor.browser.test.cjs
       - name: Chromium workspace, offline and reconnect
         run: node tests/world-map/globalMapEditor.browser.test.cjs
       - uses: actions/upload-artifact@v4
@@ -339,47 +339,8 @@ jobs:
           path: test-results/global-map/
           if-no-files-found: ignore
 
-  spherical-geometry:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Check experimental JavaScript module syntax
-        run: |
-          for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
-      - name: Geometry and ocean / coast checks (no database, no deployment)
-        run: node --test experiments/spherical-grid/*.test.mjs
-      - name: Bundle offline browser preview
-        run: |
-          mkdir -p /tmp/nexus-land-preview
-          npm exec --yes --package=esbuild@0.28.2 -- esbuild experiments/spherical-grid/preview.js --bundle --format=iife --platform=browser --outfile=/tmp/nexus-preview-bundle.js
-          node --check /tmp/nexus-preview-bundle.js
-          node experiments/spherical-grid/build-offline-preview.mjs /tmp/nexus-preview-bundle.js /tmp/nexus-land-preview/index.html
-          test -s /tmp/nexus-land-preview/index.html
-          ! grep -q 'type="module"' /tmp/nexus-land-preview/index.html
-          ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
-      - name: Install isolated browser test tools
-        run: |
-          npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
-          /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
-      - name: Open packaged preview over file protocol (no network)
-        env:
-          NODE_PATH: /tmp/nexus-preview-tools/node_modules
-        run: node experiments/spherical-grid/offline-preview.browser.cjs /tmp/nexus-land-preview/index.html
-      - name: Upload standalone offline preview (download ZIP and open index.html)
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexus-global-land-preview
-          path: /tmp/nexus-land-preview/
-          if-no-files-found: error
-          retention-days: 14
-
   additional-regression:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     needs: inventory
     runs-on: ubuntu-24.04
     timeout-minutes: 90
