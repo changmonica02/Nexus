@@ -170,3 +170,12 @@ node tests/tools/test-groups.mjs --check
 - 第二輪：`world-map/worldMapBlocks.test.cjs` 移除歷史區塊轉換案例，保留目前地圖實體定位及可見性驗證；`workspace/workspaceDeployment.test.cjs` 移除「新介面搭配尚未更新的舊資料庫」案例，保留現行交易原子性、權限及升級失敗回復。
 - **政策範圍**：不再以每次 PR CI 驗證已停止支援的舊用戶端／舊版直接升級路徑，但現行資料安全、同步隔離、原子寫入及必要 SQL 遷移防護仍為必要測試；不等於保證舊用戶端與歷史資料已能安全升級。
 - 本輪分組清冊由 164 減至 **162** 份；更早的 `173` 份統計是歷史截面，不代表現況。GitHub Actions 完整通過與否應以本輪提交後的工作結果為準。
+
+## 跨模組第三輪：減少重複完整瀏覽器旅程（2026-11-17）
+
+- 字典：`dictionaryExchange.browser.test.cjs` 的完整匯入／匯出回歸由三組尺寸縮減至桌面與手機；`studyDictionaryPanel.browser.test.cjs` 的獨立公開閱讀頁面重複流程也縮減至桌面與手機，主要學習面板流程仍涵蓋桌面、平板與 320px 手機。
+- 學習：`unifiedStudy.browser.test.cjs` 的完整學習流程改用桌面與手機；`studyReading.browser.test.cjs` 由四組尺寸去掉重疊的 390px 手機，但仍保留桌面、平板及 320px 手機，保留語音錯誤及會話不變性情境。
+- 創作：`characterTemplates.browser.test.cjs` 與 `creationTemplateLibrary.browser.test.cjs` 的全流程僅於桌面與手機各跑一次；平板仍由 `characterTemplateUpdate.browser.test.cjs` 的專項檢查涵蓋。
+- 生活：`lifeViews.browser.test.cjs` 的四種視圖切換與溢出測試由三組尺寸縮減為桌面與手機；`lifeLists.browser.test.cjs` 的平板版面檢查保留。
+- 世界地圖：`worldMap.browser.test.cjs`、`worldMapUI.browser.test.cjs`、`globalMapEditor.browser.test.cjs` 分別保障原生專案寫入、地圖編輯介面和全球地圖離線／重連；無等效取代之前不整檔合併或移除。
+- **範圍與限制**：本輪減少 7 個重複的瀏覽器尺寸／操作組合，但未刪除測試檔案，也未減少功能／資料安全斷言。每份仍由原 CI 路徑執行；最終通過與實際耗時仍以 GitHub Actions 為準。
