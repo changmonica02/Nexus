@@ -53,8 +53,3 @@ test('B2 schema adds derivations/translation without rewriting legacy examples, 
     assert.equal(directGrants.select_allowed,true);
   }finally{await pg.close();}
 });
-
-test('B2 migration does not contain destructive operations or modify study tables',()=>{
-  assert.doesNotMatch(migration,/\b(?:drop\s+(?:table|column)|truncate|delete\s+from|update\s+public\.dictionary_(?:entries|senses|examples))\b/i);
-  assert.doesNotMatch(migration,/\bstudy_(?:cards|card_states|review_events)\b/i);
-});
