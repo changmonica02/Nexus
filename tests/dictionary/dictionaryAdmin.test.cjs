@@ -21,7 +21,7 @@ test('current JSON import preserves identities and rejects retired CSV/Markdown 
  await assert.rejects(parseDictionaryImport('---\\nid: '+id(10)+'\\n---','md'),/CSV.*Markdown.*停用/);
  const history={dictionary_etymologies:[{id:id(20),entry_id:id(10),sense_id:id(11),body:'## 未查證測試\\n原始正文',data_source:'https://example.test/source'}]};
  assert.deepEqual(await parseDictionaryImport(JSON.stringify(history),'json'),history);
- const memory={dictionary_learning_notes:[{id:id(21),entry_id:id(10),sense_id:id(11),kind:'mnemonic_scenario',body:'記憶情境'}]};
+ const memory={dictionary_learning_notes:[{id:id(21),entry_id:id(10),sense_id:id(11),kind:'core_concept',body:'記憶情境'}]};
  assert.deepEqual(await parseDictionaryImport(JSON.stringify(memory),'json'),memory);
  assert.equal('dictionary_sources' in first,false);
 });
