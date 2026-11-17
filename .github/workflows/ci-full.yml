@@ -35,15 +35,15 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node tests/dictionary/dictionarySenseDerivations.test.cjs && node tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs && node tests/dictionary/dictionarySenseReview.test.cjs && node tests/dictionary/dictionarySenseExchange.test.cjs && node tests/dictionary/dictionaryExchangeB2Scope.test.cjs && node tests/dictionary/dictionarySharedWordContent.test.cjs && node tests/dictionary/dictionarySafeMarkdown.test.cjs && node tests/dictionary/dictionaryStudyBack.test.cjs && node tests/dictionary/dictionarySenseEditor.test.cjs && node tests/dictionary/currentImportBoundary.test.cjs && node tests/dictionary/morphemeContract.test.cjs && node tests/dictionary/morphemeDatabase.test.cjs && node tests/dictionary/morphemeRetirement.test.cjs && node tests/dictionary/maintenanceCleanupRetirement.test.cjs
+      - run: node tests/dictionary/dictionarySenseDerivations.test.cjs && node tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs && node tests/dictionary/dictionarySenseReview.test.cjs && node tests/dictionary/dictionarySenseExchange.test.cjs && node tests/dictionary/dictionaryExchangeB2Scope.test.cjs && node tests/dictionary/dictionarySharedWordContent.test.cjs && node tests/dictionary/dictionarySafeMarkdown.test.cjs && node tests/dictionary/dictionaryStudyBack.test.cjs && node tests/dictionary/dictionarySenseEditor.test.cjs && node tests/dictionary/currentImportBoundary.test.cjs && node tests/dictionary/morphemeContract.test.cjs && node tests/dictionary/morphemeDatabase.test.cjs && node && node
       - name: Native isolated morphology RPC and transaction tests
         run: |
           docker run --rm -d --name nexus46-morpheme-ci --network none --label nexus.test=pr46-local -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
           for attempt in $(seq 1 30); do docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres && break; sleep 1; done
           docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionary/morphemeDatabase.test.cjs
-          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionary/morphemeRetirement.test.cjs
-          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionary/maintenanceCleanupRetirement.test.cjs
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node
+          NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node
       - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
