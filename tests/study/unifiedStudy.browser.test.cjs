@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
-const root=path.resolve(__dirname,'..');
+const root=path.resolve(__dirname,'../..');
 test('actual study and functional preferences: desktop/tablet/mobile, six intervals, legacy settings normalization, frozen sessions, quota, real endless early review, history and English',{timeout:120000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-unified-study-'));
  await build({entryPoints:[path.join(__dirname,'fixtures/unifiedStudy.jsx')],outfile:path.join(tmp,'fixture.js'),format:'esm',define:{'process.env':JSON.stringify({NODE_ENV:'development'})},bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'no-production-services',setup(b){b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`import React from ${JSON.stringify(path.join(root,'node_modules/react/index.js'))};export default function Link({children,...props}){return React.createElement('a',props,children);}`,loader:'js',resolveDir:root}));b.onLoad({filter:/infrastructure[\\/]supabase[\\/]client\.ts$/},()=>({contents:'export const getSupabase=()=>null; export const isSupabaseConfigured=()=>false;',loader:'js'}));}}]});
