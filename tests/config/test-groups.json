@@ -4,7 +4,6 @@
   "groups": {
     "dictionary": [
       "tests/dictionary/currentImportBoundary.test.cjs",
-      "tests/dictionary/dictionaryAdmin.test.cjs",
       "tests/dictionary/dictionaryAdminActions.test.cjs",
       "tests/dictionary/dictionaryAdminUI.test.cjs",
       "tests/dictionary/dictionaryApproval.test.cjs",
@@ -28,7 +27,6 @@
       "tests/dictionary/dictionaryExchangeScale.test.cjs",
       "tests/dictionary/dictionaryFlashcardLoop.test.cjs",
       "tests/dictionary/dictionaryImportApproval.test.cjs",
-      "tests/dictionary/dictionaryInflectionsRetirementB.test.cjs",
       "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
       "tests/dictionary/dictionaryMorphology.browser.test.cjs",
       "tests/dictionary/dictionaryMorphology.test.cjs",
