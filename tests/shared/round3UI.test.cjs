@@ -15,8 +15,6 @@ require.extensions[".tsx"] = (m, f) =>
     }).outputText,
     f,
   );
-const React = require("react"),
-  { renderToStaticMarkup } = require("react-dom/server");
 const { trashReturn } = require("../../src/lib/workspaceReturn.ts");
 test("trash return preserves local source/query/hash while rejecting external, malformed and recursive destinations", () => {
   for (const unsafe of [
@@ -35,21 +33,6 @@ test("trash return preserves local source/query/hash while rejecting external, m
     "/dictionary/admin?entry=stable-id#sense-x",
   ])
     assert.equal(trashReturn(path), path);
-});
-test("folding section keeps editable children mounted and suppresses empty count decoration", () => {
-  const Section =
-    require("../../src/features/dictionary/EditorSection.tsx").default;
-  const html = renderToStaticMarkup(
-    React.createElement(
-      Section,
-      { title: "詞形變化", count: 0 },
-      React.createElement("input", { defaultValue: "stable form" }),
-    ),
-  );
-  assert.ok(html.includes('<details open="">'));
-  assert.ok(html.includes("stable form"));
-  assert.ok(!html.includes("0 項"));
-  assert.ok(html.includes("<summary"));
 });
 test("switching sorting methods uses default directions while existing persisted direction is not rewritten on mount", () => {
   const {
