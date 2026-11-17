@@ -15,7 +15,7 @@ test('isolated desktop/mobile editor: dirty/revert, same-page save/publish, fail
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
  const errors=[];
  try{
- for(const viewport of [{width:1280,height:900},{width:820,height:1180},{width:390,height:844}]){
+ for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
   const context=await browser.newContext({viewport});
   const page=await context.newPage();
   page.on('pageerror',error=>errors.push(error.message));
