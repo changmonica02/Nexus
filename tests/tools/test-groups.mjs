@@ -44,4 +44,4 @@ else if(args.length===2&&args[0]==='--group'){
  if(!Object.hasOwn(groups,args[1])){console.error('Unknown group: '+args[1]);process.exitCode=2;}
  else console.log(groups[args[1]].join('\n'));
 }else if(args.length===1&&args[0]==='--benchmarks')console.log(config.benchmarks.join('\n'));
-else {console.error('Usage: node scripts/test-groups.mjs --check | --list | --group <name> | --benchmarks');process.exitCode=2;}
+else {console.error('Usage: node tests/tools/test-groups.mjs --check | --list | --group <name> | --benchmarks');process.exitCode=2;}
