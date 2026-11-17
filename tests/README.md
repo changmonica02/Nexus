@@ -19,7 +19,7 @@ node tests/tools/test-groups.mjs --benchmarks
 node tests/tools/test-groups.mjs --check
 ```
 
-若新增／刪除測試檔案，請同步更新清冊。已加入 Draft PR 與 Ready for review 的試行工作流程；舊 CI 尚未停用。
+若新增／刪除測試檔案，請同步更新清冊。已加入 Draft PR 與 Ready for review 的工作流程；舊 `note-editor.yml` 與 `global-map-editor.yml` 已在本分支移除。球面實驗專項 CI 保留。
 
 ## Draft PR 快速驗證（試行）
 
@@ -27,7 +27,7 @@ node tests/tools/test-groups.mjs --check
 - `tests/tools/select-fast-tests.mjs`：讀取 PR 與目標分支間所有變動檔案，依模組歸屬與關鍵相依性選取少量必要的非瀏覽器測試；高風險語音修改另含瀏覽器測試。
 - 未辨識、跨模組、資料庫、共用程式、相依套件與 CI 設定修改，保守擴大至所有群組的快速基礎驗證，不能自行略過。
 - 目前是「快速基礎測試＋關鍵情境」而非完整群組測試。Ready for review 的完整 CI 已建立，但同環境重複測試整合及分支保護仍待完成。
-- 目前保留原有三份工作流程，因此 Draft PR 期間仍可能有舊 CI 的完整測試負擔；完成安全切換後才會真正減少這部分重複執行。
+- Draft PR 由快速 CI 選取必要測試，非 Draft PR 由完整 CI 驗證；`spherical-grid-prototype.yml` 僅在球面實驗相關變更時獨立觸發。
 - 工作流程內的選擇器契約測試：`node --test tests/tools/select-fast-tests.test.mjs`。測試不需連接正式資料庫。
 - CI 會建立暫存的 `.fast-changed` 與 `.fast-plan.json`；這兩個檔案僅是執行中的產物，不屬於專案保存資料。
 
@@ -36,13 +36,13 @@ node tests/tools/test-groups.mjs --check
 ## Ready for review 完整驗證（試行）
 
 - `.github/workflows/ci-full.yml` 監聽 `opened`、`ready_for_review`、`synchronize`、`reopened`，只對非 Draft PR 執行；也保留手動觸發入口。
-- 合併既有 Note editor audit 六個工作、全球地圖整合工作、球面幾何與離線預覽工作，維持原有的 PostgreSQL、Chromium、WebKit、離線及正式建置情境。
+- 整合既有 Note editor audit 六個工作與全球地圖整合工作，維持 PostgreSQL、Chromium、WebKit、離線及正式建置情境；球面幾何、離線預覽與 8 項效能基準仍交由獨立 `spherical-grid-prototype.yml` 執行。
 - `tests/tools/run-full-extras.mjs` 比對測試清冊與既有工作流程，依主要群組補跑未被既有 CI 明確涵蓋的測試；按測試環境區分非瀏覽器與 Chromium 測試。
 - 測試清冊已移除不屬於正式驗證的 A/B/C 分頁比較研究；正式測試的工作分配以 `tests/tools/run-full-extras.mjs --audit` 即時查核，不沿用過期數量。
 - 8 個效能基準維持清冊記錄，但不列入每次完整 CI。
-- 此階段保留三份舊工作流程、Draft 快速 CI 及正式部署設定，未修改主分支／分支保護。
+- 本分支已移除重複的 `note-editor.yml` 與 `global-map-editor.yml`；`ci-full.yml` 額外監聽 `main` 推送，保留合併後驗證；未修改主分支／分支保護。
 - 這份完整 CI 是試行版本，尚未執行或驗證所有整合測試是否通過。既有 `worldMapUI.browser.test.cjs` 曾在 Chromium 等待資料狀態時失敗，不能因重組 CI 就忽略。
-- 舊流程與新完整 CI 暫時會重複執行。必須先驗證新流程，再移除舊觸發和切換必填檢查。
+- 舊筆記與全球地圖工作流程已移除，但合併前仍須確認最新完整 CI 與任何既有分支保護要求；既有失敗案例不得因整合而略過。
 - Ready 後有新提交會重新執行完整工作流程；合併時仍應以最新程式碼的實際檢查結果為準。
 
 ## 字典測試整理（第一輪，尚未刪除）
@@ -94,3 +94,11 @@ node tests/tools/test-groups.mjs --check
 - 已同步調整分組清冊及完整 CI 補充執行器的研究例外規則。
 - `Retirement` 類測試涉及舊資料庫版本升級、權限與操作收據，單憑檔名不能判定冗餘。缺乏等效斷言及完整 CI 驗證前，保留現有安全測試。
 - `experiments/spherical-grid/` 及其 8 項效能基準依使用者要求保持原狀。
+
+## CI 重複工作流程精簡（2026-11-17）
+
+- `.github/workflows/note-editor.yml`、`.github/workflows/global-map-editor.yml` 已從自動化測試改良分支退役，相關必要驗證由 `.github/workflows/ci-full.yml` 承接。
+- `ci-full.yml` 在非 Draft PR 與 `main` 推送執行；相同命令的第二次 Global Map WebKit 執行已移除，仍保留 Chromium 與 WebKit 跨瀏覽器驗證。
+- `spherical-grid-prototype.yml` 獨立保留球面網格測試、離線預覽及 8 項效能基準；完整 CI 不再重複其幾何工作。
+- 補充測試涵蓋率由現存 `ci-full.yml` 和 `spherical-grid-prototype.yml` 動態計算，不再引用已退役 YAML。
+- 分支保護要求與現有 CI 失敗須在 PR 合併前另外查核；不因移除舊流程宣稱新 CI 全數通過。
