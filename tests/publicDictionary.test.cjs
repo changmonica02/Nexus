@@ -104,7 +104,8 @@ test('public dictionary: UUID authority, draft isolation, publishing, provenance
 
 test('dictionary writes use canonical RPC and propagate authorization errors',async()=>{
  const calls=[],client={rpc:async(name,args)=>{calls.push({name,args});return {data:{},error:null};}};
- const row={id:uuid(1),kind:'word',headword:'draft'};
+ // RPC error propagation is independent of Word's mandatory Sense fields.
+ const row={id:uuid(1),kind:'root',headword:'draft-root'};
  await saveDictionaryDraft(client,'dictionary_entries',row);
  assert.equal(calls[0].name,'apply_dictionary_drafts');assert.equal(calls[0].args.drafts[0].bundle.dictionary_entries[0].status,undefined);
  await assert.rejects(saveDictionaryDraft({rpc:async()=>({error:{message:'denied'}})},'dictionary_entries',row),/denied/);
