@@ -147,17 +147,17 @@
       "tests/note/noteTablePagination.test.cjs"
     ],
     "creation": [
-      "tests/characterBlocks.browser.test.cjs",
-      "tests/characterBlocks.test.cjs",
-      "tests/characterTemplateUpdate.browser.test.cjs",
-      "tests/characterTemplateUpdate.test.cjs",
-      "tests/characterTemplates.browser.test.cjs",
-      "tests/characterWorkspace.test.cjs",
-      "tests/creationTemplateInstall.test.cjs",
-      "tests/creationTemplateLibrary.browser.test.cjs",
-      "tests/creationTemplateLibrary.test.cjs",
-      "tests/novelChapters.test.cjs",
-      "tests/score.test.cjs"
+      "tests/creation/characterBlocks.browser.test.cjs",
+      "tests/creation/characterBlocks.test.cjs",
+      "tests/creation/characterTemplateUpdate.browser.test.cjs",
+      "tests/creation/characterTemplateUpdate.test.cjs",
+      "tests/creation/characterTemplates.browser.test.cjs",
+      "tests/creation/characterWorkspace.test.cjs",
+      "tests/creation/creationTemplateInstall.test.cjs",
+      "tests/creation/creationTemplateLibrary.browser.test.cjs",
+      "tests/creation/creationTemplateLibrary.test.cjs",
+      "tests/creation/novelChapters.test.cjs",
+      "tests/creation/score.test.cjs"
     ],
     "life": [
       "tests/life/lifeLists.browser.test.cjs",
