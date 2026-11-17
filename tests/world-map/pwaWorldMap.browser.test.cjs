@@ -4,7 +4,7 @@ const {build}=require('esbuild'),{chromium}=require('playwright');
 const {worldMapHeaders}=require('../../next.config.ts');
 test('PWA stage 2: native world map offline save and reopen with independent worker',{timeout:600000},async t=>{
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-world-map-')),root=path.resolve(__dirname,'..'),core=path.join(root,'public/world-map/core');
-  await build({entryPoints:['tests/fixtures/worldMap.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,plugins:[require('../legacyMapFixture.cjs').legacyMapCreatorPlugin],loader:{'.woff':'dataurl','.woff2':'dataurl','.ttf':'dataurl'},format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})}});
+  await build({entryPoints:['tests/fixtures/worldMap.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,plugins:[require('../helpers/legacyMapFixture.cjs').legacyMapCreatorPlugin],loader:{'.woff':'dataurl','.woff2':'dataurl','.ttf':'dataurl'},format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})}});
   const cssFiles=fs.readdirSync(path.join(root,'.next/static'),{recursive:true}).filter(p=>p.endsWith('.css'));
   const mime={'.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.woff':'font/woff','.woff2':'font/woff2','.json':'application/json','.html':'text/html'};
   const server=http.createServer((req,res)=>{
@@ -28,7 +28,7 @@ test('PWA stage 2: native world map offline save and reopen with independent wor
   page.on('requestfailed',r=>console.log('request failed:',r.url().slice(0,140),r.failure()?.errorText));
   page.on('dialog',dialog=>dialog.accept());
   await page.goto('http://127.0.0.1:'+server.address().port);
-  const {waitForAsync,setNetwork}=require('../pwaBrowser.cjs');
+  const {waitForAsync,setNetwork}=require('../helpers/pwaBrowser.cjs');
   const manage=page.getByRole('dialog',{name:'Manage maps'});
   await page.getByRole('button',{name:'Manage maps',exact:true}).first().click();
   await manage.getByRole('button',{name:'Create map',exact:true}).click();
