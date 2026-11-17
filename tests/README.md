@@ -1,11 +1,11 @@
 # Nexus 自動化測試
 
-- 權威清冊：`tests/config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。目前正式測試已依功能分為 `tests/dictionary/`、`tests/study/`、`tests/world-map/`、`tests/note/`、`tests/creation/`、`tests/life/`、`tests/workspace/`、`tests/shared/`；共用 `tests/fixtures/` 與測試啟動輔助保留於 `tests/`。
+- 權威清冊：`tests/config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。目前正式測試已依功能分為 `tests/dictionary/`、`tests/study/`、`tests/world-map/`、`tests/note/`、`tests/creation/`、`tests/life/`、`tests/workspace/`、`tests/shared/`；共用測試資料保留於 `tests/fixtures/`，輔助程式存放於 `tests/helpers/`，執行工具存放於 `tests/tools/`。
 - 群組：`dictionary`、`study`、`world-map`、`note`、`creation`、`life`、`workspace`、`shared`。
 - `benchmarks` 為效能基準，獨立於一般迴歸測試。
 - `shared` 的測試具有跨模組性質；後續快速 CI 應依修改檔案與相依關係選取，而不是所有變更一律跑完整 `shared`。
 - 跨模組測試只有一個主要歸屬，但變更可能同時觸發多個群組，後續的 CI 選擇器需要做去重。
-- 本次只建立測試分組與查核工具，不調整現有工作流程的觸發規則，也不聲稱這些測試都已通過。
+- 目前已完成測試實體分組及管理檔案集中整理；工作流程的實際執行結果仍需另行驗證。
 
 唯讀操作：
 ```sh
