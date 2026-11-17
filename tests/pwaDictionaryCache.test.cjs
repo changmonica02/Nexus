@@ -17,12 +17,12 @@ async function rows(){return database((s,result)=>{s.getAll().onsuccess=e=>resul
 
 test('successful public reads are committed before returning; exact query/page/kind and inflection replay',async()=>{
  const calls=[];const client={rpc:async(name,args)=>{calls.push({name,args});return {data:name==='get_published_dictionary_entry'?detail('example'):page([{id,headword:'example',kind:'word'}]),error:null};}};
- await reader.readPublishedEntry(client,id);await reader.searchDictionary(client,'all','example');await reader.searchDictionaryWithInflections(client,'word','examples',1);
+ await reader.readPublishedEntry(client,id);await reader.searchDictionary(client,'all','example');await reader.readPublishedCatalog(client,'?kind=word&q=examples',1);
  online(false);
  assert.equal((await reader.readPublishedEntry(never,id)).entry.headword,'example');
  assert.equal((await reader.searchDictionary(never,'all','example')).items.length,1);
- assert.equal((await reader.searchDictionaryWithInflections(never,'word','examples',1)).items.length,1);
- for(const request of [()=>reader.readPublishedEntry(never,other),()=>reader.searchDictionary(never,'all','unread'),()=>reader.searchDictionary(never,'word','example'),()=>reader.searchDictionaryWithInflections(never,'word','examples',0)])await assert.rejects(request,/尚未離線保存.*連線/);
+ assert.equal((await reader.readPublishedCatalog(never,'?kind=word&q=examples',1)).items.length,1);
+ for(const request of [()=>reader.readPublishedEntry(never,other),()=>reader.searchDictionary(never,'all','unread'),()=>reader.searchDictionary(never,'word','example'),()=>reader.readPublishedCatalog(never,'?kind=word&q=examples',0)])await assert.rejects(request,/尚未離線保存.*連線/);
  assert.equal(calls.length,3);assert.equal((await rows()).length,3);
 });
 test('capacity is 100 responses, evicts oldest, cleans expired on write, keeps workspace DB untouched',async()=>{
