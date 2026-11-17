@@ -2,7 +2,7 @@ require('../loadStudy.cjs');const {test}=require('node:test'),assert=require('no
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
 const {database,client,executeQuery,sql,id,draft}=require('../fixtures/morphemeRetirementDatabase.cjs');const {saveDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
 test('actual morpheme editor and SQL Reviews: stable senses/variants, autosave, reclassification, histories, links, bilingual responsive catalog',{timeout:180000},async()=>{
- const pg=await database(),c=client(pg),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-morpheme-editor-')),root=path.resolve(__dirname,'..');let server,browser;const errors=[];
+ const pg=await database(),c=client(pg),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-morpheme-editor-')),root=path.resolve(__dirname,'../..');let server,browser;const errors=[];
  try{
  for(let i=0;i<4;i++){const n=3000+i*100,d={...draft(n),kind:'root',headword:'morph'+i,senses:[{id:id(n+1),part_of_speech:null,gloss_zh_tw:'原始概述',semantic_domain:'action',semantic_subdomain:'movement'}]};await saveDictionaryDraft(c,[d],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);}
  await saveDictionaryDraft(c,[{...draft(4000),headword:'linkedword'}],false,true);await sql(pg,'select publish_dictionary_entry($1,true) v',[id(4000)]);
