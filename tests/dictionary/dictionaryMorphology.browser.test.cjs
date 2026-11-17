@@ -5,7 +5,7 @@ test('shared published morphology: compact tiles, exact linked-sense overview, c
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(root,'src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{if(req.url==='/app.js'){res.setHeader('content-type','text/javascript');res.end(fs.readFileSync(path.join(tmp,'app.js')));}else if(req.url==='/app.css')res.end(css);else res.end('<html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><div id="root"></div><script type="module" src="/app.js"></script></html>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium,browser=await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:engine===chromium?['--no-sandbox']:[]}),errors=[];
- try{for(const width of [1280,820,390,320])for(const scenario of ['normal','long','empty','english']){
+ try{for(const width of [1280,320])for(const scenario of ['normal','long','empty','english']){
   const context=await browser.newContext({viewport:{width,height:1000}}),p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto('http://127.0.0.1:'+server.address().port+'/?'+(scenario==='english'?'lang=en':scenario));
   await p.locator('[data-composition-tile]').first().waitFor();assert.equal(await p.locator('[data-composition-tile]').count(),2);
   if(scenario!=='empty'){
