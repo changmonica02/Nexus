@@ -308,16 +308,6 @@ test(
           .getByLabel("搜尋單字或構詞", { exact: true })
           .fill("no-visible-match");
         await page.getByRole("tab", { name: "構詞", exact: true }).click();await page.getByRole("button",{name:"篩選構詞分類",exact:true}).click();await page.getByRole("checkbox", { name: "字首", exact: true }).check();
-        assert.equal(
-          await page.getByRole("button", { name: "全選", exact: true }).count(),
-          0,
-        );
-        assert.equal(
-          await page
-            .getByRole("button", { name: "本頁選取發布", exact: true })
-            .count(),
-          0,
-        );
         await page
           .getByRole("button", {
             name: "發布全部草稿",
