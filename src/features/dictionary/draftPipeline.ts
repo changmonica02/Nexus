@@ -99,7 +99,7 @@ export function draftsFromBundle(bundle:Bundle):DictionaryDraftInput[]{
 export function mapDictionaryDraft(d:DictionaryDraftInput){
   const own=(rows:DraftRow[])=>rows.map(r=>({...strip(r),entry_id:d.entry_id}));
   const bundle:Bundle={dictionary_entries:[{id:d.entry_id,kind:d.kind,headword:d.headword,...(d.word_segments!==undefined?{word_segments:d.word_segments}:{}),...(d.revision?{revision:d.revision}:{})}],dictionary_senses:own(d.senses),dictionary_relations:own(d.relations.map(compositionRow)),dictionary_etymologies:own(d.etymologies),dictionary_learning_notes:own(d.learning_notes)};
-  return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),...(d.kind==='prefix'?{sense_groups:[]}:{}),origin:{row:d.row??1,kind:d.kind},bundle,
+  return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),origin:{row:d.row??1,kind:d.kind},bundle,
     ...(d.public_notes!==undefined?{public_notes:own(d.public_notes)}:{}),
     ...(d.derivations!==undefined?{derivations:own(d.derivations)}:{}),
     pronunciations:own(d.pronunciations??[]).map(cleanPronunciation),examples:own(d.examples),annotations:own([...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
