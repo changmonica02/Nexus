@@ -113,6 +113,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Dictionary admin behavior preflight
+        run: node --test tests/dictionary/dictionaryAdminUI.test.cjs
       - run: npx playwright install --with-deps chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
@@ -140,7 +142,7 @@ jobs:
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-transfer-ci node tests/dictionary/dictionaryTransfer.test.cjs
       - name: Dictionary morphology, admin, reader and autosave
         run: |
-          node --test tests/dictionary/dictionaryMorphology.test.cjs tests/dictionary/dictionaryAdminUI.test.cjs tests/dictionary/dictionaryReader.test.cjs tests/dictionary/dictionaryRankedComponents.test.cjs
+          node --test tests/dictionary/dictionaryMorphology.test.cjs tests/dictionary/dictionaryReader.test.cjs tests/dictionary/dictionaryRankedComponents.test.cjs
           node tests/dictionary/dictionaryAutosave.browser.test.cjs
           node tests/dictionary/dictionaryMorphology.browser.test.cjs
           STUDY_BROWSER=webkit node tests/dictionary/dictionaryMorphology.browser.test.cjs
