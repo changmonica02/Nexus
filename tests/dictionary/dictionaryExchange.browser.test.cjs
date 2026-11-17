@@ -266,6 +266,16 @@ test(
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
+        // Make the recovery UI boundary explicit: distinguish dialog dismissal
+        // from an IndexedDB checkpoint that failed to hydrate.
+        await page.getByRole("dialog", { name: "匯入資料", exact: true }).waitFor().catch(async error => {
+          console.error("IMPORT_REOPEN_DIAGNOSTIC", {
+            url: page.url(),
+            dialogs: await page.locator("dialog").evaluateAll(rows => rows.map(row => ({open: row.open, title: row.getAttribute("aria-labelledby"), text: row.innerText.slice(0, 300)}))),
+            body: (await page.locator("body").innerText()).slice(0, 1200),
+          });
+          throw error;
+        });
         await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
         await page
           .getByRole("button", {
