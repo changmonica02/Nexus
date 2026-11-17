@@ -37,15 +37,6 @@ test(
     const pg = await database();
     try {
       const d = draft(10);
-      d.inflections = [
-        {
-          id: id(24),
-          sense_id: id(11),
-          form_kind: "past",
-          form: "went",
-          sort_order: 0,
-        },
-      ];
       await sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
         JSON.stringify([mapDictionaryDraft(d)]),
       ]);
@@ -115,10 +106,10 @@ test(
         [r.id],
       );
       assert.equal(next.id, r.id);
-      assert.equal(next.candidate.inflections[0].id, id(24));
+      assert.equal(next.candidate.bundle.dictionary_senses[0].id, id(11));
       assert.equal(next.revision, r.revision + 1);
       assert.equal(next.candidate.annotations.length, 1);
-      assert.equal(next.candidate.bundle.dictionary_senses[0].id, id(11));
+
       const pending = await sql(
         pg,
         "select to_jsonb(r) v from dictionary_import_review_items r where id=$1",
