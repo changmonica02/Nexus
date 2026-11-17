@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),React=require('react');
 const {renderToStaticMarkup}=require('react-dom/server');
 const {transformSync}=require('esbuild');
-const filename=path.resolve(__dirname,'../src/features/dictionary/SafeMarkdown.tsx');
+const filename=path.resolve(__dirname,'../../src/features/dictionary/SafeMarkdown.tsx');
 const source=fs.readFileSync(filename,'utf8');
 const mod={exports:{}};
 const compiled=transformSync(source,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic'}).code;
