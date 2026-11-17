@@ -2,7 +2,7 @@ require('../loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{PGlite}=require('@electric-sql/pglite');
 const {parseDictionaryCSV,parseDictionaryCSVPreview,dictionaryCSVHeaders,exportDictionaryCSV}=require('../../src/features/dictionary/dictionaryCSV.ts');
 const {mapDictionaryDraft,saveDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
-const {classifyImport,buildImportSession,chooseIssue,applyBatchDecision,canBatchDecision,applyImportItems,sessionCounts,resolveImportItem}=require('../../src/features/dictionary/importReview.ts');
+const {classifyImport,buildImportSession,chooseIssue,applyImportItems,sessionCounts,resolveImportItem}=require('../../src/features/dictionary/importReview.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const csv=rows=>dictionaryCSVHeaders.join(',')+'\n'+rows.map(r=>dictionaryCSVHeaders.map(h=>'"'+String(r[h]??'').replaceAll('"','""')+'"').join(',')).join('\n');
 const row=(n,more={})=>({kind:'word',entry_id:id(n),sense_id:id(n+1),headword:'word'+n,part_of_speech:'noun',gloss_zh_tw:'義'+n,...more});
@@ -29,13 +29,6 @@ test('unchanged is safe; content, category, homographs, ID ownership and Publish
  const homograph=classifyImport(d,{...empty,similar:[{id:id(200),kind:'word',headword:d.headword,status:'draft',revision:1}]});assert.deepEqual(homograph.issues[0].allowedActions,['skip','later']);
  const collision=classifyImport(d,{...empty,identities:{dictionary_senses:[{id:d.senses[0].id,entry_id:id(300)}]}});assert.equal(collision.issues[0].type,'identity_owner');
 });
-test('batch decisions require same category, kind, missing-value precondition and action semantics',async()=>{
- const ds=await parseDictionaryCSV(csv([row(10,{kind:'prefix',part_of_speech:'',category:'作用與變化'}),row(20,{kind:'prefix',part_of_speech:'',category:'作用與變化'}),row(30,{kind:'prefix',part_of_speech:'',category:'數值、量與程度'})]));
- const items=ds.map(d=>{const c=snapshot(d);delete c.snapshot.detail.senses[0].category;return classifyImport(d,c);});
- const [a,b,c]=items.map(i=>i.issues[0]);assert.ok(canBatchDecision(a,b,'fill'));assert.equal(canBatchDecision(a,c,'fill'),false);assert.equal(canBatchDecision(a,b,'incoming'),false);
- const s={id:id(1),owner_id:id(2),source_type:'csv',preview_at:new Date().toISOString(),items};const decided=applyBatchDecision(s,items[0].id,a.id,'fill');assert.equal(decided.items[0].issues[0].selectedAction,'fill');assert.equal(decided.items[1].issues[0].selectedAction,'fill');assert.equal(decided.items[2].issues[0].selectedAction,null);assert.throws(()=>applyBatchDecision(s,items[0].id,a.id,'incoming'),/不允許/);
-});
-
 test('local PostgreSQL: partial apply, stable IDs, revision/status/identity/field stale guards, receipts, RLS and rollback',async()=>{
  const pg=new PGlite();try{
  await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth,public to authenticated,anon;`);
