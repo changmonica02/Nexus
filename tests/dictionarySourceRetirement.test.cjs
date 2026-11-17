@@ -1,18 +1,21 @@
 require('./loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{PGlite}=require('@electric-sql/pglite');
-const {parseDictionaryImport}=require('../src/features/dictionary/adminImport.ts');
+const {parseDictionaryImport,parseJSONBundleWithIgnored}=require('../src/features/dictionary/adminImport.ts');
 const {parseAI,toAI,planAI,submitAI,readAI}=require('../src/features/dictionary/aiDictionary.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const migration='20261012_dictionary_retire_sources.sql';
 const csv=`entry_id,sense_id,headword,part_of_speech,gloss_zh_tw\n${id(40)},${id(41)},apple,noun,蘋果`;
-test('five-column CSV, Markdown own attribution, JSON and AI reject retired fields and need no source records',async()=>{
- const bundle=await parseDictionaryImport(csv,'csv');assert.equal(bundle.dictionary_sources,undefined);assert.deepEqual(bundle.dictionary_entries,[{id:id(40),kind:'word',headword:'apple'}]);
- await assert.rejects(parseDictionaryImport(csv.replace('gloss_zh_tw','gloss_zh_tw,citation,license').replace('蘋果','蘋果,old,old'),'csv'),/已淘汰/);
+const currentBundle={dictionary_entries:[{id:id(40),kind:'word',headword:'apple'}],dictionary_senses:[{id:id(41),entry_id:id(40),part_of_speech:'noun',gloss_zh_tw:'蘋果'}]};
+test('current JSON import retains source-free content, rejects retired CSV/Markdown, and ignores legacy source columns explicitly',async()=>{
+ const bundle=await parseDictionaryImport(JSON.stringify(currentBundle),'json');
+ assert.deepEqual(bundle,currentBundle);
+ await assert.rejects(parseDictionaryImport(csv,'csv'),/CSV 與 Markdown 舊格式已停用/);
  const md=`---\nid: ${id(42)}\nentry_id: ${id(40)}\nkind: historical_etymology\ndata_source: 書籍第 1 頁\n---\n歷史正文`;
- const parsed=await parseDictionaryImport(md,'md');assert.equal(parsed.dictionary_etymologies[0].data_source,'書籍第 1 頁');assert.equal(parsed.dictionary_sources,undefined);
- await assert.rejects(parseDictionaryImport(md.replace('data_source:', 'citation:'),'md'),/已淘汰/);
- assert.deepEqual(await parseDictionaryImport(JSON.stringify(bundle),'json'),bundle);
- for(const value of [{dictionary_sources:[]},{dictionary_entries:[{...bundle.dictionary_entries[0],source_id:id(3)}]}])await assert.rejects(parseDictionaryImport(JSON.stringify(value),'json'),/已淘汰/);
+ await assert.rejects(parseDictionaryImport(md,'md'),/CSV 與 Markdown 舊格式已停用/);
+ const parsed=parseJSONBundleWithIgnored(JSON.stringify({dictionary_sources:[{id:id(3)}],dictionary_entries:[{...currentBundle.dictionary_entries[0],source_id:id(3)}],dictionary_senses:currentBundle.dictionary_senses}));
+ assert.deepEqual(parsed.bundle,currentBundle);
+ assert.ok(parsed.ignoredFields.some(f=>f.includes('dictionary_sources')));
+ assert.ok(parsed.ignoredFields.some(f=>f.includes('source_id')));
  assert.throws(()=>parseAI(JSON.stringify({format:'nexus-dictionary-ai',version:1,entries:[{type:'word',headword:'a',sources:[]}]})),/已淘汰/);
 });
 test('migration preserves all legacy rows/audit; source-free RPCs, AI reviews, Reader isolation, deletions and rollback work',async()=>{
@@ -34,7 +37,7 @@ test('migration preserves all legacy rows/audit; source-free RPCs, AI reviews, R
  await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261013_dictionary_draft_pipeline.sql','utf8'));await pg.exec(fs.readFileSync('supabase/migrations/20261014_dictionary_revision_lifecycle.sql','utf8'));
  for(const f of ['20261017_dictionary_entry_identity.sql', '20261018_dictionary_pronunciations.sql', '20261019_dictionary_admin_bulk_publish.sql', '20261020_dictionary_edit_inflections.sql', '20261021_dictionary_composition_shared.sql', '20261016060000_dictionary_retire_verification_state.sql','20261017010000_dictionary_core_concept.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));await pg.exec('set role authenticated');
  const client={rpc:async(name,args)=>{try{let result;if(name==='get_dictionary_ai_snapshot')result=await pg.query('select get_dictionary_ai_snapshot($1) as data',[args.entry_uuid]);else if(name==='create_dictionary_review')result=await pg.query('select create_dictionary_review($1,$2,$3,$4,$5) as data',[args.entry_uuid,JSON.stringify(args.expected_snapshot),JSON.stringify(args.patch),args.source_type,args.preview]);else if(name==='apply_dictionary_drafts')result=await pg.query('select apply_dictionary_drafts($1,$2,$3) as data',[JSON.stringify(args.drafts),args.preview,args.allow_edits]);else result=await pg.query('select apply_dictionary_ai_change($1,$2,$3,$4,$5,$6,$7,$8) as data',[args.entry_uuid,args.expected_snapshot,args.bundle,args.group_data,args.sense_groups,args.component_order,args.origin_ids,args.preview]);return {data:result.rows[0].data,error:null};}catch(error){return {error};}}};
- const bundle=await parseDictionaryImport(csv,'csv');const apply=(b,preview=false)=>pg.query('select apply_dictionary_bundle($1,$2,true) as result',[b,preview]);
+ const bundle=await parseDictionaryImport(JSON.stringify(currentBundle),'json');const apply=(b,preview=false)=>pg.query('select apply_dictionary_bundle($1,$2,true) as result',[b,preview]);
  await apply(bundle,true);assert.equal((await pg.query('select * from dictionary_entries where id=$1',[id(40)])).rows.length,0);await apply(bundle);assert.equal((await apply(bundle)).rows[0].result.skipped,2);
  await assert.rejects(apply({dictionary_sources:[]}),/retired/);await assert.rejects(apply({dictionary_entries:[{...bundle.dictionary_entries[0],source_id:id(3)}]}),/Unexpected field/);
  await assert.rejects(pg.query("insert into dictionary_sources(citation,license,raw_text) values('x','x','x')"),/permission/);
