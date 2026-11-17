@@ -36,7 +36,7 @@ test('PWA dictionary: public offline reading/search, invalidation, isolation and
  offline=true;await context.setOffline(true);await setNetwork(page,true);
  await page.getByRole('link',{name:/^example/}).last().click();await page.getByRole('heading',{name:'example',exact:true}).waitFor();await page.getByText('公開詞義',{exact:true}).waitFor();
  await page.goBack();await page.getByRole('link',{name:/^example/}).last().waitFor();
- await page.getByRole('textbox',{name:/^(搜尋單字或構詞|Search words or morphemes)$/}).fill('unread');await page.getByRole('button',{name:/^(搜尋|Search)$/}).click();await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
+ await page.getByRole('textbox',{name:/^(搜尋單字或構詞|Search words or morphemes)$/}).fill('unread').catch(async error=>{console.error('PWA_CATALOG_NAVIGATION',{url:page.url(),body:(await page.locator('body').innerText()).slice(0,1800),labels:await page.locator('input').evaluateAll(nodes=>nodes.map(x=>({name:x.getAttribute('aria-label'),value:x.value})))});throw error;});await page.getByRole('button',{name:/^(搜尋|Search)$/}).click();await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
  await page.evaluate(id=>{const a=document.createElement('a');a.href='/dictionary/'+id;document.querySelector('main').append(a);a.click();a.remove();},missing);await page.getByRole('alert').filter({hasText:'請連線後閱讀'}).waitFor();
  await inject();const missingMessage=await page.evaluate(async id=>{try{await window.dictionaryProbe.readPublishedEntry(window.dictionaryProbe.client,id);}catch(e){return e.message;}},missing);assert.match(missingMessage,/尚未離線保存/);
  assert.equal(offlineCalls.filter(n=>/search_|get_published/.test(n)).length,0);
