@@ -66,9 +66,6 @@
       "tests/morphemeDatabase.test.cjs",
       "tests/morphemeEditor.browser.test.cjs",
       "tests/morphemeRetirement.test.cjs",
-      "tests/notePagination.study.test.cjs",
-      "tests/noteTablePagination.browser.test.cjs",
-      "tests/noteTablePagination.test.cjs",
       "tests/pagination.browser.test.cjs",
       "tests/pagination.test.cjs",
       "tests/publicDictionary.test.cjs",
@@ -145,7 +142,10 @@
       "tests/lessonDocument.test.cjs",
       "tests/noteEditor.browser.test.cjs",
       "tests/noteExport.browser.test.cjs",
-      "tests/noteExportLayout.test.cjs"
+      "tests/noteExportLayout.test.cjs",
+      "tests/notePagination.study.test.cjs",
+      "tests/noteTablePagination.browser.test.cjs",
+      "tests/noteTablePagination.test.cjs"
     ],
     "creation": [
       "tests/characterBlocks.browser.test.cjs",
