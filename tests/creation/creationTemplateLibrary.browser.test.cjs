@@ -50,7 +50,7 @@ test(
         from: path.join(root, "src/app/globals.css"),
       })
     ).css;
-    const base = require("./fixtures/dictionaryExchangeDatabase.cjs");
+    const base = require("../fixtures/dictionaryExchangeDatabase.cjs");
     const pg = await base.database();
     await pg.exec("reset role");
     await pg.exec(
