@@ -1,7 +1,6 @@
 require('../loadStudy.cjs');
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
-const {PGlite}=require('@electric-sql/pglite');
-const {parseCSV,parseDictionaryImport,applyBundle}=require('../../src/features/dictionary/adminImport.ts');
+const test=require('node:test'),assert=require('node:assert/strict');
+const {parseDictionaryImport}=require('../../src/features/dictionary/adminImport.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 // Public imports accept current JSON only. CSV/Markdown are not fallback formats.
 const sourceBundle={
