@@ -73,7 +73,7 @@ node tests/tools/test-groups.mjs --check
 | 群組 | 路徑 | 測試數 |
 | --- | --- | ---: |
 | 字典 | `tests/dictionary/` | 70 |
-| 學習 | `tests/study/` | 34 |
+| 學習 | `tests/study/` | 33 |
 | 世界地圖 | `tests/world-map/` | 12 |
 | 筆記 | `tests/note/` | 6 |
 | 創作 | `tests/creation/` | 11 |
@@ -82,7 +82,7 @@ node tests/tools/test-groups.mjs --check
 | 共用 | `tests/shared/` | 11 |
 | 球面幾何實驗 | `experiments/spherical-grid/` | 13 |
 
-合計 175 份已編目的正式／實驗測試。8 份效能基準仍位於球面幾何實驗目錄並依獨立清冊管理。
+合計 174 份已編目的正式／實驗測試。8 份效能基準仍位於球面幾何實驗目錄並依獨立清冊管理。
 
 - 快速測試從 `tests/config/test-groups.json` 依變更範圍選擇既有檔案，不另複製一份快速測試。
 - 完整 CI 與舊工作流程的直接測試指令均改為新路徑。
@@ -132,3 +132,12 @@ node tests/tools/test-groups.mjs --check
 - `dictionaryReader.test.cjs`：移除補充資料區塊固定先後順序的斷言，保留 IPA 排序、義項與共用資料、來源安全及公開資料隔離。
 - `dictionaryVerificationRetirement.test.cjs`、`maintenanceCleanupRetirement.test.cjs`、`dictionaryInflectionsSQLRetirement.test.cjs`：核對真實 PostgreSQL 遷移、Review CAS、操作收據及 RLS 後保留；現階段不以名稱或時間舊為理由直接刪除。
 - 字典測試檔案仍維持 70 份，已刪減獨立重複案例及易碎斷言；需要最新完整 CI 結果才能宣告實際執行通過。
+
+## 非字典測試清理（2026-11-17）
+
+- 完成瀏覽器測試分組後根目錄路徑修正：`tests/study/`、`tests/world-map/`、`tests/creation/`、`tests/life/`、`tests/workspace/`，避免 esbuild 錯找 `tests/node_modules`、`tests/.next/static`、`tests/study/fixtures`；不改實際功能程式。
+- 現行 `SPEC.md` 明確規定唯一的三按鈕間隔排程；刪除只驗證舊 FSRS 作答演算法的 `tests/study/studyFSRS.test.cjs`，快速 CI 改以 `studyIntervals.test.cjs` 作為代表測試。同步更新完整 CI、測試清冊及快速測試選取器自測。
+- `studyStyles.test.cjs` 不再對使用者已退役的 FSRS 排程選擇跑一套額外正式作答測試；舊四級事件／未完成 Session 的相容性驗證仍留存，避免刪除受支援的歷史資料保障。
+- `round3UI.test.cjs` 刪除兩項已退役的字典顏色標籤／發布歷史畫面檢查；保留導覽網址安全、編輯內容保持及排序偏好。
+- `post63UI.test.cjs` 移除固定圖示筆畫寬度、固定按鈕數量及 CSS 樣式的斷言，保留顯示資料與功能行為。
+- 僅完成 JavaScript 語法與清冊靜態檢查後才能確定搬移修正合理；最新 GitHub CI 未通過前不宣稱完整驗證成功。
