@@ -8,7 +8,7 @@ const { build } = require("esbuild"),
   { chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test(
-  "desktop/tablet/mobile actual bulk UI: filtered complete export/retry, file preview, bounded pause/refresh/resume and publication token/report, English labels",
+  "desktop exchange checkpoint, safe import and bulk publication; mobile import/export entry points",
   { timeout: 120000 },
   async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus44-browser-"));
