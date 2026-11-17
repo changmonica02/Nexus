@@ -28,11 +28,10 @@ async function style(f, patch = {}) {
   return s;
 }
 for (const mode of ["scheduled", "endless"])
-  for (const method of ["fixed", "fsrs"])
-    test(`${mode} × ${method}: real histories, frozen settings, proper due and no extra practice`, async () => {
+  test(`${mode}: real three-response histories, frozen settings, proper due and no extra practice`, async () => {
       const f = await fixture(3);
       try {
-        await style(f, { study_mode: mode, scheduling_method: method });
+        await style(f, { study_mode: mode });
         const initial = await f.repo.startSession("deck", "scheduled", now);
         assert.equal(initial.targets.length, 3);
         assert.equal(initial.quota_limit, 100);
@@ -75,7 +74,7 @@ for (const mode of ["scheduled", "endless"])
         await f.close();
       }
     });
-test("fixed Review/ New / Relearning four-option transitions and independent configurable intervals; deterministic replay", async () => {
+test("legacy four-response events retain deterministic verification without re-enabling old study options", async () => {
   const s = defaultStudyStyle(null);
   s.scheduling_method = "fixed";
   delete s.interval_version; // Historical four-response event replay remains supported.
