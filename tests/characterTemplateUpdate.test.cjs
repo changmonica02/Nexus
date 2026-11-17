@@ -376,6 +376,9 @@ test("same-transaction source guard catches a change between preflight and commi
     character_data: instance(),
   };
   await storage.savePage(original);
+  // Compare against the canonical stored record: default_mode is intentionally retired.
+  const persistedBefore = await storage.getPage("role");
+  assert.equal(Object.hasOwn(persistedBefore, "default_mode"), false);
   const up = source();
   up.sections[0].title = "new";
   await storage.savePage({
@@ -394,7 +397,7 @@ test("same-transaction source guard catches a change between preflight and commi
     applyTemplateUpdate(storage, "role", "source", 1, 1),
     /Revision conflict/,
   );
-  assert.deepEqual(await storage.getPage("role"), original);
+  assert.deepEqual(await storage.getPage("role"), persistedBefore);
 });
 
 test("snapshot-bearing role uses the unchanged workspace outbox, backup and second-device merge contracts", async (t) => {
