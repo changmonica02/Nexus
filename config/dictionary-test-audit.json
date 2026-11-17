@@ -591,18 +591,37 @@
     "tests/currentImportBoundary.test.cjs",
     "tests/dictionaryCoreConcept.test.cjs",
     "tests/dictionaryRetireSourceForms.test.cjs",
-    "tests/dictionaryAdminUI.test.cjs"
+    "tests/dictionaryAdminUI.test.cjs",
+    "tests/dictionaryDraftPipeline.test.cjs",
+    "tests/dictionaryRankedComponents.test.cjs",
+    "tests/dictionaryImportReview.test.cjs",
+    "tests/dictionarySourceRetirement.test.cjs"
   ],
   "comparison_verified": 16,
   "retirement_reviewed": 4,
   "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。",
   "current_contract_remaining": [
-    "tests/dictionaryDraftPipeline.test.cjs",
     "tests/dictionaryIdentity.test.cjs",
-    "tests/dictionaryImportReview.test.cjs",
-    "tests/dictionaryRankedComponents.test.cjs",
     "tests/dictionaryLifecycle.test.cjs",
-    "tests/dictionarySourceRetirement.test.cjs"
+    "tests/dictionaryImportReview.test.cjs",
+    "tests/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "已實際改寫五份測試；另 dictionarySourceRetirement 等既有修正需 CI 驗證。保留剩餘舊契約測試直到現行 SQL／UI 行為替代實作通過。16 份比較與 4 份退役均保留獨立安全／升級覆蓋，沒有證據可整檔刪除。"
+  "progress_note": "第一批更新與比較完成，尚未取得最新完整 CI 全綠；已確認的重複案例在原檔內刪減。16 個整併候選暫均保留具獨立價值的情境；4 個退役候選仍涉及資料庫升級或安全，待取得最舊支援版本證據再決定是否刪除。",
+  "current_contract_changes": {
+    "tests/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
+    "tests/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
+    "tests/dictionaryCoreConcept.test.cjs": "已以 JSON 與 AI 的內容不遺失、穩定 ID 驗證取代舊 CSV 情境",
+    "tests/dictionaryRetireSourceForms.test.cjs": "已將禁止舊欄位回寫改為透過正式 JSON 入口檢查；歷史 SQL 安全案例保留",
+    "tests/dictionaryAdminUI.test.cjs": "已更新正式預覽為 data_source 歸屬與 HTML 安全輸出，不再依賴舊來源表",
+    "tests/dictionaryDraftPipeline.test.cjs": "已移除重複的舊 CSV 下載 UI 斷言，更新 JSON 例句/衍生義及內部 CSV 轉接測試；大型 SQL 案例仍待修正",
+    "tests/dictionaryRankedComponents.test.cjs": "已移除與構詞排名無關、且使用退役欄位的 Exchange 斷言；Exchange 專項仍保留",
+    "tests/dictionaryImportReview.test.cjs": "已依現行 12 欄內部 CSV 結構與例句連動要求調整部分測試資料；批次審核與 SQL 案例待更新",
+    "tests/dictionarySourceRetirement.test.cjs": "已於先前提交改用 JSON-only 入口；SQL 遷移測試仍保留"
+  },
+  "current_contract_pending": [
+    "tests/dictionaryIdentity.test.cjs",
+    "tests/dictionaryLifecycle.test.cjs",
+    "tests/dictionaryImportReview.test.cjs",
+    "tests/dictionaryDraftPipeline.test.cjs"
+  ]
 }
