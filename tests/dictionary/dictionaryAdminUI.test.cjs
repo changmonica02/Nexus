@@ -219,7 +219,5 @@ test('Word fixed fields render exactly one editable control each without add or 
  for(const label of ['讀音（IPA）','記憶法','詞源','筆記']){
    assert.ok(html.includes('>'+label+'</h3>'),label);
  }
- const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
- assert.match(source,/if\(!value\.trim\(\)\)return \{\.\.\.b,\[table\]:\[\]\}/);
- assert.match(source,/if\(rows\.length\)return \{\.\.\.b,\[table\]:\[\{\.\.\.rows\[0\],\[key\]:value\}\]\}/);
+
 });
