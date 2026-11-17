@@ -1,7 +1,7 @@
 const { test } = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), http = require('node:http');
 const { build } = require('esbuild'), { chromium } = require('playwright');
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '../..');
 test('learning home: actual IDB and study session, responsive layout, preview quota, account preferences, offline use and retained classic home', { timeout: 120000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-learning-home-'));
   await build({ entryPoints: ['tests/fixtures/learningHome.jsx'], outfile: path.join(tmp, 'fixture.js'), format: 'esm', bundle: true, jsx: 'automatic', define: { 'process.env': JSON.stringify({ NODE_ENV: 'development' }) }, plugins: [{ name: 'isolated', setup(b) {
