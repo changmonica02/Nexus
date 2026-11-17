@@ -187,3 +187,12 @@ node tests/tools/test-groups.mjs --check
 - 移除 `workspace/storageUpgrade.browser.test.cjs`、`shared/schemaRetirement.test.cjs`、`shared/retirementCompatibility.test.cjs`、`dictionary/dictionaryInflectionsSQLRetirement.test.cjs`。這些屬於已不支援的歷史直接升級路徑，不再列入 PR 必要測試；正式資料庫遷移檔案及現行功能檢查未刪除。
 - `ci-full.yml` 與分組清冊已移除相關引用；字典審查清冊同步修正。分組清冊目前 **158** 份測試檔案。歷史文件中的較大數字只描述當時狀態。
 - 這次退役代表不再承諾對歷史用戶端直接升級與舊式資料轉換執行每次 PR 回歸；資料庫版本及 PWA 的現行資料寫入、同步、安全保護仍為測試重點。
+
+## 字典瀏覽器回歸去重（2026-11-17）
+
+- `dictionaryDraftPublish.browser.test.cjs`：真實 SQL 發布的正常／錯誤／競爭條件不再對三種詞條在三個尺寸重跑九次，改成 Word（桌面）、Prefix（平板）、Root（手機）各一套完整檢查；移除已停止支援的複製型舊 Review 介面案例。
+- `dictionaryEditor.browser.test.cjs`：固定 Word 欄位填寫、清空、自動儲存及重新開啟保留桌面與手機兩套流程，不再重跑平板全流程；錯誤復原及未知發布結果仍保留。
+- `dictionaryTransfer.browser.test.cjs`：保留桌面與 320px 手機的 PostgreSQL API／轉移對話框流程，移除平板全流程的重複執行。
+- `studyDictionaryPanel.browser.test.cjs`：學習中的字典面板保留桌面與 320px 手機流程，獨立閱讀頁面亦保留桌面與手機；離線、權限、導覽回復及 Session 不變性情境未移除。
+- `dictionaryExchange.browser.test.cjs` 暫保留桌面／手機兩組完整流程，因手機的內嵌操作路徑不同；`dictionaryDraftPublish` 仍保留實際資料庫發布，`dictionaryTransfer` 仍保留交易與安全取代，不以同名資料交換任意刪除。
+- 字典測試檔案數與清冊維持不變；本次降低重複的瀏覽器操作矩陣，並非移除核心功能安全測試。GitHub Actions 結果應另行確認。
