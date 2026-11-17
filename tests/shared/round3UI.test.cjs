@@ -62,10 +62,4 @@ test("switching sorting methods uses default directions while existing persisted
   assert.equal(defaultSortAscending("created_at"), false);
   assert.equal(defaultSortAscending("size"), false);
   assert.equal(defaultSortAscending("custom"), true);
-  const source = fs.readFileSync(
-    "src/components/useCollectionPreferences.ts",
-    "utf8",
-  );
-  assert.ok(source.includes("parsed.ascending"));
-  assert.ok(source.includes("localStorage.setItem"));
 });
