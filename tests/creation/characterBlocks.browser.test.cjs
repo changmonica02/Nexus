@@ -10,7 +10,7 @@ test(
   "character blocks actual UI: preview, legacy preservation, durable modal failure/retry, move/resize, basic five fields, tabs and reload at desktop/tablet/mobile",
   { timeout: 150000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-character-blocks-"));
     await build({
       entryPoints: ["tests/fixtures/characterBlocks.jsx"],
