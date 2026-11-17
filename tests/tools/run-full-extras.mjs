@@ -13,7 +13,13 @@ const explicit=new Set([...baseline.matchAll(/(?:tests|experiments\/spherical-gr
 // Expand the two wildcard/script suites in the baseline.
 for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
 for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.test.cjs'])explicit.add('tests/world-map/'+n);
-const deferred=new Set(); // No non-gating research tests remain in inventory.
+// Heavy, independently runnable performance / large-dataset suites are not PR gates.
+const deferred=new Set([
+ 'tests/dictionary/dictionaryExchangeScale.test.cjs',
+ 'tests/dictionary/dictionaryPersistentScale.test.cjs',
+ 'tests/dictionary/dictionaryRankedComponents.test.cjs',
+ 'tests/study/studyStartup.performance.test.cjs'
+]);
 export function coverage(){
  const all=Object.values(inv.groups).flat();
  const extra=all.filter(p=>!explicit.has(p)&&!deferred.has(p));
@@ -24,6 +30,12 @@ export function coverage(){
 const args=process.argv.slice(2),c=coverage();
 if(args.length===1&&args[0]==='--audit'){
  console.log(JSON.stringify({total:c.all.length,legacy:c.explicit.length,additional:c.extra.length,deferred:c.deferred},null,2));
+}else if(args.length===5&&args[0]==='--group'&&args[2]==='--mode'&&args[4]==='--has-tests'){
+ const group=args[1],mode=args[3];
+ if(!Object.hasOwn(inv.groups,group)||!['node','browser'].includes(mode))throw Error('Invalid group/mode');
+ const count=c.extra.filter(p=>inv.groups[group].includes(p)&&(mode==='browser'?p.includes('.browser.'):!p.includes('.browser.'))).length;
+ console.log('Additional tests for',group,mode,count);
+ process.exitCode=count?0:1;
 }else if(args.length===4&&args[0]==='--group'&&args[2]==='--mode'){
  const group=args[1],mode=args[3];
  if(!Object.hasOwn(inv.groups,group)||!['node','browser'].includes(mode))throw Error('Invalid group/mode');
