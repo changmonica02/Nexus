@@ -404,14 +404,14 @@ jobs:
       - name: Additional non-browser tests
         run: node scripts/run-full-extras.mjs --group '${{ matrix.group }}' --mode node
       - name: Build production assets for map / PWA browser suites
-        if: matrix.group == 'world-map' || matrix.group == 'dictionary'
+        if: matrix.group == 'world-map' || matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: npm run build
       - name: Install Chromium for additional browser suites
         run: |
           npx playwright install --with-deps chromium
           node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
       - name: Start isolated production fixture for dictionary PWA
-        if: matrix.group == 'dictionary'
+        if: matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: |
           npx next start --hostname 127.0.0.1 --port 32142 > /tmp/nexus-full-dictionary-pwa.log 2>&1 &
           echo $! > /tmp/nexus-full-dictionary-pwa.pid
@@ -424,7 +424,7 @@ jobs:
       - name: Additional browser tests
         run: node scripts/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser
       - name: Stop isolated production fixture
-        if: always() && matrix.group == 'dictionary'
+        if: always() && (matrix.group == 'dictionary' || matrix.group == 'workspace')
         run: |
           if test -f /tmp/nexus-full-dictionary-pwa.pid; then kill "$(cat /tmp/nexus-full-dictionary-pwa.pid)" || true; fi
       - uses: actions/upload-artifact@v4
