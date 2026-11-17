@@ -308,7 +308,7 @@
       "file": "tests/dictionary/dictionarySenseExchange.test.cjs",
       "area": "資料交換與安全",
       "action": "整併候選",
-      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
+      "note": "JSON 匯入仍驗證衍生義、雙語例句 ID 與參照、缺少 Word 欄位及過時資料拒絕；移除與 dictionarySenseEditor 重複的 Draft 映射 ID 斷言及未使用匯入。",
       "comparison": {
         "compare": [
           "dictionaryExchange.test.cjs",
@@ -592,7 +592,7 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "第三輪比對 Transfer、ExchangeSafety、PersistentImport 的 SQL/IndexedDB/跨裝置斷言，確認主要風險情境不等價，維持 70 份字典測試；已刪除 Persistent 與 Exchange 瀏覽器測試共 5 項固定版面／歷史介面斷言。語法與清冊須再核對，完整 CI 尚未確認成功。",
+  "progress_note": "第三輪完成 Transfer／ExchangeSafety／PersistentImport 的跨情境比較，保留不等價的 SQL／CAS／IndexedDB 核心測試；瀏覽器移除 5 項過時版面／歷史控制項檢查，SenseExchange 移除 2 項已由 SenseEditor 涵蓋的 Draft ID 映射斷言。字典仍 70 份檔案，完整 CI 尚待確認。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -610,7 +610,8 @@
     "tests/dictionary/dictionaryExchangeSafety.test.cjs": "IndexedDB Quota/DataClone 失敗、伺服器提交後收據未落地及正式 Review CAS 衝突，均非 Transfer 的等效替代；保留完整保障。",
     "tests/dictionary/dictionaryPersistentImport.test.cjs": "批次混合成功與失敗、舊作業收據遷移、跨裝置 CAS、RLS 和使用者決策均有獨立保障；保留。",
     "tests/dictionary/dictionaryPersistent.browser.test.cjs": "已移除固定三／二／一欄 CSS grid 的版面斷言；真實 SQL、匯入審核、桌機／平板／手機與跨裝置測試保留。",
-    "tests/dictionary/dictionaryExchange.browser.test.cjs": "已移除舊『已發布』核取方塊、已退役批次選取按鈕及 Published revision 提示消失等純歷史畫面斷言；完整匯出、斷線續傳、操作收據、批次發布仍保留。"
+    "tests/dictionary/dictionaryExchange.browser.test.cjs": "已移除舊『已發布』核取方塊、已退役批次選取按鈕及 Published revision 提示消失等純歷史畫面斷言；完整匯出、斷線續傳、操作收據、批次發布仍保留。",
+    "tests/dictionary/dictionarySenseExchange.test.cjs": "JSON 匯入仍驗證衍生義、雙語例句 ID 與參照、缺少 Word 欄位及過時資料拒絕；移除與 dictionarySenseEditor 重複的 Draft 映射 ID 斷言及未使用匯入。"
   },
   "current_contract_pending": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
