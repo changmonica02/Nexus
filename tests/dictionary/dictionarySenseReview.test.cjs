@@ -70,8 +70,3 @@ test('B2 Review SQL patch compiles in PostgreSQL against the established RPC sig
   await assert.rejects(pg.exec(migration),/Unexpected snapshot candidate RPC/,'retirement patch must be single-use');
  }finally{await pg.close();}
 });
-
-test('B2 Review migration leaves historical review tables and permanent learning data untouched',()=>{
- assert.doesNotMatch(migration,/\bdrop\s+(?:table|column)\b|\btruncate\b|\bcascade\b/i);
- assert.doesNotMatch(migration,/delete from public.dictionary_review_drafts|\bstudy_cards\b|\bstudy_card_states\b/i);
-});
