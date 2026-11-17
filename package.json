@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:dictionary": "node --test tests/dictionary*.test.cjs",
+    "test:dictionary": "node --test tests/dictionary/*.test.cjs",
     "test:dictionary:browser": "node tests/dictionary/dictionaryEditor.browser.test.cjs",
     "test:world-map": "node tests/world-map/worldMap.test.cjs && node tests/world-map/worldMapCore.test.cjs && node --test tests/world-map/worldMapIndexedDB.test.cjs",
     "prebuild": "node scripts/build-global-map.mjs && node scripts/build-world-map.mjs",
