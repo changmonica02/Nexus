@@ -102,3 +102,10 @@ node tests/tools/test-groups.mjs --check
 - `spherical-grid-prototype.yml` 獨立保留球面網格測試、離線預覽及 8 項效能基準；完整 CI 不再重複其幾何工作。
 - 補充測試涵蓋率由現存 `ci-full.yml` 和 `spherical-grid-prototype.yml` 動態計算，不再引用已退役 YAML。
 - 分支保護要求與現有 CI 失敗須在 PR 合併前另外查核；不因移除舊流程宣稱新 CI 全數通過。
+
+## 字典測試第二輪精簡（2026-11-17）
+
+- `dictionaryAdminUI.test.cjs`：移除固定 CSS、欄位欄寬、區塊順序及舊遷移檔文字等依賴實作方式的斷言，並刪除「空白分類提示」與「IPA 區塊排列」兩個重複測試；保留 JSON 匯入／預覽、內容隔離、公開資訊安全、權限、儲存及審核等行為測試。
+- `dictionaryReaderAdmin.test.cjs`：刪除已退役的列表選取原始碼測試與純顯示順序檢查；保留管理分頁超過 1000 筆、伺服器端篩選、非管理員權限及 PostgreSQL 發布原子回復。
+- 字典測試檔案數仍為 70；本輪是刪除低價值測試案例及斷言，而非將必要測試搬到未執行的清冊。
+- 已確認修改後兩份 JavaScript 測試檔案可解析、字典審查清冊 JSON 可解析；尚未取得完整 CI 測試通過結果，後續以實際執行結果驗證。
