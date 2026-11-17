@@ -1,7 +1,6 @@
 require('../loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const fs=require('node:fs');
 const {studyDictionaryBack}=require('../../src/features/dictionary/studyBackProjection.ts');
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const base=()=>({
