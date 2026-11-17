@@ -13,7 +13,7 @@ const explicit=new Set([...old.matchAll(/(?:tests|experiments\/spherical-grid)\/
 // Expand the two wildcard/script suites in the baseline.
 for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
 for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.test.cjs'])explicit.add('tests/world-map/'+n);
-const deferred=new Set(['tests/note/notePagination.study.test.cjs']); // Exploratory A/B/C experiment, not product regression.
+const deferred=new Set(); // No non-gating research tests remain in inventory.
 export function coverage(){
  const all=Object.values(inv.groups).flat();
  const extra=all.filter(p=>!explicit.has(p)&&!deferred.has(p));
