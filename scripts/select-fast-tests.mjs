@@ -11,7 +11,7 @@ const smoke={
  study:['tests/studyFSRS.test.cjs','tests/studySync.test.cjs','tests/studySpeech.test.cjs'],
  'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/globalMap.test.cjs','tests/worldMap.test.cjs'],
  note:['tests/note/noteExportLayout.test.cjs','tests/note/lessonDocument.test.cjs'],
- creation:['tests/characterBlocks.test.cjs','tests/characterTemplateUpdate.test.cjs'],
+ creation:['tests/creation/characterBlocks.test.cjs','tests/creation/characterTemplateUpdate.test.cjs'],
  life:['tests/life/lifeViews.test.cjs','tests/life/todoCalendar.test.cjs'],
  workspace:['tests/workspaceSync.test.cjs','tests/workspaceDeployment.test.cjs'],
  shared:['tests/confirmDialog.test.cjs','tests/uiInteractions.test.cjs']
