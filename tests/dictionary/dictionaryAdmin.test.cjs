@@ -71,9 +71,7 @@ test('admin bundle: preview rollback, atomic import, replay/conflict, revisions,
     await assert.rejects(applyBundle(client,duplicate,false),/重複 ID/);
     await assert.rejects(applyBundle(client,{dictionary_admins:[{id:id(2)}]},false),/沒有資料/);
     const {parseJSONBundleWithIgnored}=require('../../src/features/dictionary/adminImport.ts');
-    const report=parseJSONBundleWithIgnored(JSON.stringify({dictionary_entries:[{...bundle.dictionary_entries[0],status:'published'}]}));
-    assert.ok(report.ignoredFields.includes('dictionary_entries[1].status'));
-    assert.equal('status' in report.bundle.dictionary_entries[0],false);
+    assert.throws(()=>parseJSONBundleWithIgnored(JSON.stringify({dictionary_entries:[{...bundle.dictionary_entries[0],status:'published'}]})),/最新版 JSON 不接受過時或未知欄位/);
     await pg.query('select publish_dictionary_entry($1)',[id(10)]);
     const published={dictionary_entries:[{...bundle.dictionary_entries[0],headword:'cannot edit',revision:3}]};
     await assert.rejects(applyBundle(client,published,false,true),/Published/);
