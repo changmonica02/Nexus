@@ -51,6 +51,7 @@ test('admin bundle: preview rollback, atomic import, replay/conflict, revisions,
     assert.equal((await pg.query('select * from dictionary_entries')).rows.length,2);
     const inBatch=structuredClone(homograph);
     inBatch.dictionary_entries.push({...inBatch.dictionary_entries[0],id:id(50)});
+    inBatch.dictionary_senses.push({...inBatch.dictionary_senses[0],id:id(51),entry_id:id(50)});
     assert.ok((await applyBundle(client,inBatch,true)).warnings.find(w=>w.id===id(50)).similar_ids.includes(id(40)));
     const sameSense={dictionary_senses:[{...bundle.dictionary_senses[0],id:id(60)}]};
     assert.ok((await applyBundle(client,sameSense,true)).warnings.some(w=>w.id===id(60)));
