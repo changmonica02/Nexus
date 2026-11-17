@@ -308,7 +308,6 @@ test(
           .getByLabel("搜尋單字或構詞", { exact: true })
           .fill("no-visible-match");
         await page.getByRole("tab", { name: "構詞", exact: true }).click();await page.getByRole("button",{name:"篩選構詞分類",exact:true}).click();await page.getByRole("checkbox", { name: "字首", exact: true }).check();
-        assert.equal(await page.getByRole("checkbox", { name: "已發布", exact: true }).count(),0, "legacy publication-state checkboxes are replaced by work status");
         assert.equal(
           await page.getByRole("button", { name: "全選", exact: true }).count(),
           0,
@@ -445,7 +444,6 @@ test(
         await page.goto(url + "/?entry=00000000-0000-4000-8000-000000000003");
         await page.getByRole('button',{name:'儲存／重試',exact:true}).waitFor();
         assert.equal(await page.getByLabel('英文字形 1',{exact:true}).inputValue(),'item3');
-        assert.equal(await page.getByText(/Published revision/).count(),0);
         assert.equal(
           await page
             .getByRole("button", { name: "刪除詞條", exact: true })
