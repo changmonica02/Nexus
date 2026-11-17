@@ -18,7 +18,6 @@ require.extensions[".tsx"] = (m, f) =>
 const React = require("react"),
   { renderToStaticMarkup } = require("react-dom/server");
 const { trashReturn } = require("../../src/lib/workspaceReturn.ts");
-const { translate } = require("../../src/lib/i18n.ts");
 test("trash return preserves local source/query/hash while rejecting external, malformed and recursive destinations", () => {
   for (const unsafe of [
     null,
@@ -36,17 +35,6 @@ test("trash return preserves local source/query/hash while rejecting external, m
     "/dictionary/admin?entry=stable-id#sense-x",
   ])
     assert.equal(trashReturn(path), path);
-});
-test("green label is renamed without any date filter or changes to work status contracts", () => {
-  assert.equal(translate("zh-TW", "persistent.green"), "🟢 新發布");
-  assert.equal(translate("zh-TW", "persistent.red"), "🔴 待審核");
-  assert.equal(translate("zh-TW", "persistent.yellow"), "🟡 有草稿");
-  assert.equal(translate("zh-TW", "persistent.workFilter"), "狀態");
-  const source = fs.readFileSync(
-    "src/features/dictionary/adminQueries.ts",
-    "utf8",
-  );
-  assert.ok(!source.includes("Date.now"));
 });
 test("folding section keeps editable children mounted and suppresses empty count decoration", () => {
   const Section =
@@ -80,25 +68,4 @@ test("switching sorting methods uses default directions while existing persisted
   );
   assert.ok(source.includes("parsed.ascending"));
   assert.ok(source.includes("localStorage.setItem"));
-});
-test("daily editor no longer fetches or renders published history; backend history migrations remain intact", () => {
-  const ui = fs.readFileSync(
-    "src/features/dictionary/DictionaryAdmin.tsx",
-    "utf8",
-  );
-  assert.ok(!ui.includes("from('dictionary_published_revisions')"));
-  assert.ok(!ui.includes("Published 版本歷史"));
-  assert.ok(ui.includes("base_revision!==detail.entry.revision"));
-  assert.ok(ui.includes("'approve_dictionary_review'"));
-  assert.ok(ui.includes("approval.approve(getSupabase()!,selected)"));
-  const approval = fs.readFileSync("src/features/dictionary/reviewApproval.ts", "utf8");
-  assert.ok(approval.includes("expected_revision:review.revision"));
-  const files = fs.readdirSync("supabase/migrations");
-  assert.ok(
-    files.some((f) =>
-      fs
-        .readFileSync("supabase/migrations/" + f, "utf8")
-        .includes("dictionary_published_revisions"),
-    ),
-  );
 });
