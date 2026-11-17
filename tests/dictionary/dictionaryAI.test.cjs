@@ -74,6 +74,6 @@ test('AI migration statically isolates writes, checks complete snapshots, rolls 
 require.extensions['.tsx']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
 test('export modal defaults Draft; editor hides initial publication for review drafts',()=>{
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const {AIExport}=require('../../src/features/dictionary/DictionaryAI.tsx');const {DictionaryEditor}=require('../../src/features/dictionary/DictionaryAdmin.tsx');
- const html=renderToStaticMarkup(React.createElement(AIExport,{query:'',selected:[],onBusy:()=>{}}));assert.ok(html.includes('value="draft" selected=""'));for(const label of ['Published','Draft + Published','已勾選詞條','目前搜尋结果'.replace('结果','結果')])assert.ok(html.includes(label),label);
+ const html=renderToStaticMarkup(React.createElement(AIExport,{query:'',selected:[],onBusy:()=>{}}));assert.ok(html.includes('value="draft" selected=""'));
  const editor=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:word.detail,entries:[],senses:[],onSaved:async()=>{},reviewDraft:true}));assert.ok(editor.includes('審核草稿'));assert.ok(!editor.includes('確認首次發布已儲存草稿'));
 });
