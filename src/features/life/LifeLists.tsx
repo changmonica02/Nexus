@@ -422,9 +422,15 @@ function LifeEditor({
   useUnsavedDraft(dirty, busy);
   const close = () => navigateDictionary(onClose),
     row = draft.row;
-  const patch = (value: Record<string, unknown>) => setDraft({ ...draft, row: { ...draft.row, ...value } } as Editor);
+  // Async attachment uploads must merge into the latest draft, not a stale render snapshot.
+  const patch = (change: Record<string, unknown>) =>
+    setDraft((current) => ({ ...current, row: { ...current.row, ...change } }) as Editor);
   const item = draft.type === "life_items" ? (draft.row as LifeItem) : null;
-  const value = (id: string, v: unknown) => patch({ values: { ...item!.values, [id]: v } });
+  const value = (id: string, v: unknown) =>
+    setDraft((current) => {
+      if (current.type !== "life_items") return current;
+      return { ...current, row: { ...current.row, values: { ...current.row.values, [id]: v } } } as Editor;
+    });
   const fieldNames: Record<string, string> = en
     ? {
         text: "Text",
