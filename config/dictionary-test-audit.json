@@ -592,14 +592,14 @@
     "tests/dictionaryImportReview.test.cjs",
     "tests/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "已刪除舊 Draft RPC 測試檔案、Identity 的兩項舊 CSV 單元情境、ImportReview 的一項舊 CSV 空白 ID 預覽情境，並修正快速 CI 選擇器遺留的舊檔案引用。",
+  "progress_note": "已退役舊版 Draft RPC 測試檔案；刪減 Identity 2 項、ImportReview 1 項、DraftPipeline 1 項過時 CSV 情境；並修正快速 CI 選擇器殘留引用。仍待最新完整 CI 驗證。",
   "current_contract_changes": {
     "tests/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
     "tests/dictionaryCoreConcept.test.cjs": "已以 JSON 與 AI 的內容不遺失、穩定 ID 驗證取代舊 CSV 情境",
     "tests/dictionaryRetireSourceForms.test.cjs": "已將禁止舊欄位回寫改為透過正式 JSON 入口檢查；歷史 SQL 安全案例保留",
     "tests/dictionaryAdminUI.test.cjs": "已更新正式預覽為 data_source 歸屬與 HTML 安全輸出，不再依賴舊來源表",
-    "tests/dictionaryDraftPipeline.test.cjs": "已移除重複的舊 CSV 下載 UI 斷言，更新 JSON 例句/衍生義及內部 CSV 轉接測試；大型 SQL 案例仍待修正",
+    "tests/dictionaryDraftPipeline.test.cjs": "已移除重複的舊 CSV 下載 UI 斷言，更新 JSON 例句/衍生義及內部 CSV 轉接測試；大型 SQL 案例仍待修正；移除舊 CSV 相同拼寫與空白 Entry ID 分組的重複情境，由 currentImportBoundary 的正式 JSON 身分與重複 ID 拒絕測試取代",
     "tests/dictionaryRankedComponents.test.cjs": "已移除與構詞排名無關、且使用退役欄位的 Exchange 斷言；Exchange 專項仍保留",
     "tests/dictionaryImportReview.test.cjs": "已依現行 12 欄內部 CSV 結構與例句連動要求調整部分測試資料；批次審核與 SQL 案例待更新；已直接刪除舊 CSV 空白 ID 預覽測試",
     "tests/dictionarySourceRetirement.test.cjs": "已於先前提交改用 JSON-only 入口；SQL 遷移測試仍保留",
