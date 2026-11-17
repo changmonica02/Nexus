@@ -22,6 +22,7 @@ test('B2 JSON Bundle preserves derivation and bilingual example IDs and rejects 
  assert.deepEqual(ignoredFields,[]);
  const drafts=draftsFromBundle(bundle);
  assert.deepEqual(validateDictionaryDraft(drafts),[]);
+ assert.ok(validateDictionaryDraft([{...drafts[0],inflections:[{id:id(5),form_kind:'past',form:'occupied'}]}]).some(x=>x.field==='inflections'));
  assert.throws(()=>exportDictionaryCSV(drafts),/CSV 不支援衍生意思/);
 });
 test('B2 JSON Bundle validates stable references, nullable translations and rejects invalid derivations',()=>{
