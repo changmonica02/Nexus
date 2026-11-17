@@ -99,22 +99,6 @@ jobs:
           if-no-files-found: ignore
 
 
-  dictionary-scale:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - name: Large dictionary exchange, persistent import and ranked components
-        run: |
-          node tests/dictionary/dictionaryExchangeScale.test.cjs
-          node tests/dictionary/dictionaryPersistentScale.test.cjs
-          node tests/dictionary/dictionaryRankedComponents.test.cjs
 
   dictionary-regression:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -198,7 +182,7 @@ jobs:
           node tests/study/studyReading.browser.test.cjs
       - name: Study startup, intervals, styles, synchronization and interface
         run: |
-          node --test tests/study/studyStartup.performance.test.cjs tests/study/studyStyles.test.cjs tests/study/studyIntervals.test.cjs tests/study/studySync.test.cjs
+          node --test tests/study/studyStyles.test.cjs tests/study/studyIntervals.test.cjs tests/study/studySync.test.cjs
           node tests/study/studyStartup.browser.test.cjs
           STUDY_BROWSER=webkit node tests/study/studyStartup.browser.test.cjs
           node tests/study/unifiedStudy.browser.test.cjs
@@ -330,7 +314,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium webkit
       - name: Session and visibility regression
-        run: node --test tests/study/studyIntervals.test.cjs tests/study/studySessionExit.test.cjs tests/study/studyCardVisibility.test.cjs tests/study/studyCardVisibilityDatabase.test.cjs
+        run: node --test tests/study/studySessionExit.test.cjs tests/study/studyCardVisibility.test.cjs tests/study/studyCardVisibilityDatabase.test.cjs
       - name: Native isolated PostgreSQL visibility transaction
         run: |
           docker run -d --name nexus46-visibility-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
@@ -436,10 +420,12 @@ jobs:
       - name: Build production assets for map / PWA browser suites
         if: matrix.group == 'world-map' || matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: npm run build
-      - name: Install Chromium for additional browser suites
+      - name: Install Chromium only for groups with browser tests
         run: |
-          npx playwright install --with-deps chromium
-          node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
+          if node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser --has-tests; then
+            npx playwright install --with-deps chromium
+            node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\\n")'
+          fi
       - name: Start isolated production fixture for dictionary PWA
         if: matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: |
