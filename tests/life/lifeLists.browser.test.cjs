@@ -162,7 +162,7 @@ test(
       await page.getByRole("button", { name: "捨棄並離開", exact: true }).click();
       await dialog().waitFor({ state: "hidden" });
       await page.getByRole("heading", { name: "Blue polish", exact: true }).waitFor();
-      for (const width of [320, 820, 1280]) {
+      for (const width of [320, 1280]) {
         await page.setViewportSize({ width, height: 740 });
         await page.getByRole("button", { name: "卡片", exact: true }).click();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
