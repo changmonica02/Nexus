@@ -109,3 +109,10 @@ node tests/tools/test-groups.mjs --check
 - `dictionaryReaderAdmin.test.cjs`：刪除已退役的列表選取原始碼測試與純顯示順序檢查；保留管理分頁超過 1000 筆、伺服器端篩選、非管理員權限及 PostgreSQL 發布原子回復。
 - 字典測試檔案數仍為 70；本輪是刪除低價值測試案例及斷言，而非將必要測試搬到未執行的清冊。
 - 已確認修改後兩份 JavaScript 測試檔案可解析、字典審查清冊 JSON 可解析；尚未取得完整 CI 測試通過結果，後續以實際執行結果驗證。
+
+## 字典匯入與 AI 測試精簡（2026-11-17）
+
+- `dictionaryDraftPipeline.test.cjs`：移除與 `currentImportBoundary.test.cjs` 重複的公開 CSV 停用斷言，不再要求已退役的五欄 CSV 格式可接受；仍驗證內部 CSV 轉接器的欄位錯誤及 UUID 拒絕、JSON 義項／例句連動與 SQL 原子回復。
+- `dictionaryAI.test.cjs`：移除匯出視窗選項的固定顯示文字檢查；保留預設 Draft、審核草稿保護與 AI 資料安全驗證。
+- `dictionaryImportReview.test.cjs`：移除硬編碼 12 欄的畫面外觀／格式數量檢查，保留必要欄位存在、Entry／Sense 身分穩定、重排、審核、操作收據及資料庫回復。
+- 本輪修改未刪除任何正式測試檔案。已檢查三份測試程式語法、JSON 清冊解析，以及 70 份字典檔案與 70 筆審查紀錄一致；仍需以 GitHub 完整 CI 結果確認實際執行。
