@@ -246,8 +246,8 @@ jobs:
           node --test tests/workspace/workspaceSync.test.cjs
           node tests/workspace/attachmentSync.browser.test.cjs
           node tests/workspace/unifiedWorkspace.browser.test.cjs
-          NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
-          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
+          NEXUS_STAGE_A=1 NEXUS_VIEWPORT_PROFILE=stage-a node tests/workspace/unifiedWorkspace.browser.test.cjs
+          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 NEXUS_VIEWPORT_PROFILE=stage-a-webkit node tests/workspace/unifiedWorkspace.browser.test.cjs
       - name: Production offline PWA and account regression
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
