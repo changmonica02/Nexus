@@ -39,11 +39,34 @@ for(const kind of ['prefix','root'])test(`${kind}: category and POS validation`,
  await assert.rejects(parseDictionaryCSV(csvRow({kind,headword:'x',gloss_zh_tw:'義',semantic_domain:'錯誤分類'})),e=>e.issues.some(i=>i.kind===kind&&i.field==='senses'&&i.row===2));
  const category=kind==='prefix'?'作用與變化':'時間、狀態、數量與邏輯';await assert.rejects(parseDictionaryCSV(csvRow({kind,headword:'x',gloss_zh_tw:'義',category,part_of_speech:'noun'})),/part_of_speech/);
 });
-test('etymology, examples and unresolved hints retain distinct formal meanings',async()=>{
- const [d]=await parseDictionaryCSV(csvRow({kind:'root',entry_id:id(600),sense_id:id(601),headword:'x',gloss_zh_tw:'義',category:'作用與變化',etymology:'歷史原文'}).replace('作用與變化','動作、接觸與物理作用'));
- assert.equal(d.etymologies[0].body,'歷史原文');assert.equal(d.etymologies[0].data_source,'');assert.equal('verification' in d.etymologies[0],false);assert.equal('verification_note' in d.etymologies[0],false);
- const [w]=await parseDictionaryCSV(csvRow({kind:'word',headword:'x',part_of_speech:'noun',gloss_zh_tw:'義',example_words:'example A; example B',relation_hint:'x + y?',core_concept:'memory story'}));
- const m=mapDictionaryDraft(w);assert.equal(m.examples[0].body,'example A; example B');assert.equal(m.annotations.length,1);assert.equal(m.annotations[0].kind,'relation_hint');assert.equal(m.bundle.dictionary_relations.length,0);assert.equal(m.bundle.dictionary_etymologies.length,0);assert.equal('group_data'in m,false);assert.equal(m.bundle.dictionary_learning_notes[0].kind,'core_concept');
+test('current JSON keeps etymology separate from linked bilingual examples and unresolved relation hints',async()=>{
+ const {parseDictionaryImport}=require('../src/features/dictionary/adminImport.ts');
+ const root=await parseDictionaryImport(JSON.stringify({
+  dictionary_entries:[{id:id(600),kind:'root',headword:'root-x'}],
+  dictionary_senses:[{id:id(601),entry_id:id(600),part_of_speech:null,gloss_zh_tw:'構詞義'}],
+  dictionary_etymologies:[{id:id(602),entry_id:id(600),sense_id:id(601),body:'歷史原文',data_source:''}],
+ }),'json');
+ const [d]=draftsFromBundle(root);
+ assert.equal(d.etymologies[0].body,'歷史原文');
+ assert.equal(d.etymologies[0].data_source,'');
+ assert.equal('verification' in d.etymologies[0],false);
+ const word=await parseDictionaryImport(JSON.stringify({
+  dictionary_entries:[{id:id(610),kind:'word',headword:'example'}],
+  dictionary_senses:[{id:id(611),entry_id:id(610),part_of_speech:'noun',gloss_zh_tw:'例子'}],
+  dictionary_sense_derivations:[{id:id(612),entry_id:id(610),sense_id:id(611),gloss_zh_tw:'舉例',sort_order:0}],
+  dictionary_examples:[{id:id(613),entry_id:id(610),sense_id:id(611),derivation_id:id(612),body:'example A',translation_zh_tw:'例句 A',sort_order:0}],
+  dictionary_lexical_annotations:[{id:id(614),entry_id:id(610),sense_id:id(611),kind:'relation_hint',body:'x + y?',sort_order:0}],
+  dictionary_learning_notes:[{id:id(615),entry_id:id(610),sense_id:id(611),kind:'core_concept',body:'memory story'}],
+ }),'json');
+ const w=draftsFromBundle(word)[0],mapped=mapDictionaryDraft(w);
+ assert.equal(mapped.examples[0].body,'example A');
+ assert.equal(mapped.examples[0].derivation_id,id(612));
+ assert.equal(mapped.examples[0].translation_zh_tw,'例句 A');
+ assert.equal(mapped.annotations.length,1);
+ assert.equal(mapped.annotations[0].kind,'relation_hint');
+ assert.equal(mapped.bundle.dictionary_relations.length,0);
+ assert.equal(mapped.bundle.dictionary_etymologies.length,0);
+ assert.equal(mapped.bundle.dictionary_learning_notes[0].kind,'core_concept');
 });
 test('duplicate Sense IDs reject; blank Entry IDs with identical spelling share one Entry',async()=>{
  const row={kind:'word',headword:'bank',part_of_speech:'noun',gloss_zh_tw:'銀行',entry_id:id(700),sense_id:id(701)};
