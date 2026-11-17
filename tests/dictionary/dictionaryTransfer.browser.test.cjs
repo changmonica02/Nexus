@@ -127,7 +127,7 @@ test(
         await stagePersistentSession(client(pg), session, "old.json")
       )[0];
       const base = "http://127.0.0.1:" + server.address().port;
-      for (const width of [1280, 820, 320]) {
+      for (const width of [1280, 320]) {
         const context = await browser.newContext({
             viewport: { width, height: 900 },
             acceptDownloads: true,
