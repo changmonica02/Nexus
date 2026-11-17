@@ -10,7 +10,7 @@ test(
   "same-source update actual UI: confirmation, source conflict, atomic failure/retry, retained content, restore and reload at three sizes",
   { timeout: 150000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-character-blocks-"));
     await build({
       entryPoints: ["tests/fixtures/characterTemplateUpdate.jsx"],
