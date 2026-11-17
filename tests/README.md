@@ -148,7 +148,7 @@ node tests/tools/test-groups.mjs --check
 
 - 完整 PR CI 的 `studyIntervals.test.cjs` 只在 `study-regression` 執行；`study-b` 保留離開學習、可見性及資料庫保障。
 - `additional-regression` 先查詢補充瀏覽器測試數量，無需瀏覽器時不再安裝 Chromium。
-- 耗時的大規模字典測試 `dictionaryExchangeScale.test.cjs`、`dictionaryPersistentScale.test.cjs`、`dictionaryRankedComponents.test.cjs` 與學習啟動效能測試 `studyStartup.performance.test.cjs` 保留檔案，但不列入 PR 完整 CI 的補充測試；其正確性與容量斷言仍維持原樣。
+- `dictionaryExchangeScale.test.cjs`、`dictionaryPersistentScale.test.cjs` 與 `studyStartup.performance.test.cjs` 保留檔案，但不列入 PR 完整 CI；容量與失敗回復斷言未刪除。`dictionaryRankedComponents.test.cjs` 的一般功能、RLS 與交易安全斷言仍在 PR 執行，只有 6,301 筆壓力情境須設定 `NEXUS_PERFORMANCE=1` 才執行。
 - 球面幾何 PR 測試與離線預覽照常執行，8 份球面效能基準不再隨 PR 自動執行；未修改 `experiments/spherical-grid/` 的實驗程式。
 - 效能與大量資料測試集中至 `.github/workflows/performance-manual.yml`，使用 GitHub Actions 的 `workflow_dispatch` 手動選擇 `all`、`dictionary`、`study` 或 `spherical-grid`。
 - `tests/tools/run-full-extras.mjs --audit` 的 `deferred` 列表會明確列出不作 PR 必要檢查的測試，以免補充執行器重新納入。這些測試**不是刪除**，需要大型資料的安全驗證仍可手動執行。
