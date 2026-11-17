@@ -289,13 +289,10 @@ jobs:
           npx tsc --noEmit
           npx eslint src/lib/i18n.ts
 
-  world-map:
+  world-map-core:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -303,35 +300,11 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
-      - name: Select installed Chromium
-        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
-      - name: Production build
-        id: map-build
-        env:
-          NODE_ENV: production
-          NPM_CONFIG_OMIT: dev
-        run: npm run build
-      - name: Map region and internationalization contracts
-        run: node --test tests/world-map/worldMapRegions.test.cjs tests/world-map/worldMap.i18n.test.cjs
-      - name: Native project and distribution regression
-        run: node tests/world-map/worldMap.browser.test.cjs
-      - name: Chromium workspace
-        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
-        run: node tests/world-map/worldMapUI.browser.test.cjs
-      - name: WebKit workspace
-        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
-        run: MAP_BROWSER=webkit node tests/world-map/worldMapUI.browser.test.cjs
-      - name: Offline PWA
-        if: ${{ !cancelled() && steps.map-build.outcome == 'success' }}
-        run: node tests/world-map/pwaWorldMap.browser.test.cjs
-      - name: Map workspace visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: world-map-workspace-evidence
-          path: test-results/world-map-ui/**/*.png
-          if-no-files-found: ignore
+      - name: Build reusable global map engine
+        run: npm run map:global
+      - name: Core engine and data safety regression (no legacy browser UI)
+        run: node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapRegions.test.cjs
+      - run: npx eslint src/features/worldMap/globalMap*.ts src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx
 
   study-b:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -392,38 +365,6 @@ jobs:
           STUDY_BROWSER=webkit node tests/dictionary/dictionaryEntryDeletion.browser.test.cjs
       - run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/adminNavigation.ts src/features/dictionary/adminQueries.ts src/features/dictionary/deleteEntry.ts src/features/dictionary/morphemeContract.ts src/features/dictionary/readerNavigation.ts src/lib/i18n.ts
 
-  global-editor:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      NEXT_TELEMETRY_DISABLED: '1'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm run map:global
-      - run: npx eslint src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx src/components/GlobalWorldMapEditor.tsx src/components/WorldMapCreator.tsx src/features/worldMap/globalMap*.ts
-      - run: node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapIndexedDB.test.cjs
-      - run: npx next build
-      - name: Check production worker asset is executable JavaScript
-        run: |
-          node -e 'const fs=require("fs"),p=".next/static/media/",files=fs.readdirSync(p).filter(n=>n.startsWith("global-map-worker.")&&n.endsWith(".js"));if(!files.length)throw Error("Missing compiled worker");for(const f of files)new (require("vm").Script)(fs.readFileSync(p+f,"utf8"));'
-      - run: npx playwright install --with-deps chromium webkit
-      - name: WebKit workspace, offline and reconnect
-        run: GLOBAL_MAP_BROWSER=webkit node tests/world-map/globalMapEditor.browser.test.cjs
-      - name: Chromium workspace, offline and reconnect
-        run: node tests/world-map/globalMapEditor.browser.test.cjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: global-map-editor-evidence
-          path: test-results/global-map/
-          if-no-files-found: ignore
-
   additional-regression:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     needs: [inventory, production-fixture-build]
@@ -432,7 +373,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [dictionary, study, world-map, creation, life, workspace, shared]
+        group: [dictionary, study, creation, life, workspace, shared]
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -450,7 +391,7 @@ jobs:
       - name: Additional non-browser tests
         run: node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode node
       - name: Restore shared production assets for map / PWA browser suites
-        if: matrix.group == 'world-map' || matrix.group == 'dictionary' || matrix.group == 'workspace'
+        if: matrix.group == 'dictionary' || matrix.group == 'workspace'
         uses: actions/download-artifact@v4
         with:
           name: nexus-production-fixture
