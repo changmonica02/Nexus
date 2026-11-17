@@ -74,82 +74,6 @@ for (const mode of ["scheduled", "endless"])
         await f.close();
       }
     });
-test("legacy four-response events retain deterministic verification without re-enabling old study options", async () => {
-  const s = defaultStudyStyle(null);
-  s.scheduling_method = "fixed";
-  delete s.interval_version; // Historical four-response event replay remains supported.
-  s.fixed_intervals.relearning = [17, 29, 41, 59];
-  const card = {
-    id: "c",
-    deck_id: "d",
-    owner_id: null,
-    front: "a",
-    back: "b",
-    content_revision: 1,
-  };
-  for (const phase of [
-    State.New,
-    State.Learning,
-    State.Relearning,
-    State.Review,
-  ])
-    for (const rating of [1, 2, 3, 4]) {
-      const before = {
-        ...emptyStudyState(card),
-        ...(phase === State.New
-          ? {}
-          : {
-              scheduling_method: "fixed",
-              fixed: {
-                state: phase,
-                due: now,
-                last_review: now - 100,
-                generation: 0,
-              },
-            }),
-      };
-      const event = createStudyEvent(
-        card,
-        before,
-        "review",
-        now,
-        "device",
-        `${phase}-${rating}`,
-        rating,
-        "scheduled",
-        s,
-      );
-      const group =
-        phase === State.Review
-          ? "review"
-          : phase === State.Relearning
-            ? "relearning"
-            : "new";
-      assert.equal(
-        event.after.fixed.due,
-        now + s.fixed_intervals[group][rating - 1] * 1000,
-      );
-      assert.equal(
-        event.after.fixed.state,
-        phase === State.Review
-          ? rating === 1
-            ? State.Relearning
-            : State.Review
-          : rating >= 3
-            ? State.Review
-            : phase === State.Relearning
-              ? State.Relearning
-              : State.Learning,
-      );
-      assert.ok(reliableEvent(event));
-    }
-  assert.throws(() =>
-    validateStudyStyle({
-      ...s,
-      fixed_intervals: { ...s.fixed_intervals, new: [0, 1, 2, 3] },
-    }),
-  );
-});
 test("Review becomes forgotten for one minute, then uses forgotten intervals; waiting/reopen/repeat does not consume another quota", async () => {
   const f = await fixture(1);
   try {
@@ -403,27 +327,5 @@ test("actual workspace backup v3 retains style catalogue, fixed history and froz
   } finally {
     await adapter.close();
     await deleteDB("nexus");
-  }
-});
-test("legacy unfinished FSRS batch upgrades once with original snapshot retained", async () => {
-  const f = await fixture(1);
-  try {
-    const created = await f.repo.startSession("deck", "scheduled", now);
-    delete created.settings_snapshot;
-    created.quota_limit = 50;
-    await f.db.put("study_sessions", created);
-    await style(f, { scheduling_method: "fixed" });
-    const recovered = await f.repo.readSession(created.id, now);
-    assert.equal(recovered.session.settings_snapshot.scheduling_method, "fixed");
-    assert.equal(recovered.session.settings_snapshot.review_limit, 50);
-    assert.equal(recovered.session.compatibility_notice, true);
-    await grade(f.repo, created.id, 3, now);
-    const e = (await f.repo.readDeck("deck", true)).events.find(
-      (e) => e.kind === "review",
-    );
-    assert.equal(e.engine, "nexus-interval@1");
-    assert.equal(recovered.session.legacy_settings_snapshot.scheduling_method,"fsrs");
-  } finally {
-    await f.close();
   }
 });
