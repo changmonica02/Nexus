@@ -10,7 +10,7 @@ const smoke={
  dictionary:['tests/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionarySenseEditor.test.cjs'],
  study:['tests/studyFSRS.test.cjs','tests/studySync.test.cjs','tests/studySpeech.test.cjs'],
  'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/globalMap.test.cjs','tests/worldMap.test.cjs'],
- note:['tests/noteExportLayout.test.cjs','tests/lessonDocument.test.cjs'],
+ note:['tests/note/noteExportLayout.test.cjs','tests/note/lessonDocument.test.cjs'],
  creation:['tests/characterBlocks.test.cjs','tests/characterTemplateUpdate.test.cjs'],
  life:['tests/lifeViews.test.cjs','tests/todoCalendar.test.cjs'],
  workspace:['tests/workspaceSync.test.cjs','tests/workspaceDeployment.test.cjs'],
@@ -47,7 +47,7 @@ export function selectFastTests(paths){
   if(/(?:dictionary.*(?:example|sense|derivat)|supabase\/migrations\/.*(?:dictionary|sense|example))/i.test(p))selected.add('tests/dictionaryExamplesAtomicDraft.test.cjs');
   if(/(?:speech|tts)/i.test(p)){add('study');selected.add('tests/studySpeech.test.cjs');selected.add('tests/studySpeech.browser.test.cjs');}
   if(/(?:sync|storage|IndexedDB)/i.test(p)){add('workspace','study','world-map');selected.add('tests/workspaceSync.test.cjs');selected.add('tests/worldMapIndexedDB.test.cjs');}
-  if(/noteExport|noteTablePagination/i.test(p)){add('note');selected.add('tests/noteExportLayout.test.cjs');}
+  if(/noteExport|noteTablePagination/i.test(p)){add('note');selected.add('tests/note/noteExportLayout.test.cjs');}
  }
  if(expanded)Object.keys(groups).forEach(g=>affected.add(g));
  for(const g of affected)for(const file of smoke[g]||[])selected.add(file);
