@@ -89,5 +89,5 @@ test('retired owner-scoped etymology UI redirects to the current dictionary with
  assert.equal(fs.existsSync('src/features/etymology/EtymologyBrowser.tsx'),false);
  // Historical migrations and account deletion regression remain intact.
  assert.equal(fs.existsSync('supabase/migrations/20260928_etymology_catalog.sql'),true);
- assert.equal(fs.existsSync('tests/accountDeletion.test.cjs'),true);
+ assert.equal(fs.existsSync('tests/workspace/accountDeletion.test.cjs'),true);
 });
