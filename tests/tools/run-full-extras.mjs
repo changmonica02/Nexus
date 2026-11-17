@@ -35,4 +35,4 @@ if(args.length===1&&args[0]==='--audit'){
   if(result.status!==0){console.error('FAILED:',p,result.error?.message||result.signal||result.status);process.exitCode=1;}
  }
  console.log('Completed additional',group,mode,selected.length);
-}else throw Error('Usage: node scripts/run-full-extras.mjs --audit | --group <name> --mode node|browser');
+}else throw Error('Usage: node tests/tools/run-full-extras.mjs --audit | --group <name> --mode node|browser');
