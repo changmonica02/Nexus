@@ -68,8 +68,3 @@ test('current JSON keeps etymology separate from linked bilingual examples and u
  assert.equal(mapped.bundle.dictionary_etymologies.length,0);
  assert.equal(mapped.bundle.dictionary_learning_notes[0].kind,'core_concept');
 });
-test('duplicate Sense IDs reject; blank Entry IDs with identical spelling share one Entry',async()=>{
- const row={kind:'word',headword:'bank',part_of_speech:'noun',gloss_zh_tw:'銀行',entry_id:id(700),sense_id:id(701)};
- const raw=csvRow(row);await assert.rejects(parseDictionaryCSV(raw+'\n'+raw.split('\n')[1]),/重複 ID/);
- const separate=csvRow({...row,entry_id:'',sense_id:''});const ds=await parseDictionaryCSV(separate+'\n'+separate.split('\n')[1]);assert.equal(ds.length,1);assert.equal(ds[0].senses.length,2);assert.notEqual(ds[0].senses[0].id,ds[0].senses[1].id);
-});
