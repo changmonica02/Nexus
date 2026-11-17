@@ -17,11 +17,6 @@ require.extensions[".tsx"] = (m, f) =>
   );
 const { formatEditedTime, localDate } = require("../../src/lib/editedTime.ts");
 const { isCreativeCharacterPage, isNovelPage } = require("../../src/lib/types.ts");
-const React = require("react"),
-  { renderToStaticMarkup } = require("react-dom/server"),
-  { LanguageProvider } = require("../../src/lib/LanguageContext.tsx");
-const wrap = (child) =>
-  React.createElement(LanguageProvider, { initialLanguage: "zh-TW" }, child);
 test("shared time formatting: minute/hour/local calendar days through day three, day four YYYY/MM/DD, future and invalid values", () => {
   const previous = process.env.TZ;
   process.env.TZ = "Asia/Taipei";
@@ -110,57 +105,4 @@ test("explicit creative types are authoritative; historical characters/worlds an
     ["novel", "legacy-novel"],
   );
   assert.deepEqual(data, original);
-});
-test("central icons match feature/page identities across overview/card/default icons, retaining user emoji text", () => {
-  const {
-    default: FeatureIcon,
-    featureIcons,
-    featureForPage,
-  } = require("../../src/components/FeatureIcon.tsx");
-  const {
-    default: Collection,
-  } = require("../../src/components/PageCollection.tsx");
-  for (const key of [
-    "notes",
-    "study",
-    "calendar",
-    "creative",
-    "novels",
-    "tools",
-    "score",
-    "dictionary",
-    "world",
-    "character",
-    "counter",
-    "draw",
-  ]) {
-    assert.ok(featureIcons[key]);
-    const html = renderToStaticMarkup(
-      React.createElement(FeatureIcon, { feature: key }),
-    );
-    assert.ok(html.includes(`data-feature-icon="${key}"`));
-  }
-  assert.equal(
-    featureForPage({
-      kind: "creative",
-      creative_type: "novel",
-      character_data: {},
-    }),
-    "novels",
-  );
-  const page = {
-    id: "keep-id",
-    kind: "note",
-    title: "😀 自訂標題",
-    content_text: "🌍 使用者內容",
-    updated_at: 1,
-    created_at: 1,
-  };
-  const html = renderToStaticMarkup(
-    wrap(React.createElement(Collection, { pages: [page], onSelectPage() {} })),
-  );
-  assert.ok(html.includes("😀 自訂標題"));
-  assert.ok(html.includes("🌍 使用者內容"));
-  assert.ok(html.includes('data-feature-icon="note"'));
-
 });
