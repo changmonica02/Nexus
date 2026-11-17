@@ -1,7 +1,7 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
-const api = require("../src/lib/characterBlocks.ts");
+const api = require("../../src/lib/characterBlocks.ts");
 const original = () => ({
   basic: {
     name: "Alice",
