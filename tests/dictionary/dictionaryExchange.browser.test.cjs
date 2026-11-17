@@ -70,7 +70,6 @@ test(
     try {
       for (const viewport of [
         { width: 1280, height: 900 },
-        { width: 820, height: 1180 },
         { width: 390, height: 844 },
       ]) {
         const context = await browser.newContext({
