@@ -9,7 +9,7 @@ const owners=new Map(Object.entries(groups).flatMap(([g,files])=>files.map(f=>[f
 const smoke={
  dictionary:['tests/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionarySenseEditor.test.cjs'],
  study:['tests/study/studyFSRS.test.cjs','tests/study/studySync.test.cjs','tests/study/studySpeech.test.cjs'],
- 'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/globalMap.test.cjs','tests/worldMap.test.cjs'],
+ 'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/world-map/globalMap.test.cjs','tests/world-map/worldMap.test.cjs'],
  note:['tests/note/noteExportLayout.test.cjs','tests/note/lessonDocument.test.cjs'],
  creation:['tests/creation/characterBlocks.test.cjs','tests/creation/characterTemplateUpdate.test.cjs'],
  life:['tests/life/lifeViews.test.cjs','tests/life/todoCalendar.test.cjs'],
@@ -46,7 +46,7 @@ export function selectFastTests(paths){
   else {expanded=true;reasons.push('Unknown path: '+p);}
   if(/(?:dictionary.*(?:example|sense|derivat)|supabase\/migrations\/.*(?:dictionary|sense|example))/i.test(p))selected.add('tests/dictionaryExamplesAtomicDraft.test.cjs');
   if(/(?:speech|tts)/i.test(p)){add('study');selected.add('tests/study/studySpeech.test.cjs');selected.add('tests/study/studySpeech.browser.test.cjs');}
-  if(/(?:sync|storage|IndexedDB)/i.test(p)){add('workspace','study','world-map');selected.add('tests/workspace/workspaceSync.test.cjs');selected.add('tests/worldMapIndexedDB.test.cjs');}
+  if(/(?:sync|storage|IndexedDB)/i.test(p)){add('workspace','study','world-map');selected.add('tests/workspace/workspaceSync.test.cjs');selected.add('tests/world-map/worldMapIndexedDB.test.cjs');}
   if(/noteExport|noteTablePagination/i.test(p)){add('note');selected.add('tests/note/noteExportLayout.test.cjs');}
  }
  if(expanded)Object.keys(groups).forEach(g=>affected.add(g));
