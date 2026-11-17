@@ -43,6 +43,8 @@ jobs:
           test -s .fast-changed
       - name: Resolve required tests
         run: node scripts/select-fast-tests.mjs --changed-file .fast-changed
+      - name: Typecheck application
+        run: npx tsc --noEmit
       - name: Run affected non-browser tests
         run: |
           node --input-type=module <<'NODE'
@@ -59,7 +61,7 @@ jobs:
         run: |
           if node -e "process.exit(require('./.fast-plan.json').browser.length ? 0 : 1)"; then
             npx playwright install --with-deps chromium
-            echo "BROWSER_EXECUTABLE=$(node -p 'require(\"playwright\").chromium.executablePath()')" >> "$GITHUB_ENV"
+            node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
           fi
       - name: Run affected browser tests
         run: |
