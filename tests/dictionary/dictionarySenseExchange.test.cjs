@@ -2,7 +2,7 @@ require('../loadStudy.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {parseJSONBundleWithIgnored,normalizeDictionaryBundle}=require('../../src/features/dictionary/adminImport.ts');
-const {draftsFromBundle,mapDictionaryDraft,validateDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
+const {draftsFromBundle,validateDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
 const {exportDictionaryCSV}=require('../../src/features/dictionary/dictionaryCSV.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 
