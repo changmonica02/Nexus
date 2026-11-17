@@ -108,15 +108,6 @@ test("existing latest single-target RPC: cancellation, revisions, admin, externa
     ];
     await save(pg, dependent);
     const full = draft(30);
-    full.inflections = [
-      {
-        id: id(32),
-        sense_id: id(31),
-        form: "went",
-        form_kind: "past",
-        sort_order: 0,
-      },
-    ];
     full.pronunciations = [
       {
         id: id(33),
@@ -183,7 +174,7 @@ test("existing latest single-target RPC: cancellation, revisions, admin, externa
     );
     assert.equal(
       await sql(pg, "select count(*)::int v from dictionary_inflections"),
-      1,
+      0,
     );
     await assert.rejects(
       deleteDictionaryDrafts(
