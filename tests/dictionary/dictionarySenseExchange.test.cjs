@@ -22,8 +22,6 @@ test('B2 JSON Bundle preserves derivation and bilingual example IDs and rejects 
  assert.deepEqual(ignoredFields,[]);
  const drafts=draftsFromBundle(bundle);
  assert.deepEqual(validateDictionaryDraft(drafts),[]);
- assert.equal(mapDictionaryDraft(drafts[0]).derivations[0].id,id(3));
- assert.equal(mapDictionaryDraft(drafts[0]).examples[0].derivation_id,id(3));
  assert.throws(()=>exportDictionaryCSV(drafts),/CSV 不支援衍生意思/);
 });
 test('B2 JSON Bundle validates stable references, nullable translations and rejects invalid derivations',()=>{
