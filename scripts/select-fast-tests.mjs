@@ -14,7 +14,7 @@ const smoke={
  creation:['tests/creation/characterBlocks.test.cjs','tests/creation/characterTemplateUpdate.test.cjs'],
  life:['tests/life/lifeViews.test.cjs','tests/life/todoCalendar.test.cjs'],
  workspace:['tests/workspaceSync.test.cjs','tests/workspaceDeployment.test.cjs'],
- shared:['tests/confirmDialog.test.cjs','tests/uiInteractions.test.cjs']
+ shared:['tests/shared/confirmDialog.test.cjs','tests/shared/uiInteractions.test.cjs']
 };
 export function selectFastTests(paths){
  if(!Array.isArray(paths)||!paths.length)throw Error('No changed paths: cannot safely skip tests');
