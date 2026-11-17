@@ -216,10 +216,7 @@ test("retired input fields fail explicitly instead of being silently imported or
     parseAI,
     toAI,
   } = require("../src/features/dictionary/aiDictionary.ts");
-  const {
-    parseDictionaryCSV,
-    dictionaryCSVHeaders,
-  } = require("../src/features/dictionary/dictionaryCSV.ts");
+  const {parseDictionaryImport}=require("../src/features/dictionary/adminImport.ts");
   const {
     validateDictionaryDraft,
   } = require("../src/features/dictionary/draftPipeline.ts");
@@ -235,10 +232,10 @@ test("retired input fields fail explicitly instead of being silently imported or
     /source_forms/,
   );
   await assert.rejects(
-    parseDictionaryCSV(
-      [...dictionaryCSVHeaders, "source_forms"].join(",") + "\n",
-    ),
-    /欄位/,
+    parseDictionaryImport(JSON.stringify({
+      dictionary_entries:[{id:id(60),kind:"word",headword:"source-check",source_forms:["retired"]}],
+    }),"json"),
+    /不接受過時或未知欄位/,
   );
   const old = {
     ...draft(60),
