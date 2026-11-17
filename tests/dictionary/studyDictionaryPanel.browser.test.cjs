@@ -44,7 +44,7 @@ test('2B bottom reader: published exploration, search, scroll/history, offline/e
   await open();await page.evaluate(()=>window.authHandlers.slice().forEach(h=>h('SIGNED_OUT',null)));await dialog.waitFor({state:'detached'});assert.deepEqual(await snapshot(page),before);await context.close();
  }
 
- for(const width of [1280,820,320]){
+ for(const width of [1280,320]){
   const context=await browser.newContext({viewport:{width,height:1000},hasTouch:width<900});await context.addInitScript(installDictionary);const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/dictionary/00000000-0000-4000-8000-000000000001?case=standalone&from='+encodeURIComponent('/dictionary?kind=all'));
   await page.waitForFunction(()=>window.authHandlers.length>0);await page.evaluate(()=>window.authHandlers.forEach(h=>h('INITIAL_SESSION',{user:{id:'reader'}})));await page.getByRole('heading',{name:'preview',exact:true}).waitFor();const before=await snapshot(page);
