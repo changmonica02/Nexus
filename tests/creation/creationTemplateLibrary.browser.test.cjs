@@ -10,7 +10,7 @@ test(
   "creation library actual RPC flow: immediate submission, private draft, publish/history/latest download, durable retry and owner isolation at three sizes",
   { timeout: 150000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-character-blocks-"));
     await build({
       entryPoints: ["tests/fixtures/creationTemplateLibrary.jsx"],
