@@ -60,3 +60,5 @@ node scripts/test-groups.mjs --check
 ## 已實際精簡的測試
 
 - 移除 `dictionarySenseDraftRPC.test.cjs`：舊版 B2 helper 中允許無衍生義例句的情境已不符合現行必填關聯規格，當前原子寫入與父層 Draft RPC 迴歸由 `dictionaryExamplesAtomicDraft.test.cjs` 負責；更新 CI 及清冊後不再執行已退役檔案。
+
+- `dictionaryIdentity.test.cjs`：移除兩項僅測舊 CSV 表格分組及同形構詞的重複單元測試；保留跨 JSON／AI／手動寫入的真實 PostgreSQL 身分一致性、發布保護與重複身分遷移拒絕。
