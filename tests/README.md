@@ -143,3 +143,12 @@ node tests/tools/test-groups.mjs --check
 - 僅完成 JavaScript 語法與清冊靜態檢查後才能確定搬移修正合理；最新 GitHub CI 未通過前不宣稱完整驗證成功。
 
 - `studySessionStability.test.cjs` 唯一的「已顯示題目不受新到期忘記卡搶占」案例完整併入 `studyIntervals.test.cjs`；已同步更新 CI 與清冊後移除原獨立檔案，沒有刪掉原始行為保障。
+
+## CI 去重與效能測試分流（2026-11-17）
+
+- 完整 PR CI 的 `studyIntervals.test.cjs` 只在 `study-regression` 執行；`study-b` 保留離開學習、可見性及資料庫保障。
+- `additional-regression` 先查詢補充瀏覽器測試數量，無需瀏覽器時不再安裝 Chromium。
+- 耗時的大規模字典測試 `dictionaryExchangeScale.test.cjs`、`dictionaryPersistentScale.test.cjs`、`dictionaryRankedComponents.test.cjs` 與學習啟動效能測試 `studyStartup.performance.test.cjs` 保留檔案，但不列入 PR 完整 CI 的補充測試；其正確性與容量斷言仍維持原樣。
+- 球面幾何 PR 測試與離線預覽照常執行，8 份球面效能基準不再隨 PR 自動執行；未修改 `experiments/spherical-grid/` 的實驗程式。
+- 效能與大量資料測試集中至 `.github/workflows/performance-manual.yml`，使用 GitHub Actions 的 `workflow_dispatch` 手動選擇 `all`、`dictionary`、`study` 或 `spherical-grid`。
+- `tests/tools/run-full-extras.mjs --audit` 的 `deferred` 列表會明確列出不作 PR 必要檢查的測試，以免補充執行器重新納入。這些測試**不是刪除**，需要大型資料的安全驗證仍可手動執行。
