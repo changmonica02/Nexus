@@ -142,7 +142,6 @@
       "tests/note/noteEditor.browser.test.cjs",
       "tests/note/noteExport.browser.test.cjs",
       "tests/note/noteExportLayout.test.cjs",
-      "tests/note/notePagination.study.test.cjs",
       "tests/note/noteTablePagination.browser.test.cjs",
       "tests/note/noteTablePagination.test.cjs"
     ],
