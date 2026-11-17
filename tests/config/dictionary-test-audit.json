@@ -68,7 +68,7 @@
       "file": "tests/dictionary/dictionaryPersistentImport.test.cjs",
       "area": "草稿與編輯",
       "action": "核心保留",
-      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+      "note": "批次混合成功與失敗、舊作業收據遷移、跨裝置 CAS、RLS 和使用者決策均有獨立保障；保留。"
     },
     {
       "file": "tests/dictionary/dictionaryPersistentScale.test.cjs",
@@ -108,7 +108,7 @@
       "file": "tests/dictionary/dictionaryTransfer.test.cjs",
       "area": "草稿與編輯",
       "action": "整併候選",
-      "note": "與 Exchange 交換場景比較，保留跨裝置重試與資料衝突",
+      "note": "逐一與 ExchangeSafety、PersistentImport 比對：proposalKey 的子項順序、替換前證明、1,001 筆可中斷續傳及完整 RPC 回復是獨立故障情境；不刪整份，核心資料安全斷言保留。",
       "comparison": {
         "compare": [
           "dictionaryExchangeSafety.test.cjs",
@@ -256,7 +256,7 @@
       "file": "tests/dictionary/dictionaryExchange.browser.test.cjs",
       "area": "資料交換與安全",
       "action": "核心保留",
-      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+      "note": "已移除舊『已發布』核取方塊、已退役批次選取按鈕及 Published revision 提示消失等純歷史畫面斷言；完整匯出、斷線續傳、操作收據、批次發布仍保留。"
     },
     {
       "file": "tests/dictionary/dictionaryExchange.test.cjs",
@@ -282,7 +282,7 @@
       "file": "tests/dictionary/dictionaryExchangeSafety.test.cjs",
       "area": "資料交換與安全",
       "action": "核心保留",
-      "note": "保留衝突、重送、權限、容量錯誤的獨立保障"
+      "note": "IndexedDB Quota/DataClone 失敗、伺服器提交後收據未落地及正式 Review CAS 衝突，均非 Transfer 的等效替代；保留完整保障。"
     },
     {
       "file": "tests/dictionary/dictionaryExchangeScale.test.cjs",
@@ -302,7 +302,7 @@
       "file": "tests/dictionary/dictionaryPersistent.browser.test.cjs",
       "area": "資料交換與安全",
       "action": "核心保留",
-      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+      "note": "已移除固定三／二／一欄 CSS grid 的版面斷言；真實 SQL、匯入審核、桌機／平板／手機與跨裝置測試保留。"
     },
     {
       "file": "tests/dictionary/dictionarySenseExchange.test.cjs",
@@ -592,7 +592,7 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "字典第二輪後續已精簡 DraftPipeline 的重複公開 CSV 停用與舊五欄格式斷言、AI 匯出標籤及 ImportReview 固定欄數檢查；字典仍 70 個檔案／70 筆審查記錄，SQL 原子回復、JSON 身分、安全、RLS 皆保留。語法與清冊靜態核對通過，完整 CI 結果待確認。",
+  "progress_note": "第三輪比對 Transfer、ExchangeSafety、PersistentImport 的 SQL/IndexedDB/跨裝置斷言，確認主要風險情境不等價，維持 70 份字典測試；已刪除 Persistent 與 Exchange 瀏覽器測試共 5 項固定版面／歷史介面斷言。語法與清冊須再核對，完整 CI 尚未確認成功。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -605,7 +605,12 @@
     "tests/dictionary/dictionarySourceRetirement.test.cjs": "已於先前提交改用 JSON-only 入口；SQL 遷移測試仍保留",
     "tests/dictionary/dictionaryIdentity.test.cjs": "直接刪除兩項舊 CSV 分組／同形詞單元測試；JSON 身分由 currentImportBoundary 覆蓋，保留跨入口與資料庫身分完整性、原子交易及遷移失敗測試",
     "tests/dictionary/dictionaryReaderAdmin.test.cjs": "移除過時列表選取原始碼檢查及閱讀內容的純排列斷言，保留非管理員權限、分頁、篩選及資料庫發布交易測試。",
-    "tests/dictionary/dictionaryAI.test.cjs": "移除匯出視窗純顯示文字斷言；保留預設 Draft、審核草稿保護、格式解析及資料庫權限。"
+    "tests/dictionary/dictionaryAI.test.cjs": "移除匯出視窗純顯示文字斷言；保留預設 Draft、審核草稿保護、格式解析及資料庫權限。",
+    "tests/dictionary/dictionaryTransfer.test.cjs": "逐一與 ExchangeSafety、PersistentImport 比對：proposalKey 的子項順序、替換前證明、1,001 筆可中斷續傳及完整 RPC 回復是獨立故障情境；不刪整份，核心資料安全斷言保留。",
+    "tests/dictionary/dictionaryExchangeSafety.test.cjs": "IndexedDB Quota/DataClone 失敗、伺服器提交後收據未落地及正式 Review CAS 衝突，均非 Transfer 的等效替代；保留完整保障。",
+    "tests/dictionary/dictionaryPersistentImport.test.cjs": "批次混合成功與失敗、舊作業收據遷移、跨裝置 CAS、RLS 和使用者決策均有獨立保障；保留。",
+    "tests/dictionary/dictionaryPersistent.browser.test.cjs": "已移除固定三／二／一欄 CSS grid 的版面斷言；真實 SQL、匯入審核、桌機／平板／手機與跨裝置測試保留。",
+    "tests/dictionary/dictionaryExchange.browser.test.cjs": "已移除舊『已發布』核取方塊、已退役批次選取按鈕及 Published revision 提示消失等純歷史畫面斷言；完整匯出、斷線續傳、操作收據、批次發布仍保留。"
   },
   "current_contract_pending": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
