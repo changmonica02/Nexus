@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 test('official private card editor: unlink/relink, private text, unchanged FSRS, reload, deletion confirmation and pre-migration fallback',{timeout:120000},async()=>{
-  const root = path.resolve(__dirname, ".."),
+  const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-official-private-"));
     await build({
       entryPoints: ["tests/fixtures/officialPrivateCards.jsx"],
