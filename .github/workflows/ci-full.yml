@@ -18,9 +18,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node scripts/test-groups.mjs --check
-      - run: node --test scripts/select-fast-tests.test.mjs
-      - run: node scripts/run-full-extras.mjs --audit
+      - run: node tests/tools/test-groups.mjs --check
+      - run: node --test tests/tools/select-fast-tests.test.mjs
+      - run: node tests/tools/run-full-extras.mjs --audit
 
   morpheme-contract:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
@@ -402,7 +402,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Additional non-browser tests
-        run: node scripts/run-full-extras.mjs --group '${{ matrix.group }}' --mode node
+        run: node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode node
       - name: Build production assets for map / PWA browser suites
         if: matrix.group == 'world-map' || matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: npm run build
@@ -422,7 +422,7 @@ jobs:
           cat /tmp/nexus-full-dictionary-pwa.log
           exit 1
       - name: Additional browser tests
-        run: node scripts/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser
+        run: node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser
       - name: Stop isolated production fixture
         if: always() && (matrix.group == 'dictionary' || matrix.group == 'workspace')
         run: |
