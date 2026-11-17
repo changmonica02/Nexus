@@ -424,7 +424,7 @@ jobs:
         run: |
           if node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser --has-tests; then
             npx playwright install --with-deps chromium
-            node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\\n")'
+            node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
           fi
       - name: Start isolated production fixture for dictionary PWA
         if: matrix.group == 'dictionary' || matrix.group == 'workspace'
