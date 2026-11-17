@@ -4,9 +4,9 @@
   "status": "依現行規格直接精簡，已退役測試同步移出清冊與 CI",
   "decision_rule": "先確認正式支援規格、逐項斷言和測試環境，替代流程通過後才可刪減",
   "counts": {
-    "核心保留": 41,
-    "整併候選": 15,
-    "更新現行規格": 10,
+    "核心保留": 40,
+    "整併候選": 13,
+    "更新現行規格": 6,
     "退役候選": 4
   },
   "records": [
@@ -41,28 +41,10 @@
       "note": "更新已退役入口、欄位或 API；保留現行規格的安全斷言"
     },
     {
-      "file": "tests/dictionary/dictionaryDraftPipeline.test.cjs",
-      "area": "草稿與編輯",
-      "action": "更新現行規格",
-      "note": "已移除與 currentImportBoundary 重複的公開 CSV 停用檢查及舊五欄 CSV 接受案例；保留內部轉接的列號／欄位錯誤、UUID、現行 JSON 與真實 SQL 回復。"
-    },
-    {
       "file": "tests/dictionary/dictionaryEditor.browser.test.cjs",
       "area": "草稿與編輯",
       "action": "核心保留",
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
-    },
-    {
-      "file": "tests/dictionary/dictionaryIdentity.test.cjs",
-      "area": "草稿與編輯",
-      "action": "核心保留",
-      "note": "刪除 2 項只針對舊 CSV 的重複單元測試；留下真正 PostgreSQL 跨入口身分、Review、Published 保護和重複身分遷移拒絕測試。正式 JSON 入口同形構詞由 currentImportBoundary 驗證"
-    },
-    {
-      "file": "tests/dictionary/dictionaryImportReview.test.cjs",
-      "area": "草稿與編輯",
-      "action": "更新現行規格",
-      "note": "移除硬編碼 CSV 12 欄數量斷言，以穩定 Entry／Sense ID 及匯入重排、回復、RLS 驗證為準。"
     },
     {
       "file": "tests/dictionary/dictionaryPersistentImport.test.cjs",
@@ -215,12 +197,6 @@
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
     },
     {
-      "file": "tests/dictionary/dictionaryLifecycle.test.cjs",
-      "area": "審核發布與權限",
-      "action": "更新現行規格",
-      "note": "保留發布/審核/復原，更新舊群組與例句欄位"
-    },
-    {
       "file": "tests/dictionary/dictionarySenseDeletion.test.cjs",
       "area": "審核發布與權限",
       "action": "核心保留",
@@ -237,20 +213,6 @@
       "area": "審核發布與權限",
       "action": "核心保留",
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
-    },
-    {
-      "file": "tests/dictionary/dictionaryAI.test.cjs",
-      "area": "資料交換與安全",
-      "action": "整併候選",
-      "note": "移除匯出視窗純顯示文字斷言；保留預設 Draft、審核草稿保護、格式解析及資料庫權限。",
-      "comparison": {
-        "compare": [
-          "dictionaryExchange.test.cjs",
-          "dictionaryLifecycle.test.cjs"
-        ],
-        "unique": "AI 格式欄位拒絕、Word/構詞投影及新增 ID 的安全邊界",
-        "decision": "保留解析器邊界測試；與 Exchange 重複的草稿差異可以合併"
-      }
     },
     {
       "file": "tests/dictionary/dictionaryExchange.browser.test.cjs",
@@ -477,20 +439,6 @@
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
     },
     {
-      "file": "tests/dictionary/dictionaryGrouping.test.cjs",
-      "area": "構詞",
-      "action": "整併候選",
-      "note": "比對相同流程中的重複斷言，保留其獨立的資料庫及瀏覽器保障",
-      "comparison": {
-        "compare": [
-          "morphemeDatabase.test.cjs",
-          "dictionaryIdentity.test.cjs"
-        ],
-        "unique": "歷史分組的資料庫升級、修訂遞增、RLS 及已發布分類限制",
-        "decision": "先保留升級兼容；若正式支援範圍排除舊分組資料才能整併"
-      }
-    },
-    {
       "file": "tests/dictionary/morphemeContract.test.cjs",
       "area": "構詞",
       "action": "核心保留",
@@ -530,12 +478,6 @@
       "area": "歷史退役",
       "action": "更新現行規格",
       "note": "保留不准舊來源欄位回寫；不再測試已停用匯入操作"
-    },
-    {
-      "file": "tests/dictionary/dictionarySourceRetirement.test.cjs",
-      "area": "歷史退役",
-      "action": "更新現行規格",
-      "note": "保留舊資料遷移安全及審核權限；對外入口改為 JSON"
     },
     {
       "file": "tests/dictionary/dictionaryVerificationRetirement.test.cjs",
@@ -592,7 +534,7 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "第四輪清理：AdminUI 合併 1 個重複搜尋篩選案例，移除歷史選取控制項／核取方塊數量與舊公告文字；Reader 移除純區塊排列斷言。重新核對 Verification、MaintenanceCleanup、InflectionsSQL 三項歷史遷移真實 PostgreSQL 測試，均保留交易回復及資料安全保護。字典測試檔案仍為 70 份，實際 CI 尚待驗證。",
+  "progress_note": "已按照目前 SPEC/Exchange v2 將七份主要使用舊 CSV、舊分組及歷史 Schema 的測試從測試清單移除；保留現行權限、Review、交換、衍生義及資料安全測試。待完整 CI 驗證。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -626,6 +568,13 @@
     {
       "file": "tests/dictionarySenseDraftRPC.test.cjs",
       "reason": "舊版 B2 Draft RPC 使用過時的例句衍生義可空約束；現行原子例句寫入及 Draft RPC 實際 SQL 檢查已由 dictionaryExamplesAtomicDraft.test.cjs 覆蓋"
-    }
+    },
+    "tests/dictionary/dictionaryIdentity.test.cjs",
+    "tests/dictionary/dictionaryImportReview.test.cjs",
+    "tests/dictionary/dictionaryLifecycle.test.cjs",
+    "tests/dictionary/dictionaryDraftPipeline.test.cjs",
+    "tests/dictionary/dictionaryGrouping.test.cjs",
+    "tests/dictionary/dictionaryAI.test.cjs",
+    "tests/dictionary/dictionarySourceRetirement.test.cjs"
   ]
 }
