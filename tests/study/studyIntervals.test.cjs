@@ -66,7 +66,7 @@ test('three-response session: due forgotten card cannot displace the already pre
   const after=await f.repo.readDeck('deck',true);
   assert.deepEqual(after.events,before.events,'time passing alone is not another answer or introduction');
   const card=tick.snapshot.cards.find(c=>c.id===current),state=tick.snapshot.states.find(s=>s.id===current);
-  const rated=await f.repo.rateSession({sessionId:id,cardId:current,revision:tick.session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:3,actionId:'stable-current-grade',stabilityNow:stabilityNow+60000});
+  const rated=await f.repo.rateSession({sessionId:id,cardId:current,revision:tick.session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:3,actionId:'stable-current-grade',now:stabilityNow+60000});
   assert.equal(rated.queue[0],forgotten,'due forgotten card becomes next only after the current grade');
  }finally{await f.close();}
 });
