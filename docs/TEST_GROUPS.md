@@ -64,3 +64,5 @@ node scripts/test-groups.mjs --check
 - `dictionaryIdentity.test.cjs`：移除兩項僅測舊 CSV 表格分組及同形構詞的重複單元測試；保留跨 JSON／AI／手動寫入的真實 PostgreSQL 身分一致性、發布保護與重複身分遷移拒絕。
 
 - `dictionaryImportReview.test.cjs`：刪除舊 CSV 空白 Entry/Sense ID 每次預覽自動配置的單元測試，保留匯入審核、衝突、SQL 與回復測試；現行 JSON 身分驗證由 `currentImportBoundary.test.cjs` 負責。
+
+- `dictionaryDraftPipeline.test.cjs`：移除舊 CSV 空白 Entry ID 合併同形文字與重複 Sense ID 的專項測試；現行 JSON 重複身分拒絕與同形構詞個別身分由 `currentImportBoundary.test.cjs` 覆蓋。
