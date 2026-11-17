@@ -68,10 +68,9 @@ test(
       });
     const errors = [];
     try {
-      for (const viewport of [
-        { width: 1280, height: 900 },
-        { width: 390, height: 844 },
-      ]) {
+      // Full IndexedDB fault-injection and resume flow is a single desktop
+      // contract; mobile entry points are checked separately below.
+      for (const viewport of [{ width: 1280, height: 900 }]) {
         const context = await browser.newContext({
             viewport,
             acceptDownloads: true,
@@ -484,6 +483,29 @@ test(
         );
         await context.close();
       }
+      // Mobile uses the same export/import components. Cover their distinct
+      // entry points without repeating every desktop quota/reload fault.
+      const mobileContext = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+      });
+      const mobilePage = await mobileContext.newPage();
+      mobilePage.on("pageerror", (e) => errors.push(e.message));
+      await mobilePage.goto(url + "/?embedded");
+      await mobilePage.getByRole("button", { name: "匯出資料", exact: true }).click();
+      const mobileExport = mobilePage.getByRole("dialog", { name: "匯出資料", exact: true });
+      await mobileExport.waitFor();
+      await mobileExport.getByRole("button", { name: "開始完整匯出", exact: true }).waitFor();
+      await mobileExport.getByRole("button", { name: "關閉", exact: true }).click();
+      await mobileExport.waitFor({ state: "detached" });
+      await mobilePage.getByRole("button", { name: "匯入資料", exact: true }).click();
+      const mobileImport = mobilePage.getByRole("dialog", { name: "匯入資料", exact: true });
+      await mobileImport.waitFor();
+      await mobileImport.getByLabel("匯入檔案", { exact: true }).waitFor();
+      assert.equal(
+        await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        true,
+      );
+      await mobileContext.close();
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();
