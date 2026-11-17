@@ -48,7 +48,7 @@ test("supported JSON bundle and AI projections preserve core concept content and
  const bundle=parseJSONBundle(JSON.stringify(raw));
  assert.equal(bundle.dictionary_learning_notes.length,1);
  assert.equal(bundle.dictionary_learning_notes[0].id,id(20));
- assert.equal(bundle.dictionary_learning_notes[0].body,"image\\n\\nstory");
+ assert.equal(bundle.dictionary_learning_notes[0].body,"image\n\nstory");
  assert.deepEqual(raw,before,"JSON import must not modify caller data");
  const again=parseJSONBundle(JSON.stringify(bundle));
  assert.deepEqual(again,bundle,"re-import of normalized data is stable");
