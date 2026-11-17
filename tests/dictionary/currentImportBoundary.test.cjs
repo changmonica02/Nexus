@@ -42,6 +42,7 @@ test('current AI review format validates stable meanings and rejects retired pro
  assert.equal(parsed.entries[0].core_concept[0].text,'避風港');
  assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],sources:[]}]})),/已淘汰/);
  assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],source_ids:[]}]})),/已淘汰/);
+ assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],inflections:[{form_kind:'past',form:'harbored'}]}]})),/不允許欄位 inflections/);
  assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],meanings:[{zh_tw:'港口',old_group:'legacy'}]}]})),/不允許欄位/);
 });
 
