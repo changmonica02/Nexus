@@ -1,9 +1,9 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
-const root=path.resolve(__dirname,'..');
+const root=path.resolve(__dirname,'../..');
 test('desktop/mobile pagination: inline Enter/Esc, validation, last-request wins, retry, data changes and actual list integrations',{timeout:120000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-pagination-'));
- await build({entryPoints:[path.join(__dirname,'fixtures/pagination.jsx')],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'isolated-services',setup(b){
+ await build({entryPoints:[path.join(root,'tests/fixtures/pagination.jsx')],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'isolated-services',setup(b){
  b.onLoad({filter:/infrastructure\/supabase\/client\.ts$/},()=>({contents:'export const getSupabase=()=>window.dictionaryClient; export const isSupabaseConfigured=()=>true;',loader:'js'}));
  b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`import React from '${path.join(root,'node_modules/react/index.js')}';export default function Link({children,...props}){return React.createElement('a',props,children);}`,loader:'js',resolveDir:root}));
  b.onResolve({filter:/^next\/navigation$/},()=>({path:'nav',namespace:'navigation'}));b.onLoad({filter:/.*/,namespace:'navigation'},()=>({contents:`import {useSyncExternalStore} from '${path.join(root,'node_modules/react/index.js')}';const go=href=>{history.pushState(null,'',href);window.dispatchEvent(new Event('fixture-navigation'));};export const useRouter=()=>({push:go});export const usePathname=()=>location.pathname;export function useSearchParams(){const search=useSyncExternalStore(cb=>{window.addEventListener('fixture-navigation',cb);return ()=>window.removeEventListener('fixture-navigation',cb);},()=>location.search);return new URLSearchParams(search);}`,loader:'js',resolveDir:root}));
