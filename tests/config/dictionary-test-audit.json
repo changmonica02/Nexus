@@ -26,7 +26,7 @@
       "file": "tests/dictionary/dictionaryAdminUI.test.cjs",
       "area": "草稿與編輯",
       "action": "更新現行規格",
-      "note": "已清除固定 CSS、畫面順序、舊遷移字串及重複 IPA／空白提示測試；保留 JSON 匯入、公開資料安全、固定欄位、審核流程及存取權限斷言。"
+      "note": "已整併單一條件的列表篩選與多條件篩選測試，保留無搜尋結果情境；移除舊說明文字、已退休批次選取按鈕不存在、核取方塊固定數量／CSS 等低價值斷言。保留登入權限、JSON 匯入、審核與操作行為。"
     },
     {
       "file": "tests/dictionary/dictionaryAutosave.browser.test.cjs",
@@ -354,7 +354,7 @@
       "file": "tests/dictionary/dictionaryReader.test.cjs",
       "area": "查詢與字卡連動",
       "action": "核心保留",
-      "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
+      "note": "已移除補充資訊固定區塊排序的畫面斷言，保留跨義項資料、IPA 排序、穩定錨點、公開資料隔離、XSS 與來源安全測試。"
     },
     {
       "file": "tests/dictionary/dictionaryReaderAdmin.test.cjs",
@@ -518,7 +518,7 @@
       "file": "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
       "area": "歷史退役",
       "action": "退役候選",
-      "note": "確認歷史升級支援期後才可刪減",
+      "note": "重新核對：測試 B2 升級實際 SQL 順序、Review／衍生義／筆記保留、不可使用 CASCADE 的結構保障，保留。",
       "retirement": {
         "migration": "20261114231000_dictionary_inflections_final_drop.sql",
         "unique": "驗證先安全遷移 B2 子表、Review 再移除 Inflections，以及未使用 CASCADE",
@@ -541,7 +541,7 @@
       "file": "tests/dictionary/dictionaryVerificationRetirement.test.cjs",
       "area": "歷史退役",
       "action": "退役候選",
-      "note": "確認仍支援的升級來源及移轉損失風險",
+      "note": "重新核對：包含真實 PostgreSQL 原子遷移回復、已發布資料、舊來源識別、Review CAS、來源編輯與 RLS；未證明升級來源都已退役，保留。",
       "retirement": {
         "migration": "20261016060000_dictionary_retire_verification_state.sql",
         "unique": "移轉時不可丟失詞源、來源 ID、Review CAS、稽核及資料庫權限",
@@ -552,7 +552,7 @@
       "file": "tests/dictionary/maintenanceCleanupRetirement.test.cjs",
       "area": "歷史退役",
       "action": "退役候選",
-      "note": "一次性清理 RPC 的支援期限尚待確認",
+      "note": "重新核對：已退役清理 RPC 的執行權消除，同時保護 Review 草稿及禁止重放的交易收據；沒有同等替代測試，保留。",
       "retirement": {
         "migration": "20261113195500_dictionary_one_shot_cleanup_retired.sql",
         "unique": "一次性清理 RPC 退役後仍保留待審核資料與避免重放的操作收據",
@@ -592,13 +592,13 @@
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "第三輪完成 Transfer／ExchangeSafety／PersistentImport 的跨情境比較，保留不等價的 SQL／CAS／IndexedDB 核心測試；瀏覽器移除 5 項過時版面／歷史控制項檢查，SenseExchange 移除 2 項已由 SenseEditor 涵蓋的 Draft ID 映射斷言。字典仍 70 份檔案，完整 CI 尚待確認。",
+  "progress_note": "第四輪清理：AdminUI 合併 1 個重複搜尋篩選案例，移除歷史選取控制項／核取方塊數量與舊公告文字；Reader 移除純區塊排列斷言。重新核對 Verification、MaintenanceCleanup、InflectionsSQL 三項歷史遷移真實 PostgreSQL 測試，均保留交易回復及資料安全保護。字典測試檔案仍為 70 份，實際 CI 尚待驗證。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
     "tests/dictionary/dictionaryCoreConcept.test.cjs": "已以 JSON 與 AI 的內容不遺失、穩定 ID 驗證取代舊 CSV 情境",
     "tests/dictionary/dictionaryRetireSourceForms.test.cjs": "已將禁止舊欄位回寫改為透過正式 JSON 入口檢查；歷史 SQL 安全案例保留",
-    "tests/dictionary/dictionaryAdminUI.test.cjs": "本輪移除固定 CSS、區塊排列與舊遷移檔字串檢查，刪除空白分類提示及 IPA 區塊排列兩個重複測試，保留功能與資料安全斷言。",
+    "tests/dictionary/dictionaryAdminUI.test.cjs": "已整併單一條件的列表篩選與多條件篩選測試，保留無搜尋結果情境；移除舊說明文字、已退休批次選取按鈕不存在、核取方塊固定數量／CSS 等低價值斷言。保留登入權限、JSON 匯入、審核與操作行為。",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs": "已移除與 currentImportBoundary 重複的公開 CSV 停用檢查及舊五欄 CSV 接受案例；保留內部轉接的列號／欄位錯誤、UUID、現行 JSON 與真實 SQL 回復。",
     "tests/dictionary/dictionaryRankedComponents.test.cjs": "已移除與構詞排名無關、且使用退役欄位的 Exchange 斷言；Exchange 專項仍保留",
     "tests/dictionary/dictionaryImportReview.test.cjs": "移除硬編碼 CSV 12 欄數量斷言，以穩定 Entry／Sense ID 及匯入重排、回復、RLS 驗證為準。",
@@ -611,7 +611,11 @@
     "tests/dictionary/dictionaryPersistentImport.test.cjs": "批次混合成功與失敗、舊作業收據遷移、跨裝置 CAS、RLS 和使用者決策均有獨立保障；保留。",
     "tests/dictionary/dictionaryPersistent.browser.test.cjs": "已移除固定三／二／一欄 CSS grid 的版面斷言；真實 SQL、匯入審核、桌機／平板／手機與跨裝置測試保留。",
     "tests/dictionary/dictionaryExchange.browser.test.cjs": "已移除舊『已發布』核取方塊、已退役批次選取按鈕及 Published revision 提示消失等純歷史畫面斷言；完整匯出、斷線續傳、操作收據、批次發布仍保留。",
-    "tests/dictionary/dictionarySenseExchange.test.cjs": "JSON 匯入仍驗證衍生義、雙語例句 ID 與參照、缺少 Word 欄位及過時資料拒絕；移除與 dictionarySenseEditor 重複的 Draft 映射 ID 斷言及未使用匯入。"
+    "tests/dictionary/dictionarySenseExchange.test.cjs": "JSON 匯入仍驗證衍生義、雙語例句 ID 與參照、缺少 Word 欄位及過時資料拒絕；移除與 dictionarySenseEditor 重複的 Draft 映射 ID 斷言及未使用匯入。",
+    "tests/dictionary/dictionaryReader.test.cjs": "已移除補充資訊固定區塊排序的畫面斷言，保留跨義項資料、IPA 排序、穩定錨點、公開資料隔離、XSS 與來源安全測試。",
+    "tests/dictionary/dictionaryVerificationRetirement.test.cjs": "重新核對：包含真實 PostgreSQL 原子遷移回復、已發布資料、舊來源識別、Review CAS、來源編輯與 RLS；未證明升級來源都已退役，保留。",
+    "tests/dictionary/maintenanceCleanupRetirement.test.cjs": "重新核對：已退役清理 RPC 的執行權消除，同時保護 Review 草稿及禁止重放的交易收據；沒有同等替代測試，保留。",
+    "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs": "重新核對：測試 B2 升級實際 SQL 順序、Review／衍生義／筆記保留、不可使用 CASCADE 的結構保障，保留。"
   },
   "current_contract_pending": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
