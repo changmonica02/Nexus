@@ -32,3 +32,15 @@ test('JSON bundle rejects unsupported fields and retired tables rather than sile
  assert.throws(()=>parseJSONBundle(JSON.stringify({...doc,dictionary_entries:[{...doc.dictionary_entries[0],kind:'invalid'}]})),/未知 kind/);
  assert.throws(()=>parseJSONBundle(JSON.stringify({...doc,dictionary_examples:[{id:id(3),entry_id:id(1),body:'Harbor'}]})),/缺少 sense_id|derivation_id/);
 });
+
+// Current AI review documents are separate from the retired CSV and source-snapshot formats.
+test('current AI review format validates stable meanings and rejects retired provenance',()=>{
+ const {parseAI}=require('../../src/features/dictionary/aiDictionary.ts');
+ const valid={format:'nexus-dictionary-ai',version:1,entries:[{type:'word',headword:'harbor',classification:'noun',meanings:[{zh_tw:'港口',classification:'noun'}],core_concept:[{text:'避風港'}]}]};
+ const parsed=parseAI(JSON.stringify(valid));
+ assert.equal(parsed.entries[0].meanings[0].zh_tw,'港口');
+ assert.equal(parsed.entries[0].core_concept[0].text,'避風港');
+ assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],sources:[]}]})),/已淘汰/);
+ assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],source_ids:[]}]})),/已淘汰/);
+ assert.throws(()=>parseAI(JSON.stringify({...valid,entries:[{...valid.entries[0],meanings:[{zh_tw:'港口',old_group:'legacy'}]}]})),/不允許欄位/);
+});
