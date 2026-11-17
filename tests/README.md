@@ -125,3 +125,10 @@ node tests/tools/test-groups.mjs --check
 - 共刪除 5 項純舊介面／固定版面斷言；沒有刪除檔案或放寬原子交易、安全與資料完整性斷言。最新 CI 執行結果仍需檢查。
 
 - `dictionarySenseExchange.test.cjs`：移除與 `dictionarySenseEditor.test.cjs` 重複的兩項 Draft 衍生義／例句映射 ID 斷言，保留 JSON 解析、驗證、版本拒絕與過時欄位拒絕。
+
+## 字典管理、閱讀器與歷史升級測試精簡（2026-11-17）
+
+- `dictionaryAdminUI.test.cjs`：將一般列表篩選案例整併至多條件篩選測試，補上搜尋無結果的斷言；刪除過時選取按鈕、舊說明文字、固定核取方塊數及 CSS 實作斷言。
+- `dictionaryReader.test.cjs`：移除補充資料區塊固定先後順序的斷言，保留 IPA 排序、義項與共用資料、來源安全及公開資料隔離。
+- `dictionaryVerificationRetirement.test.cjs`、`maintenanceCleanupRetirement.test.cjs`、`dictionaryInflectionsSQLRetirement.test.cjs`：核對真實 PostgreSQL 遷移、Review CAS、操作收據及 RLS 後保留；現階段不以名稱或時間舊為理由直接刪除。
+- 字典測試檔案仍維持 70 份，已刪減獨立重複案例及易碎斷言；需要最新完整 CI 結果才能宣告實際執行通過。
