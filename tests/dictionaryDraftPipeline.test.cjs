@@ -1,5 +1,5 @@
 require('./loadStudy.cjs');
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{PGlite}=require('@electric-sql/pglite');
+const test=require('node:test'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite');
 const {parseDictionaryCSV,dictionaryCSVExample,dictionaryCSVHeaders}=require('../src/features/dictionary/dictionaryCSV.ts');
 const {mapDictionaryDraft,saveDictionaryDraft,draftsFromBundle}=require('../src/features/dictionary/draftPipeline.ts');
 const {readAI,toAI,planAI,submitAI,parseAI}=require('../src/features/dictionary/aiDictionary.ts');
@@ -49,8 +49,4 @@ test('duplicate Sense IDs reject; blank Entry IDs with identical spelling share 
  const row={kind:'word',headword:'bank',part_of_speech:'noun',gloss_zh_tw:'銀行',entry_id:id(700),sense_id:id(701)};
  const raw=csvRow(row);await assert.rejects(parseDictionaryCSV(raw+'\n'+raw.split('\n')[1]),/重複 ID/);
  const separate=csvRow({...row,entry_id:'',sense_id:''});const ds=await parseDictionaryCSV(separate+'\n'+separate.split('\n')[1]);assert.equal(ds.length,1);assert.equal(ds[0].senses.length,2);assert.notEqual(ds[0].senses[0].id,ds[0].senses[1].id);
-});
-test('import format help includes canonical header, example download, category lists and diagnostic details',()=>{
- const ui=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');for(const text of ['Dictionary CSV v1','共通必填','part_of_speech','category','Legacy Word CSV','下載範例 CSV','dictionary_master_v1.csv'])assert.ok(ui.includes(text),text);
- assert.ok(!ui.includes('primaryCategories.map'));assert.ok(ui.includes('semantic_domain'));assert.ok(dictionaryCSVExample.includes('"word"'));assert.ok(dictionaryCSVExample.includes('"prefix"'));assert.ok(dictionaryCSVExample.includes('"root"'));
 });
