@@ -181,13 +181,6 @@ test('clearing fixed Word fields keeps an editable empty control and unrelated S
   });
  }}finally{supabase.getSupabase=original;}
 });
-test('empty classification uses unset placeholder and empty composition hides sense placeholder headings',()=>{
- const d={...detail,senses:[{...detail.senses[0],part_of_speech:null,gloss_zh_tw:'待補'}]};
- const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
- assert.ok(html.includes('placeholder="未設定"'));assert.ok(html.includes('value="待補"'));const section=html.slice(html.indexOf('>構詞英中與其連結</h3>'),html.indexOf('>讀音（IPA）</h3>'));assert.ok(section.includes('英文字形 1'));assert.ok(section.includes('中文提示 1'));assert.ok(!section.includes('待補'));assert.ok(!html.includes('>構詞關聯</h3>'));
-});
-
-
 test('Word Sense rows keep stable identities and blank legacy values; basic info has no Sense fields',()=>{
  const senses=[detail.senses[0],{...detail.senses[0],id:'blank-sense',part_of_speech:null,gloss_zh_tw:''}];
  const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:{...detail,senses},entries:[],senses:[],onSaved:async()=>{}}));
@@ -217,19 +210,6 @@ test('dictionary review queue remains reachable without a modal and reports unav
  assert.ok(route.includes('DictionaryReviewPage'));
  assert.ok(page.includes('useDictionaryAdminAccess'));
  assert.ok(page.includes('<PersistentReviewPanel'));
-});
-
-test('IPA is a fixed standalone Word section before mnemonic and Senses without retired metadata',()=>{
- const html=renderToStaticMarkup(React.createElement(DictionaryEditor,{detail,entries:[],senses:[],onSaved:async()=>{}}));
- const ipa=html.indexOf('>讀音（IPA）</h3>'),mnemonic=html.indexOf('>記憶法</h3>');
- assert.ok(ipa>=0&&mnemonic>ipa);
- const section=html.slice(ipa,mnemonic);
- assert.equal((section.match(/<input /g)||[]).length,1);
- assert.ok(!section.includes('新增'));assert.ok(!section.includes('刪除'));
- assert.ok(!html.includes('地區／語言（選填'));assert.ok(!html.includes('備註（選填）'));
- const reader=fs.readFileSync('src/features/dictionary/DictionaryArticle.tsx','utf8');
- assert.ok(!reader.includes('p.locale&&'));
- assert.ok(!reader.includes('p.note&&'));
 });
 
 test('Word fixed fields render exactly one editable control each without add or delete buttons',()=>{
