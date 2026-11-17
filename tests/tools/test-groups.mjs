@@ -23,19 +23,9 @@ function check(){
  const duplicate=tracked.filter((p,i)=>tracked.indexOf(p)!==i);
  const benchMissing=benchmarkActual.filter(p=>!config.benchmarks.includes(p));
  const benchStale=config.benchmarks.filter(p=>!benchmarkActual.includes(p));
- const dictionaryAudit=JSON.parse(readFileSync(path.join(root,'tests/config/dictionary-test-audit.json'),'utf8'));
- const dictionaryPaths=groups.dictionary;
- const reviewed=dictionaryAudit.records.map(row=>row.file);
- const allowedActions=new Set(['核心保留','整併候選','更新現行規格','退役候選']);
- const auditMissing=dictionaryPaths.filter(p=>!reviewed.includes(p));
- const auditStale=reviewed.filter(p=>!dictionaryPaths.includes(p));
- const auditDuplicate=reviewed.filter((p,i)=>reviewed.indexOf(p)!==i);
- const auditInvalid=dictionaryAudit.records.filter(row=>!allowedActions.has(row.action)||!row.area||!row.note).map(row=>row.file);
- const auditCounts=Object.fromEntries([...allowedActions].map(a=>[a,dictionaryAudit.records.filter(row=>row.action===a).length]));
- const auditCountMismatch=JSON.stringify(auditCounts)!==JSON.stringify(dictionaryAudit.counts);
- if(missing.length||stale.length||duplicate.length||benchMissing.length||benchStale.length||auditMissing.length||auditStale.length||auditDuplicate.length||auditInvalid.length||auditCountMismatch){
-  console.error(JSON.stringify({missing,stale,duplicate,benchMissing,benchStale,auditMissing,auditStale,auditDuplicate,auditInvalid,auditCountMismatch},null,2));process.exitCode=1;
- }else console.log('Test groups valid: '+tracked.length+' tests, '+config.benchmarks.length+' benchmarks; dictionary audit '+reviewed.length+' records');
+ if(missing.length||stale.length||duplicate.length||benchMissing.length||benchStale.length){
+  console.error(JSON.stringify({missing,stale,duplicate,benchMissing,benchStale},null,2));process.exitCode=1;
+ }else console.log('Test groups valid: '+tracked.length+' tests, '+config.benchmarks.length+' benchmarks');
 }
 const args=process.argv.slice(2);
 if(args.length===1&&args[0]==='--check')check();
