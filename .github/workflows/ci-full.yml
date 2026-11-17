@@ -244,7 +244,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium webkit
       - name: Session and visibility regression
-        run: node --test tests/study/studySessionStability.test.cjs tests/study/studySessionExit.test.cjs tests/study/studyCardVisibility.test.cjs tests/study/studyCardVisibilityDatabase.test.cjs
+        run: node --test tests/study/studyIntervals.test.cjs tests/study/studySessionExit.test.cjs tests/study/studyCardVisibility.test.cjs tests/study/studyCardVisibilityDatabase.test.cjs
       - name: Native isolated PostgreSQL visibility transaction
         run: |
           docker run -d --name nexus46-visibility-ci --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
