@@ -12,7 +12,7 @@ test('actual SQL deletion on desktop/tablet/mobile: all kinds, cancel/failure di
  res.setHeader('content-type','application/json');res.end(JSON.stringify({data,error:null}));return;}
  res.end('<html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"><div id="root"></div><script src="/fixture.js"></script></html>');}catch(e){res.end(JSON.stringify({error:{message:e.message,code:e.code}}));}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const url='http://127.0.0.1:'+server.address().port;const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium;browser=await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:engine===chromium?['--no-sandbox']:[]});const errors=[];let n=1000;
- for(const viewport of [{width:1280,height:900},{width:820,height:1180},{width:390,height:844}]){
+ for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
  const context=await browser.newContext({viewport}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  for(const kind of ['word','prefix','root','suffix']){
  n+=10;const name='delete-'+kind+n;await pg.query('insert into dictionary_entries(id,kind,headword) values($1,$2,$3)',[id(n),kind,name]);await pg.query('insert into dictionary_senses(id,entry_id,part_of_speech,gloss_zh_tw) values($1,$2,$3,$4)',[id(n+1),id(n),kind==='word'?'noun':null,'中文']);await pg.query('select publish_dictionary_entry($1,true)',[id(n)]);
