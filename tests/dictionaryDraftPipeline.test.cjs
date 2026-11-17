@@ -4,8 +4,8 @@ const {parseDictionaryCSV,dictionaryCSVExample,dictionaryCSVHeaders}=require('..
 const {mapDictionaryDraft,saveDictionaryDraft,draftsFromBundle}=require('../src/features/dictionary/draftPipeline.ts');
 const {readAI,toAI,planAI,submitAI,parseAI}=require('../src/features/dictionary/aiDictionary.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-test('canonical mixed CSV, stable identities, category mapping, examples/lexical/hints isolation',async()=>{
-await assert.rejects(require('../src/features/dictionary/adminImport.ts').parseDictionaryImport(dictionaryCSVExample,'csv'),/canonical/);const ds=await parseDictionaryCSV(dictionaryCSVExample);assert.equal(ds.length,3);assert.notEqual(ds[0].entry_id,(await parseDictionaryCSV(dictionaryCSVExample))[0].entry_id);
+test('internal CSV adapter is not a public import path; identity and draft projection remain isolated',async()=>{
+await assert.rejects(require('../src/features/dictionary/adminImport.ts').parseDictionaryImport(dictionaryCSVExample,'csv'),/CSV.*Markdown.*停用/);const ds=await parseDictionaryCSV(dictionaryCSVExample);assert.equal(ds.length,3);assert.notEqual(ds[0].entry_id,(await parseDictionaryCSV(dictionaryCSVExample))[0].entry_id);
 assert.equal(mapDictionaryDraft(ds[1]).bundle.dictionary_senses[0].semantic_domain,'space_time');assert.equal(mapDictionaryDraft(ds[2]).bundle.dictionary_senses[0].semantic_subdomain,'geography');assert.equal(ds[0].examples[0].body,'an example');assert.equal(ds[0].etymologies.length,0);assert.equal(ds[0].learning_notes[0].kind,'core_concept');
 });
 test('canonical errors include row, kind, field; legacy and UUID validation',async()=>{
