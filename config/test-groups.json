@@ -160,12 +160,12 @@
       "tests/score.test.cjs"
     ],
     "life": [
-      "tests/lifeLists.browser.test.cjs",
-      "tests/lifeLists.test.cjs",
-      "tests/lifeStorage.test.cjs",
-      "tests/lifeViews.browser.test.cjs",
-      "tests/lifeViews.test.cjs",
-      "tests/todoCalendar.test.cjs"
+      "tests/life/lifeLists.browser.test.cjs",
+      "tests/life/lifeLists.test.cjs",
+      "tests/life/lifeStorage.test.cjs",
+      "tests/life/lifeViews.browser.test.cjs",
+      "tests/life/lifeViews.test.cjs",
+      "tests/life/todoCalendar.test.cjs"
     ],
     "workspace": [
       "tests/accountDeletion.test.cjs",
