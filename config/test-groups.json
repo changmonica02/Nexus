@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Nexus test ownership inventory. Does not alter CI execution or delete tests. Each test file has one primary group.",
+  "description": "Nexus test ownership inventory. Each active test file has one primary group; retired tests are removed from inventory and CI.",
   "groups": {
     "dictionary": [
       "tests/currentImportBoundary.test.cjs",
@@ -50,7 +50,6 @@
       "tests/dictionarySafeMarkdown.test.cjs",
       "tests/dictionarySenseDeletion.test.cjs",
       "tests/dictionarySenseDerivations.test.cjs",
-      "tests/dictionarySenseDraftRPC.test.cjs",
       "tests/dictionarySenseEditor.test.cjs",
       "tests/dictionarySenseExchange.test.cjs",
       "tests/dictionarySenseReview.test.cjs",
