@@ -138,12 +138,19 @@ test(
     });
     const errors = [];
     try {
-      for (const [width, height] of [
-        [1440, 900],
-        [820, 1180],
-        [1180, 820],
-        [(process.env.NEXUS_INTERFACE||process.env.NEXUS_DECK_MANAGEMENT||process.env.NEXUS_LIFE||process.env.NEXUS_STAGE_A)?320:390, 844],
-      ]) {
+      // Keep the full responsive matrix for the main integration run. Stage A
+      // adds cross-browser coverage; avoid replaying every Chromium viewport
+      // in WebKit when desktop and narrow mobile cover its independent risks.
+      const mobileWidth = (process.env.NEXUS_INTERFACE || process.env.NEXUS_DECK_MANAGEMENT ||
+        process.env.NEXUS_LIFE || process.env.NEXUS_STAGE_A) ? 320 : 390;
+      const viewports = process.env.NEXUS_VIEWPORT_PROFILE === 'stage-a-webkit'
+        ? [[1440, 900], [320, 844]]
+        : process.env.NEXUS_VIEWPORT_PROFILE === 'stage-a'
+          ? [[1440, 900], [820, 1180], [320, 844]]
+          : [[1440, 900], [820, 1180], [1180, 820], [mobileWidth, 844]];
+      if (process.env.NEXUS_VIEWPORT_PROFILE && !process.env.NEXUS_STAGE_A)
+        throw Error('Reduced viewport matrix is permitted only for Stage A regression');
+      for (const [width, height] of viewports) {
         const context = await browser.newContext({
             viewport: { width, height },
             hasTouch: width !== 1440,
