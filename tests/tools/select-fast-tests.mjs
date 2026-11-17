@@ -8,7 +8,7 @@ const groups=inventory.groups;
 const owners=new Map(Object.entries(groups).flatMap(([g,files])=>files.map(f=>[f,g])));
 const smoke={
  dictionary:['tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionary/dictionarySenseEditor.test.cjs'],
- study:['tests/study/studyFSRS.test.cjs','tests/study/studySync.test.cjs','tests/study/studySpeech.test.cjs'],
+ study:['tests/study/studySync.test.cjs','tests/study/studySpeech.test.cjs'],
  'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/world-map/globalMap.test.cjs','tests/world-map/worldMap.test.cjs'],
  note:['tests/note/noteExportLayout.test.cjs','tests/note/lessonDocument.test.cjs'],
  creation:['tests/creation/characterBlocks.test.cjs','tests/creation/characterTemplateUpdate.test.cjs'],
