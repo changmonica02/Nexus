@@ -86,24 +86,43 @@ jobs:
       - run: node tests/note/noteTablePagination.browser.test.cjs
       - name: Export reproduction and regression
         run: node tests/note/noteExport.browser.test.cjs
-      - name: Note, attachment and workspace browser regression
-        run: |
-          node tests/note/noteEditor.browser.test.cjs
-          node tests/workspace/attachmentSync.browser.test.cjs
-          node tests/workspace/unifiedWorkspace.browser.test.cjs
+      - name: Note editor browser regression
+        run: node tests/note/noteEditor.browser.test.cjs
+      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts src/lib/noteTablePagination.ts
+      - name: Synthetic export evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: note-export-evidence
+          path: |
+            test-results/note-export
+            test-results/note-pagination
+          if-no-files-found: ignore
+
+
+  dictionary-regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: Dictionary migration compatibility
         run: node tests/dictionary/dictionaryWordSegments.test.cjs
-      - name: Official content and retired schema regression
-        run: |
-          node --test tests/shared/retirementCompatibility.test.cjs tests/shared/schemaRetirement.test.cjs tests/shared/pageDefaultModeRetirement.test.cjs tests/study/studyQuizRetirement.test.cjs tests/study/officialLinkedContent.test.cjs tests/dictionary/dictionaryPronunciations.test.cjs tests/dictionary/dictionaryExchange.test.cjs tests/study/studyRepository.test.cjs tests/study/studySessions.test.cjs tests/study/studyClear.test.cjs tests/study/officialPrivateIdentity.test.cjs tests/dictionary/dictionaryConnections.test.cjs
-          node tests/study/officialLinkedContent.browser.test.cjs
-      - name: Dictionary approval and mobile speech regression
-        run: |
-          node --test tests/dictionary/dictionaryApproval.test.cjs tests/dictionary/dictionaryImportApproval.test.cjs tests/study/studySpeech.test.cjs tests/study/studyReading.test.cjs tests/dictionary/dictionaryPersistentImport.test.cjs
-          node tests/study/studySpeech.browser.test.cjs
-          SPEECH_BROWSER=webkit node tests/study/studySpeech.browser.test.cjs
-          node tests/study/studyReading.browser.test.cjs
-          node tests/dictionary/dictionaryPersistent.browser.test.cjs
+      - name: Dictionary reader, exchange, relationships and approval
+        run: node --test tests/dictionary/dictionaryPronunciations.test.cjs tests/dictionary/dictionaryExchange.test.cjs tests/dictionary/dictionaryConnections.test.cjs tests/dictionary/dictionaryApproval.test.cjs tests/dictionary/dictionaryImportApproval.test.cjs tests/dictionary/dictionaryPersistentImport.test.cjs
+      - name: Persistent dictionary browser
+        run: node tests/dictionary/dictionaryPersistent.browser.test.cjs
       - name: Dictionary exchange and atomic replacement regression
         run: |
           node tests/dictionary/dictionaryTransfer.test.cjs
@@ -120,37 +139,107 @@ jobs:
             sleep 1
           done
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-transfer-ci node tests/dictionary/dictionaryTransfer.test.cjs
-      - name: Compact morphology and Session opening regression
+      - name: Dictionary morphology, admin, reader and autosave
         run: |
-          node --test tests/dictionary/dictionaryMorphology.test.cjs tests/study/studyStartup.performance.test.cjs tests/dictionary/dictionaryAdminUI.test.cjs tests/dictionary/dictionaryReader.test.cjs tests/study/studyStyles.test.cjs tests/study/studyIntervals.test.cjs tests/study/studySync.test.cjs
+          node --test tests/dictionary/dictionaryMorphology.test.cjs tests/dictionary/dictionaryAdminUI.test.cjs tests/dictionary/dictionaryReader.test.cjs
           node tests/dictionary/dictionaryAutosave.browser.test.cjs
           node tests/dictionary/dictionaryMorphology.browser.test.cjs
           STUDY_BROWSER=webkit node tests/dictionary/dictionaryMorphology.browser.test.cjs
+      - name: Dictionary editor and study-linked dictionary panels
+        run: |
+          node tests/dictionary/studyDictionaryPanel.browser.test.cjs
+          node tests/dictionary/studyDictionaryEditor.browser.test.cjs
+          node tests/dictionary/dictionaryEditor.browser.test.cjs
+          STUDY_BROWSER=webkit node tests/dictionary/studyDictionaryPanel.browser.test.cjs
+      - name: Dictionary lint
+        run: npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/DictionaryArticle.tsx src/features/dictionary/WordSegmentsEditor.tsx src/features/dictionary/RelationTargetPicker.tsx src/features/dictionary/reader.ts src/features/dictionary/studyComposition.ts src/components/DataSourcesAndCopyright.tsx src/features/dictionary/DictionaryAI.tsx src/features/dictionary/aiDictionary.ts
+
+  study-regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: Official content, records and review contracts
+        run: node --test tests/study/studyQuizRetirement.test.cjs tests/study/officialLinkedContent.test.cjs tests/study/studyRepository.test.cjs tests/study/studySessions.test.cjs tests/study/studyClear.test.cjs tests/study/officialPrivateIdentity.test.cjs
+      - name: Speech, reading and official content browser
+        run: |
+          node --test tests/study/studySpeech.test.cjs tests/study/studyReading.test.cjs
+          node tests/study/officialLinkedContent.browser.test.cjs
+          node tests/study/studySpeech.browser.test.cjs
+          SPEECH_BROWSER=webkit node tests/study/studySpeech.browser.test.cjs
+          node tests/study/studyReading.browser.test.cjs
+      - name: Study startup, intervals, styles, synchronization and interface
+        run: |
+          node --test tests/study/studyStartup.performance.test.cjs tests/study/studyStyles.test.cjs tests/study/studyIntervals.test.cjs tests/study/studySync.test.cjs
           node tests/study/studyStartup.browser.test.cjs
           STUDY_BROWSER=webkit node tests/study/studyStartup.browser.test.cjs
-          npx eslint src/features/dictionary/DictionaryAdmin.tsx src/features/dictionary/DictionaryArticle.tsx src/features/dictionary/WordSegmentsEditor.tsx src/features/dictionary/RelationTargetPicker.tsx src/features/dictionary/reader.ts src/features/dictionary/studyComposition.ts src/features/study/StudyRepository.ts src/features/study/officialContent.ts src/features/study/useOfficialContent.ts src/features/study/components/StudySetView.tsx src/features/study/components/ScheduledStudySession.tsx src/features/study/components/StudyCompositionSummary.tsx src/lib/i18n.ts src/components/DataSourcesAndCopyright.tsx src/features/dictionary/DictionaryAI.tsx src/features/dictionary/aiDictionary.ts
-      - run: node --test tests/workspace/workspaceSync.test.cjs
-      - name: Existing map metadata, IDB and localization contracts
-        run: |
-          npm run test:world-map
-          node --test tests/world-map/worldMapRegions.test.cjs tests/world-map/worldMap.i18n.test.cjs
-      - run: npx tsc --noEmit
-      - run: npx eslint src/components/NoteExportPreview.tsx src/lib/noteExportLayout.ts src/lib/noteTablePagination.ts
-      - name: Production build
-        env:
-          NODE_ENV: production
-          NPM_CONFIG_OMIT: dev
-        run: npm run build
-      - name: Synthetic export evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+          node tests/study/unifiedStudy.browser.test.cjs
+      - name: Study lint
+        run: npx eslint src/features/study/StudyRepository.ts src/features/study/officialContent.ts src/features/study/useOfficialContent.ts src/features/study/components/StudySetView.tsx src/features/study/components/ScheduledStudySession.tsx src/features/study/components/StudyCompositionSummary.tsx
+
+  workspace-regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          name: note-export-evidence
-          path: |
-            test-results/note-export
-            test-results/note-pagination
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Select installed Chromium
+        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
+      - name: Workspace storage, attachments and integration
+        run: |
+          node --test tests/workspace/workspaceSync.test.cjs
+          node tests/workspace/attachmentSync.browser.test.cjs
+          node tests/workspace/unifiedWorkspace.browser.test.cjs
+          NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
+          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workspace-interface-evidence
+          path: test-results/interface-a/**/*.png
           if-no-files-found: ignore
 
+  shared-regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Shared schema and page compatibility
+        run: node --test tests/shared/retirementCompatibility.test.cjs tests/shared/schemaRetirement.test.cjs tests/shared/pageDefaultModeRetirement.test.cjs
+      - name: Shared lint and typing
+        run: |
+          npx tsc --noEmit
+          npx eslint src/lib/i18n.ts
 
   world-map:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -175,6 +264,8 @@ jobs:
           NODE_ENV: production
           NPM_CONFIG_OMIT: dev
         run: npm run build
+      - name: Map region and internationalization contracts
+        run: node --test tests/world-map/worldMapRegions.test.cjs tests/world-map/worldMap.i18n.test.cjs
       - name: Native project and distribution regression
         run: node tests/world-map/worldMap.browser.test.cjs
       - name: Chromium workspace
@@ -192,42 +283,6 @@ jobs:
         with:
           name: world-map-workspace-evidence
           path: test-results/world-map-ui/**/*.png
-          if-no-files-found: ignore
-
-  interface-a:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
-      - name: Select installed Chromium
-        run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
-      - name: Study settings and safe published reader
-        run: |
-          node tests/study/unifiedStudy.browser.test.cjs
-          node tests/dictionary/studyDictionaryPanel.browser.test.cjs
-          node tests/dictionary/studyDictionaryEditor.browser.test.cjs
-          node tests/dictionary/dictionaryEditor.browser.test.cjs
-          NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
-      - name: WebKit reader and assistant scope
-        run: |
-          STUDY_BROWSER=webkit node tests/dictionary/studyDictionaryPanel.browser.test.cjs
-          STUDY_BROWSER=webkit NEXUS_STAGE_A=1 node tests/workspace/unifiedWorkspace.browser.test.cjs
-      - name: Interface visual evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: interface-a-evidence
-          path: test-results/interface-a/**/*.png
           if-no-files-found: ignore
 
   study-b:
