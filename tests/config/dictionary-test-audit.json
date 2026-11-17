@@ -7,7 +7,7 @@
     "核心保留": 39,
     "整併候選": 13,
     "更新現行規格": 5,
-    "退役候選": 4
+    "退役候選": 3
   },
   "records": [
     {
@@ -451,17 +451,6 @@
       "note": "保留主要使用流程、資料完整性、權限或特定介面情境"
     },
     {
-      "file": "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
-      "area": "歷史退役",
-      "action": "退役候選",
-      "note": "重新核對：測試 B2 升級實際 SQL 順序、Review／衍生義／筆記保留、不可使用 CASCADE 的結構保障，保留。",
-      "retirement": {
-        "migration": "20261114231000_dictionary_inflections_final_drop.sql",
-        "unique": "驗證先安全遷移 B2 子表、Review 再移除 Inflections，以及未使用 CASCADE",
-        "decision": "保留；資料庫實體結構的遷移不可用新版編輯器測試替代"
-      }
-    },
-    {
       "file": "tests/dictionary/dictionaryRetireSourceForms.test.cjs",
       "area": "歷史退役",
       "action": "更新現行規格",
@@ -516,13 +505,13 @@
   ],
   "comparison_verified": 15,
   "retirement_reviewed": 4,
-  "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。",
+  "retirement_conclusion": "已停止支援的詞形歷史 SQL 退役專項測試已刪除；現行公開詞形、Review、RLS、交易回復仍由其他測試維護。",
   "current_contract_remaining": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
     "tests/dictionary/dictionaryImportReview.test.cjs",
     "tests/dictionary/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "已將字典 JSON 匯入測試整併至 currentImportBoundary，並以新版 AI/Exchange v2/正式 SQL 遷移測試覆蓋退役詞形檢查；重複檔案已刪除，核心保障保留。",
+  "progress_note": "2026-11-17 再次精簡：移除 dictionaryInflectionsSQLRetirement 專項測試；清冊同步更新。",
   "current_contract_changes": {
     "tests/dictionary/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/dictionary/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -544,8 +533,7 @@
     "tests/dictionary/dictionarySenseExchange.test.cjs": "JSON 匯入仍驗證衍生義、雙語例句 ID 與參照、缺少 Word 欄位及過時資料拒絕；移除與 dictionarySenseEditor 重複的 Draft 映射 ID 斷言及未使用匯入。",
     "tests/dictionary/dictionaryReader.test.cjs": "已移除補充資訊固定區塊排序的畫面斷言，保留跨義項資料、IPA 排序、穩定錨點、公開資料隔離、XSS 與來源安全測試。",
     "tests/dictionary/dictionaryVerificationRetirement.test.cjs": "重新核對：包含真實 PostgreSQL 原子遷移回復、已發布資料、舊來源識別、Review CAS、來源編輯與 RLS；未證明升級來源都已退役，保留。",
-    "tests/dictionary/maintenanceCleanupRetirement.test.cjs": "重新核對：已退役清理 RPC 的執行權消除，同時保護 Review 草稿及禁止重放的交易收據；沒有同等替代測試，保留。",
-    "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs": "重新核對：測試 B2 升級實際 SQL 順序、Review／衍生義／筆記保留、不可使用 CASCADE 的結構保障，保留。"
+    "tests/dictionary/maintenanceCleanupRetirement.test.cjs": "重新核對：已退役清理 RPC 的執行權消除，同時保護 Review 草稿及禁止重放的交易收據；沒有同等替代測試，保留。"
   },
   "current_contract_pending": [
     "tests/dictionary/dictionaryLifecycle.test.cjs",
