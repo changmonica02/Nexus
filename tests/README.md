@@ -73,7 +73,7 @@ node tests/tools/test-groups.mjs --check
 | 群組 | 路徑 | 測試數 |
 | --- | --- | ---: |
 | 字典 | `tests/dictionary/` | 70 |
-| 學習 | `tests/study/` | 33 |
+| 學習 | `tests/study/` | 32 |
 | 世界地圖 | `tests/world-map/` | 12 |
 | 筆記 | `tests/note/` | 6 |
 | 創作 | `tests/creation/` | 11 |
@@ -82,7 +82,7 @@ node tests/tools/test-groups.mjs --check
 | 共用 | `tests/shared/` | 11 |
 | 球面幾何實驗 | `experiments/spherical-grid/` | 13 |
 
-合計 174 份已編目的正式／實驗測試。8 份效能基準仍位於球面幾何實驗目錄並依獨立清冊管理。
+合計 173 份已編目的正式／實驗測試。8 份效能基準仍位於球面幾何實驗目錄並依獨立清冊管理。
 
 - 快速測試從 `tests/config/test-groups.json` 依變更範圍選擇既有檔案，不另複製一份快速測試。
 - 完整 CI 與舊工作流程的直接測試指令均改為新路徑。
@@ -141,3 +141,5 @@ node tests/tools/test-groups.mjs --check
 - `round3UI.test.cjs` 刪除兩項已退役的字典顏色標籤／發布歷史畫面檢查；保留導覽網址安全、編輯內容保持及排序偏好。
 - `post63UI.test.cjs` 移除固定圖示筆畫寬度、固定按鈕數量及 CSS 樣式的斷言，保留顯示資料與功能行為。
 - 僅完成 JavaScript 語法與清冊靜態檢查後才能確定搬移修正合理；最新 GitHub CI 未通過前不宣稱完整驗證成功。
+
+- `studySessionStability.test.cjs` 唯一的「已顯示題目不受新到期忘記卡搶占」案例完整併入 `studyIntervals.test.cjs`；已同步更新 CI 與清冊後移除原獨立檔案，沒有刪掉原始行為保障。
