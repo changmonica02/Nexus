@@ -1,6 +1,6 @@
 # Nexus 測試邏輯分組
 
-- 權威清冊：`config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。實體資料夾分組已開始：`tests/note/` 為 Note 專項測試；共用 `tests/fixtures/` 與測試啟動輔助仍位於 `tests/`。
+- 權威清冊：`config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。目前正式測試已依功能分為 `tests/dictionary/`、`tests/study/`、`tests/world-map/`、`tests/note/`、`tests/creation/`、`tests/life/`、`tests/workspace/`、`tests/shared/`；共用 `tests/fixtures/` 與測試啟動輔助保留於 `tests/`。
 - 群組：`dictionary`、`study`、`world-map`、`note`、`creation`、`life`、`workspace`、`shared`。
 - `benchmarks` 為效能基準，獨立於一般迴歸測試。
 - `shared` 的測試具有跨模組性質；後續快速 CI 應依修改檔案與相依關係選取，而不是所有變更一律跑完整 `shared`。
@@ -38,7 +38,7 @@ node scripts/test-groups.mjs --check
 - `.github/workflows/ci-full.yml` 監聽 `opened`、`ready_for_review`、`synchronize`、`reopened`，只對非 Draft PR 執行；也保留手動觸發入口。
 - 合併既有 Note editor audit 六個工作、全球地圖整合工作、球面幾何與離線預覽工作，維持原有的 PostgreSQL、Chromium、WebKit、離線及正式建置情境。
 - `scripts/run-full-extras.mjs` 比對測試清冊與既有工作流程，依主要群組補跑未被既有 CI 明確涵蓋的測試；按測試環境區分非瀏覽器與 Chromium 測試。
-- 目前清冊 177 個測試：100 個由既有工作流程的直接呼叫、已知 npm 指令或球面實驗萬用字元涵蓋，另有 76 個由補充工作執行；`tests/notePagination.study.test.cjs` 屬分頁 A/B/C 比較實驗，列為非阻擋專項研究，不納入正式迴歸關卡。
+- 目前清冊 177 個測試：100 個由既有工作流程的直接呼叫、已知 npm 指令或球面實驗萬用字元涵蓋，另有 76 個由補充工作執行；`tests/note/notePagination.study.test.cjs` 屬分頁 A/B/C 比較實驗，列為非阻擋專項研究，不納入正式迴歸關卡。
 - 8 個效能基準維持清冊記錄，但不列入每次完整 CI。
 - 此階段保留三份舊工作流程、Draft 快速 CI 及正式部署設定，未修改主分支／分支保護。
 - 這份完整 CI 是試行版本，尚未執行或驗證所有整合測試是否通過。既有 `worldMapUI.browser.test.cjs` 曾在 Chromium 等待資料狀態時失敗，不能因重組 CI 就忽略。
@@ -67,8 +67,23 @@ node scripts/test-groups.mjs --check
 
 - `dictionaryDraftPipeline.test.cjs`：移除舊 CSV 空白 Entry ID 合併同形文字與重複 Sense ID 的專項測試；現行 JSON 重複身分拒絕與同形構詞個別身分由 `currentImportBoundary.test.cjs` 覆蓋。
 
-## 實體資料夾分組進度
 
-- 已搬移 `note` 群組全部 7 份測試至 `tests/note/`，同步更新 `config/test-groups.json`、快速選擇器、完整補充執行器、Note 專項及整合工作流程。
-- `scripts/test-groups.mjs --check` 已改為遞迴掃描測試資料夾，避免搬移後漏列測試。
-- 其餘群組尚維持原實體位置，須逐群搬移並修正相對依賴與所有外部呼叫；目前不可稱全部實體分組完成。
+## 實體測試目錄（2026-11-17）
+
+| 群組 | 路徑 | 測試數 |
+| --- | --- | ---: |
+| 字典 | `tests/dictionary/` | 70 |
+| 學習 | `tests/study/` | 34 |
+| 世界地圖 | `tests/world-map/` | 12 |
+| 筆記 | `tests/note/` | 7 |
+| 創作 | `tests/creation/` | 11 |
+| 生活 | `tests/life/` | 6 |
+| 工作區 | `tests/workspace/` | 12 |
+| 共用 | `tests/shared/` | 11 |
+| 球面幾何實驗 | `experiments/spherical-grid/` | 13 |
+
+合計 176 份已編目的正式／實驗測試。8 份效能基準仍位於球面幾何實驗目錄並依獨立清冊管理。
+
+- 快速測試從 `config/test-groups.json` 依變更範圍選擇既有檔案，不另複製一份快速測試。
+- 完整 CI 與舊工作流程的直接測試指令均改為新路徑。
+- `scripts/test-groups.mjs --check` 遞迴檢查實體目錄與兩份清冊；最新完整 CI 通過前，不宣告執行驗證完成。
