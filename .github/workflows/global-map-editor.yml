@@ -35,18 +35,18 @@ jobs:
       - run: npm run map:global
       - run: npx tsc --noEmit
       - run: npx eslint src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx src/components/GlobalWorldMapEditor.tsx src/components/WorldMapCreator.tsx src/features/worldMap/globalMap*.ts
-      - run: node --test tests/globalMap.test.cjs tests/worldMap.test.cjs tests/worldMapCore.test.cjs tests/worldMapIndexedDB.test.cjs
+      - run: node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapIndexedDB.test.cjs
       - run: npx next build
       - name: Check production worker asset is executable JavaScript
         run: |
           node -e 'const fs=require("fs"),p=".next/static/media/",files=fs.readdirSync(p).filter(n=>n.startsWith("global-map-worker.")&&n.endsWith(".js"));if(!files.length)throw Error("Missing compiled worker");for(const f of files)new (require("vm").Script)(fs.readFileSync(p+f,"utf8"));'
       - run: npx playwright install --with-deps chromium webkit
       - name: WebKit workspace, offline and reconnect
-        run: GLOBAL_MAP_BROWSER=webkit node tests/globalMapEditor.browser.test.cjs
+        run: GLOBAL_MAP_BROWSER=webkit node tests/world-map/globalMapEditor.browser.test.cjs
       - name: Repeat WebKit from a clean persistent profile
-        run: GLOBAL_MAP_BROWSER=webkit node tests/globalMapEditor.browser.test.cjs
+        run: GLOBAL_MAP_BROWSER=webkit node tests/world-map/globalMapEditor.browser.test.cjs
       - name: Chromium workspace, offline and reconnect
-        run: node tests/globalMapEditor.browser.test.cjs
+        run: node tests/world-map/globalMapEditor.browser.test.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
