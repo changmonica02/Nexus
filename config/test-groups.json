@@ -182,17 +182,17 @@
       "tests/workspaceSync.test.cjs"
     ],
     "shared": [
-      "tests/confirmDialog.test.cjs",
-      "tests/eslintConfig.test.cjs",
-      "tests/pageDefaultModeRetirement.test.cjs",
-      "tests/post63UI.test.cjs",
-      "tests/pullToRefresh.test.cjs",
-      "tests/retirementCompatibility.test.cjs",
-      "tests/round3UI.test.cjs",
-      "tests/schemaRetirement.test.cjs",
-      "tests/sharedPrimitives.browser.test.cjs",
-      "tests/uiInteractions.test.cjs",
-      "tests/unifiedUI.test.cjs"
+      "tests/shared/confirmDialog.test.cjs",
+      "tests/shared/eslintConfig.test.cjs",
+      "tests/shared/pageDefaultModeRetirement.test.cjs",
+      "tests/shared/post63UI.test.cjs",
+      "tests/shared/pullToRefresh.test.cjs",
+      "tests/shared/retirementCompatibility.test.cjs",
+      "tests/shared/round3UI.test.cjs",
+      "tests/shared/schemaRetirement.test.cjs",
+      "tests/shared/sharedPrimitives.browser.test.cjs",
+      "tests/shared/uiInteractions.test.cjs",
+      "tests/shared/unifiedUI.test.cjs"
     ]
   },
   "benchmarks": [
