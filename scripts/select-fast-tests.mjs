@@ -7,7 +7,7 @@ const inventory=JSON.parse(readFileSync(path.join(root,'config/test-groups.json'
 const groups=inventory.groups;
 const owners=new Map(Object.entries(groups).flatMap(([g,files])=>files.map(f=>[f,g])));
 const smoke={
- dictionary:['tests/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionarySenseEditor.test.cjs'],
+ dictionary:['tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs','tests/dictionary/dictionarySenseEditor.test.cjs'],
  study:['tests/study/studyFSRS.test.cjs','tests/study/studySync.test.cjs','tests/study/studySpeech.test.cjs'],
  'world-map':['experiments/spherical-grid/land-generator.test.mjs','tests/world-map/globalMap.test.cjs','tests/world-map/worldMap.test.cjs'],
  note:['tests/note/noteExportLayout.test.cjs','tests/note/lessonDocument.test.cjs'],
@@ -44,7 +44,7 @@ export function selectFastTests(paths){
   else if(p.startsWith('scripts/')&&/map|world/i.test(p))add('world-map');
   else if(p.startsWith('src/')||p.startsWith('supabase/')||p.startsWith('scripts/')||p.startsWith('config/')||p.startsWith('.github/')||p.startsWith('package')||/^(?:next|eslint|tsconfig)/.test(p)){expanded=true;reasons.push('Shared or build path: '+p);}
   else {expanded=true;reasons.push('Unknown path: '+p);}
-  if(/(?:dictionary.*(?:example|sense|derivat)|supabase\/migrations\/.*(?:dictionary|sense|example))/i.test(p))selected.add('tests/dictionaryExamplesAtomicDraft.test.cjs');
+  if(/(?:dictionary.*(?:example|sense|derivat)|supabase\/migrations\/.*(?:dictionary|sense|example))/i.test(p))selected.add('tests/dictionary/dictionaryExamplesAtomicDraft.test.cjs');
   if(/(?:speech|tts)/i.test(p)){add('study');selected.add('tests/study/studySpeech.test.cjs');selected.add('tests/study/studySpeech.browser.test.cjs');}
   if(/(?:sync|storage|IndexedDB)/i.test(p)){add('workspace','study','world-map');selected.add('tests/workspace/workspaceSync.test.cjs');selected.add('tests/world-map/worldMapIndexedDB.test.cjs');}
   if(/noteExport|noteTablePagination/i.test(p)){add('note');selected.add('tests/note/noteExportLayout.test.cjs');}
