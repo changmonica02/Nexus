@@ -10,7 +10,7 @@ test(
   "private template structure editing autosaves without personal content at desktop/tablet/mobile",
   { timeout: 150000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-character-blocks-"));
     await build({loader:{".woff":"dataurl",".woff2":"dataurl",".ttf":"dataurl"},
       entryPoints: ["tests/fixtures/characterBlocks.jsx"],
