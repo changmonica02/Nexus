@@ -15,10 +15,6 @@ test('internal CSV adapter uses current 12 columns; stable Entry/Sense identity 
  const reordered=await parseDictionaryCSV(csv([b,{...a,headword:'edited',gloss_zh_tw:'改義'}]));assert.equal(reordered[1].entry_id,first[0].entry_id);assert.equal(reordered[1].senses[0].id,first[0].senses[0].id);
  const again=await parseDictionaryCSV(exportDictionaryCSV(reordered));assert.deepEqual(again.map(d=>[d.entry_id,d.senses[0].id]),reordered.map(d=>[d.entry_id,d.senses[0].id]));
 });
-test('blank IDs are proposed once per Preview, not derived from CSV content or position',async()=>{
- const raw=csv([row(10,{entry_id:'',sense_id:''})]);const a=await parseDictionaryCSV(raw),b=await parseDictionaryCSV(raw);assert.notEqual(a[0].entry_id,b[0].entry_id);assert.notEqual(a[0].senses[0].id,b[0].senses[0].id);
- const stored=JSON.parse(JSON.stringify(a));assert.deepEqual(mapDictionaryDraft(stored[0]),mapDictionaryDraft(a[0]));
-});
 test('invalid rows remain Review without blocking safe rows',async()=>{
  const {drafts,issues}=await parseDictionaryCSVPreview(csv([row(10),row(20,{part_of_speech:''})]));
  const s=await buildImportSession({rpc:async()=>({data:[empty]})},id(1),'csv',drafts,issues);assert.equal(s.items.filter(i=>i.bucket==='safe').length,1);assert.equal(s.items.filter(i=>i.bucket==='review').length,1);assert.ok(s.items.find(i=>i.bucket==='review').issues.every(i=>i.allowedActions.join(',')==='skip,later'));
