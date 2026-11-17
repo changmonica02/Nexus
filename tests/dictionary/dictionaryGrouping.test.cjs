@@ -2,7 +2,7 @@ require('../loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
 // Historical migration fixture, not a runtime category source.
-const primaryCategories=['空間、位置與環境'];
+const primaryCategories=['空間、位置與環境','動作、接觸與物理作用'];
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('grouped drafts: atomic save, technical revisions, RLS, immutable published groups and paginated category search',async()=>{
  const pg=new PGlite();
