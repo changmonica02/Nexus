@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {build}=require('esbuild'),{chromium}=require('playwright'),{PGlite}=require('@electric-sql/pglite');
 const {installStudyClear}=require('../fixtures/studyClearDatabase.cjs');
 test('history-only clear entry retains named confirmation and real SQL; offline refusal, dropped reply retry, keyboard/focus and bilingual responsive layout',{timeout:120000},async()=>{
- const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-clear-')),root=path.resolve(__dirname,'..'),pg=new PGlite();let server,browser;
+ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-clear-')),root=path.resolve(__dirname,'../..'),pg=new PGlite();let server,browser;
  try{
   await pg.exec(`create schema auth;create role authenticated;create role anon;create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
   for(const file of ['20260922_study_fsrs.sql','20261016_study_reliability.sql'])await pg.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
