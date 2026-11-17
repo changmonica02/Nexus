@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const fs = require('node:fs');
 const { chromium } = require('playwright');
-const { waitForAsync, setNetwork } = require('../pwaBrowser.cjs');
+const { waitForAsync, setNetwork } = require('../helpers/pwaBrowser.cjs');
 
 test('PWA shell: anonymous complete releases, offline restart, exclusions and durable data', { timeout: 90000 }, async t => {
   let release = 'a', missing = false, workerVersion = 'v2';
