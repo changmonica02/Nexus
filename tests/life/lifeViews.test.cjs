@@ -1,4 +1,4 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const {
@@ -10,7 +10,7 @@ const {
   viewPreferenceKey,
   orderedFields,
   searchItem,
-} = require("../src/features/life/listViewModel.ts");
+} = require("../../src/features/life/listViewModel.ts");
 test("view model: hierarchy scopes include descendants, stable IDs and archived fields remain distinct", () => {
   const categories = [
     { id: "a", title: "Cosmetics", parent_id: null },
