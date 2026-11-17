@@ -1,12 +1,12 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const {
   listAdminWork,
   adminPageSize,
-} = require("../src/features/dictionary/adminQueries.ts");
-const preferences = require("../src/lib/featurePreferences.ts");
-const { translate } = require("../src/lib/i18n.ts");
+} = require("../../src/features/dictionary/adminQueries.ts");
+const preferences = require("../../src/lib/featurePreferences.ts");
+const { translate } = require("../../src/lib/i18n.ts");
 function server(size = 6301) {
   const entries = Array.from({ length: size }, (_, i) => ({
     id: String(i),
