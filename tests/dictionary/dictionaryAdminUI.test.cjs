@@ -16,7 +16,7 @@ test('admin editor exposes independent sense/history/memory sections and locks p
   assert.ok(locked.includes('<fieldset disabled'));
   assert.ok(!locked.includes('確認首次發布已儲存草稿'));
 });
-test('admin route owns scrolling and return links use fixed destinations',()=>{
+test('admin navigation preserves fixed return targets and unsaved-draft guard',()=>{
   const admin=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');
   assert.ok(admin.includes('adminListHref(adminContext'));
   assert.ok(admin.includes('useUnsavedDraft(dirty,busy||saving||publicationBusy||linkBusy,()=>save())'));
@@ -46,7 +46,7 @@ test('JSON-only import retains preview and explicit draft confirmation',()=>{
   for(const text of ['normalizeDictionaryBundle','buildImportSession','confirmDialog','applyImportItems','exchange.applySafe','exchange.onlyPending'])assert.ok(workflow.includes(text),text);
 });
 
-test('editor uses ordered sections, contextual meaning links, no Sense selector and themed grouping',()=>{
+test('editor exposes supported Word and morpheme controls without retired Sense fields',()=>{
   const root={...detail,entry:{...detail.entry,kind:'root'}};
   const render=d=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:d,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
@@ -122,7 +122,7 @@ test('list filtering retains search/type behavior without selection controls',()
  assert.deepEqual(visibleAdminEntries(entries,[],'missing'),[]);
  assert.deepEqual(visibleAdminEntries(entries,[],'').map(e=>e.id),['a','b','c']);
 });
-test('dictionary toolbar keeps only create, import and export without row selection actions',()=>{
+test('dictionary toolbar supports import export and busy guards without obsolete bulk selection',()=>{
  const props={busy:false,onNew:()=>{},onImport:()=>{},onExport:()=>{}};
  const render=p=>renderToStaticMarkup(React.createElement(DictionaryListActions,{...props,...p}));
  const html=render({});for(const label of ['新增','匯入資料','匯出資料'])assert.ok(html.includes('>'+label+'</button>'),label);
@@ -157,7 +157,7 @@ test('manual drafts strip legacy attribution and never create placeholder source
  const bundle={dictionary_entries:[{id:'00000000-0000-4000-8000-000000000001',source_id:'source'}],dictionary_senses:[{id:'00000000-0000-4000-8000-000000000002',source_id:'source'}]};
  const prepared=prepareEditorBundle(bundle);assert.equal(prepared.dictionary_sources,undefined);assert.equal(prepared.dictionary_entries[0].source_id,undefined);assert.equal(prepared.dictionary_senses[0].source_id,undefined);assert.equal(bundle.dictionary_entries[0].source_id,'source');
 });
-test('return sits beside page title and shared copyright information is reachable under About',()=>{
+test('dictionary administration exposes shared copyright and licensing notice',()=>{
  const source=fs.readFileSync('src/features/dictionary/DictionaryAdmin.tsx','utf8');assert.ok(!source.includes('僅管理員可編輯。字典不會覆寫任何人的字卡或學習紀錄。'));
  assert.ok(source.includes('<PageHeader title="字典管理"'));
  const settings=fs.readFileSync('src/components/SettingsDialog.tsx','utf8');assert.ok(settings.includes('"關於 Nexus"'));assert.ok(settings.includes('<DataSourcesAndCopyright/>'));
@@ -193,7 +193,7 @@ test('Word Sense rows keep stable identities and blank legacy values; basic info
  assert.deepEqual(require('../../src/features/dictionary/DictionaryAdmin.tsx').prepareEditorBundle(bundle).dictionary_senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})),senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})));
 });
 
-test('normal preview places core concept before etymology without legacy kind or retired hint controls',()=>{
+test('normal preview hides retired relation hints and internal note kind',()=>{
  const html=renderToStaticMarkup(React.createElement(DictionaryPreview,{technical:false,bundle:{dictionary_etymologies:[{id:'h',body:'history'}],dictionary_learning_notes:[{id:'n',kind:'core_concept',body:'image'}],dictionary_lexical_annotations:[{id:'old',kind:'relation_hint',body:'archived hint'}]}}));
 assert.ok(!html.includes('core_concept'));assert.ok(!html.includes('archived hint'));assert.ok(html.includes('image'));assert.ok(html.includes('history'));
 });
