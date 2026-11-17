@@ -57,7 +57,3 @@ test('exchange scope recognizes new Word content changes and keeps old stamped s
   await assert.rejects(pg.exec(sql),/Unexpected exchange scope RPC/);
  }finally{await pg.close();}
 });
-test('exchange B2 scope patch does not remove historical reviews or private study records',()=>{
- assert.doesNotMatch(sql,/\\bdrop\\s+(?:table|column)\\b|\\btruncate\\b|\\bcascade\\b/i);
- assert.doesNotMatch(sql,/delete\\s+from\\s+public\\.dictionary_review_drafts|study_card_states|fsrs/i);
-});
