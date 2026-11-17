@@ -18,7 +18,7 @@ test(
     );
     const bundle = await build({
       stdin: {
-        contents: `import {IndexedDBAdapter as Legacy} from 'legacy-adapter';import {IndexedDBAdapter as Current} from '../src/infrastructure/storage/IndexedDBAdapter';window.Legacy=Legacy;window.Current=Current;window.openOld=async()=>{window.old=new Legacy();await old.init();old.setWorkspaceOwner('upgrade-owner');await old.createPage({title:'unsynced v8 note'});const attachment=await old.createAttachment({kind:'file',name:'offline.txt',mime_type:'text/plain',size_bytes:7});await old.attachBinary(attachment.id,new Blob(['offline']));window.attachmentId=attachment.id;return (await old.getWorkspacePersistence().pending('upgrade-owner')).length;};`,
+        contents: `import {IndexedDBAdapter as Legacy} from 'legacy-adapter';import {IndexedDBAdapter as Current} from '../../src/infrastructure/storage/IndexedDBAdapter';window.Legacy=Legacy;window.Current=Current;window.openOld=async()=>{window.old=new Legacy();await old.init();old.setWorkspaceOwner('upgrade-owner');await old.createPage({title:'unsynced v8 note'});const attachment=await old.createAttachment({kind:'file',name:'offline.txt',mime_type:'text/plain',size_bytes:7});await old.attachBinary(attachment.id,new Blob(['offline']));window.attachmentId=attachment.id;return (await old.getWorkspacePersistence().pending('upgrade-owner')).length;};`,
         resolveDir: root,
       },
       bundle: true,
