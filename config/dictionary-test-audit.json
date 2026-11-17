@@ -1,11 +1,11 @@
 {
   "version": 1,
   "source": "config/test-groups.json#groups.dictionary",
-  "status": "只提出建議；不得用於自動移除測試或略過 CI",
+  "status": "依現行規格直接精簡，已退役測試同步移出清冊與 CI",
   "decision_rule": "先確認正式支援規格、逐項斷言和測試環境，替代流程通過後才可刪減",
   "counts": {
     "核心保留": 40,
-    "整併候選": 16,
+    "整併候選": 15,
     "更新現行規格": 11,
     "退役候選": 4
   },
@@ -451,20 +451,6 @@
       "note": "保留跨 Sense 參照約束與雙語例句資料完整性"
     },
     {
-      "file": "tests/dictionarySenseDraftRPC.test.cjs",
-      "area": "Sense 與例句",
-      "action": "整併候選",
-      "note": "與原子例句寫入重疊，但須保留 Draft RPC 邊界",
-      "comparison": {
-        "compare": [
-          "dictionaryExamplesAtomicDraft.test.cjs",
-          "dictionarySenseDerivations.test.cjs"
-        ],
-        "unique": "Draft RPC 寫入函式邊界與例句／衍生義回讀",
-        "decision": "最優先考慮整併；移動函式邊界及真實 SQL 斷言後才可刪檔"
-      }
-    },
-    {
       "file": "tests/dictionarySenseEditor.test.cjs",
       "area": "Sense 與例句",
       "action": "整併候選",
@@ -585,7 +571,7 @@
       }
     }
   ],
-  "review_phase": "已核對 16 個整併候選與 4 個退役候選的不同保障；尚未經替代測試通過驗證，不能刪除",
+  "review_phase": "已處理舊 B2 Draft RPC 重複測試，現行原子例句測試負責 SQL 與 Draft RPC 寫入；其餘候選持續依現行規格整併或刪減",
   "completed_current_contract_edits": [
     "tests/dictionaryAdmin.test.cjs",
     "tests/currentImportBoundary.test.cjs",
@@ -597,7 +583,7 @@
     "tests/dictionaryImportReview.test.cjs",
     "tests/dictionarySourceRetirement.test.cjs"
   ],
-  "comparison_verified": 16,
+  "comparison_verified": 15,
   "retirement_reviewed": 4,
   "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。",
   "current_contract_remaining": [
@@ -606,7 +592,7 @@
     "tests/dictionaryImportReview.test.cjs",
     "tests/dictionaryDraftPipeline.test.cjs"
   ],
-  "progress_note": "第一批更新與比較完成，尚未取得最新完整 CI 全綠；已確認的重複案例在原檔內刪減。16 個整併候選暫均保留具獨立價值的情境；4 個退役候選仍涉及資料庫升級或安全，待取得最舊支援版本證據再決定是否刪除。",
+  "progress_note": "已刪除 dictionarySenseDraftRPC.test.cjs 舊版重複測試，並同步移除 CI 呼叫與清冊記錄。其餘測試依現行正式功能持續精簡；完整 CI 結果仍須查核。",
   "current_contract_changes": {
     "tests/dictionaryAdmin.test.cjs": "已將公開匯入入口改為 JSON；待 CI 確認資料庫回復流程",
     "tests/currentImportBoundary.test.cjs": "已以 JSON-only 與同形構詞穩定身分取代已退役 CSV 匯入入口檢查",
@@ -623,5 +609,11 @@
     "tests/dictionaryLifecycle.test.cjs",
     "tests/dictionaryImportReview.test.cjs",
     "tests/dictionaryDraftPipeline.test.cjs"
+  ],
+  "completed_retirements": [
+    {
+      "file": "tests/dictionarySenseDraftRPC.test.cjs",
+      "reason": "舊版 B2 Draft RPC 使用過時的例句衍生義可空約束；現行原子例句寫入及 Draft RPC 實際 SQL 檢查已由 dictionaryExamplesAtomicDraft.test.cjs 覆蓋"
+    }
   ]
 }
