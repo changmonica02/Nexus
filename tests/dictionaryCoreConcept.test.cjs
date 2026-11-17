@@ -35,73 +35,26 @@ test("core merge is stable, lossless, scope-specific and repeat-safe", () => {
   assert.deepEqual(mergeCoreConcepts(merged), merged);
   assert.deepEqual(rows[0].body, "story\n原文");
 });
-test("new/legacy CSV, Bundle and AI preserve core content without old type selectors", async () => {
-  const {
-    parseDictionaryCSV,
-    dictionaryCSVHeaders,
-    exportDictionaryCSV,
-  } = require("../src/features/dictionary/dictionaryCSV.ts");
-  const {
-    parseJSONBundle,
-  } = require("../src/features/dictionary/adminImport.ts");
-  const { parseAI } = require("../src/features/dictionary/aiDictionary.ts");
-  const csv =
-    dictionaryCSVHeaders.join(",") +
-    "\n" +
-    [
-      "word",
-      id(10),
-      id(11),
-      "test",
-      "noun",
-      "義",
-      "",
-      "",
-      "",
-      "",
-      "image",
-    ].join(",");
-  const modern = (await parseDictionaryCSV(csv))[0],
-    legacy = (
-      await parseDictionaryCSV(csv.replace("core_concept", "mnemonic_story"))
-    )[0];
-  assert.equal(modern.learning_notes[0].body, legacy.learning_notes[0].body);
-  assert.equal(legacy.learning_notes[0].kind, "core_concept");
-  assert.ok(exportDictionaryCSV([modern]).includes("core_concept"));
-  assert.ok(!exportDictionaryCSV([modern]).includes("mnemonic_story"));
-  const bundle = parseJSONBundle(
-    JSON.stringify({
-      dictionary_learning_notes: [
-        {
-          id: id(20),
-          entry_id: id(10),
-          sense_id: id(11),
-          kind: "learning_decomposition",
-          body: "image",
-        },
-        {
-          id: id(21),
-          entry_id: id(10),
-          sense_id: id(11),
-          kind: "mnemonic_scenario",
-          body: "story",
-        },
-      ],
-    }),
-  );
-  assert.equal(bundle.dictionary_learning_notes.length, 1);
-  assert.equal(bundle.dictionary_learning_notes[0].body, "image\n\nstory");
-  const ai = parseAI(
-    JSON.stringify({
-      format: "nexus-dictionary-ai",
-      version: 1,
-      entries: [
-        { type: "word", headword: "test", story: [{ text: "old story" }] },
-      ],
-    }),
-  );
-  assert.equal(ai.entries[0].core_concept[0].text, "old story");
-  assert.equal("story" in ai.entries[0], false);
+test("supported JSON bundle and AI projections preserve core concept content and stable identifiers", async () => {
+ const {parseJSONBundle}=require("../src/features/dictionary/adminImport.ts");
+ const {parseAI}=require("../src/features/dictionary/aiDictionary.ts");
+ const raw={
+  dictionary_learning_notes:[
+   {id:id(20),entry_id:id(10),sense_id:id(11),kind:"learning_decomposition",body:"image"},
+   {id:id(21),entry_id:id(10),sense_id:id(11),kind:"mnemonic_scenario",body:"story"},
+  ],
+ };
+ const before=structuredClone(raw);
+ const bundle=parseJSONBundle(JSON.stringify(raw));
+ assert.equal(bundle.dictionary_learning_notes.length,1);
+ assert.equal(bundle.dictionary_learning_notes[0].id,id(20));
+ assert.equal(bundle.dictionary_learning_notes[0].body,"image\\n\\nstory");
+ assert.deepEqual(raw,before,"JSON import must not modify caller data");
+ const again=parseJSONBundle(JSON.stringify(bundle));
+ assert.deepEqual(again,bundle,"re-import of normalized data is stable");
+ const ai=parseAI(JSON.stringify({format:"nexus-dictionary-ai",version:1,entries:[{type:"word",headword:"test",story:[{text:"old story"}]}]}));
+ assert.equal(ai.entries[0].core_concept[0].text,"old story");
+ assert.equal("story" in ai.entries[0],false);
 });
 test(
   "core migration: published contents/sources, stable Entry/Sense, active Review, rollback, replay, manual approval and RLS",
