@@ -167,7 +167,8 @@ test(
             );
           });
           assert.equal(await publish.isDisabled(), true);
-          const label = { prefix: "字首", root: "字根", word: "英文字形 1" }[kind],
+          const label = kind === "word" ? "英文字形 1" : "構詞名稱",
+            glossLabel = kind === "word" ? "中文意思" : "概述",
             headword =
               kind === "prefix"
                 ? width === 1280
@@ -175,7 +176,7 @@ test(
                   : "ab-" + width
                 : kind + "-" + width;
           await page.getByLabel(label, { exact: true }).fill(headword);
-          await page.getByLabel("中文意思", { exact: true }).fill("測試義項");
+          await page.getByLabel(glossLabel, { exact: true }).fill("測試義項");
           await page
             .getByRole("button", {
               name: kind === "word" ? "＋新增義項" : "＋新增中文義項",
@@ -183,7 +184,7 @@ test(
             })
             .click();
           await page
-            .getByLabel("中文意思", { exact: true })
+            .getByLabel(glossLabel, { exact: true })
             .nth(1)
             .fill("即將刪除");
           await save.click();
@@ -197,20 +198,20 @@ test(
               )?.disabled,
           );
           const retainedGloss = await page
-            .getByLabel("中文意思", { exact: true })
+            .getByLabel(glossLabel, { exact: true })
             .first()
             .inputValue();
           // Immediate child deletion advances the editor baseline revision without remounting the parent.
           await page
-            .getByRole("button", { name: "刪除義項 2", exact: true })
+            .locator(kind === "word" ? '[data-word-sense-row]' : '[data-morpheme-sense]').nth(1).getByRole("button", { name: kind === "word" ? "刪除義項 2" : "刪除義項", exact: true })
             .click();
           await page
             .getByRole("dialog")
             .getByRole("button", { name: "確認", exact: true })
             .click();
-          await page.waitForFunction(()=>document.querySelectorAll('[data-word-sense-row]').length<=1);
+          await page.waitForFunction(kind => document.querySelectorAll(kind === 'word' ? '[data-word-sense-row]' : '[data-morpheme-sense]').length <= 1, kind);
           await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor().catch(async e=>{console.error(await page.locator('body').innerText(),calls.slice(-5));throw e;});
-          await page.getByLabel("中文意思", { exact: true }).fill("尚未儲存");
+          await page.getByLabel(glossLabel, { exact: true }).fill("尚未儲存");
           const count = calls.filter(
             (x) => x.name === "publish_dictionary_entry",
           ).length;
@@ -224,7 +225,7 @@ test(
             count,
           );
           await page
-            .getByLabel("中文意思", { exact: true })
+            .getByLabel(glossLabel, { exact: true })
             .fill(retainedGloss);
           if(await save.isEnabled())await save.click();
           await publish.click();
@@ -255,7 +256,7 @@ test(
             .filter({ hasText: "publication denied" })
             .waitFor();
           assert.equal(
-            await page.getByLabel("中文意思", { exact: true }).inputValue(),
+            await page.getByLabel(glossLabel, { exact: true }).inputValue(),
             retainedGloss,
           );
           assert.equal(
