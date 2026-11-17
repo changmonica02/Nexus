@@ -124,6 +124,9 @@ test(
             "base64",
           ),
         });
+      await page.waitForFunction(async () =>
+        (await window.lifeStorage.listAttachments()).some((a) => a.name === "photo.png"),
+      );
       await save();
       await page.getByRole("heading", { name: "Blue polish", exact: true }).waitFor();
       await page.getByText("123.45 TWD", { exact: true }).waitFor();
