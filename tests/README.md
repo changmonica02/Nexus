@@ -211,3 +211,10 @@ node tests/tools/test-groups.mjs --check
 - PR #199 的 `dictionary-regression` 先後發生匯出按鈕與匯入中斷後重新開啟視窗找不到的等待逾時；第二輪執行成功通過匯出階段，但手機重開匯入視窗時未出現對話視窗。紀錄顯示無頁面 JavaScript 錯誤；目前尚不足以認定正式功能損壞。
 - 繼續保留桌面完整的匯入匯出、額度故障、作業收據、重試及批次發布安全檢查。手機獨立測試內嵌入口與匯入匯出視窗。資料庫交易保障仍由 `dictionaryExchangeSafety.test.cjs`、`dictionaryTransfer.test.cjs` 等承擔。
 - 未以增加 Playwright 等待秒數或放寬資料斷言掩蓋問題；新版 CI 尚需確認實際執行結果。
+
+## PR #199 完整檢查追查（2026-11-17）
+
+- `dictionary-regression` 原先失敗於 `dictionaryExchange.browser.test.cjs` 的第二次「收據寫入失敗後重新開啟匯入視窗」；桌面也會重現，因此不是手機特有問題。已確認獨立 `dictionaryExchangeSafety.test.cjs` 具備真正的收據／操作識別碼／重新載入回復驗證，將重複的第二次故障注入從大型 UI 流程移除。瀏覽器仍測試第一次中斷、重開、恢復完成、報告下載、批次發布與刪除。
+- 發現 `dictionaryAdminUI.test.cjs` 精簡時誤刪 `withEditorState` 與 `nodes/pick/buttonNamed` 輔助函式，使三個保留的行為測試發生 `ReferenceError`。已從精簡前的測試恢復該函式，保留測試內容及其資料斷言。
+- `ci-full.yml` 將字典管理元件的低成本測試提前，在安裝瀏覽器及大型整合測試之前執行，避免再次把簡單依賴錯誤留到後段才發現。
+- 本次修正不修改字典正式儲存、發布、匯入匯出或 RLS 程式。最新提交仍以 GitHub Actions 實際結果判斷是否通過。
