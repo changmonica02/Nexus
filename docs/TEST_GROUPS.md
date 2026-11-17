@@ -32,3 +32,15 @@ node scripts/test-groups.mjs --check
 - CI 會建立暫存的 `.fast-changed` 與 `.fast-plan.json`；這兩個檔案僅是執行中的產物，不屬於專案保存資料。
 
 完整 CI 仍必須處理所有正式測試（包含瀏覽器、資料庫、離線），不能將快速選擇的通過結果視為正式合併授權。
+
+## Ready for review 完整驗證（試行）
+
+- `.github/workflows/ci-full.yml` 監聽 `opened`、`ready_for_review`、`synchronize`、`reopened`，只對非 Draft PR 執行；也保留手動觸發入口。
+- 合併既有 Note editor audit 六個工作、全球地圖整合工作、球面幾何與離線預覽工作，維持原有的 PostgreSQL、Chromium、WebKit、離線及正式建置情境。
+- `scripts/run-full-extras.mjs` 比對測試清冊與既有工作流程，依主要群組補跑未被既有 CI 明確涵蓋的測試；按測試環境區分非瀏覽器與 Chromium 測試。
+- 目前清冊 177 個測試：100 個由既有工作流程的直接呼叫、已知 npm 指令或球面實驗萬用字元涵蓋，另有 76 個由補充工作執行；`tests/notePagination.study.test.cjs` 屬分頁 A/B/C 比較實驗，列為非阻擋專項研究，不納入正式迴歸關卡。
+- 8 個效能基準維持清冊記錄，但不列入每次完整 CI。
+- 此階段保留三份舊工作流程、Draft 快速 CI 及正式部署設定，未修改主分支／分支保護。
+- 這份完整 CI 是試行版本，尚未執行或驗證所有整合測試是否通過。既有 `worldMapUI.browser.test.cjs` 曾在 Chromium 等待資料狀態時失敗，不能因重組 CI 就忽略。
+- 舊流程與新完整 CI 暫時會重複執行。必須先驗證新流程，再移除舊觸發和切換必填檢查。
+- Ready 後有新提交會重新執行完整工作流程；合併時仍應以最新程式碼的實際檢查結果為準。
