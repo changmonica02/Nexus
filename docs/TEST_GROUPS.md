@@ -1,6 +1,6 @@
 # Nexus 測試邏輯分組
 
-- 權威清冊：`config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。
+- 權威清冊：`config/test-groups.json`。每個測試檔案只指定一個主要負責群組，避免完整測試重複執行。實體資料夾分組已開始：`tests/note/` 為 Note 專項測試；共用 `tests/fixtures/` 與測試啟動輔助仍位於 `tests/`。
 - 群組：`dictionary`、`study`、`world-map`、`note`、`creation`、`life`、`workspace`、`shared`。
 - `benchmarks` 為效能基準，獨立於一般迴歸測試。
 - `shared` 的測試具有跨模組性質；後續快速 CI 應依修改檔案與相依關係選取，而不是所有變更一律跑完整 `shared`。
@@ -66,3 +66,9 @@ node scripts/test-groups.mjs --check
 - `dictionaryImportReview.test.cjs`：刪除舊 CSV 空白 Entry/Sense ID 每次預覽自動配置的單元測試，保留匯入審核、衝突、SQL 與回復測試；現行 JSON 身分驗證由 `currentImportBoundary.test.cjs` 負責。
 
 - `dictionaryDraftPipeline.test.cjs`：移除舊 CSV 空白 Entry ID 合併同形文字與重複 Sense ID 的專項測試；現行 JSON 重複身分拒絕與同形構詞個別身分由 `currentImportBoundary.test.cjs` 覆蓋。
+
+## 實體資料夾分組進度
+
+- 已搬移 `note` 群組全部 7 份測試至 `tests/note/`，同步更新 `config/test-groups.json`、快速選擇器、完整補充執行器、Note 專項及整合工作流程。
+- `scripts/test-groups.mjs --check` 已改為遞迴掃描測試資料夾，避免搬移後漏列測試。
+- 其餘群組尚維持原實體位置，須逐群搬移並修正相對依賴與所有外部呼叫；目前不可稱全部實體分組完成。
