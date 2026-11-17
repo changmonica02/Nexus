@@ -270,8 +270,8 @@ test('IDB: map display blocks share canonical project, preserve independent pref
 
 test('IDB: global snapshots, recovery, replacement and backup retain authoritative heights',async t=>{
  const {globalMapBlob}=require('../../src/features/worldMap/globalMapProject.ts');
- const {createLandLayout}=await import('../experiments/spherical-grid/land-generator.mjs');
- const {exportGlobalTerrainSnapshot}=await import('../experiments/spherical-grid/snapshot.mjs');
+ const {createLandLayout}=await import('../../experiments/spherical-grid/land-generator.mjs');
+ const {exportGlobalTerrainSnapshot}=await import('../../experiments/spherical-grid/snapshot.mjs');
  const make=seed=>{const d=createLandLayout({seed,landPercent:32,continentCores:8});return globalMapBlob({format:'nexus-global-map',version:1,settings:d.settings,terrain:exportGlobalTerrainSnapshot({grid:d.grid,oceanSeed:d.oceanSeed,revision:0})});};
  const source=await device(t),target=await device(t);await source.adapter.savePage(world());
  const repo=new WorldMapRepository(source.adapter),original=make(1),replacement=make(2);
