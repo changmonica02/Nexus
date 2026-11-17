@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 test('dictionary publish/resume revalidates list, stats and exact pages; preserves filters and active Review, cross-tab/focus refresh',{timeout:120000},async()=>{
- const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-refresh-'));
+ const root=path.resolve(__dirname,'../..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-refresh-'));
  await build({entryPoints:['tests/fixtures/persistentImport.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})},plugins:[{name:'isolated',setup(b){b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`import React from '${root}/node_modules/react/index.js';export default function Link(props){return React.createElement('a',props)}`,loader:'js',resolveDir:root}));b.onLoad({filter:/infrastructure\/supabase\/client\.ts$/},()=>({contents:'export const getSupabase=()=>window.dictionaryClient;export const isSupabaseConfigured=()=>true;',loader:'js'}));}}]});
  let completed=false,red=false,batches=0;const calls=[];
  const server=http.createServer(async(req,res)=>{if(req.url==='/fixture.js'){res.setHeader('content-type','application/javascript');res.end(fs.readFileSync(path.join(tmp,'fixture.js')));return;}if(req.url==='/rpc'){
