@@ -45,6 +45,15 @@ jobs:
         run: node scripts/select-fast-tests.mjs --changed-file .fast-changed
       - name: Typecheck application
         run: npx tsc --noEmit
+      - name: Build required map test assets
+        run: |
+          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('globalMap'))?0:1)"; then
+            npm run map:global
+          fi
+          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('worldMap'))?0:1)"; then
+            npm run map:build
+          fi
+
       - name: Run affected non-browser tests
         run: |
           node --input-type=module <<'NODE'
