@@ -28,8 +28,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Validate inventory and routing rules
         run: |
-          node scripts/test-groups.mjs --check
-          node --test scripts/select-fast-tests.test.mjs
+          node tests/tools/test-groups.mjs --check
+          node --test tests/tools/select-fast-tests.test.mjs
       - name: Determine all changes against PR base
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -42,7 +42,7 @@ jobs:
           fi
           test -s .fast-changed
       - name: Resolve required tests
-        run: node scripts/select-fast-tests.mjs --changed-file .fast-changed
+        run: node tests/tools/select-fast-tests.mjs --changed-file .fast-changed
       - name: Typecheck application
         run: npx tsc --noEmit
       - name: Build required map test assets
