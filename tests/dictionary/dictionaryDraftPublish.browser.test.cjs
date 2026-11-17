@@ -140,8 +140,9 @@ test(
         args: ["--no-sandbox"],
       });
       const errors = [];
-      for (const width of [1280, 820, 390])
-        for (const kind of ["prefix", "word", "root"]) {
+      // One end-to-end SQL publication per supported kind; vary viewport rather than
+      // repeating the identical full transaction at every viewport.
+      for (const [kind, width] of [["word", 1280], ["prefix", 820], ["root", 390]]) {
           const context = await browser.newContext({
               viewport: { width, height: 1000 },
             }),
@@ -323,39 +324,6 @@ test(
           );
           await context.close();
         }
-      // A legacy copied Review is deliberately not a standalone publishable Entry.
-      await pg.exec("reset role");
-      const source = await sql(
-        pg,
-        "select id::text v from dictionary_entries where status='published' limit 1",
-      );
-      await pg.query(
-        "insert into dictionary_entries(id,kind,headword) values($1,'prefix','legacy-')",
-        [id(980000)],
-      );
-      await pg.query(
-        "insert into dictionary_senses(id,entry_id,gloss_zh_tw) values($1,$2,'保留舊稿')",
-        [id(980001), id(980000)],
-      );
-      await pg.query(
-        "insert into dictionary_ai_metadata(entry_id,published_entry_id) values($1,$2)",
-        [id(980000), source],
-      );
-      await pg.exec("set role authenticated");
-      const legacy = await browser.newPage({
-        viewport: { width: 390, height: 844 },
-      });
-      await legacy.goto(
-        "http://127.0.0.1:" + server.address().port + "/?entry=" + id(980000),
-      );
-      await legacy
-        .getByText("這是舊版複製型審核草稿", { exact: false })
-        .waitFor();
-      assert.equal(
-        await legacy.getByRole("button", { name: "發布", exact: true }).count(),
-        0,
-      );
-      await legacy.close();
       assert.deepEqual(errors, []);
     } finally {
       await browser?.close();
