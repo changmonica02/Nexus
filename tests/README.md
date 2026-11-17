@@ -194,7 +194,7 @@ node tests/tools/test-groups.mjs --check
 - `dictionaryEditor.browser.test.cjs`：固定 Word 欄位填寫、清空、自動儲存及重新開啟保留桌面與手機兩套流程，不再重跑平板全流程；錯誤復原及未知發布結果仍保留。
 - `dictionaryTransfer.browser.test.cjs`：保留桌面與 320px 手機的 PostgreSQL API／轉移對話框流程，移除平板全流程的重複執行。
 - `studyDictionaryPanel.browser.test.cjs`：學習中的字典面板保留桌面與 320px 手機流程，獨立閱讀頁面亦保留桌面與手機；離線、權限、導覽回復及 Session 不變性情境未移除。
-- `dictionaryExchange.browser.test.cjs` 暫保留桌面／手機兩組完整流程，因手機的內嵌操作路徑不同；`dictionaryDraftPublish` 仍保留實際資料庫發布，`dictionaryTransfer` 仍保留交易與安全取代，不以同名資料交換任意刪除。
+- `dictionaryExchange.browser.test.cjs` 將大量批次匯出、匯入、IndexedDB 額度故障、斷點續傳與批次發布集中在桌面完整流程；手機改為匯出／匯入視窗的獨立開啟驗證，避免二次故障注入；`dictionaryDraftPublish` 仍保留實際資料庫發布，`dictionaryTransfer` 仍保留交易與安全取代，不以同名資料交換任意刪除。
 - 字典測試檔案數與清冊維持不變；本次降低重複的瀏覽器操作矩陣，並非移除核心功能安全測試。GitHub Actions 結果應另行確認。
 
 ## 世界地圖改版前測試退役（2026-11-17）
@@ -205,3 +205,9 @@ node tests/tools/test-groups.mjs --check
 - `experiments/spherical-grid/` 未修改；獨立球面實驗 CI 保留其原有測試。完整 CI 已停止啟動沒有剩餘補充測試的 `additional-regression (world-map)` 工作。
 - `package.json` 的 `test:world-map`、測試分組、快速測試選取器與補充回歸執行器已同步。分組清冊目前 **150** 份（包含 13 份球面實驗測試與 4 份世界地圖核心測試）。
 - **風險聲明**：此精簡是刻意取消對尚未投入使用之舊地圖 UI 與其測試資料升級路徑的回歸承諾；在新版正式投入使用前，仍需要為新版的持久化、離線與介面互動建立對應驗證。
+
+## 字典交換測試失敗診斷與精簡（2026-11-17）
+
+- PR #199 的 `dictionary-regression` 先後發生匯出按鈕與匯入中斷後重新開啟視窗找不到的等待逾時；第二輪執行成功通過匯出階段，但手機重開匯入視窗時未出現對話視窗。紀錄顯示無頁面 JavaScript 錯誤；目前尚不足以認定正式功能損壞。
+- 繼續保留桌面完整的匯入匯出、額度故障、作業收據、重試及批次發布安全檢查。手機獨立測試內嵌入口與匯入匯出視窗。資料庫交易保障仍由 `dictionaryExchangeSafety.test.cjs`、`dictionaryTransfer.test.cjs` 等承擔。
+- 未以增加 Playwright 等待秒數或放寬資料斷言掩蓋問題；新版 CI 尚需確認實際執行結果。
