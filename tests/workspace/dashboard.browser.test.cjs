@@ -10,7 +10,7 @@ test(
   "actual Dashboard at 320/mobile/iPad portrait/landscape/desktop: compact controls, collapsed grouping, selection, search, sort persistence and English",
   { timeout: 120000 },
   async () => {
-    const root = path.resolve(__dirname, ".."),
+    const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-dashboard-"));
     await build({
       entryPoints: ["tests/fixtures/dashboard.jsx"],
