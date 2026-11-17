@@ -590,9 +590,19 @@
     "tests/dictionaryAdmin.test.cjs",
     "tests/currentImportBoundary.test.cjs",
     "tests/dictionaryCoreConcept.test.cjs",
-    "tests/dictionaryRetireSourceForms.test.cjs"
+    "tests/dictionaryRetireSourceForms.test.cjs",
+    "tests/dictionaryAdminUI.test.cjs"
   ],
   "comparison_verified": 16,
   "retirement_reviewed": 4,
-  "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。"
+  "retirement_conclusion": "目前無法證明四份歷史退役測試已超出受支援的資料庫升級路徑；在支援版本政策及替代涵蓋未確認前不執行檔案刪除。",
+  "current_contract_remaining": [
+    "tests/dictionaryDraftPipeline.test.cjs",
+    "tests/dictionaryIdentity.test.cjs",
+    "tests/dictionaryImportReview.test.cjs",
+    "tests/dictionaryRankedComponents.test.cjs",
+    "tests/dictionaryLifecycle.test.cjs",
+    "tests/dictionarySourceRetirement.test.cjs"
+  ],
+  "progress_note": "已實際改寫五份測試；另 dictionarySourceRetirement 等既有修正需 CI 驗證。保留剩餘舊契約測試直到現行 SQL／UI 行為替代實作通過。16 份比較與 4 份退役均保留獨立安全／升級覆蓋，沒有證據可整檔刪除。"
 }
