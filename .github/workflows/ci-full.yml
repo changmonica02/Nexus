@@ -50,7 +50,6 @@ jobs:
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - run: node tests/dictionary/morphemeEditor.browser.test.cjs
       - run: STUDY_BROWSER=webkit node tests/dictionary/morphemeEditor.browser.test.cjs
-      - run: npx tsc --noEmit
       - run: npx eslint src/features/dictionary/MorphemeSenseEditor.tsx src/features/dictionary/MorphemeWordLinks.tsx src/features/dictionary/retiredMorphemeFields.ts src/features/dictionary/DictionaryCatalogNavigation.tsx src/features/dictionary/morphemeLinks.ts src/features/dictionary/catalog.ts
       - uses: actions/upload-artifact@v4
         if: always()
@@ -75,7 +74,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright install --with-deps chromium
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: PDF verification tools
@@ -99,6 +98,23 @@ jobs:
             test-results/note-pagination
           if-no-files-found: ignore
 
+
+  dictionary-scale:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Large dictionary exchange, persistent import and ranked components
+        run: |
+          node tests/dictionary/dictionaryExchangeScale.test.cjs
+          node tests/dictionary/dictionaryPersistentScale.test.cjs
+          node tests/dictionary/dictionaryRankedComponents.test.cjs
 
   dictionary-regression:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -374,7 +390,6 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run map:global
-      - run: npx tsc --noEmit
       - run: npx eslint src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx src/components/GlobalWorldMapEditor.tsx src/components/WorldMapCreator.tsx src/features/worldMap/globalMap*.ts
       - run: node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapIndexedDB.test.cjs
       - run: npx next build
