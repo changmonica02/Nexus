@@ -123,3 +123,5 @@ node tests/tools/test-groups.mjs --check
 - `dictionaryPersistent.browser.test.cjs`：移除依固定三／二／一欄 CSS 網格計算的版面斷言，保留實際匯入與審核操作。
 - `dictionaryExchange.browser.test.cjs`：移除已退役發布核取方塊、舊批次選取按鈕及歷史提示文字不存在的檢查，保留完整匯出、收據恢復、離線續傳與真正的全域發布。
 - 共刪除 5 項純舊介面／固定版面斷言；沒有刪除檔案或放寬原子交易、安全與資料完整性斷言。最新 CI 執行結果仍需檢查。
+
+- `dictionarySenseExchange.test.cjs`：移除與 `dictionarySenseEditor.test.cjs` 重複的兩項 Draft 衍生義／例句映射 ID 斷言，保留 JSON 解析、驗證、版本拒絕與過時欄位拒絕。
