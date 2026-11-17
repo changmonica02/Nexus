@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 test('bottom sheet admin editor: permissions, Review isolation, publication, guarded return and unchanged Session/private data',{timeout:150000},async()=>{
-  const root = path.resolve(__dirname, "..").replaceAll(String.fromCharCode(92), "/"),
+  const root = path.resolve(__dirname, "../..").replaceAll(String.fromCharCode(92), "/"),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-study-dictionary-"));
     await build({
       entryPoints: ["tests/fixtures/studyDictionaryEditor.jsx"],
