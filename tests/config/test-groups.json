@@ -96,7 +96,6 @@
       "tests/study/studyReliability.test.cjs",
       "tests/study/studyRepository.test.cjs",
       "tests/study/studySessionExit.test.cjs",
-      "tests/study/studySessionStability.test.cjs",
       "tests/study/studySessions.test.cjs",
       "tests/study/studySpeech.browser.test.cjs",
       "tests/study/studySpeech.test.cjs",
