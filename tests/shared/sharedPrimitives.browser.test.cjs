@@ -1,0 +1,25 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),http=require('node:http');
+const {build}=require('esbuild'),{chromium}=require('playwright');
+test('shared primitives: PDF late reads/URL cleanup, modal busy/focus, menus in native dialog and viewport bounds', {timeout:60000},async t=>{
+  const bundle=await build({entryPoints:['tests/fixtures/sharedPrimitives.jsx'],bundle:true,format:'esm',jsx:'automatic',write:false});
+  const server=http.createServer((req,res)=>{if(req.url==='/fixture.js'){res.setHeader('content-type','text/javascript');res.end(bundle.outputFiles[0].text);}else res.end('<div id="root"></div><script type="module" src="/fixture.js"></script>');});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve);}));
+  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',headless:true});t.after(()=>browser.close());
+  const page=await browser.newPage({viewport:{width:390,height:600}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.waitForFunction(()=>window.resolveA);
+  await page.getByRole('button',{name:'Next PDF'}).click();await page.waitForFunction(()=>window.blobCreated.length===1);
+  const url=await page.locator('[data-preview]').textContent();await page.evaluate(()=>window.resolveA());
+  assert.equal(await page.locator('[data-preview]').textContent(),url);assert.equal(await page.evaluate(()=>window.blobCreated.length),1);
+  await page.getByRole('button',{name:'Remove preview'}).click();assert.deepEqual(await page.evaluate(()=>window.blobRevoked),[url]);
+  const opener=page.getByRole('button',{name:'Open dialog'});await opener.click();const dialog=page.getByRole('dialog',{name:'Shared dialog'});
+  await dialog.getByRole('button',{name:'Lock',exact:true}).click();await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),true);
+  await page.mouse.click(1,1);assert.equal(await dialog.isVisible(),true);await dialog.getByRole('button',{name:'Unlock'}).click();
+  await dialog.getByRole('button',{name:/Toolbar menu/}).click();await dialog.getByRole('button',{name:'Action one',exact:true}).click();assert.equal(await page.evaluate(()=>window.action),'one');
+  await dialog.getByRole('button',{name:'Item menu'}).click();const menu=dialog.getByRole('menu',{name:'Item menu'});await menu.waitFor();
+  const rect=await menu.boundingBox();assert.ok(rect.x>=0&&rect.x+rect.width<=390);
+  await page.keyboard.press('Home');assert.equal(await dialog.getByRole('menuitem',{name:'Action two'}).evaluate(e=>e===document.activeElement),true);
+  await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>window.action),'two');
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});assert.equal(await opener.evaluate(e=>e===document.activeElement),true);
+  await opener.click();await page.mouse.click(1,1);await dialog.waitFor({state:'hidden'});assert.deepEqual(errors,[]);
+});
