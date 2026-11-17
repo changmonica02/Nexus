@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// Run test files not already invoked by the migrated legacy suites.
-// Every main-inventory test is either in the baseline or selected here.
+// Run test files not invoked explicitly by the consolidated full CI or spherical workflow.
+// Every inventory test is either in the baseline or selected here.
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const inv=JSON.parse(readFileSync(path.join(root,'tests/config/test-groups.json'),'utf8'));
-const old=['note-editor.yml','global-map-editor.yml','spherical-grid-prototype.yml']
+const baseline=['ci-full.yml','spherical-grid-prototype.yml']
  .map(n=>readFileSync(path.join(root,'.github/workflows',n),'utf8')).join('\n');
-const explicit=new Set([...old.matchAll(/(?:tests|experiments\/spherical-grid)\/[\w./-]+(?:\.test\.cjs|\.test\.mjs)/g)].map(m=>m[0]));
+const explicit=new Set([...baseline.matchAll(/(?:tests|experiments\/spherical-grid)\/[\w./-]+(?:\.test\.cjs|\.test\.mjs)/g)].map(m=>m[0]));
 // Expand the two wildcard/script suites in the baseline.
 for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
 for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs','worldMapIndexedDB.test.cjs'])explicit.add('tests/world-map/'+n);
