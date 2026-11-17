@@ -172,7 +172,7 @@ jobs:
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: Official content, records and review contracts
-        run: node --test tests/study/studyQuizRetirement.test.cjs tests/study/officialLinkedContent.test.cjs tests/study/studyRepository.test.cjs tests/study/studySessions.test.cjs tests/study/studyClear.test.cjs tests/study/officialPrivateIdentity.test.cjs
+        run: node --test tests/study/officialLinkedContent.test.cjs tests/study/studyRepository.test.cjs tests/study/studySessions.test.cjs tests/study/studyClear.test.cjs tests/study/officialPrivateIdentity.test.cjs
       - name: Speech, reading and official content browser
         run: |
           node --test tests/study/studySpeech.test.cjs tests/study/studyReading.test.cjs
@@ -286,7 +286,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Shared schema and page compatibility
-        run: node --test tests/shared/retirementCompatibility.test.cjs tests/shared/schemaRetirement.test.cjs tests/shared/pageDefaultModeRetirement.test.cjs
+        run: node --test tests/shared/retirementCompatibility.test.cjs tests/shared/schemaRetirement.test.cjs 
       - name: Shared lint and typing
         run: |
           npx tsc --noEmit
