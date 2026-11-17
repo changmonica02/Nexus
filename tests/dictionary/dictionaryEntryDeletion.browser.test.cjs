@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium,webkit}=require('playwright');const {database,sql,id}=require('../fixtures/morphemeRetirementDatabase.cjs');
 test('actual SQL deletion on desktop/tablet/mobile: all kinds, cancel/failure dirty preservation, no removed tools, successful list refresh and new-entry protection',{timeout:180000},async()=>{
- const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-entry-delete-')),pg=await database();let server,browser;
+ const root=path.resolve(__dirname,'../..'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-entry-delete-')),pg=await database();let server,browser;
  try{
 
  await build({entryPoints:['tests/fixtures/dictionaryDeletion.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',plugins:[{name:'isolated',setup(b){b.onLoad({filter:/infrastructure\/supabase\/client\.ts$/},()=>({contents:'export const getSupabase=()=>window.dictionaryClient;',loader:'js'}));b.onResolve({filter:/^next\/link$/},()=>({path:'link',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:`import React from '${root}/node_modules/react/index.js';export default function Link(props){return React.createElement('a',props);}`,loader:'js',resolveDir:root}));}}]});
