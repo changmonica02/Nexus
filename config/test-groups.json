@@ -168,18 +168,18 @@
       "tests/life/todoCalendar.test.cjs"
     ],
     "workspace": [
-      "tests/accountDeletion.test.cjs",
-      "tests/attachmentSync.browser.test.cjs",
-      "tests/dashboard.browser.test.cjs",
-      "tests/dashboardGroups.test.cjs",
-      "tests/databaseRetention.test.cjs",
-      "tests/pwa.browser.test.cjs",
-      "tests/pwa.production.browser.test.cjs",
-      "tests/pwaData.production.browser.test.cjs",
-      "tests/storageUpgrade.browser.test.cjs",
-      "tests/unifiedWorkspace.browser.test.cjs",
-      "tests/workspaceDeployment.test.cjs",
-      "tests/workspaceSync.test.cjs"
+      "tests/workspace/accountDeletion.test.cjs",
+      "tests/workspace/attachmentSync.browser.test.cjs",
+      "tests/workspace/dashboard.browser.test.cjs",
+      "tests/workspace/dashboardGroups.test.cjs",
+      "tests/workspace/databaseRetention.test.cjs",
+      "tests/workspace/pwa.browser.test.cjs",
+      "tests/workspace/pwa.production.browser.test.cjs",
+      "tests/workspace/pwaData.production.browser.test.cjs",
+      "tests/workspace/storageUpgrade.browser.test.cjs",
+      "tests/workspace/unifiedWorkspace.browser.test.cjs",
+      "tests/workspace/workspaceDeployment.test.cjs",
+      "tests/workspace/workspaceSync.test.cjs"
     ],
     "shared": [
       "tests/shared/confirmDialog.test.cjs",
