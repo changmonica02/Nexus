@@ -1,4 +1,4 @@
-require("./loadStudy.cjs");
+require("../loadStudy.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -17,8 +17,8 @@ require.extensions[".tsx"] = (m, f) =>
   );
 const React = require("react"),
   { renderToStaticMarkup } = require("react-dom/server");
-const { trashReturn } = require("../src/lib/workspaceReturn.ts");
-const { translate } = require("../src/lib/i18n.ts");
+const { trashReturn } = require("../../src/lib/workspaceReturn.ts");
+const { translate } = require("../../src/lib/i18n.ts");
 test("trash return preserves local source/query/hash while rejecting external, malformed and recursive destinations", () => {
   for (const unsafe of [
     null,
@@ -50,7 +50,7 @@ test("green label is renamed without any date filter or changes to work status c
 });
 test("folding section keeps editable children mounted and suppresses empty count decoration", () => {
   const Section =
-    require("../src/features/dictionary/EditorSection.tsx").default;
+    require("../../src/features/dictionary/EditorSection.tsx").default;
   const html = renderToStaticMarkup(
     React.createElement(
       Section,
@@ -66,7 +66,7 @@ test("folding section keeps editable children mounted and suppresses empty count
 test("switching sorting methods uses default directions while existing persisted direction is not rewritten on mount", () => {
   const {
     defaultSortAscending,
-  } = require("../src/components/CollectionControls.tsx");
+  } = require("../../src/components/CollectionControls.tsx");
   assert.equal(defaultSortAscending("title"), true);
   assert.equal(defaultSortAscending("kind"), true);
   assert.equal(defaultSortAscending("due_date"), true);
