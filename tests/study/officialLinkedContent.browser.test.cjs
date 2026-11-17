@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');const {setNetwork,waitForAsync}=require('../helpers/pwaBrowser.cjs');
 test('official linked display: publish/reconnect, offline cache, private customization and immutable scheduling',{timeout:120000},async()=>{
-  const root = path.resolve(__dirname, ".."),
+  const root = path.resolve(__dirname, "../.."),
       tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-official-private-"));
     await build({
       entryPoints: ["tests/fixtures/officialPrivateCards.jsx"],
