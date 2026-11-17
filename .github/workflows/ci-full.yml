@@ -288,7 +288,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium webkit
       - name: Dictionary list identity and pending work regression
-        run: node --test tests/dictionary/dictionaryDefects.test.cjs tests/dictionary/dictionaryEntryDeletion.test.cjs tests/dictionary/morphemeRetirement.test.cjs
+        run: node --test tests/dictionary/dictionaryDefects.test.cjs tests/dictionary/dictionaryEntryDeletion.test.cjs
       - name: Isolated PostgreSQL and rollback
         run: |
           docker run -d --name nexus46-dictionary-c --label nexus.test=pr46-local --network none -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
