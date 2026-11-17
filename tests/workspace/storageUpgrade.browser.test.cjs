@@ -5,7 +5,7 @@ const { build } = require("esbuild"),
   { chromium } = require("playwright"),
   { execFileSync } = require("node:child_process");
 const { waitForAsync } = require("../helpers/pwaBrowser.cjs");
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "../..");
 test(
   "actual v8 adapter blocks safely, v9 retains unsynced work, old client fails without wiping, and current UI explains recovery",
   { timeout: 90000 },
