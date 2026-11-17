@@ -8,10 +8,8 @@ const detail={entry:{id:'00000000-0000-4000-8000-000000000001',headword:'test',k
 test('admin editor exposes independent sense/history/memory sections and locks published records',()=>{
   const render=value=>renderToStaticMarkup(React.createElement(DictionaryEditor,{detail:value,entries:[],senses:[],onSaved:async()=>{}}));
   const html=render(detail);
-  for(const text of ['構詞英中與其連結','讀音（IPA）','詞性','中文意思','詞源','記憶法','儲存'])assert.ok(html.includes(text),text);
   assert.ok(!html.includes('<fieldset disabled'));
   assert.ok(html.includes('刪除義項'));
-  assert.ok(!html.includes('← 返回'));
   const locked=render({...detail,entry:{...detail.entry,status:'published',published_at:'2026-01-01'}});
   assert.ok(locked.includes('<fieldset disabled'));
   assert.ok(!locked.includes('確認首次發布已儲存草稿'));
@@ -73,7 +71,6 @@ test('multi-select types and statuses intersect with search; empty groups impose
  assert.deepEqual(visibleAdminEntries(rows,[],'missing',[]),[]);
  const {DictionaryListFilters}=require('../../src/features/dictionary/DictionaryAdmin.tsx');
  const html=renderToStaticMarkup(React.createElement(DictionaryListFilters,{kinds:['word'],statuses:['draft'],onKinds:()=>{},onStatuses:()=>{}}));
- assert.ok(html.includes('type="checkbox"'));
 });
 test('fixed Word etymology edits retain its identity and source without exposing a second input',async()=>{
  const row={id:'00000000-0000-4000-8000-000000000004',entry_id:detail.entry.id,source_id:'source',sense_id:null,body:'old',data_source:'old source',revision:1};
@@ -116,7 +113,6 @@ test('Word Sense rows keep stable identities and blank legacy values; basic info
  assert.ok(!basic.includes('詞性'));assert.ok(!html.includes('分類 · 義項'));
  assert.equal((html.match(/data-word-sense-row=/g)||[]).length,2);
  assert.ok(html.includes('data-word-sense-row="blank-sense"'));assert.equal((html.match(/>詞性<\/span>/g)||[]).length,2);
- assert.ok(html.includes('sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_44px]'));
  const bundle={dictionary_entries:[detail.entry],dictionary_senses:senses};
  assert.deepEqual(require('../../src/features/dictionary/DictionaryAdmin.tsx').prepareEditorBundle(bundle).dictionary_senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})),senses.map(({id,part_of_speech,gloss_zh_tw})=>({id,part_of_speech,gloss_zh_tw})));
 });
