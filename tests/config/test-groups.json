@@ -27,7 +27,6 @@
       "tests/dictionary/dictionaryExchangeScale.test.cjs",
       "tests/dictionary/dictionaryFlashcardLoop.test.cjs",
       "tests/dictionary/dictionaryImportApproval.test.cjs",
-      "tests/dictionary/dictionaryInflectionsSQLRetirement.test.cjs",
       "tests/dictionary/dictionaryMorphology.browser.test.cjs",
       "tests/dictionary/dictionaryMorphology.test.cjs",
       "tests/dictionary/dictionaryPersistent.browser.test.cjs",
@@ -163,7 +162,6 @@
       "tests/workspace/pwa.browser.test.cjs",
       "tests/workspace/pwa.production.browser.test.cjs",
       "tests/workspace/pwaData.production.browser.test.cjs",
-      "tests/workspace/storageUpgrade.browser.test.cjs",
       "tests/workspace/unifiedWorkspace.browser.test.cjs",
       "tests/workspace/workspaceDeployment.test.cjs",
       "tests/workspace/workspaceSync.test.cjs"
@@ -173,9 +171,7 @@
       "tests/shared/eslintConfig.test.cjs",
       "tests/shared/post63UI.test.cjs",
       "tests/shared/pullToRefresh.test.cjs",
-      "tests/shared/retirementCompatibility.test.cjs",
       "tests/shared/round3UI.test.cjs",
-      "tests/shared/schemaRetirement.test.cjs",
       "tests/shared/sharedPrimitives.browser.test.cjs",
       "tests/shared/uiInteractions.test.cjs",
       "tests/shared/unifiedUI.test.cjs"
