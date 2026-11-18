@@ -1,0 +1,27 @@
+name: Azgaar terrain preview images
+on:
+  push:
+    branches:
+      - feat/azgaar-spherical-templates-20261118
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Render seed 1729, 42 and 3
+        run: node experiments/spherical-grid/render-azgaar-previews.mjs --out artifacts/azgaar-previews --width 960 --height 480 --seeds 1729,42,3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azgaar-terrain-previews
+          path: artifacts/azgaar-previews/*.png
+          if-no-files-found: error
+          retention-days: 14
