@@ -46,6 +46,20 @@ function spread(h,seed,strength,rng,sign,decay){
   }
  }
 }
+// Unlike hills, pits are restricted to local land; repeated trough/pit
+// instructions must not erase an entire candidate landmass.
+function carvePit(h,seed,strength,rng){
+ const seen=new Uint8Array(COUNT),queue=[{id:seed,depth:0}];seen[seed]=1;
+ for(let head=0;head<queue.length;head++){
+  const {id,depth}=queue[head];
+  const falloff=strength*Math.pow(.66,depth)*(.9+rng()*.2);
+  if(falloff<1||depth>12)continue;
+  if(h[id]>0)h[id]=clamp(h[id]-falloff);
+  for(const n of neighbours[id]){
+   if(!seen[n]&&h[n]>0){seen[n]=1;queue.push({id:n,depth:depth+1});}
+  }
+ }
+}
 function path(from,to,rng){
  let cur=from;const seen=new Uint8Array(COUNT),result=[from];seen[from]=1;
  const tx=to%SIDE,ty=(to/SIDE)|0;
@@ -136,7 +150,12 @@ export function executeAzgaarTemplate(name,seed){
   const [op,a,b,c,d]=line.trim().split(/\s+/);
   switch(op){
    case 'Hill':case 'Pit':{
-    for(let n=count(a,rng);n>0;n--)spread(heights,point(c,d,rng),sample(b,rng),rng,op==='Hill'?1:-1,.97);
+    for(let n=count(a,rng);n>0;n--){
+     let at=point(c,d,rng),tries=0;
+     if(op==='Pit')while(heights[at]<SEA&&tries++<40)at=randomCell(rng);
+     if(op==='Hill')spread(heights,at,sample(b,rng),rng,1,.97);
+     else if(heights[at]>=SEA)carvePit(heights,at,sample(b,rng),rng);
+    }
     break;
    }
    case 'Range':case 'Trough':{
