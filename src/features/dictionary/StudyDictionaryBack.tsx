@@ -29,12 +29,11 @@ export default function StudyDictionaryBack({entryId,front}:{entryId:string;fron
   if(!senses.length)return null;
   return <section data-study-dictionary-back aria-label="衍生與例句"
     className="pointer-events-none relative mt-2 w-full min-w-0 border-t border-[var(--color-border)] pt-5 text-left [overflow-wrap:anywhere]">
-    <h3 className="mb-4 text-base font-semibold sm:text-lg">衍生與例句</h3>
     <div className="grid min-w-0 gap-5 md:grid-cols-2">
       {senses.map(s=><section data-study-sense={s.id} key={s.id} className="min-w-0 space-y-3 md:even:border-l md:even:border-[var(--color-border)] md:even:pl-5">
         {senses.length>1&&<p className="text-xs opacity-60">{s.partOfSpeech? `(${s.partOfSpeech})` : '義項補充'}</p>}
         {s.derivations.map(d=><div key={d.id} data-study-derivation={d.id} className="space-y-2">
-          <p className="text-lg font-medium sm:text-xl">{d.meaning}</p>
+          <p className="text-sm font-semibold sm:text-base">{d.meaning}</p>
           {d.examples.map(e=><Example key={e.id} example={e}/>)}
         </div>)}
         {!!s.examples.length&&<div className="space-y-3">{s.examples.map(e=><Example key={e.id} example={e}/>)}</div>}
