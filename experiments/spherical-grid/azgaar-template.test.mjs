@@ -136,6 +136,7 @@ test('continental pair overlap uses the smaller footprint as a strict hard cap',
   // fallback; the per-pair limit is enforced inside selectPlacement.
   const r=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
   assert.ok(CONTINENT_PAIR_OVERLAP_LIMIT>0&&CONTINENT_PAIR_OVERLAP_LIMIT<.25);
+  assert.ok(r.templatePlacements.filter(p=>p.type==='continent').every(p=>p.maxPairOverlap<=CONTINENT_PAIR_OVERLAP_LIMIT+1e-9));
   assert.ok(r.templatePlacements.every(p=>p.overlapRatio<=TEMPLATE_OVERLAP_LIMITS[p.type]+1e-9));
   assert.equal(r.attemptedPlacements-r.templatePlacements.length,r.skippedPlacements);
   assert.ok(r.acceptedContinents>=4,'allow fewer than planned only if overlap would be excessive');
