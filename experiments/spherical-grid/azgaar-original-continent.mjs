@@ -191,5 +191,5 @@ export function executeOriginalAzgaarContinent(name,seed){
    default:throw Error('Unsupported Azgaar instruction: '+op);
   }
  }
- return {name,size:SIDE,seaLevel:SEA,heights};
+ return {name,seed,size:SIDE,seaLevel:SEA,heights};
 }
