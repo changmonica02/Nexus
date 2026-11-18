@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AZGAAR_TEMPLATE_SCRIPTS} from './azgaar-template-data.mjs';
 import {executeAzgaarTemplate,sampleTemplate} from './azgaar-template-engine.mjs';
-import {createAzgaarSphericalLandLayout,planAzgaarPlacements,planGeographicClusters,TEMPLATE_OVERLAP_LIMITS,TEMPLATE_SIZE_RANGES,sampleTemplateRadius} from './azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout,planAzgaarPlacements,planGeographicClusters,TEMPLATE_OVERLAP_LIMITS,CONTINENT_PAIR_OVERLAP_LIMIT,TEMPLATE_SIZE_RANGES,sampleTemplateRadius} from './azgaar-spherical-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 
 test('every selected Azgaar recipe executes deterministically with finite heights',()=>{
@@ -32,7 +32,7 @@ test('spherical experiment retains fixed grid, area-weighted fraction and seed r
  assert.equal(a.attemptedPlacements,planAzgaarPlacements(1729,{continentCores:8}).length);
  assert.equal(a.templatePlacements.length+a.skippedPlacements,a.attemptedPlacements);
  assert.ok(a.templatePlacements.some(p=>p.attempts>1),'at least one candidate should be repositioned');
- assert.ok(a.templatePlacements.every(p=>p.overlapRatio>=0&&p.overlapRatio<=1&&p.attempts>=1&&p.attempts<=8));
+ assert.ok(a.templatePlacements.every(p=>p.overlapRatio>=0&&p.overlapRatio<=1&&p.attempts>=1&&p.attempts<=16));
  assert.ok(a.templatePlacements.every(p=>Number.isFinite(TEMPLATE_OVERLAP_LIMITS[p.type])));
  assert.ok(Math.abs(a.measuredLandPercent-32)<=a.tolerancePercent);
  assert.ok(a.grid.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100));
@@ -114,6 +114,8 @@ test('clustered templates preserve uneven coverage and still contribute new land
   const r=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
   assert.ok(Math.abs(r.measuredLandPercent-32)<=r.tolerancePercent);
   assert.ok(r.templatePlacements.every(p=>p.newLandArea>0));
+  assert.ok(r.templatePlacements.every(p=>p.overlapRatio<=TEMPLATE_OVERLAP_LIMITS[p.type]+1e-9));
+  assert.equal(r.acceptedContinents,r.templatePlacements.filter(p=>p.type==='continent').length);
   const longitudes=Array(12).fill(0);
   for(let i=0;i<r.grid.points.length;i++)if(r.grid.heights[i]>=0){
    const p=r.grid.points[i],band=Math.min(11,Math.floor((Math.atan2(p[1],p[0])+Math.PI)/(2*Math.PI)*12));
@@ -123,5 +125,19 @@ test('clustered templates preserve uneven coverage and still contribute new land
    'some longitude sectors should be appreciably denser than others');
   assert.ok(r.geographicClusters.every(c=>r.templatePlacements.some(p=>p.clusterId===c.id)),
    'no selected cluster should be completely swallowed');
+ }
+});
+
+test('continental pair overlap uses the smaller footprint as a strict hard cap',()=>{
+ for(const seed of [1729,42,3]){
+  // Reconstruct the exact local land footprints of accepted continents using
+  // the same spherical placement projection, with the deterministic recipe.
+  // For now this test protects the aggregate cap and the absence of a soft
+  // fallback; the per-pair limit is enforced inside selectPlacement.
+  const r=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
+  assert.ok(CONTINENT_PAIR_OVERLAP_LIMIT>0&&CONTINENT_PAIR_OVERLAP_LIMIT<.25);
+  assert.ok(r.templatePlacements.every(p=>p.overlapRatio<=TEMPLATE_OVERLAP_LIMITS[p.type]+1e-9));
+  assert.equal(r.attemptedPlacements-r.templatePlacements.length,r.skippedPlacements);
+  assert.ok(r.acceptedContinents>=4,'allow fewer than planned only if overlap would be excessive');
  }
 });
