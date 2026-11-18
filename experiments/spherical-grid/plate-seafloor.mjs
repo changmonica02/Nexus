@@ -126,10 +126,10 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
  const model=tectonics??analyzeSphericalPlates(grid,{seed:tectonicSeed});
  if(!Number.isInteger(tectonicSeed)||tectonicSeed<0||tectonicSeed>0xffffffff)throw RangeError('Tectonic seed must be uint32');
  if(model.domains.owners.length!==grid.heights.length)throw RangeError('Wrong plate domain size');
- const coast=oceanDistances(grid,coastSources(grid));
- const ridge=oceanDistances(grid,boundarySources(grid,model,'mid-ocean-ridge'));
- const trench=oceanDistances(grid,boundarySources(grid,model,'subduction'));
- const volcanoes=locateSubmarineVolcanoes(grid,model,tectonicSeed,coast);
+ const coast=model.crust?.distanceToCoastKm??oceanDistances(grid,coastSources(grid));
+ const ridge=model.features?.ridgeField.distance??oceanDistances(grid,boundarySources(grid,model,'mid-ocean-ridge'));
+ const trench=model.features?.trenchField.distance??oceanDistances(grid,boundarySources(grid,model,'subduction'));
+ const volcanoes=model.features?.volcanoes??locateSubmarineVolcanoes(grid,model,tectonicSeed,coast);
  const n=grid.heights.length,heights=grid.heights.slice(),zones=new Uint8Array(n);
  let cells=0;
  for(let i=0;i<n;i++){
@@ -191,8 +191,8 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
   const magnitude=clamp(Math.round(depth),1,100);
   heights[i]=-magnitude;
  }
- return {version:2,seed:tectonicSeed,heights,zones,tectonics:model,
-  submarineVolcanoes:volcanoes.map(({cell,kind,radiusKm,uplift})=>({id:'seamount-'+cell,gridCell:cell,kind,radiusKm,uplift})),
+ return {version:3,seed:tectonicSeed,heights,zones,tectonics:model,islandChains:model.features?.islandChains??[],seamountChains:model.features?.seamountChains??[],
+  submarineVolcanoes:volcanoes.map(({cell,kind,radiusKm,uplift,plateId,chainId,ageMa})=>({id:'seamount-'+cell,gridCell:cell,kind,radiusKm,uplift,plateId,chainId,ageMa})),
   oceanCells:cells};
 }
 /** Mutates only already-submerged cells; use this for a NEW world or an

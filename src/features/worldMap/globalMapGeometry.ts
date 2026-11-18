@@ -1,5 +1,6 @@
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number;relief?:{color:string;rings:number[][][]}[]};
+export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+ geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const sub=(a:number[],b:number[])=>a.map((v,i)=>v-b[i]);
@@ -17,7 +18,10 @@ export function unwrapRing(points:number[][],pole?:number){
  const shift=Math.floor((out.reduce((s,p)=>s+p[0],0)/out.length+180)/360)*360;
  return out.map(([x,y])=>[x-shift,y]);
 }
-export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[]):GlobalMapDrawing {
+type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number}[]};
+ boundaries:{mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
+ features?:{displaySegmentIds:number[];volcanoes:{cell:number}[];islandChains:{cells:number[]}[];orogenProvinces:{activeCells:number;historicalCells:number}}};
+export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput):GlobalMapDrawing {
  const around:number[][][]=Array.from({length:grid.points.length},()=>[]);
  for(const face of grid.triangles){
   const [a,b,c]=face.map(i=>grid.points[i]);let center=unit(cross(sub(b,a),sub(c,a)));
@@ -27,18 +31,27 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
  const land:number[][][]=[];let area=0,total=0;
  const palette=['#17364e','#20506b','#2b6b86','#418fa6','#76b6c6','#b3d6d4','#8eb57a','#b4bf85','#bba776','#9e876c','#d1c6b5','#eeeae2'];
  const relief=palette.map(color=>({color,rings:[] as number[][][]}));
+ const totalArea=grid.areas.reduce((s,a)=>s+a,0);
+ const plates=tectonics?.domains.plates.map(p=>({id:p.id,areaPercent:p.areaPercent??100*p.areaKm2/totalArea,
+  color:`hsl(${Math.round(p.id*137.508)%360} 48% 65%)`,rings:[] as number[][][]}));
  for(let i=0;i<grid.points.length;i++){
   total+=grid.areas[i];if(!ocean[i])area+=grid.areas[i];
-  if(ocean[i]&&!grid.heights)continue;
+  if(ocean[i]&&!grid.heights&&!plates)continue;
   const p=grid.points[i],x=unit(Math.abs(p[2])<.9?cross([0,0,1],p):cross([0,1,0],p)),y=cross(p,x);
   around[i].sort((a,b)=>Math.atan2(dot(a,y),dot(a,x))-Math.atan2(dot(b,y),dot(b,x)));
   const ring=unwrapRing(around[i].map(project),p[2]>0?90:-90);
   if(!ocean[i])land.push(ring);
+  if(plates&&tectonics)plates[tectonics.domains.owners[i]].rings.push(ring);
   if(grid.heights){
    const h=grid.heights[i];
    const band=h<0?(h< -65?0:h< -45?1:h< -25?2:h< -10?3:h< -3?4:5):6+Math.min(5,Math.floor(h/17));
    relief[band].rings.push(ring);
   }
  }
- return {land,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+ const geology=tectonics?.features?{
+  segments:tectonics.boundaries.filter(b=>['subduction','mid-ocean-ridge'].includes(b.mode)&&tectonics.features!.displaySegmentIds.includes(b.segmentId!)).map(b=>({mode:b.mode,activity:b.activity??0,lines:[unwrapRing([project(b.start),project(b.end)])]})),
+  volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
+  islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
+  activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
+ return {land,plates,geology,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
 }
