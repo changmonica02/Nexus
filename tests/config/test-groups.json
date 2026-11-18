@@ -107,6 +107,7 @@
       "experiments/spherical-grid/pack-update-comparison.test.mjs",
       "experiments/spherical-grid/pack.test.mjs",
       "experiments/spherical-grid/snapshot.test.mjs",
+      "experiments/spherical-grid/tectonic-plates.test.mjs",
       "experiments/spherical-grid/terrain-edits.test.mjs",
       "tests/world-map/globalMap.test.cjs",
       "tests/world-map/worldMap.test.cjs",
