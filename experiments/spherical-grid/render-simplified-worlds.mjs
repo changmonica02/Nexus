@@ -31,9 +31,12 @@ for(const worldType of ['ocean','earthlike','land']){
   // Preserve seabed and plate calculations; only restore their terrain input.
   const landPercent={ocean:25,earthlike:32,land:45}[worldType];
   const r=createAzgaarSphericalLandLayout({seed,landPercent,continentCores:8});
-  const refinement=refine?refineSphericalTerrain(r.grid,{seed}):null;
+  // Compute plates on the SAME recovered baseline for both comparison arms:
+  // otherwise a few coastline swaps change the land-mask hash and replace
+  // the whole tectonic seed, obscuring the actual terrain difference.
   const tectonicSeed=tectonicSeedFromLandMask(r.grid);
   const tectonics=analyzeSphericalPlates(r.grid,{seed:tectonicSeed});
+  const refinement=refine?refineSphericalTerrain(r.grid,{seed}):null;
   const seafloor=generatePlateSeafloor(r.grid,{seed:tectonicSeed,tectonics});
   applyPlateSeafloor(r.grid,seafloor);
   const pixels=drawTerrain(r.grid,seafloor.zones,tectonics.boundaries,width,height);
