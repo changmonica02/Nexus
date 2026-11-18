@@ -83,7 +83,10 @@ function edgeCost(grid,crust,history,source,target,seed){
  const crossCoast=(crust[source]===CRUST.oceanic)!==(crust[target]===CRUST.oceanic);
  // Soft (not prohibitive) change in cost at crust transitions.
  const transition=crossCoast?1.18:1;
- const relief=Math.min(.22,Math.abs(grid.heights[source]-grid.heights[target])*.003);
+ // Plate domains are upstream of synthesized bathymetry. Only land relief
+ // may affect growth cost, otherwise recalculating the seabed would move plates.
+ const landSource=Math.max(0,grid.heights[source]),landTarget=Math.max(0,grid.heights[target]);
+ const relief=Math.min(.22,Math.abs(landSource-landTarget)*.003);
  const lineament=(history.ridgeHints[target]?1.12:1);
  return d*transition*(1+relief)*lineament*(.90+hashNoise(seed,target)*.2);
 }
