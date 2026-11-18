@@ -1,4 +1,4 @@
-import {createLandLayout} from '../../../experiments/spherical-grid/land-generator.mjs';
+import {createAzgaarSphericalLandLayout} from '../../../experiments/spherical-grid/azgaar-spherical-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from '../../../experiments/spherical-grid/snapshot.mjs';
 import {validateGlobalMapProject,validateGlobalSettings,type GlobalMapProject,type GlobalMapSettings} from './globalMapProject';
 import {createGlobalMapDrawing} from './globalMapGeometry';
@@ -9,7 +9,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'generate'|'load';settings?
   let project:GlobalMapProject;
   if(action==='generate'){
    validateGlobalSettings(event.data.settings);
-   const draft=createLandLayout(event.data.settings);
+   const draft=createAzgaarSphericalLandLayout(event.data.settings);
    const terrain=exportGlobalTerrainSnapshot({grid:draft.grid,oceanSeed:draft.oceanSeed,revision:0}) as GlobalMapProject['terrain'];
    project={format:'nexus-global-map',version:1,settings:{...event.data.settings},terrain};
   } else if(action==='load') {validateGlobalMapProject(event.data.project);project=event.data.project;}
