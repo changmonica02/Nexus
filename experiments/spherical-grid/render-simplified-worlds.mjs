@@ -4,6 +4,8 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {generateCompleteSphericalWorld} from './simplified-seafloor-v2.mjs';
 import {drawTerrain,encodePng} from './actual-terrain-raster.mjs';
+import {analyzeSphericalPlates} from './tectonic-plates.mjs';
+import {tectonicSeedFromLandMask} from './plate-seafloor.mjs';
 
 const args=process.argv.slice(2);
 let out='artifacts/stage3a',width=1200,height=600;
@@ -23,7 +25,8 @@ for(const worldType of ['ocean','earthlike','land']){
  for(const seed of [1729,42]){
   const time=performance.now();
   const r=generateCompleteSphericalWorld({seed,worldType});
-  const pixels=drawTerrain(r.grid,r.seafloor.zones,[],width,height);
+  const tectonics=analyzeSphericalPlates(r.grid,{seed:tectonicSeedFromLandMask(r.grid)});
+  const pixels=drawTerrain(r.grid,r.seafloor.zones,tectonics.boundaries,width,height);
   const png=encodePng(width,height,pixels);
   const filename=worldType+'-seed-'+seed+'.png';
   await writeFile(join(out,filename),png);
@@ -34,10 +37,11 @@ for(const worldType of ['ocean','earthlike','land']){
   const entry={worldType,seed,file:filename,landPercent:Number(r.measuredLandPercent.toFixed(3)),
    continents:r.continentCount,islands:r.islandsGenerated,archipelagos:r.archipelagosGenerated,
    ridgeLines:r.ridgeCount,trenchLines:r.trenchCount,
+   plateCount:tectonics.plateCount,plateSegments:tectonics.boundaries.length,
    seamounts:r.seafloor.submarineVolcanoes.length,zones:byZone,
    bytes:png.length,elapsedMs:Math.round(performance.now()-time)};
   console.log(JSON.stringify(entry));
   statistics.push(entry);
  }
 }
-await writeFile(join(out,'manifest.json'),JSON.stringify({generator:'Nexus stage-3A simplified skeleton',statistics},null,2));
+await writeFile(join(out,'manifest.json'),JSON.stringify({generator:'Nexus stage-3A simplified skeleton with real plate boundaries',statistics},null,2));
