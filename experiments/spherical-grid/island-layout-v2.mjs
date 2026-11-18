@@ -67,7 +67,7 @@ export function generateIslandsAndArchipelagos({seed,worldType='earthlike',conti
    const frame=pose(rng);
    // Avoid placing small islands at the polar singularity just because their
    // candidate grid sampling is unusually coarse at a given latitude.
-   const fitted=fitSize(grid,template,frame,target,min,max);
+   const fitted=fitSize(grid,template,frame,target,min,max,{minRadius:.015,maxRadius:1.40});
    if(!fitted||!maxWinding(grid,fitted.mask))continue;
    const found=overlap(grid,fitted.mask,occupied,fitted.area);
    // The user's editor can fix attached islands and partial joins. The only
