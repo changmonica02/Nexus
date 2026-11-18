@@ -3,7 +3,8 @@
 // This experimental entry point intentionally leaves the current editor's
 // legacy snapshot/settings path untouched until the new contract is reviewed.
 import {createGlobalGrid} from './global-config.mjs';
-import {executeAzgaarTemplate,sampleTemplate,templateRng} from './azgaar-template-engine.mjs';
+import {sampleTemplate,templateRng} from './azgaar-template-engine.mjs';
+import {executeOriginalAzgaarContinent} from './azgaar-original-continent.mjs';
 
 export const CONTINENT_WORLD_TYPES=Object.freeze({
  ocean:Object.freeze({count:4,ranges:Object.freeze({large:[6,9],largeMedium:[4,6],medium:[2.5,4]})}),
@@ -62,8 +63,14 @@ export function project(grid,map,frame,radius,store=false){
   const e=dot(p,frame.east)/forward/extent,n=dot(p,frame.north)/forward/extent;
   const u=(e*frame.cos+n*frame.sin+1)*.5,v=(n*frame.cos-e*frame.sin+1)*.5;
   if(u<0||u>1||v<0||v>1)continue;
-  const edge=Math.max(0,1-Math.pow(Math.max(Math.abs(2*u-1),Math.abs(2*v-1)),6));
-  const relief=(sampleTemplate(map,u,v)-map.seaLevel)*edge;
+  // Independent continent footprints: the square Azgaar canvas must never
+  // become a straight coastline. Its heightfield is preserved in the core,
+  // then smoothly submerged within a seeded non-circular transition band.
+  const x=2*u-1,y=2*v-1,r=Math.hypot(x,y),theta=Math.atan2(y,x);
+  const phase=(map.seed>>>0)*2.3283064365386963e-10*Math.PI*2;
+  const boundary=.77*(1+.13*Math.cos(2*theta+phase)+.095*Math.sin(3*theta+phase*1.7)+.065*Math.cos(5*theta-phase*.7));
+  const t=clamp((boundary-r)/.23,0,1),w=t*t*(3-2*t);
+  const relief=(sampleTemplate(map,u,v)-map.seaLevel)*w-12*(1-w);
   if(relief<=.5)continue;
   area+=grid.areas[i];landCells++;
   if(store){mask[i]=1;values[i]=clamp(Math.round(relief*1.35),1,99);}
@@ -134,7 +141,7 @@ export function generateContinentsFirst({seed,worldType='earthlike'}={}){
   for(let attempt=0;attempt<110;attempt++){
    trials++;
    const recipe=RECIPE_NAMES[Math.floor(rng()*RECIPE_NAMES.length)];
-   const map=executeAzgaarTemplate(recipe,(entry.templateSeed^Math.imul(2654435761,attempt+1))>>>0);
+   const map=executeOriginalAzgaarContinent(recipe,(entry.templateSeed^Math.imul(2654435761,attempt+1))>>>0);
    const frame=pose(rng);
    const fit=fitSize(grid,map,frame,target,minArea,maxArea);
    if(!fit)continue;
