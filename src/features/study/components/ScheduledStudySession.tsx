@@ -132,7 +132,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
   const flip=()=>{if(!saving&&!error&&!dictionaryOpen.current){setNow(Date.now());setRevealed(value=>!value);}};
-  return <div className="mx-auto flex min-h-[65dvh] w-full max-w-4xl flex-col items-center justify-start gap-4 pb-[calc(12rem+env(safe-area-inset-bottom))]" data-scheduled-study>
+  return <div className={"mx-auto flex min-h-[65dvh] w-full max-w-4xl flex-col items-center justify-start gap-4 "+(revealed?"pb-[calc(12rem+env(safe-area-inset-bottom))]":"pb-[calc(3rem+env(safe-area-inset-bottom))]")} data-scheduled-study>
     {session?.compatibility_notice&&<p role="status" className="text-xs">{t('styles.legacySession')}</p>}
     {card&&state?<>
       <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 pb-12 text-center shadow-sm sm:p-10 sm:pb-12" data-study-card data-side={revealed?'back':'front'}>
