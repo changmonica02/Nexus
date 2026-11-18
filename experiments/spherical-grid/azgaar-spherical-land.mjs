@@ -139,15 +139,17 @@ function selectPlacement(item,grid,occupied,rng,geography,priorContinents){
   if(metrics.overlapRatio>TEMPLATE_OVERLAP_LIMITS[item.type]+1e-9)continue;
   // The union-overlap ratio alone does not detect swallowing a smaller
   // previous continent. Compare each actual continental footprint as well.
-  if(item.type==='continent'&&priorContinents.some(previous=>{
+  let maxPairOverlap=0;
+  if(item.type==='continent')for(const previous of priorContinents){
    let shared=0;
    for(let i=0;i<grid.areas.length;i++)
     if(candidate.footprint[i]&&previous.footprint[i])shared+=grid.areas[i];
-   return shared/Math.min(previous.landArea,candidate.landArea)>CONTINENT_PAIR_OVERLAP_LIMIT+1e-9;
-  }))continue;
+   maxPairOverlap=Math.max(maxPairOverlap,shared/Math.min(previous.landArea,candidate.landArea));
+  }
+  if(maxPairOverlap>CONTINENT_PAIR_OVERLAP_LIMIT+1e-9)continue;
   const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-3*metrics.overlapRatio;
   if(quality>bestQuality){
-   best={...proposed,candidate,...metrics,attempts:attempt+1};
+   best={...proposed,candidate,...metrics,maxPairOverlap,attempts:attempt+1};
    bestQuality=quality;
   }
   // Once accepted, keep seeking a better candidate only if useful. This
@@ -260,5 +262,5 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
   acceptedContinents:priorContinents.length,
   geographicClusters:geography.clusters.map(({id,center,spread,weight})=>({id,center,spread,weight})),
   tolerancePercent:100*Math.max(...grid.areas)/total,
-  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts}))};
+  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,clusterId,overlapRatio,maxPairOverlap,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,clusterId,overlapRatio,maxPairOverlap,contributionRatio,newLandArea,attempts}))};
 }
