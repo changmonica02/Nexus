@@ -41,6 +41,25 @@ snapshots, or worldMap worker. There is NO automatic preview generation.
   before switching the editor to the new generator.
 - Current worker, UI form, old `landPercent` and `continentCores`
   settings intentionally remain on the legacy generator during review.
-- After stage-one acceptance: stage 2 adds the user-specified two island
-  classes and archipelago budgets, followed by stage 3 tectonics/seabed.
+- Stage 2 is now implemented as a separate entry point:
+  `generateIslandsAndArchipelagos({seed,worldType,continents?})`, in
+  `experiments/spherical-grid/island-layout-v2.mjs`. It first runs stage 1
+  (unless a matching untouched continent result is supplied), then adds the
+  islands to that same canonical Grid. The stage-one generator remains available
+  for direct comparison.
+- Small individual islands: **8–10**, each **0.05–0.2%** of the total
+  planetary surface; larger individual islands: **1–3**, each **0.3–0.4%**.
+  Archipelago groups: **4–7**, each **0.1–0.5%** in total land area.
+  Each is fitted using actual spherical Grid-cell areas. Island templates use
+  Volcano / High Island / Low Island; group templates use Archipelago.
+- Deliberate editor-first policy: partial overlap, adjacent coasts, and
+  disconnected islands within an archipelago are allowed. Each accepted
+  template must still add land in its own size band, without lowering any
+  already generated continental height. If a patch cannot be placed after
+  bounded retries, throw instead of silently claiming success.
+- The first stage never inserts islands. Stage two preserves existing land
+  elevations, records metadata for later editing, and does not modify the
+  stored map snapshot format or existing editor worker.
+- Stage 3 tectonics/seabed remains separate and unintegrated with this
+  new v2 path.
 - Request images explicitly to run the manual-only preview workflow.
