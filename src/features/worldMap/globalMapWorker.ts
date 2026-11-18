@@ -1,4 +1,4 @@
-import {createAzgaarSphericalLandLayout} from '../../../experiments/spherical-grid/azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout} from '../../../experiments/spherical-grid/azgaar-spherical-land-legacy.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from '../../../experiments/spherical-grid/snapshot.mjs';
 import {validateGlobalMapProject,validateGlobalSettings,type GlobalMapProject,type GlobalMapSettings} from './globalMapProject';
 import {createGlobalMapDrawing} from './globalMapGeometry';
