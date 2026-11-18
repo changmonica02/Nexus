@@ -2,10 +2,10 @@
 // Usage: node experiments/spherical-grid/render-simplified-worlds.mjs --out artifacts/stage3a
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import {generateCompleteSphericalWorld} from './simplified-seafloor-v2.mjs';
+import {createAzgaarSphericalLandLayout} from './azgaar-spherical-land.mjs';
+import {generatePlateSeafloor,applyPlateSeafloor,tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
 import {drawTerrain,encodePng} from './actual-terrain-raster.mjs';
 import {analyzeSphericalPlates} from './tectonic-plates.mjs';
-import {tectonicSeedFromLandMask} from './plate-seafloor.mjs';
 
 const args=process.argv.slice(2);
 let out='artifacts/stage3a',width=1200,height=600;
@@ -24,24 +24,29 @@ const statistics=[];
 for(const worldType of ['ocean','earthlike','land']){
  for(const seed of [1729,42]){
   const time=performance.now();
-  const r=generateCompleteSphericalWorld({seed,worldType});
-  const tectonics=analyzeSphericalPlates(r.grid,{seed:tectonicSeedFromLandMask(r.grid)});
-  const pixels=drawTerrain(r.grid,r.seafloor.zones,tectonics.boundaries,width,height);
+  // The original clustered Azgaar terrain path underlies the earlier natural maps.
+  // Preserve seabed and plate calculations; only restore their terrain input.
+  const landPercent={ocean:25,earthlike:32,land:45}[worldType];
+  const r=createAzgaarSphericalLandLayout({seed,landPercent,continentCores:8});
+  const tectonicSeed=tectonicSeedFromLandMask(r.grid);
+  const tectonics=analyzeSphericalPlates(r.grid,{seed:tectonicSeed});
+  const seafloor=generatePlateSeafloor(r.grid,{seed:tectonicSeed,tectonics});
+  applyPlateSeafloor(r.grid,seafloor);
+  const pixels=drawTerrain(r.grid,seafloor.zones,tectonics.boundaries,width,height);
   const png=encodePng(width,height,pixels);
   const filename=worldType+'-seed-'+seed+'.png';
   await writeFile(join(out,filename),png);
   const byZone={};
-  for(const [name,id] of Object.entries({shelf:1,slope:2,abyssalPlain:3,ridge:4,trench:5,seamount:6})){
-   byZone[name]=r.seafloor.zones.filter(x=>x===id).length;
+  for(const [name,id] of Object.entries(SEAFLOOR)){
+   byZone[name]=seafloor.zones.filter(x=>x===id).length;
   }
   const entry={worldType,seed,file:filename,landPercent:Number(r.measuredLandPercent.toFixed(3)),
-   continents:r.continentCount,islands:r.islandsGenerated,archipelagos:r.archipelagosGenerated,
-   ridgeLines:r.ridgeCount,trenchLines:r.trenchCount,
+   continents:r.acceptedContinents,templates:r.templatePlacements.length,
    plateCount:tectonics.plateCount,plateSegments:tectonics.boundaries.length,
-   seamounts:r.seafloor.submarineVolcanoes.length,zones:byZone,
+   seamounts:seafloor.submarineVolcanoes.length,zones:byZone,
    bytes:png.length,elapsedMs:Math.round(performance.now()-time)};
   console.log(JSON.stringify(entry));
   statistics.push(entry);
  }
 }
-await writeFile(join(out,'manifest.json'),JSON.stringify({generator:'Nexus stage-3A simplified skeleton with real plate boundaries',statistics},null,2));
+await writeFile(join(out,'manifest.json'),JSON.stringify({generator:'Nexus restored clustered Azgaar terrain with plate seafloor and true plate boundaries',statistics},null,2));
