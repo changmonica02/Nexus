@@ -5,6 +5,7 @@
 // Reference: https://github.com/Muhv16/MapRegionizer/blob/master/docs/tectonics.md
 import {assertGlobalGrid} from './global-config.mjs';
 import {templateRng} from './azgaar-template-engine.mjs';
+import {valueNoise3} from './spherical-terrain-refinement.mjs';
 
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -78,7 +79,7 @@ export function choosePlateSeeds(grid,crust,seed,plateCount){
  }
  return seeds;
 }
-function edgeCost(grid,crust,history,source,target,seed){
+function edgeCost(grid,crust,history,source,target,resistance){
  const d=sphereDistance(grid.points[source],grid.points[target]);
  const crossCoast=(crust[source]===CRUST.oceanic)!==(crust[target]===CRUST.oceanic);
  // Soft (not prohibitive) change in cost at crust transitions.
@@ -88,11 +89,19 @@ function edgeCost(grid,crust,history,source,target,seed){
  const landSource=Math.max(0,grid.heights[source]),landTarget=Math.max(0,grid.heights[target]);
  const relief=Math.min(.22,Math.abs(landSource-landTarget)*.003);
  const lineament=(history.ridgeHints[target]?1.12:1);
- return d*transition*(1+relief)*lineament*(.90+hashNoise(seed,target)*.2);
+ // Coherent lithospheric resistance bends domain growth over hundreds of
+ // kilometres. Independent cell noise alone produced nearly straight Voronoi
+ // sides and their polygonal ridge/trench belts. Depends only on position,
+ // seed and terrestrial relief, never the synthesized ocean depth.
+ return d*transition*(1+relief)*lineament*resistance[target];
 }
 export function derivePlateDomains(grid,history,fields,seed,plateCount){
  const sites=choosePlateSeeds(grid,fields.crust,seed,plateCount);
  const n=grid.points.length,owners=new Int16Array(n),costs=new Float64Array(n),heap=new Heap();
+ // Material resistance is a property of the lithosphere, not of whichever
+ // plate reaches it first. Precompute once instead of resampling per edge.
+ const resistance=Float64Array.from(grid.points,p=>Math.max(.25,1+
+  .75*valueNoise3(p,3,seed^0x94b7)+.25*valueNoise3(p,8,seed^0xa12f)));
  owners.fill(-1);costs.fill(Infinity);
  for(let p=0;p<sites.length;p++){
   const i=sites[p];costs[i]=0;owners[i]=p;heap.push({cost:0,cell:i,plate:p});
@@ -101,7 +110,7 @@ export function derivePlateDomains(grid,history,fields,seed,plateCount){
   const {cell,cost,plate}=heap.pop();
   if(cost>costs[cell]+1e-12||owners[cell]!==plate)continue;
   for(const next of grid.neighbors[cell]){
-   const candidate=cost+edgeCost(grid,fields.crust,history,cell,next,seed+plate*1109);
+   const candidate=cost+edgeCost(grid,fields.crust,history,cell,next,resistance);
    if(candidate+1e-12<costs[next]){
     costs[next]=candidate;owners[next]=plate;heap.push({cost:candidate,cell:next,plate});
    }

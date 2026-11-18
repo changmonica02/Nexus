@@ -4,6 +4,7 @@
 // Geological staging follows MapRegionizer's tectonics/elevation design.
 import {assertGlobalGrid} from './global-config.mjs';
 import {analyzeSphericalPlates} from './tectonic-plates.mjs';
+import {valueNoise3} from './spherical-terrain-refinement.mjs';
 
 export const SEAFLOOR=Object.freeze({
  shelf:1,slope:2,abyssalPlain:3,midOceanRidge:4,trench:5,seamount:6
@@ -137,31 +138,41 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
   const d=coast[i],r=ridge[i],t=trench[i];
   // Shelf 0-250 km: shallow continental margin. Slope 250-850 km:
   // transition down to the abyssal plain. No plateau is forced onto land.
-  const edge=(hash(tectonicSeed^0xC0A57,i)-.5)*2;
+  const p=grid.points[i];
+  // Shelf width follows broad crustal variation and narrows at active
+  // margins. Smooth 3D fields have neither longitude seams nor cell-ID bands.
+  const broad=valueNoise3(p,3,tectonicSeed^0xC0A57);
+  const texture=valueNoise3(p,13,tectonicSeed^0x1A817);
+  const active=Number.isFinite(t)?Math.exp(-((t/420)**2)):0;
+  const shelfEnd=clamp(250+210*broad,90,460)*(1-.55*active);
+  const slopeWidth=clamp(410+220*valueNoise3(p,5,tectonicSeed^0x5291),200,650);
+  const slopeEnd=shelfEnd+slopeWidth;
   let depth;
-  if(d<=250){
+  if(d<=shelfEnd){
    zones[i]=SEAFLOOR.shelf;
-   depth=1.3+1.8*Math.pow(clamp(d/250,0,1),1.25);
-  }else if(d<=850){
+   depth=1.1+1.7*Math.pow(clamp(d/shelfEnd,0,1),1.4);
+  }else if(d<=slopeEnd){
    zones[i]=SEAFLOOR.slope;
-   const fraction=clamp((d-250)/600,0,1);
-   depth=3.1+40*(fraction*fraction*(3-2*fraction));
+   const fraction=clamp((d-shelfEnd)/slopeWidth,0,1);
+   depth=2.8+40*(fraction*fraction*(3-2*fraction));
   }else{
    zones[i]=SEAFLOOR.abyssalPlain;
-   const aging=Number.isFinite(r)?clamp(r/2400,0,1):1;
-   depth=41+9*aging+edge*3.5;
+   const aging=Number.isFinite(r)?Math.sqrt(clamp(r/3000,0,1)):1;
+   depth=42.8+8*aging+2.5*broad+1.1*texture;
   }
   // Smooth, broad volcanic ridge uplift. Very close to shore the shelf/slope
   // stays the primary feature; ridges never become new islands.
   const ridgeFactor=Number.isFinite(r)?Math.exp(-Math.pow(r/380,2)):0;
-  if(ridgeFactor>.09&&d>300){
-   depth=Math.max(9,depth-25*ridgeFactor);
+  if(ridgeFactor>.001&&d>shelfEnd){
+   const gate=clamp((d-shelfEnd)/350,0,1);
+   depth=Math.max(3,depth-25*ridgeFactor*gate*gate*(3-2*gate));
    if(ridgeFactor>.24)zones[i]=SEAFLOOR.midOceanRidge;
   }
   // Subduction zones are concentrated, asymmetric trench-like deepening.
   const trenchFactor=Number.isFinite(t)?Math.exp(-Math.pow(t/155,2)):0;
-  if(trenchFactor>.14&&d>100){
-   depth+=38*trenchFactor;
+  if(trenchFactor>.001){
+   const gate=clamp(d/180,0,1);
+   depth+=38*trenchFactor*gate*gate*(3-2*gate);
    if(trenchFactor>.26)zones[i]=SEAFLOOR.trench;
   }
   // Submerged cones are radial smooth bumps. Restrict to ocean and require

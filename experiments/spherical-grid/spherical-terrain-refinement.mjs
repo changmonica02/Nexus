@@ -13,7 +13,7 @@ function hash3(ix,iy,iz,seed){
 }
 // Seamless on the spherical longitude boundary: sample 3D unit vectors,
 // rather than separately sampling equirectangular x/y coordinates.
-function valueNoise3(p,f,seed){
+export function valueNoise3(p,f,seed){
  const px=p[0]*f,py=p[1]*f,pz=p[2]*f;
  const x=Math.floor(px),y=Math.floor(py),z=Math.floor(pz);
  const u=fade(px-x),v=fade(py-y),w=fade(pz-z);

@@ -5,18 +5,19 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
-import {createAzgaarSphericalLandLayout} from './azgaar-spherical-land.mjs';
-import {analyzeSphericalPlates} from './tectonic-plates.mjs';
-import {generatePlateSeafloor,applyPlateSeafloor,tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
+import {createNaturalPlanet} from './natural-planet.mjs';
+import {SEAFLOOR} from './plate-seafloor.mjs';
 
 function argumentsFor(args){
- const opts={out:'.cache/azgaar-previews',width:960,height:480,seeds:[1729,42,3]};
+ const opts={out:'.cache/azgaar-previews',width:960,height:480,seeds:[1729,42,3],landPercent:32,plates:false};
  for(let i=0;i<args.length;i++){
   const flag=args[i],value=args[++i];
   if(value===undefined)throw Error('Missing value for '+flag);
   if(flag==='--out')opts.out=value;
   else if(flag==='--width')opts.width=Number(value);
   else if(flag==='--height')opts.height=Number(value);
+  else if(flag==='--plates')opts.plates=value==='1';
+  else if(flag==='--land')opts.landPercent=Number(value);
   else if(flag==='--seeds')opts.seeds=value.split(',').map(Number);
   else throw Error('Unknown option '+flag);
  }
@@ -131,13 +132,10 @@ const opts=argumentsFor(process.argv.slice(2));
 await mkdir(opts.out,{recursive:true});
 for(const seed of opts.seeds){
  const start=performance.now();
- const result=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
- const grid=result.grid,tectonicSeed=tectonicSeedFromLandMask(grid);
- const tectonics=analyzeSphericalPlates(grid,{seed:tectonicSeed});
- const ocean=generatePlateSeafloor(grid,{seed:tectonicSeed,tectonics});
- applyPlateSeafloor(grid,ocean);
+ const result=createNaturalPlanet({seed,landPercent:opts.landPercent,continentCores:8});
+ const grid=result.grid,tectonics=result.tectonics,ocean=result.seafloor;
  const output=join(opts.out,'azgaar-seed-'+seed+'.png');
- const image=encodePng(opts.width,opts.height,drawTerrain(grid,ocean.zones,tectonics.boundaries,opts.width,opts.height));
+ const image=encodePng(opts.width,opts.height,drawTerrain(grid,ocean.zones,opts.plates?tectonics.boundaries:[],opts.width,opts.height));
  await writeFile(output,image);
  console.log(JSON.stringify({seed,output,landPercent:Number(result.measuredLandPercent.toFixed(4)),
   templates:result.templatePlacements.length,plateCount:tectonics.plateCount,

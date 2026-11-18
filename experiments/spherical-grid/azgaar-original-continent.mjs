@@ -84,7 +84,7 @@ function lineTerrain(heights,rng,kind,count,rangeX,rangeY,strength){
   }
  }
 }
-function hills(heights,rng,kind,count,strength,rx,ry){
+function hills(heights,rng,kind,count,strength,rx,ry,blobPower=BLOB){
  for(let j=0;j<val(rng,count);j++){
   let at=pick(rng,rx,ry),h=clamp(val(rng,strength));
   if(kind==='Hill'){
@@ -94,7 +94,7 @@ function hills(heights,rng,kind,count,strength,rx,ry){
     const q=queue[head];
     for(const n of neighbors[q]){
      if(delta[n])continue;
-     delta[n]=clamp(delta[q]**BLOB*(.9+.2*rng()));
+     delta[n]=clamp(delta[q]**blobPower*(.9+.2*rng()));
      if(delta[n]>1)queue.push(n);
     }
    }
@@ -103,7 +103,7 @@ function hills(heights,rng,kind,count,strength,rx,ry){
    for(let attempt=0;attempt<50&&heights[at]<SEA;attempt++)at=pick(rng,rx,ry);
    const used=new Uint8Array(N),queue=[at];
    for(let head=0;head<queue.length;head++){
-    const q=queue[head];h=h**BLOB*(.9+.2*rng());
+    const q=queue[head];h=h**blobPower*(.9+.2*rng());
     if(h<1)break;
     for(const n of neighbors[q]){
      if(used[n])continue;
@@ -172,15 +172,14 @@ function invert(heights,rng,probability,axes){
   heights[i]=prior[ny*SIDE+nx];
  }
 }
-export function executeOriginalAzgaarContinent(name,seed){
- if(!['continents','pangea','oldWorld','shattered'].includes(name))
-  throw RangeError('Unknown continent template: '+name);
+export function executeOriginalAzgaarTemplate(name,seed,{blobPower=.94}={}){
+ if(!AZGAAR_TEMPLATE_SCRIPTS[name])throw RangeError('Unknown Azgaar template: '+name);
  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw RangeError('Invalid uint32 seed');
  const rng=templateRng(seed),heights=new Uint8Array(N);
  for(const raw of AZGAAR_TEMPLATE_SCRIPTS[name].split('\n')){
   const [op,a,b,c,d]=raw.trim().split(/\s+/);
   switch(op){
-   case 'Hill':case 'Pit': hills(heights,rng,op,a,b,c,d);break;
+   case 'Hill':case 'Pit': hills(heights,rng,op,a,b,c,d,blobPower);break;
    case 'Range':case 'Trough':lineTerrain(heights,rng,op,a,c,d,b);break;
    case 'Strait':strait(heights,rng,a,b);break;
    case 'Smooth':smooth(heights,Number(a));break;
@@ -192,4 +191,10 @@ export function executeOriginalAzgaarContinent(name,seed){
   }
  }
  return {name,seed,size:SIDE,seaLevel:SEA,heights};
+}
+
+// Keep the earlier continent-only adapter reproducible for its experiments.
+export function executeOriginalAzgaarContinent(name,seed){
+ if(!['continents','pangea','oldWorld','shattered'].includes(name))throw RangeError('Unknown continent template: '+name);
+ return executeOriginalAzgaarTemplate(name,seed,{blobPower:BLOB});
 }
