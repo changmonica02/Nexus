@@ -24,23 +24,64 @@ export function sampleTemplateRadius(name,rng){
  // Bias toward the small/medium end, retaining occasional large results.
  return range[0]+(range[1]-range[0])*Math.pow(rng(),1.65);
 }
-function makePlacement(rng,type,index,recipe=null,recipeSeed=null){
+// First choose an uneven global geography, THEN sample individual templates.
+// These centres are not new map objects; they only bias initial placement.
+const angularDistance=(a,b)=>Math.acos(Math.max(-1,Math.min(1,dot(a,b))));
+const randomNear=(rng,center,spread)=>{
+ const p=Math.abs(center[2])>.97?[0,1,0]:[0,0,1];
+ const east=unit(cross(p,center)),north=cross(center,east);
+ const angle=2*Math.PI*rng(),distance=spread*Math.sqrt(rng());
+ return unit(center.map((v,i)=>v*Math.cos(distance)+Math.sin(distance)*
+   (east[i]*Math.cos(angle)+north[i]*Math.sin(angle))));
+};
+export function planGeographicClusters(seed){
+ const rng=templateRng(seed^0x51A74C),count=randomInt(rng,2,4),clusters=[];
+ // One or two broad ocean sectors are permitted to stay relatively empty.
+ const first=randomPoint(rng),basin=randomNear(rng,first,1.7+0.6*rng());
+ for(let i=0;i<count;i++){
+  let center=randomPoint(rng),best=-Infinity;
+  for(let attempt=0;attempt<18;attempt++){
+   const option=randomPoint(rng);
+   const fromBasin=angularDistance(option,basin);
+   const fromOthers=clusters.length?Math.min(...clusters.map(c=>angularDistance(option,c.center))):1.3;
+   const quality=fromBasin+0.28*Math.min(fromOthers,1.4);
+   if(quality>best){best=quality;center=option;}
+  }
+  clusters.push({id:i,center,spread:0.45+0.40*rng(),
+   weight:0.30+1.7*Math.pow(rng(),2),continentWeight:.35+1.4*rng()});
+ }
+ return {clusters,basin};
+}
+function weightedCluster(rng,clusters,type){
+ const total=clusters.reduce((sum,c)=>sum+c.weight*(type==='continent'?c.continentWeight:1),0);
+ let n=rng()*total;
+ for(const c of clusters){
+  n-=c.weight*(type==='continent'?c.continentWeight:1);
+  if(n<=0)return c;
+ }
+ return clusters.at(-1);
+}
+function makePlacement(rng,type,index,geography,recipe=null,recipeSeed=null,clusterId=null){
  const name=recipe??randomItem(rng,type==='continent'?CONTINENT_TEMPLATES:type==='island'?ISLAND_TEMPLATES:ARCHIPELAGO_TEMPLATES);
- const center=randomPoint(rng);
+ let selected=clusterId===null?weightedCluster(rng,geography.clusters,type):geography.clusters[clusterId];
+ // Some isolated continents and islands remain to prevent forced clustering.
+ const isolated=clusterId===null?(rng()<(type==='continent'?.16:.19)):false;
+ if(isolated)selected=null;
+ const center=selected?randomNear(rng,selected.center,selected.spread*(type==='continent'?1.30:type==='archipelago'?.83:1.05)):
+  randomPoint(rng);
  const polar=Math.abs(center[2])>.97?[0,1,0]:[0,0,1];
  const east=unit(cross(polar,center)),north=unit(cross(center,east));
  const angle=rng()*Math.PI*2,cos=Math.cos(angle),sin=Math.sin(angle);
  const radius=sampleTemplateRadius(name,rng);
- return {type,index,name,center,east,north,cos,sin,radius,seed:recipeSeed??((rng()*4294967296)>>>0)};
+ return {type,index,name,center,east,north,cos,sin,radius,
+  clusterId:selected?.id??null,seed:recipeSeed??((rng()*4294967296)>>>0)};
 }
 export function planAzgaarPlacements(seed,{continentCores=8}={}){
- const rng=templateRng(seed^0xA61A2),placements=[];
- // The user-visible 6-10 core setting controls main placements.
- // The spec prescribes 6-8 continental blocks; clamp the old 9-10 setting.
+ const rng=templateRng(seed^0xA61A2),placements=[],geography=planGeographicClusters(seed);
  const continents=Math.max(6,Math.min(8,continentCores));
- for(let i=0;i<continents;i++)placements.push(makePlacement(rng,'continent',i));
- for(let i=0,n=randomInt(rng,15,20);i<n;i++)placements.push(makePlacement(rng,'island',i));
- for(let i=0,n=randomInt(rng,4,12);i<n;i++)placements.push(makePlacement(rng,'archipelago',i));
+ for(let i=0;i<continents;i++)placements.push(makePlacement(rng,'continent',i,geography));
+ for(let i=0,n=randomInt(rng,15,20);i<n;i++)placements.push(makePlacement(rng,'island',i,geography));
+ for(let i=0,n=randomInt(rng,4,12);i<n;i++)placements.push(makePlacement(rng,'archipelago',i,geography));
  return placements;
 }
 // Reject overly coincident *land footprints*, not overlapping template rectangles.
@@ -81,19 +122,19 @@ function measureLandContribution(candidate,occupied,areas){
  return {overlapRatio,newLandArea:Math.max(0,candidate.landArea-overlapping),
   contributionRatio:Math.max(0,1-overlapRatio)};
 }
-function selectPlacement(item,grid,occupied,rng){
+function selectPlacement(item,grid,occupied,rng,geography){
  // Re-placing a recipe must NOT run its costly 64x64 height generation again.
  // Position, rotation and physical size are re-sampled; shape and seed stay fixed.
  const map=executeAzgaarTemplate(item.name,item.seed);
  let best=null,bestQuality=-Infinity;
  for(let attempt=0;attempt<TEMPLATE_RETRIES[item.type];attempt++){
-  const proposed=attempt===0?item:makePlacement(rng,item.type,item.index,item.name,item.seed);
+  const proposed=attempt===0?item:makePlacement(rng,item.type,item.index,geography,item.name,item.seed,item.clusterId);
   const candidate=projectCandidate(proposed,grid,map);
   const metrics=measureLandContribution(candidate,occupied,grid.areas);
   if(candidate.landArea<=EPSILON||metrics.newLandArea<=EPSILON)continue;
   // Rank by true new land area plus relative contribution. This avoids picking
   // a microscopic patch merely because its relative overlap happens to be 0.
-  const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-4*metrics.overlapRatio;
+  const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-3*metrics.overlapRatio;
   if(quality>bestQuality){
    best={...proposed,candidate,...metrics,attempts:attempt+1};
    bestQuality=quality;
@@ -106,7 +147,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw RangeError('seed must be uint32');
  if(![25,32,45].includes(landPercent))throw RangeError('landPercent must be 25, 32 or 45');
  if(!Number.isInteger(continentCores)||continentCores<6||continentCores>10)throw RangeError('continentCores must be 6..10');
- const grid=createGlobalGrid(),placements=planAzgaarPlacements(seed,{continentCores});
+ const grid=createGlobalGrid(),placements=planAzgaarPlacements(seed,{continentCores}),geography=planGeographicClusters(seed);
  const rng=templateRng(seed^0x3C97E),score=new Float64Array(grid.points.length);
  // Background is applied AFTER placement, using the accepted (possibly
  // relocated) continental centres rather than the original proposals.
@@ -115,7 +156,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  // footprint cells. A bounded fallback keeps the generator deterministic.
  const occupied=new Uint8Array(grid.points.length),accepted=[];
  for(const item of placements){
-  const chosen=selectPlacement(item,grid,occupied,rng);
+  const chosen=selectPlacement(item,grid,occupied,rng,geography);
   if(!chosen)continue; // All attempts were empty or contributed no new land.
   const {candidate,...info}=chosen;
   accepted.push(info);
@@ -202,6 +243,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  return {grid,oceanSeed,settings:{seed,landPercent,continentCores,gridCells:36002},
   measuredLandPercent:100*selectedArea/total,
   attemptedPlacements:placements.length,skippedPlacements:placements.length-accepted.length,
+  geographicClusters:geography.clusters.map(({id,center,spread,weight})=>({id,center,spread,weight})),
   tolerancePercent:100*Math.max(...grid.areas)/total,
-  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,overlapRatio,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,overlapRatio,contributionRatio,newLandArea,attempts}))};
+  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts}))};
 }
