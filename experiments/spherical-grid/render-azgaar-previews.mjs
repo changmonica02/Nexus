@@ -6,6 +6,8 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
 import {createAzgaarSphericalLandLayout} from './azgaar-spherical-land.mjs';
+import {analyzeSphericalPlates} from './tectonic-plates.mjs';
+import {generatePlateSeafloor,applyPlateSeafloor,tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
 
 function argumentsFor(args){
  const opts={out:'.cache/azgaar-previews',width:960,height:480,seeds:[1729,42,3]};
@@ -24,17 +26,34 @@ function argumentsFor(args){
  return opts;
 }
 
-function rgba(height){
- if(height< -25)return [28,77,125];
- if(height< -1)return [58,128,166];
- if(height<1)return [143,181,170];
- if(height<10)return [183,206,139];
- if(height<30)return [112,158,99];
- if(height<55)return [151,142,101];
- if(height<75)return [175,164,142];
- return [229,227,218];
+function rgba(height,zone){
+ if(height<0){
+  if(zone===SEAFLOOR.seamount)return [73,155,170];
+  if(zone===SEAFLOOR.midOceanRidge)return [52,112,158];
+  if(zone===SEAFLOOR.trench)return [17,35,78];
+  if(height<=-75)return [22,49,89];
+  if(height<=-45)return [34,77,117];
+  if(height<=-22)return [45,109,148];
+  if(height<=-7)return [70,144,172];
+  return [105,184,194];
+ }
+ if(height<10)return [173,194,119];
+ if(height<30)return [117,156,93];
+ if(height<55)return [145,127,89];
+ if(height<75)return [169,152,128];
+ return [222,218,203];
 }
-function drawTerrain(grid,width,height){
+function line(pixels,width,height,x0,y0,x1,y1,red=226,green=91,blue=47){
+ // Thin one-pixel dual-mesh lines; longitude unwrap is handled by caller.
+ const steps=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0)*1.5));
+ for(let k=0;k<=steps;k++){
+  const t=k/steps,x=Math.round(x0+(x1-x0)*t),y=Math.round(y0+(y1-y0)*t);
+  if(y<0||y>=height)continue;
+  const wrapped=((x%width)+width)%width,at=4*(y*width+wrapped);
+  pixels[at]=red;pixels[at+1]=green;pixels[at+2]=blue;
+ }
+}
+function drawTerrain(grid,zones,boundaries,width,height){
  const pixels=Buffer.alloc(width*height*4);
  for(let i=0;i<pixels.length;i+=4){pixels[i]=28;pixels[i+1]=77;pixels[i+2]=125;pixels[i+3]=255;}
  const points=grid.points.map(v=>[(Math.atan2(v[1],v[0])/Math.PI+1)*width/2,
@@ -47,7 +66,8 @@ function drawTerrain(grid,width,height){
    while(xs[k]-xs[0]<-width/2)xs[k]+=width;
   }
   const mean=(grid.heights[ids[0]]+grid.heights[ids[1]]+grid.heights[ids[2]])/3;
-  const rgb=rgba(mean),x1=xs[0],y1=ys[0],x2=xs[1],y2=ys[1],x3=xs[2],y3=ys[2];
+  const zone=ids.map(i=>zones[i]).sort((a,b)=>a-b)[1];
+  const rgb=rgba(mean,zone),x1=xs[0],y1=ys[0],x2=xs[1],y2=ys[1],x3=xs[2],y3=ys[2];
   const det=(y2-y3)*(x1-x3)+(x3-x2)*(y1-y3);
   if(Math.abs(det)<1e-8)continue;
   for(const offset of [-width,0,width]){
@@ -64,6 +84,16 @@ function drawTerrain(grid,width,height){
     pixels[index]=rgb[0];pixels[index+1]=rgb[1];pixels[index+2]=rgb[2];
    }
   }
+ }
+ // Draw real Voronoi shared-edge plate boundaries after terrain fill.
+ for(const boundary of boundaries){
+  const a=boundary.start,b=boundary.end;
+  const toPixel=p=>[(Math.atan2(p[1],p[0])/Math.PI+1)*width/2,
+   (.5-Math.asin(Math.max(-1,Math.min(1,p[2])))/Math.PI)*height];
+  const [x0,y0]=toPixel(a),[rawX,y1]=toPixel(b);let x1=rawX;
+  while(x1-x0>width/2)x1-=width;
+  while(x1-x0< -width/2)x1+=width;
+  line(pixels,width,height,x0,y0,x1,y1);
  }
  // Thin neutral coordinate grid every 30 degrees, atop the terrain.
  for(let lon=-150;lon<=150;lon+=30){
@@ -102,9 +132,15 @@ await mkdir(opts.out,{recursive:true});
 for(const seed of opts.seeds){
  const start=performance.now();
  const result=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
+ const grid=result.grid,tectonicSeed=tectonicSeedFromLandMask(grid);
+ const tectonics=analyzeSphericalPlates(grid,{seed:tectonicSeed});
+ const ocean=generatePlateSeafloor(grid,{seed:tectonicSeed,tectonics});
+ applyPlateSeafloor(grid,ocean);
  const output=join(opts.out,'azgaar-seed-'+seed+'.png');
- const image=encodePng(opts.width,opts.height,drawTerrain(result.grid,opts.width,opts.height));
+ const image=encodePng(opts.width,opts.height,drawTerrain(grid,ocean.zones,tectonics.boundaries,opts.width,opts.height));
  await writeFile(output,image);
  console.log(JSON.stringify({seed,output,landPercent:Number(result.measuredLandPercent.toFixed(4)),
-  templates:result.templatePlacements.length,bytes:image.length,elapsedMs:Math.round(performance.now()-start)}));
+  templates:result.templatePlacements.length,plateCount:tectonics.plateCount,
+  plateSegments:tectonics.boundaries.length,seamounts:ocean.submarineVolcanoes.length,
+  oceanZones:[...new Set(ocean.zones)].sort(),bytes:image.length,elapsedMs:Math.round(performance.now()-start)}));
 }
