@@ -135,10 +135,35 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
    occupied[i]=1;
   }
  }
+ // Only the prospective coast is softened. Mountain ridges remain untouched;
+ // a fixed small local band cannot turn a remote lake into an open ocean.
+ // The quantile is recomputed after this pass to keep the requested area.
+ const initialRank=Array.from(grid.areas,(area,i)=>({i,area,value:score[i]}));
+ initialRank.sort((a,b)=>b.value-a.value||a.i-b.i);
+ const sphereArea=grid.areas.reduce((sum,area)=>sum+area,0);
+ const targetArea=sphereArea*landPercent/100;
+ let roughArea=0,roughCount=0;
+ while(roughCount<initialRank.length&&roughArea+initialRank[roughCount].area/2<targetArea){
+  roughArea+=initialRank[roughCount].area;roughCount++;
+ }
+ const roughSeaLevel=(initialRank[roughCount-1].value+initialRank[roughCount].value)/2;
+ const coastScore=score.slice();
+ for(let i=0;i<score.length;i++){
+  // Preserve high relief and deep oceans. A change may occur only next to
+  // opposite-side cells and in a narrow band around the tentative coast.
+  if(Math.abs(score[i]-roughSeaLevel)>10)continue;
+  const near=grid.neighbors[i];
+  if(!near.some(j=>(score[i]>=roughSeaLevel)!==(score[j]>=roughSeaLevel)))continue;
+  let neighbourAverage=0;
+  for(const j of near)neighbourAverage+=score[j];
+  neighbourAverage/=near.length;
+  const adjustment=Math.max(-3,Math.min(3,(neighbourAverage-score[i])*.2));
+  coastScore[i]+=adjustment;
+ }
  // Use area-weighted quantile to hit the selected surface fraction.
  // This must happen after composing all templates, never per local patch.
  // Tiny seeded jitter prevents large quantized ties at equal heights.
- const rank=Array.from(grid.areas,(area,i)=>({i,area,score:score[i]+(rng()-.5)*.0001}));
+ const rank=Array.from(grid.areas,(area,i)=>({i,area,score:coastScore[i]+(rng()-.5)*.0001}));
  rank.sort((a,b)=>b.score-a.score||a.i-b.i);
  const total=grid.areas.reduce((s,x)=>s+x,0),goal=total*landPercent/100;
  let selectedArea=0,count=0;
@@ -151,7 +176,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  const boundary=(rank[count-1].score+rank[count].score)/2;
  for(let i=0;i<grid.heights.length;i++){
   // Keep relief gradients, but guarantee a positive/negative elevation sign.
-  const delta=Math.min(99,Math.abs(score[i]-boundary)*1.8);
+  const delta=Math.min(99,Math.abs(coastScore[i]-boundary)*1.8);
   grid.heights[i]=selected[i]?Math.max(1,Math.round(delta)):-Math.max(1,Math.round(delta));
  }
  // Pick the largest connected below-sea-level component as the ocean seed.
