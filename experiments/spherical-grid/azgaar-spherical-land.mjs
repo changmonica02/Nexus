@@ -93,7 +93,7 @@ function selectPlacement(item,grid,occupied,rng){
   if(candidate.landArea<=EPSILON)continue;
   // Rank by true new land area plus relative contribution. This avoids picking
   // a microscopic patch merely because its relative overlap happens to be 0.
-  const quality=Math.log1p(metrics.newLandArea)+2*metrics.contributionRatio;
+  const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-4*metrics.overlapRatio;
   if(quality>bestQuality){
    best={...proposed,candidate,...metrics,attempts:attempt+1};
    bestQuality=quality;
@@ -108,17 +108,9 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  if(!Number.isInteger(continentCores)||continentCores<6||continentCores>10)throw RangeError('continentCores must be 6..10');
  const grid=createGlobalGrid(),placements=planAzgaarPlacements(seed,{continentCores});
  const rng=templateRng(seed^0x3C97E),score=new Float64Array(grid.points.length);
- // Coherent continental background prevents random isolated cells when the
- // requested area exceeds the raised portions of all candidate recipes.
- const continents=placements.filter(p=>p.type==='continent');
- for(let i=0;i<grid.points.length;i++){
-  let value=-45;
-  for(const item of continents){
-   const distance=Math.acos(Math.max(-1,Math.min(1,dot(grid.points[i],item.center))));
-   value=Math.max(value,-45+25*Math.exp(-2*Math.pow(distance/item.radius,2)));
-  }
-  score[i]=value;
- }
+ // Background is applied AFTER placement, using the accepted (possibly
+ // relocated) continental centres rather than the original proposals.
+ score.fill(-45);
  // Place land-rich templates in order, comparing only their actual positive
  // footprint cells. A bounded fallback keeps the generator deterministic.
  const occupied=new Uint8Array(grid.points.length),accepted=[];
@@ -134,6 +126,19 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
    score[i]=Math.max(score[i],incoming)+Math.min(8,0.12*Math.min(previous,incoming));
    occupied[i]=1;
   }
+ }
+ // A broad low-amplitude continental background discourages random isolated
+ // land cells if the final target percentage exceeds the combined footprints.
+ // It must follow accepted placements, otherwise moved land gets a phantom
+ // elevation halo at its rejected original location.
+ const continents=accepted.filter(p=>p.type==='continent');
+ for(let i=0;i<grid.points.length;i++){
+  let background=-45;
+  for(const item of continents){
+   const distance=Math.acos(Math.max(-1,Math.min(1,dot(grid.points[i],item.center))));
+   background=Math.max(background,-45+25*Math.exp(-2*Math.pow(distance/item.radius,2)));
+  }
+  score[i]=Math.max(score[i],background);
  }
  // Only the prospective coast is softened. Mountain ridges remain untouched;
  // a fixed small local band cannot turn a remote lake into an open ocean.
