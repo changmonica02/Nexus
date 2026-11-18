@@ -1,5 +1,5 @@
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number};
+export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const sub=(a:number[],b:number[])=>a.map((v,i)=>v-b[i]);
