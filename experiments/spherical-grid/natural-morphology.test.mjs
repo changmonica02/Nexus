@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createNaturalPlanet} from './natural-planet.mjs';
 import {createNaturalLand} from './natural-land.mjs';
-import {executeOriginalAzgaarTemplate} from './azgaar-original-continent.mjs';
+import {executeNativeAzgaarPatch} from './azgaar-native-patch.mjs';
 import {AZGAAR_TEMPLATE_SCRIPTS} from './azgaar-template-data.mjs';
 import {drainageReceivers,shapeNaturalRelief} from './natural-relief.mjs';
 import {createGlobalGrid} from './global-config.mjs';
@@ -10,7 +10,7 @@ import {SEAFLOOR} from './plate-seafloor.mjs';
 
 test('upstream-style operations support every selected local recipe without flooding the entire patch',()=>{
  for(const name of Object.keys(AZGAAR_TEMPLATE_SCRIPTS)){
-  const a=executeOriginalAzgaarTemplate(name,42),b=executeOriginalAzgaarTemplate(name,42);
+  const a=executeNativeAzgaarPatch(name,42),b=executeNativeAzgaarPatch(name,42);
   assert.deepEqual(a.heights,b.heights);
   assert.ok(a.heights.some(h=>h>=20),name);
   assert.ok(a.heights.some(h=>h<20),name+' should retain actual sea, not a canvas-sized stamp');

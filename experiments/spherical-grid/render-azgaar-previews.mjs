@@ -5,7 +5,8 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
-import {createNaturalPlanet} from './natural-planet.mjs';
+await import('../../scripts/build-azgaar-command-tools.mjs');
+const {createNaturalPlanet}=await import('./natural-planet.mjs');
 import {SEAFLOOR} from './plate-seafloor.mjs';
 
 function argumentsFor(args){

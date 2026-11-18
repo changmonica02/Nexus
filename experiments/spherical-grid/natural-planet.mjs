@@ -15,5 +15,5 @@ export function createNaturalPlanet(settings){
  const tectonics=analyzeSphericalPlates(draft.grid,{seed});
  const seafloor=generatePlateSeafloor(draft.grid,{seed,tectonics});
  applyPlateSeafloor(draft.grid,seafloor);
- return {...draft,refinement,tectonics,seafloor,generator:'nexus-natural-planet-v2'};
+ return {...draft,refinement,tectonics,seafloor,generator:'nexus-natural-planet-v3'};
 }
