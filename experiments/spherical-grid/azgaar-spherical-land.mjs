@@ -87,13 +87,13 @@ export function planAzgaarPlacements(seed,{continentCores=8}={}){
  for(let i=0,n=randomInt(rng,4,12);i<n;i++)placements.push(makePlacement(rng,'archipelago',i,geography));
  return placements;
 }
-// Reject overly coincident *land footprints*, not overlapping template rectangles.
-// An island may attach to a continent, while major continental candidates should
-// still contribute new land. These are experimental tuning constants.
-export const TEMPLATE_OVERLAP_LIMITS=Object.freeze({continent:0.34,island:0.82,archipelago:0.60});
-const TEMPLATE_RETRIES=Object.freeze({continent:8,island:5,archipelago:7});
-// A candidate is judged by how much new land it adds, not its rectangle.
-// The overlap limits remain soft when every retry is crowded.
+// Hard caps on *actual positive land footprint*, never template rectangles.
+// These provisional values deliberately leave room for small coastal joins.
+// A rejected candidate must never be accepted merely to fill a slot.
+export const TEMPLATE_OVERLAP_LIMITS=Object.freeze({continent:0.18,island:0.55,archipelago:0.35});
+export const CONTINENT_PAIR_OVERLAP_LIMIT=0.12;
+const TEMPLATE_RETRIES=Object.freeze({continent:16,island:9,archipelago:12});
+// A candidate must add non-zero new land AND satisfy the corresponding cap.
 const EPSILON=1e-9;
 function projectCandidate(item,grid,map){
  const extent=Math.tan(item.radius);
@@ -125,7 +125,7 @@ function measureLandContribution(candidate,occupied,areas){
  return {overlapRatio,newLandArea:Math.max(0,candidate.landArea-overlapping),
   contributionRatio:Math.max(0,1-overlapRatio)};
 }
-function selectPlacement(item,grid,occupied,rng,geography){
+function selectPlacement(item,grid,occupied,rng,geography,priorContinents){
  // Re-placing a recipe must NOT run its costly 64x64 height generation again.
  // Position, rotation and physical size are re-sampled; shape and seed stay fixed.
  const map=executeAzgaarTemplate(item.name,item.seed);
@@ -136,14 +136,23 @@ function selectPlacement(item,grid,occupied,rng,geography){
   const candidate=projectCandidate(proposed,grid,map);
   const metrics=measureLandContribution(candidate,occupied,grid.areas);
   if(candidate.landArea<=EPSILON||metrics.newLandArea<=EPSILON)continue;
-  // Rank by true new land area plus relative contribution. This avoids picking
-  // a microscopic patch merely because its relative overlap happens to be 0.
+  if(metrics.overlapRatio>TEMPLATE_OVERLAP_LIMITS[item.type]+1e-9)continue;
+  // The union-overlap ratio alone does not detect swallowing a smaller
+  // previous continent. Compare each actual continental footprint as well.
+  if(item.type==='continent'&&priorContinents.some(previous=>{
+   let shared=0;
+   for(let i=0;i<grid.areas.length;i++)
+    if(candidate.footprint[i]&&previous.footprint[i])shared+=grid.areas[i];
+   return shared/Math.min(previous.landArea,candidate.landArea)>CONTINENT_PAIR_OVERLAP_LIMIT+1e-9;
+  }))continue;
   const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-3*metrics.overlapRatio;
   if(quality>bestQuality){
    best={...proposed,candidate,...metrics,attempts:attempt+1};
    bestQuality=quality;
   }
-  if(metrics.overlapRatio<=TEMPLATE_OVERLAP_LIMITS[item.type])break;
+  // Once accepted, keep seeking a better candidate only if useful. This
+  // avoids choosing an invalid low-overlap fallback at the retry limit.
+  if(metrics.overlapRatio<=TEMPLATE_OVERLAP_LIMITS[item.type]*.45)break;
  }
  return best;
 }
@@ -158,12 +167,13 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  score.fill(-45);
  // Place land-rich templates in order, comparing only their actual positive
  // footprint cells. A bounded fallback keeps the generator deterministic.
- const occupied=new Uint8Array(grid.points.length),accepted=[];
+ const occupied=new Uint8Array(grid.points.length),accepted=[],priorContinents=[];
  for(const item of placements){
-  const chosen=selectPlacement(item,grid,occupied,rng,geography);
-  if(!chosen)continue; // All attempts were empty or contributed no new land.
+  const chosen=selectPlacement(item,grid,occupied,rng,geography,priorContinents);
+  if(!chosen)continue; // No candidate met HARD overlap / contribution limits.
   const {candidate,...info}=chosen;
   accepted.push(info);
+  if(item.type==='continent')priorContinents.push({footprint:candidate.footprint,landArea:candidate.landArea});
   for(let i=0;i<grid.points.length;i++){
    if(!candidate.footprint[i])continue;
    const incoming=candidate.values[i],previous=Math.max(0,score[i]);
@@ -247,6 +257,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  return {grid,oceanSeed,settings:{seed,landPercent,continentCores,gridCells:36002},
   measuredLandPercent:100*selectedArea/total,
   attemptedPlacements:placements.length,skippedPlacements:placements.length-accepted.length,
+  acceptedContinents:priorContinents.length,
   geographicClusters:geography.clusters.map(({id,center,spread,weight})=>({id,center,spread,weight})),
   tolerancePercent:100*Math.max(...grid.areas)/total,
   stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,clusterId,overlapRatio,contributionRatio,newLandArea,attempts}))};
