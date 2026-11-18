@@ -31,7 +31,24 @@ export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
    }
    ctx.beginPath();for(const line of drawing.coast){ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);}
    ctx.strokeStyle='#547457';ctx.lineWidth=.7/s;ctx.stroke();
-   if(showPlates&&drawing.plateBoundaries?.length){
+   if(showPlates&&drawing.tectonicSymbols){
+    const colors:Record<string,string>={subduction:'#a52938',collision:'#8c3b84','mid-ocean-ridge':'#007c91',rift:'#007c91',transform:'#aa6d18',diffuse:'#777'};
+    const strokeLine=(line:number[][])=>{ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);};
+    const arrow=(line:number[][])=>{
+     if(line.length!==2)return;
+     const [a,b]=line,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);if(len<1e-8)return;
+     const ux=dx/len,uy=dy/len,head=Math.min(len*.35,4/s);
+     ctx.beginPath();strokeLine(line);ctx.moveTo(b[0]-ux*head-uy*head*.65,b[1]-uy*head+ux*head*.65);ctx.lineTo(...b as [number,number]);ctx.lineTo(b[0]-ux*head+uy*head*.65,b[1]-uy*head-ux*head*.65);ctx.stroke();
+    };
+    for(const edge of drawing.tectonicSymbols.edges){ctx.strokeStyle=colors[edge.mode]??'#777';ctx.lineWidth=1.8/s;ctx.beginPath();for(const line of edge.lines)strokeLine(line);ctx.stroke();}
+    for(const mark of drawing.tectonicSymbols.marks){
+     ctx.fillStyle=ctx.strokeStyle=colors[mark.mode]??'#777';ctx.lineWidth=1.3/s;
+     if(mark.tooth.length){ctx.beginPath();mark.tooth.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();}
+     for(const line of mark.arrows)arrow(line);
+    }
+    ctx.strokeStyle=ctx.fillStyle='#172734';ctx.lineWidth=2/s;ctx.font=`${12/s}px sans-serif`;
+    for(const motion of drawing.tectonicSymbols.motion){arrow(motion.arrow);ctx.save();ctx.translate(motion.position[0]+3/s,motion.position[1]+5/s);ctx.scale(1,-1);ctx.fillText(`P${motion.plateId}`,0,0);ctx.restore();}
+   }else if(showPlates&&drawing.plateBoundaries?.length){
     ctx.beginPath();for(const line of drawing.plateBoundaries){if(line.length!==2)continue;ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);}
     ctx.strokeStyle='#ca4a38';ctx.lineWidth=1.5/s;ctx.stroke();
    }
@@ -60,9 +77,10 @@ export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
    else setView(v=>({...v,x:v.x+e.clientX-old.x,y:Math.max(-size.h*v.zoom/2,Math.min(size.h*v.zoom/2,v.y+e.clientY-old.y))}));
    pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
   }} onPointerUp={e=>pointers.current.delete(e.pointerId)} onPointerCancel={e=>pointers.current.delete(e.pointerId)} onLostPointerCapture={e=>pointers.current.delete(e.pointerId)}/>
-  {drawing.plateBoundaries&&<label className="absolute right-2 top-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)]/95 px-3 text-sm text-[var(--color-text)] shadow-sm"><input type="checkbox" checked={showPlates} onChange={e=>setShowPlates(e.currentTarget.checked)} aria-label={language==='zh-TW'?'顯示板塊邊界':'Show tectonic plate boundaries'}/>{language==='zh-TW'?'板塊區域與邊界':'Plate domains and boundaries'}</label>}
+  {drawing.plateBoundaries&&<label className="absolute right-2 top-2 flex min-h-11 items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)]/95 px-3 text-sm text-[var(--color-text)] shadow-sm"><input type="checkbox" checked={showPlates} onChange={e=>setShowPlates(e.currentTarget.checked)} aria-label={language==='zh-TW'?'顯示板塊邊界':'Show tectonic plate boundaries'}/>{language==='zh-TW'?'板塊與隱沒方向':'Plates and subduction'}</label>}
   {drawing.geology&&<label className="absolute right-2 top-16 flex min-h-11 items-center gap-2 rounded-md border bg-[var(--color-bg)]/95 px-3 text-sm"><input type="checkbox" checked={showGeology} onChange={e=>setShowGeology(e.currentTarget.checked)}/>{language==='zh-TW'?'海底地質':'Seafloor geology'}</label>}
   {showGeology&&drawing.geology&&<p className="absolute right-2 top-28 max-w-64 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?'青：中洋脊　深藍：海溝　橘：海底火山　紫：既有島鏈':'Cyan: ridges · Blue: trenches · Orange: volcanoes · Purple: existing island chains'}</p>}
+  {showPlates&&drawing.tectonicSymbols&&<p className="absolute left-2 top-2 max-w-52 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?'紅齒：上覆側，紅箭頭：隱沒方向｜紫：碰撞｜青：張裂｜褐：錯動｜黑箭頭：板塊移動（示意）':'Red teeth: overriding side; red arrows: subduction · Purple: collision · Cyan: spreading · Brown: transform · Black: plate motion (schematic)'}</p>}
   {showPlates&&drawing.plates&&<p className="absolute bottom-2 right-2 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?`${drawing.plates.length} 個主板塊｜面積 ${Math.min(...drawing.plates.map(p=>p.areaPercent)).toFixed(1)}–${Math.max(...drawing.plates.map(p=>p.areaPercent)).toFixed(1)}%`:`${drawing.plates.length} major plates`}</p>}
   <div className="absolute bottom-2 left-2 flex gap-2 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:rounded-lg [&_button]:border [&_button]:bg-[var(--color-bg)] [&_button]:px-3"><button aria-label={text('zoomIn')} onClick={()=>zoom(1.5)}>＋</button><button aria-label={text('zoomOut')} onClick={()=>zoom(1/1.5)}>−</button><button onClick={()=>setView({zoom:1,x:0,y:0})}>{text('reset')}</button></div>
  </div>;

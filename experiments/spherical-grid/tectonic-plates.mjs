@@ -67,23 +67,32 @@ export function choosePlateSeeds(grid,crust,seed,plateCount){
  const rng=templateRng(seed^0x7ec701c),seeds=[];
  const n=grid.points.length;
  const initial=Math.floor(rng()*n);seeds.push(initial);
- // Farthest-site placement with a bounded geological preference. Sites can
- // occur in both oceans and continents: one plate may span both.
+ // Planet's random, separated, weighted sites avoid a uniform farthest-site lattice.
+ // Choose on the real sphere; the domain metric below is independently warped.
+ const minAngle=.57*Math.sqrt(4*Math.PI/plateCount);
  for(let k=1;k<plateCount;k++){
-  let best=-1,bestScore=-Infinity;
-  for(let i=0;i<n;i++){
-   let min=Infinity;
-   for(const j of seeds)min=Math.min(min,1-dot(grid.points[i],grid.points[j]));
-   const preference=crust[i]===CRUST.oceanic?1.04:crust[i]===CRUST.shelf?.94:1;
-   const score=min*preference*(.93+.14*hashNoise(seed+k*97,i));
-   if(score>bestScore){bestScore=score;best=i;}
+  let best=-1,bestDistance=-1;
+  for(let attempt=0;attempt<200;attempt++){
+   const i=Math.floor(rng()*n);
+   const d=Math.min(...seeds.map(j=>sphereDistance(grid.points[i],grid.points[j])));
+   if(d>bestDistance){best=i;bestDistance=d;}
+   if(d>minAngle){best=i;break;}
   }
   seeds.push(best);
  }
  return seeds;
 }
-function edgeCost(grid,crust,history,source,target,resistance){
- const d=sphereDistance(grid.points[source],grid.points[target]);
+// Multi-octave vector displacement, normalized on the sphere. Conceptually
+// follows planet.js's qx/qy/qz domain warp; no projected longitude seam.
+export function warpPlateCoordinates(points,seed){
+ const fbm=(p,s)=>[1.7,3.4,6.8,13.6].reduce((v,f,k)=>v+valueNoise3(p,f,s)*(.5**k),0)/1.875;
+ return points.map(p=>unit(p.map((v,k)=>v+.62*fbm(p,seed^[0x31ad,0x77c1,0xa92f][k]))));
+}
+function edgeCost(grid,crust,history,source,target,resistance,warped){
+ const physical=sphereDistance(grid.points[source],grid.points[target]);
+ const deformed=sphereDistance(warped[source],warped[target]);
+ // The real-distance floor prevents folds becoming zero-cost shortcuts.
+ const d=.18*physical+.82*deformed;
  const crossCoast=(crust[source]===CRUST.oceanic)!==(crust[target]===CRUST.oceanic);
  // Soft (not prohibitive) change in cost at crust transitions.
  const transition=crossCoast?1.18:1;
@@ -100,7 +109,8 @@ function edgeCost(grid,crust,history,source,target,resistance){
 }
 export function derivePlateDomains(grid,history,fields,seed,plateCount){
  const sites=choosePlateSeeds(grid,fields.crust,seed,plateCount),n=grid.points.length;
- const resistance=Float64Array.from(grid.points,p=>Math.max(.3,1+.65*valueNoise3(p,3,seed^0x94b7)+.20*valueNoise3(p,8,seed^0xa12f)));
+ const warped=warpPlateCoordinates(grid.points,seed);
+ const resistance=Float64Array.from(grid.points,p=>Math.max(.3,1+.25*valueNoise3(p,3,seed^0x94b7)+.10*valueNoise3(p,8,seed^0xa12f)));
  const rng=templateRng(seed^0x21e9),total=grid.areas.reduce((s,a)=>s+a,0);
  const initialSpeeds=sites.map((_,id)=>.68+1.15*((id+rng())/plateCount));
  // Shuffle large/small growth budgets among well-separated geological seeds.
@@ -118,7 +128,7 @@ export function derivePlateDomains(grid,history,fields,seed,plateCount){
    // the same plate. Unequal speeds cannot create disconnected enclaves.
    owners[cell]=plate;parents[cell]=parent;
    for(const next of grid.neighbors[cell])if(owners[next]<0){
-    const candidate=cost+edgeCost(grid,fields.crust,history,cell,next,resistance)/speeds[plate];
+    const candidate=cost+edgeCost(grid,fields.crust,history,cell,next,resistance,warped)/speeds[plate];
     if(candidate+1e-12<costs[next]){costs[next]=candidate;heap.push({cell:next,parent:cell,cost:candidate,plate});}
    }
   }
@@ -128,7 +138,7 @@ export function derivePlateDomains(grid,history,fields,seed,plateCount){
    angularSpeed:(.012+motion()*.035)*(motion()<.5?-1:1),growthRate:speeds[id],seedCrust:fields.crust[site],areaKm2:0,landAreaKm2:0,oceanAreaKm2:0,continentalCrustAreaKm2:0,oceanicCrustAreaKm2:0}));
   for(let i=0;i<n;i++){const p=plates[owners[i]];p.areaKm2+=grid.areas[i];if(grid.heights[i]>=0)p.landAreaKm2+=grid.areas[i];else p.oceanAreaKm2+=grid.areas[i];if(fields.crust[i]===CRUST.oceanic||fields.crust[i]===CRUST.arc)p.oceanicCrustAreaKm2+=grid.areas[i];else p.continentalCrustAreaKm2+=grid.areas[i];}
   for(const p of plates)p.areaPercent=100*p.areaKm2/total;
-  result={version:2,owners,parents,plates,validationCycles:cycle+1};
+  result={version:3,owners,parents,plates,validationCycles:cycle+1};
   if(Math.min(...plates.map(p=>p.areaKm2/total))>=.0125&&Math.max(...plates.map(p=>p.areaKm2/total))<=.45)break;
  }
  if(Math.min(...result.plates.map(p=>p.areaKm2/total))<.005)throw Error('Primary plate became an accidental microplate');
@@ -230,6 +240,6 @@ export function analyzeSphericalPlates(grid,{seed=1,plateCount}={}){
  const history=deriveTectonicHistory(grid,seed),crust=deriveCrustFields(grid,history);
  const domains=derivePlateDomains(grid,history,crust,seed,count),boundaries=derivePlateBoundaries(grid,crust,domains),boundaryMap=segmentPlateBoundaries(boundaries);
  const features=deriveGeologicFeatures(grid,{seed,history,crust,domains,boundaries,boundaryMap});
- return {version:2,plateCount:count,history,crust,crustFields:crust,domains,plateDomains:domains,boundaries,boundaryMap,
+ return {version:3,plateCount:count,history,crust,crustFields:crust,domains,plateDomains:domains,boundaries,boundaryMap,
   orogenProvinces:features.orogenProvinces,features,drawing:boundaries.map(b=>unwrapSegment(b.start,b.end))};
 }

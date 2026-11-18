@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {createGlobalGrid} from './global-config.mjs';
 import {analyzeSphericalPlates,classifyLocalBoundary} from './tectonic-plates.mjs';
 import {generatePlateSeafloor,applyPlateSeafloor,tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
+import {createTectonicSymbols} from './tectonic-drawing.mjs';
+import {warpPlateCoordinates} from './tectonic-plates.mjs';
 import {createNaturalPlanet} from './natural-planet.mjs';
 const world=()=>{const g=createGlobalGrid();g.heights.set(g.points.map(([x,y,z])=>x+.18*Math.sin(7*y)>0?Math.max(1,Math.round(20+20*z*z)):-20));return g;};
 for(const plateCount of [6,8,12])test(`${plateCount} unequal connected primary domains cover a sphere and cross crust types`,()=>{
@@ -60,7 +62,28 @@ for(const [seed,landPercent,checksum] of accepted)test(`approved b61b0f5 land an
  const r=createNaturalPlanet({seed,landPercent,continentCores:8}),g=r.grid;
  let hash=2166136261;for(const x of g.heights)hash=Math.imul(hash^((x>=0?x:-1)+128),16777619)>>>0;
  assert.equal(hash.toString(16).padStart(8,'0'),checksum);
- assert.equal(r.tectonics.version,2);
+ assert.equal(r.tectonics.version,3);
  assert.ok(r.tectonics.features.islandChains.every(c=>c.existingLandOnly&&c.cells.every(i=>g.heights[i]>=0)));
  assert.equal(tectonicSeedFromLandMask(g),r.seafloor.seed);
+});
+
+test('warped sphere and tectonic marks retain local sides, finite projection and owned motion origins',()=>{
+ const g=world(),m=analyzeSphericalPlates(g,{seed:271828,plateCount:8}),symbols=createTectonicSymbols(g,m);
+ const warped=warpPlateCoordinates(g.points,271828);
+ assert.deepEqual(warped,warpPlateCoordinates(g.points,271828));
+ assert.ok(warped.some((p,i)=>Math.hypot(...p.map((x,k)=>x-g.points[i][k]))>.08));
+ for(const p of warped)assert.ok(Math.abs(Math.hypot(...p)-1)<1e-10);
+ const xyz=([lon,lat])=>{const a=lon*Math.PI/180,b=lat*Math.PI/180;return [Math.cos(b)*Math.cos(a),Math.cos(b)*Math.sin(a),Math.sin(b)];};
+ const dot=(a,b)=>a.reduce((s,x,k)=>s+x*b[k],0);
+ assert.ok(symbols.marks.some(x=>x.mode==='subduction'));
+ assert.ok(symbols.marks.some(x=>x.mode==='mid-ocean-ridge'));
+ for(const mark of symbols.marks){
+  for(const line of mark.arrows){assert.ok(line.flat().every(Number.isFinite));assert.ok(Math.abs(line[1][0]-line[0][0])<=180);}
+  if(mark.mode!=='subduction')continue;
+  const b=m.boundaries[mark.boundaryIndex],direction=b.smoothedNormal.map(v=>v*(b.subductingPlate===b.plates[0]?1:-1));
+  assert.equal(mark.lower,b.subductingPlate);assert.equal(mark.upper,b.overridingPlate);
+  assert.ok(dot(xyz(mark.tooth[1]),direction)>0,'tooth must be on overriding side');
+  const [a,z]=mark.arrows[0].map(xyz);assert.ok(dot(z,direction)>dot(a,direction),'subduction arrow points from sinking side under overriding plate');
+ }
+ for(const motion of symbols.motion){assert.equal(m.domains.owners[motion.cell],motion.plateId);assert.ok(motion.arrow.flat().every(Number.isFinite));assert.ok(Math.abs(motion.arrow[1][0]-motion.arrow[0][0])<=180);}
 });

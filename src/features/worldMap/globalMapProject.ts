@@ -4,7 +4,7 @@ export const GLOBAL_MAP_VERSION = '1';
 export const GLOBAL_MAP_CELLS = 36002;
 export type GlobalMapSettings = {seed:number;landPercent:25|32|45;continentCores:number;gridCells:36002};
 export type GlobalMapProject = {
- format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2;
+ format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3;
  terrain:{format:'nexus-spherical-grid-prototype';version:1;frequency:60;cells:36002;
  heightScaleMetres:100;seaLevel:0;oceanSeed:number;revision:number;heights:number[];checksum:string};
 };
@@ -20,7 +20,7 @@ export function validateGlobalSettings(value:unknown):asserts value is GlobalMap
 }
 export function validateGlobalMapProject(value:unknown):asserts value is GlobalMapProject {
  const p=value as GlobalMapProject;
- if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==2))throw Error('Unsupported global map version');
+ if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==2&&p.geologyVersion!==3))throw Error('Unsupported global map version');
  validateGlobalSettings(p.settings);
  const t=p.terrain;
  if(!t||t.format!=='nexus-spherical-grid-prototype'||t.version!==1||t.frequency!==60||t.cells!==36002||t.heightScaleMetres!==100||t.seaLevel!==0||

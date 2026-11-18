@@ -1,5 +1,6 @@
+import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -18,8 +19,8 @@ export function unwrapRing(points:number[][],pole?:number){
  const shift=Math.floor((out.reduce((s,p)=>s+p[0],0)/out.length+180)/360)*360;
  return out.map(([x,y])=>[x-shift,y]);
 }
-type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number}[]};
- boundaries:{mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
+type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number;seedCell:number;pole:number[];angularSpeed:number}[]};
+ boundaries:{type:string;normal?:number[];smoothedNormal?:number[];center?:number[];plates:number[];subductingPlate?:number|null;overridingPlate?:number|null;mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
  features?:{displaySegmentIds:number[];volcanoes:{cell:number}[];islandChains:{cells:number[]}[];orogenProvinces:{activeCells:number;historicalCells:number}}};
 export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput):GlobalMapDrawing {
  const around:number[][][]=Array.from({length:grid.points.length},()=>[]);
@@ -53,5 +54,5 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
   islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
- return {land,plates,geology,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+ return {land,plates,geology,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
 }

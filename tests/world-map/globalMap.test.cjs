@@ -11,7 +11,7 @@ test('global worker builds the authoritative mask and loads stored heights inste
  const messages=[],scope={postMessage:v=>messages.push(v)},context=vm.createContext({self:scope,performance,console,Uint8Array,Int8Array,Float64Array,Int16Array,Set,Map});
  vm.runInContext(fs.readFileSync('.cache/global-map-worker.js','utf8'),context);
  scope.onmessage({data:{id:1,action:'generate',settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}}});
- const first=messages.pop();assert.equal(first.error,undefined);assert.equal(first.project.geologyVersion,2);assert.ok(first.drawing.geology);assert.equal(first.drawing.plates.length,first.drawing.plateCount);assert.equal(first.project.terrain.heights.length,36002);assert.ok(first.drawing.land.length>1000);assert.ok(first.drawing.coast.length>100);
+ const first=messages.pop();assert.equal(first.error,undefined);assert.equal(first.project.geologyVersion,3);assert.ok(first.drawing.geology);assert.ok(first.drawing.tectonicSymbols.marks.some(m=>m.mode==='subduction'));assert.equal(first.drawing.plates.length,first.drawing.plateCount);assert.equal(first.project.terrain.heights.length,36002);assert.ok(first.drawing.land.length>1000);assert.ok(first.drawing.coast.length>100);
  assert.equal(first.drawing.relief.reduce((n,band)=>n+band.rings.length,0),36002,'all land and seabed cells must be represented in the height preview');
  assert.ok(first.drawing.relief.filter(band=>band.rings.length).length>=8,'preview distinguishes shallow/deep ocean and land elevations');
  assert.ok(first.drawing.plateCount>=6&&first.drawing.plateCount<=12,'plate domains should be derived from terrain');
@@ -22,6 +22,7 @@ test('global worker builds the authoritative mask and loads stored heights inste
  scope.onmessage({data:{id:2,action:'load',project:copy}});const loaded=messages.pop();
  assert.equal(loaded.error,undefined);assert.deepEqual(JSON.parse(JSON.stringify(loaded.drawing)),JSON.parse(JSON.stringify(first.drawing)));
  const legacy=JSON.parse(JSON.stringify(first.project));delete legacy.geologyVersion;scope.onmessage({data:{id:20,action:'load',project:legacy}});const old=messages.pop();assert.equal(old.error,undefined);assert.equal(old.drawing.geology,undefined,'legacy projects retain the prior tectonic analysis');assert.deepEqual(old.project.terrain,legacy.terrain);
+ const v2=JSON.parse(JSON.stringify(first.project));v2.geologyVersion=2;scope.onmessage({data:{id:22,action:'load',project:v2}});const prior=messages.pop();assert.equal(prior.error,undefined);assert.equal(prior.drawing.tectonicSymbols,undefined);assert.deepEqual(prior.project.terrain,v2.terrain);
  const unknown=JSON.parse(JSON.stringify(first.project));unknown.geologyVersion=99;scope.onmessage({data:{id:21,action:'load',project:unknown}});assert.ok(messages.pop().error);
  copy.terrain.heights[0]=101;scope.onmessage({data:{id:3,action:'load',project:copy}});assert.ok(messages.pop().error);
  scope.onmessage({data:{id:4,action:'generate',settings:{seed:-1,landPercent:32,continentCores:8,gridCells:36002}}});assert.ok(messages.pop().error);
