@@ -142,7 +142,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
           <span className="contents" data-card-audio><StudyPronunciation inlineCard key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/></span>
         </div>
         <div className="pointer-events-none relative motion-safe:animate-[study-flip_160ms_ease-out]" key={revealed?'back-content':'front-content'}>
-          {revealed&&<><p className="my-7 whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p></>}
+          {revealed&&<><p className="mb-7 mt-[1.167rem] whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p></>}
         </div>
         {revealed&&card.dictionary_entry_id&&<StudyDictionaryBack key={`${session!.id}:${card.id}:${session!.answers}`} entryId={card.dictionary_entry_id} front={card.front}/>}
         {revealed&&<button type="button" className="absolute right-1 top-1 flex min-h-11 w-11 items-center justify-center rounded" aria-label={t('study.hideCard')} disabled={saving||!!error||dictionaryEditing} onClick={()=>setHidePrompt(true)}><EyeOff size={20}/></button>}
