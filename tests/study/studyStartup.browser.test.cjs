@@ -9,12 +9,24 @@ test('actual start button: local/cloud phases, bounded first-card data, resume, 
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(root,'src/app/globals.css')})).css;
  const server=http.createServer((req,res)=>{if(req.url==='/app.js'){res.setHeader('content-type','text/javascript');res.end(fs.readFileSync(path.join(tmp,'app.js')));}else if(req.url==='/app.css')res.end(css);else res.end('<html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><div id="root"></div><script type="module" src="/app.js"></script></html>');});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const engine=process.env.STUDY_BROWSER==='webkit'?webkit:chromium,browser=await engine.launch({executablePath:engine===webkit?process.env.WEBKIT_EXECUTABLE:process.env.BROWSER_EXECUTABLE||'/usr/bin/chromium',args:engine===chromium?['--no-sandbox']:[]}),results=[],errors=[];
- // Exercise every startup lifecycle on a small deck. Large-deck coverage
- // focuses on the data-size-sensitive first load, resume, reconnection and remote update.
+ // Chromium exercises every startup lifecycle; WebKit smoke coverage keeps
+ // browser-specific opening, persisted resume, offline/reconnect, remote updates
+ // and both large-deck opening and resume. The other large-deck operations remain
+ // checked by Chromium and repository/database regression tests.
+ const profile=process.env.STUDY_STARTUP_PROFILE??'full';
+ if(!['full','webkit-smoke'].includes(profile))throw Error('Unknown study startup profile: '+profile);
+ if(profile==='webkit-smoke'&&engine!==webkit)throw Error('WebKit startup smoke profile requires STUDY_BROWSER=webkit');
+ const smallScenarios=profile==='webkit-smoke'
+  ? ['new','resume','offline','reconnect','remote']
+  : ['new','resume','offline','reconnect','pending','remote','endless','official','cancel','preferences'];
+ const largeScenarios=profile==='webkit-smoke'
+  ? ['new','resume']
+  : ['new','resume','reconnect','remote'];
  const scenarioMatrix=[
-  ...['new','resume','offline','reconnect','pending','remote','endless','official','cancel','preferences'].map(scenario=>({count:20,scenario})),
-  ...['new','resume','reconnect','remote'].map(scenario=>({count:6300,scenario}))
+  ...smallScenarios.map(scenario=>({count:20,scenario})),
+  ...largeScenarios.map(scenario=>({count:6300,scenario}))
  ];
+ console.log('STUDY_STARTUP_PROFILE '+JSON.stringify({browser:engine===webkit?'webkit':'chromium',profile,scenarios:scenarioMatrix}));
  try{for(const {count,scenario} of scenarioMatrix){
   const context=await browser.newContext({viewport:{width:390,height:844}});if(scenario==='preferences')await context.addInitScript(()=>{window.speechCalls=[];window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};const engine=new EventTarget();Object.assign(engine,{getVoices:()=>[{name:'English',lang:'en-US',localService:true}],cancel(){},resume(){},speak:u=>{if(u.text.trim())window.speechCalls.push({text:u.text,rate:u.rate});u.onstart?.();}});Object.defineProperty(window,'speechSynthesis',{value:engine,configurable:true});});const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));
   await p.goto('http://127.0.0.1:'+server.address().port+'/?count='+count+(scenario==='new'?'':'&'+scenario)+(scenario==='reconnect'?'&offline&resume':scenario==='offline'?'&resume':''));
