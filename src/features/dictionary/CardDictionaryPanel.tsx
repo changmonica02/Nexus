@@ -24,7 +24,7 @@ function readingHref(href:string){
   url.searchParams.delete('from');
   return url.pathname+url.search+url.hash;
 }
-export default function CardDictionaryPanel({fixedEntryId,onOpenChange,rate=0.9}:{fixedEntryId?:string;onOpenChange:(open:boolean)=>void;rate?:number}){
+export default function CardDictionaryPanel({fixedEntryId,onOpenChange,rate=0.9,compact=false}:{fixedEntryId?:string;onOpenChange:(open:boolean)=>void;rate?:number;compact?:boolean}){
   const {t}=useLanguage();
   const [open,setOpen]=useState(false);
   const trigger=useRef<HTMLButtonElement>(null),opened=useRef(false),marker=useRef<string|null>(null);
@@ -45,7 +45,7 @@ export default function CardDictionaryPanel({fixedEntryId,onOpenChange,rate=0.9}
       if(opened.current){onOpenChange(false);if(marker.current&&history.state?.nexusStudyDictionary===marker.current)history.back();}
     };
   },[close,finish,onOpenChange]);
-  return <div className="mt-5 border-t pt-4">
+  return <div className={compact?'':'mt-5 border-t pt-4'}>
     <button ref={trigger} type="button" aria-haspopup="dialog" aria-expanded={open} className="min-h-11 w-full rounded-lg border px-4 py-3 font-medium" onClick={()=>{
       if(opened.current)return;
       marker.current=crypto.randomUUID();
