@@ -47,7 +47,7 @@ export function planAzgaarPlacements(seed,{continentCores=8}={}){
 // An island may attach to a continent, while major continental candidates should
 // still contribute new land. These are experimental tuning constants.
 export const TEMPLATE_OVERLAP_LIMITS=Object.freeze({continent:0.34,island:0.82,archipelago:0.60});
-const TEMPLATE_RETRIES=Object.freeze({continent:7,island:3,archipelago:5});
+const TEMPLATE_RETRIES=Object.freeze({continent:8,island:5,archipelago:7});
 // A candidate is judged by how much new land it adds, not its rectangle.
 // The overlap limits remain soft when every retry is crowded.
 const EPSILON=1e-9;
@@ -90,7 +90,7 @@ function selectPlacement(item,grid,occupied,rng){
   const proposed=attempt===0?item:makePlacement(rng,item.type,item.index,item.name,item.seed);
   const candidate=projectCandidate(proposed,grid,map);
   const metrics=measureLandContribution(candidate,occupied,grid.areas);
-  if(candidate.landArea<=EPSILON)continue;
+  if(candidate.landArea<=EPSILON||metrics.newLandArea<=EPSILON)continue;
   // Rank by true new land area plus relative contribution. This avoids picking
   // a microscopic patch merely because its relative overlap happens to be 0.
   const quality=Math.log1p(metrics.newLandArea)*(0.4+0.6*metrics.contributionRatio)-4*metrics.overlapRatio;
@@ -116,7 +116,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  const occupied=new Uint8Array(grid.points.length),accepted=[];
  for(const item of placements){
   const chosen=selectPlacement(item,grid,occupied,rng);
-  if(!chosen)continue; // Fully submerged/empty candidate: never corrupt the Grid.
+  if(!chosen)continue; // All attempts were empty or contributed no new land.
   const {candidate,...info}=chosen;
   accepted.push(info);
   for(let i=0;i<grid.points.length;i++){
@@ -201,6 +201,7 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  if(oceanSeed<0)throw Error('No ocean component');
  return {grid,oceanSeed,settings:{seed,landPercent,continentCores,gridCells:36002},
   measuredLandPercent:100*selectedArea/total,
+  attemptedPlacements:placements.length,skippedPlacements:placements.length-accepted.length,
   tolerancePercent:100*Math.max(...grid.areas)/total,
   stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,overlapRatio,contributionRatio,newLandArea,attempts})=>({type,index,name,seed,center,radius,overlapRatio,contributionRatio,newLandArea,attempts}))};
 }
