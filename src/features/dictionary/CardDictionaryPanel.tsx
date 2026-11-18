@@ -132,9 +132,13 @@ function ReadingSheet({initialHref,rate,onClose,returnFocusRef,editorBackRef}:{i
         </form>
       </header>
       <div ref={scroll} data-dictionary-scroll className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 [overflow-wrap:anywhere]" style={{touchAction:'pan-y'}}>
-        <div className="flex min-w-0 items-start justify-between gap-3"><h2 ref={heading} tabIndex={-1} id={titleId} lang={detail?'en':undefined} className="min-w-0 break-words text-xl font-semibold [overflow-wrap:anywhere]">{detail?.entry.headword??t(entryId?'studyDictionary.reading':'studyDictionary.search')}</h2>
-        {detail&&access?.allowed&&<button type="button" aria-label={t('studyDictionary.edit')} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border" onClick={()=>setEditing({id:detail.entry.id,owner:access.owner})}><Pencil size={18}/></button>}</div>
-        {detail&&<><p className="break-words text-sm [overflow-wrap:anywhere]">{[...detail.senses].sort((a,b)=>a.id.localeCompare(b.id)).find(sense=>sense.gloss_zh_tw.trim())?.gloss_zh_tw??t('studyDictionary.noMeaning')}</p><StudyPronunciation key={detail.entry.id} question={detail.entry.id} text={detail.entry.headword} direction="en-zh" frontVisible={false} automatic={false} rate={rate}/></>}
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <h2 ref={heading} tabIndex={-1} id={titleId} lang={detail?'en':undefined} className="min-w-0 break-words text-xl font-semibold [overflow-wrap:anywhere]">{detail?.entry.headword??t(entryId?'studyDictionary.reading':'studyDictionary.search')}</h2>
+            {detail&&<span className="shrink-0"><StudyPronunciation key={detail.entry.id} question={detail.entry.id} text={detail.entry.headword} direction="en-zh" frontVisible={false} automatic={false} rate={rate}/></span>}
+          </div>
+          {detail&&access?.allowed&&<button type="button" aria-label={t('studyDictionary.edit')} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border" onClick={()=>setEditing({id:detail.entry.id,owner:access.owner})}><Pencil size={18}/></button>}
+        </div>
         {list&&<select aria-label={t('studyDictionary.kind')} value={kind} className="min-h-11 max-w-full rounded-lg border bg-[var(--color-sidebar-bg)] px-2" onChange={event=>search(input,event.target.value)}>{['all','word','prefix','root'].map(value=><option key={value} value={value}>{t('studyDictionary.'+value)}</option>)}</select>}
         {!current&&<p role="status">{t('common.loading')}</p>}
         {current?.error&&<div role="alert"><p>{current.error}</p><button type="button" className="min-h-11 underline" onClick={retry}>{t('studyDictionary.retry')}</button></div>}
