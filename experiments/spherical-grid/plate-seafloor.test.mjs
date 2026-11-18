@@ -24,14 +24,16 @@ test('plate-guided seafloor is repeatable, protects all land, and returns bounde
  assert.equal(first.oceanCells,original.filter(x=>x<0).length);
  for(let i=0;i<original.length;i++){
   if(original[i]>=0){assert.equal(first.heights[i],original[i]);assert.equal(first.zones[i],0);}
-  else {assert.ok(first.heights[i]<0&&first.heights[i]>=-100);assert.ok(first.zones[i]>=1&&first.zones[i]<=5);}
+  else {assert.ok(first.heights[i]<0&&first.heights[i]>=-100);assert.ok(first.zones[i]>=1&&first.zones[i]<=6);}
  }
  assert.ok(first.zones.includes(SEAFLOOR.shelf));
  assert.ok(first.zones.includes(SEAFLOOR.slope));
  assert.ok(first.zones.includes(SEAFLOOR.abyssalPlain));
  assert.ok(first.zones.includes(SEAFLOOR.midOceanRidge));
  assert.ok(first.zones.includes(SEAFLOOR.trench));
- assert.ok(first.craterLakeCandidates.every(x=>x.status==='unconfirmed'&&original[x.gridCell]>=0));
+ assert.ok(first.zones.includes(SEAFLOOR.seamount));
+ assert.ok(first.submarineVolcanoes.length>0);
+ assert.ok(first.submarineVolcanoes.every(x=>original[x.gridCell]<0&&x.uplift>0));
 });
 test('applying seafloor keeps the land mask, seed and land height while producing a valid snapshot',()=>{
  const grid=syntheticWorld(),original=grid.heights.slice();
