@@ -1,1 +1,2 @@
-Run the stage-3A genuine Grid-based six-world preview and validation once.
+Run the stage-3A genuine Grid-based six-world preview and validation with actual tectonic plate boundaries.
+Seeds: 1729, 42. Categories: ocean, earthlike, land.
