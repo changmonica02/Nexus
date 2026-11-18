@@ -96,6 +96,7 @@
     "world-map": [
       "experiments/spherical-grid/azgaar-template.test.mjs",
       "experiments/spherical-grid/continent-layout-v2.test.mjs",
+      "experiments/spherical-grid/island-layout-v2.test.mjs",
       "experiments/spherical-grid/coast-index.test.mjs",
       "experiments/spherical-grid/geography.test.mjs",
       "experiments/spherical-grid/grid.geometry.test.mjs",
