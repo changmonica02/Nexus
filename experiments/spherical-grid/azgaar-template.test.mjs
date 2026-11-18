@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AZGAAR_TEMPLATE_SCRIPTS} from './azgaar-template-data.mjs';
 import {executeAzgaarTemplate,sampleTemplate} from './azgaar-template-engine.mjs';
-import {createAzgaarSphericalLandLayout,planAzgaarPlacements} from './azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout,planAzgaarPlacements,TEMPLATE_OVERLAP_LIMITS} from './azgaar-spherical-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 
 test('every selected Azgaar recipe executes deterministically with finite heights',()=>{
@@ -28,6 +28,11 @@ test('spherical experiment retains fixed grid, area-weighted fraction and seed r
  assert.equal(a.grid.heights.length,36002);
  assert.deepEqual(a.grid.heights,b.grid.heights);
  assert.equal(a.oceanSeed,b.oceanSeed);
+ assert.deepEqual(a.templatePlacements,b.templatePlacements);
+ assert.equal(a.templatePlacements.length,planAzgaarPlacements(1729,{continentCores:8}).length);
+ assert.ok(a.templatePlacements.some(p=>p.attempts>1),'at least one candidate should be repositioned');
+ assert.ok(a.templatePlacements.every(p=>p.overlapRatio>=0&&p.overlapRatio<=1&&p.attempts>=1&&p.attempts<=7));
+ assert.ok(a.templatePlacements.every(p=>Number.isFinite(TEMPLATE_OVERLAP_LIMITS[p.type])));
  assert.ok(Math.abs(a.measuredLandPercent-32)<=a.tolerancePercent);
  assert.ok(a.grid.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100));
  assert.ok(a.grid.heights[a.oceanSeed]<0);
