@@ -106,6 +106,7 @@
       "experiments/spherical-grid/pack-middle-replay.test.mjs",
       "experiments/spherical-grid/pack-update-comparison.test.mjs",
       "experiments/spherical-grid/pack.test.mjs",
+      "experiments/spherical-grid/plate-seafloor.test.mjs",
       "experiments/spherical-grid/snapshot.test.mjs",
       "experiments/spherical-grid/tectonic-plates.test.mjs",
       "experiments/spherical-grid/terrain-edits.test.mjs",
