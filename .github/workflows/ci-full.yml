@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -84,7 +84,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright Chromium dependencies and browser (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -135,7 +135,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -198,7 +198,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -278,7 +278,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -366,7 +366,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -404,7 +404,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-webkit-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
@@ -463,7 +463,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-chromium-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Chromium only for groups with browser tests
         timeout-minutes: 8
         run: |
