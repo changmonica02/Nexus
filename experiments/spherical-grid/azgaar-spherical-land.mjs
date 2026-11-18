@@ -35,7 +35,17 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  if(!Number.isInteger(continentCores)||continentCores<6||continentCores>10)throw RangeError('continentCores must be 6..10');
  const grid=createGlobalGrid(),placements=planAzgaarPlacements(seed,{continentCores});
  const rng=templateRng(seed^0x3C97E),score=new Float64Array(grid.points.length);
- score.fill(-30);
+ // Coherent continental background prevents random isolated cells when the
+ // requested area exceeds the raised portions of all candidate recipes.
+ const continents=placements.filter(p=>p.type==='continent');
+ for(let i=0;i<grid.points.length;i++){
+  let value=-45;
+  for(const item of continents){
+   const distance=Math.acos(Math.max(-1,Math.min(1,dot(grid.points[i],item.center))));
+   value=Math.max(value,-45+25*Math.exp(-2*Math.pow(distance/item.radius,2)));
+  }
+  score[i]=value;
+ }
  // Local tangent coordinates are continuous at the longitude seam.
  for(const item of placements){
   const map=executeAzgaarTemplate(item.name,item.seed),extent=Math.tan(item.radius);
@@ -73,7 +83,21 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
   const delta=Math.min(99,Math.abs(score[i]-boundary)*1.8);
   grid.heights[i]=selected[i]?Math.max(1,Math.round(delta)):-Math.max(1,Math.round(delta));
  }
- const oceanSeed=rank.slice(count).reduce((best,item)=>score[item.i]<score[best.i]?item.i:best.i,rank[count].i);
+ // Pick the largest connected below-sea-level component as the ocean seed.
+ // Interior basins must not accidentally become the global ocean.
+ const visited=new Uint8Array(grid.heights.length);
+ let oceanSeed=-1,largest=0;
+ for(let i=0;i<grid.heights.length;i++){
+  if(selected[i]||visited[i])continue;
+  const queue=[i];visited[i]=1;
+  for(let head=0;head<queue.length;head++){
+   for(const next of grid.neighbors[queue[head]]){
+    if(!selected[next]&&!visited[next]){visited[next]=1;queue.push(next);}
+   }
+  }
+  if(queue.length>largest){largest=queue.length;oceanSeed=i;}
+ }
+ if(oceanSeed<0)throw Error('No ocean component');
  return {grid,oceanSeed,settings:{seed,landPercent,continentCores,gridCells:36002},
   measuredLandPercent:100*selectedArea/total,
   tolerancePercent:100*Math.max(...grid.areas)/total,
