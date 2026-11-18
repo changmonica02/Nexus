@@ -59,7 +59,7 @@ test('history remains distinct from activity; volcano arcs and hotspot tracks ha
 });
 const accepted=[[42,25,'7dc007c5'],[42,32,'73d64c78'],[42,45,'ba129378'],[1729,25,'b04bff72'],[1729,32,'3e73d31a'],[1729,45,'914a6c29']];
 for(const [seed,landPercent,checksum] of accepted)test(`approved b61b0f5 land and mountains stay exact: ${seed}/${landPercent}`,()=>{
- const r=createNaturalPlanet({seed,landPercent,continentCores:8}),g=r.grid;
+ const r=createNaturalPlanet({seed,landPercent,continentCores:8},{emergentIslands:false}),g=r.grid;
  let hash=2166136261;for(const x of g.heights)hash=Math.imul(hash^((x>=0?x:-1)+128),16777619)>>>0;
  assert.equal(hash.toString(16).padStart(8,'0'),checksum);
  assert.equal(r.tectonics.version,3);

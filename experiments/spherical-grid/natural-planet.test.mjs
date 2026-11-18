@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createNaturalPlanet} from './natural-planet.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
-import {analyzeSphericalPlates} from './tectonic-plates.mjs';
-import {tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
+import {analyzePlanetGeology} from './emergent-islands.mjs';
+import {SEAFLOOR} from './plate-seafloor.mjs';
 
 for(const [seed,landPercent] of [[0,25],[1729,32],[0xffffffff,45]]){
  test(`natural planet seed ${seed}, ${landPercent}% survives confirmation/reload`,()=>{
@@ -22,7 +22,7 @@ for(const [seed,landPercent] of [[0,25],[1729,32],[0xffffffff,45]]){
   const snapshot=exportGlobalTerrainSnapshot({grid:draft.grid,oceanSeed:draft.oceanSeed,revision:0});
   const loaded=importGlobalTerrainSnapshot(snapshot);
   assert.deepEqual(loaded.grid.heights,draft.grid.heights);
-  const plates=analyzeSphericalPlates(loaded.grid,{seed:tectonicSeedFromLandMask(loaded.grid)});
+  const plates=analyzePlanetGeology(loaded.grid,draft.islandGenesis);
   assert.deepEqual(plates.domains.owners,draft.tectonics.domains.owners);
  });
 }
