@@ -1,11 +1,6 @@
 name: Azgaar terrain preview images
+# Developer preview is opt-in only. No push/PR image generation.
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - feat/azgaar-spherical-templates-20261118
   workflow_dispatch:
 
 permissions:
