@@ -6,7 +6,7 @@ import {assertGlobalGrid} from './global-config.mjs';
 import {analyzeSphericalPlates} from './tectonic-plates.mjs';
 
 export const SEAFLOOR=Object.freeze({
- shelf:1,slope:2,abyssalPlain:3,midOceanRidge:4,trench:5
+ shelf:1,slope:2,abyssalPlain:3,midOceanRidge:4,trench:5,seamount:6
 });
 const EARTH_RADIUS_KM=6371;
 const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
@@ -63,26 +63,59 @@ function boundarySources(grid,tectonics,mode){
  }
  return [...values];
 }
-function volcanicCraterCandidates(grid,tectonics,seed){
- // These are references for future editable lake features; no water body,
- // river outlet or basin geometry is silently created.
- const active=new Set();
- for(const b of tectonics.boundaries)if(b.type==='convergent'&&b.mode==='subduction'){
-  if(grid.heights[b.a]>=0)active.add(b.a);
-  if(grid.heights[b.b]>=0)active.add(b.b);
+/** Ocean-only hotspot chains and boundary-linked seamounts, deterministic on
+ * the land mask and plate topology. Centers are not independent land cells. */
+export function locateSubmarineVolcanoes(grid,tectonics,seed,coastDistance){
+ const candidates=[],seen=new Set();
+ // Active spreading systems have melt supply; ocean-ocean subduction arcs
+ // contribute sparse submarine cones on the oceanward side of the boundary.
+ for(const boundary of tectonics.boundaries){
+  if(boundary.mode!=='mid-ocean-ridge'&&boundary.mode!=='subduction')continue;
+  for(const cell of [boundary.a,boundary.b]){
+   if(grid.heights[cell]>=0||coastDistance[cell]<180||seen.has(cell))continue;
+   seen.add(cell);
+   const threshold=boundary.mode==='mid-ocean-ridge'?.955:.925;
+   if(hash(seed^0x7b2900,cell)>threshold)
+    candidates.push({cell,kind:boundary.mode==='mid-ocean-ridge'?'ridge-volcano':'volcanic-arc',weight:1.0});
+  }
  }
- const nearby=new Set(active);
- for(const i of active)for(const j of grid.neighbors[i])if(grid.heights[j]>=0)nearby.add(j);
- const candidates=[...nearby].filter(i=>grid.heights[i]>=20&&
-  grid.neighbors[i].every(j=>grid.heights[i]>=grid.heights[j])&&hash(seed^0xCA1D3A,i)>.30);
- candidates.sort((a,b)=>grid.heights[b]-grid.heights[a]||a-b);
- const kept=[];
- for(const i of candidates){
-  if(kept.some(j=>greatCircleKm(grid.points[i],grid.points[j])<180))continue;
-  kept.push(i);
-  if(kept.length===12)break;
+ // Intraplate hot spots make isolated oceanic seamount chains, rather than
+ // pretending every volcano sits precisely on a plate boundary.
+ for(let i=0;i<grid.heights.length;i++){
+  if(grid.heights[i]>=0||coastDistance[i]<450)continue;
+  if(hash(seed^0x52ea100,i)>.99935)candidates.push({cell:i,kind:'hotspot',weight:1.15});
  }
- return kept.map(i=>({id:'crater-candidate-'+i,gridCell:i,kind:'volcanic-crater-lake-candidate',elevation: grid.heights[i],status:'unconfirmed'}));
+ candidates.sort((a,b)=>a.cell-b.cell||a.kind.localeCompare(b.kind));
+ const centers=[];
+ for(const c of candidates){
+  if(centers.some(p=>greatCircleKm(grid.points[p.cell],grid.points[c.cell])<185))continue;
+  centers.push(c);
+  if(centers.length>=90)break;
+ }
+ // A center plus a few offsets along its host plate's local motion creates
+ // a short seamount chain. Offsets are actual adjacent spherical Grid cells.
+ const cones=[];
+ for(const item of centers){
+  const plate=tectonics.domains.plates[tectonics.domains.owners[item.cell]];
+  const p=grid.points[item.cell],v=[
+   plate.pole[1]*p[2]-plate.pole[2]*p[1],
+   plate.pole[2]*p[0]-plate.pole[0]*p[2],
+   plate.pole[0]*p[1]-plate.pole[1]*p[0]
+  ];
+  const sign=plate.angularSpeed<0?-1:1;
+  cones.push({...item,radiusKm:65+95*hash(seed^0x7091,item.cell),uplift:19+16*hash(seed^0x2187,item.cell)});
+  if(item.kind!=='hotspot')continue;
+  let current=item.cell;
+  for(let step=0;step<3;step++){
+   const next=grid.neighbors[current].filter(i=>grid.heights[i]<0&&coastDistance[i]>220)
+    .sort((a,b)=>sign*dot(v,grid.points[b])-sign*dot(v,grid.points[a]))[0];
+   if(next===undefined||next===current)break;
+   current=next;
+   cones.push({cell:current,kind:'hotspot-chain',radiusKm:45+20*hash(seed^0x2191,current),
+    uplift:Math.max(8,23-4*step)});
+  }
+ }
+ return cones;
 }
 /** Builds proposed seabed elevations and independent feature labels.
  * Does not mutate grid or the formal map snapshot. */
@@ -95,6 +128,7 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
  const coast=oceanDistances(grid,coastSources(grid));
  const ridge=oceanDistances(grid,boundarySources(grid,model,'mid-ocean-ridge'));
  const trench=oceanDistances(grid,boundarySources(grid,model,'subduction'));
+ const volcanoes=locateSubmarineVolcanoes(grid,model,tectonicSeed,coast);
  const n=grid.heights.length,heights=grid.heights.slice(),zones=new Uint8Array(n);
  let cells=0;
  for(let i=0;i<n;i++){
@@ -130,11 +164,24 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
    depth+=38*trenchFactor;
    if(trenchFactor>.26)zones[i]=SEAFLOOR.trench;
   }
+  // Submerged cones are radial smooth bumps. Restrict to ocean and require
+  // a substantive uplift so their seafloor label is not a decorative marker.
+  let volcanoUplift=0;
+  for(const cone of volcanoes){
+   const distance=greatCircleKm(grid.points[i],grid.points[cone.cell]);
+   if(distance>cone.radiusKm*2)continue;
+   const effect=cone.uplift*Math.exp(-2*(distance/cone.radiusKm)**2);
+   volcanoUplift=Math.max(volcanoUplift,effect);
+  }
+  if(volcanoUplift>=4&&d>140){
+   depth=Math.max(3,depth-volcanoUplift);
+   zones[i]=SEAFLOOR.seamount;
+  }
   const magnitude=clamp(Math.round(depth),1,100);
   heights[i]=-magnitude;
  }
- const craterLakeCandidates=volcanicCraterCandidates(grid,model,tectonicSeed);
- return {version:1,seed:tectonicSeed,heights,zones,tectonics:model,craterLakeCandidates,
+ return {version:2,seed:tectonicSeed,heights,zones,tectonics:model,
+  submarineVolcanoes:volcanoes.map(({cell,kind,radiusKm,uplift})=>({id:'seamount-'+cell,gridCell:cell,kind,radiusKm,uplift})),
   oceanCells:cells};
 }
 /** Mutates only already-submerged cells; use this for a NEW world or an
