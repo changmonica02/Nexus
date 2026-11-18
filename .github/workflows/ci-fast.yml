@@ -1,0 +1,86 @@
+name: Draft PR fast checks (pilot)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  fast:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate inventory and routing rules
+        run: |
+          node tests/tools/test-groups.mjs --check
+          node --test tests/tools/select-fast-tests.test.mjs
+      - name: Determine all changes against PR base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git diff --name-only -z HEAD~1 HEAD > .fast-changed
+          else
+            git diff --name-only -z "$BASE_SHA" "$HEAD_SHA" > .fast-changed
+          fi
+          test -s .fast-changed
+      - name: Resolve required tests
+        run: node tests/tools/select-fast-tests.mjs --changed-file .fast-changed
+      - name: Typecheck application
+        run: npx tsc --noEmit
+      - name: Build required map test assets
+        run: |
+          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('globalMap'))?0:1)"; then
+            npm run map:global
+          fi
+          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('worldMap'))?0:1)"; then
+            npm run map:build
+          fi
+
+      - name: Run affected non-browser tests
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {spawnSync} from 'node:child_process';
+          const plan=JSON.parse(readFileSync('.fast-plan.json','utf8'));
+          for(const file of plan.node){
+            console.log('Running',file);
+            const r=spawnSync(process.execPath,['--test',file],{stdio:'inherit'});
+            if(r.status!==0)process.exit(r.status??1);
+          }
+          NODE
+      - name: Install browser only for selected checks
+        run: |
+          if node -e "process.exit(require('./.fast-plan.json').browser.length ? 0 : 1)"; then
+            npx playwright install --with-deps chromium
+            node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
+          fi
+      - name: Run affected browser tests
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {spawnSync} from 'node:child_process';
+          const plan=JSON.parse(readFileSync('.fast-plan.json','utf8'));
+          for(const file of plan.browser){
+            console.log('Running',file);
+            const r=spawnSync(process.execPath,[file],{stdio:'inherit'});
+            if(r.status!==0)process.exit(r.status??1);
+          }
+          NODE

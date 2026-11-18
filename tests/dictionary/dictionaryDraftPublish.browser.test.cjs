@@ -1,0 +1,335 @@
+const test = require("node:test"),
+  assert = require("node:assert/strict"),
+  fs = require("node:fs"),
+  path = require("node:path"),
+  os = require("node:os"),
+  http = require("node:http");
+const { build } = require("esbuild"),
+  { chromium } = require("playwright");
+const {
+  database,
+  client,
+  sql,
+  id,
+} = require("../fixtures/persistentImportDatabase.cjs");
+test(
+  "actual SQL draft publication: new and reopened Word/Prefix/Root, dirty/cancel/error/stale protection, success refresh and Review lifecycle",
+  { timeout: 180000 },
+  async () => {
+    const root = path.resolve(__dirname, "../.."),
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-draft-publish-")),
+      pg = await database();
+    let browser, server;
+    try {
+      await require('../fixtures/dictionaryRetention.cjs').applyDictionaryRetention(pg,{persistentInstalled:true});
+      await pg.exec('reset role');await pg.exec(fs.readFileSync('supabase/migrations/20261105065440_dictionary_word_segments.sql','utf8'));await pg.exec('set role authenticated');
+      await build({
+        entryPoints: ["tests/fixtures/dictionaryDraftPublish.jsx"],
+        outfile: path.join(tmp, "fixture.js"),
+        bundle: true,
+        format: "esm",
+        jsx: "automatic",
+        define: { "process.env": JSON.stringify({ NODE_ENV: "development" }) },
+        plugins: [
+          {
+            name: "isolated",
+            setup(b) {
+              b.onLoad(
+                { filter: /infrastructure\/supabase\/client\.ts$/ },
+                () => ({
+                  contents:
+                    "export const getSupabase=()=>window.dictionaryClient;",
+                  loader: "js",
+                }),
+              );
+              b.onResolve({ filter: /^next\/link$/ }, () => ({
+                path: "link",
+                namespace: "fixture",
+              }));
+              b.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+                contents: `import React from '${root}/node_modules/react/index.js';export default function Link(props){return React.createElement('a',props)}`,
+                loader: "js",
+                resolveDir: root,
+              }));
+            },
+          },
+        ],
+      });
+      const css = (
+        await require("postcss")([
+          require("@tailwindcss/postcss")({ base: root }),
+        ]).process(fs.readFileSync("src/app/globals.css", "utf8"), {
+          from: path.join(root, "src/app/globals.css"),
+        })
+      ).css;
+      const calls = [];
+      server = http.createServer(async (req, res) => {
+        try {
+          if (req.url === "/rpc" || req.url === "/table") {
+            let raw = "";
+            for await (const part of req) raw += part;
+            const body = JSON.parse(raw);
+            let result;
+            if (req.url === "/table") {
+              assert.ok(
+                [
+                  "dictionary_entry_groups",
+                  "dictionary_sense_groups",
+                  "dictionary_ai_metadata",
+                  "dictionary_review_drafts",
+                ].includes(body.table),
+              );
+              const rows = (await pg.query(`select * from ${body.table}`)).rows;
+              result = {
+                data: rows.filter((r) =>
+                  body.filters.every(([k, values]) => values.includes(r[k])),
+                ),
+              };
+            } else {
+              calls.push(body);
+              const fields = {
+                get_dictionary_entry: ["entry_uuid"],
+                get_dictionary_ai_snapshot: ["entry_uuid"],
+                apply_dictionary_drafts: ["drafts", "preview", "allow_edits"],
+                delete_dictionary_draft_sense: [
+                  "entry_uuid",
+                  "sense_uuid",
+                  "expected_entry_revision",
+                  "expected_sense_revision",
+                ],
+                publish_dictionary_entry: ["entry_uuid", "content_verified"],
+              };
+              const keys = fields[body.name];
+              if (keys) {
+                assert.deepEqual(
+                  Object.keys(body.args).sort(),
+                  [...keys].sort(),
+                );
+                result = {
+                  data: await sql(
+                    pg,
+                    `select ${body.name}(${keys.map((_, i) => "$" + (i + 1)).join(",")}) v`,
+                    keys.map((k) =>
+                      typeof body.args[k] === "object"
+                        ? JSON.stringify(body.args[k])
+                        : body.args[k],
+                    ),
+                  ),
+                };
+              } else result = await client(pg).rpc(body.name, body.args);
+            }
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify(result));
+          } else if (req.url === "/fixture.js") {
+            res.setHeader("content-type", "text/javascript");
+            res.end(fs.readFileSync(path.join(tmp, "fixture.js")));
+          } else if (req.url === "/fixture.css") {
+            res.setHeader("content-type", "text/css");
+            res.end(css);
+          } else
+            res.end(
+              '<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script type="module" src="/fixture.js"></script></body></html>',
+            );
+        } catch (e) {
+          res.end(JSON.stringify({ error: { message: e.message } }));
+        }
+      });
+      await new Promise((r) => server.listen(0, "127.0.0.1", r));
+      browser = await chromium.launch({
+        executablePath: process.env.BROWSER_EXECUTABLE || "/usr/bin/chromium",
+        args: ["--no-sandbox"],
+      });
+      const errors = [];
+      // One end-to-end SQL publication per supported kind; vary viewport rather than
+      // repeating the identical full transaction at every viewport.
+      for (const [kind, width] of [["word", 1280], ["prefix", 820], ["root", 390]]) {
+          const context = await browser.newContext({
+              viewport: { width, height: 1000 },
+            }),
+            page = await context.newPage();
+          page.setDefaultTimeout(10000);
+          page.on("pageerror", (e) => errors.push(e.message));
+          await page.goto(
+            "http://127.0.0.1:" + server.address().port + "/?kind=" + kind,
+          );
+          const publish = page.getByRole("button", {
+              name: "發布",
+              exact: true,
+            }),
+            save = page.getByRole("button", { name: "儲存／重試", exact: true });
+          await publish.waitFor().catch(async (e) => {
+            throw Error(
+              JSON.stringify({
+                errors,
+                body: await page.locator("body").innerText(),
+              }) +
+                " " +
+                e.message,
+            );
+          });
+          assert.equal(await publish.isDisabled(), true);
+          const label = kind === "word" ? "英文字形 1" : "構詞名稱",
+            glossLabel = kind === "word" ? "中文意思" : "概述",
+            headword =
+              kind === "prefix"
+                ? width === 1280
+                  ? "ab-"
+                  : "ab-" + width
+                : kind + "-" + width;
+          await page.getByLabel(label, { exact: true }).fill(headword);
+          await page.getByLabel(glossLabel, { exact: true }).fill("測試義項");
+          await page
+            .getByRole("button", {
+              name: kind === "word" ? "＋新增義項" : "＋新增中文義項",
+              exact: true,
+            })
+            .click();
+          await page
+            .getByLabel(glossLabel, { exact: true })
+            .nth(1)
+            .fill("即將刪除");
+          await save.click();
+          await page.waitForURL(/entry=/);
+          const entry = new URL(page.url()).searchParams.get("entry");
+          await publish.waitFor({ state: "visible" });
+          await page.waitForFunction(
+            () =>
+              !Array.from(document.querySelectorAll("button")).find(
+                (b) => b.textContent === "發布",
+              )?.disabled,
+          );
+          const retainedGloss = await page
+            .getByLabel(glossLabel, { exact: true })
+            .first()
+            .inputValue();
+          // Immediate child deletion advances the editor baseline revision without remounting the parent.
+          await page
+            .locator(kind === "word" ? '[data-word-sense-row]' : '[data-morpheme-sense]').nth(1).getByRole("button", { name: kind === "word" ? "刪除義項 2" : "刪除義項", exact: true })
+            .click();
+          await page
+            .getByRole("dialog")
+            .getByRole("button", { name: "確認", exact: true })
+            .click();
+          await page.waitForFunction(kind => document.querySelectorAll(kind === 'word' ? '[data-word-sense-row]' : '[data-morpheme-sense]').length <= 1, kind);
+          await page.getByRole('status').filter({hasText:'已儲存草稿'}).waitFor().catch(async e=>{console.error(await page.locator('body').innerText(),calls.slice(-5));throw e;});
+          await page.getByLabel(glossLabel, { exact: true }).fill("尚未儲存");
+          const count = calls.filter(
+            (x) => x.name === "publish_dictionary_entry",
+          ).length;
+          await publish.click();
+          await page
+            .getByRole("alert")
+            .filter({ hasText: "請先儲存" })
+            .waitFor();
+          assert.equal(
+            calls.filter((x) => x.name === "publish_dictionary_entry").length,
+            count,
+          );
+          await page
+            .getByLabel(glossLabel, { exact: true })
+            .fill(retainedGloss);
+          if(await save.isEnabled())await save.click();
+          await publish.click();
+          await page
+            .getByRole("dialog", { name: "發布詞條", exact: true })
+            .getByRole("button", { name: "取消", exact: true })
+            .click();
+          assert.equal(
+            (await sql(pg, "select get_dictionary_entry($1) v", [entry])).entry
+              .status,
+            "draft",
+          );
+          assert.equal(
+            calls.filter((x) => x.name === "publish_dictionary_entry").length,
+            count,
+          );
+          await page.reload();
+          await publish.waitFor();
+          await page.evaluate(() => (window.failPublish = true));
+          if(await save.isEnabled())await save.click();
+          await publish.click();
+          await page
+            .getByRole("dialog", { name: "發布詞條", exact: true })
+            .getByRole("button", { name: "發布", exact: true })
+            .click();
+          await page
+            .getByRole("alert")
+            .filter({ hasText: "publication denied" })
+            .waitFor();
+          assert.equal(
+            await page.getByLabel(glossLabel, { exact: true }).inputValue(),
+            retainedGloss,
+          );
+          assert.equal(
+            (await sql(pg, "select get_dictionary_entry($1) v", [entry])).entry
+              .status,
+            "draft",
+          );
+          // A competing saved edit must fail preflight, preserving the editor and never issuing publish.
+          await page.evaluate(() => (window.failPublish = false));
+          await pg.exec("reset role");
+          await pg.query(
+            "update dictionary_entries set revision=revision+1 where id=$1",
+            [entry],
+          );
+          await pg.exec("set role authenticated");
+          if(await save.isEnabled())await save.click();
+          await publish.click();
+          await page
+            .getByRole("dialog", { name: "發布詞條", exact: true })
+            .getByRole("button", { name: "發布", exact: true })
+            .click();
+          await page
+            .getByRole("alert")
+            .filter({ hasText: "草稿版本已變更" })
+            .waitFor();
+          assert.equal(
+            calls.filter((x) => x.name === "publish_dictionary_entry").length,
+            count,
+          );
+          await page.reload();
+          await publish.waitFor();
+          if(await save.isEnabled())await save.click();
+          await publish.click();
+          await page
+            .getByRole("dialog", { name: "發布詞條", exact: true })
+            .getByRole("button", { name: "發布", exact: true })
+            .click();
+          for(let attempt=0;attempt<100;attempt++){if((await sql(pg,'select get_dictionary_entry($1) v',[entry])).entry.status==='published')break;await new Promise(r=>setTimeout(r,50));}
+          await page.getByLabel(label,{exact:true}).waitFor();
+          const published = await sql(pg, "select get_dictionary_entry($1) v", [
+            entry,
+          ]);
+          assert.equal(published.entry.status, "published");
+          assert.equal(published.entry.id, entry);
+          assert.equal(published.senses[0].gloss_zh_tw, retainedGloss);
+          assert.equal(
+            calls.filter((x) => x.name === "publish_dictionary_entry").length,
+            count + 1,
+          );
+          assert.equal(
+            calls.findLast((x) => x.name === "publish_dictionary_entry").args
+              .content_verified,
+            true,
+          );
+          assert.equal(
+            await page.locator("input").first().inputValue(),
+            headword,
+          );
+          assert.equal(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+            true,
+          );
+          await context.close();
+        }
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser?.close();
+      if (server) await new Promise((r) => server.close(r));
+      await pg.close();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  },
+);

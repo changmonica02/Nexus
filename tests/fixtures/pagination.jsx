@@ -12,7 +12,7 @@ import {LanguageProvider} from '../../src/lib/LanguageContext';
 import CardDictionaryPanel from '../../src/features/dictionary/CardDictionaryPanel';
 import StudyLinkSuggestions from '../../src/features/dictionary/StudyLinkSuggestions';
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-const entries=Array.from({length:245},(_,i)=>({id:id(i+100),headword:'item'+String(i).padStart(3,'0'),kind:'word',status:'published',revision:1,published_at:'fixture'}));
+const entries=Array.from({length:245},(_,i)=>({id:id(i+100),headword:'item'+String(i).padStart(3,'0'),kind:new URLSearchParams(location.search).get('fixture')==='groups'?'prefix':'word',status:'published',revision:1,published_at:'fixture'}));
 const detail=e=>({entry:e,senses:[{id:id(Number(e.id.slice(-12))+1000),entry_id:e.id,part_of_speech:e.kind==='word'?'noun':null,gloss_zh_tw:'中文'+e.headword}],relations:[],related:[],etymologies:[],learning_notes:[],inflections:[]});
 const cards=Array.from({length:25},(_,i)=>({id:'card'+i,front:'item'+String(i).padStart(3,'0'),back:'中文',official_pack_id:null}));
 window.calls=[];window.failPage=null;window.failNext=false;
