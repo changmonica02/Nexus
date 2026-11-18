@@ -122,6 +122,7 @@ function connectedLargest(grid,mask){
 export function generateContinentsFirst({seed,worldType='earthlike'}={}){
  const plan=planContinentalAreas(seed,worldType);
  const grid=createGlobalGrid(),totalArea=grid.areas.reduce((a,b)=>a+b,0);
+ grid.heights.fill(-40);
  const rng=templateRng(seed^0xC1A5F17),occupied=new Uint8Array(grid.points.length),accepted=[];
  const diagnostics=[];
  for(const entry of plan){
