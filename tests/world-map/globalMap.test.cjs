@@ -12,6 +12,9 @@ test('global worker builds the authoritative mask and loads stored heights inste
  vm.runInContext(fs.readFileSync('.cache/global-map-worker.js','utf8'),context);
  scope.onmessage({data:{id:1,action:'generate',settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}}});
  const first=messages.pop();assert.equal(first.error,undefined);assert.equal(first.project.terrain.heights.length,36002);assert.ok(first.drawing.land.length>1000);assert.ok(first.drawing.coast.length>100);
+ assert.ok(first.drawing.plateCount>=6&&first.drawing.plateCount<=12,'plate domains should be derived from terrain');
+ assert.ok(first.drawing.plateBoundaries.length>100,'boundaries are an overlay, not shorelines');
+ assert.ok(first.drawing.plateBoundaries.every(line=>line.length===2&&Math.abs(line[0][0]-line[1][0])<=180));
  // Seed is provenance; a valid snapshot's terrain remains authoritative even if it differs from a new generation.
  const copy=JSON.parse(JSON.stringify(first.project));copy.settings.seed=99;
  scope.onmessage({data:{id:2,action:'load',project:copy}});const loaded=messages.pop();
