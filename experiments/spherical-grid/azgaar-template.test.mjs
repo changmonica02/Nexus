@@ -29,9 +29,10 @@ test('spherical experiment retains fixed grid, area-weighted fraction and seed r
  assert.deepEqual(a.grid.heights,b.grid.heights);
  assert.equal(a.oceanSeed,b.oceanSeed);
  assert.deepEqual(a.templatePlacements,b.templatePlacements);
- assert.equal(a.templatePlacements.length,planAzgaarPlacements(1729,{continentCores:8}).length);
+ assert.equal(a.attemptedPlacements,planAzgaarPlacements(1729,{continentCores:8}).length);
+ assert.equal(a.templatePlacements.length+a.skippedPlacements,a.attemptedPlacements);
  assert.ok(a.templatePlacements.some(p=>p.attempts>1),'at least one candidate should be repositioned');
- assert.ok(a.templatePlacements.every(p=>p.overlapRatio>=0&&p.overlapRatio<=1&&p.attempts>=1&&p.attempts<=7));
+ assert.ok(a.templatePlacements.every(p=>p.overlapRatio>=0&&p.overlapRatio<=1&&p.attempts>=1&&p.attempts<=8));
  assert.ok(a.templatePlacements.every(p=>Number.isFinite(TEMPLATE_OVERLAP_LIMITS[p.type])));
  assert.ok(Math.abs(a.measuredLandPercent-32)<=a.tolerancePercent);
  assert.ok(a.grid.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100));
@@ -68,14 +69,16 @@ test('template-specific radius profiles are bounded and deterministic',()=>{
 test('repositioning preserves recipe identity and records meaningful new land',()=>{
  const items=planAzgaarPlacements(1729,{continentCores:8});
  const result=createAzgaarSphericalLandLayout({seed:1729,landPercent:32,continentCores:8});
- assert.equal(result.templatePlacements.length,items.length);
- for(let i=0;i<items.length;i++){
-  const base=items[i],placed=result.templatePlacements[i];
+ assert.equal(result.attemptedPlacements,items.length);
+ assert.equal(result.templatePlacements.length+result.skippedPlacements,items.length);
+ for(const placed of result.templatePlacements){
+  const base=items.find(p=>p.type===placed.type&&p.index===placed.index);
+  assert.ok(base,'accepted candidate should correspond to a generated slot');
   assert.equal(base.name,placed.name,'retry must preserve template recipe');
   assert.equal(base.seed,placed.seed,'retry must preserve template seed');
   assert.ok(placed.radius>=TEMPLATE_SIZE_RANGES[placed.name][0]);
   assert.ok(placed.radius<=TEMPLATE_SIZE_RANGES[placed.name][1]);
-  assert.ok(placed.newLandArea>0);
+  assert.ok(placed.newLandArea>0,'do not retain wholly buried template');
   assert.ok(placed.contributionRatio>=0&&placed.contributionRatio<=1);
   assert.ok(Math.abs(placed.overlapRatio+placed.contributionRatio-1)<1e-6);
  }
