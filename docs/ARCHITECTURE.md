@@ -1,3 +1,13 @@
+## 自然星球生成管線（2026-11-18；Issue #202，分支已實作）
+
+- `globalMapWorker.ts` 新建改用 `natural-planet.mjs`，依序執行新版 Azgaar 模板球面組合、`refineSphericalTerrain`（只改正高程，不改海岸）、`analyzeSphericalPlates` 與 `generatePlateSeafloor`／`applyPlateSeafloor`。做法 1 面積加權分位數維持 25／32／45%；不是逐塊配額生成或板塊動力學時間模擬。
+- 地殼及山地提示、陸地高差影響板塊領域成長。板塊種子由陸海遮罩穩定推導，海底高度不影響板塊成長成本，確保儲存重開後邊界一致。海底計算保留陸地高度與陸海符號，輸出大陸棚、大陸坡、深海平原、洋脊、海溝、海山及熱點鏈。
+- Worker 的 load 分支只驗證及還原既有快照；不執行新生成管線。格式仍為 `nexus-global-map@1`，保留既有 `continentCores` 欄位供舊快照相容，新介面隱藏該工程參數。型別、儲存、CAS 與使用者隔離契約未變。
+- `WorldMapCreator` 開啟及刷新種子不計算地形；只有按生成預覽才送 Worker。確認直接儲存同一預覽 Blob；種子或星球類型與候選設定不同時禁止確認。名稱獨立於地形參數；編輯既有世界仍使用現有名稱管理。
+- `globalMapGeometry` 以實際 Grid 高程產生 12 個色帶的球面 Voronoi 多邊形，含海底與接縫／極區處理；`GlobalMapCanvas` 顯示高程與可切換板塊邊界。色帶是高度視覺化，不把地形分類標記持久化成第二份權威地形。
+- Azgaar 延用原授權。planet-simulation 只用作多尺度球面地形流程參考，未複製程式；仍使用 Nexus 既有獨立實作。
+- 驗證：地圖 52 項、自然星球 4 項、模板／海底／細節 17 項通過；TypeScript、相關 ESLint、完整建置通過。新增桌面／手機瀏覽器操作測試，環境的 Chromium socket 限制阻擋啟動，尚未驗證實際畫面及操作。未部署、未合併 main。
+
 # Nexus — 技術架構與資料契約
 
 > 更新：2026-11-15（含 #186 B 階段與地圖 Draft 整合）；本文件描述現行架構與有效資料契約，較早章節中的日期用於定位技術演進，不代表新的待部署工作。產品行為見 [SPEC](SPEC.md)，決策紀錄見 [HISTORY](HISTORY.md)，最新進度見 [HANDOFF](HANDOFF.md)。

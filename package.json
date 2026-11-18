@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test:dictionary": "node --test tests/dictionary/*.test.cjs",
     "test:dictionary:browser": "node tests/dictionary/dictionaryEditor.browser.test.cjs",
+    "test:world-map:browser": "node scripts/build-global-map.mjs && node --test tests/world-map/globalMapCreator.browser.test.cjs",
+    "test:world-map:natural": "node --test experiments/spherical-grid/natural-planet.test.mjs",
     "test:world-map": "node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapRegions.test.cjs",
     "prebuild": "node scripts/build-global-map.mjs && node scripts/build-world-map.mjs",
     "predev": "node scripts/build-global-map.mjs && node scripts/build-world-map.mjs",

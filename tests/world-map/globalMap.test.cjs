@@ -12,6 +12,8 @@ test('global worker builds the authoritative mask and loads stored heights inste
  vm.runInContext(fs.readFileSync('.cache/global-map-worker.js','utf8'),context);
  scope.onmessage({data:{id:1,action:'generate',settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}}});
  const first=messages.pop();assert.equal(first.error,undefined);assert.equal(first.project.terrain.heights.length,36002);assert.ok(first.drawing.land.length>1000);assert.ok(first.drawing.coast.length>100);
+ assert.equal(first.drawing.relief.reduce((n,band)=>n+band.rings.length,0),36002,'all land and seabed cells must be represented in the height preview');
+ assert.ok(first.drawing.relief.filter(band=>band.rings.length).length>=8,'preview distinguishes shallow/deep ocean and land elevations');
  assert.ok(first.drawing.plateCount>=6&&first.drawing.plateCount<=12,'plate domains should be derived from terrain');
  assert.ok(first.drawing.plateBoundaries.length>100,'boundaries are an overlay, not shorelines');
  assert.ok(first.drawing.plateBoundaries.every(line=>line.length===2&&Math.abs(line[0][0]-line[1][0])<=180));

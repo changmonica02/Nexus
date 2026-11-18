@@ -11,10 +11,9 @@ import GlobalMapCanvas from './GlobalMapCanvas';
 export default function WorldMapCreator({initialName,onCancel,onCreate}:{initialName:string;onCancel:()=>void;onCreate:(name:string,blob:Blob)=>Promise<void>}){
  const {language}=useLanguage(),text=globalMapText(language);
  const [name,setName]=useState(initialName),[settings,setSettings]=useState(newGlobalMapSettings);
- const [result,setResult]=useState<GlobalMapResult>(),[busy,setBusy]=useState(true),[creating,setCreating]=useState(false),[error,setError]=useState('');
+ const [result,setResult]=useState<GlobalMapResult>(),[busy,setBusy]=useState(false),[creating,setCreating]=useState(false),[error,setError]=useState('');
  const client=useRef<GlobalMapClient|null>(null),active=useRef(false),alive=useRef(true);
- const first=useRef(settings);
- useEffect(()=>{let live=true;alive.current=true;const c=createGlobalMapClient();client.current=c;void c.request('generate',first.current).then(value=>{if(live)setResult(value);}).catch(()=>{if(live)setError('failed');}).finally(()=>{if(live)setBusy(false);});return()=>{live=false;alive.current=false;c.close();client.current=null;};},[]);
+ useEffect(()=>{alive.current=true;const c=createGlobalMapClient();client.current=c;return()=>{alive.current=false;c.close();client.current=null;};},[]);
  const generate=async()=>{if(active.current||!client.current)return;try{validateGlobalSettings(settings);}catch{setError('invalid');return;}active.current=true;setBusy(true);setError('');try{const value=await client.current.request('generate',settings);if(alive.current)setResult(value);}catch{if(alive.current)setError('failed');}finally{active.current=false;if(alive.current)setBusy(false);}};
  const matches=result&&JSON.stringify(result.project.settings)===JSON.stringify(settings);
  const submit=async()=>{if(active.current||busy||!matches||!name.trim()||!result)return;active.current=true;setCreating(true);setError('');try{await onCreate(name.trim(),globalMapBlob(result.project));}catch{if(alive.current)setError('failed');}finally{active.current=false;if(alive.current)setCreating(false);}};

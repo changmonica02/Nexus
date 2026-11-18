@@ -20,6 +20,11 @@ export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
   for(let k=-copies;k<=copies;k++){
    ctx.save();ctx.translate(k*360,0);ctx.fillStyle='#a2ba81';
    ctx.beginPath();for(const ring of drawing.land){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();
+   if(drawing.relief)for(const band of drawing.relief){
+    ctx.fillStyle=band.color;ctx.beginPath();
+    for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
+    ctx.fill();
+   }
    ctx.beginPath();for(const line of drawing.coast){ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);}
    ctx.strokeStyle='#547457';ctx.lineWidth=.7/s;ctx.stroke();
    if(showPlates&&drawing.plateBoundaries?.length){
