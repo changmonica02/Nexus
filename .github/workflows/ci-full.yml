@@ -183,7 +183,7 @@ jobs:
         run: |
           node --test tests/study/studyStyles.test.cjs tests/study/studyIntervals.test.cjs tests/study/studySync.test.cjs
           node tests/study/studyStartup.browser.test.cjs
-          STUDY_BROWSER=webkit node tests/study/studyStartup.browser.test.cjs
+          STUDY_BROWSER=webkit STUDY_STARTUP_PROFILE=webkit-smoke node tests/study/studyStartup.browser.test.cjs
           node tests/study/unifiedStudy.browser.test.cjs
       - name: Study lint
         run: npx eslint src/features/study/StudyRepository.ts src/features/study/officialContent.ts src/features/study/useOfficialContent.ts src/features/study/components/StudySetView.tsx src/features/study/components/ScheduledStudySession.tsx src/features/study/components/StudyCompositionSummary.tsx
