@@ -1,6 +1,7 @@
+import {projectClimate} from '../../../experiments/spherical-grid/climate-display.mjs';
 import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -22,13 +23,14 @@ export function unwrapRing(points:number[][],pole?:number){
 type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number;seedCell:number;pole:number[];angularSpeed:number}[]};
  boundaries:{type:string;normal?:number[];smoothedNormal?:number[];center?:number[];plates:number[];subductingPlate?:number|null;overridingPlate?:number|null;mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
  features?:{displaySegmentIds:number[];volcanoes:{cell:number}[];islandChains:{cells:number[]}[];orogenProvinces:{activeCells:number;historicalCells:number}}};
-export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput):GlobalMapDrawing {
+export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput,climate?:Parameters<typeof projectClimate>[1]):GlobalMapDrawing {
  const around:number[][][]=Array.from({length:grid.points.length},()=>[]);
  for(const face of grid.triangles){
   const [a,b,c]=face.map(i=>grid.points[i]);let center=unit(cross(sub(b,a),sub(c,a)));
   if(dot(center,a)<0)center=center.map(v=>-v);
   for(const i of face)around[i].push(center);
  }
+ const cellRings:number[][][]=new Array(grid.points.length);
  const land:number[][][]=[];let area=0,total=0;
  const palette=['#17364e','#20506b','#2b6b86','#418fa6','#76b6c6','#b3d6d4','#8eb57a','#b4bf85','#bba776','#9e876c','#d1c6b5','#eeeae2'];
  const relief=palette.map(color=>({color,rings:[] as number[][][]}));
@@ -41,6 +43,7 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   const p=grid.points[i],x=unit(Math.abs(p[2])<.9?cross([0,0,1],p):cross([0,1,0],p)),y=cross(p,x);
   around[i].sort((a,b)=>Math.atan2(dot(a,y),dot(a,x))-Math.atan2(dot(b,y),dot(b,x)));
   const ring=unwrapRing(around[i].map(project),p[2]>0?90:-90);
+  cellRings[i]=ring;
   if(!ocean[i])land.push(ring);
   if(plates&&tectonics)plates[tectonics.domains.owners[i]].rings.push(ring);
   if(grid.heights){
@@ -54,5 +57,5 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
   islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
- return {land,plates,geology,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+ return {land,plates,geology,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
 }

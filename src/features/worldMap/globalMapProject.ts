@@ -5,7 +5,7 @@ export const GLOBAL_MAP_CELLS = 36002;
 export type GlobalMapSettings = {seed:number;landPercent:25|32|45;continentCores:number;gridCells:36002};
 export type IslandGenesis={version:1;cells:number[];chains:{id:string;kind:'volcanic-arc'|'hotspot';plateId:number;cells:number[];agesMa:number[]}[]};
 export type GlobalMapProject = {
- format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;
+ format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;climateVersion?:1;
  terrain:{format:'nexus-spherical-grid-prototype';version:1;frequency:60;cells:36002;
  heightScaleMetres:100;seaLevel:0;oceanSeed:number;revision:number;heights:number[];checksum:string};
 };
@@ -22,6 +22,7 @@ export function validateGlobalSettings(value:unknown):asserts value is GlobalMap
 export function validateGlobalMapProject(value:unknown):asserts value is GlobalMapProject {
  const p=value as GlobalMapProject;
  if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==2&&p.geologyVersion!==3&&p.geologyVersion!==4))throw Error('Unsupported global map version');
+ if(p.climateVersion!==undefined&&p.climateVersion!==1)throw Error('Unsupported climate version');
  validateGlobalSettings(p.settings);
  const g=p.islandGenesis;
  if(g!==undefined){
