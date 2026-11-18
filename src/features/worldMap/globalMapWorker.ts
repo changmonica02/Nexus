@@ -2,6 +2,7 @@ import {createAzgaarSphericalLandLayout} from '../../../experiments/spherical-gr
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from '../../../experiments/spherical-grid/snapshot.mjs';
 import {validateGlobalMapProject,validateGlobalSettings,type GlobalMapProject,type GlobalMapSettings} from './globalMapProject';
 import {createGlobalMapDrawing} from './globalMapGeometry';
+import {analyzeSphericalPlates} from '../../../experiments/spherical-grid/tectonic-plates.mjs';
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
 self.onmessage=(event:MessageEvent<{id:number;action:'generate'|'load';settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
@@ -16,6 +17,11 @@ self.onmessage=(event:MessageEvent<{id:number;action:'generate'|'load';settings?
   else throw Error('Unsupported global map operation');
   const state=importGlobalTerrainSnapshot(project.terrain);
   const drawing=createGlobalMapDrawing(state.grid,state.geography.ocean,state.geography.gridCoastline);
+  // Derived from authoritative heights, not mutable project settings. Changing
+  // the seed field in a loaded project cannot silently change existing lines.
+  const tectonics=analyzeSphericalPlates(state.grid,{seed:parseInt(project.terrain.checksum,16)>>>0});
+  drawing.plateBoundaries=tectonics.drawing;
+  drawing.plateCount=tectonics.plateCount;
   self.postMessage({id,project,drawing});
  }catch(error){self.postMessage({id,error:error instanceof Error?error.message:String(error)});}
 };
