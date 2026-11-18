@@ -85,9 +85,9 @@ function measureOverlap(grid,candidate,accepted,occupied){
  * template pixel count. Target is a percentage of TOTAL planetary area.
  * A candidate is rejected if its real non-overlapping share is out of range.
  */
-export function fitSize(grid,map,frame,targetArea,minArea,maxArea){
+export function fitSize(grid,map,frame,targetArea,minArea,maxArea,{minRadius=.17,maxRadius=1.46}={}){
  // Projective patches must remain strictly inside one hemisphere.
- let low=.17,high=1.46;
+ let low=minRadius,high=maxRadius;
  const atLow=project(grid,map,frame,low).area;
  const atHigh=project(grid,map,frame,high).area;
  if(atLow>maxArea||atHigh<minArea)return null;
