@@ -42,7 +42,16 @@ jobs:
           for attempt in $(seq 1 30); do docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres && break; sleep 1; done
           docker exec nexus46-morpheme-ci pg_isready -h 127.0.0.1 -U postgres
           NEXUS_TEST_POSTGRES_CONTAINER=nexus46-morpheme-ci node tests/dictionary/morphemeDatabase.test.cjs
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - run: node tests/dictionary/morphemeEditor.browser.test.cjs
@@ -71,7 +80,16 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright Chromium dependencies and browser (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium
+          npx playwright install chromium
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: PDF verification tools
@@ -113,7 +131,16 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Dictionary admin behavior preflight
         run: node --test tests/dictionary/dictionaryAdminUI.test.cjs
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: Dictionary migration compatibility
@@ -167,7 +194,16 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: Official content, records and review contracts
@@ -238,7 +274,16 @@ jobs:
         with:
           name: nexus-production-fixture
           path: .
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Select installed Chromium
         run: node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV, "BROWSER_EXECUTABLE=" + require("playwright").chromium.executablePath() + "\n")'
       - name: Workspace storage, attachments and integration
@@ -317,7 +362,16 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Session and visibility regression
         run: node --test tests/study/studySessionExit.test.cjs tests/study/studyCardVisibility.test.cjs tests/study/studyCardVisibilityDatabase.test.cjs
       - name: Native isolated PostgreSQL visibility transaction
@@ -346,7 +400,16 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browser dependencies and browsers (8 minute limit)
+        timeout-minutes: 8
+        run: |
+          npx playwright install-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Dictionary list identity and pending work regression
         run: node --test tests/dictionary/dictionaryDefects.test.cjs tests/dictionary/dictionaryEntryDeletion.test.cjs
       - name: Isolated PostgreSQL and rollback
@@ -396,10 +459,17 @@ jobs:
         with:
           name: nexus-production-fixture
           path: .
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-${{ hashFiles('package-lock.json') }}
       - name: Install Chromium only for groups with browser tests
+        timeout-minutes: 8
         run: |
           if node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser --has-tests; then
-            npx playwright install --with-deps chromium
+            npx playwright install-deps chromium
+            npx playwright install chromium
             node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
           fi
       - name: Start isolated production fixture for dictionary PWA
