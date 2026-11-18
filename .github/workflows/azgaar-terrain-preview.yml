@@ -2,6 +2,9 @@ name: Azgaar terrain preview images
 # Developer preview is opt-in only. No push/PR image generation.
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
