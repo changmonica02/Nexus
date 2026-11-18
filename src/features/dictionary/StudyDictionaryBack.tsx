@@ -5,9 +5,9 @@ import {readPublishedEntry} from './reader';
 import {studyDictionaryBack,type BackExample} from './studyBackProjection';
 
 function Example({example}:{example:BackExample}){
-  return <div data-study-example={example.id} className="space-y-1 break-words">
-    <p className="whitespace-pre-wrap text-base leading-relaxed sm:text-lg">{example.english}</p>
-    {example.chinese&&<p className="whitespace-pre-wrap text-sm leading-relaxed opacity-70 sm:text-base">{example.chinese}</p>}
+  return <div data-study-example={example.id} className="space-y-0 break-words">
+    <p className="whitespace-pre-wrap text-base leading-snug sm:text-lg">{example.english}</p>
+    {example.chinese&&<p className="whitespace-pre-wrap text-sm leading-snug opacity-70 sm:text-base">{example.chinese}</p>}
   </div>;
 }
 /** Read-only extensions inside the existing card; morphology, mnemonic and core meanings
