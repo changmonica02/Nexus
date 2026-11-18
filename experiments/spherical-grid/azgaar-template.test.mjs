@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AZGAAR_TEMPLATE_SCRIPTS} from './azgaar-template-data.mjs';
 import {executeAzgaarTemplate,sampleTemplate} from './azgaar-template-engine.mjs';
-import {createAzgaarSphericalLandLayout,planAzgaarPlacements,TEMPLATE_OVERLAP_LIMITS,TEMPLATE_SIZE_RANGES,sampleTemplateRadius} from './azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout,planAzgaarPlacements,planGeographicClusters,TEMPLATE_OVERLAP_LIMITS,TEMPLATE_SIZE_RANGES,sampleTemplateRadius} from './azgaar-spherical-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 
 test('every selected Azgaar recipe executes deterministically with finite heights',()=>{
@@ -90,5 +90,38 @@ test('all three area presets retain contiguous ocean and valid relief',()=>{
   assert.ok(r.grid.heights[r.oceanSeed]<0);
   assert.ok(r.grid.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100));
   assert.ok(new Set(r.grid.heights).size>4);
+ }
+});
+
+test('global clusters are seeded, varied, and initial continental slots cover every cluster',()=>{
+ for(const seed of [1729,42,3,62]){
+  const geography=planGeographicClusters(seed);
+  assert.deepEqual(geography,planGeographicClusters(seed));
+  assert.ok(geography.clusters.length>=2&&geography.clusters.length<=4);
+  assert.ok(geography.clusters.every(c=>c.weight>0&&c.spread>0));
+  const placements=planAzgaarPlacements(seed,{continentCores:8});
+  for(const c of geography.clusters){
+   assert.ok(placements.some(p=>p.type==='continent'&&p.clusterId===c.id),
+    'each geographic group should receive an initial continental slot');
+  }
+  assert.ok(placements.some(p=>p.type==='island'&&p.clusterId!==null));
+  assert.ok(placements.every(p=>p.center.length===3&&
+   Math.abs(Math.hypot(...p.center)-1)<1e-9));
+ }
+});
+test('clustered templates preserve uneven coverage and still contribute new land',()=>{
+ for(const seed of [1729,42,3]){
+  const r=createAzgaarSphericalLandLayout({seed,landPercent:32,continentCores:8});
+  assert.ok(Math.abs(r.measuredLandPercent-32)<=r.tolerancePercent);
+  assert.ok(r.templatePlacements.every(p=>p.newLandArea>0));
+  const longitudes=Array(12).fill(0);
+  for(let i=0;i<r.grid.points.length;i++)if(r.grid.heights[i]>=0){
+   const p=r.grid.points[i],band=Math.min(11,Math.floor((Math.atan2(p[1],p[0])+Math.PI)/(2*Math.PI)*12));
+   longitudes[band]++;
+  }
+  assert.ok(Math.max(...longitudes)>3*Math.min(...longitudes),
+   'some longitude sectors should be appreciably denser than others');
+  assert.ok(r.geographicClusters.every(c=>r.templatePlacements.some(p=>p.clusterId===c.id)),
+   'no selected cluster should be completely swallowed');
  }
 });
