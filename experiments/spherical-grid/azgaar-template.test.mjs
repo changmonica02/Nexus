@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {AZGAAR_TEMPLATE_SCRIPTS} from './azgaar-template-data.mjs';
 import {executeAzgaarTemplate,sampleTemplate} from './azgaar-template-engine.mjs';
-import {createAzgaarSphericalLandLayout,planAzgaarPlacements,TEMPLATE_OVERLAP_LIMITS} from './azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout,planAzgaarPlacements,TEMPLATE_OVERLAP_LIMITS,TEMPLATE_SIZE_RANGES,sampleTemplateRadius} from './azgaar-spherical-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 
 test('every selected Azgaar recipe executes deterministically with finite heights',()=>{
@@ -50,4 +50,42 @@ test('different seeds and land presets produce valid distinct terrain',()=>{
 test('invalid settings rejected before allocating the Grid',()=>{
  for(const params of [{seed:-1},{seed:1,landPercent:30},{seed:1,continentCores:5}])
   assert.throws(()=>createAzgaarSphericalLandLayout(params),RangeError);
+});
+
+
+test('template-specific radius profiles are bounded and deterministic',()=>{
+ const names=['continents','pangea','oldWorld','shattered','volcano','highIsland','lowIsland','peninsula','archipelago'];
+ for(const name of names){
+  const [min,max]=TEMPLATE_SIZE_RANGES[name];
+  assert.ok(min>0&&max>min&&max<Math.PI/2,name);
+  assert.equal(sampleTemplateRadius(name,()=>0),min);
+  assert.equal(sampleTemplateRadius(name,()=>1),max);
+  assert.ok(sampleTemplateRadius(name,()=>.5)<(min+max)/2,'skew toward smaller templates');
+ }
+ assert.ok(TEMPLATE_SIZE_RANGES.peninsula[0]>TEMPLATE_SIZE_RANGES.volcano[0]);
+ assert.throws(()=>sampleTemplateRadius('unknown',()=>.5),RangeError);
+});
+test('repositioning preserves recipe identity and records meaningful new land',()=>{
+ const items=planAzgaarPlacements(1729,{continentCores:8});
+ const result=createAzgaarSphericalLandLayout({seed:1729,landPercent:32,continentCores:8});
+ assert.equal(result.templatePlacements.length,items.length);
+ for(let i=0;i<items.length;i++){
+  const base=items[i],placed=result.templatePlacements[i];
+  assert.equal(base.name,placed.name,'retry must preserve template recipe');
+  assert.equal(base.seed,placed.seed,'retry must preserve template seed');
+  assert.ok(placed.radius>=TEMPLATE_SIZE_RANGES[placed.name][0]);
+  assert.ok(placed.radius<=TEMPLATE_SIZE_RANGES[placed.name][1]);
+  assert.ok(placed.newLandArea>0);
+  assert.ok(placed.contributionRatio>=0&&placed.contributionRatio<=1);
+  assert.ok(Math.abs(placed.overlapRatio+placed.contributionRatio-1)<1e-6);
+ }
+});
+test('all three area presets retain contiguous ocean and valid relief',()=>{
+ for(const landPercent of [25,32,45]){
+  const r=createAzgaarSphericalLandLayout({seed:62,landPercent,continentCores:7});
+  assert.ok(Math.abs(r.measuredLandPercent-landPercent)<=r.tolerancePercent);
+  assert.ok(r.grid.heights[r.oceanSeed]<0);
+  assert.ok(r.grid.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100));
+  assert.ok(new Set(r.grid.heights).size>4);
+ }
 });
