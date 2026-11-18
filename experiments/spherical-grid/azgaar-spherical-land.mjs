@@ -44,11 +44,11 @@ export function planGeographicClusters(seed){
    const option=randomPoint(rng);
    const fromBasin=angularDistance(option,basin);
    const fromOthers=clusters.length?Math.min(...clusters.map(c=>angularDistance(option,c.center))):1.3;
-   const quality=fromBasin+0.28*Math.min(fromOthers,1.4);
+   const quality=0.64*fromBasin+1.2*Math.min(fromOthers,2.0);
    if(quality>best){best=quality;center=option;}
   }
   clusters.push({id:i,center,spread:0.45+0.40*rng(),
-   weight:0.30+1.7*Math.pow(rng(),2),continentWeight:.35+1.4*rng()});
+   weight:0.70+1.10*Math.pow(rng(),2),continentWeight:.70+.65*rng()});
  }
  return {clusters,basin};
 }
@@ -61,13 +61,13 @@ function weightedCluster(rng,clusters,type){
  }
  return clusters.at(-1);
 }
-function makePlacement(rng,type,index,geography,recipe=null,recipeSeed=null,clusterId=null){
+function makePlacement(rng,type,index,geography,recipe=null,recipeSeed=null,clusterId=undefined,expansion=1){
  const name=recipe??randomItem(rng,type==='continent'?CONTINENT_TEMPLATES:type==='island'?ISLAND_TEMPLATES:ARCHIPELAGO_TEMPLATES);
- let selected=clusterId===null?weightedCluster(rng,geography.clusters,type):geography.clusters[clusterId];
+ let selected=clusterId===undefined?weightedCluster(rng,geography.clusters,type):clusterId===null?null:geography.clusters[clusterId];
  // Some isolated continents and islands remain to prevent forced clustering.
- const isolated=clusterId===null?(rng()<(type==='continent'?.16:.19)):false;
+ const isolated=clusterId===undefined?(rng()<(type==='continent'?.12:.19)):false;
  if(isolated)selected=null;
- const center=selected?randomNear(rng,selected.center,selected.spread*(type==='continent'?1.30:type==='archipelago'?.83:1.05)):
+ const center=selected?randomNear(rng,selected.center,selected.spread*expansion*(type==='continent'?1.30:type==='archipelago'?.83:1.05)):
   randomPoint(rng);
  const polar=Math.abs(center[2])>.97?[0,1,0]:[0,0,1];
  const east=unit(cross(polar,center)),north=unit(cross(center,east));
@@ -79,7 +79,10 @@ function makePlacement(rng,type,index,geography,recipe=null,recipeSeed=null,clus
 export function planAzgaarPlacements(seed,{continentCores=8}={}){
  const rng=templateRng(seed^0xA61A2),placements=[],geography=planGeographicClusters(seed);
  const continents=Math.max(6,Math.min(8,continentCores));
- for(let i=0;i<continents;i++)placements.push(makePlacement(rng,'continent',i,geography));
+ // Guarantee an initial continent in each sampled cluster; remaining slots
+ // follow the weighted distribution and may remain isolated.
+ for(let i=0;i<continents;i++)placements.push(makePlacement(rng,'continent',i,geography,
+  null,null,i<geography.clusters.length?i:undefined));
  for(let i=0,n=randomInt(rng,15,20);i<n;i++)placements.push(makePlacement(rng,'island',i,geography));
  for(let i=0,n=randomInt(rng,4,12);i<n;i++)placements.push(makePlacement(rng,'archipelago',i,geography));
  return placements;
@@ -128,7 +131,8 @@ function selectPlacement(item,grid,occupied,rng,geography){
  const map=executeAzgaarTemplate(item.name,item.seed);
  let best=null,bestQuality=-Infinity;
  for(let attempt=0;attempt<TEMPLATE_RETRIES[item.type];attempt++){
-  const proposed=attempt===0?item:makePlacement(rng,item.type,item.index,geography,item.name,item.seed,item.clusterId);
+  const proposed=attempt===0?item:makePlacement(rng,item.type,item.index,geography,item.name,item.seed,item.clusterId,
+   1+0.13*attempt);
   const candidate=projectCandidate(proposed,grid,map);
   const metrics=measureLandContribution(candidate,occupied,grid.areas);
   if(candidate.landArea<=EPSILON||metrics.newLandArea<=EPSILON)continue;
