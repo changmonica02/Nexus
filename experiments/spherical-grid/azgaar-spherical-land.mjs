@@ -29,6 +29,50 @@ export function planAzgaarPlacements(seed,{continentCores=8}={}){
  for(let i=0,n=randomInt(rng,4,12);i<n;i++)placements.push(makePlacement(rng,'archipelago',i));
  return placements;
 }
+// Reject overly coincident *land footprints*, not overlapping template rectangles.
+// An island may attach to a continent, while major continental candidates should
+// still contribute new land. These are experimental tuning constants.
+export const TEMPLATE_OVERLAP_LIMITS=Object.freeze({continent:0.34,island:0.82,archipelago:0.60});
+const TEMPLATE_RETRIES=Object.freeze({continent:7,island:3,archipelago:5});
+function projectCandidate(item,grid){
+ const map=executeAzgaarTemplate(item.name,item.seed),extent=Math.tan(item.radius);
+ const values=new Float32Array(grid.points.length);
+ const footprint=new Uint8Array(grid.points.length);
+ let landArea=0;
+ for(let i=0;i<grid.points.length;i++){
+  const p=grid.points[i],forward=dot(p,item.center);
+  if(forward<=.2)continue;
+  const e=dot(p,item.east)/forward/extent,n=dot(p,item.north)/forward/extent;
+  const u=(e*item.cos+n*item.sin+1)/2,v=(n*item.cos-e*item.sin+1)/2;
+  if(u<0||u>1||v<0||v>1)continue;
+  const edge=Math.max(0,1-Math.pow(Math.max(Math.abs(2*u-1),Math.abs(2*v-1)),6));
+  const height=sampleTemplate(map,u,v);
+  const value=(height-20)*edge*(item.type==='continent'?1:0.8)-12;
+  if(value<=0)continue;
+  values[i]=value;
+  footprint[i]=1;
+  landArea+=grid.areas[i];
+ }
+ return {values,footprint,landArea};
+}
+function footprintOverlap(candidate,occupied,areas){
+ if(candidate.landArea<=0)return 1;
+ let overlapping=0;
+ for(let i=0;i<areas.length;i++)if(candidate.footprint[i]&&occupied[i])overlapping+=areas[i];
+ return overlapping/candidate.landArea;
+}
+function selectPlacement(item,grid,occupied,rng){
+ let best=null,bestRatio=Infinity;
+ for(let attempt=0;attempt<TEMPLATE_RETRIES[item.type];attempt++){
+  const proposed=attempt===0?item:makePlacement(rng,item.type,item.index);
+  // A retry changes position, angle and template, but not the number of slots.
+  const candidate=projectCandidate(proposed,grid);
+  const ratio=footprintOverlap(candidate,occupied,grid.areas);
+  if(candidate.landArea>0&&ratio<bestRatio){best={...proposed,candidate,overlapRatio:ratio,attempts:attempt+1};bestRatio=ratio;}
+  if(candidate.landArea>0&&ratio<=TEMPLATE_OVERLAP_LIMITS[item.type])break;
+ }
+ return best;
+}
 export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCores=8}={}){
  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw RangeError('seed must be uint32');
  if(![25,32,45].includes(landPercent))throw RangeError('landPercent must be 25, 32 or 45');
@@ -46,22 +90,20 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
   }
   score[i]=value;
  }
- // Local tangent coordinates are continuous at the longitude seam.
+ // Place land-rich templates in order, comparing only their actual positive
+ // footprint cells. A bounded fallback keeps the generator deterministic.
+ const occupied=new Uint8Array(grid.points.length),accepted=[];
  for(const item of placements){
-  const map=executeAzgaarTemplate(item.name,item.seed),extent=Math.tan(item.radius);
+  const chosen=selectPlacement(item,grid,occupied,rng);
+  if(!chosen)continue; // Fully submerged/empty candidate: never corrupt the Grid.
+  const {candidate,...info}=chosen;
+  accepted.push(info);
   for(let i=0;i<grid.points.length;i++){
-   const point=grid.points[i],forward=dot(point,item.center);
-   if(forward<.2)continue;
-   const e=dot(point,item.east)/forward/extent;
-   const n=dot(point,item.north)/forward/extent;
-   const u=(e*item.cos+n*item.sin+1)/2;
-   const v=(n*item.cos-e*item.sin+1)/2;
-   if(u<0||u>1||v<0||v>1)continue;
-   const h=sampleTemplate(map,u,v),edge=Math.max(0,1-Math.pow(Math.max(Math.abs(2*u-1),Math.abs(2*v-1)),6));
-   // Preserve template relief while blending adjacent local surfaces.
-   const relief=(h-20)*edge;
-   const value=relief*(item.type==='continent'?1:.8)-12;
-   if(value>score[i])score[i]=value;
+   if(!candidate.footprint[i])continue;
+   const incoming=candidate.values[i],previous=Math.max(0,score[i]);
+   // Small capped relief blending: never add two entire mountain heights.
+   score[i]=Math.max(score[i],incoming)+Math.min(12,0.15*Math.min(previous,incoming));
+   occupied[i]=1;
   }
  }
  // Use area-weighted quantile to hit the selected surface fraction.
@@ -101,5 +143,5 @@ export function createAzgaarSphericalLandLayout({seed,landPercent=32,continentCo
  return {grid,oceanSeed,settings:{seed,landPercent,continentCores,gridCells:36002},
   measuredLandPercent:100*selectedArea/total,
   tolerancePercent:100*Math.max(...grid.areas)/total,
-  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:placements.map(({type,index,name,seed,center,radius})=>({type,index,name,seed,center,radius}))};
+  stage:'unconfirmed-land',generator:'azgaar-template-experiment',templatePlacements:accepted.map(({type,index,name,seed,center,radius,overlapRatio,attempts})=>({type,index,name,seed,center,radius,overlapRatio,attempts}))};
 }
