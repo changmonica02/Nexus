@@ -45,13 +45,13 @@ export function planContinentalAreas(seed,worldType){
  });
  return entries.sort((a,b)=>b.targetPercent-a.targetPercent||a.id-b.id);
 }
-function pose(rng){
+export function pose(rng){
  const center=point(rng),polar=Math.abs(center[2])>.97?[0,1,0]:[0,0,1];
  const east=unit(cross(polar,center)),north=cross(center,east);
  const angle=rng()*2*Math.PI;
  return {center,east,north,cos:Math.cos(angle),sin:Math.sin(angle)};
 }
-function project(grid,map,frame,radius,store=false){
+export function project(grid,map,frame,radius,store=false){
  const extent=Math.tan(radius),cutoff=Math.cos(Math.atan(Math.SQRT2*extent));
  const mask=store?new Uint8Array(grid.points.length):null;
  const values=store?new Int8Array(grid.points.length):null;
@@ -85,7 +85,7 @@ function measureOverlap(grid,candidate,accepted,occupied){
  * template pixel count. Target is a percentage of TOTAL planetary area.
  * A candidate is rejected if its real non-overlapping share is out of range.
  */
-function fitSize(grid,map,frame,targetArea,minArea,maxArea){
+export function fitSize(grid,map,frame,targetArea,minArea,maxArea){
  // Projective patches must remain strictly inside one hemisphere.
  let low=.17,high=1.46;
  const atLow=project(grid,map,frame,low).area;
