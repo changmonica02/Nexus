@@ -1,5 +1,8 @@
 name: Azgaar terrain preview images
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feat/azgaar-spherical-templates-20261118
