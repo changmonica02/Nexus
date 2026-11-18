@@ -2,7 +2,7 @@
 // Usage: node experiments/spherical-grid/render-simplified-worlds.mjs --out artifacts/stage3a
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import {createAzgaarSphericalLandLayout} from './azgaar-spherical-land.mjs';
+import {createAzgaarSphericalLandLayout} from './azgaar-spherical-land-legacy.mjs';
 import {generatePlateSeafloor,applyPlateSeafloor,tectonicSeedFromLandMask,SEAFLOOR} from './plate-seafloor.mjs';
 import {drawTerrain,encodePng} from './actual-terrain-raster.mjs';
 import {analyzeSphericalPlates} from './tectonic-plates.mjs';
