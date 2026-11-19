@@ -9,18 +9,28 @@ permissions:
   contents: read
 jobs:
   isolated-geometry:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install locked dependencies and prepare native Azgaar commands
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/build-azgaar-command-tools.mjs
       - name: Check experimental JavaScript module syntax
         run: |
           for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
       - name: Geometry and ocean / coast checks (no database, no deployment)
         run: node --test experiments/spherical-grid/*.test.mjs
+      - name: Global application worker, persistence and browser assets
+        run: |
+          npm run map:global
+          node --test tests/world-map/globalMap.test.cjs
       - name: Bundle offline browser preview
         run: |
           mkdir -p /tmp/nexus-land-preview
@@ -34,6 +44,10 @@ jobs:
         run: |
           npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
           /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
+      - name: Global creator browser regression
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/world-map/globalMapCreator.browser.test.cjs
       - name: Open packaged preview over file protocol (no network)
         env:
           NODE_PATH: /tmp/nexus-preview-tools/node_modules

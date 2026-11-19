@@ -1,3 +1,10 @@
+## 自然生成合併前整合（2026-11-19；Refs #209；PR #200）
+
+- 已對照 planet 的地形 → 氣候 → 水系順序，確認 Nexus 另於水系後推導 GET2；保留使用者已接受的輪廓與山脈，不重寫生成器或載入時重抽。
+- 將最新 main 的 #201 與 CI 調整整合至功能分支，無衝突；補登 10 份新測試，修正獨立球面 CI 的套件／原生 Azgaar 測試前置步驟。
+- 擴充 Chromium 桌面／行動尺寸流程：生成保存、JSON 重開、改河名、Pack 切換、再次重開，檢查 ID／名稱／幾何與地形保留。正式建置及相關 ESLint 已通過；本機 Chromium 仍因 socket 權限無法啟動，瀏覽器結果以本次遠端 CI 為準，不能宣稱已人工驗收。
+- 尚未合併 main 或部署；本次遠端 CI 與後續結果記錄於 PR #200／Issue #209。
+
 ## 球面 Pack、河湖與 IUCN 潛在生態（2026-11-19；Refs #208；Draft PR #200）
 
 - 同分支 `feat/azgaar-spherical-templates-20261118`。參考 Azgaar Pack／river／lakes／biomes；獨立球面 Delaunay／Voronoi，保留完整 Grid 氣候與高程權威。標準／細緻海岸可切換重建，來源與集水面積維持 Grid 對應。
