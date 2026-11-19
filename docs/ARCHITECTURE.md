@@ -275,6 +275,8 @@ WorkspacePersistence 以 owner、entity、revision 驗證 guard，阻擋跨 owne
 
 SyncEngine 已有工作區排程合併（前景 300ms、背景 5000ms）與背景週期限制（5 分鐘內可略過），回前景補查；Realtime 按 owner 篩選。studySync 另外保護同 Repository 的進行中同步，按事件 predecessor 順序提交、以事件身份安全重試，使用伺服器 sequence 分頁讀取。這些領域流程不是可任意合併的同一套事件模型。
 
+Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週期、前景與重連排程補做資料同步，同步狀態依實際資料同步結果更新；訂閱恢復後立即排程補查。完整同步先拉取刪除標記和中繼資料，再獨立傳送待送操作與下載附件內容。單一附件內容失敗會釋放下載租約、保留錯誤並繼續處理其餘附件。（Refs #219）
+
 「已儲存本機」「待同步」「已同步」「失敗」須分開。connected 僅代表連線／協調狀態，不能直接當每筆資料已獲伺服器確認。RLS、RPC 權限、正式 migration ledger 必須另外核實；前端 owner filter 不取代伺服器權限。
 
 
