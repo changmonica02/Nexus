@@ -3,7 +3,7 @@ on:
   push:
     branches: ['fix/pwa-worker-bootstrap-20261119']
   pull_request:
-    paths: ['public/sw.js', 'tests/workspace/pwaWorkerVersion.browser.test.cjs', '.github/workflows/pwa-worker-version.yml']
+    paths: ['src/features/worldMap/globalMapClient.ts', 'public/sw.js', 'tests/workspace/pwaWorkerVersion.browser.test.cjs', '.github/workflows/pwa-worker-version.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,4 +38,6 @@ jobs:
           npx playwright install-deps chromium
           npx playwright install chromium
           node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
+      - run: node --test tests/world-map/globalMapClientVersion.test.cjs
       - run: node --test tests/workspace/pwaWorkerVersion.browser.test.cjs
+      - run: node --test tests/workspace/pwa.browser.test.cjs

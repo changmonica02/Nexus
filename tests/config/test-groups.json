@@ -123,6 +123,7 @@
       "experiments/spherical-grid/tectonic-plates.test.mjs",
       "experiments/spherical-grid/terrain-edits.test.mjs",
       "tests/world-map/globalMap.test.cjs",
+      "tests/world-map/globalMapClientVersion.test.cjs",
       "tests/world-map/globalMapCreator.browser.test.cjs",
       "tests/world-map/worldMap.test.cjs",
       "tests/world-map/worldMapCore.test.cjs",

@@ -14,7 +14,7 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
  const [result,setResult]=useState<GlobalMapResult>(),[busy,setBusy]=useState(false),[creating,setCreating]=useState(false),[error,setError]=useState('');
  const client=useRef<GlobalMapClient|null>(null),active=useRef(false),alive=useRef(true);
  useEffect(()=>{alive.current=true;const c=createGlobalMapClient();client.current=c;return()=>{alive.current=false;c.close();client.current=null;};},[]);
- const generate=async()=>{if(active.current||!client.current)return;try{validateGlobalSettings(settings);}catch{setError('invalid');return;}active.current=true;setBusy(true);setError('');try{const value=await client.current.request('generate',settings,{language});if(alive.current)setResult(value);}catch{if(alive.current)setError('failed');}finally{active.current=false;if(alive.current)setBusy(false);}};
+ const generate=async()=>{if(active.current||!client.current)return;try{validateGlobalSettings(settings);}catch{setError('invalid');return;}active.current=true;setBusy(true);setError('');setResult(undefined);try{const value=await client.current.request('generate',settings,{language});if(alive.current)setResult(value);}catch(error){if(alive.current)setError(error instanceof Error&&error.message==='Global map generator version mismatch'?'incompatible':'failed');}finally{active.current=false;if(alive.current)setBusy(false);}};
  const matches=result&&JSON.stringify(result.project.settings)===JSON.stringify(settings);
  const submit=async()=>{if(active.current||busy||!matches||!name.trim()||!result)return;active.current=true;setCreating(true);setError('');try{await onCreate(name.trim(),globalMapBlob(result.project));}catch{if(alive.current)setError('failed');}finally{active.current=false;if(alive.current)setCreating(false);}};
  return <ModalDialog aria-label={text('title')} onDismiss={onCancel} busy={busy||creating} className="max-h-[94dvh] w-[min(96vw,64rem)] overflow-y-auto rounded-2xl border bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3 [&_button:disabled]:opacity-40">
@@ -26,7 +26,7 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
   <p className="my-2 text-sm" role="status">{busy?text('busy'):result?`${text('measured')}：${result.drawing.landPercent.toFixed(3)}%`:''}</p>
   {!busy&&!matches&&result&&<p>{text('controlsChanged')}</p>}
   <p className="text-xs opacity-70">{text('help')}</p>
-  {error&&<p role="alert" className="my-2 text-red-600">{text(error as 'failed'|'invalid')}</p>}
+  {error&&<p role="alert" className="my-2 text-red-600">{text(error as 'failed'|'invalid'|'incompatible')}</p>}
   <div className="mt-4 flex justify-end gap-2"><button disabled={busy||creating} onClick={onCancel}>{text('cancel')}</button><button disabled={busy||creating||!matches||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{text('create')}</button></div>
  </ModalDialog>;
 }

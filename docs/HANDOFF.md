@@ -1,3 +1,9 @@
+## PWA 新頁面啟動舊 Worker（2026-11-19；Refs #210）
+
+- 確認使用者與正式站同一主機，排除固定舊預覽部署。真實 Chromium 定向回歸已重現原 SW 在 reload 後把新 Worker 請求回退至舊 fragment；失敗證據：https://github.com/changmonica02/Nexus/actions/runs/44454962880 。
+- 修正分支 `fix/pwa-worker-bootstrap-20261119`：直接內容雜湊 classic Worker、SW 的 Worker 回應 URL 中立化、新建結果版本檢查、生成失敗停用舊候選。原已儲存快照／私人資料／快取版本不變。
+- 2 項 client 版本測試通過；正向瀏覽器與 PWA 回歸、正式 Next 建置正在驗證。尚未合併／部署修正，不能要求使用者刷新即宣稱完成。
+
 ## 自然生成合併前整合（2026-11-19；Refs #209；PR #200）
 
 - 已對照 planet 的地形 → 氣候 → 水系順序，確認 Nexus 另於水系後推導 GET2；保留使用者已接受的輪廓與山脈，不重寫生成器或載入時重抽。
