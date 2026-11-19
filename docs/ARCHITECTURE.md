@@ -2,7 +2,7 @@
 
 已於真實 Chromium + repo 原 Service Worker 重現：相同 Worker 啟動器路徑先用 `#params=old` 載入，頁面 reload 後要求 `#params=natural-v4`，從 Cache API 回傳的 Response 仍使 Worker.location 保留首次請求的 old fragment。Next 共用 bootstrap 將本次版本的 chunks 放在 fragment，因此會出現新頁面啟動舊生成器。原正式 Worker 網路直讀／無 SW 的隔離測試無法覆蓋此故障。
 
-修正分兩層：`globalMapClient` 將自足 Worker 的 URL 先解析為內容雜湊媒體資產，再建立 classic Worker，讓 Next 不再把這個呼叫轉為共用 fragment bootstrap；舊 SW 尚未啟用更新時也可讀取版本獨立的資產。`public/sw.js` 對 worker/sharedworker 的成功回應重包 URL-neutral Response（包含 cache hit 與網路讀取），保留串流、狀態與 headers，讓本次請求決定 Worker.location；一般 JS/CSS、快取名稱、私人資料與離線策略不變。
+修正分兩層：`globalMapClient` 透過獨立建構函式把自足 Worker 的內容雜湊媒體資產 URL 傳給 classic Worker（單純 URL 區域變數仍會被 Next 追蹤並改寫），讓 Next 不再把這個呼叫轉為共用 fragment bootstrap；舊 SW 尚未啟用更新時也可讀取版本獨立的資產。`public/sw.js` 對 worker/sharedworker 的成功回應重包 URL-neutral Response（包含 cache hit 與網路讀取），保留串流、狀態與 headers，讓本次請求決定 Worker.location；一般 JS/CSS、快取名稱、私人資料與離線策略不變。
 
 新建請求還會核對地質4／氣候1／Pack1／自然地理1及繪圖資料；不相容結果被拒絕，不傳入預覽。load 舊快照不套用新建要求。新建面板開始下一次生成時清除未確認舊候選，失敗不允許確認上一份結果；已保存地圖未更動。
 

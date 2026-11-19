@@ -263,7 +263,7 @@ jobs:
       - name: Build reusable global map engine
         run: npm run map:global
       - name: Core engine and data safety regression (no legacy browser UI)
-        run: node --test tests/world-map/globalMap.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapRegions.test.cjs
+        run: node --test tests/world-map/globalMap.test.cjs tests/world-map/globalMapClientVersion.test.cjs tests/world-map/worldMap.test.cjs tests/world-map/worldMapCore.test.cjs tests/world-map/worldMapRegions.test.cjs
       - run: npx eslint src/features/worldMap/globalMap*.ts src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx
 
   study-b:

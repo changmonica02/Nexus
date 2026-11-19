@@ -16,10 +16,9 @@ export class GlobalMapClient {
  }
  close(){this.closed=true;this.worker.terminate();this.fail(Error('Global map editor closed'));}
 }
+// A function boundary is deliberate: Next follows local URL aliases and would
+// otherwise turn this into a shared fragment bootstrap even with a URL variable.
+function createClassicWorker(assetUrl:URL){return new Worker(assetUrl);}
 export function createGlobalMapClient(){
- // Resolve the standalone content-hashed asset before constructing Worker.
- // An inline new URL would make Next emit a shared #params bootstrap, which
- // legacy PWA caches can resolve using the previous request's fragment.
- const workerUrl=new URL('../../../.cache/global-map-worker.js',import.meta.url);
- return new GlobalMapClient(new Worker(workerUrl));
+ return new GlobalMapClient(createClassicWorker(new URL('../../../.cache/global-map-worker.js',import.meta.url)));
 }
