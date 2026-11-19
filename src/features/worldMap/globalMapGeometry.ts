@@ -1,7 +1,13 @@
+export type NaturalMapDrawing={
+ pack:{cells:number;gridParents:Uint32Array;rings:number[][][];detail:number};
+ ecosystems:{surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
+ rivers:{id:string;name:string;parentId:string|null;lines:number[][][];monthly:number[];catchmentAreaKm2:number;lengthKm:number;basinId:string}[];
+ lakes:{id:string;name:string;rings:number[][][];waterLevelM:number;spillM:number;areaKm2:number;months:{inflowM3:number;evaporationM3:number;outflowM3:number;storageM3:number;storageChangeM3:number;balanceErrorM3:number;dry:boolean}[]}[];
+};
 import {projectClimate} from '../../../experiments/spherical-grid/climate-display.mjs';
 import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];

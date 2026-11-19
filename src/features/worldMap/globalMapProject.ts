@@ -1,11 +1,15 @@
+import {validateNaturalGeography} from '../../../experiments/spherical-grid/natural-geography.mjs';
 /** Pure-data contract. Validation never regenerates terrain from the seed. */
 export const GLOBAL_MAP_ENGINE = 'nexus-global' as const;
 export const GLOBAL_MAP_VERSION = '1';
 export const GLOBAL_MAP_CELLS = 36002;
 export type GlobalMapSettings = {seed:number;landPercent:25|32|45;continentCores:number;gridCells:36002};
 export type IslandGenesis={version:1;cells:number[];chains:{id:string;kind:'volcanic-arc'|'hotspot';plateId:number;cells:number[];agesMa:number[]}[]};
+export type NaturalGeography={version:1;rivers:{id:string;name:string;notes:string;geometry:number[][];parentId:string|null;sourceLakeId:string|null;mouthLakeId:string|null}[];
+ lakes:{id:string;name:string;notes:string;waterLevelM:number;rim:{position:number[];heightM:number}[];bed:{position:number[];floorM:number;areaKm2:number;ring:number[][]}[];inletIds:string[];outletId:string|null}[];overlays:{id:string;name:string;description:string;geometry:number[][]}[]};
+export type NaturalFeaturePatch={id:string;name?:string;notes?:string;geometry?:number[][];waterLevelM?:number;bed?:number[][]};
 export type GlobalMapProject = {
- format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;climateVersion?:1;
+ format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;climateVersion?:1;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
  terrain:{format:'nexus-spherical-grid-prototype';version:1;frequency:60;cells:36002;
  heightScaleMetres:100;seaLevel:0;oceanSeed:number;revision:number;heights:number[];checksum:string};
 };
@@ -23,6 +27,8 @@ export function validateGlobalMapProject(value:unknown):asserts value is GlobalM
  const p=value as GlobalMapProject;
  if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==2&&p.geologyVersion!==3&&p.geologyVersion!==4))throw Error('Unsupported global map version');
  if(p.climateVersion!==undefined&&p.climateVersion!==1)throw Error('Unsupported climate version');
+ if(p.packSettings!==undefined&&(!p.packSettings||p.packSettings.version!==1||![1,2].includes(p.packSettings.detail)))throw Error('Unsupported Pack version');
+ if(p.naturalGeography!==undefined){if(!p.packSettings||p.climateVersion!==1)throw Error('Natural geography requires Pack and climate');validateNaturalGeography(p.naturalGeography);}
  validateGlobalSettings(p.settings);
  const g=p.islandGenesis;
  if(g!==undefined){
@@ -44,5 +50,5 @@ export async function readGlobalMapProject(blob:Blob):Promise<GlobalMapProject> 
 }
 export function globalMapBlob(project:GlobalMapProject) {
  validateGlobalMapProject(project);
- return new Blob([JSON.stringify(project)],{type:'application/json'});
+ const blob=new Blob([JSON.stringify(project)],{type:'application/json'});if(blob.size>2_000_000)throw Error('Global map file is too large');return blob;
 }
