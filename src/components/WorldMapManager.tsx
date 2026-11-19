@@ -89,7 +89,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const create=async(blob?:Blob,defaultName?:string)=>{
    if(!blob){setChoosingMapType(true);setManaging(false);return;}
    const name=(await askText(t('worldMap.name'),defaultName??t('worldMap.new')))?.trim();if(!name)return;
-   await run(async()=>{const result=await repository.createSpace(world.id,name,active.length?newSpace:'surface',blob);await onSaved(result.world);setSelected(result.map.id);setEditing(true);setManaging(false);});
+   await run(async()=>{const result=await repository.createSpace(world.id,name,'surface',blob);await onSaved(result.world);setSelected(result.map.id);setEditing(true);setManaging(false);});
  };
  const beginPlace=async(entity:WorldEntity,mapId:string)=>{setToolGroup('human');setHumanCategory(['settlement','site'].includes(entity.type)?'landmarks':entity.type as HumanMapCategory);setSelectedEntityId(entity.entityId);if(!['settlement','site'].includes(entity.type)){void beginRegion(entity,mapId);return;}if(mapId!==current?.id&&!await choose(mapId))return;setEntityPanel(false);setEditing(true);const placed=maps.find(m=>m.id===mapId)?.placements?.find(p=>p.entityId===entity.entityId&&p.deletedAt===null);setHighlight(placed?.placementId??null);setIntent({id:crypto.randomUUID(),kind:placed?'move':'existing',entityId:entity.entityId,placementId:placed?.placementId,mapId});};
  const picked=(id:string,x:number,y:number)=>{
@@ -232,7 +232,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    </ModalDialog>}
    {choosingMapType&&<ModalDialog aria-label={language==='zh-TW'?'新建地圖':'Create map'} onDismiss={()=>setChoosingMapType(false)} dismissOnBackdrop className="w-[min(92vw,28rem)] rounded-2xl border bg-[var(--color-bg)] p-5 text-[var(--color-text)] shadow-xl backdrop:bg-black/40 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:px-3">
     <header className="mb-4 flex items-center gap-2"><h2 className="flex-1 text-lg font-semibold">{language==='zh-TW'?'新建地圖':'Create map'}</h2><button type="button" aria-label={t('worldMap.closePanel')} onClick={()=>setChoosingMapType(false)}><X size={20}/></button></header>
-    <div className="grid gap-3"><button type="button" className="border" onClick={()=>{setChoosingMapType(false);setCreation({name:'',scope:active.length?newSpace:'surface'});}}>{language==='zh-TW'?'新建星球地圖':'New planet map'}</button><button type="button" disabled aria-disabled="true" className="cursor-not-allowed border bg-zinc-500/10 text-zinc-400">{language==='zh-TW'?'新建六角地圖':'New hex map'}</button></div>
+    <div className="grid gap-3"><button type="button" className="border" onClick={()=>{setChoosingMapType(false);setCreation({name:'',scope:'surface'});}}>{language==='zh-TW'?'新建星球地圖':'New planet map'}</button><button type="button" disabled aria-disabled="true" className="cursor-not-allowed border bg-zinc-500/10 text-zinc-400">{language==='zh-TW'?'新建六角地圖':'New hex map'}</button></div>
    </ModalDialog>}
    {creation&&<WorldMapCreator initialName={creation.name} onCancel={()=>setCreation(null)} onCreate={async(name,project)=>{
     await beforeSave();
