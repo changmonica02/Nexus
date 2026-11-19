@@ -217,7 +217,8 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   {blockView&&!editing&&(!opened||opened.map.id!==selectedId||!opened.blob&&!current?.attachment_id)&&<>{blockDetails}<WorldMapSyncStatus localLabel={t(!current?'worldMap.empty':opened?'worldMap.noProject':'worldMap.loading')} cloudState={cloudState}/></>}
   {!editing&&warnings.map((warning,index)=><p key={index} role="alert" className="break-words px-4 py-2 text-amber-700 dark:text-amber-400">{warning.name}: {t('worldRegion.'+warning.key)}</p>)}
   {!blockView&&<section data-world-details inert={editing} className="min-w-0 space-y-4 px-3 py-5 sm:px-5">
-   <h2 className="text-lg font-semibold">{t('worldHome.details')}</h2>
+   {!readOnly&&active.length>0&&<div className="space-y-2"><h2 className="text-base font-semibold">{t('worldMap.management')}</h2><ul className="space-y-2">{rows(false)}</ul></div>}
+    <h2 className="text-lg font-semibold">{t('worldHome.details')}</h2>
    <p className="text-sm opacity-70">{t('worldHome.mapIdentity')}</p>
    <nav aria-label={t('worldHome.categories')} className="flex flex-wrap gap-2"><button aria-pressed={entityCategory==='all'} className="border" onClick={()=>setEntityCategory('all')}>{t('worldHome.all')}</button>{(['country','administrative_area','settlement','culture','religion','site','geographic_region'] as const).map(type=><button className="border" aria-pressed={entityCategory===type} key={type} onClick={()=>setEntityCategory(type)}>{t('worldRegion.type.'+type)} · {(entities??[]).filter(e=>e.type===type).length}</button>)}</nav>
    {entityCategory==='all'&&!(entities??[]).length&&<p className="opacity-60">{t('worldEntity.empty')}</p>}
