@@ -52,6 +52,12 @@ jobs:
           ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
       - name: Install isolated browser test tools
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
           /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
       - name: Global creator browser regression
