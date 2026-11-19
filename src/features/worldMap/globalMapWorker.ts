@@ -5,6 +5,7 @@ import {derivePackEcosystems} from '../../../experiments/spherical-grid/pack-eco
 import {projectNaturalGeography} from '../../../experiments/spherical-grid/natural-display.mjs';
 import {generateMonthlyClimate} from '../../../experiments/spherical-grid/monthly-climate.mjs';
 import {createNaturalPlanet} from '../../../experiments/spherical-grid/natural-planet.mjs';
+import {createNaturalLand} from '../../../experiments/spherical-grid/natural-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from '../../../experiments/spherical-grid/snapshot.mjs';
 import {validateGlobalMapProject,validateGlobalSettings,type GlobalMapProject,type GlobalMapSettings,type NaturalFeaturePatch} from './globalMapProject';
 import {createGlobalMapDrawing} from './globalMapGeometry';
@@ -14,9 +15,17 @@ import {analyzeSphericalPlates as analyzeLegacyPlates} from '../../../experiment
 import {tectonicSeedFromLandMask} from '../../../experiments/spherical-grid/plate-seafloor.mjs';
 let climateCache:{key:string;heights:number[];value:ReturnType<typeof generateMonthlyClimate>}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
-self.onmessage=(event:MessageEvent<{id:number;action:'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural';patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
+self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural';patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
  try {
+  if(action==='preview'){
+   validateGlobalSettings(event.data.settings);
+   const draft=createNaturalLand(event.data.settings);
+   const ocean=Uint8Array.from(draft.grid.heights,(height:number)=>height<0?1:0);
+   const drawing=createGlobalMapDrawing({...draft.grid,heights:undefined},ocean,[]);
+   self.postMessage({id,project:null,drawing});
+   return;
+  }
   let project:GlobalMapProject;
   if(action==='generate'){
    validateGlobalSettings(event.data.settings);

@@ -506,3 +506,12 @@ Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢
 
 
 Android 語音恢復（Issue #195）（2026-11-16，已實作；自動化驗證與部署證據見 PR #196，實機待驗收）：已列出的英文 voice 若在 onstart 前回報 voice-unavailable、language-unavailable、synthesis-unavailable、synthesis-failed，或8秒內沒有啟動且引擎未 speaking，僅嘗試一次不指定 voice 的 en-US 備援。先解除舊 utterance 身分再 cancel，避免同步或延遲取消事件誤停新播放；備援仍有啟動／最長播放期限。not-allowed、network、audio-busy、audio-hardware、取消／中斷與已開始朗讀的失敗不重播，最終失敗照原提示顯示。這是測試重現的程式備援缺口，尚未取得使用者 Android 的實際 error code，不宣稱已確定其實機根因。
+
+
+## 世界觀地圖建立流程（Issue #213，工作分支實作，尚未正式驗收）
+
+- `WorldMapManager` 透過共用 `ModalDialog` 顯示置中的新建／匯入、地圖類型對話框；活動地圖操作仍在世界觀內容區，已刪除地圖不再於管理視窗列出。
+- `WorldMapCreator` 以 `GlobalMapClient.request('preview', settings)` 自動取得海陸預覽，參數變更會讓前一次預覽失效；此時沒有資料庫寫入。
+- `globalMapWorker` 的 `preview` 分支僅呼叫 `createNaturalLand` 與海陸繪圖，不呼叫 `createNaturalPlanet`、地質、氣候、Pack 或水文；回傳 `project:null` 並保留既有 `generate` 回傳完整快照的協定。
+- 按生成時才送出 `generate`，並將完整 `GlobalMapProject` 交由 `WorldMapRepository.createSpace` 儲存；完成後 `WorldMapManager` 更新選取地圖並設定編輯模式。資料層仍保留刪除標記供舊版相容及同步使用，不實作地圖歷史備份介面。
+- 以上僅代表工作分支的程式行為，正式部署與人工瀏覽器驗收不在本次自動視為完成。

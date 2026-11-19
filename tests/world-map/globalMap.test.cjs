@@ -10,6 +10,14 @@ test('spherical display unwraps date-line polygons and closes polar caps without
 test('global worker builds the authoritative mask and loads stored heights instead of regenerating from settings',()=>{
  const messages=[],scope={postMessage:v=>messages.push(v)},context=vm.createContext({self:scope,performance,console,Uint8Array,Int8Array,Float64Array,Int16Array,Set,Map});
  vm.runInContext(fs.readFileSync('.cache/global-map-worker.js','utf8'),context);
+ scope.onmessage({data:{id:0,action:'preview',settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}}});
+ const preview=messages.pop();assert.equal(preview.error,undefined);
+ assert.equal(preview.project,null,'preview does not create a persisted project');
+ assert.ok(preview.drawing.land.length>1000,'preview contains actual land polygons');
+ assert.equal(preview.drawing.relief,undefined,'preview has no crust or relief layer');
+ assert.equal(preview.drawing.climate,undefined,'preview does not compute climate or currents');
+ assert.equal(preview.drawing.geology,undefined,'preview does not compute tectonics');
+ assert.equal(preview.drawing.natural,undefined,'preview does not generate hydrology');
  scope.onmessage({data:{id:1,action:'generate',settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}}});
  const first=messages.pop();assert.equal(first.error,undefined);assert.equal(first.project.geologyVersion,4);assert.equal(first.project.climateVersion,1);assert.equal(first.drawing.climate.months.length,12);assert.ok(first.drawing.climate.arrows.length);assert.ok(first.drawing.natural.pack.cells>10000);assert.ok(first.project.naturalGeography.rivers.length>0);assert.ok(first.project.naturalGeography.lakes.length>0);assert.ok(first.drawing.geology);assert.ok(first.drawing.tectonicSymbols.marks.some(m=>m.mode==='subduction'));assert.equal(first.drawing.plates.length,first.drawing.plateCount);assert.equal(first.project.terrain.heights.length,36002);assert.ok(first.drawing.land.length>1000);assert.ok(first.drawing.coast.length>100);
  assert.equal(first.drawing.relief.reduce((n,band)=>n+band.rings.length,0),36002,'all land and seabed cells must be represented in the height preview');
