@@ -468,6 +468,75 @@ test('unknown navigator connectivity does not disable sync outside a browser', a
   assert.ok(server.rows.pages.has('unknown-connectivity'));
 });
 
+test('a failed attachment download leaves the error visible but does not block uploads or other attachments', async t => {
+  const d = await device(t), server = new Server();
+  seedBinaries(server, 2);
+  const engine = new SyncEngine(server, d.adapter, 'desktop', owner);
+  engine.syncStudyNow = async () => {};
+  t.after(() => engine.destroy());
+  let state;
+  engine.subscribe(value => { state = value; });
+  await d.adapter.savePage(page('desktop-edit'));
+  server.afterBinary = () => {
+    if (server.binaryDownloads === 1) throw Error('download disconnected');
+  };
+
+  await engine.fullSync();
+
+  assert.ok(server.rows.pages.has('desktop-edit'));
+  assert.equal((await d.local.pending(owner)).length, 0);
+  assert.equal(await d.adapter.readBinary('pdf-0'), null);
+  assert.ok(await d.adapter.readBinary('pdf-1'));
+  assert.equal(state.status, 'error');
+  assert.match(state.error, /download disconnected/);
+
+  server.afterBinary = null;
+  await engine.fullSync();
+  assert.ok(await d.adapter.readBinary('pdf-0'));
+  assert.equal(state.status, 'connected');
+});
+
+test('realtime interruptions preserve successful sync and periodic pull still reports actual failures', async t => {
+  const d = await device(t), server = new Server();
+  let notifyChannel;
+  server.channel = () => ({
+    on() { return this; },
+    subscribe(callback) { notifyChannel = callback; return this; },
+  });
+  server.removeChannel = () => {};
+  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  engine.syncStudyNow = async () => {};
+  t.after(() => engine.destroy());
+  let state;
+  engine.subscribe(value => { state = value; });
+  await engine.fullSync();
+  engine.startRealtime();
+
+  for (const status of ['CHANNEL_ERROR', 'TIMED_OUT']) {
+    notifyChannel(status);
+    assert.equal(state.status, 'connected');
+    assert.equal(state.error, null);
+  }
+
+  server.rows.pages.set('updated-while-disconnected', { ...page('updated-while-disconnected'), owner_id: owner });
+  engine.periodicWorkspace();
+  await engine.workspaceSync;
+  assert.ok(await d.adapter.getPage('updated-while-disconnected'));
+
+  server.offline = true;
+  await engine.fullSync();
+  assert.equal(state.status, 'error');
+  const dataError = state.error;
+  assert.ok(dataError);
+  notifyChannel('CHANNEL_ERROR');
+  assert.equal(state.error, dataError);
+
+  server.offline = false;
+  await engine.fullSync();
+  assert.equal(state.status, 'connected');
+  assert.equal(state.error, null);
+});
+
 test('offline realtime waits for online and reconnect installs one channel', async t => {
   const originals = new Map(['window', 'document', 'navigator'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   t.after(() => { for (const [key, original] of originals) { if (original) Object.defineProperty(globalThis, key, original); else delete globalThis[key]; } });

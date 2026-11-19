@@ -1,4 +1,4 @@
-import { flushWorkspace, pullWorkspace, remoteResult } from "./workspaceSync";
+import { flushWorkspace, pullWorkspaceBinaries, pullWorkspaceMetadata, remoteResult } from "./workspaceSync";
 import type { EntityType } from "./workspacePersistence";
 import { syncStudy,studyErrorMessage } from "../../features/study/studySync";
 import {translate,type Language} from '../../lib/i18n';
@@ -161,12 +161,9 @@ export class SyncEngine {
       .on("postgres_changes", { event: "*", schema: "public", table: "workspace_tombstones", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .on("postgres_changes", { event: "*", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .subscribe(status => {
-        if (status === "SUBSCRIBED") {
-          // Catch changes between initial pull and subscription (also on reconnect).
-          this.workspaceChanged();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          this.setState({ status: "error", error: "Realtime connection failed" });
-        }
+        // Realtime only accelerates discovery. The existing periodic and
+        // foreground pulls still reconcile data if the subscription drops.
+        if (status === "SUBSCRIBED") this.workspaceChanged();
       });
   }
 
@@ -231,9 +228,17 @@ export class SyncEngine {
     this.setState({ status: "syncing", error: null });
     const local = this.storage.getWorkspacePersistence();
     try {
-      if (pull) await pullWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
-      if (this.destroyed) return;
-      await flushWorkspace(this.supabase, local, this.userId, () => !this.destroyed);
+      const alive = () => !this.destroyed;
+      const attachments = pull ? await pullWorkspaceMetadata(this.supabase, local, this.userId, alive) : null;
+      if (!alive()) return;
+      // Reconcile deletions before sending writes. Attachment bodies can fail
+      // independently of uploads and should not hold up the durable outbox.
+      const transfers = await Promise.allSettled([
+        flushWorkspace(this.supabase, local, this.userId, alive),
+        attachments ? pullWorkspaceBinaries(this.supabase, local, this.userId, attachments, alive) : Promise.resolve(),
+      ]);
+      const failed = transfers.find(result => result.status === "rejected");
+      if (failed) throw failed.reason;
       if (this.destroyed) return;
       this.lastSyncAt = Date.now();
       this.setState({ status: "connected", lastSyncAt: this.lastSyncAt, error: null });

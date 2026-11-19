@@ -28,7 +28,7 @@ export function remoteResult(type: EntityType, row: Record<string, unknown>): Wo
     deleted_at: row.deleted_at == null ? null : Number(row.deleted_at), hard_deleted: false, row:type==='pages'?withoutRetiredStudyItems(row):row };
 }
 
-export async function pullWorkspace(client: SupabaseClient, local: WorkspacePersistence, owner: string, alive = () => true): Promise<void> {
+export async function pullWorkspaceMetadata(client: SupabaseClient, local: WorkspacePersistence, owner: string, alive = () => true) {
   const attachments = new Map<string, Record<string, unknown>>();
   const pullTombstones = async () => {
     const tombstones = await readWorkspaceRows(client, "workspace_tombstones", owner, "*", alive);
@@ -48,12 +48,18 @@ export async function pullWorkspace(client: SupabaseClient, local: WorkspacePers
       if(LIFE_STORES.includes(type as typeof LIFE_STORES[number]) && ['42P01','PGRST205'].includes(String((error as {code?:string}).code)))continue;
       throw error;
     }
-    if (!alive()) return;
+    if (!alive()) return attachments;
     await local.merge(owner, rows.map(row => remoteResult(type, row)));
     if (type === "attachments") for (const row of rows) attachments.set(String(row.id), row);
   }
   // A delete concurrent with the data pull still wins before any local intents upload.
   await pullTombstones();
+  return attachments;
+}
+
+export async function pullWorkspaceBinaries(client: SupabaseClient, local: WorkspacePersistence, owner: string, attachments: ReadonlyMap<string, Record<string, unknown>>, alive = () => true): Promise<void> {
+  if (!alive()) return;
+  const failures: unknown[] = [];
   // Listing never includes Base64. Attachment revision is advanced atomically by
   // apply_workspace_operations whenever binary content changes.
   for (const row of await readWorkspaceRows(client, "binaries", owner, "id,owner_id", alive)) {
@@ -79,11 +85,19 @@ export async function pullWorkspace(client: SupabaseClient, local: WorkspacePers
       if (!alive() || !verified.data || verified.data.deleted_at != null) continue;
       const bytes = Uint8Array.from(atob(data.data), char => char.charCodeAt(0));
       await local.commitBinary(owner, id, revision, token, new Blob([bytes]), alive);
+    } catch (error) {
+      failures.push(error);
     } finally {
       clearTimeout(timeout);
       await local.releaseBinary(owner, id, token);
     }
   }
+  if (failures.length && alive()) throw failures[0];
+}
+
+export async function pullWorkspace(client: SupabaseClient, local: WorkspacePersistence, owner: string, alive = () => true): Promise<void> {
+  const attachments = await pullWorkspaceMetadata(client, local, owner, alive);
+  await pullWorkspaceBinaries(client, local, owner, attachments, alive);
 }
 
 export async function flushWorkspace(client: SupabaseClient, local: WorkspacePersistence, owner: string, alive = () => true): Promise<void> {
