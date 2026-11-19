@@ -4,6 +4,7 @@
 - 將最新 main 的 #201 與 CI 調整整合至功能分支，無衝突；補登 10 份新測試，修正獨立球面 CI 的套件／原生 Azgaar 測試前置步驟。
 - 擴充 Chromium 桌面／行動尺寸流程：生成保存、JSON 重開、改河名、Pack 切換、再次重開，檢查 ID／名稱／幾何與地形保留。170 項球面測試、52 項地圖整合、正式建置及相關 ESLint 已通過；本機 Chromium 仍因 socket 權限無法啟動，瀏覽器結果以本次遠端 CI 為準，不能宣稱已人工驗收。
 - 遠端球面 170 項、Worker 與 Chromium 桌面／行動生命週期已通過。完整 CI 發現工作區 PWA 測試預設連接埠與共用 fixture 32142 不一致，已統一 NEXUS_PWA_URL；此為測試設定修正，未更動 PWA 功能。
+- 完整回歸重跑仍有兩組字典於 EC2 Ubuntu 鏡像下載 libflite 時超過 8 分鐘。Playwright 雙引擎安裝改用 Ubuntu 主套件站，保留既有 Ubuntu 簽章信任與安全更新來源；重新確認 CI，不略過功能測試。
 - 尚未合併 main 或部署；PR 已轉為可審查；本次遠端完整 CI 與後續結果記錄於 PR #200／Issue #209。
 
 ## 球面 Pack、河湖與 IUCN 潛在生態（2026-11-19；Refs #208；Draft PR #200）

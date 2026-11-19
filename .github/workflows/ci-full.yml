@@ -97,6 +97,10 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep Ubuntu signing keys; avoid the stalled regional EC2 mirror.
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Select installed Chromium
@@ -160,6 +164,10 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep Ubuntu signing keys; avoid the stalled regional EC2 mirror.
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Select installed Chromium
@@ -267,6 +275,10 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep Ubuntu signing keys; avoid the stalled regional EC2 mirror.
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Session and visibility regression
@@ -305,6 +317,10 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep Ubuntu signing keys; avoid the stalled regional EC2 mirror.
+          if test -f /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/sources.list.d/ubuntu.sources
+          fi
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Dictionary list identity and pending work regression
