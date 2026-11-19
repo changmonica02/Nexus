@@ -339,6 +339,7 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+      NEXUS_PWA_URL: http://127.0.0.1:32142
     steps:
       - uses: actions/checkout@v4
         with:
