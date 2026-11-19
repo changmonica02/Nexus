@@ -4,6 +4,12 @@ const ICONS = ["/icon.svg", "/favicon.ico", "/icons/nexus-192.png", "/icons/nexu
 const isMap = path => path === "/world-map" || path.startsWith("/world-map/");
 const isStatic = path => path.startsWith("/_next/static/") || ICONS.includes(path);
 const isAppPage = path => path === "/" || /^\/(study|dictionary|etymology|trash)(\/|$)/.test(path);
+// Cached responses retain the URL of their first request, including Worker
+// bootstrap fragments. A URL-neutral response keeps this request's #params.
+const workerResponse = (request, response) => {
+  if (!["worker", "sharedworker"].includes(request.destination) || !response.ok) return response;
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers: response.headers });
+};
 let preparing;
 const storePublicAsset = async (cache, asset) => {
   const url = new URL(asset, self.location.origin);
@@ -67,10 +73,10 @@ self.addEventListener("fetch", event => {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);
       const cached = await cache.match(request);
-      if (cached) return cached;
+      if (cached) return workerResponse(request, cached);
       const response = await fetch(request);
       if (response.ok && response.type === "basic") await cache.put(request, response.clone());
-      return response;
+      return workerResponse(request, response);
     })());
   }
 });
