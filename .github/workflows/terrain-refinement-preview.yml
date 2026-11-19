@@ -1,0 +1,38 @@
+name: Nexus optional spherical terrain refinement comparison
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/azgaar-spherical-templates-20261118]
+    paths:
+      - experiments/spherical-grid/spherical-terrain-refinement.mjs
+      - experiments/spherical-grid/spherical-terrain-refinement.test.mjs
+      - experiments/spherical-grid/render-simplified-worlds.mjs
+      - .github/workflows/terrain-refinement-preview.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check syntax and repeatability
+        run: |
+          node --check experiments/spherical-grid/spherical-terrain-refinement.mjs
+          node --check experiments/spherical-grid/render-simplified-worlds.mjs
+          node --test experiments/spherical-grid/spherical-terrain-refinement.test.mjs
+      - name: Render recovered baseline
+        run: node experiments/spherical-grid/render-simplified-worlds.mjs --out artifacts/base --width 1200 --height 600
+      - name: Render optional refined terrain
+        run: node experiments/spherical-grid/render-simplified-worlds.mjs --refine --out artifacts/refined --width 1200 --height 600
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-terrain-refinement-comparison
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14

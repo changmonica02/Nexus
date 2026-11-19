@@ -1,0 +1,6 @@
+Run the stage-3A genuine Grid-based six-world preview and validation with actual tectonic plate boundaries.
+Seeds: 1729, 42. Categories: ocean, earthlike, land.
+
+Restored clustered Azgaar land preview regression seeds 1729 and 42; only terrain source changed.
+
+Use exact saved natural terrain from commit 7f0d2f372abf (seed 1729,42).

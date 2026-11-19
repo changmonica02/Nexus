@@ -1,0 +1,101 @@
+// Monthly climatological equilibrium, not a sequence of daily weather states.
+import {dot,clamp,km,sphericalField} from './geologic-fields.mjs';
+import {generateSurfaceOcean,seasonalWind,tangent} from './surface-ocean.mjs';
+import {classifyKoppen,KOPPEN_CODES} from './koppen-climate.mjs';
+export const CLIMATE_PARAMETERS=Object.freeze({version:1,axialTilt:23.44,lapseRate:6.5,moistureSweeps:180,transportStepDays:.16});
+const DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+export function dailyInsolation(latitude,month,tilt=23.44){
+ const lat=latitude*Math.PI/180,decl=tilt*Math.PI/180*Math.sin(2*Math.PI*(month-2.5)/12);
+ const h=Math.acos(clamp(-Math.tan(lat)*Math.tan(decl)));
+ return Math.max(0,1361/Math.PI*(h*Math.sin(lat)*Math.sin(decl)+Math.cos(lat)*Math.cos(decl)*Math.sin(h)));
+}
+export function climateContext(grid){
+ const ocean=[];for(let i=0;i<grid.points.length;i++)if(grid.heights[i]<0)ocean.push(i);
+ const sea=sphericalField(grid,ocean),latitude=Float64Array.from(grid.points,p=>Math.asin(clamp(p[2]))*180/Math.PI);
+ const insolationMean=Float64Array.from(latitude,lat=>Array.from({length:12},(_,m)=>dailyInsolation(lat,m)).reduce((a,b)=>a+b,0)/12);
+ const edges=[];for(let i=0;i<grid.points.length;i++)for(const j of grid.neighbors[i])if(j>i)edges.push({i,j,d:km(grid.points[i],grid.points[j]),ti:tangent(grid.points[i],grid.points[j]),tj:tangent(grid.points[j],grid.points[i])});
+ return {sea,latitude,insolationMean,edges};
+}
+function seaEquilibrium(context,month){
+ return Float64Array.from(context.latitude,(lat,i)=>clamp(28-38*Math.sin(lat*Math.PI/180)**2+.014*(dailyInsolation(lat,month-2)-context.insolationMean[i]),-1.8,33));
+}
+export function transportSST(grid,ocean,equilibrium){
+ let t=equilibrium.slice();const incoming=Array.from({length:t.length},()=>[]);
+ for(const e of ocean.edges){const from=e.flux>0?e.i:e.j,to=e.flux>0?e.j:e.i;incoming[to].push({from,weight:Math.abs(e.flux)/e.d*9});}
+ for(let step=0;step<85;step++){
+  const next=t.slice();for(let i=0;i<t.length;i++)if(grid.heights[i]<0){let sum=equilibrium[i],weight=1;for(const a of incoming[i]){sum+=a.weight*t[a.from];weight+=a.weight;}next[i]=sum/weight;}t=next;
+ }
+ return Float32Array.from(t);
+}
+export function monthlyAtmosphere(grid,context,sst,month){
+ const n=grid.points.length,temp=new Float32Array(n),thermal=new Float32Array(n),eq=seaEquilibrium(context,month);
+ for(let i=0;i<n;i++){
+  if(grid.heights[i]<0){temp[i]=sst[i];continue;}
+  const lat=context.latitude[i],continental=1-Math.exp(-context.sea.distance[i]/800),j=context.sea.nearest[i];
+  const mean=28-45*Math.sin(lat*Math.PI/180)**2,solar=dailyInsolation(lat,month-1)-context.insolationMean[i];
+  const local=mean+(.032+.04*continental)*solar;
+  const maritime=(j>=0?sst[j]:eq[i]),blend=.65*Math.exp(-context.sea.distance[i]/600);
+  const seaLevel=local*(1-blend)+maritime*blend;
+  temp[i]=seaLevel-CLIMATE_PARAMETERS.lapseRate*Math.max(0,grid.heights[i])/10;
+  thermal[i]=seaLevel-eq[i];
+ }
+ const winds=grid.points.map((p,i)=>{
+  const w=seasonalWind(p,month),gradient=[0,0,0];
+  for(const j of grid.neighbors[i]){const d=km(p,grid.points[j]),t=tangent(p,grid.points[j]),delta=(thermal[j]-thermal[i])*210/d/grid.neighbors[i].length;for(let k=0;k<3;k++)gradient[k]+=t[k]*delta;}
+  const magnitude=Math.hypot(...gradient),scale=magnitude>7?7/magnitude:1;
+  return w.map((v,k)=>v+gradient[k]*scale);
+ });
+ return {temperature:temp,winds};
+}
+export function transportMoisture(grid,context,temperature,sst,winds,month,{sweeps=CLIMATE_PARAMETERS.moistureSweeps}={}){
+ const n=grid.points.length,area=grid.areas,dt=CLIMATE_PARAMETERS.transportStepDays;
+ const outgoing=Array.from({length:n},()=>[]),outWeight=new Float64Array(n),lift=new Float64Array(n),lee=new Float64Array(n);
+ for(const e of context.edges){
+  const velocity=.5*(dot(winds[e.i],e.ti)-dot(winds[e.j],e.tj));
+  const from=velocity>=0?e.i:e.j,to=velocity>=0?e.j:e.i,weight=Math.abs(velocity)**3;
+  outgoing[from].push({to,weight});outWeight[from]+=weight;
+  const height=Math.max(0,grid.heights[to])-Math.max(0,grid.heights[from]);
+  lift[to]+=Math.max(0,height)*Math.abs(velocity)/e.d;
+  lee[to]+=Math.max(0,-height)*Math.abs(velocity)/e.d;
+ }
+ for(let i=0;i<n;i++)for(const a of outgoing[i])a.weight/=outWeight[i]||1;
+ const water=new Float64Array(n),rain=new Float64Array(n),evap=new Float64Array(n),fraction=new Float64Array(n),capacity=new Float64Array(n),movement=new Float64Array(n);
+ const season=Math.cos(2*Math.PI*(month-6)/12),shift=8*season;
+ for(let i=0;i<n;i++){
+  capacity[i]=clamp(20*Math.exp(.055*temperature[i]),.2,90);movement[i]=outWeight[i]>0?Math.min(.72,.08*Math.hypot(...winds[i])):0;
+  const lat=context.latitude[i],a=Math.abs(lat-shift),itcz=Math.exp(-(((lat-shift)/11)**2)),storm=Math.exp(-(((a-50)/14)**2)),dry=1-.88*Math.exp(-(((a-27)/8)**2));
+  fraction[i]=clamp((.009+.07*itcz+.035*storm)*dry+.14*lift[i],.001,.78)*Math.exp(-Math.min(2,lee[i]*.7));
+  // Ocean evaporation in mm/day; sea ice suppresses it. Land recycles part
+  // of its own rain below, so dry inland cells cannot create unlimited water.
+  evap[i]=grid.heights[i]<0?(sst[i]<=-1.5?.08:clamp(3.2*Math.exp(.035*(sst[i]-15))*(.8+Math.hypot(...winds[i])/16),.1,6))*dt:0;
+ }
+ let source=0,precip=0,storage=0,previous=0;
+ const averages=new Float64Array(n),window=Math.min(45,Math.floor(sweeps/3));
+ for(let step=0;step<sweeps;step++){
+  if(step===sweeps-1)previous=water.reduce((s,v,i)=>s+v*area[i],0);source=0;precip=0;
+  const next=new Float64Array(n);
+  for(let i=0;i<n;i++){
+   const recycling=grid.heights[i]>=0?.25*rain[i]:0;if(step===sweeps-1)source+=(evap[i]+recycling)*area[i];
+   const available=water[i]+evap[i]+recycling,loss=Math.max(available*fraction[i],available-capacity[i]);rain[i]=loss;if(step===sweeps-1)precip+=loss*area[i];
+   const retained=available-loss,move=movement[i];
+   next[i]+=retained*(1-move);
+   for(const a of outgoing[i])next[a.to]+=retained*move*a.weight*area[i]/area[a.to];
+  }
+  water.set(next);if(step>=sweeps-window)for(let i=0;i<n;i++)averages[i]+=rain[i]/window;
+ }
+ storage=water.reduce((s,v,i)=>s+v*area[i],0);
+ const rainfall=Float32Array.from(averages,x=>x/dt*DAYS[month]);
+ const total=area.reduce((s,a)=>s+a,0),meanDaily=rainfall.reduce((s,p,i)=>s+p*area[i],0)/total/DAYS[month];
+ return {precipitation:rainfall,diagnostics:{meanDailyMm:meanDaily,relativeBudgetError:Math.abs(storage-previous-source+precip)/Math.max(1,source),storageChangeMmPerDay:(storage-previous)/total/dt,waterColumnMm:storage/total}};
+}
+export function generateMonthlyClimate(grid){
+ const context=climateContext(grid),ocean=generateSurfaceOcean(grid),months=[];
+ for(let m=0;m<12;m++){
+  const equilibrium=seaEquilibrium(context,m),sst=transportSST(grid,ocean,equilibrium),sstAnomaly=Float32Array.from(sst,(t,i)=>t-equilibrium[i]),atmosphere=monthlyAtmosphere(grid,context,sst,m);
+  const moisture=transportMoisture(grid,context,atmosphere.temperature,sst,atmosphere.winds,m);
+  months.push({sst,sstAnomaly,temperature:atmosphere.temperature,precipitation:moisture.precipitation,diagnostics:moisture.diagnostics});
+ }
+ const koppen=new Uint8Array(grid.points.length);
+ for(let i=0;i<koppen.length;i++)if(grid.heights[i]>=0)koppen[i]=KOPPEN_CODES.indexOf(classifyKoppen(months.map(m=>m.temperature[i]),months.map(m=>m.precipitation[i])));
+ return {version:1,parameters:CLIMATE_PARAMETERS,units:{temperature:'°C',sst:'°C',precipitation:'mm/month'},months,ocean,koppen,context};
+}

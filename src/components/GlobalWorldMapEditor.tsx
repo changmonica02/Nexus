@@ -10,6 +10,8 @@ import {globalMapText} from '../features/worldMap/globalMapMessages';
 import {downloadMapBlob} from '../features/worldMap/coreClient';
 import {useLanguage} from '../lib/LanguageContext';
 import GlobalMapCanvas from './GlobalMapCanvas';
+import GlobalNaturalFeatures from './GlobalNaturalFeatures';
+import type {NaturalFeaturePatch} from '../features/worldMap/globalMapProject';
 import GlobalMapParameters,{newGlobalMapSettings} from './GlobalMapParameters';
 import {validateGlobalSettings} from '../features/worldMap/globalMapProject';
 import ModalDialog from './ModalDialog';
@@ -61,13 +63,19 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   if(generating.current||active.current||!client.current)return;
   try{validateGlobalSettings(settings);}catch{setError(true);return;}
   generating.current=true;setWorking(true);setError(false);
-  try{const value=await client.current.request('generate',settings);if(alive.current)setCandidate(value);}
+  try{const value=await client.current.request('generate',settings,{language});if(alive.current)setCandidate(value);}
   catch{if(alive.current)setError(true);}finally{generating.current=false;if(alive.current)setWorking(false);}
  };
  const apply=async()=>{
   if(!candidate||working||saving||conflict||JSON.stringify(candidate.project.settings)!==JSON.stringify(settings))return;
   current.current=candidate;setModel(candidate);setCandidate(undefined);setReplacing(false);unsaved.current=true;setDirty(true);
   await saveRef.current();
+ };
+ const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural',patch?:NaturalFeaturePatch)=>{
+  if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)throw Error('Map is busy');
+  generating.current=true;setWorking(true);setError(false);
+  try{const value=await client.current.request(action,current.current.project,{patch,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  catch(e){setError(true);throw e;}finally{generating.current=false;setWorking(false);}
  };
  const close=async()=>{if(replacing){setDiscardPrompt(true);return;}try{await saveRef.current();onClose();}catch{/* Keep the working map and recovery export visible. */}};
  const matches=candidate&&JSON.stringify(candidate.project.settings)===JSON.stringify(settings);
@@ -78,7 +86,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   document.body.style.overflow='hidden';surface.current?.querySelector<HTMLButtonElement>('button')?.focus();
   return()=>{document.body.style.overflow=overflow;if(previous?.isConnected)previous.focus();};
  },[editing,fullView]);
- return <div ref={surface} onKeyDown={e=>{if((e.target as Element).closest('dialog'))return;if(e.key==='Escape'&&!busy){e.preventDefault();if(editing)void close();else setFullView(false);}if(e.key==='Tab'&&(editing||fullView)){const items=[...(surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),canvas')??[])].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={text('title')} className={editing||fullView?'fixed inset-0 z-50 flex h-dvh min-w-0 flex-col bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
+ return <div ref={surface} onKeyDown={e=>{if((e.target as Element).closest('dialog'))return;if(e.key==='Escape'&&!busy){e.preventDefault();if(editing)void close();else setFullView(false);}if(e.key==='Tab'&&(editing||fullView)){const items=[...(surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')??[])].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={text('title')} className={editing||fullView?'fixed inset-0 z-50 flex h-dvh min-w-0 flex-col bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
   <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3 [&_button:disabled]:opacity-40">
    {editing?<button disabled={busy} onClick={()=>void close()}>{text('close')}</button>:fullView&&<button onClick={()=>setFullView(false)}>{text('cancel')}</button>}
    <strong className="mr-auto min-w-0 flex-1 truncate">{map.title}</strong>
@@ -94,6 +102,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
    <div className="mt-2 flex flex-wrap gap-2 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3 [&_button:disabled]:opacity-40"><button disabled={busy} onClick={()=>void generate()}>{text('generate')}</button><button disabled={busy||!matches||!!conflict} onClick={()=>void apply().catch(()=>{})}>{text('apply')}</button><button disabled={busy} onClick={()=>{setReplacing(false);setCandidate(undefined);setError(false);}}>{text('discard')}</button></div>
    {!busy&&candidate&&!matches&&<p>{text('controlsChanged')}</p>}
   </section>}
+  {editing&&model&&!replacing&&<GlobalNaturalFeatures project={model.project} drawing={model.drawing} disabled={busy||!!conflict} language={language} onAction={naturalAction}/>}
   <div aria-busy={working} className={editing||fullView?'relative min-h-0 flex-1':'relative h-[clamp(16rem,40dvh,28rem)]'}>
    {(replacing?candidate??model:model)&&<GlobalMapCanvas drawing={(replacing?candidate??model:model)!.drawing}/>}
    {working&&<p role="status" className="absolute inset-0 grid place-items-center bg-[var(--color-bg)]/80">{text('busy')}</p>}

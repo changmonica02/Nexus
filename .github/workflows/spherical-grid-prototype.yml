@@ -3,24 +3,44 @@ on:
   pull_request:
     paths:
       - 'experiments/spherical-grid/**'
+      - 'src/features/worldMap/**'
+      - 'src/components/Global*.tsx'
+      - 'src/components/WorldMapCreator.tsx'
+      - 'tests/world-map/**'
+      - 'tests/fixtures/globalMapCreator.jsx'
+      - 'scripts/build-global-map.mjs'
+      - 'scripts/build-azgaar-command-tools.mjs'
+      - 'vendor/azgaar/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/spherical-grid-prototype.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   isolated-geometry:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install locked dependencies and prepare native Azgaar commands
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/build-azgaar-command-tools.mjs
       - name: Check experimental JavaScript module syntax
         run: |
           for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
       - name: Geometry and ocean / coast checks (no database, no deployment)
         run: node --test experiments/spherical-grid/*.test.mjs
+      - name: Global application worker, persistence and browser assets
+        run: |
+          npm run map:global
+          node --test tests/world-map/globalMap.test.cjs
       - name: Bundle offline browser preview
         run: |
           mkdir -p /tmp/nexus-land-preview
@@ -32,8 +52,18 @@ jobs:
           ! grep -q 'src="./preview.js"' /tmp/nexus-land-preview/index.html
       - name: Install isolated browser test tools
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
           /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
+      - name: Global creator browser regression
+        run: |
+          export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
+          node tests/world-map/globalMapCreator.browser.test.cjs
       - name: Open packaged preview over file protocol (no network)
         env:
           NODE_PATH: /tmp/nexus-preview-tools/node_modules

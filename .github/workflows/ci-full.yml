@@ -46,6 +46,12 @@ jobs:
       - name: Install Playwright Chromium dependencies and browser (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npx playwright install-deps chromium
           npx playwright install chromium
       - name: Select installed Chromium
@@ -97,6 +103,12 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Select installed Chromium
@@ -160,6 +172,12 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Select installed Chromium
@@ -267,6 +285,12 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Session and visibility regression
@@ -305,6 +329,12 @@ jobs:
       - name: Install Playwright browser dependencies and browsers (8 minute limit)
         timeout-minutes: 8
         run: |
+          # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+          for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if test -f "$apt_source"; then
+              sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+            fi
+          done
           npx playwright install-deps chromium webkit
           npx playwright install chromium webkit
       - name: Dictionary list identity and pending work regression
@@ -339,6 +369,7 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+      NEXUS_PWA_URL: http://127.0.0.1:32142
     steps:
       - uses: actions/checkout@v4
         with:
@@ -365,6 +396,12 @@ jobs:
         timeout-minutes: 8
         run: |
           if node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode browser --has-tests; then
+            # Keep signing keys and security sources; normalize the EC2 mirror in all runner formats.
+            for apt_source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+              if test -f "$apt_source"; then
+                sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
+              fi
+            done
             npx playwright install-deps chromium
             npx playwright install chromium
             node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
