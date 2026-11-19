@@ -3,6 +3,16 @@ on:
   pull_request:
     paths:
       - 'experiments/spherical-grid/**'
+      - 'src/features/worldMap/**'
+      - 'src/components/Global*.tsx'
+      - 'src/components/WorldMapCreator.tsx'
+      - 'tests/world-map/**'
+      - 'tests/fixtures/globalMapCreator.jsx'
+      - 'scripts/build-global-map.mjs'
+      - 'scripts/build-azgaar-command-tools.mjs'
+      - 'vendor/azgaar/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/spherical-grid-prototype.yml'
   workflow_dispatch:
 permissions:
