@@ -166,6 +166,7 @@
       "tests/workspace/pwa.browser.test.cjs",
       "tests/workspace/pwa.production.browser.test.cjs",
       "tests/workspace/pwaData.production.browser.test.cjs",
+      "tests/workspace/pwaWorkerVersion.browser.test.cjs",
       "tests/workspace/unifiedWorkspace.browser.test.cjs",
       "tests/workspace/workspaceDeployment.test.cjs",
       "tests/workspace/workspaceSync.test.cjs"
