@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');
 const {build}=require('esbuild'),{chromium}=require('playwright');
 const root=path.resolve(__dirname,'../..');
-test('planet creator desktop/mobile: explicit preview, uint32 validation, stale preview, name and confirmation',{timeout:300000},async()=>{
+test('planet creator desktop/mobile: automatic land-only preview, uint32 validation, stale preview, name and full generation',{timeout:300000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-planet-'));
  await build({entryPoints:[path.join(root,'tests/fixtures/globalMapCreator.jsx')],outfile:path.join(tmp,'fixture.js'),bundle:true,jsx:'automatic',platform:'browser',plugins:[{name:'worker-url',setup(b){
   b.onLoad({filter:/globalMapClient\.ts$/},()=>({contents:fs.readFileSync(path.join(root,'src/features/worldMap/globalMapClient.ts'),'utf8').replace("new URL('../../../.cache/global-map-worker.js',import.meta.url)","'/worker.js'"),loader:'ts',resolveDir:path.join(root,'src/features/worldMap')}));
@@ -22,23 +22,23 @@ test('planet creator desktop/mobile: explicit preview, uint32 validation, stale 
    const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto('http://127.0.0.1:'+server.address().port);
-   const seed=page.getByLabel('種子碼（uint32）'),preview=page.getByRole('button',{name:'生成預覽',exact:true}),confirm=page.getByRole('button',{name:'生成',exact:true});
+   const seed=page.getByLabel('種子碼（uint32）'),confirm=page.getByRole('button',{name:'生成',exact:true});
    await seed.waitFor();
-   assert.equal(await page.locator('canvas').count(),0,'opening must not generate terrain');
-   assert.equal(await confirm.isDisabled(),true);
+   assert.equal(await confirm.isDisabled(),true,'full generation must wait for a land-only preview');
+   await page.locator('canvas').waitFor({timeout:120000});
+   assert.equal(await confirm.isEnabled(),true,'initial land-only preview is automatic');
    const before=await seed.inputValue();
    await page.getByRole('button',{name:'刷新種子碼'}).click();
    const refreshed=Number(await seed.inputValue());assert.ok(Number.isInteger(refreshed)&&refreshed>=0&&refreshed<=0xffffffff);
-   assert.equal(await page.locator('canvas').count(),0,'refresh must not generate terrain');
-   await seed.fill('4294967296');await preview.click();await page.getByRole('alert').waitFor();
+   await seed.fill('4294967296');await page.getByRole('alert').waitFor({timeout:120000});
    assert.equal(await confirm.isDisabled(),true);
-   await seed.fill('42');await page.getByLabel('星球類型').selectOption('25');await preview.click();
-   await page.locator('canvas').waitFor({timeout:120000});await page.waitForFunction(()=>!document.querySelector('fieldset').disabled);
-   assert.equal(await confirm.isEnabled(),true);
+   await seed.fill('42');await page.getByLabel('星球類型').selectOption('25');
+   await page.waitForFunction(()=>document.querySelector('canvas')&&![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='生成')?.disabled,{timeout:120000});
    await seed.fill('43');assert.equal(await confirm.isDisabled(),true);
    await seed.fill('42');
+   await page.waitForFunction(()=>![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='生成')?.disabled,{timeout:120000});
    await page.getByLabel('名稱（可重新命名）').fill('海洋測試星');
-   await confirm.click();await page.waitForFunction(()=>window.created.length===1);
+   await confirm.click();await page.waitForFunction(()=>window.created.length===1,{timeout:120000});
    const saved=await page.evaluate(()=>window.created[0]);
    assert.equal(saved.name,'海洋測試星');assert.equal(saved.project.settings.seed,42);assert.equal(saved.project.settings.landPercent,25);
    assert.equal(saved.project.terrain.heights.length,36002);
@@ -71,7 +71,7 @@ test('planet creator desktop/mobile: explicit preview, uint32 validation, stale 
     }finally{worker.terminate();}
    });
    assert.deepEqual(lifecycle,{baseUnchanged:true,basePreserved:true,name:'保存的河名',months:12,remeshed:true});
-   await page.getByRole('button',{name:'取消',exact:true}).click();
+   await page.getByRole('button',{name:'關閉視窗'}).click();
    assert.equal(await page.evaluate(()=>window.cancelled),1);assert.equal(await page.evaluate(()=>window.created.length),1);
    assert.deepEqual(errors,[]);assert.ok(before.length);await context.close();
   }
