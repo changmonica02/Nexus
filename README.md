@@ -15,7 +15,6 @@ npm run dev
 
 | 文件 | 職責 |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Codex 開發規則與文件更新規範 |
 | [docs/SPEC.md](docs/SPEC.md) | 產品應具備的行為與功能 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 技術架構與資料結構 |
 | [docs/HISTORY.md](docs/HISTORY.md) | 重要變更、原因與設計決策 |
