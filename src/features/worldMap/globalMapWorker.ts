@@ -1,4 +1,4 @@
-import {heightBrushChanges} from '../../../experiments/spherical-grid/height-brush.mjs';
+import {heightBrushChanges} from './core/heightBrush.mjs';
 import {applyGlobalHeightEdits} from '../../../experiments/spherical-grid/terrain-edits.mjs';
 import type {HeightBrush} from './globalMapClient';
 import {generateSphericalPack} from '../../../experiments/spherical-grid/spherical-pack.mjs';

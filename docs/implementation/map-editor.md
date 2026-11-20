@@ -58,3 +58,13 @@
 
 - 正式打包 Worker 整合測試通過：自由筆刷、環境基準保留、JSON 重開、手動重算及河湖身分保留。
 - 加入環境基準格式後，再跑儲存與驗證相關的 42 項回歸測試，全部通過。
+
+## 自有核心與 Azgaar 移除要求
+
+筆刷正式實作位於 `src/features/worldMap/core/heightBrush.mjs`，由 Nexus 自行維護；七種球面筆刷不匯入 Azgaar、其產生的快取、DOM 或 iframe。不能把呼叫 Azgaar API 或把程式藏入包裝層當成完成內化。
+
+整個星球生成目前仍有另一條依賴：`build-global-map.mjs` → `build-azgaar-command-tools.mjs` → `vendor/azgaar/src/generators/heightmap-generator.ts` → `.cache/azgaar-command-tools.mjs` → `azgaar-native-patch.mjs` → `natural-land.mjs`。因此目前不能刪除 vendor/azgaar。
+
+後續須將模板指令執行器、模板資料與生成流程轉為 Nexus 正式核心，移除建置時原始碼擷取，再處理舊版原生地圖編輯器的 iframe／資源與檔案相容策略。保留衍生程式所需授權聲明；移除程式依賴與刪除授權聲明是不同事情。最終驗收須在沒有 vendor/azgaar 與舊快取的乾淨環境完成建置、生成、編輯、匯入、儲存與重開。
+
+介面尚未完成項目包括：典籍建立選單的完整階層、世界觀建立與地圖建立的連續流程、左側工具／顯示、上方時間／更多操作及完整風格與疊加面板。現有世界觀地圖管理器中的地圖類型選擇，不能視為已完成典籍右上角建立流程。

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {heightBrushChanges} from './height-brush.mjs';
+import {heightBrushChanges} from '../../src/features/worldMap/core/heightBrush.mjs';
 const point=(lon,lat=0)=>[Math.cos(lat*Math.PI/180)*Math.cos(lon*Math.PI/180),Math.cos(lat*Math.PI/180)*Math.sin(lon*Math.PI/180),Math.sin(lat*Math.PI/180)];
 const grid={points:[point(179),point(-179),point(0)],heights:Int8Array.from([2,-2,40]),neighbors:[[1],[0],[0]]};
 const brush={longitude:180,latitude:0,radius:5,strength:10,tool:'lower',mode:'preserve',target:'land'};
@@ -23,4 +23,9 @@ test('line brush follows the short great-circle arc over the date line',()=>{
  const changes=heightBrushChanges(grid,{...brush,longitude:170,mode:'free',tool:'line',end:[-170,0]});
  assert.deepEqual(changes,[{id:0,height:12},{id:1,height:8}]);
  assert.throws(()=>heightBrushChanges(grid,{...brush,tool:'line',end:[0,0]}));
+});
+test('Nexus brush bundles independently without Azgaar or generated tools',async()=>{
+ const {build}=await import('esbuild');
+ const result=await build({entryPoints:['src/features/worldMap/core/heightBrush.mjs'],bundle:true,write:false,metafile:true,platform:'browser'});
+ assert.deepEqual(Object.keys(result.metafile.inputs),['src/features/worldMap/core/heightBrush.mjs']);
 });
