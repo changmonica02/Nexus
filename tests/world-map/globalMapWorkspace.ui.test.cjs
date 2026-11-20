@@ -10,12 +10,19 @@ function project(settings={seed:42,landPercent:32,continentCores:8,gridCells:360
  return {format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,packSettings:{version:1,detail:1},naturalGeography:{version:1,rivers:[],lakes:[],overlays:[]},settings,terrain:{format:'nexus-spherical-grid-prototype',version:2,frequency:60,cells:36002,heightScaleMetres:100,seaLevel:0,oceanSeed:1,revision:0,heights,checksum:checksum(heights)}};
 }
 function drawing(){return {land:[ring],coast:[[ring[0],ring[1]]],landPercent:32,relief:[{color:'#a2ba81',rings:[ring]}],contours:[{height:1700,lines:[[ring[0],ring[2]]]}],plates:[{id:0,areaPercent:100,color:'#aaa',rings:[ring]}],plateBoundaries:[],climate:{rings:[ring],ocean:[0],koppen:[1],codes:['Af'],arrows:[],months:Array.from({length:12},()=>({temperature:[200],precipitation:[100],sst:[200],sstAnomaly:[0]}))},natural:{pack:{cells:1,rings:[ring],gridParents:new Uint32Array([0]),detail:1},ecosystems:{surface:[0],seabed:[0],catalog:[['T1','Forest','森林','#123456']]},rivers:[{id:'river-1',name:'測試河',lines:[[ring[0],ring[2]]],monthly:Array(12).fill(20)}],lakes:[{id:'lake-1',name:'測試湖',rings:[ring],months:Array.from({length:12},()=>({dry:false}))}]}};}
+let pauseLoad=false,finishLoad;
 class FakeWorker{
  constructor(){this.closed=false;}
  postMessage(message){requests.push(structuredClone(message));queueMicrotask(()=>{if(this.closed)return;let p=structuredClone(message.project??project(message.settings));
   if(message.action==='editHeight'){p.environmentTerrain??=structuredClone(p.terrain);p.terrain.heights[0]++;p.terrain.revision++;p.terrain.checksum=checksum(p.terrain.heights);}
   if(message.action==='recalculateNature')delete p.environmentTerrain;
-  const d=drawing();this.onmessage?.({data:{id:message.id,project:message.action==='preview'?null:p,drawing:message.action==='preview'?{land:d.land,coast:d.coast,landPercent:32}:d}});
+  const d=drawing();
+  const complete=()=>{if(!this.closed)this.onmessage?.({data:{id:message.id,project:message.action==='preview'?null:p,drawing:message.action==='preview'?{land:d.land,coast:d.coast,landPercent:32}:d}});};
+  if(message.action==='load'&&message.previewFirst&&pauseLoad){
+   this.onmessage?.({data:{id:message.id,previewDrawing:{land:d.land,coast:d.coast,landPercent:32}}});
+   this.onmessage?.({data:{id:message.id,progress:{stage:'climate',fraction:.7}}});
+   finishLoad=complete;
+  }else complete();
  });}
  terminate(){this.closed=true;}
 }
@@ -106,11 +113,15 @@ test('confirmed world uses real IndexedDB persistence and opens one editor in th
  const beforeOpen=requests.length;
  assert.equal((await storage.listPages()).length,1);assert.equal((await storage.listAttachments()).length,1);
  const batches=await storage.db.getAll('workspace_outbox');assert.equal(batches.length,1);assert.equal(batches[0].operations.length,3);
- let opened=0;
- function WorldHost(){const [initial,setInitial]=React.useState(true);return React.createElement(components.WorldMapManager,{world:created.world,worldContent:React.createElement('p',null,'世界觀內容'),storage,beforeSave:async()=>{},onSaved:async()=>{},initialEditing:initial,onInitialEditOpened:()=>{opened++;setInitial(false);}});}
+ function WorldHost(){const [open,setOpen]=React.useState(true);return open?React.createElement(components.WorldMapManager,{world:created.world,storage,beforeSave:async()=>{},onSaved:async()=>{},onBack:()=>setOpen(false)}):React.createElement('p',null,'世界觀清單');}
  await render(React.createElement(WorldHost));
- await act(async()=>{await delay(50);});assert.equal(opened,1);assert.ok(!requests.slice(beforeOpen).some(r=>r.action==='load'));assert.equal(host.querySelectorAll('[data-global-map-canvas]').length,1);assert.ok(button('工具'));
- await click('儲存並返回');assert.equal(host.querySelector('[data-global-map-canvas]'),null);assert.ok(host.textContent.includes('世界觀內容'));
+ await act(async()=>{await delay(50);});assert.ok(!requests.slice(beforeOpen).some(r=>r.action==='load'));assert.equal(host.querySelectorAll('[data-global-map-canvas]').length,1);assert.ok(button('工具'));
+ await click('儲存並返回');assert.equal(host.querySelector('[data-global-map-canvas]'),null);assert.ok(host.textContent.includes('世界觀清單'));
+ const beforeReopen=requests.length;
+ await render(React.createElement(WorldHost));
+ await act(async()=>{await delay(50);});
+ assert.ok(requests.slice(beforeReopen).some(r=>r.action==='load'&&r.previewFirst));
+ assert.ok(button('工具'));
  await act(async()=>root.unmount());root=null;storage.db.close();
 });
 
@@ -196,4 +207,20 @@ test('height editing paints source cells and previews a stroke before committing
  });
  assert.equal(strokes.length,1);
  assert.equal(d.scalarMesh.heights[0],3);
+});
+
+test('a slow map load shows its coast and phase before the full editor is ready',async()=>{
+ const map={id:'slow-map',world_id:'world-test',title:'測試世界',revision:1};
+ pauseLoad=true;
+ try{
+  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(project())]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
+  const canvas=host.querySelector('canvas');
+  assert.ok(canvas);
+  assert.ok(host.textContent.includes('計算十二個月氣候'));
+  assert.equal(button('儲存並返回').disabled,false);
+  assert.equal(button('工具'),undefined);
+  await act(async()=>{finishLoad();await delay(10);});
+  assert.equal(host.querySelector('canvas'),canvas);
+  assert.ok(button('工具'));
+ }finally{pauseLoad=false;finishLoad=undefined;}
 });

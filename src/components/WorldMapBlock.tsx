@@ -4,7 +4,7 @@ import type {ComponentProps} from 'react';
 import type {WorldMapBlockView} from '../lib/types';
 import WorldMapManager from './WorldMapManager';
 
-type Props=Omit<ComponentProps<typeof WorldMapManager>,'blockView'|'onBlockViewChange'|'worldContent'> & {
+type Props=Omit<ComponentProps<typeof WorldMapManager>,'blockView'|'onBlockViewChange'> & {
   blockId:string; view:WorldMapBlockView; onViewCommit:(view:WorldMapBlockView)=>Promise<void>;
 };
 /** Coalesce view events, but participate in the existing save/leave barrier. */

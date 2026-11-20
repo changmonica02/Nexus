@@ -1,7 +1,7 @@
 "use client";
 import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {studyErrorMessage} from '../features/study/studySync';
-import {WorldMapRepository, cloneWorldReferences } from "../features/worldMap/worldMapRepository";
+import {WorldMapRepository, cloneWorldReferences, inspectMapProject } from "../features/worldMap/worldMapRepository";
 import StudySetView from "../features/study/components/StudySetView";
 import { defaultStudyStyle } from "../features/study/studyStyles";
 import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
@@ -131,7 +131,6 @@ function NexusAppInner({
 }) {
   const { t } = useLanguage();
 
-  const [createdWorldMap,setCreatedWorldMap]=useState<string|null>(null);
   const [isReady, setIsReady] = useState(false);
   const [storageInitError,setStorageInitError]=useState<string|null>(null);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
@@ -337,7 +336,7 @@ function NexusAppInner({
             const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
             if (adapter.getWorkspaceOwner() !== userId) {
-              setDeckManagement(null);setCreatedWorldMap(null);
+              setDeckManagement(null);
               setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
@@ -408,7 +407,7 @@ function NexusAppInner({
               // Remove account state immediately. The anonymous workspace is
               // loaded afterwards, so a slow IndexedDB read can never leave
               // private account pages visible in the signed-out UI.
-              setDeckManagement(null);setCreatedWorldMap(null);
+              setDeckManagement(null);
               setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
@@ -1205,7 +1204,7 @@ function NexusAppInner({
       try {
         await flushAllSaves();
         if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
-        setDeckManagement(null);setCreatedWorldMap(null);action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
+        setDeckManagement(null);action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
       } catch { setRefreshError(t("ui.saveFailed")); }
     })();});
   },[flushAllSaves,onLeaveExternal,t,storageRef]);
@@ -1776,8 +1775,6 @@ function NexusAppInner({
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
-        initialWorldMapEditing:createdWorldMap===page?.id,
-        onInitialWorldMapOpened:()=>setCreatedWorldMap(null),
         beforeWorldMapSave: () => page ? beforeTemplateRead(page) : Promise.resolve(),
         onWorldMapSaved: worldMapSaved, registerWorldMapFlush:registerWorkspaceFlush, worldMapCloudState: syncState,
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
@@ -2050,10 +2047,11 @@ function NexusAppInner({
             const storage=storageRef.current;if(!storage)throw Error('Storage unavailable');
             const owner=storage.getWorkspaceOwner?.(),repository=new WorldMapRepository(storage);
             await flushAllSaves();if(storage.getWorkspaceOwner?.()!==owner)throw Error('Account changed');
+            if(!generated&&(await inspectMapProject(blob)).engine!=='nexus-global')throw Error('Unsupported world map format');
             const result=await repository.createWorldWithMap(name,blob);
             if(generated)rememberGeneratedMap(result.map.id,generated);
             setPages(previous=>[result.world,...previous.filter(p=>p.id!==result.world.id)]);
-            setActivePageId(result.world.id);setCreatedWorldMap(result.world.id);
+            setActivePageId(result.world.id);
             // The transaction already committed. Optional navigation state cannot trigger duplicate creation.
             void storage.setActivePageId(result.world.id).catch(()=>{});
           }}

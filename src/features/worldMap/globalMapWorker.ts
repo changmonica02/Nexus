@@ -24,7 +24,7 @@ function packedCoast(grid:ReturnType<typeof importGlobalTerrainSnapshot>['grid']
 }
 let naturalCache:{climate:ReturnType<typeof generateMonthlyClimate>;key:string;drawing:NaturalMapDrawing}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
-self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature';brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
+self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature';previewFirst?:boolean;brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
  const report=(progress:GenerationProgress)=>self.postMessage({id,progress});
  try {
@@ -52,6 +52,12 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   if(action==='rebuildPack'){if(!project.packSettings)throw Error('Pack is not initialized');project.packSettings={version:1,detail:project.packSettings.detail===1?2:1};}
   validateGlobalMapProject(project);
   const state=importGlobalTerrainSnapshot(project.terrain,{oceanMaskOnly:true});
+  if(action==='load'&&event.data.previewFirst){
+   const {grid,geography}=state;
+   const coast=packedCoast(grid,geography.ocean,project.settings.seed);
+   const previewDrawing=createGlobalMapDrawing({...grid,heights:undefined},geography.ocean,[],undefined,undefined,coast);
+   self.postMessage({id,previewDrawing});
+  }
   if(action==='editHeight'){
    const brushGrid={...state.grid,oceanMask:state.geography.ocean};
    const changes:{id:number;height:number}[]=event.data.stroke?heightStrokeChanges(brushGrid,sampleHeightStroke(event.data.stroke.brush,event.data.stroke.points)):heightBrushChanges(brushGrid,event.data.brush);
