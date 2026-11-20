@@ -7,12 +7,16 @@ export const toLonLat=p=>[Math.atan2(p[1],p[0])*180/Math.PI,Math.asin(Math.max(-
 export const fromLonLat=([lon,lat])=>{const a=lon*Math.PI/180,b=lat*Math.PI/180;return [Math.cos(b)*Math.cos(a),Math.cos(b)*Math.sin(a),Math.sin(b)];};
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
 const triangleArea=(a,b,c)=>2*Math.atan2(Math.abs(dot(a,cross(b,c))),1+dot(a,b)+dot(b,c)+dot(c,a));
-export function sphericalMesh(points){
+function triangulateSphere(points){
  const pole=points[0],east=unit(Math.abs(pole[2])<.9?cross([0,0,1],pole):cross([0,1,0],pole)),north=cross(pole,east);
  const xy=points.slice(1).map(p=>{const d=Math.max(1e-15,1-dot(p,pole));return [dot(p,east)/d,dot(p,north)/d];});
  const d=Delaunator.from(xy),triangles=[];
  for(let i=0;i<d.triangles.length;i+=3)triangles.push([d.triangles[i]+1,d.triangles[i+1]+1,d.triangles[i+2]+1]);
  for(let i=0;i<d.hull.length;i++)triangles.push([0,d.hull[i]+1,d.hull[(i+1)%d.hull.length]+1]);
+ return triangles;
+}
+export function sphericalMesh(points){
+ const triangles=triangulateSphere(points);
  const neighbors=Array.from({length:points.length},()=>new Set()),incident=Array.from({length:points.length},()=>[]),vertices=[];
  triangles.forEach((f,t)=>{
   const [a,b,c]=f.map(i=>points[i]);let v=unit(cross(sub(b,a),sub(c,a)));if(dot(v,a)<0)v=v.map(x=>-x);vertices.push(v);
@@ -26,7 +30,26 @@ export function sphericalMesh(points){
  }
  return {triangles,neighbors:neighbors.map(s=>[...s].sort((a,b)=>a-b)),rings,areas};
 }
-export function generateSphericalPack(grid,{detail=1,oceanMask=Uint8Array.from(grid.heights,h=>h<0?1:0)}={}){
+// Cartographic Pack: use the authoritative ocean mask to mark the first
+// coastal ring on both sides and one extra water ring. Keep sparse deep-ocean
+// support sites so the spherical triangulation also closes far from land.
+export function createPackedCoast(grid,ocean,seed=0){
+ const n=grid.points.length,coastal=new Uint8Array(n);
+ for(let i=0;i<n;i++)coastal[i]=grid.neighbors[i].some(j=>ocean[j]!==ocean[i])?1:0;
+ const points=[],water=[],spacing2=8*Math.PI/(Math.sqrt(3)*n);
+ const add=(point,isOcean)=>{points.push(point);water.push(isOcean);};
+ for(let i=0;i<n;i++)if(!ocean[i]||coastal[i]||i%24===0||grid.neighbors[i].some(j=>coastal[j]))add(grid.points[i],ocean[i]);
+ for(let i=0;i<n;i++)if(coastal[i])for(const j of grid.neighbors[i]){
+  if(j<=i||!coastal[j]||ocean[i]!==ocean[j])continue;
+  const a=grid.points[i],b=grid.points[j];
+  if(2*(1-dot(a,b))<spacing2)continue;
+  add(unit(a.map((v,k)=>v+b[k])),ocean[i]);
+ }
+ if(!ocean.some(Boolean)||!ocean.some(value=>!value))return createCoastSurface(grid,ocean);
+ return createCoastSurface({points,triangles:triangulateSphere(points)},water,{seed,voronoi:true});
+}
+
+export function generateSphericalPack(grid,{detail=1,oceanMask=Uint8Array.from(grid.heights,h=>h<0?1:0),coastSurface=createPackedCoast(grid,oceanMask)}={}){
  if(![1,2].includes(detail))throw RangeError('Pack detail must be 1 or 2');
  const coast=grid.heights.map((h,i)=>grid.neighbors[i].some(j=>(grid.heights[j]<0)!==(h<0))?1:0);
  const points=[],gridRefs=[],sources=[],heights=[],keys=[];
@@ -41,7 +64,7 @@ export function generateSphericalPack(grid,{detail=1,oceanMask=Uint8Array.from(g
  // Sparse deep-sea Voronoi polygons must not inflate catchment / rainfall area.
  const counts=new Uint16Array(grid.points.length);for(const source of sources)for(const g of source)counts[g]++;
  const catchmentAreas=Float64Array.from(sources,source=>source.reduce((s,g)=>s+grid.areas[g]/counts[g],0));
- const pack={version:1,detail,coastSurface:createCoastSurface(grid,oceanMask),points,...mesh,gridRefs:Uint32Array.from(gridRefs),sources,keys,heights:Float64Array.from(heights),catchmentAreas};
+ const pack={version:1,detail,coastSurface,points,...mesh,gridRefs:Uint32Array.from(gridRefs),sources,keys,heights:Float64Array.from(heights),catchmentAreas};
  const build=ids=>{if(!ids.length)return null;const depth=Math.ceil(Math.log2(ids.length)),axis=depth%3;ids.sort((a,b)=>points[a][axis]-points[b][axis]||a-b);const m=ids.length>>1;return {i:ids[m],axis,left:build(ids.slice(0,m)),right:build(ids.slice(m+1))};};
  const tree=build(points.map((_,i)=>i));
  pack.findCell=position=>{

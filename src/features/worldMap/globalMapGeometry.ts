@@ -31,7 +31,7 @@ export function unwrapRing(points:number[][],pole?:number){
 type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number;seedCell:number;pole:number[];angularSpeed:number}[]};
  boundaries:{type:string;normal?:number[];smoothedNormal?:number[];center?:number[];plates:number[];subductingPlate?:number|null;overridingPlate?:number|null;mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
  features?:{displaySegmentIds:number[];volcanoes:{cell:number}[];islandChains:{cells:number[]}[];orogenProvinces:{activeCells:number;historicalCells:number}}};
-export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,_coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput,climate?:Parameters<typeof projectClimate>[1]):GlobalMapDrawing {
+export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,_coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput,climate?:Parameters<typeof projectClimate>[1],packedCoast?:ReturnType<typeof createCoastSurface>):GlobalMapDrawing {
  const around:number[][][]=Array.from({length:grid.points.length},()=>[]);
  for(const face of grid.triangles){
   const [a,b,c]=face.map(i=>grid.points[i]);let center=unit(cross(sub(b,a),sub(c,a)));
@@ -65,7 +65,7 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,_coast:{start:
   volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
   islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
- const surface=createCoastSurface(grid,ocean);
+ const surface=packedCoast??createCoastSurface(grid,ocean);
  const tintHeights=grid.heights?smoothDisplayHeights(grid,grid.heights):undefined;
  return {land,surface,scalarMesh:grid.heights||climate?{points:grid.points,triangles:grid.triangles,heights:grid.heights,tintHeights}:undefined,plates,geology,contours:grid.heights?createHeightContours({...grid,heights:tintHeights}):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:surface.coast,landPercent:area/total*100};
 }

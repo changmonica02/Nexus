@@ -8,7 +8,7 @@ import {shapeRiverCourse} from '../../src/features/worldMap/core/riverCourse.mjs
 import {createGlobalGrid} from './global-config.mjs';
 import {openGlobalTerrain} from './terrain-edits.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
-import {generateSphericalPack} from './spherical-pack.mjs';
+import {generateSphericalPack,createPackedCoast} from './spherical-pack.mjs';
 import {generateNaturalGeography,deriveHydrology,reconnectDrainage,drainageOrder} from './pack-hydrology.mjs';
 const point=(lon,lat=0)=>{lon*=Math.PI/180;lat*=Math.PI/180;return [Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)];};
 test('irregular Grid keeps a closed sphere with varied adjacency and deterministic geometry',()=>{
@@ -59,4 +59,24 @@ test('Pack reprojection reconnects surrounding drainage without moving authored 
  const receiver=new Int32Array([-1,2,1,2]),locked=new Uint8Array([0,0,1,0]);
  reconnectDrainage(pack,receiver,locked);assert.equal(receiver[2],1);assert.equal(receiver[1],0);assert.equal(drainageOrder(receiver).order.length,4);
  const invalid=new Int32Array([-1,2,1,2]);assert.throws(()=>reconnectDrainage(pack,invalid,new Uint8Array([0,1,1,0])),/cycle/);
+});
+
+test('packed coast refines a stable land and sea mask across the date line and pole',()=>{
+ const grid=buildIrregularSphere(12);
+ for(const axis of [0,2]){
+  const ocean=Uint8Array.from(grid.points,p=>p[axis]>.15?0:1);
+  const surface=createPackedCoast(grid,ocean,42);
+  assert.deepEqual(surface,createPackedCoast(grid,ocean,42));
+  assert.notDeepEqual(surface.coast,createPackedCoast(grid,ocean,81).coast);
+  assert.ok(surface.coast.length>createCoastSurface(grid,ocean).coast.length);
+  assert.ok(surface.coast.every(([a,b])=>Math.abs(a[0]-b[0])<=180));
+  assert.ok(surface.shorelines.every((line,i)=>line.length<=surface.land[i].length));
+  for(const [i,p] of grid.points.entries()){
+   const lon=Math.atan2(p[1],p[0])*180/Math.PI,lat=Math.asin(p[2])*180/Math.PI;
+   let land=surface.inverse;
+   for(const ring of surface.land)for(const shift of [-360,0,360])
+    if(inside([lon+shift,lat],ring))land=!land;
+   assert.equal(land,!ocean[i]);
+  }
+ }
 });

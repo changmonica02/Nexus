@@ -113,10 +113,11 @@ test('confirmed world uses real IndexedDB persistence and opens one editor in th
 });
 
 test('shared shoreline paths clip land and sea; small tributaries appear only after zooming',async()=>{
- const d=drawing();d.surface={land:[ring],coast:d.coast,inverse:false};d.natural.rivers[0].streamOrder=1;d.natural.rivers[0].catchmentAreaKm2=40000;d.natural.rivers[0].lengthKm=200;
+ const d=drawing();d.surface={land:[ring],coast:d.coast,inverse:false,shorelines:[[...ring,ring[0]]]};d.natural.rivers[0].streamOrder=1;d.natural.rivers[0].catchmentAreaKm2=40000;d.natural.rivers[0].lengthKm=200;
  operations.length=0;await render(React.createElement(components.GlobalMapCanvas,{drawing:d}));
  assert.ok(operations.some(o=>o.kind==='fill'&&o.args[0] instanceof globalThis.Path2D&&o.args[1]==='evenodd'));
  assert.ok(operations.some(o=>o.kind==='clip'&&o.args[0] instanceof globalThis.Path2D));
+ assert.ok(operations.filter(o=>o.kind==='stroke'&&o.color==='#b1d3df'&&o.args[0] instanceof globalThis.Path2D).length>=3);
  assert.equal(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'),false);
  operations.length=0;await click('＋');await click('＋');assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'));
 });

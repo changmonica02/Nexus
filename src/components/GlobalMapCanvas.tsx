@@ -62,7 +62,13 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
  const surfacePaths=useMemo(()=>{
   const surface=drawing.surface;if(!surface||typeof Path2D==='undefined')return null;
   const make=(inverse:boolean)=>{const path=new Path2D();if(inverse)path.rect(-180,-90,360,180);for(const ring of surface.land)for(const shift of [-360,0,360]){ring.forEach(([x,y],i)=>i?path.lineTo(x+shift,y):path.moveTo(x+shift,y));path.closePath();}return path;};
-  return {land:make(surface.inverse),sea:make(!surface.inverse)};
+  const shore=new Path2D();
+  for(const ring of surface.shorelines??[])for(const shift of [-360,0,360]){
+   ring.forEach(([x,y],i)=>i?shore.lineTo(x+shift,y):shore.moveTo(x+shift,y));
+   // Polar rings terminate on the next longitude copy.
+   if(Math.abs(ring.at(-1)![0]-ring[0][0])<180)shore.closePath();
+  }
+  return {land:make(surface.inverse),sea:make(!surface.inverse),shore,hasShore:!!surface.shorelines?.length};
  },[drawing]);
  const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>view.zoom>=1.8||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,view.zoom]);
  const riverStrokes=useMemo(()=>visibleRivers.map(river=>buildRiverStrokes(river,month)),[visibleRivers,month]);
@@ -113,6 +119,22 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     ctx.fill(band.path,'evenodd');
     ctx.restore();
    }
+   if(surfacePaths?.hasShore&&['terrain','heightmap','contours','currents'].includes(climateLayer)){
+    ctx.save();
+    ctx.clip(surfacePaths.sea,'evenodd');
+    ctx.lineJoin='round';
+    ctx.lineCap='round';
+    ctx.strokeStyle=palette.ocean;
+    // Stroke the whole shore together at each width. Adjacent coasts share
+    // the same band around straits and the land mask clips the inland half.
+    const spacing=Math.max(.13,1.1/s);
+    for(const extent of [4.4,2.6,1.1]){
+     ctx.lineWidth=spacing*extent*2;
+     ctx.globalAlpha=.23;
+     ctx.stroke(surfacePaths.shore);
+    }
+    ctx.restore();
+   }
    for(const band of [...climateBands,...ecosystemBands]){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
    if(drawing.climate&&showCurrents){
     ctx.lineWidth=1.2/s;
@@ -126,8 +148,12 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     ctx.globalAlpha=.55;ctx.fillStyle=plate.color;ctx.beginPath();
     for(const ring of plate.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();ctx.globalAlpha=1;
    }
-   ctx.beginPath();for(const line of drawing.coast){ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);}
-   ctx.strokeStyle=palette.line;ctx.lineWidth=.7/s;ctx.stroke();
+   ctx.strokeStyle=palette.line;ctx.lineWidth=.7/s;
+   if(surfacePaths?.hasShore){
+    ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke(surfacePaths.shore);ctx.restore();
+   }else{
+    ctx.beginPath();for(const [a,b] of drawing.coast){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();
+   }
    if(climateLayer==='contours'&&drawing.contours){
     for(const band of drawing.contours){if(band.height===0&&surfacePaths)continue;ctx.strokeStyle=band.height<0?'#3a7895':palette.line;ctx.lineWidth=(band.height===0?1.2:.6)/s;ctx.beginPath();for(const [a,b] of band.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
    }
