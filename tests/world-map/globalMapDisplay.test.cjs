@@ -68,3 +68,10 @@ test('river labels reveal smaller names later and use a smaller font',()=>{
  assert.deepEqual([main,regional,tributary,creek].map(s=>s.minZoom),[1,1.8,3.5,6]);
  assert.deepEqual([main,regional,tributary,creek].map(s=>s.pixels),[14,12,11,10]);
 });
+
+test('zoom filtering preserves the full downstream network of every visible tributary',()=>{
+ const {visibleRiverNetwork}=require('../../src/features/worldMap/core/riverDrawing.mjs');
+ const small={streamOrder:1,catchmentAreaKm2:20000,lengthKm:150};
+ const rivers=[{...small,id:'mouth',parentId:null},{...small,id:'middle',parentId:'mouth'},{...small,id:'tributary',parentId:'middle',streamOrder:2},{...small,id:'unrelated',parentId:null}];
+ assert.deepEqual(visibleRiverNetwork(rivers,false).map(r=>r.id),['mouth','middle','tributary']);assert.equal(visibleRiverNetwork(rivers,true).length,4);
+});

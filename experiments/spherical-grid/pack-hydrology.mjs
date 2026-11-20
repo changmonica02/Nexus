@@ -137,8 +137,8 @@ export function deriveHydrology(pack,climate,base){
  const rivers=base.rivers.map((r,index)=>{const path=riverPaths[index],mouth=path.at(-1),station=path.at(-2)??mouth,discharge=flows.map(q=>q[station]);return {id:r.id,path,streamOrder:Math.max(1,...path.slice(0,-1).map(i=>streamOrder[i])),monthlyDischargeM3s:discharge,seasonalDryMonths:discharge.filter(q=>q<.05).length,catchmentAreaKm2:accumulatedArea[path.at(-2)??mouth],lengthKm:pathLength(r.geometry),basinId:basin[station]>=n?'basin-'+base.lakes[basin[station]-n].id:'basin-ocean-'+pack.gridRefs[basin[station]]};});
  return {version:1,receiver,order,incoming,flows,accumulatedArea,lakeAt,lakeWet:Uint8Array.from(pack.points,(_,i)=>wetLakeCells.has(i)?1:0),lakes:lakeResults,rivers,water,monthly,basin};
 }
-export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
- const routing=routePack(pack),lakes=discoverLakes(pack,routing,seed).map((l,i)=>({...l,name:language==='zh-TW'?`湖泊 ${i+1}`:`Lake ${i+1}`})),base={version:1,rivers:[],lakes,overlays:[]};
+export function generateNaturalGeography(pack,climate,seed,language='zh-TW',options={}){
+ const routing=routePack(pack),lakes=options.lakes?structuredClone(options.lakes).map(l=>({...l,inletIds:[],outletId:null})):discoverLakes(pack,routing,seed).map((l,i)=>({...l,name:language==='zh-TW'?`湖泊 ${i+1}`:`Lake ${i+1}`})),base={version:1,rivers:[],lakes,overlays:[]};
  const h=deriveHydrology(pack,climate,base),n=pack.points.length,channel=new Uint8Array(n),indegree=new Uint16Array(n);
  const annualFlow=Float64Array.from(pack.points,(_,i)=>h.flows.reduce((s,q,m)=>s+q[i]*MONTH_DAYS[m],0)/365);
  let totalLandArea=0,landCount=0;
@@ -161,14 +161,14 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
   if(valleySupport[i])valleyDistance[i]=0;
   else if(j>=0&&valleyDistance[j]<2)valleyDistance[i]=valleyDistance[j]+1;
  }
- let minimumArea=Math.max(12000,totalLandArea/Math.max(1,landCount)*3);
+ let minimumArea=Math.max(24000,totalLandArea/Math.max(1,landCount)*5);
  for(let pass=0;pass<10;pass++){
   channel.fill(0);indegree.fill(0);
-  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5&&(valleyDistance[i]<=2||h.accumulatedArea[i]>=minimumArea*2.5))channel[i]=1;
+  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=8&&(valleyDistance[i]<=2||h.accumulatedArea[i]>=minimumArea*2.5))channel[i]=1;
   // Keep selected channels connected all the way to their lake or ocean.
   for(const i of h.order){const j=h.receiver[i];if(channel[i]&&j>=0&&pack.heights[j]>=0&&h.lakeAt[j]<0)channel[j]=1;}
   for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j])indegree[j]++;}
-  if(channel.reduce((s,x,i)=>s+(x&&indegree[i]===0?1:0),0)<=1800)break;
+  if(channel.reduce((s,x,i)=>s+(x&&indegree[i]===0?1:0),0)<=900)break;
   minimumArea*=1.5;
  }
  // Suppress weak branches that track a stronger channel side by side.
@@ -202,7 +202,7 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
  });
  for(const branch of redundant)for(const cell of branch)channel[cell]=0;
  // Remove unresolved short tributaries and small one-reach coastal stubs.
- for(let pass=0;pass<3;pass++){
+ for(let pass=0;pass<6;pass++){
   incomingChannels();
   let removed=0;
   for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){
@@ -215,7 +215,7 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
     if(branch.length>8)break;
    }
    const joinsRiver=current>=0&&channel[current]&&indegree[current]>1;
-   const coastalStub=current>=0&&pack.heights[current]<0&&branch.length===1&&h.accumulatedArea[i]<minimumArea*2;
+   const coastalStub=current>=0&&pack.heights[current]<0&&(branch.length<3||distance<120)&&h.accumulatedArea[i]<minimumArea*3;
    if((joinsRiver&&distance<Math.max(100,Math.sqrt(minimumArea)*1.25))||coastalStub){
     for(const cell of branch)channel[cell]=0;
     removed++;
@@ -223,6 +223,8 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
   }
   if(!removed)break;
  }
+ // Re-close after pruning, as in Planet: no surviving reach ends on bare land.
+ for(const i of h.order){const j=h.receiver[i];if(channel[i]&&j>=0&&pack.heights[j]>=0&&h.lakeAt[j]<0)channel[j]=1;}
  incomingChannels();
  const cellToRiver=new Map(),ends=[],dominant=new Int32Array(n);dominant.fill(-1);
  const annual=i=>annualFlow[i];

@@ -23,3 +23,13 @@ export function projectClimate(grid,model,rings){
   sstAnomaly:Int16Array.from(m.sstAnomaly,x=>Math.round(x*10)),temperature:Int16Array.from(m.temperature,x=>Math.round(x*10)),sst:Int16Array.from(m.sst,x=>Math.round(x*10)),precipitation:Uint16Array.from(m.precipitation,x=>Math.min(65535,Math.round(x)))})),
   koppen:model.koppen,arrows,codes:KOPPEN_CODES,diagnostics:{ocean:model.ocean.diagnostics,months:model.months.map(m=>m.diagnostics)}};
 }
+
+// Full names for presentation; compact codes remain stable model identifiers.
+export function koppenName(code,zh=true){
+ const simple={Ocean:['海洋','Ocean'],Af:['熱帶雨林氣候','Tropical rainforest'],Am:['熱帶季風氣候','Tropical monsoon'],Aw:['熱帶莽原氣候','Tropical savanna'],BWh:['熱沙漠氣候','Hot desert'],BWk:['寒冷沙漠氣候','Cold desert'],BSh:['熱帶半乾燥氣候','Hot semi-arid'],BSk:['寒冷半乾燥氣候','Cold semi-arid'],ET:['苔原氣候','Tundra'],EF:['冰原氣候','Ice cap']};
+ if(simple[code])return simple[code][zh?0:1];
+ const group=code[0]==='C'?(zh?'溫帶':'Temperate'):(zh?'冷帶':'Continental');
+ const season={s:zh?'夏乾型':'dry summer',w:zh?'冬乾型':'dry winter',f:zh?'全年濕潤型':'no dry season'}[code[1]];
+ const heat={a:zh?'炎夏':'hot summer',b:zh?'暖夏':'warm summer',c:zh?'涼夏':'cool summer',d:zh?'嚴冬':'severe winter'}[code[2]];
+ return season&&heat?(zh?`${group}${season}氣候（${heat}）`:`${group}, ${season}, ${heat}`):code;
+}

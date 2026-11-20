@@ -1,9 +1,9 @@
 "use client";
 import {sphericalBrushRing,heightBrushChanges,heightStrokeChanges,sampleHeightStroke} from '../features/worldMap/core/heightBrush.mjs';
 import {mapPalettes,elevationColors,elevationLevels,depthColors,depthLevels,type GlobalMapDisplay} from '../features/worldMap/globalMapDisplay';
-import {climateColor,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
+import {climateColor,koppenName,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
 import {buildScalarBands} from '../features/worldMap/core/scalarBands.mjs';
-import {buildRiverStrokes,riverLabelStyle} from '../features/worldMap/core/riverDrawing.mjs';
+import {buildRiverStrokes,riverLabelStyle,visibleRiverNetwork} from '../features/worldMap/core/riverDrawing.mjs';
 import {drawBaseTiles} from '../features/worldMap/globalMapTiles';
 import {useEffect,useRef,useState,useMemo,useCallback,type SetStateAction} from 'react';
 import type {HeightBrush} from '../features/worldMap/globalMapClient';
@@ -20,7 +20,7 @@ function heightCellColor(height:number,ocean:boolean){
  const levels=ocean?depthLevels:elevationLevels,colors=ocean?depthColors:elevationColors;
  return colors[levels.filter(level=>height>=level).length];
 }
-export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,display,editingHeight,lineStart}:{drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay;editingHeight?:Omit<HeightBrush,'longitude'|'latitude'>;lineStart?:[number,number]}){
+export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,display,editingHeight,lineStart,riverEditor}:{riverEditor?:{rivers:{id:string;geometry:number[][];parentId:string|null;mouthLakeId:string|null;sourceLakeId:string|null}[];selectedId:string;geometry?:number[][];onSelect:(id:string)=>void;onChange:(geometry:number[][])=>void};drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay;editingHeight?:Omit<HeightBrush,'longitude'|'latitude'>;lineStart?:[number,number]}){
  const {language}=useLanguage(),text=globalMapText(language),canvas=useRef<HTMLCanvasElement>(null);
  const [view,commitView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
  const liveView=useRef(view),viewFrame=useRef<number|null>(null),settleTimer=useRef<number|null>(null);
@@ -75,7 +75,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    return pathBands(sst?climate.sst:climate.temperature,TEMPERATURE_LEVELS.map(t=>t*10),TEMPERATURE_COLORS,sst?'sea':undefined);
   }
   if(mesh.heights&&['terrain','heightmap','contours','currents','sst'].includes(climateLayer)){
-   const scientific=climateLayer==='heightmap'||climateLayer==='contours',custom=scientific?undefined:palette.relief;
+   const scientific=climateLayer==='heightmap'||climateLayer==='contours',custom=scientific?undefined:(palette.relief??['#17364e','#20506b','#2b6b86','#418fa6','#76b6c6','#b3d6d4','#8eb57a','#b4bf85','#bba776','#9e876c','#d1c6b5','#eeeae2']);
    return [
     ...pathBands(mesh.tintHeights??mesh.heights,custom?[-65,-45,-25,-10,-3]:depthLevels,custom?.slice(0,6)??depthColors,'sea'),
     ...pathBands(mesh.tintHeights??mesh.heights,custom?[2,5,10,20,40]:elevationLevels,custom?.slice(6)??elevationColors,'land'),
@@ -112,7 +112,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   return {land:make(surface.inverse),sea:make(!surface.inverse),shore,hasShore:!!surface.shorelines?.length};
  },[drawing]);
  const showTributaries=view.zoom>=1.8;
- const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>showTributaries||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,showTributaries]);
+ const visibleRivers=useMemo(()=>visibleRiverNetwork(drawing.natural?.rivers??[],showTributaries),[drawing,showTributaries]);
  const riverLabels=useMemo(()=>visibleRivers.flatMap(river=>{
   const line=river.lines[Math.floor(river.lines.length/2)];
   if(!line||!river.name.trim())return [];
@@ -171,6 +171,22 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   const s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2,copies=Math.ceil(size.w/period/2)+1,ring=sphericalBrushRing(...hoverPoint,paintRadius);
   return Array.from({length:copies*2+1},(_,index)=>ring.map(([lon,lat],i)=>`${i?'L':'M'}${size.w/2+pan+(lon+(index-copies)*360)*s},${size.h/2+view.y-lat*s}`).join(' ')).join(' ');
  },[hoverPoint,onPaint,onStroke,paintRadius,size,view]);
+ const riverScale=Math.min(size.w/360,size.h/180)*view.zoom,riverPeriod=360*riverScale,riverPan=((view.x+riverPeriod/2)%riverPeriod+riverPeriod)%riverPeriod-riverPeriod/2;
+ const riverScreen=(p:number[],shift=0)=>[size.w/2+riverPan+(p[0]+shift)*riverScale,size.h/2+view.y-p[1]*riverScale];
+ const riverPoints=riverEditor?.geometry?.reduce<number[][]>((out,p)=>{const previous=out.at(-1)?.[0]??p[0];out.push([previous+((p[0]-previous+540)%360-180),p[1]]);return out;},[]);
+ // Focus the chosen river so nearby routing anchors can be dragged separately.
+ useEffect(()=>{
+  const geometry=riverEditor?.rivers.find(r=>r.id===riverEditor.selectedId)?.geometry;
+  if(!geometry?.length)return;
+  const longitudes:number[]=[];
+  for(const p of geometry){const previous=longitudes.at(-1)??p[0];longitudes.push(previous+((p[0]-previous+540)%360-180));}
+  const west=Math.min(...longitudes),east=Math.max(...longitudes),south=Math.min(...geometry.map(p=>p[1])),north=Math.max(...geometry.map(p=>p[1]));
+  const baseScale=Math.min(size.w/360,size.h/180),zoom=Math.max(3,Math.min(32,Math.min(size.w*.5/(east-west+2),size.h*.7/(north-south+2))/baseScale)),scale=baseScale*zoom;
+  setView({zoom,x:-(west+east)/2*scale+Math.min(150,size.w*.15),y:(south+north)/2*scale});
+ // Geometry changes are drafts; retain the camera while dragging a control point.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[riverEditor?.selectedId]);
+ const riverDrag=useRef<{pointer:number;index:number;geometry:number[][]}|null>(null);
  const pointers=useRef(new Map<number,{x:number;y:number}>());
  useEffect(()=>{const el=canvas.current!;const observer=new ResizeObserver(([entry])=>setSize({w:Math.max(1,entry.contentRect.width),h:Math.max(1,entry.contentRect.height)}));observer.observe(el);return()=>observer.disconnect();},[]);
  const paintBase=useMemo(()=>(ctx:CanvasRenderingContext2D,scale:number)=>{
@@ -375,29 +391,30 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   return {zoom,x:toX+(v.x-fromX)*scale,y:Math.max(-limit,Math.min(limit,y))};
  }),[setView,size.h]);
  useEffect(()=>{
-  const el=canvas.current!;
+  const el=canvas.current!,wheelSurface=el.parentElement!;
   let exponent=0,x=0,y=0,frame:number|null=null;
   const wheel=(e:WheelEvent)=>{
    e.preventDefault();
    const unit=e.deltaMode===1?16:e.deltaMode===2?size.h:1;
    exponent-=Math.max(-240,Math.min(240,e.deltaY*unit))*(e.ctrlKey?.01:.0025);
-   x=e.offsetX-size.w/2;
-   y=e.offsetY-size.h/2;
+   const rect=el.getBoundingClientRect();
+   x=e.clientX-rect.left-size.w/2;
+   y=e.clientY-rect.top-size.h/2;
    if(frame===null)frame=window.requestAnimationFrame(()=>{
     frame=null;
     moveCamera(Math.exp(Math.max(-Math.log(4),Math.min(Math.log(4),exponent))),x,y);
     exponent=0;
    });
   };
-  el.addEventListener('wheel',wheel,{passive:false});
-  return()=>{el.removeEventListener('wheel',wheel);if(frame!==null)window.cancelAnimationFrame(frame);};
+  wheelSurface.addEventListener('wheel',wheel,{passive:false});
+  return()=>{wheelSurface.removeEventListener('wheel',wheel);if(frame!==null)window.cancelAnimationFrame(frame);};
  },[size,moveCamera]);
  const zoom=moveCamera;
  const endNavigation=(id:number)=>{
   if(pointers.current.delete(id)&&!pointers.current.size&&settleTimer.current===null)refreshTiles(pass=>pass+1);
  };
  return <div className="relative h-full min-h-56 w-full overflow-hidden rounded-lg bg-[#b1d3df]">
-  <canvas ref={canvas} data-global-map-canvas data-height-editing={editGrid||undefined} tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" style={{cursor:onPaint||onStroke?'crosshair':'grab'}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(e.button!==0)return;if(onStroke){if(stroke.current)return;const p=location(e.clientX,e.clientY);if(p){stroke.current={id:e.pointerId,points:[p]};setStrokePreview([p]);e.currentTarget.setPointerCapture(e.pointerId);}return;}if(onPaint){const p=location(e.clientX,e.clientY);if(p)onPaint(...p);return;}e.currentTarget.setPointerCapture(e.pointerId);setHoverPoint(null);if(pointers.current.size>=2)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
+  <canvas ref={canvas} data-global-map-canvas data-height-editing={editGrid||undefined} tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" style={{cursor:onPaint||onStroke?'crosshair':'grab'}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(e.button!==0)return;if(riverEditor){const rect=e.currentTarget.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;let best=12,id='';for(const r of drawing.natural?.rivers??[])for(const line of r.lines)for(let i=1;i<line.length;i++)for(const shift of [-720,-360,0,360,720]){const a=riverScreen(line[i-1],shift),b=riverScreen(line[i],shift),dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1))),distance=Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);if(distance<best){best=distance;id=r.id;}}if(id){riverEditor.onSelect(id);return;}}if(onStroke){if(stroke.current)return;const p=location(e.clientX,e.clientY);if(p){stroke.current={id:e.pointerId,points:[p]};setStrokePreview([p]);e.currentTarget.setPointerCapture(e.pointerId);}return;}if(onPaint){const p=location(e.clientX,e.clientY);if(p)onPaint(...p);return;}e.currentTarget.setPointerCapture(e.pointerId);setHoverPoint(null);if(pointers.current.size>=2)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
    if(onPaint||onStroke||(climateLayer==='heightmap'&&!pointers.current.size))setHoverPoint(location(e.clientX,e.clientY));
    if(stroke.current?.id===e.pointerId){const p=location(e.clientX,e.clientY);if(p){const points=stroke.current.points,last=points.at(-1)!;if(Math.hypot(((p[0]-last[0]+540)%360-180)*Math.cos(p[1]*Math.PI/180),p[1]-last[1])>Math.min(.5,(paintRadius??1)/4)){if(points.length===256)stroke.current.points=points.filter((_,i)=>i%2===0);stroke.current.points.push(p);setStrokePreview([...stroke.current.points]);}}return;}
    const old=pointers.current.get(e.pointerId);if(!old)return;
@@ -408,12 +425,15 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    else setView(v=>({...v,x:v.x+e.clientX-old.x,y:Math.max(-size.h*v.zoom/2,Math.min(size.h*v.zoom/2,v.y+e.clientY-old.y))}));
    pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
   }} onPointerLeave={()=>setHoverPoint(null)} onPointerUp={e=>{if(stroke.current?.id===e.pointerId){const points=stroke.current.points,end=location(e.clientX,e.clientY),last=points.at(-1)!;if(end&&points.length<256&&Math.hypot(end[0]-last[0],end[1]-last[1])>1e-6)points.push(end);stroke.current=null;setStrokePreview(null);onStroke?.(points);}endNavigation(e.pointerId);}} onPointerCancel={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}endNavigation(e.pointerId);}} onLostPointerCapture={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}endNavigation(e.pointerId);}}/>
+  {riverEditor&&riverPoints&&<svg aria-label={language==='zh-TW'?'河流向量編輯':'River vector editor'} className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${size.w} ${size.h}`}>
+   {[-720,-360,0,360,720].map(shift=><g key={shift}>{riverPoints.slice(1).map((p,i)=>{const a=riverScreen(riverPoints[i],shift),b=riverScreen(p,shift);return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#ea9d25" strokeWidth={5} opacity={.8} className="pointer-events-auto cursor-copy" onPointerDown={e=>{e.stopPropagation();if(riverPoints.length>=1000)return;const pos=location(e.clientX,e.clientY);if(pos){const next=riverEditor.geometry!.map(p=>[...p]);next.splice(i+1,0,pos);riverEditor.onChange(next);}}}/>;})}{riverPoints.map((p,i)=>{const [x,y]=riverScreen(p,shift),feature=riverEditor.rivers.find(r=>r.id===riverEditor.selectedId),locked=(i===0&&!!feature?.sourceLakeId)||(i===riverPoints.length-1&&!!(feature?.parentId||feature?.mouthLakeId));return <circle key={i} cx={x} cy={y} r={6} fill={locked?'#94a3b8':'white'} stroke="#195a91" strokeWidth={2} role="button" tabIndex={0} aria-label={`${language==='zh-TW'?'控制點':'Control point'} ${i+1}${locked?' 🔒':''}`} className="pointer-events-auto cursor-move touch-none" onDoubleClick={e=>{e.stopPropagation();if(!locked&&riverPoints.length>2)riverEditor.onChange(riverEditor.geometry!.filter((_,k)=>k!==i));}} onKeyDown={e=>{if(!locked&&(e.key==='Delete'||e.key==='Backspace')&&riverPoints.length>2){e.preventDefault();riverEditor.onChange(riverEditor.geometry!.filter((_,k)=>k!==i));}}} onPointerDown={e=>{e.stopPropagation();if(locked)return;e.currentTarget.setPointerCapture(e.pointerId);riverDrag.current={pointer:e.pointerId,index:i,geometry:riverEditor.geometry!.map(p=>[...p])};}} onPointerMove={e=>{const drag=riverDrag.current;if(drag?.pointer!==e.pointerId)return;const pos=location(e.clientX,e.clientY);if(pos){drag.geometry[drag.index]=pos;riverEditor.onChange(drag.geometry.map(p=>[...p]));}}} onPointerUp={()=>{riverDrag.current=null;}} onPointerCancel={()=>{riverDrag.current=null;}}/>;})}</g>)}
+  </svg>}
   {footprint&&<svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full"><path d={footprint} fill="none" stroke="white" strokeWidth={3}/><path d={footprint} fill="none" stroke="#172734" strokeWidth={1.5} strokeDasharray="5 3"/></svg>}
   {!display&&drawing.climate&&<div className="absolute left-2 top-2 flex max-w-[55%] flex-wrap gap-1 rounded-md bg-[var(--color-bg)]/95 p-1 text-sm">
    <select className="min-h-11 max-w-full bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'氣候圖層':'Climate layer'} value={climateLayer} onChange={e=>setClimateLayer(e.target.value)}>{[['terrain','地形','Terrain'],['heightmap','高度圖','Elevation'],['currents','表層洋流','Surface currents'],['sst','海表溫度 SST','Sea surface temperature'],['temperature','月均溫 °C','Monthly temperature °C'],['precipitation','月降水 mm','Monthly precipitation mm'],['koppen','柯本（全年）','Köppen (annual)'],...(drawing.natural?[['ecosystems','IUCN 潛在生態','IUCN potential ecosystems'],['seabedEcosystems','IUCN 海床生態','IUCN seabed ecosystems']]:[])].map(([v,z,en])=><option key={v} value={v}>{language==='zh-TW'?z:en}</option>)}</select>
    <select className="min-h-11 bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'月份':'Month'} value={month} onChange={e=>setMonth(Number(e.target.value))}>{Array.from({length:12},(_,i)=><option key={i} value={i}>{i+1}{language==='zh-TW'?' 月':''}</option>)}</select>
    {drawing.natural&&['ecosystems','seabedEcosystems'].includes(climateLayer)&&<details className="w-full text-xs"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'IUCN 第二層圖例':'IUCN Level 2 legend'}</summary><div className="grid max-h-32 grid-cols-1 gap-1 overflow-y-auto">{drawing.natural.ecosystems.catalog.map(c=><span key={c[0]} className="flex items-center gap-1"><span style={{background:c[3]}} className="inline-block h-3 w-3 shrink-0"/>{c[0]} {language==='zh-TW'?c[2]:c[1]}</span>)}</div></details>}
-   {climateLayer==='koppen'&&<details className="w-full text-xs"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'分類色彩圖例':'Class color legend'}</summary><div className="grid max-h-32 grid-cols-4 gap-1 overflow-y-auto">{drawing.climate.codes.map((code,i)=><span key={code} className="flex items-center gap-1"><span style={{background:KOPPEN_COLORS[i]}} className="inline-block h-3 w-3"/>{code}</span>)}</div></details>}
+   {climateLayer==='koppen'&&<details className="w-full text-xs"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'分類色彩圖例':'Class color legend'}</summary><div className="grid max-h-32 grid-cols-4 gap-1 overflow-y-auto">{drawing.climate.codes.map((code,i)=><span key={code} className="flex items-center gap-1"><span style={{background:KOPPEN_COLORS[i]}} className="inline-block h-3 w-3"/>{koppenName(code,language==='zh-TW')}</span>)}</div></details>}
    {!['terrain','heightmap'].includes(climateLayer)&&<p className="w-full max-w-64 text-xs">{climateLayer==='precipitation'?(language==='zh-TW'?'淺→深：0／10／25／50／100／175／275／450+ mm／月':'Light→dark: 0/10/25/50/100/175/275/450+ mm/month'):['ecosystems','seabedEcosystems'].includes(climateLayer)?(language==='zh-TW'?'IUCN 第二層程序估計；非實地調查。河線虛線表示當月枯水。':'IUCN Level 2 potential estimate, not a survey; dashed channels indicate low monthly flow.'):climateLayer==='koppen'?(language==='zh-TW'?'A: 熱帶 · B: 乾燥 · C: 溫帶 · D: 冷帶 · E: 極地':'A: Tropical · B: Arid · C: Temperate · D: Cold · E: Polar'):climateLayer==='currents'?(language==='zh-TW'?'紅：相對暖流；藍：相對寒流；年平均流向':'Red: warmer SST anomaly; blue: cooler anomaly; annual flow'):language==='zh-TW'?'藍→紅：−20／−5／5／15／22／28／35+ °C；洋流箭頭為年平均方向':'Blue→red: −20/−5/5/15/22/28/35+ °C; annual current directions'}</p>}
   </div>}
   {!display&&<details className="absolute right-2 top-2 rounded-md border bg-[var(--color-bg)]/95 px-2 text-sm"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'疊加圖層':'Overlays'}</summary>
@@ -425,7 +445,6 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   {showPlates&&drawing.tectonicSymbols&&<p className="absolute left-2 top-36 max-w-52 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?'紅齒：上覆側，紅箭頭：隱沒方向｜紫：碰撞｜青：張裂｜褐：錯動｜黑箭頭：板塊移動（示意）':'Red teeth: overriding side; red arrows: subduction · Purple: collision · Cyan: spreading · Brown: transform · Black: plate motion (schematic)'}</p>}
   {showPlates&&drawing.plates&&<p className="absolute bottom-2 right-2 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?`${drawing.plates.length} 個主板塊｜面積 ${Math.min(...drawing.plates.map(p=>p.areaPercent)).toFixed(1)}–${Math.max(...drawing.plates.map(p=>p.areaPercent)).toFixed(1)}%`:`${drawing.plates.length} major plates`}</p>}
   {hoverHeight!==undefined&&(climateLayer==='heightmap'||onPaint||onStroke)&&<output className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?'海拔':'Elevation'} {hoverHeight.toLocaleString()} m</output>}
-  <p className="absolute bottom-16 left-2 rounded-md bg-[var(--color-bg)]/95 px-2 py-1 text-xs">{language==='zh-TW'?'實際陸地':'Actual land'} {drawing.landPercent.toFixed(3)}%</p>
   <div className="absolute bottom-2 left-2 flex gap-2 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:rounded-lg [&_button]:border [&_button]:bg-[var(--color-bg)] [&_button]:px-3"><button aria-label={text('zoomIn')} onClick={()=>zoom(1.5)}>＋</button><button aria-label={text('zoomOut')} onClick={()=>zoom(1/1.5)}>−</button><button onClick={()=>setView({zoom:1,x:0,y:0})}>{text('reset')}</button></div>
  </div>;
 }

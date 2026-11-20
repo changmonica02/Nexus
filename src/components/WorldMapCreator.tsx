@@ -52,7 +52,6 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
   <div aria-label={language==='zh-TW'?'海陸分布預覽':'Land distribution preview'} className="relative my-4 h-[min(44dvh,28rem)] min-h-56 overflow-hidden rounded-lg border">
    {ready&&preview?<GlobalMapCanvas drawing={preview.drawing}/>:<div className="grid h-full place-items-center text-sm opacity-70" role="status">{previewing?language==='zh-TW'?'正在產生海陸分布預覽…':'Generating land preview…':text('invalid')}</div>}
   </div>
-  {ready&&preview&&<p className="mb-2 text-sm opacity-70">{text('measured')}：{preview.drawing.landPercent.toFixed(3)}%</p>}
   {creating&&<div role="status" className="my-3 space-y-1 text-sm"><p>{generationStageLabel(progress,language)} · {Math.round(progress.fraction*100)}%</p><progress aria-label={language==='zh-TW'?'推演進度':'Generation progress'} className="h-2 w-full" value={progress.fraction} max={1}/></div>}
   {error&&<p role="alert" className="my-2 text-red-600">{text(error as 'failed'|'invalid'|'incompatible')}</p>}
   <div className="mt-4 flex justify-end"><button type="button" disabled={creating||previewing||!ready||!name.trim()} className="border font-medium" onClick={()=>void submit()}>{creating?text('busy'):text('create')}</button></div>

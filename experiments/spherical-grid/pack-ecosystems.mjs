@@ -4,8 +4,11 @@ export function derivePackEcosystems(pack,hydrology){
  for(let i=0;i<n;i++){
   const t=hydrology.monthly.map(m=>m.temperature[i]),p=hydrology.monthly.map(m=>m.precipitation[i]),water=hydrology.water[i];
   const gradient=Math.max(...pack.neighbors[i].map(j=>Math.abs(pack.heights[j]-pack.heights[i])));
-  const wetMonths=water.soil.filter(x=>x>120).length,nearWater=pack.neighbors[i].some(j=>river.has(j)||hydrology.lakeWet[j]);
-  const wetland=pack.heights[i]>=0&&gradient<80&&wetMonths>=8&&nearWater;
+  const wetMonths=water.soil.filter(x=>x>120).length,nearWater=river.has(i)||pack.neighbors[i].some(j=>river.has(j)||hydrology.lakeWet[j]);
+  const localMean=pack.neighbors[i].reduce((s,j)=>s+pack.heights[j],0)/pack.neighbors[i].length;
+  const annualP=p.reduce((s,x)=>s+x,0),annualPET=water.pet.reduce((s,x)=>s+x,0);
+  // Saturation, low relief, a convergent site and a water source must coincide.
+  const wetland=pack.heights[i]>=0&&gradient<50&&localMean>=pack.heights[i]&&wetMonths>=8&&nearWater&&annualP>annualPET;
   const lake=Boolean(hydrology.lakeWet[i]);const code=classifyPotentialEcosystem(t,p,water,{ocean:pack.heights[i]<0,depth:-pack.heights[i],lake,wetland});
   if(lake){const l=hydrology.lakes[hydrology.lakeAt[i]];if(l.months.every(m=>m.dry))evidence[i]|=1;}
   surface[i]=ECOSYSTEMS.findIndex(c=>c[0]===code);seabed[i]=pack.heights[i]< -200?10:surface[i];

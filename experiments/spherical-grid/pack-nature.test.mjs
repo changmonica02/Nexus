@@ -85,3 +85,21 @@ test('fantasy overlays do not override IUCN natural baseline or hydrological ide
  const recomputed=derivePackEcosystems(pack,deriveHydrology(pack,c,overlay));assert.deepEqual(recomputed.surface,natural.surface);assert.deepEqual(overlay.rivers,base.rivers);
  const pet=Array(12).fill(100);assert.equal(classifyPotentialEcosystem(Array(12).fill(15),Array(12).fill(60),{pet}),'T3');assert.equal(classifyPotentialEcosystem(Array(12).fill(25),Array(12).fill(60),{pet}),'T4');assert.equal(classifyPotentialEcosystem(Array(12).fill(25),Array(12).fill(5),{pet}),'T5');assert.equal(classifyPotentialEcosystem(Array(12).fill(10),Array(12).fill(150),{pet}),'T2');
 });
+
+test('generated rivers have no bare-land terminals and preserve existing lake definitions on regeneration',()=>{
+ const {pack,c,base}=data(),again=generateNaturalGeography(pack,c,123,'zh-TW',{lakes:base.lakes});
+ const byId=new Map(again.rivers.map(r=>[r.id,r]));
+ for(const r of again.rivers){
+  const mouth=pack.findCell(r.geometry.at(-1));
+  assert.ok(r.parentId||r.mouthLakeId||pack.heights[mouth]<0,`orphan ${r.id}`);
+  if(r.parentId)assert.ok(byId.get(r.parentId).geometry.some(p=>p.every((x,k)=>Math.abs(x-r.geometry.at(-1)[k])<1e-6)));
+ }
+ assert.deepEqual(again.lakes.map(({inletIds,outletId,...l})=>l),base.lakes.map(({inletIds,outletId,...l})=>l));
+});
+test('extreme heat still evaporates water; seasonal rainfall distinguishes dry-summer shrubland from moist forest',()=>{
+ const heat=potentialEvapotranspiration(Array(12).fill(55),20);
+ assert.ok(heat.every(p=>p>100));
+ const t=[8,9,12,16,21,26,29,29,25,19,13,9],dry=[180,150,120,60,15,3,1,2,10,70,150,180],wet=Array(12).fill(120);
+ assert.equal(classifyPotentialEcosystem(t,dry,monthlyWaterBalance(t,dry,35)),'T3');
+ assert.equal(classifyPotentialEcosystem(t,wet,monthlyWaterBalance(t,wet,35)),'T2');
+});

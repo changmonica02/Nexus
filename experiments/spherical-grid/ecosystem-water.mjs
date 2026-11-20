@@ -7,7 +7,7 @@ export function potentialEvapotranspiration(temperature,latitude){
   if(t<=0||!I)return 0;
   const decl=23.44*Math.PI/180*Math.sin(2*Math.PI*(m-2.5)/12),lat=latitude*Math.PI/180;
   const length=24/Math.PI*Math.acos(Math.max(-1,Math.min(1,-Math.tan(lat)*Math.tan(decl))));
-  const normal=t<26.5?16*(10*t/I)**a:-415.85+32.24*t-.43*t*t;
+  const normal=t<26.5?16*(10*t/I)**a:-415.85+32.24*Math.min(t,38)-.43*Math.min(t,38)**2+Math.max(0,t-38)*6;
   return Math.max(0,normal*length/12*MONTH_DAYS[m]/30);
  });
 }
@@ -33,9 +33,24 @@ export const ECOSYSTEMS=[
 ];
 export function classifyPotentialEcosystem(t,p,water,{ocean=false,depth=0,lake=false,river=false,wetland=false}={}){
  if(ocean)return depth<=200?'M1':'M2';if(lake)return 'F2';if(river)return 'F1';
- const hot=Math.max(...t),cold=Math.min(...t),annual=p.reduce((s,x)=>s+x,0),pet=water.pet.reduce((s,x)=>s+x,0),aridity=pet?annual/pet:Infinity;
- if(hot<10)return 'T6';if(wetland)return 'TF1';if(aridity<.5)return 'T5';
- const dry=water.pet.filter((x,m)=>x>p[m]*1.5).length;
- if(dry>=4&&aridity<.95)return hot>20&&cold>12?'T4':'T3';
- if(aridity<.8)return 'T4';return cold>15?'T1':'T2';
+ const hot=Math.max(...t),cold=Math.min(...t),mean=t.reduce((s,x)=>s+x,0)/12,annual=p.reduce((s,x)=>s+x,0),pet=water.pet.reduce((s,x)=>s+x,0),aridity=pet>1?annual/pet:Infinity;
+ // Growing-season moisture matters more than winter rain/snow: a wet winter
+ // must not turn summer-dry lowlands into evergreen forest.
+ const growing=t.map((x,m)=>x>5?m:-1).filter(m=>m>=0),warm=t.filter(x=>x>=10).length;
+ const demand=growing.reduce((s,m)=>s+water.pet[m],0),supply=growing.reduce((s,m)=>s+p[m],0),growingRatio=demand>1?supply/demand:aridity;
+ const dry=growing.filter(m=>water.pet[m]>p[m]*1.5).length;
+ const deficit=Number.isFinite(water.annualDeficit)?water.annualDeficit/Math.max(1,pet):Math.max(0,1-aridity);
+ if(hot<10||warm<2)return 'T6';
+ if(wetland)return 'TF1';
+ // Include cold deserts even where low PET alone suggests abundant moisture.
+ const seasonalThreshold=Math.max(100,20*mean+140);
+ if(aridity<.35||annual<seasonalThreshold*.5||(aridity<.5&&deficit>.45))return 'T5';
+ const tropical=cold>=18&&warm>=10;
+ if(tropical){
+  if(aridity>=.8&&growingRatio>=.75&&dry<=4&&annual>=1000)return 'T1';
+  return aridity<.5&&annual<350?'T5':'T4';
+ }
+ if(dry>=3&&(growingRatio<.8||deficit>.3))return hot>20&&cold>12?'T4':'T3';
+ if(aridity<.65||growingRatio<.65||annual<400)return 'T4';
+ return 'T2';
 }
