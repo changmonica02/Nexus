@@ -174,3 +174,26 @@ test('map panels float beside the icon rail without remounting the canvas',async
  assert.equal(host.querySelector('#global-map-side-panel'),null);
  assert.equal(host.querySelector('canvas'),canvas);
 });
+
+test('height editing paints source cells and previews a stroke before committing it',async()=>{
+ const d=drawing();
+ d.surface={land:[ring],coast:d.coast,inverse:false,shorelines:[[...ring,ring[0]]]};
+ d.scalarMesh={points:[[1,0,0]],triangles:[],heights:[3],neighbors:[[]],cellRings:[ring],oceanMask:new Uint8Array([0])};
+ const strokes=[];
+ await render(React.createElement(components.GlobalMapCanvas,{drawing:d,editingHeight:{tool:'raise',radius:5,strength:10,mode:'preserve',target:'land'},onStroke:points=>strokes.push(points)}));
+ const canvas=host.querySelector('canvas');
+ assert.equal(canvas.dataset.heightEditing,'true');
+ operations.length=0;
+ await act(async()=>{
+  canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:2,button:0,clientX:400,clientY:200}));
+  await delay(20);
+ });
+ assert.ok(operations.some(o=>o.kind==='stroke'&&o.color==='rgba(21,58,65,.65)'));
+ assert.equal(strokes.length,0);
+ await act(async()=>{
+  canvas.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:2,clientX:400,clientY:200}));
+  await delay(10);
+ });
+ assert.equal(strokes.length,1);
+ assert.equal(d.scalarMesh.heights[0],3);
+});
