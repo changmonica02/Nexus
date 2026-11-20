@@ -11,7 +11,7 @@ export class GlobalMapClient {
   worker.onerror=()=>this.fail(Error('Global map worker failed'));
  }
  private fail(error:Error){for(const p of this.pending.values()){clearTimeout(p.timer);p.reject(error);}this.pending.clear();}
- request(action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight',value:GlobalMapSettings|GlobalMapProject,options:{patch?:NaturalFeaturePatch;brush?:HeightBrush;language?:string}={}):Promise<GlobalMapResult>{
+ request(action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature',value:GlobalMapSettings|GlobalMapProject,options:{patch?:NaturalFeaturePatch;brush?:HeightBrush;language?:string}={}):Promise<GlobalMapResult>{
   if(this.closed)return Promise.reject(Error('Global map editor closed'));
   return new Promise((resolve,reject)=>{const id=++this.sequence,timer=setTimeout(()=>{this.close();reject(Error('Global map operation timed out'));},120000);this.pending.set(id,{resolve,reject,timer,generate:action==='generate'});this.worker.postMessage({id,action,...options,...(action==='generate'||action==='preview'?{settings:value}:{project:value})});});
  }

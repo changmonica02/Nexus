@@ -22,13 +22,13 @@
 5. 點選套用；直線依序點起點與終點。每筆操作完成後自動儲存，忙碌、預覽及衝突狀態不能繪製。
 6. 高度儲存在唯一正式 Grid；未引入可獨立修改的 Pack 高度。河湖穩定 ID 與基礎幾何沿用原資料。
 
-目前沿用既有 Worker 的立即氣候推導，因此尚未滿足文件要求的「昂貴自然環境計算手動觸發」。點選筆刷亦不是連續拖曳筆刷；尚無預覽游標及復原堆疊。
+高度修改後保留上次環境計算所用的地形快照，並明確顯示過期狀態；手動「重新計算自然環境」才更新月氣候、水文與生態。重新載入保留同一基準，不能以開啟地圖取代手動確認。大幅海岸修改可能讓既有河湖與新 Pack 不相容，此時重算會失敗並保留原結果，不刪除河道或回滾已儲存地形；後續仍需完善河道重新對齊。點選筆刷不是連續拖曳筆刷；尚無預覽游標及復原堆疊。
 
 ## 後續實作順序與驗收
 
 | 順序 | 項目 | 驗收重點 |
 | --- | --- | --- |
-| 1 | 分離基礎編輯與環境重算 | 記錄衍生資料版本／過期狀態；開啟地圖不偷換結果；手動重算更新月氣候與水文而不刪河道 |
+| 1 | 完善海岸修改後的河道重新對齊 | 環境計算已分離；補上 Pack 對齊衝突修復與可定位的錯誤提示，維持河道基礎幾何與 ID |
 | 2 | 左側工具／顯示面板 | 顯示方式、疊加圖層、風格分區；河流與湖泊各自開關；未生成的政治文化資料不能假裝可用 |
 | 3 | 筆刷互動完善 | 連續筆畫、覆蓋範圍游標、復原／重做；整筆交易與離頁草稿保護 |
 | 4 | 海岸與河道圖上編輯 | 球面吸附、上下游拓撲、即時索引與穩定 ID；不以重新生成取代手動河道 |
@@ -41,12 +41,13 @@
 ## 驗證命令
 
 - `node --test experiments/spherical-grid/height-brush.test.mjs experiments/spherical-grid/terrain-edits.test.mjs`
+- `node scripts/build-global-map.mjs && node --test tests/world-map/heightBrushWorker.test.cjs`
 - `npm run test:world-map`
 - `BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:world-map:browser`
 - `npx tsc --noEmit`
 - `npx eslint src/components/GlobalMapCanvas.tsx src/components/GlobalWorldMapEditor.tsx src/features/worldMap/globalMapClient.ts src/features/worldMap/globalMapWorker.ts`
 
-瀏覽器測試覆蓋桌面／手機生成，以及正式 Worker 自由筆刷、JSON 重開與河湖身分保留。
+瀏覽器測試案例包含桌面／手機生成，以及正式 Worker 自由筆刷、JSON 重開與河湖身分保留；本次環境未能啟動瀏覽器。另以不依賴瀏覽器的正式打包 Worker 測試完成資料流程驗證。
 
 ## 本次檢查結果
 
@@ -54,3 +55,6 @@
 - 筆刷／地形核心 8 項測試通過。
 - 既有世界地圖回歸 52 項測試通過。
 - 瀏覽器測試無法執行：環境中的 Chromium 在啟動階段因 `socket() failed: Operation not permitted` 結束，尚不能宣稱桌面／手機互動驗證通過。
+
+- 正式打包 Worker 整合測試通過：自由筆刷、環境基準保留、JSON 重開、手動重算及河湖身分保留。
+- 加入環境基準格式後，再跑儲存與驗證相關的 42 項回歸測試，全部通過。

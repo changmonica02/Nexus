@@ -73,7 +73,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   current.current=candidate;setModel(candidate);setCandidate(undefined);setReplacing(false);unsaved.current=true;setDirty(true);
   await saveRef.current();
  };
- const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural',patch?:NaturalFeaturePatch)=>{
+ const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural'|'recalculateNature',patch?:NaturalFeaturePatch)=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)throw Error('Map is busy');
   generating.current=true;setWorking(true);setError(false);
   try{const value=await client.current.request(action,current.current.project,{patch,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
@@ -114,6 +114,8 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   </section>}
   {editing&&model&&!replacing&&<section className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm">
    <button className="min-h-11 rounded border px-3" disabled={busy||!!conflict} aria-pressed={painting} onClick={()=>{setPainting(!painting);setLineStart(undefined);}}>{language==='zh-TW'?(painting?'完成高度編輯':'高度工具'):'Height tools'}</button>
+   <button className="min-h-11 rounded border px-3" disabled={busy||!!conflict||!model.project.environmentTerrain} onClick={()=>void naturalAction('recalculateNature').catch(()=>{})}>重新計算自然環境</button>
+   {model.project.environmentTerrain&&<span role="status">地形已修改；氣候、河流流量與生態仍顯示上次計算結果。</span>}
    {painting&&<>
     <select aria-label="高度模式" value={brush.mode} onChange={e=>setBrush({...brush,mode:e.target.value as HeightBrush['mode']})}><option value="preserve">保留海岸</option><option value="free">自由</option></select>
     <select aria-label="編輯範圍" disabled={brush.mode==='free'} value={brush.target} onChange={e=>setBrush({...brush,target:e.target.value as HeightBrush['target']})}><option value="land">編輯陸地</option><option value="ocean">編輯海洋</option></select>

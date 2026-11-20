@@ -10,6 +10,7 @@ export type NaturalGeography={version:1;rivers:{id:string;name:string;notes:stri
 export type NaturalFeaturePatch={id:string;name?:string;notes?:string;geometry?:number[][];waterLevelM?:number;bed?:number[][]};
 export type GlobalMapProject = {
  format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;climateVersion?:1;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
+ environmentTerrain?:GlobalMapProject['terrain'];
  terrain:{format:'nexus-spherical-grid-prototype';version:1;frequency:60;cells:36002;
  heightScaleMetres:100;seaLevel:0;oceanSeed:number;revision:number;heights:number[];checksum:string};
 };
@@ -42,7 +43,8 @@ export function validateGlobalMapProject(value:unknown):asserts value is GlobalM
  !Array.isArray(t.heights)||t.heights.length!==36002||!t.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100)||
  !Number.isInteger(t.oceanSeed)||t.oceanSeed<0||t.oceanSeed>=36002||t.heights[t.oceanSeed]>=0||
  !Number.isSafeInteger(t.revision)||t.revision<0||t.checksum!==heightChecksum(t.heights))throw Error('Invalid global map terrain snapshot');
- if(g&&g.cells.some(i=>t.heights[i]<0))throw Error('Generated island is submerged');
+ if(p.environmentTerrain!==undefined){validateGlobalMapProject({format:p.format,version:p.version,settings:p.settings,terrain:p.environmentTerrain});if(p.climateVersion!==1)throw Error('Environment baseline requires climate');}
+ if(t.revision===0&&g&&g.cells.some(i=>t.heights[i]<0))throw Error('Generated island is submerged');
 }
 export async function readGlobalMapProject(blob:Blob):Promise<GlobalMapProject> {
  if(blob.size>2_000_000)throw Error('Global map file is too large');
