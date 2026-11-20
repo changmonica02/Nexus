@@ -52,7 +52,7 @@ export function applyIndexedTerrainEdits(state,changes){
   let newPack,mode='coast-patch-pack-rebuild',incrementalFallbackReason=null;
   if(patch.changedCells===0){
    newPack={...oldGeography.pack,
-    heights:Int8Array.from(oldGeography.pack.sourceIds,id=>state.grid.heights[id])};
+    heights:Float32Array.from(oldGeography.pack.sourceIds,id=>state.grid.heights[id])};
    mode='reuse-pack-topology';
   }else{
    try{

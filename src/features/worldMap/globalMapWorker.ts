@@ -17,6 +17,7 @@ import {createGlobalMapDrawing,type NaturalMapDrawing} from './globalMapGeometry
 import {analyzePlanetGeology} from '../../../experiments/spherical-grid/emergent-islands.mjs';
 let landPreviewCache:{key:string;draft:ReturnType<typeof createNaturalLand>}|undefined;
 let climateCache:{key:string;heights:number[];value:ReturnType<typeof generateMonthlyClimate>}|undefined;
+// Shoreline detail follows the saved physical reference, not editable seed provenance.
 let coastCache:{seed:number;mask:Uint8Array;surface:ReturnType<typeof createPackedCoast>}|undefined;
 function packedCoast(grid:ReturnType<typeof importGlobalTerrainSnapshot>['grid'],mask:Uint8Array,seed:number){
  if(coastCache?.seed!==seed||coastCache.mask.some((value,i)=>value!==mask[i]))coastCache={seed,mask,surface:createPackedCoast(grid,mask,seed)};
@@ -34,7 +35,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    if(landPreviewCache?.key!==key)landPreviewCache={key,draft:createNaturalLand(event.data.settings)};
    const draft=landPreviewCache.draft;
    const ocean=oceanConnected(draft.grid,draft.oceanSeed);
-   const drawing=createGlobalMapDrawing({...draft.grid,heights:undefined},ocean,[],undefined,undefined,packedCoast(draft.grid,ocean,draft.settings.seed));
+   const drawing=createGlobalMapDrawing({...draft.grid,heights:undefined},ocean,[],undefined,undefined,packedCoast(draft.grid,ocean,draft.oceanSeed));
    self.postMessage({id,project:null,drawing});
    return;
   }
@@ -54,7 +55,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   const state=importGlobalTerrainSnapshot(project.terrain,{oceanMaskOnly:true});
   if(action==='load'&&event.data.previewFirst){
    const {grid,geography}=state;
-   const coast=packedCoast(grid,geography.ocean,project.settings.seed);
+   const coast=packedCoast(grid,geography.ocean,project.terrain.oceanSeed);
    const previewDrawing=createGlobalMapDrawing({...grid,heights:undefined},geography.ocean,[],undefined,undefined,coast);
    self.postMessage({id,previewDrawing});
   }
@@ -90,7 +91,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    if(action!=='editNatural'&&action!=='regenerateRivers'&&naturalCache?.climate===climate&&naturalCache.key===keyForNatural()){
     natural=naturalCache.drawing;
    }else{
-    const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean),coastSurface:packedCoast(environment.grid,environment.geography.ocean,project.settings.seed)});
+    const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean),coastSurface:packedCoast(environment.grid,environment.geography.ocean,(project.environmentTerrain??project.terrain).oceanSeed)});
     if(!project.naturalGeography&&(action==='generate'||action==='initializeNatural'))project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language) as GlobalMapProject['naturalGeography'];
     if(action==='regenerateRivers')project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language,{lakes:project.naturalGeography?.lakes}) as GlobalMapProject['naturalGeography'];
     if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
@@ -104,7 +105,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   }
   validateGlobalMapProject(project);
   report({stage:'drawing',fraction:.98});
-  const drawing=createGlobalMapDrawing(state.grid,state.geography.ocean,[],tectonics,climate,packedCoast(state.grid,state.geography.ocean,project.settings.seed));
+  const drawing=createGlobalMapDrawing(state.grid,state.geography.ocean,[],tectonics,climate,packedCoast(state.grid,state.geography.ocean,project.terrain.oceanSeed));
   drawing.natural=natural;
   drawing.plateBoundaries=tectonics.drawing;
   drawing.plateCount=tectonics.plateCount;
