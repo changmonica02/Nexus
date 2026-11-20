@@ -8,3 +8,5 @@ export {IndexedDBAdapter} from '../../src/infrastructure/storage/IndexedDBAdapte
 export {heightChecksum} from '../../src/features/worldMap/globalMapProject';
 
 export {default as GlobalMapCanvas} from '../../src/components/GlobalMapCanvas';
+
+export {rememberGeneratedMap} from '../../src/features/worldMap/generatedMapHandoff';

@@ -5,6 +5,7 @@ import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import type {RegisterMapFlush} from './WorldMapEditor';
 import {WorldMapSyncStatus} from './WorldMapEditor';
 import {readGlobalMapProject,globalMapBlob} from '../features/worldMap/globalMapProject';
+import {takeGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {createGlobalMapClient,type GlobalMapClient,type GlobalMapResult,type HeightBrush} from '../features/worldMap/globalMapClient';
 import {globalMapText} from '../features/worldMap/globalMapMessages';
 import {downloadMapBlob} from '../features/worldMap/coreClient';
@@ -43,7 +44,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const surface=useRef<HTMLDivElement>(null);
  useEffect(()=>{
   let live=true;alive.current=true;const c=createGlobalMapClient();client.current=c;revision.current=map.revision;token.current=draftToken;unsaved.current=Boolean(draftToken);
-  void (async()=>{if(!blob)throw Error('Missing global map');const project=await readGlobalMapProject(blob);const value=await c.request('load',project);if(live){current.current=value;setModel(value);setSettings(value.project.settings);setError(false);setDirty(Boolean(draftToken));}})().catch(()=>{if(live)setError(true);}).finally(()=>{if(live)setWorking(false);});
+  void (async()=>{if(!blob)throw Error('Missing global map');const project=await readGlobalMapProject(blob);if(!live)return;const value=(!draftToken?takeGeneratedMap(map.id,project):undefined)??await c.request('load',project);if(live){current.current=value;setModel(value);setSettings(value.project.settings);setError(false);setDirty(Boolean(draftToken));}})().catch(()=>{if(live)setError(true);}).finally(()=>{if(live)setWorking(false);});
   return()=>{live=false;alive.current=false;c.close();client.current=null;};
  // A metadata-only revision from our own save must not reload the old input Blob.
  // eslint-disable-next-line react-hooks/exhaustive-deps

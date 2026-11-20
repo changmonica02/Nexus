@@ -15,6 +15,7 @@ import {ArrowLeft,MoreHorizontal,Plus,Upload,X} from 'lucide-react';
 import ModalDialog from './ModalDialog';
 import WorldEntityPanel,{WorldEntityForm} from './WorldEntityPanel';
 import {HumanMapCategories,MapEntityList,type HumanMapCategory} from './WorldMapToolMenu';
+import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import WorldMapCreator from './WorldMapCreator';
 import WorldMapEditor,{WorldMapSyncStatus,type RegisterMapFlush,type NativeToolControls} from './WorldMapEditor';
 
@@ -236,9 +237,10 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
     <header className="mb-4 flex items-center gap-2"><h2 className="flex-1 text-lg font-semibold">{language==='zh-TW'?'新建地圖':'Create map'}</h2><button type="button" aria-label={t('worldMap.closePanel')} onClick={()=>setChoosingMapType(false)}><X size={20}/></button></header>
     <div className="grid gap-3"><button type="button" className="border" onClick={()=>{setChoosingMapType(false);setCreation({name:'',scope:'surface'});}}>{language==='zh-TW'?'新建星球地圖':'New planet map'}</button><button type="button" disabled aria-disabled="true" className="cursor-not-allowed border bg-zinc-500/10 text-zinc-400">{language==='zh-TW'?'新建六角地圖':'New hex map'}</button></div>
    </ModalDialog>}
-   {creation&&<WorldMapCreator initialName={creation.name} onCancel={()=>setCreation(null)} onCreate={async(name,project)=>{
+   {creation&&<WorldMapCreator initialName={creation.name} onCancel={()=>setCreation(null)} onCreate={async(name,project,generated)=>{
     await beforeSave();
     const result=await repository.createSpace(world.id,name,(creation.scope??'surface') as 'surface'|'underground'|'sky',project);
+    rememberGeneratedMap(result.map.id,generated);
     // Adopt committed content even if the parent UI callback subsequently fails; never create a duplicate on retry.
     setCreation(null);setManaging(false);
     try{await onSaved(result.world);setSelected(result.map.id);setEditing(true);}catch(error){setError(String(error));throw error;}

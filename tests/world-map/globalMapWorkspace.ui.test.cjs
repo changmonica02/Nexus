@@ -92,22 +92,24 @@ test('mobile painting collapses the tool panel while preserving an accessible st
 });
 test('named generator confirms exactly once and returns a validated native Nexus snapshot',async()=>{
  const created=[];
- await render(React.createElement(components.CreativeView,{pages:[],templates:[],onCreateCharacter(){},onCreateWorld(){throw Error('Unexpected empty world');},onCreateWorldMap:async(name,blob)=>{created.push({name,project:JSON.parse(await blob.text())});},onSelectPage(){},onCreateTemplate(){},onRenameTemplate(){},onDownloadTemplate:async()=>{}}));
+ await render(React.createElement(components.CreativeView,{pages:[],templates:[],onCreateCharacter(){},onCreateWorld(){throw Error('Unexpected empty world');},onCreateWorldMap:async(name,blob,generated)=>{created.push({name,project:JSON.parse(await blob.text()),generated});},onSelectPage(){},onCreateTemplate(){},onRenameTemplate(){},onDownloadTemplate:async()=>{}}));
  await click('＋ 建立');await click('世界觀');await click('新建地圖');await click('新建星球地圖');await act(async()=>{await delay(250);});
  const input=host.querySelector('input[placeholder="輸入地圖名稱"]');
  await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(input,'我的新世界');input.dispatchEvent(new window.Event('input',{bubbles:true}));await delay(5);});
- await click('生成');assert.equal(created.length,1);assert.equal(created[0].name,'我的新世界');assert.equal(created[0].project.format,'nexus-global-map');assert.equal(host.querySelector('dialog[aria-label="地圖生成器"]'),null);
+ await click('生成');assert.equal(created.length,1);assert.equal(created[0].name,'我的新世界');assert.equal(created[0].project.format,'nexus-global-map');assert.deepEqual(created[0].generated.project,created[0].project);assert.equal(host.querySelector('dialog[aria-label="地圖生成器"]'),null);
 });
 
 test('confirmed world uses real IndexedDB persistence and opens one editor in the existing manager',async()=>{
  const storage=new components.IndexedDBAdapter();await storage.init();storage.setWorkspaceOwner('workspace-ui-owner');
- const repo=new components.WorldMapRepository(storage),created=await repo.createWorldWithMap('完整建立流程',new Blob([JSON.stringify(project())]));
+ const p=project(),repo=new components.WorldMapRepository(storage),created=await repo.createWorldWithMap('完整建立流程',new Blob([JSON.stringify(p)]));
+ components.rememberGeneratedMap(created.map.id,{project:p,drawing:drawing()});
+ const beforeOpen=requests.length;
  assert.equal((await storage.listPages()).length,1);assert.equal((await storage.listAttachments()).length,1);
  const batches=await storage.db.getAll('workspace_outbox');assert.equal(batches.length,1);assert.equal(batches[0].operations.length,3);
  let opened=0;
  function WorldHost(){const [initial,setInitial]=React.useState(true);return React.createElement(components.WorldMapManager,{world:created.world,worldContent:React.createElement('p',null,'世界觀內容'),storage,beforeSave:async()=>{},onSaved:async()=>{},initialEditing:initial,onInitialEditOpened:()=>{opened++;setInitial(false);}});}
  await render(React.createElement(WorldHost));
- await act(async()=>{await delay(50);});assert.equal(opened,1);assert.equal(host.querySelectorAll('[data-global-map-canvas]').length,1);assert.ok(button('工具'));
+ await act(async()=>{await delay(50);});assert.equal(opened,1);assert.ok(!requests.slice(beforeOpen).some(r=>r.action==='load'));assert.equal(host.querySelectorAll('[data-global-map-canvas]').length,1);assert.ok(button('工具'));
  await click('儲存並返回');assert.equal(host.querySelector('[data-global-map-canvas]'),null);assert.ok(host.textContent.includes('世界觀內容'));
  await act(async()=>root.unmount());root=null;storage.db.close();
 });

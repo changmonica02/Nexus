@@ -1,4 +1,5 @@
 "use client";
+import type {GlobalMapResult} from '../features/worldMap/globalMapClient';
 import WorldMapCreator from "./WorldMapCreator";
 import ModalDialog from "./ModalDialog";
 import CreationTemplateLibraryView from "./CreationTemplateLibrary";
@@ -27,7 +28,7 @@ export default function CreativeView({
   templates?: Page[];
   onCreateCharacter: (id?: string) => void;
   onCreateWorld: (templateId?:string) => void;
-  onCreateWorldMap?:(name:string,blob:Blob)=>Promise<void>;
+  onCreateWorldMap?:(name:string,blob:Blob,generated?:GlobalMapResult)=>Promise<void>;
   onSelectPage: (id: string) => void;
   onCreateTemplate: () => void;
   onRenameTemplate: (id: string, title: string) => void;
@@ -117,7 +118,7 @@ export default function CreativeView({
          </>:<><button onClick={()=>setWorldStep('generator')}>{language==='zh-TW'?'新建星球地圖':'New planet map'}</button><button disabled aria-disabled="true" className="cursor-not-allowed bg-zinc-500/10 text-zinc-400">{language==='zh-TW'?'新建六角地圖':'New hex map'}</button><button onClick={()=>setWorldStep('actions')}>{language==='zh-TW'?'返回':'Back'}</button></>}</div>
          {worldError&&<p role="alert" className="mt-3 text-red-600">{worldError}</p>}
         </ModalDialog>}
-        {worldStep==='generator'&&onCreateWorldMap&&<WorldMapCreator initialName="" onCancel={()=>setWorldStep('types')} onCreate={async(name,blob)=>{await onCreateWorldMap(name,blob);setWorldStep(null);}}/>}
+        {worldStep==='generator'&&onCreateWorldMap&&<WorldMapCreator initialName="" onCancel={()=>setWorldStep('types')} onCreate={async(name,blob,generated)=>{await onCreateWorldMap(name,blob,generated);setWorldStep(null);}}/>}
         {world&&<CreationChoiceDialog title="世界觀模板 / World templates" options={[{id:"blank",label:"空白世界觀 / Blank world"},...templates.filter(t=>t.creative_type==="world").map(t=>({id:t.id,label:t.title}))]} onClose={()=>setWorld(false)} onChoose={id=>{setWorld(false);onCreateWorld(id)}}/>}
         {character && (
           <CreationChoiceDialog

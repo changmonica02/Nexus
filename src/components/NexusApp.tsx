@@ -1,4 +1,5 @@
 "use client";
+import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {studyErrorMessage} from '../features/study/studySync';
 import {WorldMapRepository, cloneWorldReferences } from "../features/worldMap/worldMapRepository";
 import StudySetView from "../features/study/components/StudySetView";
@@ -2045,11 +2046,12 @@ function NexusAppInner({
           onRenameTemplate={(id, title) => patchPage(id, { title })}
           onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
           onCreateCharacter={handleCreateCharacter}
-          onCreateWorldMap={async(name,blob)=>{
+          onCreateWorldMap={async(name,blob,generated)=>{
             const storage=storageRef.current;if(!storage)throw Error('Storage unavailable');
             const owner=storage.getWorkspaceOwner?.(),repository=new WorldMapRepository(storage);
             await flushAllSaves();if(storage.getWorkspaceOwner?.()!==owner)throw Error('Account changed');
             const result=await repository.createWorldWithMap(name,blob);
+            if(generated)rememberGeneratedMap(result.map.id,generated);
             setPages(previous=>[result.world,...previous.filter(p=>p.id!==result.world.id)]);
             setActivePageId(result.world.id);setCreatedWorldMap(result.world.id);
             // The transaction already committed. Optional navigation state cannot trigger duplicate creation.

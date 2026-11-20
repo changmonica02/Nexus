@@ -6,13 +6,13 @@ import ModalDialog from './ModalDialog';
 import {useLanguage} from '../lib/LanguageContext';
 import {globalMapBlob,validateGlobalSettings} from '../features/worldMap/globalMapProject';
 import type {GlobalMapDrawing} from '../features/worldMap/globalMapGeometry';
-import {createGlobalMapClient,type GlobalMapClient} from '../features/worldMap/globalMapClient';
+import {createGlobalMapClient,type GlobalMapClient,type GlobalMapResult} from '../features/worldMap/globalMapClient';
 import {globalMapText} from '../features/worldMap/globalMapMessages';
 import GlobalMapParameters,{newGlobalMapSettings} from './GlobalMapParameters';
 import GlobalMapCanvas from './GlobalMapCanvas';
 
 /** Preview is land-only; the persisted map is generated only after confirmation. */
-export default function WorldMapCreator({initialName,onCancel,onCreate}:{initialName:string;onCancel:()=>void;onCreate:(name:string,blob:Blob)=>Promise<void>}){
+export default function WorldMapCreator({initialName,onCancel,onCreate}:{initialName:string;onCancel:()=>void;onCreate:(name:string,blob:Blob,result:GlobalMapResult)=>Promise<void>}){
  const {language}=useLanguage(),text=globalMapText(language);
  const [name,setName]=useState(initialName),[settings,setSettings]=useState(newGlobalMapSettings);
  const [preview,setPreview]=useState<{key:string;drawing:GlobalMapDrawing}|null>(null);
@@ -40,7 +40,7 @@ export default function WorldMapCreator({initialName,onCancel,onCreate}:{initial
    validateGlobalSettings(settings);
    const result=await client.current.request('generate',settings,{language,onProgress:value=>{if(alive.current)setProgress(value);}});
    setProgress({stage:'save',fraction:1});
-   await onCreate(name.trim(),globalMapBlob(result.project));
+   await onCreate(name.trim(),globalMapBlob(result.project),result);
   }catch(error){
    if(alive.current)setError(error instanceof Error&&error.message==='Global map generator version mismatch'?'incompatible':'failed');
   }finally{submitting.current=false;if(alive.current)setCreating(false);}

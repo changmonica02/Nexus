@@ -45,17 +45,26 @@ export function monthlyAtmosphere(grid,context,sst,month){
 }
 export function transportMoisture(grid,context,temperature,sst,winds,month,{sweeps=CLIMATE_PARAMETERS.moistureSweeps}={}){
  const n=grid.points.length,area=grid.areas,dt=CLIMATE_PARAMETERS.transportStepDays;
- const outgoing=Array.from({length:n},()=>[]),outWeight=new Float64Array(n),lift=new Float64Array(n),lee=new Float64Array(n);
- for(const e of context.edges){
-  const velocity=.5*(dot(winds[e.i],e.ti)-dot(winds[e.j],e.tj));
+ const edgeCount=context.edges.length;
+ const offsets=new Uint32Array(n+1),fromCell=new Uint32Array(edgeCount),toCell=new Uint32Array(edgeCount),rawWeight=new Float64Array(edgeCount);
+ const outWeight=new Float64Array(n),lift=new Float64Array(n),lee=new Float64Array(n);
+ for(let edge=0;edge<edgeCount;edge++){
+  const e=context.edges[edge],velocity=.5*(dot(winds[e.i],e.ti)-dot(winds[e.j],e.tj));
   const from=velocity>=0?e.i:e.j,to=velocity>=0?e.j:e.i,weight=Math.abs(velocity)**3;
-  outgoing[from].push({to,weight});outWeight[from]+=weight;
+  fromCell[edge]=from;toCell[edge]=to;rawWeight[edge]=weight;offsets[from+1]++;outWeight[from]+=weight;
   const height=Math.max(0,grid.heights[to])-Math.max(0,grid.heights[from]);
   lift[to]+=Math.max(0,height)*Math.abs(velocity)/e.d;
   lee[to]+=Math.max(0,-height)*Math.abs(velocity)/e.d;
  }
- for(let i=0;i<n;i++)for(const a of outgoing[i])a.weight/=outWeight[i]||1;
- const water=new Float64Array(n),rain=new Float64Array(n),evap=new Float64Array(n),fraction=new Float64Array(n),capacity=new Float64Array(n),movement=new Float64Array(n);
+ // Store outgoing edges contiguously in the original per-cell summation order.
+ for(let i=1;i<=n;i++)offsets[i]+=offsets[i-1];
+ const cursor=offsets.slice(0,n),targets=new Uint32Array(edgeCount),weights=new Float64Array(edgeCount);
+ for(let edge=0;edge<edgeCount;edge++){
+  const from=fromCell[edge],index=cursor[from]++;
+  targets[index]=toCell[edge];weights[index]=rawWeight[edge]/(outWeight[from]||1);
+ }
+ let water=new Float64Array(n),next=new Float64Array(n);
+ const rain=new Float64Array(n),evap=new Float64Array(n),fraction=new Float64Array(n),capacity=new Float64Array(n),movement=new Float64Array(n);
  const season=Math.cos(2*Math.PI*(month-6)/12),shift=8*season;
  for(let i=0;i<n;i++){
   capacity[i]=clamp(20*Math.exp(.055*temperature[i]),.2,90);movement[i]=outWeight[i]>0?Math.min(.72,.08*Math.hypot(...winds[i])):0;
@@ -69,15 +78,20 @@ export function transportMoisture(grid,context,temperature,sst,winds,month,{swee
  const averages=new Float64Array(n),window=Math.min(45,Math.floor(sweeps/3));
  for(let step=0;step<sweeps;step++){
   if(step===sweeps-1)previous=water.reduce((s,v,i)=>s+v*area[i],0);source=0;precip=0;
-  const next=new Float64Array(n);
+  next.fill(0);
   for(let i=0;i<n;i++){
    const recycling=grid.heights[i]>=0?.25*rain[i]:0;if(step===sweeps-1)source+=(evap[i]+recycling)*area[i];
    const available=water[i]+evap[i]+recycling,loss=Math.max(available*fraction[i],available-capacity[i]);rain[i]=loss;if(step===sweeps-1)precip+=loss*area[i];
    const retained=available-loss,move=movement[i];
    next[i]+=retained*(1-move);
-   for(const a of outgoing[i])next[a.to]+=retained*move*a.weight*area[i]/area[a.to];
+   const carried=retained*move;
+   for(let edge=offsets[i];edge<offsets[i+1];edge++){
+    const target=targets[edge];
+    next[target]+=carried*weights[edge]*area[i]/area[target];
+   }
   }
-  water.set(next);if(step>=sweeps-window)for(let i=0;i<n;i++)averages[i]+=rain[i]/window;
+  const previousWater=water;water=next;next=previousWater;
+  if(step>=sweeps-window)for(let i=0;i<n;i++)averages[i]+=rain[i]/window;
  }
  storage=water.reduce((s,v,i)=>s+v*area[i],0);
  const rainfall=Float32Array.from(averages,x=>x/dt*DAYS[month]);

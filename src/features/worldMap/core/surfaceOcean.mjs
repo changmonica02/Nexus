@@ -40,10 +40,16 @@ export function generateSurfaceOcean(grid,{iterations=1200,tolerance=1e-8,bounda
   edges.push({i,j,d,ti,tj,width,conductance,flux});b[i]+=flux;b[j]-=flux;degree[i]+=conductance;degree[j]+=conductance;counts[i]++;counts[j]++;
  }
  const pressure=new Float64Array(n),r=b.slice(),z=Float64Array.from(r,(v,i)=>v/(degree[i]||1)),p=z.slice(),ap=new Float64Array(n);
- const sumdot=(x,y)=>x.reduce((s,v,i)=>s+v*y[i],0);
+ const from=Uint32Array.from(edges,e=>e.i),to=Uint32Array.from(edges,e=>e.j);
+ const conductance=Float64Array.from(edges,e=>e.conductance);
+ const sumdot=(x,y)=>{let sum=0;for(let i=0;i<n;i++)sum+=x[i]*y[i];return sum;};
  let rz=sumdot(r,z),initial=Math.sqrt(sumdot(b,b)),steps=0;
  for(;steps<iterations&&Math.sqrt(sumdot(r,r))>tolerance*Math.max(initial,1e-20);steps++){
-  ap.fill(0);for(const e of edges){const q=(p[e.i]-p[e.j])*e.conductance;ap[e.i]+=q;ap[e.j]-=q;}
+  ap.fill(0);
+  for(let k=0;k<from.length;k++){
+   const i=from[k],j=to[k],q=(p[i]-p[j])*conductance[k];
+   ap[i]+=q;ap[j]-=q;
+  }
   const denom=sumdot(p,ap);if(denom<=1e-24)break;const alpha=rz/denom;
   for(let i=0;i<n;i++){pressure[i]+=alpha*p[i];r[i]-=alpha*ap[i];z[i]=r[i]/(degree[i]||1);}
   const next=sumdot(r,z),beta=next/rz;for(let i=0;i<n;i++)p[i]=z[i]+beta*p[i];rz=next;
