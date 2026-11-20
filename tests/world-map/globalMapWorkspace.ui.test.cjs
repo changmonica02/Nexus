@@ -4,10 +4,10 @@ const {build}=require('esbuild'),React=require('react'),{act}=React;
 let window,createRoot,components,root,host;
 const operations=[],requests=[];
 const ring=[[-10,-10],[10,-10],[10,10],[-10,10]];
-const checksum=heights=>{let h=2166136261;for(const v of heights)h=Math.imul(h^(v+128),16777619)>>>0;return h.toString(16).padStart(8,'0');};
+const checksum=heights=>components.heightChecksum(heights);
 function project(settings={seed:42,landPercent:32,continentCores:8,gridCells:36002}){
  const heights=Array(36002).fill(-20);heights[0]=30;
- return {format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,packSettings:{version:1,detail:1},naturalGeography:{version:1,rivers:[],lakes:[],overlays:[]},settings,terrain:{format:'nexus-spherical-grid-prototype',version:1,frequency:60,cells:36002,heightScaleMetres:100,seaLevel:0,oceanSeed:1,revision:0,heights,checksum:checksum(heights)}};
+ return {format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,packSettings:{version:1,detail:1},naturalGeography:{version:1,rivers:[],lakes:[],overlays:[]},settings,terrain:{format:'nexus-spherical-grid-prototype',version:2,frequency:60,cells:36002,heightScaleMetres:100,seaLevel:0,oceanSeed:1,revision:0,heights,checksum:checksum(heights)}};
 }
 function drawing(){return {land:[ring],coast:[[ring[0],ring[1]]],landPercent:32,relief:[{color:'#a2ba81',rings:[ring]}],contours:[{height:1700,lines:[[ring[0],ring[2]]]}],plates:[{id:0,areaPercent:100,color:'#aaa',rings:[ring]}],plateBoundaries:[],climate:{rings:[ring],ocean:[0],koppen:[1],codes:['Af'],arrows:[],months:Array.from({length:12},()=>({temperature:[200],precipitation:[100],sst:[200],sstAnomaly:[0]}))},natural:{pack:{cells:1,rings:[ring],gridParents:new Uint32Array([0]),detail:1},ecosystems:{surface:[0],seabed:[0],catalog:[['T1','Forest','森林','#123456']]},rivers:[{id:'river-1',name:'測試河',lines:[[ring[0],ring[2]]],monthly:Array(12).fill(20)}],lakes:[{id:'lake-1',name:'測試湖',rings:[ring],months:Array.from({length:12},()=>({dry:false}))}]}};}
 class FakeWorker{
@@ -23,11 +23,12 @@ before(async()=>{
  const {Window}=await import('happy-dom');window=new Window({url:'http://localhost/'});
  require('fake-indexeddb/auto');
  for(const key of ['window','document','navigator','HTMLElement','HTMLInputElement','HTMLCanvasElement','Element','Node','MouseEvent','Event','KeyboardEvent','MutationObserver'])Object.defineProperty(globalThis,key,{value:key==='window'?window:window[key],configurable:true,writable:true});
+ globalThis.Path2D=class{rect(){}moveTo(){}lineTo(){}closePath(){}};
  globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.Worker=FakeWorker;globalThis.devicePixelRatio=1;
  globalThis.ResizeObserver=class{observe(){}disconnect(){}};
  window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  window.HTMLCanvasElement.prototype.setPointerCapture=function(){};
- window.HTMLCanvasElement.prototype.getContext=function(){let target={measureText:()=>({width:20})};return new Proxy(target,{get:(o,k)=>k in o?o[k]:(...args)=>{if(['fill','stroke','fillRect','fillText'].includes(k))operations.push({kind:k,color:k==='stroke'?o.strokeStyle:o.fillStyle,args});}});};
+ window.HTMLCanvasElement.prototype.getContext=function(){let target={measureText:()=>({width:20})};return new Proxy(target,{get:(o,k)=>k in o?o[k]:(...args)=>{if(['fill','stroke','fillRect','fillText','clip'].includes(k))operations.push({kind:k,color:k==='stroke'?o.strokeStyle:o.fillStyle,args});}});};
  ({createRoot}=require('react-dom/client'));
  const out=path.resolve('.cache/global-map-workspace-ui.cjs');
  await build({entryPoints:['tests/fixtures/globalMapWorkspace.jsx'],outfile:out,bundle:true,platform:'node',format:'cjs',jsx:'automatic',packages:'external',plugins:[{name:'test-boundaries',setup(b){
@@ -109,4 +110,13 @@ test('confirmed world uses real IndexedDB persistence and opens one editor in th
  await act(async()=>{await delay(50);});assert.equal(opened,1);assert.equal(host.querySelectorAll('[data-global-map-canvas]').length,1);assert.ok(button('工具'));
  await click('儲存並返回');assert.equal(host.querySelector('[data-global-map-canvas]'),null);assert.ok(host.textContent.includes('世界觀內容'));
  await act(async()=>root.unmount());root=null;storage.db.close();
+});
+
+test('shared shoreline paths clip land and sea; small tributaries appear only after zooming',async()=>{
+ const d=drawing();d.surface={land:[ring],coast:d.coast,inverse:false};d.natural.rivers[0].streamOrder=1;d.natural.rivers[0].catchmentAreaKm2=40000;d.natural.rivers[0].lengthKm=200;
+ operations.length=0;await render(React.createElement(components.GlobalMapCanvas,{drawing:d}));
+ assert.ok(operations.some(o=>o.kind==='fill'&&o.args[0] instanceof globalThis.Path2D&&o.args[1]==='evenodd'));
+ assert.ok(operations.some(o=>o.kind==='clip'&&o.args[0] instanceof globalThis.Path2D));
+ assert.equal(operations.some(o=>o.kind==='stroke'&&o.color==='#1d72b0'),false);
+ operations.length=0;await click('＋');await click('＋');assert.ok(operations.some(o=>o.kind==='stroke'&&o.color==='#1d72b0'));
 });

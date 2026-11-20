@@ -1,13 +1,14 @@
+import {createCoastSurface} from './core/coastSurface.mjs';
 export type NaturalMapDrawing={
  pack:{cells:number;gridParents:Uint32Array;rings:number[][][];detail:number};
  ecosystems:{surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
- rivers:{id:string;name:string;parentId:string|null;lines:number[][][];monthly:number[];catchmentAreaKm2:number;lengthKm:number;basinId:string}[];
+ rivers:{id:string;name:string;parentId:string|null;streamOrder?:number;segmentFlows?:number[][];lines:number[][][];monthly:number[];catchmentAreaKm2:number;lengthKm:number;basinId:string}[];
  lakes:{id:string;name:string;rings:number[][][];waterLevelM:number;spillM:number;areaKm2:number;months:{inflowM3:number;evaporationM3:number;outflowM3:number;storageM3:number;storageChangeM3:number;balanceErrorM3:number;dry:boolean}[]}[];
 };
 import {projectClimate} from '../../../experiments/spherical-grid/climate-display.mjs';
 import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={contours?:{height:number;lines:number[][][]}[];land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={surface?:ReturnType<typeof createCoastSurface>;contours?:{height:number;lines:number[][][]}[];land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -29,7 +30,7 @@ export function unwrapRing(points:number[][],pole?:number){
 type TectonicDrawingInput={version:number;domains:{owners:Int16Array;plates:{id:number;areaPercent?:number;areaKm2:number;seedCell:number;pole:number[];angularSpeed:number}[]};
  boundaries:{type:string;normal?:number[];smoothedNormal?:number[];center?:number[];plates:number[];subductingPlate?:number|null;overridingPlate?:number|null;mode:string;activity?:number;segmentId?:number;start:number[];end:number[]}[];
  features?:{displaySegmentIds:number[];volcanoes:{cell:number}[];islandChains:{cells:number[]}[];orogenProvinces:{activeCells:number;historicalCells:number}}};
-export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput,climate?:Parameters<typeof projectClimate>[1]):GlobalMapDrawing {
+export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,_coast:{start:number[];end:number[]}[],tectonics?:TectonicDrawingInput,climate?:Parameters<typeof projectClimate>[1]):GlobalMapDrawing {
  const around:number[][][]=Array.from({length:grid.points.length},()=>[]);
  for(const face of grid.triangles){
   const [a,b,c]=face.map(i=>grid.points[i]);let center=unit(cross(sub(b,a),sub(c,a)));
@@ -54,7 +55,7 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   if(plates&&tectonics)plates[tectonics.domains.owners[i]].rings.push(ring);
   if(grid.heights){
    const h=grid.heights[i];
-   const band=h<0?(h< -65?0:h< -45?1:h< -25?2:h< -10?3:h< -3?4:5):6+Math.min(5,Math.floor(h/17));
+   const band=h<0?(h< -65?0:h< -45?1:h< -25?2:h< -10?3:h< -3?4:5):6+[2,5,10,20,40].filter(level=>h>=level).length;
    relief[band].rings.push(ring);
   }
  }
@@ -63,12 +64,13 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
   islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
- return {land,plates,geology,contours:grid.heights?createHeightContours(grid):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+ const surface=createCoastSurface(grid,ocean);
+ return {land,surface,plates,geology,contours:grid.heights?createHeightContours(grid):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:surface.coast,landPercent:area/total*100};
 }
 
 /** Piecewise-linear isolines on spherical triangles; never draw whole cell borders as contours. */
 export function createHeightContours(grid:Grid){
- const bands=[-65,-45,-25,-10,-3,0,17,34,51,68,85].map(height=>({height:height*100,lines:[] as number[][][]}));
+ const bands=[-65,-45,-25,-10,-3,0,1,2,5,10,20,40,60].map(height=>({height:height*100,lines:[] as number[][][]}));
  if(!grid.heights)return bands;
  for(const face of grid.triangles){
   const heights=face.map(i=>grid.heights![i]),low=Math.min(...heights),high=Math.max(...heights);

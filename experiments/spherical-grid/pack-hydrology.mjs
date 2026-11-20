@@ -1,23 +1,36 @@
+import {buildDrainageGraph} from '../../src/features/worldMap/core/drainage.mjs';
 // Azgaar concepts: depression routing, accumulated precipitation, lake spill,
 // major tributary continuation. Entity identity / geometry is independent of Pack.
 import {FieldHeap,km,dot,cross} from './geologic-fields.mjs';
 import {toLonLat,fromLonLat,pathLength,samplePackClimate} from './spherical-pack.mjs';
 import {monthlyWaterBalance,MONTH_DAYS} from './ecosystem-water.mjs';
-export function routePack(pack){
- const n=pack.points.length,filled=new Float64Array(n),receivers=new Int32Array(n),seen=new Uint8Array(n),heap=new FieldHeap(),rank=new Int32Array(n);receivers.fill(-1);let sequence=0;
- for(let i=0;i<n;i++)if(pack.heights[i]<0){seen[i]=1;heap.push({cell:i,cost:0});}
- while(heap.length){const {cell,cost}=heap.pop();filled[cell]=cost;rank[cell]=sequence++;
-  for(const j of pack.neighbors[cell])if(!seen[j]){seen[j]=1;receivers[j]=cell;heap.push({cell:j,cost:Math.max(cost+.00001,pack.heights[j])});}
- }
- if(seen.some(v=>!v))throw Error('Pack requires ocean-connected drainage');
- for(let i=0;i<n;i++)if(pack.heights[i]>=0){let slope=-Infinity;for(const j of pack.neighbors[i])if(rank[j]<rank[i]){const s=(filled[i]-filled[j])/km(pack.points[i],pack.points[j]);if(s>slope){receivers[i]=j;slope=s;}}}
- return {filled,receivers,rank};
-}
+export function routePack(pack){return buildDrainageGraph(pack);}
 export function drainageOrder(receivers){
  const incoming=new Uint32Array(receivers.length);for(const j of receivers)if(j>=0)incoming[j]++;
  const degree=incoming.slice(),order=[];for(let i=0;i<degree.length;i++)if(!degree[i])order.push(i);
  for(let k=0;k<order.length;k++){const j=receivers[order[k]];if(j>=0&&!--degree[j])order.push(j);}
  if(order.length!==receivers.length)throw Error('River routing creates a cycle');return {order,incoming};
+}
+// Reprojected authored channels can point against the new mesh's automatic
+// drainage. Redirect only the unresolved surrounding catchment, retaining every
+// channel / reservoir edge; an authored cycle remains an error.
+export function reconnectDrainage(pack,receiver,locked){
+ const n=receiver.length,upstream=Array.from({length:n},()=>[]),solved=new Uint8Array(n),queue=[];
+ for(let i=0;i<n;i++){const j=receiver[i];if(j<0){solved[i]=1;queue.push(i);}else upstream[j].push(i);}
+ for(let k=0;k<queue.length;k++)for(const i of upstream[queue[k]])if(!solved[i]){solved[i]=1;queue.push(i);}
+ if(queue.length===n)return;
+ const heap=new FieldHeap(),distance=new Float64Array(n);distance.fill(Infinity);
+ for(const cell of queue){distance[cell]=0;heap.push({cell,cost:0});}
+ while(heap.length){const {cell,cost}=heap.pop();if(cost>distance[cell])continue;
+  for(const j of upstream[cell])if(locked[j]&&!solved[j]){solved[j]=1;distance[j]=cost+km(pack.points[cell],pack.points[j]);heap.push({cell:j,cost:distance[j]});}
+  for(const j of pack.neighbors[cell])if(!solved[j]&&!locked[j]){
+   const next=cost+km(pack.points[cell],pack.points[j])*(1+Math.max(0,pack.heights[cell]-pack.heights[j])/100);
+   if(next<distance[j]){distance[j]=next;receiver[j]=cell;heap.push({cell:j,cost:next});}
+  }
+  // Finalize a free cell only when its cheapest exit is removed from the heap.
+  solved[cell]=1;
+ }
+ if(solved.some(v=>!v))throw Error('Authored river routing creates a cycle');
 }
 export function lakeRimForBed(pack,bed){
  const selected=new Set(bed.map(b=>pack.findCell(b.position))),rim=new Set();
@@ -73,11 +86,23 @@ export function resolveRiverPath(pack,river){
  return out;
 }
 export function deriveHydrology(pack,climate,base){
- const monthly=samplePackClimate(pack,climate),n=pack.points.length,routing=routePack(pack),receiver=routing.receivers.slice(),lakeAt=new Int32Array(n);lakeAt.fill(-1);
- const riverPaths=base.rivers.map(r=>resolveRiverPath(pack,r));
- for(const path of riverPaths)for(let k=0;k<path.length-1;k++)receiver[path[k]]=path[k+1];
+ const monthly=samplePackClimate(pack,climate),n=pack.points.length,routing=routePack(pack),receiver=routing.receivers.slice(),locked=new Uint8Array(n),lakeAt=new Int32Array(n);lakeAt.fill(-1);
+ const byId=new Map(base.rivers.map((r,i)=>[r.id,i])),riverPaths=new Array(base.rivers.length),resolving=new Set();
+ const resolve=index=>{
+  if(riverPaths[index])return riverPaths[index];if(resolving.has(index))throw Error('River parent routing creates a cycle');resolving.add(index);
+  const river=base.rivers[index];let path=resolveRiverPath(pack,river);
+  if(river.parentId&&byId.has(river.parentId)){
+   const parent=new Set(resolve(byId.get(river.parentId))),junction=path.findIndex(cell=>parent.has(cell));
+   // A denser mesh may put a connecting step on the parent before the saved
+   // junction. Merge at first contact instead of walking back along the parent.
+   if(junction>=0)path=path.slice(0,junction+1);
+  }
+  resolving.delete(index);return riverPaths[index]=path;
+ };
+ base.rivers.forEach((_,i)=>resolve(i));
+ for(const path of riverPaths)for(let k=0;k<path.length-1;k++){receiver[path[k]]=path[k+1];locked[path[k]]=1;}
  const lakes=base.lakes.map((l,index)=>{
-  const f=lakeFootprint(pack,l);for(const i of f.ids){if(lakeAt[i]>=0)throw Error('Lake basins overlap');lakeAt[i]=index;}
+  const f=lakeFootprint(pack,l);for(const i of f.ids){locked[i]=1;if(lakeAt[i]>=0)throw Error('Lake basins overlap');lakeAt[i]=index;}
   // The earliest flood cell has a downstream parent outside the whole lake.
   const root=f.ids.reduce((a,b)=>routing.rank[a]<routing.rank[b]?a:b),outside=routing.receivers[root];
   const queue=[root],seen=new Set([root]);receiver[root]=outside;
@@ -87,6 +112,7 @@ export function deriveHydrology(pack,climate,base){
   for(const j of f.ids)if(!seen.has(j))receiver[j]=root;
   return {...f,root,lake:l,areaKm2:l.bed.filter(b=>b.floorM<l.waterLevelM).reduce((s,b)=>s+b.areaKm2,0),capacityM3:l.bed.reduce((s,b)=>s+Math.max(0,f.spillM-b.floorM)*b.areaKm2*1e6,0),initialStorageM3:l.bed.reduce((s,b)=>s+Math.max(0,l.waterLevelM-b.floorM)*b.areaKm2*1e6,0)};
  });
+ reconnectDrainage(pack,receiver,locked);
  const {order,incoming}=drainageOrder(receiver),water=pack.points.map((p,i)=>monthlyWaterBalance(monthly.map(m=>m.temperature[i]),monthly.map(m=>m.precipitation[i]),Math.asin(p[2])*180/Math.PI));
  const wetLakeCells=new Set(lakes.flatMap(l=>l.ids.filter(i=>l.projected.get(i).floorM<l.lake.waterLevelM)));
  const runoff=Array.from({length:12},(_,m)=>Float64Array.from(pack.catchmentAreas,(a,i)=>pack.heights[i]<0?0:(wetLakeCells.has(i)?monthly[m].precipitation[i]:water[i].runoff[m])*a*1000));
@@ -105,22 +131,41 @@ export function deriveHydrology(pack,climate,base){
  }
  const accumulatedArea=pack.catchmentAreas.map((a,i)=>pack.heights[i]>=0?a:0);for(const i of order){const j=receiver[i];if(j>=0)accumulatedArea[j]+=accumulatedArea[i];}
  const basin=new Int32Array(n);for(let k=order.length-1;k>=0;k--){const i=order[k],j=receiver[i];const li=lakeAt[i];basin[i]=li>=0&&lakes[li].root===i&&lakeResults[li].months.every(m=>m.outflowM3<1)?n+li:j<0?i:basin[j];}
- const rivers=base.rivers.map((r,index)=>{const path=riverPaths[index],mouth=path.at(-1),station=path.at(-2)??mouth,discharge=flows.map(q=>q[station]);return {id:r.id,path,monthlyDischargeM3s:discharge,seasonalDryMonths:discharge.filter(q=>q<.05).length,catchmentAreaKm2:accumulatedArea[path.at(-2)??mouth],lengthKm:pathLength(r.geometry),basinId:basin[station]>=n?'basin-'+base.lakes[basin[station]-n].id:'basin-ocean-'+pack.gridRefs[basin[station]]};});
+ const streamCells=new Uint8Array(n),streamOrder=new Uint8Array(n),maximumOrder=new Uint8Array(n),sameOrder=new Uint8Array(n);
+ for(const path of riverPaths)for(const cell of path)if(pack.heights[cell]>=0)streamCells[cell]=1;
+ for(const cell of order)if(streamCells[cell]){streamOrder[cell]=maximumOrder[cell]?(maximumOrder[cell]+(sameOrder[cell]>1?1:0)):1;const next=receiver[cell];if(next>=0&&streamCells[next]){if(streamOrder[cell]>maximumOrder[next]){maximumOrder[next]=streamOrder[cell];sameOrder[next]=1;}else if(streamOrder[cell]===maximumOrder[next])sameOrder[next]++;}}
+ const rivers=base.rivers.map((r,index)=>{const path=riverPaths[index],mouth=path.at(-1),station=path.at(-2)??mouth,discharge=flows.map(q=>q[station]);return {id:r.id,path,streamOrder:Math.max(1,...path.slice(0,-1).map(i=>streamOrder[i])),monthlyDischargeM3s:discharge,seasonalDryMonths:discharge.filter(q=>q<.05).length,catchmentAreaKm2:accumulatedArea[path.at(-2)??mouth],lengthKm:pathLength(r.geometry),basinId:basin[station]>=n?'basin-'+base.lakes[basin[station]-n].id:'basin-ocean-'+pack.gridRefs[basin[station]]};});
  return {version:1,receiver,order,incoming,flows,accumulatedArea,lakeAt,lakeWet:Uint8Array.from(pack.points,(_,i)=>wetLakeCells.has(i)?1:0),lakes:lakeResults,rivers,water,monthly,basin};
 }
 export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
  const routing=routePack(pack),lakes=discoverLakes(pack,routing,seed).map((l,i)=>({...l,name:language==='zh-TW'?`湖泊 ${i+1}`:`Lake ${i+1}`})),base={version:1,rivers:[],lakes,overlays:[]};
  const h=deriveHydrology(pack,climate,base),n=pack.points.length,channel=new Uint8Array(n),indegree=new Uint16Array(n);
- let minimumArea=50000;
+ const annualFlow=Float64Array.from(pack.points,(_,i)=>h.flows.reduce((s,q)=>s+q[i],0)/12),supported=new Uint8Array(n);
+ let totalLandArea=0,landCount=0;
+ for(let i=0;i<n;i++)if(pack.heights[i]>=0){totalLandArea+=pack.catchmentAreas[i];landCount++;const neighbors=pack.neighbors[i].filter(j=>pack.heights[j]>=0);if(!neighbors.length)continue;const mean=neighbors.reduce((s,j)=>s+pack.heights[j],0)/neighbors.length,range=Math.max(...neighbors.map(j=>pack.heights[j]))-Math.min(...neighbors.map(j=>pack.heights[j]));if(mean-pack.heights[i]>Math.max(2,range*.08))supported[i]=1;}
+ // Permit short unsupported head reaches where they drain directly to a valley.
+ const supportDistance=new Int8Array(n);supportDistance.fill(4);
+ for(let k=h.order.length-1;k>=0;k--){const i=h.order[k],j=h.receiver[i];if(supported[i])supportDistance[i]=0;else if(j>=0&&supportDistance[j]<3){supportDistance[i]=supportDistance[j]+1;supported[i]=1;}}
+ let minimumArea=Math.max(12000,totalLandArea/Math.max(1,landCount)*3);
  for(let pass=0;pass<10;pass++){
   channel.fill(0);indegree.fill(0);
-  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&h.flows.reduce((s,q)=>s+q[i],0)/12>=2.5)channel[i]=1;
+  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5&&(supported[i]||h.accumulatedArea[i]>=minimumArea*3))channel[i]=1;
+  // Keep selected channels connected all the way to their lake or ocean.
+  for(const i of h.order){const j=h.receiver[i];if(channel[i]&&j>=0&&pack.heights[j]>=0&&h.lakeAt[j]<0)channel[j]=1;}
   for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j])indegree[j]++;}
   if(channel.reduce((s,x,i)=>s+(x&&indegree[i]===0?1:0),0)<=1800)break;
   minimumArea*=1.5;
  }
+ // Remove unresolved short tributary stubs; independent small coastal rivers remain.
+ for(let pass=0;pass<3;pass++){
+  indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;
+  let removed=0;
+  for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){const branch=[];let current=i,distance=0;while(current>=0&&channel[current]&&(current===i||indegree[current]===1)){branch.push(current);const next=h.receiver[current];if(next>=0)distance+=km(pack.points[current],pack.points[next]);current=next;if(branch.length>8)break;}if(current>=0&&channel[current]&&indegree[current]>1&&distance<Math.max(100,Math.sqrt(minimumArea)*1.25)){for(const cell of branch)channel[cell]=0;removed++;}}
+  if(!removed)break;
+ }
+ indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;
  const cellToRiver=new Map(),ends=[],dominant=new Int32Array(n);dominant.fill(-1);
- const annual=i=>h.flows.reduce((s,q)=>s+q[i],0)/12;
+ const annual=i=>annualFlow[i];
  for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j]&&(dominant[j]<0||annual(i)>annual(dominant[j])))dominant[j]=i;}
  for(let i=0;i<n;i++)if(channel[i]&&indegree[i]===0){
   const path=[i];let current=i,j=h.receiver[i];while(j>=0){path.push(j);if(!channel[j]||dominant[j]!==current)break;current=j;j=h.receiver[j];}

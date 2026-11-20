@@ -130,7 +130,7 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
  const ridge=model.features?.ridgeField.distance??oceanDistances(grid,boundarySources(grid,model,'mid-ocean-ridge'));
  const trench=model.features?.trenchField.distance??oceanDistances(grid,boundarySources(grid,model,'subduction'));
  const volcanoes=model.features?.volcanoes??locateSubmarineVolcanoes(grid,model,tectonicSeed,coast);
- const n=grid.heights.length,heights=grid.heights.slice(),zones=new Uint8Array(n);
+ const n=grid.heights.length,heights=Float32Array.from(grid.heights),zones=new Uint8Array(n);
  let cells=0;
  for(let i=0;i<n;i++){
   if(grid.heights[i]>=0)continue;
@@ -188,7 +188,7 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
    depth=Math.max(3,depth-volcanoUplift);
    zones[i]=SEAFLOOR.seamount;
   }
-  const magnitude=clamp(Math.round(depth),1,100);
+  const magnitude=clamp(Math.round(depth*100)/100,.01,100);
   heights[i]=-magnitude;
  }
  return {version:3,seed:tectonicSeed,heights,zones,tectonics:model,islandChains:model.features?.islandChains??[],seamountChains:model.features?.seamountChains??[],
@@ -199,12 +199,12 @@ export function generatePlateSeafloor(grid,{seed,tectonics}={}){
  * explicitly confirmed natural-environment recalculation, never on load. */
 export function applyPlateSeafloor(grid,result){
  assertGlobalGrid(grid);
- if(!(result?.heights instanceof Int8Array)&&!(result?.heights instanceof Int16Array))
+ if(!(result?.heights instanceof Float32Array))
   throw TypeError('Invalid seafloor proposed heights');
  if(result.heights.length!==grid.heights.length)throw RangeError('Wrong proposal length');
  for(let i=0;i<grid.heights.length;i++){
   const old=grid.heights[i],next=result.heights[i];
-  if(!Number.isInteger(next)||next< -100||next>100||
+  if(!Number.isFinite(next)||next< -100||next>100||
     (old>=0&&next!==old)||(old<0&&next>=0))
     throw RangeError('Seafloor proposal may not alter land or coast');
  }

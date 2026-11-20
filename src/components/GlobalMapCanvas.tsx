@@ -30,6 +30,17 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   const values=climateLayer==='seabedEcosystems'?n.ecosystems.seabed:n.ecosystems.surface;
   return n.ecosystems.catalog.map((c,i)=>({color:c[3],rings:n.pack.rings.filter((_,j)=>values[j]===i)}));
  },[drawing,climateLayer]);
+ const surfacePaths=useMemo(()=>{
+  const surface=drawing.surface;if(!surface||typeof Path2D==='undefined')return null;
+  const make=(inverse:boolean)=>{const path=new Path2D();if(inverse)path.rect(-180,-90,360,180);for(const ring of surface.land)for(const shift of [-360,0,360]){ring.forEach(([x,y],i)=>i?path.lineTo(x+shift,y):path.moveTo(x+shift,y));path.closePath();}return path;};
+  return {land:make(surface.inverse),sea:make(!surface.inverse)};
+ },[drawing]);
+ const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>view.zoom>=1.8||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,view.zoom]);
+ const riverBands=useMemo(()=>{
+  const bands=new Map<string,{dry:boolean;width:number;lines:number[][][]}>();
+  for(const river of visibleRivers)for(let i=0;i<river.lines.length;i++){const flow=river.segmentFlows?.[month]?.[i]??river.monthly[month]??0,dry=flow<.05,width=Math.round(Math.min(3,.45+Math.log1p(flow)*.18)*4)/4,key=`${dry}:${width}`;if(!bands.has(key))bands.set(key,{dry,width,lines:[]});bands.get(key)!.lines.push(river.lines[i]);}
+  return [...bands.values()];
+ },[visibleRivers,month]);
  const [hoverPoint,setHoverPoint]=useState<[number,number]|null>(null);
  const stroke=useRef<{id:number;points:[number,number][]}|null>(null);
  const location=(clientX:number,clientY:number):[number,number]|null=>{const rect=canvas.current!.getBoundingClientRect(),s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2,longitude=(clientX-rect.left-size.w/2-pan)/s,latitude=-(clientY-rect.top-size.h/2-view.y)/s;return Math.abs(latitude)<=90?[((longitude+180)%360+360)%360-180,latitude]:null;};
@@ -50,12 +61,12 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   ctx.translate(size.w/2+pan,size.h/2+view.y);ctx.scale(s,-s);
   const copies=Math.ceil(size.w/period/2)+1;
   for(let k=-copies;k<=copies;k++){
-   ctx.save();ctx.translate(k*360,0);ctx.fillStyle=palette.land;
-   ctx.beginPath();for(const ring of drawing.land){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();
+   ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}ctx.fillStyle=palette.land;
+   if(surfacePaths)ctx.fill(surfacePaths.land,'evenodd');else{ctx.beginPath();for(const ring of drawing.land){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
    if(drawing.relief)for(const [index,band] of drawing.relief.entries()){
-    ctx.fillStyle=palette.relief?.[index]??band.color;ctx.beginPath();
+    ctx.save();if(surfacePaths)ctx.clip(index<6?surfacePaths.sea:surfacePaths.land,'evenodd');ctx.fillStyle=palette.relief?.[index]??band.color;ctx.beginPath();
     for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
-    ctx.fill();
+    ctx.fill();ctx.restore();
    }
    for(const band of [...climateBands,...ecosystemBands]){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
    if(drawing.climate&&showCurrents){
@@ -110,19 +121,19 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
      for(const lake of drawing.natural.lakes){ctx.fillStyle=lake.months[month]?.dry?'#a6c2c7':'#4e9ec3';ctx.beginPath();for(const ring of lake.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
     }
     if(showRivers){
-     for(const river of drawing.natural.rivers){const flow=river.monthly[month]??0;ctx.strokeStyle=flow<.05?'#789da8':['ecosystems','seabedEcosystems'].includes(climateLayer)?'#278ec2':'#1d72b0';ctx.lineWidth=Math.min(3,.5+Math.log1p(flow)*.18)/s;ctx.setLineDash(flow<.05?[3/s,3/s]:[]);ctx.beginPath();for(const [a,b] of river.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}ctx.setLineDash([]);
+     for(const band of riverBands){ctx.strokeStyle=band.dry?'#789da8':['ecosystems','seabedEcosystems'].includes(climateLayer)?'#278ec2':'#1d72b0';ctx.lineWidth=band.width/s;ctx.setLineDash(band.dry?[3/s,3/s]:[]);ctx.beginPath();for(const [a,b] of band.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}ctx.setLineDash([]);
     }
     if(showNames){
      ctx.fillStyle=palette.ink;ctx.font=`${12/s}px sans-serif`;
      const label=(name:string,p:number[])=>{ctx.save();ctx.translate(p[0],p[1]);ctx.scale(1,-1);ctx.fillText(name,0,0);ctx.restore();};
-     if(showRivers)for(const river of drawing.natural.rivers){const line=river.lines[Math.floor(river.lines.length/2)];if(line)label(river.name,line[0]);}
+     if(showRivers)for(const river of visibleRivers){const line=river.lines[Math.floor(river.lines.length/2)];if(line)label(river.name,line[0]);}
      if(showLakes)for(const lake of drawing.natural.lakes){const ring=lake.rings[0];if(ring?.length)label(lake.name,ring[0]);}
     }
     if(showPack){ctx.strokeStyle='rgba(20,35,50,.32)';ctx.lineWidth=.35/s;ctx.beginPath();for(const ring of drawing.natural.pack.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.stroke();}
    }
    ctx.restore();
   }
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette]);
+ },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,riverBands,visibleRivers]);
  useEffect(()=>{
   const el=canvas.current!;
   const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};

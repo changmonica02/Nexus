@@ -38,7 +38,7 @@ export function generate(frequency=60){
 }
 export function setHeight(g,id,value){
  if(!Number.isInteger(id)||id<0||id>=g.points.length)throw RangeError("invalid cell ID");
- if(!Number.isInteger(value)||value< -100||value>100)throw RangeError("height outside [-100,100]");
+ if(!Number.isFinite(value)||((g.heights instanceof Int8Array||g.heights instanceof Uint8Array)&&!Number.isInteger(value))||value< -100||value>100)throw RangeError("height outside [-100,100]");
  g.heights[id]=value;
 }
 const distance=(a,b)=>RADIUS_KM*Math.acos(Math.max(-1,Math.min(1,dot(a,b))));

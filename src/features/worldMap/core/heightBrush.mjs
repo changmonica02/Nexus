@@ -1,7 +1,7 @@
 // Brush distances use great-circle angles, including across the date line.
 export function heightBrushChanges(grid, brush) {
  const {longitude,latitude,radius,strength,tool,mode,target}=brush??{};
- if(!Number.isFinite(longitude)||longitude< -180||longitude>180||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(radius)||radius<1||radius>30||!Number.isInteger(strength)||strength<1||strength>100||!['raise','lower','raiseGradient','lowerGradient','smooth','noise','line'].includes(tool)||!['preserve','free'].includes(mode)||!['land','ocean'].includes(target))throw Error('Invalid height brush');
+ if(!Number.isFinite(longitude)||longitude< -180||longitude>180||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(radius)||radius<1||radius>30||!Number.isFinite(strength)||strength<.01||strength>100||!['raise','lower','raiseGradient','lowerGradient','smooth','noise','line'].includes(tool)||!['preserve','free'].includes(mode)||!['land','ocean'].includes(target))throw Error('Invalid height brush');
  if(tool==='line'&&(!Array.isArray(brush.end)||brush.end.length!==2||!brush.end.every(Number.isFinite)||Math.abs(brush.end[0])>180||Math.abs(brush.end[1])>90))throw Error('Invalid line endpoint');
  const lon=longitude*Math.PI/180,lat=latitude*Math.PI/180;
  const center=[Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)];
@@ -16,7 +16,7 @@ export function heightBrushChanges(grid, brush) {
   const h=grid.heights[id];if(mode==='preserve'&&((target==='land')!==(h>=0)))return [];
   const angle=Math.acos(Math.max(-1,Math.min(1,Math.max(...centers.map(c=>p.reduce((s,v,i)=>s+v*c[i],0))))))*180/Math.PI;
   if(angle>radius)return [];
-  const amount=tool.endsWith('Gradient')?Math.max(1,Math.round(strength*(1-angle/radius))):strength;
+  const amount=tool.endsWith('Gradient')?Math.max(.01,Math.round(strength*(1-angle/radius)*100)/100):strength;
   let next=h;
   if(tool.startsWith('raise')||tool==='line')next=h+amount;
   else if(tool.startsWith('lower'))next=h-amount;
@@ -25,7 +25,7 @@ export function heightBrushChanges(grid, brush) {
    const average=neighbors.length?neighbors.reduce((sum,j)=>sum+grid.heights[j],0)/neighbors.length:h;
    next=h+(average-h)*strength/100;
   }else next=h+((((Math.imul(id+1,2654435761)>>>0)%201)-100)/100)*strength;
-  next=Math.max(mode==='preserve'&&h>=0?0:-100,Math.min(mode==='preserve'&&h<0?-1:100,Math.round(next)));
+  next=Math.max(mode==='preserve'&&h>=0?0:-100,Math.min(mode==='preserve'&&h<0?-.01:100,Math.round(next*100)/100));
   return next===h?[]:[{id,height:next}];
  });
 }
@@ -54,7 +54,7 @@ export function sampleHeightStroke(brush,points){
 /** All stamps form one atomic edit; Pack is rebuilt only after the complete stroke. */
 export function heightStrokeChanges(grid,brushes){
  if(!Array.isArray(brushes)||!brushes.length||brushes.length>512)throw Error('Invalid brush batch');
- const working={...grid,heights:Int8Array.from(grid.heights)};
+ const working={...grid,heights:Float32Array.from(grid.heights)};
  for(const brush of brushes)for(const change of heightBrushChanges(working,brush))working.heights[change.id]=change.height;
  return Array.from(working.heights).flatMap((height,id)=>height===grid.heights[id]?[]:[{id,height}]);
 }

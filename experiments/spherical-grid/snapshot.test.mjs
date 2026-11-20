@@ -30,7 +30,7 @@ test('reject invalid schema, altered heights, truncated arrays and invalid ocean
  const snapshot=exportGlobalTerrainSnapshot(openGlobalTerrain(grid,seed));
  const corrupt=(change)=>{const value=structuredClone(snapshot);change(value);return value};
  assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.cells=40962})));
- assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.version=2})));
+ assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.version=99})));
  assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights.pop()})),RangeError);
  assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights[0]=101})),RangeError);
  assert.throws(()=>importGlobalTerrainSnapshot(corrupt(s=>{s.heights[0]=s.heights[0]===20?19:20})),/checksum/);

@@ -1,0 +1,23 @@
+{
+  "before": {
+    "ms": 12874.071955,
+    "landCells": 11579,
+    "heightLevels": 60,
+    "equalLandEdgeRatio": 0.24160860297158857,
+    "packCells": 25036,
+    "riverCount": 733,
+    "riverVertices": 3020,
+    "meanRiverLength": 378.5758298212419
+  },
+  "after": {
+    "ms": 15541.333589,
+    "landCells": 11546,
+    "heightLevels": 2950,
+    "equalLandEdgeRatio": 0.0026756705102885902,
+    "packCells": 24812,
+    "riverCount": 1070,
+    "riverVertices": 4251,
+    "visibleWorldRivers": 244,
+    "meanRiverLength": 352.7076075943851
+  }
+}

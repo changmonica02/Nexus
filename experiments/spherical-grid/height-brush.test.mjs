@@ -6,7 +6,7 @@ const grid={points:[point(179),point(-179),point(0)],heights:Int8Array.from([2,-
 const brush={longitude:180,latitude:0,radius:5,strength:10,tool:'lower',mode:'preserve',target:'land'};
 test('preserve clamps land and ocean without changing source heights',()=>{
  assert.deepEqual(heightBrushChanges(grid,brush),[{id:0,height:0}]);
- assert.deepEqual(heightBrushChanges(grid,{...brush,target:'ocean',tool:'raise'}),[{id:1,height:-1}]);
+ assert.deepEqual(heightBrushChanges(grid,{...brush,target:'ocean',tool:'raise'}),[{id:1,height:-.01}]);
  assert.deepEqual([...grid.heights],[2,-2,40]);
 });
 test('free brush wraps the date line and crosses sea level',()=>{
@@ -15,7 +15,7 @@ test('free brush wraps the date line and crosses sea level',()=>{
 test('all brushes have bounded, repeatable results and reject invalid inputs',()=>{
  for(const tool of ['raise','lower','raiseGradient','lowerGradient','smooth','noise']){
   const b={...brush,mode:'free',tool};const a=heightBrushChanges(grid,b);
-  assert.deepEqual(a,heightBrushChanges(grid,b));assert.ok(a.every(c=>Number.isInteger(c.height)&&Math.abs(c.height)<=100));
+  assert.deepEqual(a,heightBrushChanges(grid,b));assert.ok(a.every(c=>Number.isFinite(c.height)&&Math.abs(c.height)<=100));
  }
  for(const bad of [{radius:0},{latitude:91},{strength:NaN},{mode:'unknown'}])assert.throws(()=>heightBrushChanges(grid,{...brush,...bad}));
 });
@@ -52,4 +52,9 @@ test('cursor footprint uses the physical angular radius and unwraps seam crossin
 test('preserved smoothing does not bleed ocean heights into coastal land',()=>{
  assert.deepEqual(heightBrushChanges(grid,{...brush,tool:'smooth',strength:100}),[]);
  assert.ok(heightBrushChanges(grid,{...brush,tool:'smooth',strength:100,mode:'free'}).some(c=>c.id===0&&c.height<0));
+});
+
+test('metre-scale brushes preserve shallow water without forcing a 100-metre sea floor',()=>{
+ const shallow={...grid,heights:Float32Array.from([.5,-.5,40])};
+ assert.deepEqual(heightBrushChanges(shallow,{...brush,target:'ocean',tool:'raise',strength:.1}),[{id:1,height:-.4}]);
 });

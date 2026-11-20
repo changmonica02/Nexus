@@ -67,7 +67,7 @@ function finishPackIncremental(grid,points,triangles,sourceIds,siteKeys,coastEdg
   areas[id]=area;
  }
  return {points,triangles,neighbors:nextNeighbors,areas,sourceIds,siteKeys,
-  heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,
+  heights:Float32Array.from(sourceIds,id=>grid.heights[id]),coastEdges,
   inserted,flips,skipped,journal,incident:nextIncident,centers:nextCenters,
   dualUpdateMode:'incremental',updatedDualCells:affected.size,updatedDualFaces:changed.size};
 }
@@ -89,7 +89,7 @@ function finishPack(grid,points,triangles,sourceIds,siteKeys,coastEdges,inserted
   const around=incident[i].map(t=>centers[t]).sort((u,v)=>Math.atan2(dot(u,y),dot(u,x))-Math.atan2(dot(v,y),dot(v,x)));
   for(let j=0;j<around.length;j++)areas[i]+=triangleArea(a,around[j],around[(j+1)%around.length])*RADIUS_KM**2;
  }
- return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Int8Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped,journal,incident,centers,dualUpdateMode:'full',updatedDualCells:points.length,updatedDualFaces:triangles.length};
+ return {points,triangles,neighbors:neighbors.map(x=>[...x].sort((a,b)=>a-b)),areas,sourceIds,siteKeys,heights:Float32Array.from(sourceIds,id=>grid.heights[id]),coastEdges,inserted,flips,skipped,journal,incident,centers,dualUpdateMode:'full',updatedDualCells:points.length,updatedDualFaces:triangles.length};
 }
 export function createSphericalPack(grid,ocean,{maxInsertions=Infinity,startingPack=null,areaReference=null}={}){
  // A previous Pack is reusable only if its coastal insertion sequence is an

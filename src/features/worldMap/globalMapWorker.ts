@@ -72,7 +72,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   let natural;
   if(project.packSettings&&climate){
    report({stage:'hydrology',fraction:.90});
-   const pack=generateSphericalPack(environment.grid,project.packSettings);
+   const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean)});
    if(!project.naturalGeography&&(action==='generate'||action==='initializeNatural'))project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language) as GlobalMapProject['naturalGeography'];
    if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
    if(project.naturalGeography){const hydro=deriveHydrology(pack,climate,project.naturalGeography);report({stage:'ecosystems',fraction:.95});natural=projectNaturalGeography(pack,project.naturalGeography,hydro,derivePackEcosystems(pack,hydro));}

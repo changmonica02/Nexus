@@ -1,3 +1,4 @@
+import {createCoastSurface} from '../../src/features/worldMap/core/coastSurface.mjs';
 // Azgaar's retained sites / coastal splits / Grid mapping, adapted to a sphere.
 // Stereographic Delaunay + the omitted pole closes the convex hull on S².
 import Delaunator from 'delaunator';
@@ -25,7 +26,7 @@ export function sphericalMesh(points){
  }
  return {triangles,neighbors:neighbors.map(s=>[...s].sort((a,b)=>a-b)),rings,areas};
 }
-export function generateSphericalPack(grid,{detail=1}={}){
+export function generateSphericalPack(grid,{detail=1,oceanMask=Uint8Array.from(grid.heights,h=>h<0?1:0)}={}){
  if(![1,2].includes(detail))throw RangeError('Pack detail must be 1 or 2');
  const coast=grid.heights.map((h,i)=>grid.neighbors[i].some(j=>(grid.heights[j]<0)!==(h<0))?1:0);
  const points=[],gridRefs=[],sources=[],heights=[],keys=[];
@@ -40,7 +41,7 @@ export function generateSphericalPack(grid,{detail=1}={}){
  // Sparse deep-sea Voronoi polygons must not inflate catchment / rainfall area.
  const counts=new Uint16Array(grid.points.length);for(const source of sources)for(const g of source)counts[g]++;
  const catchmentAreas=Float64Array.from(sources,source=>source.reduce((s,g)=>s+grid.areas[g]/counts[g],0));
- const pack={version:1,detail,points,...mesh,gridRefs:Uint32Array.from(gridRefs),sources,keys,heights:Float64Array.from(heights),catchmentAreas};
+ const pack={version:1,detail,coastSurface:createCoastSurface(grid,oceanMask),points,...mesh,gridRefs:Uint32Array.from(gridRefs),sources,keys,heights:Float64Array.from(heights),catchmentAreas};
  const build=ids=>{if(!ids.length)return null;const depth=Math.ceil(Math.log2(ids.length)),axis=depth%3;ids.sort((a,b)=>points[a][axis]-points[b][axis]||a-b);const m=ids.length>>1;return {i:ids[m],axis,left:build(ids.slice(0,m)),right:build(ids.slice(m+1))};};
  const tree=build(points.map((_,i)=>i));
  pack.findCell=position=>{

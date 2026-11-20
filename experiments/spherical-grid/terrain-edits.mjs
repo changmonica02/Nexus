@@ -1,3 +1,4 @@
+import {quantizeHeight} from '../../src/features/worldMap/core/terrainField.mjs';
 // Isolated edit coordinator. No persistence, Supabase or Azgaar runtime side effects.
 import {setHeight} from './grid.mjs';
 import {deriveSphericalGeography} from './geography.mjs';
@@ -17,10 +18,10 @@ export function applyGlobalHeightEdits(state,changes) {
  for(const change of changes){
   if(!change || !Number.isInteger(change.id) || change.id<0 || change.id>=grid.heights.length)
    throw RangeError('Invalid Grid cell ID');
-  if(!Number.isInteger(change.height) || change.height<HEIGHT_MIN || change.height>HEIGHT_MAX)
-   throw RangeError('Height must be an integer within [-100,100]');
+  if(!Number.isFinite(change.height) || change.height<HEIGHT_MIN || change.height>HEIGHT_MAX)
+   throw RangeError('Height must be finite within [-100,100]');
   if(updates.has(change.id))throw Error('Repeated Grid cell ID in a batch');
-  updates.set(change.id,change.height);
+  updates.set(change.id,Math.fround(quantizeHeight(change.height)));
  }
  const edited=[...updates].filter(([id,h])=>grid.heights[id]!==h);
  if(!edited.length)return {changed:0,mode:'unchanged',revision:state.revision};

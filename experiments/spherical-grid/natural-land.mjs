@@ -161,7 +161,7 @@ export function createNaturalLand({seed,landPercent=32,continentCores=8}={}){
  if(boundary< -5)throw Error('Global template scale did not provide sufficient land');
  const selected=new Uint8Array(points.length),rawRelief=new Float32Array(points.length);
  for(let k=0;k<count;k++)selected[rank[k].i]=1;
- for(let i=0;i<points.length;i++){rawRelief[i]=Math.max(.05,scores[i]-boundary);grid.heights[i]=selected[i]?clamp(Math.round(rawRelief[i]),1,99):-20;}
+ for(let i=0;i<points.length;i++){rawRelief[i]=Math.max(.05,scores[i]-boundary);grid.heights[i]=selected[i]?clamp(Math.round(rawRelief[i]*100)/100,.01,99):-20;}
  return {grid,oceanSeed:largestOceanSeed(grid),rawRelief,
   templatePlacements:patches.map(({item,map})=>({...item,seed:map.seed,radius:item.radius*(item.type==='continent'?fitted.scale:1),
    nativeWidth:map.width,nativeHeight:map.height,blobPower:map.blobPower,linePower:map.linePower})),
