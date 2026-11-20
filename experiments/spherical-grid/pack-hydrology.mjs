@@ -143,21 +143,67 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
  const annualFlow=Float64Array.from(pack.points,(_,i)=>h.flows.reduce((s,q,m)=>s+q[i]*MONTH_DAYS[m],0)/365);
  let totalLandArea=0,landCount=0;
  for(let i=0;i<n;i++)if(pack.heights[i]>=0){totalLandArea+=pack.catchmentAreas[i];landCount++;}
- // Discharge starts streams in both valleys and flat plains. The area floor
- // keeps channels below the resolution of the Pack from being drawn.
+ // Locate convergent terrain before seeding channels. Low-relief plains
+ // and large catchments still carry rivers without a locally incised valley.
+ const valleySupport=Uint8Array.from(pack.heights,(height,i)=>{
+  if(height<0)return 0;
+  let sum=0,count=0,low=height,high=height;
+  for(const j of pack.neighbors[i])if(pack.heights[j]>=0){
+   const h=pack.heights[j];sum+=h;count++;low=Math.min(low,h);high=Math.max(high,h);
+  }
+  const relief=high-low;
+  return count&&(relief<80||sum/count-height>=Math.max(5,relief*.06))?1:0;
+ });
+ // Allow headwaters slightly uphill from a supported valley.
+ const valleyDistance=new Uint8Array(n).fill(255);
+ for(let k=h.order.length-1;k>=0;k--){
+  const i=h.order[k],j=h.receiver[i];
+  if(valleySupport[i])valleyDistance[i]=0;
+  else if(j>=0&&valleyDistance[j]<2)valleyDistance[i]=valleyDistance[j]+1;
+ }
  let minimumArea=Math.max(12000,totalLandArea/Math.max(1,landCount)*3);
  for(let pass=0;pass<10;pass++){
   channel.fill(0);indegree.fill(0);
-  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5)channel[i]=1;
+  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5&&(valleyDistance[i]<=2||h.accumulatedArea[i]>=minimumArea*2.5))channel[i]=1;
   // Keep selected channels connected all the way to their lake or ocean.
   for(const i of h.order){const j=h.receiver[i];if(channel[i]&&j>=0&&pack.heights[j]>=0&&h.lakeAt[j]<0)channel[j]=1;}
   for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j])indegree[j]++;}
   if(channel.reduce((s,x,i)=>s+(x&&indegree[i]===0?1:0),0)<=1800)break;
   minimumArea*=1.5;
  }
+ // Suppress weak branches that track a stronger channel side by side.
+ // Score whole branches so pruning cannot leave a broken reach downstream.
+ const incomingChannels=()=>{indegree.fill(0);for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j])indegree[j]++;}};
+ incomingChannels();
+ const branchIds=new Int32Array(n).fill(-1),branches=[];
+ for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){
+  const branch=[];let cell=i;
+  while(cell>=0&&channel[cell]&&(cell===i||indegree[cell]===1)){
+   branchIds[cell]=branches.length;branch.push(cell);cell=h.receiver[cell];
+  }
+  branches.push(branch);
+ }
+ const flowDirection=pack.points.map((p,i)=>{
+  const j=h.receiver[i];
+  if(!channel[i]||j<0)return null;
+  const d=pack.points[j].map((v,k)=>v-p[k]),length=Math.hypot(...d)||1;
+  return d.map(v=>v/length);
+ });
+ const redundant=branches.filter((branch,id)=>{
+  const end=branch.at(-1);
+  if(branch.length<3||h.accumulatedArea[end]>=minimumArea*4)return false;
+  let parallel=0;
+  for(const i of branch){
+   const direction=flowDirection[i];
+   if(direction&&pack.neighbors[i].some(j=>channel[j]&&branchIds[j]!==id&&j!==h.receiver[i]&&
+    h.receiver[j]!==i&&annualFlow[j]>annualFlow[i]*2&&flowDirection[j]&&dot(direction,flowDirection[j])>.75))parallel++;
+  }
+  return parallel>branch.length*.66;
+ });
+ for(const branch of redundant)for(const cell of branch)channel[cell]=0;
  // Remove unresolved short tributaries and small one-reach coastal stubs.
  for(let pass=0;pass<3;pass++){
-  indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;
+  incomingChannels();
   let removed=0;
   for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){
    const branch=[];let current=i,distance=0;
@@ -177,7 +223,7 @@ export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
   }
   if(!removed)break;
  }
- indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;
+ incomingChannels();
  const cellToRiver=new Map(),ends=[],dominant=new Int32Array(n);dominant.fill(-1);
  const annual=i=>annualFlow[i];
  for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j]&&(dominant[j]<0||annual(i)>annual(dominant[j])))dominant[j]=i;}

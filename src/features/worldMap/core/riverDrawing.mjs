@@ -2,6 +2,9 @@
 // the monthly wet/dry state changes so dashes and riverbanks remain continuous.
 export function buildRiverStrokes(river,month){
  const reaches=[];
+ // Taper headwaters and compress the flow scale in short coastal basins.
+ const scale=river.parentId?0.8:1;
+ const maxWidth=(river.lengthKm??600)<300?1.05:1.9;
  let reach,last,peak=0,distance=0;
  for(const [index,[start,end]] of river.lines.entries()){
   const flow=river.segmentFlows?.[month]?.[index]??river.monthly[month]??0;
@@ -12,7 +15,7 @@ export function buildRiverStrokes(river,month){
   if(length<1e-9)continue;
   if(dry)peak=0;
   else peak=Math.max(peak,flow);
-  const widthAt=d=>Math.min(3.2,.36+Math.min(.32,d*.013)+.045*peak**.48);
+  const widthAt=d=>Math.min(maxWidth,(.19+Math.log1p(peak/8)*.22)*(1-.58*Math.exp(-d/.7))*scale);
   if(!reach||reach.dry!==dry){
    reach={points:[a],widths:[widthAt(distance)],dry};
    reaches.push(reach);
@@ -31,4 +34,12 @@ export function buildRiverStrokes(river,month){
  return reaches.flatMap(reach=>[-360,0,360].map(shift=>({
   ...reach,points:reach.points.map(([x,y])=>[x+shift,y]),
  })));
+}
+
+export function riverLabelStyle(river){
+ const {lengthKm,catchmentAreaKm2,streamOrder=1}=river;
+ if(!river.parentId&&(lengthKm>=1000||catchmentAreaKm2>=300000||streamOrder>=4))return {minZoom:1,pixels:14,weight:600};
+ if(lengthKm>=600||catchmentAreaKm2>=150000||streamOrder>=3)return {minZoom:1.8,pixels:12,weight:500};
+ if(lengthKm>=250||streamOrder>=2)return {minZoom:3.5,pixels:11,weight:400};
+ return {minZoom:6,pixels:10,weight:400};
 }

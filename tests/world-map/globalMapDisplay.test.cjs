@@ -50,3 +50,21 @@ test('rivers widen after a confluence and retain continuous seasonal reaches acr
  assert.equal(dry.dry,true);
  assert.deepEqual(dry.points,[[181,1],[182,1],[183,1]]);
 });
+
+test('short high-flow rivers remain visually narrower than long rivers',()=>{
+ const river={lines:[[[0,0],[1,0]],[[1,0],[2,0]]],monthly:[10000]};
+ const short=buildRiverStrokes({...river,lengthKm:220},0)[0].widths;
+ const main=buildRiverStrokes({...river,lengthKm:1600},0)[0].widths;
+ assert.ok(short[0]<short.at(-1));
+ assert.ok(short.at(-1)<=1.05&&main.at(-1)>short.at(-1));
+});
+
+test('river labels reveal smaller names later and use a smaller font',()=>{
+ const {riverLabelStyle}=require('../../src/features/worldMap/core/riverDrawing.mjs');
+ const main=riverLabelStyle({lengthKm:1600,catchmentAreaKm2:250000});
+ const regional=riverLabelStyle({lengthKm:700,catchmentAreaKm2:110000});
+ const tributary=riverLabelStyle({lengthKm:320,parentId:'main'});
+ const creek=riverLabelStyle({lengthKm:100,parentId:'main'});
+ assert.deepEqual([main,regional,tributary,creek].map(s=>s.minZoom),[1,1.8,3.5,6]);
+ assert.deepEqual([main,regional,tributary,creek].map(s=>s.pixels),[14,12,11,10]);
+});
