@@ -14,7 +14,7 @@ export function exportGlobalTerrainSnapshot(state){
   heights,checksum:checksumHeights(heights)
  };
 }
-export function importGlobalTerrainSnapshot(snapshot){
+export function importGlobalTerrainSnapshot(snapshot,options){
  if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot)||
    snapshot.format!=='nexus-spherical-grid-prototype'||
    snapshot.version!==GRID_FORMAT_VERSION||
@@ -35,7 +35,7 @@ export function importGlobalTerrainSnapshot(snapshot){
   throw RangeError('Invalid revision');
  const grid=createGlobalGrid();
  grid.heights.set(snapshot.heights);
- const state=openGlobalTerrain(grid,snapshot.oceanSeed);
+ const state=openGlobalTerrain(grid,snapshot.oceanSeed,options);
  state.revision=snapshot.revision;
  return state;
 }

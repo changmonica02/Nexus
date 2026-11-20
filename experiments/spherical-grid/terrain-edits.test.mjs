@@ -62,3 +62,23 @@ test('invalid batches are atomic and seed must remain submerged',()=>{
  assert.equal(state.geography,before);
  assert.equal(state.revision,0);
 });
+
+test('editor ocean-mask state has the same shoreline transitions without constructing a Pack',()=>{
+ const grid=createGlobalGrid();
+ grid.points.forEach(([x],i)=>setHeight(grid,i,x<0?-20:20));
+ const seed=grid.heights.findIndex(h=>h<0);
+ const full=openGlobalTerrain({...grid,heights:grid.heights.slice()},seed);
+ const editor=openGlobalTerrain(grid,seed,{oceanMaskOnly:true});
+ const original=editor.geography.ocean;
+ assert.deepEqual(original,full.geography.ocean);
+ const shore=grid.neighbors.findIndex((ns,i)=>grid.heights[i]>0&&ns.some(j=>original[j]));
+ applyGlobalHeightEdits(editor,[{id:shore,height:10}]);
+ assert.equal(editor.geography.ocean,original);
+ const result=applyGlobalHeightEdits(editor,[{id:shore,height:-10}]);
+ applyGlobalHeightEdits(full,[{id:shore,height:-10}]);
+ assert.equal(result.mode,'ocean-mask-rebuild');
+ assert.equal(editor.fullPackRebuilds,0);
+ assert.equal(editor.geography.ocean[shore],1);
+ assert.deepEqual(editor.geography.ocean,full.geography.ocean);
+ assert.deepEqual(editor.grid.heights,full.grid.heights);
+});

@@ -1,13 +1,18 @@
 import {quantizeHeight} from '../../src/features/worldMap/core/terrainField.mjs';
 // Isolated edit coordinator. No persistence, Supabase or Azgaar runtime side effects.
 import {setHeight} from './grid.mjs';
+import {oceanConnected} from './pack.mjs';
 import {deriveSphericalGeography} from './geography.mjs';
 import {assertGlobalGrid,HEIGHT_MIN,HEIGHT_MAX} from './global-config.mjs';
 
-export function openGlobalTerrain(grid, oceanSeed) {
+// The editor's rendering and hydrology already build their own meshes.
+// Consumers of this lightweight state only need the canonical ocean mask.
+const deriveOceanMask=(grid,oceanSeed)=>({ocean:oceanConnected(grid,oceanSeed)});
+export function openGlobalTerrain(grid, oceanSeed, {oceanMaskOnly=false}={}) {
  assertGlobalGrid(grid);
- return {grid,oceanSeed,geography:deriveSphericalGeography(grid,oceanSeed),
-  revision:0,fullPackRebuilds:1,heightOnlySyncs:0};
+ const deriveGeography=oceanMaskOnly?deriveOceanMask:deriveSphericalGeography;
+ return {grid,oceanSeed,geography:deriveGeography(grid,oceanSeed),
+  revision:0,fullPackRebuilds:oceanMaskOnly?0:1,heightOnlySyncs:0};
 }
 export function applyGlobalHeightEdits(state,changes) {
  const {grid}=state;
@@ -34,13 +39,13 @@ export function applyGlobalHeightEdits(state,changes) {
  try{
   for(const [id,height] of edited)setHeight(grid,id,height);
   if(changesCoast){
-   const next=deriveSphericalGeography(grid,state.oceanSeed);
+   const next=(state.geography.pack?deriveSphericalGeography:deriveOceanMask)(grid,state.oceanSeed);
    state.geography=next;
-   state.fullPackRebuilds++;
+   if(next.pack)state.fullPackRebuilds++;
   }else{
    const {pack}=state.geography;
    // Pack source IDs remain stable for purely vertical edits.
-   for(let i=0;i<pack.sourceIds.length;i++)if(updates.has(pack.sourceIds[i]))
+   for(let i=0;pack&&i<pack.sourceIds.length;i++)if(updates.has(pack.sourceIds[i]))
     pack.heights[i]=grid.heights[pack.sourceIds[i]];
    state.heightOnlySyncs++;
   }
@@ -49,5 +54,5 @@ export function applyGlobalHeightEdits(state,changes) {
   throw error;
  }
  state.revision++;
- return {changed:edited.length,mode:changesCoast?'full-pack-rebuild':'height-only',revision:state.revision};
+ return {changed:edited.length,mode:changesCoast?(state.geography.pack?'full-pack-rebuild':'ocean-mask-rebuild'):'height-only',revision:state.revision};
 }

@@ -51,7 +51,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   if(action==='generate'||action==='initializeNatural')project={...project,climateVersion:2,packSettings:project.packSettings??{version:1,detail:1}};
   if(action==='rebuildPack'){if(!project.packSettings)throw Error('Pack is not initialized');project.packSettings={version:1,detail:project.packSettings.detail===1?2:1};}
   validateGlobalMapProject(project);
-  const state=importGlobalTerrainSnapshot(project.terrain);
+  const state=importGlobalTerrainSnapshot(project.terrain,{oceanMaskOnly:true});
   if(action==='editHeight'){
    const brushGrid={...state.grid,oceanMask:state.geography.ocean};
    const changes:{id:number;height:number}[]=event.data.stroke?heightStrokeChanges(brushGrid,sampleHeightStroke(event.data.stroke.brush,event.data.stroke.points)):heightBrushChanges(brushGrid,event.data.brush);
@@ -67,7 +67,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   }
 
   if(action==='recalculateNature')delete project.environmentTerrain;
-  const environment=project.environmentTerrain?importGlobalTerrainSnapshot(project.environmentTerrain):state;
+  const environment=project.environmentTerrain?importGlobalTerrainSnapshot(project.environmentTerrain,{oceanMaskOnly:true}):state;
   // Stable across ocean-only height edits, exports and reloads. Never
   // recalculate / overwrite saved terrain when opening an existing map.
   const tectonics=analyzePlanetGeology(state.grid,project.islandGenesis);
@@ -97,7 +97,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   }
   validateGlobalMapProject(project);
   report({stage:'drawing',fraction:.98});
-  const drawing=createGlobalMapDrawing(state.grid,state.geography.ocean,state.geography.gridCoastline,tectonics,climate,packedCoast(state.grid,state.geography.ocean,project.settings.seed));
+  const drawing=createGlobalMapDrawing(state.grid,state.geography.ocean,[],tectonics,climate,packedCoast(state.grid,state.geography.ocean,project.settings.seed));
   drawing.natural=natural;
   drawing.plateBoundaries=tectonics.drawing;
   drawing.plateCount=tectonics.plateCount;
