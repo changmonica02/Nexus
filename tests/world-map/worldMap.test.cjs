@@ -587,3 +587,22 @@ test('global validation rejects unsupported compressed bytes before mutation whi
  const nativeCompressed=new Blob([gzipSync(Buffer.from(await project().text()))]);
  assert.equal((await inspectMapProject(nativeCompressed)).engine,'azgaar');
 });
+
+test('confirmed world creation commits its main map and binary together without an empty world',async()=>{
+ const {state,repo}=fixture(),pages=state.pages.size,batches=state.outbox.length;
+ const created=await repo.createWorldWithMap('  新星球  ',project('new-world'));
+ assert.equal(state.pages.size,pages+1);assert.equal(state.outbox.length,batches+1);
+ assert.equal(created.world.title,'新星球');assert.equal(created.world.revision,1);
+ assert.equal(created.world.creative_type,'world');assert.equal(created.map.scope,'surface');
+ assert.equal(created.world.character_data.world_maps[0].id,created.map.id);
+ assert.ok(state.binaries.has(created.map.attachment_id));
+ assert.deepEqual(state.outbox.at(-1).map(c=>[c.type,c.kind]),[['attachments','save'],['attachments','binary'],['pages','save']]);
+});
+test('failed or malformed confirmed world creation leaves no world, map or attachment behind',async()=>{
+ const {state,repo}=fixture(),pages=state.pages.size;
+ state.fail=true;await assert.rejects(repo.createWorldWithMap('失敗',project()));
+ assert.equal(state.pages.size,pages);assert.equal(state.attachments.size,0);assert.equal(state.binaries.size,0);assert.equal(state.outbox.length,0);
+ state.fail=false;await assert.rejects(repo.createWorldWithMap('錯誤檔案',new Blob(['bad'])));
+ await assert.rejects(repo.createWorldWithMap(' ',project()));
+ assert.equal(state.pages.size,pages);assert.equal(state.outbox.length,0);
+});

@@ -10,6 +10,10 @@ import {globalMapText} from '../features/worldMap/globalMapMessages';
 import {downloadMapBlob} from '../features/worldMap/coreClient';
 import {useLanguage} from '../lib/LanguageContext';
 import GlobalMapCanvas from './GlobalMapCanvas';
+import GlobalMapDisplayPanel from './GlobalMapDisplayPanel';
+import GlobalMapHeightTools from './GlobalMapHeightTools';
+import {newMapDisplay} from '../features/worldMap/globalMapDisplay';
+import type {GlobalMapProject} from '../features/worldMap/globalMapProject';
 import GlobalNaturalFeatures from './GlobalNaturalFeatures';
 import type {NaturalFeaturePatch} from '../features/worldMap/globalMapProject';
 import GlobalMapParameters,{newGlobalMapSettings} from './GlobalMapParameters';
@@ -26,6 +30,8 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const [working,setWorking]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(false),[dirty,setDirty]=useState(Boolean(draftToken));
  const [conflict,setConflict]=useState(draftConflict),[fullView,setFullView]=useState(false);
  const [brush,setBrush]=useState<Omit<HeightBrush,'longitude'|'latitude'>>({radius:5,strength:10,tool:'raise',mode:'preserve',target:'land'}),[painting,setPainting]=useState(false);
+ const [display,setDisplay]=useState(newMapDisplay),[panel,setPanel]=useState<'tools'|'display'|null>(null),[tool,setTool]=useState<'height'|'coast'|'rivers'>('height');
+ const [undoStack,setUndoStack]=useState<GlobalMapProject[]>([]),[redoStack,setRedoStack]=useState<GlobalMapProject[]>([]);
  const [lineStart,setLineStart]=useState<[number,number]>();
  const [discardPrompt,setDiscardPrompt]=useState(false);
  const client=useRef<GlobalMapClient|null>(null),alive=useRef(true),current=useRef<GlobalMapResult|undefined>(undefined);
@@ -70,22 +76,32 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  };
  const apply=async()=>{
   if(!candidate||working||saving||conflict||JSON.stringify(candidate.project.settings)!==JSON.stringify(settings))return;
-  current.current=candidate;setModel(candidate);setCandidate(undefined);setReplacing(false);unsaved.current=true;setDirty(true);
+  setUndoStack([]);setRedoStack([]);current.current=candidate;setModel(candidate);setCandidate(undefined);setReplacing(false);unsaved.current=true;setDirty(true);
   await saveRef.current();
  };
  const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural'|'recalculateNature',patch?:NaturalFeaturePatch)=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)throw Error('Map is busy');
   generating.current=true;setWorking(true);setError(false);
-  try{const value=await client.current.request(action,current.current.project,{patch,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  try{const value=await client.current.request(action,current.current.project,{patch,language});setUndoStack([]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch(e){setError(true);throw e;}finally{generating.current=false;setWorking(false);}
  };
- const paint=async(longitude:number,latitude:number)=>{
+ const paint=async(longitude:number,latitude:number,points?:[number,number][])=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)return;
   if(brush.tool==='line'&&!lineStart){setLineStart([longitude,latitude]);return;}
   const stroke=brush.tool==='line'?{...brush,longitude:lineStart![0],latitude:lineStart![1],end:[longitude,latitude] as [number,number]}:{...brush,longitude,latitude};
   setLineStart(undefined);generating.current=true;setWorking(true);setError(false);
-  try{const value=await client.current.request('editHeight',current.current.project,{brush:stroke,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  try{const previous=current.current.project,value=await client.current.request('editHeight',previous,{...(points?{stroke:{brush,points}}:{brush:stroke}),language});setUndoStack(stack=>[...stack.slice(-11),previous]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch{setError(true);}finally{generating.current=false;setWorking(false);}
+ };
+ const restoreHeight=async(direction:'undo'|'redo')=>{
+  const stack=direction==='undo'?undoStack:redoStack,target=stack.at(-1);
+  if(!target||generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)return;
+  generating.current=true;setWorking(true);setError(false);setLineStart(undefined);
+  try{const previous=current.current.project,value=await client.current.request('load',target,{language});
+   if(direction==='undo'){setUndoStack(stack=>stack.slice(0,-1));setRedoStack(stack=>[...stack,previous]);}
+   else{setRedoStack(stack=>stack.slice(0,-1));setUndoStack(stack=>[...stack,previous]);}
+   current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();
+  }catch{setError(true);}finally{generating.current=false;setWorking(false);}
  };
  const close=async()=>{if(replacing){setDiscardPrompt(true);return;}try{await saveRef.current();onClose();}catch{/* Keep the working map and recovery export visible. */}};
  const matches=candidate&&JSON.stringify(candidate.project.settings)===JSON.stringify(settings);
@@ -96,12 +112,15 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   document.body.style.overflow='hidden';surface.current?.querySelector<HTMLButtonElement>('button')?.focus();
   return()=>{document.body.style.overflow=overflow;if(previous?.isConnected)previous.focus();};
  },[editing,fullView]);
- return <div ref={surface} onKeyDown={e=>{if((e.target as Element).closest('dialog'))return;if(e.key==='Escape'&&!busy){e.preventDefault();if(editing)void close();else setFullView(false);}if(e.key==='Tab'&&(editing||fullView)){const items=[...(surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')??[])].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={text('title')} className={editing||fullView?'fixed inset-0 z-50 flex h-dvh min-w-0 flex-col bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
+ return <div ref={surface} onKeyDown={e=>{if((e.target as Element).closest('dialog'))return;if(e.key==='Escape'&&!busy){e.preventDefault();if(painting){setPainting(false);setLineStart(undefined);}else if(panel){setPanel(null);}else if(editing)void close();else setFullView(false);}if(editing&&!busy&&(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!(e.target as Element).closest('input,textarea,select,[contenteditable]')){e.preventDefault();void restoreHeight(e.shiftKey?'redo':'undo');}if(e.key==='Tab'&&(editing||fullView)){const items=[...(surface.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]')??[])].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} role={editing||fullView?'dialog':undefined} aria-modal={editing||fullView?true:undefined} aria-label={text('title')} className={editing||fullView?'fixed inset-0 z-50 flex h-dvh min-w-0 flex-col bg-[var(--color-bg)] text-[var(--color-text)]':'relative flex min-w-0 flex-col'}>
   <header className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3 [&_button:disabled]:opacity-40">
    {editing?<button disabled={busy} onClick={()=>void close()}>{text('close')}</button>:fullView&&<button onClick={()=>setFullView(false)}>{text('cancel')}</button>}
    <strong className="mr-auto min-w-0 flex-1 truncate">{map.title}</strong>
-   {editing&&<><button disabled={busy||!model||!!conflict||replacing||dirty} onClick={()=>{setSettings(current.current!.project.settings);setReplacing(true);setCandidate(undefined);}}>{text('replace')}</button><button disabled={busy||!model||!!conflict||replacing||!dirty} onClick={()=>void saveRef.current().catch(()=>{})}>{text('save')}</button></>}
-   {model&&<button disabled={busy} onClick={()=>downloadMapBlob(globalMapBlob(current.current!.project),map.title,'nexus-map.json')}>{text('export')}</button>}
+   {(editing||fullView)&&model&&<details className="relative"><summary className="flex min-h-11 cursor-pointer items-center rounded-lg border px-3">{language==='zh-TW'?'時間':'Time'} · {display.month+1}{language==='zh-TW'?' 月':''}</summary><div className="absolute right-0 top-full z-40 w-48 rounded-lg border bg-[var(--color-bg)] p-3 shadow-lg"><label>{language==='zh-TW'?'月份':'Month'}<select aria-label={language==='zh-TW'?'月份':'Month'} className="min-h-11 w-full bg-transparent" value={display.month} onChange={e=>setDisplay({...display,month:Number(e.target.value)})}>{Array.from({length:12},(_,i)=><option key={i} value={i}>{i+1}{language==='zh-TW'?' 月':''}</option>)}</select></label><p className="text-xs opacity-70">{language==='zh-TW'?'切換月均氣候與河流流量；不推進歷史。':'Monthly climate and discharge; no historical simulation.'}</p></div></details>}
+   {model&&<details className="relative"><summary aria-label={language==='zh-TW'?'更多操作':'More actions'} className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-lg border">⋯</summary><div className="absolute right-0 top-full z-40 grid w-56 gap-2 rounded-xl border bg-[var(--color-bg)] p-2 shadow-lg">
+    {editing&&<><button disabled={busy||!!conflict||replacing||dirty} onClick={()=>{setPainting(false);setPanel(null);setSettings(current.current!.project.settings);setReplacing(true);setCandidate(undefined);}}>{text('replace')}</button><button disabled={busy||!!conflict||replacing||!dirty} onClick={()=>void saveRef.current().catch(()=>{})}>{text('save')}</button><button disabled={busy||!!conflict||replacing||!model.project.environmentTerrain} onClick={()=>void naturalAction('recalculateNature').catch(()=>{})}>{language==='zh-TW'?'重新計算自然環境':'Recalculate natural environment'}</button></>}
+    <button disabled={busy} onClick={()=>downloadMapBlob(globalMapBlob(current.current!.project),map.title,'nexus-map.json')}>{text('export')}</button>
+   </div></details>}
    {!editing&&onEdit&&<button disabled={busy||!model} onClick={onEdit}>{text('edit')}</button>}
    {!editing&&!fullView&&<button onClick={()=>setFullView(true)}>{text('readonly')}</button>}
   </header>
@@ -112,24 +131,29 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
    <div className="mt-2 flex flex-wrap gap-2 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3 [&_button:disabled]:opacity-40"><button disabled={busy} onClick={()=>void generate()}>{text('generate')}</button><button disabled={busy||!matches||!!conflict} onClick={()=>void apply().catch(()=>{})}>{text('apply')}</button><button disabled={busy} onClick={()=>{setReplacing(false);setCandidate(undefined);setError(false);}}>{text('discard')}</button></div>
    {!busy&&candidate&&!matches&&<p>{text('controlsChanged')}</p>}
   </section>}
-  {editing&&model&&!replacing&&<section className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm">
-   <button className="min-h-11 rounded border px-3" disabled={busy||!!conflict} aria-pressed={painting} onClick={()=>{setPainting(!painting);setLineStart(undefined);}}>{language==='zh-TW'?(painting?'完成高度編輯':'高度工具'):'Height tools'}</button>
-   <button className="min-h-11 rounded border px-3" disabled={busy||!!conflict||!model.project.environmentTerrain} onClick={()=>void naturalAction('recalculateNature').catch(()=>{})}>重新計算自然環境</button>
-   {model.project.environmentTerrain&&<span role="status">地形已修改；氣候、河流流量與生態仍顯示上次計算結果。</span>}
-   {painting&&<>
-    <select aria-label="高度模式" value={brush.mode} onChange={e=>setBrush({...brush,mode:e.target.value as HeightBrush['mode']})}><option value="preserve">保留海岸</option><option value="free">自由</option></select>
-    <select aria-label="編輯範圍" disabled={brush.mode==='free'} value={brush.target} onChange={e=>setBrush({...brush,target:e.target.value as HeightBrush['target']})}><option value="land">編輯陸地</option><option value="ocean">編輯海洋</option></select>
-    <select aria-label="高度筆刷" value={brush.tool} onChange={e=>{setBrush({...brush,tool:e.target.value as HeightBrush['tool']});setLineStart(undefined);}}>{[['raise','強制抬升'],['raiseGradient','漸層抬升'],['lower','強制降低'],['lowerGradient','漸層降低'],['smooth','平滑筆刷'],['noise','擾動筆刷'],['line','直線筆刷']].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
-    <label>半徑（°）<input className="w-16 border" type="number" min={1} max={30} value={brush.radius} onChange={e=>setBrush({...brush,radius:Number(e.target.value)})}/></label>
-    <label>強度（100 m）<input className="w-16 border" type="number" min={1} max={100} value={brush.strength} onChange={e=>setBrush({...brush,strength:Number(e.target.value)})}/></label>
-    <span>{brush.tool==='line'?(lineStart?'點選終點以抬升直線範圍。':'點選直線起點。'):'點選地圖套用筆刷；每次操作自動儲存。'}</span>
+  {model?.project.environmentTerrain&&<p role="status" className="shrink-0 border-b px-3 py-1 text-xs text-amber-700 dark:text-amber-300">{language==='zh-TW'?'地形已修改；氣候、水文與生態仍為上次計算結果。請由更多操作重新計算自然環境。':'Terrain changed; climate, water and ecosystems use the last calculation. Recalculate from More actions.'}</p>}
+  <div className={editing||fullView?'relative flex min-h-0 flex-1':'relative flex h-[clamp(16rem,40dvh,28rem)]'}>
+   {(editing||fullView)&&model&&!replacing&&<>
+    <nav aria-label={language==='zh-TW'?'地圖選單':'Map menu'} className="z-30 flex w-14 shrink-0 flex-col gap-2 border-r bg-[var(--color-bg)] p-1 text-xs">
+     {editing&&<button className="min-h-14 rounded-lg border" aria-expanded={panel==='tools'} aria-controls="global-map-side-panel" onClick={()=>{if(panel==='tools')setPanel(null);else{setPanel('tools');setPainting(false);setLineStart(undefined);}}}>{language==='zh-TW'?'工具':'Tools'}</button>}
+     <button className="min-h-14 rounded-lg border" aria-expanded={panel==='display'} aria-controls="global-map-side-panel" onClick={()=>{setPanel(panel==='display'?null:'display');setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?'顯示':'Display'}</button>
+    </nav>
+    {panel&&<aside id="global-map-side-panel" aria-label={language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')} className="absolute bottom-0 left-14 top-0 z-20 flex w-[min(20rem,calc(100%-3.5rem))] flex-col border-r bg-[var(--color-bg)] shadow-xl sm:static sm:w-72 sm:shrink-0 sm:shadow-none">
+     <header className="flex shrink-0 items-center justify-between border-b px-3"><h2 className="font-semibold">{language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')}</h2><button aria-label={language==='zh-TW'?'關閉面板':'Close panel'} className="min-h-11 min-w-11" onClick={()=>setPanel(null)}>×</button></header>
+     <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      {panel==='display'?<GlobalMapDisplayPanel drawing={model.drawing} value={display} onChange={setDisplay} zh={language==='zh-TW'}/>:<>
+       <div className="mb-4 grid grid-cols-3 gap-1 [&_button]:min-h-11 [&_button]:rounded [&_button]:border">{(['height','coast','rivers'] as const).map(key=><button key={key} aria-pressed={tool===key} onClick={()=>{setTool(key);setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?({height:'高度',coast:'海岸線',rivers:'河流'}[key]):({height:'Height',coast:'Coast',rivers:'Rivers'}[key])}</button>)}</div>
+       {tool==='height'?<GlobalMapHeightTools brush={brush} onChange={value=>{setBrush(value);setLineStart(undefined);}} painting={painting} onPainting={()=>{setPainting(!painting);setLineStart(undefined);if(!painting&&window.innerWidth<640){setPanel(null);surface.current?.querySelector('canvas')?.focus();}}} disabled={busy||!!conflict} lineStarted={!!lineStart} onApply={(lon,lat)=>void paint(lon,lat)} onUndo={()=>void restoreHeight('undo')} onRedo={()=>void restoreHeight('redo')} canUndo={!!undoStack.length} canRedo={!!redoStack.length} zh={language==='zh-TW'}/>:tool==='coast'?<section className="space-y-3"><h3 className="font-semibold">{language==='zh-TW'?'海岸線':'Coastline'}</h3><p className="text-sm">{language==='zh-TW'?'海岸線由正式高度資料推導。使用自由模式抬升或降低海岸，會同步更新海陸與海岸。獨立的海岸頂點編輯工具尚未完成。':'Coasts follow authoritative heights. Free mode changes land and sea. Direct coast vertex editing is not yet available.'}</p><button disabled={busy||!!conflict} className="min-h-11 rounded border px-3" onClick={()=>{setBrush({...brush,mode:'free'});setTool('height');setPainting(true);if(window.innerWidth<640){setPanel(null);surface.current?.querySelector('canvas')?.focus();}}}>{language==='zh-TW'?'使用自由高度工具':'Use free height tools'}</button></section>:<GlobalNaturalFeatures project={model.project} drawing={model.drawing} disabled={busy||!!conflict} language={language} onAction={naturalAction} riversOnly/>}
+      </>}
+     </div>
+    </aside>}
    </>}
-  </section>}
-  {editing&&model&&!replacing&&<GlobalNaturalFeatures project={model.project} drawing={model.drawing} disabled={busy||!!conflict} language={language} onAction={naturalAction}/>}
-  <div aria-busy={working} className={editing||fullView?'relative min-h-0 flex-1':'relative h-[clamp(16rem,40dvh,28rem)]'}>
-   {(replacing?candidate??model:model)&&<GlobalMapCanvas onPaint={editing&&painting&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
-   {working&&<p role="status" className="absolute inset-0 grid place-items-center bg-[var(--color-bg)]/80">{text('busy')}</p>}
-   {!working&&!model&&<p className="p-4">{text('missing')}</p>}
+   <div aria-busy={working} className="relative min-h-0 min-w-0 flex-1">
+    {(replacing?candidate??model:model)&&<GlobalMapCanvas paintRadius={brush.radius} display={editing||fullView?display:undefined} onStroke={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool!=='line'&&!busy&&!replacing&&!conflict?(points=>void paint(points[0][0],points[0][1],points)):undefined} onPaint={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool==='line'&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
+    {editing&&painting&&!replacing&&<div className="absolute right-2 top-2 z-20 flex max-w-[85%] items-center gap-2 rounded-lg border bg-[var(--color-bg)]/95 p-1 text-xs"><span>{language==='zh-TW'?(brush.tool==='line'?(lineStart?'選擇終點':'選擇起點'):'拖曳繪製，放開後套用'):'Paint on the map'}</span><button disabled={busy} className="min-h-11 rounded border px-3" onClick={()=>{setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?'停止繪製':'Stop painting'}</button></div>}
+    {working&&<p role="status" className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)]/80">{text('busy')}</p>}
+    {!working&&!model&&<p className="p-4">{text('missing')}</p>}
+   </div>
   </div>
   <p className="shrink-0 px-3 py-1 text-sm">{(replacing?candidate??model:model)&&`${text('measured')}：${(replacing?candidate??model:model)!.drawing.landPercent.toFixed(3)}%`}</p>
   {editing&&<p className="shrink-0 px-3 py-1 text-xs opacity-70">{text('help')}</p>}

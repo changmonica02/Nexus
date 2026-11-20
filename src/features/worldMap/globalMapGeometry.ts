@@ -7,7 +7,7 @@ export type NaturalMapDrawing={
 import {projectClimate} from '../../../experiments/spherical-grid/climate-display.mjs';
 import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={contours?:{height:number;lines:number[][][]}[];land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -63,5 +63,20 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,coast:{start:n
   volcanoes:tectonics.features.volcanoes.map(v=>project(grid.points[v.cell])),
   islandChains:tectonics.features.islandChains.map(c=>unwrapRing(c.cells.map(i=>project(grid.points[i])))),
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
- return {land,plates,geology,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+ return {land,plates,geology,contours:grid.heights?createHeightContours(grid):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:coast.map(c=>unwrapRing([project(c.start),project(c.end)])),landPercent:area/total*100};
+}
+
+/** Piecewise-linear isolines on spherical triangles; never draw whole cell borders as contours. */
+export function createHeightContours(grid:Grid){
+ const bands=[-65,-45,-25,-10,-3,0,17,34,51,68,85].map(height=>({height:height*100,lines:[] as number[][][]}));
+ if(!grid.heights)return bands;
+ for(const face of grid.triangles){
+  const heights=face.map(i=>grid.heights![i]),low=Math.min(...heights),high=Math.max(...heights);
+  for(const band of bands){const level=band.height/100;if(level<=low||level>high)continue;
+   const hits:number[][]=[];
+   for(let i=0;i<3;i++){const j=(i+1)%3,a=heights[i],b=heights[j];if((a<level)===(b<level))continue;const t=(level-a)/(b-a),p=grid.points[face[i]],q=grid.points[face[j]];hits.push(project(unit(p.map((v,k)=>v+(q[k]-v)*t))));}
+   if(hits.length===2)band.lines.push(unwrapRing(hits));
+  }
+ }
+ return bands;
 }

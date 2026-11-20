@@ -1,6 +1,6 @@
-import {heightBrushChanges} from './core/heightBrush.mjs';
+import {heightBrushChanges,heightStrokeChanges,sampleHeightStroke} from './core/heightBrush.mjs';
 import {applyGlobalHeightEdits} from '../../../experiments/spherical-grid/terrain-edits.mjs';
-import type {HeightBrush} from './globalMapClient';
+import type {HeightBrush,HeightStroke} from './globalMapClient';
 import {generateSphericalPack} from '../../../experiments/spherical-grid/spherical-pack.mjs';
 import {generateNaturalGeography,deriveHydrology} from '../../../experiments/spherical-grid/pack-hydrology.mjs';
 import {editNaturalGeography} from '../../../experiments/spherical-grid/natural-geography.mjs';
@@ -18,7 +18,7 @@ import {analyzeSphericalPlates as analyzeLegacyPlates} from '../../../experiment
 import {tectonicSeedFromLandMask} from '../../../experiments/spherical-grid/plate-seafloor.mjs';
 let climateCache:{key:string;heights:number[];value:ReturnType<typeof generateMonthlyClimate>}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
-self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature';brush?:HeightBrush;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
+self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature';brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
  try {
   if(action==='preview'){
@@ -42,7 +42,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   validateGlobalMapProject(project);
   const state=importGlobalTerrainSnapshot(project.terrain);
   if(action==='editHeight'){
-   const changes=heightBrushChanges(state.grid,event.data.brush);
+   const changes=event.data.stroke?heightStrokeChanges(state.grid,sampleHeightStroke(event.data.stroke.brush,event.data.stroke.points)):heightBrushChanges(state.grid,event.data.brush);
    if(changes.length&&project.climateVersion===1)project.environmentTerrain??=project.terrain;
    // Move the ocean anchor before a free brush raises its former cell.
    const updates=new Map<number,number>(changes.map((c:{id:number;height:number})=>[c.id,c.height]));

@@ -1,3 +1,4 @@
+import {createBlankTemplate} from '../../lib/characterTemplates';
 import {GLOBAL_MAP_ENGINE,GLOBAL_MAP_VERSION,readGlobalMapProject} from "./globalMapProject";
 import type { Attachment, Page, WorldMapRecord, WorldEntity, WorldMapPlacement, CharacterProfileData, WorldRegionGeometry, WorldMapBlockView } from "../../lib/types";
 import {withWorldMapBlocks} from "../../lib/worldMapBlocks";
@@ -279,7 +280,7 @@ export class WorldMapRepository {
     return structuredClone(mapsOf(await this.world(worldId)).filter(map => includeDeleted || map.deleted_at == null));
   }
 
-  private async commit(world: Page, maps: WorldMapRecord[], project?: { attachment: Attachment; blob: Blob }, entities?: WorldEntity[]): Promise<Page> {
+  private async commit(world: Page, maps: WorldMapRecord[], project?: { attachment: Attachment; blob: Blob }, entities?: WorldEntity[],newWorld=false): Promise<Page> {
     const device = await this.storage.getDeviceId();
     // Encode before opening the IDB transaction; async blob reads would close it.
     let data: string | undefined;
@@ -303,7 +304,7 @@ export class WorldMapRepository {
         { type: "attachments" as const, kind: "binary" as const, value: project.attachment, data, blob: project.blob },
       ] : []),
       { type: "pages", kind: "save", value: next },
-    ], [{ type: "pages", id: world.id, revision: world.revision }]);
+    ], newWorld?[]:[{ type: "pages", id: world.id, revision: world.revision }]);
     requireOwner(this.storage, this.owner);
     return next;
   }
@@ -318,6 +319,15 @@ export class WorldMapRepository {
     };
     requireOwner(this.storage, this.owner);
     return { attachment, blob, sha256: info.sha256, engine:info.engine,engineVersion:info.engineVersion };
+  }
+
+  /** Confirmed creation only: world, map, attachment and bytes share one transaction. */
+  async createWorldWithMap(title:string,blob:Blob):Promise<{world:Page;map:WorldMapRecord}>{
+    const name=titleOf(title),project=await this.project(blob),now=Date.now(),id=`world_${crypto.randomUUID()}`;
+    const character_data=createBlankTemplate();character_data.basic.name=name;character_data.basic.role='世界觀設定';
+    const world:Page={id,title:name,kind:'creative',creative_type:'world',character_data,content_json:{type:'doc',content:[]},content_text:'',format:'flow',attachment_ids:[],created_at:now,updated_at:now,deleted_at:null,revision:0,device_id:await this.storage.getDeviceId(),workspace_owner_id:this.owner};
+    const map:WorldMapRecord={metadata_version:1,id:`map_${crypto.randomUUID()}`,world_id:id,title:name,engine:project.engine,engine_version:project.engineVersion,scope:'surface',parent_map_id:null,attachment_id:project.attachment.id,project_sha256:project.sha256,revision:1,created_at:now,updated_at:now,deleted_at:null};
+    return {world:await this.commit(world,[map],project,undefined,true),map};
   }
 
   async create(worldId: string, title: string, blob?: Blob, presentation?: {scope:string;parentId:string}): Promise<{ world: Page; map: WorldMapRecord }> {

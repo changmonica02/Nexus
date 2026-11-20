@@ -23,14 +23,16 @@ export function WorldMapUnavailable({onBack}:{onBack?:()=>void}) {
   return <section className="min-w-0 p-4"><SidebarToggle/><button onClick={onBack}>{t('worldMap.back')}</button><p>{t('worldMap.unavailable')}</p></section>;
 }
 type Opened={map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob}};
-export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack,worldContent,blockView,onBlockViewChange}: {
+export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack,worldContent,blockView,onBlockViewChange,initialEditing=false,onInitialEditOpened}: {
+ initialEditing?:boolean;onInitialEditOpened?:()=>void;
  blockView?:WorldMapBlockView;onBlockViewChange?:(view:WorldMapBlockView)=>void;
  world:Page;storage:StorageAdapter;beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null;pendingPushes?:number};readOnly?:boolean;onBack?:()=>void;worldContent?:ReactNode;
 }) {
  const {language,t}=useLanguage(),{askText,askConfirm,dialog}=useWorkspaceDialog({cancel:t('ui.cancel'),confirm:t('worldMap.confirm')});
+ useEffect(()=>{if(initialEditing)onInitialEditOpened?.();},[initialEditing,onInitialEditOpened]);
  const repository=useMemo(()=>new WorldMapRepository(storage),[storage]);
  const maps=world.character_data?.world_maps??[],active=maps.filter(m=>m.deleted_at==null);
- const [selected,setSelected]=useState<string|null>(blockView?.mapId??null),[editing,setEditing]=useState(false),[layer,setLayer]=useState(blockView?.layer??'physical');
+ const [selected,setSelected]=useState<string|null>(blockView?.mapId??null),[editing,setEditing]=useState(initialEditing&&!readOnly),[layer,setLayer]=useState(blockView?.layer??'physical');
  const [opened,setOpened]=useState<Opened|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[epoch,setEpoch]=useState(0);
  const [entityPanel,setEntityPanel]=useState(false),[entityForm,setEntityForm]=useState<{entity:WorldEntity;fresh:boolean;compact?:boolean;region?:boolean;point?:{mapId:string;x:number;y:number;placementId:string}}|null>(null);
  const [entityCategory,setEntityCategory]=useState<'all'|WorldEntityType>('all');

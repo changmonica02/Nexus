@@ -22,4 +22,8 @@ test('shipped Worker edits terrain, preserves river identities and survives JSON
  self.onmessage({data:{id:++sequence,action:'editHeight',project:loaded.project,brush:{longitude:999}}});
  assert.ok(result.error);
  assert.deepEqual(request('load',edited.project).project.terrain,edited.project.terrain);
+ const stroked=request('editHeight',base,{stroke:{brush:{radius:5,strength:10,tool:'raise',mode:'free',target:'land'},points:[[179,0],[-179,0]]}});
+ assert.equal(stroked.project.terrain.revision,base.terrain.revision+1);assert.notEqual(stroked.project.terrain.checksum,base.terrain.checksum);
+ assert.deepEqual(stroked.project.naturalGeography,base.naturalGeography);assert.ok(stroked.drawing.contours.some(b=>b.lines.length));
+ assert.deepEqual(request('load',stroked.project).project.terrain,stroked.project.terrain);
 });

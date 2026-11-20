@@ -1,6 +1,6 @@
 "use client";
 import {studyErrorMessage} from '../features/study/studySync';
-import { cloneWorldReferences } from "../features/worldMap/worldMapRepository";
+import {WorldMapRepository, cloneWorldReferences } from "../features/worldMap/worldMapRepository";
 import StudySetView from "../features/study/components/StudySetView";
 import { defaultStudyStyle } from "../features/study/studyStyles";
 import ScoreWorkspace,{ScoreOverview} from "../features/score/ScoreWorkspace";
@@ -130,6 +130,7 @@ function NexusAppInner({
 }) {
   const { t } = useLanguage();
 
+  const [createdWorldMap,setCreatedWorldMap]=useState<string|null>(null);
   const [isReady, setIsReady] = useState(false);
   const [storageInitError,setStorageInitError]=useState<string|null>(null);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
@@ -335,7 +336,7 @@ function NexusAppInner({
             const thisRun = ++syncRun;
             syncEngineRef.current?.destroy();
             if (adapter.getWorkspaceOwner() !== userId) {
-              setDeckManagement(null);
+              setDeckManagement(null);setCreatedWorldMap(null);
               setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
@@ -406,7 +407,7 @@ function NexusAppInner({
               // Remove account state immediately. The anonymous workspace is
               // loaded afterwards, so a slow IndexedDB read can never leave
               // private account pages visible in the signed-out UI.
-              setDeckManagement(null);
+              setDeckManagement(null);setCreatedWorldMap(null);
               setLifeState(initialLifeView());
               setPages([]);
               setAttachments([]);
@@ -1203,7 +1204,7 @@ function NexusAppInner({
       try {
         await flushAllSaves();
         if(storageRef.current?.getWorkspaceOwner?.()!==owner)return;
-        setDeckManagement(null);action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
+        setDeckManagement(null);setCreatedWorldMap(null);action(); setIsNavigationOpen(false); if(leaveExternal)onLeaveExternal?.();
       } catch { setRefreshError(t("ui.saveFailed")); }
     })();});
   },[flushAllSaves,onLeaveExternal,t,storageRef]);
@@ -1774,6 +1775,8 @@ function NexusAppInner({
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
+        initialWorldMapEditing:createdWorldMap===page?.id,
+        onInitialWorldMapOpened:()=>setCreatedWorldMap(null),
         beforeWorldMapSave: () => page ? beforeTemplateRead(page) : Promise.resolve(),
         onWorldMapSaved: worldMapSaved, registerWorldMapFlush:registerWorkspaceFlush, worldMapCloudState: syncState,
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
@@ -2042,6 +2045,16 @@ function NexusAppInner({
           onRenameTemplate={(id, title) => patchPage(id, { title })}
           onCreateTemplate={() => { void createAndOpenPage({ kind: "creative", title: "新模板", format: "flow" }).then((page) => { if (page) patchPage(page.id, { creative_type: "character", character_data: { ...createBlankTemplate(), isTemplate: true } }); }); }}
           onCreateCharacter={handleCreateCharacter}
+          onCreateWorldMap={async(name,blob)=>{
+            const storage=storageRef.current;if(!storage)throw Error('Storage unavailable');
+            const owner=storage.getWorkspaceOwner?.(),repository=new WorldMapRepository(storage);
+            await flushAllSaves();if(storage.getWorkspaceOwner?.()!==owner)throw Error('Account changed');
+            const result=await repository.createWorldWithMap(name,blob);
+            setPages(previous=>[result.world,...previous.filter(p=>p.id!==result.world.id)]);
+            setActivePageId(result.world.id);setCreatedWorldMap(result.world.id);
+            // The transaction already committed. Optional navigation state cannot trigger duplicate creation.
+            void storage.setActivePageId(result.world.id).catch(()=>{});
+          }}
           onCreateWorld={async (templateId="blank") => {
             const custom=pages.find(p=>p.id===templateId&&p.creative_type==="world"&&p.character_data?.isTemplate&&!p.deleted_at);
             const initialData = custom?.character_data?instantiateCharacterTemplate(custom.character_data,custom.id):createBlankTemplate();

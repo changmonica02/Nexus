@@ -20,7 +20,8 @@
     "map:global": "node scripts/build-global-map.mjs",
     "map:prepare": "node scripts/prepare-world-map.mjs",
     "map:build": "node scripts/build-world-map.mjs",
-    "test:world-map:height": "node scripts/build-global-map.mjs && node --test experiments/spherical-grid/height-brush.test.mjs experiments/spherical-grid/terrain-edits.test.mjs tests/world-map/heightBrushWorker.test.cjs"
+    "test:world-map:height": "node scripts/build-global-map.mjs && node --test experiments/spherical-grid/height-brush.test.mjs experiments/spherical-grid/terrain-edits.test.mjs tests/world-map/heightBrushWorker.test.cjs",
+    "test:world-map:ui": "node --test tests/world-map/globalMapDisplay.test.cjs tests/world-map/globalMapWorkspace.ui.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -61,6 +62,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "fake-indexeddb": "6.2.4",
+    "happy-dom": "^21.0.4",
     "js-yaml": "4.3.0",
     "playwright": "1.62.1",
     "tailwindcss": "^4",
