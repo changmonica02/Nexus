@@ -43,3 +43,16 @@ export function riverLabelStyle(river){
  if(lengthKm>=250||streamOrder>=2)return {minZoom:3.5,pixels:11,weight:400};
  return {minZoom:6,pixels:10,weight:400};
 }
+
+// Visibility follows whole downstream networks, never isolated tributaries.
+/**
+ * @template {{id:string,parentId?:string|null,streamOrder?:number,catchmentAreaKm2?:number,lengthKm?:number}} T
+ * @param {T[]} rivers
+ * @param {boolean} showTributaries
+ * @returns {T[]}
+ */
+export function visibleRiverNetwork(rivers,showTributaries){
+ const byId=new Map(rivers.map(r=>[r.id,r])),visible=new Set(rivers.filter(r=>showTributaries||(r.streamOrder??2)>=2||r.catchmentAreaKm2>=150000||r.lengthKm>=600).map(r=>r.id));
+ for(const id of visible){let river=byId.get(id);const seen=new Set();while(river?.parentId&&!seen.has(river.parentId)){seen.add(river.parentId);visible.add(river.parentId);river=byId.get(river.parentId);}}
+ return rivers.filter(r=>visible.has(r.id));
+}

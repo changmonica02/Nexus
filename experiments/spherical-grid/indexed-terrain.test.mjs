@@ -10,6 +10,8 @@ const sorted=coast=>coast.map(s=>({id:[...s.gridEdge].sort((a,b)=>a-b).join(':')
 function create(){
  const g=createGlobalGrid();
  g.points.forEach(([x],i)=>setHeight(g,i,x<0?-20:20));
+ // Unedited metre-scale heights must survive every reused Pack height update.
+ setHeight(g,g.heights.findIndex(h=>h>0),20.37);
  return openIndexedTerrain(g,g.heights.findIndex(h=>h<0));
 }
 function compare(state){

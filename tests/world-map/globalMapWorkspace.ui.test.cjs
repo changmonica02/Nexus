@@ -9,13 +9,14 @@ function project(settings={seed:42,landPercent:32,continentCores:8,gridCells:360
  const heights=Array(36002).fill(-20);heights[0]=30;
  return {format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,packSettings:{version:1,detail:1},naturalGeography:{version:1,rivers:[],lakes:[],overlays:[]},settings,terrain:{format:'nexus-spherical-grid-prototype',version:2,frequency:60,cells:36002,heightScaleMetres:100,seaLevel:0,oceanSeed:1,revision:0,heights,checksum:checksum(heights)}};
 }
-function drawing(){return {land:[ring],coast:[[ring[0],ring[1]]],landPercent:32,relief:[{color:'#a2ba81',rings:[ring]}],contours:[{height:1700,lines:[[ring[0],ring[2]]]}],plates:[{id:0,areaPercent:100,color:'#aaa',rings:[ring]}],plateBoundaries:[],climate:{rings:[ring],ocean:[0],koppen:[1],codes:['Af'],arrows:[],months:Array.from({length:12},()=>({temperature:[200],precipitation:[100],sst:[200],sstAnomaly:[0]}))},natural:{pack:{cells:1,rings:[ring],gridParents:new Uint32Array([0]),detail:1},ecosystems:{surface:[0],seabed:[0],catalog:[['T1','Forest','森林','#123456']]},rivers:[{id:'river-1',name:'測試河',lines:[[ring[0],ring[2]]],monthly:Array(12).fill(20)}],lakes:[{id:'lake-1',name:'測試湖',rings:[ring],months:Array.from({length:12},()=>({dry:false}))}]}};}
+function drawing(){return {land:[ring],coast:[[ring[0],ring[1]]],landPercent:32,relief:[{color:'#a2ba81',rings:[ring]}],contours:[{height:1700,lines:[[ring[0],ring[2]]]}],plates:[{id:0,areaPercent:100,color:'#aaa',rings:[ring]}],plateBoundaries:[],climate:{rings:[ring],ocean:[0],koppen:[1],codes:['Af'],arrows:[],months:Array.from({length:12},()=>({temperature:[200],precipitation:[100],sst:[200],sstAnomaly:[0]}))},natural:{pack:{cells:1,rings:[ring],gridParents:new Uint32Array([0]),detail:1},ecosystems:{surface:[0],seabed:[0],catalog:[['T1','Forest','森林','#123456']]},rivers:[{id:'river-1',name:'測試河',catchmentAreaKm2:40000,lengthKm:300,parentId:null,lines:[[ring[0],ring[2]]],monthly:Array(12).fill(20)}],lakes:[{id:'lake-1',name:'測試湖',rings:[ring],months:Array.from({length:12},()=>({dry:false}))}]}};}
 let pauseLoad=false,finishLoad;
 class FakeWorker{
  constructor(){this.closed=false;}
  postMessage(message){requests.push(structuredClone(message));queueMicrotask(()=>{if(this.closed)return;let p=structuredClone(message.project??project(message.settings));
   if(message.action==='editHeight'){p.environmentTerrain??=structuredClone(p.terrain);p.terrain.heights[0]++;p.terrain.revision++;p.terrain.checksum=checksum(p.terrain.heights);}
   if(message.action==='recalculateNature')delete p.environmentTerrain;
+  if(message.action==='editNatural')Object.assign(p.naturalGeography.rivers.find(r=>r.id===message.patch.id),message.patch);
   const d=drawing();
   const complete=()=>{if(!this.closed)this.onmessage?.({data:{id:message.id,project:message.action==='preview'?null:p,drawing:message.action==='preview'?{land:d.land,coast:d.coast,landPercent:32}:d}});};
   if(message.action==='load'&&message.previewFirst&&pauseLoad){
@@ -109,6 +110,8 @@ test('named generator confirms exactly once and returns a validated native Nexus
 test('confirmed world uses real IndexedDB persistence and opens one editor in the existing manager',async()=>{
  const storage=new components.IndexedDBAdapter();await storage.init();storage.setWorkspaceOwner('workspace-ui-owner');
  const p=project(),repo=new components.WorldMapRepository(storage),created=await repo.createWorldWithMap('完整建立流程',new Blob([JSON.stringify(p)]));
+ await assert.rejects(()=>repo.create(created.world.id,'額外地表',new Blob([JSON.stringify(p)])),/one surface/);
+ await assert.rejects(()=>repo.setPresentation(created.world.id,created.map.id,1,'surface',created.map.id),/cannot be nested/);
  components.rememberGeneratedMap(created.map.id,{project:p,drawing:drawing()});
  const beforeOpen=requests.length;
  assert.equal((await storage.listPages()).length,1);assert.equal((await storage.listAttachments()).length,1);
@@ -234,4 +237,33 @@ test('a slow map load shows its coast and phase before the full editor is ready'
   assert.equal(host.querySelector('canvas'),canvas);
   assert.ok(button('工具'));
  }finally{pauseLoad=false;finishLoad=undefined;}
+});
+
+test('overview replaces map hints, shows pending society data and dismisses More actions outside',async()=>{
+ const map={id:'overview',world_id:'world-test',title:'總覽測試',revision:1};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(project())]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
+ assert.ok(!host.textContent.includes('拖曳平移'));assert.ok(!host.textContent.includes('陸地面積比例'));
+ await act(async()=>{host.querySelector('button[aria-label="詳細資訊"]').click();await delay(5);});
+ const dialog=host.querySelector('dialog[aria-label="詳細資訊"]');assert.ok(dialog.open);assert.ok(dialog.textContent.includes('24 小時'));assert.ok(dialog.textContent.includes('尚未推演'));assert.ok(dialog.textContent.includes('32.000%'));
+ await act(async()=>{dialog.querySelector('button[aria-label="關閉"]').click();await delay(5);});assert.equal(host.querySelector('dialog'),null);
+ const more=host.querySelector('summary[aria-label="更多操作"]').parentElement;more.open=true;
+ await act(async()=>{host.querySelector('canvas').dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:1}));await delay(5);});assert.equal(more.open,false);
+ await click('顯示');await click('氣候');const legend=host.querySelector('section[aria-label="圖例"]');assert.ok(legend.textContent.includes('熱帶雨林氣候'));assert.ok(!legend.textContent.includes('Af'));
+});
+
+test('river vectors insert, drag, remove, cancel and submit geometry through the save path',async()=>{
+ const p=project(),r={id:'river-1',name:'測試河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null};p.naturalGeography.rivers=[r];
+ const map={id:'vector',world_id:'world-test',title:'河道編輯',revision:1},saved=[];
+ const repo={stageDraft:async()=> 'vector-draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
+ await click('工具');await click('河流');await change(host.querySelector('select[aria-label="選擇河流或湖泊"]'),'river-1');
+ const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});
+ let svg=host.querySelector('svg[aria-label="河流向量編輯"]');assert.ok(svg);const before=svg.querySelectorAll('circle').length;
+ await act(async()=>{svg.querySelector('line').dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,clientX:390,clientY:210,pointerId:20}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before+5);
+ await click('取消修改');assert.equal(svg.querySelectorAll('circle').length,before);
+ const circle=svg.querySelectorAll('circle')[1];circle.setPointerCapture=()=>{};
+ await act(async()=>{circle.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:21}));circle.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:21,clientX:405,clientY:190}));circle.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:21}));await delay(5);});assert.ok(button('套用河道並儲存'));assert.equal(saved.length,0);
+ await click('套用河道並儲存');const request=requests.findLast(r=>r.action==='editNatural');assert.equal(request.patch.id,'river-1');assert.notDeepEqual(request.patch.geometry,r.geometry);assert.equal(saved.length,1);assert.deepEqual(saved[0].naturalGeography.rivers[0].geometry,request.patch.geometry);
+ svg=host.querySelector('svg[aria-label="河流向量編輯"]');
+ await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.MouseEvent('dblclick',{bubbles:true}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,10);
 });

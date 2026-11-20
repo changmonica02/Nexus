@@ -338,6 +338,7 @@ export class WorldMapRepository {
       mapOf(world, presentation.parentId);
     }
     const project = blob ? await this.project(blob) : undefined;
+    if(project?.engine==='nexus-global'&&(presentation||mapsOf(world).some(m=>m.deleted_at==null&&!['underground','sky'].includes(m.scope??''))))throw new WorldMapError('map','A world can only have one surface map');
     const now = Date.now();
     const map: WorldMapRecord = {
       metadata_version: 1, id: `map_${crypto.randomUUID()}`, world_id: world.id, title: name, engine: project?.engine ?? "azgaar", engine_version: project?.engineVersion ?? AZGAAR_SOURCE.version,
@@ -437,6 +438,7 @@ export class WorldMapRepository {
   async setPresentation(worldId: string, id: string, expectedRevision: number, scope: string, parentId: string | null): Promise<Page> {
     if (!/^[a-z][a-z0-9_-]{0,63}$/.test(scope)) throw new WorldMapError("map", "Invalid map scope");
     const world = await this.world(worldId), current = mapOf(world, id, expectedRevision);
+    if(current.engine==='nexus-global'&&(parentId||(scope==='surface'&&mapsOf(world).some(m=>m.id!==id&&m.deleted_at==null&&!['underground','sky'].includes(m.scope??'')))))throw new WorldMapError('map','Surface maps cannot be nested or duplicated');
     let ancestor = parentId;
     const seen = new Set([id]);
     while (ancestor) {

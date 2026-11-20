@@ -42,7 +42,7 @@ export function applyComparedTerrainEdits(state,changes,{strategy='selective'}={
   if(strategy==='selective'&&masksEqual(ocean,originalGeography.ocean)){
    // No ocean-membership change: all Pack sites, edges and areas are invariant.
    // Stage all updates before changing any state for atomicity.
-   const newPackHeights=Int8Array.from(originalGeography.pack.sourceIds,id=>state.grid.heights[id]);
+   const newPackHeights=Float32Array.from(originalGeography.pack.sourceIds,id=>state.grid.heights[id]);
    const nextPack={...originalGeography.pack,heights:newPackHeights};
    state.geography={...originalGeography,pack:nextPack};
    state.revision++;

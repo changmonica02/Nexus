@@ -55,7 +55,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   {opened&&opened.map.id===id&&!error?<GlobalWorldMapEditor key={id} {...opened} map={{...opened.map,title:current.title}}
    repository={repository} beforeSave={beforeSave} onSaved={onSaved} onClose={exit}
    registerFlush={registerFlush} cloudState={cloudState} editing={editing}
-   onEdit={readOnly?undefined:()=>setBlockEditing(true)} mapSelector={<div className="flex items-center gap-1">{selector}{!readOnly&&<button onClick={create}>{zh?'新建地圖':'New map'}</button>}</div>}
+   onEdit={readOnly?undefined:()=>setBlockEditing(true)} mapSelector={selector}
   />:<div className="grid min-h-56 flex-1 place-content-center gap-3 p-4 text-center">
    {onBack&&!readOnly&&<button className="min-h-11" onClick={onBack}>{t('worldMap.back')}</button>}
    <p role={error?'alert':'status'}>{error?(zh?'無法讀取地圖。':'Could not load the map.'):id?t('worldMap.loading'):(zh?'這個世界觀還沒有新版地圖。':'This world does not have a current map yet.')}</p>
@@ -64,8 +64,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
   </div>}
   {creating&&<WorldMapCreator initialName={world.title} onCancel={()=>setCreating(false)} onCreate={async(name,blob,generated)=>{
    await beforeSave();
-   const result=(world.character_data?.world_maps??[]).some(map=>map.deleted_at==null&&!['underground','sky'].includes(map.scope??''))
-    ?await repository.create(world.id,name,blob):await repository.createSpace(world.id,name,'surface',blob);
+   const result=await repository.createSpace(world.id,name,'surface',blob);
    rememberGeneratedMap(result.map.id,generated);
    setCreating(false);setError(false);setSelected(result.map.id);setBlockEditing(true);
    if(blockView)onBlockViewChange?.({...blockView,mapId:result.map.id});

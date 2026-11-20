@@ -8,6 +8,8 @@ import {applyComparedTerrainEdits} from './pack-update-comparison.mjs';
 function prepared(){
  const g=createGlobalGrid();
  for(let i=0;i<g.points.length;i++)setHeight(g,i,g.points[i][0]<0?-20:20);
+ // Unedited metre-scale heights must survive every reused Pack height update.
+ setHeight(g,g.heights.findIndex(h=>h>0),20.37);
  const seed=g.heights.findIndex(x=>x<0);
  return openGlobalTerrain(g,seed);
 }

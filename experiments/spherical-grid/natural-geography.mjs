@@ -29,7 +29,21 @@ export function editNaturalGeography(pack,climate,base,patch){
  if(!feature)throw Error('Unknown natural feature');
  if(patch.name!==undefined)feature.name=patch.name.trim();if(patch.notes!==undefined)feature.notes=patch.notes;
  if(next.rivers.includes(feature)){
-  if(patch.geometry!==undefined)feature.geometry=patch.geometry;
+  if(patch.geometry!==undefined){
+   const old=feature.geometry;
+   for(const tributary of next.rivers.filter(r=>r.parentId===feature.id)){
+    const end=tributary.geometry.at(-1),anchor=old.findIndex(p=>Math.abs(p[0]-end[0])<1e-6&&Math.abs(p[1]-end[1])<1e-6);
+    if(anchor>=0){
+     // Insertions/deletions preserve exact old points; a moved point uses its
+     // corresponding index when the vertex count is unchanged.
+     const exact=patch.geometry.find(p=>Math.abs(p[0]-end[0])<1e-6&&Math.abs(p[1]-end[1])<1e-6);
+     let target=exact??(old.length===patch.geometry.length?patch.geometry[anchor]:undefined);
+     if(!target)target=patch.geometry.reduce((a,b)=>Math.hypot(a[0]-end[0],a[1]-end[1])<Math.hypot(b[0]-end[0],b[1]-end[1])?a:b);
+     tributary.geometry[tributary.geometry.length-1]=[...target];
+    }
+   }
+   feature.geometry=patch.geometry;
+  }
  }else{
   if(patch.waterLevelM!==undefined)feature.waterLevelM=patch.waterLevelM;
   if(patch.bed!==undefined){

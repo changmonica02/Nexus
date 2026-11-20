@@ -1,5 +1,5 @@
 require('../loadStudy.cjs');
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{createHash}=require('node:crypto');
 const {unwrapRing,createGlobalMapDrawing}=require('../../src/features/worldMap/globalMapGeometry.ts');
 test('spherical display unwraps date-line polygons and closes polar caps without changing source coordinates',()=>{
  const input=[[179,10],[-179,11],[-178,9]],copy=structuredClone(input),ring=unwrapRing(input);
@@ -30,7 +30,11 @@ test('global worker builds the authoritative mask and loads stored heights inste
  // Seed is provenance; a valid snapshot's terrain remains authoritative even if it differs from a new generation.
  const copy=JSON.parse(JSON.stringify(first.project));copy.settings.seed=99;
  scope.onmessage({data:{id:2,action:'load',project:copy}});const loaded=messages.pop();
- assert.equal(loaded.error,undefined);assert.deepEqual(JSON.parse(JSON.stringify(loaded.drawing)),JSON.parse(JSON.stringify(first.drawing)));
+ assert.equal(loaded.error,undefined);assert.deepEqual(Object.keys(loaded.drawing),Object.keys(first.drawing));
+ // Compare the exact same serialized data as before, without constructing a
+ // multi-million-coordinate assertion diff if one derived field regresses.
+ const digest=value=>createHash('sha256').update(JSON.stringify(value)??'undefined').digest('hex');
+ for(const key of Object.keys(first.drawing))assert.equal(digest(loaded.drawing[key]),digest(first.drawing[key]),`Reopened drawing field ${key} changed`);
  const noClimate=JSON.parse(JSON.stringify(first.project));delete noClimate.climateVersion;delete noClimate.packSettings;delete noClimate.naturalGeography;scope.onmessage({data:{id:24,action:'load',project:noClimate}});assert.equal(messages.pop().drawing.climate,undefined);
  const badClimate=JSON.parse(JSON.stringify(first.project));badClimate.climateVersion=99;scope.onmessage({data:{id:25,action:'load',project:badClimate}});assert.ok(messages.pop().error);
  const badIsland=JSON.parse(JSON.stringify(first.project));badIsland.islandGenesis={version:1,cells:[-1],chains:[]};scope.onmessage({data:{id:23,action:'load',project:badIsland}});assert.ok(messages.pop().error);

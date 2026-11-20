@@ -2,18 +2,21 @@
 import {useState} from 'react';
 import type {GlobalMapProject,NaturalFeaturePatch} from '../features/worldMap/globalMapProject';
 import type {GlobalMapDrawing} from '../features/worldMap/globalMapGeometry';
-type Action='editNatural'|'rebuildPack'|'initializeNatural';
-export default function GlobalNaturalFeatures({project,drawing,disabled,language,onAction,riversOnly=false}:{project:GlobalMapProject;drawing:GlobalMapDrawing;disabled:boolean;language:string;riversOnly?:boolean;onAction:(action:Action,patch?:NaturalFeaturePatch)=>Promise<void>}){
+type Action='editNatural'|'rebuildPack'|'initializeNatural'|'regenerateRivers';
+export default function GlobalNaturalFeatures({project,drawing,disabled,language,onAction,riversOnly=false,selectedId,onSelect}:{project:GlobalMapProject;drawing:GlobalMapDrawing;disabled:boolean;language:string;riversOnly?:boolean;selectedId?:string;onSelect?:(id:string)=>void;onAction:(action:Action,patch?:NaturalFeaturePatch)=>Promise<void>}){
  const zh=language==='zh-TW',base=project.naturalGeography,[selected,setSelected]=useState(''),[error,setError]=useState(''),[revision,setRevision]=useState(0);
- const records=base?[...base.rivers,...(riversOnly?[]:base.lakes)]:[],feature=records.find(f=>f.id===selected)??records[0];
+ const records=base?[...base.rivers,...(riversOnly?[]:base.lakes)]:[],feature=records.find(f=>f.id===(selectedId??selected))??records[0];
  const act=async(action:Action,patch?:NaturalFeaturePatch)=>{setError('');try{await onAction(action,patch);setRevision(v=>v+1);}catch(e){const message=e instanceof Error?e.message:'';setError(zh?(message.includes('Lake level')?'水位必須高於湖底，且不得高於最低溢流盆緣。':message.includes('cycle')||message.includes('loops')?'河道不可形成循環水路。':'未完成，請檢查座標、湖盆界線及儲存狀態。'):'Not completed. Check geometry, basin rim, water level and save status.');}};
  return <details className="max-h-[36dvh] shrink-0 overflow-y-auto border-b px-3 text-sm"><summary className="flex min-h-11 cursor-pointer items-center">{zh?(riversOnly?'河流編輯':'自然地理：河湖與 Pack'):(riversOnly?'River editing':'Natural geography: water and Pack')}{base&&(riversOnly?` (${base.rivers.length})`:` (${base.rivers.length} / ${base.lakes.length})`)}</summary>
+  {base&&<button disabled={disabled} className="min-h-11 rounded border px-3" onClick={()=>void act('regenerateRivers')}>{zh?'重新生成河網':'Regenerate river network'}</button>}
   {error&&<p role="alert" className="py-2 text-red-600">{error}</p>}
   {!base?<button disabled={disabled} className="min-h-11 rounded border px-3" onClick={()=>void act('initializeNatural')}>{zh?'建立自然環境資料':'Initialize natural environment'}</button>:<>
-   <button disabled={disabled} className="min-h-11 rounded border px-3" onClick={()=>void act('rebuildPack')}>{zh?'更新海岸細節（切換密度）':'Update coastal detail (change density)'}</button>
-   <p className="py-1 text-xs">{zh?'河湖身分與編輯資料會保留；虛線河道表示當月枯水，不會因乾旱刪除。':'Feature identities and edits persist; dashed channels indicate low monthly flow.'}</p>
-   <select aria-label={zh?'選擇河流或湖泊':'Choose river or lake'} className="min-h-11 w-full border bg-[var(--color-bg)]" value={feature?.id??''} onChange={e=>setSelected(e.target.value)}>{base.rivers.map(r=><option key={r.id} value={r.id}>{zh?'河流':'River'} · {r.name}</option>)}{!riversOnly&&base.lakes.map(l=><option key={l.id} value={l.id}>{zh?'湖泊':'Lake'} · {l.name}</option>)}</select>
-   {feature&&<FeatureForm key={feature.id+':'+revision+':'+project.packSettings?.detail} feature={feature} drawing={drawing} disabled={disabled} zh={zh} apply={patch=>act('editNatural',patch)}/>}
+
+   {!riversOnly&&<button disabled={disabled} className="min-h-11 rounded border px-3" onClick={()=>void act('rebuildPack')}>{zh?'更新海岸細節（切換密度）':'Update coastal detail (change density)'}</button>}
+   <p className="py-1 text-xs">{zh?'重新生成會取代現有河道與名稱。':'Regeneration replaces existing rivers and names.'}</p>
+   <p className="py-1 text-xs">{zh?'點選河道後拖曳控制點；點選線段新增控制點，雙擊控制點刪除。套用前可取消。河湖身分與編輯資料會保留；虛線河道表示當月枯水，不會因乾旱刪除。':'Feature identities and edits persist; dashed channels indicate low monthly flow.'}</p>
+   <select aria-label={zh?'選擇河流或湖泊':'Choose river or lake'} className="min-h-11 w-full border bg-[var(--color-bg)]" value={feature?.id??''} onChange={e=>{setSelected(e.target.value);onSelect?.(e.target.value);}}>{base.rivers.map(r=><option key={r.id} value={r.id}>{zh?'河流':'River'} · {r.name}</option>)}{!riversOnly&&base.lakes.map(l=><option key={l.id} value={l.id}>{zh?'湖泊':'Lake'} · {l.name}</option>)}</select>
+   {feature&&<FeatureForm key={feature.id+':'+revision+':'+project.packSettings?.detail+':'+JSON.stringify('geometry' in feature?feature.geometry:feature.bed)} feature={feature} drawing={drawing} disabled={disabled} zh={zh} apply={patch=>act('editNatural',patch)}/>}
   </>}
  </details>;
 }
