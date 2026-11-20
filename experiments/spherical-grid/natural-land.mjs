@@ -1,3 +1,4 @@
+import {assignContinentalAreas,planIslandMargins} from '../../src/features/worldMap/core/worldLayout.mjs';
 // Command-faithful local terrain; clustered global composition. The only
 // persisted surface is still the canonical spherical Grid.
 import {createGlobalGrid} from './global-config.mjs';
@@ -56,7 +57,7 @@ export function planNaturalGeography(seed,{landPercent=32,continentCores=8}={}){
   cores.push({type:'continent',index:i,groupId:group,structure,name,seed:(r()*4294967296)>>>0,
    ...frame(center,r()*Math.PI*2),radius:(.44+r()*.22)*(i===0?1.25:1)});
  }
- return {groups,basin,primaryCount,cores,structure};
+ return {groups,basin,primaryCount,cores:assignContinentalAreas(cores,seed,landPercent),structure};
 }
 function project(points,map,item,scale,values){
  const radius=Math.min(1.6,item.radius*scale),extent=2*Math.sin(radius/2);
@@ -138,25 +139,7 @@ export function largestOceanSeed(grid){
  return seed;
 }
 function islandPlan(grid,mainScores,geography,seed){
- const r=templateRng(seed^0x31e14),coasts=[];
- for(let i=0;i<mainScores.length;i++)if(mainScores[i]<0&&grid.neighbors[i].some(j=>mainScores[j]>=0))coasts.push(i);
- const islands=[];
- for(let i=0,n=integer(r,9,14);i<n;i++){
-  const coastal=r()<.8;
-  let center;
-  if(coastal&&coasts.length){
-   let cell=pick(r,coasts);
-   for(let step=0,n=integer(r,1,4);step<n;step++){
-    const choices=grid.neighbors[cell].filter(j=>mainScores[j]<0);if(!choices.length)break;cell=pick(r,choices);
-   }
-   center=grid.points[cell];
-  }else center=randomPoint(r);
-  const type=i<5?'archipelago':'island';
-  islands.push({type,index:i,name:type==='archipelago'?'archipelago':pick(r,['volcano','highIsland','lowIsland','peninsula']),
-   seed:(r()*4294967296)>>>0,...frame(center,r()*Math.PI*2),radius:type==='archipelago'?.14+r()*.12:.055+r()*.10,
-   placement:coastal?'continental-margin':'oceanic'});
- }
- return islands;
+ return planIslandMargins(grid,mainScores,seed,geography.structure).map(({rotation,...item})=>({...item,...frame(item.center,rotation)}));
 }
 export function createNaturalLand({seed,landPercent=32,continentCores=8}={}){
  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)throw RangeError('seed must be uint32');

@@ -1,11 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
 test('shipped Worker edits terrain, preserves river identities and survives JSON reopen',{timeout:120000},()=>{
- let result;const self={postMessage:value=>{result=value;}};
+ let result;const progress=[];const self={postMessage:value=>{if(value.progress)progress.push(value.progress);else result=value;}};
  new Function('self',readFileSync('.cache/global-map-worker.js','utf8'))(self);
  let sequence=0;
  const request=(action,project,extra={})=>{self.onmessage({data:{id:++sequence,action,project,...extra}});assert.equal(result.error,undefined);return JSON.parse(JSON.stringify(result));};
  const generated=request('generate',undefined,{settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}});
+ assert.deepEqual(progress.map(p=>p.stage).filter((stage,i,a)=>i===0||stage!==a[i-1]),['land','relief','tectonics','seafloor','islands','ocean','climate','hydrology','ecosystems','drawing','complete']);
+ assert.ok(progress.every((p,i)=>!i||p.fraction>=progress[i-1].fraction));
  const base=generated.project;
  const edited=request('editHeight',base,{brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}});
  assert.ok(edited.project.terrain.heights.some((h,i)=>h!==base.terrain.heights[i]));

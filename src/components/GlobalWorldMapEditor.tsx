@@ -10,6 +10,7 @@ import {globalMapText} from '../features/worldMap/globalMapMessages';
 import {downloadMapBlob} from '../features/worldMap/coreClient';
 import {useLanguage} from '../lib/LanguageContext';
 import GlobalMapCanvas from './GlobalMapCanvas';
+import {generationStageLabel,type GenerationProgress} from '../features/worldMap/globalMapProgress';
 import GlobalMapDisplayPanel from './GlobalMapDisplayPanel';
 import GlobalMapHeightTools from './GlobalMapHeightTools';
 import {newMapDisplay} from '../features/worldMap/globalMapDisplay';
@@ -33,6 +34,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const [display,setDisplay]=useState(newMapDisplay),[panel,setPanel]=useState<'tools'|'display'|null>(null),[tool,setTool]=useState<'height'|'coast'|'rivers'>('height');
  const [undoStack,setUndoStack]=useState<GlobalMapProject[]>([]),[redoStack,setRedoStack]=useState<GlobalMapProject[]>([]);
  const [lineStart,setLineStart]=useState<[number,number]>();
+ const [progress,setProgress]=useState<GenerationProgress>();
  const [discardPrompt,setDiscardPrompt]=useState(false);
  const client=useRef<GlobalMapClient|null>(null),alive=useRef(true),current=useRef<GlobalMapResult|undefined>(undefined);
  const revision=useRef(map.revision),token=useRef(draftToken),unsaved=useRef(Boolean(draftToken)),active=useRef<Promise<void>|null>(null),generating=useRef(false);
@@ -70,8 +72,8 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const generate=async()=>{
   if(generating.current||active.current||!client.current)return;
   try{validateGlobalSettings(settings);}catch{setError(true);return;}
-  generating.current=true;setWorking(true);setError(false);
-  try{const value=await client.current.request('generate',settings,{language});if(alive.current)setCandidate(value);}
+  generating.current=true;setWorking(true);setError(false);setProgress(undefined);
+  try{const value=await client.current.request('generate',settings,{language,onProgress:value=>{if(alive.current)setProgress(value);}});if(alive.current)setCandidate(value);}
   catch{if(alive.current)setError(true);}finally{generating.current=false;if(alive.current)setWorking(false);}
  };
  const apply=async()=>{
@@ -81,23 +83,23 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  };
  const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural'|'recalculateNature',patch?:NaturalFeaturePatch)=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)throw Error('Map is busy');
-  generating.current=true;setWorking(true);setError(false);
-  try{const value=await client.current.request(action,current.current.project,{patch,language});setUndoStack([]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  generating.current=true;setWorking(true);setError(false);setProgress(undefined);
+  try{const value=await client.current.request(action,current.current.project,{patch,language,onProgress:value=>{if(alive.current)setProgress(value);}});setUndoStack([]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch(e){setError(true);throw e;}finally{generating.current=false;setWorking(false);}
  };
  const paint=async(longitude:number,latitude:number,points?:[number,number][])=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)return;
   if(brush.tool==='line'&&!lineStart){setLineStart([longitude,latitude]);return;}
   const stroke=brush.tool==='line'?{...brush,longitude:lineStart![0],latitude:lineStart![1],end:[longitude,latitude] as [number,number]}:{...brush,longitude,latitude};
-  setLineStart(undefined);generating.current=true;setWorking(true);setError(false);
-  try{const previous=current.current.project,value=await client.current.request('editHeight',previous,{...(points?{stroke:{brush,points}}:{brush:stroke}),language});setUndoStack(stack=>[...stack.slice(-11),previous]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  setLineStart(undefined);generating.current=true;setWorking(true);setError(false);setProgress(undefined);
+  try{const previous=current.current.project,value=await client.current.request('editHeight',previous,{...(points?{stroke:{brush,points}}:{brush:stroke}),language,onProgress:value=>{if(alive.current)setProgress(value);}});setUndoStack(stack=>[...stack.slice(-11),previous]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch{setError(true);}finally{generating.current=false;setWorking(false);}
  };
  const restoreHeight=async(direction:'undo'|'redo')=>{
   const stack=direction==='undo'?undoStack:redoStack,target=stack.at(-1);
   if(!target||generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)return;
-  generating.current=true;setWorking(true);setError(false);setLineStart(undefined);
-  try{const previous=current.current.project,value=await client.current.request('load',target,{language});
+  generating.current=true;setWorking(true);setError(false);setProgress(undefined);setLineStart(undefined);
+  try{const previous=current.current.project,value=await client.current.request('load',target,{language,onProgress:value=>{if(alive.current)setProgress(value);}});
    if(direction==='undo'){setUndoStack(stack=>stack.slice(0,-1));setRedoStack(stack=>[...stack,previous]);}
    else{setRedoStack(stack=>stack.slice(0,-1));setUndoStack(stack=>[...stack,previous]);}
    current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();
@@ -151,7 +153,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
    <div aria-busy={working} className="relative min-h-0 min-w-0 flex-1">
     {(replacing?candidate??model:model)&&<GlobalMapCanvas paintRadius={brush.radius} display={editing||fullView?display:undefined} onStroke={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool!=='line'&&!busy&&!replacing&&!conflict?(points=>void paint(points[0][0],points[0][1],points)):undefined} onPaint={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool==='line'&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
     {editing&&painting&&!replacing&&<div className="absolute right-2 top-2 z-20 flex max-w-[85%] items-center gap-2 rounded-lg border bg-[var(--color-bg)]/95 p-1 text-xs"><span>{language==='zh-TW'?(brush.tool==='line'?(lineStart?'選擇終點':'選擇起點'):'拖曳繪製，放開後套用'):'Paint on the map'}</span><button disabled={busy} className="min-h-11 rounded border px-3" onClick={()=>{setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?'停止繪製':'Stop painting'}</button></div>}
-    {working&&<p role="status" className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)]/80">{text('busy')}</p>}
+    {working&&<p role="status" className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)]/80">{progress?`${generationStageLabel(progress,language)} · ${Math.round(progress.fraction*100)}%`:text('busy')}</p>}
     {!working&&!model&&<p className="p-4">{text('missing')}</p>}
    </div>
   </div>

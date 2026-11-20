@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generate} from './grid.mjs';
 import {classifyKoppen} from './koppen-climate.mjs';
-import {generateSurfaceOcean,seasonalWind,localBasis} from './surface-ocean.mjs';
+import {generateSurfaceOcean,seasonalWind,localBasis} from '../../src/features/worldMap/core/surfaceOcean.mjs';
 import {climateContext,dailyInsolation,monthlyAtmosphere,transportSST,transportMoisture,generateMonthlyClimate} from './monthly-climate.mjs';
 const uniform=x=>Array(12).fill(x);
 const seasonal=(winter,summer)=>[winter,winter,winter,summer,summer,summer,summer,summer,summer,winter,winter,winter];

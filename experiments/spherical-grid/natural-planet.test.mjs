@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createNaturalLand} from './natural-land.mjs';
 import {createNaturalPlanet} from './natural-planet.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from './snapshot.mjs';
 import {analyzePlanetGeology} from './emergent-islands.mjs';
@@ -8,7 +9,8 @@ import {SEAFLOOR} from './plate-seafloor.mjs';
 for(const [seed,landPercent] of [[0,25],[1729,32],[0xffffffff,45]]){
  test(`natural planet seed ${seed}, ${landPercent}% survives confirmation/reload`,()=>{
   const settings={seed,landPercent,continentCores:8,gridCells:36002};
-  const draft=createNaturalPlanet(settings),again=createNaturalPlanet(settings);
+  const landDraft=createNaturalLand(settings),draft=createNaturalPlanet(settings,{landDraft}),again=createNaturalPlanet(settings);
+  assert.equal(draft.grid,landDraft.grid,'confirmation consumes the already-computed preview terrain');
   assert.deepEqual(draft.grid.heights,again.grid.heights);
   assert.ok(Math.abs(draft.measuredLandPercent-landPercent)<=draft.tolerancePercent);
   assert.equal(draft.refinement.landToSea,0);

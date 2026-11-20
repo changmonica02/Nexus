@@ -1,8 +1,12 @@
+/** @type {(progress: import('../../src/features/worldMap/globalMapProgress').GenerationProgress)=>void} */
+const ignoreProgress=()=>{};
+import {transportSeaSurfaceTemperature as transportSST} from '../../src/features/worldMap/core/oceanHeat.mjs';
+export {transportSST};
 // Monthly climatological equilibrium, not a sequence of daily weather states.
 import {dot,clamp,km,sphericalField} from './geologic-fields.mjs';
-import {generateSurfaceOcean,seasonalWind,tangent} from './surface-ocean.mjs';
+import {generateSurfaceOcean,seasonalWind,tangent} from '../../src/features/worldMap/core/surfaceOcean.mjs';
 import {classifyKoppen,KOPPEN_CODES} from './koppen-climate.mjs';
-export const CLIMATE_PARAMETERS=Object.freeze({version:1,axialTilt:23.44,lapseRate:6.5,moistureSweeps:180,transportStepDays:.16});
+export const CLIMATE_PARAMETERS=Object.freeze({version:2,axialTilt:23.44,lapseRate:6.5,moistureSweeps:180,transportStepDays:.16});
 const DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
 export function dailyInsolation(latitude,month,tilt=23.44){
  const lat=latitude*Math.PI/180,decl=tilt*Math.PI/180*Math.sin(2*Math.PI*(month-2.5)/12);
@@ -18,14 +22,6 @@ export function climateContext(grid){
 }
 function seaEquilibrium(context,month){
  return Float64Array.from(context.latitude,(lat,i)=>clamp(28-38*Math.sin(lat*Math.PI/180)**2+.014*(dailyInsolation(lat,month-2)-context.insolationMean[i]),-1.8,33));
-}
-export function transportSST(grid,ocean,equilibrium){
- let t=equilibrium.slice();const incoming=Array.from({length:t.length},()=>[]);
- for(const e of ocean.edges){const from=e.flux>0?e.i:e.j,to=e.flux>0?e.j:e.i;incoming[to].push({from,weight:Math.abs(e.flux)/e.d*9});}
- for(let step=0;step<85;step++){
-  const next=t.slice();for(let i=0;i<t.length;i++)if(grid.heights[i]<0){let sum=equilibrium[i],weight=1;for(const a of incoming[i]){sum+=a.weight*t[a.from];weight+=a.weight;}next[i]=sum/weight;}t=next;
- }
- return Float32Array.from(t);
 }
 export function monthlyAtmosphere(grid,context,sst,month){
  const n=grid.points.length,temp=new Float32Array(n),thermal=new Float32Array(n),eq=seaEquilibrium(context,month);
@@ -88,14 +84,16 @@ export function transportMoisture(grid,context,temperature,sst,winds,month,{swee
  const total=area.reduce((s,a)=>s+a,0),meanDaily=rainfall.reduce((s,p,i)=>s+p*area[i],0)/total/DAYS[month];
  return {precipitation:rainfall,diagnostics:{meanDailyMm:meanDaily,relativeBudgetError:Math.abs(storage-previous-source+precip)/Math.max(1,source),storageChangeMmPerDay:(storage-previous)/total/dt,waterColumnMm:storage/total}};
 }
-export function generateMonthlyClimate(grid){
+export function generateMonthlyClimate(grid,{onProgress=ignoreProgress}={}){
+ onProgress({stage:'ocean',fraction:.56});
  const context=climateContext(grid),ocean=generateSurfaceOcean(grid),months=[];
  for(let m=0;m<12;m++){
+  onProgress({stage:'climate',fraction:.62+m/12*.25});
   const equilibrium=seaEquilibrium(context,m),sst=transportSST(grid,ocean,equilibrium),sstAnomaly=Float32Array.from(sst,(t,i)=>t-equilibrium[i]),atmosphere=monthlyAtmosphere(grid,context,sst,m);
   const moisture=transportMoisture(grid,context,atmosphere.temperature,sst,atmosphere.winds,m);
-  months.push({sst,sstAnomaly,temperature:atmosphere.temperature,precipitation:moisture.precipitation,diagnostics:moisture.diagnostics});
+  months.push({sst,sstAnomaly,temperature:atmosphere.temperature,precipitation:moisture.precipitation,diagnostics:{...moisture.diagnostics,oceanHeat:sst.diagnostics}});
  }
  const koppen=new Uint8Array(grid.points.length);
  for(let i=0;i<koppen.length;i++)if(grid.heights[i]>=0)koppen[i]=KOPPEN_CODES.indexOf(classifyKoppen(months.map(m=>m.temperature[i]),months.map(m=>m.precipitation[i])));
- return {version:1,parameters:CLIMATE_PARAMETERS,units:{temperature:'°C',sst:'°C',precipitation:'mm/month'},months,ocean,koppen,context};
+ return {version:2,parameters:CLIMATE_PARAMETERS,units:{temperature:'°C',sst:'°C',precipitation:'mm/month'},months,ocean,koppen,context};
 }

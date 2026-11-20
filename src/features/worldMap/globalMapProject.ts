@@ -9,7 +9,7 @@ export type NaturalGeography={version:1;rivers:{id:string;name:string;notes:stri
  lakes:{id:string;name:string;notes:string;waterLevelM:number;rim:{position:number[];heightM:number}[];bed:{position:number[];floorM:number;areaKm2:number;ring:number[][]}[];inletIds:string[];outletId:string|null}[];overlays:{id:string;name:string;description:string;geometry:number[][]}[]};
 export type NaturalFeaturePatch={id:string;name?:string;notes?:string;geometry?:number[][];waterLevelM?:number;bed?:number[][]};
 export type GlobalMapProject = {
- format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:2|3|4;islandGenesis?:IslandGenesis;climateVersion?:1;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
+ format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:4;islandGenesis?:IslandGenesis;climateVersion?:2;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
  environmentTerrain?:GlobalMapProject['terrain'];
  terrain:{format:'nexus-spherical-grid-prototype';version:1;frequency:60;cells:36002;
  heightScaleMetres:100;seaLevel:0;oceanSeed:number;revision:number;heights:number[];checksum:string};
@@ -26,10 +26,10 @@ export function validateGlobalSettings(value:unknown):asserts value is GlobalMap
 }
 export function validateGlobalMapProject(value:unknown):asserts value is GlobalMapProject {
  const p=value as GlobalMapProject;
- if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==2&&p.geologyVersion!==3&&p.geologyVersion!==4))throw Error('Unsupported global map version');
- if(p.climateVersion!==undefined&&p.climateVersion!==1)throw Error('Unsupported climate version');
+ if(!p||p.format!=='nexus-global-map'||p.version!==1||(p.geologyVersion!==undefined&&p.geologyVersion!==4))throw Error('Unsupported global map version');
+ if(p.climateVersion!==undefined&&p.climateVersion!==2)throw Error('Unsupported climate version');
  if(p.packSettings!==undefined&&(!p.packSettings||p.packSettings.version!==1||![1,2].includes(p.packSettings.detail)))throw Error('Unsupported Pack version');
- if(p.naturalGeography!==undefined){if(!p.packSettings||p.climateVersion!==1)throw Error('Natural geography requires Pack and climate');validateNaturalGeography(p.naturalGeography);}
+ if(p.naturalGeography!==undefined){if(!p.packSettings||p.climateVersion!==2)throw Error('Natural geography requires Pack and climate');validateNaturalGeography(p.naturalGeography);}
  validateGlobalSettings(p.settings);
  const g=p.islandGenesis;
  if(g!==undefined){
@@ -43,7 +43,7 @@ export function validateGlobalMapProject(value:unknown):asserts value is GlobalM
  !Array.isArray(t.heights)||t.heights.length!==36002||!t.heights.every(h=>Number.isInteger(h)&&h>=-100&&h<=100)||
  !Number.isInteger(t.oceanSeed)||t.oceanSeed<0||t.oceanSeed>=36002||t.heights[t.oceanSeed]>=0||
  !Number.isSafeInteger(t.revision)||t.revision<0||t.checksum!==heightChecksum(t.heights))throw Error('Invalid global map terrain snapshot');
- if(p.environmentTerrain!==undefined){validateGlobalMapProject({format:p.format,version:p.version,settings:p.settings,terrain:p.environmentTerrain});if(p.climateVersion!==1)throw Error('Environment baseline requires climate');}
+ if(p.environmentTerrain!==undefined){validateGlobalMapProject({format:p.format,version:p.version,settings:p.settings,terrain:p.environmentTerrain});if(p.climateVersion!==2)throw Error('Environment baseline requires climate');}
  if(t.revision===0&&g&&g.cells.some(i=>t.heights[i]<0))throw Error('Generated island is submerged');
 }
 export async function readGlobalMapProject(blob:Blob):Promise<GlobalMapProject> {

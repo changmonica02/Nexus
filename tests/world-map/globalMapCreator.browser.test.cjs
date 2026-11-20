@@ -42,7 +42,7 @@ test('planet creator desktop/mobile: automatic land-only preview, uint32 validat
    const saved=await page.evaluate(()=>window.created[0]);
    assert.equal(saved.name,'海洋測試星');assert.equal(saved.project.settings.seed,42);assert.equal(saved.project.settings.landPercent,25);
    assert.equal(saved.project.terrain.heights.length,36002);
-   assert.equal(saved.project.climateVersion,1);assert.equal(saved.project.packSettings.version,1);
+   assert.equal(saved.project.climateVersion,2);assert.equal(saved.project.packSettings.version,1);
    assert.equal(saved.project.naturalGeography.version,1);
    assert.ok(saved.project.naturalGeography.rivers.length>0);
    assert.equal(new Set(saved.project.naturalGeography.rivers.map(r=>r.id)).size,saved.project.naturalGeography.rivers.length);
