@@ -1,7 +1,9 @@
 "use client";
 import {sphericalBrushRing} from '../features/worldMap/core/heightBrush.mjs';
-import {mapPalettes,type GlobalMapDisplay} from '../features/worldMap/globalMapDisplay';
-import {climateColor,KOPPEN_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
+import {mapPalettes,elevationColors,elevationLevels,depthColors,depthLevels,type GlobalMapDisplay} from '../features/worldMap/globalMapDisplay';
+import {climateColor,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
+import {buildScalarBands} from '../features/worldMap/core/scalarBands.mjs';
+import {buildRiverStrokes} from '../features/worldMap/core/riverDrawing.mjs';
 import {useEffect,useRef,useState,useMemo} from 'react';
 import type {GlobalMapDrawing} from '../features/worldMap/globalMapGeometry';
 import {useLanguage} from '../lib/LanguageContext';
@@ -13,8 +15,35 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
  const showPlates=display?.overlays.plates??localPlates,showGeology=display?.overlays.geology??localGeology,palette=mapPalettes[display?.style??'terrain'];
  const [localLayer,setClimateLayer]=useState('terrain'),[localMonth,setMonth]=useState(0);
  const climateLayer=display?.mode??localLayer,month=display?.month??localMonth,showCurrents=display?.overlays.currents??['sst','currents'].includes(climateLayer);
+ const scalarLayers=useMemo(()=>{
+  const mesh=drawing.scalarMesh,climate=drawing.climate?.months[month];
+  if(!mesh||typeof Path2D==='undefined')return [];
+  const pathBands=(values:ArrayLike<number>,levels:number[],colors:string[],clip?:'land'|'sea')=>
+   buildScalarBands(mesh,Array.from(values),levels,colors).map(band=>{
+    const path=new Path2D();
+    if(band.inverse)path.rect(-180,-90,360,180);
+    for(const ring of band.rings as number[][][])for(const shift of [-360,0,360]){
+     ring.forEach(([x,y],i)=>i?path.lineTo(x+shift,y):path.moveTo(x+shift,y));
+     path.closePath();
+    }
+    return {path,color:band.color,clip};
+   });
+  if(climate&&climateLayer==='precipitation')return pathBands(climate.precipitation,RAIN_LEVELS,RAIN_COLORS);
+  if(climate&&['temperature','sst'].includes(climateLayer)){
+   const sst=climateLayer==='sst';
+   return pathBands(sst?climate.sst:climate.temperature,TEMPERATURE_LEVELS.map(t=>t*10),TEMPERATURE_COLORS,sst?'sea':undefined);
+  }
+  if(mesh.heights&&['terrain','heightmap','contours','currents','sst'].includes(climateLayer)){
+   const scientific=climateLayer==='heightmap'||climateLayer==='contours',custom=scientific?undefined:palette.relief;
+   return [
+    ...pathBands(mesh.heights,custom?[-65,-45,-25,-10,-3]:depthLevels,custom?.slice(0,6)??depthColors,'sea'),
+    ...pathBands(mesh.heights,custom?[2,5,10,20,40]:elevationLevels,custom?.slice(6)??elevationColors,'land'),
+   ];
+  }
+  return [];
+ },[drawing,month,climateLayer,palette]);
  const climateBands=useMemo(()=>{
-  const c=drawing.climate;if(!c||['terrain','contours','political','culture','currents','ecosystems','seabedEcosystems'].includes(climateLayer))return [];
+  const c=drawing.climate;if(!c||scalarLayers.length||['heightmap','terrain','contours','political','culture','currents','ecosystems','seabedEcosystems'].includes(climateLayer))return [];
   const bands=new Map<string,number[][][]>();
   for(let i=0;i<c.rings.length;i++){
    if(climateLayer==='sst'&&!c.ocean[i])continue;
@@ -22,7 +51,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    const color=climateColor(climateLayer,value);if(!bands.has(color))bands.set(color,[]);bands.get(color)!.push(c.rings[i]);
   }
   return [...bands].map(([color,rings])=>({color,rings}));
- },[drawing,month,climateLayer]);
+ },[drawing,month,climateLayer,scalarLayers]);
  const [localPack,setShowPack]=useState(false),[showHydrology,setShowHydrology]=useState(true);
  const showPack=display?.overlays.pack??localPack,showRivers=display?.overlays.rivers??showHydrology,showLakes=display?.overlays.lakes??showHydrology,showNames=display?.overlays.names??false;
  const ecosystemBands=useMemo(()=>{
@@ -36,11 +65,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   return {land:make(surface.inverse),sea:make(!surface.inverse)};
  },[drawing]);
  const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>view.zoom>=1.8||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,view.zoom]);
- const riverBands=useMemo(()=>{
-  const bands=new Map<string,{dry:boolean;width:number;lines:number[][][]}>();
-  for(const river of visibleRivers)for(let i=0;i<river.lines.length;i++){const flow=river.segmentFlows?.[month]?.[i]??river.monthly[month]??0,dry=flow<.05,width=Math.round(Math.min(3,.45+Math.log1p(flow)*.18)*4)/4,key=`${dry}:${width}`;if(!bands.has(key))bands.set(key,{dry,width,lines:[]});bands.get(key)!.lines.push(river.lines[i]);}
-  return [...bands.values()];
- },[visibleRivers,month]);
+ const riverStrokes=useMemo(()=>visibleRivers.map(river=>buildRiverStrokes(river,month)),[visibleRivers,month]);
  const [hoverPoint,setHoverPoint]=useState<[number,number]|null>(null);
  const stroke=useRef<{id:number;points:[number,number][]}|null>(null);
  const location=(clientX:number,clientY:number):[number,number]|null=>{const rect=canvas.current!.getBoundingClientRect(),s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2,longitude=(clientX-rect.left-size.w/2-pan)/s,latitude=-(clientY-rect.top-size.h/2-view.y)/s;return Math.abs(latitude)<=90?[((longitude+180)%360+360)%360-180,latitude]:null;};
@@ -61,12 +86,20 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   ctx.translate(size.w/2+pan,size.h/2+view.y);ctx.scale(s,-s);
   const copies=Math.ceil(size.w/period/2)+1;
   for(let k=-copies;k<=copies;k++){
+   if(Math.abs(pan+k*period)>size.w/2+period/2)continue;
    ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}ctx.fillStyle=palette.land;
    if(surfacePaths)ctx.fill(surfacePaths.land,'evenodd');else{ctx.beginPath();for(const ring of drawing.land){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
-   if(drawing.relief)for(const [index,band] of drawing.relief.entries()){
+   if(!drawing.scalarMesh&&drawing.relief)for(const [index,band] of drawing.relief.entries()){
     ctx.save();if(surfacePaths)ctx.clip(index<6?surfacePaths.sea:surfacePaths.land,'evenodd');ctx.fillStyle=palette.relief?.[index]??band.color;ctx.beginPath();
     for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}
     ctx.fill();ctx.restore();
+   }
+   for(const band of scalarLayers){
+    ctx.save();
+    if(band.clip&&surfacePaths)ctx.clip(surfacePaths[band.clip],'evenodd');
+    ctx.fillStyle=band.color;
+    ctx.fill(band.path,'evenodd');
+    ctx.restore();
    }
    for(const band of [...climateBands,...ecosystemBands]){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
    if(drawing.climate&&showCurrents){
@@ -84,7 +117,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    ctx.beginPath();for(const line of drawing.coast){ctx.moveTo(line[0][0],line[0][1]);ctx.lineTo(line[1][0],line[1][1]);}
    ctx.strokeStyle=palette.line;ctx.lineWidth=.7/s;ctx.stroke();
    if(climateLayer==='contours'&&drawing.contours){
-    for(const band of drawing.contours){ctx.strokeStyle=band.height<0?'#3a7895':palette.line;ctx.lineWidth=(band.height===0?1.2:.6)/s;ctx.beginPath();for(const [a,b] of band.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
+    for(const band of drawing.contours){if(band.height===0&&surfacePaths)continue;ctx.strokeStyle=band.height<0?'#3a7895':palette.line;ctx.lineWidth=(band.height===0?1.2:.6)/s;ctx.beginPath();for(const [a,b] of band.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
    }
    if(showPlates&&drawing.tectonicSymbols){
     const colors:Record<string,string>={subduction:'#a52938',collision:'#8c3b84','mid-ocean-ridge':'#007c91',rift:'#007c91',transform:'#aa6d18',diffuse:'#777'};
@@ -118,10 +151,31 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    }
    if(drawing.natural){
     if(showLakes){
-     for(const lake of drawing.natural.lakes){ctx.fillStyle=lake.months[month]?.dry?'#a6c2c7':'#4e9ec3';ctx.beginPath();for(const ring of lake.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
+     for(const lake of drawing.natural.lakes){ctx.fillStyle=lake.months[month]?.dry?'#a6c2c7':'#5794ae';ctx.beginPath();for(const ring of lake.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
     }
     if(showRivers){
-     for(const band of riverBands){ctx.strokeStyle=band.dry?'#789da8':['ecosystems','seabedEcosystems'].includes(climateLayer)?'#278ec2':'#1d72b0';ctx.lineWidth=band.width/s;ctx.setLineDash(band.dry?[3/s,3/s]:[]);ctx.beginPath();for(const [a,b] of band.lines){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}ctx.setLineDash([]);
+     ctx.save();
+     ctx.lineJoin='round';
+     ctx.lineCap='round';
+     for(const reaches of riverStrokes)for(const {points,widths,dry} of reaches){
+      ctx.beginPath();
+      if(dry){
+       ctx.strokeStyle='#789da8';ctx.lineWidth=.55/s;ctx.setLineDash([2.5/s,2/s]);
+       points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+       ctx.stroke();
+       continue;
+      }
+      ctx.fillStyle=climateLayer==='terrain'||climateLayer==='heightmap'?'#316e8e':'#366f95';
+      const banks=points.map(([x,y],i)=>{
+       const a=points[Math.max(0,i-1)],b=points[Math.min(points.length-1,i+1)];
+       const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1,offset=widths[i]/(2*s);
+       return [[x-dy/length*offset,y+dx/length*offset],[x+dy/length*offset,y-dx/length*offset]];
+      });
+      banks.forEach(([left],i)=>i?ctx.lineTo(left[0],left[1]):ctx.moveTo(left[0],left[1]));
+      for(let i=banks.length-1;i>=0;i--)ctx.lineTo(banks[i][1][0],banks[i][1][1]);
+      ctx.closePath();ctx.fill();
+     }
+     ctx.restore();
     }
     if(showNames){
      ctx.fillStyle=palette.ink;ctx.font=`${12/s}px sans-serif`;
@@ -133,7 +187,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    }
    ctx.restore();
   }
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,riverBands,visibleRivers]);
+ },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,visibleRivers]);
  useEffect(()=>{
   const el=canvas.current!;
   const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};
@@ -151,11 +205,11 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   }} onPointerLeave={()=>setHoverPoint(null)} onPointerUp={e=>{if(stroke.current?.id===e.pointerId){const points=stroke.current.points,end=location(e.clientX,e.clientY),last=points.at(-1)!;if(end&&points.length<256&&Math.hypot(end[0]-last[0],end[1]-last[1])>1e-6)points.push(end);stroke.current=null;onStroke?.(points);}pointers.current.delete(e.pointerId);}} onPointerCancel={e=>{if(stroke.current?.id===e.pointerId)stroke.current=null;pointers.current.delete(e.pointerId);}} onLostPointerCapture={e=>{if(stroke.current?.id===e.pointerId)stroke.current=null;pointers.current.delete(e.pointerId);}}/>
   {footprint&&<svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full"><path d={footprint} fill="none" stroke="white" strokeWidth={3}/><path d={footprint} fill="none" stroke="#172734" strokeWidth={1.5} strokeDasharray="5 3"/></svg>}
   {!display&&drawing.climate&&<div className="absolute left-2 top-2 flex max-w-[55%] flex-wrap gap-1 rounded-md bg-[var(--color-bg)]/95 p-1 text-sm">
-   <select className="min-h-11 max-w-full bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'氣候圖層':'Climate layer'} value={climateLayer} onChange={e=>setClimateLayer(e.target.value)}>{[['terrain','地形','Terrain'],['currents','表層洋流','Surface currents'],['sst','海表溫度 SST','Sea surface temperature'],['temperature','月均溫 °C','Monthly temperature °C'],['precipitation','月降水 mm','Monthly precipitation mm'],['koppen','柯本（全年）','Köppen (annual)'],...(drawing.natural?[['ecosystems','IUCN 潛在生態','IUCN potential ecosystems'],['seabedEcosystems','IUCN 海床生態','IUCN seabed ecosystems']]:[])].map(([v,z,en])=><option key={v} value={v}>{language==='zh-TW'?z:en}</option>)}</select>
+   <select className="min-h-11 max-w-full bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'氣候圖層':'Climate layer'} value={climateLayer} onChange={e=>setClimateLayer(e.target.value)}>{[['terrain','地形','Terrain'],['heightmap','高度圖','Elevation'],['currents','表層洋流','Surface currents'],['sst','海表溫度 SST','Sea surface temperature'],['temperature','月均溫 °C','Monthly temperature °C'],['precipitation','月降水 mm','Monthly precipitation mm'],['koppen','柯本（全年）','Köppen (annual)'],...(drawing.natural?[['ecosystems','IUCN 潛在生態','IUCN potential ecosystems'],['seabedEcosystems','IUCN 海床生態','IUCN seabed ecosystems']]:[])].map(([v,z,en])=><option key={v} value={v}>{language==='zh-TW'?z:en}</option>)}</select>
    <select className="min-h-11 bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'月份':'Month'} value={month} onChange={e=>setMonth(Number(e.target.value))}>{Array.from({length:12},(_,i)=><option key={i} value={i}>{i+1}{language==='zh-TW'?' 月':''}</option>)}</select>
    {drawing.natural&&['ecosystems','seabedEcosystems'].includes(climateLayer)&&<details className="w-full text-xs"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'IUCN 第二層圖例':'IUCN Level 2 legend'}</summary><div className="grid max-h-32 grid-cols-1 gap-1 overflow-y-auto">{drawing.natural.ecosystems.catalog.map(c=><span key={c[0]} className="flex items-center gap-1"><span style={{background:c[3]}} className="inline-block h-3 w-3 shrink-0"/>{c[0]} {language==='zh-TW'?c[2]:c[1]}</span>)}</div></details>}
    {climateLayer==='koppen'&&<details className="w-full text-xs"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'分類色彩圖例':'Class color legend'}</summary><div className="grid max-h-32 grid-cols-4 gap-1 overflow-y-auto">{drawing.climate.codes.map((code,i)=><span key={code} className="flex items-center gap-1"><span style={{background:KOPPEN_COLORS[i]}} className="inline-block h-3 w-3"/>{code}</span>)}</div></details>}
-   {climateLayer!=='terrain'&&<p className="w-full max-w-64 text-xs">{climateLayer==='precipitation'?(language==='zh-TW'?'淺→深：0／10／25／50／100／175／275／450+ mm／月':'Light→dark: 0/10/25/50/100/175/275/450+ mm/month'):['ecosystems','seabedEcosystems'].includes(climateLayer)?(language==='zh-TW'?'IUCN 第二層程序估計；非實地調查。河線虛線表示當月枯水。':'IUCN Level 2 potential estimate, not a survey; dashed channels indicate low monthly flow.'):climateLayer==='koppen'?(language==='zh-TW'?'A: 熱帶 · B: 乾燥 · C: 溫帶 · D: 冷帶 · E: 極地':'A: Tropical · B: Arid · C: Temperate · D: Cold · E: Polar'):climateLayer==='currents'?(language==='zh-TW'?'紅：相對暖流；藍：相對寒流；年平均流向':'Red: warmer SST anomaly; blue: cooler anomaly; annual flow'):language==='zh-TW'?'藍→紅：−20／−5／5／15／22／28／35+ °C；洋流箭頭為年平均方向':'Blue→red: −20/−5/5/15/22/28/35+ °C; annual current directions'}</p>}
+   {!['terrain','heightmap'].includes(climateLayer)&&<p className="w-full max-w-64 text-xs">{climateLayer==='precipitation'?(language==='zh-TW'?'淺→深：0／10／25／50／100／175／275／450+ mm／月':'Light→dark: 0/10/25/50/100/175/275/450+ mm/month'):['ecosystems','seabedEcosystems'].includes(climateLayer)?(language==='zh-TW'?'IUCN 第二層程序估計；非實地調查。河線虛線表示當月枯水。':'IUCN Level 2 potential estimate, not a survey; dashed channels indicate low monthly flow.'):climateLayer==='koppen'?(language==='zh-TW'?'A: 熱帶 · B: 乾燥 · C: 溫帶 · D: 冷帶 · E: 極地':'A: Tropical · B: Arid · C: Temperate · D: Cold · E: Polar'):climateLayer==='currents'?(language==='zh-TW'?'紅：相對暖流；藍：相對寒流；年平均流向':'Red: warmer SST anomaly; blue: cooler anomaly; annual flow'):language==='zh-TW'?'藍→紅：−20／−5／5／15／22／28／35+ °C；洋流箭頭為年平均方向':'Blue→red: −20/−5/5/15/22/28/35+ °C; annual current directions'}</p>}
   </div>}
   {!display&&<details className="absolute right-2 top-2 rounded-md border bg-[var(--color-bg)]/95 px-2 text-sm"><summary className="flex min-h-11 cursor-pointer items-center">{language==='zh-TW'?'疊加圖層':'Overlays'}</summary>
    {drawing.plateBoundaries&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={showPlates} onChange={e=>setShowPlates(e.currentTarget.checked)}/>{language==='zh-TW'?'板塊與隱沒方向':'Plates and subduction'}</label>}

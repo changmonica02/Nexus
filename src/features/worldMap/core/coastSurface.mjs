@@ -4,7 +4,7 @@ import {dot,cross,unit,clamp} from '../../../../experiments/spherical-grid/geolo
 const sub=(a,b)=>a.map((v,k)=>v-b[k]);
 const mix=(a,b,t)=>unit(a.map((v,k)=>v*(1-t)+b[k]*t));
 const project=p=>[Math.atan2(p[1],p[0])*180/Math.PI,Math.asin(clamp(p[2]))*180/Math.PI];
-function inside(point,ring){let hit=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>point[1])!==(b[1]>point[1])&&point[0]<(b[0]-a[0])*(point[1]-a[1])/(b[1]-a[1])+a[0])hit=!hit;}return hit;}
+export function insideProjectedRing(point,ring){let hit=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>point[1])!==(b[1]>point[1])&&point[0]<(b[0]-a[0])*(point[1]-a[1])/(b[1]-a[1])+a[0])hit=!hit;}return hit;}
 export function projectShoreRing(points){
  const ring=points.map(project);for(let i=1;i<ring.length;i++){while(ring[i][0]-ring[i-1][0]>180)ring[i][0]-=360;while(ring[i][0]-ring[i-1][0]< -180)ring[i][0]+=360;}
  if(Math.abs(ring.at(-1)[0]-ring[0][0])>180){const pole=points.reduce((s,p)=>s+p[2],0)>=0?90:-90;ring.push([ring.at(-1)[0],pole],[ring[0][0],pole]);}
@@ -24,7 +24,7 @@ export function createCoastSurface(grid,ocean){
   refined.push(refined[0]);loops.push(refined);
  }
  const land=loops.map(projectShoreRing),probe=project(grid.points[0]);let parity=false;
- for(const ring of land)for(const shift of [-360,0,360])if(inside([probe[0]+shift,probe[1]],ring))parity=!parity;
+ for(const ring of land)for(const shift of [-360,0,360])if(insideProjectedRing([probe[0]+shift,probe[1]],ring))parity=!parity;
  const inverse=parity!==(ocean[0]===0),coast=[];
  for(const loop of loops)for(let i=1;i<loop.length;i++){const a=project(loop[i-1]),b=project(loop[i]);while(b[0]-a[0]>180)b[0]-=360;while(b[0]-a[0]< -180)b[0]+=360;coast.push([a,b]);}
  return {land,coast,inverse};

@@ -140,27 +140,41 @@ export function deriveHydrology(pack,climate,base){
 export function generateNaturalGeography(pack,climate,seed,language='zh-TW'){
  const routing=routePack(pack),lakes=discoverLakes(pack,routing,seed).map((l,i)=>({...l,name:language==='zh-TW'?`湖泊 ${i+1}`:`Lake ${i+1}`})),base={version:1,rivers:[],lakes,overlays:[]};
  const h=deriveHydrology(pack,climate,base),n=pack.points.length,channel=new Uint8Array(n),indegree=new Uint16Array(n);
- const annualFlow=Float64Array.from(pack.points,(_,i)=>h.flows.reduce((s,q)=>s+q[i],0)/12),supported=new Uint8Array(n);
+ const annualFlow=Float64Array.from(pack.points,(_,i)=>h.flows.reduce((s,q,m)=>s+q[i]*MONTH_DAYS[m],0)/365);
  let totalLandArea=0,landCount=0;
- for(let i=0;i<n;i++)if(pack.heights[i]>=0){totalLandArea+=pack.catchmentAreas[i];landCount++;const neighbors=pack.neighbors[i].filter(j=>pack.heights[j]>=0);if(!neighbors.length)continue;const mean=neighbors.reduce((s,j)=>s+pack.heights[j],0)/neighbors.length,range=Math.max(...neighbors.map(j=>pack.heights[j]))-Math.min(...neighbors.map(j=>pack.heights[j]));if(mean-pack.heights[i]>Math.max(2,range*.08))supported[i]=1;}
- // Permit short unsupported head reaches where they drain directly to a valley.
- const supportDistance=new Int8Array(n);supportDistance.fill(4);
- for(let k=h.order.length-1;k>=0;k--){const i=h.order[k],j=h.receiver[i];if(supported[i])supportDistance[i]=0;else if(j>=0&&supportDistance[j]<3){supportDistance[i]=supportDistance[j]+1;supported[i]=1;}}
+ for(let i=0;i<n;i++)if(pack.heights[i]>=0){totalLandArea+=pack.catchmentAreas[i];landCount++;}
+ // Discharge starts streams in both valleys and flat plains. The area floor
+ // keeps channels below the resolution of the Pack from being drawn.
  let minimumArea=Math.max(12000,totalLandArea/Math.max(1,landCount)*3);
  for(let pass=0;pass<10;pass++){
   channel.fill(0);indegree.fill(0);
-  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5&&(supported[i]||h.accumulatedArea[i]>=minimumArea*3))channel[i]=1;
+  for(let i=0;i<n;i++)if(pack.heights[i]>=0&&h.lakeAt[i]<0&&h.accumulatedArea[i]>=minimumArea&&annualFlow[i]>=2.5)channel[i]=1;
   // Keep selected channels connected all the way to their lake or ocean.
   for(const i of h.order){const j=h.receiver[i];if(channel[i]&&j>=0&&pack.heights[j]>=0&&h.lakeAt[j]<0)channel[j]=1;}
   for(let i=0;i<n;i++){const j=h.receiver[i];if(channel[i]&&j>=0&&channel[j])indegree[j]++;}
   if(channel.reduce((s,x,i)=>s+(x&&indegree[i]===0?1:0),0)<=1800)break;
   minimumArea*=1.5;
  }
- // Remove unresolved short tributary stubs; independent small coastal rivers remain.
+ // Remove unresolved short tributaries and small one-reach coastal stubs.
  for(let pass=0;pass<3;pass++){
   indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;
   let removed=0;
-  for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){const branch=[];let current=i,distance=0;while(current>=0&&channel[current]&&(current===i||indegree[current]===1)){branch.push(current);const next=h.receiver[current];if(next>=0)distance+=km(pack.points[current],pack.points[next]);current=next;if(branch.length>8)break;}if(current>=0&&channel[current]&&indegree[current]>1&&distance<Math.max(100,Math.sqrt(minimumArea)*1.25)){for(const cell of branch)channel[cell]=0;removed++;}}
+  for(let i=0;i<n;i++)if(channel[i]&&!indegree[i]){
+   const branch=[];let current=i,distance=0;
+   while(current>=0&&channel[current]&&(current===i||indegree[current]===1)){
+    branch.push(current);
+    const next=h.receiver[current];
+    if(next>=0)distance+=km(pack.points[current],pack.points[next]);
+    current=next;
+    if(branch.length>8)break;
+   }
+   const joinsRiver=current>=0&&channel[current]&&indegree[current]>1;
+   const coastalStub=current>=0&&pack.heights[current]<0&&branch.length===1&&h.accumulatedArea[i]<minimumArea*2;
+   if((joinsRiver&&distance<Math.max(100,Math.sqrt(minimumArea)*1.25))||coastalStub){
+    for(const cell of branch)channel[cell]=0;
+    removed++;
+   }
+  }
   if(!removed)break;
  }
  indegree.fill(0);for(let i=0;i<n;i++)if(channel[i]&&h.receiver[i]>=0&&channel[h.receiver[i]])indegree[h.receiver[i]]++;

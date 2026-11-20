@@ -38,6 +38,18 @@ export function shapeNaturalRelief(grid,{seed,rawRelief}={}){
   h[i]=Math.max(.05,base+valueNoise3(p,6,seed^0x5814)*2+
    valueNoise3(p,21,seed^0x9138)*Math.min(2.5,.08*base));
  }
+ // The projected templates can leave a single-cell spike where two
+ // patches overlap. Relax isolated extrema before tracing the catchments,
+ // while keeping ridges that continue through a neighbouring sample.
+ const source=h.slice();
+ for(let i=0;i<n;i++){
+  if(original[i]<0)continue;
+  const neighbors=grid.neighbors[i].filter(j=>original[j]>=0).map(j=>source[j]).sort((a,b)=>a-b);
+  if(neighbors.length<4)continue;
+  const low=neighbors[1],high=neighbors.at(-2);
+  const excess=source[i]-clamp(source[i],low,high);
+  h[i]-=Math.sign(excess)*Math.max(0,Math.abs(excess)-3)*.35;
+ }
  // Conservative hillslope diffusion: simultaneous edge transfers avoid
  // traversal bias. Work in height*area so unequal spherical cells conserve mass.
  for(let pass=0;pass<3;pass++){

@@ -17,3 +17,36 @@ test('contours interpolate actual heights across the date line without editing t
  assert.equal(JSON.stringify(grid),snapshot);assert.ok(contours.filter(c=>c.height>=1700).every(c=>!c.lines.length));
  assert.ok(createHeightContours({...grid,heights:[5,5,5]}).every(c=>!c.lines.length));
 });
+
+const {traceScalarBand}=require('../../src/features/worldMap/core/scalarBands.mjs');
+const {insideProjectedRing}=require('../../src/features/worldMap/core/coastSurface.mjs');
+const {buildRiverStrokes}=require('../../src/features/worldMap/core/riverDrawing.mjs');
+test('a scalar band wraps across the date line and classifies both polar caps correctly',()=>{
+ const mesh={
+  points:[point(180,0),point(-90,0),point(0,0),point(90,0),point(0,90),point(0,-90)],
+  triangles:[4,5].flatMap(p=>[0,1,2,3].map(i=>[p,i,(i+1)%4])),
+ };
+ const inside=(band,lon,lat)=>band.rings.reduce((state,ring)=>
+  [-360,0,360].reduce((flag,shift)=>flag!==insideProjectedRing([lon+shift,lat],ring),state),band.inverse);
+ const seam=traceScalarBand(mesh,[4,0,0,0,0,0],2);
+ assert.equal(seam.rings.length,1);
+ assert.equal(inside(seam,179,0),true);
+ assert.equal(inside(seam,-179,0),true);
+ assert.equal(inside(seam,0,0),false);
+ const polar=traceScalarBand(mesh,[0,0,0,0,4,4],2);
+ assert.equal(polar.rings.length,2);
+ assert.equal(inside(polar,179,80),true);
+ assert.equal(inside(polar,-179,-80),true);
+ assert.equal(inside(polar,0,0),false);
+ assert.deepEqual(traceScalarBand(mesh,[4,4,4,4,4,4],2),{rings:[],inverse:true});
+});
+test('rivers widen after a confluence and retain continuous seasonal reaches across the seam',()=>{
+ const river={lines:[[[178,1],[179,1]],[[179,1],[-179,1]],[[-179,1],[-178,1]],[[-178,1],[-177,1]]],
+  segmentFlows:[[2,200,0,0]],monthly:[200]};
+ const reaches=buildRiverStrokes(river,0);
+ const wet=reaches[1],dry=reaches[4];
+ assert.deepEqual(wet.points,[[178,1],[179,1],[181,1]]);
+ assert.ok(wet.widths[0]<wet.widths[1]&&wet.widths[1]<wet.widths[2]);
+ assert.equal(dry.dry,true);
+ assert.deepEqual(dry.points,[[181,1],[182,1],[183,1]]);
+});

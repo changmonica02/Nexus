@@ -57,7 +57,7 @@ test('editor groups display controls, independently toggles water, renders palet
  await click('顯示');assert.deepEqual([...host.querySelectorAll('aside h3')].map(h=>h.textContent),['顯示方式','疊加圖層','地圖風格']);assert.equal(button('政治').disabled,true);assert.equal(button('文化').disabled,true);
  const sw=name=>[...host.querySelectorAll('[role=switch]')].find(b=>document.getElementById(b.getAttribute('aria-labelledby')).textContent===name);
  assert.equal(sw('河流').getAttribute('aria-checked'),'true');assert.equal(sw('湖泊').getAttribute('aria-checked'),'true');
- operations.length=0;await act(async()=>{sw('河流').click();await delay(5);});assert.equal(sw('河流').getAttribute('aria-checked'),'false');assert.equal(sw('湖泊').getAttribute('aria-checked'),'true');assert.equal(operations.some(o=>o.kind==='stroke'&&o.color==='#1d72b0'),false);assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#4e9ec3'));
+ operations.length=0;await act(async()=>{sw('河流').click();await delay(5);});assert.equal(sw('河流').getAttribute('aria-checked'),'false');assert.equal(sw('湖泊').getAttribute('aria-checked'),'true');assert.equal(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'),false);assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#5794ae'));
  operations.length=0;await click('藍圖');assert.ok(operations.some(o=>o.kind==='fillRect'&&o.color==='#102f53'));
  operations.length=0;await click('等高線');assert.ok(operations.some(o=>o.kind==='stroke'&&o.color==='#d3e9ff'));
  const month=host.querySelector('select[aria-label="月份"]');await change(month,'6');assert.equal(month.value,'6');assert.ok([...host.querySelectorAll('summary')].some(s=>s.textContent.includes('7 月')));
@@ -117,6 +117,6 @@ test('shared shoreline paths clip land and sea; small tributaries appear only af
  operations.length=0;await render(React.createElement(components.GlobalMapCanvas,{drawing:d}));
  assert.ok(operations.some(o=>o.kind==='fill'&&o.args[0] instanceof globalThis.Path2D&&o.args[1]==='evenodd'));
  assert.ok(operations.some(o=>o.kind==='clip'&&o.args[0] instanceof globalThis.Path2D));
- assert.equal(operations.some(o=>o.kind==='stroke'&&o.color==='#1d72b0'),false);
- operations.length=0;await click('＋');await click('＋');assert.ok(operations.some(o=>o.kind==='stroke'&&o.color==='#1d72b0'));
+ assert.equal(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'),false);
+ operations.length=0;await click('＋');await click('＋');assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'));
 });
