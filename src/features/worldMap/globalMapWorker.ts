@@ -9,13 +9,15 @@ import {derivePackEcosystems} from '../../../experiments/spherical-grid/pack-eco
 import {projectNaturalGeography} from '../../../experiments/spherical-grid/natural-display.mjs';
 import {generateMonthlyClimate} from '../../../experiments/spherical-grid/monthly-climate.mjs';
 import {createNaturalPlanet} from '../../../experiments/spherical-grid/natural-planet.mjs';
-import {createNaturalLand} from '../../../experiments/spherical-grid/natural-land.mjs';
+import {oceanConnected} from '../../../experiments/spherical-grid/pack.mjs';
+import {createNaturalLand,largestOceanSeed} from '../../../experiments/spherical-grid/natural-land.mjs';
 import {exportGlobalTerrainSnapshot,importGlobalTerrainSnapshot} from '../../../experiments/spherical-grid/snapshot.mjs';
 import {validateGlobalMapProject,validateGlobalSettings,type GlobalMapProject,type GlobalMapSettings,type NaturalFeaturePatch} from './globalMapProject';
-import {createGlobalMapDrawing} from './globalMapGeometry';
+import {createGlobalMapDrawing,type NaturalMapDrawing} from './globalMapGeometry';
 import {analyzePlanetGeology} from '../../../experiments/spherical-grid/emergent-islands.mjs';
 let landPreviewCache:{key:string;draft:ReturnType<typeof createNaturalLand>}|undefined;
 let climateCache:{key:string;heights:number[];value:ReturnType<typeof generateMonthlyClimate>}|undefined;
+let naturalCache:{climate:ReturnType<typeof generateMonthlyClimate>;key:string;drawing:NaturalMapDrawing}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
 self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight'|'recalculateNature';brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
@@ -26,7 +28,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    const key=JSON.stringify(event.data.settings);
    if(landPreviewCache?.key!==key)landPreviewCache={key,draft:createNaturalLand(event.data.settings)};
    const draft=landPreviewCache.draft;
-   const ocean=Uint8Array.from(draft.grid.heights,(height:number)=>height<0?1:0);
+   const ocean=oceanConnected(draft.grid,draft.oceanSeed);
    const drawing=createGlobalMapDrawing({...draft.grid,heights:undefined},ocean,[]);
    self.postMessage({id,project:null,drawing});
    return;
@@ -46,13 +48,14 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   validateGlobalMapProject(project);
   const state=importGlobalTerrainSnapshot(project.terrain);
   if(action==='editHeight'){
-   const changes=event.data.stroke?heightStrokeChanges(state.grid,sampleHeightStroke(event.data.stroke.brush,event.data.stroke.points)):heightBrushChanges(state.grid,event.data.brush);
+   const brushGrid={...state.grid,oceanMask:state.geography.ocean};
+   const changes:{id:number;height:number}[]=event.data.stroke?heightStrokeChanges(brushGrid,sampleHeightStroke(event.data.stroke.brush,event.data.stroke.points)):heightBrushChanges(brushGrid,event.data.brush);
    if(changes.length&&project.climateVersion===2)project.environmentTerrain??=project.terrain;
-   // Move the ocean anchor before a free brush raises its former cell.
-   const updates=new Map<number,number>(changes.map((c:{id:number;height:number})=>[c.id,c.height]));
-   if((updates.get(state.oceanSeed)??state.grid.heights[state.oceanSeed])>=0){
-    const seed=state.grid.heights.findIndex((h:number,i:number)=>(updates.get(i)??h)<0);
-    if(seed<0)throw Error('A planet must retain an ocean cell');state.oceanSeed=seed;
+   // A newly enclosed inland depression cannot become the global ocean.
+   if(changes.some(({id,height})=>(state.grid.heights[id]<0)!==(height<0))){
+    const heights=state.grid.heights.slice();
+    for(const {id,height} of changes)heights[id]=height;
+    state.oceanSeed=largestOceanSeed({...state.grid,heights});
    }
    applyGlobalHeightEdits(state,changes);
    project.terrain=exportGlobalTerrainSnapshot(state) as GlobalMapProject['terrain'];
@@ -72,10 +75,20 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   let natural;
   if(project.packSettings&&climate){
    report({stage:'hydrology',fraction:.90});
-   const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean)});
-   if(!project.naturalGeography&&(action==='generate'||action==='initializeNatural'))project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language) as GlobalMapProject['naturalGeography'];
-   if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
-   if(project.naturalGeography){const hydro=deriveHydrology(pack,climate,project.naturalGeography);report({stage:'ecosystems',fraction:.95});natural=projectNaturalGeography(pack,project.naturalGeography,hydro,derivePackEcosystems(pack,hydro));}
+   const keyForNatural=()=>JSON.stringify([environment.oceanSeed,project.packSettings,project.naturalGeography]);
+   if(action!=='editNatural'&&naturalCache?.climate===climate&&naturalCache.key===keyForNatural()){
+    natural=naturalCache.drawing;
+   }else{
+    const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean)});
+    if(!project.naturalGeography&&(action==='generate'||action==='initializeNatural'))project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language) as GlobalMapProject['naturalGeography'];
+    if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
+    if(project.naturalGeography){
+     const hydro=deriveHydrology(pack,climate,project.naturalGeography);
+     report({stage:'ecosystems',fraction:.95});
+     natural=projectNaturalGeography(pack,project.naturalGeography,hydro,derivePackEcosystems(pack,hydro)) as NaturalMapDrawing;
+     naturalCache={climate,key:keyForNatural(),drawing:natural};
+    }
+   }
   }
   validateGlobalMapProject(project);
   report({stage:'drawing',fraction:.98});

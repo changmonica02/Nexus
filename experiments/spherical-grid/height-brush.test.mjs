@@ -58,3 +58,20 @@ test('metre-scale brushes preserve shallow water without forcing a 100-metre sea
  const shallow={...grid,heights:Float32Array.from([.5,-.5,40])};
  assert.deepEqual(heightBrushChanges(shallow,{...brush,target:'ocean',tool:'raise',strength:.1}),[{id:1,height:-.4}]);
 });
+
+test('one drag never applies brush power more than once per cell',async()=>{
+ const {heightStrokeChanges}=await import('../../src/features/worldMap/core/heightBrush.mjs');
+ const stamp={...brush,tool:'raise',mode:'free'};
+ assert.deepEqual(heightStrokeChanges(grid,[stamp,{...stamp,longitude:179},stamp]),heightBrushChanges(grid,stamp));
+});
+test('preserve mode distinguishes inland depressions from the connected ocean',()=>{
+ const terrain={...grid,oceanMask:Uint8Array.from([0,0,0])};
+ assert.deepEqual(heightBrushChanges(terrain,{...brush,target:'ocean',tool:'raise'}),[]);
+ assert.deepEqual(heightBrushChanges(terrain,{...brush,target:'land',tool:'raise'}),[{id:0,height:12},{id:1,height:-.01}]);
+});
+
+test('negative line power carves a valley tapering away from its center',()=>{
+ const terrain={points:[point(0),point(0,4),point(0,6)],heights:[20,20,20],neighbors:[[],[],[]]};
+ const line={...brush,tool:'line',mode:'free',longitude:-5,end:[5,0],strength:-10};
+ assert.deepEqual(heightBrushChanges(terrain,line),[{id:0,height:10},{id:1,height:16.4}]);
+});

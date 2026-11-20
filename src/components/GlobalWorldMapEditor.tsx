@@ -30,7 +30,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const [settings,setSettings]=useState(newGlobalMapSettings),[replacing,setReplacing]=useState(false);
  const [working,setWorking]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(false),[dirty,setDirty]=useState(Boolean(draftToken));
  const [conflict,setConflict]=useState(draftConflict),[fullView,setFullView]=useState(false);
- const [brush,setBrush]=useState<Omit<HeightBrush,'longitude'|'latitude'>>({radius:5,strength:10,tool:'raise',mode:'preserve',target:'land'}),[painting,setPainting]=useState(false);
+ const [brush,setBrush]=useState<Omit<HeightBrush,'longitude'|'latitude'>>({radius:5,strength:2,tool:'raise',mode:'preserve',target:'land'}),[painting,setPainting]=useState(false);
  const [display,setDisplay]=useState(newMapDisplay),[panel,setPanel]=useState<'tools'|'display'|null>(null),[tool,setTool]=useState<'height'|'coast'|'rivers'>('height');
  const [undoStack,setUndoStack]=useState<GlobalMapProject[]>([]),[redoStack,setRedoStack]=useState<GlobalMapProject[]>([]);
  const [lineStart,setLineStart]=useState<[number,number]>();
@@ -92,7 +92,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   if(brush.tool==='line'&&!lineStart){setLineStart([longitude,latitude]);return;}
   const stroke=brush.tool==='line'?{...brush,longitude:lineStart![0],latitude:lineStart![1],end:[longitude,latitude] as [number,number]}:{...brush,longitude,latitude};
   setLineStart(undefined);generating.current=true;setWorking(true);setError(false);setProgress(undefined);
-  try{const previous=current.current.project,value=await client.current.request('editHeight',previous,{...(points?{stroke:{brush,points}}:{brush:stroke}),language,onProgress:value=>{if(alive.current)setProgress(value);}});setUndoStack(stack=>[...stack.slice(-11),previous]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  try{const previous=current.current.project,value=await client.current.request('editHeight',previous,{...(points?{stroke:{brush,points}}:{brush:stroke}),language,onProgress:value=>{if(alive.current)setProgress(value);}});if(value.project.terrain.revision===previous.terrain.revision)return;setUndoStack(stack=>[...stack.slice(-11),previous]);setRedoStack([]);current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch{setError(true);}finally{generating.current=false;setWorking(false);}
  };
  const restoreHeight=async(direction:'undo'|'redo')=>{
@@ -151,7 +151,7 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
     </aside>}
    </>}
    <div aria-busy={working} className="relative min-h-0 min-w-0 flex-1">
-    {(replacing?candidate??model:model)&&<GlobalMapCanvas paintRadius={brush.radius} display={editing||fullView?display:undefined} onStroke={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool!=='line'&&!busy&&!replacing&&!conflict?(points=>void paint(points[0][0],points[0][1],points)):undefined} onPaint={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool==='line'&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
+    {(replacing?candidate??model:model)&&<GlobalMapCanvas paintRadius={brush.radius} display={editing||fullView?(painting&&panel!=='display'&&tool==='height'&&model?.drawing.scalarMesh?.heights?{...display,mode:'heightmap'}:display):undefined} onStroke={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool!=='line'&&!busy&&!replacing&&!conflict?(points=>void paint(points[0][0],points[0][1],points)):undefined} onPaint={editing&&painting&&panel!=='display'&&tool==='height'&&brush.tool==='line'&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
     {editing&&painting&&!replacing&&<div className="absolute right-2 top-2 z-20 flex max-w-[85%] items-center gap-2 rounded-lg border bg-[var(--color-bg)]/95 p-1 text-xs"><span>{language==='zh-TW'?(brush.tool==='line'?(lineStart?'選擇終點':'選擇起點'):'拖曳繪製，放開後套用'):'Paint on the map'}</span><button disabled={busy} className="min-h-11 rounded border px-3" onClick={()=>{setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?'停止繪製':'Stop painting'}</button></div>}
     {working&&<p role="status" className="absolute inset-0 z-10 grid place-items-center bg-[var(--color-bg)]/80">{progress?`${generationStageLabel(progress,language)} · ${Math.round(progress.fraction*100)}%`:text('busy')}</p>}
     {!working&&!model&&<p className="p-4">{text('missing')}</p>}

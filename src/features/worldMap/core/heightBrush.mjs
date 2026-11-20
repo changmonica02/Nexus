@@ -1,27 +1,38 @@
 // Brush distances use great-circle angles, including across the date line.
 export function heightBrushChanges(grid, brush) {
  const {longitude,latitude,radius,strength,tool,mode,target}=brush??{};
- if(!Number.isFinite(longitude)||longitude< -180||longitude>180||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(radius)||radius<1||radius>30||!Number.isFinite(strength)||strength<.01||strength>100||!['raise','lower','raiseGradient','lowerGradient','smooth','noise','line'].includes(tool)||!['preserve','free'].includes(mode)||!['land','ocean'].includes(target))throw Error('Invalid height brush');
+ if(!Number.isFinite(longitude)||longitude< -180||longitude>180||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(radius)||radius<1||radius>30||!Number.isFinite(strength)||(tool==='line'?Math.abs(strength):strength)<.01||Math.abs(strength)>100||!['raise','lower','raiseGradient','lowerGradient','smooth','noise','line'].includes(tool)||!['preserve','free'].includes(mode)||!['land','ocean'].includes(target))throw Error('Invalid height brush');
  if(tool==='line'&&(!Array.isArray(brush.end)||brush.end.length!==2||!brush.end.every(Number.isFinite)||Math.abs(brush.end[0])>180||Math.abs(brush.end[1])>90))throw Error('Invalid line endpoint');
  const lon=longitude*Math.PI/180,lat=latitude*Math.PI/180;
  const center=[Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)];
- const centers=[center];
+ let line;
  if(tool==='line'){
   const [lon2,lat2]=brush.end.map(v=>v*Math.PI/180),end=[Math.cos(lat2)*Math.cos(lon2),Math.cos(lat2)*Math.sin(lon2),Math.sin(lat2)];
-  const arc=Math.acos(Math.max(-1,Math.min(1,center.reduce((s,v,i)=>s+v*end[i],0))));
+  const cosine=Math.max(-1,Math.min(1,center.reduce((s,v,i)=>s+v*end[i],0))),arc=Math.acos(cosine);
   if(arc>Math.PI-1e-6)throw Error('Ambiguous antipodal line');
-  if(arc>1e-8){const steps=Math.ceil(arc*180/Math.PI/Math.min(radius/2,1));for(let j=1;j<=steps;j++){const t=j/steps;centers.push(center.map((v,i)=>(v*Math.sin((1-t)*arc)+end[i]*Math.sin(t*arc))/Math.sin(arc)));}}
+  if(arc>1e-8)line={end,arc,tangent:end.map((v,i)=>(v-center[i]*cosine)/Math.sin(arc))};
  }
+ const isOcean=id=>grid.oceanMask?!!grid.oceanMask[id]:grid.heights[id]<0;
+ const angularLimit=Math.cos(radius*Math.PI/180);
  return grid.points.flatMap((p,id)=>{
-  const h=grid.heights[id];if(mode==='preserve'&&((target==='land')!==(h>=0)))return [];
-  const angle=Math.acos(Math.max(-1,Math.min(1,Math.max(...centers.map(c=>p.reduce((s,v,i)=>s+v*c[i],0))))))*180/Math.PI;
-  if(angle>radius)return [];
-  const amount=tool.endsWith('Gradient')?Math.max(.01,Math.round(strength*(1-angle/radius)*100)/100):strength;
+  const h=grid.heights[id];if(mode==='preserve'&&((target==='ocean')!==isOcean(id)))return [];
+  const along=p[0]*center[0]+p[1]*center[1]+p[2]*center[2];
+  let closest=along;
+  if(line){
+   const sideways=p[0]*line.tangent[0]+p[1]*line.tangent[1]+p[2]*line.tangent[2];
+   const position=Math.atan2(sideways,along);
+   closest=position>=0&&position<=line.arc?Math.hypot(along,sideways):
+    Math.max(along,p[0]*line.end[0]+p[1]*line.end[1]+p[2]*line.end[2]);
+  }
+  if(closest<angularLimit-1e-12)return [];
+  const tapered=tool.endsWith('Gradient')||tool==='line';
+  const angle=tapered?Math.acos(Math.min(1,closest))*180/Math.PI:0;
+  const amount=tool==='line'?strength*Math.max(0,1-(angle/radius)**2):tapered?strength*Math.max(0,1-angle/radius):strength;
   let next=h;
   if(tool.startsWith('raise')||tool==='line')next=h+amount;
   else if(tool.startsWith('lower'))next=h-amount;
   else if(tool==='smooth'){
-   const neighbors=grid.neighbors[id].filter(j=>mode==='free'||(grid.heights[j]>=0)===(h>=0));
+   const neighbors=grid.neighbors[id].filter(j=>mode==='free'||isOcean(j)===isOcean(id));
    const average=neighbors.length?neighbors.reduce((sum,j)=>sum+grid.heights[j],0)/neighbors.length:h;
    next=h+(average-h)*strength/100;
   }else next=h+((((Math.imul(id+1,2654435761)>>>0)%201)-100)/100)*strength;
@@ -54,9 +65,14 @@ export function sampleHeightStroke(brush,points){
 /** All stamps form one atomic edit; Pack is rebuilt only after the complete stroke. */
 export function heightStrokeChanges(grid,brushes){
  if(!Array.isArray(brushes)||!brushes.length||brushes.length>512)throw Error('Invalid brush batch');
- const working={...grid,heights:Float32Array.from(grid.heights)};
- for(const brush of brushes)for(const change of heightBrushChanges(working,brush))working.heights[change.id]=change.height;
- return Array.from(working.heights).flatMap((height,id)=>height===grid.heights[id]?[]:[{id,height}]);
+ // Overlapping samples describe the brush footprint, not extra power.
+ // A second deliberate pass is a separate gesture and can add more height.
+ const strongest=new Map();
+ for(const brush of brushes)for(const {id,height} of heightBrushChanges(grid,brush)){
+  const original=grid.heights[id];
+  if(!strongest.has(id)||Math.abs(height-original)>Math.abs(strongest.get(id)-original))strongest.set(id,height);
+ }
+ return [...strongest].sort(([a],[b])=>a-b).map(([id,height])=>({id,height}));
 }
 
 /** The same angular radius as the brush, projected as an unwrapped boundary. */

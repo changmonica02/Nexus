@@ -57,3 +57,17 @@ export function buildScalarBands(mesh,values,levels,colors){
   ...levels.map((level,i)=>({color:colors[i+1],...traceScalarBand(mesh,values,level)})),
  ];
 }
+
+// Relax the display surface on each side independently so deep water
+// never pulls down the adjacent land colors and the sign stays authoritative.
+export function smoothDisplayHeights(mesh,values){
+ const totals=new Float64Array(values.length),counts=new Uint8Array(values.length);
+ for(const [a,b,c] of mesh.triangles){
+  for(const [i,j] of [[a,b],[b,c],[c,a]]){
+   if((values[i]<0)!==(values[j]<0))continue;
+   totals[i]+=values[j];counts[i]++;
+   totals[j]+=values[i];counts[j]++;
+  }
+ }
+ return Float64Array.from(values,(h,i)=>counts[i]?h*.72+totals[i]/counts[i]*.28:h);
+}

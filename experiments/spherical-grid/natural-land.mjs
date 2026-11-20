@@ -103,7 +103,8 @@ function compose(grid,points,patches,scale){
    (scores[i]<scores[j]||(scores[i]===scores[j]&&i<j))){channel[i]=1;break;}
  }
  for(const {map,item} of patches)if(item.type!=='continent')project(points,map,item,1,scores);
- for(let i=0;i<scores.length;i++)if(channel[i])scores[i]=Math.min(scores[i],-1);
+ // Keep the explicit strait below the allowed land-calibration cutoff.
+ for(let i=0;i<scores.length;i++)if(channel[i])scores[i]=Math.min(scores[i],-6);
  return scores;
 }
 function landArea(grid,scores){let area=0;for(let i=0;i<scores.length;i++)if(scores[i]>=0)area+=grid.areas[i];return area;}
