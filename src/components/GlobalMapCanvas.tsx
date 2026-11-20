@@ -23,20 +23,22 @@ function heightCellColor(height:number,ocean:boolean){
 export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,display,editingHeight,lineStart}:{drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay;editingHeight?:Omit<HeightBrush,'longitude'|'latitude'>;lineStart?:[number,number]}){
  const {language}=useLanguage(),text=globalMapText(language),canvas=useRef<HTMLCanvasElement>(null);
  const [view,commitView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
- const liveView=useRef(view),viewFrame=useRef<number|null>(null);
+ const liveView=useRef(view),viewFrame=useRef<number|null>(null),settleTimer=useRef<number|null>(null);
+ const [tilePass,refreshTiles]=useState(0);
  const setView=useCallback((update:SetStateAction<typeof view>)=>{
-  liveView.current=typeof update==='function'?update(liveView.current):update;
+  const next=typeof update==='function'?update(liveView.current):update;
+  if(next.zoom===liveView.current.zoom&&next.x===liveView.current.x&&next.y===liveView.current.y)return;
+  liveView.current=next;
+  if(settleTimer.current!==null)window.clearTimeout(settleTimer.current);
+  settleTimer.current=window.setTimeout(()=>{
+   settleTimer.current=null;
+   refreshTiles(pass=>pass+1);
+  },140);
   if(viewFrame.current===null)viewFrame.current=window.requestAnimationFrame(()=>{
    viewFrame.current=null;commitView(liveView.current);
   });
  },[]);
- useEffect(()=>()=>{if(viewFrame.current!==null){window.cancelAnimationFrame(viewFrame.current);viewFrame.current=null;}},[]);
- const [tileZoom,setTileZoom]=useState(1);
- useEffect(()=>{
-  if(view.zoom===tileZoom)return;
-  const settle=window.setTimeout(()=>setTileZoom(view.zoom),120);
-  return()=>window.clearTimeout(settle);
- },[view.zoom,tileZoom]);
+ useEffect(()=>()=>{if(viewFrame.current!==null)window.cancelAnimationFrame(viewFrame.current);if(settleTimer.current!==null)window.clearTimeout(settleTimer.current);},[]);
  const [localPlates,setShowPlates]=useState(false),[localGeology,setShowGeology]=useState(false);
  const showPlates=display?.overlays.plates??localPlates,showGeology=display?.overlays.geology??localGeology,palette=mapPalettes[display?.style??'terrain'];
  const [localLayer,setClimateLayer]=useState('terrain'),[localMonth,setMonth]=useState(0);
@@ -209,7 +211,8 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    }
    for(const band of [...climateBands,...ecosystemBands]){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
  },[drawing,palette,surfacePaths,scalarLayers,climateLayer,climateBands,ecosystemBands,editCells]);
- const baseTiles=useMemo(()=>new Map<string,HTMLCanvasElement>(),[paintBase]);
+ const baseTiles=useMemo(()=>({tiles:new Map<string,HTMLCanvasElement>(),overview:null as HTMLCanvasElement|null}),[paintBase]);
+ const refineFrame=useRef<number|null>(null);
  useEffect(()=>{
   const el=canvas.current!,ctx=el.getContext('2d');if(!ctx)return;
   const ratio=Math.min(devicePixelRatio||1,2),width=Math.round(size.w*ratio),height=Math.round(size.h*ratio);
@@ -221,7 +224,25 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   const period=360*s,pan=((view.x+period/2)%period+period)%period-period/2;
   ctx.translate(size.w/2+pan,size.h/2+view.y);ctx.scale(s,-s);
   const copies=Math.ceil(size.w/period/2)+1;
-  const tileResolution=2**(Math.ceil(Math.log2(Math.min(size.w/360,size.h/180)*tileZoom*ratio)*2)/2);
+  const overviewScale=4;
+  let tileResolution=overviewScale*2**Math.max(0,Math.floor(Math.log2(s*ratio/overviewScale)));
+  // Leave room for partially visible tiles and both sides of the date line.
+  while(tileResolution>overviewScale&&(Math.ceil(size.w*tileResolution/s/512)+2)*(Math.ceil(size.h*tileResolution/s/512)+1)>24)tileResolution/=2;
+  if(surfacePaths&&drawing.scalarMesh&&!baseTiles.overview){
+   const overview=document.createElement('canvas');
+   overview.width=360*overviewScale;
+   overview.height=180*overviewScale;
+   const overviewContext=overview.getContext('2d');
+   if(overviewContext){
+    overviewContext.fillStyle=palette.ocean;
+    overviewContext.fillRect(0,0,overview.width,overview.height);
+    overviewContext.setTransform(overviewScale,0,0,-overviewScale,180*overviewScale,90*overviewScale);
+    paintBase(overviewContext,overviewScale/ratio);
+    baseTiles.overview=overview;
+   }
+  }
+  const canRefine=!pointers.current.size&&settleTimer.current===null;
+  const tileBudget={remaining:canRefine?1:0,pending:false};
   const margin=2/s;
   const occupiedRiverLabels:{left:number;right:number;top:number;bottom:number}[]=[];
   for(let k=-copies;k<=copies;k++){
@@ -229,7 +250,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}
    const left=Math.max(-180,(-size.w/2-pan)/s-k*360),right=Math.min(180,(size.w/2-pan)/s-k*360);
    const top=Math.min(90,(size.h/2+view.y)/s),bottom=Math.max(-90,(view.y-size.h/2)/s);
-   if(!surfacePaths||!drawing.scalarMesh||!drawBaseTiles(ctx,left,right,bottom,top,tileResolution,ratio,baseTiles,paintBase,palette.ocean)){
+   if(!baseTiles.overview||!drawBaseTiles(ctx,left,right,bottom,top,tileResolution,ratio,baseTiles.tiles,paintBase,palette.ocean,baseTiles.overview,tileBudget)){
     paintBase(ctx,s);
    }
    if(editGrid){
@@ -342,22 +363,51 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    }
    ctx.restore();
   }
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tileZoom,editGrid,previewCells]);
+  if(canRefine&&tileBudget.pending)refineFrame.current=window.requestAnimationFrame(()=>{
+   refineFrame.current=null;
+   if(settleTimer.current===null&&!pointers.current.size)refreshTiles(pass=>pass+1);
+  });
+  return()=>{if(refineFrame.current!==null){window.cancelAnimationFrame(refineFrame.current);refineFrame.current=null;}};
+ },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tilePass,editGrid,previewCells]);
+ const moveCamera=useCallback((factor:number,fromX=0,fromY=0,toX=fromX,toY=fromY)=>setView(v=>{
+  const zoom=Math.max(1,Math.min(32,v.zoom*factor)),scale=zoom/v.zoom;
+  const y=toY+(v.y-fromY)*scale,limit=size.h*zoom/2;
+  return {zoom,x:toX+(v.x-fromX)*scale,y:Math.max(-limit,Math.min(limit,y))};
+ }),[setView,size.h]);
  useEffect(()=>{
   const el=canvas.current!;
-  const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};
-  el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel);
- },[size.h,setView]);
- const zoom=(factor:number)=>setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*factor)),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});
+  let exponent=0,x=0,y=0,frame:number|null=null;
+  const wheel=(e:WheelEvent)=>{
+   e.preventDefault();
+   const unit=e.deltaMode===1?16:e.deltaMode===2?size.h:1;
+   exponent-=Math.max(-240,Math.min(240,e.deltaY*unit))*(e.ctrlKey?.01:.0025);
+   x=e.offsetX-size.w/2;
+   y=e.offsetY-size.h/2;
+   if(frame===null)frame=window.requestAnimationFrame(()=>{
+    frame=null;
+    moveCamera(Math.exp(Math.max(-Math.log(4),Math.min(Math.log(4),exponent))),x,y);
+    exponent=0;
+   });
+  };
+  el.addEventListener('wheel',wheel,{passive:false});
+  return()=>{el.removeEventListener('wheel',wheel);if(frame!==null)window.cancelAnimationFrame(frame);};
+ },[size,moveCamera]);
+ const zoom=moveCamera;
+ const endNavigation=(id:number)=>{
+  if(pointers.current.delete(id)&&!pointers.current.size&&settleTimer.current===null)refreshTiles(pass=>pass+1);
+ };
  return <div className="relative h-full min-h-56 w-full overflow-hidden rounded-lg bg-[#b1d3df]">
-  <canvas ref={canvas} data-global-map-canvas data-height-editing={editGrid||undefined} tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" style={{cursor:onPaint||onStroke?'crosshair':'grab'}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(e.button!==0)return;if(onStroke){if(stroke.current)return;const p=location(e.clientX,e.clientY);if(p){stroke.current={id:e.pointerId,points:[p]};setStrokePreview([p]);e.currentTarget.setPointerCapture(e.pointerId);}return;}if(onPaint){const p=location(e.clientX,e.clientY);if(p)onPaint(...p);return;}e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
-   if(onPaint||onStroke||climateLayer==='heightmap')setHoverPoint(location(e.clientX,e.clientY));
+  <canvas ref={canvas} data-global-map-canvas data-height-editing={editGrid||undefined} tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" style={{cursor:onPaint||onStroke?'crosshair':'grab'}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(e.button!==0)return;if(onStroke){if(stroke.current)return;const p=location(e.clientX,e.clientY);if(p){stroke.current={id:e.pointerId,points:[p]};setStrokePreview([p]);e.currentTarget.setPointerCapture(e.pointerId);}return;}if(onPaint){const p=location(e.clientX,e.clientY);if(p)onPaint(...p);return;}e.currentTarget.setPointerCapture(e.pointerId);setHoverPoint(null);if(pointers.current.size>=2)return;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
+   if(onPaint||onStroke||(climateLayer==='heightmap'&&!pointers.current.size))setHoverPoint(location(e.clientX,e.clientY));
    if(stroke.current?.id===e.pointerId){const p=location(e.clientX,e.clientY);if(p){const points=stroke.current.points,last=points.at(-1)!;if(Math.hypot(((p[0]-last[0]+540)%360-180)*Math.cos(p[1]*Math.PI/180),p[1]-last[1])>Math.min(.5,(paintRadius??1)/4)){if(points.length===256)stroke.current.points=points.filter((_,i)=>i%2===0);stroke.current.points.push(p);setStrokePreview([...stroke.current.points]);}}return;}
    const old=pointers.current.get(e.pointerId);if(!old)return;
-   if(pointers.current.size===2){const other=[...pointers.current.entries()].find(([id])=>id!==e.pointerId)![1],before=Math.hypot(old.x-other.x,old.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(before>1)zoom(after/before);}
+   if(pointers.current.size===2){const other=[...pointers.current.entries()].find(([id])=>id!==e.pointerId)![1],before=Math.hypot(old.x-other.x,old.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);const rect=e.currentTarget.getBoundingClientRect();
+    const centerX=rect.left+size.w/2,centerY=rect.top+size.h/2;
+    moveCamera(before>1?after/before:1,(old.x+other.x)/2-centerX,(old.y+other.y)/2-centerY,(e.clientX+other.x)/2-centerX,(e.clientY+other.y)/2-centerY);
+   }
    else setView(v=>({...v,x:v.x+e.clientX-old.x,y:Math.max(-size.h*v.zoom/2,Math.min(size.h*v.zoom/2,v.y+e.clientY-old.y))}));
    pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  }} onPointerLeave={()=>setHoverPoint(null)} onPointerUp={e=>{if(stroke.current?.id===e.pointerId){const points=stroke.current.points,end=location(e.clientX,e.clientY),last=points.at(-1)!;if(end&&points.length<256&&Math.hypot(end[0]-last[0],end[1]-last[1])>1e-6)points.push(end);stroke.current=null;setStrokePreview(null);onStroke?.(points);}pointers.current.delete(e.pointerId);}} onPointerCancel={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}pointers.current.delete(e.pointerId);}} onLostPointerCapture={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}pointers.current.delete(e.pointerId);}}/>
+  }} onPointerLeave={()=>setHoverPoint(null)} onPointerUp={e=>{if(stroke.current?.id===e.pointerId){const points=stroke.current.points,end=location(e.clientX,e.clientY),last=points.at(-1)!;if(end&&points.length<256&&Math.hypot(end[0]-last[0],end[1]-last[1])>1e-6)points.push(end);stroke.current=null;setStrokePreview(null);onStroke?.(points);}endNavigation(e.pointerId);}} onPointerCancel={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}endNavigation(e.pointerId);}} onLostPointerCapture={e=>{if(stroke.current?.id===e.pointerId){stroke.current=null;setStrokePreview(null);}endNavigation(e.pointerId);}}/>
   {footprint&&<svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full"><path d={footprint} fill="none" stroke="white" strokeWidth={3}/><path d={footprint} fill="none" stroke="#172734" strokeWidth={1.5} strokeDasharray="5 3"/></svg>}
   {!display&&drawing.climate&&<div className="absolute left-2 top-2 flex max-w-[55%] flex-wrap gap-1 rounded-md bg-[var(--color-bg)]/95 p-1 text-sm">
    <select className="min-h-11 max-w-full bg-[var(--color-bg)]" aria-label={language==='zh-TW'?'氣候圖層':'Climate layer'} value={climateLayer} onChange={e=>setClimateLayer(e.target.value)}>{[['terrain','地形','Terrain'],['heightmap','高度圖','Elevation'],['currents','表層洋流','Surface currents'],['sst','海表溫度 SST','Sea surface temperature'],['temperature','月均溫 °C','Monthly temperature °C'],['precipitation','月降水 mm','Monthly precipitation mm'],['koppen','柯本（全年）','Köppen (annual)'],...(drawing.natural?[['ecosystems','IUCN 潛在生態','IUCN potential ecosystems'],['seabedEcosystems','IUCN 海床生態','IUCN seabed ecosystems']]:[])].map(([v,z,en])=><option key={v} value={v}>{language==='zh-TW'?z:en}</option>)}</select>

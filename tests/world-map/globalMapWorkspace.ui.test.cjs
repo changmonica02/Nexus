@@ -156,11 +156,22 @@ test('panning a scalar base map reuses the same offscreen tiles',async()=>{
  assert.ok(copies.every(o=>tileImages.has(o.args[0])));
  assert.equal(operations.filter(o=>o.kind==='fillRect'&&o.canvas===canvas).length,1);
  operations.length=0;
- await click('＋');
+ await click('＋');await click('＋');await click('＋');await click('＋');
  await act(async()=>{await delay(40);});
  const zoomPreview=operations.filter(o=>o.kind==='drawImage');
  assert.ok(zoomPreview.length>0&&zoomPreview.every(o=>tileImages.has(o.args[0])));
- await act(async()=>{await delay(140);});
+ // Keep panning beyond the original zoom timeout. Detailed tiles must
+ // not be generated until the second gesture also settles.
+ await act(async()=>{
+  canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:2,button:0,clientX:400,clientY:200}));
+  canvas.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:2,clientX:425,clientY:200}));
+  await delay(170);
+ });
+ assert.ok(operations.filter(o=>o.kind==='drawImage').every(o=>tileImages.has(o.args[0])));
+ await act(async()=>{
+  canvas.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:2,clientX:425,clientY:200}));
+  await delay(45);
+ });
  assert.ok(operations.some(o=>o.kind==='drawImage'&&!tileImages.has(o.args[0])));
 });
 
