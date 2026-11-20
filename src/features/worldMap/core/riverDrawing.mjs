@@ -35,3 +35,11 @@ export function buildRiverStrokes(river,month){
   ...reach,points:reach.points.map(([x,y])=>[x+shift,y]),
  })));
 }
+
+export function riverLabelStyle(river){
+ const {lengthKm,catchmentAreaKm2,streamOrder=1}=river;
+ if(!river.parentId&&(lengthKm>=1000||catchmentAreaKm2>=300000||streamOrder>=4))return {minZoom:1,pixels:14,weight:600};
+ if(lengthKm>=600||catchmentAreaKm2>=150000||streamOrder>=3)return {minZoom:1.8,pixels:12,weight:500};
+ if(lengthKm>=250||streamOrder>=2)return {minZoom:3.5,pixels:11,weight:400};
+ return {minZoom:6,pixels:10,weight:400};
+}

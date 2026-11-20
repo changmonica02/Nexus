@@ -3,7 +3,7 @@ import {sphericalBrushRing,heightBrushChanges,heightStrokeChanges,sampleHeightSt
 import {mapPalettes,elevationColors,elevationLevels,depthColors,depthLevels,type GlobalMapDisplay} from '../features/worldMap/globalMapDisplay';
 import {climateColor,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
 import {buildScalarBands} from '../features/worldMap/core/scalarBands.mjs';
-import {buildRiverStrokes} from '../features/worldMap/core/riverDrawing.mjs';
+import {buildRiverStrokes,riverLabelStyle} from '../features/worldMap/core/riverDrawing.mjs';
 import {drawBaseTiles} from '../features/worldMap/globalMapTiles';
 import {useEffect,useRef,useState,useMemo,useCallback,type SetStateAction} from 'react';
 import type {HeightBrush} from '../features/worldMap/globalMapClient';
@@ -111,6 +111,13 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
  },[drawing]);
  const showTributaries=view.zoom>=1.8;
  const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>showTributaries||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,showTributaries]);
+ const riverLabels=useMemo(()=>visibleRivers.flatMap(river=>{
+  const line=river.lines[Math.floor(river.lines.length/2)];
+  if(!line||!river.name.trim())return [];
+  const [a,b]=line;
+  const longitude=(a[0]+b[0])/2;
+  return [{name:river.name,point:[((longitude+180)%360+360)%360-180,(a[1]+b[1])/2],length:river.lengthKm,...riverLabelStyle(river)}];
+ }).sort((a,b)=>a.minZoom-b.minZoom||b.length-a.length),[visibleRivers]);
  const riverStrokes=useMemo(()=>visibleRivers.map(river=>buildRiverStrokes(river,month).map(reach=>{
   let west=Infinity,east=-Infinity,south=Infinity,north=-Infinity;
   for(const [x,y] of reach.points){west=Math.min(west,x);east=Math.max(east,x);south=Math.min(south,y);north=Math.max(north,y);}
@@ -216,6 +223,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   const copies=Math.ceil(size.w/period/2)+1;
   const tileResolution=2**(Math.ceil(Math.log2(Math.min(size.w/360,size.h/180)*tileZoom*ratio)*2)/2);
   const margin=2/s;
+  const occupiedRiverLabels:{left:number;right:number;top:number;bottom:number}[]=[];
   for(let k=-copies;k<=copies;k++){
    if(Math.abs(pan+k*period)>size.w/2+period/2)continue;
    ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}
@@ -316,14 +324,25 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     if(showNames){
      ctx.fillStyle=palette.ink;ctx.font=`${12/s}px sans-serif`;
      const label=(name:string,p:number[])=>{ctx.save();ctx.translate(p[0],p[1]);ctx.scale(1,-1);ctx.fillText(name,0,0);ctx.restore();};
-     if(showRivers)for(const river of visibleRivers){const line=river.lines[Math.floor(river.lines.length/2)];if(line)label(river.name,line[0]);}
+     if(showRivers)for(const river of riverLabels){
+      if(view.zoom<river.minZoom)break;
+      const [lon,lat]=river.point,x=lon*s+pan+k*period+size.w/2,y=size.h/2+view.y-lat*s;
+      if(x<0||x>size.w||y<0||y>size.h)continue;
+      ctx.font=`${river.weight} ${river.pixels/s}px sans-serif`;
+      const textWidth=ctx.measureText(river.name).width*s;
+      const box={left:x+3,right:x+3+textWidth,top:y-river.pixels-3,bottom:y};
+      if(box.right>size.w||box.top<0||box.right>(180-lon)*s+x||occupiedRiverLabels.some(b=>box.left<b.right+4&&box.right>b.left-4&&box.top<b.bottom+3&&box.bottom>b.top-3))continue;
+      occupiedRiverLabels.push(box);
+      label(river.name,[lon+3/s,lat+2/s]);
+     }
+     ctx.font=`${12/s}px sans-serif`;
      if(showLakes)for(const lake of drawing.natural.lakes){const ring=lake.rings[0];if(ring?.length)label(lake.name,ring[0]);}
     }
     if(showPack){ctx.strokeStyle='rgba(20,35,50,.32)';ctx.lineWidth=.35/s;ctx.beginPath();for(const ring of drawing.natural.pack.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.stroke();}
    }
    ctx.restore();
   }
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,visibleRivers,baseTiles,paintBase,tileZoom,editGrid,previewCells]);
+ },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tileZoom,editGrid,previewCells]);
  useEffect(()=>{
   const el=canvas.current!;
   const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};

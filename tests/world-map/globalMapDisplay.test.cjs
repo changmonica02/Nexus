@@ -58,3 +58,13 @@ test('short high-flow rivers remain visually narrower than long rivers',()=>{
  assert.ok(short[0]<short.at(-1));
  assert.ok(short.at(-1)<=1.05&&main.at(-1)>short.at(-1));
 });
+
+test('river labels reveal smaller names later and use a smaller font',()=>{
+ const {riverLabelStyle}=require('../../src/features/worldMap/core/riverDrawing.mjs');
+ const main=riverLabelStyle({lengthKm:1600,catchmentAreaKm2:250000});
+ const regional=riverLabelStyle({lengthKm:700,catchmentAreaKm2:110000});
+ const tributary=riverLabelStyle({lengthKm:320,parentId:'main'});
+ const creek=riverLabelStyle({lengthKm:100,parentId:'main'});
+ assert.deepEqual([main,regional,tributary,creek].map(s=>s.minZoom),[1,1.8,3.5,6]);
+ assert.deepEqual([main,regional,tributary,creek].map(s=>s.pixels),[14,12,11,10]);
+});
