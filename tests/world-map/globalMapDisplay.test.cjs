@@ -50,3 +50,11 @@ test('rivers widen after a confluence and retain continuous seasonal reaches acr
  assert.equal(dry.dry,true);
  assert.deepEqual(dry.points,[[181,1],[182,1],[183,1]]);
 });
+
+test('short high-flow rivers remain visually narrower than long rivers',()=>{
+ const river={lines:[[[0,0],[1,0]],[[1,0],[2,0]]],monthly:[10000]};
+ const short=buildRiverStrokes({...river,lengthKm:220},0)[0].widths;
+ const main=buildRiverStrokes({...river,lengthKm:1600},0)[0].widths;
+ assert.ok(short[0]<short.at(-1));
+ assert.ok(short.at(-1)<=1.05&&main.at(-1)>short.at(-1));
+});
