@@ -5,7 +5,7 @@ import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import type {RegisterMapFlush} from './WorldMapEditor';
 import {WorldMapSyncStatus} from './WorldMapEditor';
 import {readGlobalMapProject,globalMapBlob} from '../features/worldMap/globalMapProject';
-import {createGlobalMapClient,type GlobalMapClient,type GlobalMapResult} from '../features/worldMap/globalMapClient';
+import {createGlobalMapClient,type GlobalMapClient,type GlobalMapResult,type HeightBrush} from '../features/worldMap/globalMapClient';
 import {globalMapText} from '../features/worldMap/globalMapMessages';
 import {downloadMapBlob} from '../features/worldMap/coreClient';
 import {useLanguage} from '../lib/LanguageContext';
@@ -25,6 +25,8 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
  const [settings,setSettings]=useState(newGlobalMapSettings),[replacing,setReplacing]=useState(false);
  const [working,setWorking]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(false),[dirty,setDirty]=useState(Boolean(draftToken));
  const [conflict,setConflict]=useState(draftConflict),[fullView,setFullView]=useState(false);
+ const [brush,setBrush]=useState<Omit<HeightBrush,'longitude'|'latitude'>>({radius:5,strength:10,tool:'raise',mode:'preserve',target:'land'}),[painting,setPainting]=useState(false);
+ const [lineStart,setLineStart]=useState<[number,number]>();
  const [discardPrompt,setDiscardPrompt]=useState(false);
  const client=useRef<GlobalMapClient|null>(null),alive=useRef(true),current=useRef<GlobalMapResult|undefined>(undefined);
  const revision=useRef(map.revision),token=useRef(draftToken),unsaved=useRef(Boolean(draftToken)),active=useRef<Promise<void>|null>(null),generating=useRef(false);
@@ -77,6 +79,14 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   try{const value=await client.current.request(action,current.current.project,{patch,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
   catch(e){setError(true);throw e;}finally{generating.current=false;setWorking(false);}
  };
+ const paint=async(longitude:number,latitude:number)=>{
+  if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)return;
+  if(brush.tool==='line'&&!lineStart){setLineStart([longitude,latitude]);return;}
+  const stroke=brush.tool==='line'?{...brush,longitude:lineStart![0],latitude:lineStart![1],end:[longitude,latitude] as [number,number]}:{...brush,longitude,latitude};
+  setLineStart(undefined);generating.current=true;setWorking(true);setError(false);
+  try{const value=await client.current.request('editHeight',current.current.project,{brush:stroke,language});current.current=value;setModel(value);unsaved.current=true;setDirty(true);await saveRef.current();}
+  catch{setError(true);}finally{generating.current=false;setWorking(false);}
+ };
  const close=async()=>{if(replacing){setDiscardPrompt(true);return;}try{await saveRef.current();onClose();}catch{/* Keep the working map and recovery export visible. */}};
  const matches=candidate&&JSON.stringify(candidate.project.settings)===JSON.stringify(settings);
  const busy=working||saving;
@@ -102,9 +112,20 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
    <div className="mt-2 flex flex-wrap gap-2 [&_button]:min-h-11 [&_button]:rounded-lg [&_button]:border [&_button]:px-3 [&_button:disabled]:opacity-40"><button disabled={busy} onClick={()=>void generate()}>{text('generate')}</button><button disabled={busy||!matches||!!conflict} onClick={()=>void apply().catch(()=>{})}>{text('apply')}</button><button disabled={busy} onClick={()=>{setReplacing(false);setCandidate(undefined);setError(false);}}>{text('discard')}</button></div>
    {!busy&&candidate&&!matches&&<p>{text('controlsChanged')}</p>}
   </section>}
+  {editing&&model&&!replacing&&<section className="flex shrink-0 flex-wrap items-center gap-2 border-b p-2 text-sm">
+   <button className="min-h-11 rounded border px-3" disabled={busy||!!conflict} aria-pressed={painting} onClick={()=>{setPainting(!painting);setLineStart(undefined);}}>{language==='zh-TW'?(painting?'完成高度編輯':'高度工具'):'Height tools'}</button>
+   {painting&&<>
+    <select aria-label="高度模式" value={brush.mode} onChange={e=>setBrush({...brush,mode:e.target.value as HeightBrush['mode']})}><option value="preserve">保留海岸</option><option value="free">自由</option></select>
+    <select aria-label="編輯範圍" disabled={brush.mode==='free'} value={brush.target} onChange={e=>setBrush({...brush,target:e.target.value as HeightBrush['target']})}><option value="land">編輯陸地</option><option value="ocean">編輯海洋</option></select>
+    <select aria-label="高度筆刷" value={brush.tool} onChange={e=>{setBrush({...brush,tool:e.target.value as HeightBrush['tool']});setLineStart(undefined);}}>{[['raise','強制抬升'],['raiseGradient','漸層抬升'],['lower','強制降低'],['lowerGradient','漸層降低'],['smooth','平滑筆刷'],['noise','擾動筆刷'],['line','直線筆刷']].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
+    <label>半徑（°）<input className="w-16 border" type="number" min={1} max={30} value={brush.radius} onChange={e=>setBrush({...brush,radius:Number(e.target.value)})}/></label>
+    <label>強度（100 m）<input className="w-16 border" type="number" min={1} max={100} value={brush.strength} onChange={e=>setBrush({...brush,strength:Number(e.target.value)})}/></label>
+    <span>{brush.tool==='line'?(lineStart?'點選終點以抬升直線範圍。':'點選直線起點。'):'點選地圖套用筆刷；每次操作自動儲存。'}</span>
+   </>}
+  </section>}
   {editing&&model&&!replacing&&<GlobalNaturalFeatures project={model.project} drawing={model.drawing} disabled={busy||!!conflict} language={language} onAction={naturalAction}/>}
   <div aria-busy={working} className={editing||fullView?'relative min-h-0 flex-1':'relative h-[clamp(16rem,40dvh,28rem)]'}>
-   {(replacing?candidate??model:model)&&<GlobalMapCanvas drawing={(replacing?candidate??model:model)!.drawing}/>}
+   {(replacing?candidate??model:model)&&<GlobalMapCanvas onPaint={editing&&painting&&!busy&&!replacing&&!conflict?((lon,lat)=>void paint(lon,lat)):undefined} drawing={(replacing?candidate??model:model)!.drawing}/>}
    {working&&<p role="status" className="absolute inset-0 grid place-items-center bg-[var(--color-bg)]/80">{text('busy')}</p>}
    {!working&&!model&&<p className="p-4">{text('missing')}</p>}
   </div>

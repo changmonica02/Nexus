@@ -1,3 +1,6 @@
+import {heightBrushChanges} from '../../../experiments/spherical-grid/height-brush.mjs';
+import {applyGlobalHeightEdits} from '../../../experiments/spherical-grid/terrain-edits.mjs';
+import type {HeightBrush} from './globalMapClient';
 import {generateSphericalPack} from '../../../experiments/spherical-grid/spherical-pack.mjs';
 import {generateNaturalGeography,deriveHydrology} from '../../../experiments/spherical-grid/pack-hydrology.mjs';
 import {editNaturalGeography} from '../../../experiments/spherical-grid/natural-geography.mjs';
@@ -15,7 +18,7 @@ import {analyzeSphericalPlates as analyzeLegacyPlates} from '../../../experiment
 import {tectonicSeedFromLandMask} from '../../../experiments/spherical-grid/plate-seafloor.mjs';
 let climateCache:{key:string;heights:number[];value:ReturnType<typeof generateMonthlyClimate>}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
-self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural';patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
+self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'editHeight';brush?:HeightBrush;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
  try {
   if(action==='preview'){
@@ -32,12 +35,23 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    const draft=createNaturalPlanet(event.data.settings);
    const terrain=exportGlobalTerrainSnapshot({grid:draft.grid,oceanSeed:draft.oceanSeed,revision:0}) as GlobalMapProject['terrain'];
    project={format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:1,islandGenesis:draft.islandGenesis as GlobalMapProject['islandGenesis'],settings:{...event.data.settings},terrain};
-  } else if(['load','editNatural','rebuildPack','initializeNatural'].includes(action)) {validateGlobalMapProject(event.data.project);project={...event.data.project!};}
+  } else if(['load','editNatural','rebuildPack','initializeNatural','editHeight'].includes(action)) {validateGlobalMapProject(event.data.project);project={...event.data.project!};}
   else throw Error('Unsupported global map operation');
   if(action==='generate'||action==='initializeNatural')project={...project,climateVersion:1,packSettings:project.packSettings??{version:1,detail:1}};
   if(action==='rebuildPack'){if(!project.packSettings)throw Error('Pack is not initialized');project.packSettings={version:1,detail:project.packSettings.detail===1?2:1};}
   validateGlobalMapProject(project);
   const state=importGlobalTerrainSnapshot(project.terrain);
+  if(action==='editHeight'){
+   const changes=heightBrushChanges(state.grid,event.data.brush);
+   // Move the ocean anchor before a free brush raises its former cell.
+   const updates=new Map<number,number>(changes.map((c:{id:number;height:number})=>[c.id,c.height]));
+   if((updates.get(state.oceanSeed)??state.grid.heights[state.oceanSeed])>=0){
+    const seed=state.grid.heights.findIndex((h:number,i:number)=>(updates.get(i)??h)<0);
+    if(seed<0)throw Error('A planet must retain an ocean cell');state.oceanSeed=seed;
+   }
+   applyGlobalHeightEdits(state,changes);
+   project.terrain=exportGlobalTerrainSnapshot(state) as GlobalMapProject['terrain'];
+  }
 
   // Stable across ocean-only height edits, exports and reloads. Never
   // recalculate / overwrite saved terrain when opening an existing map.

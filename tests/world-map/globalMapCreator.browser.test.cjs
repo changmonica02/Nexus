@@ -50,15 +50,22 @@ test('planet creator desktop/mobile: automatic land-only preview, uint32 validat
    // and IDs across a JSON round trip and a different Pack density.
    const lifecycle=await page.evaluate(async()=>{
     const worker=new Worker('/worker.js');let seq=0;
-    const request=(action,project,patch)=>new Promise((resolve,reject)=>{
+    const request=(action,project,patch,brush)=>new Promise((resolve,reject)=>{
      const id=++seq,timer=setTimeout(()=>reject(Error('lifecycle timeout')),120000);
      worker.onmessage=({data})=>{if(data.id!==id)return;clearTimeout(timer);data.error?reject(Error(data.error)):resolve(data);};
      worker.onerror=()=>{clearTimeout(timer);reject(Error('lifecycle worker failed'));};
-     worker.postMessage({id,action,project,patch});
+     worker.postMessage({id,action,project,patch,brush});
     });
     try{
      const base=window.created[0].project;
      const loaded=await request('load',JSON.parse(JSON.stringify(base)));
+     // Whole-sphere coordinate-independent smoke stroke near the equator.
+     const brushed=await request('editHeight',loaded.project,undefined,{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'});
+     assertBrush(brushed.project.terrain.heights.some((h,i)=>h!==base.terrain.heights[i]));
+     const roundtrip=await request('load',JSON.parse(JSON.stringify(brushed.project)));
+     assertBrush(JSON.stringify(roundtrip.project.terrain)===JSON.stringify(brushed.project.terrain));
+     assertBrush(JSON.stringify(roundtrip.project.naturalGeography)===JSON.stringify(base.naturalGeography));
+     function assertBrush(ok){if(!ok)throw Error('Height edit persistence or feature identity failed');}
      const river=base.naturalGeography.rivers[0];
      const edited=await request('editNatural',loaded.project,{id:river.id,name:'保存的河名'});
      const rebuilt=await request('rebuildPack',edited.project);

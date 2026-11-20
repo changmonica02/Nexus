@@ -4,7 +4,7 @@ import {useEffect,useRef,useState,useMemo} from 'react';
 import type {GlobalMapDrawing} from '../features/worldMap/globalMapGeometry';
 import {useLanguage} from '../lib/LanguageContext';
 import {globalMapText} from '../features/worldMap/globalMapMessages';
-export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
+export default function GlobalMapCanvas({drawing,onPaint}:{drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void}){
  const {language}=useLanguage(),text=globalMapText(language),canvas=useRef<HTMLCanvasElement>(null);
  const [view,setView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
  const [showPlates,setShowPlates]=useState(false),[showGeology,setShowGeology]=useState(false);
@@ -105,7 +105,7 @@ export default function GlobalMapCanvas({drawing}:{drawing:GlobalMapDrawing}){
  },[size.h]);
  const zoom=(factor:number)=>setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*factor)),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});
  return <div className="relative h-full min-h-56 w-full overflow-hidden rounded-lg bg-[#b1d3df]">
-  <canvas ref={canvas} data-global-map-canvas tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
+  <canvas ref={canvas} data-global-map-canvas tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(onPaint){const rect=e.currentTarget.getBoundingClientRect(),s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2;const longitude=((e.clientX-rect.left-size.w/2-pan)/s+180)%360;const lon=(longitude+360)%360-180,lat=-(e.clientY-rect.top-size.h/2-view.y)/s;if(Math.abs(lat)<=90)onPaint(lon,lat);return;}e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{
    const old=pointers.current.get(e.pointerId);if(!old)return;
    if(pointers.current.size===2){const other=[...pointers.current.entries()].find(([id])=>id!==e.pointerId)![1],before=Math.hypot(old.x-other.x,old.y-other.y),after=Math.hypot(e.clientX-other.x,e.clientY-other.y);if(before>1)zoom(after/before);}
    else setView(v=>({...v,x:v.x+e.clientX-old.x,y:Math.max(-size.h*v.zoom/2,Math.min(size.h*v.zoom/2,v.y+e.clientY-old.y))}));

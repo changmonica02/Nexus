@@ -1,0 +1,20 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {readFileSync}=require('node:fs'),vm=require('node:vm');
+test('shipped Worker edits terrain, preserves river identities and survives JSON reopen',{timeout:120000},()=>{
+ let result;const self={postMessage:value=>{result=value;}};
+ vm.runInNewContext(readFileSync('.cache/global-map-worker.js','utf8'),{self,console,performance,structuredClone});
+ let sequence=0;
+ const request=(action,project,extra={})=>{self.onmessage({data:{id:++sequence,action,project,...extra}});assert.equal(result.error,undefined);return JSON.parse(JSON.stringify(result));};
+ const generated=request('generate',undefined,{settings:{seed:42,landPercent:32,continentCores:8,gridCells:36002}});
+ const base=generated.project;
+ const edited=request('editHeight',base,{brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}});
+ assert.ok(edited.project.terrain.heights.some((h,i)=>h!==base.terrain.heights[i]));
+ assert.deepEqual(edited.project.naturalGeography,base.naturalGeography);
+ assert.ok(edited.drawing.natural);assert.equal(edited.drawing.climate.months.length,12);
+ const loaded=request('load',edited.project);
+ assert.deepEqual(loaded.project.terrain,edited.project.terrain);
+ assert.deepEqual(loaded.project.naturalGeography,base.naturalGeography);
+ self.onmessage({data:{id:++sequence,action:'editHeight',project:loaded.project,brush:{longitude:999}}});
+ assert.ok(result.error);
+ assert.deepEqual(request('load',edited.project).project.terrain,edited.project.terrain);
+});
