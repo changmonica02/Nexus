@@ -47,3 +47,10 @@
 - `npx eslint src/components/GlobalMapCanvas.tsx src/components/GlobalWorldMapEditor.tsx src/features/worldMap/globalMapClient.ts src/features/worldMap/globalMapWorker.ts`
 
 瀏覽器測試覆蓋桌面／手機生成，以及正式 Worker 自由筆刷、JSON 重開與河湖身分保留。
+
+## 本次檢查結果
+
+- 型別檢查與本次修改的 ESLint 通過。
+- 筆刷／地形核心 8 項測試通過。
+- 既有世界地圖回歸 52 項測試通過。
+- 瀏覽器測試無法執行：環境中的 Chromium 在啟動階段因 `socket() failed: Operation not permitted` 結束，尚不能宣稱桌面／手機互動驗證通過。
