@@ -3,10 +3,10 @@
 import {dot,cross,unit,clamp,km,sphericalField} from '../../../../experiments/spherical-grid/geologic-fields.mjs';
 export const tangent=(p,q)=>unit(q.map((x,k)=>x-p[k]*dot(p,q)));
 export function localBasis(p){const east=unit(Math.abs(p[2])<.999999?[-p[1],p[0],0]:[0,1,0]);return {east,north:unit(cross(p,east))};}
-export function seasonalWind(p,month=2.5){
+export function seasonalWind(p,month=2.5,b=localBasis(p)){
  const lat=Math.asin(clamp(p[2]))*180/Math.PI,season=Math.cos(2*Math.PI*(month-6)/12),shift=8*season,a=Math.abs(lat-shift),sign=Math.sign(lat-shift)||1;
  const west=6*Math.tanh((a-30)/5)*Math.tanh((62-a)/6),polar=.5+.5*Math.tanh((a-60)/5),north=(1-polar)*(-sign*2.8*Math.tanh((30-a)/6))-polar*sign*2.5;
- const b=localBasis(p);return b.east.map((v,k)=>v*west+b.north[k]*north);
+ return b.east.map((v,k)=>v*west+b.north[k]*north);
 }
 export function coastalOceanContext(grid){
  const coast=[],landAt=new Int32Array(grid.points.length);landAt.fill(-1);
@@ -18,10 +18,10 @@ export function surfaceForcing(grid,{boundaryCurrents=true}={}){
  const coast=boundaryCurrents?coastalOceanContext(grid):null;
  return grid.points.map((p,i)=>{
   if(grid.heights[i]>=0)return [0,0,0];
-  const wind=[0,0,0];for(let m=0;m<12;m++){const w=seasonalWind(p,m);for(let k=0;k<3;k++)wind[k]+=w[k]/12;}
+  const basis=localBasis(p),wind=[0,0,0];for(let m=0;m<12;m++){const w=seasonalWind(p,m,basis);for(let k=0;k<3;k++)wind[k]+=w[k]/12;}
   const right=cross(wind,p),f=p[2],v=wind.map((w,k)=>.035*(w+1.1*f*right[k])/(1+.8*f*f));
   if(coast&&coast.nearest[i]>=0){
-   const land=coast.landAt[coast.nearest[i]],basis=localBasis(p),toward=tangent(p,grid.points[land]),orientation=dot(toward,basis.east),distance=coast.distance[i];
+   const land=coast.landAt[coast.nearest[i]],toward=tangent(p,grid.points[land]),orientation=dot(toward,basis.east),distance=coast.distance[i];
    const west=Math.max(0,-orientation)*Math.exp(-distance/350),east=Math.max(0,orientation)*Math.exp(-distance/900);
    const latitude=Math.abs(Math.asin(clamp(f))*180/Math.PI),subtropical=Math.exp(-(((latitude-30)/14)**2)),subpolar=Math.exp(-(((latitude-56)/10)**2));
    const poleward=Math.sign(f)*(subtropical-.8*subpolar)*(.55*west-.14*east);
@@ -42,7 +42,11 @@ export function generateSurfaceOcean(grid,{iterations=1200,tolerance=1e-8,bounda
  const pressure=new Float64Array(n),r=b.slice(),z=Float64Array.from(r,(v,i)=>v/(degree[i]||1)),p=z.slice(),ap=new Float64Array(n);
  const from=Uint32Array.from(edges,e=>e.i),to=Uint32Array.from(edges,e=>e.j);
  const conductance=Float64Array.from(edges,e=>e.conductance);
- const sumdot=(x,y)=>{let sum=0;for(let i=0;i<n;i++)sum+=x[i]*y[i];return sum;};
+ // Land and isolated water without a wet edge are identically zero.
+ const active=[];
+ for(let i=0;i<n;i++)if(counts[i])active.push(i);
+ const wet=Uint32Array.from(active);
+ const sumdot=(x,y)=>{let sum=0;for(let k=0;k<wet.length;k++){const i=wet[k];sum+=x[i]*y[i];}return sum;};
  let rz=sumdot(r,z),initial=Math.sqrt(sumdot(b,b)),steps=0;
  for(;steps<iterations&&Math.sqrt(sumdot(r,r))>tolerance*Math.max(initial,1e-20);steps++){
   ap.fill(0);
@@ -51,8 +55,8 @@ export function generateSurfaceOcean(grid,{iterations=1200,tolerance=1e-8,bounda
    ap[i]+=q;ap[j]-=q;
   }
   const denom=sumdot(p,ap);if(denom<=1e-24)break;const alpha=rz/denom;
-  for(let i=0;i<n;i++){pressure[i]+=alpha*p[i];r[i]-=alpha*ap[i];z[i]=r[i]/(degree[i]||1);}
-  const next=sumdot(r,z),beta=next/rz;for(let i=0;i<n;i++)p[i]=z[i]+beta*p[i];rz=next;
+  for(let k=0;k<wet.length;k++){const i=wet[k];pressure[i]+=alpha*p[i];r[i]-=alpha*ap[i];z[i]=r[i]/(degree[i]||1);}
+  const next=sumdot(r,z),beta=next/rz;for(let k=0;k<wet.length;k++){const i=wet[k];p[i]=z[i]+beta*p[i];}rz=next;
  }
  const vectors=Array.from({length:n},()=>[0,0,0]),divergence=new Float64Array(n);
  for(const e of edges){e.flux-=e.conductance*(pressure[e.i]-pressure[e.j]);divergence[e.i]+=e.flux;divergence[e.j]-=e.flux;const speed=e.flux/e.width;
