@@ -1,4 +1,5 @@
 "use client";
+import {Droplets, Layers, Mountain, Waves, Wrench, X} from 'lucide-react';
 import {useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react';
 import type {Page,WorldMapRecord} from '../lib/types';
 import type {WorldMapRepository} from '../features/worldMap/worldMapRepository';
@@ -21,6 +22,13 @@ import type {NaturalFeaturePatch} from '../features/worldMap/globalMapProject';
 import GlobalMapParameters,{newGlobalMapSettings} from './GlobalMapParameters';
 import {validateGlobalSettings} from '../features/worldMap/globalMapProject';
 import ModalDialog from './ModalDialog';
+const sidebarToolClass='flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1 py-1.5 text-[11px] leading-tight transition-colors hover:bg-current/5 aria-expanded:bg-blue-500/10 aria-expanded:text-blue-700 aria-pressed:bg-blue-500/10 aria-pressed:text-blue-700 dark:aria-expanded:text-blue-300 dark:aria-pressed:text-blue-300 focus-visible:outline-2 focus-visible:outline-blue-600';
+const mapTools=[
+ {key:'height',icon:Mountain,zh:'高度',en:'Height'},
+ {key:'coast',icon:Waves,zh:'海岸線',en:'Coast'},
+ {key:'rivers',icon:Droplets,zh:'河流',en:'Rivers'},
+] as const;
+
 export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,repository,beforeSave,onSaved,onClose,registerFlush,cloudState,editing=true,onEdit,previewFooter}:{
  map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob};repository:WorldMapRepository;
  beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;onClose:()=>void;registerFlush?:RegisterMapFlush;
@@ -137,15 +145,15 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   {model?.project.environmentTerrain&&<p role="status" className="shrink-0 border-b px-3 py-1 text-xs text-amber-700 dark:text-amber-300">{language==='zh-TW'?'地形已修改；氣候、水文與生態仍為上次計算結果。請由更多操作重新計算自然環境。':'Terrain changed; climate, water and ecosystems use the last calculation. Recalculate from More actions.'}</p>}
   <div className={editing||fullView?'relative flex min-h-0 flex-1':'relative flex h-[clamp(16rem,40dvh,28rem)]'}>
    {(editing||fullView)&&model&&!replacing&&<>
-    <nav aria-label={language==='zh-TW'?'地圖選單':'Map menu'} className="z-30 flex w-14 shrink-0 flex-col gap-2 border-r bg-[var(--color-bg)] p-1 text-xs">
-     {editing&&<button className="min-h-14 rounded-lg border" aria-expanded={panel==='tools'} aria-controls="global-map-side-panel" onClick={()=>{if(panel==='tools')setPanel(null);else{setPanel('tools');setPainting(false);setLineStart(undefined);}}}>{language==='zh-TW'?'工具':'Tools'}</button>}
-     <button className="min-h-14 rounded-lg border" aria-expanded={panel==='display'} aria-controls="global-map-side-panel" onClick={()=>{setPanel(panel==='display'?null:'display');setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?'顯示':'Display'}</button>
+    <nav aria-label={language==='zh-TW'?'地圖選單':'Map menu'} className="z-30 flex w-14 shrink-0 flex-col gap-1 border-r border-current/10 bg-[var(--color-bg)] p-1.5">
+     {editing&&<button className={sidebarToolClass} aria-expanded={panel==='tools'} aria-controls="global-map-side-panel" onClick={()=>{if(panel==='tools')setPanel(null);else{setPanel('tools');setPainting(false);setLineStart(undefined);}}}><Wrench aria-hidden="true" size={18}/><span>{language==='zh-TW'?'工具':'Tools'}</span></button>}
+     <button className={sidebarToolClass} aria-expanded={panel==='display'} aria-controls="global-map-side-panel" onClick={()=>{setPanel(panel==='display'?null:'display');setPainting(false);setLineStart(undefined);}}><Layers aria-hidden="true" size={18}/><span>{language==='zh-TW'?'顯示':'Display'}</span></button>
     </nav>
-    {panel&&<aside id="global-map-side-panel" aria-label={language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')} className="absolute bottom-0 left-14 top-0 z-20 flex w-[min(20rem,calc(100%-3.5rem))] flex-col border-r bg-[var(--color-bg)] shadow-xl sm:static sm:w-72 sm:shrink-0 sm:shadow-none">
-     <header className="flex shrink-0 items-center justify-between border-b px-3"><h2 className="font-semibold">{language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')}</h2><button aria-label={language==='zh-TW'?'關閉面板':'Close panel'} className="min-h-11 min-w-11" onClick={()=>setPanel(null)}>×</button></header>
-     <div className="min-h-0 flex-1 overflow-y-auto p-3">
+    {panel&&<aside id="global-map-side-panel" aria-label={language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')} className="absolute left-16 top-2 z-20 flex max-h-[calc(100%_-_4.5rem)] w-[min(18rem,calc(100%_-_4.5rem))] flex-col overflow-hidden rounded-xl bg-[var(--color-bg)] shadow-lg ring-1 ring-black/10 sm:left-[4.25rem] sm:top-3 sm:w-[min(19rem,calc(100%_-_5rem))]">
+     <header className="flex shrink-0 items-center justify-between border-b border-current/10 pl-3 pr-1"><h2 className="font-semibold">{language==='zh-TW'?(panel==='tools'?'工具':'顯示'):(panel==='tools'?'Tools':'Display')}</h2><button aria-label={language==='zh-TW'?'關閉面板':'Close panel'} className="grid min-h-11 min-w-11 place-items-center rounded-lg hover:bg-current/5 focus-visible:outline-2 focus-visible:outline-blue-600" onClick={()=>setPanel(null)}><X aria-hidden="true" size={16}/></button></header>
+     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
       {panel==='display'?<GlobalMapDisplayPanel drawing={model.drawing} value={display} onChange={setDisplay} zh={language==='zh-TW'}/>:<>
-       <div className="mb-4 grid grid-cols-3 gap-1 [&_button]:min-h-11 [&_button]:rounded [&_button]:border">{(['height','coast','rivers'] as const).map(key=><button key={key} aria-pressed={tool===key} onClick={()=>{setTool(key);setPainting(false);setLineStart(undefined);}}>{language==='zh-TW'?({height:'高度',coast:'海岸線',rivers:'河流'}[key]):({height:'Height',coast:'Coast',rivers:'Rivers'}[key])}</button>)}</div>
+       <div className="mb-3 grid grid-cols-3 gap-1 border-b border-current/10 pb-2">{mapTools.map(({key,icon:Icon,zh,en})=><button key={key} className={sidebarToolClass} aria-pressed={tool===key} onClick={()=>{setTool(key);setPainting(false);setLineStart(undefined);}}><Icon aria-hidden="true" size={18}/><span>{language==='zh-TW'?zh:en}</span></button>)}</div>
        {tool==='height'?<GlobalMapHeightTools brush={brush} onChange={value=>{setBrush(value);setLineStart(undefined);}} painting={painting} onPainting={()=>{setPainting(!painting);setLineStart(undefined);if(!painting&&window.innerWidth<640){setPanel(null);surface.current?.querySelector('canvas')?.focus();}}} disabled={busy||!!conflict} lineStarted={!!lineStart} onApply={(lon,lat)=>void paint(lon,lat)} onUndo={()=>void restoreHeight('undo')} onRedo={()=>void restoreHeight('redo')} canUndo={!!undoStack.length} canRedo={!!redoStack.length} zh={language==='zh-TW'}/>:tool==='coast'?<section className="space-y-3"><h3 className="font-semibold">{language==='zh-TW'?'海岸線':'Coastline'}</h3><p className="text-sm">{language==='zh-TW'?'海岸線由正式高度資料推導。使用自由模式抬升或降低海岸，會同步更新海陸與海岸。獨立的海岸頂點編輯工具尚未完成。':'Coasts follow authoritative heights. Free mode changes land and sea. Direct coast vertex editing is not yet available.'}</p><button disabled={busy||!!conflict} className="min-h-11 rounded border px-3" onClick={()=>{setBrush({...brush,mode:'free'});setTool('height');setPainting(true);if(window.innerWidth<640){setPanel(null);surface.current?.querySelector('canvas')?.focus();}}}>{language==='zh-TW'?'使用自由高度工具':'Use free height tools'}</button></section>:<GlobalNaturalFeatures project={model.project} drawing={model.drawing} disabled={busy||!!conflict} language={language} onAction={naturalAction} riversOnly/>}
       </>}
      </div>

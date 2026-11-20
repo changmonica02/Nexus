@@ -152,3 +152,25 @@ test('panning a scalar base map reuses the same offscreen tiles',async()=>{
  await act(async()=>{await delay(140);});
  assert.ok(operations.some(o=>o.kind==='drawImage'&&!tileImages.has(o.args[0])));
 });
+
+test('map panels float beside the icon rail without remounting the canvas',async()=>{
+ const map={id:'map-test',world_id:'world-test',title:'測試世界',revision:1};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(project())]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
+ const canvas=host.querySelector('canvas');
+ const menu=host.querySelector('nav[aria-label="地圖選單"]');
+ for(const item of menu.querySelectorAll('button')){
+  assert.ok(item.querySelector('svg[aria-hidden="true"]'));
+  assert.ok(item.querySelector('span'));
+  assert.equal(item.classList.contains('border'),false);
+ }
+ for(const name of ['工具','顯示']){
+  await click(name);
+  const panel=host.querySelector('#global-map-side-panel');
+  assert.ok(panel.classList.contains('absolute'));
+  assert.ok(!panel.classList.contains('sm:static'));
+  assert.equal(host.querySelector('canvas'),canvas);
+ }
+ await click('顯示');
+ assert.equal(host.querySelector('#global-map-side-panel'),null);
+ assert.equal(host.querySelector('canvas'),canvas);
+});
