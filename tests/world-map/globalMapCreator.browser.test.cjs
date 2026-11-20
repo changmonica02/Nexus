@@ -49,10 +49,18 @@ test('planet creator desktop/mobile: automatic land-only preview, uint32 validat
    // Exercise the shipped Worker in a browser, including persistent base geometry
    // and IDs across a JSON round trip and a different Pack density.
    const lifecycle=await page.evaluate(async()=>{
-    const worker=new Worker('/worker.js');let seq=0;
+    const worker=new Worker('/worker.js');let seq=0,progressMessages=0;
     const request=(action,project,patch,brush)=>new Promise((resolve,reject)=>{
      const id=++seq,timer=setTimeout(()=>reject(Error('lifecycle timeout')),120000);
-     worker.onmessage=({data})=>{if(data.id!==id)return;clearTimeout(timer);data.error?reject(Error(data.error)):resolve(data);};
+     worker.onmessage=({data})=>{
+      if(data.id!==id)return;
+      if(data.progress){progressMessages++;return;}
+      if(data.previewDrawing)return;
+      clearTimeout(timer);
+      if(data.error)reject(Error(data.error));
+      else if(!data.project)reject(Error('Worker completed without a project'));
+      else resolve(data);
+     };
      worker.onerror=()=>{clearTimeout(timer);reject(Error('lifecycle worker failed'));};
      worker.postMessage({id,action,project,patch,brush});
     });
@@ -74,10 +82,10 @@ test('planet creator desktop/mobile: automatic land-only preview, uint32 validat
       basePreserved:JSON.stringify(edited.project.naturalGeography)===JSON.stringify(reopened.project.naturalGeography),
       name:reopened.project.naturalGeography.rivers.find(r=>r.id===river.id).name,
       months:reopened.drawing.climate.months.length,
-      remeshed:loaded.drawing.natural.pack.cells!==reopened.drawing.natural.pack.cells};
+      remeshed:loaded.drawing.natural.pack.cells!==reopened.drawing.natural.pack.cells,progressObserved:progressMessages>0};
     }finally{worker.terminate();}
    });
-   assert.deepEqual(lifecycle,{baseUnchanged:true,basePreserved:true,name:'保存的河名',months:12,remeshed:true});
+   assert.deepEqual(lifecycle,{baseUnchanged:true,basePreserved:true,name:'保存的河名',months:12,remeshed:true,progressObserved:true});
    await page.getByRole('button',{name:'關閉視窗'}).click();
    assert.equal(await page.evaluate(()=>window.cancelled),1);assert.equal(await page.evaluate(()=>window.created.length),1);
    assert.deepEqual(errors,[]);assert.ok(before.length);await context.close();
