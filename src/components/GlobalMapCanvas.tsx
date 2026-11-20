@@ -4,19 +4,35 @@ import {mapPalettes,elevationColors,elevationLevels,depthColors,depthLevels,type
 import {climateColor,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
 import {buildScalarBands} from '../features/worldMap/core/scalarBands.mjs';
 import {buildRiverStrokes} from '../features/worldMap/core/riverDrawing.mjs';
-import {useEffect,useRef,useState,useMemo} from 'react';
+import {drawBaseTiles} from '../features/worldMap/globalMapTiles';
+import {useEffect,useRef,useState,useMemo,useCallback,type SetStateAction} from 'react';
 import type {GlobalMapDrawing} from '../features/worldMap/globalMapGeometry';
 import {useLanguage} from '../lib/LanguageContext';
 import {globalMapText} from '../features/worldMap/globalMapMessages';
 export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,display}:{drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay}){
  const {language}=useLanguage(),text=globalMapText(language),canvas=useRef<HTMLCanvasElement>(null);
- const [view,setView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
+ const [view,commitView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
+ const liveView=useRef(view),viewFrame=useRef<number|null>(null);
+ const setView=useCallback((update:SetStateAction<typeof view>)=>{
+  liveView.current=typeof update==='function'?update(liveView.current):update;
+  if(viewFrame.current===null)viewFrame.current=window.requestAnimationFrame(()=>{
+   viewFrame.current=null;commitView(liveView.current);
+  });
+ },[]);
+ useEffect(()=>()=>{if(viewFrame.current!==null){window.cancelAnimationFrame(viewFrame.current);viewFrame.current=null;}},[]);
+ const [tileZoom,setTileZoom]=useState(1);
+ useEffect(()=>{
+  if(view.zoom===tileZoom)return;
+  const settle=window.setTimeout(()=>setTileZoom(view.zoom),120);
+  return()=>window.clearTimeout(settle);
+ },[view.zoom,tileZoom]);
  const [localPlates,setShowPlates]=useState(false),[localGeology,setShowGeology]=useState(false);
  const showPlates=display?.overlays.plates??localPlates,showGeology=display?.overlays.geology??localGeology,palette=mapPalettes[display?.style??'terrain'];
  const [localLayer,setClimateLayer]=useState('terrain'),[localMonth,setMonth]=useState(0);
  const climateLayer=display?.mode??localLayer,month=display?.month??localMonth,showCurrents=display?.overlays.currents??['sst','currents'].includes(climateLayer);
+ const fieldMonth=['sst','temperature','precipitation'].includes(climateLayer)?month:0;
  const scalarLayers=useMemo(()=>{
-  const mesh=drawing.scalarMesh,climate=drawing.climate?.months[month];
+  const mesh=drawing.scalarMesh,climate=drawing.climate?.months[fieldMonth];
   if(!mesh||typeof Path2D==='undefined')return [];
   const pathBands=(values:ArrayLike<number>,levels:number[],colors:string[],clip?:'land'|'sea')=>
    buildScalarBands(mesh,Array.from(values),levels,colors).map(band=>{
@@ -41,17 +57,17 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    ];
   }
   return [];
- },[drawing,month,climateLayer,palette]);
+ },[drawing,fieldMonth,climateLayer,palette]);
  const climateBands=useMemo(()=>{
   const c=drawing.climate;if(!c||scalarLayers.length||['heightmap','terrain','contours','political','culture','currents','ecosystems','seabedEcosystems'].includes(climateLayer))return [];
   const bands=new Map<string,number[][][]>();
   for(let i=0;i<c.rings.length;i++){
    if(climateLayer==='sst'&&!c.ocean[i])continue;
-   const value=climateLayer==='koppen'?c.koppen[i]:climateLayer==='precipitation'?c.months[month].precipitation[i]:climateLayer==='sst'?c.months[month].sst[i]/10:c.months[month].temperature[i]/10;
+   const value=climateLayer==='koppen'?c.koppen[i]:climateLayer==='precipitation'?c.months[fieldMonth].precipitation[i]:climateLayer==='sst'?c.months[fieldMonth].sst[i]/10:c.months[fieldMonth].temperature[i]/10;
    const color=climateColor(climateLayer,value);if(!bands.has(color))bands.set(color,[]);bands.get(color)!.push(c.rings[i]);
   }
   return [...bands].map(([color,rings])=>({color,rings}));
- },[drawing,month,climateLayer,scalarLayers]);
+ },[drawing,fieldMonth,climateLayer,scalarLayers]);
  const [localPack,setShowPack]=useState(false),[showHydrology,setShowHydrology]=useState(true);
  const showPack=display?.overlays.pack??localPack,showRivers=display?.overlays.rivers??showHydrology,showLakes=display?.overlays.lakes??showHydrology,showNames=display?.overlays.names??false;
  const ecosystemBands=useMemo(()=>{
@@ -70,8 +86,13 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   }
   return {land:make(surface.inverse),sea:make(!surface.inverse),shore,hasShore:!!surface.shorelines?.length};
  },[drawing]);
- const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>view.zoom>=1.8||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,view.zoom]);
- const riverStrokes=useMemo(()=>visibleRivers.map(river=>buildRiverStrokes(river,month)),[visibleRivers,month]);
+ const showTributaries=view.zoom>=1.8;
+ const visibleRivers=useMemo(()=>(drawing.natural?.rivers??[]).filter(river=>showTributaries||(river.streamOrder??2)>=2||river.catchmentAreaKm2>=150000||river.lengthKm>=600),[drawing,showTributaries]);
+ const riverStrokes=useMemo(()=>visibleRivers.map(river=>buildRiverStrokes(river,month).map(reach=>{
+  let west=Infinity,east=-Infinity,south=Infinity,north=-Infinity;
+  for(const [x,y] of reach.points){west=Math.min(west,x);east=Math.max(east,x);south=Math.min(south,y);north=Math.max(north,y);}
+  return {...reach,west,east,south,north};
+ })),[visibleRivers,month]);
  const [hoverPoint,setHoverPoint]=useState<[number,number]|null>(null);
  const hoverHeight=useMemo(()=>{
   const mesh=drawing.scalarMesh;
@@ -86,7 +107,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
   return Math.round(mesh.heights[nearest]*100);
  },[drawing.scalarMesh,hoverPoint]);
  const stroke=useRef<{id:number;points:[number,number][]}|null>(null);
- const location=(clientX:number,clientY:number):[number,number]|null=>{const rect=canvas.current!.getBoundingClientRect(),s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2,longitude=(clientX-rect.left-size.w/2-pan)/s,latitude=-(clientY-rect.top-size.h/2-view.y)/s;return Math.abs(latitude)<=90?[((longitude+180)%360+360)%360-180,latitude]:null;};
+ const location=(clientX:number,clientY:number):[number,number]|null=>{const rect=canvas.current!.getBoundingClientRect(),view=liveView.current,s=Math.min(size.w/360,size.h/180)*view.zoom,period=360*s,pan=((view.x+period/2)%period+period)%period-period/2,longitude=(clientX-rect.left-size.w/2-pan)/s,latitude=-(clientY-rect.top-size.h/2-view.y)/s;return Math.abs(latitude)<=90?[((longitude+180)%360+360)%360-180,latitude]:null;};
  useEffect(()=>{if(!onStroke)stroke.current=null;},[onStroke]);
  const footprint=useMemo(()=>{
   if(!hoverPoint||!(onPaint||onStroke)||!paintRadius||!Number.isFinite(paintRadius)||paintRadius<1||paintRadius>30)return '';
@@ -95,17 +116,8 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
  },[hoverPoint,onPaint,onStroke,paintRadius,size,view]);
  const pointers=useRef(new Map<number,{x:number;y:number}>());
  useEffect(()=>{const el=canvas.current!;const observer=new ResizeObserver(([entry])=>setSize({w:Math.max(1,entry.contentRect.width),h:Math.max(1,entry.contentRect.height)}));observer.observe(el);return()=>observer.disconnect();},[]);
- useEffect(()=>{
-  const el=canvas.current!,ctx=el.getContext('2d');if(!ctx)return;
-  const ratio=Math.min(devicePixelRatio||1,2);el.width=Math.round(size.w*ratio);el.height=Math.round(size.h*ratio);
-  ctx.scale(ratio,ratio);ctx.fillStyle=palette.ocean;ctx.fillRect(0,0,size.w,size.h);
-  const s=Math.min(size.w/360,size.h/180)*view.zoom;
-  const period=360*s,pan=((view.x+period/2)%period+period)%period-period/2;
-  ctx.translate(size.w/2+pan,size.h/2+view.y);ctx.scale(s,-s);
-  const copies=Math.ceil(size.w/period/2)+1;
-  for(let k=-copies;k<=copies;k++){
-   if(Math.abs(pan+k*period)>size.w/2+period/2)continue;
-   ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}ctx.fillStyle=palette.land;
+ const paintBase=useMemo(()=>(ctx:CanvasRenderingContext2D,scale:number)=>{
+   ctx.fillStyle=palette.land;
    if(surfacePaths)ctx.fill(surfacePaths.land,'evenodd');else{ctx.beginPath();for(const ring of drawing.land){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
    if(!drawing.scalarMesh&&drawing.relief)for(const [index,band] of drawing.relief.entries()){
     ctx.save();if(surfacePaths)ctx.clip(index<6?surfacePaths.sea:surfacePaths.land,'evenodd');ctx.fillStyle=palette.relief?.[index]??band.color;ctx.beginPath();
@@ -127,7 +139,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     ctx.strokeStyle=palette.ocean;
     // Stroke the whole shore together at each width. Adjacent coasts share
     // the same band around straits and the land mask clips the inland half.
-    const spacing=Math.max(.13,1.1/s);
+    const spacing=Math.max(.13,1.1/scale);
     for(const extent of [4.4,2.6,1.1]){
      ctx.lineWidth=spacing*extent*2;
      ctx.globalAlpha=.23;
@@ -136,6 +148,29 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     ctx.restore();
    }
    for(const band of [...climateBands,...ecosystemBands]){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.fill();}
+ },[drawing,palette,surfacePaths,scalarLayers,climateLayer,climateBands,ecosystemBands]);
+ const baseTiles=useMemo(()=>new Map<string,HTMLCanvasElement>(),[paintBase]);
+ useEffect(()=>{
+  const el=canvas.current!,ctx=el.getContext('2d');if(!ctx)return;
+  const ratio=Math.min(devicePixelRatio||1,2),width=Math.round(size.w*ratio),height=Math.round(size.h*ratio);
+  if(el.width!==width)el.width=width;
+  if(el.height!==height)el.height=height;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(ratio,ratio);ctx.fillStyle=palette.ocean;ctx.fillRect(0,0,size.w,size.h);
+  const s=Math.min(size.w/360,size.h/180)*view.zoom;
+  const period=360*s,pan=((view.x+period/2)%period+period)%period-period/2;
+  ctx.translate(size.w/2+pan,size.h/2+view.y);ctx.scale(s,-s);
+  const copies=Math.ceil(size.w/period/2)+1;
+  const tileResolution=2**(Math.ceil(Math.log2(Math.min(size.w/360,size.h/180)*tileZoom*ratio)*2)/2);
+  const margin=2/s;
+  for(let k=-copies;k<=copies;k++){
+   if(Math.abs(pan+k*period)>size.w/2+period/2)continue;
+   ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}
+   const left=Math.max(-180,(-size.w/2-pan)/s-k*360),right=Math.min(180,(size.w/2-pan)/s-k*360);
+   const top=Math.min(90,(size.h/2+view.y)/s),bottom=Math.max(-90,(view.y-size.h/2)/s);
+   if(!surfacePaths||!drawing.scalarMesh||!drawBaseTiles(ctx,left,right,bottom,top,tileResolution,ratio,baseTiles,paintBase,palette.ocean)){
+    paintBase(ctx,s);
+   }
    if(drawing.climate&&showCurrents){
     ctx.lineWidth=1.2/s;
     for(const arrow of drawing.climate.arrows){
@@ -195,7 +230,8 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
      ctx.save();
      ctx.lineJoin='round';
      ctx.lineCap='round';
-     for(const reaches of riverStrokes)for(const {points,widths,dry} of reaches){
+     for(const reaches of riverStrokes)for(const {points,widths,dry,west,east,south,north} of reaches){
+      if(east<left-margin||west>right+margin||north<bottom-margin||south>top+margin)continue;
       ctx.beginPath();
       if(dry){
        ctx.strokeStyle='#789da8';ctx.lineWidth=.55/s;ctx.setLineDash([2.5/s,2/s]);
@@ -225,12 +261,12 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    }
    ctx.restore();
   }
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,visibleRivers]);
+ },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,visibleRivers,baseTiles,paintBase,tileZoom]);
  useEffect(()=>{
   const el=canvas.current!;
   const wheel=(e:WheelEvent)=>{e.preventDefault();setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*(e.deltaY<0?1.2:1/1.2))),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});};
   el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel);
- },[size.h]);
+ },[size.h,setView]);
  const zoom=(factor:number)=>setView(v=>{const z=Math.max(1,Math.min(32,v.zoom*factor)),f=z/v.zoom;return {zoom:z,x:v.x*f,y:Math.max(-size.h*z/2,Math.min(size.h*z/2,v.y*f))};});
  return <div className="relative h-full min-h-56 w-full overflow-hidden rounded-lg bg-[#b1d3df]">
   <canvas ref={canvas} data-global-map-canvas tabIndex={0} aria-label={text('title')} className="h-full min-h-56 w-full touch-none outline-offset-[-3px]" style={{cursor:onPaint||onStroke?'crosshair':'grab'}} onKeyDown={e=>{if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(e.key==='+'||e.key==='=')zoom(1.5);if(e.key==='-')zoom(1/1.5);if(e.key==='0')setView({zoom:1,x:0,y:0});if(e.key.startsWith('Arrow'))setView(v=>({...v,x:v.x+(e.key==='ArrowLeft'?40:e.key==='ArrowRight'?-40:0),y:v.y+(e.key==='ArrowUp'?40:e.key==='ArrowDown'?-40:0)}));}} onPointerDown={e=>{if(e.button!==0)return;if(onStroke){if(stroke.current)return;const p=location(e.clientX,e.clientY);if(p){stroke.current={id:e.pointerId,points:[p]};e.currentTarget.setPointerCapture(e.pointerId);}return;}if(onPaint){const p=location(e.clientX,e.clientY);if(p)onPaint(...p);return;}e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});}} onPointerMove={e=>{

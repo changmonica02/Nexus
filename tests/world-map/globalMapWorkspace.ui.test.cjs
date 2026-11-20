@@ -28,7 +28,7 @@ before(async()=>{
  globalThis.ResizeObserver=class{observe(){}disconnect(){}};
  window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  window.HTMLCanvasElement.prototype.setPointerCapture=function(){};
- window.HTMLCanvasElement.prototype.getContext=function(){let target={measureText:()=>({width:20})};return new Proxy(target,{get:(o,k)=>k in o?o[k]:(...args)=>{if(['fill','stroke','fillRect','fillText','clip'].includes(k))operations.push({kind:k,color:k==='stroke'?o.strokeStyle:o.fillStyle,args});}});};
+ window.HTMLCanvasElement.prototype.getContext=function(){let target={measureText:()=>({width:20})};return new Proxy(target,{get:(o,k)=>k in o?o[k]:(...args)=>{if(['fill','stroke','fillRect','fillText','clip','drawImage'].includes(k))operations.push({kind:k,color:k==='stroke'?o.strokeStyle:o.fillStyle,args,canvas:this});}});};
  ({createRoot}=require('react-dom/client'));
  const out=path.resolve('.cache/global-map-workspace-ui.cjs');
  await build({entryPoints:['tests/fixtures/globalMapWorkspace.jsx'],outfile:out,bundle:true,platform:'node',format:'cjs',jsx:'automatic',packages:'external',plugins:[{name:'test-boundaries',setup(b){
@@ -121,5 +121,34 @@ test('shared shoreline paths clip land and sea; small tributaries appear only af
  assert.ok(operations.some(o=>o.kind==='clip'&&o.args[0] instanceof globalThis.Path2D));
  assert.ok(operations.filter(o=>o.kind==='stroke'&&o.color==='#b1d3df'&&o.args[0] instanceof globalThis.Path2D).length>=3);
  assert.equal(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'),false);
- operations.length=0;await click('＋');await click('＋');assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'));
+ operations.length=0;await click('＋');await click('＋');await act(async()=>{await delay(35);});assert.ok(operations.some(o=>o.kind==='fill'&&o.color==='#316e8e'));
+});
+
+test('panning a scalar base map reuses the same offscreen tiles',async()=>{
+ const d=drawing();
+ d.surface={land:[ring],coast:d.coast,inverse:false,shorelines:[[...ring,ring[0]]]};
+ d.scalarMesh={points:[[1,0,0]],triangles:[],heights:[3]};
+ operations.length=0;
+ await render(React.createElement(components.GlobalMapCanvas,{drawing:d}));
+ const canvas=host.querySelector('canvas');
+ const tileImages=new Set(operations.filter(o=>o.kind==='drawImage').map(o=>o.args[0]));
+ assert.ok(tileImages.size>0);
+ operations.length=0;
+ await act(async()=>{
+  canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:1,button:0,clientX:400,clientY:200}));
+  for(const clientX of [404,409,415])canvas.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:1,clientX,clientY:200}));
+  canvas.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:1,clientX:415,clientY:200}));
+  await delay(40);
+ });
+ const copies=operations.filter(o=>o.kind==='drawImage');
+ assert.ok(copies.length>0);
+ assert.ok(copies.every(o=>tileImages.has(o.args[0])));
+ assert.equal(operations.filter(o=>o.kind==='fillRect'&&o.canvas===canvas).length,1);
+ operations.length=0;
+ await click('＋');
+ await act(async()=>{await delay(40);});
+ const zoomPreview=operations.filter(o=>o.kind==='drawImage');
+ assert.ok(zoomPreview.length>0&&zoomPreview.every(o=>tileImages.has(o.args[0])));
+ await act(async()=>{await delay(140);});
+ assert.ok(operations.some(o=>o.kind==='drawImage'&&!tileImages.has(o.args[0])));
 });
