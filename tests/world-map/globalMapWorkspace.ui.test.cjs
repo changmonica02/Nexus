@@ -267,3 +267,16 @@ test('river vectors insert, drag, remove, cancel and submit geometry through the
  svg=host.querySelector('svg[aria-label="河流向量編輯"]');
  await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.MouseEvent('dblclick',{bubbles:true}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,10);
 });
+test('human tools appear below tools and expose four editable layers',async()=>{
+ const p=project(),map={id:'map-human',world_id:'world-human',title:'人文測試',revision:1};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
+ assert.deepEqual([...host.querySelector('nav').querySelectorAll('button')].map(b=>b.textContent),['工具','人文','顯示']);await click('人文');
+ for(const label of ['文化','國家','省份','道路'])assert.ok(button(label));
+ assert.ok(host.querySelector('select[aria-label="人文操作"]'));assert.ok(button('生成並取代本層'));await click('道路');assert.equal(button('生成並取代本層'),undefined);assert.ok(host.querySelector('select[aria-label="人文操作"]').textContent.includes('起終點'));await click('文化');assert.ok(button('重新推演領域'));
+});
+test('human edits save through the map repository and undo restores the snapshot',async()=>{
+ const p=project(),map={id:'map-human-save',world_id:'world-human',title:'人文儲存',revision:1},saved=[];
+ p.humanGeography={version:1,cultures:[],states:[{id:1,name:'測試國',center:0,parent:0,color:'#abcdef'}],provinces:[],culture:[],state:Array(36002).fill(0),province:[],roads:[]};p.humanGeography.state[0]=1;
+ const repo={stageDraft:async()=> 'human-draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('顯示');assert.equal(button('政治').disabled,false);await click('人文');assert.ok(button('測試國'));await click('刪除');await click('儲存');assert.equal(saved.at(-1).humanGeography.states.length,0);await click('復原');assert.equal(saved.at(-1).humanGeography.states[0].name,'測試國');assert.equal(saved.at(-1).humanGeography.state[0],1);
+});

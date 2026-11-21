@@ -1,4 +1,6 @@
 "use client";
+import {assignment,type HumanGeography,type HumanLayer} from '../features/worldMap/humanGeography';
+
 import {sphericalBrushRing,heightBrushChanges,heightStrokeChanges,sampleHeightStroke} from '../features/worldMap/core/heightBrush.mjs';
 import {mapPalettes,elevationColors,elevationLevels,depthColors,depthLevels,type GlobalMapDisplay} from '../features/worldMap/globalMapDisplay';
 import {climateColor,koppenName,KOPPEN_COLORS,RAIN_LEVELS,RAIN_COLORS,TEMPERATURE_LEVELS,TEMPERATURE_COLORS} from '../../experiments/spherical-grid/climate-display.mjs';
@@ -20,7 +22,8 @@ function heightCellColor(height:number,ocean:boolean){
  const levels=ocean?depthLevels:elevationLevels,colors=ocean?depthColors:elevationColors;
  return colors[levels.filter(level=>height>=level).length];
 }
-export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,display,editingHeight,lineStart,riverEditor}:{riverEditor?:{rivers:{id:string;geometry:number[][];parentId:string|null;mouthLakeId:string|null;sourceLakeId:string|null}[];selectedId:string;geometry?:number[][];onSelect:(id:string)=>void;onChange:(geometry:number[][])=>void};drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay;editingHeight?:Omit<HeightBrush,'longitude'|'latitude'>;lineStart?:[number,number]}){
+export default function GlobalMapCanvas({drawing,human,humanLayer,showHuman,onHumanPaint,onHumanStroke,onPaint:heightPaint,onStroke:heightStroke,paintRadius,display,editingHeight,lineStart,riverEditor}:{human?:HumanGeography;humanLayer?:HumanLayer;showHuman?:boolean;onHumanPaint?:(lon:number,lat:number)=>void;onHumanStroke?:(points:[number,number][])=>void;riverEditor?:{rivers:{id:string;geometry:number[][];parentId:string|null;mouthLakeId:string|null;sourceLakeId:string|null}[];selectedId:string;geometry?:number[][];onSelect:(id:string)=>void;onChange:(geometry:number[][])=>void};drawing:GlobalMapDrawing;onPaint?:(longitude:number,latitude:number)=>void;onStroke?:(points:[number,number][])=>void;paintRadius?:number;display?:GlobalMapDisplay;editingHeight?:Omit<HeightBrush,'longitude'|'latitude'>;lineStart?:[number,number]}){
+ const onPaint=onHumanPaint??heightPaint,onStroke=onHumanStroke??heightStroke;
  const {language}=useLanguage(),text=globalMapText(language),canvas=useRef<HTMLCanvasElement>(null);
  const [view,commitView]=useState({zoom:1,x:0,y:0}),[size,setSize]=useState({w:800,h:400});
  const liveView=useRef(view),viewFrame=useRef<number|null>(null),settleTimer=useRef<number|null>(null);
@@ -175,6 +178,15 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
  const riverScreen=(p:number[],shift=0)=>[size.w/2+riverPan+(p[0]+shift)*riverScale,size.h/2+view.y-p[1]*riverScale];
  const riverPoints=riverEditor?.geometry?.reduce<number[][]>((out,p)=>{const previous=out.at(-1)?.[0]??p[0];out.push([previous+((p[0]-previous+540)%360-180),p[1]]);return out;},[]);
  // Focus the chosen river so nearby routing anchors can be dragged separately.
+ const territoryLayer=showHuman?humanLayer:display?.overlays.provinces?'provinces':display?.mode==='culture'?'cultures':'states';
+ const humanPaths=useMemo(()=>{
+  const m=drawing.scalarMesh;if(!human||!m||!territoryLayer||territoryLayer==='roads'||typeof Path2D==='undefined')return null;
+  const owners=human[assignment[territoryLayer]],fills=new Map<number,{color:string;path:Path2D}>(),borders=new Path2D();
+  for(const e of human[territoryLayer])fills.set(e.id,{color:e.color,path:new Path2D()});
+  m.cellRings?.forEach((ring,i)=>{const fill=fills.get(owners[i]);if(!fill||!ring||Number(m.heights?.[i])<0)return;ring.forEach(([x,y],j)=>j?fill.path.lineTo(x,y):fill.path.moveTo(x,y));fill.path.closePath();});
+  m.neighbors?.forEach((ns,i)=>{if(!owners[i])return;for(const j of ns){if(j<i||owners[i]===owners[j])continue;const a=m.cellRings?.[i],b=m.cellRings?.[j];if(!a||!b)continue;const edge=a.filter(p=>b.some(q=>Math.abs(p[1]-q[1])<1e-6&&Math.abs(((p[0]-q[0]+540)%360)-180)<1e-6));if(edge.length===2){borders.moveTo(...edge[0] as [number,number]);borders.lineTo(...edge[1] as [number,number]);}}});
+  return {fills:[...fills.values()],borders};
+ },[human,drawing.scalarMesh,territoryLayer]);
  useEffect(()=>{
   const geometry=riverEditor?.rivers.find(r=>r.id===riverEditor.selectedId)?.geometry;
   if(!geometry?.length)return;
@@ -377,6 +389,15 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
     }
     if(showPack){ctx.strokeStyle='rgba(20,35,50,.32)';ctx.lineWidth=.35/s;ctx.beginPath();for(const ring of drawing.natural.pack.rings){ring.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();}ctx.stroke();}
    }
+   const territoryFill=showHuman||display?.mode==='political'||display?.mode==='culture'||display?.overlays.provinces;
+   if(human&&territoryLayer&&drawing.scalarMesh&&(showHuman||territoryFill||display?.overlays.borders||display?.overlays.roads)){
+    const m=drawing.scalarMesh;
+    if(territoryLayer!=='roads'){
+     if(humanPaths){ctx.globalAlpha=.42;if(territoryFill)for(const fill of humanPaths.fills){ctx.fillStyle=fill.color;ctx.fill(fill.path);}ctx.globalAlpha=1;ctx.strokeStyle='#25354b';ctx.lineWidth=.8/s;ctx.stroke(humanPaths.borders);}
+     ctx.font=`${13/s}px sans-serif`;ctx.fillStyle='#172734';ctx.textAlign='center';for(const e of (showHuman||display?.overlays.names?human[territoryLayer]:[])){const p=m.points[e.center];if(!p)continue;const x=Math.atan2(p[1],p[0])*180/Math.PI,y=Math.asin(p[2])*180/Math.PI;ctx.save();ctx.translate(x,y);ctx.scale(1,-1);ctx.fillText(e.name,0,0);ctx.restore();}
+    }
+    ctx.strokeStyle='#80452c';ctx.lineWidth=1.8/s;ctx.setLineDash([4/s,2/s]);for(const road of (showHuman||display?.overlays.roads?human.roads:[])){ctx.beginPath();let previous:number|undefined;road.cells.forEach((c,i)=>{const p=m.points[c];let x=Math.atan2(p[1],p[0])*180/Math.PI;const y=Math.asin(p[2])*180/Math.PI;if(previous!==undefined){while(x-previous>180)x-=360;while(x-previous< -180)x+=360;}i?ctx.lineTo(x,y):ctx.moveTo(x,y);previous=x;});ctx.stroke();}ctx.setLineDash([]);
+   }
    ctx.restore();
   }
   if(canRefine&&tileBudget.pending)refineFrame.current=window.requestAnimationFrame(()=>{
@@ -384,7 +405,7 @@ export default function GlobalMapCanvas({drawing,onPaint,onStroke,paintRadius,di
    if(settleTimer.current===null&&!pointers.current.size)refreshTiles(pass=>pass+1);
   });
   return()=>{if(refineFrame.current!==null){window.cancelAnimationFrame(refineFrame.current);refineFrame.current=null;}};
- },[drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tilePass,editGrid,previewCells]);
+ },[humanPaths,territoryLayer,human,humanLayer,showHuman,display,drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tilePass,editGrid,previewCells]);
  const moveCamera=useCallback((factor:number,fromX=0,fromY=0,toX=fromX,toY=fromY)=>setView(v=>{
   const zoom=Math.max(1,Math.min(32,v.zoom*factor)),scale=zoom/v.zoom;
   const y=toY+(v.y-fromY)*scale,limit=size.h*zoom/2;

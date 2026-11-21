@@ -1,3 +1,4 @@
+import {validateHuman,type HumanGeography} from './humanGeography';
 import {heightFieldChecksum,isTerrainHeight} from './core/terrainField.mjs';
 import {validateNaturalGeography} from '../../../experiments/spherical-grid/natural-geography.mjs';
 /** Pure-data contract. Validation never regenerates terrain from the seed. */
@@ -10,6 +11,7 @@ export type NaturalGeography={version:1;rivers:{id:string;name:string;notes:stri
  lakes:{id:string;name:string;notes:string;waterLevelM:number;rim:{position:number[];heightM:number}[];bed:{position:number[];floorM:number;areaKm2:number;ring:number[][]}[];inletIds:string[];outletId:string|null}[];overlays:{id:string;name:string;description:string;geometry:number[][]}[]};
 export type NaturalFeaturePatch={id:string;name?:string;notes?:string;geometry?:number[][];waterLevelM?:number;bed?:number[][]};
 export type GlobalMapProject = {
+ humanGeography?:HumanGeography;
  format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:4;islandGenesis?:IslandGenesis;climateVersion?:2;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
  environmentTerrain?:GlobalMapProject['terrain'];
  terrain:{format:'nexus-spherical-grid-prototype';version:2;frequency:60;cells:36002;
@@ -27,6 +29,7 @@ export function validateGlobalMapProject(value:unknown):asserts value is GlobalM
  if(p.climateVersion!==undefined&&p.climateVersion!==2)throw Error('Unsupported climate version');
  if(p.packSettings!==undefined&&(!p.packSettings||p.packSettings.version!==1||![1,2].includes(p.packSettings.detail)))throw Error('Unsupported Pack version');
  if(p.naturalGeography!==undefined){if(!p.packSettings||p.climateVersion!==2)throw Error('Natural geography requires Pack and climate');validateNaturalGeography(p.naturalGeography);}
+ if(p.humanGeography!==undefined)validateHuman(p.humanGeography,36002);
  validateGlobalSettings(p.settings);
  const g=p.islandGenesis;
  if(g!==undefined){
