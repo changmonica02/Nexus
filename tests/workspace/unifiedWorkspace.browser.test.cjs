@@ -1103,6 +1103,7 @@ test(
           await until(page,async sourceId=>(await window.fixtureStorage.listPages()).some(p=>p.creative_type==="world"&&!p.character_data?.isTemplate&&p.character_data?.templateSourceId===sourceId),worldTemplateId);
           const createdWorld=await page.evaluate(async sourceId=>(await window.fixtureStorage.listPages()).find(p=>p.character_data?.templateSourceId===sourceId),worldTemplateId);
           assert.equal(createdWorld.character_data.basic.name,"新世界觀");assert.notEqual(createdWorld.character_data.sections[0].id,"world-block");
+          await page.getByRole("region",{name:"世界觀地圖",exact:true}).getByRole("button",{name:"返回",exact:true}).click();
           await opener.click();await drawer.getByRole("button",{name:"創作",exact:true}).press("Enter");
           await page.getByRole("button",{name:"＋ 建立",exact:true}).click();await page.getByRole("button",{name:"角色卡",exact:true}).click();
           assert.equal(await page.getByRole("dialog").getByRole("button",{name:"World template",exact:true}).count(),0,"world templates never appear in the character picker");await page.keyboard.press("Escape");
