@@ -4,7 +4,7 @@ import {applyGlobalHeightEdits} from '../../../experiments/spherical-grid/terrai
 import type {HeightBrush,HeightStroke} from './globalMapClient';
 import {generateSphericalPack,createPackedCoast} from '../../../experiments/spherical-grid/spherical-pack.mjs';
 import {generateNaturalGeography,deriveHydrology} from '../../../experiments/spherical-grid/pack-hydrology.mjs';
-import {editNaturalGeography} from '../../../experiments/spherical-grid/natural-geography.mjs';
+import {editNaturalGeography,relinkNaturalRivers} from '../../../experiments/spherical-grid/natural-geography.mjs';
 import {derivePackEcosystems} from '../../../experiments/spherical-grid/pack-ecosystems.mjs';
 import {projectNaturalGeography} from '../../../experiments/spherical-grid/natural-display.mjs';
 import {generateMonthlyClimate} from '../../../experiments/spherical-grid/monthly-climate.mjs';
@@ -25,7 +25,7 @@ function packedCoast(grid:ReturnType<typeof importGlobalTerrainSnapshot>['grid']
 }
 let naturalCache:{climate:ReturnType<typeof generateMonthlyClimate>;key:string;drawing:NaturalMapDrawing}|undefined;
 // Worker has no storage, credentials or network calls. The parent owns all persistence.
-self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editNatural'|'rebuildPack'|'initializeNatural'|'regenerateRivers'|'editHeight'|'recalculateNature';previewFirst?:boolean;brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
+self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'|'editRivers'|'editNatural'|'rebuildPack'|'initializeNatural'|'regenerateRivers'|'editHeight'|'recalculateNature';previewFirst?:boolean;brush?:HeightBrush;stroke?:HeightStroke;patch?:NaturalFeaturePatch;language?:string;settings?:GlobalMapSettings;project?:GlobalMapProject}>)=>{
  const {id,action}=event.data;
  const report=(progress:GenerationProgress)=>self.postMessage({id,progress});
  try {
@@ -47,7 +47,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    const draft=createNaturalPlanet(event.data.settings,{onProgress:report,landDraft});
    const terrain=exportGlobalTerrainSnapshot({grid:draft.grid,oceanSeed:draft.oceanSeed,revision:0}) as GlobalMapProject['terrain'];
    project={format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,islandGenesis:draft.islandGenesis as GlobalMapProject['islandGenesis'],settings:{...event.data.settings},terrain};
-  } else if(['load','editNatural','rebuildPack','initializeNatural','regenerateRivers','editHeight','recalculateNature'].includes(action)) {validateGlobalMapProject(event.data.project);project={...event.data.project!};}
+  } else if(['load','editRivers','editNatural','rebuildPack','initializeNatural','regenerateRivers','editHeight','recalculateNature'].includes(action)) {validateGlobalMapProject(event.data.project);project={...event.data.project!};}
   else throw Error('Unsupported global map operation');
   if(action==='generate'||action==='initializeNatural')project={...project,climateVersion:2,packSettings:project.packSettings??{version:1,detail:1}};
   if(action==='rebuildPack'){if(!project.packSettings)throw Error('Pack is not initialized');project.packSettings={version:1,detail:project.packSettings.detail===1?2:1};}
@@ -73,6 +73,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
    project.terrain=exportGlobalTerrainSnapshot(state) as GlobalMapProject['terrain'];
   }
 
+  if(action==='editRivers')delete project.riverEdit;
   if(action==='recalculateNature')delete project.environmentTerrain;
   const environment=project.environmentTerrain?importGlobalTerrainSnapshot(project.environmentTerrain,{oceanMaskOnly:true}):state;
   // Stable across ocean-only height edits, exports and reloads. Never
@@ -88,7 +89,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
   if(project.packSettings&&climate){
    report({stage:'hydrology',fraction:.90});
    const keyForNatural=()=>JSON.stringify([project.settings.seed,environment.oceanSeed,project.packSettings,project.naturalGeography]);
-   if(action!=='editNatural'&&action!=='regenerateRivers'&&naturalCache?.climate===climate&&naturalCache.key===keyForNatural()){
+   if(action!=='editRivers'&&action!=='editNatural'&&action!=='regenerateRivers'&&naturalCache?.climate===climate&&naturalCache.key===keyForNatural()){
     natural=naturalCache.drawing;
    }else{
     const pack=generateSphericalPack(environment.grid,{...project.packSettings,oceanMask:Uint8Array.from(environment.geography.ocean),coastSurface:packedCoast(environment.grid,environment.geography.ocean,(project.environmentTerrain??project.terrain).oceanSeed)});
@@ -96,7 +97,8 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
     if(action==='regenerateRivers')project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language,{lakes:project.naturalGeography?.lakes}) as GlobalMapProject['naturalGeography'];
     if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
     if(project.naturalGeography){
-     const hydro=deriveHydrology(pack,climate,project.naturalGeography);
+     const hydro=deriveHydrology(pack,climate,project.naturalGeography,{repairProjection:action!=='editRivers'||event.data.project?.riverEdit?.geometryChanged===false});
+     if(action==='editRivers')project.naturalGeography=relinkNaturalRivers(pack,project.naturalGeography,hydro);
      report({stage:'ecosystems',fraction:.95});
      natural=projectNaturalGeography(pack,project.naturalGeography,hydro,derivePackEcosystems(pack,hydro)) as NaturalMapDrawing;
      naturalCache={climate,key:keyForNatural(),drawing:natural};

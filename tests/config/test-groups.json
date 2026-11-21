@@ -133,7 +133,10 @@
       "tests/world-map/heightBrushWorker.test.cjs",
       "tests/world-map/worldMap.test.cjs",
       "tests/world-map/worldMapCore.test.cjs",
-      "tests/world-map/worldMapRegions.test.cjs"
+      "tests/world-map/worldMapRegions.test.cjs",
+      "tests/world-map/humanGeography.test.cjs",
+      "tests/world-map/globalMapSession.browser.test.cjs",
+      "tests/world-map/riverSession.test.cjs"
     ],
     "note": [
       "tests/note/lessonDocument.test.cjs",

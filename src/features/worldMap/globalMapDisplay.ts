@@ -6,9 +6,10 @@ export type GlobalMapDisplay={mode:MapDisplayMode;style:MapStyle;month:number;ov
 export const newMapDisplay=():GlobalMapDisplay=>({mode:'terrain',style:'terrain',month:0,overlays:{borders:false,currents:false,rivers:true,lakes:true,plates:false,provinces:false,names:false,towns:false,roads:false,geology:false,pack:false}});
 export const displayModes:[MapDisplayMode,string,string][]=[['terrain','地形','Terrain'],['heightmap','高度圖','Elevation'],['contours','等高線','Contours'],['temperature','溫度','Temperature'],['precipitation','降雨','Precipitation'],['ecosystems','生態','Ecosystems'],['koppen','氣候','Climate'],['political','政治','Political'],['culture','文化','Culture']];
 export const mapStyles:[MapStyle,string,string][]=[['terrain','地形','Terrain'],['antique','古典','Antique'],['modern','現代','Modern'],['nautical','航海','Nautical'],['blueprint','藍圖','Blueprint'],['night','夜間','Night']];
-export const mapOverlays:[MapOverlay,string,string][]=[['borders','邊界','Borders'],['currents','洋流','Currents'],['rivers','河流','Rivers'],['lakes','湖泊','Lakes'],['plates','板塊','Plates'],['provinces','省分','Provinces'],['names','地名','Names'],['towns','城鎮','Towns'],['roads','道路','Roads']];
+export const mapOverlays:[MapOverlay,string,string][]=[['borders','邊界','Borders'],['currents','洋流','Currents'],['rivers','河流','Rivers'],['lakes','湖泊','Lakes'],['plates','板塊','Plates'],['provinces','省份','Provinces'],['names','地名','Names'],['towns','城鎮','Towns'],['roads','道路','Roads']];
 export function modeAvailable(mode:MapDisplayMode,drawing:GlobalMapDrawing){
- if(mode==='political'||mode==='culture')return false;
+ if(mode==='political')return !!drawing.human?.states.length;
+ if(mode==='culture')return !!drawing.human?.cultures.length;
  if(mode==='terrain')return true;
  if(mode==='heightmap')return !!drawing.scalarMesh?.heights;
  if(mode==='contours')return !!drawing.contours;
@@ -16,7 +17,10 @@ export function modeAvailable(mode:MapDisplayMode,drawing:GlobalMapDrawing){
  return !!drawing.climate;
 }
 export function overlayAvailable(overlay:MapOverlay,drawing:GlobalMapDrawing){
- if(['borders','provinces','towns','roads'].includes(overlay))return false;
+ if(overlay==='borders')return !!drawing.human?.states.length;
+ if(overlay==='provinces')return !!drawing.human?.provinces.length;
+ if(overlay==='roads')return !!drawing.human?.roads.length;
+ if(overlay==='towns')return false;
  if(overlay==='currents')return !!drawing.climate;
  if(overlay==='plates')return !!drawing.plates;
  if(overlay==='geology')return !!drawing.geology;

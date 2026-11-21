@@ -9,14 +9,22 @@ test('shipped Worker edits terrain, preserves river identities and survives JSON
  assert.deepEqual(progress.map(p=>p.stage).filter((stage,i,a)=>i===0||stage!==a[i-1]),['land','relief','tectonics','seafloor','islands','ocean','climate','hydrology','ecosystems','drawing','complete']);
  assert.ok(progress.every((p,i)=>!i||p.fraction>=progress[i-1].fraction));
  const base=generated.project;
+ const {buildSync}=require('esbuild'),Module=require('node:module'),localModule=new Module(__filename+'.session',module);
+ localModule._compile(buildSync({entryPoints:['src/features/worldMap/heightSession.ts'],bundle:true,write:false,platform:'node',format:'cjs'}).outputFiles[0].text,__filename+'.session');
+ const {applyHeightSession}=localModule.exports;
+ const operation={brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}};
+ const local=applyHeightSession(generated,operation);assert.notEqual(local.project.terrain.checksum,base.terrain.checksum);assert.deepEqual(local.project.naturalGeography,base.naturalGeography);assert.equal(local.drawing.natural,generated.drawing.natural);assert.equal(local.drawing.climate,generated.drawing.climate);
+ const localAgain=applyHeightSession(local,{brush:{...operation.brush,strength:1,tool:'lower'}});assert.equal(localAgain.project.terrain.revision,base.terrain.revision+2);assert.equal(localAgain.project.environmentTerrain,base.terrain);
+
  const edited=request('editHeight',base,{brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}});
+ assert.equal(local.project.terrain.checksum,edited.project.terrain.checksum);
  assert.ok(edited.project.terrain.heights.some((h,i)=>h!==base.terrain.heights[i]));
  assert.deepEqual(edited.project.naturalGeography,base.naturalGeography);
  assert.deepEqual(edited.project.environmentTerrain,base.terrain);
  assert.ok(edited.drawing.natural);assert.equal(edited.drawing.climate.months.length,12);
  const loaded=request('load',edited.project);
  assert.deepEqual(loaded.project.environmentTerrain,base.terrain);
- const recalculated=request('recalculateNature',base);assert.equal(recalculated.project.environmentTerrain,undefined);
+ const recalculated=request('recalculateNature',localAgain.project);assert.equal(recalculated.project.environmentTerrain,undefined);
  assert.deepEqual(loaded.project.terrain,edited.project.terrain);
  assert.deepEqual(loaded.project.naturalGeography,base.naturalGeography);
  const corrupt=structuredClone(edited.project);corrupt.environmentTerrain.checksum='00000000';
@@ -28,4 +36,15 @@ test('shipped Worker edits terrain, preserves river identities and survives JSON
  assert.equal(stroked.project.terrain.revision,base.terrain.revision+1);assert.notEqual(stroked.project.terrain.checksum,base.terrain.checksum);
  assert.deepEqual(stroked.project.naturalGeography,base.naturalGeography);assert.ok(stroked.drawing.contours.some(b=>b.lines.length));
  assert.deepEqual(request('load',stroked.project).project.terrain,stroked.project.terrain);
+ const riverModule=new Module(__filename+'.rivers',module);riverModule._compile(buildSync({entryPoints:['src/features/worldMap/riverSession.ts'],bundle:true,write:false,platform:'node',format:'cjs'}).outputFiles[0].text,__filename+'.rivers');
+ const {patchSessionRiver,addSessionRiver,deleteSessionRiver}=riverModule.exports;
+ const requestProject=(action,project)=>{self.onmessage({data:{id:++sequence,action,project}});assert.equal(result.error,undefined);return JSON.parse(JSON.stringify(result.project));};
+ const originalRiver=base.naturalGeography.rivers[0],geometry=originalRiver.geometry.map(p=>[...p]);geometry[0][0]+=.001;
+ let rivers=patchSessionRiver(base.naturalGeography,{id:originalRiver.id,name:'連續編輯後的河流',geometry});rivers=addSessionRiver(rivers,'river-custom-worker',geometry,originalRiver.parentId);
+ const batch={...base,naturalGeography:rivers,riverEdit:{version:1,geometryChanged:true,wasDirty:false,base:base.naturalGeography}};
+ const savedBatch=requestProject('editRivers',batch);assert.equal(savedBatch.riverEdit,undefined);assert.equal(savedBatch.naturalGeography.rivers.length,base.naturalGeography.rivers.length+1);assert.equal(savedBatch.naturalGeography.rivers.find(r=>r.id===originalRiver.id).name,'連續編輯後的河流');assert.deepEqual(savedBatch.naturalGeography.rivers.find(r=>r.id===originalRiver.id).geometry,geometry);
+ const reopenedBatch=requestProject('load',savedBatch);assert.deepEqual(reopenedBatch.naturalGeography,savedBatch.naturalGeography);
+ const deletedBatch=requestProject('editRivers',{...savedBatch,naturalGeography:deleteSessionRiver(savedBatch.naturalGeography,'river-custom-worker'),riverEdit:{version:1,geometryChanged:false,wasDirty:false,base:savedBatch.naturalGeography}});assert.equal(deletedBatch.naturalGeography.rivers.length,base.naturalGeography.rivers.length);assert.ok(!deletedBatch.naturalGeography.rivers.some(r=>r.id==='river-custom-worker'));
+ const loop=structuredClone(batch);loop.naturalGeography.rivers[0].geometry=[geometry[0],geometry[1],geometry[0]];self.onmessage({data:{id:++sequence,action:'editRivers',project:loop}});assert.ok(result.error);assert.deepEqual(batch.naturalGeography.rivers[0].geometry,geometry);
+
 });

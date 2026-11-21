@@ -103,3 +103,29 @@ test('extreme heat still evaporates water; seasonal rainfall distinguishes dry-s
  assert.equal(classifyPotentialEcosystem(t,dry,monthlyWaterBalance(t,dry,35)),'T3');
  assert.equal(classifyPotentialEcosystem(t,wet,monthlyWaterBalance(t,wet,35)),'T2');
 });
+
+test('terrain capacity varies with slope and all capacities conserve monthly water',async()=>{
+ const {terrainWaterCapacity}=await import('./ecosystem-water.mjs');
+ const pack={points:[fromLonLat([0,0]),fromLonLat([.1,0]),fromLonLat([-.1,0])],neighbors:[[1,2],[0],[0]],heights:[100,100,100]};
+ const flat=terrainWaterCapacity(pack,0);pack.heights[0]=1000;const steep=terrainWaterCapacity(pack,0);assert.ok(flat.capacityMm>steep.capacityMm);assert.ok(steep.capacityMm>=60&&flat.capacityMm<=240);
+ for(const capacityMm of [60,150,240]){const t=[-5,-3,2,8,14,20,23,22,15,8,2,-2],p=Array(12).fill(60),w=monthlyWaterBalance(t,p,45,{capacityMm});assert.ok(w.soil.every(s=>s>=0&&s<=capacityMm));for(let m=0;m<12;m++)assert.ok(Math.abs(p[m]-w.aet[m]-w.runoff[m]-w.storageChange[m]-w.snowChange[m])<1e-8);}
+});
+test('habitats distinguish seasonal water, cold forests and deserts without random categories',async()=>{
+ const {classifyPotentialHabitat,HABITATS}=await import('./ecosystem-water.mjs');
+ const samples=[
+  {t:Array(12).fill(25),p:Array(12).fill(160),lat:0,expect:'rainforest'},
+  {t:Array(12).fill(25),p:[20,20,20,120,180,200,200,180,180,120,80,50],lat:10,expect:'seasonal-forest'},
+  {t:[-12,-10,-3,5,12,17,20,18,12,5,-3,-9],p:Array(12).fill(90),lat:55,expect:'boreal'},
+  {t:[4,5,7,10,13,16,18,18,15,11,7,5],p:Array(12).fill(180),lat:45,expect:'temperate-rainforest'},
+  {t:Array(12).fill(28),p:Array(12).fill(1),lat:25,expect:'hot-desert'},
+  {t:Array(12).fill(-8),p:Array(12).fill(20),lat:80,expect:'snow-ice'},
+ ];
+ for(const s of samples){const w=monthlyWaterBalance(s.t,s.p,s.lat),h=classifyPotentialHabitat(s.t,s.p,w);assert.equal(h,s.expect);assert.ok(HABITATS.some(c=>c[0]===h));}
+ const e=derivePackEcosystems(data().pack,data().hydro);assert.equal(e.habitatCatalog.length,24);assert.ok(e.landSurface.every(h=>!HABITATS[h][4].startsWith('M')));assert.ok(e.seaSurface.every(h=>HABITATS[h][4].startsWith('M')));
+});
+test('changed-mesh river projection repairs derived loops without inventing inland outlets',async()=>{
+ const {reconnectDrainage}=await import('./pack-hydrology.mjs');
+ const pack={points:[0,1,2,3].map(x=>fromLonLat([x,0])),heights:[-10,10,20,30],neighbors:[[1],[0,2],[1,3],[2]]};
+ const receivers=new Int32Array([-1,2,1,2]),locked=new Uint8Array([0,1,1,0]);assert.throws(()=>reconnectDrainage(pack,receivers.slice(),locked.slice()),/cycle/);
+ reconnectDrainage(pack,receivers,locked,{repairProjection:true});assert.equal(drainageOrder(receivers).order.length,4);assert.equal(receivers[0],-1);assert.ok(Array.from(receivers).slice(1).every(j=>j>=0));
+});
