@@ -280,7 +280,11 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
    ctx.save();ctx.translate(k*360,0);if(surfacePaths){ctx.beginPath();ctx.rect(-180,-90,360,180);ctx.clip();}
    const left=Math.max(-180,(-size.w/2-pan)/s-k*360),right=Math.min(180,(size.w/2-pan)/s-k*360);
    const top=Math.min(90,(size.h/2+view.y)/s),bottom=Math.max(-90,(view.y-size.h/2)/s);
-   if(!baseTiles.overview||!drawBaseTiles(ctx,left,right,bottom,top,tileResolution,ratio,baseTiles.tiles,paintBase,palette.ocean,baseTiles.overview,tileBudget)){
+   if(baseTiles.overview&&tileResolution===overviewScale){
+    // The overview already has exactly this resolution. Repainting its full
+    // ecosystem paths into identical tiles only repeats expensive tessellation.
+    ctx.save();ctx.translate(-180,90);ctx.scale(1,-1);ctx.drawImage(baseTiles.overview,0,0,360,180);ctx.restore();
+   }else if(!baseTiles.overview||!drawBaseTiles(ctx,left,right,bottom,top,tileResolution,ratio,baseTiles.tiles,paintBase,palette.ocean,baseTiles.overview,tileBudget)){
     paintBase(ctx,s);
    }
    if(editGrid){

@@ -1098,8 +1098,8 @@ test(
           await page.reload();await opener.waitFor();await opener.click();
           const expand=drawer.getByRole("button",{name:"功能總覽",exact:true});if(await expand.getAttribute("aria-expanded")==="false")await expand.click();
           await drawer.getByRole("button",{name:"創作",exact:true}).press("Enter");
-          await page.getByRole("button",{name:"＋ 建立",exact:true}).click();await page.getByRole("button",{name:"世界觀",exact:true}).click();
-          await page.getByRole("dialog",{name:"世界觀模板 / World templates",exact:true}).getByRole("button",{name:"World template",exact:true}).click();
+          await page.getByRole("button",{name:"模板管理",exact:true}).click();
+          await page.locator('[data-template-manager] article').filter({has:page.getByRole("button",{name:"World template",exact:true})}).getByRole("button",{name:"使用模板建立世界觀",exact:true}).click();
           await until(page,async sourceId=>(await window.fixtureStorage.listPages()).some(p=>p.creative_type==="world"&&!p.character_data?.isTemplate&&p.character_data?.templateSourceId===sourceId),worldTemplateId);
           const createdWorld=await page.evaluate(async sourceId=>(await window.fixtureStorage.listPages()).find(p=>p.character_data?.templateSourceId===sourceId),worldTemplateId);
           assert.equal(createdWorld.character_data.basic.name,"新世界觀");assert.notEqual(createdWorld.character_data.sections[0].id,"world-block");

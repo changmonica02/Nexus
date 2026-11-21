@@ -41,6 +41,7 @@ jobs:
         run: |
           npm run map:global
           node --test tests/world-map/globalMap.test.cjs
+          node --test --test-concurrency=1 tests/world-map/globalMapDisplay.test.cjs tests/world-map/globalMapWorkspace.ui.test.cjs tests/world-map/heightBrushWorker.test.cjs tests/world-map/humanGeography.test.cjs tests/world-map/riverSession.test.cjs
       - name: Bundle offline browser preview
         run: |
           mkdir -p /tmp/nexus-land-preview
@@ -60,10 +61,11 @@ jobs:
           done
           npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
           /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
-      - name: Global creator browser regression
+      - name: Global creator and editor browser regression
         run: |
           export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
           node tests/world-map/globalMapCreator.browser.test.cjs
+          node tests/world-map/globalMapSession.browser.test.cjs
       - name: Open packaged preview over file protocol (no network)
         env:
           NODE_PATH: /tmp/nexus-preview-tools/node_modules

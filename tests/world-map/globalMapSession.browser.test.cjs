@@ -17,7 +17,8 @@ test('desktop/mobile height sessions derive once and ecosystem wrapping has no d
  try{
   browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE||undefined,args:['--no-sandbox']});
   for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
-   const page=await browser.newPage({viewport}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.mapQA?.drawing,{timeout:120000});await page.getByRole('button',{name:'顯示',exact:true}).click();await page.getByRole('button',{name:'生態',exact:true}).click();
+   console.log('MAP_SESSION_VIEWPORT',viewport.width,viewport.height);
+   const page=await browser.newPage({viewport}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.mapQA?.drawing,{timeout:120000});await page.getByRole('button',{name:'顯示',exact:true}).click();const ecosystemStart=Date.now();await page.getByRole('button',{name:'生態',exact:true}).click();console.log('ECOSYSTEM_CLICK_MS',Date.now()-ecosystemStart);
    const canvas=page.locator('canvas[data-global-map-canvas]');await canvas.focus();await canvas.press('ArrowLeft');await page.waitForTimeout(1500);
    const seam=await canvas.evaluate(el=>{const ctx=el.getContext('2d'),w=el.width,h=el.height,s=Math.min(w/360,h/180),x=Math.round(w/2+40-180*s),data=ctx.getImageData(0,0,w,h).data;let bad=0,total=0;for(let y=Math.ceil(h/2-89*s);y<h/2+89*s;y++){const a=(y*w+x-2)*4,b=(y*w+x+2)*4;if(x<2||x>=w-2)continue;total++;if(Math.max(...[0,1,2].map(k=>Math.abs(data[a+k]-data[b+k])))>25)bad++;}return {bad,total};});
    assert.ok(seam.total>200);assert.ok(seam.bad/seam.total<.04,JSON.stringify(seam));

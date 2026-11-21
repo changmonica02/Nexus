@@ -151,7 +151,7 @@ test('panning a scalar base map reuses the same offscreen tiles',async()=>{
  await render(React.createElement(components.GlobalMapCanvas,{drawing:d}));
  const canvas=host.querySelector('canvas');
  const tileImages=new Set(operations.filter(o=>o.kind==='drawImage').map(o=>o.args[0]));
- assert.ok(tileImages.size>0);
+ assert.equal(tileImages.size,1,'the matching-resolution overview is reused without rasterizing duplicate tiles');
  operations.length=0;
  await act(async()=>{
   canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:1,button:0,clientX:400,clientY:200}));
