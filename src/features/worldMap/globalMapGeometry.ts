@@ -2,14 +2,14 @@ import {createCoastSurface} from './core/coastSurface.mjs';
 import {smoothDisplayHeights} from './core/scalarBands.mjs';
 export type NaturalMapDrawing={
  pack:{cells:number;gridParents:Uint32Array;rings:number[][][];detail:number};
- ecosystems:{surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
+ ecosystems:{habitat?:Uint8Array;habitatCatalog?:string[][];landSurface?:Uint8Array;seaSurface?:Uint8Array;seaFloor?:Uint8Array;surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
  rivers:{id:string;name:string;parentId:string|null;streamOrder?:number;segmentFlows?:number[][];lines:number[][][];monthly:number[];catchmentAreaKm2:number;lengthKm:number;basinId:string}[];
  lakes:{id:string;name:string;rings:number[][][];waterLevelM:number;spillM:number;areaKm2:number;months:{inflowM3:number;evaporationM3:number;outflowM3:number;storageM3:number;storageChangeM3:number;balanceErrorM3:number;dry:boolean}[]}[];
 };
 import {projectClimate} from '../../../experiments/spherical-grid/climate-display.mjs';
 import {createTectonicSymbols} from '../../../experiments/spherical-grid/tectonic-drawing.mjs';
 /** Spherical Voronoi cell polygons, projected only for display; no heights are changed. */
-export type GlobalMapDrawing={human?:import('./humanGeography').HumanGeography;scalarMesh?:{points:number[][];triangles:number[][];heights?:ArrayLike<number>;tintHeights?:Float64Array;cellRings?:number[][][];oceanMask?:Uint8Array;neighbors?:number[][]};surface?:ReturnType<typeof createCoastSurface>;contours?:{height:number;lines:number[][][]}[];land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
+export type GlobalMapDrawing={human?:import('./humanGeography').HumanGeography;scalarMesh?:{areas?:ArrayLike<number>;points:number[][];triangles:number[][];heights?:ArrayLike<number>;tintHeights?:Float64Array;cellRings?:number[][][];oceanMask?:Uint8Array;neighbors?:number[][]};surface?:ReturnType<typeof createCoastSurface>;contours?:{height:number;lines:number[][][]}[];land:number[][][];coast:number[][][];landPercent:number;natural?:NaturalMapDrawing;climate?:ReturnType<typeof projectClimate>;plateBoundaries?:number[][][];plateCount?:number;tectonicSymbols?:ReturnType<typeof createTectonicSymbols>;relief?:{color:string;rings:number[][][]}[];plates?:{id:number;areaPercent:number;color:string;rings:number[][][]}[];
  geology?:{segments:{mode:string;activity:number;lines:number[][][]}[];volcanoes:number[][];islandChains:number[][][];activeMountains:number;historicalMountains:number}};
 type Grid={points:number[][];triangles:number[][];areas:Float64Array;neighbors?:number[][];heights?:ArrayLike<number>};
 const dot=(a:number[],b:number[])=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -67,7 +67,7 @@ export function createGlobalMapDrawing(grid:Grid,ocean:Uint8Array,_coast:{start:
   activeMountains:tectonics.features.orogenProvinces.activeCells,historicalMountains:tectonics.features.orogenProvinces.historicalCells}:undefined;
  const surface=packedCoast??createCoastSurface(grid,ocean);
  const tintHeights=grid.heights?smoothDisplayHeights(grid,grid.heights):undefined;
- return {land,surface,scalarMesh:grid.heights||climate?{points:grid.points,triangles:grid.triangles,heights:grid.heights,tintHeights,cellRings,oceanMask:ocean,neighbors:grid.neighbors}:undefined,plates,geology,contours:grid.heights?createHeightContours({...grid,heights:tintHeights}):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:surface.coast,landPercent:area/total*100};
+ return {land,surface,scalarMesh:grid.heights||climate?{areas:grid.areas,points:grid.points,triangles:grid.triangles,heights:grid.heights,tintHeights,cellRings,oceanMask:ocean,neighbors:grid.neighbors}:undefined,plates,geology,contours:grid.heights?createHeightContours({...grid,heights:tintHeights}):undefined,climate:climate?projectClimate(grid,climate,cellRings):undefined,tectonicSymbols:tectonics?.version===3?createTectonicSymbols(grid,tectonics):undefined,relief:grid.heights?relief:undefined,coast:surface.coast,landPercent:area/total*100};
 }
 
 /** Piecewise-linear isolines on spherical triangles; never draw whole cell borders as contours. */

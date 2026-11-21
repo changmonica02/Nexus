@@ -96,7 +96,7 @@ self.onmessage=(event:MessageEvent<{id:number;action:'preview'|'generate'|'load'
     if(action==='regenerateRivers')project.naturalGeography=generateNaturalGeography(pack,climate,project.settings.seed,event.data.language,{lakes:project.naturalGeography?.lakes}) as GlobalMapProject['naturalGeography'];
     if(action==='editNatural'){if(!project.naturalGeography||!event.data.patch)throw Error('Missing natural feature');project.naturalGeography=editNaturalGeography(pack,climate,project.naturalGeography,event.data.patch);}
     if(project.naturalGeography){
-     const hydro=deriveHydrology(pack,climate,project.naturalGeography);
+     const hydro=deriveHydrology(pack,climate,project.naturalGeography,{repairProjection:true});
      report({stage:'ecosystems',fraction:.95});
      natural=projectNaturalGeography(pack,project.naturalGeography,hydro,derivePackEcosystems(pack,hydro)) as NaturalMapDrawing;
      naturalCache={climate,key:keyForNatural(),drawing:natural};

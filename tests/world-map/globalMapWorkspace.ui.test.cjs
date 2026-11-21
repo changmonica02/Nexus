@@ -10,14 +10,14 @@ function project(settings={seed:42,landPercent:32,continentCores:8,gridCells:360
  return {format:'nexus-global-map',version:1,geologyVersion:4,climateVersion:2,packSettings:{version:1,detail:1},naturalGeography:{version:1,rivers:[],lakes:[],overlays:[]},settings,terrain:{format:'nexus-spherical-grid-prototype',version:2,frequency:60,cells:36002,heightScaleMetres:100,seaLevel:0,oceanSeed:1,revision:0,heights,checksum:checksum(heights)}};
 }
 function drawing(){return {land:[ring],coast:[[ring[0],ring[1]]],landPercent:32,relief:[{color:'#a2ba81',rings:[ring]}],contours:[{height:1700,lines:[[ring[0],ring[2]]]}],plates:[{id:0,areaPercent:100,color:'#aaa',rings:[ring]}],plateBoundaries:[],climate:{rings:[ring],ocean:[0],koppen:[1],codes:['Af'],arrows:[],months:Array.from({length:12},()=>({temperature:[200],precipitation:[100],sst:[200],sstAnomaly:[0]}))},natural:{pack:{cells:1,rings:[ring],gridParents:new Uint32Array([0]),detail:1},ecosystems:{surface:[0],seabed:[0],catalog:[['T1','Forest','森林','#123456']]},rivers:[{id:'river-1',name:'測試河',catchmentAreaKm2:40000,lengthKm:300,parentId:null,lines:[[ring[0],ring[2]]],monthly:Array(12).fill(20)}],lakes:[{id:'lake-1',name:'測試湖',rings:[ring],months:Array.from({length:12},()=>({dry:false}))}]}};}
-let pauseLoad=false,finishLoad;
+let pauseLoad=false,finishLoad,heightFixture=false;
 class FakeWorker{
  constructor(){this.closed=false;}
  postMessage(message){requests.push(structuredClone(message));queueMicrotask(()=>{if(this.closed)return;let p=structuredClone(message.project??project(message.settings));
   if(message.action==='editHeight'){p.environmentTerrain??=structuredClone(p.terrain);p.terrain.heights[0]++;p.terrain.revision++;p.terrain.checksum=checksum(p.terrain.heights);}
   if(message.action==='recalculateNature')delete p.environmentTerrain;
   if(message.action==='editNatural')Object.assign(p.naturalGeography.rivers.find(r=>r.id===message.patch.id),message.patch);
-  const d=drawing();
+  const d=drawing();if(heightFixture)d.scalarMesh={points:Array.from({length:36002},(_,i)=>i?[ -1,0,0 ]:[1,0,0]),neighbors:Array.from({length:36002},(_,i)=>i?[0]:[1]),triangles:[],heights:p.terrain.heights};
   const complete=()=>{if(!this.closed)this.onmessage?.({data:{id:message.id,project:message.action==='preview'?null:p,drawing:message.action==='preview'?{land:d.land,coast:d.coast,landPercent:32}:d}});};
   if(message.action==='load'&&message.previewFirst&&pauseLoad){
    this.onmessage?.({data:{id:message.id,previewDrawing:{land:d.land,coast:d.coast,landPercent:32}}});
@@ -71,19 +71,23 @@ test('editor groups display controls, independently toggles water, renders palet
  const month=host.querySelector('select[aria-label="月份"]');await change(month,'6');assert.equal(month.value,'6');assert.ok([...host.querySelectorAll('summary')].some(s=>s.textContent.includes('7 月')));
  assert.equal(sw('道路').disabled,true);
 });
-test('height tools support free mode, coordinate application, undo/redo and saved snapshots',async()=>{
+test('height session accumulates strokes, undoes locally and derives once on save and exit',async(t)=>{
+ heightFixture=true;t.after(()=>{heightFixture=false;});
  const p=project(),map={id:'map-test',world_id:'world-test',title:'測試世界',revision:1},saved=[];
- const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(worldId,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[{...map,revision:revision+1}]}}};}};
+ const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
- await click('工具');assert.ok(host.querySelector('select[aria-label="高度筆刷"]'));await change(host.querySelector('select[aria-label="高度模式"]'),'free');assert.equal(host.querySelector('select[aria-label="編輯範圍"]').disabled,true);
- const form=host.querySelector('aside form');await act(async()=>{form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await delay(30);});
- assert.equal(saved.length,1);assert.equal(saved[0].terrain.heights[0],31);assert.ok(saved[0].environmentTerrain);assert.ok(host.textContent.includes('氣候、水文與生態仍為上次計算結果'));
- await click('復原');assert.equal(saved.at(-1).terrain.heights[0],30);await click('重做');assert.equal(saved.at(-1).terrain.heights[0],31);
- const paint=requests.findLast(r=>r.action==='editHeight');assert.equal(paint.brush.mode,'free');assert.equal(paint.brush.longitude,0);
- await click('海岸線');await click('使用自由高度工具');assert.equal(host.querySelector('select[aria-label="高度模式"]').value,'free');assert.equal(button('停止繪製，切換平移').getAttribute('aria-pressed'),'true');
- const canvas=host.querySelector('canvas'),count=saved.length;
- await act(async()=>{canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:9,button:0,clientX:400,clientY:200}));canvas.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:9,clientX:440,clientY:200}));await delay(5);});assert.equal(saved.length,count);
- await act(async()=>{canvas.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:9,clientX:440,clientY:200}));await delay(30);});assert.equal(saved.length,count+1);assert.ok(requests.findLast(r=>r.action==='editHeight').stroke.points.length>=2);
+ await click('工具');await change(host.querySelector('select[aria-label="高度模式"]'),'free');
+ const requestCount=requests.length,form=host.querySelector('aside form');
+ for(let i=0;i<2;i++)await act(async()=>{form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await delay(10);});
+ assert.equal(saved.length,0);assert.equal(requests.length,requestCount,'no Worker work between strokes');assert.equal(host.querySelector('[aria-busy="true"]'),null);assert.ok(button('儲存並退出'));
+ await click('復原');await click('重做');assert.equal(requests.length,requestCount);assert.equal(saved.length,0);
+ await click('儲存並退出');assert.equal(saved.length,1);assert.equal(saved[0].terrain.heights[0],34);assert.equal(saved[0].environmentTerrain,undefined);assert.equal(requests.slice(requestCount).filter(r=>r.action==='recalculateNature').length,1);assert.ok(button('開始繪製'));
+});
+test('failed final height save retains local heights and allows retry without another derivation',async(t)=>{
+ heightFixture=true;t.after(()=>{heightFixture=false;});let fail=true;const p=project(),saved=[],map={id:'height-failure',world_id:'w',title:'高度',revision:1};
+ const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{if(fail)throw Error('disk full');saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{}};}};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('工具');const before=requests.length;
+ await act(async()=>{host.querySelector('aside form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await delay(10);});await click('儲存並退出');assert.equal(saved.length,0);assert.equal(button('開始繪製'),undefined);assert.ok(button('儲存並退出'));fail=false;await click('儲存並退出');assert.equal(saved[0].terrain.heights[0],32);assert.equal(requests.slice(before).filter(r=>r.action==='recalculateNature').length,1);
 });
 
 test('readonly preview exposes display but never terrain tools',async()=>{
@@ -95,8 +99,8 @@ test('mobile painting collapses the tool panel while preserving an accessible st
  window.innerWidth=390;
  const map={id:'mobile-map',world_id:'world-test',title:'手機地圖',revision:1};
  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(project())]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
- await click('工具');await click('開始繪製');assert.equal(host.querySelector('aside'),null);assert.ok(button('停止繪製'));assert.equal(host.querySelector('canvas').style.cursor,'crosshair');
- await click('停止繪製');assert.equal(host.querySelector('canvas').style.cursor,'grab');window.innerWidth=1024;
+ await click('工具');await click('開始繪製');assert.equal(host.querySelector('aside'),null);assert.ok(button('儲存並退出'));assert.equal(host.querySelector('canvas').style.cursor,'crosshair');
+ await click('儲存並退出');assert.equal(host.querySelector('canvas').style.cursor,'grab');window.innerWidth=1024;
 });
 test('named generator confirms exactly once and returns a validated native Nexus snapshot',async()=>{
  const created=[];
@@ -251,7 +255,7 @@ test('overview replaces map hints, shows pending society data and dismisses More
  await click('顯示');await click('氣候');const legend=host.querySelector('section[aria-label="圖例"]');assert.ok(legend.textContent.includes('熱帶雨林氣候'));assert.ok(!legend.textContent.includes('Af'));
 });
 
-test('river vectors insert, drag, remove, cancel and submit geometry through the save path',async()=>{
+test('river editor only moves existing points and places regeneration last',async()=>{
  const p=project(),r={id:'river-1',name:'測試河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null};p.naturalGeography.rivers=[r];
  const map={id:'vector',world_id:'world-test',title:'河道編輯',revision:1},saved=[];
  const repo={stageDraft:async()=> 'vector-draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
@@ -259,13 +263,13 @@ test('river vectors insert, drag, remove, cancel and submit geometry through the
  await click('工具');await click('河流');await change(host.querySelector('select[aria-label="選擇河流或湖泊"]'),'river-1');
  const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});
  let svg=host.querySelector('svg[aria-label="河流向量編輯"]');assert.ok(svg);const before=svg.querySelectorAll('circle').length;
- await act(async()=>{svg.querySelector('line').dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,clientX:390,clientY:210,pointerId:20}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before+5);
- await click('取消修改');assert.equal(svg.querySelectorAll('circle').length,before);
+ await act(async()=>{svg.querySelector('line').dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,clientX:390,clientY:210,pointerId:20}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);assert.equal(button('取消修改'),undefined);assert.equal(host.querySelector('textarea[aria-label="自然地理座標"]'),null);assert.ok(!host.textContent.includes('關聯與月別衍生資料'));const buttons=[...host.querySelectorAll('aside button')];assert.equal(buttons.at(-1).textContent,'重新生成河網');
  const circle=svg.querySelectorAll('circle')[1];circle.setPointerCapture=()=>{};
  await act(async()=>{circle.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:21}));circle.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:21,clientX:405,clientY:190}));circle.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:21}));await delay(5);});assert.ok(button('套用河道並儲存'));assert.equal(saved.length,0);
  await click('套用河道並儲存');const request=requests.findLast(r=>r.action==='editNatural');assert.equal(request.patch.id,'river-1');assert.notDeepEqual(request.patch.geometry,r.geometry);assert.equal(saved.length,1);assert.deepEqual(saved[0].naturalGeography.rivers[0].geometry,request.patch.geometry);
  svg=host.querySelector('svg[aria-label="河流向量編輯"]');
- await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.MouseEvent('dblclick',{bubbles:true}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,10);
+ await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.MouseEvent('dblclick',{bubbles:true}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);
+ await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.KeyboardEvent('keydown',{bubbles:true,key:'Delete'}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);
 });
 test('human tools appear below tools and expose four editable layers',async()=>{
  const p=project(),map={id:'map-human',world_id:'world-human',title:'人文測試',revision:1};
@@ -279,4 +283,9 @@ test('human edits save through the map repository and undo restores the snapshot
  p.humanGeography={version:1,cultures:[],states:[{id:1,name:'測試國',center:0,parent:0,color:'#abcdef'}],provinces:[],culture:[],state:Array(36002).fill(0),province:[],roads:[]};p.humanGeography.state[0]=1;
  const repo={stageDraft:async()=> 'human-draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('顯示');assert.equal(button('政治').disabled,false);await click('人文');assert.ok(button('測試國'));await click('刪除');await click('儲存');assert.equal(saved.at(-1).humanGeography.states.length,0);await click('復原');assert.equal(saved.at(-1).humanGeography.states[0].name,'測試國');assert.equal(saved.at(-1).humanGeography.state[0],1);
+});
+test('recovered height draft completes its deferred environment pass before saving',async(t)=>{
+ heightFixture=true;t.after(()=>{heightFixture=false;});const p=project();p.environmentTerrain=structuredClone(p.terrain);p.terrain.heights[0]=33;p.terrain.revision=1;p.terrain.checksum=checksum(p.terrain.heights);const saved=[],map={id:'recovered',world_id:'w',title:'恢復高度草稿',revision:1};
+ const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{}};}};const before=requests.length;
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),draftToken:'draft',repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));assert.ok(button('儲存並退出'));await click('儲存並退出');assert.equal(saved[0].terrain.heights[0],33);assert.equal(saved[0].environmentTerrain,undefined);assert.equal(requests.slice(before).filter(r=>r.action==='recalculateNature').length,1);
 });

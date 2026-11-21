@@ -3,7 +3,7 @@ import {buildDrainageGraph} from '../../src/features/worldMap/core/drainage.mjs'
 // major tributary continuation. Entity identity / geometry is independent of Pack.
 import {FieldHeap,km,dot,cross} from './geologic-fields.mjs';
 import {toLonLat,fromLonLat,pathLength,samplePackClimate} from './spherical-pack.mjs';
-import {monthlyWaterBalance,MONTH_DAYS} from './ecosystem-water.mjs';
+import {monthlyWaterBalance,MONTH_DAYS,terrainWaterCapacity} from './ecosystem-water.mjs';
 export function routePack(pack){return buildDrainageGraph(pack);}
 export function drainageOrder(receivers){
  const incoming=new Uint32Array(receivers.length);for(const j of receivers)if(j>=0)incoming[j]++;
@@ -14,7 +14,7 @@ export function drainageOrder(receivers){
 // Reprojected authored channels can point against the new mesh's automatic
 // drainage. Redirect only the unresolved surrounding catchment, retaining every
 // channel / reservoir edge; an authored cycle remains an error.
-export function reconnectDrainage(pack,receiver,locked){
+export function reconnectDrainage(pack,receiver,locked,{repairProjection=false}={}){
  const n=receiver.length,upstream=Array.from({length:n},()=>[]),solved=new Uint8Array(n),queue=[];
  for(let i=0;i<n;i++){const j=receiver[i];if(j<0){solved[i]=1;queue.push(i);}else upstream[j].push(i);}
  for(let k=0;k<queue.length;k++)for(const i of upstream[queue[k]])if(!solved[i]){solved[i]=1;queue.push(i);}
@@ -30,7 +30,20 @@ export function reconnectDrainage(pack,receiver,locked){
   // Finalize a free cell only when its cheapest exit is removed from the heap.
   solved[cell]=1;
  }
- if(solved.some(v=>!v))throw Error('Authored river routing creates a cycle');
+ if(solved.some(v=>!v)){
+  if(!repairProjection)throw Error('Authored river routing creates a cycle');
+  // A changed coastal mesh can map two otherwise valid authored channels to
+  // opposing edges. Release the derived edges of each cycle, retaining the
+  // authored coordinates and IDs; reroute only those projected exits.
+  const visited=new Uint8Array(n);let released=0;
+  for(let start=0;start<n;start++)if(!solved[start]&&!visited[start]){
+   const path=[],index=new Map();let cell=start;
+   while(cell>=0&&!solved[cell]&&!visited[cell]){index.set(cell,path.length);path.push(cell);visited[cell]=1;cell=receiver[cell];if(index.has(cell)){const cycle=path.slice(index.get(cell));for(const c of cycle)locked[c]=0;released++;break;}}
+  }
+  if(!released)throw Error('Authored river routing creates a cycle');
+  // Reconnect to genuine existing outlets; never create an inland sink.
+  reconnectDrainage(pack,receiver,locked);
+ }
 }
 export function lakeRimForBed(pack,bed){
  const selected=new Set(bed.map(b=>pack.findCell(b.position))),rim=new Set();
@@ -85,7 +98,7 @@ export function resolveRiverPath(pack,river){
  if(new Set(out).size!==out.length)throw Error('River geometry loops back on itself');
  return out;
 }
-export function deriveHydrology(pack,climate,base){
+export function deriveHydrology(pack,climate,base,{repairProjection=false}={}){
  const monthly=samplePackClimate(pack,climate),n=pack.points.length,routing=routePack(pack),receiver=routing.receivers.slice(),locked=new Uint8Array(n),lakeAt=new Int32Array(n);lakeAt.fill(-1);
  const byId=new Map(base.rivers.map((r,i)=>[r.id,i])),riverPaths=new Array(base.rivers.length),resolving=new Set();
  const resolve=index=>{
@@ -112,8 +125,8 @@ export function deriveHydrology(pack,climate,base){
   for(const j of f.ids)if(!seen.has(j))receiver[j]=root;
   return {...f,root,lake:l,areaKm2:l.bed.filter(b=>b.floorM<l.waterLevelM).reduce((s,b)=>s+b.areaKm2,0),capacityM3:l.bed.reduce((s,b)=>s+Math.max(0,f.spillM-b.floorM)*b.areaKm2*1e6,0),initialStorageM3:l.bed.reduce((s,b)=>s+Math.max(0,l.waterLevelM-b.floorM)*b.areaKm2*1e6,0)};
  });
- reconnectDrainage(pack,receiver,locked);
- const {order,incoming}=drainageOrder(receiver),water=pack.points.map((p,i)=>monthlyWaterBalance(monthly.map(m=>m.temperature[i]),monthly.map(m=>m.precipitation[i]),Math.asin(p[2])*180/Math.PI));
+ reconnectDrainage(pack,receiver,locked,{repairProjection});
+ const {order,incoming}=drainageOrder(receiver),water=pack.points.map((p,i)=>monthlyWaterBalance(monthly.map(m=>m.temperature[i]),monthly.map(m=>m.precipitation[i]),Math.asin(p[2])*180/Math.PI,terrainWaterCapacity(pack,i)));
  const wetLakeCells=new Set(lakes.flatMap(l=>l.ids.filter(i=>l.projected.get(i).floorM<l.lake.waterLevelM)));
  const runoff=Array.from({length:12},(_,m)=>Float64Array.from(pack.catchmentAreas,(a,i)=>pack.heights[i]<0?0:(wetLakeCells.has(i)?monthly[m].precipitation[i]:water[i].runoff[m])*a*1000));
  const storage=lakes.map(l=>l.initialStorageM3),lakeResults=lakes.map(l=>({id:l.lake.id,spillM:l.spillM,areaKm2:l.areaKm2,months:[]})),flows=[];

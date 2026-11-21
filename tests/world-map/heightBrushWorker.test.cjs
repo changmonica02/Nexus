@@ -9,14 +9,22 @@ test('shipped Worker edits terrain, preserves river identities and survives JSON
  assert.deepEqual(progress.map(p=>p.stage).filter((stage,i,a)=>i===0||stage!==a[i-1]),['land','relief','tectonics','seafloor','islands','ocean','climate','hydrology','ecosystems','drawing','complete']);
  assert.ok(progress.every((p,i)=>!i||p.fraction>=progress[i-1].fraction));
  const base=generated.project;
+ const {buildSync}=require('esbuild'),Module=require('node:module'),localModule=new Module(__filename+'.session',module);
+ localModule._compile(buildSync({entryPoints:['src/features/worldMap/heightSession.ts'],bundle:true,write:false,platform:'node',format:'cjs'}).outputFiles[0].text,__filename+'.session');
+ const {applyHeightSession}=localModule.exports;
+ const operation={brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}};
+ const local=applyHeightSession(generated,operation);assert.notEqual(local.project.terrain.checksum,base.terrain.checksum);assert.deepEqual(local.project.naturalGeography,base.naturalGeography);assert.equal(local.drawing.natural,generated.drawing.natural);assert.equal(local.drawing.climate,generated.drawing.climate);
+ const localAgain=applyHeightSession(local,{brush:{...operation.brush,strength:1,tool:'lower'}});assert.equal(localAgain.project.terrain.revision,base.terrain.revision+2);assert.equal(localAgain.project.environmentTerrain,base.terrain);
+
  const edited=request('editHeight',base,{brush:{longitude:179,latitude:0,radius:30,strength:100,tool:'raise',mode:'free',target:'land'}});
+ assert.equal(local.project.terrain.checksum,edited.project.terrain.checksum);
  assert.ok(edited.project.terrain.heights.some((h,i)=>h!==base.terrain.heights[i]));
  assert.deepEqual(edited.project.naturalGeography,base.naturalGeography);
  assert.deepEqual(edited.project.environmentTerrain,base.terrain);
  assert.ok(edited.drawing.natural);assert.equal(edited.drawing.climate.months.length,12);
  const loaded=request('load',edited.project);
  assert.deepEqual(loaded.project.environmentTerrain,base.terrain);
- const recalculated=request('recalculateNature',base);assert.equal(recalculated.project.environmentTerrain,undefined);
+ const recalculated=request('recalculateNature',localAgain.project);assert.equal(recalculated.project.environmentTerrain,undefined);
  assert.deepEqual(loaded.project.terrain,edited.project.terrain);
  assert.deepEqual(loaded.project.naturalGeography,base.naturalGeography);
  const corrupt=structuredClone(edited.project);corrupt.environmentTerrain.checksum='00000000';

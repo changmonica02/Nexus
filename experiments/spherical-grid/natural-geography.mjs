@@ -53,7 +53,7 @@ export function editNaturalGeography(pack,climate,base,patch){
   }
   validateLakeLevel(pack,feature);
  }
- validateNaturalGeography(next);const hydro=deriveHydrology(pack,climate,next);
+ validateNaturalGeography(next);const hydro=deriveHydrology(pack,climate,next,{repairProjection:patch.geometry===undefined&&patch.bed===undefined});
  if(patch.geometry!==undefined||patch.bed!==undefined){
   const owners=new Map();for(const r of [...hydro.rivers].sort((a,b)=>b.catchmentAreaKm2-a.catchmentAreaKm2))for(const i of r.path.slice(0,-1))if(!owners.has(i))owners.set(i,r.id);
   for(const r of next.rivers){const path=hydro.rivers.find(h=>h.id===r.id).path,end=path.at(-1),li=hydro.lakeAt[end];r.mouthLakeId=li>=0?next.lakes[li].id:null;r.parentId=pack.heights[end]>=0&&!r.mouthLakeId?(owners.get(end)??null):null;if(r.parentId===r.id)r.parentId=null;
