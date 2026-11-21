@@ -54,13 +54,17 @@ export function editNaturalGeography(pack,climate,base,patch){
   validateLakeLevel(pack,feature);
  }
  validateNaturalGeography(next);const hydro=deriveHydrology(pack,climate,next,{repairProjection:patch.geometry===undefined&&patch.bed===undefined});
- if(patch.geometry!==undefined||patch.bed!==undefined){
-  const owners=new Map();for(const r of [...hydro.rivers].sort((a,b)=>b.catchmentAreaKm2-a.catchmentAreaKm2))for(const i of r.path.slice(0,-1))if(!owners.has(i))owners.set(i,r.id);
-  for(const r of next.rivers){const path=hydro.rivers.find(h=>h.id===r.id).path,end=path.at(-1),li=hydro.lakeAt[end];r.mouthLakeId=li>=0?next.lakes[li].id:null;r.parentId=pack.heights[end]>=0&&!r.mouthLakeId?(owners.get(end)??null):null;if(r.parentId===r.id)r.parentId=null;
-   r.sourceLakeId=null;for(let i=0;i<next.lakes.length;i++)if(next.lakes[i].bed.some(b=>hydro.receiver[pack.findCell(b.position)]===path[0]))r.sourceLakeId=next.lakes[i].id;
-  }
-  for(const l of next.lakes){l.inletIds=next.rivers.filter(r=>r.mouthLakeId===l.id).map(r=>r.id);l.outletId=next.rivers.find(r=>r.sourceLakeId===l.id)?.id??null;}
-  validateNaturalGeography(next);
- }
+ if(patch.geometry!==undefined||patch.bed!==undefined)return relinkNaturalRivers(pack,next,hydro);
  return next;
+}
+
+/** Finalize relations once after a batch of local river edits. */
+export function relinkNaturalRivers(pack,base,hydro){
+ const next={...base,rivers:base.rivers.map(r=>({...r})),lakes:base.lakes.map(l=>({...l}))},owners=new Map();
+ for(const r of [...hydro.rivers].sort((a,b)=>b.catchmentAreaKm2-a.catchmentAreaKm2))for(const i of r.path.slice(0,-1))if(!owners.has(i))owners.set(i,r.id);
+ for(const r of next.rivers){const path=hydro.rivers.find(h=>h.id===r.id).path,end=path.at(-1),li=hydro.lakeAt[end];r.mouthLakeId=li>=0?next.lakes[li].id:null;r.parentId=pack.heights[end]>=0&&!r.mouthLakeId?(owners.get(end)??null):null;if(r.parentId===r.id)r.parentId=null;
+  r.sourceLakeId=null;for(let i=0;i<next.lakes.length;i++)if(next.lakes[i].bed.some(b=>hydro.receiver[pack.findCell(b.position)]===path[0]))r.sourceLakeId=next.lakes[i].id;
+ }
+ for(const l of next.lakes){l.inletIds=next.rivers.filter(r=>r.mouthLakeId===l.id).map(r=>r.id);l.outletId=next.rivers.find(r=>r.sourceLakeId===l.id)?.id??null;}
+ validateNaturalGeography(next);return next;
 }

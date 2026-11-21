@@ -16,6 +16,7 @@ class FakeWorker{
  postMessage(message){requests.push(structuredClone(message));queueMicrotask(()=>{if(this.closed)return;let p=structuredClone(message.project??project(message.settings));
   if(message.action==='editHeight'){p.environmentTerrain??=structuredClone(p.terrain);p.terrain.heights[0]++;p.terrain.revision++;p.terrain.checksum=checksum(p.terrain.heights);}
   if(message.action==='recalculateNature')delete p.environmentTerrain;
+  if(message.action==='editRivers')delete p.riverEdit;
   if(message.action==='editNatural')Object.assign(p.naturalGeography.rivers.find(r=>r.id===message.patch.id),message.patch);
   const d=drawing();if(heightFixture)d.scalarMesh={points:Array.from({length:36002},(_,i)=>i?[ -1,0,0 ]:[1,0,0]),neighbors:Array.from({length:36002},(_,i)=>i?[0]:[1]),triangles:[],heights:p.terrain.heights};
   const complete=()=>{if(!this.closed)this.onmessage?.({data:{id:message.id,project:message.action==='preview'?null:p,drawing:message.action==='preview'?{land:d.land,coast:d.coast,landPercent:32}:d}});};
@@ -255,22 +256,29 @@ test('overview replaces map hints, shows pending society data and dismisses More
  await click('顯示');await click('氣候');const legend=host.querySelector('section[aria-label="圖例"]');assert.ok(legend.textContent.includes('熱帶雨林氣候'));assert.ok(!legend.textContent.includes('Af'));
 });
 
-test('river editor only moves existing points and places regeneration last',async()=>{
- const p=project(),r={id:'river-1',name:'測試河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null};p.naturalGeography.rivers=[r];
+test('river vector sessions move multiple points and multiple rivers before one save',async()=>{
+ const p=project(),r={id:'river-1',name:'測試河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null},r2={...r,id:'river-2',name:'第二條河',geometry:[[20,-10],[25,0],[30,10]]};p.naturalGeography.rivers=[r,r2];
  const map={id:'vector',world_id:'world-test',title:'河道編輯',revision:1},saved=[];
  const repo={stageDraft:async()=> 'vector-draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{character_data:{world_maps:[map]}}};}};
- await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
- await click('工具');await click('河流');await change(host.querySelector('select[aria-label="選擇河流或湖泊"]'),'river-1');
- const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});
- let svg=host.querySelector('svg[aria-label="河流向量編輯"]');assert.ok(svg);const before=svg.querySelectorAll('circle').length;
- await act(async()=>{svg.querySelector('line').dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,clientX:390,clientY:210,pointerId:20}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);assert.equal(button('取消修改'),undefined);assert.equal(host.querySelector('textarea[aria-label="自然地理座標"]'),null);assert.ok(!host.textContent.includes('關聯與月別衍生資料'));const buttons=[...host.querySelectorAll('aside button')];assert.equal(buttons.at(-1).textContent,'重新生成河網');
- const circle=svg.querySelectorAll('circle')[1];circle.setPointerCapture=()=>{};
- await act(async()=>{circle.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,pointerId:21}));circle.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:21,clientX:405,clientY:190}));circle.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:21}));await delay(5);});assert.ok(button('套用河道並儲存'));assert.equal(saved.length,0);
- await click('套用河道並儲存');const request=requests.findLast(r=>r.action==='editNatural');assert.equal(request.patch.id,'river-1');assert.notDeepEqual(request.patch.geometry,r.geometry);assert.equal(saved.length,1);assert.deepEqual(saved[0].naturalGeography.rivers[0].geometry,request.patch.geometry);
- svg=host.querySelector('svg[aria-label="河流向量編輯"]');
- await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.MouseEvent('dblclick',{bubbles:true}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);
- await act(async()=>{svg.querySelectorAll('circle')[1].dispatchEvent(new window.KeyboardEvent('keydown',{bubbles:true,key:'Delete'}));await delay(5);});assert.equal(svg.querySelectorAll('circle').length,before);
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('工具');await click('河流');
+ const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});const requestCount=requests.length;
+ const circle=(id,index)=>host.querySelector(`[data-river-id="${id}"][data-river-control="${index}"]`);
+ const first=circle('river-1',0),second=circle('river-1',1);
+ const drag=async(node,id,x,y)=>{node.setPointerCapture=()=>{};await act(async()=>{node.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:id}));node.dispatchEvent(new window.PointerEvent('pointermove',{bubbles:true,pointerId:id,clientX:x,clientY:y}));node.dispatchEvent(new window.PointerEvent('pointerup',{bubbles:true,pointerId:id}));await delay(5);});};
+ await drag(first,21,405,190);assert.equal(circle('river-1',1),second,'other control point stays mounted after first drag');await drag(second,22,410,180);assert.equal(saved.length,0);assert.equal(requests.length,requestCount);
+ await change(host.querySelector('select[aria-label="選擇河流或湖泊"]'),'river-2');await drag(circle('river-2',1),23,430,170);await change(host.querySelector('select[aria-label="選擇河流或湖泊"]'),'river-1');assert.ok(button('儲存河流編輯'));assert.equal(saved.length,0);assert.equal(requests.length,requestCount);
+ await click('儲存河流編輯');assert.equal(saved.length,1);assert.equal(saved[0].riverEdit,undefined);const changed=saved[0].naturalGeography.rivers;assert.notDeepEqual(changed[0].geometry[0],r.geometry[0]);assert.notDeepEqual(changed[0].geometry[1],r.geometry[1]);assert.notDeepEqual(changed[1].geometry[1],r2.geometry[1]);assert.equal(requests.slice(requestCount).filter(r=>r.action==='editRivers').length,1);
+ assert.equal(host.querySelector('textarea[aria-label="自然地理座標"]'),null);assert.ok(!host.textContent.includes('關聯與月別衍生資料'));assert.equal([...host.querySelectorAll('aside button')].at(-1).textContent,'重新生成河網');
 });
+test('river data deletion, vector creation and cancellation share one draft',async()=>{
+ const p=project(),r={id:'river-1',name:'測試河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null};p.naturalGeography.rivers=[r];const map={id:'river-create',world_id:'world-test',title:'新增河流',revision:1},saved=[];
+ const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{}};}};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('工具');await click('河流');await click('編輯資料');assert.ok(host.querySelector('input[aria-label="河流名稱"]'));const name=host.querySelector('input[aria-label="河流名稱"]');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(name,'重新命名的河流');name.dispatchEvent(new window.Event('input',{bubbles:true}));await delay(5);});assert.ok(host.querySelector('select[aria-label="選擇河流或湖泊"]').textContent.includes('重新命名的河流'));await click('刪除河流');assert.equal(host.querySelectorAll('select[aria-label="選擇河流或湖泊"] option').length,1);assert.equal(saved.length,0);
+ await click('編輯向量');await click('新增河流');const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});
+ for(const [x,y] of [[400,200],[420,190],[440,180]])await act(async()=>{canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:30,clientX:x,clientY:y}));await delay(5);});assert.equal(button('完成新增河流').disabled,false);await click('完成新增河流');assert.equal(saved.length,0);await click('儲存河流編輯');assert.equal(saved.length,1);assert.equal(saved[0].naturalGeography.rivers.length,1);assert.notEqual(saved[0].naturalGeography.rivers[0].id,'river-1');assert.equal(saved[0].naturalGeography.rivers[0].geometry.length,3);
+ await click('編輯資料');await click('刪除河流');await click('取消本次編輯');assert.equal(host.querySelector('select[aria-label="選擇河流或湖泊"]').options.length,1);assert.equal(saved.length,1);assert.equal(button('儲存河流編輯'),undefined);
+});
+
 test('human tools appear below tools and expose four editable layers',async()=>{
  const p=project(),map={id:'map-human',world_id:'world-human',title:'人文測試',revision:1};
  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:{},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));
@@ -288,4 +296,16 @@ test('recovered height draft completes its deferred environment pass before savi
  heightFixture=true;t.after(()=>{heightFixture=false;});const p=project();p.environmentTerrain=structuredClone(p.terrain);p.terrain.heights[0]=33;p.terrain.revision=1;p.terrain.checksum=checksum(p.terrain.heights);const saved=[],map={id:'recovered',world_id:'w',title:'恢復高度草稿',revision:1};
  const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{}};}};const before=requests.length;
  await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),draftToken:'draft',repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));assert.ok(button('儲存並退出'));await click('儲存並退出');assert.equal(saved[0].terrain.heights[0],33);assert.equal(saved[0].environmentTerrain,undefined);assert.equal(requests.slice(before).filter(r=>r.action==='recalculateNature').length,1);
+});
+
+test('river drafts recover without routing unfinished vectors and retry failed saves',async()=>{
+ const p=project(),r={id:'river-1',name:'青河',notes:'',geometry:[[-10,-10],[0,0],[10,10]],parentId:null,sourceLakeId:null,mouthLakeId:null};p.naturalGeography.rivers=[r];p.riverEdit={version:1,geometryChanged:true,wasDirty:false,base:structuredClone(p.naturalGeography)};p.naturalGeography.rivers[0]={...r,geometry:[[-9,-10],[0,0],[10,10]]};let fail=true;const saved=[],map={id:'river-recover',world_id:'w',title:'河流草稿',revision:1};
+ const repo={stageDraft:async()=> 'draft',clearDraft:async()=>{},save:async(w,id,revision,blob)=>{if(fail)throw Error('disk full');saved.push(JSON.parse(await blob.text()));return {map:{...map,revision:revision+1},world:{}};}};const before=requests.length;
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),draftToken:'draft',repository:repo,beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));assert.equal(requests.at(-1).project.riverEdit,undefined);assert.equal(requests.at(-1).project.naturalGeography.rivers[0].geometry[0][0],-10);assert.ok(button('儲存河流編輯'));
+ await click('儲存河流編輯');assert.equal(saved.length,0);assert.ok(button('儲存河流編輯'));fail=false;await click('儲存河流編輯');assert.equal(saved[0].naturalGeography.rivers[0].geometry[0][0],-9);assert.equal(saved[0].riverEdit,undefined);assert.equal(requests.slice(before).filter(r=>r.action==='editRivers').length,1);
+});
+test('mobile river creation and vector controls work with the side panel closed',async(t)=>{
+ const width=window.innerWidth;Object.defineProperty(window,'innerWidth',{value:390,configurable:true});t.after(()=>Object.defineProperty(window,'innerWidth',{value:width,configurable:true}));const p=project(),map={id:'river-mobile',world_id:'w',title:'手機河流',revision:1};
+ await render(React.createElement(components.GlobalWorldMapEditor,{map,blob:new Blob([JSON.stringify(p)]),repository:{stageDraft:async()=> 'draft'},beforeSave:async()=>{},onSaved:async()=>{},onClose(){}}));await click('工具');await click('河流');await click('新增河流');assert.equal(host.querySelector('aside'),null);const canvas=host.querySelector('canvas');canvas.getBoundingClientRect=()=>({left:0,top:0,width:800,height:400});
+ for(const [x,y] of [[400,200],[420,190]])await act(async()=>{canvas.dispatchEvent(new window.PointerEvent('pointerdown',{bubbles:true,button:0,pointerId:40,clientX:x,clientY:y}));await delay(5);});assert.equal(button('完成新增河流').disabled,false);await click('完成新增河流');assert.ok(host.querySelector('svg[aria-label="河流向量編輯"]'));assert.ok(button('儲存河流編輯'));await click('工具');assert.ok(host.querySelector('aside'));assert.ok(button('編輯資料'));
 });

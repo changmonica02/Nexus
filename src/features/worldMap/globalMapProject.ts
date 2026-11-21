@@ -11,6 +11,7 @@ export type NaturalGeography={version:1;rivers:{id:string;name:string;notes:stri
  lakes:{id:string;name:string;notes:string;waterLevelM:number;rim:{position:number[];heightM:number}[];bed:{position:number[];floorM:number;areaKm2:number;ring:number[][]}[];inletIds:string[];outletId:string|null}[];overlays:{id:string;name:string;description:string;geometry:number[][]}[]};
 export type NaturalFeaturePatch={id:string;name?:string;notes?:string;geometry?:number[][];waterLevelM?:number;bed?:number[][]};
 export type GlobalMapProject = {
+ riverEdit?:{version:1;geometryChanged:boolean;wasDirty:boolean;base:NaturalGeography};
  humanGeography?:HumanGeography;
  format:'nexus-global-map';version:1;settings:GlobalMapSettings;geologyVersion?:4;islandGenesis?:IslandGenesis;climateVersion?:2;packSettings?:{version:1;detail:1|2};naturalGeography?:NaturalGeography;
  environmentTerrain?:GlobalMapProject['terrain'];
@@ -29,6 +30,7 @@ export function validateGlobalMapProject(value:unknown):asserts value is GlobalM
  if(p.climateVersion!==undefined&&p.climateVersion!==2)throw Error('Unsupported climate version');
  if(p.packSettings!==undefined&&(!p.packSettings||p.packSettings.version!==1||![1,2].includes(p.packSettings.detail)))throw Error('Unsupported Pack version');
  if(p.naturalGeography!==undefined){if(!p.packSettings||p.climateVersion!==2)throw Error('Natural geography requires Pack and climate');validateNaturalGeography(p.naturalGeography);}
+ if(p.riverEdit!==undefined){if(!p.riverEdit||p.riverEdit.version!==1||typeof p.riverEdit.geometryChanged!=='boolean'||typeof p.riverEdit.wasDirty!=='boolean'||!p.naturalGeography)throw Error('Invalid river edit session');validateNaturalGeography(p.riverEdit.base);}
  if(p.humanGeography!==undefined)validateHuman(p.humanGeography,36002);
  validateGlobalSettings(p.settings);
  const g=p.islandGenesis;
