@@ -2,7 +2,7 @@ import {createCoastSurface} from './core/coastSurface.mjs';
 import {smoothDisplayHeights} from './core/scalarBands.mjs';
 export type NaturalMapDrawing={
  pack:{cells:number;gridParents:Uint32Array;rings:number[][][];detail:number};
- ecosystems:{habitat?:Uint8Array;habitatCatalog?:string[][];landSurface?:Uint8Array;seaSurface?:Uint8Array;seaFloor?:Uint8Array;surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
+ ecosystems:{landRegions?:{color:string;rings:number[][][];inverse:boolean}[];seaRegions?:{color:string;rings:number[][][];inverse:boolean}[];floorRegions?:{color:string;rings:number[][][];inverse:boolean}[];habitat?:Uint8Array;habitatCatalog?:string[][];landSurface?:Uint8Array;seaSurface?:Uint8Array;seaFloor?:Uint8Array;surface:Uint8Array;seabed:Uint8Array;evidence:Uint8Array;catalog:string[][];scheme:string;level:number;subterraneanInferred:boolean};
  rivers:{id:string;name:string;parentId:string|null;streamOrder?:number;segmentFlows?:number[][];lines:number[][][];monthly:number[];catchmentAreaKm2:number;lengthKm:number;basinId:string}[];
  lakes:{id:string;name:string;rings:number[][][];waterLevelM:number;spillM:number;areaKm2:number;months:{inflowM3:number;evaporationM3:number;outflowM3:number;storageM3:number;storageChangeM3:number;balanceErrorM3:number;dry:boolean}[]}[];
 };

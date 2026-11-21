@@ -1,4 +1,5 @@
 "use client";
+import {categoricalRegions} from '../features/worldMap/core/categoricalRegions.mjs';
 import {createEcosystemPaths} from '../features/worldMap/ecosystemDrawing';
 import {assignment,type HumanGeography,type HumanLayer} from '../features/worldMap/humanGeography';
 
@@ -49,15 +50,16 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
  const climateLayer=display?.mode??localLayer,month=display?.month??localMonth,showCurrents=display?.overlays.currents??['sst','currents'].includes(climateLayer);
  const mesh=drawing.scalarMesh;
  const editGrid=!!(editingHeight&&mesh?.heights&&mesh.cellRings&&typeof Path2D!=='undefined');
+ const sourceCellGeometry=useMemo(()=>mesh?.cellRings?.map(ring=>({ring,west:Math.min(...ring.map(p=>p[0])),east:Math.max(...ring.map(p=>p[0])),south:Math.min(...ring.map(p=>p[1])),north:Math.max(...ring.map(p=>p[1]))})),[mesh?.cellRings]);
  const editCells=useMemo(()=>{
   if(!editGrid||!mesh?.heights||!mesh.cellRings)return null;
-  const fills=new Map<string,Path2D>(),lines=new Path2D();
-  mesh.cellRings.forEach((ring,i)=>{
-   const h=mesh.heights![i],color=heightCellColor(h,mesh.oceanMask?!!mesh.oceanMask[i]:h<0);
-   if(!fills.has(color))fills.set(color,new Path2D());
-   cellPath(fills.get(color)!,ring);cellPath(lines,ring);
-  });
-  return {fills,lines};
+  const colors:string[]=[],values=Uint8Array.from(Array.from(mesh.heights),(h,i)=>{
+   const color=heightCellColor(h,mesh.oceanMask?!!mesh.oceanMask[i]:h<0);let index=colors.indexOf(color);if(index<0){index=colors.length;colors.push(color);}return index;
+  }),fills=new Map<string,Path2D>();
+  if(mesh.triangles.length){
+   for(const region of categoricalRegions(mesh,values,colors)){const path=new Path2D();if(region.inverse)path.rect(-180,-90,360,180);for(const ring of region.rings)cellPath(path,ring);fills.set(region.color,path);}
+  }else mesh.cellRings.forEach((ring,i)=>{const color=colors[values[i]];if(!fills.has(color))fills.set(color,new Path2D());cellPath(fills.get(color)!,ring);});
+  return {fills};
  },[editGrid,mesh]);
  const fieldMonth=['sst','temperature','precipitation'].includes(climateLayer)?month:0;
  const scalarLayers=useMemo(()=>{
@@ -204,8 +206,7 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
  useEffect(()=>{const el=canvas.current!;const observer=new ResizeObserver(([entry])=>setSize({w:Math.max(1,entry.contentRect.width),h:Math.max(1,entry.contentRect.height)}));observer.observe(el);return()=>observer.disconnect();},[]);
  const paintBase=useMemo(()=>(ctx:CanvasRenderingContext2D,scale:number)=>{
    if(editCells){
-    for(const [color,path] of editCells.fills){ctx.fillStyle=color;ctx.fill(path);}
-    if(scale>=3){ctx.strokeStyle='rgba(20,62,68,.18)';ctx.lineWidth=.45/scale;ctx.stroke(editCells.lines);}
+    for(const [color,path] of editCells.fills){ctx.fillStyle=color;ctx.fill(path,'evenodd');}
     return;
    }
    ctx.fillStyle=palette.land;
@@ -239,7 +240,7 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
     ctx.restore();
    }
    for(const band of climateBands){ctx.fillStyle=band.color;ctx.beginPath();for(const ring of band.rings)for(const shift of [-360,0,360]){ring.forEach(([x,y],i)=>i?ctx.lineTo(x+shift,y):ctx.moveTo(x+shift,y));ctx.closePath();}ctx.fill();}
-   for(const band of ecosystemBands){ctx.save();if(surfacePaths)ctx.clip(surfacePaths[band.clip],'evenodd');ctx.fillStyle=band.color;ctx.fill(band.path);ctx.restore();}
+   for(const band of ecosystemBands){ctx.save();if(surfacePaths)ctx.clip(surfacePaths[band.clip],'evenodd');ctx.fillStyle=band.color;ctx.fill(band.path,'evenodd');ctx.restore();}
  },[drawing,palette,surfacePaths,scalarLayers,climateLayer,climateBands,ecosystemBands,editCells]);
  const baseTiles=useMemo(()=>({tiles:new Map<string,HTMLCanvasElement>(),overview:null as HTMLCanvasElement|null}),[paintBase]);
  const refineFrame=useRef<number|null>(null);
@@ -288,6 +289,7 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
     paintBase(ctx,s);
    }
    if(editGrid){
+    if(view.zoom>=4&&sourceCellGeometry){ctx.beginPath();for(const cell of sourceCellGeometry)for(const shift of [-360,0,360]){if(cell.east+shift<left||cell.west+shift>right||cell.north<bottom||cell.south>top)continue;cell.ring.forEach(([x,y],i)=>i?ctx.lineTo(x+shift,y):ctx.moveTo(x+shift,y));ctx.closePath();}ctx.strokeStyle='rgba(20,62,68,.18)';ctx.lineWidth=.45/s;ctx.stroke();}
     if(previewCells){
      for(const [color,path] of previewCells.fills){ctx.fillStyle=color;ctx.fill(path);}
      ctx.strokeStyle='rgba(21,58,65,.65)';ctx.lineWidth=.65/s;ctx.stroke(previewCells.lines);
@@ -411,7 +413,7 @@ export default function GlobalMapCanvas({drawing,riverDrafts,hiddenRiverIds,rive
    if(settleTimer.current===null&&!pointers.current.size)refreshTiles(pass=>pass+1);
   });
   return()=>{if(refineFrame.current!==null){window.cancelAnimationFrame(refineFrame.current);refineFrame.current=null;}};
- },[humanPaths,territoryLayer,human,humanLayer,showHuman,display,drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tilePass,editGrid,previewCells]);
+ },[sourceCellGeometry,humanPaths,territoryLayer,human,humanLayer,showHuman,display,drawing,view,size,showPlates,showGeology,climateBands,ecosystemBands,climateLayer,month,showPack,showRivers,showLakes,showNames,showCurrents,palette,surfacePaths,scalarLayers,riverStrokes,riverLabels,baseTiles,paintBase,tilePass,editGrid,previewCells]);
  const moveCamera=useCallback((factor:number,fromX=0,fromY=0,toX=fromX,toY=fromY)=>setView(v=>{
   const zoom=Math.max(1,Math.min(32,v.zoom*factor)),scale=zoom/v.zoom;
   const y=toY+(v.y-fromY)*scale,limit=size.h*zoom/2;

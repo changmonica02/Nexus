@@ -84,3 +84,10 @@ test('ecosystem paths repeat across the date line and keep sea and land clips se
   const sea=createEcosystemPaths(n,true);assert.equal(sea[1].clip,'sea');assert.ok(sea[1].path.points.length>0);
  }finally{global.Path2D=original;}
 });
+test('categorical regions preserve source-cell classes, polar caps and uniform-world coverage',()=>{
+ const {categoricalRegions}=require('../../src/features/worldMap/core/categoricalRegions.mjs');
+ const mesh={points:[point(180,0),point(-90,0),point(0,0),point(90,0),point(0,90),point(0,-90)],triangles:[4,5].flatMap(p=>[0,1,2,3].map(i=>[p,i,(i+1)%4]))},values=[0,1,1,0,2,2],regions=categoricalRegions(mesh,values,['#111111','#222222','#333333']);
+ const probes=[[179.99,0],[-90,0],[0,0],[90,0],[0,89.99],[0,-89.99]];
+ probes.forEach((probe,i)=>{const hits=regions.filter(region=>{let hit=region.inverse;for(const ring of region.rings)for(const shift of [-360,0,360])if(insideProjectedRing([probe[0]+shift,probe[1]],ring))hit=!hit;return hit;});assert.equal(hits.length,1);assert.equal(hits[0].value,values[i]);});
+ const uniform=categoricalRegions(mesh,Array(6).fill(0),['#111111']);assert.equal(uniform.length,1);assert.equal(uniform[0].inverse,true);assert.equal(uniform[0].rings.length,0,'a uniform world needs only a rectangle, not thousands of cell subpaths');
+});

@@ -1,3 +1,4 @@
+import {categoricalRegions} from '../../src/features/worldMap/core/categoricalRegions.mjs';
 import {ECOSYSTEMS,HABITATS,classifyPotentialHabitat,terrainWaterCapacity} from './ecosystem-water.mjs';
 
 // Extend each realm's existing classifications into the opposite realm solely
@@ -28,5 +29,6 @@ export function derivePackEcosystems(pack,hydrology){
  }
  const landSurface=extendRealm(pack,habitat,i=>pack.heights[i]>=0),seaSurface=extendRealm(pack,habitat,i=>pack.heights[i]<0);
  const seaFloor=Uint8Array.from(seaSurface,h=>HABITATS[h][4]==='M2'?habitatIds.get('deep-floor'):h);
- return {version:2,level:2,riverHabitats:hydrology.rivers.map(r=>({id:r.id,biome:'F1'})),scheme:'IUCN GET potential functional biomes',surface,seabed,evidence,catalog:ECOSYSTEMS,habitat,habitatCatalog:HABITATS,landSurface,seaSurface,seaFloor,subterraneanInferred:false};
+ const colors=HABITATS.map(h=>h[3]),landRegions=categoricalRegions(pack,landSurface,colors),seaRegions=categoricalRegions(pack,seaSurface,colors),floorRegions=categoricalRegions(pack,seaFloor,colors);
+ return {landRegions,seaRegions,floorRegions,version:2,level:2,riverHabitats:hydrology.rivers.map(r=>({id:r.id,biome:'F1'})),scheme:'IUCN GET potential functional biomes',surface,seabed,evidence,catalog:ECOSYSTEMS,habitat,habitatCatalog:HABITATS,landSurface,seaSurface,seaFloor,subterraneanInferred:false};
 }

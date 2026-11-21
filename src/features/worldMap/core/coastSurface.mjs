@@ -51,7 +51,7 @@ export function projectShoreRing(points){
  const shift=Math.floor((ring.reduce((s,p)=>s+p[0],0)/ring.length+180)/360)*360;return ring.map(([x,y])=>[x-shift,y]);
 }
 /** @returns {{land:number[][][],coast:number[][][],inverse:boolean;shorelines:number[][][]}} */
-export function createCoastSurface(grid,ocean,{seed=undefined,voronoi=false}={}){
+export function createCoastSurface(grid,ocean,{seed=undefined,voronoi=false,smooth=true}={}){
  // Trace the categorical sea-level contour through crossed primal edges.
  // Circumcenters can sit outside an obtuse triangle and send the coast
  // across a neighbouring cell; midpoint crossings stay on the actual edge.
@@ -81,7 +81,7 @@ export function createCoastSurface(grid,ocean,{seed=undefined,voronoi=false}={})
    const crossing=next.find(edge=>edge.face!==previous);
    raw.push(voronoi?faceVertex(grid.points,grid.triangles[current]):crossing.point);previous=current;current=crossing.face;
   }while(current!==start);
-  const refined=refineCoast(raw,seed);
+  const refined=smooth?refineCoast(raw,seed):raw;
   if(refined.length>=3){refined.push(refined[0]);loops.push(refined);}
  }
  const land=loops.map(projectShoreRing),probeIndex=Math.max(0,grid.points.findIndex(p=>Math.abs(p[2])<.999999)),probe=project(grid.points[probeIndex]);let parity=false;
