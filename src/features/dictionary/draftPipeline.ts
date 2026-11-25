@@ -16,7 +16,7 @@ export interface DictionaryDraftInput {
   senses:(DraftRow & {part_of_speech:string|null;gloss_zh_tw:string;row?:number})[];
   pronunciations?:DraftRow[];
   etymologies:DraftRow[]; learning_notes:DraftRow[]; relations:DraftRow[];
-  examples:DraftRow[]; derivations?:DraftRow[]; public_notes?:DraftRow[]; relation_hints:DraftRow[];
+  examples:DraftRow[]; derivations?:DraftRow[]; public_notes?:DraftRow[];
   component_order?:string[]; row?:number; proposed_ids?:string[];
 }
 export interface DraftIssue {row:number;field:string;kind:string;error:string}
@@ -57,11 +57,11 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(d.derivations!==undefined){
       for(const error of validateSenseExtensions(d.senses,d.derivations as DerivationRow[],d.examples as BilingualExampleRow[]))issue('derivations',error);
     }
-    for(const [field,rows] of Object.entries({public_notes:d.public_notes??[],derivations:d.derivations??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples,relation_hints:d.relation_hints}))for(const r of rows){
+    for(const [field,rows] of Object.entries({public_notes:d.public_notes??[],derivations:d.derivations??[],pronunciations:d.pronunciations??[],senses:d.senses,etymologies:d.etymologies,learning_notes:d.learning_notes,relations:d.relations,examples:d.examples}))for(const r of rows){
       if(!uuid.test(r.id))issue(field,'ID 必須為 UUID');
       if(seen.has(r.id))issue(field,'重複 ID');seen.add(r.id);
       if(['source_id','citation','license','level'].some(k=>k in r))issue(field,'不接受來源授權或 Study level 欄位');
-      if(['examples','relation_hints'].includes(field)){
+      if(field==='examples'){
         if(typeof r.body!=='string'||!r.body.trim())issue(field,'內容必填');
         if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
       }
@@ -86,15 +86,13 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
 }
 const strip=(r:Record<string,unknown>)=>Object.fromEntries(Object.entries(r).filter(([k])=>!['updated_at','published_at','status','row','category'].includes(k)));
 export function draftsFromBundle(bundle:Bundle):DictionaryDraftInput[]{
-  if(bundle.dictionary_lexical_annotations?.some(r=>r.kind!=='relation_hint'))throw Error('舊字形註釋已淘汰；請備份原檔並移除舊欄位後重新比對，不會自動轉成詞形。');
   return (bundle.dictionary_entries??[]).map(e=>{
     const rows=(table:string)=>(bundle[table]??[]).filter(r=>r.entry_id===e.id).map(r=>strip(r) as DraftRow);
     return {kind:e.kind as DictionaryKind,entry_id:String(e.id),headword:String(e.headword),...(e.word_segments!==undefined?{word_segments:e.word_segments as WordSegment[]|null}:{}),...(e.revision!==undefined?{revision:Number(e.revision)}:{}),
       senses:rows('dictionary_senses').map(s=>({...s,part_of_speech:s.part_of_speech as string|null,gloss_zh_tw:String(s.gloss_zh_tw)})),
       ...(e.kind==='word'&&bundle.dictionary_public_notes?{public_notes:rows('dictionary_public_notes')}:{}),
       ...(e.kind==='word'&&bundle.dictionary_sense_derivations?{derivations:rows('dictionary_sense_derivations')}:{}),
-      pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:mergeCoreConcepts(rows('dictionary_learning_notes')),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples'),
-      relation_hints:rows('dictionary_lexical_annotations').filter(r=>r.kind==='relation_hint')};
+      pronunciations:rows('dictionary_pronunciations'),etymologies:rows('dictionary_etymologies'),learning_notes:mergeCoreConcepts(rows('dictionary_learning_notes')),relations:rows('dictionary_relations').map(compositionRow),examples:rows('dictionary_examples')};
   });
 }
 export function mapDictionaryDraft(d:DictionaryDraftInput){
@@ -103,7 +101,7 @@ export function mapDictionaryDraft(d:DictionaryDraftInput){
   return {...(d.component_order!==undefined?{component_order:d.component_order}:{}),origin:{row:d.row??1,kind:d.kind},bundle,
     ...(d.public_notes!==undefined?{public_notes:own(d.public_notes)}:{}),
     ...(d.derivations!==undefined?{derivations:own(d.derivations)}:{}),
-    pronunciations:own(d.pronunciations??[]).map(cleanPronunciation),examples:own(d.examples),annotations:own([...d.relation_hints.map(r=>({...r,kind:'relation_hint'}))])};
+    pronunciations:own(d.pronunciations??[]).map(cleanPronunciation),examples:own(d.examples)};
 }
 type Client=Pick<SupabaseClient,'rpc'>;
 /** Resolve explicit IDs only. Freeze revisions in the candidate used by preview and apply. */
@@ -115,7 +113,7 @@ export async function prepareDictionaryDrafts(client:Client,drafts:DictionaryDra
     if(data.entry.status==='published')throw new DraftValidationError([{row:d.row??1,kind:d.kind,field:'entry_id',error:'Published 不可直接覆蓋，請建立 Review Draft 並人工核准'}]);
     if(d.revision!==undefined&&d.revision!==data.entry.revision)throw new Error('Revision conflict');
     d.revision=data.entry.revision;
-    for(const [field,table] of [['public_notes','public_notes'],['derivations','derivations'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples'],['relation_hints','lexical_annotations']] as const){
+    for(const [field,table] of [['public_notes','public_notes'],['derivations','derivations'],['pronunciations','pronunciations'],['senses','senses'],['etymologies','etymologies'],['learning_notes','learning_notes'],['relations','relations'],['examples','examples']] as const){
       for(const row of d[field]??[]){const old=data[table]?.find((r:DraftRow)=>r.id===row.id);if(old)row.revision=old.revision;}
     }
   }

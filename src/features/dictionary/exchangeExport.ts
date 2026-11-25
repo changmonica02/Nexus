@@ -125,8 +125,18 @@ export async function continueExport(
   }
   return job;
 }
-/** Export exactly the current v2 shape; never include the retired inflections section. */
+/** Remove obsolete relation-hint keys even from old IndexedDB export checkpoints. */
+function withoutRetiredHints<T>(value:T):T {
+  if(Array.isArray(value))return value.map(withoutRetiredHints) as T;
+  if(value!==null&&typeof value==='object'){
+    const retired=new Set(['lexical_annotations','dictionary_lexical_annotations','relation_hints','annotations']);
+    return Object.fromEntries(Object.entries(value).filter(([key])=>!retired.has(key)).map(([key,child])=>[key,withoutRetiredHints(child)])) as T;
+  }
+  return value;
+}
+/** Export exactly the current v2 shape; never include retired content sections. */
 function currentExportRecord(record:ExchangeRecord):ExchangeRecord {
+  record=withoutRetiredHints(record);
   const detail=record.snapshot?.detail;
   if(!detail)return cleanIpaRecord(record);
   const retired=(detail as unknown as Record<string,unknown>).inflections;

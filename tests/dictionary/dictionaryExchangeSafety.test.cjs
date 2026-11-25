@@ -102,9 +102,6 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
     word.examples = [
       { id: id(25), sense_id: null, body: "example", sort_order: 0 },
     ];
-    word.relation_hints = [
-      { id: id(26), sense_id: null, body: "annotation", sort_order: 0 },
-    ];
     word.pronunciations = [
       {
         id: id(27),
@@ -148,9 +145,6 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
         id(24) +
         "'",
       "update dictionary_examples set body='changed' where id='" + id(25) + "'",
-      "update dictionary_lexical_annotations set body='changed' where id='" +
-        id(26) +
-        "'",
       "update dictionary_pronunciations set ipa='changed' where id='" +
         id(27) +
         "'",
@@ -177,7 +171,7 @@ test("export digest covers every JSON source, Review content/lifecycle, both sid
       );
       await pg.exec(mutation);
       await pg.exec("set role authenticated");
-      if (index > 0 && index < 14)
+      if (index > 0 && index < mutations.length - 1)
         assert.equal(
           await sql(
             pg,

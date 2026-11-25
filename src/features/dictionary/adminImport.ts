@@ -75,7 +75,6 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
     dictionary_examples:{required:['id','entry_id','sense_id','derivation_id','body'],optional:['sort_order','revision','translation_zh_tw']},
     dictionary_sense_derivations:{required:['id','entry_id','sense_id','gloss_zh_tw'],optional:['sort_order','revision']},
     dictionary_public_notes:{required:['id','entry_id','body'],optional:['revision']},
-    dictionary_lexical_annotations:{required:['id','entry_id','kind','body'],optional:['sense_id','sort_order','revision']},
   };
   const bundle:Bundle={};let count=0;
   for(const [table,rows] of Object.entries(value)) {
@@ -128,7 +127,6 @@ export function parseJSONBundleWithIgnored(raw:string):{bundle:Bundle;ignoredFie
       const enums:Record<string,string[]>={};
       if(table==='dictionary_entries')enums.kind=['word','prefix','root','suffix'];
       if(table==='dictionary_learning_notes')enums.kind=['core_concept','learning_decomposition','mnemonic_scenario'];
-      if(table==='dictionary_lexical_annotations')enums.kind=['relation_hint'];
       for(const [key,allowed]of Object.entries(enums))if(key in row&&!allowed.includes(String(row[key])))fail(`未知 ${key}`);
       count++;return row;
     });

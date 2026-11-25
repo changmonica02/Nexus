@@ -37,7 +37,6 @@ const record = (n, status = "draft") => ({
       derivations: [],
       public_notes: [],
       examples: [],
-      lexical_annotations: [],
     },
     metadata: null,
   },

@@ -63,7 +63,7 @@ test('versioned exchange reads current B2 Word extensions without changing row i
    snapshot:{metadata:null,detail:{
     entry:{id:id(1),kind:'word',headword:'occupation',status:'draft',published_at:null,revision:1,updated_at:stamp},
     senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業',revision:1,updated_at:stamp}],
-    relations:[],etymologies:[],learning_notes:[],pronunciations:[],public_notes:[],lexical_annotations:[],
+    relations:[],etymologies:[],learning_notes:[],pronunciations:[],public_notes:[],
     derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:2,updated_at:stamp}],
     examples:[{id:id(4),entry_id:id(1),sense_id:id(2),body:'An occupation',sort_order:0,translation_zh_tw:'一份職業',derivation_id:id(3),revision:1,updated_at:stamp}]
    }}
@@ -89,7 +89,7 @@ test('B2 import review detects changed derived meaning by stable ID and safely r
   senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業',revision:1}],
   derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:2}],
   examples:[{id:id(4),entry_id:id(1),sense_id:id(2),body:'An occupation',translation_zh_tw:'一份職業',derivation_id:id(3),sort_order:0,revision:1}],
-  inflections:[],pronunciations:[],relations:[],etymologies:[],learning_notes:[],lexical_annotations:[]
+  inflections:[],pronunciations:[],relations:[],etymologies:[],learning_notes:[]
  },metadata:null},similar:[],identities:{}};
  saved.derivations[0].gloss_zh_tw='新的衍生意思';
  const review=classifyImport(saved,context);
@@ -97,7 +97,7 @@ test('B2 import review detects changed derived meaning by stable ID and safely r
  const clone=structuredClone(item);
  const targetSense=id(20);
  const resolved=resolveImportItem({draft:clone,context:{snapshot:null,similar:[],identities:{}},issues:[
-  {selectedAction:'new_sense',target:{section:'senses',id:id(2)},proposedSenseID:targetSense}
+  {selectedAction:'new_sense',allowedActions:['new_sense'],target:{section:'senses',id:id(2)},proposedSenseID:targetSense}
  ]});
  assert.equal(resolved.draft.senses[0].id,targetSense);
  assert.equal(resolved.draft.derivations[0].sense_id,targetSense);
@@ -116,7 +116,7 @@ test('Exchange requires v2 and rejects omitted Word sections and retired fields'
  const record={entry_id:id(1),version:null,reviews:[],snapshot:{metadata:null,detail:{
   entry:{id:id(1),kind:'word',headword:'occupation',status:'draft',published_at:null,revision:1,updated_at:stamp},
   senses:[{id:id(2),entry_id:id(1),part_of_speech:'noun',gloss_zh_tw:'職業',revision:1,updated_at:stamp}],
-  relations:[],etymologies:[],learning_notes:[],pronunciations:[],lexical_annotations:[],examples:[],
+  relations:[],etymologies:[],learning_notes:[],pronunciations:[],examples:[],
   derivations:[{id:id(3),entry_id:id(1),sense_id:id(2),gloss_zh_tw:'工作',sort_order:0,revision:1,updated_at:stamp}],
   public_notes:[{id:id(4),entry_id:id(1),body:'公共筆記',revision:1,updated_at:stamp}]
  }}};
@@ -130,6 +130,8 @@ test('Exchange requires v2 and rejects omitted Word sections and retired fields'
  assert.equal(exchangeSchemaVersion(legacy.records),2);
  assert.throws(()=>parseExchange(JSON.stringify(legacy)),/Exchange v2 Word records require complete/);
  legacy.schema_version=1;assert.throws(()=>parseExchange(JSON.stringify(legacy)),/Unsupported dictionary exchange schema version/);
+ const retiredHints=structuredClone(document);retiredHints.records[0].snapshot.detail.lexical_annotations=[];
+ assert.throws(()=>draftFromExchange(parseExchange(JSON.stringify(retiredHints)).records[0]),/unsupported field lexical_annotations/);
  const oldForms=structuredClone(document);oldForms.records[0].snapshot.detail.inflections=[{id:id(5),entry_id:id(1),sense_id:id(2),form_kind:'past',form:'occupied',sort_order:0,revision:1,updated_at:stamp}];
  assert.throws(()=>draftFromExchange(parseExchange(JSON.stringify(oldForms)).records[0]),/unsupported field|Retired inflections/);
 });

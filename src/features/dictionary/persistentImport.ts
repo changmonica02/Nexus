@@ -117,7 +117,7 @@ export function proposalKey(item: ImportItem) {
   // These child collections have stable row identities; their JSON array
   // order does not define meaning. Keep ordered content (word_segments and
   // component_order) untouched: rearranging those is a distinct proposal.
-  for(const field of ["senses","relations","etymologies","learning_notes","examples","relation_hints","lexical_annotations","pronunciations","derivations","public_notes"]){
+  for(const field of ["senses","relations","etymologies","learning_notes","examples","pronunciations","derivations","public_notes"]){
     const rows=cleaned[field];
     if(Array.isArray(rows)&&rows.every(row=>row&&typeof row==="object"&&typeof row.id==="string"))
       rows.sort((a,b)=>a.id.localeCompare(b.id));
@@ -157,7 +157,6 @@ function candidateSnapshot(context: ImportContext): AISnapshot | null {
     etymologies: b.dictionary_etymologies,
     learning_notes: b.dictionary_learning_notes,
     examples: c.examples,
-    lexical_annotations: c.annotations,
     pronunciations: c.pronunciations,
   } as unknown as AISnapshot["detail"];
   return s;
@@ -243,9 +242,7 @@ export function classifyPersistent(
       });
     draft.revision = context.snapshot.detail.entry.revision;
     for (const section of contentSections) {
-      const rows = (section === "relation_hints"
-        ? effective.snapshot?.detail.lexical_annotations
-        : effective.snapshot?.detail[section]) as unknown as
+      const rows = (effective.snapshot?.detail[section]) as unknown as
         | DraftRow[]
         | undefined;
       for (const row of draft[section] ?? []) {
@@ -298,9 +295,7 @@ export function classifyPersistent(
   }
   for (const section of contentSections.filter((s) => s !== "senses"))
     for (const row of draft[section] ?? []) {
-      const rows = (section === "relation_hints"
-        ? old?.lexical_annotations
-        : old?.[section]) as unknown as DraftRow[] | undefined;
+      const rows = (old?.[section]) as unknown as DraftRow[] | undefined;
       if (rows?.some((r) => r.id === row.id)) continue;
       if (
         section === "relations" &&
@@ -963,7 +958,7 @@ export function replacementIssueIds(draft:DictionaryDraftInput,context:ImportCon
   if(section==="entry"&&field==="word_segments")return !snapshot?.detail.entry.word_segments&&!!draft.word_segments?.length;
   if(!contentSections.includes(section as typeof contentSections[number]))return false;
   const incoming=(draft[section as typeof contentSections[number]]??[]) as DraftRow[];
-  const rows=(section==="relation_hints"?snapshot?.detail.lexical_annotations:snapshot?.detail[section as keyof typeof snapshot.detail]) as DraftRow[]|undefined;
+  const rows=(snapshot?.detail[section as keyof typeof snapshot.detail]) as DraftRow[]|undefined;
   const row=incoming.find(r=>r.id===id),old=rows?.find(r=>r.id===id);
   if(!row)return false;
   if(field)return !!old&&(old[field]==null||old[field]==="")&&row[field]!=null&&row[field]!==""&&canonical(row[field])!==canonical(old[field]);

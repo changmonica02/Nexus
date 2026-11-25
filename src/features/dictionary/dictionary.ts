@@ -39,7 +39,6 @@ export interface DictionaryLearningNote extends ContentRow {
   kind: "core_concept";
   body: string;
 }
-export interface DictionaryExtra extends ContentRow {sense_id:string|null;body:string;sort_order:number;kind?:"relation_hint"}
 /** New published Sense content. The existing Sense gloss remains its primary meaning. */
 export interface DictionarySenseDerivation extends ContentRow {
   sense_id: string;
@@ -47,7 +46,8 @@ export interface DictionarySenseDerivation extends ContentRow {
   sort_order: number;
 }
 /** Optional until an administrator explicitly connects an existing example. */
-export interface DictionaryExample extends DictionaryExtra {
+export interface DictionaryExample extends ContentRow {
+  sense_id:string|null;body:string;sort_order:number;
   translation_zh_tw?: string | null;
   derivation_id?: string | null;
 }
@@ -57,7 +57,6 @@ export interface DictionaryDetail {
   examples?:DictionaryExample[];
   derivations?:DictionarySenseDerivation[];
   public_notes?:DictionaryPublicNote[];
-  lexical_annotations?:DictionaryExtra[];
   entry: DictionaryEntry;
   senses: DictionarySense[];
   relations: DictionaryRelation[];

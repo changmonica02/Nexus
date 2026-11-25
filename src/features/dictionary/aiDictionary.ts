@@ -13,7 +13,7 @@ export interface AIMeaning extends MorphemeSenseFields {id?:string;zh_tw?:string
 export interface AIText {id?:string;text?:string;meaning_id?:string|null;data_source?:string;order?:number}
 export interface AIComponent {target_id:string;headword:string;zh_tw:string;order:number;meaning_id?:string|null}
 export interface AIPronunciation {id?:string;meaning_id?:string|null;ipa?:string;sort_order?:number}
-export interface AIEntry {word_segments?:WordSegment[]|null;pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root'|'suffix';headword?:string;classification?:string|null;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];core_concept?:AIText[];examples?:AIText[];relation_hints?:AIText[]}
+export interface AIEntry {word_segments?:WordSegment[]|null;pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root'|'suffix';headword?:string;classification?:string|null;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];core_concept?:AIText[];examples?:AIText[]}
 export interface AIDocument {format:'nexus-dictionary-ai';version:1;entries:AIEntry[]}
 export interface AIMeta {entry_id:string;published_entry_id:string|null;origin_ids:Record<string,string>;component_order:string[]}
 export interface AISnapshot {detail:DictionaryDetail;metadata:AIMeta|null}
@@ -30,7 +30,7 @@ export function parseAI(raw:string):AIDocument{
  const ids=new Set<string>();
  for(const e of v.entries){
   if(object(e)&&('sources' in e||'source_ids' in e))throw Error('AI sources / source_ids 已淘汰，請移除舊來源欄位');
-  keys(e,['id','revision','type','headword','word_segments','classification','meanings','components','etymology','core_concept','learning_decomposition','story','examples','relation_hints','pronunciations'],'詞條');optionalID(e);
+  keys(e,['id','revision','type','headword','word_segments','classification','meanings','components','etymology','core_concept','learning_decomposition','story','examples','pronunciations'],'詞條');optionalID(e);
   if(!['word','prefix','root','suffix'].includes(String(e.type)))throw Error('未知 type');
   if(e.id){if(ids.has(String(e.id)))throw Error('重複詞條 ID');ids.add(String(e.id));if(!Number.isSafeInteger(e.revision)||Number(e.revision)<1)throw Error('既有詞條須保留 revision');}
   else if(e.revision!==undefined)throw Error('新增詞條不應有 revision');
@@ -38,7 +38,7 @@ export function parseAI(raw:string):AIDocument{
   if(e.headword!==undefined)text(e.headword,'headword');else if(!e.id)throw Error('新增詞條缺少 headword');
   if(e.classification!==undefined){if(e.type!=='word')throw Error('classification 僅用於 Word');text(e.classification,'classification',true);}
 
-  for(const field of ['meanings','components','etymology','core_concept','learning_decomposition','story','examples','relation_hints','pronunciations']){
+  for(const field of ['meanings','components','etymology','core_concept','learning_decomposition','story','examples','pronunciations']){
    if(e[field]===undefined)continue;if(!Array.isArray(e[field]))throw Error(`${field} 必須為陣列`);
    const seen=new Set<string>();
    for(const row of e[field] as unknown[]){
@@ -83,14 +83,13 @@ export function chooseExport(entries:DictionaryEntry[],meta:AIMeta[],scope:'draf
 }
 export function toAI(s:AISnapshot,targets:Map<string,AISnapshot>):AIEntry{
  const d=s.detail,e=d.entry,order=s.metadata?.component_order??[];
- if((d.lexical_annotations??[]).some(r=>r.kind!=='relation_hint'))throw Error('資料仍含已淘汰的字形註釋；請完成資料庫遷移後重新匯出，不會靜默省略。');
  const content=(kind:string)=> (kind==='etymology'?d.etymologies:mergeCoreConcepts(d.learning_notes).filter(n=>n.kind===kind)).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,...(kind==='etymology'?{data_source:'data_source' in r?r.data_source:''}:{})}));
  return {id:e.id,revision:e.revision,type:e.kind,headword:e.headword,...(e.word_segments!==undefined?{word_segments:e.word_segments}:{}),
  ...(e.kind==='word'?{...(d.senses.length===1?{classification:d.senses[0]?.part_of_speech??null}:{})}:{}),
  meanings:d.senses.map(r=>({id:r.id,zh_tw:r.gloss_zh_tw,...Object.fromEntries(['semantic_domain','semantic_subdomain','variants'].filter(k=>Object.hasOwn(r,k)).map(k=>[k,r[k as keyof typeof r]])),...(e.kind==='word'?{classification:r.part_of_speech}:{})})),
  ...(e.kind==='word'?{components:[...d.relations].sort((a,b)=>(order.includes(a.id)?order.indexOf(a.id):999999)-(order.includes(b.id)?order.indexOf(b.id):999999)||a.id.localeCompare(b.id)).map((r,i)=>{const t=targets.get(r.target_entry_id)?.detail;const sense=t?.senses.find(x=>x.id===r.target_sense_id);if(!t||!sense)throw Error('構詞目標無法讀取，已停止匯出');return {target_id:r.target_entry_id,headword:t.entry.headword,zh_tw:sense.gloss_zh_tw,order:i,meaning_id:r.sense_id};})}:{}),
  pronunciations:(d.pronunciations??[]).map(p=>({id:p.id,meaning_id:p.sense_id,ipa:p.ipa,sort_order:p.sort_order})),
- examples:(d.examples??[]).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),relation_hints:(d.lexical_annotations??[]).filter(r=>r.kind==='relation_hint').map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),
+ examples:(d.examples??[]).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,order:r.sort_order})),
  etymology:content('etymology'),core_concept:content('core_concept'),
  };
 }
@@ -105,17 +104,17 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
  const map=(id:string)=>id; // Review snapshots preserve canonical child identity.
  const target=current?map(current.detail.entry.id):makeID();
  input=canonicalAIEntry(input);
- const bundle:Bundle={dictionary_pronunciations:[],dictionary_entries:[],dictionary_senses:[],dictionary_relations:[],dictionary_etymologies:[],dictionary_learning_notes:[],dictionary_examples:[],dictionary_lexical_annotations:[]};
+ const bundle:Bundle={dictionary_pronunciations:[],dictionary_entries:[],dictionary_senses:[],dictionary_relations:[],dictionary_etymologies:[],dictionary_learning_notes:[],dictionary_examples:[]};
  const changes:AIChange[]=[],warnings:string[]=[];
  if((current?.detail.senses.length??0)>1&&input.classification!==undefined)warnings.push('多義詞的 classification 僅作新義項預設；既有義項的詞性請在 meanings 中逐筆修改。');
  const before=current?toAI(current,targets):null;
- for(const field of ['headword','word_segments','classification','meanings','components','etymology','core_concept','examples','relation_hints','pronunciations'] as const){
+ for(const field of ['headword','word_segments','classification','meanings','components','etymology','core_concept','examples','pronunciations'] as const){
   if(input[field]===undefined&&before?.[field]!==undefined){warnings.push(`缺少 ${field}：保留原資料`);changes.push({label:field,before:before[field],after:before[field],kind:'缺少'});}
   else if(input[field]!==undefined&&JSON.stringify(input[field])!==JSON.stringify(before?.[field]))changes.push({label:field,before:before?.[field]??null,after:input[field],kind:before?.[field]===undefined?'新增':'修改'});
  }
  if(current){
   bundle.dictionary_entries=[clean(current.detail.entry)];
-  for(const [key,rows] of [['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]],['dictionary_lexical_annotations',current.detail.lexical_annotations??[]]] as const)bundle[key]=rows.map(row=>key==='dictionary_relations'?compositionRow(clean(row)):key==='dictionary_pronunciations'?cleanPronunciation(clean(row)):clean(row));
+  for(const [key,rows] of [['dictionary_pronunciations',current.detail.pronunciations??[]],['dictionary_senses',current.detail.senses],['dictionary_relations',current.detail.relations],['dictionary_etymologies',current.detail.etymologies],['dictionary_learning_notes',current.detail.learning_notes],['dictionary_examples',current.detail.examples??[]]] as const)bundle[key]=rows.map(row=>key==='dictionary_relations'?compositionRow(clean(row)):key==='dictionary_pronunciations'?cleanPronunciation(clean(row)):clean(row));
  }
  const entry=bundle.dictionary_entries[0]??{id:target,kind:input.type};bundle.dictionary_entries=[{...entry,kind:input.type,headword:input.headword??entry.headword,...(input.word_segments!==undefined?{word_segments:input.word_segments}:{})}];
  const checkMissing=(rows:{id?:string}[]|undefined,old:{id?:string}[],label:string)=>{const missing=old.filter(o=>!rows?.some(r=>r.id===o.id));if(missing.length)warnings.push(`${label} 缺少 ${missing.length} 筆：保留原資料，不刪除`);};
@@ -143,10 +142,10 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
    if(item.meaning_id!==undefined)r.sense_id=ownSense(item.meaning_id);if(!rows.includes(r))rows.push(r);
   }
  }
- for(const [field,table,kind] of [['examples','dictionary_examples',null],['relation_hints','dictionary_lexical_annotations','relation_hint']] as const){
+ for(const [field,table] of [['examples','dictionary_examples']] as const){
   checkMissing(input[field],before?.[field]??[],field);
-  for(const item of input[field]??[]){const old=item.id?(field==='examples'?current?.detail.examples:current?.detail.lexical_annotations?.filter(r=>r.kind===kind))?.find(r=>r.id===item.id):null;if(item.id&&!old)throw Error(`${field} id 不屬於此詞條`);
-   const id=item.id?map(item.id):makeID(),rows=bundle[table],r=rows.find(r=>r.id===id)??{id,entry_id:target,sense_id:ownSense(newScope(item)),sort_order:rows.length,...(kind?{kind}:{})};
+  for(const item of input[field]??[]){const old=item.id?current?.detail.examples?.find(r=>r.id===item.id):null;if(item.id&&!old)throw Error(`${field} id 不屬於此詞條`);
+   const id=item.id?map(item.id):makeID(),rows=bundle[table],r=rows.find(r=>r.id===id)??{id,entry_id:target,sense_id:ownSense(newScope(item)),sort_order:rows.length};
    if(item.text!==undefined)r.body=item.text;if(item.meaning_id!==undefined)r.sense_id=ownSense(item.meaning_id);if(item.order!==undefined)r.sort_order=item.order;if(!rows.includes(r))rows.push(r);
   }
  }
@@ -173,7 +172,7 @@ export function planAI(input:AIEntry,current:AISnapshot|null,targets:Map<string,
  const previousOrder=(current?.metadata?.component_order??[]).map(map);
  const remaining=bundle.dictionary_relations.filter(r=>!ordered.includes(String(r.id))).sort((a,b)=>(previousOrder.includes(String(a.id))?previousOrder.indexOf(String(a.id)):999999)-(previousOrder.includes(String(b.id))?previousOrder.indexOf(String(b.id)):999999));if(remaining.length)warnings.push(`構詞缺少 ${remaining.length} 筆：保留原關聯`);
  ordered.push(...remaining.map(r=>String(r.id)));
- if(current&&(input.meanings??[]).some(m=>!m.id)&&[...current.detail.etymologies,...current.detail.learning_notes,...(current.detail.examples??[]),...(current.detail.lexical_annotations??[])].some(r=>!r.sense_id))warnings.push('既有未限定義項的內容將保留為詞條共用；若只屬於特定义項，請先在編輯器指定後重新產生 Diff。');
+ if(current&&(input.meanings??[]).some(m=>!m.id)&&[...current.detail.etymologies,...current.detail.learning_notes,...(current.detail.examples??[])].some(r=>!r.sense_id))warnings.push('既有未限定義項的內容將保留為詞條共用；若只屬於特定义項，請先在編輯器指定後重新產生 Diff。');
  if(published)warnings.push('已發布內容保持不變；接受後建立關聯的審核草稿，不直接發布。');
  return {input,baseline:current,bundle,component_order:ordered,origin_ids:origin,published_entry_id:published?current!.detail.entry.id:current?.metadata?.published_entry_id??null,changes,warnings,conflict:!!current&&input.revision!==current.detail.entry.revision,target_id:target};
 }

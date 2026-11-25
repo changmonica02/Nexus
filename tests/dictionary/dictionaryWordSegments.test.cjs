@@ -13,6 +13,7 @@ const currentExchangeRecord=(record)=>{
  const {currentMorphemeFields}=require('../../src/features/dictionary/retiredMorphemeFields.ts');
  const result=currentMorphemeFields(structuredClone(record));
  delete result.snapshot.detail.inflections;
+ delete result.snapshot.detail.lexical_annotations;
  for(const field of ['derivations','public_notes'])result.snapshot.detail[field]??=[];
  return result;
 };
