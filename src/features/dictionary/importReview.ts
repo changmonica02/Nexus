@@ -6,7 +6,7 @@ import {mapDictionaryDraft,validateDictionaryDraft,type DictionaryDraftInput,typ
 type Client=Pick<SupabaseClient,'rpc'>;
 export type ImportAction='review'|'keep'|'incoming'|'fill'|'new_sense'|'skip'|'later';
 export const actionLabels:Record<ImportAction,string>={keep:'保留現有',review:'建立 Review Draft',incoming:'使用匯入版本',fill:'補上缺失值',new_sense:'建立新的 Sense',skip:'略過',later:'暫不處理'};
-type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'relation_hints'|'pronunciations'|'derivations'|'public_notes';
+type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'pronunciations'|'derivations'|'public_notes';
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
   existing:unknown;incoming:unknown;reason:string;allowedActions:ImportAction[];selectedAction:ImportAction|null;
@@ -22,14 +22,14 @@ export interface ImportItem {
   operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
 }
 export interface ImportSession {ignored_fields?:string[];durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
-export const contentSections=['pronunciations','derivations','public_notes','senses','etymologies','learning_notes','relations','examples','relation_hints'] as const;
-const tables:Record<typeof contentSections[number],string>={derivations:'dictionary_sense_derivations',public_notes:'dictionary_public_notes',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples',relation_hints:'dictionary_lexical_annotations'};
+export const contentSections=['pronunciations','derivations','public_notes','senses','etymologies','learning_notes','relations','examples'] as const;
+const tables:Record<typeof contentSections[number],string>={derivations:'dictionary_sense_derivations',public_notes:'dictionary_public_notes',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 function storedRows(c:ImportContext,section:typeof contentSections[number]):DraftRow[]{
   if(!c.snapshot)return [];
   const detail=c.snapshot.detail;
-  const rows=section==='relation_hints'?detail.lexical_annotations:detail[section];
-  return (rows??[]).filter(r=>section==='relation_hints'?'kind' in r&&r.kind==='relation_hint':true) as unknown as DraftRow[];
+  const rows=detail[section];
+  return (rows??[]) as unknown as DraftRow[];
 }
 function addIssue(item:ImportItem,type:string,field:string,existing:unknown,incoming:unknown,reason:string,actions:ImportAction[],target?:ImportIssue['target'],row=item.draft.row??1){
   const issue:ImportIssue={id:crypto.randomUUID(),row,kind:item.draft.kind,headword:item.draft.headword,type,field,existing,incoming,reason,allowedActions:actions,selectedAction:null,target};
@@ -107,7 +107,7 @@ export function chooseIssue(item:ImportItem,issueID:string,action:ImportAction):
   issue.selectedAction=action;if(action==='new_sense')issue.proposedSenseID??=crypto.randomUUID();return next;
 }
 export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;effect:'write'|'unchanged'|'review'}|null{
-  if(item.issues.some(i=>!i.selectedAction||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
+  if(!item.context||item.issues.some(i=>!i.selectedAction||!Array.isArray(i.allowedActions)||!i.allowedActions.includes(i.selectedAction)||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
   const d=structuredClone(item.draft);
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
@@ -133,7 +133,7 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
     }
   }
   // Reclassify the resolved patch: only actual incoming differences require a write.
-  const remaining=classifyImport(d,item.context!);
+  const remaining=classifyImport(d,item.context);
   const changed=!item.context?.snapshot||remaining.issues.some(i=>i.target);
   return {draft:d,effect:changed?(item.context?.snapshot?.detail.entry.status==='published'?'review':'write'):'unchanged'};
 }
@@ -202,7 +202,7 @@ export async function applyImportItems(client:Client,session:ImportSession,inclu
   const prepare=(item:ImportItem)=>{
     if(!['pending','failed'].includes(item.status)||(!includeReview&&item.bucket==='review'))return false;
     if(item.issues.some(i=>i.selectedAction==='skip')){item.status='skipped';return false;}
-    if(!item.operation){const resolved=resolveImportItem(item);if(!resolved||!item.context||!item.observed)return false;
+    if(!item.operation){if(!item.context||!item.observed)return false;const resolved=resolveImportItem(item);if(!resolved)return false;
       const errors=validateDictionaryDraft([resolved.draft]);if(errors.length){item.status='failed';item.message=errors.map(e=>e.error).join('；');return false;}
       item.appliedDraft=resolved.draft;
       item.operation={owner_id:next.owner_id,session_id:next.id,operation_id:crypto.randomUUID(),source_type:next.source_type,preview_at:item.preview_at??next.preview_at,observed:item.observed,candidate:mapDictionaryDraft(resolved.draft),expected_context:Object.fromEntries(Object.entries(item.context).filter(([key])=>key!=='exchange')) as unknown as ImportContext,effect:resolved.effect,...(item.exchange_version!==undefined?{exchange_version:item.exchange_version}:{})};
