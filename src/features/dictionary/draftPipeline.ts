@@ -77,6 +77,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
         if(typeof r.ipa!=='string'||!r.ipa.trim())issue(field,'ipa 必填');
         if(r.sort_order!==undefined&&(!Number.isSafeInteger(r.sort_order)||Number(r.sort_order)<0))issue(field,'排序必須為非負整數');
       }
+      if(field==='learning_notes'&&d.kind!=='word'&&!r.sense_id)issue(field,'構詞概念必須隸屬個別義項');
       if(r.sense_id==='')issue(field,'請選擇適用義項或明確指定詞條共用');
       if(r.sense_id&&!d.senses.some(s=>s.id===r.sense_id))issue(field,'無效的所屬義項');
     }
