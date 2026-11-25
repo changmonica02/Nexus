@@ -117,12 +117,6 @@ test(
       // The pre-B2 SQL fixture has no derivation table. A latest-format
       // Exchange must never export an unlinked legacy example as valid.
       word.examples = [];
-      word.relation_hints = [
-        { id: id(30), sense_id: null, body: "source forms", sort_order: 0 },
-      ];
-      word.relation_hints = [
-        { id: id(31), sense_id: null, body: "unparsed hint", sort_order: 1 },
-      ];
       await save(pg, word);
       const prefix = draft(50, "prefix");
       const categories=['space_time','action','nature'];prefix.senses[0].semantic_domain=categories[0];
@@ -177,7 +171,7 @@ test(
       session = await previewExchange(c, owner, modified);
       assert.ok(session.items.every((i) => exchangeCategory(i) === "review"));
       // Explicit human decisions are now required for overwrites; the receipt test retains its original write path.
-      for(const item of session.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
+      for(const item of session.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":issue.allowedActions.includes("incoming")?"incoming":issue.allowedActions.includes("keep")?"keep":null;
       await persistImportSession(session);
       let lose = true;
       const transport = {
@@ -421,7 +415,6 @@ test(
         derivations: [],
         public_notes: [],
         examples: [],
-        lexical_annotations: [],
       };
       fresh.snapshot.metadata = {
         entry_id: id(60),
@@ -608,7 +601,7 @@ test(
       const doc = await exportAll(c);
       doc.records[0].snapshot.detail.entry.headword = "proposed";
       let s = await previewExchange(c, owner, doc);
-      for(const item of s.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":"incoming";
+      for(const item of s.items)for(const issue of item.issues)issue.selectedAction=issue.allowedActions.includes("review")?"review":issue.allowedActions.includes("incoming")?"incoming":issue.allowedActions.includes("keep")?"keep":null;
       await pg.query(
         "update dictionary_senses set gloss_zh_tw='newer' where entry_id=$1",
         [id(100)],
