@@ -3,7 +3,7 @@ const CACHE = "nexus-shell-v2";
 const ICONS = ["/icon.svg", "/favicon.ico", "/icons/nexus-192.png", "/icons/nexus-512.png", "/icons/apple-touch-icon.png"];
 const isMap = path => path === "/world-map" || path.startsWith("/world-map/");
 const isStatic = path => path.startsWith("/_next/static/") || ICONS.includes(path);
-const isAppPage = path => path === "/" || /^\/(study|dictionary|etymology|trash)(\/|$)/.test(path);
+const isAppPage = path => path === "/" || /^\/(study|dictionary|trash)(\/|$)/.test(path);
 // Cached responses retain the URL of their first request, including Worker
 // bootstrap fragments. A URL-neutral response keeps this request's #params.
 const workerResponse = (request, response) => {
