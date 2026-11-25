@@ -186,3 +186,32 @@ test('catalog production-scale plan: page before enrichment, repeated RPC plans,
   assert.deepEqual(await sql(pg,"select jsonb_build_object('entries',(select count(*) from dictionary_entries),'senses',(select count(*) from dictionary_senses),'reviews',(select count(*) from dictionary_review_drafts)) v"),before);
  }finally{await pg.close();}
 });
+
+test('relation hint retirement removes storage and RPC references and preserves draft, publish and exchange',async()=>{
+ const pg=await database();try{
+  const c=client(pg),d=morph(9200,'suffix');
+  await saveDictionaryDraft(c,[d],false,true);
+  await sql(pg,'select publish_dictionary_entry($1,true) v',[d.entry_id]);
+  const before=await sql(pg,'select get_published_dictionary_entry($1) v',[d.entry_id]);
+  await pg.exec('reset role');
+  assert.equal(await sql(pg,"select to_regclass('public.dictionary_lexical_annotations') is not null v"),true);
+  await pg.exec(fs.readFileSync('supabase/migrations/20261125160000_dictionary_relation_hints_retired.sql','utf8'));
+  assert.equal(await sql(pg,"select to_regclass('public.dictionary_lexical_annotations') is null v"),true);
+  assert.equal(await sql(pg,"select count(*)::int v from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' and p.prosrc ~ 'dictionary_lexical_annotations|lexical_annotations|relation_hints?|''annotations'''"),0);
+  await pg.exec('set role authenticated');
+  const after=await sql(pg,'select get_published_dictionary_entry($1) v',[d.entry_id]);
+  assert.equal(Object.hasOwn(after,'lexical_annotations'),false);
+  assert.deepEqual(after.senses,before.senses);
+  const newDraft=morph(9300,'suffix');delete newDraft.lexical_annotations;delete newDraft.relation_hints;
+  await saveDictionaryDraft(c,[newDraft],false,true);
+  await sql(pg,'select publish_dictionary_entry($1,true) v',[newDraft.entry_id]);
+  const record=await sql(pg,'select dictionary_exchange_record($1) v',[newDraft.entry_id]);
+  assert.equal(Object.hasOwn(record.snapshot.detail,'lexical_annotations'),false);
+  // This fixture stops at an older morphology schema; normalize only its
+  // unrelated historical fields, never the retired relation hint field.
+  const current=require('../../src/features/dictionary/retiredMorphemeFields.ts').currentMorphemeFields(record);
+  delete current.snapshot.detail.inflections;
+  const restored=require('../../src/features/dictionary/dictionaryExchange.ts').draftFromExchange(current);
+  assert.deepEqual(restored.senses[0].variants,newDraft.senses[0].variants);
+ }finally{await pg.close();}
+});
