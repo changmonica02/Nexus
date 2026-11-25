@@ -118,7 +118,7 @@ export function applyBatchDecision(session:ImportSession,itemID:string,issueID:s
   })};
 }
 export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;effect:'write'|'unchanged'|'review'}|null{
-  if(item.issues.some(i=>!i.selectedAction||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
+  if(!item.context||item.issues.some(i=>!i.selectedAction||!i.allowedActions.includes(i.selectedAction)||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
   const d=structuredClone(item.draft);
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
@@ -144,7 +144,7 @@ export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;e
     }
   }
   // Reclassify the resolved patch: only actual incoming differences require a write.
-  const remaining=classifyImport(d,item.context!);
+  const remaining=classifyImport(d,item.context);
   const changed=!item.context?.snapshot||remaining.issues.some(i=>i.target);
   return {draft:d,effect:changed?(item.context?.snapshot?.detail.entry.status==='published'?'review':'write'):'unchanged'};
 }
@@ -213,7 +213,7 @@ export async function applyImportItems(client:Client,session:ImportSession,inclu
   const prepare=(item:ImportItem)=>{
     if(!['pending','failed'].includes(item.status)||(!includeReview&&item.bucket==='review'))return false;
     if(item.issues.some(i=>i.selectedAction==='skip')){item.status='skipped';return false;}
-    if(!item.operation){const resolved=resolveImportItem(item);if(!resolved||!item.context||!item.observed)return false;
+    if(!item.operation){if(!item.context||!item.observed)return false;const resolved=resolveImportItem(item);if(!resolved)return false;
       const errors=validateDictionaryDraft([resolved.draft]);if(errors.length){item.status='failed';item.message=errors.map(e=>e.error).join('；');return false;}
       item.appliedDraft=resolved.draft;
       item.operation={owner_id:next.owner_id,session_id:next.id,operation_id:crypto.randomUUID(),source_type:next.source_type,preview_at:item.preview_at??next.preview_at,observed:item.observed,candidate:mapDictionaryDraft(resolved.draft),expected_context:Object.fromEntries(Object.entries(item.context).filter(([key])=>key!=='exchange')) as unknown as ImportContext,effect:resolved.effect,...(item.exchange_version!==undefined?{exchange_version:item.exchange_version}:{})};
