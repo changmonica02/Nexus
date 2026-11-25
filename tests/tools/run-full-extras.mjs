@@ -12,7 +12,7 @@ const baseline=['ci-full.yml','spherical-grid-prototype.yml']
 const explicit=new Set([...baseline.matchAll(/(?:tests|experiments\/spherical-grid)\/[\w./-]+(?:\.test\.cjs|\.test\.mjs)/g)].map(m=>m[0]));
 // Expand the two wildcard/script suites in the baseline.
 for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
-for(const n of ['worldMap.test.cjs','worldMapCore.test.cjs'])explicit.add('tests/world-map/'+n);
+for(const n of ['worldMap.test.cjs'])explicit.add('tests/world-map/'+n);
 // Heavy, independently runnable performance / large-dataset suites are not PR gates.
 const deferred=new Set([
  'tests/dictionary/dictionaryExchangeScale.test.cjs',
