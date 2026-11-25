@@ -132,6 +132,19 @@ test(
         roundtrip = parseExchange(JSON.stringify(original));
       assert.deepEqual(roundtrip, original);
       assert.equal(roundtrip.records.length, 3);
+      assert.doesNotMatch(JSON.stringify(roundtrip), /"(?:lexical_annotations|dictionary_lexical_annotations|relation_hints|annotations)"\s*:/);
+      const rejected=structuredClone(roundtrip);
+      rejected.records[0].snapshot.detail.lexical_annotations=[];
+      const rejectedPreview=await previewExchange(c,owner,rejected);
+      const invalidItem=rejectedPreview.items.find(i=>i.draft.row===1);
+      assert.equal(exchangeCategory(invalidItem),"invalid");
+      for(const issue of invalidItem.issues)issue.selectedAction="incoming";
+      let writes=0;
+      const attempted=await applyImportItems({rpc:async()=>{writes++;throw Error("invalid item must not dispatch");}},
+        {...rejectedPreview,items:[invalidItem]},true,async()=>{},{batched:true});
+      assert.equal(writes,0);
+      assert.notEqual(attempted.items[0].status,"applied");
+
       let session = await previewExchange(c, owner, roundtrip);
       assert.ok(
         session.items.every((i) => exchangeCategory(i) === "unchanged"),
