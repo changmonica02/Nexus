@@ -118,7 +118,7 @@ export function applyBatchDecision(session:ImportSession,itemID:string,issueID:s
   })};
 }
 export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;effect:'write'|'unchanged'|'review'}|null{
-  if(!item.context||item.issues.some(i=>!i.selectedAction||!i.allowedActions.includes(i.selectedAction)||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
+  if(!item.context||item.issues.some(i=>!i.selectedAction||!Array.isArray(i.allowedActions)||!i.allowedActions.includes(i.selectedAction)||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
   const d=structuredClone(item.draft);
   for(const issue of item.issues){
     const t=issue.target;if(!t)continue;
