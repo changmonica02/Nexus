@@ -37,10 +37,6 @@ export function isLearned(state: StudyState) {
   // Graduation follows real FSRS; retain legacy explicit mastery without inventing history.
   return (activeFixed(state)&&(state.fixed?.state===State.Review||state.fixed?.state===State.Relearning))||state.learned_at != null || state.fsrs?.state === State.Review || state.fsrs?.state === State.Relearning;
 }
-export function freezingInterval(state: StudyState): number | null {
-  const fsrs = state.fsrs;
-  return fsrs?.last_review == null ? null : fsrs.due - fsrs.last_review;
-}
 export function hasLearningData(state: StudyState | undefined, sessions: StudySession[] = []) {
   return !!state && (isLearned(state) || state.fsrs != null || state.legacy_due_at != null || state.introduced_at != null ||
     sessions.some(session=>session.mode!=="batch" && session.targets.some(t=>t.card_id===state.id && t.generation===state.generation && t.attempts>0)));
