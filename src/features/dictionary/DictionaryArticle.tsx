@@ -41,7 +41,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
     {showHeading&&<header><p className="text-sm opacity-60">{tr(kinds[data.entry.kind])}</p><h1 className="text-3xl font-semibold break-words">{data.entry.headword}</h1></header>}
     {showConnections&&<DictionaryConnections key={data.entry.id} data={data} from={from}/>}
     {data.entry.kind==='word'&&data.entry.word_segments&&!validateWordSegments(data.entry.word_segments,data.entry.headword,'word',data.relations)&&<WordComposition data={data} from={from}/>}
-    {!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr(data.entry.kind==='word'?"記憶法":"概念")}>{data.entry.kind==='word'?data.learning_notes.filter(n=>n.body.trim()).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>):scoped(data.learning_notes.filter(n=>n.body.trim()),n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
+    {data.entry.kind==='word'&&!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr('記憶法')}>{data.learning_notes.filter(n=>n.body.trim()).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
     {sections.map(scope=>{
       const sense=data.senses.find(s=>s.id===scope.id),domain=semanticDomains.find(d=>d.code===sense?.semantic_domain),subdomain=domain?.children.find(c=>c[0]===sense?.semantic_subdomain);
       const belongs=(row:{sense_id:string|null})=>row.sense_id===scope.id;
@@ -54,6 +54,7 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
       return <div key={scope.id??'shared'} id={scope.id?`sense-${scope.id}`:undefined}><DetailSection title={scope.id?<>{scope.pos&&<span>({scope.pos}) </span>}<span>{scope.title||tr('尚無中文意思')}</span></>:scope.title}>
         <div className="min-w-0 space-y-4">
         {data.entry.kind!=='word'&&domain&&<p className="text-sm opacity-70">{language==='en'?domain.en:domain.zh}{subdomain?' · '+subdomain[language==='en'?2:1]:''}</p>}
+        {data.entry.kind!=='word'&&data.learning_notes.filter(n=>belongs(n)&&n.body.trim()).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}
         {data.entry.kind!=='word'&&!!sense?.variants?.length&&<dl className="space-y-1">{sense.variants.map(v=><div key={v.id} className="min-w-0"><dt className="inline font-medium">{v.form}</dt>{v.condition&&<dd className="ml-2 inline whitespace-pre-wrap">{v.condition}</dd>}</div>)}</dl>}
         {data.entry.kind==='word'&&scope.id!==null&&!!derivations.length&&section(tr('衍生意思'),<ul className="ml-5 list-disc space-y-3">{derivations.map(d=><li key={d.id} data-derivation-id={d.id}><p>{d.gloss_zh_tw}</p>{examples.filter(x=>x.derivation_id===d.id).map(renderExample)}</li>)}</ul>)}
         {data.entry.kind==='word'&&!!examples.filter(x=>!x.derivation_id).length&&section(tr('例句'),examples.filter(x=>!x.derivation_id).map(renderExample))}
