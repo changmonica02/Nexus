@@ -108,7 +108,5 @@ const draft = (n, kind = "word") => ({
   etymologies: [],
   learning_notes: [],
   examples: [],
-  lexical_annotations: [],
-  relation_hints: [],
 });
 module.exports = { database, id, owner, sql, client, draft, dictionaryMigrations:files };
