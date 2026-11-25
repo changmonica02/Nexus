@@ -106,17 +106,6 @@ export function chooseIssue(item:ImportItem,issueID:string,action:ImportAction):
   if(!issue||!issue.allowedActions.includes(action))throw Error('此情況不允許這個操作');
   issue.selectedAction=action;if(action==='new_sense')issue.proposedSenseID??=crypto.randomUUID();return next;
 }
-export function canBatchDecision(a:ImportIssue,b:ImportIssue,action:ImportAction){
-  return !!a.batchKey&&a.batchKey===b.batchKey&&a.type===b.type&&['fill','keep'].includes(action)&&a.allowedActions.includes(action)&&b.allowedActions.includes(action);
-}
-export function applyBatchDecision(session:ImportSession,itemID:string,issueID:string,action:ImportAction):ImportSession{
-  const origin=session.items.find(i=>i.id===itemID)?.issues.find(i=>i.id===issueID);
-  if(!origin?.batchKey||!['fill','keep'].includes(action))throw Error('不允許對不同內容批次覆寫');
-  return {...session,items:session.items.map(item=>{
-    if(item.status!=='pending'||item.operation)return item;
-    let next=item;for(const issue of item.issues)if(canBatchDecision(origin,issue,action))next=chooseIssue(next,issue.id,action);return next;
-  })};
-}
 export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;effect:'write'|'unchanged'|'review'}|null{
   if(item.issues.some(i=>!i.selectedAction||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
   const d=structuredClone(item.draft);
