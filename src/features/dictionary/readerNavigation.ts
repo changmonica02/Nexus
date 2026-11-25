@@ -3,7 +3,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {dictionaryReturn,entryHref,searchRelations} from './browseRelations';
 import {searchDictionary,readPublishedCatalog} from './reader';
 import type {DictionaryKind} from './dictionary';
-export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string}
+export interface BrowseRow {id:string;headword:string;kind:DictionaryKind;sense_id?:string;matched_sense_ids?:string[];gloss_zh_tw?:string;summary?:string;part_of_speech?:string|null;variants?:{form:string}[]}
 export interface BrowsePage {items:BrowseRow[];has_more:boolean;page:number;total?:number}
 type Client=Pick<SupabaseClient,'from'|'rpc'>;
 export function browseContext(from:string|null):string|null{
