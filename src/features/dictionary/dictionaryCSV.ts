@@ -2,7 +2,7 @@ import {entryKey} from './entryIdentity';
 import {parseCSVWithIgnored} from './csvRows';
 import {DraftValidationError,validateDictionaryDraft,type DictionaryDraftInput,type DraftIssue} from './draftPipeline';
 
-export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','relation_hint','core_concept'];
+export const dictionaryCSVHeaders=['kind','entry_id','sense_id','headword','part_of_speech','gloss_zh_tw','semantic_domain','semantic_subdomain','etymology','example_words','core_concept'];
 /** Proposed IDs are created once per preview, never derived from file names, rows or text. */
 export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:DictionaryDraftInput[];issues:DraftIssue[];ignoredFields:string[]}>{
   const {rows,ignoredFields}=parseCSVWithIgnored(raw),drafts=new Map<string,DictionaryDraftInput>(),issues:DraftIssue[]=[];
@@ -21,14 +21,13 @@ export async function parseDictionaryCSVPreview(raw:string):Promise<{drafts:Dict
     if(!r.entry_id.trim()&&!known?.size)proposed.set(key,entry_id);
     const sense_id=r.sense_id.trim().toLowerCase()||crypto.randomUUID();
     let d=drafts.get(entry_id);
-    if(!d){d={kind:kind as DictionaryDraftInput['kind'],entry_id,headword:r.headword,row,senses:[],etymologies:[],examples:[],relations:[],learning_notes:[],relation_hints:[],proposed_ids:[]};drafts.set(entry_id,d);}
+    if(!d){d={kind:kind as DictionaryDraftInput['kind'],entry_id,headword:r.headword,row,senses:[],etymologies:[],examples:[],relations:[],learning_notes:[],proposed_ids:[]};drafts.set(entry_id,d);}
     else if(d.kind!==kind||entryKey(d.kind,d.headword)!==key)error('entry_id','同一 entry_id 的 kind / headword 不一致');
     if(proposed.get(key)===entry_id&&!d.proposed_ids!.includes(entry_id))d.proposed_ids!.push(entry_id);if(!r.sense_id.trim())d.proposed_ids!.push(sense_id);
     d.senses.push({id:sense_id,part_of_speech:r.part_of_speech||null,gloss_zh_tw:r.gloss_zh_tw,...(r.semantic_domain!==undefined?{semantic_domain:r.semantic_domain||null}:{}),...(r.semantic_subdomain!==undefined?{semantic_subdomain:r.semantic_subdomain||null}:{}),row});
     for(const [field,list,extra] of [
       ['etymology',d.etymologies,{data_source:''}],
       ['example_words',d.examples,{sort_order:0}],
-      ['relation_hint',d.relation_hints,{kind:'relation_hint',sort_order:0}],
       ['core_concept',d.learning_notes,{kind:'core_concept'}],
     ] as const){if(r[field]?.trim()){const id=crypto.randomUUID();d.proposed_ids!.push(id);list.push({id,sense_id,body:r[field],...extra});}}
   }
@@ -52,7 +51,7 @@ export function exportDictionaryCSV(drafts:DictionaryDraftInput[]):string{
       if(own.length>1||items.some(x=>!x.sense_id)&&d.senses.length>1)throw Error('此詞條有多筆或詞條級內容，請使用 AI JSON 完整匯出，避免 CSV 合併遺失關聯。');
       return String(own[0]?.body??'');
     };
-    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,String(sense.semantic_domain??''),String(sense.semantic_subdomain??''),content(d.etymologies),content(d.examples),content(d.relation_hints),content(d.learning_notes.filter(x=>x.kind==='core_concept'))]);
+    rows.push([d.kind,d.entry_id,sense.id,d.headword,sense.part_of_speech??'',sense.gloss_zh_tw,String(sense.semantic_domain??''),String(sense.semantic_subdomain??''),content(d.etymologies),content(d.examples),content(d.learning_notes.filter(x=>x.kind==='core_concept'))]);
   }
   return dictionaryCSVHeaders.join(',')+'\n'+rows.map(r=>r.map(v=>'"'+v.replaceAll('"','""')+'"').join(',')).join('\n');
 }
