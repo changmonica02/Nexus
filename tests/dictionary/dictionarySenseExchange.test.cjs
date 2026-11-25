@@ -97,7 +97,7 @@ test('B2 import review detects changed derived meaning by stable ID and safely r
  const clone=structuredClone(item);
  const targetSense=id(20);
  const resolved=resolveImportItem({draft:clone,context:{snapshot:null,similar:[],identities:{}},issues:[
-  {selectedAction:'new_sense',target:{section:'senses',id:id(2)},proposedSenseID:targetSense}
+  {selectedAction:'new_sense',allowedActions:['new_sense'],target:{section:'senses',id:id(2)},proposedSenseID:targetSense}
  ]});
  assert.equal(resolved.draft.senses[0].id,targetSense);
  assert.equal(resolved.draft.derivations[0].sense_id,targetSense);
