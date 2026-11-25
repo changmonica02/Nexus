@@ -3,7 +3,7 @@ require("fake-indexeddb/auto");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const {
-  database,
+  database: historicalDatabase,
   client,
   owner,
   id,
@@ -72,6 +72,16 @@ test('proposal identity ignores unordered child rows and omitted empty Word-only
   const reversedSegments={...withSegments,word_segments:[...withSegments.word_segments].reverse()};
   assert.notEqual(proposalKey({draft:withSegments}),proposalKey({draft:reversedSegments}));
 });
+// This suite verifies the current transfer contract, not the historical DDL.
+async function database(){
+ const pg=await historicalDatabase();
+ try{
+  await pg.exec("reset role");
+  await pg.exec(require("node:fs").readFileSync("supabase/migrations/20261125160000_dictionary_relation_hints_retired.sql","utf8"));
+  await pg.exec("set role authenticated");
+  return pg;
+ }catch(error){await pg.close();throw error;}
+}
 const save = (pg, d) =>
   sql(pg, "select apply_dictionary_drafts($1,false,true) v", [
     JSON.stringify([mapDictionaryDraft(d)]),
@@ -116,6 +126,7 @@ test("isolated transfer SQL: pending export includes full absent-entry candidate
     const page = await exportPage(c, true);
     assert.equal(page.total, 1);
     assert.equal(page.records[0].snapshot, null);
+    assert.doesNotMatch(JSON.stringify(page.records), /"(?:lexical_annotations|dictionary_lexical_annotations|relation_hints|annotations)"\s*:/);
     assert.equal(
       page.records[0].import_reviews[0].item.draft.senses[0].gloss_zh_tw,
       "完整候選",
@@ -132,7 +143,7 @@ test("isolated transfer SQL: pending export includes full absent-entry candidate
     doc.records[0].import_candidate.senses[1].gloss_zh_tw = "整理後獨立義項";
     const previewed = persistentPreview(await previewExchange(c, owner, doc));
     assert.equal(previewed.items[0].draft.entry_id, ghost.entry_id);
-    assert.equal(importSafety(previewed.items[0]), "safe");
+    assert.equal(importSafety(previewed.items[0]), "safe", JSON.stringify(previewed.items[0].issues));
     const scope = {
         kinds: ["word"],
         statuses: [],
