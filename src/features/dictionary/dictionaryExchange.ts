@@ -112,10 +112,21 @@ const rowFields: Record<string, string[]> = {
   derivations: ["sense_id", "gloss_zh_tw", "sort_order"],
   public_notes: ["body"],
 };
+// Reject retired keys throughout imported records, including opaque Review payloads.
+function rejectRetiredHints(value:unknown):void {
+  if(Array.isArray(value)){for(const child of value)rejectRetiredHints(child);return;}
+  if(value!==null&&typeof value==='object'){
+    for(const [key,child] of Object.entries(value)){
+      if(['lexical_annotations','dictionary_lexical_annotations','relation_hints','annotations'].includes(key))throw Error(`unsupported field ${key}`);
+      rejectRetiredHints(child);
+    }
+  }
+}
 export function draftFromExchange(
   record: ExchangeRecord,
   row = 1,
 ): DictionaryDraftInput {
+  rejectRetiredHints(record);
   keys(record, ["snapshot", "reviews", "version", "entry_id", "import_reviews", "import_candidate"], "record");
   if(canonical(currentMorphemeFields(record))!==canonical(record))throw Error('Exchange v2 不接受過時的構詞欄位');
   record=cleanIpaRecord(record);
