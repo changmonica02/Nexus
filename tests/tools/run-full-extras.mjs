@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Run test files not invoked explicitly by the consolidated full CI or spherical workflow.
+// Run test files not invoked explicitly by the consolidated full CI.
 // Every inventory test is either in the baseline or selected here.
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
@@ -7,12 +7,9 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const inv=JSON.parse(readFileSync(path.join(root,'tests/config/test-groups.json'),'utf8'));
-const baseline=['ci-full.yml','spherical-grid-prototype.yml']
+const baseline=['ci-full.yml']
  .map(n=>readFileSync(path.join(root,'.github/workflows',n),'utf8')).join('\n');
 const explicit=new Set([...baseline.matchAll(/(?:tests|experiments\/spherical-grid)\/[\w./-]+(?:\.test\.cjs|\.test\.mjs)/g)].map(m=>m[0]));
-// Expand the two wildcard/script suites in the baseline.
-for(const p of inv.groups['world-map'])if(p.startsWith('experiments/spherical-grid/')&&p.endsWith('.test.mjs'))explicit.add(p);
-for(const n of ['worldMap.test.cjs'])explicit.add('tests/world-map/'+n);
 // Heavy, independently runnable performance / large-dataset suites are not PR gates.
 const deferred=new Set([
  'tests/dictionary/dictionaryExchangeScale.test.cjs',
@@ -22,7 +19,11 @@ const deferred=new Set([
 export function coverage(){
  const all=Object.values(inv.groups).flat();
  const extra=all.filter(p=>!explicit.has(p)&&!deferred.has(p));
- const missing=all.filter(p=>!explicit.has(p)&&!extra.includes(p)&&!deferred.has(p));
+ const matrix=baseline.match(/group:\s*\[([^\]]+)\]/)?.[1].split(',').map(v=>v.trim())??[];
+ const assigned=new Set(matrix.flatMap(g=>inv.groups[g]??[]));
+ const missing=all.filter(p=>!explicit.has(p)&&!deferred.has(p)&&!assigned.has(p));
+ const stale=[...explicit,...deferred].filter(p=>!all.includes(p)&&!p.startsWith('tests/tools/'));
+ if(stale.length)throw Error('Stale test references: '+stale.join(', '));
  if(missing.length)throw Error('Uncovered tests: '+missing.join(', '));
  return {all,explicit:[...explicit].filter(p=>all.includes(p)),extra,deferred:[...deferred]};
 }
@@ -42,7 +43,7 @@ if(args.length===1&&args[0]==='--audit'){
   (mode==='browser'?p.includes('.browser.'):!p.includes('.browser.')));
  for(const p of selected){
   console.log('FULL EXTRA TEST:',p);
-  const result=spawnSync(process.execPath,[p],{cwd:root,env:process.env,stdio:'inherit',timeout:660000});
+  const result=spawnSync(process.execPath,mode==='node'?['--test',p]:[p],{cwd:root,env:process.env,stdio:'inherit',timeout:660000});
   if(result.status!==0){console.error('FAILED:',p,result.error?.message||result.signal||result.status);process.exitCode=1;}
  }
  console.log('Completed additional',group,mode,selected.length);
