@@ -9,7 +9,7 @@ export const semanticDomains = [
   {code:'life_work',zh:'生活與工作',en:'Daily life and work',children:[['housing','居住','Housing'],['food','飲食','Food'],['clothing','衣著','Clothing'],['manufacturing','製造','Manufacturing'],['agriculture','農業','Agriculture'],['tools','工具','Tools'],['trade','交易','Trade']]},
   {code:'states_properties',zh:'狀態與性質',en:'States and properties',children:[['size','大小','Size'],['shape','形狀','Shape'],['quantity','數量','Quantity'],['degree','程度','Degree'],['merit','優劣','Merit and quality'],['quality','特性','Characteristics'],['existence','存在','Existence'],['change','變化','Change'],['part_whole','部分與整體','Parts and wholes']]},
   {code:'grammar_affixes',zh:'文法與詞綴',en:'Grammar and affixes',children:[['negation','否定','Negation'],['reversal','反向','Reversal'],['repetition','重複','Repetition'],['grammatical_relation','語法關係','Grammatical relations']]},
-  {code:'derivation',zh:'派生構詞',en:'Derivational morphology',children:[]},
+  {code:'derivation',zh:'派生構詞',en:'Derivational morphology',children:[['verb','動詞','Verb'],['noun','名詞','Noun'],['adjective','形容詞','Adjective'],['variable','不固定','Variable']]},
 ] as const;
 export type SemanticDomainCode=typeof semanticDomains[number]['code'];
 export type SemanticSubdomainCode=typeof semanticDomains[number]['children'][number][0];
