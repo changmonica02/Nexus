@@ -39,7 +39,6 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
   }
   return <article className="min-w-0 space-y-7 leading-relaxed [overflow-wrap:anywhere]">
     {showHeading&&<header><p className="text-sm opacity-60">{tr(kinds[data.entry.kind])}</p><h1 className="text-3xl font-semibold break-words">{data.entry.headword}</h1></header>}
-    {showConnections&&<DictionaryConnections key={data.entry.id} data={data} from={from}/>}
     {data.entry.kind==='word'&&data.entry.word_segments&&!validateWordSegments(data.entry.word_segments,data.entry.headword,'word',data.relations)&&<WordComposition data={data} from={from}/>}
     {data.entry.kind==='word'&&!!data.learning_notes.some(n=>n.body.trim())&&<DetailSection title={tr('記憶法')}>{data.learning_notes.filter(n=>n.body.trim()).map(n=><p key={n.id} className="whitespace-pre-wrap">{n.body}</p>)}</DetailSection>}
     {sections.map(scope=>{
@@ -68,5 +67,6 @@ export function DictionaryArticle({data,from=`/dictionary/${data.entry.id}`,show
     {!!data.public_notes?.some(n=>n.body.trim())&&data.entry.kind==='word'&&<DetailSection title={tr('公共補充筆記')}>{data.public_notes.filter(n=>n.body.trim()).map(n=><SafeMarkdown key={n.id} source={n.body}/>) }</DetailSection>}
     {!!data.lexical_annotations?.length&&<DetailSection title={tr("補充說明")}>{scoped([...data.lexical_annotations].sort((a,b)=>a.sort_order-b.sort_order),x=><p key={x.id} className="whitespace-pre-wrap">{x.body}</p>,true)}</DetailSection>}
     {data.entry.kind!=='word'&&!!orderedExamples.length&&<DetailSection title={tr('例句')}>{scoped(orderedExamples,renderExample,true)}</DetailSection>}
+    {showConnections&&<DictionaryConnections key={data.entry.id} data={data} from={from}/>}
   </article>;
 }

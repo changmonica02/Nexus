@@ -262,7 +262,7 @@ test(
         await page
           .getByLabel("搜尋單字或構詞", { exact: true })
           .fill("no-visible-match");
-        await page.getByRole("tab", { name: "構詞", exact: true }).click();await page.getByRole("button",{name:"篩選構詞分類",exact:true}).click();await page.getByRole("checkbox", { name: "字首", exact: true }).check();
+        await page.getByRole("tab", { name: "構詞", exact: true }).click();
         await page
           .getByRole("button", {
             name: "發布全部草稿",

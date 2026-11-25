@@ -147,6 +147,15 @@ function NexusAppInner({
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const [noteSidebarOpen, setNoteSidebarOpen] = useState(true);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
+  const launcherTrigger=useRef<HTMLButtonElement|null>(null);
+  const [launcherBounds,setLauncherBounds]=useState<{left:number;top:number;right:number;bottom:number;width:number;height:number}|null>(null);
+  useEffect(()=>{
+    if(!isAppLauncherOpen)return;
+    const sync=()=>{const trigger=launcherTrigger.current;if(!trigger?.isConnected){setIsAppLauncherOpen(false);return;}const {left,top,right,bottom,width,height}=trigger.getBoundingClientRect();setLauncherBounds({left,top,right,bottom,width,height});};
+    window.addEventListener('resize',sync);window.addEventListener('scroll',sync,true);
+    const observer=new ResizeObserver(sync);if(launcherTrigger.current)observer.observe(launcherTrigger.current);
+    return()=>{window.removeEventListener('resize',sync);window.removeEventListener('scroll',sync,true);observer.disconnect();};
+  },[isAppLauncherOpen]);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
@@ -1809,12 +1818,12 @@ function NexusAppInner({
   };
 
   const workspaceActions=(<div className="relative">
-            <button type="button" onClick={() => { setIsAppLauncherOpen((open) => !open); setIsNavigationOpen(false); }} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.overview")} title={t("ui.overview")}>
+            <button type="button" onClick={event=>{launcherTrigger.current=event.currentTarget;const {left,top,right,bottom,width,height}=event.currentTarget.getBoundingClientRect();setLauncherBounds({left,top,right,bottom,width,height});setIsAppLauncherOpen(true);setIsNavigationOpen(false);}} className="grid h-10 w-10 grid-cols-2 gap-1 rounded-full p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" style={{opacity:isAppLauncherOpen?0:undefined}} aria-expanded={isAppLauncherOpen} aria-haspopup="dialog" aria-label={t("ui.overview")} title={t("ui.overview")}>
               <i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" /><i className="rounded-sm bg-current opacity-70" />
             </button>
             <FloatingPanel open={isAppLauncherOpen} onClose={()=>setIsAppLauncherOpen(false)} label={t('ui.overview')} corner>
-              <button type="button" aria-label={t('ui.overview')} aria-expanded="true" onClick={()=>setIsAppLauncherOpen(false)} className="fixed right-3 top-2 grid h-10 w-10 grid-cols-2 gap-1 p-2"><i className="bg-current"/><i className="bg-current"/><i className="bg-current"/><i className="bg-current"/></button>
-              <div className="absolute right-3 top-14 grid max-h-[calc(100dvh-5rem)] w-[min(320px,calc(100vw-24px))] grid-cols-2 gap-1 overflow-y-auto rounded-xl bg-[var(--color-bg)] p-3">
+              {launcherBounds&&<button type="button" aria-label={t('ui.overview')} aria-expanded="true" onClick={()=>setIsAppLauncherOpen(false)} className="fixed grid grid-cols-2 gap-1 rounded-full p-2 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-text)]" style={{left:launcherBounds.left,top:launcherBounds.top,width:launcherBounds.width,height:launcherBounds.height}}><i className="rounded-sm bg-current opacity-70"/><i className="rounded-sm bg-current opacity-70"/><i className="rounded-sm bg-current opacity-70"/><i className="rounded-sm bg-current opacity-70"/></button>}
+              <div className="fixed grid w-[min(320px,calc(100vw-24px))] grid-cols-2 gap-1 overflow-y-auto rounded-xl bg-[var(--color-bg)] p-3" style={{right:Math.max(12,typeof window==='undefined'?12:window.innerWidth-(launcherBounds?.right??window.innerWidth)),top:(launcherBounds?.bottom??48)+8,maxHeight:'calc(100dvh - '+((launcherBounds?.bottom??48)+20)+'px)'}}>
                 {[
                   {id:'calendar',action:handleShowTodoList},
                   {id:'study',action:handleShowStudySets},
@@ -1827,7 +1836,7 @@ function NexusAppInner({
                   {id:'web',action:()=>handleShowUtility('web')},
                   {id:'score',action:()=>handleShowUtility('score')},
                   {id:'tools',action:handleShowTools},
-                ].map(item=><button key={item.id} type="button" onClick={()=>{if(item.id==='dictionary')item.action();else navigate(item.action);setIsAppLauncherOpen(false);}} className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-zinc-500/10"><FeatureIcon feature={item.id}/>{t('ui.feature.'+item.id)}</button>)}
+                ].map(item=><button key={item.id} type="button" autoFocus={item.id==='calendar'} onClick={()=>{if(item.id==='dictionary')item.action();else navigate(item.action);setIsAppLauncherOpen(false);}} className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-zinc-500/10 outline-none focus-visible:outline-2 focus-visible:outline-[var(--color-text)]"><FeatureIcon feature={item.id}/>{t('ui.feature.'+item.id)}</button>)}
               </div>
             </FloatingPanel>
           </div>);
