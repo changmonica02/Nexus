@@ -5,13 +5,15 @@ test('semantic categories belong to a sense and enforce the selected major/minor
  assert.equal(validateMorphemeSenseFields({}),null);assert.equal(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:null}),null);
  assert.ok(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'cutting'}));assert.ok(validateMorphemeSenseFields({semantic_domain:'action',semantic_subdomain:'time'}));assert.ok(validateMorphemeSenseFields({semantic_domain:null,semantic_subdomain:'cutting'}));assert.ok(validateMorphemeSenseFields({semantic_domain:'作用與變化'}),'legacy categories are not guessed into the new domains');
 });
-test('new taxonomy exposes ten domains and exactly 58 subcategories; derivation stands alone',()=>{
+test('new taxonomy exposes ten domains and exactly 62 subcategories; derivation has four output classes',()=>{
  const {semanticDomains,validSemanticCategory}=require('../../src/features/dictionary/semanticDomains.ts');
  assert.deepEqual(semanticDomains.map(d=>d.zh),['物理動作','空間與時間','宇宙與自然','生命與人體','語言與心智','社會與人文','生活與工作','狀態與性質','文法與詞綴','派生構詞']);
- assert.deepEqual(semanticDomains.map(d=>d.children.length),[7,6,6,5,7,7,7,9,4,0]);
- assert.equal(semanticDomains.reduce((n,d)=>n+d.children.length,0),58);
+ assert.deepEqual(semanticDomains.map(d=>d.children.length),[7,6,6,5,7,7,7,9,4,4]);
+ assert.equal(semanticDomains.reduce((n,d)=>n+d.children.length,0),62);
  const last=semanticDomains.at(-1);
  assert.equal(validSemanticCategory(last.code,null),true);
+ for(const code of ['verb','noun','adjective','variable'])assert.equal(validSemanticCategory(last.code,code),true);
+ assert.equal(validSemanticCategory(last.code,'movement'),false);
  assert.equal(validSemanticCategory(last.code,'derivation'),false);
  assert.equal(validSemanticCategory('grammar_affixes','grammatical_relation'),true);
  assert.equal(validSemanticCategory('nature','natural_phenomena'),true);
