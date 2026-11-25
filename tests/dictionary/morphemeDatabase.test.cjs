@@ -205,7 +205,11 @@ test('relation hint retirement removes storage and RPC references and preserves 
   const newDraft=morph(9300,'suffix');delete newDraft.lexical_annotations;delete newDraft.relation_hints;
   await saveDictionaryDraft(c,[newDraft],false,true);
   await sql(pg,'select publish_dictionary_entry($1,true) v',[newDraft.entry_id]);
-  const record=await sql(pg,'select dictionary_exchange_record($1) v',[newDraft.entry_id]);
+  assert.equal(await sql(pg,"select has_function_privilege('authenticated','public.dictionary_exchange_record(uuid)','execute') v"),false);
+  const exported=await c.rpc('export_dictionary_exchange_page',{kind_filters:['suffix'],status_filters:[],query_text:newDraft.headword,after_id:null,expected_scope:null,pending_only:false,preview_only:false});
+  assert.ifError(exported.error);
+  const record=exported.data.records.find(r=>r.snapshot.detail.entry.id===newDraft.entry_id);
+  assert.ok(record);
   assert.equal(Object.hasOwn(record.snapshot.detail,'lexical_annotations'),false);
   // This fixture stops at an older morphology schema; normalize only its
   // unrelated historical fields, never the retired relation hint field.
