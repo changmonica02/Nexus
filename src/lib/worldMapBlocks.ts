@@ -1,4 +1,4 @@
-import type {CharacterProfileData, CharacterSection, Page, WorldMapBlockView} from './types';
+import type {CharacterProfileData, CharacterSection, WorldMapBlockView} from './types';
 import {normalizeCharacterBlocks} from './characterBlocks';
 
 export function newWorldMapBlock(id: string, view?: WorldMapBlockView): CharacterSection {
@@ -15,13 +15,4 @@ export function withWorldMapBlocks(data:CharacterProfileData,worldId:string):Cha
   }
   if(normalized.worldMapBlocksVersion===1)return normalized;
   return {...normalized,worldMapBlocksVersion:1,sections:[newWorldMapBlock(`legacy-map-window:${worldId}`),...normalized.sections]};
-}
-export function placedWorldEntities(world:Page,mapId:string) {
-  const ids=new Set(world.character_data?.world_maps?.find(m=>m.id===mapId&&m.deleted_at===null)?.placements?.filter(p=>p.deletedAt===null).map(p=>p.entityId));
-  return (world.character_data?.world_entities??[]).filter(e=>ids.has(e.entityId));
-}
-
-export function preferredWorldMap(world:Page,selected?:string|null){
-  const maps=(world.character_data?.world_maps??[]).filter(m=>m.deleted_at===null);
-  return maps.find(m=>m.id===selected)??maps.find(m=>m.scope==='surface')??maps.find(m=>!['underground','sky'].includes(m.scope??''))??maps[0];
 }
