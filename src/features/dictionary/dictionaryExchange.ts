@@ -111,7 +111,6 @@ const rowFields: Record<string, string[]> = {
   examples: ["sense_id", "body", "sort_order", "translation_zh_tw", "derivation_id"],
   derivations: ["sense_id", "gloss_zh_tw", "sort_order"],
   public_notes: ["body"],
-  lexical_annotations: ["sense_id", "kind", "body", "sort_order"],
 };
 export function draftFromExchange(
   record: ExchangeRecord,
@@ -134,14 +133,14 @@ export function draftFromExchange(
   if(record.entry_id&&record.snapshot&&record.entry_id!==record.snapshot.detail.entry.id)throw Error("Record identity mismatch");
   if(record.import_candidate&&record.snapshot)draftFromExchange({...record,import_candidate:undefined},row);
   if(record.import_candidate){
-    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","inflections","derivations","public_notes","proposed_ids","lexical_annotations"],"import_candidate");
+    keys(record.import_candidate,["entry_id","kind","headword","revision","word_segments","component_order","row","senses","relations","etymologies","learning_notes","examples","pronunciations","inflections","derivations","public_notes","proposed_ids"],"import_candidate");
     const draft=structuredClone(record.import_candidate);
     if(Object.hasOwn(draft,"inflections"))throw Error("Retired inflections are not supported");
-    for(const section of ["senses","relations","etymologies","learning_notes","examples","relation_hints","pronunciations","derivations","public_notes"] as const){
+    for(const section of ["senses","relations","etymologies","learning_notes","examples","pronunciations","derivations","public_notes"] as const){
       if(draft[section]===undefined){if(section!=="pronunciations"&&section!=="derivations"&&section!=="public_notes")draft[section]=[];continue;}
       if(!Array.isArray(draft[section]))throw Error(`Invalid ${section}`);
       for(const value of draft[section]??[]){
-        const fields=section==="relation_hints"?["body","sense_id","sort_order"]:rowFields[section];
+        const fields=rowFields[section];
         keys(value,["id","entry_id","revision","updated_at","row",...(section==="senses"?["category"]:[]),...fields],section);
         if(value.entry_id!==undefined&&value.entry_id!==draft.entry_id)throw Error("Foreign candidate child ownership");
       }
@@ -258,11 +257,6 @@ export function draftFromExchange(
           if (!(section === "senses" && field === "gloss_zh_tw" && r.part_of_speech === null && entry.kind !== "word") && (typeof r[field] !== "string" || !String(r[field]).trim()))
             throw Error(`${section}: invalid ${field}`);
         if (
-          section === "lexical_annotations" &&
-          !["relation_hint"].includes(String(r.kind))
-        )
-          throw Error("Invalid lexical annotation kind");
-        if (
           section === "learning_notes" &&
           !["core_concept", "learning_decomposition", "mnemonic_scenario"].includes(
             String(r.kind),
@@ -334,7 +328,6 @@ function invalidDraft(
     etymologies: [],
     learning_notes: [],
     examples: [],
-    relation_hints: [],
   };
 }
 /** Missing children are retention, including their established ordering slots. */
@@ -590,7 +583,7 @@ export async function recheckExchangeItem(
   const d = structuredClone(item.draft);
   d.revision = context.snapshot?.detail.entry.revision;
   for (const section of contentSections) {
-    const key = section === "relation_hints" ? "lexical_annotations" : section;
+    const key = section;
     const rows = context.snapshot?.detail[key] ?? [];
     for (const row of d[section] ?? []) {
       const old = rows.find((r) => r.id === row.id);
