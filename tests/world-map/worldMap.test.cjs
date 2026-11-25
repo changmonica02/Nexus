@@ -4,7 +4,7 @@ const { gzipSync } = require('node:zlib');
 
 // Resolve the repository's shared block helpers through the existing TS test loader.
 require('../loadStudy.cjs');
-const {WorldMapRepository,inspectMapProject}=require('../../src/features/worldMap/worldMapRepository.ts');
+const {WorldMapRepository,inspectMapProject,cloneWorldReferences,validateWorldEntities}=require('../../src/features/worldMap/worldMapRepository.ts');
 
 function project(label = 'alpha') {
   return new Blob([[
@@ -299,7 +299,7 @@ test('historical world entity references remain valid when cloning',async()=>{
  const {repo,state}=fixture(),{map}=await repo.create('world-a','Map');
  const world=state.pages.get('world-a');world.character_data.world_entities=[{schemaVersion:1,entityId:'town_one',worldId:'world-a',type:'settlement',name:'One',aliases:[],relations:[],createdAt:1,updatedAt:1,revision:1}];
  world.character_data.world_maps[0].placements=[{schemaVersion:1,placementId:'p_one',mapId:map.id,entityId:'town_one',geometry:{type:'point',x:1,y:1},visible:true,createdAt:1,updatedAt:1,revision:1,deletedAt:null}];
- const {cloneWorldReferences,validateWorldEntities}=await importRepo();validateWorldEntities(world);
+ validateWorldEntities(world);
  const data=cloneWorldReferences(world.character_data,'new-world');assert.notEqual(data.world_entities[0].entityId,'town_one');assert.equal(data.world_maps[0].placements[0].entityId,data.world_entities[0].entityId);validateWorldEntities({id:'new-world',character_data:data});
 });
 
