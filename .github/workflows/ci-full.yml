@@ -246,7 +246,7 @@ jobs:
       - name: Shared lint and typing
         run: |
           npx tsc --noEmit
-          npx eslint src/lib/i18n.ts
+          npm run lint
 
   world-map-core:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -362,7 +362,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [dictionary, study, creation, life, workspace, shared]
+        group: [dictionary, study, creation, life, workspace, shared, world-map]
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -378,6 +378,9 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Prepare global map test assets
+        if: matrix.group == 'world-map'
+        run: npm run map:global
       - name: Additional non-browser tests
         run: node tests/tools/run-full-extras.mjs --group '${{ matrix.group }}' --mode node
       - name: Restore shared production assets for map / PWA browser suites
