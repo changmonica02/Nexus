@@ -36,7 +36,7 @@ export default function WordSegmentsEditor({entryId,segments,relations,senses=[]
         <button type="button" className="min-h-11 shrink-0 rounded border px-2 text-sm" onClick={()=>onChange(segments,relations.filter(r=>r.id!==relation.id))} aria-label="刪除未指定構詞關聯">刪除</button>
       </div>)}
     </details>}
-    {linking&&<RelationSelectionDialog allowCreate={false} excludeEntryId={entryId} onClose={()=>setLinking(null)} onSelect={(entry,sense)=>{
+    {linking&&<RelationSelectionDialog excludeEntryId={entryId} onClose={()=>setLinking(null)} onSelect={(entry,sense)=>{
       const existing=relations.find(r=>r.sense_id==null&&r.target_entry_id===entry&&r.target_sense_id===sense),id=existing?.id??crypto.randomUUID();
       onChange(segments.map(s=>s.id===linking?{...s,relation_id:String(id)}:s),existing?relations:[...relations,{id,entry_id:entryId,sense_id:null,target_entry_id:entry,target_sense_id:sense}]);setLinking(null);
     }}/>}
