@@ -1,7 +1,7 @@
 require('../loadStudy.cjs');require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
 const {StudyRepository,STUDY_STORES}=require('../../src/features/study/StudyRepository.ts');
-const {freezingInterval,displayStudyCards,isLearned,hasLearningData,selectSessionCards}=require('../../src/features/study/studySessions.ts');
+const {displayStudyCards,isLearned,hasLearningData,selectSessionCards}=require('../../src/features/study/studySessions.ts');
 const test=require('node:test'),assert=require('node:assert/strict');
 const day=new Date(2026,8,24,23,55).getTime();
 async function fixture(count=3){
@@ -218,7 +218,7 @@ test('daily fixed batch survives midnight/reopen, quota edits, Easy introduces w
  assert.equal(snapshot.events[0].kind,'introduce');assert.equal(snapshot.events[0].rating,null);
  assert.equal(snapshot.events[0].log,null);assert.equal(snapshot.events[0].source,'daily_learning');
  assert.equal(snapshot.events[0].after.learned_at,day);assert.equal(snapshot.events[0].after.fsrs,null);
- assert.equal(freezingInterval(snapshot.events[0].after),null);
+ assert.equal((snapshot.events[0].after.fsrs?.last_review == null ? null : snapshot.events[0].after.fsrs.due - snapshot.events[0].after.fsrs.last_review),null);
  await reopened.rateSession(first.input);assert.equal((await reopened.readDeck('deck',true)).events.length,1);
  await rate(reopened,session.id,4);session=await reopened.startSession('deck','daily',day+1000);
  assert.deepEqual(session.targets.map(t=>t.card_id),ids);assert.ok(session.targets.every(t=>t.easy_at===null));
@@ -233,7 +233,7 @@ test('free selects only learned cards, permits early review, first Hard stays of
  await f.repo.configure('deck',{new_limit:1});const daily=await f.repo.startSession('deck','daily',day);await rate(f.repo,daily.id,4);
  const free=await f.repo.startSession('deck','free',day+1000);assert.equal(free.targets.length,1);
  await rate(f.repo,free.id,2,day+1000);const official=(await f.repo.readDeck('deck',true)).states.find(s=>s.id===free.queue[0]);
- assert.equal(freezingInterval(official),900000);
+ assert.equal((official.fsrs.due - official.fsrs.last_review),900000);
  await rate(f.repo,free.id,3,day+2000);
  const after=await f.repo.readDeck('deck',true);assert.deepEqual(after.states.find(s=>s.id===official.id),official);assert.equal(after.events.filter(e=>e.source==='free_review').length,1);
  assert.ok((await f.repo.readSession(free.id)).session.completed_at);
@@ -280,7 +280,7 @@ test('free fills not-due cards by nearest due, respects limit and freezes its ta
  await f.repo.configure('deck',{review_limit:2});const snapshot=await f.repo.readDeck('deck',true);
  const next=await f.repo.startSession('deck','free',day+5);assert.equal(next.targets.length,2);
  assert.equal(next.targets[0].card_id,initial.targets[1].card_id,'15-minute Hard outranks both day intervals');
- assert.equal(freezingInterval(snapshot.states.find(s=>s.id===next.targets[0].card_id)),900000);
+ assert.equal((()=>{const fsrs=snapshot.states.find(s=>s.id===next.targets[0].card_id).fsrs;return fsrs.due-fsrs.last_review;})(),900000);
  await f.repo.configure('deck',{review_limit:3});assert.deepEqual((await f.repo.startSession('deck','free',day+6)).targets,next.targets);
  }finally{await f.close();}
 });
