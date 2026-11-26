@@ -3,7 +3,6 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {parseJSONBundleWithIgnored,normalizeDictionaryBundle}=require('../../src/features/dictionary/adminImport.ts');
 const {draftsFromBundle,validateDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
-const {exportDictionaryCSV}=require('../../src/features/dictionary/dictionaryCSV.ts');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 
 const base=()=>({
@@ -23,7 +22,6 @@ test('B2 JSON Bundle preserves derivation and bilingual example IDs and rejects 
  const drafts=draftsFromBundle(bundle);
  assert.deepEqual(validateDictionaryDraft(drafts),[]);
  assert.ok(validateDictionaryDraft([{...drafts[0],inflections:[{id:id(5),form_kind:'past',form:'occupied'}]}]).some(x=>x.field==='inflections'));
- assert.throws(()=>exportDictionaryCSV(drafts),/CSV 不支援衍生意思/);
 });
 test('B2 JSON Bundle validates stable references, nullable translations and rejects invalid derivations',()=>{
  const b=base();b.dictionary_examples[0].translation_zh_tw=null;

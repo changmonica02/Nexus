@@ -26,7 +26,6 @@ import type {
   Attachment,
   WorkspaceBackup,
   PageFormat,
-  PageMargins,
   CreatePageInput,
   PageKind,
 } from "../lib/types";
@@ -162,7 +161,6 @@ function NexusAppInner({
   const [studySource,setStudySource]=useState<"home"|"sets">("sets");
   const [studyLaunch, setStudyLaunch] = useState<string | null>(null);
   const [deckManagement,setDeckManagement]=useState<{id:string;owner:string|null;from:"home"|"sets"}|null>(null);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [pageHeaderCount,setPageHeaderCount]=useState(0);
   const pageHeaderChanged=useCallback((present:boolean)=>setPageHeaderCount(n=>Math.max(0,n+(present?1:-1))),[]);
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
@@ -846,7 +844,7 @@ function NexusAppInner({
     await createAndOpenPage({ kind: "note", format });
   }, [createAndOpenPage]);
 
-  const handleCreateDocument = useCallback(async (format: PageFormat = "flow") => {
+  const handleCreateDocument = useCallback(async () => {
     // 2026-08-11：文檔一律流動
     await createAndOpenPage({ kind: "document", format: "flow" });
   }, [createAndOpenPage]);
@@ -1031,20 +1029,6 @@ function NexusAppInner({
       sidebarCreateInFlightRef.current = false;
     }
   }, [createAndOpenPage]);
-
-  const handleCancelNewPage = useCallback(async (id: string) => {
-    if (!storageRef.current) return;
-    await storageRef.current.deletePage(id);
-    setPages((prev) => prev.filter((p) => p.id !== id));
-    if (activePageId === id) {
-      const remaining = pages.filter((p) => p.id !== id);
-      if (remaining.length > 0) await activatePage(remaining[0].id);
-      else {
-        setActivePageId(null);
-        await storageRef.current.setActivePageId(null);
-      }
-    }
-  }, [activatePage, activePageId, pages, storageRef]);
 
   const handleClearPendingRename = useCallback(() => setPendingRenameId(null), []);
 
@@ -1780,7 +1764,7 @@ function NexusAppInner({
     const onTitleChange = (title: string) => { if (page) patchPage(page.id, { title }); };
     const patch = (value: Partial<Page>) => { if (page) patchPage(page.id, value); };
     return <WorkspacePane page={page}
-      study={{ onOfficialChanged:refreshStudyPages, initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", onTitleChange, repository: storageRef.current!.getStudyRepository(), backLabel:studySource==="home"?t("study.backHome"):undefined, onBackToInterface: studySource==="home"?handleShowHome:handleShowStudySets }}
+      study={{ onOfficialChanged:refreshStudyPages, initialMode: !secondary && studyLaunch === page?.id ? "scheduled" : "manage", repository: storageRef.current!.getStudyRepository(), backLabel:studySource==="home"?t("study.backHome"):undefined, onBackToInterface: studySource==="home"?handleShowHome:handleShowStudySets }}
       presentation={{ onTitleChange, onUpdatePresentation: value => patch({ presentation_data: value }), onBackToInterface: handleShowHome }}
       character={{
         worldMapStorage: storageRef.current ?? undefined,
@@ -1808,7 +1792,7 @@ function NexusAppInner({
         onTagsChange: tags => patch({ tags }), onContentChange: ({json, text}) => patch({ content_json: json, content_text: text, links: extractWikilinks(text) }),
         onFormatChange: secondary ? handleSecondaryFormatChange : handleFormatChange, onMarginsChange: margins => patch({ margins }), margins: page?.margins,
         onExportMarkdown: () => { if (page) void handleExportPageMarkdown(page.id); }, onExportPdf: () => { if (page) void handleExportPageAsPdf(page.id); },
-        onExportNexus: () => { if (page) void handleExportPageAsNexusJson(page.id); }, onNewNote: () => handleCreatePage("flow"), onNewDocument: () => handleCreateDocument("flow"),
+        onExportNexus: () => { if (page) void handleExportPageAsNexusJson(page.id); }, onNewNote: () => handleCreatePage("flow"), onNewDocument: () => handleCreateDocument(),
         onImportPdf: handleImportPdfClick, onImportMd: handleImportMarkdownClick, onConvertToPresentation: () => handleConvertToPresentation(page?.id),
         nightAdapt: isPageNightAdapt, onToggleNightAdapt: handleTogglePageNightAdapt, onBackToInterface: page?.kind==='todo'?()=>navigate(handleShowTodoList):handleShowHome,
         onTaskChange: value=>patch(value),
@@ -1863,17 +1847,14 @@ function NexusAppInner({
         <Sidebar
           pages={((isTrashMode||trashRoute) ? trashPages : pages).filter((page) => page.kind !== "novel_chapter" && (isTrashMode || !page.character_data?.isTemplate))}
           activePageId={trashRoute || isTrashMode || isHomeMode ? null : activePageId}
-          selectedTag={selectedTag}
           isTrashMode={isTrashMode||trashRoute}
           isHomeMode={!trashRoute&&isHomeMode}
           isCollapsed={false}
           onToggleCollapse={() => isDockedNoteSidebar ? toggleNoteSidebar(false) : setIsNavigationOpen(false)}
-          onSelectTag={setSelectedTag}
           onSelectPage={(id)=>navigate(()=>void handleSelectPage(id))}
           onImportPdf={handleImportPdfClick}
           onImportMarkdown={handleImportMarkdownClick}
           onShowHome={()=>navigate(handleShowHome)}
-          onShowNotes={()=>navigate(handleShowNotes)}
           onShowTrash={()=>void handleShowTrash()} onExitTrash={()=>setIsTrashMode(false)} onOpenTrash={()=>navigate(()=>onOpenTrash?.(),false)}
           onDeletePage={handleDeletePage}
           onRestorePage={handleRestorePage}
@@ -1896,7 +1877,6 @@ function NexusAppInner({
           onReorderPages={handleReorderPages}
           pendingRenameId={pendingRenameId}
           onClearPendingRename={handleClearPendingRename}
-          onCancelNewPage={handleCancelNewPage}
           utilityMode={utilityMode}
           onCreateItem={type=>navigate(()=>void handleCreateItem(type))}
           syncState={syncState}
@@ -1938,7 +1918,7 @@ function NexusAppInner({
       )}
 
       <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${showWorkspaceHeader?"mt-14 h-[calc(100dvh-3.5rem)]":"h-full"}`}>
-      {managementActive&&<>{managementPage?<StudySetView key={`${deckManagement.owner}:${managementPage.id}`} managementOnly registerSettingsSave={registerStudySettingsFlush} page={managementPage} repository={storageRef.current!.getStudyRepository()} onTitleChange={title=>patchPage(managementPage.id,{title})} onOfficialChanged={refreshStudyPages} backLabel={t(deckManagement.from==='home'?'deck.backHome':'study.backToStudySets')} onBackToInterface={async()=>{await flushAllSaves();setDeckManagement(null);}}/>:<main className="flex-1 p-6"><p role="alert">{t('study.noDeck')}</p><button onClick={()=>setDeckManagement(null)}>{t('home.close')}</button></main>}</>}
+      {managementActive&&<>{managementPage?<StudySetView key={`${deckManagement.owner}:${managementPage.id}`} managementOnly registerSettingsSave={registerStudySettingsFlush} page={managementPage} repository={storageRef.current!.getStudyRepository()} onOfficialChanged={refreshStudyPages} backLabel={t(deckManagement.from==='home'?'deck.backHome':'study.backToStudySets')} onBackToInterface={async()=>{await flushAllSaves();setDeckManagement(null);}}/>:<main className="flex-1 p-6"><p role="alert">{t('study.noDeck')}</p><button onClick={()=>setDeckManagement(null)}>{t('home.close')}</button></main>}</>}
       <div style={{display:managementActive?'none':'contents'}}>
       {trashRoute ? <TrashPage pages={trashPages.filter(p=>p.kind!=='novel_chapter')} loading={trashLoading} error={trashError} onRetry={()=>void refreshTrash()} onBack={()=>navigate(()=>onLeaveTrash?.(),false)} onRestore={id=>handleBulkRestorePages([id])} onDelete={handlePermanentDeletePage}/> : externalContent ?? (isHomeMode ? (
         <HomeScreen key={storageRef.current!.getWorkspaceOwner?.() ?? 'anonymous'} owner={storageRef.current!.getWorkspaceOwner?.() ?? null} pages={pages} repository={storageRef.current!.getStudyRepository()}
@@ -2020,7 +2000,7 @@ function NexusAppInner({
           feature="documents"
           actionLabel={t("ui.create.documents")}
           pages={pages.filter((p) => p.kind === "document" && !p.deleted_at)}
-          onCreate={() => void handleCreateDocument("flow")}
+          onCreate={() => void handleCreateDocument()}
           onSelectPage={handleSelectPage}
         />
       ) : isNoteMode ? (

@@ -5,7 +5,6 @@ import {useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {getSupabase} from '../../infrastructure/supabase/client';
 import {matchAIEntry,parseAI,readAI,planAI,submitAI,type AIEntry,type AIPlan,type AISnapshot} from './aiDictionary';
-const control='w-full rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] p-2';
 const button='rounded border border-[var(--color-border)] px-3 py-2 disabled:opacity-40';
 const labels:Record<string,string>={pronunciations:'讀音',headword:'單字／字首／字根',classification:'分類',meanings:'中文義',components:'構詞關聯',etymology:'歷史詞源',core_concept:'概念'};
 async function targetsFor(client:SupabaseClient,s:AISnapshot|null,input?:AIEntry){

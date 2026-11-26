@@ -24,7 +24,7 @@ export class DraftValidationError extends Error {
   constructor(public issues:DraftIssue[]){super(issues.map(i=>`第 ${i.row} 列 · 類型：${i.kind} · 欄位：${i.field} · 錯誤：${i.error}`).join('\n'));}
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{csv?:boolean}={}):DraftIssue[]{
+export function validateDictionaryDraft(drafts:DictionaryDraftInput[]):DraftIssue[]{
   const errors:DraftIssue[]=[],seen=new Set<string>();
   for(const d of drafts){
     const issue=(field:string,error:string,row=d.row??1)=>errors.push({row,field,kind:d.kind,error});
@@ -35,7 +35,6 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     if(seen.has(d.entry_id))issue('entry_id','重複 ID');seen.add(d.entry_id);
     if(!d.headword?.trim())issue('headword','必填');
     const segmentIssue=validateWordSegments(d.word_segments,d.headword,d.kind,d.relations);if(segmentIssue)issue('word_segments',segmentIssue);
-    if(options.csv&&!d.senses.length)issue('gloss_zh_tw','至少需要一個義項');
     if(d.kind==='word'){
       if(!d.senses.length)issue('senses','單詞至少需要一個義項');
       for(const [field,rows] of [['pronunciations',d.pronunciations??[]],['learning_notes',d.learning_notes],['etymologies',d.etymologies]] as const)
@@ -43,7 +42,7 @@ export function validateDictionaryDraft(drafts:DictionaryDraftInput[],options:{c
     }
     for(const s of d.senses){
       const morphIssue=validateMorphemeSenseFields(s);if(morphIssue)issue('senses',morphIssue,s.row);
-      if((d.kind==='word'||options.csv)&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
+      if(d.kind==='word'&&!s.gloss_zh_tw?.trim())issue('gloss_zh_tw','必填',s.row);
       if(d.kind==='word'&&!s.part_of_speech?.trim())issue('part_of_speech','Word 必須提供 part_of_speech',s.row);
       if(d.kind!=='word'&&s.part_of_speech)issue('part_of_speech','Prefix / Root 必須留空',s.row);
     }

@@ -112,10 +112,8 @@ export default function PaginatedEditorView({
   insertToolbarTarget,
   formatToolbarTarget,
   nightAdapt = false,
-  onToggleNightAdapt,
   margins,
   onMarginsChange,
-  toolbarTab = "home",
   fileMode = false,
   showRuler = false,
   showLineNumbers = false,
@@ -133,10 +131,8 @@ export default function PaginatedEditorView({
   insertToolbarTarget?: HTMLElement | null;
   formatToolbarTarget?: HTMLElement | null;
   nightAdapt?: boolean;
-  onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
-  toolbarTab?: "home";
   fileMode?: boolean;
   showRuler?: boolean;
   showLineNumbers?: boolean;
@@ -461,7 +457,6 @@ export default function PaginatedEditorView({
                     insertToolbarTarget={idx === activePage ? insertToolbarTarget : null}
                     formatToolbarTarget={idx === activePage ? formatToolbarTarget : null}
                     showToolbar={idx === activePage && !fileMode}
-                    toolbarTab={toolbarTab}
                     showLineNumbers={showLineNumbers}
                     lineNumberStart={pageLineStarts[idx]}
                     margins={margins}
@@ -469,8 +464,6 @@ export default function PaginatedEditorView({
                     paneId={paneId}
                     pageIndex={idx}
                     onFocus={() => setActivePage(idx)}
-                    pageNightAdapt={nightAdapt}
-                    onTogglePageNightAdapt={onToggleNightAdapt}
                   />
                 </div>
                 {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}

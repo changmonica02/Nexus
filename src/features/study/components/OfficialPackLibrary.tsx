@@ -1,5 +1,4 @@
 "use client";
-import FeatureIcon from "../../../components/FeatureIcon";
 import {PageHeader} from "../../../components/WorkspaceNavigation";
 import {useEffect,useState} from 'react';
 import Link from 'next/link';

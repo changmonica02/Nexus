@@ -4,18 +4,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Page, Slide, PresentationData, PresentationBlock, SlideLayout } from "../lib/types";
 import { createSlide } from "../lib/presentation";
 import { useLanguage } from "../lib/LanguageContext";
-import ChartTypeMenu from "./ChartTypeMenu";
 import ChartRenderer from "./ChartRenderer";
-
-const LAYOUTS: { id: SlideLayout; label: string; icon: string }[] = [
-  { id: "title", label: "標題", icon: "🔖" },
-  { id: "title_content", label: "標題+內容", icon: "📄" },
-  { id: "two_column", label: "兩欄", icon: "⬌" },
-  { id: "chart", label: "圖表", icon: "📊" },
-  { id: "canvas", label: "自由畫布", icon: "🎨" },
-  { id: "toc", label: "目錄", icon: "📑" },
-  { id: "quote", label: "引言", icon: "❝" },
-];
 
 function genId() { return `blk_${Math.random().toString(36).slice(2, 9)}`; }
 
@@ -27,23 +16,6 @@ interface GuideLine {
   type: "vertical" | "horizontal";
   pos: number;
 }
-
-type Interaction =
-  | {
-      kind: "drag";
-      ids: string[];
-      startMX: number;
-      startMY: number;
-      cw: number;
-      ch: number;
-      groupOrigX: number;
-      groupOrigY: number;
-      groupW: number;
-      groupH: number;
-      orig: Record<string, { x: number; y: number; w: number; h?: number }>;
-    }
-  | { kind: "resize"; id: string; handle: HandleDir; startMX: number; startMY: number; orig: PresentationBlock; cw: number; ch: number }
-  | { kind: "rotate"; id: string; cx: number; cy: number; origRot: number };
 
 type AlignType = "left" | "right" | "top" | "bottom" | "hcenter" | "vcenter" | "hdistribute" | "vdistribute";
 
@@ -72,7 +44,7 @@ function BlockContent({ block, thumb }: { block: PresentationBlock; thumb?: bool
   return null;
 }
 
-function SlideThumbnail({ slide, theme, active, idx, total, onClick, onContextMenu }: { slide: Slide; theme: string; active: boolean; idx: number; total: number; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void }) {
+function SlideThumbnail({ slide, theme, active, idx, onClick, onContextMenu }: { slide: Slide; theme: string; active: boolean; idx: number; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void }) {
   const blocks = [...(slide.blocks || [])].sort((a, b) => a.z - b.z);
   return (
     <div onClick={onClick} onContextMenu={onContextMenu} className={`group relative rounded-md border cursor-pointer transition-all ${active ? "border-blue-500 shadow-md" : "border-transparent hover:border-zinc-300"}`} style={{ background: theme === "dark" ? "#1e1e1e" : "white" }} title={`第 ${idx + 1} 張（右鍵更多操作）`}>
@@ -109,7 +81,6 @@ export default function PresentationView({
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [moreMenuFor, setMoreMenuFor] = useState<string | null>(null);
   const [chartEditOpen, setChartEditOpen] = useState(false);
-  const [chartTab, setChartTab] = useState<"data" | "type" | "style">("data");
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [rightPanelWidth, setRightPanelWidth] = useState(260);
@@ -200,9 +171,6 @@ export default function PresentationView({
     const nb: PresentationBlock = { id: genId(), x: 20, y: 25, w: 50, h: 16, z: (activeSlide.blocks?.length || 0) + 10, ...opts } as PresentationBlock;
     updateActiveSlide({ blocks: [...(activeSlide.blocks || []), nb] });
     setSelectedIds([nb.id]);
-  };
-  const handleAddChart = () => {
-    addBlock({ type: "chart", x: 15, y: 20, w: 50, h: 45, chart: { type: "bar", variant: "single", orientation: "vertical", data: [{ label: "A", value: 30 }, { label: "B", value: 50 }] } });
   };
   const handleDeleteBlocks = (ids: string[]) => {
     if (!activeSlide) return;
@@ -487,11 +455,6 @@ export default function PresentationView({
     floatBarStyle = { left: `${(minX + maxX) / 2}%`, top: `${Math.max(0, minY - 6)}%`, transform: "translate(-50%, -100%)" };
   }
 
-  const HANDLE_POS: Record<HandleDir, React.CSSProperties> = {
-    nw: { left: 0, top: 0, cursor: "nwse-resize" }, n: { left: "50%", top: 0, cursor: "ns-resize" }, ne: { left: "100%", top: 0, cursor: "nesw-resize" },
-    e: { left: "100%", top: "50%", cursor: "ew-resize" }, se: { left: "100%", top: "100%", cursor: "nwse-resize" }, s: { left: "50%", top: "100%", cursor: "ns-resize" },
-    sw: { left: 0, top: "100%", cursor: "nesw-resize" }, w: { left: 0, top: "50%", cursor: "ew-resize" },
-  };
   const selBoxStyle = (b: PresentationBlock): React.CSSProperties => ({
     position: "absolute",
     left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: b.h ? `${b.h}%` : "auto",
@@ -611,7 +574,7 @@ export default function PresentationView({
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {slides.map((slide, idx) => (
-              <SlideThumbnail key={slide.id} slide={slide} theme={data.theme} active={activeSlideId === slide.id} idx={idx} total={slides.length}
+              <SlideThumbnail key={slide.id} slide={slide} theme={data.theme} active={activeSlideId === slide.id} idx={idx}
                 onClick={() => { setActiveSlideId(slide.id); setSelectedIds([]); }}
                 onContextMenu={(e) => { e.preventDefault(); setSlideCtx({ x: e.clientX, y: e.clientY, slideId: slide.id }); }} />
             ))}

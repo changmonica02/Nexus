@@ -30,6 +30,6 @@ window.dictionaryClient={auth:{getUser:async()=>{const begin=performance.now();a
 }};
 if(offline)Object.defineProperty(navigator,'onLine',{get:()=>false,configurable:true});
 window.startupRepo=repo;window.startupExisting=existing?.id;
-function App(){const [open,setOpen]=React.useState(true);return <LanguageProvider initialLanguage="zh-TW"><button onClick={()=>setOpen(false)}>Close fixture</button>{open&&<StudySetView page={page} repository={repo} onTitleChange={()=>{}}/>}</LanguageProvider>;}
+function App(){const [open,setOpen]=React.useState(true);return <LanguageProvider initialLanguage="zh-TW"><button onClick={()=>setOpen(false)}>Close fixture</button>{open&&<StudySetView page={page} repository={repo}/>}</LanguageProvider>;}
 createRoot(document.getElementById('root')).render(<App/>);
 window.measureStart=()=>{metrics.reads=0;metrics.records=0;metrics.methods={};metrics.calls=[];metrics.first=0;metrics.begin=performance.now();const watch=new MutationObserver(()=>{if(document.querySelector('[data-study-card]')){metrics.first=performance.now()-metrics.begin;watch.disconnect();}});watch.observe(document.getElementById('root'),{childList:true,subtree:true});};

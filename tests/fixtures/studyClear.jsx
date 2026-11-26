@@ -17,4 +17,4 @@ const at=Date.now()-120000,session=await repo.startSession(page.id,'scheduled',a
 await repo.rateSession({sessionId:session.id,cardId:card.id,revision:data.session.revision,contentRevision:card.content_revision,expectedHead:state.head,rating:3,actionId:crypto.randomUUID(),now:at});
 await syncStudy(repo,window.studyClearClient,owner);
 window.clearFixture={repo,page,storage,oldSession:session.id};
-createRoot(document.getElementById('root')).render(<LanguageProvider initialLanguage={new URLSearchParams(location.search).get('lang')??'zh-TW'}><StudySetView page={page} repository={repo} managementOnly onTitleChange={()=>{}} onBackToInterface={()=>{}}/></LanguageProvider>);
+createRoot(document.getElementById('root')).render(<LanguageProvider initialLanguage={new URLSearchParams(location.search).get('lang')??'zh-TW'}><StudySetView page={page} repository={repo} managementOnly onBackToInterface={()=>{}}/></LanguageProvider>);

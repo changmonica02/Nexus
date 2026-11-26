@@ -41,7 +41,6 @@ type DropPosition = "above" | "below" | "child";
 type SidebarProps = {
   pages: Page[];
   activePageId: string | null;
-  selectedTag: string | null;
   isTrashMode: boolean;
   isHomeMode: boolean;
   isQuickNoteMode?: boolean;
@@ -55,12 +54,10 @@ type SidebarProps = {
   utilityMode?: "web" | "counter" | "draw" | "score" | null;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  onSelectTag: (tag: string | null) => void;
   onSelectPage: (id: string) => void;
   onImportPdf: () => void;
   onImportMarkdown: () => void;
   onShowHome: () => void;
-  onShowNotes: () => void;
   onShowTrash: () => void;
   onOpenTrash?: () => void;
   onExitTrash?: () => void;
@@ -96,7 +93,6 @@ type SidebarProps = {
   onReorderPages: (orderedIds: string[]) => void;
   pendingRenameId: string | null;
   onClearPendingRename: () => void;
-  onCancelNewPage: (id: string) => void;
   onCreateItem: (type: CreateItemType) => void;
   syncState?: SyncState;
   accountEmail?: string | null;
@@ -106,17 +102,14 @@ type SidebarProps = {
 export default function Sidebar({
   pages,
   activePageId,
-  selectedTag,
   isTrashMode,
   isHomeMode,
   isCollapsed,
   onToggleCollapse,
-  onSelectTag,
   onSelectPage,
   onImportPdf,
   onImportMarkdown,
   onShowHome,
-  onShowNotes,
   onShowTrash, onOpenTrash, onExitTrash,
   onShowQuickNotes,
   onShowTodoList,
@@ -157,7 +150,6 @@ export default function Sidebar({
   onSetFolder,onSignOut,
   pendingRenameId,
   onClearPendingRename,
-  onCancelNewPage,
   onCreateItem,
   syncState,
   accountEmail,
@@ -201,7 +193,6 @@ export default function Sidebar({
   const lastClickTimeRef = useRef<number>(0);
   const lastClickIdRef = useRef<string | null>(null);
 
-  const createLabel = (key: string) => t(key);
   const currentPage = pages.find((page) => page.id === activePageId);
   const editorFeature: FeatureFilter | null = isHomeMode || isTrashMode || !currentPage ? null
     : isNovelPage(currentPage) ? "novels"
@@ -336,20 +327,19 @@ export default function Sidebar({
   const filteredPages = pages.filter((page) => {
     const query = searchQuery.trim().toLowerCase();
     const matchQuery = !query || (page.title || "").toLowerCase().includes(query) || (page.content_text || "").toLowerCase().includes(query);
-    const matchTag = !selectedTag || (page.tags || []).includes(selectedTag);
     // Every feature owns its list. The fallback is the explicit「所有項目」view.
-    if (activeFeatureFilter === "tools") return (page.kind === "counter" || page.kind === "draw") && matchQuery && matchTag;
+    if (activeFeatureFilter === "tools") return (page.kind === "counter" || page.kind === "draw") && matchQuery;
     if (activeFeatureFilter === "dictionary") return false;
-    if (activeFeatureFilter === "quicknotes") return (page.kind as any) === "quick_note" && matchQuery && matchTag;
-    if (activeFeatureFilter === "calendar") return (page.kind as any) === "todo" && matchQuery && matchTag;
-    if (activeFeatureFilter === "study") return page.kind === "study_set" && matchQuery && matchTag;
-    if (activeFeatureFilter === "presentations") return page.kind === "presentation" && matchQuery && matchTag;
-    if (activeFeatureFilter === "documents") return page.kind === "document" && matchQuery && matchTag;
-    if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery && matchTag;
-    if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery && matchTag;
-    if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery && matchTag;
-    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw" || activeFeatureFilter === "score") return page.kind === activeFeatureFilter && matchQuery && matchTag;
-    return matchQuery && matchTag;
+    if (activeFeatureFilter === "quicknotes") return (page.kind as any) === "quick_note" && matchQuery;
+    if (activeFeatureFilter === "calendar") return (page.kind as any) === "todo" && matchQuery;
+    if (activeFeatureFilter === "study") return page.kind === "study_set" && matchQuery;
+    if (activeFeatureFilter === "presentations") return page.kind === "presentation" && matchQuery;
+    if (activeFeatureFilter === "documents") return page.kind === "document" && matchQuery;
+    if (activeFeatureFilter === "notes") return (!page.kind || page.kind === "note") && matchQuery;
+    if (activeFeatureFilter === "novels") return isNovelPage(page) && matchQuery;
+    if (activeFeatureFilter === "creative") return isCreativeCharacterPage(page) && matchQuery;
+    if (activeFeatureFilter === "web" || activeFeatureFilter === "counter" || activeFeatureFilter === "draw" || activeFeatureFilter === "score") return page.kind === activeFeatureFilter && matchQuery;
+    return matchQuery;
   });
 
   const topLevelPages = filteredPages.filter((page) => !page.parent_id || !filteredPages.some(p=>p.id===page.parent_id));

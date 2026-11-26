@@ -522,7 +522,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
+          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} margins={margins} onMarginsChange={onMarginsChange} showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
         </>
       ) : (
         <>
@@ -556,7 +556,7 @@ export default function EditorPane({
               </div>
             )}
             {isLessonNote && lessonLayout.header && <div className="lesson-page-header">{lessonLayout.header}</div>}
-            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} showToolbar showLineNumbers={showLineNumbers} />
             {isLessonNote && lessonLayout.footer && <div className="lesson-page-footer">{lessonLayout.footer}</div>}
           </div>
           </PageFormatView>

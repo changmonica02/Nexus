@@ -17,11 +17,9 @@ import {usePagedList} from '../../components/pagination/usePagedList';
 import {DraftAutosaveQueue,draftRevisions,draftContentSignature,type DraftSaveStatus} from './draftAutosave';
 import {legacyWordSegments,wordSpelling,type WordSegment} from './wordSegments';
 import WordSegmentsEditor from './WordSegmentsEditor';
-import {SafeMarkdown} from './SafeMarkdown';
 import {compositionRow} from './composition';
 import {entryKey} from './entryIdentity';
 import {listAdminEntries,listAdminWork,adminSummaries,adminPageSize} from './adminQueries';
-import {RelationTargetPicker,RelationSelectionDialog} from './RelationTargetPicker';
 import {DictionaryBulkPublish} from './DictionaryBulkPublish';
 import {confirmDialog} from '../../lib/confirmDialog';
 
@@ -37,7 +35,6 @@ import {AIImport} from './DictionaryAI';
 import {DictionaryModal} from './DictionaryModal';
 import { getSupabase } from '../../infrastructure/supabase/client';
 import { getDictionaryEntry, publishDictionaryEntry, type DictionaryDetail, type DictionaryEntry, type DictionarySense } from './dictionary';
-import {dictionaryCSVExample,dictionaryCSVHeaders} from './dictionaryCSV';
 import {draftsFromBundle,saveDictionaryDraft,previewDictionaryDraft,validateDictionaryDraft} from './draftPipeline';
 import {type Bundle} from './adminImport';
 import {reviewSnapshot,type DictionaryReview} from './revisionLifecycle';
@@ -62,7 +59,7 @@ export function DictionaryPreview({bundle,technical=true}:{bundle:Bundle;technic
   const tr=useDictionaryText();
   const order=['dictionary_entries','dictionary_senses','dictionary_pronunciations','dictionary_relations','dictionary_learning_notes','dictionary_etymologies','dictionary_public_notes','dictionary_examples'];
   const rank=(table:string)=>order.includes(table)?order.indexOf(table):order.length;
-  return <div className="space-y-2" aria-label={tr("字典預覽")}>{Object.entries(bundle).filter(([table,rows])=>technical||rows.length>0).sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
+  return <div className="space-y-2" aria-label={tr("字典預覽")}>{Object.entries(bundle).filter(([,rows])=>technical||rows.length>0).sort(([a],[b])=>rank(a)-rank(b)).map(([table,rows])=><section key={table}>
     <h3 className="font-semibold">{{dictionary_entries:tr('詞條'),dictionary_pronunciations:tr('讀音'),dictionary_senses:tr('義項'),dictionary_relations:tr('構詞關聯'),dictionary_etymologies:tr('歷史詞源'),dictionary_learning_notes:tr('記憶法'),dictionary_public_notes:tr('公共補充筆記')}[table]??table}</h3>
     {rows.map(row=><article key={String(row.id)} className="my-2 space-y-2 whitespace-pre-wrap break-words rounded border p-3 text-sm">
       {<>
@@ -374,10 +371,11 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     const id=crypto.randomUUID();
     return {entry:{id,kind:newKind,headword:'',status:'draft',published_at:null,revision:0,updated_at:''},senses:[{id:crypto.randomUUID(),entry_id:id,part_of_speech:newKind==='word'?'noun':null,gloss_zh_tw:'',revision:0,updated_at:''}],relations:[],etymologies:[],learning_notes:[]};
   }),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
-  const [kinds,setKinds]=useState<string[]>(source?.kinds??[]),[statuses,setStatuses]=useState<string[]>(source?.statuses??[]),[query,setQuery]=useState(source?.query??'');
+  const [statuses]=useState<string[]>(source?.statuses??[]);
+  const [kinds,setKinds]=useState<string[]>(source?.kinds??[]),[query,setQuery]=useState(source?.query??'');
   const [scope,setScope]=useState<CatalogFilter['scope']>(source?.scope??catalogScope(source?.kinds??[])),[domain,setDomain]=useState<string|null>(source?.domain??null),[subdomain,setSubdomain]=useState<string|null>(source?.subdomain??null);
   const {t}=usePaginationLanguage();
-  const [format,setFormat]=useState<'csv'|'md'|'json'|'ai'>('json');
+  const [format,setFormat]=useState<'json'|'ai'>('json');
   const [fileText,setFileText]=useState(''),[sourceName,setSourceName]=useState('');
 
   const [modal,setModal]=useState<'new'|'import'|'export'|null>(null),[createKind,setCreateKind]=useState<DictionaryEntry['kind']>('word');
@@ -441,7 +439,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
       <details><summary>{t("transfer.formatHelp")}</summary><div className="space-y-2 text-sm"><p>僅接受最新版 Nexus JSON Exchange v2、符合目前字典資料欄位的 JSON Bundle，以及目前版本 AI Dictionary JSON。</p><p>Word 的每筆例句必須指定 sense_id 與 derivation_id；同一衍生義最多一組英文例句，中文翻譯可留空。未連結例句、獨立詞形、過時或未知欄位及 CSV／Markdown 舊格式一律拒絕。</p></div></details>
       <fieldset disabled={busy} className="space-y-3">
 
-      <label>{t("exchange.inputFormat")}<select aria-label={t("exchange.inputFormat")} className={control} value={format} onChange={e=>setFormat(e.target.value as 'csv'|'md'|'json'|'ai')}><option value="json">Nexus JSON Exchange v2／新版 JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></label>
+      <label>{t("exchange.inputFormat")}<select aria-label={t("exchange.inputFormat")} className={control} value={format} onChange={e=>setFormat(e.target.value as 'json'|'ai')}><option value="json">Nexus JSON Exchange v2／新版 JSON Bundle</option><option value="ai">AI Dictionary JSON（既有 Diff 流程）</option></select></label>
       <input aria-label={t("exchange.file")} type="file" accept=".json" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void action(async()=>{if(file.size>64*1024*1024)throw Error("File exceeds 64 MiB");const text=await file.text();setSourceName(file.name);if(!file.name.toLowerCase().endsWith(".json"))throw Error("只接受新版 JSON 檔案");let nextFormat:typeof format="json";if(nextFormat==="json"){try{if(JSON.parse(text.replace(/^\uFEFF/,'')).format==="nexus-dictionary-ai")nextFormat="ai";}catch{}}setFormat(nextFormat);setFileText(text);});}}/>
       <label className="block space-y-1 text-sm">{t("exchange.pasteFile")}<textarea aria-label={t("exchange.pasteFile")} className={control+" max-h-64 resize-y font-mono text-xs"} rows={8} value={fileText} onChange={e=>setFileText(e.target.value)}/></label>
       </fieldset>
