@@ -1,5 +1,6 @@
 require("../loadStudy.cjs");
 require("fake-indexeddb/auto");
+const { applyLegacyImport } = require("../fixtures/legacyDictionaryImport.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const {
@@ -437,7 +438,7 @@ test("legacy transfer retains previous selections, receipt/Review IDs and archiv
     const fresh = draft(900),
       legacy = await buildImportSession(c, owner, "json", [fresh]);
     let saved;
-    await require("../../src/features/dictionary/importReview.ts").applyImportItems(
+    await applyLegacyImport(
       c,
       legacy,
       false,
@@ -715,7 +716,7 @@ test("additive migration on populated legacy database preserves Published, activ
       [d.entry_id, JSON.stringify(snapshot)],
     );
     const previous = await buildImportSession(c, owner, "json", [draft(8100)]);
-    await require("../../src/features/dictionary/importReview.ts").applyImportItems(
+    await applyLegacyImport(
       c,
       previous,
       false,
@@ -746,7 +747,7 @@ test("additive migration on populated legacy database preserves Published, activ
       assert.deepEqual(after[n].rows, before[n].rows);
     const next = await buildImportSession(c, owner, "json", [draft(8200)]);
     const result =
-      await require("../../src/features/dictionary/importReview.ts").applyImportItems(
+      await applyLegacyImport(
         c,
         next,
         false,

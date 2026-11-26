@@ -18,9 +18,7 @@ const {
   previewExchange,
   exchangeCategory,
 } = require("../../src/features/dictionary/dictionaryExchange.ts");
-const {
-  applyImportItems,
-} = require("../../src/features/dictionary/importReview.ts");
+const { applyLegacyImport } = require("../fixtures/legacyDictionaryImport.cjs");
 const {
   persistImportSession,
   loadImportSession,
@@ -89,7 +87,7 @@ test(
       start = performance.now();
       await persistImportSession(preview);
       const stop = new AbortController();
-      let applied = await applyImportItems(
+      let applied = await applyLegacyImport(
         bounded,
         preview,
         false,
@@ -104,7 +102,7 @@ test(
         applied.items.filter((i) => i.status === "unchanged").length,
         25,
       );
-      applied = await applyImportItems(
+      applied = await applyLegacyImport(
         bounded,
         await loadImportSession(owner),
         false,

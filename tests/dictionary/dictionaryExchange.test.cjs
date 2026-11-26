@@ -19,9 +19,7 @@ const {
   exchangeCategory,
   draftFromExchange,
 } = require("../../src/features/dictionary/dictionaryExchange.ts");
-const {
-  applyImportItems,
-} = require("../../src/features/dictionary/importReview.ts");
+const { applyLegacyImport } = require("../fixtures/legacyDictionaryImport.cjs");
 const {
   createExportJob,
   continueExport,
@@ -140,7 +138,7 @@ test(
       assert.equal(exchangeCategory(invalidItem),"invalid");
       for(const issue of invalidItem.issues)issue.selectedAction="incoming";
       let writes=0;
-      const attempted=await applyImportItems({rpc:async()=>{writes++;throw Error("invalid item must not dispatch");}},
+      const attempted=await applyLegacyImport({rpc:async()=>{writes++;throw Error("invalid item must not dispatch");}},
         {...rejectedPreview,items:[invalidItem]},true,async()=>{},{batched:true});
       assert.equal(writes,0);
       assert.notEqual(attempted.items[0].status,"applied");
@@ -151,7 +149,7 @@ test(
         JSON.stringify(session.items.map((i) => i.issues)),
       );
       await persistImportSession(session);
-      session = await applyImportItems(
+      session = await applyLegacyImport(
         c,
         session,
         true,
@@ -197,7 +195,7 @@ test(
           return r;
         },
       };
-      session = await applyImportItems(
+      session = await applyLegacyImport(
         transport,
         session,
         true,
@@ -205,7 +203,7 @@ test(
         { batched: true },
       );
       assert.ok(session.items.every((i) => i.status === "failed"));
-      session = await applyImportItems(
+      session = await applyLegacyImport(
         c,
         await loadImportSession(owner),
         true,
@@ -324,7 +322,7 @@ test(
       );
       omitted.records[0].snapshot.detail.examples = [];
       session = await previewExchange(c, owner, omitted);
-      await applyImportItems(c, session, false, async () => {}, {
+      await applyLegacyImport(c, session, false, async () => {}, {
         batched: true,
       });
       assert.equal(
@@ -343,7 +341,7 @@ test(
       partial.records[0].snapshot.metadata.component_order = [];
       const partialSession = await previewExchange(c, owner, partial);
       assert.equal(exchangeCategory(partialSession.items[0]), "unchanged");
-      await applyImportItems(c, partialSession, false, async () => {}, {
+      await applyLegacyImport(c, partialSession, false, async () => {}, {
         batched: true,
       });
       assert.deepEqual(
@@ -440,7 +438,7 @@ test(
         records: [fresh],
       });
       assert.equal(exchangeCategory(additions.items[0]), "new");
-      const inserted = await applyImportItems(
+      const inserted = await applyLegacyImport(
         c,
         additions,
         false,
@@ -455,7 +453,7 @@ test(
       assert.equal(exchangeCategory(replay.items[0]), "unchanged");
       assert.equal(
         (
-          await applyImportItems(c, replay, false, async () => {}, {
+          await applyLegacyImport(c, replay, false, async () => {}, {
             batched: true,
           })
         ).items[0].status,
@@ -619,7 +617,7 @@ test(
         "update dictionary_senses set gloss_zh_tw='newer' where entry_id=$1",
         [id(100)],
       );
-      s = await applyImportItems(c, s, true, async () => {}, {
+      s = await applyLegacyImport(c, s, true, async () => {}, {
         batched: true,
       });
       assert.equal(s.items[0].status, "stale");

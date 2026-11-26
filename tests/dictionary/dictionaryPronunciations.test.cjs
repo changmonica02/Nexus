@@ -3,7 +3,8 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {PGlite}=require('@electric-sql/pglite');
 const {draftsFromBundle,mapDictionaryDraft,saveDictionaryDraft,validateDictionaryDraft}=require('../../src/features/dictionary/draftPipeline.ts');
 const {parseJSONBundle,normalizeDictionaryBundle}=require('../../src/features/dictionary/adminImport.ts');
-const {buildImportSession,chooseIssue,applyImportItems}=require('../../src/features/dictionary/importReview.ts');
+const {buildImportSession,chooseIssue}=require('../../src/features/dictionary/importReview.ts');
+const {applyLegacyImport}=require('../fixtures/legacyDictionaryImport.cjs');
 const {parseAI,toAI,planAI,submitAI}=require('../../src/features/dictionary/aiDictionary.ts');
 const {reviewSnapshot}=require('../../src/features/dictionary/revisionLifecycle.ts');
 const {withoutSense}=require('../../src/features/dictionary/draftEditing.ts');
@@ -36,9 +37,9 @@ test('local PostgreSQL: import/preview rollback, Safe/Review, ownership/RLS, Pub
  const client={rpc:async(name,args)=>{try{const signatures={inspect_dictionary_import:['drafts'],apply_dictionary_import_operation:['operation'],get_dictionary_ai_snapshot:['entry_uuid'],get_dictionary_entry:['entry_uuid'],apply_dictionary_drafts:['drafts','preview','allow_edits'],create_dictionary_review:['entry_uuid','expected_snapshot','patch','source_type','preview']};const keys=signatures[name];if(!keys)throw Error(name);return {data:await sql(`select ${name}(${keys.map((_,i)=>'$'+(i+1)).join(',')}) v`,keys.map(k=>typeof args[k]==='object'&&args[k]!==null?JSON.stringify(args[k]):args[k]))};}catch(error){return {error};}}};
  const drafts=await normalizeDictionaryBundle(client,parseJSONBundle(JSON.stringify(bundle())));
  await saveDictionaryDraft(client,drafts,true);assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),0);assert.equal(await sql('select count(*)::int v from dictionary_audit'),0);
- let session=await buildImportSession(client,id(1),'json',drafts);assert.equal(session.items[0].bucket,'safe');let applied=await applyImportItems(client,session,false,async()=>{});assert.equal(applied.items[0].status,'applied');assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),1);
+ let session=await buildImportSession(client,id(1),'json',drafts);assert.equal(session.items[0].bucket,'safe');let applied=await applyLegacyImport(client,session,false,async()=>{});assert.equal(applied.items[0].status,'applied');assert.equal(await sql('select count(*)::int v from dictionary_pronunciations'),1);
  session=await buildImportSession(client,id(1),'json',drafts);assert.equal(session.items[0].bucket,'safe');assert.equal(session.items[0].safeAction,'unchanged');
- const altered=structuredClone(drafts);altered[0].pronunciations[0].ipa='/updated/';session=await buildImportSession(client,id(1),'json',altered);assert.equal(session.items[0].bucket,'review');for(const issue of session.items[0].issues)session.items[0]=chooseIssue(session.items[0],issue.id,'incoming');applied=await applyImportItems(client,session,true,async()=>{});assert.equal(applied.items[0].status,'applied');
+ const altered=structuredClone(drafts);altered[0].pronunciations[0].ipa='/updated/';session=await buildImportSession(client,id(1),'json',altered);assert.equal(session.items[0].bucket,'review');for(const issue of session.items[0].issues)session.items[0]=chooseIssue(session.items[0],issue.id,'incoming');applied=await applyLegacyImport(client,session,true,async()=>{});assert.equal(applied.items[0].status,'applied');
  let s=await sql('select get_dictionary_ai_snapshot($1) v',[id(10)]);assert.equal(s.detail.pronunciations.length,1);
  await assert.rejects(pg.query('select delete_dictionary_draft_sense($1,$2,$3,$4)',[id(10),id(11),s.detail.entry.revision,s.detail.senses.find(x=>x.id===id(11)).revision]),/pronunciations/);
  // Cross-entry sense FK and child identity collision both roll back all writes.

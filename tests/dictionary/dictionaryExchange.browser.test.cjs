@@ -67,6 +67,7 @@ test(
         args: ["--no-sandbox"],
       });
     const errors = [];
+    let activePage;
     try {
       // Full IndexedDB fault-injection and resume flow is a single desktop
       // contract; mobile entry points are checked separately below.
@@ -76,6 +77,7 @@ test(
             acceptDownloads: true,
           }),
           page = await context.newPage();
+        activePage = page;
         page.on("pageerror", (e) => {
           errors.push(e.message);
           console.error(e.message);
@@ -175,7 +177,9 @@ test(
         });
         await analyze.click();
         const uncertain = "請求結果尚未確認。請保留草稿，先查詢正式狀態再重試。";
-        await page.getByRole("alert").filter({ hasText: uncertain }).waitFor();
+        await page.getByRole("alert").filter({
+          hasText: "無法在此裝置儲存匯入進度，請保留來源檔案並重試。",
+        }).waitFor();
         assert.deepEqual(await page.evaluate(() => window.fixtureState().imports), []);
         await analyze.click();
         await analysis.getByText(/新增詞條 52.*安全詞條 52/).waitFor();
@@ -226,7 +230,11 @@ test(
         }
 
         await analysis.getByRole("button", { name: "關閉", exact: true }).click();
-        await upload("repeat.json", raw);
+        const importedIDs = new Set(saved.imports.map((r) => r.entry_id));
+        await upload("repeat.json", JSON.stringify({
+          ...JSON.parse(raw),
+          records: saved.records.filter((r) => importedIDs.has(r.snapshot.detail.entry.id)),
+        }));
         await analyze.click();
         await analysis.getByText(/未變更 52/).waitFor();
         await analysis.getByRole("button", { name: "關閉", exact: true }).click();
@@ -234,6 +242,42 @@ test(
         assert.equal(await page.getByLabel("保留的本機匯入封存", { exact: true })
           .locator("option").filter({ hasText: "exchange.json" }).count(), 1);
         await page.getByRole("button", { name: "關閉", exact: true }).click();
+        const modified = structuredClone(doc.records.find((r) => r.snapshot.detail.entry.headword === "item2"));
+        modified.snapshot.detail.senses[0].gloss_zh_tw = "待審核的新義項";
+        await page.getByRole("button", { name: "匯入資料", exact: true }).click();
+        await upload("review.json", JSON.stringify({ ...doc, records: [modified] }));
+        await analyze.click();
+        const importAll = analysis.getByRole("button", { name: "匯入全部", exact: true });
+        await importAll.click();
+        await page.getByRole("dialog", { name: "匯入全部", exact: true })
+          .getByRole("button", { name: "匯入全部", exact: true }).click();
+        await analysis.getByText(/待審核 1 ·/).waitFor();
+        await analysis.getByRole("link", { name: "開啟未審核詞條", exact: true }).click();
+        const review = page.getByRole("article").filter({ has: page.getByRole("heading", { name: /^item2 ·/ }) });
+        const decision = review.getByLabel("處理操作 gloss_zh_tw", { exact: true });
+        await decision.selectOption("keep");
+        await review.getByText("已決策，尚未套用", { exact: true }).waitFor();
+        await reload();
+        await decision.waitFor();
+        assert.equal(await decision.inputValue(), "keep");
+        await review.getByRole("button", { name: "套用已決策項目", exact: true }).click();
+        await page.getByRole("dialog", { name: "套用已決策項目", exact: true })
+          .getByRole("button", { name: "套用已決策項目", exact: true }).click();
+        await page.getByText("保留現有／拒絕", { exact: true }).waitFor();
+        await review.waitFor({ state: "detached" });
+        const decided = await page.evaluate(() => {
+          const state = window.fixtureState();
+          return {
+            checked: window.calls.some(({ name }) => name === "save_dictionary_import_review"),
+            keep: state.imports.find((row) => row.source.name === "review.json"),
+            gloss: state.records.find((r) => r.snapshot.detail.entry.headword === "item2")
+              .snapshot.detail.senses[0].gloss_zh_tw,
+          };
+        });
+        assert.equal(decided.checked, true);
+        assert.equal(decided.keep.pending_count, 0);
+        assert.equal(decided.gloss, "中文2");
+        await page.goto(url);
         // Filters can even hide every row; global publication is independent of them.
         await page
           .getByLabel("搜尋單字或構詞", { exact: true })
@@ -353,7 +397,8 @@ test(
           .getByRole("button", { name: "確認刪除", exact: true })
           .click();
         await page.waitForURL(url + "/dictionary/admin?deleted=1");
-        await page.getByRole("link", { name: /item2/ }).waitFor();
+        await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item2");
+        await page.getByRole("link", { name: /\bitem2\b/ }).waitFor();
         assert.equal(
           await page.getByRole("link", { name: /\bitem1\b/ }).count(),
           0,
@@ -379,6 +424,7 @@ test(
         viewport: { width: 390, height: 844 },
       });
       const mobilePage = await mobileContext.newPage();
+      activePage = mobilePage;
       mobilePage.on("pageerror", (e) => errors.push(e.message));
       await mobilePage.goto(url + "/?embedded");
       await mobilePage.getByRole("button", { name: "匯出資料", exact: true }).click();
@@ -402,12 +448,18 @@ test(
       const mobileImport = mobilePage.getByRole("dialog", { name: "匯入資料", exact: true });
       await mobileImport.waitFor();
       await mobileImport.getByLabel("匯入檔案", { exact: true }).waitFor();
+      await mobileImport.getByRole("button", { name: "分析", exact: true }).waitFor();
       assert.equal(
         await mobilePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         true,
       );
       await mobileContext.close();
       assert.deepEqual(errors, []);
+    } catch (error) {
+      if (activePage && !activePage.isClosed()) {
+        console.error("DICTIONARY_EXCHANGE_SCREEN", (await activePage.locator("body").innerText()).slice(0, 4000));
+      }
+      throw error;
     } finally {
       await browser.close();
       await new Promise((r) => server.close(r));

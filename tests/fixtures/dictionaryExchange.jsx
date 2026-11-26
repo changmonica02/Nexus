@@ -3,6 +3,7 @@ import catalogFixture from './catalogFixture.cjs';
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { DictionaryWorkspace } from "../../src/features/dictionary/DictionaryAdmin";
+import { PersistentReviewPanel } from "../../src/features/dictionary/PersistentImportReview";
 import ConfirmDialogHost from "../../src/components/ConfirmDialog";
 import { LanguageProvider } from "../../src/lib/LanguageContext";
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
@@ -218,8 +219,8 @@ window.dictionaryClient = {
           id: crypto.randomUUID(),
           proposal_key: key,
           entry_id: item.draft.entry_id,
-          source,
-          item,
+          source: structuredClone(source),
+          item: structuredClone(item),
           revision: 1,
           pending_count: pendingCount(item),
           updated_at: new Date().toISOString(),
@@ -244,7 +245,7 @@ window.dictionaryClient = {
         return failure("Import review revision conflict; reload");
       }
       if (name === "save_dictionary_import_review") {
-        row.item = args.review_item;
+        row.item = structuredClone(args.review_item);
       } else {
         const issue = row.item.issues.find(({ id }) => id === args.issue_id);
         if (!issue || issue.applied || !issue.allowedActions.includes(args.decision)) {
@@ -388,10 +389,10 @@ createRoot(document.getElementById("root")).render(
     }
   >
     <main className="mx-auto max-w-5xl p-4">
-      <DictionaryWorkspace
+      {location.pathname === "/dictionary/admin/reviews" ? <PersistentReviewPanel /> : <DictionaryWorkspace
         embedded={new URLSearchParams(location.search).has("embedded")}
         entryId={new URLSearchParams(location.search).get("entry") ?? undefined}
-      />
+      />}
       <ConfirmDialogHost />
     </main>
   </LanguageProvider>,
