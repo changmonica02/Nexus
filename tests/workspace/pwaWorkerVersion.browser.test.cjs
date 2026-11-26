@@ -59,9 +59,9 @@ test('PWA registration handles online, load and unmount during asynchronous setu
   const ready = new Promise(resolve => { finishReady = resolve; });
   const registration = { active: worker, update: async () => { updates++; } };
   const serviceWorker = { register: () => { registrations++; return registrationPending; }, ready };
-  const module = { exports: {} };
+  const fixtureModule = { exports: {} };
   vm.runInNewContext(code, {
-   module,
+   module: fixtureModule,
    require: name => {
     assert.equal(name, 'react');
     return { useEffect: effect => { cleanup = effect(); } };
@@ -71,7 +71,7 @@ test('PWA registration handles online, load and unmount during asynchronous setu
    navigator: { serviceWorker, onLine: true },
    performance: { getEntriesByType: () => [] },
   });
-  module.exports.default();
+  fixtureModule.exports.default();
   window.dispatchEvent(new Event('online'));
   window.dispatchEvent(new Event('load'));
   assert.equal(registrations, 1);
