@@ -26,7 +26,10 @@ const button =
 const input =
   "min-h-11 w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] px-2 py-2";
 type Editor = { type: LifeStore; row: LifeRecord } | { type: "field"; row: LifeField; listRevision: number };
-export default function LifeLists({ storage }: { storage: StorageAdapter }) {
+function newListEditor(owner: string | null): Editor {
+  return { type: "life_lists", row: { ...lifeBase(owner, ""), fields: [], schema_version: 1 } };
+}
+export default function LifeLists({ storage, startCreating = false }: { storage: StorageAdapter; startCreating?: boolean }) {
   const { language } = useLanguage(),
     en = language === "en",
     label = (zh: string, english: string) => (en ? english : zh);
@@ -34,7 +37,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
     [data, setData] = useState(emptyLife),
     [listId, setListId] = useState<string | null>(null),
     [error, setError] = useState(""),
-    [editor, setEditor] = useState<Editor | null>(null),
+    [editor, setEditor] = useState<Editor | null>(() => startCreating ? newListEditor(storage.getWorkspaceOwner?.() ?? null) : null),
     [busy, setBusy] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [categoryId, setCategoryId] = useState("*");
@@ -97,11 +100,14 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
       await run(() => repo.remove(type, row));
   };
   const newRecord = (type: LifeStore) => {
-    const base = lifeBase(storage.getWorkspaceOwner?.() ?? null, "");
+    const owner = storage.getWorkspaceOwner?.() ?? null;
+    if (type === "life_lists") {
+      setEditor(newListEditor(owner));
+      return;
+    }
+    const base = lifeBase(owner, "");
     setEditor(
-      type === "life_lists"
-        ? { type, row: { ...base, fields: [], schema_version: 1 } }
-        : type === "life_categories"
+      type === "life_categories"
           ? {
               type,
               row: {

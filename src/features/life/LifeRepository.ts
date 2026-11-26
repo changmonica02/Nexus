@@ -1,12 +1,29 @@
 import type { IDBPDatabase } from "idb";
 import { WorkspacePersistence } from "../../infrastructure/sync/workspacePersistence";
 import { LIFE_STORES, emptyLife, type LifeData, type LifeRecord, type LifeStore } from "./lists";
+import { dashboardSettingsKey, isDashboardConfig, type LifeDashboardConfig } from "./dashboard/model";
+
 /** Uses the workspace transaction/outbox, not a separate sync queue. */
 export class LifeRepository {
   constructor(
     private db: IDBPDatabase,
     private owner: () => string | null,
   ) {}
+  async readDashboard(): Promise<LifeDashboardConfig | undefined> {
+    const owner = this.owner();
+    const record = await this.db.get("settings", dashboardSettingsKey(owner));
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    if (!record) return;
+    if (!isDashboardConfig(record.value)) throw Error("儀表板設定格式無效");
+    return record.value;
+  }
+
+  async saveDashboard(config: LifeDashboardConfig) {
+    const owner = this.owner();
+    if (!isDashboardConfig(config)) throw Error("儀表板設定格式無效");
+    await this.db.put("settings", { key: dashboardSettingsKey(owner), value: config, owner_id: owner });
+  }
+
   async read(): Promise<LifeData> {
     const owner = this.owner(),
       tx = this.db.transaction([...LIFE_STORES], "readonly"),

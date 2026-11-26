@@ -1,3 +1,4 @@
+import { dashboardSettingsKey, isDashboardConfig, isDashboardSettingsKey } from "../../features/life/dashboard/model";
 import {mergeCardVisibility,validateCardVisibility} from '../../features/study/cardVisibility';
 import {LifeRepository} from '../../features/life/LifeRepository';
 import {LIFE_STORES,validateLife,type LifeRecord,type LifeData} from '../../features/life/lists';
@@ -452,7 +453,7 @@ export class IndexedDBAdapter implements StorageAdapter {
       device_id: this.deviceId,
       pages: allPages.filter(row => (row.workspace_owner_id??null)===owner).map(withoutRetiredStudyItems),
       attachments: attachmentEntries,
-      settings: allSettingsRecords,
+      settings: allSettingsRecords.filter(setting => !isDashboardSettingsKey(setting.key) || setting.key === dashboardSettingsKey(owner)),
       study,
     };
   }
@@ -623,7 +624,9 @@ export class IndexedDBAdapter implements StorageAdapter {
     await tx.objectStore("pages").clear();
     await tx.objectStore("attachments").clear();
     await tx.objectStore("binaries").clear();
+    const savedDashboards = (await tx.objectStore("settings").getAll()).filter(row => isDashboardSettingsKey(row.key));
     await tx.objectStore("settings").clear();
+    for (const setting of savedDashboards) await tx.objectStore("settings").put(setting);
     for (const page of backup.pages) if (!await isHardDeleted("pages", page)) await tx.objectStore("pages").put(page);
     for (const entry of backup.attachments) {
       if (await isHardDeleted("attachments", entry.attachment)) continue;
@@ -636,7 +639,15 @@ export class IndexedDBAdapter implements StorageAdapter {
     for (const page of preservedPages) await tx.objectStore("pages").put(page);
     for (const attachment of preservedAttachments) await tx.objectStore("attachments").put(attachment);
     for (const binary of preservedBinaries) await tx.objectStore("binaries").put(binary);
-    for (const setting of backup.settings) await tx.objectStore("settings").put(setting);
+    for (const setting of backup.settings) {
+      if (isDashboardSettingsKey(setting.key)) {
+        if (setting.key === dashboardSettingsKey(owner) && isDashboardConfig(setting.value)) {
+          await tx.objectStore("settings").put({ key: setting.key, value: setting.value, owner_id: owner });
+        }
+      } else {
+        await tx.objectStore("settings").put(setting);
+      }
+    }
     for(const draft of backup.world_map_drafts??[]){
       const id=JSON.stringify(["world-map-draft",owner,draft.world_id,draft.map_id]);
       // Existing local recovery work wins; the imported file retains any alternative draft.
