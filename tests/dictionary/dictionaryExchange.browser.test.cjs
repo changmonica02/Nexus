@@ -243,7 +243,12 @@ test(
         await page.getByText("保留的本機匯入封存", { exact: true }).click();
         assert.equal(await page.getByLabel("保留的本機匯入封存", { exact: true })
           .locator("option").filter({ hasText: "exchange.json" }).count(), 1);
-        await page.getByRole("button", { name: "關閉", exact: true }).click();
+        const importDialog = page.getByRole("dialog", { name: "匯入資料", exact: true });
+        await importDialog.getByRole("button", { name: "關閉", exact: true }).click();
+        const discardInput = page.getByRole("dialog", { name: "確認操作", exact: true });
+        await discardInput.getByText("有尚未匯入的內容，確定關閉？", { exact: true }).waitFor();
+        await discardInput.getByRole("button", { name: "確認", exact: true }).click();
+        await importDialog.waitFor({ state: "detached" });
         const modified = structuredClone(doc.records.find((r) => r.snapshot.detail.entry.headword === "item2"));
         modified.snapshot.detail.senses[0].gloss_zh_tw = "待審核的新義項";
         await page.getByRole("button", { name: "匯入資料", exact: true }).click();

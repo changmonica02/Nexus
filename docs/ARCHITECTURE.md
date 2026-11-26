@@ -122,7 +122,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 - `natural-planet.mjs` v3 之後沿用 `natural-relief.mjs` 的圖上流域侵蝕／沉積與單調高程標定，再推導板塊及海底。這些高度階段不改已選定的陸海符號。板塊連續阻力、非等寬陸棚、深海紋理與洋脊／海溝／海山延用 #203 的獨立實作。
 - `geography-diagnostics.mjs` 直接計算權威 Grid 的陸地連通塊、最大洋盆、12 經度 × 4 等 z 區的 48 個等面積密度與小碎片比例。`render-command-geography.mjs` 可用封存來源路徑重跑原始、上一版及候選版；比較海陸遮罩，不用高度色階代表輪廓。
 - 生成確認流程、固定 36,002 格、`nexus-global-map@1`、uint32、CAS、使用者隔離與附件保存契約維持。舊高度快照不重新生成；新演算法版本的同種子新預覽可改變，板塊覆蓋層仍由現行分析器重算。
-- Azgaar MIT 與原腳本聲明保留；新增 Delaunator（ISC）／robust-predicates（Unlicense）依賴；Worker banner 保留三份完整第第三方授權聲明。planet-simulation 僅參考 coreSpread、群組、群間通道、島群與洋盆分配概念，未複製程式。
+- Azgaar MIT 與原腳本聲明保留；新增 Delaunator（ISC）／robust-predicates（Unlicense）依賴；Worker banner 保留三份完整第三方授權聲明。planet-simulation 僅參考 coreSpread、群組、群間通道、島群與洋盆分配概念，未複製程式。
 - 本輪驗證含小數指令次數、Uint8 截斷、不規則鄰接、原指令順序、群組配置與密度、18 組種子×類型、快照一致性及原有地圖回歸。30 項指令／自然地形、19 項既有地形、52 項地圖測試通過；完整 build、TypeScript 及相關 ESLint 通過。六組設定 × 三版本的二值遮罩與等面積密度已離線檢視，仍待使用者品質驗收。36,002 格仍會有格網海岸折線；未提供完整水力／河湖／氣候或板塊時間演化。
 - 尚未部署、未合併 main；桌面／手機操作仍受既有 Chromium socket 環境限制，離線遮罩／密度圖不是瀏覽器驗收。
 
