@@ -4,7 +4,7 @@ import { emptyLife } from "../features/life/lists";
 import { listDateReminders } from "../features/life/reminderModel";
 import LifeReminders from "../features/life/LifeReminders";
 import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
-import {shared,type HealthRecord} from "../features/life/health/model";
+import {exerciseAutomationSources,shared,type HealthRecord} from "../features/life/health/model";
 import {healthEvents} from "../features/life/health/summary";
 import FinanceWorkspace,{type FinanceTab} from '../features/life/finance/FinanceWorkspace';
 import {financeCalendarEvents} from '../features/life/finance/financeCalendar';
@@ -124,7 +124,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const milestones=useMemo(()=>events.filter(event=>!!event.milestone),[events]);
  const healthHidden=dashboard.config.hiddenModules.includes('health');
  const health=useMemo(()=>healthRows.filter(row=>row.workspace_owner_id===owner),[healthRows,owner]);
- const healthSettings=health.find(row=>row.kind==='privacy')?.data;
+ const healthSettings=useMemo(()=>health.find(row=>row.kind==='privacy')?.data,[health]);
  const visibleHealth=healthHidden?[]:shared(health,healthSettings??{});
  const financeHidden=dashboard.config.hiddenModules.includes('finance');
  const view=state.calendarView??'month';
@@ -246,7 +246,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
       readRuns={readAutomationRuns} ruleBudgets={budgets}
-      ruleExercises={visibleHealth.flatMap(row=>row.kind==="exercise"&&row.deleted_at==null&&typeof row.data.date==="string"?[{id:row.id,day:row.data.date}]:[])} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
+      ruleExercises={exerciseAutomationSources(visibleHealth)} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
       ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title}))}
       ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,day:localDateInput(new Date(item.updated_at))}))}
       runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}

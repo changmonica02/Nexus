@@ -84,3 +84,9 @@ export function shared(rows:HealthRecord[],privacy:Fields){
 }
 export const allowed=(privacy:Fields,group:Group)=>privacy["off_"+group]!==true;
 export const metricGroup=(key:string):Group=>Object.hasOwn(body,key)?"body":key==="sleep"?"sleep":key==="minutes"||key==="sessions"?"exercise":key==="custom"?"goal":"diet";
+
+export function exerciseAutomationSources(rows:readonly HealthRecord[]) {
+ return rows.flatMap(row=>row.kind==="exercise"&&row.deleted_at==null&&typeof row.data.date==="string"
+   ? [{id:row.id,day:row.data.date}]
+   : []);
+}

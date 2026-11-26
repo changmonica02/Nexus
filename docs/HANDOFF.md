@@ -169,4 +169,5 @@
 - 正式部署前，先建立可還原的資料庫備份或時間點，保留 migration ledger 與目前正式應用程式版本，在隔離環境實際還原後演練升級並保存既有資料筆數及關鍵資料核對結果。DB migration 與隔離驗證通過後才部署應用程式。應用程式有問題時先復原應用程式版本，並先確認相容性。若需要回復資料庫，停止寫入並記錄部署後新增資料，再由授權人員依隔離演練結果選擇修正 migration 或從備份還原，避免覆寫部署期間的有效資料。
 - 正式部署後，使用測試帳號確認登入、兩台裝置離線新增及重新連線、資料隔離、敏感資料顯示設定、刪除後不復活及字典管理員發布與讀者可見性。第九批尚未執行正式操作。
 - `769ab5e` 的正式建置、獨立 TypeScript 及版控 JavaScript／TypeScript 檔案 ESLint 通過。ESLint 為 0 錯誤、803 項警告，含儲存庫忽略規則所列檔案的提示。生活單元與整合測試 38 項通過，涵蓋隔離 PGlite 的 Life SQL、RLS、兩裝置 IndexedDB、衝突、備份及還原。這些測試使用工作區測試結構，尚未完成正式資料快照的全鏈升級及真實 Supabase 驗收。
-- 系統 Chromium 啟動器缺少其執行檔，改以獨立 Chromium 執行。生活總覽、財務、健康、自訂清單與敏感健康等瀏覽器流程已取得通過結果。WebKit 安裝來源在本機遭網路環境封鎖，尚無可引用的 GitHub Actions 執行結果。[CI Full 工作流程](https://github.com/changmonica02/Nexus/actions/workflows/ci-full.yml)。
+- 系統 Chromium 啟動器缺少其執行檔，改以獨立 Chromium 執行。生活總覽、財務、健康、自訂清單與敏感健康等瀏覽器流程已取得通過結果。WebKit 下載後仍缺少 GTK 4、Graphene 等主機函式庫，尚無可引用的 GitHub Actions 執行結果。[CI Full 工作流程](https://github.com/changmonica02/Nexus/actions/workflows/ci-full.yml)。
+- `aeb9865` 的生活單元與整合測試為 39／39。Chromium 先取得 4／6，清單與敏感健康兩項在瀏覽器程序崩潰後循序重跑為 2／2。運動變更後曾出現 React 編譯器快取檢查錯誤，後續提交將健康隱私設定的查詢綁定於健康資料變更，受影響檔案的 ESLint 已通過。
