@@ -4,10 +4,11 @@ import type { LifeList } from "../lists";
 
 import { control, surface } from "./styles";
 
-export default function DashboardEditor({ config, activeId, lists, hasLists, busy, onSave, onCancel }: {
+export default function DashboardEditor({ config, activeId, lists, eventSources, hasLists, busy, onSave, onCancel }: {
   config: LifeDashboardConfig;
   activeId: string;
   lists: LifeList[];
+  eventSources: Record<"schedule" | "milestones" | "habits", { id: string; title: string }[]>;
   hasLists: boolean;
   busy: boolean;
   onSave: (config: LifeDashboardConfig, activeId: string) => void;
@@ -19,7 +20,7 @@ export default function DashboardEditor({ config, activeId, lists, hasLists, bus
   const [template, setTemplate] = useState<"daily" | "study" | "empty">("daily");
   const board = draft.boards.find(board => board.id === id) ?? draft.boards[0];
   const offered = (Object.keys(cardRegistry) as CardType[]).filter(type =>
-    (type !== "lists" || hasLists) && !draft.hiddenModules.includes(cardRegistry[type].module));
+    (!["lists", "schedule", "milestones", "habits"].includes(type) || hasLists) && !draft.hiddenModules.includes(cardRegistry[type].module));
   const [type, setType] = useState<CardType>("calendar");
   const newType = offered.includes(type) ? type : offered[0];
   const update = (patch: Partial<typeof board>) => setDraft(current => ({
@@ -67,7 +68,7 @@ export default function DashboardEditor({ config, activeId, lists, hasLists, bus
       </div>
       <fieldset className="flex flex-wrap gap-x-5 gap-y-1">
         <legend className="font-semibold">啟用模組</legend>
-        {lifeModuleIds.filter(module => lifeModules[module].optional && (module !== "lists" || hasLists)).map(module =>
+        {lifeModuleIds.filter(module => lifeModules[module].optional && (!["lists", "schedule", "milestones", "habits"].includes(module) || hasLists)).map(module =>
           <label key={module} className="flex min-h-11 items-center gap-2">
             <input type="checkbox" checked={!draft.hiddenModules.includes(module)} onChange={event => setDraft({
               ...draft, hiddenModules: event.target.checked ? draft.hiddenModules.filter(item => item !== module) : [...draft.hiddenModules, module],
@@ -103,19 +104,27 @@ export default function DashboardEditor({ config, activeId, lists, hasLists, bus
             <label className="grid gap-1">尺寸<select className={control} value={card.size} onChange={event => patchCard(card.id, { size: event.target.value as Card["size"] })}>
               {Object.entries(sizes).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select></label>
-            <label className="grid gap-1">顯示內容<select className={control} value={card.content} onChange={event => patchCard(card.id, { content: event.target.value as Card["content"] })}>
+            {card.type !== "timer" && <label className="grid gap-1">顯示內容<select className={control} value={card.content} onChange={event => patchCard(card.id, { content: event.target.value as Card["content"] })}>
               <option value="summary">僅顯示統計</option><option value="items">統計與項目</option>
-            </select></label>
-            <label className="grid gap-1">統計期間<select className={control} value={card.period} onChange={event => patchCard(card.id, { period: event.target.value as Card["period"] })}>
+            </select></label>}
+            {card.type !== "timer" && <label className="grid gap-1">統計期間<select className={control} value={card.period} onChange={event => patchCard(card.id, { period: event.target.value as Card["period"] })}>
               {Object.entries(periods).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-            </select></label>
+            </select></label>}
             {card.type === "lists" ? <label className="grid gap-1">資料來源<select className={control} value={card.listId} onChange={event => patchCard(card.id, { listId: event.target.value })}>
               <option value="">所有清單</option>
               {!!card.listId && !lists.some(list => list.id === card.listId) && <option value={card.listId}>原清單無法使用</option>}
               {lists.map(list => <option key={list.id} value={list.id}>{list.title}</option>)}
-            </select></label> : <label className="grid gap-1">完成狀態<select className={control} value={card.status} onChange={event => patchCard(card.id, { status: event.target.value as Card["status"] })}>
+            </select></label> : card.type !== "schedule" && card.type !== "milestones" && card.type !== "habits" && card.type !== "timer" && <label className="grid gap-1">完成狀態<select className={control} value={card.status} onChange={event => patchCard(card.id, { status: event.target.value as Card["status"] })}>
               {Object.entries(statuses).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select></label>}
+            {(card.type === "schedule" || card.type === "milestones" || card.type === "habits") && <label className="grid gap-1">
+              {card.type === "schedule" ? "行程分類" : "資料來源"}<select className={control} value={card.listId}
+                onChange={event => patchCard(card.id, { listId: event.target.value })}>
+                <option value="">全部</option>
+                {card.listId && !eventSources[card.type].some(item => item.id === card.listId) && <option value={card.listId}>原來源無法使用</option>}
+                {eventSources[card.type].map(item => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </select>
+            </label>}
             <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={card.hidden}
               onChange={event => patchCard(card.id, { hidden: event.target.checked })}/>隱藏卡片</label>
           </div>

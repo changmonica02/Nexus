@@ -102,6 +102,83 @@ test("life overview edits, persists and restores real-data cards across viewport
     await page.getByRole("checkbox", { name: "任務", exact: true }).check();
     await save();
     await first.getByRole("heading", { name: "接下來的行程" }).waitFor();
+    const selectTab = name => page.getByRole("tab", { name, exact: true }).click();
+    await selectTab("行程");
+    await page.getByRole("button", { name: "新增行程", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "新增行程" });
+    await dialog.getByLabel("名稱").fill("課程討論");
+    await dialog.getByLabel("全天").check();
+    await dialog.getByLabel("分類").fill("學業");
+    await dialog.getByLabel("備註").fill("攜帶報告");
+    await dialog.getByRole("button", { name: "儲存行程" }).click();
+    await page.getByRole("button", { name: /課程討論/ }).click();
+    dialog = page.getByRole("dialog", { name: "編輯行程" });
+    assert.equal(await dialog.getByLabel("備註").inputValue(), "攜帶報告");
+    await dialog.getByLabel("名稱").fill("課程討論會");
+    await dialog.getByRole("button", { name: "儲存行程" }).click();
+
+    await selectTab("重要日期");
+    await page.getByRole("button", { name: "新增重要日期" }).click();
+    dialog = page.getByRole("dialog", { name: "重要日期編輯" });
+    await dialog.getByLabel("名稱").fill("報告日");
+    await dialog.getByLabel("每年重複").check();
+    await dialog.getByRole("button", { name: "儲存重要日期" }).click();
+    await page.getByRole("button", { name: /報告日.*就是今天/ }).waitFor();
+
+    await selectTab("習慣");
+    await page.getByRole("button", { name: "新增習慣", exact: true }).click();
+    await page.getByLabel("名稱", { exact: true }).fill("每日閱讀");
+    await page.getByRole("button", { name: "儲存習慣" }).click();
+    await page.getByRole("button", { name: "標記完成", exact: true }).click();
+    await page.getByText(/連續 1 天/).waitFor();
+    await selectTab("計時工具");
+    await page.getByRole("button", { name: "碼錶", exact: true }).click();
+    await page.getByRole("button", { name: "開始", exact: true }).click();
+    await page.getByRole("button", { name: "暫停", exact: true }).click();
+
+    const calendarTab = page.getByRole("tab", { name: "日曆", exact: true }).count().then(n => n > 0 ? "日曆" : "月曆");
+    await selectTab(await calendarTab);
+    const calendarPanel = page.locator("#life-content");
+    await calendarPanel.getByRole("button", { name: /課程討論會/ }).waitFor();
+    await calendarPanel.getByRole("button", { name: /報告日/ }).waitFor();
+    await calendarPanel.getByRole("button", { name: /習慣.*每日閱讀/ }).waitFor();
+    await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).uncheck();
+    await calendarPanel.getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
+    await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).check();
+
+    if (process.env.LIFE_SCREENSHOTS) {
+      const output = process.env.LIFE_SCREENSHOTS;
+      fs.mkdirSync(output, { recursive: true });
+      await selectTab("總覽");
+      await edit();
+      for (const [type, title] of [["schedule", "近期行程"], ["milestones", "重要日期"], ["habits", "習慣養成"]]) {
+        await page.getByLabel("卡片類型").selectOption(type);
+        await page.getByRole("button", { name: "新增卡片", exact: true }).click();
+        await cards.last().getByLabel("卡片標題").fill(title);
+      }
+      await save();
+      await page.getByRole("heading", { name: "近期行程" }).waitFor();
+      for (const [name, width, height, dark] of [
+        ["Nexus-Life-desktop.png", 1440, 1100, false],
+        ["Nexus-Life-tablet.png", 820, 1180, true],
+        ["Nexus-Life-mobile.png", 390, 1050, false],
+      ]) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark);
+        await page.locator("#life-content").evaluate(node => { node.scrollTop = 0; });
+        await page.screenshot({ path: path.join(output, name), animations: "disabled" });
+      }
+      await selectTab(await calendarTab);
+      await page.setViewportSize({ width: 1280, height: 960 });
+      await page.locator("#life-content").evaluate(node => { node.scrollTop = 0; });
+        await page.screenshot({ path: path.join(output, "Nexus-Life-calendar.png"), animations: "disabled" });
+    }
+    await selectTab("行程");
+    await page.getByRole("button", { name: /課程討論會/ }).click();
+    await page.getByRole("dialog", { name: "編輯行程" }).getByRole("button", { name: "刪除行程" }).click();
+    await page.getByRole("dialog", { name: "刪除行程" }).getByRole("button", { name: "確認", exact: true }).click();
+    await page.getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
+    await selectTab("總覽");
     await page.evaluate(() => window.switchLifeOwner());
     await page.getByRole("heading", { name: "月曆事項" }).waitFor();
     assert.equal(await page.getByLabel("使用中的儀表板").locator("option").count(), 1);

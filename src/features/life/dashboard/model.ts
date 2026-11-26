@@ -3,7 +3,11 @@ import type { Page } from "../../../lib/types";
 
 export const lifeModules = {
   calendar: { group: "時間管理", label: "日曆", optional: true },
+  schedule: { group: "時間管理", label: "行程", optional: true },
+  milestones: { group: "時間管理", label: "重要日期", optional: true },
+  timer: { group: "時間管理", label: "計時工具", optional: true },
   tasks: { group: "任務管理", label: "任務", optional: true },
+  habits: { group: "任務管理", label: "習慣", optional: true },
   lists: { group: "生活紀錄", label: "自訂清單", optional: true },
 } as const;
 
@@ -12,7 +16,11 @@ export const lifeModuleIds = Object.keys(lifeModules) as LifeModule[];
 
 export const cardRegistry = {
   calendar: { module: "calendar", title: "月曆事項", period: "day" },
+  milestones: { module: "milestones", title: "重要日期", period: "all" },
+  schedule: { module: "schedule", title: "行程", period: "week" },
+  timer: { module: "timer", title: "計時工具", period: "all" },
   tasks: { module: "tasks", title: "待辦任務", period: "all" },
+  habits: { module: "habits", title: "習慣", period: "day" },
   lists: { module: "lists", title: "自訂清單", period: "all" },
 } as const satisfies Record<string, { module: LifeModule; title: string; period: string }>;
 
@@ -83,6 +91,17 @@ export function isDashboardConfig(value: unknown): value is LifeDashboardConfig 
       && Array.isArray(board.cards) && board.cards.every(isCard)
       && new Set(board.cards.map(card => card.id)).size === board.cards.length)
     && value.boards.some(board => board.id === value.defaultId);
+}
+
+export function sameBoard(a: Board, b: Board) {
+  return a.id === b.id && a.name === b.name && a.cards.length === b.cards.length
+    && a.cards.every((card, index) => Object.entries(card).every(([key, value]) =>
+      b.cards[index][key as keyof Card] === value));
+}
+
+export function sameConfig(a: LifeDashboardConfig, b: LifeDashboardConfig) {
+  return a.defaultId === b.defaultId && a.hiddenModules.join() === b.hiddenModules.join()
+    && a.boards.length === b.boards.length && a.boards.every((board, index) => sameBoard(board, b.boards[index]));
 }
 
 export function dateMatches(time: number | null | undefined, period: Card["period"], anchor: Date) {

@@ -6,6 +6,8 @@ const test = require("node:test"),
 const { PGlite } = require("@electric-sql/pglite"),
   { openDB, deleteDB } = require("idb");
 const { IndexedDBAdapter } = require("../../src/infrastructure/storage/IndexedDBAdapter.ts");
+const { LIFE_SYNC_STORES } = require("../../src/features/life/syncRecords.ts");
+const { initialConfig } = require("../../src/features/life/dashboard/model.ts");
 const { LIFE_STORES, lifeBase } = require("../../src/features/life/lists.ts");
 const { pullWorkspace, flushWorkspace } = require("../../src/infrastructure/sync/workspaceSync.ts");
 const owner = "11111111-1111-4111-8111-111111111111",
@@ -21,6 +23,7 @@ alter table pages enable row level security;alter table attachments enable row l
 create policy pages_read on pages for select using(owner_id=auth.uid());create policy attachments_read on attachments for select using(owner_id=auth.uid());create policy binaries_read on binaries for select using(owner_id=auth.uid());grant select on pages,attachments,binaries to authenticated;`);
   await pg.exec(fs.readFileSync("supabase/migrations/20261008_workspace_delete_protection.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/" + migration, "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126140000_life_time_foundation.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -35,6 +38,7 @@ async function device() {
         "workspace_outbox",
         "workspace_sync_meta",
         ...LIFE_STORES,
+        ...LIFE_SYNC_STORES,
         "study_cards",
         "study_states",
         "study_events",
@@ -89,8 +93,8 @@ function client(pg) {
             return q;
           },
           then(resolve, reject) {
-            pg.query(`select * from "${table}" where ${conditions.join(" and ")} order by id`, args).then(
-              (r) => resolve({ data: r.rows }),
+            pg.query(`select to_jsonb(row_alias) as record from "${table}" row_alias where ${conditions.join(" and ")} order by id`, args).then(
+              (r) => resolve({ data: r.rows.map(row => row.record) }),
               reject,
             );
           },
@@ -373,4 +377,73 @@ test("backup restores attachment bytes before list references; batch delete is a
     }
     await pg.close();
   }
+});
+
+
+test("mixed life sync preserves legacy configuration, revision conflicts, scheduled events and RLS", async () => {
+  const pg = await setup(), a = await device(), b = await device();
+  try {
+    const server = client(pg), localA = a.getWorkspacePersistence(), localB = b.getWorkspacePersistence();
+    const sync = async local => { await pullWorkspace(server, local, owner); await flushWorkspace(server, local, owner); };
+    const config = initialConfig();
+    config.boards[0].name = "我的生活";
+    config.hiddenModules = ["lists"];
+    await a.getLifeRepository().saveDashboard(config);
+    assert.equal((await localA.pending(owner)).length, 0);
+    await sync(localA);
+    await sync(localB);
+    assert.deepEqual(await b.getLifeRepository().readDashboard(), config);
+
+    const event = {
+      id: "appointment", workspace_owner_id: owner, revision: 0, created_at: 1, updated_at: 1, deleted_at: null,
+      title: "討論", starts_at: 100000, ends_at: 200000, all_day: false, category: "工作", notes: "會議室",
+    };
+    await a.getLifeRepository().saveSchedule(event);
+    assert.equal((await b.getLifeRepository().readSchedule()).length, 0);
+    await sync(localA);
+    await sync(localB);
+    const [remote] = await b.getLifeRepository().readSchedule();
+    assert.equal(remote.title, "討論");
+    assert.equal(remote.notes, "會議室");
+    await b.getLifeRepository().saveSchedule(remote, true);
+    await sync(localB);
+    await sync(localA);
+    assert.deepEqual(await a.getLifeRepository().readSchedule(), []);
+
+    const habit = {
+      id: "reading", workspace_owner_id: owner, revision: 0, created_at: 1, updated_at: 1, deleted_at: null,
+      title: "閱讀", cadence: "weekly", goal: 3, started_on: "2026-11-23", quantities: { "2026-11-24": 2 },
+    };
+    await a.getLifeRepository().saveHabit(habit);
+    await sync(localA);
+    await sync(localB);
+    const [reading] = await b.getLifeRepository().readHabits();
+    assert.deepEqual(reading.quantities, { "2026-11-24": 2 });
+    await b.getLifeRepository().saveHabit({ ...reading, quantities: { ...reading.quantities, "2026-11-25": 1 } });
+    await sync(localB);
+    await sync(localA);
+    assert.equal((await a.getLifeRepository().readHabits())[0].quantities["2026-11-25"], 1);
+
+    await a.getLifeRepository().saveDashboard({ ...config, hiddenModules: [], boards: [{ ...config.boards[0], name: "裝置 A" }] });
+    await b.getLifeRepository().saveDashboard({ ...config, hiddenModules: ["tasks"], boards: [{ ...config.boards[0], name: "裝置 B" }] });
+    await sync(localA);
+    await assert.rejects(sync(localB), /revision conflict/);
+    assert.equal(await b.getLifeRepository().dashboardConflict(), true);
+    assert.equal(await b.getLifeRepository().resolveDashboard(true), undefined);
+    await sync(localB);
+    await sync(localA);
+    const resolved = await a.getLifeRepository().readDashboard();
+    assert.deepEqual(resolved.hiddenModules, ["tasks"]);
+    assert.deepEqual(resolved.boards.map(board => board.name), ["裝置 B", "裝置 A（復原）"]);
+    const backup = await a.exportWorkspaceBackup();
+    assert.equal(backup.life_habits[0].title, "閱讀");
+    assert.deepEqual(backup.settings.find(item => item.key.includes("nexus-life-dashboard")).value, resolved);
+
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select * from life_dashboard_configs")).rows.length, 0);
+    assert.equal((await pg.query("select * from life_schedule_events")).rows.length, 0);
+    assert.equal((await pg.query("select * from life_habits")).rows.length, 0);
+    await assert.rejects(pg.query("delete from life_schedule_events"), /permission denied/);
+  } finally { await a.close(); await b.close(); await pg.close(); }
 });

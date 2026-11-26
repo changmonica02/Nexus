@@ -475,3 +475,5 @@ html, body { overscroll-behavior-y: none; }
 
 [data-life-overview] { --life-accent: #32674e; }
 .dark [data-life-overview] { --life-accent: #a5d2b9; }
+
+.dark [data-life-workspace] { color-scheme: dark; }

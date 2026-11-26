@@ -1,3 +1,4 @@
+import { LIFE_SYNC_STORES, validateLifeSyncRecord, type ScheduleEvent, type Habit } from "../../features/life/syncRecords";
 import { dashboardSettingsKey, isDashboardConfig, isDashboardSettingsKey } from "../../features/life/dashboard/model";
 import {mergeCardVisibility,validateCardVisibility} from '../../features/study/cardVisibility';
 import {LifeRepository} from '../../features/life/LifeRepository';
@@ -17,10 +18,10 @@ import type {
   WorkspaceBackup, WorkspaceBackupAttachmentEntry,
 } from "../../lib/types";
 import type { StorageAdapter } from "./StorageAdapter";
-import { WorkspacePersistence, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
+import { WorkspacePersistence, stageDashboard, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 const BACKUP_SCHEMA_VERSION = 4;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
@@ -86,7 +87,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     // This is intentionally a one-time, explicit migration: the user asked
     // for all current local data to belong to their account. Later anonymous
     // workspaces must not be silently claimed by whichever account signs in.
-    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES], "readwrite");
+    const tx = this.db.transaction(["pages", "attachments", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES], "readwrite");
     const pages = await tx.objectStore("pages").getAll();
     const attachments = await tx.objectStore("attachments").getAll();
     for (const page of pages) {
@@ -99,7 +100,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
       }
     }
-    for(const store of LIFE_STORES)for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
+    for(const store of [...LIFE_STORES,"life_schedule_events","life_habits"])for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
     // Only explicit, post-upgrade offline intents are claimed for upload. Old cached
     // rows without an outbox record never become inferred cloud creations.
     for (const batch of await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]) {
@@ -142,7 +143,7 @@ export class IndexedDBAdapter implements StorageAdapter {
     const opening = openDB(DB_NAME, DB_VERSION, {
       blocked(){rejectBlocked(new Error('本機資料升級被其他 Nexus 頁籤阻擋。請關閉其他 Nexus 頁籤後重新載入；尚未同步資料會保留，請勿清除網站資料。'));},
       upgrade(db, oldVersion, _newVersion, transaction) {
-        for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES]) {
+        for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
@@ -444,16 +445,24 @@ export class IndexedDBAdapter implements StorageAdapter {
         if(!entry?.binary_base64)throw Error("Map project is missing from this device; synchronize it before backup");
       }
     }
-    const life=await this.getLifeRepository().read();validateLife(life,owner,allAttachments);
+    const lifeRepo = this.getLifeRepository();
+    const [life, dashboard, schedule, habits] = await Promise.all([lifeRepo.read(), lifeRepo.readDashboard(), lifeRepo.readSchedule(), lifeRepo.readHabits()]);
+    validateLife(life,owner,allAttachments);
+    if (this.workspaceOwnerId !== owner) throw Error("Account changed during backup");
     return {
       life,
+      life_schedule_events: schedule,
+      life_habits: habits,
       world_map_drafts,
       schema_version: BACKUP_SCHEMA_VERSION,
       exported_at: snapshotTime,
       device_id: this.deviceId,
       pages: allPages.filter(row => (row.workspace_owner_id??null)===owner).map(withoutRetiredStudyItems),
       attachments: attachmentEntries,
-      settings: allSettingsRecords.filter(setting => !isDashboardSettingsKey(setting.key) || setting.key === dashboardSettingsKey(owner)),
+      settings: [
+        ...allSettingsRecords.filter(setting => !isDashboardSettingsKey(setting.key)),
+        ...(dashboard ? [{key: dashboardSettingsKey(owner), value: dashboard}] : []),
+      ],
       study,
     };
   }
@@ -471,6 +480,19 @@ export class IndexedDBAdapter implements StorageAdapter {
       ||[...(backup.study?.cards??[]),...(backup.study?.states??[]),...(backup.study?.events??[]),...(backup.study?.settings??[]),...(backup.study?.sessions??[]),...(backup.study?.recovery_events??[])].some(row=>(row.owner_id??null)!==owner))throw Error("Backup belongs to a different account; no data was changed");
     if(backup.schema_version>=4&&!backup.life)throw Error('新版備份缺少清單資料');
     if(backup.life)validateLife(backup.life,owner,backup.attachments.map(e=>e.attachment));
+    const timeStores = [
+      ["life_schedule_events", backup.life_schedule_events],
+      ["life_habits", backup.life_habits],
+    ] as const;
+    for (const [type, rows] of timeStores) {
+      if (rows !== undefined && !Array.isArray(rows)) throw Error("生活備份格式無效");
+      for (const row of rows ?? []) {
+        if (row.workspace_owner_id !== owner || typeof row.id !== "string" || !row.id || row.deleted_at !== null) {
+          throw Error("生活備份帳號或資料不符");
+        }
+        validateLifeSyncRecord(type, row);
+      }
+    }
     for(const page of backup.pages) validateWorldEntities(page);
     for(const page of backup.pages)for(const map of page.character_data?.world_maps??[]){
       if(map.world_id!==page.id)throw Error("Invalid world map membership in backup");
@@ -524,12 +546,26 @@ export class IndexedDBAdapter implements StorageAdapter {
       await syncStudy(this.getStudyRepository(),client,owner,()=>this.workspaceOwnerId===owner).catch(error=>{if(!(error instanceof StudyRecoveryNotice))throw error;});
       if(this.workspaceOwnerId!==owner)throw Error('Account changed during backup validation');
     }
-    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES], "readwrite", { durability: "strict" });
+    const tx = this.db.transaction(["pages", "attachments", "binaries", "settings", ...STUDY_STORES, ...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES], "readwrite", { durability: "strict" });
     try {
     // Import canonical list records in the SAME backup transaction. Existing data,
     // queued work and tombstones win over conflicting snapshots; no silent overwrite.
     const lifeRestore:import('../sync/workspacePersistence').WorkspaceOperation[]=[];
     const lifeDeletes:import('../sync/workspacePersistence').WorkspaceOperation[]=[];
+    for (const [type, rows] of timeStores) for (const record of rows ?? []) {
+      const store = tx.objectStore(type);
+      const current = await store.get(record.id) as ScheduleEvent | Habit | undefined;
+      if (current) {
+        if (current.workspace_owner_id !== owner) throw Error("生活備份帳號不符");
+        continue;
+      }
+      const meta = await tx.objectStore("workspace_sync_meta").get(JSON.stringify([owner,type,record.id]));
+      if (meta?.hard_deleted || meta?.revision) continue;
+      const row = { ...record, revision: 1 };
+      await store.put(row);
+      lifeRestore.push({ id: crypto.randomUUID(), entity_type: type, entity_id: row.id,
+        kind: "save", expected_revision: 0, value: row });
+    }
     if(backup.life){
       const needed=new Set(backup.life.life_items.filter(r=>r.deleted_at==null).flatMap(r=>r.attachment_ids));
       for(const entry of backup.attachments.filter(e=>needed.has(e.attachment.id))){
@@ -555,11 +591,11 @@ export class IndexedDBAdapter implements StorageAdapter {
           if(row.deleted_at!=null)lifeDeletes.push({id:crypto.randomUUID(),entity_type:store,entity_id:row.id,kind:'soft_delete',expected_revision:revision+1});
         }
       }
-      if(lifeRestore.length){
+    }
+    if(lifeRestore.length){
         const sequence=((await tx.objectStore('workspace_sync_meta').get('sequence'))?.value??0)+1;
         await tx.objectStore('workspace_sync_meta').put({id:'sequence',value:sequence});
         await tx.objectStore('workspace_outbox').put({id:crypto.randomUUID(),owner_id:owner,sequence,operations:[...lifeRestore,...lifeDeletes]});
-      }
     }
     // Never erase review history when importing an older or partial backup.
     if (backup.study) {
@@ -642,7 +678,11 @@ export class IndexedDBAdapter implements StorageAdapter {
     for (const setting of backup.settings) {
       if (isDashboardSettingsKey(setting.key)) {
         if (setting.key === dashboardSettingsKey(owner) && isDashboardConfig(setting.value)) {
-          await tx.objectStore("settings").put({ key: setting.key, value: setting.value, owner_id: owner });
+          if (owner && await tx.objectStore("life_dashboard_configs").get(setting.key)) {
+            await stageDashboard(tx, owner, setting.value);
+          } else {
+            await tx.objectStore("settings").put({ key: setting.key, value: setting.value, owner_id: owner });
+          }
         }
       } else {
         await tx.objectStore("settings").put(setting);
