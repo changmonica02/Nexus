@@ -24,6 +24,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261008_workspace_delete_protection.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/" + migration, "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126140000_life_time_foundation.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126150000_life_finance_periods.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -446,4 +447,41 @@ test("mixed life sync preserves legacy configuration, revision conflicts, schedu
     assert.equal((await pg.query("select * from life_habits")).rows.length, 0);
     await assert.rejects(pg.query("delete from life_schedule_events"), /permission denied/);
   } finally { await a.close(); await b.close(); await pg.close(); }
+});
+
+test("finance records, timer history and subscription receipts sync with two device caches",async()=>{
+  const {financeRow,financeRows}=require("../../src/features/life/finance/model.ts");
+  const pg=await setup(),a=await device(),b=await device();
+  const server=client(pg);
+  const sync=async storage=>{
+    const local=storage.getWorkspacePersistence();
+    await pullWorkspace(server,local,owner);await flushWorkspace(server,local,owner);
+  };
+  try{
+    const source=a.getLifeRepository();
+    const common={title:"資料",notes:""};
+    const account=financeRow(owner,"account",{...common,type:"bank",currency:"TWD",opening:"30000",icon:"",color:"#000000",archived:false,
+      limit:"0",statementDay:1,paymentDay:5,due:""},"bank");
+    await source.saveFinance(account);
+    await source.saveFinance(financeRow(owner,"subscription",{...common,currency:"TWD",amount:"15000",cycle:"month",interval:1,anchorDay:31,
+      next:"2026-01-31",account:"bank",category:"訂閱",state:"active",trial:"",url:"",icon:""},"sub"));
+    const result={id:"timer-complete",ended_at:Date.now(),elapsed_ms:1000,mode:"stopwatch",task_id:null,study_session_id:null,
+      workspace_owner_id:owner,revision:0,created_at:1,updated_at:1,deleted_at:null};
+    await Promise.all([source.saveTimerResult(result),source.saveTimerResult(result)]);
+    await sync(a);await sync(b);
+    const target=b.getLifeRepository();
+    assert.equal((await target.readTimerHistory()).length,1);
+    assert.equal((await target.readFinance()).length,2);
+    const row=financeRows(await target.readFinance(),"subscription")[0];
+    await target.confirmSubscription(row,"2026-01-31");
+    await sync(b);await sync(a);
+    const rows=await source.readFinance();
+    assert.equal(financeRows(rows,"subscription")[0].payload.next,"2026-02-28");
+    assert.equal(financeRows(rows,"transaction")[0].payload.source,"sub|2026-01-31");
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select * from life_finance_records")).rows.length,0);
+    assert.equal((await pg.query("select * from life_timer_results")).rows.length,0);
+    await assert.rejects(pg.query("update life_finance_records set revision=1"),/permission denied/);
+  }finally{await a.close();await b.close();await pg.close();}
 });

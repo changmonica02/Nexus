@@ -1,7 +1,9 @@
+import type { FinanceRecord } from "../../features/life/finance/model";
+import { validateFinanceRelations } from "../../features/life/finance/ledger";
 import { nextTaskId, nextTaskOccurrence } from "../../features/life/taskRepeat";
 import { dashboardSettingsKey, isDashboardConfig, type LifeDashboardConfig } from "../../features/life/dashboard/model";
 import type { IDBPTransaction } from "idb";
-import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit } from "../../features/life/syncRecords";
+import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "../../features/life/syncRecords";
 import {LIFE_STORES,emptyLife,validateLife,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
@@ -16,7 +18,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export interface WorkspaceOperation {
   id: string;
@@ -135,7 +137,7 @@ export class WorkspacePersistence {
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
           if (type === "life_dashboard_configs" ? kind !== "save" : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit);
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult);
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
         if (LIFE_STORES.includes(type as LifeStore)) {
@@ -184,6 +186,11 @@ export class WorkspacePersistence {
       if(changes.some(c=>LIFE_STORES.includes(c.type as LifeStore)||c.type==='attachments'&&c.kind!=='save'&&c.kind!=='binary') && this.db.objectStoreNames.contains('life_lists')){
         const data=emptyLife();for(const s of LIFE_STORES)(data[s] as LifeRecord[])=(await tx.objectStore(s).getAll()).filter((r:LifeRecord)=>r.workspace_owner_id===owner);
         validateLife(data,owner,await tx.objectStore('attachments').getAll());
+      }
+      if (changes.some(change => change.type === "life_finance_records")) {
+        const finance = (await tx.objectStore("life_finance_records").getAll() as FinanceRecord[])
+          .filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
+        validateFinanceRelations(finance);
       }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;

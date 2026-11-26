@@ -22,6 +22,6 @@ test('life month grid indexes source references by local day without copying tas
  const task={id:'task',kind:'todo',title:'月底截止',due_date:date.getTime(),completed:true};
  const events=taskCalendarEvents([task,{...task,id:'deleted',deleted_at:1},{...task,id:'undated',due_date:null}]);
  assert.deepEqual(eventsByLocalDay(events).get(localDateKey(date)),[
-  {source:'tasks',sourceId:task.id,date:date.getTime(),title:task.title,completed:true},
+  {source:'tasks',sourceId:task.id,date:date.getTime(),startsAt:date.getTime(),title:task.title,completed:true},
  ]);
 });

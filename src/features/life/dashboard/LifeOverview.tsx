@@ -1,3 +1,7 @@
+import FinanceCard from "../finance/FinanceCard";
+import { financeCardSection, isFinanceCard } from "../finance/cardCatalog";
+import { financeRows, type FinanceRecord } from "../finance/model";
+import { Wallet } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ListChecks, List, Settings2, Timer } from "lucide-react";
 import { useLanguage } from "../../../lib/LanguageContext";
@@ -15,11 +19,11 @@ import { control, surface } from "./styles";
 import type { useLifeDashboard } from "./useLifeDashboard";
 
 const DashboardEditor = lazy(() => import("./DashboardEditor"));
-const iconByModule = { calendar: CalendarDays, schedule: CalendarDays, milestones: CalendarDays, habits: ListChecks, timer: Timer, tasks: ListChecks, lists: List };
+const iconByModule = { finance: Wallet, calendar: CalendarDays, schedule: CalendarDays, milestones: CalendarDays, habits: ListChecks, timer: Timer, tasks: ListChecks, lists: List };
 const cardWidths = { small: "", medium: "@3xl/life:col-span-2", large: "col-span-full" };
 const itemLimits = { small: 2, medium: 5, large: 10 };
 
-export default function LifeOverview({ dashboard, todos, anchor, today, timer, events, milestones, habits, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
+export default function LifeOverview({ dashboard, todos, anchor, today, timer, events, milestones, habits, finances, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
   dashboard: ReturnType<typeof useLifeDashboard>;
   todos: Page[];
   anchor: Date;
@@ -28,6 +32,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
   events: ScheduleEvent[];
   milestones: ScheduleEvent[];
   habits: Habit[];
+  finances: FinanceRecord[];
   openSchedule: (event: ScheduleEvent) => void;
   selectedId?: string;
   onSelectBoard: (id: string) => void;
@@ -49,7 +54,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
   useUnsavedDraft(editing, saving);
 
   const board = config.boards.find(board => board.id === selectedId) ?? config.boards.find(board => board.id === config.defaultId) ?? config.boards[0];
-  const shown = board.cards.filter(card => !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
+  const financeSections = financeRows(finances,"preferences")[0]?.payload.hiddenSections ?? [];
+  const shown = board.cards.filter(card => (!isFinanceCard(card.type) || !financeSections.some(section=>section===financeCardSection[card.type as keyof typeof financeCardSection])) && !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
     && (!["lists", "schedule", "milestones", "habits"].includes(card.type) || repository) && (card.type !== "calendar" || !config.hiddenModules.includes("tasks") || events.length > 0 || milestones.length > 0));
   const showTimer = shown.some(card => card.type === "timer");
   useEffect(() => {
@@ -116,6 +122,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
     </div>}
     {editing && <Suspense fallback={<p role="status">正在載入編輯器…</p>}>
       <DashboardEditor config={baseline} activeId={board.id} lists={lists} hasLists={!!repository} busy={saving}
+        financeSections={financeSections}
         eventSources={{
           schedule: [...new Set(events.map(event => event.category).filter(Boolean))].sort().map(title => ({ id: title, title })),
           milestones, habits,
@@ -157,6 +164,11 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
         {shown.map(card => {
           const source = cardRegistry[card.type].module;
           const Icon = iconByModule[source];
+          if (isFinanceCard(card.type)) return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
+            <h3 className="mb-2 flex items-center gap-2 font-semibold"><Wallet size={18} aria-hidden="true"/>{card.title.trim() || cardRegistry[card.type].title}</h3>
+            <FinanceCard card={card} records={finances} anchor={anchor}/>
+            <button className={control+" mt-3"} type="button" onClick={()=>openModule("finance")}>開啟財務</button>
+          </article>;
           if (card.type === "timer") return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
             <h3 className="flex items-center gap-2 font-semibold"><Timer size={18} aria-hidden="true"/>{card.title.trim() || "計時工具"}</h3>
             <p className="my-2">{timerModes[timer.mode]} · {timerStatus(timer, clock)}</p>

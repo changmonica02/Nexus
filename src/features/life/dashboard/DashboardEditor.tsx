@@ -1,15 +1,18 @@
+import type { OptionalFinanceSection } from "../finance/model";
+import { financeCardSection, isFinanceCard } from "../finance/cardCatalog";
 import { useState } from "react";
 import { cardRegistry, lifeModuleIds, lifeModules, moveCard, newCard, periods, sizes, statuses, templateCards, type Card, type CardType, type LifeDashboardConfig } from "./model";
 import type { LifeList } from "../lists";
 
 import { control, surface } from "./styles";
 
-export default function DashboardEditor({ config, activeId, lists, eventSources, hasLists, busy, onSave, onCancel }: {
+export default function DashboardEditor({ config, activeId, lists, eventSources, financeSections, hasLists, busy, onSave, onCancel }: {
   config: LifeDashboardConfig;
   activeId: string;
   lists: LifeList[];
   eventSources: Record<"schedule" | "milestones" | "habits", { id: string; title: string }[]>;
   hasLists: boolean;
+  financeSections: OptionalFinanceSection[];
   busy: boolean;
   onSave: (config: LifeDashboardConfig, activeId: string) => void;
   onCancel: () => void;
@@ -20,7 +23,7 @@ export default function DashboardEditor({ config, activeId, lists, eventSources,
   const [template, setTemplate] = useState<"daily" | "study" | "empty">("daily");
   const board = draft.boards.find(board => board.id === id) ?? draft.boards[0];
   const offered = (Object.keys(cardRegistry) as CardType[]).filter(type =>
-    (!["lists", "schedule", "milestones", "habits"].includes(type) || hasLists) && !draft.hiddenModules.includes(cardRegistry[type].module));
+    (!isFinanceCard(type)||!financeSections.some(section=>section===financeCardSection[type])) && (!["lists", "schedule", "milestones", "habits"].includes(type) || hasLists) && !draft.hiddenModules.includes(cardRegistry[type].module));
   const [type, setType] = useState<CardType>("calendar");
   const newType = offered.includes(type) ? type : offered[0];
   const update = (patch: Partial<typeof board>) => setDraft(current => ({
@@ -114,7 +117,7 @@ export default function DashboardEditor({ config, activeId, lists, eventSources,
               <option value="">所有清單</option>
               {!!card.listId && !lists.some(list => list.id === card.listId) && <option value={card.listId}>原清單無法使用</option>}
               {lists.map(list => <option key={list.id} value={list.id}>{list.title}</option>)}
-            </select></label> : card.type !== "schedule" && card.type !== "milestones" && card.type !== "habits" && card.type !== "timer" && <label className="grid gap-1">完成狀態<select className={control} value={card.status} onChange={event => patchCard(card.id, { status: event.target.value as Card["status"] })}>
+            </select></label> : card.type !== "schedule" && card.type !== "milestones" && card.type !== "habits" && card.type !== "timer" && !isFinanceCard(card.type) && <label className="grid gap-1">完成狀態<select className={control} value={card.status} onChange={event => patchCard(card.id, { status: event.target.value as Card["status"] })}>
               {Object.entries(statuses).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select></label>}
             {(card.type === "schedule" || card.type === "milestones" || card.type === "habits") && <label className="grid gap-1">

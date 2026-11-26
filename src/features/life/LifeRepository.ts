@@ -1,9 +1,11 @@
+import { financeRow, type FinanceRecord } from "./finance/model";
+import { subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
 import { WorkspacePersistence } from "../../infrastructure/sync/workspacePersistence";
 import { LIFE_STORES, emptyLife, type LifeData, type LifeRecord, type LifeStore } from "./lists";
 import { dashboardSettingsKey, isDashboardConfig, sameConfig, type LifeDashboardConfig } from "./dashboard/model";
 
-import { dashboardId, type DashboardRecord, type ScheduleEvent, type Habit } from "./syncRecords";
+import { dashboardId, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "./syncRecords";
 
 /** Uses the workspace transaction/outbox, not a separate sync queue. */
 export class LifeRepository {
@@ -96,6 +98,84 @@ export class LifeRepository {
     await new WorkspacePersistence(this.db).mutate(owner, [{
       type: "life_habits", kind: remove ? "soft_delete" : "save", value: { ...habit, updated_at: Date.now() },
     }]);
+  }
+
+  async saveScheduleSplit(previous: ScheduleEvent, next?: ScheduleEvent) {
+    const owner = this.owner();
+    if (previous.workspace_owner_id !== owner || next && next.workspace_owner_id !== owner) throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(owner, [
+      { type: "life_schedule_events", kind: "save", value: previous },
+      ...(next ? [{ type: "life_schedule_events" as const, kind: "save" as const, value: next }] : []),
+    ]);
+  }
+
+  async readFinance() {
+    const owner = this.owner();
+    const rows = await this.db.getAll("life_finance_records") as FinanceRecord[];
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    return rows.filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
+  }
+
+  async saveFinance(row: FinanceRecord, remove = false) {
+    const owner = this.owner();
+    if (row.workspace_owner_id !== owner) throw Error("帳號已切換");
+    const stored = await this.db.get("life_finance_records", row.id) as FinanceRecord | undefined;
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    if (stored && stored.kind !== row.kind) throw Error("財務資料類型不可變更");
+    if (stored?.kind === "account" && row.kind === "account" && stored.payload.currency !== row.payload.currency) {
+      throw Error("既有帳戶幣別不可變更，請建立新帳戶");
+    }
+    await new WorkspacePersistence(this.db).mutate(owner, [{
+      type: "life_finance_records", kind: remove ? "soft_delete" : "save", value: { ...row, updated_at: Date.now() },
+    }]);
+  }
+
+  async confirmSubscription(row: FinanceRecord<"subscription">, paidDate: string) {
+    const owner = this.owner();
+    if (row.workspace_owner_id !== owner || row.payload.state !== "active") throw Error("此訂閱無法確認扣款");
+    const p = row.payload;
+    const source = row.id + "|" + p.next;
+    const txId = "subscription:" + source;
+    const existing = await this.db.get("life_finance_records", txId);
+    if (existing) throw Error("此期訂閱已有交易");
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    const transaction = financeRow(owner, "transaction", {
+      title: p.title, notes: p.notes, type: "expense", date: paidDate, amount: p.amount, account: p.account,
+      target: "", targetAmount: "0", category: p.category, source, attachment: "",
+    }, txId);
+    await new WorkspacePersistence(this.db).mutate(owner, [
+      { type: "life_finance_records", kind: "save", value: transaction },
+      { type: "life_finance_records", kind: "save", value: { ...row, payload: { ...p, next: subscriptionNext(p) }, updated_at: Date.now() } },
+    ]);
+  }
+
+  async readTimerStudySessions() {
+    const owner = this.owner();
+    const rows = await this.db.getAll("study_sessions") as import("../study/studySessions").StudySession[];
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    return rows.filter(row => row.owner_id === owner && (row.ended_at != null || row.completed_at != null))
+      .sort((a,b)=>(b.ended_at??b.completed_at??0)-(a.ended_at??a.completed_at??0)).slice(0,50);
+  }
+
+  async readTimerHistory() {
+    const owner = this.owner();
+    const rows = await this.db.getAll("life_timer_results") as TimerResult[];
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    return rows.filter(row => row.workspace_owner_id === owner && row.deleted_at == null).sort((a, b) => b.ended_at - a.ended_at);
+  }
+
+  async saveTimerResult(result: TimerResult) {
+    const owner = this.owner();
+    if (result.workspace_owner_id !== owner) throw Error("帳號已切換");
+    const existing = await this.db.get("life_timer_results", result.id);
+    if (existing) return;
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    try {
+      await new WorkspacePersistence(this.db).mutate(owner, [{ type: "life_timer_results", kind: "save", value: result }]);
+    } catch (error) {
+      const saved = await this.db.get("life_timer_results", result.id);
+      if (saved?.workspace_owner_id !== owner) throw error;
+    }
   }
 
   async read(): Promise<LifeData> {

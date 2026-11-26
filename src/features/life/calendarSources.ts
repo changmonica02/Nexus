@@ -1,3 +1,4 @@
+import { scheduleOccurrences } from "./scheduleRecurrence";
 import { milestoneOccurs } from "./milestoneDates";
 import { habitQuantity } from "./habits";
 import type { Habit } from "./syncRecords";
@@ -5,11 +6,14 @@ import { localDateInput, localDateKey } from "../../lib/todoCalendar";
 import type { Page } from "../../lib/types";
 
 export type LifeCalendarEvent = {
-  source: "tasks" | "taskStart" | "schedule" | "milestones" | "habits";
+  source: "tasks" | "taskStart" | "schedule" | "milestones" | "habits" | "finance";
   sourceId: string;
   date: number;
   title: string;
   completed: boolean;
+  allDay?: boolean;
+  startsAt?: number;
+  occurrence?: string;
 };
 
 export function taskCalendarEvents(pages: Page[]): LifeCalendarEvent[] {
@@ -17,10 +21,10 @@ export function taskCalendarEvents(pages: Page[]): LifeCalendarEvent[] {
     if (page.kind !== "todo" || page.deleted_at != null) return [];
     const events: LifeCalendarEvent[] = [];
     if (page.task_start_at != null) events.push({
-      source: "taskStart", sourceId: page.id, date: page.task_start_at, title: page.title, completed: !!page.completed,
+      source: "taskStart", sourceId: page.id, date: page.task_start_at, startsAt: page.task_start_at, title: page.title, completed: !!page.completed,
     });
     if (page.due_date != null) events.push({
-      source: "tasks", sourceId: page.id, date: page.due_date, title: page.title, completed: !!page.completed,
+      source: "tasks", sourceId: page.id, date: page.due_date, startsAt: page.due_date, title: page.title, completed: !!page.completed,
     });
     return events;
   });
@@ -48,16 +52,26 @@ export function scheduleRange(event: import("./syncRecords").ScheduleEvent) {
 }
 
 export function scheduleCalendarEvents(events: import("./syncRecords").ScheduleEvent[], days: Date[]): LifeCalendarEvent[] {
-  return events.flatMap(event => {
-    const [start, end] = scheduleRange(event);
-    return days.filter(day => {
-      if (event.milestone) return milestoneOccurs(event, day);
-      const next = new Date(day);
-      next.setDate(next.getDate() + 1);
-      return start < next.getTime() && end > day.getTime();
-    }).map(day => ({
-      source: event.milestone ? "milestones" as const : "schedule" as const, sourceId: event.id, date: day.getTime(), title: event.title, completed: false,
-    }));
+  const end = days.at(-1);
+  if (!end) return [];
+  const through = localDateInput(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 2));
+  return events.flatMap(series => {
+    const overrideHorizon = Object.entries(series.repeat_rule?.overrides??{}).reduce((latest,[key,override])=>
+      key>latest&&override.starts_at<=end.getTime()+172800000?key:latest,through);
+    const occurrences = series.repeat_rule ? scheduleOccurrences(series, overrideHorizon) : [{ key: undefined, event: series }];
+    return occurrences.flatMap(({key, event}) => {
+      const [start, end] = scheduleRange(event);
+      return days.filter(day => {
+        if (event.milestone) return milestoneOccurs(event, day);
+        const next = new Date(day);
+        next.setDate(next.getDate() + 1);
+        return start < next.getTime() && end > day.getTime();
+      }).map(day => ({
+        source: event.milestone ? "milestones" as const : "schedule" as const,
+        sourceId: series.id, occurrence: key, date: day.getTime(), title: event.title, completed: false,
+        allDay: event.all_day, startsAt: event.all_day ? undefined : event.starts_at,
+      }));
+    });
   });
 }
 
@@ -73,6 +87,10 @@ export function schedulePeriodMatches(event: import("./syncRecords").ScheduleEve
     }
     return false;
   }
+  if (event.repeat_rule) return scheduleOccurrences(event,localDateInput(endDay)).some(({event: occurrence}) => {
+    const [start,end]=scheduleRange(occurrence);
+    return start < endDay.getTime() && end > startDay.getTime();
+  });
   const [start, end] = scheduleRange(event);
   return start < endDay.getTime() && end > startDay.getTime();
 }

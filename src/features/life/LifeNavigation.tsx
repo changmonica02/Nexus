@@ -1,8 +1,8 @@
-import { CalendarDays, ChevronDown, LayoutDashboard, ListChecks, ListTree, Timer, CalendarRange, Hourglass, Flame } from "lucide-react";
+import { CalendarDays, ChevronDown, LayoutDashboard, ListChecks, ListTree, Timer, CalendarRange, Hourglass, Flame, Wallet } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
 import { lifeModules, type LifeModule } from "./dashboard/model";
 
-const icons = { overview: LayoutDashboard, calendar: CalendarDays, schedule: CalendarRange, tasks: ListChecks, lists: ListTree, timer: Timer, milestones: Hourglass, habits: Flame };
+const icons = { overview: LayoutDashboard, calendar: CalendarDays, schedule: CalendarRange, tasks: ListChecks, lists: ListTree, timer: Timer, milestones: Hourglass, habits: Flame, finance: Wallet };
 
 export default function LifeNavigation({ enabled, active, title, label, open }: {
   enabled: LifeModule[]; active: LifeModule | "overview"; title: string;
