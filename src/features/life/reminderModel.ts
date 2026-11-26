@@ -5,7 +5,7 @@ import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 
 export type Reminder = { id:string; day:string; title:string; source:string; priority:number };
-export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"|"list-number"|"target-days"; targetId?:string; daysBefore?:number; fieldId?:string; numericThreshold?:number; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
+export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"|"list-number"|"target-days"; targetId?:string; daysBefore?:number; fieldId?:string; numericThreshold?:number; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule"|"task" };
 export type AutomationRun={id:string; title:string; day:string; at:number; error?:string};
 export type RuleExercise = { id:string; day:string };
 export type RuleListItem={id:string; listId:string; revision:number; day:string; values?:Readonly<Record<string,unknown>>};
@@ -90,7 +90,7 @@ export function isReminderPreferences(value:unknown):value is ReminderPreference
   const date=(value:unknown)=>typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
   return Number.isInteger(lead)&&lead>=0&&lead<=30&&Array.isArray(rules)&&rules.length<=50&&new Set(rules.map(rule=>rule?.id)).size===rules.length
     &&rules.every(rule=>rule&&typeof rule.id==="string"&&rule.id.length<=80&&typeof rule.title==="string"&&!!rule.title.trim()&&rule.title.length<=100
-      &&(rule.action===undefined||rule.action==="reminder"||rule.action==="schedule")&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
+      &&(rule.action===undefined||rule.action==="reminder"||(rule.action==="schedule"||rule.action==="task"))&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
       &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed"||rule.trigger==="list-number"||rule.trigger==="target-days")
       &&(rule.trigger!=="target-days"||typeof rule.targetId==="string"&&!!rule.targetId&&rule.targetId.length<=120&&Number.isInteger(rule.daysBefore)&&rule.daysBefore!>=0&&rule.daysBefore!<=30)
       &&(rule.trigger!=="habit-completed"||typeof rule.habitId==="string"&&!!rule.habitId&&rule.habitId.length<=120)

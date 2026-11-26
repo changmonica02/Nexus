@@ -3,7 +3,9 @@ import type { ScheduleRule } from "./scheduleRecurrence";
 import { validateFinance, type FinanceRecord } from "./finance/model";
 import { dashboardSettingsKey, isDashboardConfig, sameBoard, type LifeDashboardConfig } from "./dashboard/model";
 
-export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records"] as const;
+import type { AutomationRun } from "./reminderModel";
+
+export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records", "life_automation_runs"] as const;
 export type LifeSyncStore = typeof LIFE_SYNC_STORES[number];
 
 export interface LifeSyncBase {
@@ -13,6 +15,10 @@ export interface LifeSyncBase {
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
+}
+
+export interface AutomationRunRecord extends LifeSyncBase {
+  run: AutomationRun;
 }
 
 export interface DashboardRecord extends LifeSyncBase {
@@ -55,6 +61,15 @@ export function isCivilDate(value: string): boolean {
 export const dashboardId = (owner: string) => dashboardSettingsKey(owner);
 
 export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase): void {
+  if (type === "life_automation_runs") {
+    const {run}=value as AutomationRunRecord;
+    if(!run||typeof run.id!=="string"||!run.id||run.id.length>1000||typeof run.title!=="string"
+      ||run.title.length>100||typeof run.day!=="string"||!isCivilDate(run.day)||!Number.isSafeInteger(run.at)||run.at<0
+      ||(run.error!==undefined&&(typeof run.error!=="string"||!run.error||run.error.length>240))){
+      throw Error("自動化執行紀錄格式無效");
+    }
+    return;
+  }
   if (type === "life_health_records") { validateHealth(value as HealthRecord); return; }
   if (type === "life_finance_records") { validateFinance(value as FinanceRecord); return; }
   if (type === "life_timer_results") {

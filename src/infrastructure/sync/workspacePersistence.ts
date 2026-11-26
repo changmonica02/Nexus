@@ -4,7 +4,7 @@ import { validateFinanceRelations } from "../../features/life/finance/ledger";
 import { nextTaskId, nextTaskOccurrence } from "../../features/life/taskRepeat";
 import { dashboardSettingsKey, isDashboardConfig, type LifeDashboardConfig } from "../../features/life/dashboard/model";
 import type { IDBPTransaction } from "idb";
-import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "../../features/life/syncRecords";
+import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult, type AutomationRunRecord } from "../../features/life/syncRecords";
 import {LIFE_STORES,emptyLife,validateLife,validateRequiredFields,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
@@ -19,7 +19,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export interface WorkspaceOperation {
   id: string;
@@ -112,7 +112,7 @@ export class WorkspacePersistence {
       && batch.operations.some(op => op.entity_type === "life_dashboard_configs" && op.entity_id === id));
   }
 
-  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
+  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob; createOnce?: boolean }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
     const work = [...changes];
     const repeatIds = new Map(await Promise.all(work.flatMap(change => {
       const page = change.value as Page;
@@ -140,9 +140,10 @@ export class WorkspacePersistence {
         const store = tx.objectStore(type);
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
+        if(change.createOnce&&(old||(await metadata.get(key(owner,type,value.id)))?.hard_deleted))continue;
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
-          if (type === "life_dashboard_configs" ? kind !== "save" : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord);
+          if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord);
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
         if (LIFE_STORES.includes(type as LifeStore)) {
@@ -198,6 +199,7 @@ export class WorkspacePersistence {
           .filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
         validateFinanceRelations(finance);
       }
+      if(!operations.length){ await tx.done; return; }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;
       await metadata.put({ id: "sequence", value: sequence });

@@ -152,6 +152,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  });
  const open=(id:string)=>navigateDictionary(()=>{change({scroll:scroller.current?.scrollTop??0});onSelectPage(id);});
  const readAutomationRuns=useCallback(()=>repository?.readAutomationRuns()??Promise.resolve([]),[repository]);
+ const runTaskAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.executeTaskRule(occurrence),[repository]);
  const runScheduleAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.executeScheduleRule(occurrence),[repository]);
  const reminderDays=state.tab==="overview"?Array.from({length:31},(_,offset)=>addDays(today,offset)):[];
  const reminderEvents=state.tab==="overview"?[
@@ -249,6 +250,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
       ruleExercises={exerciseAutomationSources(visibleHealth)} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
       ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title, numericFields:list.fields.filter(field=>field.type==="number"&&!field.archived).map(field=>({id:field.id,name:field.name}))}))}
       ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,values:item.values,day:localDateInput(new Date(item.updated_at))}))}
+      runTask={!tasksHidden&&repository&&dashboard.ready?runTaskAutomation:undefined}
       runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
       existingSchedules={scheduleHidden?[]:appointments.filter(row=>row.id.startsWith("automation:")).map(row=>({id:row.id,title:row.title,day:new Date(row.starts_at).toISOString().slice(0,10)}))}
       synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{

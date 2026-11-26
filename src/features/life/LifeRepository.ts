@@ -8,7 +8,8 @@ import { WorkspacePersistence } from "../../infrastructure/sync/workspacePersist
 import { LIFE_STORES, emptyLife, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
 import { dashboardSettingsKey, isDashboardConfig, sameConfig, type LifeDashboardConfig } from "./dashboard/model";
 
-import { dashboardId, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "./syncRecords";
+import type { Page } from "../../lib/types";
+import { dashboardId, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult, type AutomationRunRecord } from "./syncRecords";
 
 /** Uses the workspace transaction/outbox, not a separate sync queue. */
 export class LifeRepository {
@@ -89,33 +90,62 @@ export class LifeRepository {
 
   async readAutomationRuns():Promise<AutomationRun[]> {
     const owner=this.owner();
-    const row=await this.db.get("settings","life-automation-runs:"+JSON.stringify(owner));
+    const [legacy,records]=await Promise.all([
+      this.db.get("settings","life-automation-runs:"+JSON.stringify(owner)),
+      this.db.getAll("life_automation_runs") as Promise<AutomationRunRecord[]>,
+    ]);
     if(this.owner()!==owner)throw Error("帳號已切換");
-    return row?.owner_id===owner&&Array.isArray(row.value)?row.value:[];
+    const previous:AutomationRun[]=legacy?.owner_id===owner&&Array.isArray(legacy.value)?legacy.value:[];
+    const attempts=[...previous,...records.filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null).map(row=>row.run)];
+    const byOccurrence=new Map<string,AutomationRun>();
+    for(const run of attempts.sort((a,b)=>b.at-a.at)){
+      const prior=byOccurrence.get(run.id);
+      if(!prior||(prior.error&&!run.error))byOccurrence.set(run.id,run);
+    }
+    return [...byOccurrence.values()].sort((a,b)=>b.at-a.at);
   }
 
   private async saveAutomationRun(owner:string|null,run:AutomationRun) {
     if(this.owner()!==owner)throw Error("帳號已切換");
-    const key="life-automation-runs:"+JSON.stringify(owner);
-    const tx=this.db.transaction("settings","readwrite");
-    const stored=await tx.store.get(key);
-    const rows:AutomationRun[]=stored?.owner_id===owner&&Array.isArray(stored.value)?stored.value:[];
-    const prior=rows.find(row=>row.id===run.id);
-    if(!prior||prior.error){
-      await tx.store.put({key,owner_id:owner,value:[run,...rows.filter(row=>row.id!==run.id)].slice(0,100)});
-    }
-    await tx.done;
+    const value:AutomationRunRecord={id:crypto.randomUUID(),workspace_owner_id:owner,revision:0,
+      created_at:run.at,updated_at:run.at,deleted_at:null,run};
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_automation_runs",kind:"save",value}]);
   }
 
-  async executeScheduleRule(occurrence:Reminder) {
+  executeScheduleRule(occurrence:Reminder) {
+    return this.executeAutomation(occurrence,()=>this.runScheduleAutomation(occurrence));
+  }
+
+  executeTaskRule(occurrence:Reminder) {
+    return this.executeAutomation({...occurrence,id:"task:"+occurrence.id},()=>this.runTaskAutomation(occurrence));
+  }
+
+  private async executeAutomation(occurrence:Reminder, action:()=>Promise<void>) {
     const owner=this.owner();
     try{
-      await this.runScheduleAutomation(occurrence);
+      await action();
     }catch(error){
       await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now(),error:error instanceof Error?error.message.slice(0,240):"執行失敗"});
       throw error;
     }
     await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now()});
+  }
+
+  private async runTaskAutomation(occurrence:Reminder) {
+    const owner=this.owner();
+    const hash=await automationScheduleId(JSON.stringify([owner,"task",occurrence.id]));
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    if(!occurrence.title.trim()||occurrence.title.length>100)throw Error("請確認待辦名稱");
+    const due=new Date(occurrence.day+"T00:00:00").getTime();
+    if(!Number.isFinite(due))throw Error("請確認待辦日期");
+    const now=Date.now();
+    const id="automation_task_"+hash.slice("automation:".length);
+    const value:Page={
+      id,kind:"todo",title:occurrence.title,due_date:due,completed:false,format:"flow",
+      content_json:{type:"doc",content:[{type:"paragraph",attrs:{id:"blk_"+id}}]},content_text:"",
+      created_at:now,updated_at:now,deleted_at:null,revision:1,device_id:"automation",workspace_owner_id:owner,
+    };
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"pages",kind:"save",value,createOnce:true}]);
   }
 
   async runScheduleAutomation(occurrence:Reminder) {

@@ -16,7 +16,7 @@ const migration = "20261103155520_life_custom_lists.sql";
 async function setup() {
   const pg = new PGlite();
   await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;
-create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
+create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,kind text,due_date bigint,completed boolean,format text,device_id text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
 create table attachments(id text primary key,owner_id uuid,kind text,name text,mime_type text,size_bytes bigint,storage_key text,device_id text,created_at bigint,updated_at bigint,deleted_at bigint);
 create table binaries(id text primary key,owner_id uuid,data text,updated_at bigint);
 alter table pages enable row level security;alter table attachments enable row level security;alter table binaries enable row level security;
@@ -30,6 +30,8 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261126171000_life_list_field_types.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126180000_life_list_configuration.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127000000_life_automation_schedule.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261127020000_life_automation_task.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261127030000_life_automation_runs.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -621,4 +623,31 @@ test("automation retries from two offline devices preserve one schedule and ackn
     assert.equal((await localB.pending(owner)).length,0);
     assert.deepEqual(await b.getLifeRepository().readSchedule(),[]);
   }finally{await a.close();await b.close();await pg.close();}
+});
+
+test("automation tasks synchronize once and stay deleted when an offline device retries", async()=>{
+  const pg=await setup(),a=await device(),b=await device(),c=await device();
+  try{
+    const occurrence={id:"task-occurrence",day:"2026-11-27",title:"整理物品",source:"自訂規則",priority:1};
+    const remote=client(pg);
+    const repoA=a.getLifeRepository(),repoB=b.getLifeRepository(),repoC=c.getLifeRepository();
+    const localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence(),localC=c.getWorkspacePersistence();
+    await Promise.all([repoA.executeTaskRule(occurrence),repoA.executeTaskRule(occurrence)]);
+    assert.equal((await localA.pending(owner)).filter(batch=>batch.operations.some(op=>op.entity_type==="pages")).length,1);
+    await repoB.executeTaskRule({...occurrence,title:"另一裝置"});
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    assert.equal((await localB.pending(owner)).length,0);
+    const task=(await b.listPages()).find(page=>page.kind==="todo");
+    assert.equal(task.title,occurrence.title);
+    await repoC.executeTaskRule(occurrence);
+    await b.deletePage(task.id);
+    await b.permanentDeletePage(task.id);
+    await flushWorkspace(remote,localB,owner);
+    await flushWorkspace(remote,localC,owner);
+    assert.equal((await localC.pending(owner)).length,0);
+    assert.equal(await c.getPage(task.id),null);
+    await repoC.executeTaskRule(occurrence);
+    assert.ok((await localC.pending(owner)).every(batch=>batch.operations.every(op=>op.entity_type==="life_automation_runs")));
+  }finally{await a.close();await b.close();await c.close();await pg.close();}
 });

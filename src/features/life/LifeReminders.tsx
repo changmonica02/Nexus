@@ -1,5 +1,5 @@
 import type { Habit, ScheduleEvent } from "./syncRecords";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { civilAdvance } from "./civilPeriods";
 import { control, surface } from "./dashboard/styles";
 import { previewRule, ruleOccurrence, ruleOccurrences, type AutomationRun, type RuleListItem, type RuleExercise, visibleReminders, isReminderPreferences, type ReminderPreferences, type Reminder, type ReminderRule, type ReminderStatus } from "./reminderModel";
@@ -7,7 +7,7 @@ import { previewRule, ruleOccurrence, ruleOccurrences, type AutomationRun, type 
 type Preference = ReminderPreferences;
 const defaults:Preference={lead:3,rules:[],status:{}};
 
-export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,existingSchedules,readRuns,ruleLists,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[];readRuns:()=>Promise<AutomationRun[]>;ruleLists:{id:string;title:string;numericFields:{id:string;name:string}[]}[];ruleRecords:RuleListItem[];ruleBudgets:{id:string;title:string;percent:number}[];ruleHabits:readonly Habit[];ruleExercises:readonly RuleExercise[];ruleTargets:readonly ScheduleEvent[]}){
+export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,runTask,existingSchedules,readRuns,ruleLists,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;runTask?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[];readRuns:()=>Promise<AutomationRun[]>;ruleLists:{id:string;title:string;numericFields:{id:string;name:string}[]}[];ruleRecords:RuleListItem[];ruleBudgets:{id:string;title:string;percent:number}[];ruleHabits:readonly Habit[];ruleExercises:readonly RuleExercise[];ruleTargets:readonly ScheduleEvent[]}){
   const key="nexus-life-reminders:"+JSON.stringify(owner);
   const [local,setPrefs]=useState<Preference>(()=>{
     try{
@@ -37,27 +37,38 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
   };
   const [runError,setRunError]=useState("");
   const [retry,setRetry]=useState(0);
+  const lastRetry=useRef(0);
+  const [refreshCount,setRefreshCount]=useState(0);
   const [runs,setRuns]=useState<AutomationRun[]>([]);
   const eligibleRules=prefs.rules.filter(rule=>rule.trigger!=="list-number"||ruleLists.some(list=>
     list.id===rule.listId&&list.numericFields.some(field=>field.id===rule.fieldId)));
-  const candidates=eligibleRules.filter(rule=>rule.action==="schedule").flatMap(rule=>ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets)).filter(occurrence=>occurrence.day<=day);
+  const candidates=eligibleRules.filter(rule=>rule.action==="schedule"?!!runSchedule:rule.action==="task"&&!!runTask)
+    .flatMap(rule=>ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets)
+      .filter(occurrence=>occurrence.day<=day).map(occurrence=>({occurrence,action:rule.action,
+        runId:rule.action==="task"?"task:"+occurrence.id:occurrence.id})));
   useEffect(()=>{
-    const refresh=()=>{if(document.visibilityState==="visible")setRetry(value=>value+1);};
+    const refresh=()=>{if(document.visibilityState==="visible")setRefreshCount(value=>value+1);};
     document.addEventListener("visibilitychange",refresh);
-    return ()=>document.removeEventListener("visibilitychange",refresh);
+    window.addEventListener("nexus-workspace-refreshed",refresh);
+    return ()=>{
+      document.removeEventListener("visibilitychange",refresh);
+      window.removeEventListener("nexus-workspace-refreshed",refresh);
+    };
   },[]);
   const candidateSnapshot=JSON.stringify(candidates);
   useEffect(()=>{
 
     let active=true;
     const run=async()=>{
+      const retryFailures=retry!==lastRetry.current;
+      lastRetry.current=retry;
       let completed=new Set<string>();
-      try{completed=new Set((await readRuns()).filter(row=>!row.error).map(row=>row.id));}
+      try{completed=new Set((await readRuns()).filter(row=>!row.error||!retryFailures).map(row=>row.id));}
       catch(error){if(active)setRunError(error instanceof Error?error.message:"無法讀取執行歷史");}
-      for(const occurrence of (JSON.parse(candidateSnapshot) as Reminder[]).filter(row=>!completed.has(row.id)).slice(0,50)){
-        if(!active||!runSchedule)break;
+      for(const {action,occurrence} of (JSON.parse(candidateSnapshot) as typeof candidates).filter(row=>!completed.has(row.runId)).slice(0,50)){
+        if(!active)break;
         try{
-          await runSchedule(occurrence);
+          await (action==="task"?runTask:runSchedule)?.(occurrence);
         }catch(error){if(active)setRunError(error instanceof Error?error.message:"自動化執行失敗");}
       }
       try{const history=await readRuns();if(active)setRuns(history);}
@@ -65,8 +76,8 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     };
     void run();
     return ()=>{active=false;};
-  },[candidateSnapshot,runSchedule,readRuns,retry]);
-  const rules=eligibleRules.filter(rule=>rule.action!=="schedule").flatMap(rule=>{
+  },[candidateSnapshot,runSchedule,runTask,readRuns,retry,refreshCount]);
+  const rules=eligibleRules.filter(rule=>(rule.action??"reminder")==="reminder").flatMap(rule=>{
     if(rule.trigger==="target-days")return Array.from({length:prefs.lead+1},(_,offset)=>ruleOccurrences(rule,civilAdvance(day,"day",offset),tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets)).flat();
     if(rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed"||rule.trigger==="list-number")return ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets);
     if(rule.trigger==="task-completed"||rule.trigger==="overdue-count"){
@@ -111,8 +122,8 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
       <button className={control} type="button" onClick={()=>clearStatus(id)}>恢復提醒</button>
     </li>)}</ul>}
     <h3 className="mt-4 font-medium">生活自動化規則</h3>
-    {runError&&<p role="alert">{runError} <button className={control} type="button" onClick={()=>{setRunError("");setRetry(value=>value+1);}}>重試自動化</button></p>}
-    {runs.length>0&&<details><summary>執行紀錄（此裝置）</summary><ul>{runs.map(row=><li key={row.id}>{row.day} · {row.title} · {row.error??"已儲存"}</li>)}</ul></details>}
+    {(runError||runs.some(row=>row.error))&&<p role="alert">{runError||"有執行失敗的自動化。"} <button className={control} type="button" onClick={()=>{setRunError("");setRetry(value=>value+1);}}>重試自動化</button></p>}
+    {runs.length>0&&<details><summary>執行紀錄</summary><ul>{runs.map(row=><li key={row.id}>{row.day} · {row.title} · {row.error??"已儲存"}</li>)}</ul></details>}
     {existingSchedules.length>0&&<details><summary>已建立的自動化行程</summary><ul>{existingSchedules.map(row=><li key={row.id}>{row.day} · {row.title}</li>)}</ul></details>}
     <p className="mb-2 text-sm">開啟生活總覽時檢查，登入時，設定及處理狀態隨生活儀表板同步。</p>
     {prefs.rules.map(rule=><div className="my-2 flex flex-wrap items-center gap-2" key={rule.id}>
@@ -153,8 +164,8 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
         </select></label>
         <label className="grid gap-1">數值門檻<input className={control} type="number" step="any" required value={draft.numericThreshold??""} onChange={event=>setDraft({...draft,numericThreshold:event.target.value===""?undefined:event.target.valueAsNumber})}/></label>
       </>}</>:draft.trigger==="overdue-count"?<label className="grid gap-1">逾期任務門檻<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>:<label className="grid gap-1">間隔天數<input className={control+" w-24"} type="number" min={1} max={365} value={draft.interval} onChange={event=>setDraft({...draft,interval:Number(event.target.value)})}/></label>}
-      <label className="grid gap-1">執行動作<select className={control} value={draft.action??"reminder"} onChange={event=>setDraft({...draft,action:event.target.value==="schedule"?"schedule":"reminder"})}>
-        <option value="reminder">顯示站內提醒</option><option value="schedule" disabled={!runSchedule}>建立全天行程</option>
+      <label className="grid gap-1">執行動作<select className={control} value={draft.action??"reminder"} onChange={event=>setDraft({...draft,action:event.target.value as ReminderRule["action"]})}>
+        <option value="reminder">顯示站內提醒</option><option value="schedule" disabled={!runSchedule}>建立全天行程</option><option value="task" disabled={!runTask}>建立待辦事項</option>
       </select></label>
       <p>下次預覽 · {draft.trigger==="target-days"?"每次重要日期前依設定天數執行一次":draft.trigger==="list-number"?"欄位達門檻時，每個符合的項目版本執行一次":draft.trigger==="exercise-completed"?"每筆實際運動紀錄執行一次":draft.trigger==="habit-completed"?"指定習慣達標後，每個習慣週期執行一次":draft.trigger==="task-completed"?"指定任務完成後執行":draft.trigger==="overdue-count"?"達門檻時，每日執行一次":draft.trigger==="list-updated"?"每個項目版本執行一次":draft.trigger==="budget-percent"?"達門檻後每月執行一次":next??"請輸入日期與間隔"}</p>
       <button className={control}>儲存規則</button><button className={control} type="button" onClick={()=>setDraft(undefined)}>取消</button>
