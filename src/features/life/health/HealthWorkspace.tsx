@@ -5,15 +5,15 @@ import { downloadJsonFile } from "../../../lib/fileDownload";
 import type { LifeRepository } from "../LifeRepository";
 import { civilAdvance } from "../civilPeriods";
 import { control, surface } from "../dashboard/styles";
-import { allowed, body, groups, kindGroup, labels, makeHealth, metricGroup, metrics, nutrition, num, str, toItem, type Entry, type Fields, type Group, type HealthRecord, type Item } from "./model";
-import { cycleSummary, medicationDue, medicationStock, scheduledDose } from "./sensitive";
+import { allowed, body, medicationTimes, groups, kindGroup, labels, makeHealth, metricGroup, metrics, nutrition, num, str, toItem, type Entry, type Fields, type Group, type HealthRecord, type Item } from "./model";
+import { cycleSummary, doseIsDuplicate, medicationDue, medicationStock, scheduledDose } from "./sensitive";
 import { bmi, bounds, dayOf, duration, latest, planOn, progress, totals, value, type Period } from "./summary";
 
 type Reference={id:string;title:string};
 type Field=[key:string,label:string,type?:string,options?:Record<string,string>];
 const fields:Record<Entry,Field[]> = {
  cycle:[["date","經期開始","date"],["until","經期結束","date"],["flow","經血量"],["symptoms","症狀"],["pain","疼痛程度（0–10）","number"],["mood","情緒"],["temperature","基礎體溫（°C）","number"]],
- medication:[["title","名稱"],["category","類型","select",{medicine:"藥品",vitamin:"維生素",supplement:"保健食品"}],["quantity","每次數量","number"],["unit","單位"],["date","起始日期","date"],["until","結束日期","date"],["frequency","服用週期","select",{daily:"每日",weekly:"指定星期",interval:"固定間隔",asNeeded:"需要時"}],["weekdays","星期（日 0 至六 6）"],["interval","間隔天數","number"],["time","預定時間","time"],["meal","餐前／餐後"],["stock","起始庫存","number"],["expiry","效期","date"]],
+ medication:[["title","名稱"],["category","類型","select",{medicine:"藥品",vitamin:"維生素",supplement:"保健食品"}],["quantity","每次數量","number"],["unit","單位"],["date","起始日期","date"],["until","結束日期","date"],["frequency","服用週期","select",{daily:"每日",weekly:"指定星期",interval:"固定間隔",asNeeded:"需要時"}],["weekdays","星期（日 0 至六 6）"],["interval","間隔天數","number"],["times","預定時間（以逗號分隔，例如 08:00,20:00）"],["meal","餐前／餐後"],["stock","起始庫存","number"],["expiry","效期","date"]],
  dose:[["status","服用狀態","select",{taken:"已服用",missed:"未服用",skipped:"略過"}],["date","紀錄日期","date"],["planned","預定時間","time"],["actual","實際服用時間","datetime-local"],["quantity","實際服用數量","number"]],
  body:[["date","日期","date"],...Object.entries(body).map(([key,label]):Field=>[key,label,"number"])],
  goal:[["title","名稱"],["metric","指標","select",metrics],["mode","方向","select",{increase:"增加",decrease:"減少",maintain:"維持範圍"}],["date","起始日期","date"],["until","目標日期","date"],["baseline","起始值","number"],["target","目標值／範圍下限","number"],["upper","範圍上限","number"],["current","自訂指標目前值","number"],["habit","關聯習慣","habit"]],
@@ -27,7 +27,7 @@ const fields:Record<Entry,Field[]> = {
 };
 const element=(label:string,action:()=>void)=><button className={control} type="button" onClick={action}>{label}</button>;
 function Editor({row,rows,save,close,tasks,habits}:{row:HealthRecord;rows:HealthRecord[];save:(row:HealthRecord,remove?:boolean)=>Promise<void>;close:()=>void;tasks:Reference[];habits:Reference[]}){
- const [draft,set]=useState(row.data),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [draft,set]=useState(row.kind==="medication"?{...row.data,times:medicationTimes(row.data).join(", ")}:row.data),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [food,setFood]=useState(""),[recipe,setRecipe]=useState(""),[amount,setAmount]=useState("1"),[unit,setUnit]=useState("份"),[manual,setManual]=useState<Fields>({});
  if(row.kind==="privacy")return null;
  const kind=row.kind,label=(row.revision?"編輯":"新增")+labels[kind],write=(key:string,v:Fields[string])=>set(current=>({...current,[key]:v}));
@@ -110,6 +110,24 @@ export function GoalList({rows,day,open,linked,addWater}:{rows:HealthRecord[];da
   </article>;
  })}</div>;
 }
+function RestingEnergyEstimate({height,weight}:{height:number|null;weight:number|null}){
+ const [age,setAge]=useState("");
+ const [coefficient,setCoefficient]=useState("");
+ const years=Number(age);
+ const estimate=height&&weight&&Number.isInteger(years)&&years>=19&&years<=78&&coefficient
+  ? Math.round(10*weight+6.25*height-5*years+Number(coefficient)):null;
+ return <details className={surface}><summary>選用估算 · 靜息能量消耗</summary>
+  <p className="my-2 text-sm">Mifflin–St Jeor 公式使用最新身高與體重。估算結果以 kcal／日顯示，與手動基礎代謝率紀錄分開。</p>
+  <div className="flex flex-wrap gap-2"><label className="grid gap-1">年齡（19–78 歲）
+   <input className={control} type="number" min={19} max={78} value={age} onChange={event=>setAge(event.target.value)}/></label>
+   <label className="grid gap-1">公式係數<select className={control} value={coefficient} onChange={event=>setCoefficient(event.target.value)}>
+    <option value="">請選擇</option><option value="5">男性公式</option><option value="-161">女性公式</option>
+   </select></label></div>
+  <p className="my-2">{estimate===null?"請確認身高、體重、年齡及公式選項。":estimate+" kcal／日（估算）"}</p>
+  <a href="https://pubmed.ncbi.nlm.nih.gov/2305711/" target="_blank" rel="noreferrer" className="underline">公式來源</a>
+ </details>;
+}
+
 export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,habits,repository,focused}:{
  rows:HealthRecord[];owner:string|null;day:string;taskOpen:(id:string)=>void;tasks:Reference[];habits:Reference[];repository:LifeRepository;focused?:string;
 }){
@@ -134,13 +152,22 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    <button className="min-h-11 w-full break-words text-left font-semibold" type="button" onClick={()=>setEdit(row)}>{str(row,"title")||labels[kind]}</button>{details(row)}
   </li>)}</ul>:<p className={surface}>尚無{labels[kind]}紀錄。</p>;
  };
+ const [trendDays,setTrendDays]=useState(14);
+ const byDay=new Map<string,HealthRecord[]>();
+ for(const row of safe){
+  const date=dayOf(row);
+  const entries=byDay.get(date);
+  if(entries)entries.push(row);
+  else byDay.set(date,[row]);
+ }
  const point=(date:string)=>{
-  const data=totals(safe,date,civilAdvance(date,"day",1));
-  return Object.hasOwn(body,trend)?latest(safe.filter(row=>dayOf(row)===date),trend,date):
+  const entries=byDay.get(date)??[];
+  const data=totals(entries,date,civilAdvance(date,"day",1));
+  return Object.hasOwn(body,trend)?latest(entries,trend,date):
    trend==="water"?data.water:trend==="sleep"?data.sleep:trend==="minutes"?data.minutes:trend==="distance"?data.distance:trend==="lift"?data.lift:data.nutrients[trend]?.amount??null;
  };
  const trendGroup=(key:string)=>key==="distance"||key==="lift"?"exercise":metricGroup(key);
- const points=enabled(trendGroup(trend))?Array.from({length:14},(_,index)=>{const date=civilAdvance(day,"day",index-13);return {date,amount:point(date)};}):[];
+ const points=enabled(trendGroup(trend))?Array.from({length:trendDays},(_,index)=>{const date=civilAdvance(day,"day",index-trendDays+1);return {date,amount:point(date)};}):[];
  const max=Math.max(1,...points.map(item=>item.amount??0));
  const taskLink=(row:HealthRecord)=>tasks.some(task=>task.id===row.data.task)?element("開啟關聯任務",()=>taskOpen(str(row,"task"))):null;
  return <section className="min-w-0 space-y-4" aria-label="健康管理">
@@ -164,16 +191,17 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    {enabled("cycle")&&cycle.records.length>0&&<p className={surface}>經期 · 最近開始 {str(cycle.records.at(-1)!,"date")}</p>}
    {enabled("medication")&&safe.some(row=>medicationDue(row,day))&&<p className={surface}>用藥 · 當日有預定事項</p>}
    {enabled("goal")&&<GoalList rows={safe} day={day} open={setEdit}/>}
-   <section className={surface+" space-y-3"}><h3 className="font-semibold">近 14 日趨勢</h3><select aria-label="趨勢指標" className={control} value={trend} onChange={event=>setTrend(event.target.value)}>
+   <section className={surface+" space-y-3"}><h3 className="font-semibold">健康趨勢</h3><label className="grid gap-1">趨勢天數（1–366）<input className={control} type="number" min={1} max={366} value={trendDays} onChange={event=>setTrendDays(Math.max(1,Math.min(366,Math.trunc(Number(event.target.value))||1)))}/></label><select aria-label="趨勢指標" className={control} value={trend} onChange={event=>setTrend(event.target.value)}>
     {[...Object.keys(body),"kcal","water","sleep","minutes","distance","lift"].filter(key=>enabled(trendGroup(key))).map(key=><option key={key} value={key}>{metrics[key as keyof typeof metrics]??(key==="distance"?"運動距離":"運動重量")}</option>)}</select>
-    {points.some(point=>point.amount!==null)?<><div className="grid h-24 grid-cols-14 items-end gap-1" aria-hidden="true">{points.map(item=>
-     <span className={item.amount===null?"h-px bg-zinc-500/25":"rounded-t bg-emerald-600/65"} key={item.date} style={item.amount===null?{}:{height:Math.max(2,item.amount/max*100)+"%"}}/>)}</div>
+    {points.some(point=>point.amount!==null)?<><div className="flex h-24 items-end gap-px" aria-hidden="true">{points.map(item=>
+     <span className={item.amount===null?"h-px min-w-0 flex-1 bg-zinc-500/25":"min-w-0 flex-1 rounded-t bg-emerald-600/65"} key={item.date} style={item.amount===null?{}:{height:Math.max(2,item.amount/max*100)+"%"}}/>)}</div>
      <details><summary>檢視每日數值</summary>{points.map(item=><p key={item.date}>{item.date} · {value(item.amount)}</p>)}</details></>:<p>尚無這項數據。</p>}
    </section>
   </>}
   {active==="body"&&<>{element("新增身體數據",()=>start("body"))}<dl className={surface+" grid grid-cols-2 gap-3 sm:grid-cols-3"}>
    {Object.entries(body).map(([key,label])=><div key={key}><dt>{label}</dt><dd className="font-semibold">{value(latest(safe,key,day))}</dd></div>)}
    <div><dt>BMI</dt><dd className="font-semibold">{value(bmi(safe,day))}</dd></div></dl>
+   <RestingEnergyEstimate height={latest(safe,"height",day)} weight={latest(safe,"weight",day)}/>
    {list("body",row=><p>{dayOf(row)} · {Object.entries(body).filter(([key])=>row.data[key]!==undefined).map(([key,label])=>label+" "+row.data[key]).join(" ・")}</p>)}</>}
   {active==="goal"&&<>{element("新增健康目標",()=>start("goal"))}<GoalList rows={safe} day={day} open={setEdit}/></>}
   {active==="diet"&&<>
@@ -220,21 +248,24 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    {element("新增用藥項目",()=>start("medication",{meal:"",unit:"",frequency:"daily"}))}
    {list("medication",row=>{
      const due=medicationDue(row,day), stock=medicationStock(row,safe);
-     const done=scheduledDose(safe,row,day);
+     const slots=due?medicationTimes(row.data):row.data.frequency==="asNeeded"?[""]:[];
      const expiry=str(row,"expiry");
      return <div className="space-y-2"><p>{str(row,"quantity")} {str(row,"unit")} · {str(row,"meal")}</p>
        {stock!==null&&<p>剩餘庫存 {value(stock,str(row,"unit"))}{stock<=0?" · 庫存不足":""}</p>}
        {expiry&&<p>有效期限 {expiry}{expiry<day?" · 已到期":expiry<=civilAdvance(day,"day",7)?" · 即將到期":""}</p>}
-       {due&&!done&&<p>當日待記錄 · {str(row,"time")}</p>}
-       {due&&done&&element("查看當日服用紀錄",()=>setEdit(done))}
-       {(due&&!done||row.data.frequency==="asNeeded")&&element("新增服用紀錄",()=>{
-         const data={date:day,actual:day+"T"+new Date().toTimeString().slice(0,5),medication:row.id,title:str(row,"title"),status:"taken",quantity:row.data.quantity,planned:due?row.data.time:""};
-         setEdit(makeHealth(owner,"dose",data));
+       {slots.map(time=>{
+         const done=time?scheduledDose(safe,row,day,time):undefined;
+         return <div key={time} className="flex flex-wrap items-center gap-2">
+           {time&&<span>{time} · {done?"已記錄":"待記錄"}</span>}
+           {done?element("查看當日服用紀錄",()=>setEdit(done)):element("新增服用紀錄",()=>{
+             setEdit(makeHealth(owner,"dose",{date:day,actual:day+"T"+new Date().toTimeString().slice(0,5),medication:row.id,title:str(row,"title"),status:"taken",quantity:row.data.quantity,planned:time}));
+           })}
+         </div>;
        })}
      </div>;
    },true)}
    <h3 className="font-semibold">歷史服用紀錄</h3>
-   {list("dose",row=><p>{str(row,"date")} · {{taken:"已服用",missed:"未服用",skipped:"略過"}[str(row,"status")]} · {str(row,"actual").replace("T"," ")}</p>,true)}
+   {list("dose",row=><p>{str(row,"date")} · {{taken:"已服用",missed:"未服用",skipped:"略過"}[str(row,"status")]} · {str(row,"actual").replace("T"," ")}{doseIsDuplicate(row,safe)?" · 同時段重複，未計入庫存":""}</p>,true)}
   </>}
   {active==="privacy"&&<div className={surface+" space-y-4"}><p>健康資料預設僅在健康管理顯示。</p>
    <fieldset disabled={busy} className="space-y-2"><legend>子功能與跨頁顯示</legend>

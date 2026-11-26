@@ -60,3 +60,28 @@ test("medication stock tracks actual doses, and sensitive calendar events requir
   assert.equal(healthEvents([item,taken],days,{calendarMedication:true})[0].title,"服用提醒");
   assert.deepEqual(healthEvents([item,taken],days,{calendarMedication:true,off_medication:true}),[]);
 });
+
+test("multiple medication times render distinct privacy-gated occurrences and deduplicate each slot", () => {
+  const {medicationStock,doseIsDuplicate}=require("../../src/features/life/health/sensitive.ts");
+  const medication=record("medication",{title:"個人項目",quantity:1,unit:"份",frequency:"daily",times:"08:00, 20:00, 08:00",stock:10});
+  validateHealth(medication);
+  const dose=(id,planned,quantity,updated_at)=>({...record("dose",{medication:medication.id,planned,status:"taken",quantity}),id,updated_at});
+  const morning=dose("a","08:00",1,1), morningNew=dose("b","08:00",2,2), evening=dose("c","20:00",1,3);
+  const rows=[medication,morning,morningNew,evening];
+  assert.equal(medicationStock(medication,rows),7);
+  assert.equal(doseIsDuplicate(morning,rows),true);
+  assert.equal(doseIsDuplicate(evening,rows),false);
+  assert.deepEqual(healthEvents(rows,[new Date(2026,10,26)],{calendarMedication:true}).map(event=>event.occurrence),["08:00","20:00"]);
+});
+
+test("reminders have stable per-date identities, priority and reversible visibility",()=>{
+  const {ruleOccurrence,previewRule,visibleReminders}=require("../../src/features/life/reminderModel.ts");
+  const rule={id:"rule-a",title:"檢查庫存",start:"2026-11-20",interval:3,enabled:true};
+  const reminder=ruleOccurrence(rule,day);
+  assert.ok(reminder);
+  assert.equal(previewRule(rule,"2026-11-27"),"2026-11-29");
+  assert.equal(ruleOccurrence(rule,"2026-11-27"),null);
+  const urgent={id:"late",day:"2026-11-25",title:"逾期",priority:2,source:"待辦"};
+  assert.deepEqual(visibleReminders([reminder,urgent,reminder],{},day,0,"").map(row=>row.id),["late",reminder.id]);
+  assert.deepEqual(visibleReminders([reminder],{[reminder.id]:{hiddenUntil:"2026-11-27"}},day,0,""),[]);
+});

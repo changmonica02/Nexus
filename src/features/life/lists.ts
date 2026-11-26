@@ -21,6 +21,9 @@ export interface LifeField {
   type: FieldType;
   options?: string[];
   archived?: boolean;
+  unit?: string;
+  required?: boolean;
+  defaultValue?: string | number | boolean | string[];
 }
 interface Base {
   id: string;

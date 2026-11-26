@@ -124,7 +124,7 @@ export default function LifeLists({ storage, startCreating = false }: { storage:
                 list_id: list!.id,
                 category_id: categoryId === "*" || !categoryId ? null : categoryId,
                 schema_version: list!.schema_version,
-                values: {},
+                values: Object.fromEntries(list!.fields.filter(field=>!field.archived&&field.defaultValue!==undefined).map(field=>[field.id,structuredClone(field.defaultValue)])),
                 attachment_ids: [],
               },
             },
@@ -145,6 +145,15 @@ export default function LifeLists({ storage, startCreating = false }: { storage:
         updated_at: Date.now(),
       });
     } else {
+      if(next.type==="life_items"){
+        const row=next.row as LifeItem;
+        const missing=list!.fields.find(field=>{
+          if(field.archived||!field.required)return false;
+          const value=row.values[field.id];
+          return value==null||typeof value==="string"&&!value.trim()||Array.isArray(value)&&value.length===0;
+        });
+        if(missing)throw Error("請填寫必要欄位："+missing.name);
+      }
       const row =
         next.type === "life_items"
           ? {
@@ -253,7 +262,7 @@ export default function LifeLists({ storage, startCreating = false }: { storage:
               {list.fields.map((f) => (
                 <div key={f.id} className="flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 break-words">
-                    {f.name}
+                    {f.name}{f.unit?"（"+f.unit+"）":""}{f.required?" *":""}
                     {f.archived ? label("（已隱藏，原值保留）", " (hidden, values retained)") : ""}
                   </span>
                   <button
@@ -518,7 +527,7 @@ function LifeEditor({
           <>
             <label className="block">
               {label("型別", "Type")}
-              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value })}>
+              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value, defaultValue:undefined, unit:undefined })}>
                 {FIELD_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {fieldNames[t]}
@@ -536,6 +545,17 @@ function LifeEditor({
                 />
               </label>
             )}
+            {["number","duration","rating"].includes(draft.row.type)&&<label className="block">顯示單位
+              <input className={input} maxLength={20} value={draft.row.unit??""} onChange={event=>patch({unit:event.target.value})}/>
+            </label>}
+            {["text","longtext","number","rating","duration","date","time","url","checkbox"].includes(draft.row.type)&&<label className="block">新項目預設值
+              {draft.row.type==="checkbox"?<select className={input} value={String(draft.row.defaultValue??"")} onChange={event=>patch({defaultValue:event.target.value===""?undefined:event.target.value==="true"})}>
+                <option value="">未設定</option><option value="true">已勾選</option><option value="false">未勾選</option>
+              </select>:<input className={input} value={String(draft.row.defaultValue??"")}
+                type={["number","rating","duration"].includes(draft.row.type)?"number":["date","time","url"].includes(draft.row.type)?draft.row.type:"text"} step="any"
+                onChange={event=>patch({defaultValue:event.target.value===""?undefined:event.target.type==="number"?event.target.valueAsNumber:event.target.value})}/>}
+            </label>}
+            <label className="flex items-center gap-2"><input type="checkbox" checked={!!draft.row.required} onChange={event=>patch({required:event.target.checked})}/>必要欄位</label>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -584,7 +604,7 @@ function LifeEditor({
               const numeric=["number","duration","rating"].includes(f.type);
               return (
                 <label key={f.id} className="block min-w-0">
-                  {f.name}
+                  {f.name}{f.unit?"（"+f.unit+"）":""}{f.required?" *":""}
                   {f.type === "longtext" ? (
                     <textarea className={input} value={String(v ?? "")} onChange={(e) => value(f.id, e.target.value)} />
                   ) : f.type === "checkbox" ? (

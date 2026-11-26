@@ -25,9 +25,14 @@ export function medicationDue(row: HealthRecord, day: string) {
   }
 }
 
-export function scheduledDose(rows:HealthRecord[], medication:HealthRecord, day:string) {
-  return rows.filter(log=>log.kind==="dose"&&log.data.medication===medication.id&&log.data.date===day&&log.data.planned===medication.data.time)
+export function scheduledDose(rows:HealthRecord[], medication:HealthRecord, day:string, time=medication.data.time) {
+  return rows.filter(log=>log.kind==="dose"&&log.data.medication===medication.id&&log.data.date===day&&log.data.planned===time)
     .sort((a,b)=>b.updated_at-a.updated_at||a.id.localeCompare(b.id))[0];
+}
+
+export function doseIsDuplicate(log:HealthRecord, rows:HealthRecord[]) {
+  if (!log.data.planned) return false;
+  return scheduledDose(rows,{...log,id:str(log,"medication")},str(log,"date"),log.data.planned)?.id!==log.id;
 }
 
 export function medicationStock(row:HealthRecord, rows:HealthRecord[]) {

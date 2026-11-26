@@ -27,6 +27,10 @@ export function validDay(day:string){
  return Number.isFinite(time.getTime())&&time.toISOString().slice(0,10)===day;
 }
 const clock=(value:string)=>/^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+export function medicationTimes(data:Fields) {
+ const times=data.times===undefined?[String(data.time??"")]:typeof data.times==="string"?data.times.split(/[,，\s]+/).filter(Boolean):[];
+ return [...new Set(times)].sort();
+}
 const positive=(data:Fields,key:string)=>Number(data[key])>0;
 export function validateHealth(row:HealthRecord){
  const {kind,data}=row, s=(key:string)=>str(row,key);
@@ -54,7 +58,7 @@ export function validateHealth(row:HealthRecord){
  if(kind==="cycle"&&(!validDay(s("date"))||s("until")&&(!validDay(s("until"))||s("until")<s("date"))||Number(data.pain)>10))throw Error("請確認經期日期及疼痛程度");
  if(kind==="medication"&&(!s("title").trim()||!s("unit").trim()||!positive(data,"quantity")||!validDay(s("date"))||
    s("until")&&(!validDay(s("until"))||s("until")<s("date"))||s("expiry")&&!validDay(s("expiry"))||
-   !["daily","weekly","interval","asNeeded"].includes(s("frequency"))||s("frequency")!=="asNeeded"&&!clock(s("time"))||
+   !["daily","weekly","interval","asNeeded"].includes(s("frequency"))||s("frequency")!=="asNeeded"&&(!medicationTimes(data).length||medicationTimes(data).length>12||!medicationTimes(data).every(clock))||
    s("frequency")==="weekly"&&!/^[0-6]+$/.test(s("weekdays"))||
    s("frequency")==="interval"&&(!Number.isInteger(data.interval)||!positive(data,"interval"))))throw Error("請確認劑量、日期及服用週期");
  if(kind==="dose"&&(!s("medication")||!s("title").trim()||!validDay(s("date"))||!["taken","missed","skipped"].includes(s("status"))||

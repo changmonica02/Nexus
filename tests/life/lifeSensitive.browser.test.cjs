@@ -45,7 +45,7 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await page.getByRole("tab",{name:"健康管理",exact:true}).click();
     const nav = name => page.getByRole("navigation",{name:"健康功能"}).getByRole("button",{name,exact:true}).click();
     const enter = async (name, fill) => {
-      await page.getByRole("button",{name,exact:true}).click();
+      await page.getByRole("button",{name,exact:true}).first().click();
       const dialog=page.getByRole("dialog",{name,exact:true});
       await fill(dialog);
       await dialog.getByRole("button",{name:"儲存",exact:true}).click();
@@ -72,6 +72,7 @@ test("sensitive health and list templates use the existing workspace", { timeout
       await dialog.getByLabel("名稱",{exact:true}).fill("測試用保健食品");
       await dialog.getByLabel("單位",{exact:true}).fill("粒");
       await dialog.getByLabel("起始庫存").fill("10");
+      await dialog.getByLabel(/預定時間/).fill("08:00, 20:00");
     });
     await enter("新增服用紀錄",async()=>{});
     await page.getByText("剩餘庫存 9 粒",{exact:true}).waitFor();
@@ -85,6 +86,13 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await page.getByRole("button",{name:"日記",exact:true}).click();
     await page.getByText("日期檢視與統計",{exact:true}).click();
     await shot("Nexus-Life5-records-tablet",820,1100);
+    await page.getByRole("tab",{name:"總覽",exact:true}).click();
+    await page.getByText(/站內提醒 · /).click();
+    await page.getByRole("button",{name:"新增日期提醒規則"}).click();
+    await page.getByLabel("提醒名稱").fill("確認生活物品");
+    await page.getByRole("button",{name:"儲存規則"}).click();
+    await page.getByText(/確認生活物品 · .* 起每/).waitFor();
+    await shot("Nexus-Life6-reminders-desktop",1280,900);
     assert.deepEqual(errors,[]);
   } finally {
     await browser?.close();

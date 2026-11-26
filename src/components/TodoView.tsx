@@ -1,4 +1,5 @@
 "use client";
+import LifeReminders from "../features/life/LifeReminders";
 import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
 import {shared,type HealthRecord} from "../features/life/health/model";
 import {healthEvents} from "../features/life/health/summary";
@@ -139,6 +140,20 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   return match&&(p.title+' '+p.content_text).toLocaleLowerCase().includes(state.query.toLocaleLowerCase().trim());
  });
  const open=(id:string)=>navigateDictionary(()=>{change({scroll:scroller.current?.scrollTop??0});onSelectPage(id);});
+ const reminderDays=state.tab==="overview"?Array.from({length:31},(_,offset)=>addDays(today,offset)):[];
+ const reminderEvents=state.tab==="overview"?[
+  ...(!scheduleHidden?scheduleCalendarEvents(appointments,reminderDays):[]),
+  ...(!milestonesHidden?scheduleCalendarEvents(milestones,reminderDays):[]),
+  ...(!habitsHidden?habitCalendarEvents(habits,[today],today):[]),
+  ...(!financeHidden?financeCalendarEvents(finances,reminderDays):[]),
+  ...(!healthHidden?healthEvents(health,reminderDays,healthSettings??{}):[]),
+ ].filter(event=>!event.completed):[];
+ const reminderSource={schedule:"行程",milestones:"重要日期",habits:"習慣",finance:"財務",health:"健康",tasks:"待辦",taskStart:"待辦"};
+ const reminderId=(event:LifeCalendarEvent)=>JSON.stringify([event.source,event.sourceId,event.date,event.occurrence??"",event.title]);
+ const reminderItems=[
+  ...reminderEvents.map(event=>({id:reminderId(event),title:event.title,day:localDateInput(new Date(event.date)),source:reminderSource[event.source],priority:1})),
+  ...(!tasksHidden?todos.flatMap(task=>!task.completed&&task.due_date!=null?[{id:"task:"+task.id,title:task.title,day:localDateInput(new Date(task.due_date)),source:"待辦",priority:task.due_date<today.getTime()?2:1}]:[]):[]),
+ ];
  const collection=(items:Page[],key:string)=><PageCollection pages={items} initialView="list" initialSort="due_date" initialAscending viewStorageKey={key} sortOptions={['due_date','updated_at','title','created_at']} onSelectPage={open} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete} leadingControl={item=><input aria-label={t('ui.completeTask',{name:item.title})} type="checkbox" checked={!!item.completed} onChange={event=>onUpdate(item.id,{completed:event.target.checked})}/>}/>;
  const setDate=(date:Date)=>change({date:date.getTime(),month:new Date(date.getFullYear(),date.getMonth(),1).getTime(),scroll:0});
  const openEvent=(event:LifeCalendarEvent)=>{
@@ -198,6 +213,10 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      <div className="flex flex-wrap items-center gap-2"><label className="flex max-w-full items-center gap-2 text-sm">{t('life.date')}<input aria-label={t('life.date')} type="date" value={localDateInput(selected)} onChange={event=>{if(event.target.value)setDate(new Date(event.target.value+'T00:00:00'));}} className="min-h-11 min-w-0 max-w-full rounded border bg-transparent px-2"/></label><button type="button" className={button} onClick={()=>setDate(today)}>{t('todo.today')}</button></div>
      {state.tab!=='overview'&&!dashboard.config.hiddenModules.includes('tasks')&&<form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();void add();}}><input ref={quickTaskInput} aria-label={t('life.newTitle')} maxLength={500} disabled={busy} placeholder={t('life.newTitle')} value={input} onChange={event=>setInput(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/><button disabled={busy||!input.trim()} className={button}>{t('todo.add')}</button></form>}
      {error&&<p role="alert">{error}</p>}
+     {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems} open={id=>{
+       if(id.startsWith("task:"))open(id.slice(5));
+       else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
+     }}/>}
      {state.tab==='overview'&&<LifeOverview dashboard={dashboard} todos={todos} anchor={selected} today={today}
        selectedId={state.boardId} onSelectBoard={boardId=>change({boardId})}
        timer={timer} health={visibleHealth} healthShared={Object.entries(healthSettings??{}).some(([key,on])=>key.startsWith('share_')&&on===true&&healthSettings?.['off_'+key.slice(6)]!==true)} finances={financeHidden?[]:finances} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:habits} openSchedule={event=>{setOccurrence(undefined);setEventEditor(event);}}
@@ -238,7 +257,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
        習慣 · {item.title}{item.completed?' ✓':''}</button>)}{dailyTaskStarts.map(item=><button key={item.sourceId} type="button" className={button+' w-full text-left'} onClick={()=>open(item.sourceId)}>
        開始 · {item.title}</button>)}{(!financeHidden&&sources.finance?financeCalendarEvents(finances,[selected]):[]).map(item=>
       <button className={button+' w-full text-left'} key={item.sourceId} onClick={()=>openEvent(item)}>{item.title}</button>)}
-      {(!healthHidden&&sources.health?healthEvents(health,[selected],healthSettings??{}):[]).map(item=><button className={button+" w-full text-left"} key={item.sourceId} onClick={()=>openEvent(item)}>{item.title}</button>)}
+      {(!healthHidden&&sources.health?healthEvents(health,[selected],healthSettings??{}):[]).map(item=><button className={button+" w-full text-left"} key={item.sourceId+":"+(item.occurrence??"")} onClick={()=>openEvent(item)}>{item.title}</button>)}
       {collection(daily,'nexus-calendar-items-view')}</>:<CalendarPeriod days={gridDays} events={dates} locale={language} open={openEvent}
        select={date=>change({calendarView:'day',date:date.getTime(),scroll:0})}/>}
      </>}

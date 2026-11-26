@@ -368,7 +368,7 @@ export default function LifeItemViews({
           </button>
         </div>
       </details>
-      <LifeRecordSummary fields={list.fields} items={table.getFilteredRowModel().flatRows.map(row=>row.original)} open={onEdit}/>
+      <LifeRecordSummary fields={list.fields} categories={categories} items={table.getFilteredRowModel().flatRows.map(row=>row.original)} open={onEdit}/>
       {prefs.view === "tree" && (
         <CategoryTree
           categories={categories}

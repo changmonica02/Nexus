@@ -2,7 +2,7 @@ import { medicationDue, scheduledDose } from "./sensitive";
 import { civilAdvance } from "../civilPeriods";
 import { localDateInput } from "../../../lib/todoCalendar";
 import type { LifeCalendarEvent } from "../calendarSources";
-import { allowed, body, nutrition, num, str, type Fields, type HealthRecord } from "./model";
+import { allowed, body, medicationTimes, nutrition, num, str, type Fields, type HealthRecord } from "./model";
 export type Period="day"|"week"|"month";
 export const value=(amount:number|null,unit="")=>amount===null?"尚無紀錄":Number(amount.toFixed(2))+(unit?" "+unit:"");
 export function latest(rows:HealthRecord[],metric:string,day:string){
@@ -62,9 +62,9 @@ export function healthEvents(rows:HealthRecord[],days:Date[],settings:Fields):Li
    }
    if(settings.calendarCycle&&allowed(settings,"cycle")&&row.kind==="cycle"&&date===str(row,"date"))
     events.push({...base,title:"經期紀錄",completed:true});
-   if(settings.calendarMedication&&allowed(settings,"medication")&&medicationDue(row,date)){
-    const log=scheduledDose(rows,row,date);
-    events.push({...base,title:"服用提醒",startsAt:new Date(date+"T"+str(row,"time")).getTime(),completed:log?.data.status==="taken"});
+   if(settings.calendarMedication&&allowed(settings,"medication")&&medicationDue(row,date))for(const time of medicationTimes(row.data)){
+    const log=scheduledDose(rows,row,date,time);
+    events.push({...base,title:"服用提醒",occurrence:time,startsAt:new Date(date+"T"+time).getTime(),completed:log?.data.status==="taken"});
    }
   }
   return events;

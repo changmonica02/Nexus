@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { LifeField, LifeItem } from "./lists";
+import { civilAdvance } from "./civilPeriods";
 import { control, surface } from "./dashboard/styles";
 
 function groups<T>(items:T[], key:(item:T)=>string) {
@@ -13,11 +14,13 @@ function groups<T>(items:T[], key:(item:T)=>string) {
   return grouped;
 }
 
-export default function LifeRecordSummary({fields,items,open}:{fields:LifeField[];items:LifeItem[];open:(item:LifeItem)=>void}){
+export default function LifeRecordSummary({fields,items,categories,open}:{fields:LifeField[];items:LifeItem[];categories:{id:string;title:string}[];open:(item:LifeItem)=>void}){
   const [fieldId,setField]=useState("");
   const [start,setStart]=useState("");
   const [end,setEnd]=useState("");
   const [mode,setMode]=useState("stats");
+  const [group,setGroup]=useState("month");
+  const [chart,setChart]=useState("bar");
   const [month,setMonth]=useState(()=>new Date().toLocaleDateString("sv-SE").slice(0,7));
   const active=fields.filter(field=>!field.archived);
   const field=active.find(field=>field.id===fieldId);
@@ -31,8 +34,14 @@ export default function LifeRecordSummary({fields,items,open}:{fields:LifeField[
   const represented=values.filter(value=>typeof value==="boolean").length;
   const dated=groups(filtered.filter(item=>dateOf(item)),dateOf);
   const days=[...dated.keys()].sort();
-  const months=groups(days,date=>date.slice(0,7));
-  const max=Math.max(1,...Array.from(months.values(),dates=>dates.reduce((n,date)=>n+(dated.get(date)?.length??0),0)));
+  const buckets=group==="category"?groups(filtered,item=>item.category_id??""):groups(filtered.filter(item=>dateOf(item)),item=>{
+    const date=dateOf(item);
+    if(group==="day")return date;
+    if(group==="year")return date.slice(0,4);
+    if(group==="week")return civilAdvance(date,"day",-((new Date(date+"T00:00:00Z").getUTCDay()+6)%7));
+    return date.slice(0,7);
+  });
+  const max=Math.max(1,...Array.from(buckets.values(),rows=>rows.length));
   return <details className={surface}><summary className="cursor-pointer font-medium">日期檢視與統計</summary>
     <div className="mt-3 flex flex-wrap gap-2">
       <label className="grid gap-1">檢視<select className={control} value={mode} onChange={event=>setMode(event.target.value)}>
@@ -49,9 +58,17 @@ export default function LifeRecordSummary({fields,items,open}:{fields:LifeField[
     {mode==="stats"?<>
       {numbers.length>0&&<p>加總 {sum.toLocaleString()} · 平均 {(sum/numbers.length).toLocaleString()} · 最小 {numbers.reduce((a,b)=>Math.min(a,b))} · 最大 {numbers.reduce((a,b)=>Math.max(a,b))}</p>}
       {represented>0&&<p>完成 {checked} / {represented} · {Math.round(checked/represented*100)}% <progress value={checked} max={represented} aria-label="完成比例"/></p>}
-      <ul aria-label="每月紀錄筆數" className="mt-3 space-y-1">{Array.from(months,([month,dates])=>{
-        const count=dates.reduce((n,date)=>n+(dated.get(date)?.length??0),0);
-        return <li key={month} className="flex flex-wrap items-center gap-2">{month} <meter min={0} max={max} value={count} aria-label={month+"筆數"}/> {count} 筆</li>;
+      <div className="my-2 flex flex-wrap gap-2">
+        <label>分組 <select className={control} value={group} onChange={event=>setGroup(event.target.value)}>
+          <option value="day">日</option><option value="week">週</option><option value="month">月</option><option value="year">年</option><option value="category">分類</option>
+        </select></label>
+        <label>呈現方式 <select className={control} value={chart} onChange={event=>setChart(event.target.value)}>
+          <option value="bar">長條</option><option value="numbers">數值</option>
+        </select></label>
+      </div>
+      <ul aria-label="分組紀錄筆數" className="mt-3 space-y-1">{[...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([key,rows])=>{
+        const name=group==="category"?categories.find(category=>category.id===key)?.title??"未分類":key;
+        return <li key={key} className="flex flex-wrap items-center gap-2">{name} {chart==="bar"&&<meter min={0} max={max} value={rows.length} aria-label={name+"筆數"}/>} {rows.length} 筆</li>;
       })}</ul>
     </>:mode==="calendar"?<div className="overflow-x-auto">
       <div className="grid min-w-[30rem] grid-cols-7 gap-1 text-xs">
