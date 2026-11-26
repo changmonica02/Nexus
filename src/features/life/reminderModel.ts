@@ -1,13 +1,14 @@
+import { milestoneTarget } from "./milestoneDates";
 import { habitQuantity } from "./habits";
-import type { Habit } from "./syncRecords";
+import type { Habit, ScheduleEvent } from "./syncRecords";
 import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 
 export type Reminder = { id:string; day:string; title:string; source:string; priority:number };
-export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
+export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"|"list-number"|"target-days"; targetId?:string; daysBefore?:number; fieldId?:string; numericThreshold?:number; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
 export type AutomationRun={id:string; title:string; day:string; at:number; error?:string};
 export type RuleExercise = { id:string; day:string };
-export type RuleListItem={id:string; listId:string; revision:number; day:string};
+export type RuleListItem={id:string; listId:string; revision:number; day:string; values?:Readonly<Record<string,unknown>>};
 export type ReminderStatus = { handled?:boolean; hiddenUntil?:string; priority?:number };
 export function ruleOccurrence(rule:ReminderRule, day:string, tasks:readonly {id:string;completed?:boolean;day:string;due?:string}[]=[]):Reminder|null {
   if(rule.trigger==="task-completed"){
@@ -25,7 +26,16 @@ export function ruleOccurrence(rule:ReminderRule, day:string, tasks:readonly {id
   if(!rule.enabled||!Number.isSafeInteger(rule.interval)||rule.interval<1||distance<0||distance%rule.interval!==0)return null;
   return {id:JSON.stringify(["rule",rule.id,day]),day,title:rule.title,source:"自訂規則",priority:1};
 }
-export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<typeof ruleOccurrence>[2],records:readonly RuleListItem[],budgets:readonly {id:string;percent:number}[]=[],habits:readonly Habit[]=[],exercises:readonly RuleExercise[]=[]) {
+export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<typeof ruleOccurrence>[2],records:readonly RuleListItem[],budgets:readonly {id:string;percent:number}[]=[],habits:readonly Habit[]=[],exercises:readonly RuleExercise[]=[],targets:readonly ScheduleEvent[]=[]) {
+  if(rule.trigger==="target-days"){
+    const target=targets.find(row=>row.id===rule.targetId&&row.milestone&&row.deleted_at==null);
+    const lead=rule.daysBefore;
+    if(!rule.enabled||!target||typeof lead!=="number"||!Number.isInteger(lead)||lead<0||lead>30||day<rule.start)return [];
+    const targetDay=new Date(milestoneTarget({...target,milestone:{...target.milestone!,mode:"remaining"}},new Date(day+"T00:00:00"))).toISOString().slice(0,10);
+    const due=civilAdvance(targetDay,"day",-lead);
+    if(due!==day)return [];
+    return [{id:JSON.stringify(["target-days",rule.id,target.id,targetDay]),day,title:rule.title,source:"自訂規則",priority:1}];
+  }
   if(rule.trigger==="exercise-completed"){
     if(!rule.enabled)return [];
     return exercises.filter(row=>row.day>=rule.start&&row.day<=day).map(row=>({
@@ -45,14 +55,19 @@ export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<ty
     if(!rule.enabled||day<rule.start||!budget||budget.percent<(rule.threshold??1))return [];
     return [{id:JSON.stringify(["budget-percent",rule.id,budget.id,day.slice(0,7)]),day,title:rule.title,source:"自訂規則",priority:1}];
   }
-  if(rule.trigger!=="list-updated"){
+  if(rule.trigger!=="list-updated"&&rule.trigger!=="list-number"){
     const occurrence=ruleOccurrence(rule,day,tasks);
     return occurrence?[occurrence]:[];
   }
   if(!rule.enabled||!rule.listId)return [];
-  return records.filter(row=>row.listId===rule.listId&&row.day>=rule.start&&row.day<=day).map(row=>({
-    id:JSON.stringify(["list-updated",rule.id,row.id,row.revision]),day:row.day,title:rule.title,source:"自訂規則",priority:1,
+  return records.filter(row=>row.listId===rule.listId&&row.day>=rule.start&&row.day<=day&&(rule.trigger!=="list-number"||matchesNumericThreshold(rule,row))).map(row=>({
+    id:JSON.stringify([rule.trigger,rule.id,row.id,row.revision]),day:row.day,title:rule.title,source:"自訂規則",priority:1,
   }));
+}
+function matchesNumericThreshold(rule:ReminderRule,row:RuleListItem) {
+  const value=rule.fieldId?row.values?.[rule.fieldId]:undefined;
+  return typeof value==="number"&&Number.isFinite(value)&&typeof rule.numericThreshold==="number"
+    &&Number.isFinite(rule.numericThreshold)&&value>=rule.numericThreshold;
 }
 export function previewRule(rule:ReminderRule, from:string) {
   const distance=(Date.parse(from)-Date.parse(rule.start))/86400000;
@@ -76,10 +91,12 @@ export function isReminderPreferences(value:unknown):value is ReminderPreference
   return Number.isInteger(lead)&&lead>=0&&lead<=30&&Array.isArray(rules)&&rules.length<=50&&new Set(rules.map(rule=>rule?.id)).size===rules.length
     &&rules.every(rule=>rule&&typeof rule.id==="string"&&rule.id.length<=80&&typeof rule.title==="string"&&!!rule.title.trim()&&rule.title.length<=100
       &&(rule.action===undefined||rule.action==="reminder"||rule.action==="schedule")&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
-      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed")
+      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed"||rule.trigger==="list-number"||rule.trigger==="target-days")
+      &&(rule.trigger!=="target-days"||typeof rule.targetId==="string"&&!!rule.targetId&&rule.targetId.length<=120&&Number.isInteger(rule.daysBefore)&&rule.daysBefore!>=0&&rule.daysBefore!<=30)
       &&(rule.trigger!=="habit-completed"||typeof rule.habitId==="string"&&!!rule.habitId&&rule.habitId.length<=120)
       &&(rule.trigger!=="budget-percent"||typeof rule.budgetId==="string"&&!!rule.budgetId&&rule.budgetId.length<=120)
-      &&(rule.trigger!=="list-updated"||typeof rule.listId==="string"&&!!rule.listId&&rule.listId.length<=120)
+      &&((rule.trigger!=="list-updated"&&rule.trigger!=="list-number")||typeof rule.listId==="string"&&!!rule.listId&&rule.listId.length<=120)
+      &&(rule.trigger!=="list-number"||typeof rule.fieldId==="string"&&!!rule.fieldId&&rule.fieldId.length<=120&&Number.isFinite(rule.numericThreshold))
       && ((rule.trigger!=="overdue-count"&&rule.trigger!=="budget-percent")||Number.isInteger(rule.threshold)&&rule.threshold!>=1&&rule.threshold!<=1000)
       &&(rule.trigger!=="task-completed"||typeof rule.task==="string"&&!!rule.task&&rule.task.length<=120))
     &&!!status&&typeof status==="object"&&!Array.isArray(status)&&Object.entries(status).length<=400

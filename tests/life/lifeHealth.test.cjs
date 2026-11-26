@@ -149,3 +149,27 @@ test("exercise automation deduplicates edited completions and respects rule date
     occurrences({ id: "done", day: "2026-11-26" })[0].id);
   assert.deepEqual(occurrences(), []);
 });
+
+test("numeric list rules use finite numeric values, a scoped field, and a stable revision identity", () => {
+  const { ruleOccurrences } = require("../../src/features/life/reminderModel.ts");
+  const day = "2026-11-27";
+  const rule = { id:"n", title:"門檻", enabled:true, interval:1, start:day, trigger:"list-number", listId:"l", fieldId:"f", numericThreshold:-0.5 };
+  const item = { id:"i", listId:"l", revision:1, day, values:{f:-0.5} };
+  const run = row => ruleOccurrences(rule,day,[],[row]);
+  assert.equal(run(item).length,1);
+  assert.notEqual(run(item)[0].id,run({...item,revision:2})[0].id);
+  for (const value of [-0.6,"2",null,NaN,Infinity]) assert.deepEqual(run({...item,values:{f:value}}),[]);
+  assert.deepEqual(run({...item,listId:"another"}),[]);
+});
+
+test("target-day rules preserve leap-day intent across annual anniversaries", () => {
+  const { ruleOccurrences } = require("../../src/features/life/reminderModel.ts");
+  const rule = { id:"m", title:"倒數", enabled:true, interval:1, start:"2026-01-01", trigger:"target-days",targetId:"target",daysBefore:2 };
+  const target = { id:"target", starts_at:Date.parse("2024-02-29"), milestone:{yearly:true,mode:"elapsed"} };
+  const run = (day, targets=[target]) => ruleOccurrences(rule,day,[],[],[],[],[],targets);
+  assert.equal(run("2026-02-26").length,1);
+  assert.equal(run("2028-02-27").length,1);
+  assert.notEqual(run("2026-02-26")[0].id,run("2028-02-27")[0].id);
+  assert.deepEqual(run("2026-02-27"),[]);
+  assert.deepEqual(run("2026-02-26",[]),[]);
+});

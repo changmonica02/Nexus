@@ -1,4 +1,4 @@
-import type { Habit } from "./syncRecords";
+import type { Habit, ScheduleEvent } from "./syncRecords";
 import { useEffect, useState } from "react";
 import { civilAdvance } from "./civilPeriods";
 import { control, surface } from "./dashboard/styles";
@@ -7,7 +7,7 @@ import { previewRule, ruleOccurrence, ruleOccurrences, type AutomationRun, type 
 type Preference = ReminderPreferences;
 const defaults:Preference={lead:3,rules:[],status:{}};
 
-export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,existingSchedules,readRuns,ruleLists,ruleRecords,ruleBudgets,ruleHabits,ruleExercises}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[];readRuns:()=>Promise<AutomationRun[]>;ruleLists:{id:string;title:string}[];ruleRecords:RuleListItem[];ruleBudgets:{id:string;title:string;percent:number}[];ruleHabits:readonly Habit[];ruleExercises:readonly RuleExercise[]}){
+export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,existingSchedules,readRuns,ruleLists,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[];readRuns:()=>Promise<AutomationRun[]>;ruleLists:{id:string;title:string;numericFields:{id:string;name:string}[]}[];ruleRecords:RuleListItem[];ruleBudgets:{id:string;title:string;percent:number}[];ruleHabits:readonly Habit[];ruleExercises:readonly RuleExercise[];ruleTargets:readonly ScheduleEvent[]}){
   const key="nexus-life-reminders:"+JSON.stringify(owner);
   const [local,setPrefs]=useState<Preference>(()=>{
     try{
@@ -38,7 +38,9 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
   const [runError,setRunError]=useState("");
   const [retry,setRetry]=useState(0);
   const [runs,setRuns]=useState<AutomationRun[]>([]);
-  const candidates=prefs.rules.filter(rule=>rule.action==="schedule").flatMap(rule=>ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises)).filter(occurrence=>occurrence.day<=day);
+  const eligibleRules=prefs.rules.filter(rule=>rule.trigger!=="list-number"||ruleLists.some(list=>
+    list.id===rule.listId&&list.numericFields.some(field=>field.id===rule.fieldId)));
+  const candidates=eligibleRules.filter(rule=>rule.action==="schedule").flatMap(rule=>ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets)).filter(occurrence=>occurrence.day<=day);
   useEffect(()=>{
     const refresh=()=>{if(document.visibilityState==="visible")setRetry(value=>value+1);};
     document.addEventListener("visibilitychange",refresh);
@@ -64,8 +66,9 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     void run();
     return ()=>{active=false;};
   },[candidateSnapshot,runSchedule,readRuns,retry]);
-  const rules=prefs.rules.filter(rule=>rule.action!=="schedule").flatMap(rule=>{
-    if(rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed")return ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises);
+  const rules=eligibleRules.filter(rule=>rule.action!=="schedule").flatMap(rule=>{
+    if(rule.trigger==="target-days")return Array.from({length:prefs.lead+1},(_,offset)=>ruleOccurrences(rule,civilAdvance(day,"day",offset),tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets)).flat();
+    if(rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed"||rule.trigger==="list-number")return ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets,ruleHabits,ruleExercises,ruleTargets);
     if(rule.trigger==="task-completed"||rule.trigger==="overdue-count"){
       const occurrence=ruleOccurrence(rule,day,tasks);
       return occurrence?[occurrence]:[];
@@ -120,15 +123,20 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     </div>)}
     {draft?<form className="flex flex-wrap items-end gap-2" onSubmit={async event=>{
       event.preventDefault();
-      if((draft.trigger==="exercise-completed"?false:draft.trigger==="habit-completed"?!draft.habitId:draft.trigger==="task-completed"?!draft.task:draft.trigger==="overdue-count"?!draft.threshold:draft.trigger==="list-updated"?!draft.listId:draft.trigger==="budget-percent"?!(draft.budgetId&&draft.threshold):!next)||!draft.title.trim()){setError("請確認提醒名稱與日期");return;}
+      if((draft.trigger==="target-days"?!(draft.targetId&&Number.isInteger(draft.daysBefore)):draft.trigger==="list-number"?!(draft.listId&&draft.fieldId&&Number.isFinite(draft.numericThreshold)):draft.trigger==="exercise-completed"?false:draft.trigger==="habit-completed"?!draft.habitId:draft.trigger==="task-completed"?!draft.task:draft.trigger==="overdue-count"?!draft.threshold:draft.trigger==="list-updated"?!draft.listId:draft.trigger==="budget-percent"?!(draft.budgetId&&draft.threshold):!next)||!draft.title.trim()){setError("請確認提醒名稱與日期");return;}
       if(await save({...prefs,rules:[...prefs.rules.filter(row=>row.id!==draft.id),{...draft,title:draft.title.trim()}]}))setDraft(undefined);
     }}>
       <label className="grid gap-1">提醒名稱<input className={control} value={draft.title} maxLength={100} required onChange={event=>setDraft({...draft,title:event.target.value})}/></label>
       <label className="grid gap-1">開始日期<input className={control} type="date" value={draft.start} required onChange={event=>setDraft({...draft,start:event.target.value})}/></label>
       <label className="grid gap-1">觸發條件<select className={control} value={draft.trigger??"date"} onChange={event=>setDraft({...draft,trigger:event.target.value as ReminderRule["trigger"]})}>
-        <option value="date">日期週期</option><option value="task-completed">任務完成</option><option value="habit-completed">習慣達標</option><option value="exercise-completed">記錄實際運動</option><option value="overdue-count">逾期任務筆數達門檻</option><option value="list-updated">清單項目新增或修改</option><option value="budget-percent">預算用量達門檻</option>
+        <option value="date">日期週期</option><option value="task-completed">任務完成</option><option value="habit-completed">習慣達標</option><option value="exercise-completed">記錄實際運動</option><option value="overdue-count">逾期任務筆數達門檻</option><option value="target-days">距重要日期天數</option><option value="list-number">清單數值達門檻</option><option value="list-updated">清單項目新增或修改</option><option value="budget-percent">預算用量達門檻</option>
       </select></label>
-      {draft.trigger==="exercise-completed"?<p>需在健康隱私設定中允許顯示運動摘要。</p>:draft.trigger==="habit-completed"?<label className="grid gap-1">指定習慣<select className={control} value={draft.habitId??""} onChange={event=>setDraft({...draft,habitId:event.target.value})} required>
+      {draft.trigger==="target-days"?<>
+        <label className="grid gap-1">重要日期<select className={control} required value={draft.targetId??""} onChange={event=>setDraft({...draft,targetId:event.target.value})}>
+          <option value="">請選擇</option>{ruleTargets.map(target=><option key={target.id} value={target.id}>{target.title}</option>)}
+        </select></label>
+        <label className="grid gap-1">提前天數<input className={control} type="number" min={0} max={30} required value={draft.daysBefore??""} onChange={event=>setDraft({...draft,daysBefore:event.target.value===""?undefined:event.target.valueAsNumber})}/></label>
+      </>:draft.trigger==="exercise-completed"?<p>需在健康隱私設定中允許顯示運動摘要。</p>:draft.trigger==="habit-completed"?<label className="grid gap-1">指定習慣<select className={control} value={draft.habitId??""} onChange={event=>setDraft({...draft,habitId:event.target.value})} required>
         <option value="">請選擇</option>{ruleHabits.map(habit=><option key={habit.id} value={habit.id}>{habit.title}</option>)}
       </select></label>:draft.trigger==="task-completed"?<label className="grid gap-1">指定任務<select className={control} value={draft.task??""} onChange={event=>setDraft({...draft,task:event.target.value})} required>
         <option value="">請選擇</option>{tasks.map(task=><option key={task.id} value={task.id}>{task.title}</option>)}
@@ -137,13 +145,18 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
           <option value="">請選擇</option>{ruleBudgets.map(row=><option key={row.id} value={row.id}>{row.title}</option>)}
         </select></label>
         <label className="grid gap-1">用量門檻（%）<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>
-      </>:draft.trigger==="list-updated"?<label className="grid gap-1">指定清單<select className={control} value={draft.listId??""} onChange={event=>setDraft({...draft,listId:event.target.value})} required>
+      </>:draft.trigger==="list-updated"||draft.trigger==="list-number"?<><label className="grid gap-1">指定清單<select className={control} value={draft.listId??""} onChange={event=>setDraft({...draft,listId:event.target.value,fieldId:undefined})} required>
         <option value="">請選擇</option>{ruleLists.map(list=><option key={list.id} value={list.id}>{list.title}</option>)}
-      </select></label>:draft.trigger==="overdue-count"?<label className="grid gap-1">逾期任務門檻<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>:<label className="grid gap-1">間隔天數<input className={control+" w-24"} type="number" min={1} max={365} value={draft.interval} onChange={event=>setDraft({...draft,interval:Number(event.target.value)})}/></label>}
+      </select></label>{draft.trigger==="list-number"&&<>
+        <label className="grid gap-1">數字欄位<select className={control} required value={draft.fieldId??""} onChange={event=>setDraft({...draft,fieldId:event.target.value})}>
+          <option value="">請選擇</option>{ruleLists.find(list=>list.id===draft.listId)?.numericFields.map(field=><option key={field.id} value={field.id}>{field.name}</option>)}
+        </select></label>
+        <label className="grid gap-1">數值門檻<input className={control} type="number" step="any" required value={draft.numericThreshold??""} onChange={event=>setDraft({...draft,numericThreshold:event.target.value===""?undefined:event.target.valueAsNumber})}/></label>
+      </>}</>:draft.trigger==="overdue-count"?<label className="grid gap-1">逾期任務門檻<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>:<label className="grid gap-1">間隔天數<input className={control+" w-24"} type="number" min={1} max={365} value={draft.interval} onChange={event=>setDraft({...draft,interval:Number(event.target.value)})}/></label>}
       <label className="grid gap-1">執行動作<select className={control} value={draft.action??"reminder"} onChange={event=>setDraft({...draft,action:event.target.value==="schedule"?"schedule":"reminder"})}>
         <option value="reminder">顯示站內提醒</option><option value="schedule" disabled={!runSchedule}>建立全天行程</option>
       </select></label>
-      <p>下次預覽 · {draft.trigger==="exercise-completed"?"每筆實際運動紀錄執行一次":draft.trigger==="habit-completed"?"指定習慣達標後，每個習慣週期執行一次":draft.trigger==="task-completed"?"指定任務完成後執行":draft.trigger==="overdue-count"?"達門檻時，每日執行一次":draft.trigger==="list-updated"?"每個項目版本執行一次":draft.trigger==="budget-percent"?"達門檻後每月執行一次":next??"請輸入日期與間隔"}</p>
+      <p>下次預覽 · {draft.trigger==="target-days"?"每次重要日期前依設定天數執行一次":draft.trigger==="list-number"?"欄位達門檻時，每個符合的項目版本執行一次":draft.trigger==="exercise-completed"?"每筆實際運動紀錄執行一次":draft.trigger==="habit-completed"?"指定習慣達標後，每個習慣週期執行一次":draft.trigger==="task-completed"?"指定任務完成後執行":draft.trigger==="overdue-count"?"達門檻時，每日執行一次":draft.trigger==="list-updated"?"每個項目版本執行一次":draft.trigger==="budget-percent"?"達門檻後每月執行一次":next??"請輸入日期與間隔"}</p>
       <button className={control}>儲存規則</button><button className={control} type="button" onClick={()=>setDraft(undefined)}>取消</button>
     </form>:<button className={control} type="button" onClick={()=>setDraft({id:crypto.randomUUID(),title:"",start:day,interval:7,enabled:true})}>新增日期提醒規則</button>}
     </fieldset>

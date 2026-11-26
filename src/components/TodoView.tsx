@@ -245,10 +245,10 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {error&&<p role="alert">{error}</p>}
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
-      readRuns={readAutomationRuns} ruleBudgets={budgets}
+      readRuns={readAutomationRuns} ruleBudgets={budgets} ruleTargets={milestonesHidden?[]:milestones}
       ruleExercises={exerciseAutomationSources(visibleHealth)} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
-      ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title}))}
-      ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,day:localDateInput(new Date(item.updated_at))}))}
+      ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title, numericFields:list.fields.filter(field=>field.type==="number"&&!field.archived).map(field=>({id:field.id,name:field.name}))}))}
+      ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,values:item.values,day:localDateInput(new Date(item.updated_at))}))}
       runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
       existingSchedules={scheduleHidden?[]:appointments.filter(row=>row.id.startsWith("automation:")).map(row=>({id:row.id,title:row.title,day:new Date(row.starts_at).toISOString().slice(0,10)}))}
       synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{
