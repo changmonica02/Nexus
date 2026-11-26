@@ -138,3 +138,14 @@ test("habit automation uses the selected habit and deduplicates a weekly goal fr
   assert.notEqual(occurrences("2026-11-29")[0].id, occurrences("2026-11-30")[0].id);
   assert.deepEqual(occurrences("2026-11-24", []), []);
 });
+
+test("exercise automation deduplicates edited completions and respects rule dates", () => {
+  const { ruleOccurrences } = require("../../src/features/life/reminderModel.ts");
+  const rule = { id: "rule", trigger: "exercise-completed", title: "運動已完成",
+    start: "2026-11-23", enabled: true, interval: 1 };
+  const occurrences = (...rows) => ruleOccurrences(rule, "2026-11-27", [], [], [], [], rows);
+  assert.deepEqual(occurrences({ id: "old", day: "2026-11-22" }, { id: "future", day: "2026-11-28" }), []);
+  assert.equal(occurrences({ id: "done", day: "2026-11-23" })[0].id,
+    occurrences({ id: "done", day: "2026-11-26" })[0].id);
+  assert.deepEqual(occurrences(), []);
+});

@@ -245,7 +245,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {error&&<p role="alert">{error}</p>}
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
-      readRuns={readAutomationRuns} ruleBudgets={budgets} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
+      readRuns={readAutomationRuns} ruleBudgets={budgets}
+      ruleExercises={visibleHealth.flatMap(row=>row.kind==="exercise"&&row.deleted_at==null&&typeof row.data.date==="string"?[{id:row.id,day:row.data.date}]:[])} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
       ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title}))}
       ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,day:localDateInput(new Date(item.updated_at))}))}
       runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
