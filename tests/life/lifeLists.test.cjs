@@ -392,6 +392,8 @@ test("mixed life sync preserves legacy configuration, revision conflicts, schedu
     const sync = async local => { await pullWorkspace(server, local, owner); await flushWorkspace(server, local, owner); };
     const config = initialConfig();
     config.boards[0].name = "我的生活";
+    config.reminders = {lead:3,rules:[{id:"check",title:"檢查行程",start:"2026-11-26",interval:7,enabled:true}],
+      status:{"reminder-example":{priority:3,handled:true}}};
     config.hiddenModules = ["lists"];
     await a.getLifeRepository().saveDashboard(config);
     assert.equal((await localA.pending(owner)).length, 0);
