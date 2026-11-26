@@ -55,20 +55,20 @@ export function scheduleCalendarEvents(events: import("./syncRecords").ScheduleE
   const end = days.at(-1);
   if (!end) return [];
   const through = localDateInput(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 2));
+  const windows=days.map(day=>{
+    const next=new Date(day);
+    next.setDate(next.getDate()+1);
+    return {day,start:day.getTime(),end:next.getTime()};
+  });
   return events.flatMap(series => {
     const overrideHorizon = Object.entries(series.repeat_rule?.overrides??{}).reduce((latest,[key,override])=>
       key>latest&&override.starts_at<=end.getTime()+172800000?key:latest,through);
     const occurrences = series.repeat_rule ? scheduleOccurrences(series, overrideHorizon) : [{ key: undefined, event: series }];
     return occurrences.flatMap(({key, event}) => {
       const [start, end] = scheduleRange(event);
-      return days.filter(day => {
-        if (event.milestone) return milestoneOccurs(event, day);
-        const next = new Date(day);
-        next.setDate(next.getDate() + 1);
-        return start < next.getTime() && end > day.getTime();
-      }).map(day => ({
+      return windows.filter(window=>event.milestone?milestoneOccurs(event,window.day):start<window.end&&end>window.start).map(window=>({
         source: event.milestone ? "milestones" as const : "schedule" as const,
-        sourceId: series.id, occurrence: key, date: day.getTime(), title: event.title, completed: false,
+        sourceId: series.id, occurrence: key, date: window.start, title: event.title, completed: false,
         allDay: event.all_day, startsAt: event.all_day ? undefined : event.starts_at,
       }));
     });

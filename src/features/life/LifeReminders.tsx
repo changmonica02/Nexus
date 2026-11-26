@@ -17,6 +17,7 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
   const prefs=synced??local;
   const [saving,setSaving]=useState(false);
   const [source,setSource]=useState("");
+  const [page,setPage]=useState(0);
   const [error,setError]=useState("");
   const [draft,setDraft]=useState<ReminderRule>();
   const [showHandled,setShowHandled]=useState(false);
@@ -72,6 +73,7 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
   });
   const all=[...items,...rules];
   const shown=visibleReminders(all,prefs.status,day,prefs.lead,source);
+  const pageIndex=Math.min(page,Math.max(0,Math.ceil(shown.length/50)-1));
   const changeStatus=(id:string,status:ReminderStatus)=>save({...prefs,status:{...prefs.status,[id]:{...prefs.status[id],...status}}});
   const clearStatus=(id:string)=>save({...prefs,status:Object.fromEntries(Object.entries(prefs.status).filter(([key])=>key!==id))});
   const next=draft&&(!draft.trigger||draft.trigger==="date")&&previewRule(draft,day);
@@ -81,20 +83,25 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     <fieldset disabled={saving}>
     <div className="mt-3 flex flex-wrap items-end gap-2">
       <label className="grid gap-1">提前天數<input className={control+" w-24"} type="number" min={0} max={30} value={prefs.lead} onChange={event=>save({...prefs,lead:Math.min(30,Math.max(0,Math.trunc(Number(event.target.value))))})}/></label>
-      <label className="grid gap-1">提醒來源<select className={control} value={source} onChange={event=>setSource(event.target.value)}><option value="">全部來源</option>
+      <label className="grid gap-1">提醒來源<select className={control} value={source} onChange={event=>{setSource(event.target.value);setPage(0);}}><option value="">全部來源</option>
         {[...new Set(all.map(item=>item.source))].sort().map(name=><option key={name}>{name}</option>)}
       </select></label>
       <button className={control} type="button" onClick={()=>setShowHandled(!showHandled)}>{showHandled?"隱藏已處理":"查看已處理"}</button>
     </div>
     {error&&<p role="alert">{error}</p>}
     {shown.length===0&&<p className="my-2">目前沒有待處理提醒。</p>}
-    <ul className="my-3 space-y-2">{shown.map(item=><li className="flex flex-wrap items-center gap-2" key={item.id}>
+    <ul className="my-3 space-y-2">{shown.slice(pageIndex*50,pageIndex*50+50).map(item=><li className="flex flex-wrap items-center gap-2" key={item.id}>
       <span className="min-w-0 grow break-words">{item.priority>1?"重要 · ":""}{item.day} · {item.title}</span>
       {item.source!=="自訂規則"&&<button className={control} type="button" onClick={()=>open(item.id)}>開啟來源</button>}
       <label>重要程度 <select className={control} value={item.priority} onChange={event=>void changeStatus(item.id,{priority:Number(event.target.value)})}><option value={1}>一般</option><option value={2}>重要</option><option value={3}>最高</option></select></label>
       <button className={control} type="button" onClick={()=>changeStatus(item.id,{hiddenUntil:civilAdvance(day,"day",1)})}>隱藏一天</button>
       <button className={control} type="button" onClick={()=>changeStatus(item.id,{handled:true})}>標示已處理</button>
     </li>)}</ul>
+    {shown.length>50&&<nav aria-label="提醒分頁" className="flex flex-wrap items-center gap-2">
+      <button className={control} type="button" disabled={pageIndex===0} onClick={()=>setPage(pageIndex-1)}>上一頁提醒</button>
+      <span>第 {pageIndex+1} / {Math.ceil(shown.length/50)} 頁</span>
+      <button className={control} type="button" disabled={(pageIndex+1)*50>=shown.length} onClick={()=>setPage(pageIndex+1)}>下一頁提醒</button>
+    </nav>}
     {showHandled&&<ul>{handled.map(([id])=><li className="flex flex-wrap items-center gap-2" key={id}>
       <span>{all.find(row=>row.id===id)?.title??"歷史提醒"}</span>
       <button className={control} type="button" onClick={()=>clearStatus(id)}>恢復提醒</button>
