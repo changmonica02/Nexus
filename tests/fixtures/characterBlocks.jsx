@@ -134,7 +134,6 @@ function App() {
     <div style={{ height: "100dvh" }} className="flex">
       <CharacterProfileView
         page={current}
-        onTitleChange={() => {}}
         onUpdateCharacterData={() => {
           throw Error("Must use durable commit");
         }}

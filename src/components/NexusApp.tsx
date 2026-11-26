@@ -1773,9 +1773,8 @@ function NexusAppInner({
         templateActions: page ? <CharacterTemplateUpdateControl page={page} resolveStorage={resolveTemplateStorage} onBeforeRead={() => beforeTemplateRead(page)} onApplied={templateApplied}/> : undefined,
         onCommitCharacterData: data => page ? commitCharacterData(page, data) : Promise.resolve(),
         onSaveTemplate: (name, data) => page ? saveCharacterTemplate(page, name, data) : Promise.resolve(),
-        worlds: pages.filter(item => item.creative_type === "world" && !item.deleted_at),
         getAttachmentBlob: getNovelCoverBlob,
-        onUploadGalleryImage: file => uploadCharacterGalleryImage(page!.id, file), onTitleChange,
+        onUploadGalleryImage: file => uploadCharacterGalleryImage(page!.id, file),
         onUpdateCharacterData: data => { if (page) patch({ character_data: data, title: data.isTemplate ? page.title : data.basic.name || page.title }); },
         onBackToCreativeOverview: handleShowCreative,
       }}
