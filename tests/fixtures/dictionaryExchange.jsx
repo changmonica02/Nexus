@@ -56,7 +56,6 @@ const failure = (message, code) => ({ data: null, error: { message, code } });
 const persist = () =>
   localStorage.setItem("fixture-server", JSON.stringify(server));
 window.calls = [];
-window.reviewReads = 0;
 window.fixtureState = () => structuredClone(server);
 window.failExport = false;
 window.loseResponse = false;
@@ -91,7 +90,6 @@ window.dictionaryClient = {
         return q;
       },
       maybeSingle() {
-        if (table === "dictionary_import_review_items") window.reviewReads++;
         return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       in(k, v) {

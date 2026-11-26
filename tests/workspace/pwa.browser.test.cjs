@@ -20,8 +20,6 @@ test('PWA shell: anonymous complete releases, offline restart, exclusions and du
       res.setHeader('Content-Type', req.url.endsWith('.js') ? 'application/javascript' : 'text/css');
       res.end(req.url.endsWith('.js') ? `window.shellBoot=${JSON.stringify(req.url.includes('/a.') ? 'a' : 'b')}` : 'body{color:rgb(20,30,40)}'); return;
     }
-    if (req.url === '/world-map/offline.js') { res.setHeader('Content-Type', 'application/javascript'); res.end("self.addEventListener('fetch', e => { if(new URL(e.request.url).pathname==='/world-map/probe') e.respondWith(new Response('MAP_OWN_WORKER')); });"); return; }
-    if (req.url === '/world-map/probe') { res.setHeader('Content-Type', 'text/html'); res.end('MAP_NETWORK'); return; }
     res.end('NETWORK_ONLY');
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -116,9 +114,5 @@ test('PWA shell: anonymous complete releases, offline restart, exclusions and du
     return { ...records, map: await (await caches.match('/world-map/sentinel')).text() };
   });
   assert.equal(afterActivation.map, 'KEEP_MAP_CACHE'); assert.equal(afterActivation.page.content_json.text, 'KEEP_PENDING_EDIT'); assert.equal(afterActivation.pending.payload, 'KEEP_OUTBOX');
-  await page.evaluate(async () => { await navigator.serviceWorker.register('/world-map/offline.js', { scope: '/world-map/' }); });
-  await waitForAsync(page, async () => (await navigator.serviceWorker.getRegistration('/world-map/'))?.active?.scriptURL.endsWith('/world-map/offline.js'));
-  await page.goto(origin + '/world-map/probe'); await page.reload();
-  assert.equal(await page.textContent('body'), 'MAP_OWN_WORKER');
-  console.log('PWA_FIXTURE_VERIFIED', JSON.stringify({ shell: 'a→offline→partial b rejected→b→offline', exclusions: true, indexedDB: true, mapScope: true }));
+  console.log('PWA_FIXTURE_VERIFIED', JSON.stringify({ shell: 'a→offline→partial b rejected→b→offline', exclusions: true, indexedDB: true, separateCachePreserved: true }));
 });

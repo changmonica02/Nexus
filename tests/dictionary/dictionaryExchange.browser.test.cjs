@@ -199,8 +199,8 @@ test(
         await page.getByRole("button", { name: "恢復匯入分析", exact: true }).click();
         assert.equal(await page.evaluate(() => window.fixtureState().records.length), 28);
 
-        // Commit the first resumed batch, then lose its reply. Read the same rows
-        // before applying the final two entries.
+        // Commit the first resumed batch and lose its reply. Re-stage using the
+        // same proposal keys and apply only the two entries without a receipt.
         await page.evaluate(() => { window.loseResponse = true; });
         await importSafe();
         await analysis.getByRole("alert").filter({ hasText: uncertain }).waitFor();
@@ -213,11 +213,13 @@ test(
         assert.equal(report.records.filter((r) => r.result?.status === "applied").length, 27);
         const saved = await page.evaluate(() => ({
           ...window.fixtureState(),
-          reads: window.reviewReads,
+          staged: window.calls.filter(({ name }) => name === "stage_dictionary_import_reviews")
+            .map(({ proposals }) => proposals.map(({ key }) => key)),
           batches: window.calls.filter(({ name }) => name === "apply_dictionary_safe_import_reviews")
             .map(({ operations }) => operations.length),
         }));
-        assert.equal(saved.reads, 25);
+        assert.deepEqual(saved.staged.slice(0, 2), saved.staged.slice(2));
+        assert.equal(new Set(saved.imports.map((r) => r.source.session_id)).size, 1);
         assert.deepEqual(saved.batches, [25, 2]);
         assert.equal(saved.imports.length, 52);
         assert.equal(new Set(saved.imports.map((r) => r.entry_id)).size, 52);
