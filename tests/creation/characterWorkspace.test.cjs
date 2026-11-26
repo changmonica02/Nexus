@@ -10,7 +10,7 @@ function load(path) {
   new Function("exports", "require", output)(api, require);
   return api;
 }
-const { updateCharacterSection, deleteCharacterSection, moveCharacterSection, snapshotCharacterTemplate, instantiateCharacterTemplate } = load("src/lib/characterWorkspace.ts");
+const { updateCharacterSection, snapshotCharacterTemplate, instantiateCharacterTemplate } = load("src/lib/characterWorkspace.ts");
 const { createBlankTemplate, createDnd5eTemplate, createCoc7eTemplate } = load("src/lib/characterTemplates.ts");
 
 const mixed = () => [{ id: "block", type: "group", title: "背景", contents: [
@@ -18,16 +18,13 @@ const mixed = () => [{ id: "block", type: "group", title: "背景", contents: [
   { id: "short", type: "key_value", title: "外觀", keyValues: [{ key: "髮色", value: "銀白" }] },
 ] }, { id: "legacy", type: "rich_text", title: "舊版組件", richText: "保留" }];
 
-test("mixed blocks edit and reorder only the selected sibling, preserving legacy data", () => {
+test("nested component edits preserve sibling and legacy data", () => {
   const source = mixed();
   const original = JSON.stringify(source);
   const updated = updateCharacterSection(source, "prose", { richText: "新內容" });
   assert.equal(updated[0].contents[0].richText, "新內容");
   assert.equal(updated[1].richText, "保留");
-  const moved = moveCharacterSection(updated, "short", -1);
-  assert.deepEqual(moved[0].contents.map((section) => section.id), ["short", "prose"]);
-  assert.deepEqual(deleteCharacterSection(moved, "short")[0].contents.map((section) => section.id), ["prose"]);
-  assert.deepEqual(deleteCharacterSection(moved, "block").map((section) => section.id), ["legacy"]);
+  assert.deepEqual(updated[0].contents[1], source[0].contents[1]);
   assert.equal(JSON.stringify(source), original);
 });
 

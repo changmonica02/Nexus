@@ -2,9 +2,7 @@ import {currentMorphemeFields} from './retiredMorphemeFields';
 import {validateMorphemeSenseFields} from './morphemeContract';
 import {validateWordSegments as requireSegmentValidation} from './wordSegments';
 import {mergeCoreConcepts} from './coreConcept';
-import {parseCSV} from './csvRows';
-import {draftsFromBundle,saveDictionaryDraft,mapDictionaryDraft} from './draftPipeline';
-import {parseDictionaryCSV} from './dictionaryCSV';
+import {draftsFromBundle,saveDictionaryDraft} from './draftPipeline';
 import type { SupabaseClient } from "@supabase/supabase-js";
 export type Bundle = Record<string, Record<string, unknown>[]>;
 export interface BundleResult { items?:{entry_id:string;kind:string;headword:string;status:'new'|'modified'|'unchanged'}[]; inserted: number; updated: number; skipped: number; preview: boolean; warnings: {table:string;id:string;similar_ids:string[]}[] }
@@ -33,9 +31,6 @@ export async function applyBundle(client: Pick<SupabaseClient,"rpc">,bundle:Bund
   return saveDictionaryDraft(client,await normalizeDictionaryBundle(client,bundle),preview,edits);
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function id(value:string,field:string) { if(!uuid.test(value))throw new Error(`${field} 必須為穩定 UUID`);return value; }
-function required(row:Record<string,string>,field:string) { if(!row[field]?.trim())throw new Error(`缺少 ${field}`);return row[field]; }
-export {parseCSV} from './csvRows';
 /** Strict documented interchange, not a converter for legacy etymology notes. */
 export async function parseDictionaryImport(raw:string,format:'csv'|'md'|'json'):Promise<Bundle> {
   if(format!=='json')throw new Error('只支援最新版 JSON 匯入；CSV 與 Markdown 舊格式已停用');

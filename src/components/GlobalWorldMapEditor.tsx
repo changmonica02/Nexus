@@ -123,10 +123,10 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
   setUndoStack([]);setRedoStack([]);current.current=candidate;setModel(candidate);setCandidate(undefined);setReplacing(false);unsaved.current=true;setDirty(true);
   await saveRef.current();
  };
- const naturalAction=async(action:'editNatural'|'rebuildPack'|'initializeNatural'|'regenerateRivers'|'recalculateNature',patch?:NaturalFeaturePatch)=>{
+ const naturalAction=async(action:'regenerateRivers'|'recalculateNature')=>{
   if(generating.current||active.current||!client.current||!current.current||!editing||conflict||replacing)throw Error('Map is busy');
   generating.current=true;setWorking(true);setError(false);setNaturalError('');setProgress(undefined);
-  try{const value=await client.current.request(action,current.current.project,{patch,language,onProgress:value=>{if(alive.current)setProgress(value);}});setUndoStack([]);setRedoStack([]);current.current=value;setModel(value);if(action==='regenerateRivers'){setRiverId('');}unsaved.current=true;setDirty(true);await saveRef.current();}
+  try{const value=await client.current.request(action,current.current.project,{language,onProgress:value=>{if(alive.current)setProgress(value);}});setUndoStack([]);setRedoStack([]);current.current=value;setModel(value);if(action==='regenerateRivers'){setRiverId('');}unsaved.current=true;setDirty(true);await saveRef.current();}
   catch(e){const message=e instanceof Error?e.message:'';setNaturalError(language==='zh-TW'?( /loops|cycle/.test(message)?'河道不可折返或形成循環水路，請調整控制點後重試。':/connected/.test(message)?'這些控制點無法連成河道，請縮小移動範圍後重試。':'河道未套用，請檢查控制點與儲存狀態。'):message);setError(true);throw e;}finally{generating.current=false;setWorking(false);}
  };
  const finishHeight=async()=>{try{await saveRef.current();setPainting(false);setLineStart(undefined);return true;}catch{return false;}};

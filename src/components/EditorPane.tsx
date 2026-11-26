@@ -8,7 +8,6 @@ import { useLanguage } from "../lib/LanguageContext";
 import LessonLayoutPanel from "./LessonLayoutPanel";
 import { readLessonLayout, buildLessonIndex, type LessonLayout } from "../lib/lessonDocument";
 import TiptapEditor from "./TiptapEditor";
-import PageFormatView from "./PageFormatView";
 import PaginatedEditorView from "./PaginatedEditorView";
 import FileMenu from "./FileMenu";
 import ToolbarDropdown from "./ToolbarDropdown";
@@ -522,7 +521,7 @@ export default function EditorPane({
               </div>
             </div>
           )}
-          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} onToggleNightAdapt={onToggleNightAdapt} margins={margins} onMarginsChange={onMarginsChange} toolbarTab="home" showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
+          <PaginatedEditorView lessonLayout={lessonLayout} onNavigateLesson={navigateLesson} content={page.content_json} onContentChange={handleContentWithAutoSave} format={currentFormat} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} nightAdapt={nightAdapt} margins={margins} onMarginsChange={onMarginsChange} showRuler={showRuler} showLineNumbers={showLineNumbers} showThumbRail={isPaged && isThumbRailOpen} paneId={isSplitView ? "secondary" : "primary"} zoom={zoom} />
         </>
       ) : (
         <>
@@ -531,7 +530,7 @@ export default function EditorPane({
               <DocumentRuler format={currentFormat} margins={margins} />
             </div>
           )}
-          <PageFormatView format={currentFormat}>
+          <div className="nexus-format-flow flex-1 overflow-y-auto">
           <div data-note-width={isLessonNote ? (fullWidth ? "full" : "reading") : undefined} className="flex flex-col w-full nexus-print-target" style={{ maxWidth: fullWidth ? "100%" : "820px", margin: "0 auto", padding: "16px clamp(16px, 5vw, 64px) 48px" }}>
             {attachment && (
               <div className="mb-6 overflow-hidden rounded-xl" style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-sidebar-bg)" }}>
@@ -556,10 +555,10 @@ export default function EditorPane({
               </div>
             )}
             {isLessonNote && lessonLayout.header && <div className="lesson-page-header">{lessonLayout.header}</div>}
-            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} pageNightAdapt={nightAdapt} onTogglePageNightAdapt={onToggleNightAdapt} showToolbar toolbarTab="home" showLineNumbers={showLineNumbers} />
+            <TiptapEditor lessonDocument={page.content_json} onNavigateLesson={navigateLesson} key={`${page.id}-${page.kind}-${currentFormat}`} content={page.content_json} onChange={handleContentWithAutoSave} variant={page.kind === "document" ? "plain" : "rich"} toolbarTarget={toolbarTarget} editToolbarTarget={editToolbarTarget} insertToolbarTarget={insertToolbarTarget} formatToolbarTarget={formatToolbarTarget} showToolbar showLineNumbers={showLineNumbers} />
             {isLessonNote && lessonLayout.footer && <div className="lesson-page-footer">{lessonLayout.footer}</div>}
           </div>
-          </PageFormatView>
+          </div>
         </>
       )}
       </div>

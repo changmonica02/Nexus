@@ -63,13 +63,6 @@ export interface DictionaryDetail {
   etymologies: DictionaryEtymology[];
   learning_notes: DictionaryLearningNote[];
 }
-/** Optional separate relationship; never replaces learner-authored card content. */
-export interface StudyCardDictionaryLink {
-  owner_id: string;
-  card_id: string;
-  dictionary_entry_id: string;
-}
-
 type RpcClient = Pick<SupabaseClient, "rpc">;
 export async function getDictionaryEntry(client: RpcClient, id: string): Promise<DictionaryDetail | null> {
   const { data, error } = await client.rpc("get_dictionary_entry", { entry_uuid: id });

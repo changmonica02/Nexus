@@ -39,3 +39,57 @@ test('PWA cached Worker bootstrap uses the new request fragment after reload',{t
  await legacyContext.setOffline(true);assert.equal((await legacyRequest('/_next/static/natural-worker-v4.js')).version,'natural-v4');
  await legacyContext.close();
 });
+
+test('PWA registration handles online, load and unmount during asynchronous setup', async () => {
+ const vm = require('node:vm');
+ const { transformSync } = require('esbuild');
+ const source = fs.readFileSync('src/components/PWARegister.tsx', 'utf8');
+ const { code } = transformSync(source, { loader: 'tsx', format: 'cjs' });
+
+ for (const unmountWhile of ['registering', 'waiting for ready', null]) {
+  const window = new EventTarget();
+  const messages = [];
+  const worker = { postMessage: message => messages.push(message.type) };
+  let registrations = 0;
+  let updates = 0;
+  let cleanup;
+  let finishRegistration;
+  let finishReady;
+  const registrationPending = new Promise(resolve => { finishRegistration = resolve; });
+  const ready = new Promise(resolve => { finishReady = resolve; });
+  const registration = { active: worker, update: async () => { updates++; } };
+  const serviceWorker = { register: () => { registrations++; return registrationPending; }, ready };
+  const fixtureModule = { exports: {} };
+  vm.runInNewContext(code, {
+   module: fixtureModule,
+   require: name => {
+    assert.equal(name, 'react');
+    return { useEffect: effect => { cleanup = effect(); } };
+   },
+   window,
+   document: { readyState: 'loading' },
+   navigator: { serviceWorker, onLine: true },
+   performance: { getEntriesByType: () => [] },
+  });
+  fixtureModule.exports.default();
+  window.dispatchEvent(new Event('online'));
+  window.dispatchEvent(new Event('load'));
+  assert.equal(registrations, 1);
+  if (unmountWhile === 'registering') cleanup();
+  finishRegistration(registration);
+  await new Promise(resolve => setImmediate(resolve));
+  if (unmountWhile === 'waiting for ready') cleanup();
+  finishReady(registration);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(messages, unmountWhile ? [] : ['NEXUS_PRECACHE_ASSETS', 'NEXUS_REFRESH_SHELL']);
+  if (!unmountWhile) {
+   window.dispatchEvent(new Event('online'));
+   assert.deepEqual(messages.slice(2), ['NEXUS_REFRESH_SHELL', 'NEXUS_PRECACHE_ASSETS']);
+   assert.equal(updates, 1);
+   cleanup();
+  }
+  window.dispatchEvent(new Event('online'));
+  assert.equal(registrations, 1);
+  assert.equal(updates, unmountWhile ? 0 : 1);
+ }
+});

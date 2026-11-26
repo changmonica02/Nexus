@@ -1,5 +1,4 @@
 import {validSemanticCategory,type SemanticDomainCode,type SemanticSubdomainCode} from './semanticDomains';
-export type MorphemeSubtype='prefix'|'root'|'suffix';
 export interface MorphemeVariant {id:string;form:string;condition:string}
 export interface MorphemeSenseFields {
   semantic_domain?:SemanticDomainCode|null;

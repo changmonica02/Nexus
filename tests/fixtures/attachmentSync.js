@@ -22,7 +22,7 @@ const client = {
     };
   },
 };
-const engine = new SyncEngine(client, storage, 'browser-device', owner);
+const engine = new SyncEngine(client, storage, owner);
 // Study SQL is covered separately; this fixture exercises real attachment code.
 engine.syncStudyNow = async () => {};
 window.sync = () => engine.fullSync();

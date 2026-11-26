@@ -87,7 +87,7 @@ test(
               { filter: /infrastructure[\\/]sync[\\/]syncEngine\.ts$/ },
               () => ({
                 contents:
-                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(cb){window.remoteRefresh=cb;}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}pushPermanentDeletePage(){}pushPermanentDeleteAttachment(){} }",
+                  "export class SyncEngine { constructor(){window.engineCount=(window.engineCount||0)+1;}subscribe(){}setOnRemoteChange(cb){window.remoteRefresh=cb;}async fullSync(){}startRealtime(){}destroy(){}pushPage(){}pushPages(){}flushPendingWorkspaceChanges(){} }",
                 loader: "js",
               }),
             );

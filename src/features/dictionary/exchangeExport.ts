@@ -1,3 +1,4 @@
+import { downloadBlobFile } from "../../lib/fileDownload";
 import {cleanIpaRecord} from './retiredPronunciation';
 import {currentMorphemeFields} from './retiredMorphemeFields';
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -182,16 +183,9 @@ export async function exportDocument(
   };
 }
 export function downloadDictionaryJSON(value: unknown, name: string) {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], {
-      type: "application/json;charset=utf-8",
-    }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlobFile(name, new Blob([JSON.stringify(value, null, 2)], {
+    type: "application/json;charset=utf-8",
+  }));
 }
 
 /** Freeze the same membership/version used by the paginated export, without exporting a page. */

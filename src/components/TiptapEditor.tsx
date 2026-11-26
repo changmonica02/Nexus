@@ -34,7 +34,6 @@ import { WritingModeExtension } from "../lib/writingModeExtension";
 import { StableBlockId } from "../lib/stableBlockIdExtension";
 import { CellSelection, TableMap } from "prosemirror-tables";
 import { useLanguage } from "../lib/LanguageContext";
-import ToolbarDropdown from "./ToolbarDropdown";
 import ColorPaletteButton from "./ColorPaletteButton";
 import TableGridPicker from "./TableGridPicker";
 
@@ -47,10 +46,7 @@ interface TiptapEditorProps {
   variant?: "rich" | "plain" | "novel";
   toolbarTarget?: HTMLElement | null;
   onFocus?: () => void;
-  pageNightAdapt?: boolean;
-  onTogglePageNightAdapt?: () => void;
   showToolbar?: boolean;
-  toolbarTab?: "home";
   // 2026-08-11：Google Docs 式選單列（第一列：檔案/編輯/檢視/插入/格式/工具）
   // 編輯器相關的「編輯/插入/格式」選單內容由 TiptapEditor portal 注入
   editToolbarTarget?: HTMLElement | null;
@@ -292,7 +288,7 @@ function LineNumberGutter({ editorRootRef, startAt }: { editorRootRef: React.Ref
   );
 }
 
-export default function TiptapEditor({ readOnly = false, content, onChange, variant = "rich", toolbarTarget, onFocus, pageNightAdapt, onTogglePageNightAdapt, showToolbar = true, toolbarTab = "home", editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
+export default function TiptapEditor({ readOnly = false, content, onChange, variant = "rich", toolbarTarget, onFocus, showToolbar = true, editToolbarTarget, insertToolbarTarget, formatToolbarTarget, showLineNumbers = false, lineNumberStart = 1, margins, onMarginsChange, paneId = "primary", pageIndex = 0, focusRequest, onFocusRequestHandled, paginated = false, lessonDocument, onNavigateLesson }: TiptapEditorProps) {
   const lessonDocumentRef = useRef(lessonDocument);
   lessonDocumentRef.current = lessonDocument;
   const navigateLessonRef = useRef(onNavigateLesson);
@@ -1110,19 +1106,6 @@ export default function TiptapEditor({ readOnly = false, content, onChange, vari
     }
   };
 
-  const canAverage = (() => {
-    try {
-      const ed = editorRef.current;
-      if (!ed) return false;
-      const sel = (ed.state.selection as any);
-      if (!sel || !sel.forEachCell) return false;
-      let count = 0;
-      sel.forEachCell(() => count++);
-      return count > 1;
-    } catch { return false; }
-  })();
-
-  // 需求2：框選文字右鍵 → 建立頁面連結
   // 邊界選單（Word 風格：預設＋自訂；Portal 跳出工具列）
   const marginsMenu = (typeof document !== "undefined") && marginsPanelOpen ? createPortal(
     <div
@@ -1332,7 +1315,7 @@ export default function TiptapEditor({ readOnly = false, content, onChange, vari
         let totalWidth = 0;
         const colWidths: number[] = [];
         if (firstRow) {
-          firstRow.forEach((cell:any, offset:number, idx:number) => {
+          firstRow.forEach((cell:any, offset:number) => {
             const cellRect = map.findCell(offset);
             if (!cellRect) return;
             const w = cell.attrs?.colwidth?.[0] || 100;
@@ -1369,7 +1352,6 @@ export default function TiptapEditor({ readOnly = false, content, onChange, vari
         const sorted = Array.from(uniquePos.values()).sort((a,b)=>b.pos-a.pos);
         let tr = state.tr;
         sorted.forEach(({pos, left, right}) => {
-          const span = right - left;
           const existing = tr.doc.nodeAt(pos)?.attrs || {};
           // If cell spans multiple selected columns, width = avg*span, else avg
           const isMulti = right - left > 1;
@@ -1412,7 +1394,6 @@ export default function TiptapEditor({ readOnly = false, content, onChange, vari
     document.body,
   ) : null;
 
-    // 需求3：工具列分三組（常用/插入/版面配置），由 toolbarTab 決定顯示哪組
   const homeTools = (
     <>
       <TB icon="↩" title={t("tiptap.undo") || "Undo"} disabled={disabled || !toolbarState.canUndo} onClick={() => editorRef.current?.chain().focus().undo().run()} />
@@ -1636,7 +1617,7 @@ export default function TiptapEditor({ readOnly = false, content, onChange, vari
     switch (action) {
       case "new": { const selection = ed.state.selection; ed.chain().focus().insertContentAt(selection.to, { type: "paragraph" }).run(); break; }
       case "copy": void handleClipboardAction("copy"); break;
-      case "duplicate": { const { from, to } = ed.state.selection; ed.view.dispatch(ed.state.tr.insert(to, ed.state.selection.content().content).scrollIntoView()); break; }
+      case "duplicate": { const { to } = ed.state.selection; ed.view.dispatch(ed.state.tr.insert(to, ed.state.selection.content().content).scrollIntoView()); break; }
       case "delete": ed.commands.deleteSelection(); break;
       case "undo": ed.commands.undo(); break;
       case "paragraph": ed.chain().focus().setParagraph().run(); break;

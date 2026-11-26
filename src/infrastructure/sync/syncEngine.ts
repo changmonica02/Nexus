@@ -25,9 +25,7 @@ type SyncListener = (state: SyncState) => void;
 export class SyncEngine {
   private supabase: SupabaseClient;
   private storage: StorageAdapter;
-  private deviceId: string;
   private userId: string;
-  private lastSyncAt: number = 0;
   private listeners: Set<SyncListener> = new Set();
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private state: SyncState = { status: "idle", lastSyncAt: 0, error: null, pendingPushes: 0 };
@@ -112,10 +110,9 @@ export class SyncEngine {
   private realtimeChannel: RealtimeChannel | null = null;
   private onRemoteChange: (() => void) | null = null;
 
-  constructor(supabase: SupabaseClient, storage: StorageAdapter, deviceId: string, userId: string) {
+  constructor(supabase: SupabaseClient, storage: StorageAdapter, userId: string) {
     this.supabase = supabase;
     this.storage = storage;
-    this.deviceId = deviceId;
     this.userId = userId;
   }
 
@@ -240,8 +237,7 @@ export class SyncEngine {
       const failed = transfers.find(result => result.status === "rejected");
       if (failed) throw failed.reason;
       if (this.destroyed) return;
-      this.lastSyncAt = Date.now();
-      this.setState({ status: "connected", lastSyncAt: this.lastSyncAt, error: null });
+      this.setState({ status: "connected", lastSyncAt: Date.now(), error: null });
     } catch (error) {
       if (!this.destroyed) this.setState({ status: "error", error: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -254,8 +250,6 @@ export class SyncEngine {
     }
   }
 
-  async pullChanges(): Promise<void> { await this.fullSync(); }
-
   // Callers already persist their intent atomically through StorageAdapter. Never
   // reconstruct upload intent from UI snapshots or from cloud absence here.
   async pushPage(page: Page): Promise<void> { await this.pushPages([page]); }
@@ -265,10 +259,8 @@ export class SyncEngine {
   async pushAttachment(attachment: Attachment): Promise<void> {
     if (attachment.workspace_owner_id === this.userId) await this.fullSync(false);
   }
-  async pushBinary(_attachmentId: string, _blob: Blob): Promise<void> { await this.fullSync(false); }
-  async pushSetting(_key: string, _value: unknown): Promise<void> { /* Local-only settings. */ }
-  async pushPermanentDeletePage(_pageId: string): Promise<void> { await this.fullSync(false); }
-  async pushPermanentDeleteAttachment(_attachmentId: string): Promise<void> { await this.fullSync(false); }
+  /** Flush workspace changes already committed to the durable local outbox. */
+  async flushPendingWorkspaceChanges(): Promise<void> { await this.fullSync(false); }
 
   destroy(): void {
     if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }

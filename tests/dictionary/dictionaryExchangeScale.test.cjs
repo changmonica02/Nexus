@@ -2,6 +2,7 @@ require("../loadStudy.cjs");
 require("fake-indexeddb/auto");
 const test = require("node:test"),
   assert = require("node:assert/strict");
+const { exchangeCategory } = require("../helpers/dictionaryExchangeCategory.cjs");
 const {
   database,
   id,
@@ -16,7 +17,6 @@ const {
 } = require("../../src/features/dictionary/exchangeExport.ts");
 const {
   previewExchange,
-  exchangeCategory,
 } = require("../../src/features/dictionary/dictionaryExchange.ts");
 const { applyLegacyImport } = require("../fixtures/legacyDictionaryImport.cjs");
 const {

@@ -166,7 +166,3 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
     ...(source ? { source } : {}),
     ...(kind==="review"&&style?{scheduling_method:style.scheduling_method,style_snapshot:structuredClone(style),...(previousMethod&&previousMethod!==style.scheduling_method?{method_transition:style.scheduling_method==="fsrs"?(state.fsrs?"resume-preserved-fsrs-memory":"initialize-from-real-answer-without-estimated-memory"): "retain-fsrs-memory-use-fixed-state"}:{})}: {}) };
 }
-export function intervalLabel(due: number, now: number): string {
-  const minutes = Math.max(1, Math.round((due - now) / 60_000));
-  return minutes < 60 ? `${minutes} 分` : minutes < 1440 ? `${Math.round(minutes / 60)} 小時` : `${Math.round(minutes / 1440)} 天`;
-}

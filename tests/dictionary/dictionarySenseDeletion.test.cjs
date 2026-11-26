@@ -1,7 +1,21 @@
 require('../loadStudy.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
-const {withoutSense,deleteDraftSense}=require('../../src/features/dictionary/draftEditing.ts');
+const {withoutSense}=require('../../src/features/dictionary/draftEditing.ts');
+
+async function deleteDraftSense(client, entryId, senseId, entryRevision, senseRevision){
+  const {data,error}=await client.rpc('delete_dictionary_draft_sense',{entry_uuid:entryId,sense_uuid:senseId,expected_entry_revision:entryRevision,expected_sense_revision:senseRevision});
+  if(error){
+    if(/pronunciations/i.test(error.message))throw new Error('此義項仍有讀音，請先刪除讀音或調整適用義項。');
+    if(/examples/i.test(error.message))throw new Error('此義項仍有例句，請先刪除這些內容。');
+    if(/referenced/i.test(error.message))throw new Error('此義項已被構詞關聯、詞源或記憶內容引用，不能直接刪除；其他資料未改動。');
+    if(/Revision conflict/i.test(error.message))throw new Error('資料已有其他修改，請重新載入確認後再刪除。');
+    if(/await A3/i.test(error.message))throw new Error('已發布內容目前不能刪除義項。');
+    throw new Error('未能確認刪除結果，請檢查連線與刪除功能 migration，再重新載入確認。');
+  }
+  return data;
+}
+
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 test('unsaved sense removal preserves other form data and refuses in-form references',()=>{
   const form={dictionary_entries:[{id:'entry'}],dictionary_senses:[{id:'a'},{id:'b'}],dictionary_relations:[],dictionary_etymologies:[],dictionary_learning_notes:[]};

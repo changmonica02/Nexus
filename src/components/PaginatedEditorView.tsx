@@ -1,4 +1,5 @@
 "use client";
+import { getTextFromNode } from "../lib/markdown";
 import {notifyDialog} from '../lib/confirmDialog';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
@@ -14,13 +15,6 @@ type Block = any;
 // A4 紙張（96dpi）：210mm ≈ 794px、297mm ≈ 1123px
 const A4_W_PX = 794;
 const A4_H_PX = 1123;
-
-function getTextFromNode(node: any): string {
-  if (!node) return "";
-  if (node.type === "text") return node.text || "";
-  if (Array.isArray(node.content)) return node.content.map(getTextFromNode).join("");
-  return "";
-}
 
 /**
  * 手動分頁：僅以 pageBreak 節點切分頁面（不自動分頁、不估算高度）。
@@ -118,10 +112,8 @@ export default function PaginatedEditorView({
   insertToolbarTarget,
   formatToolbarTarget,
   nightAdapt = false,
-  onToggleNightAdapt,
   margins,
   onMarginsChange,
-  toolbarTab = "home",
   fileMode = false,
   showRuler = false,
   showLineNumbers = false,
@@ -139,10 +131,8 @@ export default function PaginatedEditorView({
   insertToolbarTarget?: HTMLElement | null;
   formatToolbarTarget?: HTMLElement | null;
   nightAdapt?: boolean;
-  onToggleNightAdapt?: () => void;
   margins?: PageMargins;
   onMarginsChange?: (margins: PageMargins) => void;
-  toolbarTab?: "home";
   fileMode?: boolean;
   showRuler?: boolean;
   showLineNumbers?: boolean;
@@ -467,7 +457,6 @@ export default function PaginatedEditorView({
                     insertToolbarTarget={idx === activePage ? insertToolbarTarget : null}
                     formatToolbarTarget={idx === activePage ? formatToolbarTarget : null}
                     showToolbar={idx === activePage && !fileMode}
-                    toolbarTab={toolbarTab}
                     showLineNumbers={showLineNumbers}
                     lineNumberStart={pageLineStarts[idx]}
                     margins={margins}
@@ -475,8 +464,6 @@ export default function PaginatedEditorView({
                     paneId={paneId}
                     pageIndex={idx}
                     onFocus={() => setActivePage(idx)}
-                    pageNightAdapt={nightAdapt}
-                    onTogglePageNightAdapt={onToggleNightAdapt}
                   />
                 </div>
                 {/* 紙張長高超過 A4 邊界 → 虛線提示（A4 分頁線） */}

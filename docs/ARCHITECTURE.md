@@ -36,7 +36,7 @@ Pack 為重建資料，不寫整張圖到附件；`packSettings {version:1,detai
 - `naturalGeography {version:1,rivers,lakes,overlays}` 是保存基礎。河流保存專案內穩定 ID、名稱、備註、經緯度河道與主支流／湖泊關聯；湖泊保存 ID、名稱、備註、湖底格座標／高程／面積／多邊形、獨立基準水位，以及世界座標的盆緣高程。ID 不是 Pack 陣列索引。Pack 重建只把保存幾何投影到新網格，不重抽實體、不重命名、不因氣候變乾刪除河道。
 - 湖泊是獨立水庫節點；原生連通的湖岸多邊形在新 Pack 中重新取樣後，即使窄頸中心暫時不相鄰，仍以同一水庫路由。盆緣保存於世界座標，而非因三角網重排而改水位上限。編輯岸界／湖底會重新檢查連通及盆緣，水位必須高於最低湖底且不高於最低溢流盆緣；僅低於基準水位的湖底格顯示水面。
 - 月收支包含上游與湖面降水入水、受可用水限制的蒸發、蓄水與高於溢流水庫容量的出水，保持非負及收支閉合。湖水基準面與月儲水分開；枯水月可無出流，不刪除湖／河實體。這是固定月平均條件下的簡化桶／水庫計算（8 次年循環），不是洪水、完整水力、地下水或多年氣候動力模擬；湖蒸發尚未回饋重算大氣氣候。
-- `natural-geography.mjs` 做結構／引用／ID／幾何／水位檢查及原子修改，拒絕循環路由、重複身分及越盆水位。`GlobalNaturalFeatures.tsx` 在完整編輯器提供名稱、備註、河道座標、湖盆／湖底座標與水位編輯，另可看月流量與湖收支。位置以 Pack 解析度檢查，沒有宣稱已完成地形／河道筆刷。修改沿既有草稿、CAS 與保存流程；超過附件 2MB 上限會在保存前拒絕。
+- `natural-geography.mjs` 驗證結構、引用、ID、幾何與水位，並以原子方式套用修改。現行編輯器使用 `GlobalRiverTools.tsx` 處理河流資料、控制點、增刪與重新生成，編輯透過草稿與 CAS 儲存。
 
 ### IUCN 第二層為唯一主要生態分類
 
@@ -352,7 +352,7 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 
 字典是獨立公共領域，Entry／Sense 使用穩定 ID；Published、Draft／Review、構詞及附屬內容有各自 revision／身份。Published 供讀取，管理員 UI 共用既有字典工作區；真正授權與 CAS 仍由伺服器 RPC 執行。草稿保存不等於公開發布，清單狀態在批次完成後重新讀取伺服器。
 
-一般字典 CSV／JSON Bundle 採**現行欄位投影**：`csvRows.parseCSVWithIgnored` 與 `adminImport.parseJSONBundleWithIgnored` 返回合法欄位及被忽略欄位的明細；額外欄位（包括非空舊欄位）可略過，並在持久化匯入 Session 的 `ignored_fields` 列表及預覽介面告知使用者。`normalizeDictionaryBundle` 只使用正規化後的 Bundle，不再把未過濾的原始物件送入寫入流程；重要欄位內容、型別、ID、revision、外鍵與分類依原驗證規則處理。完整版本化交換／備份仍維持版本、識別與交易安全保護，不能將欄位投影擴大成跳過這些保護。此段為 PR #182 **待合併**的實作描述，尚非正式部署結果。
+字典 JSON Bundle 使用 `adminImport.parseJSONBundleWithIgnored` 投影現行欄位，並在常駐審核的 `ignored_fields` 記錄略過的舊欄位。`normalizeDictionaryBundle` 使用正規化後的內容，沿用 ID、revision、外鍵與分類驗證。完整版本化交換仍驗證版本、識別與交易邊界。
 
 字典交換由既有 export／preview／apply 管線處理。分頁匯出維持 scope version 一致，範圍變動要求重取；匯入先保存 operation UUID，再以原 RPC／receipt 重試，Published 修改產生 Review。checkpoint 與逐項狀態保存於獨立 `nexus-dictionary-import-review`；網路回覆遺失不換 UUID 重送。批次作業部分失敗保留結果，不能以新 preview 蓋掉尚待恢復的 operation。批次發布沿用 token／scope／人工確認，不繞過 Review 核准。
 

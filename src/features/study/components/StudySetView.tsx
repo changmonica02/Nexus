@@ -211,8 +211,8 @@ function CsvImportDialog({ onImport, onClose }: {
 
 /* ============ Main StudySetView ============ */
 
-function StudySetWorkspace({ page, repository, onTitleChange, onBackToInterface, initialMode = "manage", backLabel, onOfficialChanged, managementOnly=false, registerSettingsSave }: {
-  initialMode?: "manage" | "scheduled"; backLabel?:string; onOfficialChanged?:()=>Promise<void>; managementOnly?:boolean; registerSettingsSave?:(flush:()=>Promise<void>)=>(()=>void); page:Page; repository:StudyRepository; onTitleChange:(title:string)=>void; onBackToInterface?:()=>void;
+function StudySetWorkspace({ page, repository, onBackToInterface, initialMode = "manage", backLabel, onOfficialChanged, managementOnly=false, registerSettingsSave }: {
+  initialMode?: "manage" | "scheduled"; backLabel?:string; onOfficialChanged?:()=>Promise<void>; managementOnly?:boolean; registerSettingsSave?:(flush:()=>Promise<void>)=>(()=>void); page:Page; repository:StudyRepository; onBackToInterface?:()=>void;
 }) {
   const {t}=useLanguage();
   const sessionExit=useRef<()=>Promise<void>>(async()=>{throw Error("study.exitPending");});

@@ -4,9 +4,7 @@ import {WorldMapRepository} from "../features/worldMap/worldMapRepository";
 import WorldMapManager, {WorldMapUnavailable} from "./WorldMapManager";
 import type {StorageAdapter} from "../infrastructure/storage/StorageAdapter";
 import type {RegisterMapFlush} from "./WorldMapSyncStatus";
-import {SidebarToggle} from "./WorkspaceNavigation";
-import { useMenuDismiss } from "./useMenuDismiss";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { nanoid } from "nanoid";
 import type {
   Page,
@@ -17,8 +15,7 @@ import type {
 import { useWorkspaceDialog } from "./WorkspaceDialog";
 import CharacterStatistics from "./CharacterStatistics";
 import CharacterRadar from "./CharacterRadar";
-import { updateCharacterSection, deleteCharacterSection, moveCharacterSection } from "../lib/characterWorkspace";
-import { createBlankTemplate } from "../lib/characterTemplates";
+import { updateCharacterSection } from "../lib/characterWorkspace";
 
 const COMPONENT_TYPES: { type: CharacterComponentType; label: string; desc: string }[] = [
   { type: "key_value", label: "短文字", desc: "如身高體重、武器裝備、生日等簡短資訊" },
@@ -54,58 +51,26 @@ function GalleryAttachment({ attachmentId, getBlob }: { attachmentId: string; ge
   return url ? <img src={url} alt="相冊圖片" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs opacity-45">載入中…</div>;
 }
 
-export function CharacterContentEditor({
-  page,
-  onTitleChange,
-  onUpdateCharacterData,
-  onBackToCreativeOverview,
-  worlds = [],
-  getAttachmentBlob,
-  onUploadGalleryImage,
-  onSaveTemplate,
-  sectionOnly,
-  sectionMode,
-}: {
-  sectionOnly?: CharacterSection;
-  sectionMode?: "edit" | "card";
-  page: Page;
-  onTitleChange: (title: string) => void;
-  onUpdateCharacterData: (data: CharacterProfileData) => void;
-  onBackToCreativeOverview?: () => void;
-  worlds?: Page[];
+interface CharacterMediaProps {
   getAttachmentBlob?: (id: string) => Promise<Blob | null>;
   onUploadGalleryImage?: (file: File) => Promise<string>;
-  onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
+}
+
+function CharacterContentEditor({
+  section,
+  viewMode,
+  layoutMode,
+  onChange,
+  getAttachmentBlob,
+  onUploadGalleryImage,
+}: CharacterMediaProps & {
+  section: CharacterSection;
+  viewMode: "edit" | "card";
+  layoutMode?: CharacterProfileData["layout"];
+  onChange: (section: CharacterSection) => void;
 }) {
-  const { askText, askConfirm, dialog } = useWorkspaceDialog();
-  const [viewMode, setViewMode] = useState<"edit" | "card">(sectionMode??"edit");
-  const [templateStatus, setTemplateStatus] = useState("");
-  const [savingTemplate, setSavingTemplate] = useState(false);
+  const { askText, dialog } = useWorkspaceDialog();
   const [expandedLongSections, setExpandedLongSections] = useState<Set<string>>(new Set());
-  const [activeTabId, setActiveTabId] = useState("base");
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement | null>(null);
-
-  // Initialize data with fallback to blank template
-  const charData: CharacterProfileData = page.character_data || createBlankTemplate();
-  const activeTab = activeTabId === "base" ? null : (charData.tabs || []).find((tab) => tab.id === activeTabId) || null;
-  const currentSections = activeTab ? activeTab.sections : (charData.sections || []);
-  const layoutMode = charData.layout || "single";
-
-  useMenuDismiss(isMoreMenuOpen,[moreMenuRef],()=>setIsMoreMenuOpen(false));
-
-  const updateData = (patch: Partial<CharacterProfileData>) => {
-    const next = { ...charData, ...patch };
-    onUpdateCharacterData(next);
-  };
-
-  const updateBasic = (patch: Partial<CharacterProfileData["basic"]>) => {
-    const nextBasic = { ...charData.basic, ...patch };
-    updateData({ basic: nextBasic });
-    if (!charData.isTemplate && patch.name !== undefined && patch.name.trim() && patch.name !== page.title) {
-      onTitleChange(patch.name.trim());
-    }
-  };
 
   // Focus helper
   const focusAndScrollTo = (elementId: string) => {
@@ -122,7 +87,7 @@ export function CharacterContentEditor({
   };
 
   // Section operations
-  const addSection = (type: CharacterComponentType, parent?: CharacterSection) => {
+  const addSection = (type: CharacterComponentType, parent: CharacterSection) => {
     const meta = COMPONENT_TYPES.find((c) => c.type === type);
     const newId = `sec_${nanoid()}`;
     const newSec: CharacterSection = {
@@ -151,111 +116,13 @@ export function CharacterContentEditor({
       relations: type === "relations" ? [{ targetName: "目標角色", relationType: "同伴", description: "關係描述" }] : undefined,
     };
 
-    if (parent) {
-      updateSection(parent.id, { contents: [...(parent.contents || []), newSec] });
-    } else {
-      saveSections([...currentSections, newSec]);
-    }
-
+    updateSection(parent.id, { contents: [...(parent.contents || []), newSec] });
     focusAndScrollTo(newId);
   };
 
   const updateSection = (id: string, patch: Partial<CharacterSection>) => {
-    saveSections(updateCharacterSection(currentSections, id, patch));
-  };
-
-  const deleteSection = async (id: string) => {
-    if (await askConfirm("刪除此區塊或內容？其中的資料也會一併刪除。")) {
-      saveSections(deleteCharacterSection(currentSections, id));
-    }
-  };
-
-  const moveSection = (id: string, dir: "up" | "down") => {
-    saveSections(moveCharacterSection(currentSections, id, dir === "up" ? -1 : 1));
-  };
-
-  const saveSections = (sections: CharacterSection[]) => {
-    if (!activeTab) {
-      updateData({ sections });
-      return;
-    }
-    updateData({ tabs: (charData.tabs || []).map((tab) => (tab.id === activeTab.id ? { ...tab, sections } : tab)) });
-  };
-
-  const addTab = async () => {
-    const title = (await askText("新頁面名稱", "補充資料"))?.trim();
-    if (!title) return;
-    const tab = { id: `tab_${nanoid()}`, title, sections: [] };
-    updateData({ tabs: [...(charData.tabs || []), tab] });
-    setActiveTabId(tab.id);
-  };
-
-  const duplicateCurrentTab = () => {
-    const newId = `tab_${nanoid()}`;
-    if (!activeTab) {
-      // 複製基本資料到新頁面
-      const clonedSections = JSON.parse(JSON.stringify(charData.sections || []));
-      const newTab = { id: newId, title: "基本資料 (複製)", sections: clonedSections };
-      updateData({ tabs: [...(charData.tabs || []), newTab] });
-      setActiveTabId(newId);
-    } else {
-      const clonedSections = JSON.parse(JSON.stringify(activeTab.sections || []));
-      const newTab = { id: newId, title: `${activeTab.title} (複製)`, sections: clonedSections };
-      updateData({ tabs: [...(charData.tabs || []), newTab] });
-      setActiveTabId(newId);
-    }
-    setIsMoreMenuOpen(false);
-  };
-
-  const renameTab = async () => {
-    if (!activeTab) {
-      // 命名基本資料標籤（若使用者想客製）
-      return;
-    }
-    const title = (await askText("頁面名稱", activeTab.title))?.trim();
-    if (title) {
-      updateData({ tabs: (charData.tabs || []).map((tab) => (tab.id === activeTab.id ? { ...tab, title } : tab)) });
-    }
-    setIsMoreMenuOpen(false);
-  };
-
-  const moveTab = (direction: -1 | 1) => {
-    if (!activeTab) return;
-    const tabs = [...(charData.tabs || [])];
-    const index = tabs.findIndex((tab) => tab.id === activeTabId);
-    if (index < 0 || index + direction < 0 || index + direction >= tabs.length) return;
-    [tabs[index], tabs[index + direction]] = [tabs[index + direction], tabs[index]];
-    updateData({ tabs });
-  };
-
-  const deleteCurrentTab = async () => {
-    if (!activeTab) return;
-    if (await askConfirm(`確定刪除頁面「${activeTab.title}」及其所有內容？`)) {
-      updateData({ tabs: (charData.tabs || []).filter((tab) => tab.id !== activeTab.id) });
-      setActiveTabId("base");
-      setIsMoreMenuOpen(false);
-    }
-  };
-
-  const toggleLayout = () => {
-    const nextLayout = layoutMode === "two_column" ? "single" : "two_column";
-    updateData({ layout: nextLayout });
-    setIsMoreMenuOpen(false);
-  };
-
-  const saveTemplate = async () => {
-    if (!onSaveTemplate || savingTemplate) return;
-    const name = (await askText("模板名稱", `${page.title || "角色"}模板`))?.trim();
-    if (!name) return;
-    setSavingTemplate(true);
-    try {
-      await onSaveTemplate(name, charData);
-      setTemplateStatus("已儲存，可在創作總覽的模板管理中編輯或使用。");
-    } catch {
-      setTemplateStatus("模板儲存失敗，請重試。");
-    } finally {
-      setSavingTemplate(false);
-    }
+    const [updated] = updateCharacterSection([section], id, patch);
+    onChange(updated);
   };
 
   // 偏向磁吸計算
@@ -270,23 +137,8 @@ export function CharacterContentEditor({
     updateSection(secId, { tendency: next });
   };
 
-  // 自訂基本資料欄位
-  const customBasicFields = charData.basic.customFields || [];
-  const addCustomBasicField = () => {
-    const newField = { id: `bf_${nanoid()}`, key: "新欄位", value: "" };
-    updateBasic({ customFields: [...customBasicFields, newField] });
-  };
-  const updateCustomBasicField = (id: string, patch: Partial<{ key: string; value: string }>) => {
-    const next = customBasicFields.map((f) => (f.id === id ? { ...f, ...patch } : f));
-    updateBasic({ customFields: next });
-  };
-  const removeCustomBasicField = (id: string) => {
-    const next = customBasicFields.filter((f) => f.id !== id);
-    updateBasic({ customFields: next });
-  };
-
   const renderSections = (sections: CharacterSection[]): React.ReactNode =>
-    sections.map((sec, sIdx) => (
+    sections.map((sec) => (
       <div
         id={sec.id}
         key={sec.id}
@@ -310,50 +162,6 @@ export function CharacterContentEditor({
             )}
           </div>
 
-          {viewMode === "edit" && !sectionOnly && (
-            <div className="flex shrink-0 items-center gap-1">
-              {sec.type !== "group" && currentSections.some((item) => item.id === sec.id) && (
-                <button
-                  title="將內容放入區塊"
-                  onClick={() =>
-                    saveSections(
-                      currentSections.map((item) =>
-                        item.id === sec.id
-                          ? { id: `sec_${nanoid()}`, type: "group", title: sec.title, contents: [sec] }
-                          : item
-                      )
-                    )
-                  }
-                  className="px-1 text-xs opacity-60 hover:opacity-100"
-                >
-                  建立區塊
-                </button>
-              )}
-              <button
-                onClick={() => moveSection(sec.id, "up")}
-                disabled={sIdx === 0}
-                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-20 text-xs"
-                title="上移"
-              >
-                ▲
-              </button>
-              <button
-                onClick={() => moveSection(sec.id, "down")}
-                disabled={sIdx === sections.length - 1}
-                className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-20 text-xs"
-                title="下移"
-              >
-                ▼
-              </button>
-              <button
-                onClick={() => deleteSection(sec.id)}
-                className="p-1 rounded text-red-500 hover:bg-red-50 text-xs ml-1"
-                title="刪除組件"
-              >
-                ×
-              </button>
-            </div>
-          )}
         </div>
 
         {/* 區塊容器 (Group) */}
@@ -949,7 +757,7 @@ export function CharacterContentEditor({
               />
             ) : (
               <div>
-                {(!sectionOnly||(sec.richText?.length??0)>240)&&<button
+                {(sec.richText?.length??0)>240&&<button
                   type="button"
                   onClick={() =>
                     setExpandedLongSections((current) => {
@@ -963,11 +771,9 @@ export function CharacterContentEditor({
                 >
                   <span>{expandedLongSections.has(sec.id) ? "▾ 收合長文" : "▸ 展開長文"}</span>
                 </button>}
-                {(expandedLongSections.has(sec.id)||!!sectionOnly) && (
-                  <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed opacity-85 border-t pt-2" style={{ borderColor: "var(--color-border)" }}>
-                    {(sectionOnly&&!expandedLongSections.has(sec.id)?sec.richText?.slice(0,240):sec.richText) || "尚無內容"}
-                  </p>
-                )}
+                <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed opacity-85 border-t pt-2" style={{ borderColor: "var(--color-border)" }}>
+                  {(expandedLongSections.has(sec.id) ? sec.richText : sec.richText?.slice(0, 240)) || "尚無內容"}
+                </p>
               </div>
             )}
           </div>
@@ -1063,455 +869,69 @@ export function CharacterContentEditor({
       </div>
     ));
 
-  if(sectionOnly)return <>{dialog}{renderSections([sectionOnly])}</>;
-
-  return (
-    <div className="flex flex-col flex-1 h-full overflow-hidden" style={{ backgroundColor: "var(--color-editor-bg)" }}>
-      {dialog}
-      {/* 頂部工具列 */}
-      <header
-        className="shrink-0 flex flex-wrap gap-3 items-center justify-between px-4 py-3 border-b select-none z-20"
-        style={{
-          backgroundColor: "var(--color-sidebar-bg)",
-          borderColor: "var(--color-border)",
-          color: "var(--color-text)",
-        }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <SidebarToggle/>{onBackToCreativeOverview && (
-            <button
-              onClick={onBackToCreativeOverview}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm shrink-0"
-              style={{ borderColor: "var(--color-border)" }}
-              title="返回創作總覽工作台"
-            >
-              <span>« 創作總覽</span>
-            </button>
-          )}
-          <div className="min-w-0">
-            <div className="font-bold text-sm truncate">{charData.isTemplate ? page.title : charData.basic.name || page.title || "未命名角色"}</div>
-            <div className="text-[11px] opacity-60 truncate">
-              {charData.basic.role ? `${charData.basic.role} · ` : ""}
-              {charData.basic.affiliation || "角色檔案"}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* 模式切換 */}
-          <div className="flex items-center rounded-lg p-0.5 border text-xs bg-black/5 dark:bg-white/5" style={{ borderColor: "var(--color-border)" }}>
-            <button
-              onClick={() => setViewMode("edit")}
-              className={`px-3 py-1 rounded-md transition-all font-medium ${
-                viewMode === "edit" ? "bg-white dark:bg-zinc-800 shadow-sm" : "opacity-60 hover:opacity-100"
-              }`}
-            >
-              編輯表單
-            </button>
-            <button
-              onClick={() => setViewMode("card")}
-              className={`px-3 py-1 rounded-md transition-all font-medium ${
-                viewMode === "card" ? "bg-white dark:bg-zinc-800 shadow-sm" : "opacity-60 hover:opacity-100"
-              }`}
-            >
-              檢視卡片
-            </button>
-          </div>
-
-          {viewMode === "edit" && (
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="新增內容"
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) addSection(event.target.value as CharacterComponentType);
-                }}
-                className="rounded-lg border bg-transparent px-3 py-1.5 text-xs font-semibold outline-none cursor-pointer hover:border-blue-500"
-                style={{ borderColor: "var(--color-border)" }}
-              >
-                <option value="" disabled>新增內容</option>
-                {COMPONENT_TYPES.map((item) => (
-                  <option key={item.type} value={item.type}>
-                    {item.label} — {item.desc}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => addSection("group")}
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
-              >
-                ＋ 新增區塊
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-2 text-xs" style={{ borderColor: "var(--color-border)", color: "var(--color-text)" }}>
-        {charData.isTemplate ? (
-          <>
-            <strong>編輯模板與範文</strong>
-            <span>文字用作新角色的背景提示；數值、色票與圖片作為預設內容。</span>
-          </>
-        ) : (
-          <button disabled={savingTemplate} onClick={() => void saveTemplate()} className="rounded border px-3 py-1.5 disabled:opacity-50 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            {savingTemplate ? "儲存中…" : "將目前組件與內容設為模板"}
-          </button>
-        )}
-        <span role="status">{templateStatus}</span>
-      </div>
-
-      {/* 主內容區 */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* 角色核心基礎資訊 (Hero Header) */}
-          <div
-            className="rounded-2xl border p-6 shadow-sm transition-all relative overflow-hidden"
-            style={{
-              backgroundColor: "var(--color-bg)",
-              borderColor: "var(--color-border)",
-            }}
-          >
-            <div className="flex flex-col sm:flex-row items-start gap-6">
-              {/* 頭像區域 */}
-              <div className="shrink-0 flex flex-col items-center gap-2">
-                <div
-                  className="w-28 h-28 rounded-2xl border-2 flex items-center justify-center overflow-hidden shadow-inner relative group"
-                  style={{
-                    backgroundColor: "var(--color-sidebar-bg)",
-                    borderColor: "var(--color-border)",
-                  }}
-                >
-                  {charData.basic.avatarUrl ? (
-                    <img src={charData.basic.avatarUrl} alt={charData.basic.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-4xl opacity-30 select-none">🎭</span>
-                  )}
-                  {viewMode === "edit" && (
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                      <button
-                        onClick={async () => {
-                          const url = await askText("請輸入頭像圖片 URL：", charData.basic.avatarUrl || "");
-                          if (url !== null) updateBasic({ avatarUrl: url.trim() });
-                        }}
-                        className="text-[10px] text-white bg-blue-600 px-2 py-1 rounded shadow"
-                      >
-                        更換圖片
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {viewMode === "edit" && charData.basic.avatarUrl && (
-                  <button onClick={() => updateBasic({ avatarUrl: "" })} className="text-[10px] text-red-500 hover:underline">
-                    移除頭像
-                  </button>
-                )}
-              </div>
-
-              {/* 基礎欄位 */}
-              <div className="flex-1 w-full space-y-3">
-                {viewMode === "edit" ? (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">角色全名 *</label>
-                        <input
-                          value={charData.basic.name}
-                          onChange={(e) => updateBasic({ name: e.target.value })}
-                          placeholder={charData.basicExamples?.name || "例如：艾爾溫·晨星"}
-                          className="w-full px-3 py-1.5 rounded-lg border text-sm font-bold bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">別名 / 稱號</label>
-                        <input
-                          value={charData.basic.alias || ""}
-                          onChange={(e) => updateBasic({ alias: e.target.value })}
-                          placeholder={charData.basicExamples?.alias || "例如：破曉之刃"}
-                          className="w-full px-3 py-1.5 rounded-lg border text-sm bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">性別</label>
-                        <input
-                          value={charData.basic.gender || ""}
-                          onChange={(e) => updateBasic({ gender: e.target.value })}
-                          placeholder={charData.basicExamples?.gender || "例如：男"}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">年齡</label>
-                        <input
-                          value={charData.basic.age || ""}
-                          onChange={(e) => updateBasic({ age: e.target.value })}
-                          placeholder={charData.basicExamples?.age || "例如：24 歲"}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">職業 / 身份</label>
-                        <input
-                          value={charData.basic.role || ""}
-                          onChange={(e) => updateBasic({ role: e.target.value })}
-                          placeholder={charData.basicExamples?.role || "例如：遊俠"}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-semibold opacity-60 block mb-1">所屬陣營 / 組織</label>
-                        <input
-                          value={charData.basic.affiliation || ""}
-                          onChange={(e) => updateBasic({ affiliation: e.target.value })}
-                          placeholder={charData.basicExamples?.affiliation || "例如：銀月騎士團"}
-                          className="w-full px-2.5 py-1.5 rounded-lg border text-xs bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                          style={{ borderColor: "var(--color-border)" }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* 自訂基本資料欄位清單 */}
-                    {customBasicFields.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t" style={{ borderColor: "var(--color-border)" }}>
-                        <div className="text-[11px] font-semibold opacity-60">自訂基礎欄位</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {customBasicFields.map((field) => (
-                            <div key={field.id} className="flex items-center gap-1.5">
-                              <input
-                                value={field.key}
-                                onChange={(e) => updateCustomBasicField(field.id, { key: e.target.value })}
-                                placeholder="欄位名稱"
-                                className="w-1/3 px-2 py-1 rounded border text-xs font-semibold bg-transparent outline-none"
-                                style={{ borderColor: "var(--color-border)" }}
-                              />
-                              <input
-                                value={field.value}
-                                onChange={(e) => updateCustomBasicField(field.id, { value: e.target.value })}
-                                placeholder="內容"
-                                className="min-w-0 flex-1 px-2 py-1 rounded border text-xs bg-transparent outline-none"
-                                style={{ borderColor: "var(--color-border)" }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeCustomBasicField(field.id)}
-                                className="text-red-500 text-xs px-1 hover:opacity-100 opacity-60"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1">
-                      <button
-                        type="button"
-                        onClick={addCustomBasicField}
-                        className="text-xs font-semibold text-blue-600 hover:underline"
-                      >
-                        ＋ 新增自訂基本欄位
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold opacity-60 block mb-1">代表名言 / 口頭禪</label>
-                      <input
-                        value={charData.basic.quote || ""}
-                        onChange={(e) => updateBasic({ quote: e.target.value })}
-                        placeholder={charData.basicExamples?.quote || "例如：「只要晨光尚未熄滅，黑夜便無法吞噬希望。」"}
-                        className="w-full px-3 py-1.5 rounded-lg border text-xs italic bg-transparent outline-none focus:ring-2 focus:ring-blue-500"
-                        style={{ borderColor: "var(--color-border)" }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold opacity-60 block mb-1">所屬世界觀</label>
-                      <select
-                        value={charData.world_id || ""}
-                        onChange={(event) => updateData({ world_id: event.target.value || null })}
-                        className="w-full rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
-                        style={{ borderColor: "var(--color-border)" }}
-                      >
-                        <option value="">獨立角色（不歸屬世界觀）</option>
-                        {worlds.filter((world) => world.id !== page.id).map((world) => (
-                          <option key={world.id} value={world.id}>
-                            {world.title || "未命名世界觀"}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline gap-3 flex-wrap">
-                      <h1 className="text-2xl font-bold">{charData.basic.name}</h1>
-                      {charData.basic.alias && <span className="text-sm opacity-60 font-medium">({charData.basic.alias})</span>}
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap text-xs">
-                      {charData.basic.role && <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-semibold">{charData.basic.role}</span>}
-                      {charData.basic.affiliation && <span className="px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 font-medium">{charData.basic.affiliation}</span>}
-                      {charData.basic.gender && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.gender}</span>}
-                      {charData.basic.age && <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">{charData.basic.age}</span>}
-                      {customBasicFields.map((f) => (
-                        <span key={f.id} className="px-2 py-0.5 rounded border text-[11px] opacity-75">
-                          {f.key}：{f.value || "—"}
-                        </span>
-                      ))}
-                      {charData.world_id && (
-                        <span className="px-2 py-0.5 rounded border text-[11px] opacity-75">
-                          世界觀：{worlds.find((world) => world.id === charData.world_id)?.title || "已刪除的世界觀"}
-                        </span>
-                      )}
-                    </div>
-
-                    {charData.basic.quote && (
-                      <div className="pt-2 text-sm italic opacity-85 border-t mt-3" style={{ borderColor: "var(--color-border)" }}>
-                        {charData.basic.quote}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 自訂動態組件清單（支援單欄與雙欄檢視） */}
-          <div className={layoutMode === "two_column" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4"}>
-            {renderSections(currentSections)}
-          </div>
-        </div>
-      </div>
-
-      {/* 底部導覽頁籤與「更多操作」 */}
-      <footer
-        className="shrink-0 border-t p-2 flex items-center justify-between gap-2 select-none z-20"
-        style={{ borderColor: "var(--color-border)", color: "var(--color-text)", backgroundColor: "var(--color-sidebar-bg)" }}
-      >
-        <nav aria-label="角色卡頁面" className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1">
-          <button
-            aria-current={!activeTab ? "page" : undefined}
-            onClick={() => setActiveTabId("base")}
-            className={`shrink-0 rounded px-3 py-1.5 text-xs font-medium transition-all ${
-              !activeTab ? "bg-blue-600 text-white shadow-xs" : "opacity-70 hover:opacity-100"
-            }`}
-          >
-            基本資料
-          </button>
-          {(charData.tabs || []).map((tab) => (
-            <button
-              key={tab.id}
-              aria-current={activeTab?.id === tab.id ? "page" : undefined}
-              onClick={() => setActiveTabId(tab.id)}
-              className={`shrink-0 rounded px-3 py-1.5 text-xs font-medium transition-all ${
-                activeTab?.id === tab.id ? "bg-blue-600 text-white shadow-xs" : "opacity-70 hover:opacity-100"
-              }`}
-            >
-              {tab.title}
-            </button>
-          ))}
-          {viewMode === "edit" && (
-            <button onClick={addTab} className="shrink-0 rounded border px-2.5 py-1.5 text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              ＋ 新增頁面
-            </button>
-          )}
-        </nav>
-
-        {/* 更多操作下拉選單 */}
-        {viewMode === "edit" && (
-          <div ref={moreMenuRef} className="relative shrink-0">
-            {isMoreMenuOpen && (
-              <div
-                className="absolute bottom-full right-0 mb-2 w-48 rounded-xl border shadow-2xl p-1 z-30 text-xs"
-                style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-              >
-                {/* 雙欄切換 */}
-                <button
-                  type="button"
-                  onClick={toggleLayout}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-between"
-                >
-                  <span>雙欄檢視</span>
-                  <span>{layoutMode === "two_column" ? "✓ 已開啟" : "關閉"}</span>
-                </button>
-
-                <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-
-                {/* 頁面操作 */}
-                <button
-                  type="button"
-                  onClick={duplicateCurrentTab}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  複製目前頁面
-                </button>
-
-                {activeTab && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={renameTab}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    >
-                      重新命名目前頁面
-                    </button>
-                    <button
-                      type="button"
-                      disabled={charData.tabs?.[0]?.id === activeTab.id}
-                      onClick={() => moveTab(-1)}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
-                    >
-                      ← 頁面向左移
-                    </button>
-                    <button
-                      type="button"
-                      disabled={charData.tabs?.at(-1)?.id === activeTab.id}
-                      onClick={() => moveTab(1)}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30"
-                    >
-                      頁面向右移 →
-                    </button>
-                    <div className="border-t my-1" style={{ borderColor: "var(--color-border)" }} />
-                    <button
-                      type="button"
-                      onClick={deleteCurrentTab}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 font-medium"
-                    >
-                      刪除目前頁面
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
-              className="rounded border px-2.5 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-1"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              <span>⚙ 更多操作</span>
-              <span className="text-[10px]">▾</span>
-            </button>
-          </div>
-        )}
-      </footer>
-    </div>
-  );
+  return <>{dialog}{renderSections([section])}</>;
 }
 
+export type CharacterProfileProps = CharacterMediaProps & {
+  page: Page;
+  onUpdateCharacterData: (data: CharacterProfileData) => void;
+  onBackToCreativeOverview?: () => void;
+  onSaveTemplate?: (name: string, data: CharacterProfileData) => Promise<void>;
+  onCommitCharacterData?: (data: CharacterProfileData) => Promise<void>;
+  readOnly?: boolean;
+  templateActions?: React.ReactNode;
+  worldMapStorage?: StorageAdapter;
+  beforeWorldMapSave?: () => Promise<void>;
+  onWorldMapSaved?: (page: Page) => Promise<void>;
+  registerWorldMapFlush?: RegisterMapFlush;
+  worldMapCloudState?: { status: string; error?: string | null };
+};
 
-export type CharacterProfileProps=Parameters<typeof CharacterContentEditor>[0]&{onCommitCharacterData?:(data:CharacterProfileData)=>Promise<void>;readOnly?:boolean;templateActions?:React.ReactNode;worldMapStorage?:StorageAdapter;beforeWorldMapSave?:()=>Promise<void>;onWorldMapSaved?:(page:Page)=>Promise<void>;registerWorldMapFlush?:RegisterMapFlush;worldMapCloudState?:{status:string;error?:string|null}};
-export default function CharacterProfileView(props:CharacterProfileProps){
- if(props.page.creative_type==='world'&&!props.page.character_data?.isTemplate)return props.worldMapStorage&&props.beforeWorldMapSave&&props.onWorldMapSaved?<WorldMapManager key={props.page.id} world={props.page} storage={props.worldMapStorage} beforeSave={props.beforeWorldMapSave} onSaved={props.onWorldMapSaved} registerFlush={props.registerWorldMapFlush} cloudState={props.worldMapCloudState} readOnly={props.readOnly} onBack={props.onBackToCreativeOverview}/>:<WorldMapUnavailable onBack={props.onBackToCreativeOverview}/>;
- const blocks=<CharacterBlockWorkspace templateActions={props.templateActions} page={props.page} readOnly={props.readOnly} onBack={props.page.creative_type==='world'?undefined:props.onBackToCreativeOverview} onSaveTemplate={props.onSaveTemplate} onCommit={async data=>{if(props.page.creative_type==='world'&&props.worldMapStorage&&props.onWorldMapSaved){await props.beforeWorldMapSave?.();const repo=new WorldMapRepository(props.worldMapStorage);await props.onWorldMapSaved(await repo.saveWorldContent(props.page.id,props.page.revision,data));}else if(props.onCommitCharacterData)await props.onCommitCharacterData(data);else await props.onUpdateCharacterData(data);}} renderComponent={(section,mode,change)=><CharacterContentEditor {...props} page={{...props.page,character_data:{...props.page.character_data??createBlankTemplate(),sections:[section],tabs:[]}}} sectionOnly={section} sectionMode={mode} onUpdateCharacterData={next=>change(next.sections[0])}/>}/>;
+export default function CharacterProfileView(props: CharacterProfileProps) {
+  const { page, worldMapStorage, beforeWorldMapSave, onWorldMapSaved } = props;
+  const isWorld = page.creative_type === "world";
 
- return blocks;
+  if (isWorld && !page.character_data?.isTemplate) {
+    if (!worldMapStorage || !beforeWorldMapSave || !onWorldMapSaved) {
+      return <WorldMapUnavailable onBack={props.onBackToCreativeOverview} />;
+    }
+    return <WorldMapManager
+      key={page.id}
+      world={page}
+      storage={worldMapStorage}
+      beforeSave={beforeWorldMapSave}
+      onSaved={onWorldMapSaved}
+      registerFlush={props.registerWorldMapFlush}
+      cloudState={props.worldMapCloudState}
+      readOnly={props.readOnly}
+      onBack={props.onBackToCreativeOverview}
+    />;
+  }
+
+  return <CharacterBlockWorkspace
+    page={page}
+    templateActions={props.templateActions}
+    readOnly={props.readOnly}
+    onBack={isWorld ? undefined : props.onBackToCreativeOverview}
+    onSaveTemplate={props.onSaveTemplate}
+    onCommit={async data => {
+      if (isWorld && worldMapStorage && onWorldMapSaved) {
+        await beforeWorldMapSave?.();
+        const repository = new WorldMapRepository(worldMapStorage);
+        await onWorldMapSaved(await repository.saveWorldContent(page.id, page.revision, data));
+      } else if (props.onCommitCharacterData) {
+        await props.onCommitCharacterData(data);
+      } else {
+        await props.onUpdateCharacterData(data);
+      }
+    }}
+    renderComponent={(section, mode, change) => <CharacterContentEditor
+      section={section}
+      viewMode={mode}
+      layoutMode={page.character_data?.layout}
+      onChange={change}
+      getAttachmentBlob={props.getAttachmentBlob}
+      onUploadGalleryImage={props.onUploadGalleryImage}
+    />}
+  />;
 }

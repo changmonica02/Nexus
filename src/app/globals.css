@@ -77,55 +77,6 @@ body {
   background: var(--color-editor-bg);
 }
 
-/* A4 paginated visual */
-.nexus-format-a4-wrapper {
-  background: #f5f5f4; /* gray behind paper */
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  min-height: 100%;
-}
-.nexus-format-a4-page {
-  width: 210mm;
-  min-height: 297mm;
-  max-width: 100%;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08);
-  padding: 20mm 18mm;
-  position: relative;
-  color: #1a1a1a;
-}
-.dark .nexus-format-a4-page {
-  background: #fafafa;
-  color: #1a1a1a;
-}
-.nexus-format-a4-page .ProseMirror,
-.nexus-format-a4-page .ProseMirror p,
-.nexus-format-a4-page .ProseMirror h1,
-.nexus-format-a4-page .ProseMirror h2,
-.nexus-format-a4-page .ProseMirror h3,
-.nexus-format-a4-page .ProseMirror li,
-.nexus-format-a4-page .ProseMirror blockquote,
-.nexus-format-a4-page .ProseMirror ul,
-.nexus-format-a4-page .ProseMirror ol {
-  color: #1a1a1a !important;
-}
-.nexus-format-169-page,
-.nexus-format-43-page {
-  color: #1a1a1a;
-}
-.nexus-format-169-page .ProseMirror,
-.nexus-format-169-page .ProseMirror p,
-.nexus-format-169-page .ProseMirror h1,
-.nexus-format-169-page .ProseMirror h2,
-.nexus-format-169-page .ProseMirror h3,
-.nexus-format-43-page .ProseMirror,
-.nexus-format-43-page .ProseMirror p,
-.nexus-format-43-page .ProseMirror h1,
-.nexus-format-43-page .ProseMirror h2,
-.nexus-format-43-page .ProseMirror h3,
 .nexus-paged-content .ProseMirror,
 .nexus-paged-content .ProseMirror p,
 .nexus-paged-content .ProseMirror h1,
@@ -205,34 +156,6 @@ body {
   padding: 0 8px;
   font-size: 10px;
   color: #94a3b8;
-}
-
-/* 16:9 and 4:3 preview containers */
-.nexus-format-169-wrapper, .nexus-format-43-wrapper {
-  background: #1a1a1a;
-  padding: 24px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100%;
-}
-.nexus-format-169-page {
-  width: 960px;
-  max-width: 100%;
-  aspect-ratio: 16 / 9;
-  background: white;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  padding: 32px 40px;
-  overflow: auto;
-}
-.nexus-format-43-page {
-  width: 800px;
-  max-width: 100%;
-  aspect-ratio: 4 / 3;
-  background: white;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  padding: 32px 40px;
-  overflow: auto;
 }
 
 /* ========================================================================= */

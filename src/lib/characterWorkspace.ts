@@ -18,41 +18,6 @@ export function updateCharacterSection(
   );
 }
 
-export function deleteCharacterSection(
-  sections: CharacterSection[],
-  id: string,
-): CharacterSection[] {
-  return sections
-    .filter((section) => section.id !== id)
-    .map((section) =>
-      section.contents
-        ? { ...section, contents: deleteCharacterSection(section.contents, id) }
-        : section,
-    );
-}
-
-export function moveCharacterSection(
-  sections: CharacterSection[],
-  id: string,
-  direction: -1 | 1,
-): CharacterSection[] {
-  const index = sections.findIndex((section) => section.id === id);
-  if (index < 0)
-    return sections.map((section) =>
-      section.contents
-        ? {
-            ...section,
-            contents: moveCharacterSection(section.contents, id, direction),
-          }
-        : section,
-    );
-  const target = index + direction;
-  if (target < 0 || target >= sections.length) return sections;
-  const next = [...sections];
-  [next[index], next[target]] = [next[target], next[index]];
-  return next;
-}
-
 /** Only structural fields cross the template boundary. Never copy examples, media or values. */
 export function snapshotCharacterTemplate(
   source: CharacterProfileData,
