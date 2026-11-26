@@ -6,7 +6,7 @@ import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudySt
 import type { Page } from "../../lib/types";
 import { makeSession, reconcileSession, type StudySession } from "./studySessions";
 import { localStudyDay } from "./studyFSRS";
-import { createStudyEvent, emptyStudyState, nextDailyCard, sameStudyRecord,
+import { createStudyEvent, emptyStudyState, sameStudyRecord,
   type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
   type StudySettings, type StudySnapshot, type StudyState, type StudyClear } from "./studyFSRS";
 
@@ -348,8 +348,8 @@ export class StudyRepository {
       throw error;
     }
   }
-  private async dayIntroductions(deckId:string,now:number,transaction?:Write):Promise<StudyEvent[]> {
-    const tx=transaction??this.db.transaction(['study_events']);const store=tx.objectStore('study_events');
+  private async dayIntroductions(deckId:string,now:number,transaction:Write):Promise<StudyEvent[]> {
+    const store=transaction.objectStore('study_events');
     const day=localStudyDay(now);
     if(store.indexNames.contains('deck_day'))return (await store.index('deck_day').getAll([deckId,day])).filter((e:StudyEvent)=>e.owner_id===this.owner()&&e.kind==='introduce');
     // Compatibility for old external/test adapters; current IndexedDB uses the day index.
@@ -359,57 +359,6 @@ export class StudyRepository {
   }
   async readScheduledDeck(deckId:string, now=Date.now()):Promise<StudySnapshot> {
     return this.sessionWrite(async tx=>{const snapshot=await this.snapshotIn(tx,deckId);snapshot.events=await this.dayIntroductions(deckId,now,tx);return snapshot;},false);
-  }
-  async peekNext(deckId:string,now:number):Promise<{card:StudyCard;state:StudyState}|null> {
-    const snapshot=await this.readDeck(deckId,false);
-    snapshot.events=await this.dayIntroductions(deckId,now);
-    const card=nextDailyCard(snapshot,now);
-    return card?{card,state:snapshot.states.find(state=>state.id===card.id)!}:null;
-  }
-  /** Confirm the rendered question. Merely selecting/preloading it cannot consume quota. */
-  async presentNext(deckId: string, now: number, expectedId?:string): Promise<{card:StudyCard;state:StudyState}|null> {
-    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
-    try {
-    const settings:StudySettings=await tx.objectStore("study_settings").get(deckId);this.owned(settings);
-    const cards=await tx.objectStore("study_cards").index("deck").getAll(deckId);
-    const states=await tx.objectStore("study_states").index("deck").getAll(deckId);
-    const events=await this.dayIntroductions(deckId,now,tx);
-    const card=nextDailyCard({cards,states,events,settings},now);
-    if(expectedId && card?.id!==expectedId) throw new Error("待練習清單已變更，請重新載入題目。");
-    if (!card) {await tx.done;return null;}
-    let state:StudyState=states.find(s=>s.id===card.id);
-    const introduced=!state.fsrs && state.legacy_due_at == null && state.introduced_at == null;
-    if (introduced) {
-      const event=createStudyEvent(card,state,"introduce",now,this.device,newId());
-      await this.persistEvent(tx,event);state=event.after;
-    }
-    await tx.done;if(introduced)this.changed();return {card,state};
-    } catch (error) {
-      try { tx.abort(); } catch {}
-      await tx.done.catch(() => undefined);
-      throw error;
-    }
-  }
-  async review(id: string, expectedHead: string|null, contentRevision: number, rating: Grade, eventId: string, now: number): Promise<StudyEvent> {
-    const tx=this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});
-    try {
-    const existing:StudyEvent|undefined=await tx.objectStore("study_events").get(eventId);
-    if (existing) {
-      this.owned(existing);
-      if(existing.card_id!==id || existing.rating!==rating || existing.parent!==expectedHead || existing.content_revision!==contentRevision || existing.at!==now) throw new Error("重複事件 ID 的內容不一致。");
-      await tx.done;return existing;
-    }
-    const card:StudyCard=await tx.objectStore("study_cards").get(id);this.owned(card);
-    const state:StudyState=await tx.objectStore("study_states").get(id);
-    if(card.deleted_at || card.hidden || card.content_revision!==contentRevision || state.head!==expectedHead) throw new Error("這張卡已在其他視窗變更；此作答尚未提交，請重新載入題目。");
-    const event=createStudyEvent(card,state,"review",now,this.device,eventId,rating);
-    await this.persistEvent(tx,event);
-    await tx.done;this.changed();return event;
-    } catch (error) {
-      try { tx.abort(); } catch {}
-      await tx.done.catch(() => undefined);
-      throw error;
-    }
   }
   private async sessionWrite<T>(work: (tx: Write) => Promise<T>, notify = true): Promise<T> {
     const tx = this.db.transaction(STUDY_STORES,"readwrite",{durability:"strict"});

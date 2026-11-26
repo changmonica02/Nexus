@@ -1,5 +1,6 @@
 const {installStudyClear,clearTimes}=require('../fixtures/studyClearDatabase.cjs');
-require('../loadStudy.cjs');require('fake-indexeddb/auto');
+require('../loadStudy.cjs');
+const {recordLegacyEvent}=require('../fixtures/legacyStudyEvents.cjs');require('fake-indexeddb/auto');
 const {openDB,deleteDB}=require('idb');
 const {PGlite}=require('@electric-sql/pglite');
 const fs=require('node:fs'),test=require('node:test'),assert=require('node:assert/strict');
@@ -73,19 +74,19 @@ async function fixture(){
  }};
  const device=async label=>{const name=crypto.randomUUID(),db=await openDB(name,1,{upgrade(db){for(const name of STUDY_STORES){const s=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))s.createIndex('deck','deck_id');if(name==='study_events')s.createIndex('deck_at',['deck_id','at']);}}});dbs.push([name,db]);return {db,repo:new StudyRepository(db,()=>owner,label)};};
  const a=await device('A');await a.repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});const [card]=await a.repo.addCards('deck',[{front:'word',back:'字'}]);
- const q=await a.repo.presentNext('deck',now);await syncStudy(a.repo,client,owner);
+ const intro=await recordLegacyEvent(a.db,card.id,'introduce',now,'A',crypto.randomUUID());await syncStudy(a.repo,client,owner);
  const b=await device('B');await syncStudy(b.repo,client,owner);
- return {pg,client,stats,a,b,card,q,device,sync:d=>syncStudy(d.repo,client,owner),events:async()=>Number((await pg.query('select count(*) as n from study_review_events')).rows[0].n),close:async()=>{for(const [name,db] of dbs){db.close();await deleteDB(name);}await pg.close();policy='latest';}};
+ return {pg,client,stats,a,b,card,intro,device,sync:d=>syncStudy(d.repo,client,owner),events:async()=>Number((await pg.query('select count(*) as n from study_review_events')).rows[0].n),close:async()=>{for(const [name,db] of dbs){db.close();await deleteDB(name);}await pg.close();policy='latest';}};
 }
 async function branch(f){
- const a=await f.a.repo.review(f.card.id,f.q.state.head,1,3,'A-review',now+1000);
- const b=await f.b.repo.review(f.card.id,f.q.state.head,1,1,'B-review',now-86400000); // Wrong clock, no ordering by at.
+ const a=await recordLegacyEvent(f.a.db,f.card.id,'review',now+1000,'A','A-review',3);
+ const b=await recordLegacyEvent(f.b.db,f.card.id,'review',now-86400000,'B','B-review',1); // Wrong clock, no ordering by at.
  await f.sync(f.a);await f.sync(f.b);return {a,b};
 }
 test('offline branches use server receipt fallback, preserve facts, and retry decisions after lost responses',async()=>{
  const f=await fixture();try{
-  const a=await f.a.repo.review(f.card.id,f.q.state.head,1,3,'A-review',now+1000);
-  const b=await f.b.repo.review(f.card.id,f.q.state.head,1,1,'B-review',now-86400000);
+  const a=await recordLegacyEvent(f.a.db,f.card.id,'review',now+1000,'A','A-review',3);
+  const b=await recordLegacyEvent(f.b.db,f.card.id,'review',now-86400000,'B','B-review',1);
   await f.sync(f.a);await f.sync(f.b);assert.equal((await f.b.repo.readDeck('deck')).states[0].conflict,true);await f.b.repo.resolveSchedule(f.card.id,'device');f.stats.lose='apply_study_resolution';await assert.rejects(()=>f.sync(f.b),/response lost/);
   assert.equal((await f.b.repo.readDeck('deck')).states[0].conflict,true);
   await f.sync(f.b);const state=(await f.b.repo.readDeck('deck')).states[0];
@@ -104,7 +105,7 @@ test('ask persists ambiguity, device/cloud decisions and explicit relearn only c
   state=(await reopened.readDeck('deck')).states[0];assert.equal(state.conflict,false);assert.deepEqual(state.fsrs,a.after.fsrs);assert.ok(state.resolution_id);assert.equal(await f.events(),3);
   await f.sync(f.a);assert.equal((await f.a.repo.readDeck('deck')).states[0].conflict,false);
   // A fresh explicit branch is ambiguous again; no automatic relearn.
-  const stale=createStudyEvent(f.card,f.q.state,'review',now+5,'C','C-review',2);
+  const stale=createStudyEvent(f.card,f.intro.after,'review',now+5,'C','C-review',2);
   assert.equal((await f.client.rpc('apply_study_operation',{operation:{kind:'event',value:stale}})).error,null);
   await syncStudy(reopened,f.client,owner);state=(await reopened.readDeck('deck')).states[0];assert.equal(state.conflict,true);assert.notEqual(state.fsrs,null);
   await reopened.resolveSchedule(f.card.id,'relearn');await syncStudy(reopened,f.client,owner);
@@ -138,8 +139,8 @@ test('resolution CAS rejects stale choices, collisions and other owners without 
 });
 test('parent chain wins over device clocks; normal reads and one-card reviews never load event collections',async()=>{
  const f=await fixture();try{
-  const e=await f.a.repo.review(f.card.id,f.q.state.head,1,3,'one',now+1000);await f.sync(f.a);await f.sync(f.b);
-  const second=await f.b.repo.review(f.card.id,e.id,1,2,'two',now+500);await f.sync(f.b);await f.sync(f.a);
+  const e=await recordLegacyEvent(f.a.db,f.card.id,'review',now+1000,'A','one',3);await f.sync(f.a);await f.sync(f.b);
+  const second=await recordLegacyEvent(f.b.db,f.card.id,'review',now+500,'B','two',2);await f.sync(f.b);await f.sync(f.a);
   assert.equal((await f.a.repo.readDeck('deck')).states[0].head,second.id);assert.equal((await f.a.repo.readDeck('deck')).states[0].conflict,false);
   assert.equal(reliableEvent(second),true);
   // Instrument the native API: any full event getAll in the normal paths fails this test.
@@ -149,7 +150,7 @@ test('parent chain wins over device clocks; normal reads and one-card reviews ne
   try{
     assert.equal((await f.a.repo.readDeck('deck')).events.length,0);
     await f.a.repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});
-    await f.a.repo.review(f.card.id,second.id,1,3,'three',now+2000);
+    await recordLegacyEvent(f.a.db,f.card.id,'review',now+2000,'A','three',3);
     await f.sync(f.a);
   }finally{IDBObjectStore.prototype.getAll=original;IDBIndex.prototype.getAll=originalIndex;}
  }finally{await f.close();}
@@ -172,7 +173,7 @@ test('large unrelated history bootstraps by pages; later sync touches only chang
   await f.pg.query(`insert into study_review_events(owner_id,id,card_id,payload) select $1,value->>'id',value->>'card_id',value from jsonb_array_elements($2::jsonb)`,[owner,JSON.stringify(events)]);
   await f.pg.query('update study_card_states set payload=$1 where owner_id=$2 and id=$3',[JSON.stringify(state),owner,bulk.id]);
   f.stats.pulls=[];await f.sync(f.b);assert.ok(f.stats.pulls.some(p=>p.rows===500));assert.equal((await f.b.repo.readDeck('deck',true)).events.length,621);
-  await f.sync(f.a);await f.a.repo.review(f.card.id,f.q.state.head,1,3,'affected-only',now+1000);await f.sync(f.a);
+  await f.sync(f.a);await recordLegacyEvent(f.a.db,f.card.id,'review',now+1000,'A','affected-only',3);await f.sync(f.a);
   const original=IDBObjectStore.prototype.get,accessed=[];
   IDBObjectStore.prototype.get=function(key){if(this.name==='study_events')accessed.push(key);return original.call(this,key);};
   f.stats.pulls=[];try{await f.sync(f.b);}finally{IDBObjectStore.prototype.get=original;}
@@ -184,10 +185,10 @@ test('large unrelated history bootstraps by pages; later sync touches only chang
 });
 test('derived state is rebuilt from its event when damaged; receipt failure rolls back decision and cursor feed',async()=>{
  const f=await fixture();try{
-  const e=await f.a.repo.review(f.card.id,f.q.state.head,1,3,'real',now+100);await f.sync(f.a);
+  const e=await recordLegacyEvent(f.a.db,f.card.id,'review',now+100,'A','real',3);await f.sync(f.a);
   await f.pg.query("update study_card_states set payload=jsonb_set(payload,'{fsrs,due}','1') where id=$1",[f.card.id]);
   await f.sync(f.b);assert.equal((await f.b.repo.readDeck('deck')).states[0].fsrs.due,e.after.fsrs.due);
-  policy='ask';const branch=createStudyEvent(f.card,f.q.state,'review',now+1,'C','branch',1);
+  policy='ask';const branch=createStudyEvent(f.card,f.intro.after,'review',now+1,'C','branch',1);
   await f.client.rpc('apply_study_operation',{operation:{kind:'event',value:branch}});await f.sync(f.b);await f.b.repo.resolveSchedule(f.card.id,'cloud');
   const operation=(await f.b.repo.pending()).find(o=>o.kind==='resolution');
   const before=(await f.pg.query('select payload from study_card_states where id=$1',[f.card.id])).rows[0].payload;
