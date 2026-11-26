@@ -98,3 +98,16 @@ test("reminder rules honor completion and retain stable identity after editing t
   assert.equal(isReminderPreferences({lead:1,rules:[rule],status:{[row.id]:{priority:3,handled:true}}}),true);
   assert.equal(isReminderPreferences({lead:1,rules:[{...rule,start:"2026-02-30"}],status:{}}),false);
 });
+
+test("overdue thresholds and opted-in list date reminders respect source state",()=>{
+  const {ruleOccurrence,listDateReminders}=require("../../src/features/life/reminderModel.ts");
+  const day="2026-11-27";
+  const rule={id:"threshold",title:"補看待辦",start:day,interval:1,enabled:true,trigger:"overdue-count",threshold:1};
+  assert.equal(ruleOccurrence(rule,day,[{id:"a",completed:true,due:"2026-11-26",day}]),null);
+  assert.equal(ruleOccurrence(rule,day,[{id:"a",due:"2026-11-26",day}]).title,"補看待辦");
+  const list={id:"l",deleted_at:null,fields:[{id:"expiry",name:"效期",type:"date",reminder:true},{id:"private",name:"私人日期",type:"date"}]};
+  const item={id:"i",list_id:"l",deleted_at:null,title:"食材",values:{expiry:day,private:day}};
+  const rows=listDateReminders({life_lists:[list],life_items:[item],life_categories:[]},day,day);
+  assert.deepEqual(rows.map(row=>row.title),["食材 · 效期"]);
+  assert.deepEqual(listDateReminders({life_lists:[{...list,deleted_at:1}],life_items:[item],life_categories:[]},day,day),[]);
+});

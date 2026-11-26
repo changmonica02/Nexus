@@ -1,5 +1,5 @@
 import { confirmDialog } from "../../../lib/confirmDialog";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Eye, EyeOff, Plus } from "lucide-react";
 import { localDateInput } from "../../../lib/todoCalendar";
 import { civilAdvance } from "../civilPeriods";
@@ -130,11 +130,11 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
     const converted = convertFinance(subscriptionMonthly(payload), payload.currency, prefs);
     if (converted === null) withheld.add(payload.currency); else planned += converted;
   }
-  const history = Array.from({length:6},(_,index)=>{
+  const history = useMemo(()=>Array.from({length:6},(_,index)=>{
     const start=civilAdvance(first,"month",index-5);
     const end=civilAdvance(civilAdvance(start,"month",1),"day",-1);
     return { start,...financeTotals(records,start,end) };
-  });
+  }),[records,first]);
   const trendMax=history.flatMap(item=>[item.income,item.expense]).reduce((maximum,value)=>value>maximum?value:maximum,BigInt(1));
   const shareColors=["#6b8d75","#bb9d74","#809ab7","#a085ad","#9d9d78","#ba8275"];
   const breakdown=[...totals.categories].sort((a,b)=>a[1]===b[1]?0:a[1]>b[1]?-1:1).map(([label,value],index)=>({
@@ -154,7 +154,7 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
       </button></li>)}</ul> : empty(label);
   const budgetCards = budgets.length ? <div className="grid gap-3 sm:grid-cols-2">{budgets.map(row => {
     const p = row.payload, spent = p.category ? totals.categories.get(p.category) ?? BigInt(0) : totals.expense;
-    const max = convertFinance(BigInt(p.amount), p.currency, prefs);
+    const max = convertFinance(BigInt(p.amount), p.currency, prefs,last);
     return <article className={surface + " space-y-2"} key={row.id}><button type="button" className="min-h-11 font-semibold" onClick={() => edit(row)}>{p.title}</button>
       <p>已用 {write(spent)} ・剩餘 {max === null ? "待設定匯率" : write(max - spent)}</p>
       {max !== null && <Progress value={spent} max={max}/>}</article>;
@@ -289,7 +289,7 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
           <p>市值 {item.market===null?"待填價格":write(item.market,p.currency)}</p>
           <p>已實現 {write(item.realized,p.currency)} ・未實現 {item.unrealized===null?"待估值":write(item.unrealized,p.currency)}</p>
           <p>股息 {write(item.dividends,p.currency)} ・報酬率 {profit===null||!item.invested?"待估值":decimalText(roundRatio(profit*BigInt(10000),item.invested),2)+"%"}</p>
-          {item.market!==null&&totals.assets>BigInt(0)&&<p className="text-sm opacity-75">占總資產 {decimalText(roundRatio((convertFinance(item.market,p.currency,prefs)??BigInt(0))*BigInt(10000),totals.assets),2)}%</p>}
+          {item.market!==null&&totals.assets>BigInt(0)&&<p className="text-sm opacity-75">占總資產 {decimalText(roundRatio((convertFinance(item.market,p.currency,prefs,last)??BigInt(0))*BigInt(10000),totals.assets),2)}%</p>}
         </article>;
       })}</div> : empty("投資標的")}
       <h3 className="font-semibold">交易歷史</h3>{rowList(financeRows(records,"trade"),row=>row.kind==="trade"?row.payload.date+" ・"+({buy:"買入",sell:"賣出",dividend:"股息"}[row.payload.type]):"", "投資交易")}

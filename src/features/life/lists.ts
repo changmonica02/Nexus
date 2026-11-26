@@ -26,6 +26,7 @@ export interface LifeField {
   formula?: Formula;
   relation?: "task"|"schedule"|"milestone";
   required?: boolean;
+  reminder?:boolean;
   defaultValue?: string | number | boolean | string[];
 }
 interface Base {

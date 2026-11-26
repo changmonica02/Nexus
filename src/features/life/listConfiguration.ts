@@ -1,6 +1,7 @@
+import type { ViewPreferences } from "./listViewModel";
 export type Formula = { left:string; right:string; operation:"+"|"-"|"*"|"/" };
 export type StatisticPreset = { id:string; title:string; field:string; start:string; end:string; group:string; chart:string };
-export type ListConfiguration = { icon?:string; cover?:string; statistics?:StatisticPreset[] };
+export type ListConfiguration = { icon?:string; cover?:string; statistics?:StatisticPreset[]; view?:ViewPreferences };
 
 export function evaluateFormula(formula:Formula, values:Record<string,unknown>) {
   const a=Object.hasOwn(values,formula.left)?values[formula.left]:null;
@@ -12,13 +13,14 @@ export function evaluateFormula(formula:Formula, values:Record<string,unknown>) 
 
 export function isListConfiguration(value:unknown):value is ListConfiguration {
   if(!value||typeof value!=="object"||Array.isArray(value))return false;
-  const {icon,cover,statistics}=value as ListConfiguration;
-  return (icon===undefined||typeof icon==="string"&&icon.length<=12)
+  const {icon,cover,statistics,view}=value as ListConfiguration;
+  return (view===undefined||view&&view.version===1&&JSON.stringify(view).length<=8000)
+    && (icon===undefined||typeof icon==="string"&&icon.length<=12)
     &&(cover===undefined||["sage","sand","sky","plum"].includes(cover))
     &&(statistics===undefined||Array.isArray(statistics)&&statistics.length<=12&&new Set(statistics.map(row=>row?.id)).size===statistics.length
       &&statistics.every(row=>row&&typeof row.id==="string"&&row.id.length<=80&&typeof row.title==="string"&&row.title.trim()&&row.title.length<=100
       &&typeof row.field==="string"&&row.field.length<=200&&[row.start,row.end].every(date=>typeof date==="string"&&(!date||/^\d{4}-\d{2}-\d{2}$/.test(date)))
-      &&["day","week","month","year","category"].includes(row.group)&&["bar","numbers"].includes(row.chart)));
+      &&["day","week","month","year","category"].includes(row.group)&&["bar","numbers","donut"].includes(row.chart)));
 }
 
 export const coverClasses:Record<string,string>={

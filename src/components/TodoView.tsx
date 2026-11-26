@@ -1,4 +1,6 @@
 "use client";
+import { emptyLife } from "../features/life/lists";
+import { listDateReminders } from "../features/life/reminderModel";
 import LifeReminders from "../features/life/LifeReminders";
 import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
 import {shared,type HealthRecord} from "../features/life/health/model";
@@ -15,7 +17,7 @@ import {useLifeDashboard} from '../features/life/dashboard/useLifeDashboard';
 import {lifeModuleIds,lifeModules,type LifeModule} from '../features/life/dashboard/model';
 import LifeLists from '../features/life/LifeLists';
 import type {StorageAdapter} from '../infrastructure/storage/StorageAdapter';
-import {useMemo,useRef,useState,useEffect} from 'react';
+import {useMemo,useRef,useState,useEffect,useCallback} from 'react';
 import PageCollection,{type PageActions} from './PageCollection';
 import type {Page} from '../lib/types';
 import {navigateDictionary,useUnsavedDraft} from '../features/dictionary/useUnsavedDraft';
@@ -66,13 +68,15 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   setTimer(next);
   try{localStorage.setItem(timerKey(owner),JSON.stringify(next));}catch{}
  };
+ const [reminderLists,setReminderLists]=useState(emptyLife);
+ const [listFocus,setListFocus]=useState<string>();
  useEffect(()=>{
   if(!repository)return;
   let active=true,sequence=0;
   const load=()=>{
    const request=++sequence;
-   void Promise.all([repository.readSchedule(),repository.readHabits(),repository.readFinance(),repository.readTimerHistory(),repository.readTimerStudySessions(),repository.readHealth()]).then(([rows,habits,finances,history,studySessions,health])=>{
-    if(active&&request===sequence){setHealth(health);setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
+   void Promise.all([repository.readSchedule(),repository.readHabits(),repository.readFinance(),repository.readTimerHistory(),repository.readTimerStudySessions(),repository.readHealth(),repository.read()]).then(([rows,habits,finances,history,studySessions,health,lists])=>{
+    if(active&&request===sequence){setReminderLists(lists);setHealth(health);setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
    }).catch(error=>{if(active&&request===sequence)setEventError(String(error.message));});
   };
   load();
@@ -140,6 +144,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   return match&&(p.title+' '+p.content_text).toLocaleLowerCase().includes(state.query.toLocaleLowerCase().trim());
  });
  const open=(id:string)=>navigateDictionary(()=>{change({scroll:scroller.current?.scrollTop??0});onSelectPage(id);});
+ const runScheduleAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.runScheduleAutomation(occurrence),[repository]);
  const reminderDays=state.tab==="overview"?Array.from({length:31},(_,offset)=>addDays(today,offset)):[];
  const reminderEvents=state.tab==="overview"?[
   ...(!scheduleHidden?scheduleCalendarEvents(appointments,reminderDays):[]),
@@ -150,7 +155,10 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  ].filter(event=>!event.completed):[];
  const reminderSource={schedule:"行程",milestones:"重要日期",habits:"習慣",finance:"財務",health:"健康",tasks:"待辦",taskStart:"待辦"};
  const reminderId=(event:LifeCalendarEvent)=>JSON.stringify([event.source,event.sourceId,event.date,event.occurrence??""]);
+ const listReminders=state.tab==="overview"&&!dashboard.config.hiddenModules.includes("lists")?
+   listDateReminders(reminderLists,localDateInput(today),localDateInput(addDays(today,30))):[];
  const reminderItems=[
+  ...listReminders,
   ...reminderEvents.map(event=>({id:reminderId(event),title:event.title,day:localDateInput(new Date(event.date)),source:reminderSource[event.source],priority:1})),
   ...(!tasksHidden?todos.flatMap(task=>!task.completed&&task.due_date!=null?[{id:"task:"+task.id,title:task.title,day:localDateInput(new Date(task.due_date)),source:"待辦",priority:task.due_date<today.getTime()?2:1}]:[]):[]),
  ];
@@ -209,7 +217,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
       sessions={studySessions.map(session=>({id:session.id,title:(pages.find(page=>page.id===session.deck_id)?.title??'學習紀錄')+' '+new Date(session.ended_at??session.completed_at??0).toLocaleDateString(language)}))}
       save={repository?result=>repository.saveTimerResult({...result,workspace_owner_id:owner,revision:0,created_at:Date.now(),updated_at:Date.now(),deleted_at:null}):undefined}/>:state.tab==='schedule'?
       <SchedulePanel events={appointments} locale={language} create={createSchedule} edit={event=>{setOccurrence(undefined);setEventEditor(event);}}/>:state.tab==='milestones'?
-      <MilestonesPanel events={milestones} anchor={selected} open={setEventEditor} create={createMilestone}/>:state.tab==='lists'&&storage?<LifeLists storage={storage} startCreating={quickList}
+      <MilestonesPanel events={milestones} anchor={selected} open={setEventEditor} create={createMilestone}/>:state.tab==='lists'&&storage?<LifeLists key={listFocus??""} storage={storage} initialListId={listFocus} startCreating={quickList}
        relations={[
         ...(!tasksHidden?todos.map(task=>({kind:"task" as const,id:task.id,title:task.title})):[]),
         ...(!scheduleHidden?appointments.map(event=>({kind:"schedule" as const,id:event.id,title:event.title})):[]),
@@ -224,9 +232,13 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {state.tab!=='overview'&&!dashboard.config.hiddenModules.includes('tasks')&&<form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();void add();}}><input ref={quickTaskInput} aria-label={t('life.newTitle')} maxLength={500} disabled={busy} placeholder={t('life.newTitle')} value={input} onChange={event=>setInput(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/><button disabled={busy||!input.trim()} className={button}>{t('todo.add')}</button></form>}
      {error&&<p role="alert">{error}</p>}
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
-      tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,day:localDateInput(new Date(task.updated_at??task.created_at))}))}
+      tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
+      runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
+      existingSchedules={scheduleHidden?[]:appointments.filter(row=>row.id.startsWith("automation:")).map(row=>({id:row.id,title:row.title,day:new Date(row.starts_at).toISOString().slice(0,10)}))}
       synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{
-       if(id.startsWith("task:"))open(id.slice(5));
+       const list=listReminders.find(row=>row.id===id);
+       if(list){setListFocus(list.listId);change({tab:"lists",scroll:0});}
+       else if(id.startsWith("task:"))open(id.slice(5));
        else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
      }}/>}
      {state.tab==='overview'&&<LifeOverview dashboard={dashboard} todos={todos} anchor={selected} today={today}

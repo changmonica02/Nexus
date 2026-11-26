@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { localDateInput } from "../../lib/todoCalendar";
+import { useMemo, useState } from "react";
 import type { Formula, StatisticPreset } from "./listConfiguration";
 import type { LifeField, LifeItem } from "./lists";
 import { civilAdvance } from "./civilPeriods";
@@ -30,7 +31,8 @@ export default function LifeRecordSummary({fields,items,categories,open,presets,
   const active=fields.filter(field=>!field.archived);
   const field=active.find(field=>field.id===fieldId);
   const dateField=active.find(field=>field.type==="date");
-  const dateOf=(item:LifeItem)=>dateField?String(item.values[dateField.id]??""):new Date(item.created_at).toLocaleDateString("sv-SE");
+  const dates=useMemo(()=>new Map(items.map(item=>[item.id,dateField?String(item.values[dateField.id]??""):localDateInput(new Date(item.created_at))])),[items,dateField]);
+  const dateOf=(item:LifeItem)=>dates.get(item.id)??"";
   const filtered=items.filter(item=>(!start||dateOf(item)>=start)&&(!end||dateOf(item)&&dateOf(item)<=end));
   const values=field?filtered.map(item=>field.formula?formulaValue(field.formula,item.values):item.values[field.id]):[];
   const numbers=values.filter((value):value is number=>typeof value==="number"&&Number.isFinite(value));
@@ -46,7 +48,16 @@ export default function LifeRecordSummary({fields,items,categories,open,presets,
     if(group==="week")return civilAdvance(date,"day",-((new Date(date+"T00:00:00Z").getUTCDay()+6)%7));
     return date.slice(0,7);
   });
-  const max=Math.max(1,...Array.from(buckets.values(),rows=>rows.length));
+  const sorted=[...buckets].sort(([a],[b])=>a.localeCompare(b));
+  const max=sorted.reduce((largest,[,rows])=>Math.max(largest,rows.length),1);
+  const colors=["#5b8f71","#9e785b","#738ab4","#926ab0","#ab8654","#5e9293"];
+  const chartTotal=sorted.reduce((total,[,rows])=>total+rows.length,0);
+  let used=0;
+  const segments=chart==="donut"&&chartTotal?sorted.map(([,rows],index)=>{
+    const start=100*used/chartTotal;
+    used+=rows.length;
+    return colors[index%colors.length]+" "+start+"% "+100*used/chartTotal+"%";
+  }):[];
   return <details className={surface}><summary className="cursor-pointer font-medium">日期檢視與統計</summary>
     <div className="mt-3 flex flex-wrap gap-2">
       <label className="grid gap-1">檢視<select className={control} value={mode} onChange={event=>setMode(event.target.value)}>
@@ -91,12 +102,15 @@ export default function LifeRecordSummary({fields,items,categories,open,presets,
           <option value="day">日</option><option value="week">週</option><option value="month">月</option><option value="year">年</option><option value="category">分類</option>
         </select></label>
         <label>呈現方式 <select className={control} value={chart} onChange={event=>setChart(event.target.value)}>
-          <option value="bar">長條</option><option value="numbers">數值</option>
+          <option value="bar">長條</option><option value="numbers">數值</option><option value="donut">環形</option>
         </select></label>
       </div>
-      <ul aria-label="分組紀錄筆數" className="mt-3 space-y-1">{[...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([key,rows])=>{
+      {segments.length>0&&<div role="img" aria-label={`分組環形圖，共 ${chartTotal} 筆，明細如下`} className="relative my-3 size-28 rounded-full" style={{backgroundImage:`conic-gradient(${segments.join(",")})`}}>
+        <div className="absolute inset-5 rounded-full bg-[var(--color-editor-bg)]"/>
+      </div>}
+      <ul aria-label="分組紀錄筆數" className="mt-3 space-y-1">{sorted.map(([key,rows],index)=>{
         const name=group==="category"?categories.find(category=>category.id===key)?.title??"未分類":key;
-        return <li key={key} className="flex flex-wrap items-center gap-2">{name} {chart==="bar"&&<meter min={0} max={max} value={rows.length} aria-label={name+"筆數"}/>} {rows.length} 筆</li>;
+        return <li key={key} className="flex flex-wrap items-center gap-2">{chart==="donut"&&<span aria-hidden="true" className="size-3 rounded-full" style={{backgroundColor:colors[index%colors.length]}}/>}{name} {chart==="bar"&&<meter min={0} max={max} value={rows.length} aria-label={name+"筆數"}/>} {rows.length} 筆</li>;
       })}</ul>
     </>:mode==="calendar"?<div className="overflow-x-auto">
       <div className="grid min-w-[30rem] grid-cols-7 gap-1 text-xs">

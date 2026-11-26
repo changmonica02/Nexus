@@ -29,6 +29,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261126170000_life_sensitive_health.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126171000_life_list_field_types.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126180000_life_list_configuration.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261127000000_life_automation_schedule.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -590,5 +591,27 @@ test("type conversion copies compatible values and keeps archived source data ac
     assert.equal(replacement.type,"number");
     assert.equal(target.life_items[0].values.cost,"12.25");
     assert.equal(target.life_items[0].values[replacement.id],12.25);
+  }finally{await a.close();await b.close();await pg.close();}
+});
+
+test("automation retries from two offline devices preserve one schedule and acknowledge both queues", async()=>{
+  const pg=await setup(),a=await device(),b=await device();
+  try{
+    const occurrence={id:'["rule","example","2026-11-27"]',day:"2026-11-27",title:"整理物品",source:"自訂規則",priority:1};
+    const remote=client(pg), localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
+    await a.getLifeRepository().runScheduleAutomation(occurrence);
+    await b.getLifeRepository().runScheduleAutomation(occurrence);
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    assert.equal((await localB.pending(owner)).length,0);
+    const rows=await b.getLifeRepository().readSchedule();
+    assert.equal(rows.length,1);
+    assert.equal(rows[0].revision,1);
+    assert.equal(rows[0].title,"整理物品");
+    await b.getLifeRepository().saveSchedule(rows[0],true);
+    await flushWorkspace(remote,localB,owner);
+    await b.getLifeRepository().runScheduleAutomation(occurrence);
+    assert.equal((await localB.pending(owner)).length,0);
+    assert.deepEqual(await b.getLifeRepository().readSchedule(),[]);
   }finally{await a.close();await b.close();await pg.close();}
 });

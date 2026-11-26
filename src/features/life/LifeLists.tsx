@@ -33,13 +33,13 @@ function newListEditor(owner: string | null): Editor {
   return { type: "life_lists", row: { ...lifeBase(owner, ""), fields: [], schema_version: 1 } };
 }
 type RelationTarget={kind:NonNullable<LifeField["relation"]>;id:string;title:string};
-export default function LifeLists({ storage, startCreating = false, relations=[], openRelation }: { storage: StorageAdapter; startCreating?: boolean;relations?:RelationTarget[];openRelation?:(target:RelationTarget)=>void }) {
+export default function LifeLists({ storage, startCreating = false, initialListId, relations=[], openRelation }: { storage: StorageAdapter; startCreating?: boolean;initialListId?:string;relations?:RelationTarget[];openRelation?:(target:RelationTarget)=>void }) {
   const { language } = useLanguage(),
     en = language === "en",
     label = (zh: string, english: string) => (en ? english : zh);
   const repo = useMemo(() => storage.getLifeRepository(), [storage]),
     [data, setData] = useState(emptyLife),
-    [listId, setListId] = useState<string | null>(null),
+    [listId, setListId] = useState<string | null>(initialListId??null),
     [error, setError] = useState(""),
     [editor, setEditor] = useState<Editor | null>(() => startCreating ? newListEditor(storage.getWorkspaceOwner?.() ?? null) : null),
     [busy, setBusy] = useState(false),
@@ -282,6 +282,10 @@ export default function LifeLists({ storage, startCreating = false, relations=[]
               onCategoryChange={setCategoryId}
               list={list}
               items={items}
+              saveView={async(view)=>{
+                await repo.save("life_lists",{...list,configuration:{...list.configuration,view},updated_at:Date.now()});
+                await refresh();
+              }}
               saveStatistics={async(statistics:StatisticPreset[])=>{
                 await repo.save("life_lists",{...list,configuration:{...list.configuration,statistics},updated_at:Date.now()});
                 await refresh();
@@ -557,7 +561,7 @@ function LifeEditor({
           <>
             <label className="block">
               {label("型別", "Type")}
-              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value, defaultValue:undefined, unit:undefined, formula:undefined, relation:undefined })}>
+              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value, defaultValue:undefined, unit:undefined, formula:undefined, relation:undefined, reminder:undefined })}>
                 {FIELD_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {fieldNames[t]}
@@ -578,6 +582,7 @@ function LifeEditor({
             {["number","duration","rating"].includes(draft.row.type)&&<label className="block">顯示單位
               <input className={input} maxLength={20} value={draft.row.unit??""} onChange={event=>patch({unit:event.target.value})}/>
             </label>}
+            {draft.row.type==="date"&&<label className="flex items-center gap-2"><input type="checkbox" checked={draft.row.reminder===true} onChange={event=>patch({reminder:event.target.checked})}/>於站內提醒顯示此日期</label>}
             {draft.row.type==="text"&&<label className="grid gap-1">資料關聯<select className={input} value={draft.row.relation??""}
               onChange={event=>patch({relation:event.target.value||undefined,defaultValue:undefined})}>
               <option value="">一般文字</option><option value="task">任務</option><option value="schedule">行程</option><option value="milestone">重要日期</option>

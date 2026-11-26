@@ -25,7 +25,7 @@ export default function FinanceCard({ card, records, anchor }: { card: Card; rec
       items=budgets.map(row=>{
         const p=row.payload, from=p.month+"-01", to=civilAdvance(civilAdvance(from,"month",1),"day",-1);
         const period=financeTotals(records,from,to);
-        const converted=convertFinance(BigInt(p.amount),p.currency,stats.prefs);
+        const converted=convertFinance(BigInt(p.amount),p.currency,stats.prefs,to);
         if(converted===null)missing.add(p.currency);
         return p.title+" ・"+(converted===null?"待設定匯率":actual(converted-(p.category?period.categories.get(p.category)??BigInt(0):period.expense)));
       });

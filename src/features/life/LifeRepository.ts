@@ -1,3 +1,4 @@
+import { automationScheduleId, type Reminder } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
@@ -84,6 +85,22 @@ export class LifeRepository {
     await new WorkspacePersistence(this.db).mutate(owner, [{
       type: "life_schedule_events", kind: remove ? "soft_delete" : "save", value: event,
     }]);
+  }
+
+  async runScheduleAutomation(occurrence:Reminder) {
+    const owner=this.owner();
+    const id=await automationScheduleId(occurrence.id);
+    const existing=await this.db.get("life_schedule_events",id) as ScheduleEvent|undefined;
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    if(existing?.workspace_owner_id===owner)return;
+    const date=Date.parse(occurrence.day+"T00:00:00Z");
+    try{
+      await this.saveSchedule({id,workspace_owner_id:owner,revision:0,created_at:date,updated_at:date,
+        deleted_at:null,title:occurrence.title,starts_at:date,ends_at:date,all_day:true,category:"自動化",notes:""});
+    }catch(error){
+      const concurrent=await this.db.get("life_schedule_events",id) as ScheduleEvent|undefined;
+      if(this.owner()!==owner||!concurrent||concurrent.workspace_owner_id!==owner)throw error;
+    }
   }
 
   async readHabits(): Promise<Habit[]> {

@@ -96,6 +96,12 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await page.getByLabel("提醒名稱").fill("確認生活物品");
     await page.getByRole("button",{name:"儲存規則"}).click();
     await page.getByText(/確認生活物品 · .* 起每/).waitFor();
+    await page.getByRole("button",{name:"新增日期提醒規則"}).click();
+    await page.getByLabel("提醒名稱").fill("自動安排整理");
+    await page.getByLabel("執行動作").selectOption("schedule");
+    await page.getByRole("button",{name:"儲存規則"}).click();
+    await page.getByText("已建立的自動化行程",{exact:true}).click();
+    await page.getByText(/\d{4}-\d{2}-\d{2} · 自動安排整理/).last().waitFor();
     await shot("Nexus-Life7-reminders-desktop",1280,900);
     assert.deepEqual(errors,[]);
   } finally {
