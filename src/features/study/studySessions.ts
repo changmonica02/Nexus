@@ -44,42 +44,9 @@ export function hasLearningData(state: StudyState | undefined, sessions: StudySe
 export function displayStudyCards(cards: StudyCard[], mode: "custom" | "az") {
   return [...cards].sort((a,b) => (mode === "az" ? a.front.localeCompare(b.front,"en",{sensitivity:"base"}) : 0) || a.sort_order-b.sort_order || a.id.localeCompare(b.id));
 }
-export function selectSessionCards(snapshot: StudySnapshot, mode: SessionMode, now: number) {
-  const states = new Map(snapshot.states.map(s => [s.id,s]));
-  const eligible = snapshot.cards.filter(c => {
-    const s = states.get(c.id);
-    return !c.deleted_at && !c.hidden && !!c.front.trim() && !!c.back.trim() && s && !s.conflict &&
-      (mode === "daily" ? !isLearned(s) : isLearned(s));
-  });
-  eligible.sort((a,b) => a.sort_order-b.sort_order || a.id.localeCompare(b.id));
-  if (mode === "daily") return eligible.slice(0, snapshot.settings.new_limit);
-  const limit = snapshot.settings.review_limit ?? 20;
-  const selected: StudyCard[] = [];
-  const take = (pool: StudyCard[]) => {
-    const remaining = Math.max(0, limit - selected.length);
-    if (pool.length > remaining && remaining > 0) {
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
-    }
-    selected.push(...pool.slice(0, remaining));
-  };
-  take(eligible.filter(c => states.get(c.id)!.fsrs == null));
-  take(eligible.filter(c => {
-    const fsrs = states.get(c.id)!.fsrs;
-    return fsrs != null && fsrs.due <= now;
-  }));
-  const upcoming = eligible.filter(c => {
-    const fsrs = states.get(c.id)!.fsrs;
-    return fsrs != null && fsrs.due > now;
-  }).sort((a,b) => states.get(a.id)!.fsrs!.due - states.get(b.id)!.fsrs!.due);
-  selected.push(...upcoming.slice(0, Math.max(0, limit - selected.length)));
-  return selected;
-}
-export function makeSession(snapshot: StudySnapshot, mode: StudySession["mode"], cards: StudyCard[], now: number, id: string, batchId?: string): StudySession {
+export function makeSession(snapshot: StudySnapshot, mode: "scheduled" | "practice", cards: StudyCard[], now: number, id: string): StudySession {
   return { id, owner_id: snapshot.settings.owner_id, deck_id: snapshot.settings.id, mode,
-    day: localStudyDay(now), batch_id: batchId, started_at: now, completed_at: cards.length ? null : now,
+    day: localStudyDay(now), started_at: now, completed_at: cards.length ? null : now,
     revision: 0, updated_at: now, answers: 0,
     targets: cards.map(c => ({card_id:c.id,generation:snapshot.states.find(s=>s.id===c.id)!.generation,easy_at:null,official_event_id:null,official_rating:null,event_id:crypto.randomUUID(),attempts:0})),
     queue: cards.map(c=>c.id) };

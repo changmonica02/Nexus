@@ -4,8 +4,8 @@ import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, i
 import type { IDBPDatabase, IDBPTransaction } from "idb";
 import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent, type ScheduleCandidate} from "./studyReliability";
 import type { Page } from "../../lib/types";
-import { isLearned, makeSession, reconcileSession, selectSessionCards, type SessionMode, type StudySession } from "./studySessions";
-import { localStudyDay, Rating } from "./studyFSRS";
+import { makeSession, reconcileSession, type StudySession } from "./studySessions";
+import { localStudyDay } from "./studyFSRS";
 import { createStudyEvent, emptyStudyState, nextDailyCard, sameStudyRecord,
   type Grade, type StudyBackup, type StudyCard, type StudyEvent, type StudyOperation,
   type StudySettings, type StudySnapshot, type StudyState, type StudyClear } from "./studyFSRS";
@@ -430,6 +430,7 @@ export class StudyRepository {
     this.owned(session);
     if(session.conflict) throw new Error("此練習有跨裝置進度衝突，已保留本機進度，請先同步處理。");
     if(session.ended_at!=null)return {...session,queue:[],presented_card_id:null};
+    if(session.mode!=="scheduled" && session.mode!=="practice") return session;
     for(const target of session.targets) {
       if(target.official_rating===undefined && target.official_event_id) {
         const event=await tx.objectStore("study_events").get(target.official_event_id);
@@ -450,42 +451,38 @@ export class StudyRepository {
     }
     return next;
   }
-  private async startSessionIn(tx:Write,deckId:string,mode:SessionMode,now:number,snapshot:StudySnapshot):Promise<StudySession> {
-      if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
-      const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll()).filter(s=>s.owner_id===this.owner() && s.deck_id===deckId);
-      const unfinished=sessions.filter(s=>s.mode===mode && s.completed_at==null&&s.ended_at==null).sort((a,b)=>a.started_at-b.started_at)[0]??(mode==='scheduled'?sessions.filter(s=>(s.mode==='daily'||s.mode==='free')&&s.completed_at==null&&s.ended_at==null).sort((a,b)=>a.started_at-b.started_at)[0]:undefined);
-      if(unfinished&&mode==='scheduled'&&unfinished.mode!=='scheduled'){unfinished.legacy_mode=unfinished.mode as 'daily'|'free';unfinished.mode='scheduled';unfinished.settings_snapshot=unfinished.settings_snapshot?{...unfinished.settings_snapshot,interval_version:undefined}:{...styleFromLegacy(snapshot.settings),scheduling_method:'fsrs',interval_version:undefined};unfinished.quota_limit??=Math.max(unfinished.targets.length,snapshot.settings.review_limit??100);}
-      if(unfinished) return this.reconciled(tx,unfinished,snapshot,now);
-      if(mode==="scheduled") {
-        snapshot.events=await this.dayIntroductions(deckId,now,tx);
-        const session=makeScheduled(snapshot,now,newId());session.settings_snapshot=structuredClone(snapshot.settings.style!);
-        await this.saveSession(tx,session);
-        return session;
-      }
-      let batch:StudySession|undefined;
-      let cards:StudyCard[];
-      if(mode==="daily") {
-        const batchId=JSON.stringify(["daily-batch",deckId,localStudyDay(now)]);
-        batch=sessions.find(s=>s.id===batchId);
-        if(!batch) {
-          batch=makeSession(snapshot,"batch",selectSessionCards(snapshot,"daily",now),now,batchId);
-          await this.saveSession(tx,batch);
-        }
-        // The batch IDs are fixed. A new session binds to the current generation after a reset.
-        cards=batch.targets.flatMap(t=>snapshot.cards.filter(c=>c.id===t.card_id && !c.deleted_at && !c.hidden));
-      } else cards=selectSessionCards(snapshot,"free",now);
-      const session=makeSession(snapshot,mode,cards,now,newId(),batch?.id);
-      await this.saveSession(tx,session);
-      return session;
+  private async startSessionIn(tx:Write,deckId:string,now:number,snapshot:StudySnapshot):Promise<StudySession> {
+    if(!snapshot.settings.direction_confirmed) throw new Error("請先確認字卡方向為英 → 中。");
+    const sessions:StudySession[]=(await tx.objectStore("study_sessions").getAll())
+      .filter(s=>s.owner_id===this.owner() && s.deck_id===deckId && s.completed_at==null && s.ended_at==null)
+      .sort((a,b)=>a.started_at-b.started_at);
+    const scheduled=sessions.find(s=>s.mode==="scheduled");
+    if(scheduled) return this.reconciled(tx,scheduled,snapshot,now);
+    const legacy=sessions.find(s=>s.mode==="daily" || s.mode==="free");
+    if(legacy && (legacy.mode==="daily" || legacy.mode==="free")) {
+      legacy.legacy_mode=legacy.mode;
+      legacy.mode="scheduled";
+      legacy.settings_snapshot=legacy.settings_snapshot
+        ? {...legacy.settings_snapshot,interval_version:undefined}
+        : {...styleFromLegacy(snapshot.settings),scheduling_method:"fsrs",interval_version:undefined};
+      legacy.quota_limit??=Math.max(legacy.targets.length,snapshot.settings.review_limit??100);
+      return this.reconciled(tx,legacy,snapshot,now);
+    }
+    snapshot.events=await this.dayIntroductions(deckId,now,tx);
+    const session=makeScheduled(snapshot,now,newId());
+    session.settings_snapshot=structuredClone(snapshot.settings.style!);
+    await this.saveSession(tx,session);
+    return session;
   }
-  async startSession(deckId:string,mode:SessionMode,now=Date.now()):Promise<StudySession> {
-    return this.sessionWrite(async tx=>this.startSessionIn(tx,deckId,mode,now,await this.snapshotIn(tx,deckId)));
+  async startSession(deckId:string,mode:"scheduled",now=Date.now()):Promise<StudySession> {
+    if(mode!=="scheduled") throw new Error("請使用正式排程開始學習。");
+    return this.sessionWrite(async tx=>this.startSessionIn(tx,deckId,now,await this.snapshotIn(tx,deckId)));
   }
   /** Opening uses one fresh snapshot, after the caller's authoritative sync barrier. */
   async openScheduledSession(deckId:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
     return this.sessionWrite(async tx=>{
       const snapshot=await this.snapshotIn(tx,deckId);
-      const session=await this.startSessionIn(tx,deckId,'scheduled',now,snapshot);
+      const session=await this.startSessionIn(tx,deckId,now,snapshot);
       await this.presentIn(tx,session,snapshot,now);
       return {session,snapshot};
     });
@@ -548,58 +545,33 @@ export class StudyRepository {
       const {sessionId,cardId,rating,actionId,now}=input;
       if(![1,2,3,4].includes(rating)) throw new Error("無效評分。");
       const saved:StudySession=await tx.objectStore("study_sessions").get(sessionId);this.owned(saved);
+      if(saved.mode!=="scheduled") throw new Error("請使用正式排程繼續學習。");
       if(saved.last_action_id===actionId) return saved;
       const snapshot=await this.snapshotIn(tx,saved.deck_id);
       const session=await this.reconciled(tx,saved,snapshot,now);
-      if((session.mode==="batch" || session.mode==="practice") || session.completed_at!=null || session.ended_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
+      if(session.completed_at!=null || session.ended_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
       const storedCard=snapshot.cards.find(c=>c.id===cardId)!;
       const display=input.displayContent;
       const card=storedCard.official_custom===false&&storedCard.official_pack_id&&storedCard.dictionary_entry_id&&display?.front.trim()&&display.back.trim()?{...storedCard,front:display.front,back:display.back}:storedCard;
       const state=snapshot.states.find(s=>s.id===cardId)!;
       if(card.hidden || state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
-      if(session.mode==='scheduled'&&session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
+      if(session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
       session.presented_card_id=null;
       const target=session.targets.find(t=>t.card_id===cardId)!;
       target.attempts=(target.attempts??0)+1;
-      let event:StudyEvent|undefined;
-      if(session.mode==="scheduled") {
-        if(isUnintroduced(state))throw new Error("請先正式呈現新卡。");
-        if(dueAt(state,now)>now && !(session.study_mode==="endless" && target.early_review && !target.official_event_id))throw new Error("此卡尚未到期。");
-        event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled",session.settings_snapshot);
-        event.session_id=session.id;event.session_rating=rating;
-        target.official_event_id=event.id;target.official_rating=rating;
-        // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
-        if(session.settings_snapshot?.interval_version===1?rating!==1:!isShortStep(event.after,now))target.easy_at=now;
-        session.answers++;session.revision++;session.last_action_id=actionId;
-        session.updated_at=Math.max(now,session.updated_at+1);
-        snapshot.states=snapshot.states.map(s=>s.id===cardId?event!.after:s);
-        const next=refreshScheduled(session,snapshot,now);
-        await this.saveSession(tx,next,event);
-        return next;
-      }
-      if(session.mode==="free" && !isLearned(state)) throw new Error("此卡尚未學會，請先完成每日學習。");
-      if(session.mode==="free" && !target.official_event_id) {
-        event=createStudyEvent(card, state, "review", now, this.device, target.event_id, rating);
-        event.before=structuredClone(state);
-        event.session_id=session.id; event.source="free_review";
-        event.session_rating=rating;
-        target.official_event_id=event.id;
-        target.official_rating=rating;
-      } else if(session.mode==="daily" && rating===Rating.Easy && !isLearned(state)) {
-        event=createStudyEvent(card, state, "introduce", now, this.device, target.event_id, null, "daily_learning");
-        event.before=structuredClone(state);
-        event.session_id=session.id; event.source="daily_learning";
-        target.official_event_id=event.id;
-      }
-      const completed=rating===Rating.Easy || (session.mode==="free" && rating===Rating.Good);
-      if(completed) target.easy_at=now;
-      session.queue=session.queue.slice(1);
-      if(!completed) session.queue.push(cardId);
-      session.answers++; session.revision++; session.last_action_id=actionId;
+      if(isUnintroduced(state))throw new Error("請先正式呈現新卡。");
+      if(dueAt(state,now)>now && !(session.study_mode==="endless" && target.early_review && !target.official_event_id))throw new Error("此卡尚未到期。");
+      const event=createStudyEvent(card,state,"review",now,this.device,newId(),rating,"scheduled",session.settings_snapshot);
+      event.session_id=session.id;event.session_rating=rating;
+      target.official_event_id=event.id;target.official_rating=rating;
+      // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
+      if(session.settings_snapshot?.interval_version===1?rating!==1:!isShortStep(event.after,now))target.easy_at=now;
+      session.answers++;session.revision++;session.last_action_id=actionId;
       session.updated_at=Math.max(now,session.updated_at+1);
-      if(!session.queue.length) session.completed_at=now;
-      await this.saveSession(tx,session,event);
-      return session;
+      snapshot.states=snapshot.states.map(s=>s.id===cardId?event.after:s);
+      const next=refreshScheduled(session,snapshot,now);
+      await this.saveSession(tx,next,event);
+      return next;
     });
   }
   async startPractice(formalSessionId:string, now=Date.now()):Promise<StudySession> {
