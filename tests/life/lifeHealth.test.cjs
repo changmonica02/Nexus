@@ -34,3 +34,29 @@ test("health projections opt in and plans never count as completed workouts", ()
   assert.equal(healthEvents(rows,days,{calendar:true}).length,2);
   assert.equal(totals(rows,day,"2026-11-27").minutes,20);
 });
+
+test("cycle estimates need three distinct starts and respect completed durations", () => {
+  const {cycleSummary}=require("../../src/features/life/health/sensitive.ts");
+  const first=record("cycle",{date:"2026-09-01",until:"2026-09-05"});
+  const second=record("cycle",{date:"2026-09-29",until:"2026-10-02"});
+  assert.equal(cycleSummary([first,second]).next,null);
+  const complete=cycleSummary([first,second,record("cycle",{date:"2026-10-27"})]);
+  assert.equal(complete.next,"2026-11-24");
+  assert.equal(complete.duration,4.5);
+});
+
+test("medication stock tracks actual doses, and sensitive calendar events require their own permission", () => {
+  const {medicationDue,medicationStock}=require("../../src/features/life/health/sensitive.ts");
+  const item=record("medication",{title:"私人名稱",quantity:1,unit:"份",frequency:"interval",interval:2,stock:12});
+  const taken=record("dose",{medication:item.id,title:"私人名稱",status:"taken",actual:day+"T08:30",planned:"08:00",quantity:2});
+  const skipped=record("dose",{medication:item.id,title:"私人名稱",status:"skipped",quantity:2});
+  validateHealth(item);
+  validateHealth(taken);
+  assert.equal(medicationStock(item,[taken,skipped]),10);
+  assert.equal(medicationStock(item,[skipped]),12);
+  assert.equal(medicationDue(item,"2026-11-27"),false);
+  const days=[new Date(2026,10,26)];
+  assert.deepEqual(healthEvents([item,taken],days,{calendar:true}),[]);
+  assert.equal(healthEvents([item,taken],days,{calendarMedication:true})[0].title,"服用提醒");
+  assert.deepEqual(healthEvents([item,taken],days,{calendarMedication:true,off_medication:true}),[]);
+});

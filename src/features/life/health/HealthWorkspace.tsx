@@ -6,11 +6,15 @@ import type { LifeRepository } from "../LifeRepository";
 import { civilAdvance } from "../civilPeriods";
 import { control, surface } from "../dashboard/styles";
 import { allowed, body, groups, kindGroup, labels, makeHealth, metricGroup, metrics, nutrition, num, str, toItem, type Entry, type Fields, type Group, type HealthRecord, type Item } from "./model";
+import { cycleSummary, medicationDue, medicationStock, scheduledDose } from "./sensitive";
 import { bmi, bounds, dayOf, duration, latest, planOn, progress, totals, value, type Period } from "./summary";
 
 type Reference={id:string;title:string};
 type Field=[key:string,label:string,type?:string,options?:Record<string,string>];
 const fields:Record<Entry,Field[]> = {
+ cycle:[["date","經期開始","date"],["until","經期結束","date"],["flow","經血量"],["symptoms","症狀"],["pain","疼痛程度（0–10）","number"],["mood","情緒"],["temperature","基礎體溫（°C）","number"]],
+ medication:[["title","名稱"],["category","類型","select",{medicine:"藥品",vitamin:"維生素",supplement:"保健食品"}],["quantity","每次數量","number"],["unit","單位"],["date","起始日期","date"],["until","結束日期","date"],["frequency","服用週期","select",{daily:"每日",weekly:"指定星期",interval:"固定間隔",asNeeded:"需要時"}],["weekdays","星期（日 0 至六 6）"],["interval","間隔天數","number"],["time","預定時間","time"],["meal","餐前／餐後"],["stock","起始庫存","number"],["expiry","效期","date"]],
+ dose:[["status","服用狀態","select",{taken:"已服用",missed:"未服用",skipped:"略過"}],["date","紀錄日期","date"],["planned","預定時間","time"],["actual","實際服用時間","datetime-local"],["quantity","實際服用數量","number"]],
  body:[["date","日期","date"],...Object.entries(body).map(([key,label]):Field=>[key,label,"number"])],
  goal:[["title","名稱"],["metric","指標","select",metrics],["mode","方向","select",{increase:"增加",decrease:"減少",maintain:"維持範圍"}],["date","起始日期","date"],["until","目標日期","date"],["baseline","起始值","number"],["target","目標值／範圍下限","number"],["upper","範圍上限","number"],["current","自訂指標目前值","number"],["habit","關聯習慣","habit"]],
  food:[["title","名稱"],["unit","營養標示基準","select",{g:"每 100 g",ml:"每 100 ml","份":"每份"}],["grams","一份等於幾公克","number"],["ml","一份等於幾毫升","number"],...Object.entries(nutrition).map(([key,label]):Field=>[key,label,"number"]),["archived","封存","checkbox"]],
@@ -114,8 +118,9 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
  const pref=rows.find(row=>row.kind==="privacy"),privacy=pref?.data??{},enabled=(group:Group)=>allowed(privacy,group);
  const safe=rows.filter(row=>row.kind!=="privacy"&&enabled(kindGroup[row.kind])&&(row.kind!=="goal"||enabled(metricGroup(str(row,"metric")))));
  const active=(tab==="foods"&&!enabled("diet")||Object.hasOwn(groups,tab)&&!enabled(tab as Group))?"overview":tab;
+ const cycle=cycleSummary(safe);
  const [from,to]=bounds(day,period),summary=totals(safe,from,to);
- const start=(kind:Entry,patch:Fields={})=>setEdit(makeHealth(owner,kind,{date:day,time:"08:00",unit:"份",metric:"weight",mode:"decrease",until:kind==="goal"?civilAdvance(day,"day",30):"",
+ const start=(kind:Entry,patch:Fields={})=>setEdit(makeHealth(owner,kind,{date:day,time:"08:00",quantity:1,frequency:"daily",category:"medicine",unit:"份",metric:"weight",mode:"decrease",until:kind==="goal"?civilAdvance(day,"day",30):"",
   start:civilAdvance(day,"day",-1)+"T23:00",end:day+"T07:00",quality:3,meal:"早餐",amount:250,minutes:30,...patch}));
  const change=async(patch:Fields)=>{
   if(busy)return;setBusy(true);setError("");
@@ -156,6 +161,8 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    <div className="flex flex-wrap gap-2">{(["body","goal","meal","water","exercise","sleep"] as const).filter(kind=>enabled(kindGroup[kind])).map(kind=>
     <button key={kind} className={control} type="button" onClick={()=>start(kind)}>新增{labels[kind]}</button>)}</div>
    {enabled("exercise")&&<div className={surface}>期間運動 {value(summary.sessions,"次")} ・{value(summary.minutes,"分鐘")}</div>}
+   {enabled("cycle")&&cycle.records.length>0&&<p className={surface}>經期 · 最近開始 {str(cycle.records.at(-1)!,"date")}</p>}
+   {enabled("medication")&&safe.some(row=>medicationDue(row,day))&&<p className={surface}>用藥 · 當日有預定事項</p>}
    {enabled("goal")&&<GoalList rows={safe} day={day} open={setEdit}/>}
    <section className={surface+" space-y-3"}><h3 className="font-semibold">近 14 日趨勢</h3><select aria-label="趨勢指標" className={control} value={trend} onChange={event=>setTrend(event.target.value)}>
     {[...Object.keys(body),"kcal","water","sleep","minutes","distance","lift"].filter(key=>enabled(trendGroup(key))).map(key=><option key={key} value={key}>{metrics[key as keyof typeof metrics]??(key==="distance"?"運動距離":"運動重量")}</option>)}</select>
@@ -195,6 +202,40 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
   </>}
   {active==="sleep"&&<>{element("新增睡眠",()=>start("sleep"))}<div className={surface}>期間平均 {value(summary.sleep,"小時")}</div>
    {list("sleep",row=><p>{row.data.nap?"午睡":"睡眠"} · {str(row,"start")} 至 {str(row,"end")} · {value(duration(row),"小時")} · 品質 {str(row,"quality")}/5</p>)}</>}
+  {active==="cycle"&&<>
+   {element("新增經期紀錄",()=>start("cycle"))}
+   <section className={surface+" space-y-2"}><p>平均週期 {value(cycle.cycle,"天")} · 平均經期 {value(cycle.duration,"天")}</p>
+    <p>下次估計 {cycle.next??"至少需要三次不同的開始日期"}</p>
+    <p className="text-sm">估計日期僅供個人紀錄參考。</p>
+    <h3 className="font-semibold">{day.slice(0,7)} 經期月曆</h3>
+    <div className="grid grid-cols-7 gap-1">{Array.from({length:new Date(Number(day.slice(0,4)),Number(day.slice(5,7)),0).getDate()},(_,index)=>{
+      const date=day.slice(0,8)+String(index+1).padStart(2,"0");
+      const recorded=cycle.records.some(row=>str(row,"date")<=date&&date<=(str(row,"until")||str(row,"date")));
+      const label=recorded?"已記錄":date===cycle.next?"估計開始":"";
+      return <button key={date} type="button" className={control+(recorded?" bg-emerald-600/20":label?" border-dashed":"")} aria-label={date+" "+label} onClick={()=>setDay(date)}>{index+1}</button>;
+    })}</div></section>
+   {list("cycle",row=><p>{str(row,"date")} 至 {str(row,"until")||"尚未填寫結束日期"} · {str(row,"symptoms")}</p>,true)}
+  </>}
+  {active==="medication"&&<>
+   {element("新增用藥項目",()=>start("medication",{meal:"",unit:"",frequency:"daily"}))}
+   {list("medication",row=>{
+     const due=medicationDue(row,day), stock=medicationStock(row,safe);
+     const done=scheduledDose(safe,row,day);
+     const expiry=str(row,"expiry");
+     return <div className="space-y-2"><p>{str(row,"quantity")} {str(row,"unit")} · {str(row,"meal")}</p>
+       {stock!==null&&<p>剩餘庫存 {value(stock,str(row,"unit"))}{stock<=0?" · 庫存不足":""}</p>}
+       {expiry&&<p>有效期限 {expiry}{expiry<day?" · 已到期":expiry<=civilAdvance(day,"day",7)?" · 即將到期":""}</p>}
+       {due&&!done&&<p>當日待記錄 · {str(row,"time")}</p>}
+       {due&&done&&element("查看當日服用紀錄",()=>setEdit(done))}
+       {(due&&!done||row.data.frequency==="asNeeded")&&element("新增服用紀錄",()=>{
+         const data={date:day,actual:day+"T"+new Date().toTimeString().slice(0,5),medication:row.id,title:str(row,"title"),status:"taken",quantity:row.data.quantity,planned:due?row.data.time:""};
+         setEdit(makeHealth(owner,"dose",data));
+       })}
+     </div>;
+   },true)}
+   <h3 className="font-semibold">歷史服用紀錄</h3>
+   {list("dose",row=><p>{str(row,"date")} · {{taken:"已服用",missed:"未服用",skipped:"略過"}[str(row,"status")]} · {str(row,"actual").replace("T"," ")}</p>,true)}
+  </>}
   {active==="privacy"&&<div className={surface+" space-y-4"}><p>健康資料預設僅在健康管理顯示。</p>
    <fieldset disabled={busy} className="space-y-2"><legend>子功能與跨頁顯示</legend>
     {Object.entries(groups).map(([key,label])=><div key={key} className="flex flex-wrap gap-4">
@@ -205,6 +246,8 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
      onChange={event=>void change({calendar:event.target.checked})}/>在行事曆顯示運動</label>
     <label className="flex min-h-11 items-center gap-2"><input type="checkbox" disabled={!enabled("goal")} checked={enabled("goal")&&privacy.habits===true}
      onChange={event=>void change({habits:event.target.checked})}/>在習慣頁顯示已授權的關聯健康目標</label></fieldset>
+   <div className="flex flex-wrap gap-4">{([["cycle","calendarCycle","經期"],["medication","calendarMedication","服用提醒"]] as const).map(([group,key,label])=><label key={key} className="flex min-h-11 items-center gap-2">
+    <input type="checkbox" disabled={busy||!enabled(group)} checked={enabled(group)&&privacy[key]===true} onChange={event=>void change({[key]:event.target.checked})}/>在行事曆顯示{label}</label>)}</div>
    <form className="flex flex-wrap items-end gap-2" onSubmit={event=>{event.preventDefault();const values=[...new Set(String(new FormData(event.currentTarget).get("water")).split(/[,，\s]+/).filter(Boolean).map(Number))];
     if(values.length>10||values.some(value=>!Number.isFinite(value)||value<=0)){setError("請輸入最多 10 個正數");return;}void change({presets:values.join(",")});}}>
     <label className="grid gap-1">常用飲水容量（ml，以逗號分隔）<input className={control} name="water" defaultValue={String(privacy.presets??"150,250,500")}/></label>

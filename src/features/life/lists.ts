@@ -2,8 +2,9 @@
 export const LIFE_STORES = ["life_lists", "life_categories", "life_items"] as const;
 export type LifeStore = (typeof LIFE_STORES)[number];
 export type FieldType =
-  "text" | "longtext" | "number" | "money" | "date" | "select" | "checkbox" | "image" | "attachment";
+  "time" | "url" | "rating" | "duration" | "multiselect" | "text" | "longtext" | "number" | "money" | "date" | "select" | "checkbox" | "image" | "attachment";
 export const FIELD_TYPES: FieldType[] = [
+  "time", "url", "rating", "duration", "multiselect",
   "text",
   "longtext",
   "number",
@@ -173,6 +174,10 @@ export function validateLife(
       const valid =
         f.type === "checkbox"
           ? typeof value === "boolean"
+          : f.type === "multiselect"
+            ? Array.isArray(value)&&new Set(value).size===value.length&&value.every(option=>typeof option==="string"&&f.options?.includes(option))
+            : f.type === "rating" || f.type === "duration"
+              ? typeof value==="number"&&Number.isFinite(value)&&value>=0&&(f.type==="duration"||Number.isInteger(value)&&value<=5)
           : f.type === "number"
             ? typeof value === "number" && Number.isFinite(value)
             : f.type === "money"
@@ -188,6 +193,8 @@ export function validateLife(
                     (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
                       !Number.isNaN(Date.parse(value)) &&
                       new Date(value).toISOString().slice(0, 10) === value)) &&
+                  (f.type !== "time" || /^([01]\d|2[0-3]):[0-5]\d$/.test(value)) &&
+                  (f.type !== "url" || /^https?:\/\/[^\s]+$/i.test(value)) &&
                   (f.type !== "select" || (f.options ?? []).includes(value));
       if (!valid) throw Error("欄位值與型別不符：" + f.name);
     }

@@ -1,4 +1,5 @@
 "use client";
+import LifeRecordSummary from "./LifeRecordSummary";
 import { useEffect, useMemo, type ReactNode } from "react";
 import {
   tableFeatures,
@@ -367,6 +368,7 @@ export default function LifeItemViews({
           </button>
         </div>
       </details>
+      <LifeRecordSummary fields={list.fields} items={table.getFilteredRowModel().flatRows.map(row=>row.original)} open={onEdit}/>
       {prefs.view === "tree" && (
         <CategoryTree
           categories={categories}

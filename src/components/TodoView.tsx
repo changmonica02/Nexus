@@ -209,7 +209,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
         {{month:'月檢視',week:'週檢視',day:'日檢視'}[item]}</button>)}
       </div>
       <div className="flex flex-wrap items-center gap-3" aria-label="事件來源">
-       {!healthHidden&&repository&&healthSettings?.calendar===true&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.health} onChange={event=>setSources({...sources,health:event.target.checked})}/>健康運動</label>}
+       {!healthHidden&&repository&&(healthSettings?.calendar===true||healthSettings?.calendarCycle===true||healthSettings?.calendarMedication===true)&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.health} onChange={event=>setSources({...sources,health:event.target.checked})}/>健康事項</label>}
        {!financeHidden&&repository&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.finance}
         onChange={event=>setSources({...sources,finance:event.target.checked})}/>財務日期</label>}
        {!tasksHidden&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.tasks} onChange={event=>setSources({...sources,tasks:event.target.checked})}/>任務起訖</label>}

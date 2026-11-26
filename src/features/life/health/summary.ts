@@ -1,3 +1,4 @@
+import { medicationDue, scheduledDose } from "./sensitive";
 import { civilAdvance } from "../civilPeriods";
 import { localDateInput } from "../../../lib/todoCalendar";
 import type { LifeCalendarEvent } from "../calendarSources";
@@ -50,12 +51,22 @@ export function progress(rows:HealthRecord[],row:HealthRecord,day:string){
 export const planOn=(row:HealthRecord,day:string)=>str(row,"weekdays")?
  day>=str(row,"date")&&(!row.data.until||day<=str(row,"until"))&&str(row,"weekdays").includes(String(new Date(day+"T00:00:00Z").getUTCDay())):str(row,"date")===day;
 export function healthEvents(rows:HealthRecord[],days:Date[],settings:Fields):LifeCalendarEvent[]{
- if(!settings.calendar||!allowed(settings,"exercise"))return [];
  return days.flatMap(day=>{
   const date=localDateInput(day);
-  return rows.filter(row=>row.kind==="plan"?planOn(row,date):row.kind==="exercise"&&dayOf(row)===date).map(row=>({
-   source:"health" as const,sourceId:row.id,date:day.getTime(),title:(row.kind==="plan"?"運動計畫 · ":"運動紀錄 · ")+str(row,"title"),
-   startsAt:new Date(date+"T"+str(row,"time")).getTime(),completed:row.kind==="exercise",
-  }));
+  const events:LifeCalendarEvent[]=[];
+  for(const row of rows){
+   const base={source:"health" as const,sourceId:row.id,date:day.getTime()};
+   if(settings.calendar&&allowed(settings,"exercise")&&(row.kind==="plan"?planOn(row,date):row.kind==="exercise"&&dayOf(row)===date)){
+    events.push({...base,title:(row.kind==="plan"?"運動計畫 · ":"運動紀錄 · ")+str(row,"title"),
+     startsAt:new Date(date+"T"+str(row,"time")).getTime(),completed:row.kind==="exercise"});
+   }
+   if(settings.calendarCycle&&allowed(settings,"cycle")&&row.kind==="cycle"&&date===str(row,"date"))
+    events.push({...base,title:"經期紀錄",completed:true});
+   if(settings.calendarMedication&&allowed(settings,"medication")&&medicationDue(row,date)){
+    const log=scheduledDose(rows,row,date);
+    events.push({...base,title:"服用提醒",startsAt:new Date(date+"T"+str(row,"time")).getTime(),completed:log?.data.status==="taken"});
+   }
+  }
+  return events;
  });
 }

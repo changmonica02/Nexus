@@ -1,8 +1,8 @@
 import type { LifeSyncBase } from "../syncRecords";
-export const groups = { body:"身體數據", goal:"健康目標", diet:"飲食飲水", exercise:"運動", sleep:"睡眠" } as const;
+export const groups = { cycle:"經期", medication:"用藥與保健食品", body:"身體數據", goal:"健康目標", diet:"飲食飲水", exercise:"運動", sleep:"睡眠" } as const;
 export type Group = keyof typeof groups;
-export const labels = { body:"身體數據", goal:"健康目標", meal:"飲食", food:"常用食品", recipe:"常用餐點", water:"飲水", plan:"運動計畫", exercise:"運動紀錄", sleep:"睡眠" } as const;
-export const kindGroup = { body:"body",goal:"goal",meal:"diet",food:"diet",recipe:"diet",water:"diet",plan:"exercise",exercise:"exercise",sleep:"sleep" } as const;
+export const labels = { cycle:"經期紀錄", medication:"用藥項目", dose:"服用紀錄", body:"身體數據", goal:"健康目標", meal:"飲食", food:"常用食品", recipe:"常用餐點", water:"飲水", plan:"運動計畫", exercise:"運動紀錄", sleep:"睡眠" } as const;
+export const kindGroup = { cycle:"cycle", medication:"medication", dose:"medication", body:"body",goal:"goal",meal:"diet",food:"diet",recipe:"diet",water:"diet",plan:"exercise",exercise:"exercise",sleep:"sleep" } as const;
 export type Entry = keyof typeof labels;
 export type Kind = Entry | "privacy";
 export const body = { height:"身高（cm）",weight:"體重（kg）",fat:"體脂率（%）",muscle:"肌肉量（kg）",waist:"腰圍（cm）",systolic:"收縮壓（mmHg）",diastolic:"舒張壓（mmHg）",heart:"靜息心率（次／分）",temperature:"體溫（°C）",bmr:"基礎代謝率（kcal／日）" };
@@ -51,6 +51,14 @@ export function validateHealth(row:HealthRecord){
  if(kind==="plan"&&(s("until")&&(!validDay(s("until"))||s("until")<s("date"))||!/^[0-6]*$/.test(s("weekdays"))))throw Error("計畫週期無效");
  if(kind==="sleep"&&(!validDay(s("start").slice(0,10))||!validDay(s("end").slice(0,10))||!clock(s("start").slice(11))||!clock(s("end").slice(11))
   ||!positive(data,"startAt")||Number(data.endAt)<=Number(data.startAt)||!Number.isInteger(data.quality)||Number(data.quality)<1||Number(data.quality)>5))throw Error("請確認睡眠時間及品質");
+ if(kind==="cycle"&&(!validDay(s("date"))||s("until")&&(!validDay(s("until"))||s("until")<s("date"))||Number(data.pain)>10))throw Error("請確認經期日期及疼痛程度");
+ if(kind==="medication"&&(!s("title").trim()||!s("unit").trim()||!positive(data,"quantity")||!validDay(s("date"))||
+   s("until")&&(!validDay(s("until"))||s("until")<s("date"))||s("expiry")&&!validDay(s("expiry"))||
+   !["daily","weekly","interval","asNeeded"].includes(s("frequency"))||s("frequency")!=="asNeeded"&&!clock(s("time"))||
+   s("frequency")==="weekly"&&!/^[0-6]+$/.test(s("weekdays"))||
+   s("frequency")==="interval"&&(!Number.isInteger(data.interval)||!positive(data,"interval"))))throw Error("請確認劑量、日期及服用週期");
+ if(kind==="dose"&&(!s("medication")||!s("title").trim()||!validDay(s("date"))||!["taken","missed","skipped"].includes(s("status"))||
+   s("planned")&&!clock(s("planned"))||s("status")==="taken"&&(!positive(data,"quantity")||!validDay(s("actual").slice(0,10))||!clock(s("actual").slice(11)))))throw Error("請確認服用日期、狀態及數量");
  if(kind==="goal"){
   const base=num(data,"baseline"),target=num(data,"target"),upper=num(data,"upper");
   if(!Object.hasOwn(metrics,s("metric"))||!validDay(s("date"))||!validDay(s("until"))||s("date")>s("until")||base===null||target===null

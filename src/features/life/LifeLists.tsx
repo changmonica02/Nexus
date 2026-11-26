@@ -1,4 +1,5 @@
 "use client";
+import { listTemplates, templateFields } from "./listTemplates";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 import type { Attachment } from "../../lib/types";
@@ -437,6 +438,7 @@ function LifeEditor({
     });
   const fieldNames: Record<string, string> = en
     ? {
+        time:"Time", url:"URL", rating:"Rating (0–5)", duration:"Duration (minutes)", multiselect:"Multiple options",
         text: "Text",
         longtext: "Long text",
         number: "Number",
@@ -448,6 +450,7 @@ function LifeEditor({
         attachment: "Attachment",
       }
     : {
+        time:"時間", url:"網址", rating:"評分（0–5）", duration:"時長（分鐘）", multiselect:"多選",
         text: "文字",
         longtext: "長文字",
         number: "數字",
@@ -493,6 +496,13 @@ function LifeEditor({
                 ? label("分類設定", "Category settings")
                 : label("編輯項目", "Edit item")}
         </h2>
+        {draft.type==="life_lists"&&!("revision" in initial.row&&initial.row.revision)&&<label className="grid gap-1">{label("生活紀錄模板","Life record template")}
+          <select className={input} defaultValue="" onChange={event=>{
+            const name=event.target.value;
+            patch({title:name,fields:templateFields(name)});
+          }}><option value="">{label("空白清單","Blank list")}</option>
+            {Object.keys(listTemplates).map(name=><option key={name}>{name}</option>)}</select>
+        </label>}
         <label className="block">
           {label("名稱", "Name")}
           <input
@@ -516,7 +526,7 @@ function LifeEditor({
                 ))}
               </select>
             </label>
-            {draft.row.type === "select" && (
+            {(draft.row.type === "select" || draft.row.type === "multiselect") && (
               <label className="block">
                 {label("選項（每行一項）", "Options (one per line)")}
                 <textarea
@@ -571,6 +581,7 @@ function LifeEditor({
             .filter((f) => !f.archived)
             .map((f) => {
               const v = item.values[f.id];
+              const numeric=["number","duration","rating"].includes(f.type);
               return (
                 <label key={f.id} className="block min-w-0">
                   {f.name}
@@ -583,6 +594,10 @@ function LifeEditor({
                       checked={v === true}
                       onChange={(e) => value(f.id, e.target.checked)}
                     />
+                  ) : f.type === "multiselect" ? (
+                    <select multiple className={input} value={Array.isArray(v)?v:[]} onChange={event=>value(f.id,Array.from(event.target.selectedOptions,option=>option.value))}>
+                      {f.options?.map(option=><option key={option}>{option}</option>)}
+                    </select>
                   ) : f.type === "select" ? (
                     <select className={input} value={String(v ?? "")} onChange={(e) => value(f.id, e.target.value)}>
                       <option value="">—</option>
@@ -682,13 +697,14 @@ function LifeEditor({
                   ) : (
                     <input
                       className={input}
-                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                      step={f.type === "number" ? "any" : undefined}
+                      type={numeric ? "number" : ["date","time","url"].includes(f.type) ? f.type : "text"}
+                      step={numeric ? f.type==="rating"?1:"any" : undefined}
+                      min={f.type==="rating"||f.type==="duration"?0:undefined} max={f.type==="rating"?5:undefined}
                       value={String(v ?? "")}
                       onChange={(e) =>
                         value(
                           f.id,
-                          f.type === "number"
+                          numeric
                             ? e.target.value === ""
                               ? null
                               : Number(e.target.value)

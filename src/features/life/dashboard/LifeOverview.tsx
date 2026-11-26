@@ -182,6 +182,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
               <h3 className="flex items-center gap-2 font-semibold"><HeartPulse size={18} aria-hidden="true"/>{card.title.trim()||"健康摘要"}</h3>
               {stats.every(([,amount])=>amount===null)&&<p className="my-2">這段期間沒有可顯示的健康紀錄。</p>}
               {stats.filter(([,amount])=>amount!==null).map(([label,amount,unit])=><p key={label} className="my-2">{label} · {value(amount,unit)}</p>)}
+              {health.some(row=>row.kind==="cycle")&&<p className="my-2">已有經期紀錄</p>}
+              {health.some(row=>row.kind==="medication")&&<p className="my-2">已有用藥項目</p>}
               {health.filter(row=>row.kind==="goal").slice(0,itemLimits[card.size]).map(row=>{
                 const ratio=progress(health,row,day).ratio;
                 return <p className="my-2 break-words" key={row.id}>{String(row.data.title)} · {value(ratio,"%")}</p>;

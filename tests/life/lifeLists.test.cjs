@@ -26,6 +26,8 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261126140000_life_time_foundation.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126150000_life_finance_periods.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126160000_life_health_core.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126170000_life_sensitive_health.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126171000_life_list_field_types.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -514,6 +516,31 @@ test("health records sync between devices, isolate owners and delete without ret
     await sync(a);
     assert.deepEqual(await source.readHealth(), []);
     assert.equal((await pg.query("select id from life_health_records")).rows.length, 0);
+  } finally {
+    await a.close();
+    await b.close();
+    await pg.close();
+  }
+});
+
+test("extended custom fields synchronize through the SQL validator", async () => {
+  const pg=await setup(), a=await device(), b=await device(), remote=client(pg);
+  try {
+    const lists=a.getLifeRepository();
+    const fields=[
+      {id:"time",name:"時間",type:"time"},
+      {id:"url",name:"網址",type:"url"},
+      {id:"rating",name:"評分",type:"rating"},
+      {id:"duration",name:"時長",type:"duration"},
+      {id:"tags",name:"標籤",type:"multiselect",options:["假日","閱讀"]},
+    ];
+    const list={...lifeBase(owner,"日記"),fields,schema_version:1};
+    const values={time:"09:30",url:"https://example.com",rating:4,duration:25.5,tags:["閱讀"]};
+    await lists.save("life_lists",list);
+    await lists.save("life_items",{...lifeBase(owner,"測試紀錄"),list_id:list.id,category_id:null,schema_version:1,values,attachment_ids:[]});
+    await flushWorkspace(remote,a.getWorkspacePersistence(),owner);
+    await pullWorkspace(remote,b.getWorkspacePersistence(),owner);
+    assert.deepEqual((await b.getLifeRepository().read()).life_items[0].values,values);
   } finally {
     await a.close();
     await b.close();
