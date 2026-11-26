@@ -131,6 +131,7 @@ test(
       if (p.error) throw Error(p.error.message);
       assert.equal(p.data.ready, 6300);
       measurements.publish_preview_ms = elapsed(start);
+      console.log("dictionary scale before publication", JSON.stringify(measurements));
       let last = p.data,
         count = 0;
       start = performance.now();
@@ -147,7 +148,7 @@ test(
         assert.ok(last.published > 0);
         count++;
         if (count % 8 === 0)
-          console.log("publication progress", last.published_total, "/6300");
+          console.log("publication progress", last.published_total, "/6300", elapsed(start), "ms");
       }
       measurements.publish_ms = elapsed(start);
       measurements.publish_requests = count;

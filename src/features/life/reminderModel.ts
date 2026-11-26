@@ -2,7 +2,9 @@ import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 
 export type Reminder = { id:string; day:string; title:string; source:string; priority:number };
-export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"; threshold?:number; task?:string; action?:"reminder"|"schedule" };
+export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
+export type AutomationRun={id:string; title:string; day:string; at:number; error?:string};
+export type RuleListItem={id:string; listId:string; revision:number; day:string};
 export type ReminderStatus = { handled?:boolean; hiddenUntil?:string; priority?:number };
 export function ruleOccurrence(rule:ReminderRule, day:string, tasks:readonly {id:string;completed?:boolean;day:string;due?:string}[]=[]):Reminder|null {
   if(rule.trigger==="task-completed"){
@@ -18,6 +20,21 @@ export function ruleOccurrence(rule:ReminderRule, day:string, tasks:readonly {id
   const distance=(Date.parse(day)-Date.parse(rule.start))/86400000;
   if(!rule.enabled||!Number.isSafeInteger(rule.interval)||rule.interval<1||distance<0||distance%rule.interval!==0)return null;
   return {id:JSON.stringify(["rule",rule.id,day]),day,title:rule.title,source:"自訂規則",priority:1};
+}
+export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<typeof ruleOccurrence>[2],records:readonly RuleListItem[],budgets:readonly {id:string;percent:number}[]=[]) {
+  if(rule.trigger==="budget-percent"){
+    const budget=budgets.find(row=>row.id===rule.budgetId);
+    if(!rule.enabled||day<rule.start||!budget||budget.percent<(rule.threshold??1))return [];
+    return [{id:JSON.stringify(["budget-percent",rule.id,budget.id,day.slice(0,7)]),day,title:rule.title,source:"自訂規則",priority:1}];
+  }
+  if(rule.trigger!=="list-updated"){
+    const occurrence=ruleOccurrence(rule,day,tasks);
+    return occurrence?[occurrence]:[];
+  }
+  if(!rule.enabled||!rule.listId)return [];
+  return records.filter(row=>row.listId===rule.listId&&row.day>=rule.start&&row.day<=day).map(row=>({
+    id:JSON.stringify(["list-updated",rule.id,row.id,row.revision]),day:row.day,title:rule.title,source:"自訂規則",priority:1,
+  }));
 }
 export function previewRule(rule:ReminderRule, from:string) {
   const distance=(Date.parse(from)-Date.parse(rule.start))/86400000;
@@ -41,8 +58,10 @@ export function isReminderPreferences(value:unknown):value is ReminderPreference
   return Number.isInteger(lead)&&lead>=0&&lead<=30&&Array.isArray(rules)&&rules.length<=50&&new Set(rules.map(rule=>rule?.id)).size===rules.length
     &&rules.every(rule=>rule&&typeof rule.id==="string"&&rule.id.length<=80&&typeof rule.title==="string"&&!!rule.title.trim()&&rule.title.length<=100
       &&(rule.action===undefined||rule.action==="reminder"||rule.action==="schedule")&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
-      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count")
-      && (rule.trigger!=="overdue-count"||Number.isInteger(rule.threshold)&&rule.threshold!>=1&&rule.threshold!<=1000)
+      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent")
+      &&(rule.trigger!=="budget-percent"||typeof rule.budgetId==="string"&&!!rule.budgetId&&rule.budgetId.length<=120)
+      &&(rule.trigger!=="list-updated"||typeof rule.listId==="string"&&!!rule.listId&&rule.listId.length<=120)
+      && ((rule.trigger!=="overdue-count"&&rule.trigger!=="budget-percent")||Number.isInteger(rule.threshold)&&rule.threshold!>=1&&rule.threshold!<=1000)
       &&(rule.trigger!=="task-completed"||typeof rule.task==="string"&&!!rule.task&&rule.task.length<=120))
     &&!!status&&typeof status==="object"&&!Array.isArray(status)&&Object.entries(status).length<=400
     &&Object.entries(status).every(([key,entry])=>key.length<=1000&&entry&&typeof entry==="object"

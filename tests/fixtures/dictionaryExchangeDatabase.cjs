@@ -24,6 +24,7 @@ const files = [
   "20261020_dictionary_edit_inflections.sql",
   "20261021_dictionary_composition_shared.sql",
   "20261013084116_dictionary_bulk_exchange.sql",
+  "20261127010000_dictionary_bulk_publication_wave_updates.sql",
 ];
 async function database(options={}) {
   const pg = new PGlite();

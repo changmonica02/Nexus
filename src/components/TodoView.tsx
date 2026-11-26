@@ -1,4 +1,5 @@
 "use client";
+import { budgetAlerts } from "../features/life/finance/budgetAlerts";
 import { emptyLife } from "../features/life/lists";
 import { listDateReminders } from "../features/life/reminderModel";
 import LifeReminders from "../features/life/LifeReminders";
@@ -91,6 +92,12 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const state=stored.tab==='overview'||enabled.includes(stored.tab)?stored:{...stored,tab:'overview' as const},change=(patch:Partial<LifeViewState>)=>{const next={...state,...patch};if(onStateChange)onStateChange(next);else setLocal(next);};
  const scroller=useRef<HTMLDivElement>(null),adding=useRef(false);
  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=state.scroll;},[state.scroll]);
+ const [,refreshCivilDay]=useState(0);
+ useEffect(()=>{
+  const refresh=()=>{if(document.visibilityState==="visible")refreshCivilDay(value=>value+1);};
+  document.addEventListener("visibilitychange",refresh);
+  return ()=>document.removeEventListener("visibilitychange",refresh);
+ },[]);
  const selected=new Date(state.date),month=new Date(state.month),today=new Date();today.setHours(0,0,0,0);
  const todos=useMemo(()=>pages.filter(p=>p.kind==='todo'&&!p.deleted_at).sort((a,b)=>(a.due_date??Infinity)-(b.due_date??Infinity)||a.id.localeCompare(b.id)),[pages]);
  const createSchedule=()=>{setOccurrence(undefined);setEventEditor(newScheduleEvent(owner,selected));};
@@ -144,7 +151,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   return match&&(p.title+' '+p.content_text).toLocaleLowerCase().includes(state.query.toLocaleLowerCase().trim());
  });
  const open=(id:string)=>navigateDictionary(()=>{change({scroll:scroller.current?.scrollTop??0});onSelectPage(id);});
- const runScheduleAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.runScheduleAutomation(occurrence),[repository]);
+ const readAutomationRuns=useCallback(()=>repository?.readAutomationRuns()??Promise.resolve([]),[repository]);
+ const runScheduleAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.executeScheduleRule(occurrence),[repository]);
  const reminderDays=state.tab==="overview"?Array.from({length:31},(_,offset)=>addDays(today,offset)):[];
  const reminderEvents=state.tab==="overview"?[
   ...(!scheduleHidden?scheduleCalendarEvents(appointments,reminderDays):[]),
@@ -157,7 +165,11 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const reminderId=(event:LifeCalendarEvent)=>JSON.stringify([event.source,event.sourceId,event.date,event.occurrence??""]);
  const listReminders=state.tab==="overview"&&!dashboard.config.hiddenModules.includes("lists")?
    listDateReminders(reminderLists,localDateInput(today),localDateInput(addDays(today,30))):[];
+ const currentLists=new Set(reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>list.id));
+ const dayKeyForBudget=localDateInput(today);
+ const budgets=state.tab==="overview"&&!financeHidden?budgetAlerts(finances,dayKeyForBudget):[];
  const reminderItems=[
+  ...budgets.filter(row=>row.percent>=100).map(row=>({id:"budget:"+row.id,title:row.title+" · 已達預算",day:dayKeyForBudget,source:"財務",priority:2})),
   ...listReminders,
   ...reminderEvents.map(event=>({id:reminderId(event),title:event.title,day:localDateInput(new Date(event.date)),source:reminderSource[event.source],priority:1})),
   ...(!tasksHidden?todos.flatMap(task=>!task.completed&&task.due_date!=null?[{id:"task:"+task.id,title:task.title,day:localDateInput(new Date(task.due_date)),source:"待辦",priority:task.due_date<today.getTime()?2:1}]:[]):[]),
@@ -233,11 +245,15 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {error&&<p role="alert">{error}</p>}
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
+      readRuns={readAutomationRuns} ruleBudgets={budgets}
+      ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title}))}
+      ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,day:localDateInput(new Date(item.updated_at))}))}
       runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
       existingSchedules={scheduleHidden?[]:appointments.filter(row=>row.id.startsWith("automation:")).map(row=>({id:row.id,title:row.title,day:new Date(row.starts_at).toISOString().slice(0,10)}))}
       synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{
        const list=listReminders.find(row=>row.id===id);
        if(list){setListFocus(list.listId);change({tab:"lists",scroll:0});}
+       else if(id.startsWith("budget:")){setFinanceTab("budget");setFinanceFocus(id.slice(7));change({tab:"finance",scroll:0});}
        else if(id.startsWith("task:"))open(id.slice(5));
        else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
      }}/>}

@@ -599,8 +599,12 @@ test("automation retries from two offline devices preserve one schedule and ackn
   try{
     const occurrence={id:'["rule","example","2026-11-27"]',day:"2026-11-27",title:"整理物品",source:"自訂規則",priority:1};
     const remote=client(pg), localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
-    await a.getLifeRepository().runScheduleAutomation(occurrence);
-    await b.getLifeRepository().runScheduleAutomation(occurrence);
+    await a.getLifeRepository().executeScheduleRule(occurrence);
+    await b.getLifeRepository().executeScheduleRule(occurrence);
+    assert.equal((await b.getLifeRepository().readAutomationRuns())[0].id,occurrence.id);
+    b.setWorkspaceOwner(other);
+    assert.deepEqual(await b.getLifeRepository().readAutomationRuns(),[]);
+    b.setWorkspaceOwner(owner);
     await flushWorkspace(remote,localA,owner);
     await flushWorkspace(remote,localB,owner);
     assert.equal((await localB.pending(owner)).length,0);

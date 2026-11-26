@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { civilAdvance } from "./civilPeriods";
 import { control, surface } from "./dashboard/styles";
-import { previewRule, ruleOccurrence, visibleReminders, isReminderPreferences, type ReminderPreferences, type Reminder, type ReminderRule, type ReminderStatus } from "./reminderModel";
+import { previewRule, ruleOccurrence, ruleOccurrences, type AutomationRun, type RuleListItem, visibleReminders, isReminderPreferences, type ReminderPreferences, type Reminder, type ReminderRule, type ReminderStatus } from "./reminderModel";
 
 type Preference = ReminderPreferences;
 const defaults:Preference={lead:3,rules:[],status:{}};
 
-export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,existingSchedules}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[]}){
+export default function LifeReminders({owner,day,items,open,synced,saveSynced,tasks,runSchedule,existingSchedules,readRuns,ruleLists,ruleRecords,ruleBudgets}:{owner:string|null;day:string;items:Reminder[];open:(id:string)=>void;synced?:Preference;saveSynced?:(value:Preference)=>Promise<void>;tasks:{id:string;title:string;completed?:boolean;day:string;due?:string}[];runSchedule?:(occurrence:Reminder)=>Promise<void>;existingSchedules:{id:string;title:string;day:string}[];readRuns:()=>Promise<AutomationRun[]>;ruleLists:{id:string;title:string}[];ruleRecords:RuleListItem[];ruleBudgets:{id:string;title:string;percent:number}[]}){
   const key="nexus-life-reminders:"+JSON.stringify(owner);
   const [local,setPrefs]=useState<Preference>(()=>{
     try{
@@ -35,23 +35,35 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
   };
   const [runError,setRunError]=useState("");
   const [retry,setRetry]=useState(0);
-  const candidates=prefs.rules.filter(rule=>rule.action==="schedule").flatMap(rule=>ruleOccurrence(rule,day,tasks)??[]).filter(occurrence=>occurrence.day<=day);
+  const [runs,setRuns]=useState<AutomationRun[]>([]);
+  const candidates=prefs.rules.filter(rule=>rule.action==="schedule").flatMap(rule=>ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets)).filter(occurrence=>occurrence.day<=day);
+  useEffect(()=>{
+    const refresh=()=>{if(document.visibilityState==="visible")setRetry(value=>value+1);};
+    document.addEventListener("visibilitychange",refresh);
+    return ()=>document.removeEventListener("visibilitychange",refresh);
+  },[]);
   const candidateSnapshot=JSON.stringify(candidates);
   useEffect(()=>{
-    if(!runSchedule)return;
+
     let active=true;
     const run=async()=>{
-      for(const occurrence of JSON.parse(candidateSnapshot) as Reminder[]){
-        if(!active)return;
+      let completed=new Set<string>();
+      try{completed=new Set((await readRuns()).filter(row=>!row.error).map(row=>row.id));}
+      catch(error){if(active)setRunError(error instanceof Error?error.message:"無法讀取執行歷史");}
+      for(const occurrence of (JSON.parse(candidateSnapshot) as Reminder[]).filter(row=>!completed.has(row.id)).slice(0,50)){
+        if(!active||!runSchedule)break;
         try{
           await runSchedule(occurrence);
         }catch(error){if(active)setRunError(error instanceof Error?error.message:"自動化執行失敗");}
       }
+      try{const history=await readRuns();if(active)setRuns(history);}
+      catch(error){if(active)setRunError(error instanceof Error?error.message:"無法讀取執行歷史");}
     };
     void run();
     return ()=>{active=false;};
-  },[candidateSnapshot,runSchedule,retry]);
+  },[candidateSnapshot,runSchedule,readRuns,retry]);
   const rules=prefs.rules.filter(rule=>rule.action!=="schedule").flatMap(rule=>{
+    if(rule.trigger==="list-updated"||rule.trigger==="budget-percent")return ruleOccurrences(rule,day,tasks,ruleRecords,ruleBudgets);
     if(rule.trigger==="task-completed"||rule.trigger==="overdue-count"){
       const occurrence=ruleOccurrence(rule,day,tasks);
       return occurrence?[occurrence]:[];
@@ -89,6 +101,7 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     </li>)}</ul>}
     <h3 className="mt-4 font-medium">生活自動化規則</h3>
     {runError&&<p role="alert">{runError} <button className={control} type="button" onClick={()=>{setRunError("");setRetry(value=>value+1);}}>重試自動化</button></p>}
+    {runs.length>0&&<details><summary>執行紀錄（此裝置）</summary><ul>{runs.map(row=><li key={row.id}>{row.day} · {row.title} · {row.error??"已儲存"}</li>)}</ul></details>}
     {existingSchedules.length>0&&<details><summary>已建立的自動化行程</summary><ul>{existingSchedules.map(row=><li key={row.id}>{row.day} · {row.title}</li>)}</ul></details>}
     <p className="mb-2 text-sm">開啟生活總覽時檢查，登入時，設定及處理狀態隨生活儀表板同步。</p>
     {prefs.rules.map(rule=><div className="my-2 flex flex-wrap items-center gap-2" key={rule.id}>
@@ -99,21 +112,28 @@ export default function LifeReminders({owner,day,items,open,synced,saveSynced,ta
     </div>)}
     {draft?<form className="flex flex-wrap items-end gap-2" onSubmit={async event=>{
       event.preventDefault();
-      if((draft.trigger==="task-completed"?!draft.task:draft.trigger==="overdue-count"?!draft.threshold:!next)||!draft.title.trim()){setError("請確認提醒名稱與日期");return;}
+      if((draft.trigger==="task-completed"?!draft.task:draft.trigger==="overdue-count"?!draft.threshold:draft.trigger==="list-updated"?!draft.listId:draft.trigger==="budget-percent"?!(draft.budgetId&&draft.threshold):!next)||!draft.title.trim()){setError("請確認提醒名稱與日期");return;}
       if(await save({...prefs,rules:[...prefs.rules.filter(row=>row.id!==draft.id),{...draft,title:draft.title.trim()}]}))setDraft(undefined);
     }}>
       <label className="grid gap-1">提醒名稱<input className={control} value={draft.title} maxLength={100} required onChange={event=>setDraft({...draft,title:event.target.value})}/></label>
       <label className="grid gap-1">開始日期<input className={control} type="date" value={draft.start} required onChange={event=>setDraft({...draft,start:event.target.value})}/></label>
       <label className="grid gap-1">觸發條件<select className={control} value={draft.trigger??"date"} onChange={event=>setDraft({...draft,trigger:event.target.value as ReminderRule["trigger"]})}>
-        <option value="date">日期週期</option><option value="task-completed">任務完成</option><option value="overdue-count">逾期任務筆數達門檻</option>
+        <option value="date">日期週期</option><option value="task-completed">任務完成</option><option value="overdue-count">逾期任務筆數達門檻</option><option value="list-updated">清單項目新增或修改</option><option value="budget-percent">預算用量達門檻</option>
       </select></label>
       {draft.trigger==="task-completed"?<label className="grid gap-1">指定任務<select className={control} value={draft.task??""} onChange={event=>setDraft({...draft,task:event.target.value})} required>
         <option value="">請選擇</option>{tasks.map(task=><option key={task.id} value={task.id}>{task.title}</option>)}
+      </select></label>:draft.trigger==="budget-percent"?<>
+        <label className="grid gap-1">預算<select className={control} value={draft.budgetId??""} onChange={event=>setDraft({...draft,budgetId:event.target.value})} required>
+          <option value="">請選擇</option>{ruleBudgets.map(row=><option key={row.id} value={row.id}>{row.title}</option>)}
+        </select></label>
+        <label className="grid gap-1">用量門檻（%）<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>
+      </>:draft.trigger==="list-updated"?<label className="grid gap-1">指定清單<select className={control} value={draft.listId??""} onChange={event=>setDraft({...draft,listId:event.target.value})} required>
+        <option value="">請選擇</option>{ruleLists.map(list=><option key={list.id} value={list.id}>{list.title}</option>)}
       </select></label>:draft.trigger==="overdue-count"?<label className="grid gap-1">逾期任務門檻<input className={control} type="number" min={1} max={1000} required value={draft.threshold??""} onChange={event=>setDraft({...draft,threshold:Number(event.target.value)})}/></label>:<label className="grid gap-1">間隔天數<input className={control+" w-24"} type="number" min={1} max={365} value={draft.interval} onChange={event=>setDraft({...draft,interval:Number(event.target.value)})}/></label>}
       <label className="grid gap-1">執行動作<select className={control} value={draft.action??"reminder"} onChange={event=>setDraft({...draft,action:event.target.value==="schedule"?"schedule":"reminder"})}>
         <option value="reminder">顯示站內提醒</option><option value="schedule" disabled={!runSchedule}>建立全天行程</option>
       </select></label>
-      <p>下次預覽 · {draft.trigger==="task-completed"?"指定任務完成後執行":draft.trigger==="overdue-count"?"達門檻時，每日執行一次":next??"請輸入日期與間隔"}</p>
+      <p>下次預覽 · {draft.trigger==="task-completed"?"指定任務完成後執行":draft.trigger==="overdue-count"?"達門檻時，每日執行一次":draft.trigger==="list-updated"?"每個項目版本執行一次":draft.trigger==="budget-percent"?"達門檻後每月執行一次":next??"請輸入日期與間隔"}</p>
       <button className={control}>儲存規則</button><button className={control} type="button" onClick={()=>setDraft(undefined)}>取消</button>
     </form>:<button className={control} type="button" onClick={()=>setDraft({id:crypto.randomUUID(),title:"",start:day,interval:7,enabled:true})}>新增日期提醒規則</button>}
     </fieldset>

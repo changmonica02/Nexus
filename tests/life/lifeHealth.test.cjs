@@ -111,3 +111,16 @@ test("overdue thresholds and opted-in list date reminders respect source state",
   assert.deepEqual(rows.map(row=>row.title),["食材 · 效期"]);
   assert.deepEqual(listDateReminders({life_lists:[{...list,deleted_at:1}],life_items:[item],life_categories:[]},day,day),[]);
 });
+
+test("record and budget rules use stable revision and month receipts",()=>{
+ const {ruleOccurrences}=require("../../src/features/life/reminderModel.ts");
+ const day="2026-11-27", rule={id:"r",title:"提醒",start:day,interval:1,enabled:true};
+ const list={...rule,trigger:"list-updated",listId:"l"};
+ const entry={id:"i",listId:"l",revision:1,day};
+ assert.notEqual(ruleOccurrences(list,day,[],[entry])[0].id,ruleOccurrences(list,day,[],[{...entry,revision:2}])[0].id);
+ assert.deepEqual(ruleOccurrences(list,day,[],[{...entry,listId:"elsewhere"}]),[]);
+ const budget={...rule,trigger:"budget-percent",budgetId:"b",threshold:80};
+ assert.deepEqual(ruleOccurrences(budget,day,[],[],[{id:"b",percent:79}]),[]);
+ assert.equal(ruleOccurrences(budget,day,[],[],[{id:"b",percent:80}])[0].id,
+   ruleOccurrences(budget,"2026-11-30",[],[],[{id:"b",percent:95}])[0].id);
+});

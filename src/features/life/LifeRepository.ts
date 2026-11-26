@@ -1,4 +1,4 @@
-import { automationScheduleId, type Reminder } from "./reminderModel";
+import { automationScheduleId, type Reminder, type AutomationRun } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
@@ -85,6 +85,37 @@ export class LifeRepository {
     await new WorkspacePersistence(this.db).mutate(owner, [{
       type: "life_schedule_events", kind: remove ? "soft_delete" : "save", value: event,
     }]);
+  }
+
+  async readAutomationRuns():Promise<AutomationRun[]> {
+    const owner=this.owner();
+    const row=await this.db.get("settings","life-automation-runs:"+JSON.stringify(owner));
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    return row?.owner_id===owner&&Array.isArray(row.value)?row.value:[];
+  }
+
+  private async saveAutomationRun(owner:string|null,run:AutomationRun) {
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    const key="life-automation-runs:"+JSON.stringify(owner);
+    const tx=this.db.transaction("settings","readwrite");
+    const stored=await tx.store.get(key);
+    const rows:AutomationRun[]=stored?.owner_id===owner&&Array.isArray(stored.value)?stored.value:[];
+    const prior=rows.find(row=>row.id===run.id);
+    if(!prior||prior.error){
+      await tx.store.put({key,owner_id:owner,value:[run,...rows.filter(row=>row.id!==run.id)].slice(0,100)});
+    }
+    await tx.done;
+  }
+
+  async executeScheduleRule(occurrence:Reminder) {
+    const owner=this.owner();
+    try{
+      await this.runScheduleAutomation(occurrence);
+    }catch(error){
+      await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now(),error:error instanceof Error?error.message.slice(0,240):"執行失敗"});
+      throw error;
+    }
+    await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now()});
   }
 
   async runScheduleAutomation(occurrence:Reminder) {
