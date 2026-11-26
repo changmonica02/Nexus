@@ -1,8 +1,9 @@
+import { validateHealth, type HealthRecord } from "./health/model";
 import type { ScheduleRule } from "./scheduleRecurrence";
 import { validateFinance, type FinanceRecord } from "./finance/model";
 import { dashboardSettingsKey, isDashboardConfig, sameBoard, type LifeDashboardConfig } from "./dashboard/model";
 
-export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results"] as const;
+export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records"] as const;
 export type LifeSyncStore = typeof LIFE_SYNC_STORES[number];
 
 export interface LifeSyncBase {
@@ -54,6 +55,7 @@ export function isCivilDate(value: string): boolean {
 export const dashboardId = (owner: string) => dashboardSettingsKey(owner);
 
 export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase): void {
+  if (type === "life_health_records") { validateHealth(value as HealthRecord); return; }
   if (type === "life_finance_records") { validateFinance(value as FinanceRecord); return; }
   if (type === "life_timer_results") {
     const result = value as TimerResult;

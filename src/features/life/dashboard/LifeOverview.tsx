@@ -1,3 +1,8 @@
+import { HeartPulse } from "lucide-react";
+import { localDateInput } from "../../../lib/todoCalendar";
+import { civilAdvance } from "../civilPeriods";
+import { latest, progress, totals, value } from "../health/summary";
+import type { HealthRecord } from "../health/model";
 import FinanceCard from "../finance/FinanceCard";
 import { financeCardSection, isFinanceCard } from "../finance/cardCatalog";
 import { financeRows, type FinanceRecord } from "../finance/model";
@@ -19,11 +24,11 @@ import { control, surface } from "./styles";
 import type { useLifeDashboard } from "./useLifeDashboard";
 
 const DashboardEditor = lazy(() => import("./DashboardEditor"));
-const iconByModule = { finance: Wallet, calendar: CalendarDays, schedule: CalendarDays, milestones: CalendarDays, habits: ListChecks, timer: Timer, tasks: ListChecks, lists: List };
+const iconByModule = { finance: Wallet, health: HeartPulse, calendar: CalendarDays, schedule: CalendarDays, milestones: CalendarDays, habits: ListChecks, timer: Timer, tasks: ListChecks, lists: List };
 const cardWidths = { small: "", medium: "@3xl/life:col-span-2", large: "col-span-full" };
 const itemLimits = { small: 2, medium: 5, large: 10 };
 
-export default function LifeOverview({ dashboard, todos, anchor, today, timer, events, milestones, habits, finances, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
+export default function LifeOverview({ dashboard, todos, anchor, today, timer, events, milestones, habits, finances, health, healthShared, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
   dashboard: ReturnType<typeof useLifeDashboard>;
   todos: Page[];
   anchor: Date;
@@ -33,6 +38,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
   milestones: ScheduleEvent[];
   habits: Habit[];
   finances: FinanceRecord[];
+  health: HealthRecord[];
+  healthShared: boolean;
   openSchedule: (event: ScheduleEvent) => void;
   selectedId?: string;
   onSelectBoard: (id: string) => void;
@@ -55,7 +62,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
 
   const board = config.boards.find(board => board.id === selectedId) ?? config.boards.find(board => board.id === config.defaultId) ?? config.boards[0];
   const financeSections = financeRows(finances,"preferences")[0]?.payload.hiddenSections ?? [];
-  const shown = board.cards.filter(card => (!isFinanceCard(card.type) || !financeSections.some(section=>section===financeCardSection[card.type as keyof typeof financeCardSection])) && !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
+  const shown = board.cards.filter(card => (card.type !== "health" || healthShared) && (!isFinanceCard(card.type) || !financeSections.some(section=>section===financeCardSection[card.type as keyof typeof financeCardSection])) && !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
     && (!["lists", "schedule", "milestones", "habits"].includes(card.type) || repository) && (card.type !== "calendar" || !config.hiddenModules.includes("tasks") || events.length > 0 || milestones.length > 0));
   const showTimer = shown.some(card => card.type === "timer");
   useEffect(() => {
@@ -164,6 +171,24 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
         {shown.map(card => {
           const source = cardRegistry[card.type].module;
           const Icon = iconByModule[source];
+          if (card.type === "health") {
+            const day = localDateInput(anchor);
+            const month = day.slice(0,7)+"-01";
+            const from = card.period==="all"?"0001-01-01":card.period==="month"?month:day;
+            const to = card.period==="all"?"9999-12-31":card.period==="month"?civilAdvance(month,"month",1):civilAdvance(day,"day",card.period==="week"?7:1);
+            const result = totals(health,from,to);
+            const stats = [["最新體重", latest(health,"weight",day), "kg"],["飲水", result.water, "mL"], ["睡眠平均",result.sleep,"小時"],["運動",result.minutes,"分鐘"],["已知熱量",result.nutrients.kcal.amount,"kcal"]] as const;
+            return <article key={card.id} className={surface+" "+cardWidths[card.size]} data-size={card.size}>
+              <h3 className="flex items-center gap-2 font-semibold"><HeartPulse size={18} aria-hidden="true"/>{card.title.trim()||"健康摘要"}</h3>
+              {stats.every(([,amount])=>amount===null)&&<p className="my-2">這段期間沒有可顯示的健康紀錄。</p>}
+              {stats.filter(([,amount])=>amount!==null).map(([label,amount,unit])=><p key={label} className="my-2">{label} · {value(amount,unit)}</p>)}
+              {health.filter(row=>row.kind==="goal").slice(0,itemLimits[card.size]).map(row=>{
+                const ratio=progress(health,row,day).ratio;
+                return <p className="my-2 break-words" key={row.id}>{String(row.data.title)} · {value(ratio,"%")}</p>;
+              })}
+              <button className={control+" mt-2"} type="button" onClick={()=>openModule("health")}>開啟健康管理</button>
+            </article>;
+          }
           if (isFinanceCard(card.type)) return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
             <h3 className="mb-2 flex items-center gap-2 font-semibold"><Wallet size={18} aria-hidden="true"/>{card.title.trim() || cardRegistry[card.type].title}</h3>
             <FinanceCard card={card} records={finances} anchor={anchor}/>

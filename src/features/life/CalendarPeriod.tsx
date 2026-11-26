@@ -8,7 +8,7 @@ export function calendarWeek(date: Date) {
   return Array.from({length:7},(_,index)=>addDays(first,index));
 }
 const sourceLabels: Record<LifeCalendarEvent["source"],string> = {
-  schedule:"行程", taskStart:"任務開始", tasks:"任務截止", milestones:"重要日期", habits:"習慣", finance:"財務",
+  schedule:"行程", taskStart:"任務開始", tasks:"任務截止", milestones:"重要日期", habits:"習慣", finance:"財務", health:"健康",
 };
 export function CalendarPeriod({days,events,locale,open,select}:{
   days:Date[];events:Map<string,LifeCalendarEvent[]>;locale:string;

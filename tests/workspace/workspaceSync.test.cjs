@@ -312,7 +312,7 @@ test('IndexedDB v6 upgrade retains legacy cache without inventing upload operati
   const adapter = new IndexedDBAdapter();
   try {
     await adapter.init(); adapter.setWorkspaceOwner(owner);
-    assert.equal(adapter.db.version, 11);
+    assert.equal(adapter.db.version, 12);
     assert.equal((await adapter.getPage('page-a')).title, 'page-a');
     assert.deepEqual(await adapter.getWorkspacePersistence().pending(owner), []);
   } finally { await adapter.close(); await deleteDB('nexus'); }

@@ -1,4 +1,7 @@
 "use client";
+import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
+import {shared,type HealthRecord} from "../features/life/health/model";
+import {healthEvents} from "../features/life/health/summary";
 import FinanceWorkspace,{type FinanceTab} from '../features/life/finance/FinanceWorkspace';
 import {financeCalendarEvents} from '../features/life/finance/financeCalendar';
 import type {FinanceRecord} from '../features/life/finance/model';
@@ -36,6 +39,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  useUnsavedDraft(!!input.trim(),busy);
  const dashboard=useLifeDashboard(storage);
  const {repository}=dashboard;
+ const [healthRows,setHealth]=useState<HealthRecord[]>([]);
+ const [healthFocus,setHealthFocus]=useState<string>();
  const [finances,setFinances]=useState<FinanceRecord[]>([]);
  const [financeTab,setFinanceTab]=useState<FinanceTab>();
  const [financeFocus,setFinanceFocus]=useState<string>();
@@ -46,7 +51,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const [quickHabit,setQuickHabit]=useState(false);
  const [eventEditor,setEventEditor]=useState<ScheduleEvent>();
  const [eventError,setEventError]=useState('');
- const [sources,setSources]=useState({tasks:true,schedule:true,milestones:true,habits:true,finance:true});
+ const [sources,setSources]=useState({tasks:true,schedule:true,milestones:true,habits:true,finance:true,health:true});
  const owner=storage?.getWorkspaceOwner?.()??null;
  const [timer,setTimer]=useState(()=>readTimer(owner));
  const [history,setHistory]=useState<TimerResult[]>([]);
@@ -65,8 +70,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   let active=true,sequence=0;
   const load=()=>{
    const request=++sequence;
-   void Promise.all([repository.readSchedule(),repository.readHabits(),repository.readFinance(),repository.readTimerHistory(),repository.readTimerStudySessions()]).then(([rows,habits,finances,history,studySessions])=>{
-    if(active&&request===sequence){setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
+   void Promise.all([repository.readSchedule(),repository.readHabits(),repository.readFinance(),repository.readTimerHistory(),repository.readTimerStudySessions(),repository.readHealth()]).then(([rows,habits,finances,history,studySessions,health])=>{
+    if(active&&request===sequence){setHealth(health);setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
    }).catch(error=>{if(active&&request===sequence)setEventError(String(error.message));});
   };
   load();
@@ -76,7 +81,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  },[repository]);
  const [quickList,setQuickList]=useState(false),[quickTask,setQuickTask]=useState(false);
  const quickTaskInput=useRef<HTMLInputElement>(null);
- const enabled=lifeModuleIds.filter(module=>!dashboard.config.hiddenModules.includes(module)&&(!['lists','schedule','milestones','habits','finance'].includes(module)||storage));
+ const enabled=lifeModuleIds.filter(module=>!dashboard.config.hiddenModules.includes(module)&&(!['lists','schedule','milestones','habits','finance','health'].includes(module)||storage));
  const stored=controlled??local;
  const state=stored.tab==='overview'||enabled.includes(stored.tab)?stored:{...stored,tab:'overview' as const},change=(patch:Partial<LifeViewState>)=>{const next={...state,...patch};if(onStateChange)onStateChange(next);else setLocal(next);};
  const scroller=useRef<HTMLDivElement>(null),adding=useRef(false);
@@ -90,6 +95,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   navigateDictionary(()=>{
    setQuickList(tab==='lists'&&quick);
    setQuickTask(tab==='tasks'&&quick);
+   if(tab==='health')setHealthFocus(undefined);
    if(tab==='finance'){setFinanceTab(undefined);setFinanceFocus(undefined);}
    if(tab==='schedule'&&quick)createSchedule();
    if(tab==='milestones'&&quick)createMilestone();
@@ -104,6 +110,10 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const habitsHidden=dashboard.config.hiddenModules.includes('habits');
  const appointments=useMemo(()=>events.filter(event=>!event.milestone),[events]);
  const milestones=useMemo(()=>events.filter(event=>!!event.milestone),[events]);
+ const healthHidden=dashboard.config.hiddenModules.includes('health');
+ const health=useMemo(()=>healthRows.filter(row=>row.workspace_owner_id===owner),[healthRows,owner]);
+ const healthSettings=health.find(row=>row.kind==='privacy')?.data;
+ const visibleHealth=healthHidden?[]:shared(health,healthSettings??{});
  const financeHidden=dashboard.config.hiddenModules.includes('finance');
  const view=state.calendarView??'month';
  const dateValue=state.date,monthValue=state.month;
@@ -114,14 +124,15 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   ...(!scheduleHidden&&sources.schedule?scheduleCalendarEvents(appointments,gridDays):[]),
   ...(!milestonesHidden&&sources.milestones?scheduleCalendarEvents(milestones,gridDays):[]),
   ...(!habitsHidden&&sources.habits?habitCalendarEvents(habits,gridDays,new Date()):[]),
+  ...(!healthHidden&&sources.health?healthEvents(health,gridDays,healthSettings??{}):[]),
   ...(!financeHidden&&sources.finance?financeCalendarEvents(finances,gridDays):[]),
- ]),[calendarTodos,scheduleHidden,sources.schedule,appointments,milestonesHidden,sources.milestones,milestones,habitsHidden,sources.habits,habits,financeHidden,sources.finance,finances,gridDays]);
+ ]),[calendarTodos,scheduleHidden,sources.schedule,appointments,milestonesHidden,sources.milestones,milestones,habitsHidden,sources.habits,habits,financeHidden,sources.finance,finances,gridDays,healthHidden,sources.health,health,healthSettings]);
  const daily=todosForDay(calendarTodos,selected),todayKey=localDateKey(today),dayKey=localDateKey(selected);
  const dailySchedule=!scheduleHidden&&sources.schedule?scheduleCalendarEvents(appointments,[selected]):[];
  const dailyMilestones=!milestonesHidden&&sources.milestones?scheduleCalendarEvents(milestones,[selected]):[];
  const dailyTaskStarts=(dates.get(dayKey)??[]).filter(item=>item.source==='taskStart');
  const dailyHabits=!habitsHidden&&sources.habits?habitCalendarEvents(habits,[selected],today):[];
- const sectionLabel=(tab:LifeModule|'overview')=>tab==='schedule'||tab==='timer'||tab==='milestones'||tab==='habits'||tab==='finance'?lifeModules[tab].label:t('life.'+tab);
+ const sectionLabel=(tab:LifeModule|'overview')=>tab==='schedule'||tab==='timer'||tab==='milestones'||tab==='habits'||tab==='finance'||tab==='health'?lifeModules[tab].label:t('life.'+tab);
  const filtered=todos.filter(p=>{
   const date=p.due_date==null?null:new Date(p.due_date);
   const match=state.filter==='all'||(state.filter==='completed'?!!p.completed:state.filter==='today'?!!date&&localDateKey(date)===todayKey:!p.completed&&p.due_date!=null&&p.due_date>=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1).getTime());
@@ -131,6 +142,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const collection=(items:Page[],key:string)=><PageCollection pages={items} initialView="list" initialSort="due_date" initialAscending viewStorageKey={key} sortOptions={['due_date','updated_at','title','created_at']} onSelectPage={open} onRenamePage={onRenamePage} onDuplicatePage={onDuplicatePage} onDeletePage={onDelete} leadingControl={item=><input aria-label={t('ui.completeTask',{name:item.title})} type="checkbox" checked={!!item.completed} onChange={event=>onUpdate(item.id,{completed:event.target.checked})}/>}/>;
  const setDate=(date:Date)=>change({date:date.getTime(),month:new Date(date.getFullYear(),date.getMonth(),1).getTime(),scroll:0});
  const openEvent=(event:LifeCalendarEvent)=>{
+  if(event.source==='health'){setHealthFocus(event.sourceId);change({tab:'health',scroll:0});return;}
   if(event.source==='finance'){
    const row=finances.find(item=>item.id===event.sourceId);
    if(!row)return;
@@ -176,9 +188,9 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {repository&&eventEditor&&(eventEditor.milestone
       ?<MilestoneForm key={eventEditor.id} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>
       :<ScheduleForm key={eventEditor.id+":"+(occurrence??"")} occurrence={occurrence} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>)}
-     {state.tab==='finance'&&repository?<FinanceWorkspace key={financeFocus??'finance'} requested={financeTab} focusId={financeFocus}
-      records={finances} repository={repository} owner={owner} anchor={selected} upload={uploadFinanceFile} download={downloadFinanceFile}/>:state.tab==='habits'&&repository?<HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate}
-      repository={repository} owner={storage?.getWorkspaceOwner?.()??null} focusId={habitFocus} startCreating={quickHabit}/>:state.tab==='timer'?<LifeTimer state={timer} change={changeTimer} history={history} tasks={todos}
+     {state.tab==='health'&&repository?<HealthWorkspace key={healthFocus??'health'} rows={health} owner={owner} day={localDateInput(selected)} tasks={tasksHidden?[]:todos} habits={habitsHidden?[]:habits} repository={repository} taskOpen={open} focused={healthFocus}/>:state.tab==='finance'&&repository?<FinanceWorkspace key={financeFocus??'finance'} requested={financeTab} focusId={financeFocus}
+      records={finances} repository={repository} owner={owner} anchor={selected} upload={uploadFinanceFile} download={downloadFinanceFile}/>:state.tab==='habits'&&repository?<><HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate}
+      repository={repository} owner={storage?.getWorkspaceOwner?.()??null} focusId={habitFocus} startCreating={quickHabit}/>{healthSettings?.habits===true&&<GoalList rows={visibleHealth} day={localDateInput(selected)} linked={habits} addWater={()=>{setHealthFocus("new-water");change({tab:"health",scroll:0});}} open={row=>{setHealthFocus(row.id);change({tab:'health',scroll:0});}}/>}</>:state.tab==='timer'?<LifeTimer state={timer} change={changeTimer} history={history} tasks={todos}
       sessions={studySessions.map(session=>({id:session.id,title:(pages.find(page=>page.id===session.deck_id)?.title??'學習紀錄')+' '+new Date(session.ended_at??session.completed_at??0).toLocaleDateString(language)}))}
       save={repository?result=>repository.saveTimerResult({...result,workspace_owner_id:owner,revision:0,created_at:Date.now(),updated_at:Date.now(),deleted_at:null}):undefined}/>:state.tab==='schedule'?
       <SchedulePanel events={appointments} locale={language} create={createSchedule} edit={event=>{setOccurrence(undefined);setEventEditor(event);}}/>:state.tab==='milestones'?
@@ -188,7 +200,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {error&&<p role="alert">{error}</p>}
      {state.tab==='overview'&&<LifeOverview dashboard={dashboard} todos={todos} anchor={selected} today={today}
        selectedId={state.boardId} onSelectBoard={boardId=>change({boardId})}
-       timer={timer} finances={financeHidden?[]:finances} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:habits} openSchedule={event=>{setOccurrence(undefined);setEventEditor(event);}}
+       timer={timer} health={visibleHealth} healthShared={Object.entries(healthSettings??{}).some(([key,on])=>key.startsWith('share_')&&on===true&&healthSettings?.['off_'+key.slice(6)]!==true)} finances={financeHidden?[]:finances} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:habits} openSchedule={event=>{setOccurrence(undefined);setEventEditor(event);}}
        openModule={openModule} openTask={open} toggleTask={(id,completed)=>onUpdate(id,{completed})}/>}
      {state.tab==='calendar'&&<>
       <div className="flex flex-wrap items-center gap-2" aria-label="行事曆檢視">
@@ -197,6 +209,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
         {{month:'月檢視',week:'週檢視',day:'日檢視'}[item]}</button>)}
       </div>
       <div className="flex flex-wrap items-center gap-3" aria-label="事件來源">
+       {!healthHidden&&repository&&healthSettings?.calendar===true&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.health} onChange={event=>setSources({...sources,health:event.target.checked})}/>健康運動</label>}
        {!financeHidden&&repository&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.finance}
         onChange={event=>setSources({...sources,finance:event.target.checked})}/>財務日期</label>}
        {!tasksHidden&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.tasks} onChange={event=>setSources({...sources,tasks:event.target.checked})}/>任務起訖</label>}
@@ -225,6 +238,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
        習慣 · {item.title}{item.completed?' ✓':''}</button>)}{dailyTaskStarts.map(item=><button key={item.sourceId} type="button" className={button+' w-full text-left'} onClick={()=>open(item.sourceId)}>
        開始 · {item.title}</button>)}{(!financeHidden&&sources.finance?financeCalendarEvents(finances,[selected]):[]).map(item=>
       <button className={button+' w-full text-left'} key={item.sourceId} onClick={()=>openEvent(item)}>{item.title}</button>)}
+      {(!healthHidden&&sources.health?healthEvents(health,[selected],healthSettings??{}):[]).map(item=><button className={button+" w-full text-left"} key={item.sourceId} onClick={()=>openEvent(item)}>{item.title}</button>)}
       {collection(daily,'nexus-calendar-items-view')}</>:<CalendarPeriod days={gridDays} events={dates} locale={language} open={openEvent}
        select={date=>change({calendarView:'day',date:date.getTime(),scroll:0})}/>}
      </>}

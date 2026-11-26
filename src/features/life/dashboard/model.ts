@@ -3,6 +3,7 @@ import { addDays, startOfMonth } from "../../../lib/todoCalendar";
 import type { Page } from "../../../lib/types";
 
 export const lifeModules = {
+  health: { group: "生活紀錄", label: "健康管理", optional: true },
   finance: { group: "財務管理", label: "財務", optional: true },
   calendar: { group: "時間管理", label: "日曆", optional: true },
   schedule: { group: "時間管理", label: "行程", optional: true },
@@ -18,6 +19,7 @@ export const lifeModuleIds = Object.keys(lifeModules) as LifeModule[];
 
 export const cardRegistry = {
   ...financeCards,
+  health: { module: "health", title: "健康摘要", period: "day" },
   calendar: { module: "calendar", title: "月曆事項", period: "day" },
   milestones: { module: "milestones", title: "重要日期", period: "all" },
   schedule: { module: "schedule", title: "行程", period: "week" },

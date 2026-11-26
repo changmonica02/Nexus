@@ -25,6 +25,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/" + migration, "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126140000_life_time_foundation.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126150000_life_finance_periods.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126160000_life_health_core.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -484,4 +485,38 @@ test("finance records, timer history and subscription receipts sync with two dev
     assert.equal((await pg.query("select * from life_timer_results")).rows.length,0);
     await assert.rejects(pg.query("update life_finance_records set revision=1"),/permission denied/);
   }finally{await a.close();await b.close();await pg.close();}
+});
+
+test("health records sync between devices, isolate owners and delete without retaining the payload", async () => {
+  const { makeHealth } = require("../../src/features/life/health/model.ts");
+  const pg = await setup(), a = await device(), b = await device();
+  const remote = client(pg);
+  const sync = async storage => {
+    const local = storage.getWorkspacePersistence();
+    await pullWorkspace(remote, local, owner);
+    await flushWorkspace(remote, local, owner);
+  };
+  try {
+    const source = a.getLifeRepository(), target = b.getLifeRepository();
+    await source.saveHealth(makeHealth(owner, "water", { date: "2026-11-26", time: "08:00", amount: 250 }));
+    await sync(a);
+    await sync(b);
+    const [row] = await target.readHealth();
+    assert.equal(row.data.amount, 250);
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select id from life_health_records")).rows.length, 0);
+    await assert.rejects(pg.exec("delete from life_health_records"), /permission denied/);
+    await pg.exec("reset role");
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
+    await target.saveHealth(row, true);
+    await sync(b);
+    await sync(a);
+    assert.deepEqual(await source.readHealth(), []);
+    assert.equal((await pg.query("select id from life_health_records")).rows.length, 0);
+  } finally {
+    await a.close();
+    await b.close();
+    await pg.close();
+  }
 });

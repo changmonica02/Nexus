@@ -1,3 +1,4 @@
+import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
 import { subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
@@ -107,6 +108,20 @@ export class LifeRepository {
       { type: "life_schedule_events", kind: "save", value: previous },
       ...(next ? [{ type: "life_schedule_events" as const, kind: "save" as const, value: next }] : []),
     ]);
+  }
+
+  async readHealth() {
+    const owner=this.owner();
+    const records=await this.db.getAll("life_health_records") as HealthRecord[];
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    return records.filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null);
+  }
+
+  async saveHealth(row:HealthRecord,remove=false) {
+    const owner=this.owner();
+    if(row.workspace_owner_id!==owner)throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_health_records",kind:remove?"hard_delete":"save",
+      value:{...row,updated_at:Date.now()}}]);
   }
 
   async readFinance() {

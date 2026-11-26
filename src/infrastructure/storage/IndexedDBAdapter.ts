@@ -21,7 +21,7 @@ import type { StorageAdapter } from "./StorageAdapter";
 import { WorkspacePersistence, stageDashboard, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 const BACKUP_SCHEMA_VERSION = 4;
 
 function newPageId(): ID { return `page_${nanoid()}`; }

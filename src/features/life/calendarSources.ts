@@ -6,7 +6,7 @@ import { localDateInput, localDateKey } from "../../lib/todoCalendar";
 import type { Page } from "../../lib/types";
 
 export type LifeCalendarEvent = {
-  source: "tasks" | "taskStart" | "schedule" | "milestones" | "habits" | "finance";
+  source: "tasks" | "taskStart" | "schedule" | "milestones" | "habits" | "finance" | "health";
   sourceId: string;
   date: number;
   title: string;

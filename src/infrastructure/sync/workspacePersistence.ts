@@ -1,3 +1,4 @@
+import type { HealthRecord } from "../../features/life/health/model";
 import type { FinanceRecord } from "../../features/life/finance/model";
 import { validateFinanceRelations } from "../../features/life/finance/ledger";
 import { nextTaskId, nextTaskOccurrence } from "../../features/life/taskRepeat";
@@ -18,7 +19,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export interface WorkspaceOperation {
   id: string;
@@ -136,8 +137,8 @@ export class WorkspacePersistence {
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
-          if (type === "life_dashboard_configs" ? kind !== "save" : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult);
+          if (type === "life_dashboard_configs" ? kind !== "save" : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord);
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
         if (LIFE_STORES.includes(type as LifeStore)) {
