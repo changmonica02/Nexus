@@ -76,3 +76,16 @@ test("historical cash flow uses transaction-date rates and excludes future rates
  assert.equal(february.expense,3000n);
  assert.equal(february.debts,7000n);
 });
+
+test("budget thresholds use dated currency conversion and exclude credit card settlement",()=>{
+ const {budgetAlerts}=require("../../src/features/life/finance/budgetAlerts.ts");
+ const prefs=financeRow(owner,"preferences",{currency:"TWD",rates:{USD:"99"},categories:[],rateHistory:[
+  {date:"2026-01-01",base:"TWD",currency:"USD",rate:"30"},
+  {date:"2026-02-01",base:"TWD",currency:"USD",rate:"40"},
+ ]},preferencesId(owner));
+ const budget=financeRow(owner,"budget",{...common,title:"餐飲",month:"2026-01",amount:"100",currency:"USD",category:"餐飲"},"budget");
+ const records=[prefs,budget,account("bank","bank","TWD","10000"),account("card","card","TWD","0"),
+  transaction("charge","expense","card","2400"),transaction("pay","cardPayment","bank","2400","card","2400")];
+ assert.deepEqual(budgetAlerts(records,"2026-01-31"),[{id:"budget",title:"餐飲",percent:80}]);
+ assert.deepEqual(budgetAlerts([{...prefs,payload:{...prefs.payload,hiddenSections:["budget"]}},...records.slice(1)],"2026-01-31"),[]);
+});
