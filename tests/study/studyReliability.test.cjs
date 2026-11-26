@@ -7,7 +7,7 @@ const fs=require('node:fs'),test=require('node:test'),assert=require('node:asser
 const {StudyRepository,STUDY_STORES}=require('../../src/features/study/StudyRepository.ts');
 const {syncStudy}=require('../../src/features/study/studySync.ts');
 const {createStudyEvent,emptyStudyState}=require('../../src/features/study/studyFSRS.ts');
-const {chooseSchedule,reliableEvent}=require('../../src/features/study/studyReliability.ts');
+const {reliableEvent}=require('../../src/features/study/studyReliability.ts');
 const owner='11111111-1111-4111-8111-111111111111',now=1800000000000;
 let policy='latest';global.localStorage={getItem:()=>policy,setItem:(_k,v)=>policy=v};
 test('existing-event migration backfill uses the real FK column; paginated pull, recorded candidate, relearn and retries retain history',async()=>{
@@ -118,7 +118,6 @@ test('stored conservative preference cannot bypass explicit conflict recovery; t
   const {a,b}=await branch(f);let state=(await f.b.repo.readDeck('deck')).states[0];assert.equal(state.conflict,true);
   const expected=a.after.fsrs.due<b.after.fsrs.due?a.after:b.after;await f.b.repo.resolveSchedule(f.card.id,expected.head===b.id?'device':'cloud');await f.sync(f.b);state=(await f.b.repo.readDeck('deck')).states[0];
   assert.deepEqual(state.fsrs,expected.fsrs);assert.equal(state.head,expected.head);assert.equal(state.conflict,false);
-  assert.equal(chooseSchedule([{state:a.after,sequence:8,source:'device'},{state:b.after,sequence:9,source:'cloud'}],'ask'),null);
  }finally{await f.close();}
 });
 test('resolution CAS rejects stale choices, collisions and other owners without deleting facts',async()=>{

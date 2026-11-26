@@ -1,12 +1,6 @@
+import { getTextFromNode } from "./markdown";
 import { nanoid } from "nanoid";
 import type { Page, Slide, PresentationData, ChartData } from "./types";
-
-function getTextFromNode(node: any): string {
-  if (!node) return "";
-  if (node.type === "text") return node.text || "";
-  if (Array.isArray(node.content)) return node.content.map(getTextFromNode).join("");
-  return "";
-}
 
 function createEmptyDoc(text?: string): object {
   if (text) {
@@ -23,24 +17,6 @@ function createTextBlock(text: string, x: number, y: number, w: number, h: numbe
     text,
     content_json: createEmptyDoc(text),
     style: { fontSize: 16 },
-  };
-}
-
-export function createEmptyPresentation(title?: string): PresentationData {
-  const firstSlide: Slide = {
-    id: `slide_${nanoid()}`,
-    layout: "title",
-    title: title || "Untitled Presentation",
-    content_json: createEmptyDoc(),
-    content_text: "",
-    blocks: [
-      createTextBlock(title || "Untitled Presentation", 10, 30, 80, 20, 1),
-      createTextBlock("點擊新增文字區塊開始編輯", 10, 55, 80, 10, 2),
-    ],
-  };
-  return {
-    theme: "minimal",
-    slides: [firstSlide],
   };
 }
 
@@ -166,8 +142,4 @@ export function createSlide(layout: Slide["layout"] = "title_content"): Slide {
       createTextBlock("點擊新增文字區塊開始編輯", 5, 25, 90, 15, 2),
     ],
   };
-}
-
-export function updateSlideContent(slide: Slide, json: any, text: string): Slide {
-  return { ...slide, content_json: json, content_text: text };
 }

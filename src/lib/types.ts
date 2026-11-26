@@ -36,8 +36,6 @@ export interface Attachment {
 }
 
 export type PageKind = "score" | "note" | "document" | "study_set" | "presentation" | "quick_note" | "todo" | "creative" | "novel_chapter" | "web" | "counter" | "draw";
-export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
-
 /**
  * 筆記的版面模式（2026-08-11 定案）：
  * - "flow"  ：流動筆記（單一編輯器、無限捲動，原樣）
@@ -45,9 +43,7 @@ export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
  * 文檔一律流動；簡報維持 16:9 / 4:3。
  * 舊資料（a4 / 16:9 / 4:3 / custom 的筆記與文檔）開啟後以流動顯示並自動遷移。
  */
-export function isPagedNoteFormat(format?: PageFormat | null): boolean {
-  return format === "paged";
-}
+export type PageFormat = "flow" | "paged" | "a4" | "16:9" | "4:3" | "custom";
 
 /** 頁面邊距（mm），用於 A4/分頁版面（可調整頁邊距） */
 export interface PageMargins {
@@ -180,7 +176,6 @@ export interface AssistantBlock {
   updated_at: number;
 }
 
-export type CreativeType = "novel" | "character" | "world";
 
 /**
  * Early novels were saved before `creative_type` existed. Characters are the

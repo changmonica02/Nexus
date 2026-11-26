@@ -45,7 +45,6 @@ export interface ExchangeDocument {
 export const exchangeFormat = "nexus-dictionary-exchange";
 /** Exchange v2 is the only supported import/export format. */
 export function exchangeSchemaVersion(_records:ExchangeRecord[]):2 { return 2; }
-export const exchangeBatchSize = 25;
 export function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, v) =>
     v && typeof v === "object" && !Array.isArray(v)
@@ -547,41 +546,6 @@ export async function previewExchange(
   }
   return session;
 }
-export function exchangeCategory(item: ImportSession["items"][number]) {
-  if (
-    item.status === "stale" ||
-    item.issues.some((i) =>
-      ["revision_conflict", "preview_changed"].includes(i.type),
-    )
-  )
-    return "conflict";
-  if (item.issues.some((i) => i.type === "invalid")) return "invalid";
-  if (item.bucket === "review") return "review";
-  return item.safeAction === "new"
-    ? "new"
-    : item.safeAction === "unchanged"
-      ? "unchanged"
-      : "modified";
-}
-export function importReport(session: ImportSession) {
-  return {
-    session_id: session.id,
-    ignored_fields: session.ignored_fields ?? [],
-    created_at: new Date().toISOString(),
-    items: session.items.map((i) => ({
-      entry_id: i.draft.entry_id,
-      headword: i.draft.headword,
-      category: exchangeCategory(i),
-      status: i.status,
-      effect: i.operation?.effect ?? null,
-      review_id: i.review_id ?? null,
-      message: i.message ?? null,
-      operation_id: i.operation?.operation_id ?? null,
-      issues: i.issues.map((x) => ({ field: x.field, reason: x.reason })),
-    })),
-  };
-}
-
 /** A stale server rejection has not written. Rebase keeps the proposed content, refreshes
  * only its technical revisions, and requires an explicit decision before another write. */
 export async function recheckExchangeItem(

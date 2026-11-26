@@ -2,7 +2,7 @@ import {defaultStudyStyle,defaultStyleId,validateStudyStyle, unifiedStudyStyle,s
 import { mergeCardVisibility, validateCardVisibility } from './cardVisibility';
 import { makeScheduled, refreshScheduled, isUnintroduced, dailyNewUsed, dueAt, isShortStep, practiceCards } from "./scheduledStudy";
 import type { IDBPDatabase, IDBPTransaction } from "idb";
-import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent, type ScheduleCandidate} from "./studyReliability";
+import {cleanState, reliableEvent, originalEvent, effectiveEvent, clearedStudyState, projectStudyEvent} from "./studyReliability";
 import type { Page } from "../../lib/types";
 import { makeSession, reconcileSession, type StudySession } from "./studySessions";
 import { localStudyDay } from "./studyFSRS";
@@ -648,7 +648,7 @@ export class StudyRepository {
     };
     if(changes)for(const change of changes){
       if(change.owner_id!==this.owner())throw new Error("同步帳號不符。");
-      await tx.objectStore("study_sync_meta").put({id:JSON.stringify([this.owner(),change.entity,change.id]),owner_id:this.owner(),sequence:change.sequence,order_sequence:change.historical?0:change.sequence});
+      await tx.objectStore("study_sync_meta").put({id:JSON.stringify([this.owner(),change.entity,change.id]),owner_id:this.owner(),sequence:change.sequence});
       if(change.decision)await tx.objectStore('study_sync_meta').put({id:JSON.stringify([this.owner(),'decision',change.decision.id]),owner_id:this.owner(),state:change.decision.state});
       if(change.entity==='study_review_events'){
         const key=JSON.stringify([this.owner(),'event-version',change.card_id]);
@@ -681,23 +681,22 @@ export class StudyRepository {
         continue;
       }
       for(const head of [local?.head,remote?.head])if(head&&!facts.some(e=>e.id===head)){const event=await findEvent(head);if(event)facts.push(event);}
-      const candidates:ScheduleCandidate[]=[];
-      for(const [state,source] of [[local,'device'],[remote,'cloud'],...(local?.ambiguity?.candidates??[]).map(s=>[s,'event']),...facts.filter(e=>![local,remote].some(s=>s?.resolution_id&&s.head===e.id)).map(e=>[effectiveEvent(e).after,'event'])] as [StudyState|undefined,ScheduleCandidate['source']][]){
+      const candidates:StudyState[]=[];
+      for(const state of [local,remote,...(local?.ambiguity?.candidates??[]),...facts.filter(e=>![local,remote].some(s=>s?.resolution_id&&s.head===e.id)).map(e=>effectiveEvent(e).after)]){
         if(!state)continue;
         const proof=state.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',state.resolution_id])):null;
         const trustedDecision=proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state));
         if(state.head&&!trustedDecision){const event=await findEvent(state.head);if(!event||!reliableEvent(event)||!sameStudyRecord(cleanState(state),cleanState(effectiveEvent(event).after)))continue;}
-        const meta=state.head?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_review_events',state.head])):null;
-        if(!candidates.some(c=>sameStudyRecord(cleanState(c.state),cleanState(state))))candidates.push({state:cleanState(state),sequence:meta?.order_sequence??0,source});
+        const candidate=cleanState(state);
+        if(!candidates.some(c=>sameStudyRecord(c,candidate)))candidates.push(candidate);
       }
-      const tips:ScheduleCandidate[]=[];
-      for(const c of candidates)if(!await Promise.all(candidates.map(d=>d.state.head!==c.state.head?descends(d.state.head,c.state.head):false)).then(r=>r.some(Boolean)))tips.push(c);
+      const tips:StudyState[]=[];
+      for(const c of candidates)if(!await Promise.all(candidates.map(d=>d.head!==c.head?descends(d.head,c.head):false)).then(r=>r.some(Boolean)))tips.push(c);
       // A recorded reset / guarded relearn begins an explicit epoch; old forks stay history,
       // not competing schedules. Never infer epochs from clocks or unproven generation numbers.
-      if(new Set(tips.map(c=>c.state.generation)).size>1){
+      if(new Set(tips.map(c=>c.generation)).size>1){
         let proven=-1;
-        for(const candidate of tips){
-          const state=candidate.state;
+        for(const state of tips){
           const proof=state.resolution_id?await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'decision',state.resolution_id])):null;
           if(proof?.state&&sameStudyRecord(cleanState(state),cleanState(proof.state)))proven=Math.max(proven,state.generation);
           let head=state.head;const seen=new Set<string>();
@@ -708,23 +707,21 @@ export class StudyRepository {
             head=effectiveEvent(e).parent;
           }
         }
-        if(proven>=0)for(let n=tips.length-1;n>=0;n--)if(tips[n].state.generation<proven)tips.splice(n,1);
+        if(proven>=0)for(let n=tips.length-1;n>=0;n--)if(tips[n].generation<proven)tips.splice(n,1);
       }
       const evMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'event-version',id]));
       const stateMeta=await tx.objectStore('study_sync_meta').get(JSON.stringify([this.owner(),'study_card_states',id]));
       // A non-conflicted server checkpoint can include a previous explicit decision.
-      const decisionCheckpoint=remote && !remote.conflict && !!remote.resolution_id && candidates.some(c=>sameStudyRecord(c.state,cleanState(remote))) && (!local || local.head===remote.head || !await descends(local.head,remote.head));
-      let next=decisionCheckpoint?cleanState(remote!):tips.length===1?cleanState(tips[0].state):null;
-      const ambiguous=tips.length>1 && !decisionCheckpoint;
-
-      if(ambiguous)next=null; // New SPEC: divergent facts require explicit recovery, never automatic policy selection.
-      const decisionNeeded=!!next && (ambiguous || !!remote?.conflict || (!!remote&&!sameStudyRecord(cleanState(remote),next)));
+      const decisionCheckpoint=remote && !remote.conflict && !!remote.resolution_id && candidates.some(c=>sameStudyRecord(c,cleanState(remote))) && (!local || local.head===remote.head || !await descends(local.head,remote.head));
+      // Divergent event chains require an explicit resolution.
+      const next=decisionCheckpoint?cleanState(remote):tips.length===1?tips[0]:null;
+      const decisionNeeded=!!next && (!!remote?.conflict || (!!remote&&!sameStudyRecord(cleanState(remote),next)));
       if(decisionNeeded){
         const value={id:newId(),owner_id:this.owner(),card_id:id,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0,choice:next,relearn:false,cleared_at:next?.cleared_at};
         await this.enqueue(tx,{owner_id:this.owner(),kind:'resolution',value});
       }
       const base=next??local??remote;
-      if(base)await tx.objectStore('study_states').put((next&&!decisionNeeded)?next:{...cleanState(base),conflict:true,ambiguity:{pending:decisionNeeded,device:local?cleanState(local):null,cloud:remote?cleanState(remote):null,candidates:tips.map(c=>c.state),event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0}});
+      if(base)await tx.objectStore('study_states').put((next&&!decisionNeeded)?next:{...cleanState(base),conflict:true,ambiguity:{pending:decisionNeeded,device:local?cleanState(local):null,cloud:remote?cleanState(remote):null,candidates:tips,event_version:evMeta?.sequence??0,state_version:stateMeta?.sequence??0}});
     }
     if(receivedCursor){const key=JSON.stringify([this.owner(),'cursor']);const previous=await tx.objectStore('study_sync_meta').get(key);await tx.objectStore('study_sync_meta').put({id:key,owner_id:this.owner(),sequence:Math.max(previous?.sequence??0,receivedCursor)});}
     const pending:StudyOperation[]=await tx.objectStore("study_outbox").getAll();

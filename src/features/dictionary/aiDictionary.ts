@@ -7,7 +7,7 @@ import {compositionRow} from './composition';
 import {createDictionaryReview} from './revisionLifecycle';
 import {draftsFromBundle,saveDictionaryDraft} from './draftPipeline';
 import type {SupabaseClient} from '@supabase/supabase-js';
-import type {DictionaryDetail,DictionaryEntry} from './dictionary';
+import type {DictionaryDetail} from './dictionary';
 import type {Bundle} from './adminImport';
 export interface AIMeaning extends MorphemeSenseFields {id?:string;zh_tw?:string;classification?:string|null}
 export interface AIText {id?:string;text?:string;meaning_id?:string|null;data_source?:string;order?:number}
@@ -15,7 +15,7 @@ export interface AIComponent {target_id:string;headword:string;zh_tw:string;orde
 export interface AIPronunciation {id?:string;meaning_id?:string|null;ipa?:string;sort_order?:number}
 export interface AIEntry {word_segments?:WordSegment[]|null;pronunciations?:AIPronunciation[];id?:string;revision?:number;type:'word'|'prefix'|'root'|'suffix';headword?:string;classification?:string|null;meanings?:AIMeaning[];components?:AIComponent[];etymology?:AIText[];core_concept?:AIText[];examples?:AIText[]}
 export interface AIDocument {format:'nexus-dictionary-ai';version:1;entries:AIEntry[]}
-export interface AIMeta {entry_id:string;published_entry_id:string|null;origin_ids:Record<string,string>;component_order:string[]}
+interface AIMeta {entry_id:string;published_entry_id:string|null;origin_ids:Record<string,string>;component_order:string[]}
 export interface AISnapshot {detail:DictionaryDetail;metadata:AIMeta|null}
 type Client=Pick<SupabaseClient,'rpc'>;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -75,12 +75,6 @@ function canonicalAIEntry(input:AIEntry):AIEntry{
  return {...entry,...(story!==undefined||learning_decomposition!==undefined?{core_concept:[...(entry.core_concept??[]),...(learning_decomposition??[]),...(story??[])]}:{})};
 }
 export async function readAI(client:Client,id:string):Promise<AISnapshot>{const {data,error}=await client.rpc('get_dictionary_ai_snapshot',{entry_uuid:id});if(error)throw Error(error.message);if(!data)throw Error('找不到詞條');return data as AISnapshot;}
-export async function readAll<T>(client:Pick<SupabaseClient,'from'>,table:string,order='id'):Promise<T[]>{const all:T[]=[];for(let offset=0;;offset+=500){const {data,error}=await client.from(table).select('*').order(order).range(offset,offset+499);if(error)throw Error(error.message);all.push(...data as T[]);if(data.length<500)return all;}}
-export function chooseExport(entries:DictionaryEntry[],meta:AIMeta[],scope:'draft'|'published'|'all',kind:string,query:string,selected:string[]|null){
- const hidden=new Set(scope==='all'?meta.filter(m=>m.published_entry_id&&entries.some(e=>e.id===m.entry_id&&e.status==='draft')).map(m=>m.published_entry_id):[]);
- const selectedLogical=selected?new Set(selected.flatMap(id=>[id,...meta.filter(m=>m.published_entry_id===id||m.entry_id===id).flatMap(m=>[m.entry_id,m.published_entry_id!])])):null;
- return entries.filter(e=>(scope==='all'||e.status===scope)&&!hidden.has(e.id)&&(kind==='all'||e.kind===kind)&&e.headword.toLowerCase().includes(query.toLowerCase())&&(!selectedLogical||selectedLogical.has(e.id)));
-}
 export function toAI(s:AISnapshot,targets:Map<string,AISnapshot>):AIEntry{
  const d=s.detail,e=d.entry,order=s.metadata?.component_order??[];
  const content=(kind:string)=> (kind==='etymology'?d.etymologies:mergeCoreConcepts(d.learning_notes).filter(n=>n.kind===kind)).map(r=>({id:r.id,text:r.body,meaning_id:r.sense_id,...(kind==='etymology'?{data_source:'data_source' in r?r.data_source:''}:{})}));

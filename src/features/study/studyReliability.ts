@@ -1,12 +1,5 @@
-import {activeFixed,createStudyEvent, emptyStudyState, sameStudyRecord, type StudyEvent, type StudyState, type StudyCard} from './studyFSRS';
+import {createStudyEvent, emptyStudyState, sameStudyRecord, type StudyEvent, type StudyState, type StudyCard} from './studyFSRS';
 
-export type SchedulePolicy = 'latest' | 'conservative' | 'ask';
-export function getSchedulePolicy(): SchedulePolicy {
-  if(typeof localStorage==='undefined')return 'latest';
-  const value=localStorage.getItem('nexus-study-schedule-policy');
-  return value==='conservative'||value==='ask'?value:'latest';
-}
-export function setSchedulePolicy(value:SchedulePolicy){localStorage.setItem('nexus-study-schedule-policy',value);}
 export function cleanState(state:StudyState):StudyState {
   const copy={...state,conflict:false};delete copy.ambiguity;return copy;
 }
@@ -51,13 +44,4 @@ export function reliableEvent(event:StudyEvent):boolean {
   if(!reliableTransition(originalEvent(event)))return false;
   if(!event.projection)return true;
   try{return sameStudyRecord(projectStudyEvent(event,event.projection.before,event.projection.cleared_at).projection,event.projection)&&reliableTransition(effectiveEvent(event));}catch{return false;}
-}
-export interface ScheduleCandidate {state:StudyState; sequence:number; source:'device'|'cloud'|'event'}
-export function chooseSchedule(candidates:ScheduleCandidate[],policy:SchedulePolicy):StudyState|null {
-  if(policy==='ask'||!candidates.length)return null;
-  // A server receipt sequence is a fallback ordering, never a claim about offline chronology.
-  const sorted=[...candidates].sort((a,b)=>policy==='conservative'
-    ? (activeFixed(a.state)?a.state.fixed!.due:a.state.fsrs?.due??a.state.legacy_due_at??Infinity)-(activeFixed(b.state)?b.state.fixed!.due:b.state.fsrs?.due??b.state.legacy_due_at??Infinity)||b.sequence-a.sequence
-    : b.sequence-a.sequence || Number(b.source==='cloud')-Number(a.source==='cloud'));
-  return cleanState(sorted[0].state);
 }

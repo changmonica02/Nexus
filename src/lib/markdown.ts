@@ -1,7 +1,7 @@
 import { createClientBlockId } from "./blockId";
 import type { Page } from "./types";
 
-function getTextFromNode(node: any): string {
+export function getTextFromNode(node: any): string {
   if (!node) return "";
   if (node.type === "text") return node.text || "";
   if (Array.isArray(node.content)) return node.content.map(getTextFromNode).join("");

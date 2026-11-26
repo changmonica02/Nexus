@@ -305,7 +305,6 @@ export function DictionaryEditor({detail,entries,onSaved,onDeleted,deletionEntry
   </section>;
 }
 
-export function moveRow<T>(rows:T[],index:number,offset:number):T[]{const target=index+offset;if(target<0||target>=rows.length)return rows;const next=[...rows];[next[index],next[target]]=[next[target],next[index]];return next;}
 export function prepareEditorBundle(bundle:Bundle):Bundle {
   return Object.fromEntries(Object.entries(bundle).filter(([table])=>table!=='dictionary_sources').map(([table,rows])=>[table,rows.map(row=>{const copy={...row};delete copy.source_id;return copy;})]));
 }
@@ -426,7 +425,7 @@ export function DictionaryWorkspace({entryId,newKind,embedded=false,onCommitted}
     {listing.error&&<p role="alert">{listing.error}<button className="ml-2 underline" onClick={listing.retry}>重試</button></p>}
 
 
-    {modal==='export'&&<DictionaryModal title={t("exchange.export")} onClose={closeModal} busy={busy}><DictionaryExchangeExport scope={{kinds,statuses,query}} onBusy={setBusy}/></DictionaryModal>}
+    {modal==='export'&&<DictionaryModal title={t("exchange.export")} onClose={closeModal} busy={busy}><DictionaryExchangeExport onBusy={setBusy}/></DictionaryModal>}
     {modal==='new'&&<DictionaryModal title={t('dictionary.text.新增詞條')} onClose={closeModal}><label className="block text-sm">{t('dictionary.text.詞條類別')}<select className={control} value={createKind} onChange={e=>setCreateKind(e.target.value as DictionaryEntry['kind'])}><option value="word">{t('ui.word')}</option><option value="root">{t('ui.morpheme')}</option></select></label><Link className={`${button} inline-block`} href={`/dictionary/admin?new=${createKind}`}>{t('dictionary.text.開始新增')}</Link></DictionaryModal>}
     <DictionaryCatalogNavigation filter={{scope,query,kinds:scope==='morpheme'?kinds:['prefix','root','suffix'],domain,subdomain}} onChange={next=>{setScope(next.scope);setKinds(next.scope==='word'?['word']:next.scope==='morpheme'?next.kinds:[]);setQuery(next.query);setDomain(next.domain);setSubdomain(next.subdomain);setPage(0);}}/>
     <div data-dictionary-filters className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-3">

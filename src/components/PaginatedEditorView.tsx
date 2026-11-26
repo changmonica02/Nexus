@@ -1,4 +1,5 @@
 "use client";
+import { getTextFromNode } from "../lib/markdown";
 import {notifyDialog} from '../lib/confirmDialog';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
@@ -14,13 +15,6 @@ type Block = any;
 // A4 紙張（96dpi）：210mm ≈ 794px、297mm ≈ 1123px
 const A4_W_PX = 794;
 const A4_H_PX = 1123;
-
-function getTextFromNode(node: any): string {
-  if (!node) return "";
-  if (node.type === "text") return node.text || "";
-  if (Array.isArray(node.content)) return node.content.map(getTextFromNode).join("");
-  return "";
-}
 
 /**
  * 手動分頁：僅以 pageBreak 節點切分頁面（不自動分頁、不估算高度）。

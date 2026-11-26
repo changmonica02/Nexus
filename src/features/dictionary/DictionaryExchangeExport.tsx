@@ -12,12 +12,10 @@ import {
   type ExportJob,
 } from "./exchangeExport";
 import { exchangeTransferAvailable } from "./persistentImport";
-import type { ExchangeScope } from "./dictionaryExchange";
 const allKinds = ["word", "prefix", "root", "suffix"];
 export default function DictionaryExchangeExport({
   onBusy,
 }: {
-  scope: ExchangeScope;
   onBusy: (busy: boolean) => void;
 }) {
   const { t } = usePaginationLanguage();
