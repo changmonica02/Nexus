@@ -188,7 +188,7 @@ test('Realtime DELETE uses payload.old and authoritative tombstone; local data d
   const a = await device(t), b = await device(t), s = new Server();
   await create(a, s); await pullWorkspace(s, b.local, owner);
   await a.adapter.permanentDeletePage('page-a'); await flushWorkspace(s, a.local, owner);
-  const engine = new SyncEngine(s, b.adapter, 'other', owner); t.after(() => engine.destroy());
+  const engine = new SyncEngine(s, b.adapter, owner); t.after(() => engine.destroy());
   await engine.handleRemoteChange('pages', { eventType: 'DELETE', new: {}, old: { id: 'page-a' } });
   assert.equal(await b.adapter.getPage('page-a'), null); assert.equal((await b.local.pending(owner)).length, 0);
 });
@@ -292,7 +292,7 @@ test('a clean device proposing a new object with a tombstoned ID is also rejecte
 
 test('sync engine pulls tombstones and remote data before sending explicit intents', async t => {
   const d = await device(t), s = new Server(); await d.adapter.savePage(page());
-  const engine = new SyncEngine(s, d.adapter, 'device', owner);
+  const engine = new SyncEngine(s, d.adapter, owner);
   // Study is deliberately outside this pages/attachments test.
   engine.syncStudyNow = async () => {};
   t.after(() => engine.destroy()); await engine.fullSync();
@@ -413,7 +413,7 @@ test('two IndexedDB connections share a lease; crashed leases expire and superse
   await second.releaseBinary(owner,'pdf-0',replacement);await pullWorkspace(s,d.local,owner);assert.ok(await d.adapter.readBinary('pdf-0'));secondDB.close();
 });
 test('full sync callers join, in-flight local changes schedule one follow-up, background polling is throttled',async t=>{
-  const d=await device(t),s=new Server();seedBinaries(s,1);const engine=new SyncEngine(s,d.adapter,'test',owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
+  const d=await device(t),s=new Server();seedBinaries(s,1);const engine=new SyncEngine(s, d.adapter, owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
   let release,entered;const ready=new Promise(r=>entered=r),gate=new Promise(r=>release=r);s.afterBinary=async()=>{entered();await gate;};
   const first=engine.fullSync();await ready;assert.equal(engine.fullSync(),first);engine.workspaceChanged();engine.workspaceChanged();
   release();await first;assert.ok(engine.workspaceTimer);s.afterBinary=null;await engine.fullSync();assert.equal(s.binaryDownloads,1);
@@ -424,7 +424,7 @@ test('full sync callers join, in-flight local changes schedule one follow-up, ba
 
 test('local workspace push skips full download but explicit sync still reconciles', async t => {
   const d = await device(t), server = new Server();
-  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  const engine = new SyncEngine(server, d.adapter, owner);
   t.after(() => engine.destroy());
   engine.syncStudyNow = async () => {};
   await d.adapter.savePage(page('local-push'));
@@ -442,7 +442,7 @@ test('PWA offline: local edits remain queued without contacting Supabase, reconn
   const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
-  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  const engine = new SyncEngine(server, d.adapter, owner);
   t.after(() => engine.destroy());
   const states = [];
   engine.subscribe(state => states.push({ ...state }));
@@ -461,7 +461,7 @@ test('unknown navigator connectivity does not disable sync outside a browser', a
   const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
-  const d = await device(t), server = new Server(), engine = new SyncEngine(server, d.adapter, 'device', owner);
+  const d = await device(t), server = new Server(), engine = new SyncEngine(server, d.adapter, owner);
   t.after(() => engine.destroy());
   await d.adapter.savePage(page('unknown-connectivity'));
   await engine.pushPage(page('unknown-connectivity'));
@@ -471,7 +471,7 @@ test('unknown navigator connectivity does not disable sync outside a browser', a
 test('a failed attachment download leaves the error visible but does not block uploads or other attachments', async t => {
   const d = await device(t), server = new Server();
   seedBinaries(server, 2);
-  const engine = new SyncEngine(server, d.adapter, 'desktop', owner);
+  const engine = new SyncEngine(server, d.adapter, owner);
   engine.syncStudyNow = async () => {};
   t.after(() => engine.destroy());
   let state;
@@ -504,7 +504,7 @@ test('realtime interruptions preserve successful sync and periodic pull still re
     subscribe(callback) { notifyChannel = callback; return this; },
   });
   server.removeChannel = () => {};
-  const engine = new SyncEngine(server, d.adapter, 'device', owner);
+  const engine = new SyncEngine(server, d.adapter, owner);
   engine.syncStudyNow = async () => {};
   t.after(() => engine.destroy());
   let state;
@@ -546,7 +546,7 @@ test('offline realtime waits for online and reconnect installs one channel', asy
   const d = await device(t), server = new Server(); let channels = 0;
   const channel = { on() { return this; }, subscribe() { return this; } };
   server.channel = () => { channels++; return channel; }; server.removeChannel = () => {};
-  const engine = new SyncEngine(server, d.adapter, 'device', owner); engine.syncStudyNow = async () => {};
+  const engine = new SyncEngine(server, d.adapter, owner); engine.syncStudyNow = async () => {};
   t.after(() => engine.destroy());
   engine.startRealtime(); engine.startRealtime(); assert.equal(channels, 0);
   navigator.onLine = true; window.dispatchEvent(new Event('online')); assert.equal(channels, 1);
@@ -556,7 +556,7 @@ test('offline realtime waits for online and reconnect installs one channel', asy
 
 test('map tools keep native project queued offline, then flush through the existing engine',async t=>{
  const {WorldMapRepository}=require('../../src/features/worldMap/worldMapRepository.ts');
- const d=await device(t),server=new Server(),engine=new SyncEngine(server,d.adapter,'device',owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
+ const d=await device(t),server=new Server(),engine=new SyncEngine(server, d.adapter, owner);engine.syncStudyNow=async()=>{};t.after(()=>engine.destroy());
  const original=Object.getOwnPropertyDescriptor(globalThis,'navigator');t.after(()=>{if(original)Object.defineProperty(globalThis,'navigator',original);else delete globalThis.navigator;});
  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{onLine:false}});
  const world={...page('map-world'),kind:'creative',creative_type:'world',character_data:{},attachment_ids:[]};await d.adapter.savePage(world);

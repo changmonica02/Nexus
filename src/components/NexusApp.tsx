@@ -334,7 +334,6 @@ function NexusAppInner({
       if (isSupabaseConfigured()) {
         const supabase = getSupabase();
         if (supabase) {
-          const deviceId = await adapter.getDeviceId();
           const startAccountSync = async (userId: string) => {
             // INITIAL_SESSION/SIGNED_IN/TOKEN_REFRESHED for this owner reuse the
             // running engine (including an initial sync already in flight).
@@ -358,7 +357,7 @@ function NexusAppInner({
             catch (error) { if (thisRun === syncRun) syncOwner = null; throw error; }
             if (cancelled || thisRun !== syncRun) return;
             adapter.setWorkspaceOwner(userId);
-            const engine = new SyncEngine(supabase, adapter, deviceId, userId);
+            const engine = new SyncEngine(supabase, adapter, userId);
             syncEngineRef.current = engine;
             engine.subscribe(setSyncState);
             engine.setOnRemoteChange(async () => {
@@ -644,7 +643,7 @@ function NexusAppInner({
     await storage.attachBinary(attachment.id, file);
     setAttachments((previous) => [...previous.filter((item) => item.id !== attachment.id), attachment]);
     await syncEngineRef.current?.pushAttachment(attachment);
-    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    await syncEngineRef.current?.flushPendingWorkspaceChanges();
     if (target) patchPage(pageId, { novel_settings: { ...target.novel_settings, coverAttachmentId: attachment.id } });
 
     // Replacing a cover should not leave the previous private image visible in
@@ -673,7 +672,7 @@ function NexusAppInner({
     await storage.attachBinary(attachment.id, file);
     setAttachments((current) => [...current.filter((item) => item.id !== attachment.id), attachment]);
     await syncEngineRef.current?.pushAttachment(attachment);
-    await syncEngineRef.current?.pushBinary(attachment.id, file);
+    await syncEngineRef.current?.flushPendingWorkspaceChanges();
     const target = pages.find((item) => item.id === pageId);
     if (target) patchPage(pageId, { attachment_ids: [...(target.attachment_ids || []), attachment.id] });
     return attachment.id;
@@ -1253,7 +1252,7 @@ function NexusAppInner({
       saveTimersRef.current.delete(chapter.id);
       pendingSavesRef.current.delete(chapter.id);
       await storage.permanentDeletePage(chapter.id);
-      await syncEngineRef.current?.pushPermanentDeletePage(chapter.id);
+      await syncEngineRef.current?.flushPendingWorkspaceChanges();
     }
     const ids = new Set(chapters.map((chapter) => chapter.id));
     setPages((prev) => prev.filter((page) => !ids.has(page.id)));
@@ -1272,12 +1271,12 @@ function NexusAppInner({
       ));
       if (!referencedElsewhere) {
         await storageRef.current.permanentDeleteAttachment?.(attachmentId);
-        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        syncEngineRef.current?.flushPendingWorkspaceChanges();
         setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
       }
     }
     setTrashPages((prev) => prev.filter((page) => page.id !== id));
-    syncEngineRef.current?.pushPermanentDeletePage(id);
+    syncEngineRef.current?.flushPendingWorkspaceChanges();
   }, [pages, storageRef, trashPages, permanentlyDeleteNovelChapters]);
 
   const handleDuplicatePage = useCallback(async (id: string) => {
@@ -1471,7 +1470,7 @@ function NexusAppInner({
       setActivePageId(researchPage.id);
       await storage.setActivePageId(researchPage.id);
       syncEngineRef.current?.pushAttachment(attachment);
-      syncEngineRef.current?.pushBinary(attachment.id, file);
+      syncEngineRef.current?.flushPendingWorkspaceChanges();
       syncEngineRef.current?.pushPage(researchPage);
     } catch (error) { console.error(error); await notifyDialog(t("app.pdfImportFailed")); }
   }, [flushSave, storageRef, t]);
@@ -1671,14 +1670,14 @@ function NexusAppInner({
     const deletedPages = trashPages.filter((page) => idSet.has(page.id));
     const candidateAttachmentIds = new Set(deletedPages.flatMap((page) => [page.primary_attachment_id, ...(page.attachment_ids || []), page.novel_settings?.coverAttachmentId].filter(Boolean) as string[]));
     await permanentlyDeleteNovelChapters(ids);
-    for (const id of ids) { await storageRef.current.permanentDeletePage(id); syncEngineRef.current?.pushPermanentDeletePage(id); }
+    for (const id of ids) { await storageRef.current.permanentDeletePage(id); syncEngineRef.current?.flushPendingWorkspaceChanges(); }
     for (const attachmentId of candidateAttachmentIds) {
       const referencedElsewhere = [...pages, ...trashPages].some((page) => !idSet.has(page.id) && (
         page.primary_attachment_id === attachmentId || page.attachment_ids?.includes(attachmentId) || page.novel_settings?.coverAttachmentId === attachmentId
       ));
       if (!referencedElsewhere) {
         await storageRef.current.permanentDeleteAttachment?.(attachmentId);
-        syncEngineRef.current?.pushPermanentDeleteAttachment(attachmentId);
+        syncEngineRef.current?.flushPendingWorkspaceChanges();
         setAttachments((items) => items.filter((attachment) => attachment.id !== attachmentId));
       }
     }
