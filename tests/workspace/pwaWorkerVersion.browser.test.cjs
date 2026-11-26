@@ -77,10 +77,10 @@ test('PWA registration handles online, load and unmount during asynchronous setu
   assert.equal(registrations, 1);
   if (unmountWhile === 'registering') cleanup();
   finishRegistration(registration);
-  await registrationPending;
+  await new Promise(resolve => setImmediate(resolve));
   if (unmountWhile === 'waiting for ready') cleanup();
   finishReady(registration);
-  await ready;
+  await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(messages, unmountWhile ? [] : ['NEXUS_PRECACHE_ASSETS', 'NEXUS_REFRESH_SHELL']);
   if (!unmountWhile) {
    window.dispatchEvent(new Event('online'));
