@@ -1,5 +1,6 @@
 const {installStudyClear,clearTimes}=require('../fixtures/studyClearDatabase.cjs');
-require('../loadStudy.cjs');require('fake-indexeddb/auto');
+require('../loadStudy.cjs');
+const {recordLegacyEvent}=require('../fixtures/legacyStudyEvents.cjs');require('fake-indexeddb/auto');
 const {PGlite}=require('@electric-sql/pglite');
 const {openDB,deleteDB}=require('idb');
 const fs=require('node:fs');const test=require('node:test');const assert=require('node:assert/strict');
@@ -20,9 +21,9 @@ test('real PostgreSQL migration: retry after lost response, event deduplication,
  await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
  db=await openDB(dbName,1,{upgrade(db){for(const name of STUDY_STORES){const store=db.createObjectStore(name,{keyPath:'id'});if(['study_cards','study_states','study_events'].includes(name))store.createIndex('deck','deck_id');}}});
  const repo=new StudyRepository(db,()=>owner,'device');
- await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});await repo.addCards('deck',[{front:'word',back:'字'}]);
- const now=Date.now(),q=await repo.presentNext('deck',now);
- const event=await repo.review(q.card.id,q.state.head,1,3,'event-one',now);
+ await repo.ensureDeck({id:'deck',workspace_owner_id:owner,study_items:[]});const [card]=await repo.addCards('deck',[{front:'word',back:'字'}]);
+ const now=Date.now();const intro=await recordLegacyEvent(db,card.id,'introduce',now,'device',crypto.randomUUID());
+ const event=await recordLegacyEvent(db,card.id,'review',now,'device','event-one',3);
  // Simulate a pending operation written before sessions became local-only.
  const queued=(await repo.pending()).find(op=>op.kind==='event'&&op.value.id===event.id);
  await db.put('study_outbox',{...queued,session:{id:'local-session',targets:[]}});
@@ -49,16 +50,16 @@ test('real PostgreSQL migration: retry after lost response, event deduplication,
  assert.equal((await pg.query("select count(*)::int as n from study_review_events where payload->>'kind'='review'")).rows[0].n,1);
  assert.equal((await repo.readDeck('deck',true)).states[0].head,event.id);
  // A second device migrating an old pages.study_items copy cannot overwrite edited content/settings.
- const edited={...q.card,back:'新答案',content_revision:2,updated_at:now+100,migration_only:false};
+ const edited={...card,back:'新答案',content_revision:2,updated_at:now+100,migration_only:false};
  assert.equal((await rpc({kind:'card',value:edited})).error,null);
- assert.equal((await rpc({kind:'card',initial:true,value:{...q.card,updated_at:now+99999}})).error,null);
- assert.equal((await pg.query('select payload from study_cards where id=$1',[q.card.id])).rows[0].payload.back,'新答案');
+ assert.equal((await rpc({kind:'card',initial:true,value:{...card,updated_at:now+99999}})).error,null);
+ assert.equal((await pg.query('select payload from study_cards where id=$1',[card.id])).rows[0].payload.back,'新答案');
  // A simultaneous offline branch is stored, but never silently replaces the first result.
- const branch=createStudyEvent(q.card,q.state,'review',now+1,'other-device','other-event',1);
+ const branch=createStudyEvent(card,intro.after,'review',now+1,'other-device','other-event',1);
  assert.equal((await rpc({kind:'event',value:branch})).error,null);
  await syncStudy(repo,client,owner);
  let snapshot=await repo.readDeck('deck',true);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);assert.equal(snapshot.states[0].conflict,true);assert.equal(snapshot.states[0].head,event.id);assert.equal(snapshot.states[0].ambiguity.candidates.length,2);
- await repo.updateCard(q.card.id,{},true);await syncStudy(repo,client,owner);
+ await repo.updateCard(card.id,{},true);await syncStudy(repo,client,owner);
  snapshot=await repo.readDeck('deck',true);assert.equal(snapshot.states[0].conflict,false);assert.equal(snapshot.states[0].fsrs,null);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);
  // The function cannot write another owner and clients cannot directly delete history.
  await pg.exec('set role authenticated');

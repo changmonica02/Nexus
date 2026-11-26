@@ -31,7 +31,6 @@ jobs:
           path: |
             .next/
             public/world-map/core/
-            public/world-map/offline.js
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1

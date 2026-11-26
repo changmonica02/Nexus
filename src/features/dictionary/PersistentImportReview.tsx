@@ -101,7 +101,9 @@ export function PersistentImportReview({
     try {
       await fn();
     } catch (e) {
-      setError(reviewFailureText(e, t));
+      setError(e instanceof DOMException && ["QuotaExceededError", "DataCloneError"].includes(e.name)
+        ? t("transfer.checkpointFailed")
+        : reviewFailureText(e, t));
     } finally {
       running.current = false;
       setBusy(false);

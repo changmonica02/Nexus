@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useMemo,useState} from 'react';
-import type {Page,WorldMapRecord,WorldMapBlockView} from '../lib/types';
+import type {Page,WorldMapRecord} from '../lib/types';
 import type {StorageAdapter} from '../infrastructure/storage/StorageAdapter';
 import {WorldMapRepository} from '../features/worldMap/worldMapRepository';
 import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
@@ -16,20 +16,20 @@ export function WorldMapUnavailable({onBack}:{onBack?:()=>void}){
 }
 
 type Opened={map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob}};
-export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack,blockView,onBlockViewChange}:{
+export default function WorldMapManager({world,storage,beforeSave,onSaved,registerFlush,cloudState,readOnly=false,onBack}:{
  world:Page;storage:StorageAdapter;beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;
  registerFlush?:RegisterMapFlush;cloudState?:{status:string;error?:string|null;pendingPushes?:number};
- readOnly?:boolean;onBack?:()=>void;blockView?:WorldMapBlockView;onBlockViewChange?:(view:WorldMapBlockView)=>void;
+ readOnly?:boolean;onBack?:()=>void;
 }){
  const {language,t}=useLanguage(),zh=language==='zh-TW';
  const repository=useMemo(()=>new WorldMapRepository(storage),[storage]);
  const maps=(world.character_data?.world_maps??[]).filter(map=>map.deleted_at==null&&map.engine==='nexus-global'&&map.attachment_id);
- const [selected,setSelected]=useState(blockView?.mapId);
+ const [selected,setSelected]=useState<string>();
  const current=maps.find(map=>map.id===selected)??maps.find(map=>map.scope==='surface')??maps[0];
  const id=current?.id;
  const [opened,setOpened]=useState<Opened|null>(null),[error,setError]=useState(false),[attempt,retry]=useState(0);
- const [blockEditing,setBlockEditing]=useState(false),[creating,setCreating]=useState(false);
- const editing=!readOnly&&(!blockView||blockEditing);
+ const [creating,setCreating]=useState(false);
+ const editing=!readOnly;
  const attachment=editing?undefined:current?.attachment_id;
  useEffect(()=>{
   if(!id)return;
@@ -46,16 +46,14 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
  const selector=maps.length>1?<select aria-label={t('worldMap.select')} className="min-h-11 max-w-40 rounded-lg border bg-[var(--color-bg)] px-2 text-sm" value={id} onChange={event=>{
   const mapId=event.target.value;
   setError(false);setSelected(mapId);
-  if(blockView)onBlockViewChange?.({...blockView,mapId});
  }}>{maps.map(map=><option key={map.id} value={map.id}>{map.title}</option>)}</select>:undefined;
- const exit=()=>{if(blockView)setBlockEditing(false);else onBack?.();};
  const create=()=>setCreating(true);
  return <section data-map-scroll aria-label={t('worldMap.home')} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-  {readOnly&&!blockView&&onBack&&<button onClick={onBack} className="self-start p-3">{t('worldMap.back')}</button>}
+  {readOnly&&onBack&&<button onClick={onBack} className="self-start p-3">{t('worldMap.back')}</button>}
   {opened&&opened.map.id===id&&!error?<GlobalWorldMapEditor key={id} {...opened} map={{...opened.map,title:current.title}}
-   repository={repository} beforeSave={beforeSave} onSaved={onSaved} onClose={exit}
+   repository={repository} beforeSave={beforeSave} onSaved={onSaved} onClose={()=>onBack?.()}
    registerFlush={registerFlush} cloudState={cloudState} editing={editing}
-   onEdit={readOnly?undefined:()=>setBlockEditing(true)} mapSelector={selector}
+   mapSelector={selector}
   />:<div className="grid min-h-56 flex-1 place-content-center gap-3 p-4 text-center">
    {onBack&&!readOnly&&<button className="min-h-11" onClick={onBack}>{t('worldMap.back')}</button>}
    <p role={error?'alert':'status'}>{error?(zh?'無法讀取地圖。':'Could not load the map.'):id?t('worldMap.loading'):(zh?'這個世界觀還沒有新版地圖。':'This world does not have a current map yet.')}</p>
@@ -66,8 +64,7 @@ export default function WorldMapManager({world,storage,beforeSave,onSaved,regist
    await beforeSave();
    const result=await repository.createSpace(world.id,name,'surface',blob);
    rememberGeneratedMap(result.map.id,generated);
-   setCreating(false);setError(false);setSelected(result.map.id);setBlockEditing(true);
-   if(blockView)onBlockViewChange?.({...blockView,mapId:result.map.id});
+   setCreating(false);setError(false);setSelected(result.map.id);
    await onSaved(result.world);
   }}/>}
  </section>;

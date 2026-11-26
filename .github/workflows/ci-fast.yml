@@ -47,11 +47,8 @@ jobs:
         run: npx tsc --noEmit
       - name: Build required map test assets
         run: |
-          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('globalMap'))?0:1)"; then
+          if node -e "const p=require('./.fast-plan.json');process.exit(p.groups.includes('world-map') || [...p.node,...p.browser].some(f=>f.startsWith('tests/world-map/')||f.startsWith('experiments/spherical-grid/'))?0:1)"; then
             npm run map:global
-          fi
-          if node -e "const p=require('./.fast-plan.json');process.exit(p.node.some(f=>f.includes('worldMap'))?0:1)"; then
-            npm run map:build
           fi
 
       - name: Run affected non-browser tests

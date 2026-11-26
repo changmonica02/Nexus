@@ -1,7 +1,7 @@
 // Developer-only raster preview for the Azgaar spherical terrain experiment.
 // Run: node experiments/spherical-grid/render-azgaar-previews.mjs
 // Options: --out DIR --width 960 --height 480 --seeds 1729,42,3
-// Uses built-in Node modules only; does not modify runtime or map storage.
+// Uses the locked terrain build dependencies; does not modify runtime or map storage.
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';

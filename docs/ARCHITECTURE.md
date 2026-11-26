@@ -144,7 +144,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 
 ## 新版全球海陸編輯器整合（2026-11-15；Issue #191，Draft）
 
-- `WorldMapCreator` 新建流程改用 `GlobalMapClient`／背景 Worker，固定 36,002 格。`WorldMapEditor` 依已驗證 metadata 分流：`nexus-global@1` 使用 `GlobalWorldMapEditor`，既有 `azgaar@1.154.2` 沿用原核心；不自動遷移或刪除舊資料。
+- `WorldMapCreator` 透過 `GlobalMapClient` 與背景 Worker 建立全球地圖。既有專案格式的讀取檢查由 Repository 處理。
 - `globalMapProject.ts` 定義 `nexus-global-map` v1 純 JSON 封裝，保存生成設定與完整版本化高度快照。格式／高度／格數／種子／海洋起點／checksum 在 repository 寫入前與 Worker 載入前驗證。重開依儲存高度重建幾何，種子不取代地形；Pack 索引不進永久身分契約。
 - `WorldMapRepository` 沿用原附件、SHA-256、帳號檢查、世界 revision CAS 及原子 outbox 批次。建立時辨識格式並記錄 engine/version，read 核對 metadata 與內容一致；save／stageDraft 禁止偷換引擎。快照沿既有工作區備份與草稿儲存，不增加 SQL/schema。
 - `globalMapWorker.ts` 暫時重用已測試的 `experiments/spherical-grid/` 球面生成／快照核心；`scripts/build-global-map.mjs` 先封裝為無外部依賴的 classic Worker，再由 Next 以雜湊 JS 資產發布。這避免將原始 TypeScript URL 當成可執行 Worker。`predev`／`prebuild` 先執行此步；Worker 無儲存、憑證或網路呼叫，主程式 SW 對 `/_next/static/` 的既有快取涵蓋該資產。
@@ -181,7 +181,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 | 工作區交易 | [workspacePersistence](../src/infrastructure/sync/workspacePersistence.ts) | 本機 records 與不可變 upload intents 同交易；remote merge 不重新 enqueue |
 | 同步協調 | [syncEngine](../src/infrastructure/sync/syncEngine.ts)、workspaceSync | push／pull、Realtime、背景節流、重試與狀態 |
 | 學習領域 | [StudyRepository](../src/features/study/StudyRepository.ts)、[studySync](../src/features/study/studySync.ts) | 私人字卡、學習事件、領域衝突與增量同步 |
-| 地圖領域 | [worldMapRepository](../src/features/worldMap/worldMapRepository.ts)、[offlineCore](../src/features/worldMap/offlineCore.ts) | 地圖原生專案驗證、世界觀條目／配置、隔離工具快取 |
+| 地圖領域 | [worldMapRepository](../src/features/worldMap/worldMapRepository.ts) | 地圖專案驗證、世界觀條目與配置 |
 
 
 Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`content_text` 是搜尋／預覽衍生資料。附件 metadata 與 Blob 分離，顯示用投影不取代穩定 ID。
@@ -294,25 +294,17 @@ Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週�
 
 ### 世界觀地圖
 
-固定 Azgaar 1.154.2 本地 fork，由 `scripts/build-world-map.mjs` 建置，整合層、隔離 iframe、Repository 與儲存同步分離。`inspectMapProject` 驗證版本／結構並計算 SHA，並非 SVG／HTML sanitizer；核心不取得 Nexus 帳號憑證或同源執行權限。
+`scripts/build-global-map.mjs` 負責建置全球地圖 Worker，從固定來源取得需要的地形指令與授權。`inspectMapProject` 驗證已存專案的格式與版本，並計算 SHA-256。
 
 世界觀 WorldEntity 保存正式正文、穩定 ID／relations；地圖 placement 引用 entity ID，point／cells 幾何獨立，cells 帶 mesh 指紋，不能靠名稱或原生陣列索引連結。Page 級 CAS／outbox 交易維持新增條目及配置原子性，重試使用穩定 ID；移除配置／刪圖不連鎖刪正式條目。metadata 修改不重傳原生 binary；原生 `.map` 不包含 Nexus 正式條目，完整資料用工作區備份。
 
-世界觀首頁沿用 CharacterBlockWorkspace 的一般區塊編排；group 區塊的可選 `worldMapView` 保存獨立 mapId、layer、overlays、views、detailsOpen 與等高線顯示設定，不保存地圖 binary 或正文副本。`worldMapBlocksVersion:1` 與穩定 legacy window ID 做惰性轉換，最後一個視窗刪除後不重新生成；原 sections、tabs、world_maps、world_entities 與附件保留。`WorldMapBlock` 合併預覽視角寫入並註冊既有離開保存屏障，`saveMapBlockView` 讀取最新 Page 後只修改指定區塊，仍走 Page CAS／workspace outbox。多個視窗引用同一正式專案；MessagePort ready 帶每份 iframe 文件的 documentId，預覽因區塊重排而重新載入時重建連線並載入正式專案；編輯期間意外重新載入則停用工具、保留既有本機 checkpoint。編輯工具須等 configure 與畫面切換穩定後啟用，區塊顯示設定的待保存內容也先經原保存屏障才寫地圖；已提交 attachment 變更重新載入其他預覽，編輯中的 working copy 不因預覽設定寫入重載。詳細資料依目前空間有效 placement 讀取正式條目正文，Tiptap 以不可編輯模式顯示，圖層可見性不篩掉正文。既有全世界觀分類清單保留未配置條目；完整編輯器展開自然地理／人文地理兩個相連分頁，地區、顯示方式與圖層控制屬於右側畫布工作區；路線、標籤及樣式沿用具名白名單指令開啟原生工具與既有確認／取消 checkpoint，不讓宿主直接操作 iframe DOM。WorldEntity 的可選 `fields` 以穩定欄位 ID 保存文字／數字／條目關聯，不另建實體表；舊紀錄缺少欄位仍有效。首頁詳細表單鎖定正式名稱，定位會沿用 placement ID、既有 MessagePort 及 MapView。正文保存檢查 Page revision 並保留目前 world_maps／world_entities，完整刪除條目須確認並拒絕尚被引用的條目。新空間 scope 使用 surface／underground／sky；舊 scope、parent_map_id 與附件不改寫，新主地表禁止重複建立，附屬空間刪除仍保留條目。
+世界觀一般入口透過 `WorldMapManager` 選取專案，並使用 `GlobalWorldMapEditor` 載入與儲存。`world_maps`、`world_entities` 與附件維持世界觀層級的資料。世界觀範本沿用一般區塊編排，正文透過 Page revision 檢查保存。
 
-`WorldMapToolMenu` 僅呈現工具導覽與目前 Page 的正式條目，不保存另一份清單。人文分類依 country／administrative_area／culture／religion／原生 routes／settlement+site 分組；每頁25筆搜尋／配置篩選。新增先以穩定 ID 建立未配置正式條目，再由既有 point／RegionCommand 進入配置；取消配置不刪除已建立的條目。選取及配置完成以既有 configure／regionView 同步高亮；定位才傳送 focusPlacement 調整視角。明確的文化／宗教顯示模式優先於舊高亮的顯示備援，不以保留選取為由暗中換回另一類分布。路線不新增 WorldEntityType，沿用原生路線管理、確認與 checkpoint 取消；仍有路線暫存點位時，宿主確認須先完成／取消原生建立，避免誤將未完成線段視為已保存。
-
-桌面工具側欄256／288px、手機底部可捲動面板；側欄收合只隱藏工具，右側 displayControls 與 canvas 共用 flex 工作區。ResizeObserver 沿用 contain／手動中心比例契約，工具分類切換不重新載入專案。地圖切換先經編輯／離開屏障，原生 working copy 保存後才切換；筆刷／點位未完成時不允許直接換空間。文化／宗教的 visible、distribution 與 cells 幾何在同次 saveRegion／Page CAS 中保存，appearance 指令只更新未提交預覽；取消復原既有配置，失敗與重試沿用原 outbox 和 revision，正式正文不重傳 binary。
-
-內嵌編輯器 i18n 僅使用本機固定介面目錄，涵蓋動態面板、選項、說明及 aria／title 屬性；SVG、輸入內容、富文字與原生資料中的名稱／正文不翻譯。語言切換經 MessagePort configure 與保留原文還原，不重新載入 iframe，不使用外部翻譯服務。初始語言傳入隔離文件；新 feature／river／route 名稱與新預設 biome 名稱在產生名稱的路徑依語言設定，保留原 PRNG 消耗；已有名稱不改寫，不在 map:generated 上做批次改名（該事件亦用於載入）。原生類型識別仍為原格式，顯示標籤由固定目錄轉譯。第三方授權改由設定→關於 Nexus→第三方授權入口呈現，MIT 原文與 notices 檔案、來源連結完整保留。
-
-原生 canonical 專案使用 immutable 附件／SHA 與 revision，另有本機 recovery checkpoint；10 秒 recovery 不進 outbox，60 秒或明確保存提交 canonical。失敗保留草稿，不以本機成功冒充雲端成功；未實作安全 GC，不能任意清掉舊附件。自然地理與文明配置分離；手繪資料保留、網格變更與再生成限制依 SPEC，不能在同步時重新生成地理。
-
-`offlineCore` 註冊 `/world-map/offline.js`，scope 為 `/world-map/`；只快取公開工具。opaque iframe 的離線文件由工具快取組裝，broker 不代理私人 API 或任意網路，私人專案保存在既有 owner 儲存。線上 opaque iframe 的 heightmap／內建圖像亦沿用同一 broker：固定 core 子路徑、無 query／credentials、檢查圖像 MIME；不代理 API／任意網址。原生圖像匯出改走 fetch 而非 XHR，讓 WebKit 依既有 broker 讀取材質，不放寬 CSP。預覽單指捲動沿實際可捲動祖先傳遞，非捲動的區塊容器不吞掉手勢，編輯／全螢幕仍隔離背景捲動。
+正式專案以附件、SHA-256 與 revision 管理。本機草稿可用來復原編輯，正式儲存仍透過既有同步流程提交。三方授權隨全球地圖建置保留。
 
 ### 主程式 PWA（已建立，實機驗收仍需持續）
 
-主程式已具 `src/app/manifest.ts` 與 `/sw.js`。主 Service Worker 的 scope 是 `/`，會略過世界觀地圖的 `/world-map/` 路徑，交由地圖專用離線資源處理。`nexus-shell-v2` 只快取**匿名首頁 HTML**及明確允許的 `/_next/static/`、圖示資產；**不快取任意導覽回應**，離線時重新開啟 `/` 可使用已準備的首頁外殼，但直接離線開啟尚未能獨立準備的 `/study`、`/dictionary` 等深層網址會顯示 503 需連線提示，不可宣稱所有深層網址都有獨立離線 HTML。Auth／API、私人資料、附件 Blob 不進公開快取，仍使用既有依帳號隔離的 IndexedDB 與 outbox。首頁離線重新開啟、Session 保留、帳號切換及重新連線已有自動化測試；Android Chrome／iPad Safari 的真實裝置行為、特殊網路錯誤及跨裝置衝突仍需人工驗收，不能把瀏覽器 CI 等同實機完成。
+主程式已具 `src/app/manifest.ts` 與 `/sw.js`。主 Service Worker 的 scope 是 `/`。`nexus-shell-v2` 只快取**匿名首頁 HTML**及明確允許的 `/_next/static/`、圖示資產；**不快取任意導覽回應**，離線時重新開啟 `/` 可使用已準備的首頁外殼，但直接離線開啟尚未能獨立準備的 `/study`、`/dictionary` 等深層網址會顯示 503 需連線提示，不可宣稱所有深層網址都有獨立離線 HTML。Auth／API、私人資料、附件 Blob 不進公開快取，仍使用既有依帳號隔離的 IndexedDB 與 outbox。首頁離線重新開啟、Session 保留、帳號切換及重新連線已有自動化測試；Android Chrome／iPad Safari 的真實裝置行為、特殊網路錯誤及跨裝置衝突仍需人工驗收，不能把瀏覽器 CI 等同實機完成。
 
 ## 5. 學習、字典與創作契約
 

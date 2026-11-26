@@ -113,15 +113,18 @@ if (!(await storage.listPages()).length) {
           dictionary_entry_id: "00000000-0000-4000-8000-000000000099",
         },
       ]);
-      const before = await repository.readDeck(page.id);
-      await repository.review(
-        before.cards[0].id,
-        before.states[0].head,
-        before.cards[0].content_revision,
-        3,
-        "fixture-review",
-        Date.now(),
-      );
+      const now = Date.now();
+      const { session, snapshot } = await repository.openScheduledSession(page.id, now);
+      await repository.rateSession({
+        sessionId: session.id,
+        cardId: snapshot.cards[0].id,
+        revision: session.revision,
+        contentRevision: snapshot.cards[0].content_revision,
+        expectedHead: snapshot.states[0].head,
+        rating: 3,
+        actionId: "fixture-review",
+        now,
+      });
     }
     if(kind==='todo')await storage.savePage({...page,due_date:Date.now(),completed:false});
     if (kind === "web")

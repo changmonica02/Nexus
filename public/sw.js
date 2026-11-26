@@ -1,9 +1,8 @@
 /* Nexus app-shell cache. User records and private APIs stay in IndexedDB/Supabase. */
 const CACHE = "nexus-shell-v2";
 const ICONS = ["/icon.svg", "/favicon.ico", "/icons/nexus-192.png", "/icons/nexus-512.png", "/icons/apple-touch-icon.png"];
-const isMap = path => path === "/world-map" || path.startsWith("/world-map/");
 const isStatic = path => path.startsWith("/_next/static/") || ICONS.includes(path);
-const isAppPage = path => path === "/" || /^\/(study|dictionary|etymology|trash)(\/|$)/.test(path);
+const isAppPage = path => path === "/" || /^\/(study|dictionary|trash)(\/|$)/.test(path);
 // Cached responses retain the URL of their first request, including Worker
 // bootstrap fragments. A URL-neutral response keeps this request's #params.
 const workerResponse = (request, response) => {
@@ -51,7 +50,7 @@ self.addEventListener("fetch", event => {
   // Classic same-origin scripts/styles may use no-cors; they still need offline cache.
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || isMap(url.pathname)) return;
+  if (url.origin !== self.location.origin) return;
   if (request.headers.has("authorization") || request.headers.has("range")) return;
   if (url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/")) return;
   if (request.mode === "navigate" && isAppPage(url.pathname)) {

@@ -5,7 +5,6 @@ import {mapDictionaryDraft,validateDictionaryDraft,type DictionaryDraftInput,typ
 
 type Client=Pick<SupabaseClient,'rpc'>;
 export type ImportAction='review'|'keep'|'incoming'|'fill'|'new_sense'|'skip'|'later';
-export const actionLabels:Record<ImportAction,string>={keep:'保留現有',review:'建立 Review Draft',incoming:'使用匯入版本',fill:'補上缺失值',new_sense:'建立新的 Sense',skip:'略過',later:'暫不處理'};
 type Section='entry'|'senses'|'etymologies'|'examples'|'learning_notes'|'relations'|'pronunciations'|'derivations'|'public_notes';
 export interface ImportIssue {
   id:string;row:number;kind:string;headword:string;field:string;type:string;
@@ -19,9 +18,9 @@ export interface ImportItem {
   id:string;replacement_refs?:ReplacementReference[];excluded?:boolean;raw_candidate?:unknown;review_id?:string;exchange_version?:string|null;preview_at?:string;draft:DictionaryDraftInput;observed?:ReturnType<typeof mapDictionaryDraft>;context?:ImportContext;
   bucket:'safe'|'review';safeAction:'new'|'unchanged'|'normalize';issues:ImportIssue[];
   status:'pending'|'applied'|'unchanged'|'skipped'|'stale'|'failed';message?:string;
-  operation?:ImportOperation;appliedDraft?:DictionaryDraftInput;
+  operation?:ImportOperation;
 }
-export interface ImportSession {ignored_fields?:string[];durable_review?:true;source_name?:string;confirmed_scope?:'safe'|'reviewed';id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
+export interface ImportSession {ignored_fields?:string[];durable_review?:true;source_name?:string;id:string;owner_id:string;source_type:'csv'|'legacy_csv'|'json'|'md';preview_at:string;items:ImportItem[]}
 export const contentSections=['pronunciations','derivations','public_notes','senses','etymologies','learning_notes','relations','examples'] as const;
 const tables:Record<typeof contentSections[number],string>={derivations:'dictionary_sense_derivations',public_notes:'dictionary_public_notes',pronunciations:'dictionary_pronunciations',senses:'dictionary_senses',etymologies:'dictionary_etymologies',learning_notes:'dictionary_learning_notes',relations:'dictionary_relations',examples:'dictionary_examples'};
 const equal=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
@@ -106,17 +105,6 @@ export function chooseIssue(item:ImportItem,issueID:string,action:ImportAction):
   if(!issue||!issue.allowedActions.includes(action))throw Error('此情況不允許這個操作');
   issue.selectedAction=action;if(action==='new_sense')issue.proposedSenseID??=crypto.randomUUID();return next;
 }
-export function canBatchDecision(a:ImportIssue,b:ImportIssue,action:ImportAction){
-  return !!a.batchKey&&a.batchKey===b.batchKey&&a.type===b.type&&['fill','keep'].includes(action)&&a.allowedActions.includes(action)&&b.allowedActions.includes(action);
-}
-export function applyBatchDecision(session:ImportSession,itemID:string,issueID:string,action:ImportAction):ImportSession{
-  const origin=session.items.find(i=>i.id===itemID)?.issues.find(i=>i.id===issueID);
-  if(!origin?.batchKey||!['fill','keep'].includes(action))throw Error('不允許對不同內容批次覆寫');
-  return {...session,items:session.items.map(item=>{
-    if(item.status!=='pending'||item.operation)return item;
-    let next=item;for(const issue of item.issues)if(canBatchDecision(origin,issue,action))next=chooseIssue(next,issue.id,action);return next;
-  })};
-}
 export function resolveImportItem(item:ImportItem):{draft:DictionaryDraftInput;effect:'write'|'unchanged'|'review'}|null{
   if(!item.context||item.issues.some(i=>!i.selectedAction||!Array.isArray(i.allowedActions)||!i.allowedActions.includes(i.selectedAction)||i.selectedAction==='later'||i.selectedAction==='skip'))return null;
   const d=structuredClone(item.draft);
@@ -196,45 +184,4 @@ export async function buildImportSession(client:Client,owner:string,source:Impor
   }
   for(const item of session.items)item.preview_at=session.preview_at;
   return session;
-}
-export function sessionCounts(s:ImportSession){return {
-  safeTotal:s.items.filter(i=>i.bucket==='safe').length,safeApplied:s.items.filter(i=>i.bucket==='safe'&&['applied','unchanged'].includes(i.status)).length,
-  reviewUnresolved:s.items.filter(i=>i.bucket==='review'&&i.status==='pending'&&i.issues.some(x=>!x.selectedAction||x.selectedAction==='later')).length,
-  reviewResolved:s.items.filter(i=>i.bucket==='review'&&(i.status==='skipped'||i.issues.every(x=>x.selectedAction&&x.selectedAction!=='later'))).length,
-  stale:s.items.filter(i=>i.status==='stale').length,failed:s.items.filter(i=>i.status==='failed').length,
-  affectedIDs:s.items.filter(i=>['applied','unchanged'].includes(i.status)).map(i=>i.appliedDraft?.entry_id??i.draft.entry_id)};}
-/** Preserve operation identity before any network dispatch. Batch RPC delegates to the same authority. */
-export async function applyImportItems(client:Client,session:ImportSession,includeReview:boolean,persist:(s:ImportSession,changed?:ImportItem[])=>Promise<void>,options:{batched?:boolean;signal?:AbortSignal}={}):Promise<ImportSession>{
-  const next=structuredClone(session);
-  const remaining=[...next.items].sort((a,b)=>Number(a.draft.kind==='word')-Number(b.draft.kind==='word'));
-  const ordered:ImportItem[]=[];
-  // Target records in this file precede users of them; cycles remain explicit server rejections.
-  while(remaining.length){const ids=new Set(remaining.map(i=>i.draft.entry_id));let index=remaining.findIndex(i=>!i.draft.relations.some(r=>ids.has(String(r.target_entry_id))));if(index<0)index=0;ordered.push(remaining.splice(index,1)[0]);}
-  const prepare=(item:ImportItem)=>{
-    if(!['pending','failed'].includes(item.status)||(!includeReview&&item.bucket==='review'))return false;
-    if(item.issues.some(i=>i.selectedAction==='skip')){item.status='skipped';return false;}
-    if(!item.operation){if(!item.context||!item.observed)return false;const resolved=resolveImportItem(item);if(!resolved)return false;
-      const errors=validateDictionaryDraft([resolved.draft]);if(errors.length){item.status='failed';item.message=errors.map(e=>e.error).join('；');return false;}
-      item.appliedDraft=resolved.draft;
-      item.operation={owner_id:next.owner_id,session_id:next.id,operation_id:crypto.randomUUID(),source_type:next.source_type,preview_at:item.preview_at??next.preview_at,observed:item.observed,candidate:mapDictionaryDraft(resolved.draft),expected_context:Object.fromEntries(Object.entries(item.context).filter(([key])=>key!=='exchange')) as unknown as ImportContext,effect:resolved.effect,...(item.exchange_version!==undefined?{exchange_version:item.exchange_version}:{})};
-    }return true;
-  };
-  const size=options.batched?25:1;
-  for(let start=0;start<ordered.length;start+=size){
-    if(options.signal?.aborted)break;
-    const chunk=ordered.slice(start,start+size),ready=chunk.filter(prepare);
-    await persist(next,chunk);
-    if(!ready.length)continue;
-    try{
-      const {data,error}=await client.rpc(options.batched?'apply_dictionary_import_batch':'apply_dictionary_import_operation',options.batched?{operations:ready.map(i=>i.operation)}:{operation:ready[0].operation});
-      if(error)throw Error(error.message);
-      const results=options.batched?data:[data];
-      if(!Array.isArray(results)||results.length!==ready.length||results.some((r,i)=>!r||!['applied','unchanged','stale','failed'].includes(r.status)||(options.batched&&r.operation_id!==ready[i].operation!.operation_id)))throw Error('Invalid import receipt response; retry the saved operations');
-      for(let i=0;i<ready.length;i++){ready[i].status=results[i].status;ready[i].message=results[i].message;if(ready[i].operation?.effect==='review'&&typeof results[i].result?.id==='string')ready[i].review_id=results[i].result.id;if(results[i].status==='stale')ready[i].bucket='review';}
-    }catch(e){for(const item of ready){item.status='failed';item.message=e instanceof Error?e.message:String(e);}}
-    await persist(next,ready);
-    // A transport failure must not launch the rest of thousands of requests.
-    if(ready.every(i=>i.status==='failed'))break;
-  }
-  return next;
 }

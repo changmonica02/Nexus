@@ -166,30 +166,6 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
     ...(source ? { source } : {}),
     ...(kind==="review"&&style?{scheduling_method:style.scheduling_method,style_snapshot:structuredClone(style),...(previousMethod&&previousMethod!==style.scheduling_method?{method_transition:style.scheduling_method==="fsrs"?(state.fsrs?"resume-preserved-fsrs-memory":"initialize-from-real-answer-without-estimated-memory"): "retain-fsrs-memory-use-fixed-state"}:{})}: {}) };
 }
-export function nextDailyCard(snapshot: StudySnapshot, now: number): StudyCard | null {
-  if (!snapshot.settings.direction_confirmed) return null;
-  const states = new Map(snapshot.states.map(state => [state.id, state]));
-  const cards = snapshot.cards.filter(card => !card.deleted_at && !card.hidden && card.front.trim() && card.back.trim() && !states.get(card.id)?.conflict);
-  const due = cards.filter(card => {
-    const state = states.get(card.id)!;
-    return state.fsrs ? state.fsrs.due <= now : state.legacy_due_at != null ? state.legacy_due_at <= now : state.introduced_at != null;
-  });
-  due.sort((a, b) => {
-    const x = states.get(a.id)!, y = states.get(b.id)!;
-    const priority = (s: StudyState) => s.fsrs?.state === State.Learning || s.fsrs?.state === State.Relearning ? 0 : 1;
-    return priority(x) - priority(y) || (x.fsrs?.due ?? x.legacy_due_at ?? 0) - (y.fsrs?.due ?? y.legacy_due_at ?? 0) || a.sort_order - b.sort_order;
-  });
-  if (due.length) return due[0];
-  const used = new Set([
-    ...snapshot.events.filter(event => event.kind === "introduce" && event.local_day === localStudyDay(now)).map(event => event.card_id),
-    ...snapshot.states.filter(state => state.introduced_at != null && localStudyDay(state.introduced_at) === localStudyDay(now)).map(state => state.id),
-  ]).size;
-  if (used >= snapshot.settings.new_limit) return null;
-  return cards.filter(card => {
-    const state = states.get(card.id)!;
-    return state.fsrs == null && state.legacy_due_at == null && state.introduced_at == null;
-  }).sort((a,b) => a.sort_order - b.sort_order)[0] ?? null;
-}
 export function intervalLabel(due: number, now: number): string {
   const minutes = Math.max(1, Math.round((due - now) / 60_000));
   return minutes < 60 ? `${minutes} 分` : minutes < 1440 ? `${Math.round(minutes / 60)} 小時` : `${Math.round(minutes / 1440)} 天`;

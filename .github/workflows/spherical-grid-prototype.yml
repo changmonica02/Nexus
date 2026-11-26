@@ -1,6 +1,7 @@
 name: Spherical Grid-Pack Prototype
 on:
   pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft]
     paths:
       - 'experiments/spherical-grid/**'
       - 'src/features/worldMap/**'
@@ -37,7 +38,8 @@ jobs:
           for source in experiments/spherical-grid/*.mjs; do node --check "$source"; done
       - name: Geometry and ocean / coast checks (no database, no deployment)
         run: node --test experiments/spherical-grid/*.test.mjs
-      - name: Global application worker, persistence and browser assets
+      - name: Global application worker and persistence for draft or manual runs
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft || github.base_ref != 'main'
         run: |
           npm run map:global
           node --test tests/world-map/globalMap.test.cjs
@@ -59,16 +61,14 @@ jobs:
               sudo sed -i -E 's#http://[a-z0-9.-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' "$apt_source"
             fi
           done
-          npm install --prefix /tmp/nexus-preview-tools --no-package-lock --ignore-scripts playwright@1.62.1
-          /tmp/nexus-preview-tools/node_modules/.bin/playwright install --with-deps chromium
-      - name: Global creator and editor browser regression
+          npx --no-install playwright install --with-deps chromium
+      - name: Global creator and editor browser regression for draft or manual runs
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft || github.base_ref != 'main'
         run: |
           export BROWSER_EXECUTABLE=$(node -p 'require("playwright").chromium.executablePath()')
           node tests/world-map/globalMapCreator.browser.test.cjs
           node tests/world-map/globalMapSession.browser.test.cjs
       - name: Open packaged preview over file protocol (no network)
-        env:
-          NODE_PATH: /tmp/nexus-preview-tools/node_modules
         run: node experiments/spherical-grid/offline-preview.browser.cjs /tmp/nexus-land-preview/index.html
       - name: Upload standalone offline preview (download ZIP and open index.html)
         uses: actions/upload-artifact@v4

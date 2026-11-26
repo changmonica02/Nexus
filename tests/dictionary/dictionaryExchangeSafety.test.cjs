@@ -18,9 +18,7 @@ const {
   previewExchange,
   exchangeCategory,
 } = require("../../src/features/dictionary/dictionaryExchange.ts");
-const {
-  applyImportItems,
-} = require("../../src/features/dictionary/importReview.ts");
+const { applyLegacyImport } = require("../fixtures/legacyDictionaryImport.cjs");
 const {
   persistImportSession,
   loadImportSession,
@@ -246,7 +244,7 @@ test("local JSON versus newer Nexus edits is Conflict; Review-only changes block
       exchangeCategory((await previewExchange(c, owner, local)).items[0]),
       "conflict",
     );
-    const attempted = await applyImportItems(
+    const attempted = await applyLegacyImport(
       c,
       planned,
       true,
@@ -310,7 +308,7 @@ test("IndexedDB quota/DataClone failures abort whole checkpoints; exact committe
     };
     await failPut("items", async () => {
       await assert.rejects(
-        applyImportItems(counted, initial, true, persistImportSession, {
+        applyLegacyImport(counted, initial, true, persistImportSession, {
           batched: true,
         }),
         /Quota/,
@@ -323,7 +321,7 @@ test("IndexedDB quota/DataClone failures abort whole checkpoints; exact committe
     );
     let checkpoints = 0;
     await assert.rejects(
-      applyImportItems(
+      applyLegacyImport(
         counted,
         initial,
         true,
@@ -344,7 +342,7 @@ test("IndexedDB quota/DataClone failures abort whole checkpoints; exact committe
       "select revision v from dictionary_senses where id=$1",
       [id(401)],
     );
-    const done = await applyImportItems(
+    const done = await applyLegacyImport(
       c,
       pending,
       true,

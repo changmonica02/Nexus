@@ -1,5 +1,4 @@
 "use client";
-import {newWorldMapBlock,withWorldMapBlocks} from "../lib/worldMapBlocks";
 import {
   useEffect,
   useMemo,
@@ -68,7 +67,6 @@ export default function CharacterBlockWorkspace({
   renderComponent,
   templateActions,
   embedded = false,
-  renderMapBlock,
 }: {
   page: Page;
   onCommit: (data: CharacterProfileData) => Promise<void>;
@@ -77,7 +75,6 @@ export default function CharacterBlockWorkspace({
   readOnly?: boolean;
   templateActions?: ReactNode;
   embedded?: boolean;
-  renderMapBlock?: (block:CharacterSection)=>ReactNode;
   renderComponent: (
     section: CharacterSection,
     mode: "edit" | "card",
@@ -86,7 +83,7 @@ export default function CharacterBlockWorkspace({
 }) {
   const normalized = useMemo(
     () =>
-      (page.creative_type==="world"&&!page.character_data?.isTemplate?withWorldMapBlocks:normalizeCharacterBlocks)(
+      normalizeCharacterBlocks(
         page.character_data?.isTemplate
           ? {...snapshotCharacterTemplate(page.character_data),resourceSource:page.character_data.resourceSource}
           : (page.character_data ?? createBlankTemplate()),
@@ -457,10 +454,6 @@ export default function CharacterBlockWorkspace({
     )
       setEditing(null);
   };
-  const addMapBlock = async (source?:CharacterSection) => {
-    setAddingBlock(false);
-    await persist(replaceCharacterBlocks(data,[...blocks,newWorldMapBlock(crypto.randomUUID(),source?.worldMapView)],tab));
-  };
   const addBlock = async () => {
     setAddingBlock(false);
     const title = (await askText("區塊名稱", "新區塊"))?.trim();
@@ -677,7 +670,6 @@ export default function CharacterBlockWorkspace({
                     >
                       重新命名
                     </button>
-                    {block.worldMapView&&<button className={control} disabled={busy} aria-label={`複製區塊 ${block.title}`} onClick={()=>void addMapBlock(block)}>複製</button>}
                     <button
                       className={control}
                       disabled={busy}
@@ -690,7 +682,6 @@ export default function CharacterBlockWorkspace({
                 )}
               </header>
               <div hidden={dragging === "block"}>
-                {block.worldMapView && renderMapBlock ? renderMapBlock(block) : <>
                 {!block.contents?.length && (
                   <p className="py-4 text-sm opacity-50">尚無組件</p>
                 )}
@@ -765,7 +756,6 @@ export default function CharacterBlockWorkspace({
                     ＋新增組件
                   </button>
                 )}
-                </>}
               </div>
             </section>
           ))}
@@ -911,7 +901,6 @@ export default function CharacterBlockWorkspace({
             <button className={control} onClick={() => void addBlock()}>
               一般區塊
             </button>
-            {page.creative_type==="world"&&!data.isTemplate&&<button className={control} onClick={()=>void addMapBlock()}>地圖區塊</button>}
             {page.creative_type!=="world" && !data.basicBlock?.enabled && (
               <button
                 className={control}
