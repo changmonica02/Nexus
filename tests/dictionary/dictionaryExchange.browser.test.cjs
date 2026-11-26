@@ -90,12 +90,6 @@ test(
           await page.reload();
           assert.notEqual(await page.evaluate(() => performance.timeOrigin), previousDocument, "checkpoint recovery must load a fresh document");
         };
-        const waitForProgress = async text => {
-          await page.getByText(text, { exact: true }).waitFor().catch(async error => {
-            console.error("IMPORT_CHECKPOINT_SCREEN", await page.locator("body").innerText());
-            throw error;
-          });
-        };
         await page.goto(url);
         await page.getByLabel("搜尋單字或構詞", { exact: true }).fill("item1");
         await page
@@ -151,112 +145,94 @@ test(
         await page
           .getByRole("button", { name: "匯入資料", exact: true })
           .click();
-        const raw = await page.evaluate(() =>
-          JSON.stringify(window.newDocument(52)),
-        );
-        await page.getByLabel("匯入檔案", { exact: true }).setInputFiles({
-          name: "exchange.json",
-          mimeType: "application/json",
-          buffer: Buffer.from(raw),
-        });
-        await page
-          .getByRole("button", { name: "產生匯入預覽", exact: true })
-          .click();
-        await page
-          .getByText(
-            "新增 52 · 修改 0 · 未變更 0 · 需審核 0 · 不合法 0 · 版本衝突 0",
-            { exact: true },
-          )
-          .waitFor();
-        // Real browser IndexedDB quota failure: no operation may reach the server.
+        const raw = await page.evaluate(() => JSON.stringify(window.newDocument(52)));
+        const upload = (name, buffer) =>
+          page.getByLabel("匯入檔案", { exact: true }).setInputFiles({
+            name,
+            mimeType: "application/json",
+            buffer: Buffer.from(buffer),
+          });
+        const analyze = page.getByRole("button", { name: "分析", exact: true });
+        const analysis = page.getByRole("dialog", { name: "匯入分析", exact: true });
+        const safe = analysis.getByRole("button", { name: "匯入安全詞條", exact: true });
+        const importSafe = async () => {
+          await safe.click();
+          await page.getByRole("dialog", { name: "匯入安全詞條", exact: true })
+            .getByRole("button", { name: "匯入安全詞條", exact: true }).click();
+        };
+        await upload("exchange.json", raw);
+        await analyze.waitFor();
+        // A preview that cannot be checkpointed must never stage or apply proposals.
         await page.evaluate(() => {
           const put = IDBObjectStore.prototype.put;
           IDBObjectStore.prototype.put = function (...args) {
             if (this.name === "items") {
               IDBObjectStore.prototype.put = put;
-              throw new DOMException(
-                "fixture quota exceeded",
-                "QuotaExceededError",
-              );
+              throw new DOMException("fixture quota exceeded", "QuotaExceededError");
             }
             return put.apply(this, args);
           };
         });
-        await page
-          .getByRole("button", {
-            name: "一次套用安全項目／恢復作業",
-            exact: true,
-          })
-          .click();
-        await page
-          .getByRole("dialog", { name: "確認匯入" })
-          .getByRole("button", { name: "確認匯入", exact: true })
-          .click();
-        await page
-          .getByRole("alert")
-          .filter({ hasText: "fixture quota exceeded" })
-          .waitFor();
-        assert.equal(
-          await page.evaluate(
-            () =>
-              window.calls.filter(
-                (c) => c.name === "apply_dictionary_import_batch",
-              ).length,
-          ),
-          0,
-        );
-        await page
-          .getByRole("button", {
-            name: "一次套用安全項目／恢復作業",
-            exact: true,
-          })
-          .click();
-        await page.evaluate(()=>{window.holdImportBatch=true;});
-        await page
-          .getByRole("dialog", { name: "確認匯入" })
-          .getByRole("button", { name: "確認匯入", exact: true })
-          .click();
-        await page.waitForFunction(() =>
-          typeof window.finishImportBatch === "function",
-        );
-        await page
-          .getByRole("button", { name: "停止未開始的批次", exact: true })
-          .click();
-        await page.evaluate(()=>window.finishImportBatch());
-        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
+        await analyze.click();
+        const uncertain = "請求結果尚未確認。請保留草稿，先查詢正式狀態再重試。";
+        await page.getByRole("alert").filter({ hasText: uncertain }).waitFor();
+        assert.deepEqual(await page.evaluate(() => window.fixtureState().imports), []);
+        await analyze.click();
+        await analysis.getByText(/新增詞條 52.*安全詞條 52/).waitFor();
+        const probeCalls = await page.evaluate(() => window.calls.map(({ name }) => name));
+        assert.ok(probeCalls.includes("dictionary_import_review_capabilities"));
+        assert.ok(probeCalls.includes("inspect_dictionary_exchange"));
+        await page.evaluate(() => { window.holdImportBatch = true; });
+        await importSafe();
+        await page.waitForFunction(() => typeof window.finishImportBatch === "function");
+        await analysis.getByRole("button", { name: "停止未開始的批次", exact: true }).click();
+        await page.evaluate(() => window.finishImportBatch());
+        await analysis.getByText(/成功 25 ·/).waitFor();
+        await analysis.getByRole("button", { name: "關閉", exact: true }).click();
+        await page.getByRole("button", { name: "關閉", exact: true }).click();
         await reload();
-        await page
-          .getByRole("button", { name: "匯入資料", exact: true })
-          .click();
-        await waitForProgress("總共 52 · 已完成 25 · 失敗 0 · 未處理 27");
-        // The independent exchange safety contract covers a committed receipt
-        // followed by a local checkpoint failure and exact operation replay.
-        // Here keep the browser-specific stop, cold reload and successful resume.
-        await page
-          .getByRole("button", {
-            name: "一次套用安全項目／恢復作業",
-            exact: true,
-          })
-          .click();
-        await page
-          .getByText("總共 52 · 已完成 52 · 失敗 0 · 未處理 0", { exact: true })
-          .waitFor();
-        assert.equal(
-          await page.getByRole("dialog", { name: "確認匯入" }).count(),
-          0,
-        );
+        await page.getByRole("button", { name: "匯入資料", exact: true }).click();
+        await page.getByRole("button", { name: "恢復匯入分析", exact: true }).click();
+        assert.equal(await page.evaluate(() => window.fixtureState().records.length), 28);
+
+        // Commit the first resumed batch, then lose its reply. Read the same rows
+        // before applying the final two entries.
+        await page.evaluate(() => { window.loseResponse = true; });
+        await importSafe();
+        await analysis.getByRole("alert").filter({ hasText: uncertain }).waitFor();
+        await importSafe();
+        await analysis.getByText(/成功 27 ·/).waitFor();
         const reportPromise = page.waitForEvent("download");
-        await page
-          .getByRole("button", { name: "下載作業結果清單", exact: true })
-          .click();
-        const report = JSON.parse(
-          fs.readFileSync(await (await reportPromise).path(), "utf8"),
-        );
-        assert.equal(
-          report.items.filter((i) => i.status === "applied").length,
-          52,
-        );
-        assert.equal(new Set(report.items.map((i) => i.entry_id)).size, 52);
+        await analysis.getByRole("button", { name: "下載作業結果清單", exact: true }).click();
+        const report = JSON.parse(fs.readFileSync(await (await reportPromise).path(), "utf8"));
+        assert.equal(report.format, "nexus-persistent-import-results");
+        assert.equal(report.records.filter((r) => r.result?.status === "applied").length, 27);
+        const saved = await page.evaluate(() => ({
+          ...window.fixtureState(),
+          reads: window.reviewReads,
+          batches: window.calls.filter(({ name }) => name === "apply_dictionary_safe_import_reviews")
+            .map(({ operations }) => operations.length),
+        }));
+        assert.equal(saved.reads, 25);
+        assert.deepEqual(saved.batches, [25, 2]);
+        assert.equal(saved.imports.length, 52);
+        assert.equal(new Set(saved.imports.map((r) => r.entry_id)).size, 52);
+        assert.ok(saved.imports.every((r) => r.revision === 2 && r.item.status === "applied"));
+        assert.equal(saved.records.length, 55);
+        for (const { snapshot: { detail } } of JSON.parse(raw).records) {
+          const actual = saved.records.find((r) => r.snapshot.detail.entry.id === detail.entry.id).snapshot.detail;
+          assert.equal(actual.entry.headword, detail.entry.headword);
+          assert.equal(actual.senses[0].gloss_zh_tw, detail.senses[0].gloss_zh_tw);
+        }
+
+        await analysis.getByRole("button", { name: "關閉", exact: true }).click();
+        await upload("repeat.json", raw);
+        await analyze.click();
+        await analysis.getByText(/未變更 52/).waitFor();
+        await analysis.getByRole("button", { name: "關閉", exact: true }).click();
+        await page.getByText("保留的本機匯入封存", { exact: true }).click();
+        assert.equal(await page.getByLabel("保留的本機匯入封存", { exact: true })
+          .locator("option").filter({ hasText: "exchange.json" }).count(), 1);
         await page.getByRole("button", { name: "關閉", exact: true }).click();
         // Filters can even hide every row; global publication is independent of them.
         await page
@@ -379,7 +355,7 @@ test(
         await page.waitForURL(url + "/dictionary/admin?deleted=1");
         await page.getByRole("link", { name: /item2/ }).waitFor();
         assert.equal(
-          await page.getByRole("link", { name: /item1/ }).count(),
+          await page.getByRole("link", { name: /\bitem1\b/ }).count(),
           0,
         );
         assert.equal(
