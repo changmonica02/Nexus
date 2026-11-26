@@ -1,3 +1,4 @@
+import { evaluateFormula } from "../listConfiguration";
 import { HeartPulse } from "lucide-react";
 import { localDateInput } from "../../../lib/todoCalendar";
 import { civilAdvance } from "../civilPeriods";
@@ -206,8 +207,21 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
             ? events.filter(event => (!card.listId || card.listId === event.category) && schedulePeriodMatches(event, card.period, anchor)) : [];
           const importantDates = card.type === "milestones" || card.type === "calendar" && card.status === "all"
             ? milestones.filter(event => (!card.listId || card.listId === event.id) && schedulePeriodMatches(event, card.period, anchor)) : [];
-          const records = card.type === "lists" ? items.filter(item =>
-            (!card.listId || item.list_id === card.listId) && dateMatches(item.created_at, card.period, anchor)) : [];
+          const selectedList=card.type==="lists"?lists.find(list=>list.id===card.listId):undefined;
+          const preset=selectedList?.configuration?.statistics?.find(item=>item.id===card.statisticId);
+          const dateField=selectedList?.fields.find(field=>!field.archived&&field.type==="date");
+          const records = card.type === "lists" ? items.filter(item=>{
+            if(card.listId&&item.list_id!==card.listId)return false;
+            if(!preset)return dateMatches(item.created_at,card.period,anchor);
+            const day=dateField?String(item.values[dateField.id]??""):localDateInput(new Date(item.created_at));
+            return (!preset.start||day>=preset.start)&&(!preset.end||!!day&&day<=preset.end);
+          }):[];
+          const statistic=selectedList?.fields.find(field=>!field.archived&&field.id===preset?.field);
+          const selectedValues=statistic?records.map(item=>statistic.formula?evaluateFormula(statistic.formula,item.values):item.values[statistic.id]):[];
+          const numeric=selectedValues.filter((value):value is number=>typeof value==="number"&&Number.isFinite(value));
+          const total=numeric.reduce((sum,value)=>sum+value,0);
+          const checked=selectedValues.filter(value=>value===true).length;
+          const checkCount=selectedValues.filter(value=>typeof value==="boolean").length;
           const habitRows = card.type === "habits" ? habits.filter(habit => !card.listId || card.listId === habit.id).map(habit => ({
             habit, total: Object.entries(habit.quantities).reduce((sum, [date, quantity]) =>
               dateMatches(new Date(date + "T00:00:00").getTime(), card.period, anchor) ? sum + quantity : sum, 0),
@@ -219,11 +233,13 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
               <Icon size={18} className="mt-1 shrink-0 text-[var(--life-accent)]" aria-hidden="true"/>
               <h3 className="min-w-0 break-all font-semibold">{card.title.trim() || cardRegistry[card.type].title}</h3>
             </div>
-            <p className="text-sm opacity-75">{periods[card.period]}{card.type === "lists" && card.period !== "all" ? "・依建立日期" : ""}</p>
+            <p className="text-sm opacity-75">{preset?preset.title:periods[card.period]}{!preset&&card.type === "lists" && card.period !== "all" ? "・依建立日期" : ""}</p>
             {card.type === "calendar" && <p className="text-sm opacity-75">來源為行程、任務截止及重要日期</p>}
             {card.type === "lists" && card.listId && listStatus === "ready" && <p className="break-all text-sm">{lists.find(list => list.id === card.listId)?.title ?? "原清單無法使用"}</p>}
             {card.type === "lists" && listStatus !== "ready" ? <p role="status">{listStatus === "error" ? "無法讀取清單。" : "正在載入清單…"}</p> : <>
               <p className="my-2 text-2xl font-semibold">{count}<span className="ml-1 text-sm font-normal">筆</span></p>
+              {!!numeric.length&&<p>加總 {total.toLocaleString(language)} · 平均 {(total/numeric.length).toLocaleString(language)}</p>}
+              {!!checkCount&&<p>完成 {checked}/{checkCount} · {Math.round(checked/checkCount*100)}%</p>}
               {!count && <p className="text-sm opacity-75">這段期間沒有符合條件的項目。</p>}
               {card.content === "items" && count > 0 && <ul className="divide-y divide-[var(--color-border)]">
                 {tasks.slice(0, limit).map(task => <li key={task.id} className="flex min-h-11 items-center gap-2">

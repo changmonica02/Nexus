@@ -24,10 +24,35 @@ export function accountBalances(records: FinanceRecord[], through = "9999-12-31"
   return balances;
 }
 
-export function convertFinance(amount: bigint, currency: string, prefs: FinancePayloads["preferences"]) {
-  if (currency === prefs.currency) return amount;
-  const rate = prefs.rates[currency];
-  return rate ? exchange(amount, currency, prefs.currency, rate) : null;
+function financeConverter(prefs: FinancePayloads["preferences"]) {
+  const history=new Map<string,NonNullable<FinancePayloads["preferences"]["rateHistory"]>>();
+  for(const rate of prefs.rateHistory??[]){
+    if(rate.base!==prefs.currency)continue;
+    const rows=history.get(rate.currency)??[];
+    rows.push(rate);
+    history.set(rate.currency,rows);
+  }
+  for(const rows of history.values())rows.sort((a,b)=>a.date.localeCompare(b.date));
+  return (amount:bigint,currency:string,date?:string)=>{
+    if(currency===prefs.currency)return amount;
+    const rows=date?history.get(currency):undefined;
+    let rate=prefs.rates[currency];
+    if(rows&&date){
+      let start=0,end=rows.length;
+      while(start<end){
+        const mid=(start+end)>>>1;
+        if(rows[mid].date<=date)start=mid+1;
+        else end=mid;
+      }
+      if(start===0)return null;
+      rate=rows[start-1].rate;
+    }
+    return rate?exchange(amount,currency,prefs.currency,rate):null;
+  };
+}
+
+export function convertFinance(amount: bigint, currency: string, prefs: FinancePayloads["preferences"], date?:string) {
+  return financeConverter(prefs)(amount,currency,date);
 }
 
 export function financeTotals(records: FinanceRecord[], start: string, end: string) {
@@ -36,9 +61,10 @@ export function financeTotals(records: FinanceRecord[], start: string, end: stri
   const accountById = new Map(accounts.map(row => [row.id, row.payload]));
   const balances = accountBalances(records, end);
   const missing = new Set<string>();
-  const convert = (amount: bigint, currency: string) => {
+  const converter=financeConverter(prefs);
+  const convert = (amount: bigint, currency: string, date=end) => {
     if (amount === BigInt(0)) return BigInt(0);
-    const converted = convertFinance(amount, currency, prefs);
+    const converted = converter(amount,currency,date);
     if (converted === null) missing.add(currency);
     return converted ?? BigInt(0);
   };
@@ -62,7 +88,7 @@ export function financeTotals(records: FinanceRecord[], start: string, end: stri
     if (payload.date < start || payload.date > end || payload.type !== "income" && payload.type !== "expense") continue;
     const account = accountById.get(payload.account);
     if (!account) continue;
-    const value = convert(BigInt(payload.amount), account.currency);
+    const value = convert(BigInt(payload.amount), account.currency,payload.date);
     if (payload.type === "income") income += value;
     else {
       expense += value;

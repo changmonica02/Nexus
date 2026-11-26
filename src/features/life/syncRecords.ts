@@ -111,5 +111,5 @@ export function combineDashboardConfigs(preferred: LifeDashboardConfig, recovere
     if (existing && sameBoard(existing, board)) continue;
     boards.push(existing ? { ...board, id: crypto.randomUUID(), name: board.name.slice(0, 74) + "（復原）" } : board);
   }
-  return { ...preferred, boards };
+  return { ...preferred, boards, reminders:preferred.reminders??recovered.reminders };
 }

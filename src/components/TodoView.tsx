@@ -149,7 +149,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   ...(!healthHidden?healthEvents(health,reminderDays,healthSettings??{}):[]),
  ].filter(event=>!event.completed):[];
  const reminderSource={schedule:"行程",milestones:"重要日期",habits:"習慣",finance:"財務",health:"健康",tasks:"待辦",taskStart:"待辦"};
- const reminderId=(event:LifeCalendarEvent)=>JSON.stringify([event.source,event.sourceId,event.date,event.occurrence??"",event.title]);
+ const reminderId=(event:LifeCalendarEvent)=>JSON.stringify([event.source,event.sourceId,event.date,event.occurrence??""]);
  const reminderItems=[
   ...reminderEvents.map(event=>({id:reminderId(event),title:event.title,day:localDateInput(new Date(event.date)),source:reminderSource[event.source],priority:1})),
   ...(!tasksHidden?todos.flatMap(task=>!task.completed&&task.due_date!=null?[{id:"task:"+task.id,title:task.title,day:localDateInput(new Date(task.due_date)),source:"待辦",priority:task.due_date<today.getTime()?2:1}]:[]):[]),
@@ -209,11 +209,23 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
       sessions={studySessions.map(session=>({id:session.id,title:(pages.find(page=>page.id===session.deck_id)?.title??'學習紀錄')+' '+new Date(session.ended_at??session.completed_at??0).toLocaleDateString(language)}))}
       save={repository?result=>repository.saveTimerResult({...result,workspace_owner_id:owner,revision:0,created_at:Date.now(),updated_at:Date.now(),deleted_at:null}):undefined}/>:state.tab==='schedule'?
       <SchedulePanel events={appointments} locale={language} create={createSchedule} edit={event=>{setOccurrence(undefined);setEventEditor(event);}}/>:state.tab==='milestones'?
-      <MilestonesPanel events={milestones} anchor={selected} open={setEventEditor} create={createMilestone}/>:state.tab==='lists'&&storage?<LifeLists storage={storage} startCreating={quickList}/>:<>
+      <MilestonesPanel events={milestones} anchor={selected} open={setEventEditor} create={createMilestone}/>:state.tab==='lists'&&storage?<LifeLists storage={storage} startCreating={quickList}
+       relations={[
+        ...(!tasksHidden?todos.map(task=>({kind:"task" as const,id:task.id,title:task.title})):[]),
+        ...(!scheduleHidden?appointments.map(event=>({kind:"schedule" as const,id:event.id,title:event.title})):[]),
+        ...(!milestonesHidden?milestones.map(event=>({kind:"milestone" as const,id:event.id,title:event.title})):[]),
+       ]}
+       openRelation={target=>{
+        if(target.kind==="task"){open(target.id);return;}
+        const event=events.find(row=>row.id===target.id);
+        if(event){setOccurrence(undefined);setEventEditor(event);}
+       }}/>:<>
      <div className="flex flex-wrap items-center gap-2"><label className="flex max-w-full items-center gap-2 text-sm">{t('life.date')}<input aria-label={t('life.date')} type="date" value={localDateInput(selected)} onChange={event=>{if(event.target.value)setDate(new Date(event.target.value+'T00:00:00'));}} className="min-h-11 min-w-0 max-w-full rounded border bg-transparent px-2"/></label><button type="button" className={button} onClick={()=>setDate(today)}>{t('todo.today')}</button></div>
      {state.tab!=='overview'&&!dashboard.config.hiddenModules.includes('tasks')&&<form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();void add();}}><input ref={quickTaskInput} aria-label={t('life.newTitle')} maxLength={500} disabled={busy} placeholder={t('life.newTitle')} value={input} onChange={event=>setInput(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/><button disabled={busy||!input.trim()} className={button}>{t('todo.add')}</button></form>}
      {error&&<p role="alert">{error}</p>}
-     {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems} open={id=>{
+     {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
+      tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,day:localDateInput(new Date(task.updated_at??task.created_at))}))}
+      synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{
        if(id.startsWith("task:"))open(id.slice(5));
        else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
      }}/>}

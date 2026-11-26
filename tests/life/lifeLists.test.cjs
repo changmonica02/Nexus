@@ -28,6 +28,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261126160000_life_health_core.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126170000_life_sensitive_health.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126171000_life_list_field_types.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261126180000_life_list_configuration.sql", "utf8"));
   await pg.query("insert into auth.users values($1),($2)", [owner, other]);
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
@@ -546,4 +547,46 @@ test("extended custom fields synchronize through the SQL validator", async () =>
     await b.close();
     await pg.close();
   }
+});
+
+test("list configuration syncs and required fields protect new edits without rewriting old items", async () => {
+  const pg=await setup(), a=await device(), b=await device(), remote=client(pg);
+  try {
+    const source=a.getLifeRepository();
+    const row={...lifeBase(owner,"驗證清單"),schema_version:1,fields:[{id:"name",name:"名稱",type:"text",required:true}],
+      configuration:{icon:"★",cover:"sage",statistics:[{id:"daily",title:"每日",field:"",start:"",end:"",group:"day",chart:"numbers"}]}};
+    await source.save("life_lists",row);
+    const item={...lifeBase(owner,"資料"),list_id:row.id,category_id:null,schema_version:1,values:{},attachment_ids:[]};
+    await assert.rejects(source.save("life_items",item),/必要欄位/);
+    await flushWorkspace(remote,a.getWorkspacePersistence(),owner);
+    await assert.rejects(rpc(pg,"life_items",item),/Missing required list field/);
+    await source.save("life_items",{...item,values:{name:"已填"}});
+    await flushWorkspace(remote,a.getWorkspacePersistence(),owner);
+    await pullWorkspace(remote,b.getWorkspacePersistence(),owner);
+    const target=await b.getLifeRepository().read();
+    assert.deepEqual(target.life_lists[0].configuration,row.configuration);
+    assert.equal(target.life_items[0].values.name,"已填");
+  } finally {
+    await a.close();await b.close();await pg.close();
+  }
+});
+
+test("type conversion copies compatible values and keeps archived source data across sync",async()=>{
+  const pg=await setup(),a=await device(),b=await device(),remote=client(pg);
+  try{
+    const source=a.getLifeRepository();
+    const row={...lifeBase(owner,"欄位轉換"),schema_version:1,fields:[{id:"cost",name:"金額",type:"text"}]};
+    await source.save("life_lists",row);
+    await source.save("life_items",{...lifeBase(owner,"記錄"),list_id:row.id,category_id:null,schema_version:1,values:{cost:"12.25"},attachment_ids:[]});
+    const current=await source.read();
+    await source.convertField(current.life_lists[0],"cost","number",current.life_items);
+    await flushWorkspace(remote,a.getWorkspacePersistence(),owner);
+    await pullWorkspace(remote,b.getWorkspacePersistence(),owner);
+    const target=await b.getLifeRepository().read();
+    const [old,replacement]=target.life_lists[0].fields;
+    assert.equal(old.archived,true);
+    assert.equal(replacement.type,"number");
+    assert.equal(target.life_items[0].values.cost,"12.25");
+    assert.equal(target.life_items[0].values[replacement.id],12.25);
+  }finally{await a.close();await b.close();await pg.close();}
 });

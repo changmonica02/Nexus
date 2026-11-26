@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { Formula, StatisticPreset } from "./listConfiguration";
 import type { LifeField, LifeItem } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 import { control, surface } from "./dashboard/styles";
@@ -14,7 +15,11 @@ function groups<T>(items:T[], key:(item:T)=>string) {
   return grouped;
 }
 
-export default function LifeRecordSummary({fields,items,categories,open}:{fields:LifeField[];items:LifeItem[];categories:{id:string;title:string}[];open:(item:LifeItem)=>void}){
+export default function LifeRecordSummary({fields,items,categories,open,presets,savePresets,formulaValue}:{fields:LifeField[];items:LifeItem[];categories:{id:string;title:string}[];open:(item:LifeItem)=>void;presets:StatisticPreset[];savePresets:(presets:StatisticPreset[])=>Promise<void>;formulaValue:(formula:Formula,values:Record<string,unknown>)=>number|null}){
+  const [presetName,setPresetName]=useState("");
+  const [activePreset,setActivePreset]=useState("");
+  const [error,setError]=useState("");
+  const [saving,setSaving]=useState(false);
   const [fieldId,setField]=useState("");
   const [start,setStart]=useState("");
   const [end,setEnd]=useState("");
@@ -27,7 +32,7 @@ export default function LifeRecordSummary({fields,items,categories,open}:{fields
   const dateField=active.find(field=>field.type==="date");
   const dateOf=(item:LifeItem)=>dateField?String(item.values[dateField.id]??""):new Date(item.created_at).toLocaleDateString("sv-SE");
   const filtered=items.filter(item=>(!start||dateOf(item)>=start)&&(!end||dateOf(item)&&dateOf(item)<=end));
-  const values=field?filtered.map(item=>item.values[field.id]):[];
+  const values=field?filtered.map(item=>field.formula?formulaValue(field.formula,item.values):item.values[field.id]):[];
   const numbers=values.filter((value):value is number=>typeof value==="number"&&Number.isFinite(value));
   const sum=numbers.reduce((total,value)=>total+value,0);
   const checked=values.filter(value=>value===true).length;
@@ -54,6 +59,29 @@ export default function LifeRecordSummary({fields,items,categories,open}:{fields
         <option value="">僅統計筆數</option>{active.filter(field=>["number","rating","duration","checkbox"].includes(field.type)).map(field=><option key={field.id} value={field.id}>{field.name}</option>)}
       </select></label>}
     </div>
+    {mode==="stats"&&<div className="mt-3 flex flex-wrap gap-2">
+      <label className="grid gap-1">統計設定<select className={control} value={activePreset} onChange={event=>{
+        const id=event.target.value;setActivePreset(id);
+        const selected=presets.find(row=>row.id===id);
+        if(selected){setPresetName(selected.title);setField(selected.field);setStart(selected.start);setEnd(selected.end);setGroup(selected.group);setChart(selected.chart);}
+        else setPresetName("");
+      }}><option value="">新設定</option>{presets.map(row=><option key={row.id} value={row.id}>{row.title}</option>)}</select></label>
+      <label className="grid gap-1">設定名稱<input className={control} maxLength={100} value={presetName} onChange={event=>setPresetName(event.target.value)}/></label>
+      <button className={control+" self-end"} disabled={saving||!presetName.trim()||(!activePreset&&presets.length>=12)} type="button" onClick={async()=>{
+        setSaving(true);setError("");
+        const id=activePreset||crypto.randomUUID();
+        try{await savePresets([...presets.filter(row=>row.id!==id),{id,title:presetName.trim(),field:fieldId,start,end,group,chart}]);setActivePreset(id);}
+        catch(error){setError(error instanceof Error?error.message:"無法儲存統計設定");}
+        finally{setSaving(false);}
+      }}>儲存統計設定</button>
+      {activePreset&&<button className={control+" self-end"} disabled={saving} type="button" onClick={async()=>{
+        setSaving(true);setError("");
+        try{await savePresets(presets.filter(row=>row.id!==activePreset));setActivePreset("");setPresetName("");}
+        catch(error){setError(error instanceof Error?error.message:"無法刪除統計設定");}
+        finally{setSaving(false);}
+      }}>刪除統計設定</button>}
+    </div>}
+    {error&&<p role="alert">{error}</p>}
     <p className="my-2">{filtered.length} 筆 · 日期來源：{dateField?.name??"建立日期"}</p>
     {mode==="stats"?<>
       {numbers.length>0&&<p>加總 {sum.toLocaleString()} · 平均 {(sum/numbers.length).toLocaleString()} · 最小 {numbers.reduce((a,b)=>Math.min(a,b))} · 最大 {numbers.reduce((a,b)=>Math.max(a,b))}</p>}

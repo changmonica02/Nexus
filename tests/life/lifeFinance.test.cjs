@@ -59,3 +59,20 @@ test("repeat rules retain monthly anchor, handle weekly exceptions and preserve 
  assert.deepEqual(result.map(item=>item.key),["2026-03-01","2026-03-08","2026-03-22"]);
  assert.deepEqual(result.map(item=>new Date(item.event.starts_at).getUTCHours()),[14,13,13]);
 });
+
+test("historical cash flow uses transaction-date rates and excludes future rates",()=>{
+ const records=[account("usd","wallet","USD","0"),
+   financeRow(owner,"preferences",{currency:"TWD",rates:{USD:"99"},categories:[],rateHistory:[
+     {date:"2026-01-15",base:"TWD",currency:"USD",rate:"30"},
+     {date:"2026-02-01",base:"TWD",currency:"USD",rate:"35"},
+   ]},preferencesId(owner)),
+   transaction("january","expense","usd","100"),
+   {...transaction("early","expense","usd","100"),payload:{...transaction("early","expense","usd","100").payload,date:"2026-01-01"}},
+ ];
+ const january=financeTotals(records,"2026-01-01","2026-01-31");
+ assert.equal(january.expense,3000n);
+ assert.deepEqual(january.missing,["USD"]);
+ const february=financeTotals(records,"2026-01-01","2026-02-28");
+ assert.equal(february.expense,3000n);
+ assert.equal(february.debts,7000n);
+});

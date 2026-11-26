@@ -85,3 +85,16 @@ test("reminders have stable per-date identities, priority and reversible visibil
   assert.deepEqual(visibleReminders([reminder,urgent,reminder],{},day,0,"").map(row=>row.id),["late",reminder.id]);
   assert.deepEqual(visibleReminders([reminder],{[reminder.id]:{hiddenUntil:"2026-11-27"}},day,0,""),[]);
 });
+
+test("reminder rules honor completion and retain stable identity after editing the task",()=>{
+  const {ruleOccurrence,isReminderPreferences,visibleReminders}=require("../../src/features/life/reminderModel.ts");
+  const rule={id:"a",title:"整理資料",start:"2026-11-26",interval:1,enabled:true,trigger:"task-completed",task:"t"};
+  const date="2026-11-26";
+  assert.equal(ruleOccurrence(rule,date,[{id:"t",completed:false,day:date}]),null);
+  const row=ruleOccurrence(rule,date,[{id:"t",completed:true,day:date}]);
+  const edited=ruleOccurrence(rule,date,[{id:"t",completed:true,day:"2026-11-27"}]);
+  assert.equal(row.id,edited.id);
+  assert.equal(visibleReminders([row],{[row.id]:{priority:3}},date,0,"")[0].priority,3);
+  assert.equal(isReminderPreferences({lead:1,rules:[rule],status:{[row.id]:{priority:3,handled:true}}}),true);
+  assert.equal(isReminderPreferences({lead:1,rules:[{...rule,start:"2026-02-30"}],status:{}}),false);
+});

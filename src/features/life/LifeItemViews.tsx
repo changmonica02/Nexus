@@ -1,4 +1,5 @@
 "use client";
+import { evaluateFormula, type StatisticPreset } from "./listConfiguration";
 import LifeRecordSummary from "./LifeRecordSummary";
 import { useEffect, useMemo, type ReactNode } from "react";
 import {
@@ -59,6 +60,7 @@ export default function LifeItemViews({
   onRemove,
   busy,
   onCategoryChange,
+  saveStatistics,
 }: {
   list: LifeList;
   items: LifeItem[];
@@ -68,6 +70,7 @@ export default function LifeItemViews({
   onEdit: (item: LifeItem) => void;
   onRemove: (item: LifeItem) => void;
   busy: boolean;
+  saveStatistics: (presets:StatisticPreset[])=>Promise<void>;
   onCategoryChange: (id: string) => void;
 }) {
   const { language } = useLanguage(),
@@ -113,7 +116,7 @@ export default function LifeItemViews({
         },
         ...fields.map((f) => ({
           id: fieldKey(f),
-          accessorFn: (r: LifeItem) => r.values[f.id],
+          accessorFn: (r: LifeItem) => f.formula?evaluateFormula(f.formula,r.values):r.values[f.id],
           header: f.name,
           getGroupingValue: (r: LifeItem) => displayValue(r.values[f.id]),
         })),
@@ -368,7 +371,9 @@ export default function LifeItemViews({
           </button>
         </div>
       </details>
-      <LifeRecordSummary fields={list.fields} categories={categories} items={table.getFilteredRowModel().flatRows.map(row=>row.original)} open={onEdit}/>
+      <LifeRecordSummary fields={list.fields} categories={categories} presets={list.configuration?.statistics??[]} savePresets={saveStatistics}
+        items={table.getFilteredRowModel().flatRows.map(row=>row.original)}
+        open={onEdit} formulaValue={evaluateFormula}/>
       {prefs.view === "tree" && (
         <CategoryTree
           categories={categories}

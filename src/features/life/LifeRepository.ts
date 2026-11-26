@@ -1,9 +1,10 @@
+import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
 import { subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
 import { WorkspacePersistence } from "../../infrastructure/sync/workspacePersistence";
-import { LIFE_STORES, emptyLife, type LifeData, type LifeRecord, type LifeStore } from "./lists";
+import { LIFE_STORES, emptyLife, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
 import { dashboardSettingsKey, isDashboardConfig, sameConfig, type LifeDashboardConfig } from "./dashboard/model";
 
 import { dashboardId, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "./syncRecords";
@@ -211,6 +212,27 @@ export class LifeRepository {
   async save(type: LifeStore, value: LifeRecord) {
     if (value.workspace_owner_id !== this.owner()) throw Error("帳號已切換");
     await new WorkspacePersistence(this.db).mutate(this.owner(), [{ type, kind: "save", value }]);
+  }
+  async convertField(list:LifeList,fieldId:string,target:"text"|"number",items:LifeItem[]) {
+    const owner=this.owner();
+    if(list.workspace_owner_id!==owner)throw Error("帳號已切換");
+    const original=list.fields.find(field=>field.id===fieldId&&!field.archived&&!field.formula);
+    if(!original||!(target==="text"?original.type==="number":["text","longtext"].includes(original.type)))throw Error("不支援這組型別轉換");
+    const current=(await this.read()).life_items.filter(item=>item.list_id===list.id&&item.deleted_at==null);
+    const revisions=new Map(items.map(item=>[item.id,item.revision]));
+    if(current.length!==items.length||current.some(item=>revisions.get(item.id)!==item.revision)||this.owner()!==owner)throw Error("項目已更新，請重新預覽");
+    const preview=previewFieldConversion(current,fieldId,target);
+    if(preview.rejected.length)throw Error("仍有內容無法轉換");
+    const id=crypto.randomUUID(), version=list.schema_version+1, stamp=Date.now();
+    const updated={...list,schema_version:version,updated_at:stamp,fields:list.fields.flatMap(field=>field.id===fieldId?
+      [{...field,archived:true},{id,name:field.name,type:target}]:[field])};
+    await new WorkspacePersistence(this.db).mutate(owner,[
+      {type:"life_lists",kind:"save",value:updated},
+      ...current.filter(item=>Object.hasOwn(preview.converted,item.id)).map(item=>({
+        type:"life_items" as const, kind:"save" as const,
+        value:{...item,schema_version:version,updated_at:stamp,values:{...item.values,[id]:preview.converted[item.id]}},
+      })),
+    ]);
   }
   async remove(type: LifeStore, value: LifeRecord) {
     const data = await this.read();

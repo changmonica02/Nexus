@@ -12,7 +12,7 @@ export type FinancePayloads = {
     limit: string; statementDay: number; paymentDay: number; due: string };
   transaction: Common & { type: keyof typeof transactionKinds; date: string; amount: string; account: string; target: string;
     targetAmount: string; category: string; attachment: string; source: string };
-  preferences: { currency: string; rates: Record<string, string>; categories: string[]; hiddenSections?: OptionalFinanceSection[] };
+  preferences: { currency: string; rates: Record<string, string>; rateHistory?:{date:string;base:string;currency:string;rate:string}[]; categories: string[]; hiddenSections?: OptionalFinanceSection[] };
   budget: Common & { month: string; category: string; amount: string; currency: string };
   subscription: Common & { amount: string; currency: string; cycle: "week" | "month" | "quarter" | "year" | "custom"; interval: number;
     anchorDay: number; next: string; account: string; category: string; state: "active" | "paused" | "cancelled";
@@ -68,6 +68,10 @@ export function validateFinance(row: FinanceRecord) {
     case "preferences":
       valid = row.id === preferencesId(row.workspace_owner_id) && Array.isArray(row.payload.categories)
         && (row.payload.hiddenSections===undefined||Array.isArray(row.payload.hiddenSections)&&row.payload.hiddenSections.every(key=>Object.hasOwn(optionalFinanceSections,key)))
+        && (row.payload.rateHistory===undefined||Array.isArray(row.payload.rateHistory)&&row.payload.rateHistory.length<=1000
+          &&new Set(row.payload.rateHistory.map(rate=>rate&&JSON.stringify([rate.base,rate.currency,rate.date]))).size===row.payload.rateHistory.length
+          &&row.payload.rateHistory.every(rate=>rate&&currencies.includes(rate.base)&&currencies.includes(rate.currency)&&rate.base!==rate.currency
+            &&typeof rate.date==="string"&&financeDate(rate.date)&&typeof rate.rate==="string"&&decimalUnits(rate.rate,8)>BigInt(0)))
         && Object.entries(row.payload.rates).every(([currency, rate]) => currencies.includes(currency) && decimalUnits(rate, 8) > BigInt(0));
       break;
     case "budget": valid = financeDate(row.payload.month + "-01") && units(row.payload.amount); break;

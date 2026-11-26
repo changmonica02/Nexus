@@ -30,6 +30,9 @@ function PreferenceEditor({ prefs, row, owner, repository }: {
   const [categoryText, setCategoryText] = useState(prefs.categories.join("\n"));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [historyDate,setHistoryDate]=useState("");
+  const [historyCurrency,setHistoryCurrency]=useState("");
+  const [historyRate,setHistoryRate]=useState("");
   return <form className={surface + " space-y-4"} onSubmit={async event => {
     event.preventDefault();
     if (busy) return;
@@ -49,6 +52,25 @@ function PreferenceEditor({ prefs, row, owner, repository }: {
     <div className="grid gap-2 sm:grid-cols-3">{currencies.filter(code => code !== draft.currency).map(code =>
       <label className="grid gap-1" key={code}>{code} 匯率<input className={control} inputMode="decimal" placeholder="未設定" value={draft.rates[code] ?? ""}
         onChange={event => setDraft({ ...draft, rates: { ...draft.rates, [code]: event.target.value } })}/></label>)}</div>
+    <details><summary>歷史匯率</summary>
+      <p className="my-2 text-sm">同一幣別有歷史匯率時，報表依交易日或結算日採用當日以前最近的一筆。</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="grid gap-1">生效日期<input className={control} type="date" value={historyDate} onChange={event=>setHistoryDate(event.target.value)}/></label>
+        <label className="grid gap-1">外幣<select className={control} value={historyCurrency} onChange={event=>setHistoryCurrency(event.target.value)}>
+          <option value="">請選擇</option>{currencies.filter(code=>code!==draft.currency).map(code=><option key={code}>{code}</option>)}
+        </select></label>
+        <label className="grid gap-1">歷史匯率<input className={control} inputMode="decimal" value={historyRate} onChange={event=>setHistoryRate(event.target.value)}/></label>
+        <button type="button" className={control} disabled={!historyDate||!historyCurrency||historyCurrency===draft.currency||!historyRate.trim()} onClick={()=>{
+          const next={base:draft.currency,currency:historyCurrency,date:historyDate,rate:historyRate.trim()};
+          const history=(draft.rateHistory??[]).filter(rate=>rate.base!==next.base||rate.currency!==next.currency||rate.date!==next.date);
+          setDraft({...draft,rateHistory:[...history,next]});setHistoryRate("");
+        }}>加入或更新匯率</button>
+      </div>
+      <ul className="my-2 space-y-1">{(draft.rateHistory??[]).map((rate,index)=><li key={rate.base+":"+rate.currency+":"+rate.date} className="flex flex-wrap items-center gap-2">
+        <span>{rate.date} · 1 {rate.currency} = {rate.rate} {rate.base}</span>
+        <button type="button" className={control} onClick={()=>setDraft({...draft,rateHistory:draft.rateHistory?.filter((_,i)=>i!==index)})}>移除匯率</button>
+      </li>)}</ul>
+    </details>
     <fieldset className="flex flex-wrap gap-3"><legend className="font-semibold">啟用子功能</legend>
       {(Object.keys(optionalFinanceSections) as (keyof typeof optionalFinanceSections)[]).map(key=><label key={key} className="flex min-h-11 items-center gap-2">
         <input type="checkbox" checked={!draft.hiddenSections?.includes(key)} onChange={event=>setDraft({

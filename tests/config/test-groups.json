@@ -158,9 +158,17 @@
       "tests/creation/score.test.cjs"
     ],
     "life": [
+      "tests/life/lifeDashboard.browser.test.cjs",
+      "tests/life/lifeDashboard.test.cjs",
+      "tests/life/lifeFinance.browser.test.cjs",
+      "tests/life/lifeFinance.test.cjs",
+      "tests/life/lifeHealth.browser.test.cjs",
+      "tests/life/lifeHealth.test.cjs",
       "tests/life/lifeLists.browser.test.cjs",
       "tests/life/lifeLists.test.cjs",
       "tests/life/lifeStorage.test.cjs",
+      "tests/life/lifeSensitive.browser.test.cjs",
+      "tests/life/lifeTime.test.cjs",
       "tests/life/lifeViews.browser.test.cjs",
       "tests/life/lifeViews.test.cjs",
       "tests/life/todoCalendar.test.cjs"

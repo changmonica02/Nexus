@@ -1,3 +1,4 @@
+import { isReminderPreferences, type ReminderPreferences } from "../reminderModel";
 import { financeCards } from "../finance/cardCatalog";
 import { addDays, startOfMonth } from "../../../lib/todoCalendar";
 import type { Page } from "../../../lib/types";
@@ -43,10 +44,11 @@ export type Card = {
   status: keyof typeof statuses;
   content: "summary" | "items";
   listId: string;
+  statisticId?:string;
   hidden: boolean;
 };
 export type Board = { id: string; name: string; cards: Card[] };
-export type LifeDashboardConfig = { version: 1; defaultId: string; boards: Board[]; hiddenModules: LifeModule[] };
+export type LifeDashboardConfig = { version: 1; defaultId: string; boards: Board[]; hiddenModules: LifeModule[]; reminders?:ReminderPreferences };
 
 export function newCard(type: CardType): Card {
   return {
@@ -83,11 +85,13 @@ function isCard(value: unknown): value is Card {
     && typeof value.period === "string" && Object.hasOwn(periods, value.period)
     && typeof value.status === "string" && Object.hasOwn(statuses, value.status)
     && (value.content === "summary" || value.content === "items")
+    && (value.statisticId===undefined||isText(value.statisticId,80))
     && isText(value.listId, 100) && typeof value.hidden === "boolean";
 }
 
 export function isDashboardConfig(value: unknown): value is LifeDashboardConfig {
   return isRecord(value) && value.version === 1 && typeof value.defaultId === "string"
+    && (value.reminders===undefined||isReminderPreferences(value.reminders))
     && Array.isArray(value.hiddenModules) && value.hiddenModules.every(id => lifeModuleIds.includes(id))
     && Array.isArray(value.boards) && value.boards.length > 0
     && new Set(value.boards.map(board => isRecord(board) && board.id)).size === value.boards.length
@@ -101,11 +105,20 @@ export function isDashboardConfig(value: unknown): value is LifeDashboardConfig 
 export function sameBoard(a: Board, b: Board) {
   return a.id === b.id && a.name === b.name && a.cards.length === b.cards.length
     && a.cards.every((card, index) => Object.entries(card).every(([key, value]) =>
-      b.cards[index][key as keyof Card] === value));
+      b.cards[index][key as keyof Card] === value)
+      && Object.keys(card).length===Object.keys(b.cards[index]).length);
+}
+
+function stableReminderJSON(value:unknown) {
+  return JSON.stringify(value??null,(_key,entry)=>{
+    if(entry&&typeof entry==="object"&&!Array.isArray(entry))
+      return Object.fromEntries(Object.entries(entry).sort(([a],[b])=>a.localeCompare(b)));
+    return entry;
+  });
 }
 
 export function sameConfig(a: LifeDashboardConfig, b: LifeDashboardConfig) {
-  return a.defaultId === b.defaultId && a.hiddenModules.join() === b.hiddenModules.join()
+  return stableReminderJSON(a.reminders)===stableReminderJSON(b.reminders) && a.defaultId === b.defaultId && a.hiddenModules.join() === b.hiddenModules.join()
     && a.boards.length === b.boards.length && a.boards.every((board, index) => sameBoard(board, b.boards[index]));
 }
 

@@ -113,12 +113,17 @@ export default function DashboardEditor({ config, activeId, lists, eventSources,
             {card.type !== "timer" && <label className="grid gap-1">統計期間<select className={control} value={card.period} onChange={event => patchCard(card.id, { period: event.target.value as Card["period"] })}>
               {Object.entries(periods).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select></label>}
-            {card.type === "lists" ? <label className="grid gap-1">資料來源<select className={control} value={card.listId} onChange={event => patchCard(card.id, { listId: event.target.value })}>
+            {card.type === "lists" ? <label className="grid gap-1">資料來源<select className={control} value={card.listId} onChange={event => patchCard(card.id, { listId: event.target.value, statisticId:"" })}>
               <option value="">所有清單</option>
               {!!card.listId && !lists.some(list => list.id === card.listId) && <option value={card.listId}>原清單無法使用</option>}
               {lists.map(list => <option key={list.id} value={list.id}>{list.title}</option>)}
             </select></label> : card.type !== "schedule" && card.type !== "milestones" && card.type !== "habits" && card.type !== "timer" && !isFinanceCard(card.type) && <label className="grid gap-1">完成狀態<select className={control} value={card.status} onChange={event => patchCard(card.id, { status: event.target.value as Card["status"] })}>
               {Object.entries(statuses).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select></label>}
+            {card.type==="lists"&&card.listId&&<label className="grid gap-1">清單統計設定<select className={control} value={card.statisticId??""} onChange={event=>patchCard(card.id,{statisticId:event.target.value})}>
+              <option value="">一般清單摘要</option>
+              {lists.find(list=>list.id===card.listId)?.configuration?.statistics?.map(preset=><option key={preset.id} value={preset.id}>{preset.title}</option>)}
+              {card.statisticId&&!lists.find(list=>list.id===card.listId)?.configuration?.statistics?.some(preset=>preset.id===card.statisticId)&&<option value={card.statisticId}>統計設定已移除</option>}
             </select></label>}
             {(card.type === "schedule" || card.type === "milestones" || card.type === "habits") && <label className="grid gap-1">
               {card.type === "schedule" ? "行程分類" : "資料來源"}<select className={control} value={card.listId}

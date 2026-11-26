@@ -5,7 +5,7 @@ import { nextTaskId, nextTaskOccurrence } from "../../features/life/taskRepeat";
 import { dashboardSettingsKey, isDashboardConfig, type LifeDashboardConfig } from "../../features/life/dashboard/model";
 import type { IDBPTransaction } from "idb";
 import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult } from "../../features/life/syncRecords";
-import {LIFE_STORES,emptyLife,validateLife,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
+import {LIFE_STORES,emptyLife,validateLife,validateRequiredFields,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
 import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
@@ -129,6 +129,10 @@ export class WorkspacePersistence {
       const metadata = tx.objectStore("workspace_sync_meta");
       const queued = await outbox.getAll() as WorkspaceBatch[];
       const operations: WorkspaceOperation[] = [];
+      const pendingByEntity=new Map<string,WorkspaceOperation>();
+      for(const batch of queued.filter(batch=>batch.owner_id===owner).sort((a,b)=>a.sequence-b.sequence)){
+        for(const operation of batch.operations)pendingByEntity.set(key(owner,operation.entity_type,operation.entity_id),operation);
+      }
       for (const change of work) {
         const { type, kind } = change;
         const value = type==='pages'?withoutRetiredStudyItems(structuredClone(change.value)):structuredClone(change.value);
@@ -149,6 +153,7 @@ export class WorkspacePersistence {
           if (type === 'life_items' && kind === 'save') {
             const list=await tx.objectStore('life_lists').get((value as LifeItem).list_id);
             if (!list || list.schema_version !== (value as LifeItem).schema_version) throw Error('清單欄位已更新，請重新載入');
+            validateRequiredFields(list as LifeList,value as LifeItem);
           }
         }
         const repeatId = type === "pages" && kind === "save" ? repeatIds.get(value.id) : undefined;
@@ -163,14 +168,14 @@ export class WorkspacePersistence {
         if (meta?.hard_deleted) throw new Error("此物件已永久刪除，不能重新儲存。");
         if (kind === "save" && (old?.deleted_at != null || value.deleted_at != null)) throw new Error("已刪除物件只能透過還原操作恢復。");
         if (kind !== "save" && !old) throw new Error("Workspace object not found");
-        const previous = queued.filter(b => b.owner_id === owner).sort((a, b) => a.sequence - b.sequence)
-          .flatMap(b => b.operations).concat(operations).filter(op => op.entity_type === type && op.entity_id === value.id).at(-1);
+        const previous=pendingByEntity.get(metaId);
         // Existing, pre-outbox caches are not new objects: a missing cloud row must conflict.
         const revision = previous ? previous.expected_revision + 1 : meta?.revision ?? (old ? ("revision" in old ? old.revision ?? 1 : 1) : 0);
         const op: WorkspaceOperation = { id: crypto.randomUUID(), entity_type: type, entity_id: value.id, kind, expected_revision: revision };
         if (kind === "save") op.value = value;
         if (kind === "binary") op.data = change.data;
         operations.push(op);
+        pendingByEntity.set(metaId,op);
         await metadata.put({ ...meta, id: metaId, owner_id: owner, revision: meta?.revision ?? revision, hard_deleted: kind === "hard_delete" });
         if (kind === "hard_delete") {
           await store.delete(value.id);
