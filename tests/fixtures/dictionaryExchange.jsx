@@ -281,18 +281,30 @@ window.dictionaryClient = {
           const bundle = candidate.bundle;
           const entry = bundle.dictionary_entries[0];
           const old = server.records.find((r) => r.snapshot.detail.entry.id === entry.id);
+          const updatedAt = new Date().toISOString();
+          const withServerFields = (items = []) => items.map((item) => ({
+            ...item,
+            revision: (item.revision ?? 0) + 1,
+            updated_at: updatedAt,
+          }));
           const saved = {
             snapshot: {
               detail: {
-                entry: { ...entry, status: "draft", revision: (old?.snapshot.detail.entry.revision ?? 0) + 1, updated_at: new Date().toISOString() },
-                senses: bundle.dictionary_senses,
-                relations: bundle.dictionary_relations,
-                etymologies: bundle.dictionary_etymologies,
-                learning_notes: bundle.dictionary_learning_notes,
-                examples: candidate.examples,
-                pronunciations: candidate.pronunciations,
-                derivations: bundle.dictionary_derivations ?? [],
-                public_notes: bundle.dictionary_public_notes ?? [],
+                entry: {
+                  ...entry,
+                  status: "draft",
+                  published_at: null,
+                  revision: (old?.snapshot.detail.entry.revision ?? 0) + 1,
+                  updated_at: updatedAt,
+                },
+                senses: withServerFields(bundle.dictionary_senses),
+                relations: withServerFields(bundle.dictionary_relations),
+                etymologies: withServerFields(bundle.dictionary_etymologies),
+                learning_notes: withServerFields(bundle.dictionary_learning_notes),
+                examples: withServerFields(candidate.examples),
+                pronunciations: withServerFields(candidate.pronunciations),
+                derivations: withServerFields(candidate.derivations),
+                public_notes: withServerFields(candidate.public_notes),
               },
               metadata: null,
             },

@@ -35,10 +35,10 @@ const mapTools=[
  {key:'rivers',icon:Droplets,zh:'河流',en:'Rivers'},
 ] as const;
 
-export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,repository,beforeSave,onSaved,onClose,registerFlush,cloudState,editing=true,onEdit,previewFooter,mapSelector}:{
+export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,repository,beforeSave,onSaved,onClose,registerFlush,cloudState,editing=true,mapSelector}:{
  map:WorldMapRecord;blob:Blob|null;draftToken?:string;draftConflict?:{token:string;blob:Blob};repository:WorldMapRepository;
  beforeSave:()=>Promise<void>;onSaved:(page:Page)=>Promise<void>;onClose:()=>void;registerFlush?:RegisterMapFlush;
- cloudState?:{status:string;error?:string|null;pendingPushes?:number};editing?:boolean;onEdit?:()=>void;previewFooter?:ReactNode;mapSelector?:ReactNode;
+ cloudState?:{status:string;error?:string|null;pendingPushes?:number};editing?:boolean;mapSelector?:ReactNode;
 }){
  const {language}=useLanguage(),text=globalMapText(language);
  const [model,setModel]=useState<GlobalMapResult>(),[candidate,setCandidate]=useState<GlobalMapResult>();
@@ -206,7 +206,6 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
     {editing&&<><button disabled={busy||!!conflict||replacing||dirty} onClick={()=>{setPainting(false);setPanel(null);setSettings(current.current!.project.settings);setReplacing(true);setCandidate(undefined);}}>{text('replace')}</button><button disabled={busy||!!conflict||replacing||!dirty} onClick={()=>void saveRef.current().catch(()=>{})}>{text('save')}</button><button disabled={busy||painting||riverDirty||!!conflict||replacing||!model.project.environmentTerrain} onClick={()=>void naturalAction('recalculateNature').catch(()=>{})}>{language==='zh-TW'?'重新計算自然環境':'Recalculate natural environment'}</button></>}
     <button disabled={busy} onClick={()=>downloadMapBlob(globalMapBlob(current.current!.project),map.title,'nexus-map.json')}>{text('export')}</button>
    </div></details>}
-   {!editing&&onEdit&&<button disabled={busy||!model} onClick={onEdit}>{text('edit')}</button>}
    {!editing&&!fullView&&<button onClick={()=>setFullView(true)}>{text('readonly')}</button>}
   </header>
   {error&&<p role="alert" className="shrink-0 break-words p-3 text-red-600">{naturalError||text(model?'failed':'loadFailed')}</p>}
@@ -244,7 +243,6 @@ export default function GlobalWorldMapEditor({map,blob,draftToken,draftConflict,
    </div>
   </div>
 
-  {!editing&&previewFooter}
   <WorldMapSyncStatus localLabel={model?(dirty?text('pending'):text('saved')):text(working?'busy':'missing')} cloudState={cloudState}/>
   {infoOpen&&model&&<ModalDialog aria-label={language==='zh-TW'?'詳細資訊':'Map information'} dismissOnBackdrop onDismiss={()=>setInfoOpen(false)} className="w-[min(94vw,32rem)] rounded-xl border bg-[var(--color-bg)] p-5 text-[var(--color-text)] backdrop:bg-black/40"><header className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">{language==='zh-TW'?'詳細資訊':'Map information'}</h2><button aria-label={language==='zh-TW'?'關閉':'Close'} className="min-h-11 min-w-11" onClick={()=>setInfoOpen(false)}><X size={20}/></button></header><dl className="grid grid-cols-2 gap-3 text-sm">{(language==='zh-TW'?[
  ['陸地佔比',`${model.drawing.landPercent.toFixed(3)}%`],['陸地面積',`${Math.round(4*Math.PI*6371**2*model.drawing.landPercent/100).toLocaleString()} km²`],['海洋面積',`${Math.round(4*Math.PI*6371**2*(1-model.drawing.landPercent/100)).toLocaleString()} km²`],['一天時間','24 小時'],['總人口','尚未推演'],['國家數量',String(human.states.length)],['河流數量',String(model.project.naturalGeography?.rivers.length??0)],['湖泊數量',String(model.project.naturalGeography?.lakes.length??0)]
