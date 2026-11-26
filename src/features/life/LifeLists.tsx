@@ -4,6 +4,7 @@ import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter
 import type { Attachment } from "../../lib/types";
 import { useLanguage } from "../../lib/LanguageContext";
 import { confirmDialog } from "../../lib/confirmDialog";
+import { downloadBlobFile } from "../../lib/fileDownload";
 import ModalDialog from "../../components/ModalDialog";
 import { categoryPath } from "./listViewModel";
 import { navigateDictionary, useUnsavedDraft } from "../dictionary/useUnsavedDraft";
@@ -362,12 +363,8 @@ function FieldValue({
                         ? "Attachment not downloaded; reconnect first."
                         : "附件尚未下載，請連線後再試。",
                     );
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = attachments.find((a) => a.id === id)?.name ?? "attachment";
-                  a.click();
-                  setTimeout(() => URL.revokeObjectURL(url), 1000);
+                  const name = attachments.find((a) => a.id === id)?.name ?? "attachment";
+                  downloadBlobFile(name, blob);
                 } catch (e) {
                   setError((e as Error).message);
                 }

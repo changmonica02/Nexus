@@ -31,3 +31,12 @@ export function formatBackupFileName(): string {
   )}${pad(now.getMinutes())}`;
   return `nexus-backup-${stamp}.json`;
 }
+
+export function downloadBlobFile(fileName: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

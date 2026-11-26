@@ -254,8 +254,6 @@ export class SyncEngine {
     }
   }
 
-  async pullChanges(): Promise<void> { await this.fullSync(); }
-
   // Callers already persist their intent atomically through StorageAdapter. Never
   // reconstruct upload intent from UI snapshots or from cloud absence here.
   async pushPage(page: Page): Promise<void> { await this.pushPages([page]); }
@@ -266,7 +264,6 @@ export class SyncEngine {
     if (attachment.workspace_owner_id === this.userId) await this.fullSync(false);
   }
   async pushBinary(_attachmentId: string, _blob: Blob): Promise<void> { await this.fullSync(false); }
-  async pushSetting(_key: string, _value: unknown): Promise<void> { /* Local-only settings. */ }
   async pushPermanentDeletePage(_pageId: string): Promise<void> { await this.fullSync(false); }
   async pushPermanentDeleteAttachment(_attachmentId: string): Promise<void> { await this.fullSync(false); }
 
