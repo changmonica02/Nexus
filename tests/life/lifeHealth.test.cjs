@@ -124,3 +124,17 @@ test("record and budget rules use stable revision and month receipts",()=>{
  assert.equal(ruleOccurrences(budget,day,[],[],[{id:"b",percent:80}])[0].id,
    ruleOccurrences(budget,"2026-11-30",[],[],[{id:"b",percent:95}])[0].id);
 });
+
+test("habit automation uses the selected habit and deduplicates a weekly goal from Monday", () => {
+  const { ruleOccurrences } = require("../../src/features/life/reminderModel.ts");
+  const rule = { id: "rule", trigger: "habit-completed", habitId: "habit", title: "習慣達標",
+    start: "2026-11-23", enabled: true, interval: 1 };
+  const habit = { id: "habit", cadence: "weekly", started_on: "2026-11-23", goal: 3,
+    quantities: { "2026-11-23": 1, "2026-11-24": 2, "2026-11-30": 3 } };
+  const occurrences = (day, habits = [habit]) => ruleOccurrences(rule, day, [], [], [], habits);
+  assert.deepEqual(occurrences("2026-11-23"), []);
+  assert.equal(occurrences("2026-11-24").length, 1);
+  assert.equal(occurrences("2026-11-24")[0].id, occurrences("2026-11-29")[0].id);
+  assert.notEqual(occurrences("2026-11-29")[0].id, occurrences("2026-11-30")[0].id);
+  assert.deepEqual(occurrences("2026-11-24", []), []);
+});

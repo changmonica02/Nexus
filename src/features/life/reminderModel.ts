@@ -1,8 +1,10 @@
+import { habitQuantity } from "./habits";
+import type { Habit } from "./syncRecords";
 import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 
 export type Reminder = { id:string; day:string; title:string; source:string; priority:number };
-export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
+export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule" };
 export type AutomationRun={id:string; title:string; day:string; at:number; error?:string};
 export type RuleListItem={id:string; listId:string; revision:number; day:string};
 export type ReminderStatus = { handled?:boolean; hiddenUntil?:string; priority?:number };
@@ -17,11 +19,20 @@ export function ruleOccurrence(rule:ReminderRule, day:string, tasks:readonly {id
     if(!rule.enabled||day<rule.start||threshold<1||tasks.filter(task=>!task.completed&&task.due&&task.due<day).length<threshold)return null;
     return {id:JSON.stringify(["overdue-count",rule.id,day]),day,title:rule.title,source:"自訂規則",priority:1};
   }
+  if(rule.trigger&&rule.trigger!=="date")return null;
   const distance=(Date.parse(day)-Date.parse(rule.start))/86400000;
   if(!rule.enabled||!Number.isSafeInteger(rule.interval)||rule.interval<1||distance<0||distance%rule.interval!==0)return null;
   return {id:JSON.stringify(["rule",rule.id,day]),day,title:rule.title,source:"自訂規則",priority:1};
 }
-export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<typeof ruleOccurrence>[2],records:readonly RuleListItem[],budgets:readonly {id:string;percent:number}[]=[]) {
+export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<typeof ruleOccurrence>[2],records:readonly RuleListItem[],budgets:readonly {id:string;percent:number}[]=[],habits:readonly Habit[]=[]) {
+  if(rule.trigger==="habit-completed"){
+    const habit=habits.find(row=>row.id===rule.habitId&&row.deleted_at==null);
+    if(!rule.enabled||!habit||day<rule.start||day<habit.started_on)return [];
+    if(habitQuantity(habit,new Date(day+"T00:00:00"))<habit.goal)return [];
+    const weekday=new Date(day+"T00:00:00Z").getUTCDay();
+    const period=habit.cadence==="weekly"?civilAdvance(day,"day",-((weekday+6)%7)):day;
+    return [{id:JSON.stringify(["habit-completed",rule.id,habit.id,period]),day,title:rule.title,source:"自訂規則",priority:1}];
+  }
   if(rule.trigger==="budget-percent"){
     const budget=budgets.find(row=>row.id===rule.budgetId);
     if(!rule.enabled||day<rule.start||!budget||budget.percent<(rule.threshold??1))return [];
@@ -58,7 +69,8 @@ export function isReminderPreferences(value:unknown):value is ReminderPreference
   return Number.isInteger(lead)&&lead>=0&&lead<=30&&Array.isArray(rules)&&rules.length<=50&&new Set(rules.map(rule=>rule?.id)).size===rules.length
     &&rules.every(rule=>rule&&typeof rule.id==="string"&&rule.id.length<=80&&typeof rule.title==="string"&&!!rule.title.trim()&&rule.title.length<=100
       &&(rule.action===undefined||rule.action==="reminder"||rule.action==="schedule")&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
-      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent")
+      &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed")
+      &&(rule.trigger!=="habit-completed"||typeof rule.habitId==="string"&&!!rule.habitId&&rule.habitId.length<=120)
       &&(rule.trigger!=="budget-percent"||typeof rule.budgetId==="string"&&!!rule.budgetId&&rule.budgetId.length<=120)
       &&(rule.trigger!=="list-updated"||typeof rule.listId==="string"&&!!rule.listId&&rule.listId.length<=120)
       && ((rule.trigger!=="overdue-count"&&rule.trigger!=="budget-percent")||Number.isInteger(rule.threshold)&&rule.threshold!>=1&&rule.threshold!<=1000)
