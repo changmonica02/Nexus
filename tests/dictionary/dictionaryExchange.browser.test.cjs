@@ -260,10 +260,15 @@ test(
           .getByRole("button", { name: "匯入全部", exact: true }).click();
         await analysis.getByText(/待審核 1 ·/).waitFor();
         await analysis.getByRole("link", { name: "開啟未審核詞條", exact: true }).click();
+        const leaveImport = page.getByRole("dialog", { name: "離開編輯", exact: true });
+        await leaveImport.getByRole("button", { name: "捨棄並離開", exact: true }).click();
+        await page.waitForURL(url + "/dictionary/admin/reviews");
         const review = page.getByRole("article").filter({ has: page.getByRole("heading", { name: /^item2 ·/ }) });
         const decision = review.getByLabel("處理操作 gloss_zh_tw", { exact: true });
         await decision.selectOption("keep");
         await review.getByText("已決策，尚未套用", { exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => window.calls.filter(({ name, decision }) =>
+          name === "decide_dictionary_import_review" && decision === "keep").length), 1);
         await reload();
         await decision.waitFor();
         assert.equal(await decision.inputValue(), "keep");
@@ -275,13 +280,11 @@ test(
         const decided = await page.evaluate(() => {
           const state = window.fixtureState();
           return {
-            checked: window.calls.some(({ name }) => name === "save_dictionary_import_review"),
             keep: state.imports.find((row) => row.source.name === "review.json"),
             gloss: state.records.find((r) => r.snapshot.detail.entry.headword === "item2")
               .snapshot.detail.senses[0].gloss_zh_tw,
           };
         });
-        assert.equal(decided.checked, true);
         assert.equal(decided.keep.pending_count, 0);
         assert.equal(decided.gloss, "中文2");
         await page.goto(url);
