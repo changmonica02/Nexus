@@ -12,6 +12,7 @@ export type FinancePayloads = {
     limit: string; statementDay: number; paymentDay: number; due: string };
   transaction: Common & { type: keyof typeof transactionKinds; date: string; amount: string; account: string; target: string;
     targetAmount: string; category: string; attachment: string; source: string };
+  estimate: Common & { date: string; amount: string; currency: string; category: string };
   preferences: { currency: string; rates: Record<string, string>; rateHistory?:{date:string;base:string;currency:string;rate:string}[]; categories: string[]; hiddenSections?: OptionalFinanceSection[] };
   budget: Common & { month: string; category: string; amount: string; currency: string };
   subscription: Common & { amount: string; currency: string; cycle: "week" | "month" | "quarter" | "year" | "custom"; interval: number;
@@ -26,7 +27,7 @@ export type FinancePayloads = {
 export type FinanceKind = keyof FinancePayloads;
 export type FinanceRecord<K extends FinanceKind = FinanceKind> = K extends FinanceKind
   ? LifeSyncBase & { kind: K; payload: FinancePayloads[K] } : never;
-export const financeKinds: FinanceKind[] = ["account", "transaction", "preferences", "budget", "subscription", "asset", "goal", "contribution", "instrument", "trade"];
+export const financeKinds: FinanceKind[] = ["account", "transaction", "estimate", "preferences", "budget", "subscription", "asset", "goal", "contribution", "instrument", "trade"];
 export const preferencesId = (owner: string | null) => "finance-preferences:" + JSON.stringify(owner);
 export const defaultPreferences: FinancePayloads["preferences"] = { currency: "TWD", rates: {}, categories: defaultCategories };
 
@@ -65,6 +66,7 @@ export function validateFinance(row: FinanceRecord) {
         && (isTransfer(p.type) ? !!p.target && p.account !== p.target && units(p.targetAmount) && BigInt(p.targetAmount) > BigInt(0) : !p.target);
       break;
     }
+    case "estimate": valid=financeDate(row.payload.date)&&units(row.payload.amount)&&BigInt(row.payload.amount)>BigInt(0); break;
     case "preferences":
       valid = row.id === preferencesId(row.workspace_owner_id) && Array.isArray(row.payload.categories)
         && (row.payload.hiddenSections===undefined||Array.isArray(row.payload.hiddenSections)&&row.payload.hiddenSections.every(key=>Object.hasOwn(optionalFinanceSections,key)))

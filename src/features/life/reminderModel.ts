@@ -1,12 +1,38 @@
 import { milestoneTarget } from "./milestoneDates";
+import { currencies, minorUnits } from "./finance/money";
 import { habitQuantity } from "./habits";
 import type { Habit, ScheduleEvent } from "./syncRecords";
 import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
 
 export type Reminder = { id:string; day:string; title:string; source:string; priority:number };
-export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"|"list-number"|"target-days"; targetId?:string; daysBefore?:number; fieldId?:string; numericThreshold?:number; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:"reminder"|"schedule"|"task" };
+export type ReminderRule = { id:string; title:string; start:string; interval:number; enabled:boolean; trigger?:"date"|"task-completed"|"overdue-count"|"list-updated"|"budget-percent"|"habit-completed"|"exercise-completed"|"list-number"|"target-days"; targetId?:string; daysBefore?:number; fieldId?:string; numericThreshold?:number; habitId?:string; budgetId?:string; listId?:string; threshold?:number; task?:string; action?:AutomationAction; amount?:string; currency?:string; destinationList?:string; relationField?:string; relationId?:string; updateTask?:string; updateField?:"title"|"priority"|"completed"; updateValue?:string };
+export type AutomationAction="reminder"|"schedule"|"task"|"estimate"|"relation"|"update-task";
+const shortId=(value:unknown)=>typeof value==="string"&&value.length>0&&value.length<=200;
+
+export function validAutomationAction(rule:ReminderRule):boolean {
+  switch(rule.action){
+    case undefined: case "reminder": case "schedule": case "task": return true;
+    case "estimate":
+      if(typeof rule.amount!=="string"||rule.amount.length>26||typeof rule.currency!=="string"||!currencies.includes(rule.currency))return false;
+      try{return minorUnits(rule.amount,rule.currency)>BigInt(0);}catch{return false;}
+    case "relation": return shortId(rule.destinationList)&&shortId(rule.relationField)&&shortId(rule.relationId);
+    case "update-task":
+      if(!shortId(rule.updateTask)||typeof rule.updateValue!=="string")return false;
+      switch(rule.updateField){
+        case "title": return !!rule.updateValue.trim()&&rule.updateValue.length<=100;
+        case "priority": return ["low","medium","high"].includes(rule.updateValue);
+        case "completed": return ["true","false"].includes(rule.updateValue);
+        default: return false;
+      }
+    default: return false;
+  }
+}
+
+export const automationRunId=(action:AutomationAction|undefined, id:string)=>!action||action==="schedule"?id:action+":"+id;
 export type AutomationRun={id:string; title:string; day:string; at:number; error?:string};
+export type AutomationAttempt=AutomationRun&{pending?:boolean; syncError?:string};
+export type AutomationRunStatus=AutomationAttempt&{attempts:number; previousError?:string; history:AutomationAttempt[]};
 export type RuleExercise = { id:string; day:string };
 export type RuleListItem={id:string; listId:string; revision:number; day:string; values?:Readonly<Record<string,unknown>>};
 export type ReminderStatus = { handled?:boolean; hiddenUntil?:string; priority?:number };
@@ -60,7 +86,7 @@ export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<ty
     return occurrence?[occurrence]:[];
   }
   if(!rule.enabled||!rule.listId)return [];
-  return records.filter(row=>row.listId===rule.listId&&row.day>=rule.start&&row.day<=day&&(rule.trigger!=="list-number"||matchesNumericThreshold(rule,row))).map(row=>({
+  return records.filter(row=>!/^automation_relation_[0-9a-f]{64}$/.test(row.id)&&row.listId===rule.listId&&row.day>=rule.start&&row.day<=day&&(rule.trigger!=="list-number"||matchesNumericThreshold(rule,row))).map(row=>({
     id:JSON.stringify([rule.trigger,rule.id,row.id,row.revision]),day:row.day,title:rule.title,source:"自訂規則",priority:1,
   }));
 }
@@ -90,7 +116,7 @@ export function isReminderPreferences(value:unknown):value is ReminderPreference
   const date=(value:unknown)=>typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
   return Number.isInteger(lead)&&lead>=0&&lead<=30&&Array.isArray(rules)&&rules.length<=50&&new Set(rules.map(rule=>rule?.id)).size===rules.length
     &&rules.every(rule=>rule&&typeof rule.id==="string"&&rule.id.length<=80&&typeof rule.title==="string"&&!!rule.title.trim()&&rule.title.length<=100
-      &&(rule.action===undefined||rule.action==="reminder"||(rule.action==="schedule"||rule.action==="task"))&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
+      &&validAutomationAction(rule)&&date(rule.start)&&Number.isInteger(rule.interval)&&rule.interval>=1&&rule.interval<=365&&typeof rule.enabled==="boolean"
       &&(rule.trigger===undefined||rule.trigger==="date"||rule.trigger==="task-completed"||rule.trigger==="overdue-count"||rule.trigger==="list-updated"||rule.trigger==="budget-percent"||rule.trigger==="habit-completed"||rule.trigger==="exercise-completed"||rule.trigger==="list-number"||rule.trigger==="target-days")
       &&(rule.trigger!=="target-days"||typeof rule.targetId==="string"&&!!rule.targetId&&rule.targetId.length<=120&&Number.isInteger(rule.daysBefore)&&rule.daysBefore!>=0&&rule.daysBefore!<=30)
       &&(rule.trigger!=="habit-completed"||typeof rule.habitId==="string"&&!!rule.habitId&&rule.habitId.length<=120)

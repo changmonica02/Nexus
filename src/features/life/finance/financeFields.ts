@@ -15,7 +15,7 @@ const named = <K extends FinanceKind,>(records: FinanceRecord[], kind: K) => fin
   .map(row => [row.id, "title" in row.payload ? row.payload.title : row.id] as [string, string]);
 
 export const kindLabels: Record<EditableKind, string> = {
-  account: "帳戶", transaction: "交易", budget: "預算", subscription: "訂閱", asset: "資產與負債",
+  account: "帳戶", transaction: "交易", estimate: "預估支出", budget: "預算", subscription: "訂閱", asset: "資產與負債",
   goal: "財務目標", contribution: "資金異動", instrument: "投資標的", trade: "投資交易",
 };
 
@@ -52,6 +52,7 @@ export function fieldsFor(kind: EditableKind, draft: Draft, records: FinanceReco
         select("account", transfer ? "轉出帳戶" : "帳戶", accountOptions, true), moneyField("amount", "金額", account?.currency ?? unit),
         ...(transfer ? [select("target", "轉入帳戶", accountOptions, true), ...(account?.currency === target?.currency ? [] : [moneyField("targetAmount", "轉入金額", target?.currency ?? unit)])] : [classification]), note];
     }
+    case "estimate": return [title,field("date","預估日期","date",true),currencyField(),moneyField("amount","預估金額",unit),classification,note];
     case "budget": return [title, field("month", "預算月份", "month", true), classification, currencyField(), moneyField("amount", "預算金額", unit), note];
     case "subscription": return [title, field("icon", "圖示"), currencyField(), moneyField("amount", "每期金額", unit), select("account", "付款帳戶", accountOptions),
       classification, select("cycle", "付款週期", [["week","每週"],["month","每月"],["quarter","每季"],["year","每年"],["custom","自訂天數"]], true),

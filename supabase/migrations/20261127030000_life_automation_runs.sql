@@ -33,7 +33,13 @@ begin
       when entity='life_automation_runs' then array['run']$$);
   definition := replace(definition,
     $$    if current_revision <> expected then raise exception 'Workspace revision conflict'; end if;$$,
-    $$    if entity='life_automation_runs' and (action<>'save' or expected<>0 or current_row is not null) then
+    $$    if entity='life_automation_runs' and action='save' and expected=0
+      and current_row->'run'=op->'value'->'run' then
+      results := results || jsonb_build_array(jsonb_build_object('entity_type',entity,'entity_id',entity_id,
+        'revision',current_row->'revision','deleted_at',current_row->'deleted_at','hard_deleted',false,'row',current_row));
+      continue;
+    end if;
+    if entity='life_automation_runs' and (action<>'save' or expected<>0 or current_row is not null) then
       raise exception 'Automation history is append-only';
     end if;
     if current_revision <> expected then raise exception 'Workspace revision conflict'; end if;$$);

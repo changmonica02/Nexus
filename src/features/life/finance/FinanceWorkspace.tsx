@@ -223,6 +223,12 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
       {totals.portfolios.length ? <div className={surface}>{totals.portfolios.map(item=><p key={item.instrument.id}>{item.instrument.payload.title} ・{item.market===null?"待填目前價格":write(item.market,item.instrument.payload.currency)}</p>)}</div> : empty("投資標的")}</>}
     </>}
     {tab === "transaction" && <>
+      <section className={surface}>
+        <h3 className="font-semibold">預估支出</h3>
+        <p className="text-sm opacity-75">預估金額不計入帳戶餘額及實際收支。</p>
+        {rowList(financeRows(records,"estimate").filter(row=>row.payload.date>=first&&row.payload.date<=last),
+          row=>row.kind==="estimate"?row.payload.date+" ・"+write(BigInt(row.payload.amount),row.payload.currency):null,"預估支出")}
+      </section>
       <div className="flex flex-wrap gap-2">
         {button("新增交易",()=>setEditor({kind:"transaction",preset:{date:localDateInput(anchor).startsWith(month)?localDateInput(anchor):first}}))}
         <input aria-label="搜尋交易" className={control} type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="搜尋交易"/>

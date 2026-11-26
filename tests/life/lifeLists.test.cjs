@@ -13,10 +13,10 @@ const { pullWorkspace, flushWorkspace } = require("../../src/infrastructure/sync
 const owner = "11111111-1111-4111-8111-111111111111",
   other = "22222222-2222-4222-8222-222222222222";
 const migration = "20261103155520_life_custom_lists.sql";
-async function setup() {
+async function setup(beforeAutomation) {
   const pg = new PGlite();
   await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;
-create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,kind text,due_date bigint,completed boolean,format text,device_id text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
+create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,kind text,due_date bigint,completed boolean,priority text,format text,device_id text,tags jsonb,folder text,links jsonb,attachment_ids jsonb,primary_attachment_id text,parent_id text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
 create table attachments(id text primary key,owner_id uuid,kind text,name text,mime_type text,size_bytes bigint,storage_key text,device_id text,created_at bigint,updated_at bigint,deleted_at bigint);
 create table binaries(id text primary key,owner_id uuid,data text,updated_at bigint);
 alter table pages enable row level security;alter table attachments enable row level security;alter table binaries enable row level security;
@@ -30,9 +30,11 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261126171000_life_list_field_types.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261126180000_life_list_configuration.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127000000_life_automation_schedule.sql", "utf8"));
+  await pg.query("insert into auth.users values($1),($2)", [owner, other]);
+  await beforeAutomation?.(pg);
   await pg.exec(fs.readFileSync("supabase/migrations/20261127020000_life_automation_task.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127030000_life_automation_runs.sql", "utf8"));
-  await pg.query("insert into auth.users values($1),($2)", [owner, other]);
+  await pg.exec(fs.readFileSync("supabase/migrations/20261127040000_life_automation_actions.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -650,4 +652,108 @@ test("automation tasks synchronize once and stay deleted when an offline device 
     await repoC.executeTaskRule(occurrence);
     assert.ok((await localC.pending(owner)).every(batch=>batch.operations.every(op=>op.entity_type==="life_automation_runs")));
   }finally{await a.close();await b.close();await c.close();await pg.close();}
+});
+
+test("automation estimates, relations, and task field updates reconcile across offline devices", async()=>{
+  const pg=await setup(),a=await device(),b=await device();
+  try{
+    const remote=client(pg), localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
+    const repoA=a.getLifeRepository(),repoB=b.getLifeRepository();
+    const occurrence={id:"automation-actions",day:"2026-11-27",title:"讀書設備",source:"自訂規則",priority:1};
+    const base={id:"rule",title:"讀書設備",enabled:true,start:occurrence.day,interval:1};
+    const task=await a.createPage({kind:"todo",title:"確認採購"});
+    const list={...lifeBase(owner,"採購清單"),schema_version:1,fields:[{id:"linked",name:"待辦",type:"text",relation:"task",required:true}]};
+    await repoA.save("life_lists",list);
+    await flushWorkspace(remote,localA,owner);
+    await pullWorkspace(remote,localB,owner);
+
+    const estimate={...base,action:"estimate",currency:"USD",amount:"32.50"};
+    const relation={...base,action:"relation",destinationList:list.id,relationField:"linked",relationId:task.id};
+    const update={...base,action:"update-task",updateTask:task.id,updateField:"priority",updateValue:"high"};
+    for(const repo of [repoA,repoB]){
+      await repo.executeRule(occurrence,estimate);
+      await repo.executeRule(occurrence,relation);
+      await repo.executeRule(occurrence,update);
+    }
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    const finances=await repoB.readFinance();
+    assert.equal(finances.length,1);
+    assert.deepEqual(finances.map(row=>[row.kind,row.payload.amount,row.payload.currency]),[["estimate","3250","USD"]]);
+    const { financeTotals }=require("../../src/features/life/finance/ledger.ts");
+    assert.equal(financeTotals(finances,"2026-11-01","2026-11-30").expense,0n);
+    const {life_items:items}=await repoB.read();
+    assert.equal(items.length,1);
+    assert.equal(items[0].values.linked,task.id);
+    assert.equal((await b.getPage(task.id)).priority,"high");
+    assert.equal((await b.getPage(task.id)).title,"確認採購");
+
+    const complete={...update,updateField:"completed",updateValue:"true"};
+    const attempt={...occurrence,id:"retry-action"};
+    await assert.rejects(repoA.executeRule(attempt,{...complete,updateTask:"missing"}),/待辦不存在/);
+    await flushWorkspace(remote,localA,owner);
+    await pullWorkspace(remote,localB,owner);
+    assert.match((await repoB.readAutomationRuns()).find(run=>run.id==="update-task:retry-action").error,/待辦不存在/);
+    await repoB.executeRule(attempt,complete);
+    await flushWorkspace(remote,localB,owner);
+    await pullWorkspace(remote,localA,owner);
+    assert.equal((await a.getPage(task.id)).completed,true);
+    assert.equal((await repoA.readAutomationRuns()).find(run=>run.id==="update-task:retry-action").error,undefined);
+    const collision={...occurrence,id:"conflicting-priority"};
+    await repoA.executeRule(collision,{...update,updateValue:"low"});
+    await repoB.executeRule(collision,{...update,updateValue:"medium"});
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    assert.equal((await b.getPage(task.id)).priority,"low");
+    assert.equal((await localB.pending(owner)).length,0);
+    // Each device has a distinct attempt for this rule. Its successful result
+    // takes precedence after a pull, but the rejected attempt remains recorded.
+    await pullWorkspace(remote,localB,owner);
+    const history=(await repoB.readAutomationRuns()).find(run=>run.id==="update-task:conflicting-priority");
+    assert.equal(history.attempts,2);
+    assert.match(history.previousError,/其他裝置更新/);
+    const relationRace={...occurrence,id:"deleted-relation-source"};
+    await repoB.executeRule(relationRace,relation);
+    await a.deletePage(task.id);
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    assert.equal((await localB.pending(owner)).length,0);
+    assert.equal((await repoB.read()).life_items.length,1);
+    const relationFailure=(await repoB.readAutomationRuns()).find(run=>run.id==="relation:deleted-relation-source");
+    assert.match(relationFailure.error,/關聯來源已刪除/);
+    await pullWorkspace(remote,localA,owner);
+    assert.match((await repoA.readAutomationRuns()).find(run=>run.id==="relation:deleted-relation-source").error,/關聯來源已刪除/);
+
+    // A real authenticated select is owner-scoped even without an explicit filter.
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select count(*)::int as n from public.life_automation_runs")).rows[0].n,0);
+    await pg.exec("reset role");
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+    b.setWorkspaceOwner(other);
+    await assert.rejects(repoB.readAutomationRuns(),/帳號已切換/);
+    await pullWorkspace(remote,localB,other);
+    assert.deepEqual(await b.getLifeRepository().readAutomationRuns(),[]);
+  }finally{await a.close();await b.close();await pg.close();}
+});
+
+test("automation migrations preserve prior data and fold device-local legacy runs into the owner workspace", async()=>{
+  const pg=await setup(pg=>pg.query("insert into pages(id,owner_id,title,kind,revision,created_at,updated_at) values('existing-todo',$1,'保留既有待辦','todo',1,100,100)",[owner]));
+  const a=await device(),b=await device();
+  try{
+    const remote=client(pg),localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
+    const legacy={id:'["rule","legacy","2026-11-26"]',title:"既有執行",day:"2026-11-26",at:42};
+    const key="life-automation-runs:"+JSON.stringify(owner);
+    for(const device of [a,b]){
+      await device.db.put("settings",{key,owner_id:owner,value:[legacy]});
+      assert.equal((await device.getLifeRepository().readAutomationRuns())[0].id,legacy.id);
+      assert.equal(await device.db.get("settings",key),undefined);
+    }
+    await flushWorkspace(remote,localA,owner);
+    await flushWorkspace(remote,localB,owner);
+    await pullWorkspace(remote,localB,owner);
+    assert.equal((await b.getLifeRepository().readAutomationRuns())[0].attempts,1);
+    assert.equal((await b.getPage("existing-todo")).title,"保留既有待辦");
+    assert.equal((await pg.query("select count(*)::int as n from public.life_automation_runs")).rows[0].n,1);
+  }finally{await a.close();await b.close();await pg.close();}
 });

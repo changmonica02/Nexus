@@ -117,7 +117,10 @@ export async function flushWorkspace(client: SupabaseClient, local: WorkspacePer
       if (error) throw new Error(error.message);
       if (!Array.isArray(data) || data.length !== batch.operations.length) throw new Error("Invalid workspace operation response");
       if (data.some((result, index) => result.entity_type !== batch.operations[index].entity_type || result.entity_id !== batch.operations[index].entity_id
-        || !Number.isSafeInteger(result.revision) || result.revision < 1 || typeof result.hard_deleted !== "boolean")) throw new Error("Invalid workspace operation receipt");
+        || !Number.isSafeInteger(result.revision) || (result.discarded
+          ? result.revision!==0||result.hard_deleted||result.row||batch.operations[index].entity_type!=="life_items"
+            ||batch.operations[index].expected_revision!==0||!/^automation_relation_[0-9a-f]{64}$/.test(result.entity_id)
+          : result.revision < 1) || typeof result.hard_deleted !== "boolean")) throw new Error("Invalid workspace operation receipt");
       if (!alive()) return; // Receipt makes retry safe if the account changes after server commit.
       await local.merge(owner, data as WorkspaceResult[], batch.id);
     } catch (error) {

@@ -21,6 +21,8 @@ export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as c
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
 export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
+export type WorkspaceChange = { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob;
+  createOnce?: boolean; automationField?:"title"|"priority"|"completed" };
 export interface WorkspaceOperation {
   id: string;
   entity_type: EntityType;
@@ -28,6 +30,7 @@ export interface WorkspaceOperation {
   kind: OperationKind;
   expected_revision: number;
   value?: WorkspaceRecord;
+  automation_field?:"title"|"priority"|"completed";
   data?: string;
 }
 export interface WorkspaceBatch {
@@ -43,6 +46,7 @@ export interface WorkspaceResult {
   revision: number;
   deleted_at: number | null;
   hard_deleted: boolean;
+  discarded?: boolean;
   row?: Record<string, unknown>;
 }
 interface Meta {
@@ -112,7 +116,7 @@ export class WorkspacePersistence {
       && batch.operations.some(op => op.entity_type === "life_dashboard_configs" && op.entity_id === id));
   }
 
-  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob; createOnce?: boolean }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
+  async mutate(owner: string | null, changes: WorkspaceChange[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
     const work = [...changes];
     const repeatIds = new Map(await Promise.all(work.flatMap(change => {
       const page = change.value as Page;
@@ -142,7 +146,7 @@ export class WorkspacePersistence {
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if(change.createOnce&&(old||(await metadata.get(key(owner,type,value.id)))?.hard_deleted))continue;
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
-          if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
+          if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" || type === "life_automation_runs" && !!old : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
           validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord);
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
@@ -174,6 +178,7 @@ export class WorkspacePersistence {
         const revision = previous ? previous.expected_revision + 1 : meta?.revision ?? (old ? ("revision" in old ? old.revision ?? 1 : 1) : 0);
         const op: WorkspaceOperation = { id: crypto.randomUUID(), entity_type: type, entity_id: value.id, kind, expected_revision: revision };
         if (kind === "save") op.value = value;
+        if(change.automationField)op.automation_field=change.automationField;
         if (kind === "binary") op.data = change.data;
         operations.push(op);
         pendingByEntity.set(metaId,op);
@@ -231,6 +236,17 @@ export class WorkspacePersistence {
         const meta = await tx.objectStore("workspace_sync_meta").get(id) as Meta | undefined;
         if ((meta?.revision ?? -1) > result.revision) continue;
         const related = pending.filter(op => op.entity_type === result.entity_type && op.entity_id === result.entity_id);
+        if(result.discarded){
+          if(!acknowledged||result.entity_type!=="life_items"||!/^automation_relation_[0-9a-f]{64}$/.test(result.entity_id))throw Error("不支援的工作區操作回覆");
+          if(!related.length){
+            const store=tx.objectStore(result.entity_type);
+            const row=await store.get(result.entity_id) as LifeItem|undefined;
+            if(row&&row.workspace_owner_id!==owner)throw Error("Workspace ownership mismatch");
+            await store.delete(result.entity_id);
+            await tx.objectStore("workspace_sync_meta").delete(id);
+          }
+          continue;
+        }
         const hardDeleted = result.hard_deleted || !!meta?.hard_deleted;
         const nextMeta={...meta,id, owner_id: owner, revision: result.revision, hard_deleted: hardDeleted};
         if (result.entity_type === "life_dashboard_configs" && result.row && isDashboardConfig(result.row.config)) {

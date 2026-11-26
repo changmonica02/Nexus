@@ -70,6 +70,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   try{localStorage.setItem(timerKey(owner),JSON.stringify(next));}catch{}
  };
  const [reminderLists,setReminderLists]=useState(emptyLife);
+ const [automationSourcesOwner,setAutomationSourcesOwner]=useState<string|null|undefined>(undefined);
  const [listFocus,setListFocus]=useState<string>();
  useEffect(()=>{
   if(!repository)return;
@@ -77,14 +78,14 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   const load=()=>{
    const request=++sequence;
    void Promise.all([repository.readSchedule(),repository.readHabits(),repository.readFinance(),repository.readTimerHistory(),repository.readTimerStudySessions(),repository.readHealth(),repository.read()]).then(([rows,habits,finances,history,studySessions,health,lists])=>{
-    if(active&&request===sequence){setReminderLists(lists);setHealth(health);setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
+    if(active&&request===sequence){setAutomationSourcesOwner(owner);setReminderLists(lists);setHealth(health);setEvents(rows);setHabits(habits);setFinances(finances);setHistory(history);setStudySessions(studySessions);setEventError('');}
    }).catch(error=>{if(active&&request===sequence)setEventError(String(error.message));});
   };
   load();
   window.addEventListener('nexus-workspace-changed',load);
   window.addEventListener('nexus-workspace-refreshed',load);
   return()=>{active=false;window.removeEventListener('nexus-workspace-changed',load);window.removeEventListener('nexus-workspace-refreshed',load);};
- },[repository]);
+ },[owner,repository]);
  const [quickList,setQuickList]=useState(false),[quickTask,setQuickTask]=useState(false);
  const quickTaskInput=useRef<HTMLInputElement>(null);
  const enabled=lifeModuleIds.filter(module=>!dashboard.config.hiddenModules.includes(module)&&(!['lists','schedule','milestones','habits','finance','health'].includes(module)||storage));
@@ -152,8 +153,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  });
  const open=(id:string)=>navigateDictionary(()=>{change({scroll:scroller.current?.scrollTop??0});onSelectPage(id);});
  const readAutomationRuns=useCallback(()=>repository?.readAutomationRuns()??Promise.resolve([]),[repository]);
- const runTaskAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.executeTaskRule(occurrence),[repository]);
- const runScheduleAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder)=>repository!.executeScheduleRule(occurrence),[repository]);
+ const executeAutomation=useCallback((occurrence:import("../features/life/reminderModel").Reminder,rule:import("../features/life/reminderModel").ReminderRule)=>repository!.executeRule(occurrence,rule),[repository]);
  const reminderDays=state.tab==="overview"?Array.from({length:31},(_,offset)=>addDays(today,offset)):[];
  const reminderEvents=state.tab==="overview"?[
   ...(!scheduleHidden?scheduleCalendarEvents(appointments,reminderDays):[]),
@@ -248,10 +248,14 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
       readRuns={readAutomationRuns} ruleBudgets={budgets} ruleTargets={milestonesHidden?[]:milestones}
       ruleExercises={exerciseAutomationSources(visibleHealth)} ruleHabits={habitsHidden?[]:habits.filter(habit=>habit.deleted_at==null)}
-      ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title, numericFields:list.fields.filter(field=>field.type==="number"&&!field.archived).map(field=>({id:field.id,name:field.name}))}))}
+      ruleLists={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_lists.filter(list=>list.deleted_at==null).map(list=>({id:list.id,title:list.title, numericFields:list.fields.filter(field=>field.type==="number"&&!field.archived).map(field=>({id:field.id,name:field.name})), relationFields:list.fields.flatMap(field=>!field.archived&&field.relation?[{id:field.id,name:field.name,relation:field.relation}]:[])}))}
       ruleRecords={dashboard.config.hiddenModules.includes("lists")?[]:reminderLists.life_items.filter(item=>item.deleted_at==null&&currentLists.has(item.list_id)).map(item=>({id:item.id,listId:item.list_id,revision:item.revision,values:item.values,day:localDateInput(new Date(item.updated_at))}))}
-      runTask={!tasksHidden&&repository&&dashboard.ready?runTaskAutomation:undefined}
-      runSchedule={!scheduleHidden&&repository&&dashboard.ready?runScheduleAutomation:undefined}
+      execute={repository&&dashboard.ready&&automationSourcesOwner===owner?executeAutomation:undefined} allowTasks={!tasksHidden} allowSchedule={!scheduleHidden} allowFinance={!financeHidden}
+      relationSources={[
+        ...(!tasksHidden?todos.map(task=>({kind:"task" as const,id:task.id,title:task.title})):[]),
+        ...(!scheduleHidden?appointments.map(row=>({kind:"schedule" as const,id:row.id,title:row.title})):[]),
+        ...(!milestonesHidden?milestones.map(row=>({kind:"milestone" as const,id:row.id,title:row.title})):[]),
+      ]}
       existingSchedules={scheduleHidden?[]:appointments.filter(row=>row.id.startsWith("automation:")).map(row=>({id:row.id,title:row.title,day:new Date(row.starts_at).toISOString().slice(0,10)}))}
       synced={dashboard.config.reminders} saveSynced={repository&&dashboard.ready?reminders=>dashboard.save({...dashboard.config,reminders},dashboard.config):undefined} open={id=>{
        const list=listReminders.find(row=>row.id===id);

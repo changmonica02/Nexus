@@ -1,11 +1,12 @@
-import { automationScheduleId, type Reminder, type AutomationRun } from "./reminderModel";
+import { automationRunId, automationScheduleId, validAutomationAction, type Reminder, type ReminderRule, type AutomationRun, type AutomationRunStatus } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
+import { minorUnits } from "./finance/money";
 import { subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
-import { WorkspacePersistence } from "../../infrastructure/sync/workspacePersistence";
-import { LIFE_STORES, emptyLife, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
+import { WorkspacePersistence, type WorkspaceChange } from "../../infrastructure/sync/workspacePersistence";
+import { LIFE_STORES, emptyLife, lifeBase, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
 import { dashboardSettingsKey, isDashboardConfig, sameConfig, type LifeDashboardConfig } from "./dashboard/model";
 
 import type { Page } from "../../lib/types";
@@ -88,50 +89,133 @@ export class LifeRepository {
     }]);
   }
 
-  async readAutomationRuns():Promise<AutomationRun[]> {
+  async readAutomationRuns():Promise<AutomationRunStatus[]> {
     const owner=this.owner();
-    const [legacy,records]=await Promise.all([
-      this.db.get("settings","life-automation-runs:"+JSON.stringify(owner)),
+    const legacyKey="life-automation-runs:"+JSON.stringify(owner);
+    const legacy=await this.db.get("settings",legacyKey);
+    const previous:AutomationRun[]=legacy?.owner_id===owner&&Array.isArray(legacy.value)?legacy.value:[];
+    if(owner&&previous.length){
+      const changes=await Promise.all(previous.map(async run=>{
+        const hash=(await automationScheduleId(JSON.stringify([owner,"automation-history",run]))).slice("automation:".length);
+        const id=[hash.slice(0,8),hash.slice(8,12),hash.slice(12,16),hash.slice(16,20),hash.slice(20,32)].join("-");
+        return {...this.automationRunChange(owner,run,id),createOnce:true};
+      }));
+      if(this.owner()!==owner)throw Error("帳號已切換");
+      await new WorkspacePersistence(this.db).mutate(owner,changes);
+      await this.db.delete("settings",legacyKey);
+    }
+    const [records,queued]=await Promise.all([
       this.db.getAll("life_automation_runs") as Promise<AutomationRunRecord[]>,
+      owner?new WorkspacePersistence(this.db).pending(owner):[],
     ]);
     if(this.owner()!==owner)throw Error("帳號已切換");
-    const previous:AutomationRun[]=legacy?.owner_id===owner&&Array.isArray(legacy.value)?legacy.value:[];
-    const attempts=[...previous,...records.filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null).map(row=>row.run)];
-    const byOccurrence=new Map<string,AutomationRun>();
-    for(const run of attempts.sort((a,b)=>b.at-a.at)){
+    const status=new Map(queued.flatMap(batch=>batch.operations.filter(op=>op.entity_type==="life_automation_runs")
+      .map(op=>[op.entity_id,{pending:true,syncError:batch.error}] as const)));
+    const attempts=[...(owner?[]:previous),...records.filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null)
+      .map(row=>({...row.run,...status.get(row.id)}))].sort((a,b)=>b.at-a.at);
+    const byOccurrence=new Map<string,AutomationRunStatus>();
+    for(const run of attempts){
       const prior=byOccurrence.get(run.id);
-      if(!prior||(prior.error&&!run.error))byOccurrence.set(run.id,run);
+      const preferred=!prior||(prior.error&&!run.error)?run:prior;
+      byOccurrence.set(run.id,{...preferred,attempts:(prior?.attempts??0)+1,previousError:prior?.previousError??run.error,
+        history:[...(prior?.history??[]),run]});
     }
     return [...byOccurrence.values()].sort((a,b)=>b.at-a.at);
   }
 
-  private async saveAutomationRun(owner:string|null,run:AutomationRun) {
-    if(this.owner()!==owner)throw Error("帳號已切換");
-    const value:AutomationRunRecord={id:crypto.randomUUID(),workspace_owner_id:owner,revision:0,
+  private automationRunChange(owner:string|null,run:AutomationRun,id=crypto.randomUUID()):WorkspaceChange {
+    const value:AutomationRunRecord={id,workspace_owner_id:owner,revision:0,
       created_at:run.at,updated_at:run.at,deleted_at:null,run};
-    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_automation_runs",kind:"save",value}]);
+    return {type:"life_automation_runs",kind:"save",value};
   }
 
   executeScheduleRule(occurrence:Reminder) {
-    return this.executeAutomation(occurrence,()=>this.runScheduleAutomation(occurrence));
+    return this.executeAutomation(occurrence,receipt=>this.runScheduleAutomation(occurrence,receipt));
   }
 
   executeTaskRule(occurrence:Reminder) {
-    return this.executeAutomation({...occurrence,id:"task:"+occurrence.id},()=>this.runTaskAutomation(occurrence));
+    return this.executeAutomation({...occurrence,id:"task:"+occurrence.id},receipt=>this.runTaskAutomation(occurrence,receipt));
   }
 
-  private async executeAutomation(occurrence:Reminder, action:()=>Promise<void>) {
+  executeRule(occurrence:Reminder,rule:ReminderRule) {
+    if(!validAutomationAction(rule))throw Error("自動化動作設定無效");
+    return this.executeAutomation({...occurrence,id:automationRunId(rule.action,occurrence.id)},async receipt=>{
+      switch(rule.action){
+        case "schedule": return this.runScheduleAutomation(occurrence,receipt);
+        case "task": return this.runTaskAutomation(occurrence,receipt);
+        case "estimate": return this.runEstimateAutomation(occurrence,rule,receipt);
+        case "relation": return this.runRelationAutomation(occurrence,rule,receipt);
+        case "update-task": return this.runTaskUpdateAutomation(rule,receipt);
+        default: throw Error("此規則不需要寫入工作區");
+      }
+    });
+  }
+
+  private async runEstimateAutomation(occurrence:Reminder,rule:ReminderRule,receipt:WorkspaceChange) {
+    const owner=this.owner(), currency=rule.currency!;
+    const hash=await automationScheduleId(JSON.stringify([owner,"estimate",occurrence.id]));
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    const value=financeRow(owner,"estimate",{
+      title:occurrence.title,date:occurrence.day,amount:minorUnits(rule.amount!,currency).toString(),
+      currency,category:"",notes:"",
+    },"automation_estimate_"+hash.slice("automation:".length));
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_finance_records",kind:"save",value,createOnce:true},receipt]);
+  }
+
+  private async runRelationAutomation(occurrence:Reminder,rule:ReminderRule,receipt:WorkspaceChange) {
     const owner=this.owner();
+    const hash=await automationScheduleId(JSON.stringify([owner,"relation",occurrence.id]));
+    const list=await this.db.get("life_lists",rule.destinationList!) as LifeList|undefined;
+    const field=list?.fields.find(field=>field.id===rule.relationField&&!field.archived&&field.relation);
+    if(!list||list.workspace_owner_id!==owner||list.deleted_at!=null||!field)throw Error("找不到清單或關聯欄位");
+    const from=field.relation==="task"?"pages":"life_schedule_events";
+    const source=await this.db.get(from,rule.relationId!) as Page|ScheduleEvent|undefined;
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    if(!source||source.workspace_owner_id!==owner||source.deleted_at!=null
+      ||(from==="pages"? (source as Page).kind!=="todo":!!(source as ScheduleEvent).milestone!==(field.relation==="milestone"))){
+      throw Error("關聯來源不存在或已刪除");
+    }
+    const values=Object.fromEntries(list.fields.filter(item=>!item.archived&&!item.relation&&item.defaultValue!==undefined)
+      .map(item=>[item.id,item.defaultValue]));
+    values[field.id]=source.id;
+    const value:LifeItem={...lifeBase(owner,occurrence.title),id:"automation_relation_"+hash.slice("automation:".length),
+      list_id:list.id,category_id:null,values,attachment_ids:[],schema_version:list.schema_version};
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_items",kind:"save",value,createOnce:true},receipt],
+      [{type:from,id:source.id,revision:source.revision}]);
+  }
+
+  private async runTaskUpdateAutomation(rule:ReminderRule,receipt:WorkspaceChange) {
+    const owner=this.owner();
+    const task=await this.db.get("pages",rule.updateTask!) as Page|undefined;
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    if(!task||task.workspace_owner_id!==owner||task.deleted_at!=null||task.kind!=="todo")throw Error("待辦不存在或已刪除");
+    const field=rule.updateField!;
+    if(field==="completed"&&task.task_repeat)throw Error("週期待辦的完成狀態須手動更新");
+    const desired=field==="completed"?rule.updateValue==="true":rule.updateValue!.trim();
+    const persistence=new WorkspacePersistence(this.db);
+    const value:Page={...task,[field]:desired,revision:task.revision+1,updated_at:Date.now()};
+    await persistence.mutate(owner,[{type:"pages",kind:"save",value,automationField:field},receipt],
+      [{type:"pages",id:task.id,revision:task.revision}]);
+  }
+
+  private async executeAutomation(occurrence:Reminder, action:(receipt:WorkspaceChange)=>Promise<void>) {
+    const owner=this.owner();
+    const previous=(await this.readAutomationRuns()).find(run=>run.id===occurrence.id);
+    if(this.owner()!==owner)throw Error("帳號已切換");
+    if(previous&&!previous.error)return;
+    const data={id:occurrence.id,title:occurrence.title.slice(0,100),day:occurrence.day,at:Date.now()};
     try{
-      await action();
+      await action(this.automationRunChange(owner,data));
     }catch(error){
-      await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now(),error:error instanceof Error?error.message.slice(0,240):"執行失敗"});
+      if(this.owner()!==owner)throw Error("帳號已切換");
+      await new WorkspacePersistence(this.db).mutate(owner,[this.automationRunChange(owner,{
+        ...data,at:Date.now(),error:(error instanceof Error?error.message.slice(0,240):"")||"執行失敗",
+      })]);
       throw error;
     }
-    await this.saveAutomationRun(owner,{id:occurrence.id,title:occurrence.title,day:occurrence.day,at:Date.now()});
   }
 
-  private async runTaskAutomation(occurrence:Reminder) {
+  private async runTaskAutomation(occurrence:Reminder,receipt:WorkspaceChange) {
     const owner=this.owner();
     const hash=await automationScheduleId(JSON.stringify([owner,"task",occurrence.id]));
     if(this.owner()!==owner)throw Error("帳號已切換");
@@ -145,23 +229,21 @@ export class LifeRepository {
       content_json:{type:"doc",content:[{type:"paragraph",attrs:{id:"blk_"+id}}]},content_text:"",
       created_at:now,updated_at:now,deleted_at:null,revision:1,device_id:"automation",workspace_owner_id:owner,
     };
-    await new WorkspacePersistence(this.db).mutate(owner,[{type:"pages",kind:"save",value,createOnce:true}]);
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"pages",kind:"save",value,createOnce:true},receipt]);
   }
 
-  async runScheduleAutomation(occurrence:Reminder) {
+  async runScheduleAutomation(occurrence:Reminder,receipt?:WorkspaceChange) {
     const owner=this.owner();
+    // Keep existing occurrence identifiers so rules created before this change remain deduplicated.
     const id=await automationScheduleId(occurrence.id);
-    const existing=await this.db.get("life_schedule_events",id) as ScheduleEvent|undefined;
     if(this.owner()!==owner)throw Error("帳號已切換");
-    if(existing?.workspace_owner_id===owner)return;
     const date=Date.parse(occurrence.day+"T00:00:00Z");
-    try{
-      await this.saveSchedule({id,workspace_owner_id:owner,revision:0,created_at:date,updated_at:date,
-        deleted_at:null,title:occurrence.title,starts_at:date,ends_at:date,all_day:true,category:"自動化",notes:""});
-    }catch(error){
-      const concurrent=await this.db.get("life_schedule_events",id) as ScheduleEvent|undefined;
-      if(this.owner()!==owner||!concurrent||concurrent.workspace_owner_id!==owner)throw error;
-    }
+    const value:ScheduleEvent={id,workspace_owner_id:owner,revision:0,created_at:date,updated_at:date,
+      deleted_at:null,title:occurrence.title,starts_at:date,ends_at:date,all_day:true,category:"自動化",notes:""};
+    await new WorkspacePersistence(this.db).mutate(owner,[
+      {type:"life_schedule_events",kind:"save",value,createOnce:true},
+      ...(receipt?[receipt]:[]),
+    ]);
   }
 
   async readHabits(): Promise<Habit[]> {
