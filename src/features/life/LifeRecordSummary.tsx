@@ -1,5 +1,5 @@
 import { localDateInput } from "../../lib/todoCalendar";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { Formula, StatisticPreset } from "./listConfiguration";
 import type { LifeField, LifeItem } from "./lists";
 import { civilAdvance } from "./civilPeriods";
@@ -31,7 +31,7 @@ export default function LifeRecordSummary({fields,items,categories,open,presets,
   const active=fields.filter(field=>!field.archived);
   const field=active.find(field=>field.id===fieldId);
   const dateField=active.find(field=>field.type==="date");
-  const dates=useMemo(()=>new Map(items.map(item=>[item.id,dateField?String(item.values[dateField.id]??""):localDateInput(new Date(item.created_at))])),[items,dateField]);
+  const dates=new Map(items.map(item=>[item.id,dateField?String(item.values[dateField.id]??""):localDateInput(new Date(item.created_at))]));
   const dateOf=(item:LifeItem)=>dates.get(item.id)??"";
   const filtered=items.filter(item=>(!start||dateOf(item)>=start)&&(!end||dateOf(item)&&dateOf(item)<=end));
   const values=field?filtered.map(item=>field.formula?formulaValue(field.formula,item.values):item.values[field.id]):[];
