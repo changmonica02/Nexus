@@ -31,9 +31,9 @@ export async function previewImportSource(
     return session;
   }
   const rawCandidates = new Map<string, unknown>();
-  let drafts: DictionaryDraftInput[] = [],
-    issues: DraftIssue[] = [],
-    ignoredFields: string[] = [];
+  const drafts: DictionaryDraftInput[] = [];
+  const issues: DraftIssue[] = [];
+  let ignoredFields: string[] = [];
   {
     const parsed = parseJSONBundleWithIgnored(raw);
     const bundle = parsed.bundle;

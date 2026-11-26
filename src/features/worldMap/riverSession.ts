@@ -20,7 +20,7 @@ export function deleteSessionRiver(base:NaturalGeography,id:string):NaturalGeogr
 }
 export function addSessionRiver(base:NaturalGeography,id:string,geometry:number[][],parentId:string|null=null):NaturalGeography {
  if(!id.trim()||id.length>160||base.rivers.length>=2000||base.rivers.some(r=>r.id===id))throw Error('無法新增河流');
- let points=geometry.map(p=>[...p]);
+ const points=geometry.map(p=>[...p]);
  if(parentId){const parent=base.rivers.find(r=>r.id===parentId);if(!parent)throw Error('找不到下游河流');const end=points.at(-1);if(!end)throw Error('請先繪製河道');const point=parent.geometry.reduce((a,b)=>distance(a,end)<distance(b,end)?a:b);points[points.length-1]=[...point];}
  const river:River={id,name:`新增河流 ${base.rivers.length+1}`,notes:'',geometry:points,parentId,sourceLakeId:null,mouthLakeId:null};
  const next={...base,rivers:[...base.rivers,river]};return patchSessionRiver(next,{id,geometry:points});

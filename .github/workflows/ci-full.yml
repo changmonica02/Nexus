@@ -261,7 +261,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Build reusable global map engine
         run: npm run map:global
-      - name: Core engine and data safety regression (no legacy browser UI)
+      - name: Core engine and data safety regression
         run: node --test tests/world-map/globalMap.test.cjs tests/world-map/globalMapClientVersion.test.cjs tests/world-map/worldMap.test.cjs
       - run: npx eslint src/features/worldMap/globalMap*.ts src/components/GlobalMapCanvas.tsx src/components/GlobalMapParameters.tsx
 
@@ -378,7 +378,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Prepare global map test assets
+      - name: Build global map Worker and static assets
         if: matrix.group == 'world-map'
         run: npm run map:global
       - name: Additional non-browser tests
