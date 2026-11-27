@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test("sensitive health and list templates use the existing workspace", { timeout: 60000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-life-overview-"));
@@ -36,13 +37,13 @@ test("sensitive health and list templates use the existing workspace", { timeout
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE, args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"] });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, timezoneId: "Asia/Taipei" });
     const errors = [];
     page.setDefaultTimeout(6500);
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.getByRole("tab",{name:"健康管理",exact:true}).click();
+    await navigateLife(page, "健康管理");
     const nav = name => page.getByRole("navigation",{name:"健康功能"}).getByRole("button",{name,exact:true}).click();
     const enter = async (name, fill) => {
       await page.getByRole("button",{name,exact:true}).first().click();
@@ -77,7 +78,7 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await enter("新增服用紀錄",async()=>{});
     await page.getByText("剩餘庫存 9 粒",{exact:true}).waitFor();
     await shot("Nexus-Life7-medication-mobile",390,844,true);
-    await page.getByRole("tab",{name:"我的清單",exact:true}).click();
+    await navigateLife(page, "我的清單");
     await page.getByRole("button",{name:"新增清單",exact:true}).click();
     const dialog=page.getByRole("dialog");
     await dialog.getByLabel("生活紀錄模板").selectOption("日記");
@@ -90,7 +91,7 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await page.getByRole("button",{name:"儲存統計設定"}).click();
     await page.getByRole("option",{name:"每日紀錄",exact:true}).waitFor({state:"attached"});
     await shot("Nexus-Life7-records-tablet",820,1100);
-    await page.getByRole("tab",{name:"總覽",exact:true}).click();
+    await navigateLife(page, "總覽");
     await page.getByText(/站內提醒 · /).click();
     await page.getByRole("button",{name:"新增日期提醒規則"}).click();
     await page.getByLabel("提醒名稱").fill("確認生活物品");

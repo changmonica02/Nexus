@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test(
   "life workspace: multiple lists, typed fields, nested categories, attachments, preserved field IDs, offline reload and responsive views",
@@ -40,8 +41,8 @@ test(
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const browser = await chromium.launch({
-        executablePath: process.env.BROWSER_EXECUTABLE,
-        args: ["--no-sandbox"],
+        executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE,
+        args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"],
       }),
       errors = [];
     try {
@@ -52,7 +53,7 @@ test(
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`http://127.0.0.1:${server.address().port}`);
       const open = async () => {
-        await page.getByRole("tab", { name: "我的清單", exact: true }).click();
+        await navigateLife(page, "我的清單");
       };
       const dialog = () => page.getByRole("dialog", { name: "清單編輯" });
       const name = () => dialog().getByRole("textbox", { name: "名稱", exact: true });
@@ -114,6 +115,7 @@ test(
       await page.waitForFunction(async () =>
         (await window.lifeStorage.listAttachments()).some((a) => a.name === "receipt.txt"),
       );
+      await page.waitForFunction(() => [...document.querySelectorAll('dialog input[type="file"]')].every(input => !input.disabled));
       await dialog()
         .getByLabel("照片：上傳", { exact: true })
         .setInputFiles({
@@ -127,6 +129,7 @@ test(
       await page.waitForFunction(async () =>
         (await window.lifeStorage.listAttachments()).some((a) => a.name === "photo.png"),
       );
+      await page.waitForFunction(() => [...document.querySelectorAll('dialog input[type="file"]')].every(input => !input.disabled));
       await save();
       await page.getByRole("heading", { name: "Blue polish", exact: true }).waitFor();
       await page.getByText("123.45 TWD", { exact: true }).waitFor();

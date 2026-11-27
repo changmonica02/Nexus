@@ -7,7 +7,7 @@ import { control, surface } from "./dashboard/styles";
 import type { LifeRepository } from "./LifeRepository";
 import type { Habit } from "./syncRecords";
 
-function HabitForm({ habit, repository, close }: { habit: Habit; repository: LifeRepository; close: () => void }) {
+export function HabitForm({ habit, repository, close }: { habit: Habit; repository: LifeRepository; close: () => void }) {
   const [draft, setDraft] = useState(habit);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,11 +95,11 @@ export default function HabitsPanel({ habits, date, today, selectDate, repositor
   habits: Habit[]; date: Date; today: Date; selectDate: (date: Date) => void;
   repository: LifeRepository; owner: string | null; focusId?: string; startCreating: boolean;
 }) {
-  const [editor, setEditor] = useState<Habit | undefined>(() => startCreating ? newHabit(owner, today) : undefined);
+  const [editor, setEditor] = useState<Habit | undefined>(() => startCreating ? newHabit(owner, date) : undefined);
   const changeMonth = (offset: number) => selectDate(new Date(date.getFullYear(), date.getMonth() + offset, 1));
   return <section className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">習慣養成</h2>
-      <button className={control} onClick={() => setEditor(newHabit(owner, today))}>新增習慣</button></div>
+      <button className={control} onClick={() => setEditor(newHabit(owner, date))}>新增習慣</button></div>
     <div className="flex flex-wrap items-end gap-2">
       <button type="button" className={control} onClick={() => changeMonth(-1)}>上個月</button>
       <label className="grid gap-1">紀錄日期<input type="date" className={control} value={localDateInput(date)} onChange={event => {

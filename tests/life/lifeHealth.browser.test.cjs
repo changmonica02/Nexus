@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test("health records persist and calendar sharing is opt-in", { timeout: 60000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-life-overview-"));
@@ -36,12 +37,12 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE, args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"] });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, timezoneId: "Asia/Taipei" });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.getByRole("tab",{name:"健康管理",exact:true}).click();
+    await navigateLife(page, "健康管理");
     const nav = name => page.getByRole("navigation",{name:"健康功能"}).getByRole("button",{name,exact:true}).click();
     const enter = async (name, fill) => {
       await page.getByRole("button",{name,exact:true}).click();
@@ -61,7 +62,7 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await nav("運動");
     await enter("新增運動計畫",async dialog=>dialog.getByLabel("名稱",{exact:true}).fill("傍晚散步"));
     await page.reload();
-    await page.getByRole("tab",{name:"健康管理",exact:true}).click();
+    await navigateLife(page, "健康管理");
     await page.getByText("65 kg",{exact:true}).waitFor();
     await page.getByText("500 ml",{exact:true}).waitFor();
     await page.getByText("8 小時",{exact:true}).waitFor();
@@ -76,13 +77,13 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
       }
       await page.setViewportSize({width:1280,height:900});
     }
-    await page.getByRole("tab",{name:"日曆",exact:true}).click();
+    await navigateLife(page, "日曆");
     assert.equal(await page.getByText(/傍晚散步/).count(),0);
-    await page.getByRole("tab",{name:"健康管理",exact:true}).click();
+    await navigateLife(page, "健康管理");
     await nav("隱私與資料");
     await page.getByRole("checkbox",{name:"在行事曆顯示運動"}).click();
     await page.getByRole("checkbox",{name:"在行事曆顯示運動",checked:true}).waitFor();
-    await page.getByRole("tab",{name:"日曆",exact:true}).click();
+    await navigateLife(page, "日曆");
     await page.getByRole("button",{name:/運動計畫 · 傍晚散步/}).waitFor();
     assert.deepEqual(errors,[]);
   } finally {

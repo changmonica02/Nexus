@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test("life finance workflows, recurring calendar and responsive screenshots", { timeout: 60000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-life-overview-"));
@@ -36,12 +37,12 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE, args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"] });
     const page = await browser.newPage({ viewport: { width: 360, height: 700 } });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.getByRole("tab", {name:"財務",exact:true}).click();
+    await navigateLife(page, "財務");
     const tab = name => page.getByRole("navigation",{name:"財務功能"}).getByRole("button",{name,exact:true}).click();
     const enter = async (entry, fill) => {
       await page.getByRole("button",{name:entry,exact:true}).first().click();
@@ -139,11 +140,11 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
         await page.screenshot({path:path.join(out,"Nexus-Finance-"+name+".png"),animations:"disabled"});
       }
     }
-    await page.getByRole("tab",{name:"日曆",exact:true}).click();
+    await navigateLife(page, "日曆");
     await page.getByRole("button",{name:"日檢視",exact:true}).click();
-    await page.getByRole("button",{name:/預計扣款 · 閱讀服務/}).waitFor();
+    await page.locator(".life-day-details").getByRole("button",{name:/預計扣款 · 閱讀服務/}).waitFor();
     await page.getByRole("button",{name:"週檢視",exact:true}).click();
-    await page.getByRole("button",{name:/預計扣款 · 閱讀服務/}).click();
+    await page.locator(".life-day-details").getByRole("button",{name:/預計扣款 · 閱讀服務/}).click();
     await page.getByRole("dialog",{name:"編輯訂閱",exact:true}).getByRole("button",{name:"取消",exact:true}).click();
     await tab("訂閱");
     await page.getByRole("button",{name:"確認扣款並記帳"}).click();
@@ -151,10 +152,11 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     await tab("記帳");
     await page.getByRole("button",{name:/閱讀服務/}).waitFor();
     await page.reload();
-    await page.getByRole("tab",{name:"財務",exact:true}).click();
+    await navigateLife(page, "財務");
     await tab("帳戶");
     await page.getByRole("button",{name:/日常帳戶/}).waitFor();
-    await page.getByRole("tab",{name:"日曆",exact:true}).click();
+    await navigateLife(page, "日曆");
+    await page.getByRole("button",{name:"新增",exact:true}).click();
     await page.getByRole("button",{name:"新增行程",exact:true}).click();
     dialog=page.getByRole("dialog",{name:"新增行程",exact:true});
     await fill(dialog,"名稱","每週回顧");
@@ -165,18 +167,18 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     await dialog.waitFor({state:"hidden"});
     await page.getByRole("button",{name:"週檢視",exact:true}).click();
     await page.getByRole("button",{name:"下一期間",exact:true}).click();
-    await page.getByRole("button",{name:/每週回顧/}).click();
+    await page.locator(".life-calendar-layout > div").getByRole("button",{name:/每週回顧/}).first().click();
     dialog=page.getByRole("dialog",{name:"編輯行程",exact:true});
     await choose(dialog,"套用範圍","single");
     await fill(dialog,"名稱","單次回顧");
     await dialog.getByRole("button",{name:"儲存行程"}).click();
-    await page.getByRole("button",{name:/單次回顧/}).waitFor();
+    await page.locator(".life-day-details").getByRole("button",{name:/單次回顧/}).waitFor();
 
-    await page.getByRole("tab",{name:"計時工具",exact:true}).click();
+    await navigateLife(page, "計時工具");
     await page.getByRole("button",{name:"碼錶",exact:true}).click();
     await page.getByRole("button",{name:"開始",exact:true}).click();
     await page.reload();
-    await page.getByRole("tab",{name:"計時工具",exact:true}).click();
+    await navigateLife(page, "計時工具");
     await page.getByRole("button",{name:"暫停",exact:true}).click();
     await page.getByRole("button",{name:"儲存計時結果",exact:true}).click();
     await page.getByRole("heading",{name:"計時歷史"}).waitFor();

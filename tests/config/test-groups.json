@@ -171,6 +171,7 @@
       "tests/life/lifeSensitive.browser.test.cjs",
       "tests/life/lifeStorage.test.cjs",
       "tests/life/lifeTime.test.cjs",
+      "tests/life/lifeUx.browser.test.cjs",
       "tests/life/lifeViews.browser.test.cjs",
       "tests/life/lifeViews.test.cjs",
       "tests/life/todoCalendar.test.cjs"

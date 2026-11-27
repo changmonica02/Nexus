@@ -58,7 +58,7 @@ export function newCard(type: CardType): Card {
 }
 
 export function templateCards(template: "daily" | "study" | "empty"): Card[] {
-  if (template === "daily") return [newCard("calendar"), { ...newCard("tasks"), period: "day" }];
+  if (template === "daily") return [newCard("calendar"), { ...newCard("tasks"), period: "day" }, newCard("habits")];
   if (template === "study") return [
     newCard("tasks"), { ...newCard("calendar"), period: "week" }, newCard("lists"),
   ];

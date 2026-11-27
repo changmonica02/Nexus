@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test(
   "shared Table v9 views, stable fields, category tree, pagination, device preferences, offline editing and account isolation",
@@ -40,8 +41,8 @@ test(
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const browser = await chromium.launch({
-        executablePath: process.env.BROWSER_EXECUTABLE,
-        args: ["--no-sandbox"],
+        executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE,
+        args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"],
       }),
       errors = [];
     try {
@@ -104,7 +105,7 @@ test(
           });
       });
       const tab = () => page.getByRole("tab", { name: "我的清單", exact: true });
-      await tab().click();
+      await navigateLife(page,"我的清單");
       await page.getByRole("button", { name: "Inventory", exact: true }).click();
       const before = await page.evaluate(async () => ({
         data: await window.lifeStorage.getLifeRepository().read(),
@@ -184,7 +185,7 @@ test(
       assert.equal(await rows().count(), 0);
       await context.setOffline(false);
       await page.reload();
-      await tab().click();
+      await navigateLife(page,"我的清單");
       await page.getByRole("button", { name: "Inventory", exact: true }).click();
       assert.equal(await view("分類樹").getAttribute("aria-pressed"), "true");
       assert.equal(await page.getByRole("searchbox", { name: "搜尋項目", exact: true }).inputValue(), "Item 00");
@@ -218,10 +219,10 @@ test(
       assert.equal(after.data.life_items.find((i) => i.id === "item-0").category_id, "other");
       assert.equal(after.pending.length, before.pending.length + 1);
       await page.evaluate(() => window.switchLifeOwner());
-      await tab().click();
+      await navigateLife(page,"我的清單");
       assert.equal(await page.getByRole("button", { name: "Inventory", exact: true }).count(), 0);
       await page.evaluate(() => window.switchLifeOwner());
-      await tab().click();
+      await navigateLife(page,"我的清單");
       await page.getByRole("button", { name: "Inventory", exact: true }).click();
       assert.equal(await view("表格").getAttribute("aria-pressed"), "true");
       // Archived field preferences cannot silently trap the view in an empty filter/group/sort.

@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test("life overview edits, persists and restores real-data cards across viewport sizes and accounts", { timeout: 60000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-life-overview-"));
@@ -36,7 +37,7 @@ test("life overview edits, persists and restores real-data cards across viewport
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE, args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"] });
     const page = await browser.newPage({ viewport: { width: 360, height: 700 } });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -55,7 +56,7 @@ test("life overview edits, persists and restores real-data cards across viewport
         category_id: null, values: {}, attachment_ids: [] });
       await window.reloadLifePages();
     });
-    const calendar = page.locator("article").filter({ has: page.getByRole("heading", { name: "月曆事項" }) });
+    const calendar = page.locator("article").filter({ has: page.getByRole("heading", { name: "當日時間軸" }) });
     await calendar.getByRole("button", { name: /繳交報告/ }).waitFor();
     const edit = () => page.getByRole("button", { name: "自訂", exact: true }).click();
     const save = () => page.getByRole("button", { name: "儲存配置", exact: true }).click();
@@ -102,7 +103,7 @@ test("life overview edits, persists and restores real-data cards across viewport
     await page.getByRole("checkbox", { name: "任務", exact: true }).check();
     await save();
     await first.getByRole("heading", { name: "接下來的行程" }).waitFor();
-    const selectTab = name => page.getByRole("tab", { name, exact: true }).click();
+    const selectTab = name => navigateLife(page,name);
     await selectTab("行程");
     await page.getByRole("button", { name: "新增行程", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "新增行程" });
@@ -111,7 +112,7 @@ test("life overview edits, persists and restores real-data cards across viewport
     await dialog.getByLabel("分類").fill("學業");
     await dialog.getByLabel("備註").fill("攜帶報告");
     await dialog.getByRole("button", { name: "儲存行程" }).click();
-    await page.getByRole("button", { name: /課程討論/ }).click();
+    await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button", { name: /課程討論/ }).click();
     dialog = page.getByRole("dialog", { name: "編輯行程" });
     assert.equal(await dialog.getByLabel("備註").inputValue(), "攜帶報告");
     await dialog.getByLabel("名稱").fill("課程討論會");
@@ -123,26 +124,23 @@ test("life overview edits, persists and restores real-data cards across viewport
     await dialog.getByLabel("名稱").fill("報告日");
     await dialog.getByLabel("每年重複").check();
     await dialog.getByRole("button", { name: "儲存重要日期" }).click();
-    await page.getByRole("button", { name: /報告日.*就是今天/ }).waitFor();
+    await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button", { name: /報告日.*就是今天/ }).waitFor();
 
     await selectTab("習慣");
     await page.getByRole("button", { name: "新增習慣", exact: true }).click();
-    await page.getByLabel("名稱", { exact: true }).fill("每日閱讀");
+    await page.getByRole("region",{name:"日曆事項管理"}).getByLabel("名稱", { exact: true }).fill("每日閱讀");
     await page.getByRole("button", { name: "儲存習慣" }).click();
     await page.getByRole("button", { name: "標記完成", exact: true }).click();
     await page.getByText(/連續 1 天/).waitFor();
-    await selectTab("計時工具");
-    await page.getByRole("button", { name: "碼錶", exact: true }).click();
-    await page.getByRole("button", { name: "開始", exact: true }).click();
-    await page.getByRole("button", { name: "暫停", exact: true }).click();
-
     const calendarTab = page.getByRole("tab", { name: "日曆", exact: true }).count().then(n => n > 0 ? "日曆" : "月曆");
     await selectTab(await calendarTab);
     const calendarPanel = page.locator("#life-content");
-    await calendarPanel.getByRole("button", { name: /課程討論會/ }).waitFor();
-    await calendarPanel.getByRole("button", { name: /報告日/ }).waitFor();
-    await calendarPanel.getByRole("button", { name: /習慣.*每日閱讀/ }).waitFor();
+    await page.locator(".life-day-details").getByRole("button", { name: /課程討論會/ }).waitFor();
+    await page.locator(".life-day-details").getByRole("button", { name: /報告日/ }).waitFor();
+    await calendarPanel.getByRole("button", { name: "每日閱讀",exact:true }).waitFor();
+    await page.getByText("篩選來源",{exact:true}).click();
     await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).uncheck();
+    await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button",{name:"關閉管理"}).click();
     await calendarPanel.getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
     await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).check();
 
@@ -174,13 +172,13 @@ test("life overview edits, persists and restores real-data cards across viewport
         await page.screenshot({ path: path.join(output, "Nexus-Life-calendar.png"), animations: "disabled" });
     }
     await selectTab("行程");
-    await page.getByRole("button", { name: /課程討論會/ }).click();
+    await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button", { name: /課程討論會/ }).click();
     await page.getByRole("dialog", { name: "編輯行程" }).getByRole("button", { name: "刪除行程" }).click();
     await page.getByRole("dialog", { name: "刪除行程" }).getByRole("button", { name: "確認", exact: true }).click();
-    await page.getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
+    await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
     await selectTab("總覽");
     await page.evaluate(() => window.switchLifeOwner());
-    await page.getByRole("heading", { name: "月曆事項" }).waitFor();
+    await page.getByRole("heading", { name: "當日時間軸" }).waitFor();
     assert.equal(await page.getByLabel("使用中的儀表板").locator("option").count(), 1);
     assert.deepEqual(errors, []);
   } finally {

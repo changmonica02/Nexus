@@ -180,7 +180,7 @@ function NexusAppInner({
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isToolsMode,setIsToolsMode]=useState(false);
-  const [toolKind,setToolKind]=useState<"counter"|"draw">("counter");
+  const [toolKind,setToolKind]=useState<"counter"|"draw"|"timer">("counter");
   const [utilityMode, setUtilityMode] = useState<"web" | "counter" | "draw" | "score" | null>(null);
   const [isPageNightAdapt, setIsPageNightAdapt] = useState(false);
   // 2026-08-11：側邊欄「新增筆記」→ 模式選擇對話框（流動/分頁）
@@ -1872,6 +1872,7 @@ function NexusAppInner({
         <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
+          {isTodoMode && <h1 className="ml-3 border-l border-[var(--color-border)] pl-3 text-base font-semibold">生活</h1>}
           <div className="flex-1" />
           {workspaceActions}
         </header>
@@ -1980,13 +1981,21 @@ function NexusAppInner({
       ) : isTodoMode ? (
         <TodoView storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
-          onCreate={async(title,due)=>{await createAndOpenPage({title,kind:'todo',due_date:due??Date.now(),completed:false});}}
+          onCreate={async(title,due)=>{
+            const storage=storageRef.current!;
+            const owner=storage.getWorkspaceOwner?.();
+            const task=await storage.createPage({title,kind:'todo',due_date:due??Date.now(),completed:false});
+            if(storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner){
+              setPages(previous=>[task,...previous]);
+              syncEngineRef.current?.pushPage(task);
+            }
+          }}
           onUpdate={(id,patch)=>patchPage(id,patch)}
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />
       ) : isToolsMode ? (
-        <ToolsOverview kind={toolKind} onKind={setToolKind} pages={pages} onOpen={handleSelectPage} onCreate={kind=>void handleCreateItem(kind)} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}/>
+        <ToolsOverview storage={storageRef.current!} kind={toolKind} onKind={setToolKind} pages={pages} onOpen={handleSelectPage} onCreate={kind=>void handleCreateItem(kind)} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage} onDeletePage={handleDeletePage}/>
       ) : activePage?.kind === "score" ? (
         <ScoreWorkspace key={activePage.id} page={activePage} onChange={patch=>patchPage(activePage.id,patch)} onSave={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);}} onBack={async()=>{if(activePageRef.current)await flushSave(activePageRef.current);if(utilityMode)setActivePageId(null);else handleShowHome();}}/>
       ) : utilityMode === "score" ? (
