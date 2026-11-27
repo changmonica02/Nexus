@@ -389,7 +389,7 @@ export class StudyRepository {
     let converted=false;
     if(session.mode==="scheduled"){
       if(!session.settings_snapshot){const original:StudySettings=await tx.objectStore("study_settings").get(session.deck_id);session.settings_snapshot={...styleFromLegacy(original),review_limit:session.quota_limit??original.review_limit??50,study_mode:session.study_mode??original.study_mode??"scheduled",scheduling_method:"fsrs",interval_version:undefined};session.compatibility_notice=true;}
-      if(session.settings_snapshot.interval_version!==1){session.legacy_settings_snapshot??=structuredClone(session.settings_snapshot);session.settings_snapshot=unifiedStudyStyle(session.settings_snapshot);session.compatibility_notice=true;converted=true;}
+      if(session.settings_snapshot.interval_version!==2){session.legacy_settings_snapshot??=structuredClone(session.settings_snapshot);session.settings_snapshot=unifiedStudyStyle(session.settings_snapshot);session.compatibility_notice=true;converted=true;}
       validateStudyStyle(session.settings_snapshot);snapshot.settings=applyStyle(snapshot.settings,session.settings_snapshot);
     }
     if(session.mode==="scheduled") snapshot.events=await this.dayIntroductions(session.deck_id,now,tx);
@@ -504,7 +504,7 @@ export class StudyRepository {
       const card=storedCard.official_custom===false&&storedCard.official_pack_id&&storedCard.dictionary_entry_id&&display?.front.trim()&&display.back.trim()?{...storedCard,front:display.front,back:display.back}:storedCard;
       const state=snapshot.states.find(s=>s.id===cardId)!;
       if(card.hidden || state.conflict || state.head!==input.expectedHead || card.content_revision!==input.contentRevision || !card.front.trim() || !card.back.trim()) throw new Error("字卡或排程已變更，請重新載入題目。");
-      if(session.settings_snapshot?.interval_version===1&&![1,2,3].includes(rating))throw Error('無效的三按鈕回答。');
+      if(session.settings_snapshot?.interval_version===2&&![1,3].includes(rating))throw Error('無效的兩按鈕回答。');
       session.presented_card_id=null;
       const target=session.targets.find(t=>t.card_id===cardId)!;
       target.attempts=(target.attempts??0)+1;
@@ -514,7 +514,7 @@ export class StudyRepository {
       event.session_id=session.id;event.session_rating=rating;
       target.official_event_id=event.id;target.official_rating=rating;
       // Every genuine answer is scheduled; only a future non-intraday state finishes this target.
-      if(session.settings_snapshot?.interval_version===1?rating!==1:!isShortStep(event.after,now))target.easy_at=now;
+      if(session.settings_snapshot?.interval_version?rating!==1:!isShortStep(event.after,now))target.easy_at=now;
       session.answers++;session.revision++;session.last_action_id=actionId;
       session.updated_at=Math.max(now,session.updated_at+1);
       snapshot.states=snapshot.states.map(s=>s.id===cardId?event.after:s);

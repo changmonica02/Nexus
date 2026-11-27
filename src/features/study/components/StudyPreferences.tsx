@@ -1,8 +1,9 @@
 "use client";
+import {defaultBinaryIntervals} from '../binaryReviewPolicy';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../../lib/LanguageContext';
 import type { StudyRepository } from '../StudyRepository';
-import {defaultIntervalSettings,type StudyStyle} from '../studyStyles';
+import {type StudyStyle} from '../studyStyles';
 import ModalDialog from '../../../components/ModalDialog';
 import { CircleHelp } from 'lucide-react';
 
@@ -156,7 +157,7 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
                 ))}
               </select>
             </label>
-            {(['general','forgotten'] as const).map(group=><section key={group} className="space-y-3"><h3 className="font-semibold">{t('interval.'+group)}</h3>{([1,2,3] as const).map(rating=>{const values=style.intervals??defaultIntervalSettings();return <IntervalInput key={style.id+group+rating+values[group][rating-1]} label={t('interval.'+group)+' · '+t('interval.response'+rating)} seconds={values[group][rating-1]} onSave={seconds=>{const next=[...values[group]] as [number,number,number];next[rating-1]=seconds;save({interval_version:1,intervals:{...values,[group]:next}});}}/>;})}</section>)}
+            {(['general','fuzzy','forgotten'] as const).map(group=><section key={group} className="space-y-3"><h3 className="font-semibold">{t('interval.'+group)}</h3>{([1,3] as const).map((rating,index)=>{const values=style.binary_intervals??defaultBinaryIntervals();return <IntervalInput key={style.id+group+rating+values[group][index]} label={t('interval.'+group)+' · '+t('interval.response'+rating)} seconds={values[group][index]} onSave={seconds=>{const next=[...values[group]] as [number,number];next[index]=seconds;save({binary_intervals:{...values,[group]:next}});}}/>;})}</section>)}
             <section aria-label={t('speech.settings')} className="space-y-3">
               <h3 className="font-semibold">{t('deck.presentation')}</h3>
               <label className="flex items-center justify-between gap-3">{t('speech.automatic')}<input type="checkbox" aria-label={t('speech.automatic')} checked={style.auto_speech??true} onChange={event=>save({auto_speech:event.target.checked})}/></label>
