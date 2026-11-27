@@ -76,6 +76,22 @@ jobs:
             npx playwright install chromium
             node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
           fi
+      - name: Build and start isolated production fixture when selected
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://pwa-fixture.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-pwa-public-key
+        run: |
+          if node -e "process.exit(require('./.fast-plan.json').browser.some(f=>f.includes('.production.browser.'))?0:1)"; then
+            npm run build
+            npx next start --hostname 127.0.0.1 --port 32131 > /tmp/nexus-fast-pwa.log 2>&1 &
+            echo $! > /tmp/nexus-fast-pwa.pid
+            for attempt in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:32131 >/dev/null; then exit 0; fi
+              sleep 1
+            done
+            cat /tmp/nexus-fast-pwa.log
+            exit 1
+          fi
       - name: Run affected browser tests
         run: |
           node --input-type=module <<'NODE'
@@ -88,3 +104,10 @@ jobs:
             if(r.status!==0)process.exit(r.status??1);
           }
           NODE
+      - name: Stop isolated production fixture
+        if: always()
+        run: |
+          if test -f /tmp/nexus-fast-pwa.pid; then
+            cat /tmp/nexus-fast-pwa.log
+            kill "$(cat /tmp/nexus-fast-pwa.pid)" || true
+          fi
