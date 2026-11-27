@@ -162,6 +162,7 @@
       "tests/life/lifeDashboard.test.cjs",
       "tests/life/lifeFinance.browser.test.cjs",
       "tests/life/lifeFinance.test.cjs",
+      "tests/life/lifeAutomation.browser.test.cjs",
       "tests/life/lifeHealth.browser.test.cjs",
       "tests/life/lifeHealth.test.cjs",
       "tests/life/lifeLists.browser.test.cjs",
