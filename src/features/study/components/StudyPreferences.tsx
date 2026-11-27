@@ -2,74 +2,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../../lib/LanguageContext';
 import type { StudyRepository } from '../StudyRepository';
-import {defaultIntervalSettings,type StudyStyle} from '../studyStyles';
+import {type StudyStyle} from '../studyStyles';
 import ModalDialog from '../../../components/ModalDialog';
 import { CircleHelp } from 'lucide-react';
 
-function IntervalInput({
-  seconds,
-  onSave,
-  label,
-}: {
-  seconds: number;
-  onSave: (seconds: number) => void;
-  label: string;
-}) {
-  const units = [60, 3600, 86400, 1];
-  const initial =
-    seconds % 86400 === 0
-      ? 86400
-      : seconds % 3600 === 0
-        ? 3600
-        : seconds % 60 === 0
-          ? 60
-          : 1;
-  const [unit, setUnit] = useState(initial),
-    [amount, setAmount] = useState(String(seconds / initial));
-  const { t } = useLanguage();
-  const commit = (u = unit) => {
-    const value = amount.trim() ? Number(amount) * u : NaN;
-    if (value !== seconds) onSave(value);
-  };
-  return (
-    <label className="flex flex-wrap items-center justify-between gap-2">
-      {label}
-      <span className="flex gap-2">
-        <input
-          aria-label={label}
-          className="w-24 rounded border bg-transparent p-2"
-          type="number"
-          min="0"
-          step="any"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          onBlur={(e) => {
-            if (!(e.relatedTarget instanceof HTMLSelectElement)) commit();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-        />
-        <select
-          aria-label={label + " " + t("styles.unit")}
-          className="rounded border bg-transparent p-2"
-          value={unit}
-          onChange={(e) => {
-            const u = Number(e.target.value);
-            setUnit(u);
-            commit(u);
-          }}
-        >
-          {units.map((u) => (
-            <option key={u} value={u}>
-              {t("styles.unit" + u)}
-            </option>
-          ))}
-        </select>
-      </span>
-    </label>
-  );
-}
 export default function StudyPreferences({repository,deckId,registerFlush}:{repository:StudyRepository;deckId:string;registerFlush:(flush:()=>Promise<void>)=>void}) {
   const {t}=useLanguage();
   const [modeHelp,setModeHelp]=useState(false);
@@ -156,7 +92,7 @@ export default function StudyPreferences({repository,deckId,registerFlush}:{repo
                 ))}
               </select>
             </label>
-            {(['general','forgotten'] as const).map(group=><section key={group} className="space-y-3"><h3 className="font-semibold">{t('interval.'+group)}</h3>{([1,2,3] as const).map(rating=>{const values=style.intervals??defaultIntervalSettings();return <IntervalInput key={style.id+group+rating+values[group][rating-1]} label={t('interval.'+group)+' · '+t('interval.response'+rating)} seconds={values[group][rating-1]} onSave={seconds=>{const next=[...values[group]] as [number,number,number];next[rating-1]=seconds;save({interval_version:1,intervals:{...values,[group]:next}});}}/>;})}</section>)}
+            {(['general','fuzzy','forgotten'] as const).map((group,i)=><section key={group} className="space-y-2"><h3 className="font-semibold">{t('interval.'+group)}</h3><p>{t('interval.response1')} · 1 {t('styles.unit60')}</p><p>{t('interval.response3')} · {[7,3,1][i]} {t('styles.unit86400')}</p></section>)}
             <section aria-label={t('speech.settings')} className="space-y-3">
               <h3 className="font-semibold">{t('deck.presentation')}</h3>
               <label className="flex items-center justify-between gap-3">{t('speech.automatic')}<input type="checkbox" aria-label={t('speech.automatic')} checked={style.auto_speech??true} onChange={event=>save({auto_speech:event.target.checked})}/></label>

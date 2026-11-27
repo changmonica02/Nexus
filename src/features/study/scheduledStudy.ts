@@ -97,7 +97,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   const activeCards = new Map(snapshot.cards.filter(c => !c.deleted_at && c.front.trim() && c.back.trim()).map(c => [c.id,c]));
   const targets = session.targets.filter(t => activeCards.has(t.card_id) && states.get(t.card_id)?.generation === t.generation).map(t => ({ ...t }));
   // Due learning steps may enter unused slots; repeat answers never add a second target.
-  if (session.completed_at == null&&session.settings_snapshot?.interval_version!==1) for (const c of cards.values()) {
+  if (session.completed_at == null&&!session.settings_snapshot?.interval_version) for (const c of cards.values()) {
     const s = states.get(c.id)!;
     if (isShortStep(s, now)&&dueAt(s,now)<=now&&targets.length<(session.quota_limit??100) && !targets.some(t => t.card_id === c.id)) targets.push({ card_id: c.id, generation: s.generation, easy_at: null, official_event_id: null, event_id: crypto.randomUUID(), attempts: 0, counts_toward_limit: true });
   }
@@ -108,7 +108,7 @@ export function refreshScheduled(session: StudySession, snapshot: StudySnapshot,
   for (const t of targets) {
     const s = states.get(t.card_id)!;
     if(activeCards.get(t.card_id)?.hidden)continue;
-    if (session.completed_at != null || t.skipped || session.settings_snapshot?.interval_version===1&&t.easy_at!=null) continue;
+    if (session.completed_at != null || t.skipped || !!session.settings_snapshot?.interval_version&&t.easy_at!=null) continue;
     if(s.conflict){blocked++;continue;}
     if (isUnintroduced(s)) {
       if (newRemaining-- > 0) { t.easy_at = null; ready.push(t); }
