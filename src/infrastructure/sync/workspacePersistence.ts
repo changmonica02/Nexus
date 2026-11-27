@@ -1,4 +1,11 @@
-import {LIFE_STORES,emptyLife,validateLife,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
+import type { HealthRecord } from "../../features/life/health/model";
+import type { FinanceRecord } from "../../features/life/finance/model";
+import { validateFinanceRelations } from "../../features/life/finance/ledger";
+import { nextTaskId, nextTaskOccurrence } from "../../features/life/taskRepeat";
+import { dashboardSettingsKey, isDashboardConfig, type LifeDashboardConfig } from "../../features/life/dashboard/model";
+import type { IDBPTransaction } from "idb";
+import { LIFE_SYNC_STORES, dashboardId, combineDashboardConfigs, validateLifeSyncRecord, type LifeSyncStore, type DashboardRecord, type ScheduleEvent, type Habit, type TimerResult, type AutomationRunRecord } from "../../features/life/syncRecords";
+import {LIFE_STORES,emptyLife,validateLife,validateRequiredFields,validateFieldChange,type LifeRecord,type LifeList,type LifeItem,type LifeStore} from '../../features/life/lists';
 import type { IDBPDatabase } from "idb";
 import type { Attachment, Page } from "../../lib/types";
 import {OFFICIAL_CLEANUP_STORES,purgeOfficialDeck} from '../../features/study/officialPackCleanup';
@@ -11,9 +18,11 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
   return clean;
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
-export type EntityType = "pages" | "attachments" | LifeStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord;
+export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
+export type WorkspaceChange = { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob;
+  createOnce?: boolean; automationField?:"title"|"priority"|"completed" };
 export interface WorkspaceOperation {
   id: string;
   entity_type: EntityType;
@@ -21,6 +30,7 @@ export interface WorkspaceOperation {
   kind: OperationKind;
   expected_revision: number;
   value?: WorkspaceRecord;
+  automation_field?:"title"|"priority"|"completed";
   data?: string;
 }
 export interface WorkspaceBatch {
@@ -36,6 +46,7 @@ export interface WorkspaceResult {
   revision: number;
   deleted_at: number | null;
   hard_deleted: boolean;
+  discarded?: boolean;
   row?: Record<string, unknown>;
 }
 interface Meta {
@@ -44,11 +55,12 @@ interface Meta {
   revision: number;
   hard_deleted?: boolean;
   official_deck_deleted?:boolean;
+  cloudDashboard?: DashboardRecord;
 }
 const key = (owner: string | null, type: EntityType, id: string) => JSON.stringify([owner, type, id]);
 const notify = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-workspace-changed")); };
 const baseStores = ["pages", "attachments", "binaries", ...WORKSPACE_STORES];
-const storesFor = (db:IDBPDatabase) => [...baseStores,...LIFE_STORES.filter(s=>db.objectStoreNames.contains(s))];
+const storesFor = (db:IDBPDatabase) => [...baseStores,...[...LIFE_STORES,...LIFE_SYNC_STORES].filter(s=>db.objectStoreNames.contains(s))];
 
 /** Local records and immutable upload intents commit together. Remote merges never enqueue. */
 export class WorkspacePersistence {
@@ -59,7 +71,58 @@ export class WorkspacePersistence {
       .filter(batch => batch.owner_id === owner).sort((a, b) => a.sequence - b.sequence);
   }
 
-  async mutate(owner: string | null, changes: { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob }[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
+  async migrateDashboard(owner: string): Promise<void> {
+    if (!this.db.objectStoreNames.contains("life_dashboard_configs")) return;
+    const tx = this.db.transaction(["settings", "life_dashboard_configs", ...WORKSPACE_STORES], "readwrite");
+    const legacy = await tx.objectStore("settings").get(dashboardSettingsKey(owner));
+    if (isDashboardConfig(legacy?.value)) {
+      const current = await tx.objectStore("life_dashboard_configs").get(dashboardId(owner)) as DashboardRecord | undefined;
+      const config = current ? combineDashboardConfigs(current.config, legacy.value) : legacy.value;
+      if (!current || config.boards.length !== current.config.boards.length) await stageDashboard(tx, owner, config);
+      await tx.objectStore("settings").delete(dashboardSettingsKey(owner));
+    }
+    await tx.done;
+  }
+
+  async resolveDashboard(owner: string, preferLocal: boolean): Promise<boolean> {
+    const storeName = "life_dashboard_configs";
+    const tx = this.db.transaction([storeName, ...WORKSPACE_STORES], "readwrite");
+    const id = dashboardId(owner);
+    const local = await tx.objectStore(storeName).get(id) as DashboardRecord | undefined;
+    const meta = await tx.objectStore("workspace_sync_meta").get(key(owner, storeName, id)) as Meta | undefined;
+    const outbox = tx.objectStore("workspace_outbox");
+    const related = (await outbox.getAll() as WorkspaceBatch[]).filter(batch => batch.owner_id === owner
+      && batch.operations.some(op => op.entity_type === storeName && op.entity_id === id));
+    if (!local || !meta?.cloudDashboard || !related.some(batch => batch.error?.includes("Workspace revision conflict"))
+      || related.some(batch => batch.operations.some(op => op.entity_type !== storeName || op.entity_id !== id))) {
+      await tx.done;
+      return false;
+    }
+    for (const batch of related) await outbox.delete(batch.id);
+    await tx.objectStore(storeName).put(meta.cloudDashboard);
+    const config = preferLocal
+      ? combineDashboardConfigs(local.config, meta.cloudDashboard.config)
+      : combineDashboardConfigs(meta.cloudDashboard.config, local.config);
+    await stageDashboard(tx, owner, config);
+    await tx.done;
+    notify();
+    return true;
+  }
+
+  async hasDashboardConflict(owner: string): Promise<boolean> {
+    const id = dashboardId(owner);
+    const batches = await this.pending(owner);
+    return batches.some(batch => batch.error?.includes("Workspace revision conflict")
+      && batch.operations.some(op => op.entity_type === "life_dashboard_configs" && op.entity_id === id));
+  }
+
+  async mutate(owner: string | null, changes: WorkspaceChange[], guards: {type: EntityType; id:string; revision:number}[] = []): Promise<void> {
+    const work = [...changes];
+    const repeatIds = new Map(await Promise.all(work.flatMap(change => {
+      const page = change.value as Page;
+      return change.type === "pages" && change.kind === "save" && page.kind === "todo" && page.completed && page.task_repeat
+        ? [nextTaskId(page.id).then(id => [page.id, id] as const)] : [];
+    })));
     const tx = this.db.transaction(storesFor(this.db), "readwrite", { durability: "strict" });
     try {
       for (const guard of guards) {
@@ -70,13 +133,23 @@ export class WorkspacePersistence {
       const metadata = tx.objectStore("workspace_sync_meta");
       const queued = await outbox.getAll() as WorkspaceBatch[];
       const operations: WorkspaceOperation[] = [];
-      for (const change of changes) {
+      const pendingByEntity=new Map<string,WorkspaceOperation>();
+      for(const batch of queued.filter(batch=>batch.owner_id===owner).sort((a,b)=>a.sequence-b.sequence)){
+        for(const operation of batch.operations)pendingByEntity.set(key(owner,operation.entity_type,operation.entity_id),operation);
+      }
+      for (const change of work) {
         const { type, kind } = change;
         const value = type==='pages'?withoutRetiredStudyItems(structuredClone(change.value)):structuredClone(change.value);
         if ((value.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         const store = tx.objectStore(type);
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
+        if(change.createOnce&&(old||(await metadata.get(key(owner,type,value.id)))?.hard_deleted))continue;
+        if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
+          if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" || type === "life_automation_runs" && !!old : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord);
+          if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
+        }
         if (LIFE_STORES.includes(type as LifeStore)) {
           if(!["save","soft_delete","restore"].includes(kind))throw Error("不支援的清單操作");
           if (old && (value as LifeRecord).revision !== (old as LifeRecord).revision) throw Error('清單版本已變更，請重新載入後重試');
@@ -85,6 +158,14 @@ export class WorkspacePersistence {
           if (type === 'life_items' && kind === 'save') {
             const list=await tx.objectStore('life_lists').get((value as LifeItem).list_id);
             if (!list || list.schema_version !== (value as LifeItem).schema_version) throw Error('清單欄位已更新，請重新載入');
+            validateRequiredFields(list as LifeList,value as LifeItem);
+          }
+        }
+        const repeatId = type === "pages" && kind === "save" ? repeatIds.get(value.id) : undefined;
+        if (repeatId && old && !(old as Page).completed) {
+          const next = nextTaskOccurrence(value as Page, repeatId);
+          if (next && !await store.get(repeatId) && !(await metadata.get(key(owner, "pages", repeatId)))?.hard_deleted) {
+            work.push({ type: "pages", kind: "save", value: next });
           }
         }
         const metaId = key(owner, type, value.id);
@@ -92,14 +173,15 @@ export class WorkspacePersistence {
         if (meta?.hard_deleted) throw new Error("此物件已永久刪除，不能重新儲存。");
         if (kind === "save" && (old?.deleted_at != null || value.deleted_at != null)) throw new Error("已刪除物件只能透過還原操作恢復。");
         if (kind !== "save" && !old) throw new Error("Workspace object not found");
-        const previous = queued.filter(b => b.owner_id === owner).sort((a, b) => a.sequence - b.sequence)
-          .flatMap(b => b.operations).concat(operations).filter(op => op.entity_type === type && op.entity_id === value.id).at(-1);
+        const previous=pendingByEntity.get(metaId);
         // Existing, pre-outbox caches are not new objects: a missing cloud row must conflict.
         const revision = previous ? previous.expected_revision + 1 : meta?.revision ?? (old ? ("revision" in old ? old.revision ?? 1 : 1) : 0);
         const op: WorkspaceOperation = { id: crypto.randomUUID(), entity_type: type, entity_id: value.id, kind, expected_revision: revision };
         if (kind === "save") op.value = value;
+        if(change.automationField)op.automation_field=change.automationField;
         if (kind === "binary") op.data = change.data;
         operations.push(op);
+        pendingByEntity.set(metaId,op);
         await metadata.put({ ...meta, id: metaId, owner_id: owner, revision: meta?.revision ?? revision, hard_deleted: kind === "hard_delete" });
         if (kind === "hard_delete") {
           await store.delete(value.id);
@@ -109,7 +191,7 @@ export class WorkspacePersistence {
           await tx.objectStore("binaries").put({ id: value.id, owner_id: owner, blob: change.blob, updated_at: Date.now() });
         } else {
           const next = kind === "save" ? value : { ...old!, deleted_at: kind === "restore" ? null : Date.now(), updated_at: Date.now() };
-          if (LIFE_STORES.includes(type as LifeStore)) (next as LifeRecord).revision=revision+1;
+          if (LIFE_STORES.includes(type as LifeStore) || LIFE_SYNC_STORES.includes(type as LifeSyncStore)) (next as LifeRecord).revision=revision+1;
           await store.put(next);
         }
       }
@@ -117,6 +199,12 @@ export class WorkspacePersistence {
         const data=emptyLife();for(const s of LIFE_STORES)(data[s] as LifeRecord[])=(await tx.objectStore(s).getAll()).filter((r:LifeRecord)=>r.workspace_owner_id===owner);
         validateLife(data,owner,await tx.objectStore('attachments').getAll());
       }
+      if (changes.some(change => change.type === "life_finance_records")) {
+        const finance = (await tx.objectStore("life_finance_records").getAll() as FinanceRecord[])
+          .filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
+        validateFinanceRelations(finance);
+      }
+      if(!operations.length){ await tx.done; return; }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;
       await metadata.put({ id: "sequence", value: sequence });
@@ -148,8 +236,23 @@ export class WorkspacePersistence {
         const meta = await tx.objectStore("workspace_sync_meta").get(id) as Meta | undefined;
         if ((meta?.revision ?? -1) > result.revision) continue;
         const related = pending.filter(op => op.entity_type === result.entity_type && op.entity_id === result.entity_id);
+        if(result.discarded){
+          if(!acknowledged||result.entity_type!=="life_items"||!/^automation_relation_[0-9a-f]{64}$/.test(result.entity_id))throw Error("不支援的工作區操作回覆");
+          if(!related.length){
+            const store=tx.objectStore(result.entity_type);
+            const row=await store.get(result.entity_id) as LifeItem|undefined;
+            if(row&&row.workspace_owner_id!==owner)throw Error("Workspace ownership mismatch");
+            await store.delete(result.entity_id);
+            await tx.objectStore("workspace_sync_meta").delete(id);
+          }
+          continue;
+        }
         const hardDeleted = result.hard_deleted || !!meta?.hard_deleted;
         const nextMeta={...meta,id, owner_id: owner, revision: result.revision, hard_deleted: hardDeleted};
+        if (result.entity_type === "life_dashboard_configs" && result.row && isDashboardConfig(result.row.config)) {
+          const { owner_id: _owner, ...record } = result.row;
+          nextMeta.cloudDashboard = { ...record, workspace_owner_id: owner } as unknown as DashboardRecord;
+        }
         await tx.objectStore("workspace_sync_meta").put(nextMeta);
         const store = tx.objectStore(result.entity_type);
         const local = await store.get(result.entity_id);
@@ -249,4 +352,32 @@ export class WorkspacePersistence {
     await tx.done;
   }
 
+}
+
+/** Queue a complete dashboard snapshot inside migration or backup transactions. */
+export async function stageDashboard(tx: IDBPTransaction<unknown, string[], "readwrite">, owner: string, config: LifeDashboardConfig) {
+  const type = "life_dashboard_configs";
+  const id = dashboardId(owner);
+  const store = tx.objectStore(type);
+  const metadata = tx.objectStore("workspace_sync_meta");
+  const outbox = tx.objectStore("workspace_outbox");
+  const current = await store.get(id) as DashboardRecord | undefined;
+  const queued = (await outbox.getAll() as WorkspaceBatch[]).filter(batch => batch.owner_id === owner)
+    .sort((a, b) => a.sequence - b.sequence)
+    .flatMap(batch => batch.operations).filter(op => op.entity_type === type && op.entity_id === id).at(-1);
+  const meta = await metadata.get(key(owner, type, id)) as Meta | undefined;
+  const expected = queued ? queued.expected_revision + 1 : meta?.revision ?? current?.revision ?? 0;
+  const now = Date.now();
+  const record: DashboardRecord = {
+    id, config, workspace_owner_id: owner, revision: expected + 1,
+    created_at: current?.created_at ?? now, updated_at: now, deleted_at: null,
+  };
+  validateLifeSyncRecord(type, record);
+  await store.put(record);
+  const sequence = ((await metadata.get("sequence"))?.value ?? 0) + 1;
+  await metadata.put({ id: "sequence", value: sequence });
+  await outbox.add({
+    id: crypto.randomUUID(), owner_id: owner, sequence,
+    operations: [{ id: crypto.randomUUID(), entity_type: type, entity_id: id, kind: "save", expected_revision: expected, value: record }],
+  } satisfies WorkspaceBatch);
 }

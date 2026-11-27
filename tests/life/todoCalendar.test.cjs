@@ -15,3 +15,13 @@ test('local date inputs preserve civil dates, leap years and DST boundaries',()=
  for(const [year,month,day] of [[2024,1,29],[2026,2,8],[2026,10,1]]){const date=new Date(year,month,day,9,30);assert.equal(localDateInput(date),`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`);assert.equal(localDateTimeInput(date.getTime()),localDateInput(date)+'T09:30');}
  assert.equal(localDateTimeInput(null),'');
 });
+
+test('life month grid indexes source references by local day without copying task storage', () => {
+ const {taskCalendarEvents,eventsByLocalDay}=require('../../src/features/life/calendarSources.ts');
+ const date=new Date(2026,10,30,23,58);
+ const task={id:'task',kind:'todo',title:'月底截止',due_date:date.getTime(),completed:true};
+ const events=taskCalendarEvents([task,{...task,id:'deleted',deleted_at:1},{...task,id:'undated',due_date:null}]);
+ assert.deepEqual(eventsByLocalDay(events).get(localDateKey(date)),[
+  {source:'tasks',sourceId:task.id,date:date.getTime(),startsAt:date.getTime(),title:task.title,completed:true},
+ ]);
+});

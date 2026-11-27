@@ -139,6 +139,7 @@ export class SyncEngine {
     if (typeof window !== "undefined") {
       window.addEventListener("nexus-study-changed", this.studyChanged);
       window.addEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
+      window.addEventListener("nexus-workspace-refresh-request", this.workspaceChanged);
       window.addEventListener("online", this.studyOnline);
       window.addEventListener("online", this.workspaceOnline);
       document.addEventListener("visibilitychange", this.workspaceVisible);
@@ -155,6 +156,11 @@ export class SyncEngine {
       .on("postgres_changes", {event:"*",schema:"public",table:"life_lists",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_categories",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_items",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_dashboard_configs",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_schedule_events",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_habits",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_finance_records",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_timer_results",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", { event: "*", schema: "public", table: "workspace_tombstones", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .on("postgres_changes", { event: "*", schema: "public", table: "binaries", filter: `owner_id=eq.${this.userId}` }, () => this.workspaceChanged())
       .subscribe(status => {
@@ -244,6 +250,7 @@ export class SyncEngine {
       if (!this.destroyed) {
         // A tombstone pull must refresh the UI even if a stale queued save conflicts.
         this.onRemoteChange?.();
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("nexus-workspace-refreshed"));
         if (pull) await this.syncStudyNow();
         this.setState({ pendingPushes: this.state.pendingPushes + (await local.pending(this.userId)).length });
       }
@@ -266,7 +273,10 @@ export class SyncEngine {
     if (typeof window !== "undefined") { window.removeEventListener("nexus-study-changed", this.studyChanged); window.removeEventListener("online", this.studyOnline); }
     if (this.studySyncTimer) clearTimeout(this.studySyncTimer);
     if (this.workspaceTimer) clearTimeout(this.workspaceTimer);
-    if (typeof window !== "undefined") window.removeEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("nexus-workspace-changed", this.workspaceLocalChanged);
+      window.removeEventListener("nexus-workspace-refresh-request", this.workspaceChanged);
+    }
     if (typeof window !== "undefined") window.removeEventListener("online", this.workspaceOnline);
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.workspaceVisible);
     this.destroyed = true;

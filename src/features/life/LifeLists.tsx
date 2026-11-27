@@ -1,4 +1,6 @@
 "use client";
+import { coverClasses, evaluateFormula, previewFieldConversion, type Formula, type StatisticPreset } from "./listConfiguration";
+import { listTemplates, templateFields } from "./listTemplates";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 import type { Attachment } from "../../lib/types";
@@ -13,6 +15,7 @@ import {
   emptyLife,
   FIELD_TYPES,
   lifeBase,
+  validateRequiredFields,
   type LifeField,
   type LifeItem,
   type LifeList,
@@ -26,15 +29,19 @@ const button =
 const input =
   "min-h-11 w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-editor-bg)] px-2 py-2";
 type Editor = { type: LifeStore; row: LifeRecord } | { type: "field"; row: LifeField; listRevision: number };
-export default function LifeLists({ storage }: { storage: StorageAdapter }) {
+function newListEditor(owner: string | null): Editor {
+  return { type: "life_lists", row: { ...lifeBase(owner, ""), fields: [], schema_version: 1 } };
+}
+type RelationTarget={kind:NonNullable<LifeField["relation"]>;id:string;title:string};
+export default function LifeLists({ storage, startCreating = false, initialListId, relations=[], openRelation }: { storage: StorageAdapter; startCreating?: boolean;initialListId?:string;relations?:RelationTarget[];openRelation?:(target:RelationTarget)=>void }) {
   const { language } = useLanguage(),
     en = language === "en",
     label = (zh: string, english: string) => (en ? english : zh);
   const repo = useMemo(() => storage.getLifeRepository(), [storage]),
     [data, setData] = useState(emptyLife),
-    [listId, setListId] = useState<string | null>(null),
+    [listId, setListId] = useState<string | null>(initialListId??null),
     [error, setError] = useState(""),
-    [editor, setEditor] = useState<Editor | null>(null),
+    [editor, setEditor] = useState<Editor | null>(() => startCreating ? newListEditor(storage.getWorkspaceOwner?.() ?? null) : null),
     [busy, setBusy] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [categoryId, setCategoryId] = useState("*");
@@ -97,11 +104,14 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
       await run(() => repo.remove(type, row));
   };
   const newRecord = (type: LifeStore) => {
-    const base = lifeBase(storage.getWorkspaceOwner?.() ?? null, "");
+    const owner = storage.getWorkspaceOwner?.() ?? null;
+    if (type === "life_lists") {
+      setEditor(newListEditor(owner));
+      return;
+    }
+    const base = lifeBase(owner, "");
     setEditor(
-      type === "life_lists"
-        ? { type, row: { ...base, fields: [], schema_version: 1 } }
-        : type === "life_categories"
+      type === "life_categories"
           ? {
               type,
               row: {
@@ -117,7 +127,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
                 list_id: list!.id,
                 category_id: categoryId === "*" || !categoryId ? null : categoryId,
                 schema_version: list!.schema_version,
-                values: {},
+                values: Object.fromEntries(list!.fields.filter(field=>!field.archived&&field.defaultValue!==undefined).map(field=>[field.id,structuredClone(field.defaultValue)])),
                 attachment_ids: [],
               },
             },
@@ -138,6 +148,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
         updated_at: Date.now(),
       });
     } else {
+      if(next.type==="life_items")validateRequiredFields(list!,next.row as LifeItem);
       const row =
         next.type === "life_items"
           ? {
@@ -181,7 +192,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
           {data.life_lists
             .filter((l) => l.deleted_at == null)
             .map((l) => (
-              <article key={l.id} className="min-w-0 rounded-lg border border-[var(--color-border)] p-3">
+              <article key={l.id} className={"min-w-0 rounded-lg border border-[var(--color-border)] p-3 "+(coverClasses[l.configuration?.cover??""]??"")}>
                 <button
                   className="min-h-11 w-full break-words text-left font-medium"
                   onClick={() => {
@@ -189,7 +200,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
                     setCategoryId("*");
                   }}
                 >
-                  {l.title}
+                  {l.configuration?.icon&&<span aria-hidden="true" className="mr-2">{l.configuration.icon}</span>}{l.title}
                 </button>
                 <div className="flex flex-wrap gap-2">
                   <button className={button} onClick={() => setEditor({ type: "life_lists", row: l })}>
@@ -246,7 +257,7 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
               {list.fields.map((f) => (
                 <div key={f.id} className="flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 break-words">
-                    {f.name}
+                    {f.name}{f.unit?"（"+f.unit+"）":""}{f.required?" *":""}
                     {f.archived ? label("（已隱藏，原值保留）", " (hidden, values retained)") : ""}
                   </span>
                   <button
@@ -271,11 +282,24 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
               onCategoryChange={setCategoryId}
               list={list}
               items={items}
+              saveView={async(view)=>{
+                await repo.save("life_lists",{...list,configuration:{...list.configuration,view},updated_at:Date.now()});
+                await refresh();
+              }}
+              saveStatistics={async(statistics:StatisticPreset[])=>{
+                await repo.save("life_lists",{...list,configuration:{...list.configuration,statistics},updated_at:Date.now()});
+                await refresh();
+              }}
               categories={categories}
               owner={storage.getWorkspaceOwner?.() ?? null}
-              renderValue={(f, item) => (
-                <FieldValue field={f} value={item.values[f.id]} attachments={attachments} storage={storage} />
-              )}
+              renderValue={(f,item)=>{
+                const stored=item.values[f.id];
+                if(f.relation&&typeof stored==="string"&&stored){
+                  const target=relations.find(row=>row.kind===f.relation&&row.id===stored);
+                  return target&&openRelation?<button type="button" className="min-h-11 break-words underline" onClick={()=>openRelation(target)}>{target.title}</button>:<span>來源已隱藏或無法使用</span>;
+                }
+                return <FieldValue field={f} value={f.formula?evaluateFormula(f.formula,item.values):stored} attachments={attachments} storage={storage}/>;
+              }}
               onEdit={(item) =>
                 setEditor({ type: "life_items", row: { ...item, schema_version: list.schema_version } })
               }
@@ -296,6 +320,14 @@ export default function LifeLists({ storage }: { storage: StorageAdapter }) {
           attachments={attachments}
           storage={storage}
           onSave={save}
+          relations={relations}
+          conversionItems={items}
+          onConvert={async(fieldId,target)=>{
+            if(!list) return;
+            await repo.convertField(list,fieldId,target,items);
+            await refresh();
+            setEditor(null);
+          }}
           onClose={() => setEditor(null)}
         />
       )}
@@ -399,6 +431,9 @@ function LifeEditor({
   attachments,
   storage,
   onSave,
+  conversionItems,
+  relations,
+  onConvert,
   onClose,
 }: {
   initial: Editor;
@@ -407,6 +442,9 @@ function LifeEditor({
   attachments: Attachment[];
   storage: StorageAdapter;
   onSave: (e: Editor) => Promise<void>;
+  conversionItems:LifeItem[];
+  relations:RelationTarget[];
+  onConvert:(fieldId:string,target:"text"|"number")=>Promise<void>;
   onClose: () => void;
 }) {
   const { language } = useLanguage(),
@@ -415,6 +453,10 @@ function LifeEditor({
   const [draft, setDraft] = useState(() => structuredClone(initial)),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [conversion,setConversion]=useState(false);
+  const original=initial.type==="field"?list?.fields.find(field=>field.id===initial.row.id&&!field.archived&&!field.formula):undefined;
+  const target=original?.type==="number"?"text":original&&["text","longtext"].includes(original.type)?"number":undefined;
+  const preview=conversion&&target&&original?previewFieldConversion(conversionItems,original.id,target):undefined;
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   useUnsavedDraft(dirty, busy);
   const close = () => navigateDictionary(onClose),
@@ -431,6 +473,7 @@ function LifeEditor({
     });
   const fieldNames: Record<string, string> = en
     ? {
+        time:"Time", url:"URL", rating:"Rating (0–5)", duration:"Duration (minutes)", multiselect:"Multiple options",
         text: "Text",
         longtext: "Long text",
         number: "Number",
@@ -442,6 +485,7 @@ function LifeEditor({
         attachment: "Attachment",
       }
     : {
+        time:"時間", url:"網址", rating:"評分（0–5）", duration:"時長（分鐘）", multiselect:"多選",
         text: "文字",
         longtext: "長文字",
         number: "數字",
@@ -487,6 +531,13 @@ function LifeEditor({
                 ? label("分類設定", "Category settings")
                 : label("編輯項目", "Edit item")}
         </h2>
+        {draft.type==="life_lists"&&!("revision" in initial.row&&initial.row.revision)&&<label className="grid gap-1">{label("生活紀錄模板","Life record template")}
+          <select className={input} defaultValue="" onChange={event=>{
+            const name=event.target.value;
+            patch({title:name,fields:templateFields(name)});
+          }}><option value="">{label("空白清單","Blank list")}</option>
+            {Object.keys(listTemplates).map(name=><option key={name}>{name}</option>)}</select>
+        </label>}
         <label className="block">
           {label("名稱", "Name")}
           <input
@@ -498,11 +549,19 @@ function LifeEditor({
             onChange={(e) => patch(draft.type === "field" ? { name: e.target.value } : { title: e.target.value })}
           />
         </label>
+        {draft.type==="life_lists"&&"fields" in row&&<div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1">清單圖示<input className={input} maxLength={12} value={row.configuration?.icon??""}
+            onChange={event=>patch({configuration:{...row.configuration,icon:event.target.value}})}/></label>
+          <label className="grid gap-1">清單封面<select className={input} value={row.configuration?.cover??""}
+            onChange={event=>patch({configuration:{...row.configuration,cover:event.target.value||undefined}})}>
+            <option value="">無封面</option><option value="sage">鼠尾草綠</option><option value="sand">沙色</option><option value="sky">天空藍</option><option value="plum">梅紫</option>
+          </select></label>
+        </div>}
         {draft.type === "field" && (
           <>
             <label className="block">
               {label("型別", "Type")}
-              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value })}>
+              <select className={input} value={draft.row.type} onChange={(e) => patch({ type: e.target.value, defaultValue:undefined, unit:undefined, formula:undefined, relation:undefined, reminder:undefined })}>
                 {FIELD_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {fieldNames[t]}
@@ -510,7 +569,7 @@ function LifeEditor({
                 ))}
               </select>
             </label>
-            {draft.row.type === "select" && (
+            {(draft.row.type === "select" || draft.row.type === "multiselect") && (
               <label className="block">
                 {label("選項（每行一項）", "Options (one per line)")}
                 <textarea
@@ -520,6 +579,22 @@ function LifeEditor({
                 />
               </label>
             )}
+            {["number","duration","rating"].includes(draft.row.type)&&<label className="block">顯示單位
+              <input className={input} maxLength={20} value={draft.row.unit??""} onChange={event=>patch({unit:event.target.value})}/>
+            </label>}
+            {draft.row.type==="date"&&<label className="flex items-center gap-2"><input type="checkbox" checked={draft.row.reminder===true} onChange={event=>patch({reminder:event.target.checked})}/>於站內提醒顯示此日期</label>}
+            {draft.row.type==="text"&&<label className="grid gap-1">資料關聯<select className={input} value={draft.row.relation??""}
+              onChange={event=>patch({relation:event.target.value||undefined,defaultValue:undefined})}>
+              <option value="">一般文字</option><option value="task">任務</option><option value="schedule">行程</option><option value="milestone">重要日期</option>
+            </select></label>}
+            {!draft.row.relation&&!draft.row.formula&&["text","longtext","number","rating","duration","date","time","url","checkbox"].includes(draft.row.type)&&<label className="block">新項目預設值
+              {draft.row.type==="checkbox"?<select className={input} value={String(draft.row.defaultValue??"")} onChange={event=>patch({defaultValue:event.target.value===""?undefined:event.target.value==="true"})}>
+                <option value="">未設定</option><option value="true">已勾選</option><option value="false">未勾選</option>
+              </select>:<input className={input} value={String(draft.row.defaultValue??"")}
+                type={["number","rating","duration"].includes(draft.row.type)?"number":["date","time","url"].includes(draft.row.type)?draft.row.type:"text"} step="any"
+                onChange={event=>patch({defaultValue:event.target.value===""?undefined:event.target.type==="number"?event.target.valueAsNumber:event.target.value})}/>}
+            </label>}
+            <label className="flex items-center gap-2"><input type="checkbox" checked={!!draft.row.required} disabled={!!draft.row.formula} onChange={event=>patch({required:event.target.checked})}/>必要欄位</label>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -531,6 +606,30 @@ function LifeEditor({
                 "Archive field (remove from forms; retain values; reversible)",
               )}
             </label>
+            {draft.row.type==="number"&&<fieldset className="space-y-2"><legend>簡易公式</legend>
+              <label><input type="checkbox" checked={!!draft.row.formula} onChange={event=>patch({formula:event.target.checked?{left:"",right:"",operation:"+"}:undefined,defaultValue:undefined,required:false})}/> 以兩個數值欄位計算</label>
+              {draft.row.formula&&<div className="grid gap-2 sm:grid-cols-3">
+                {(["left","right"] as const).map(side=><label key={side}>{side==="left"?"左欄位":"右欄位"}<select className={input} value={draft.row.formula![side]} required
+                  onChange={event=>patch({formula:{...draft.row.formula,[side]:event.target.value}})}>
+                  <option value="">請選擇</option>{list?.fields.filter(field=>field.id!==draft.row.id&&!field.formula&&!field.archived&&["number","rating","duration"].includes(field.type)).map(field=><option key={field.id} value={field.id}>{field.name}</option>)}
+                </select></label>)}
+                <label>運算<select className={input} value={draft.row.formula.operation} onChange={event=>patch({formula:{...draft.row.formula,operation:event.target.value as Formula["operation"]}})}>
+                  {["+","-","*","/"].map(op=><option key={op}>{op}</option>)}
+                </select></label>
+              </div>}
+            </fieldset>}
+            {original&&target&&<section className="space-y-2">
+              <button className={button} type="button" onClick={()=>setConversion(!conversion)}>{conversion?"收起轉換預覽":"預覽型別轉換"}</button>
+              {preview&&<><p>轉為{target==="number"?"數字":"文字"} · 可轉換 {Object.keys(preview.converted).length} 筆，無法轉換 {preview.rejected.length} 筆。原欄位會封存並保留資料。</p>
+                {preview.rejected.length>0&&<ul>{conversionItems.filter(item=>preview.rejected.includes(item.id)).slice(0,5).map(item=><li key={item.id}>{item.title}</li>)}</ul>}
+                <button className={button} type="button" disabled={busy||!!preview.rejected.length} onClick={async()=>{
+                  setBusy(true);setError("");
+                  try{await onConvert(original.id,target);}
+                  catch(error){setError(error instanceof Error?error.message:"欄位轉換失敗");}
+                  finally{setBusy(false);}
+                }}>確認轉換並封存原欄位</button>
+              </>}
+            </section>}
             <p className="text-sm opacity-60">
               {label(
                 "已有資料的欄位不可直接更換型別；請新增欄位。",
@@ -562,13 +661,18 @@ function LifeEditor({
         )}
         {item &&
           list?.fields
-            .filter((f) => !f.archived)
+            .filter((f) => !f.archived&&!f.formula)
             .map((f) => {
               const v = item.values[f.id];
+              const numeric=["number","duration","rating"].includes(f.type);
               return (
                 <label key={f.id} className="block min-w-0">
-                  {f.name}
-                  {f.type === "longtext" ? (
+                  {f.name}{f.unit?"（"+f.unit+"）":""}{f.required?" *":""}
+                  {f.relation?<select className={input} value={String(v??"")} onChange={event=>value(f.id,event.target.value)}>
+                    <option value="">未設定</option>
+                    {typeof v==="string"&&v&&!relations.some(row=>row.kind===f.relation&&row.id===v)&&<option value={String(v)}>保留目前來源</option>}
+                    {relations.filter(row=>row.kind===f.relation).map(row=><option key={row.id} value={row.id}>{row.title}</option>)}
+                  </select>:f.type === "longtext" ? (
                     <textarea className={input} value={String(v ?? "")} onChange={(e) => value(f.id, e.target.value)} />
                   ) : f.type === "checkbox" ? (
                     <input
@@ -577,6 +681,10 @@ function LifeEditor({
                       checked={v === true}
                       onChange={(e) => value(f.id, e.target.checked)}
                     />
+                  ) : f.type === "multiselect" ? (
+                    <select multiple className={input} value={Array.isArray(v)?v:[]} onChange={event=>value(f.id,Array.from(event.target.selectedOptions,option=>option.value))}>
+                      {f.options?.map(option=><option key={option}>{option}</option>)}
+                    </select>
                   ) : f.type === "select" ? (
                     <select className={input} value={String(v ?? "")} onChange={(e) => value(f.id, e.target.value)}>
                       <option value="">—</option>
@@ -676,13 +784,14 @@ function LifeEditor({
                   ) : (
                     <input
                       className={input}
-                      type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                      step={f.type === "number" ? "any" : undefined}
+                      type={numeric ? "number" : ["date","time","url"].includes(f.type) ? f.type : "text"}
+                      step={numeric ? f.type==="rating"?1:"any" : undefined}
+                      min={f.type==="rating"||f.type==="duration"?0:undefined} max={f.type==="rating"?5:undefined}
                       value={String(v ?? "")}
                       onChange={(e) =>
                         value(
                           f.id,
-                          f.type === "number"
+                          numeric
                             ? e.target.value === ""
                               ? null
                               : Number(e.target.value)

@@ -9,6 +9,7 @@ const { pullWorkspace, flushWorkspace, readWorkspaceRows, remoteResult } = requi
 const { IndexedDBAdapter } = require('../../src/infrastructure/storage/IndexedDBAdapter.ts');
 const { SyncEngine } = require('../../src/infrastructure/sync/syncEngine.ts');
 
+const {LIFE_SYNC_STORES}=require('../../src/features/life/syncRecords.ts');
 const {LIFE_STORES}=require('../../src/features/life/lists.ts');
 const owner = 'user-a';
 const page = (id = 'page-a') => ({ id, title: id, content_json: {}, content_text: '', default_mode: 'note', kind: 'note', created_at: 1, updated_at: 1, deleted_at: null, revision: 1, device_id: 'device', workspace_owner_id: owner });
@@ -16,7 +17,7 @@ const attachment = (id = 'att-a') => ({ id, kind: 'file', name: id, mime_type: '
 async function device(t) {
   const name = crypto.randomUUID();
   let db = await openDB(name, 7, { upgrade(db) {
-    for (const name of ['pages', 'attachments', 'binaries', ...WORKSPACE_STORES,...LIFE_STORES]) {
+    for (const name of ['pages', 'attachments', 'binaries', ...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES]) {
       const store = db.createObjectStore(name, { keyPath: 'id' });
       if (name === 'pages' || name === 'attachments') store.createIndex('by_updated', 'updated_at');
     }
@@ -32,7 +33,7 @@ async function device(t) {
 // Contract double for network/lost-response tests, not a substitute for PostgreSQL
 // migration execution (intentionally not performed by this test suite).
 class Server {
-  rows = { life_lists:new Map(),life_categories:new Map(),life_items:new Map(), pages: new Map(), attachments: new Map(), binaries: new Map(), workspace_tombstones: new Map() };
+  rows = { ...Object.fromEntries(LIFE_SYNC_STORES.map(name => [name, new Map()])), life_lists:new Map(),life_categories:new Map(),life_items:new Map(), pages: new Map(), attachments: new Map(), binaries: new Map(), workspace_tombstones: new Map() };
   receipts = new Map(); calls = []; binaryDownloads = 0; binaryBytes = 0; afterBinary = null; limit = 2; offline = false; loseResponse = false; binaryDeleteFails = false;
   from(table) {
     const server = this, filters = [], state = { limit: Infinity, cursor: null, columns: "*" };
@@ -311,7 +312,8 @@ test('IndexedDB v6 upgrade retains legacy cache without inventing upload operati
   const adapter = new IndexedDBAdapter();
   try {
     await adapter.init(); adapter.setWorkspaceOwner(owner);
-    assert.equal(adapter.db.version, 9);
+    assert.equal(adapter.db.version, 13);
+    assert.ok(adapter.db.objectStoreNames.contains("life_automation_runs"));
     assert.equal((await adapter.getPage('page-a')).title, 'page-a');
     assert.deepEqual(await adapter.getWorkspacePersistence().pending(owner), []);
   } finally { await adapter.close(); await deleteDB('nexus'); }

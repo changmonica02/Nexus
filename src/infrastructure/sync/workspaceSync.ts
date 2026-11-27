@@ -1,3 +1,4 @@
+import { LIFE_SYNC_STORES } from "../../features/life/syncRecords";
 import {LIFE_STORES} from '../../features/life/lists';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type EntityType, type WorkspaceResult, WorkspacePersistence,withoutRetiredStudyItems } from "./workspacePersistence";
@@ -32,24 +33,25 @@ export async function pullWorkspaceMetadata(client: SupabaseClient, local: Works
   const attachments = new Map<string, Record<string, unknown>>();
   const pullTombstones = async () => {
     const tombstones = await readWorkspaceRows(client, "workspace_tombstones", owner, "*", alive);
-    if (alive()) await local.merge(owner, tombstones.filter(row=>["pages","attachments",...LIFE_STORES].includes(String(row.entity_type))).map(row => ({
+    if (alive()) await local.merge(owner, tombstones.filter(row=>["pages","attachments",...LIFE_STORES,...LIFE_SYNC_STORES].includes(String(row.entity_type))).map(row => ({
       entity_type: row.entity_type as EntityType, entity_id: String(row.entity_id),
       revision: Number(row.revision), deleted_at: Number(row.deleted_at), hard_deleted: true,
     })));
   };
   await pullTombstones();
-  for (const type of ["pages", "attachments",...LIFE_STORES] as const) {
+  for (const type of ["pages", "attachments",...LIFE_STORES,...LIFE_SYNC_STORES] as const) {
     let rows:Record<string,unknown>[];
     try { rows = await readWorkspaceRows(client, type, owner, "*", alive); }
     catch(error) {
       // An early frontend release must not disable the existing workspace.
       // Only a missing new relation/schema-cache entry is optional; permission,
       // connectivity and all legacy-table errors remain visible failures.
-      if(LIFE_STORES.includes(type as typeof LIFE_STORES[number]) && ['42P01','PGRST205'].includes(String((error as {code?:string}).code)))continue;
+      if([...LIFE_STORES,...LIFE_SYNC_STORES].some(store => store === type) && ['42P01','PGRST205'].includes(String((error as {code?:string}).code)))continue;
       throw error;
     }
     if (!alive()) return attachments;
     await local.merge(owner, rows.map(row => remoteResult(type, row)));
+    if (type === "life_dashboard_configs" && alive()) await local.migrateDashboard(owner);
     if (type === "attachments") for (const row of rows) attachments.set(String(row.id), row);
   }
   // A delete concurrent with the data pull still wins before any local intents upload.
@@ -115,7 +117,10 @@ export async function flushWorkspace(client: SupabaseClient, local: WorkspacePer
       if (error) throw new Error(error.message);
       if (!Array.isArray(data) || data.length !== batch.operations.length) throw new Error("Invalid workspace operation response");
       if (data.some((result, index) => result.entity_type !== batch.operations[index].entity_type || result.entity_id !== batch.operations[index].entity_id
-        || !Number.isSafeInteger(result.revision) || result.revision < 1 || typeof result.hard_deleted !== "boolean")) throw new Error("Invalid workspace operation receipt");
+        || !Number.isSafeInteger(result.revision) || (result.discarded
+          ? result.revision!==0||result.hard_deleted||result.row||batch.operations[index].entity_type!=="life_items"
+            ||batch.operations[index].expected_revision!==0||!/^automation_relation_[0-9a-f]{64}$/.test(result.entity_id)
+          : result.revision < 1) || typeof result.hard_deleted !== "boolean")) throw new Error("Invalid workspace operation receipt");
       if (!alive()) return; // Receipt makes retry safe if the account changes after server commit.
       await local.merge(owner, data as WorkspaceResult[], batch.id);
     } catch (error) {

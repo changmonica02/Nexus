@@ -1,4 +1,5 @@
 "use client";
+import { nextTaskId } from "../features/life/taskRepeat";
 import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {studyErrorMessage} from '../features/study/studySync';
 import {WorldMapRepository, cloneWorldReferences, inspectMapProject } from "../features/worldMap/worldMapRepository";
@@ -479,7 +480,15 @@ function NexusAppInner({
       // Serialize writes to the same page; a later successful retry supersedes a failed write.
       if (previous) await previous.catch(() => undefined);
       const nextPage = { ...latestPage, updated_at: Date.now(), revision: latestPage.revision + 1 };
-      await storageRef.current!.savePage(nextPage);
+      const storage = storageRef.current!;
+      await storage.savePage(nextPage);
+      if (nextPage.kind === "todo" && nextPage.completed && nextPage.task_repeat) {
+        const successor = await storage.getPage(await nextTaskId(nextPage.id));
+        if (successor && !successor.deleted_at && storageRef.current === storage &&
+          (storage.getWorkspaceOwner?.() ?? null) === (successor.workspace_owner_id ?? null)) {
+          setPages(current => current.some(item => item.id === successor.id) ? current : [...current, successor]);
+        }
+      }
       if (pendingSavesRef.current.get(latestPage.id) === latestPage) pendingSavesRef.current.delete(latestPage.id);
       syncEngineRef.current?.pushPage(nextPage);
     })();
@@ -527,9 +536,9 @@ function NexusAppInner({
   // M1 fix: 統一的 page patch helper——更新欄位時同步 refresh updated_at，
   // 讓「最近編輯」排序在 session 內即時正確（state 不再落後 DB）。
   // revision 維持「持久化版本」語意，仍由 flushSave 在寫入 DB 時 +1。
-  const patchPage = useCallback((id: string, patch: Partial<Page>) => {
+  const patchPage = useCallback((id: string, patch: Partial<Page> | ((page: Page) => Partial<Page>)) => {
     setPages((prev) => {
-      const next = prev.map((p) => (p.id === id ? { ...p, ...patch, updated_at: Date.now() } : p));
+      const next = prev.map((p) => (p.id === id ? { ...p, ...(typeof patch === "function" ? patch(p) : patch), updated_at: Date.now() } : p));
       const updated = next.find((p) => p.id === id);
       if (updated) scheduleSave(updated);
       return next;
@@ -1303,7 +1312,7 @@ function NexusAppInner({
       links: [...(source.links || [])],
       creative_type: source.creative_type,
       color:source.color,
-      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,completed:false}:{}),
+      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,task_start_at:source.task_start_at,task_repeat:source.task_repeat,task_repeat_day:source.task_repeat_day,task_steps:source.task_steps?.map(step=>({...step,id:crypto.randomUUID(),done:false})),completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? (source.character_data.isTemplate ? {...snapshotCharacterTemplate(source.character_data),resourceSource:source.character_data.resourceSource} : structuredClone(source.character_data)) : undefined,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
@@ -1794,6 +1803,33 @@ function NexusAppInner({
         onImportPdf: handleImportPdfClick, onImportMd: handleImportMarkdownClick, onConvertToPresentation: () => handleConvertToPresentation(page?.id),
         nightAdapt: isPageNightAdapt, onToggleNightAdapt: handleTogglePageNightAdapt, onBackToInterface: page?.kind==='todo'?()=>navigate(handleShowTodoList):handleShowHome,
         onTaskChange: value=>patch(value),
+        taskAttachments: page?.kind === "todo" ? {
+          files: attachments.filter(file => page.attachment_ids?.includes(file.id)),
+          download: id => storageRef.current?.readBinary(id) ?? Promise.resolve(null),
+          detach: id => patchPage(page.id, current => ({ attachment_ids: current.attachment_ids?.filter(item => item !== id) ?? [] })),
+          upload: async file => {
+            const storage = storageRef.current;
+            if (!storage?.createAttachment) throw Error("附件儲存空間無法使用");
+            if (file.size > 10 * 1024 * 1024) throw Error("任務附件最多 10 MiB");
+            const owner = storage.getWorkspaceOwner?.() ?? null;
+            const isCurrent = () => storageRef.current === storage && (storage.getWorkspaceOwner?.() ?? null) === owner;
+            const attachment = await storage.createAttachment({
+              kind: file.type === "application/pdf" ? "pdf" : file.type.startsWith("image/") ? "image" : "file",
+              name: file.name, mime_type: file.type || "application/octet-stream", size_bytes: file.size,
+            });
+            try {
+              if (!isCurrent()) throw Error("帳號已切換");
+              await storage.attachBinary(attachment.id, file);
+              const task = isCurrent() ? await storage.getPage(page.id) : null;
+              if (!isCurrent() || !task || task.deleted_at != null) throw Error("任務已無法使用");
+            } catch (error) {
+              if (isCurrent()) await storage.deleteAttachment(attachment.id).catch(() => undefined);
+              throw error;
+            }
+            setAttachments(current => [...current, attachment]);
+            patchPage(page.id, current => ({ attachment_ids: [...(current.attachment_ids ?? []), attachment.id] }));
+          },
+        } : undefined,
         isSplitView: !!secondaryActivePageId, onCloseSplit: handleCloseSplit, onSwapSplit: handleSwapSplit,
         saveState: page ? pageSaveStates[page.id] : undefined, onSave: () => page ? flushSave(page) : Promise.resolve(),
       }} />;
@@ -1937,14 +1973,7 @@ function NexusAppInner({
               }
             });
           }}
-          onUpdate={(id, patch) => {
-            setPages((prev) => {
-              const next = prev.map((p) => p.id === id ? { ...p, ...patch, updated_at: Date.now(), revision: p.revision + 1 } : p);
-              const upd = next.find((p) => p.id === id);
-              if (upd && storageRef.current) { void storageRef.current.savePage(upd); syncEngineRef.current?.pushPage(upd); }
-              return next;
-            });
-          }}
+          onUpdate={patchPage}
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />

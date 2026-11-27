@@ -472,3 +472,8 @@ html, body { overscroll-behavior-y: none; }
 .world-map-tabs > button { margin: 0 0 -1px; }
 .dark [data-world-tools], .dark [data-map-display-controls] { color-scheme: dark; }
 [data-map-display-controls] select, [data-world-tools] select { color: var(--color-text); }
+
+[data-life-overview] { --life-accent: #32674e; }
+.dark [data-life-overview] { --life-accent: #a5d2b9; }
+
+.dark [data-life-workspace] { color-scheme: dark; }

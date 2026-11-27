@@ -1,5 +1,8 @@
 "use client";
-import { useEffect, useMemo, type ReactNode } from "react";
+import type { ViewPreferences } from "./listViewModel";
+import { evaluateFormula, type StatisticPreset } from "./listConfiguration";
+import LifeRecordSummary from "./LifeRecordSummary";
+import { useEffect, useMemo,useState, type ReactNode } from "react";
 import {
   tableFeatures,
   useTable,
@@ -28,6 +31,7 @@ import {
   orderedFields,
   searchItem,
   viewPreferenceKey,
+  readViewPreferences,
 } from "./listViewModel";
 import { useListViewPreferences } from "./useListViewPreferences";
 import CategoryTree from "./CategoryTree";
@@ -58,6 +62,8 @@ export default function LifeItemViews({
   onRemove,
   busy,
   onCategoryChange,
+  saveStatistics,
+  saveView,
 }: {
   list: LifeList;
   items: LifeItem[];
@@ -67,11 +73,15 @@ export default function LifeItemViews({
   onEdit: (item: LifeItem) => void;
   onRemove: (item: LifeItem) => void;
   busy: boolean;
+  saveView:(view:ViewPreferences)=>Promise<void>;
+  saveStatistics: (presets:StatisticPreset[])=>Promise<void>;
   onCategoryChange: (id: string) => void;
 }) {
   const { language } = useLanguage(),
     label = (zh: string, en: string) => (language === "en" ? en : zh);
   const [prefs, update] = useListViewPreferences(viewPreferenceKey(owner, list.id));
+  const [viewMessage,setViewMessage]=useState("");
+  const [savingView,setSavingView]=useState(false);
   const fields = useMemo(() => list.fields.filter((f) => !f.archived), [list.fields]);
   const fieldOrder = useMemo(
       () =>
@@ -112,7 +122,7 @@ export default function LifeItemViews({
         },
         ...fields.map((f) => ({
           id: fieldKey(f),
-          accessorFn: (r: LifeItem) => r.values[f.id],
+          accessorFn: (r: LifeItem) => f.formula?evaluateFormula(f.formula,r.values):r.values[f.id],
           header: f.name,
           getGroupingValue: (r: LifeItem) => displayValue(r.values[f.id]),
         })),
@@ -367,6 +377,21 @@ export default function LifeItemViews({
           </button>
         </div>
       </details>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={button} disabled={savingView} onClick={async()=>{
+          setSavingView(true);
+          try{await saveView(prefs);setViewMessage("已儲存共用檢視");}
+          catch(error){setViewMessage(error instanceof Error?error.message:"儲存檢視失敗");}
+          finally{setSavingView(false);}
+        }}>儲存共用檢視</button>
+        {list.configuration?.view&&<button type="button" className={button} onClick={()=>{
+          update(readViewPreferences(JSON.stringify(list.configuration?.view)));setViewMessage("已套用共用檢視");
+        }}>套用共用檢視</button>}
+        {viewMessage&&<span role="status">{viewMessage}</span>}
+      </div>
+      <LifeRecordSummary fields={list.fields} categories={categories} presets={list.configuration?.statistics??[]} savePresets={saveStatistics}
+        items={table.getFilteredRowModel().flatRows.map(row=>row.original)}
+        open={onEdit} formulaValue={evaluateFormula}/>
       {prefs.view === "tree" && (
         <CategoryTree
           categories={categories}

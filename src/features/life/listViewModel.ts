@@ -123,7 +123,7 @@ export function displayValue(value: unknown): string {
 export function compareValues(a: unknown, b: unknown, field?: LifeField): number {
   if (a == null || a === "") return b == null || b === "" ? 0 : 1;
   if (b == null || b === "") return -1;
-  if (field?.type === "number") return Number(a) - Number(b);
+  if (["number","duration","rating"].includes(field?.type??"")) return Number(a) - Number(b);
   if (field?.type === "checkbox") return Number(a) - Number(b);
   if (field?.type === "money") {
     const x = a as { currency: string; amount: string },

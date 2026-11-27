@@ -1,9 +1,11 @@
+import { isListConfiguration, type Formula, type ListConfiguration } from "./listConfiguration";
 /** Canonical records; views never own copies of items. */
 export const LIFE_STORES = ["life_lists", "life_categories", "life_items"] as const;
 export type LifeStore = (typeof LIFE_STORES)[number];
 export type FieldType =
-  "text" | "longtext" | "number" | "money" | "date" | "select" | "checkbox" | "image" | "attachment";
+  "time" | "url" | "rating" | "duration" | "multiselect" | "text" | "longtext" | "number" | "money" | "date" | "select" | "checkbox" | "image" | "attachment";
 export const FIELD_TYPES: FieldType[] = [
+  "time", "url", "rating", "duration", "multiselect",
   "text",
   "longtext",
   "number",
@@ -20,6 +22,12 @@ export interface LifeField {
   type: FieldType;
   options?: string[];
   archived?: boolean;
+  unit?: string;
+  formula?: Formula;
+  relation?: "task"|"schedule"|"milestone";
+  required?: boolean;
+  reminder?:boolean;
+  defaultValue?: string | number | boolean | string[];
 }
 interface Base {
   id: string;
@@ -33,6 +41,7 @@ interface Base {
 }
 export interface LifeList extends Base {
   fields: LifeField[];
+  configuration?: ListConfiguration;
   schema_version: number;
 }
 export interface LifeCategory extends Base {
@@ -106,6 +115,7 @@ export function validateLife(
   const lists = new Map(data.life_lists.map((l) => [l.id, l])),
     categories = new Map(data.life_categories.map((c) => [c.id, c]));
   for (const list of data.life_lists) {
+    if(list.configuration!==undefined&&!isListConfiguration(list.configuration))throw Error("清單顯示設定無效");
     if (
       !Number.isSafeInteger(list.schema_version) ||
       list.schema_version < 1 ||
@@ -114,7 +124,13 @@ export function validateLife(
       new Set(list.fields.map((f) => f.id)).size !== list.fields.length
     )
       throw Error("欄位結構無效");
-    for (const f of list.fields)
+    for (const f of list.fields) {
+      if(f.relation!==undefined&&(f.type!=="text"||!["task","schedule","milestone"].includes(f.relation)))throw Error("資料關聯格式無效");
+      if(f.formula!==undefined){
+        const input=(id:string)=>list.fields.some(field=>!field.formula&&["number","rating","duration"].includes(field.type)&&field.id===id);
+        if(!f.formula||f.type!=="number"||f.required||f.defaultValue!==undefined||!["+","-","*","/"].includes(f.formula.operation)||!input(f.formula.left)||!input(f.formula.right))
+          throw Error("公式需使用同一清單的兩個數值欄位");
+      }
       if (
         typeof f.id !== "string" ||
         !f.id ||
@@ -128,6 +144,7 @@ export function validateLife(
             new Set(f.options).size !== f.options.length))
       )
         throw Error("欄位設定無效");
+    }
   }
   for (const category of data.life_categories) {
     const list = lists.get(category.list_id);
@@ -173,6 +190,10 @@ export function validateLife(
       const valid =
         f.type === "checkbox"
           ? typeof value === "boolean"
+          : f.type === "multiselect"
+            ? Array.isArray(value)&&new Set(value).size===value.length&&value.every(option=>typeof option==="string"&&f.options?.includes(option))
+            : f.type === "rating" || f.type === "duration"
+              ? typeof value==="number"&&Number.isFinite(value)&&value>=0&&(f.type==="duration"||Number.isInteger(value)&&value<=5)
           : f.type === "number"
             ? typeof value === "number" && Number.isFinite(value)
             : f.type === "money"
@@ -188,6 +209,8 @@ export function validateLife(
                     (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
                       !Number.isNaN(Date.parse(value)) &&
                       new Date(value).toISOString().slice(0, 10) === value)) &&
+                  (f.type !== "time" || /^([01]\d|2[0-3]):[0-5]\d$/.test(value)) &&
+                  (f.type !== "url" || /^https?:\/\/[^\s]+$/i.test(value)) &&
                   (f.type !== "select" || (f.options ?? []).includes(value));
       if (!valid) throw Error("欄位值與型別不符：" + f.name);
     }
@@ -197,6 +220,14 @@ export function validateLife(
       for (const id of ids)
         if (!attachments.some((a) => a.id === id && a.workspace_owner_id === owner && a.deleted_at == null))
           throw Error("附件不存在或帳號不符");
+  }
+}
+export function validateRequiredFields(list:LifeList,item:LifeItem) {
+  for(const field of list.fields){
+    if(!field.required||field.archived)continue;
+    const value=Object.hasOwn(item.values,field.id)?item.values[field.id]:undefined;
+    if(value==null||typeof value==="string"&&!value.trim()||Array.isArray(value)&&!value.length)
+      throw Error("請填寫必要欄位："+field.name);
   }
 }
 export function validateFieldChange(before: LifeList, after: LifeList, items: LifeItem[]) {
