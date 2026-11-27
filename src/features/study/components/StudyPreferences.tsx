@@ -1,5 +1,5 @@
-import {defaultBinaryIntervals} from '../binaryReviewPolicy';
 "use client";
+import {defaultBinaryIntervals} from '../binaryReviewPolicy';
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../../../lib/LanguageContext';
 import type { StudyRepository } from '../StudyRepository';
