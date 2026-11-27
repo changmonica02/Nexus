@@ -1,4 +1,4 @@
-import { activeFixed,State, localStudyDay, type StudyCard, type StudySnapshot, type StudyState } from './studyFSRS';
+import { activeFixed,binaryState,State, localStudyDay, type StudyCard, type StudySnapshot, type StudyState } from './studyFSRS';
 import {isLearned, displayStudyCards, makeSession, type StudySession } from './studySessions';
 
 export function isUnintroduced(state: StudyState) {
@@ -63,7 +63,7 @@ export function planScheduled(snapshot: StudySnapshot, now: number, random = Mat
   const earlyIds = new Set<string>();
   if (snapshot.settings.study_mode === 'endless' && planned.length < limit) {
     const selected = new Set(planned.map(c => c.id));
-    const future = cards.filter(c => !selected.has(c.id) && isLearned(states.get(c.id)!) && !isShortStep(states.get(c.id)!,now) && dueAt(states.get(c.id)!, now) > now)
+    const future = cards.filter(c => !selected.has(c.id) && isLearned(states.get(c.id)!) && !isShortStep(states.get(c.id)!,now) && binaryState(states.get(c.id)!).level==='general' && dueAt(states.get(c.id)!, now) > now)
       .sort((a,b) => dueAt(states.get(a.id)!,now) - dueAt(states.get(b.id)!,now));
     for (const c of future.slice(0,limit-planned.length)) { planned.push(c); earlyIds.add(c.id); }
   }

@@ -12,7 +12,7 @@ const { reliableEvent } = require("../../src/features/study/studyReliability.ts"
 const { activeFixed } = require("../../src/features/study/studyFSRS.ts");
 const owner = "11111111-1111-4111-8111-111111111111",
   now = new Date(2026, 9, 14, 12).getTime();
-test("original Supabase SQL: style JSON, three-response events and interval edits replay after dropped replies, second-device settings/state, backup and owner isolation", async () => {
+test("original Supabase SQL: style JSON, two-response events and interval edits replay after dropped replies, second-device settings/state, backup and owner isolation", async () => {
   const pg = new PGlite(),
     one = await fixture(1, owner),
     two = await fixture(0, owner),
@@ -46,9 +46,9 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
     const switched = await one.repo.startSession(
       "deck",
       "scheduled",
-      now + 60001,
+      now + 86460000,
     );
-    await grade(one.repo, switched.id, 3, now + 60001);
+    await grade(one.repo, switched.id, 3, now + 86460000);
     let lost = true;
     const client = {
       rpc: async (name, args) => {
@@ -80,7 +80,7 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
           if (
             lost &&
             args.operation.kind === "event" &&
-            args.operation.value.engine === "nexus-interval@1"
+            args.operation.value.engine === "nexus-binary@2"
           ) {
             lost = false;
             return { error: { message: "lost interval receipt" } };
@@ -100,10 +100,10 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
     const events = (
       await pg.query("select payload from study_review_events")
     ).rows.map((r) => r.payload);
-    assert.equal(events.filter((e) => e.engine === "nexus-interval@1").length, 3);
+    assert.equal(events.filter((e) => e.engine === "nexus-binary@2").length, 3);
     assert.ok(events.every(reliableEvent));
     await syncStudy(two.repo, client, owner);
-    const remote = await two.repo.readScheduledDeck("deck", now + 60001);
+    const remote = await two.repo.readScheduledDeck("deck", now + 86460000);
     assert.equal(remote.settings.style.scheduling_method, "fixed");
     assert.equal(remote.settings.style.auto_speech, false);
     assert.equal(remote.settings.style.speech_rate, 1.2);
@@ -113,11 +113,11 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
     assert.equal(remote.states[0].fsrs, null);
     assert.equal(remote.states[0].conflict, false);
     await two.repo.saveStyle({ ...fixed, name: "共用自訂樣式" });
-    const next = await two.repo.startSession("deck", "scheduled", now + 60002);
-    await grade(two.repo, next.id, 2, now + 60002);
+    const next = await two.repo.startSession("deck", "scheduled", now + 172860000);
+    await grade(two.repo, next.id, 3, now + 172860000);
     await syncStudy(two.repo, client, owner);
     await syncStudy(one.repo, client, owner);
-    const reconciled = await one.repo.readScheduledDeck("deck", now + 60002);
+    const reconciled = await one.repo.readScheduledDeck("deck", now + 172860000);
     assert.ok(activeFixed(reconciled.states[0]));
     assert.equal(reconciled.settings.style.name, "共用自訂樣式");
     const backup = await one.repo.exportData();
@@ -140,11 +140,11 @@ test("original Supabase SQL: style JSON, three-response events and interval edit
     const branchOne = await one.repo.startSession(
         "deck",
         "scheduled",
-        now + 660003,
+        now + 432060000,
       ),
-      branchTwo = await two.repo.startSession("deck", "scheduled", now + 660003);
-    await grade(one.repo, branchOne.id, 2, now + 660003);
-    await grade(two.repo, branchTwo.id, 1, now + 660003);
+      branchTwo = await two.repo.startSession("deck", "scheduled", now + 432060000);
+    await grade(one.repo, branchOne.id, 3, now + 432060000);
+    await grade(two.repo, branchTwo.id, 1, now + 432060000);
     await syncStudy(one.repo, client, owner);
     await syncStudy(two.repo, client, owner);
     let conflict = (await two.repo.readDeck("deck", true)).states[0];
