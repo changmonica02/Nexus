@@ -244,7 +244,9 @@ export function editTaskPlan(plan: TaskPlan, slot: TaskSlot | undefined, scope: 
   if (!slot || scope === "all") {
     const current = plan.segments.at(-1);
     if (!settings) return { ...plan,retired:true,retiredOn:localDateInput(new Date()) };
-    if (!current) return { ...plan,segments:[{id:crypto.randomUUID(),settings}],retired:false,retiredOn:undefined };
+    const active = { ...plan, retired:false };
+    delete active.retiredOn;
+    if (!current) return { ...active,segments:[{id:crypto.randomUUID(),settings}] };
     if (sameTaskData(settings,current.settings) && !plan.retired) return plan;
     const since=localDateInput(new Date());
     const yesterday=civilAdvance(since,"day",-1);
@@ -254,9 +256,10 @@ export function editTaskPlan(plan: TaskPlan, slot: TaskSlot | undefined, scope: 
     });
     const sameMode=settings.recurrence.mode===current.settings.recurrence.mode;
     const segment:TaskSegment={id:crypto.randomUUID(),since,settings,
-      ...(sameMode?{keyPrefix:current.keyPrefix??current.id,sequenceBase:current.sequenceBase}:{}),
+      ...(sameMode?{keyPrefix:current.keyPrefix??current.id}:{}),
+      ...(sameMode&&current.sequenceBase!=null?{sequenceBase:current.sequenceBase}:{}),
     };
-    return { ...plan,segments:[...past,segment],retired:false,retiredOn:undefined };
+    return { ...active,segments:[...past,segment] };
   }
   if (scope === "one") {
     if (!settings) return { ...plan, excluded: [...new Set([...plan.excluded,slot.key])] };
