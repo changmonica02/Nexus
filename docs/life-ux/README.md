@@ -23,7 +23,7 @@
 - Chromium 的 8 個 Life 瀏覽器測試檔，包括原有全部流程及新增 UX 回歸。
 - `LIFE_BROWSER=webkit node --test --test-concurrency=1 tests/life/*.browser.test.cjs`
 - 新增 `lifeUx.browser.test.cjs`，驗證四種尺寸、淺／深色、無水平溢出、頂端列預留、詳情排列、直接任務編輯、習慣打卡、側邊欄狀態、舊入口、無期限／逾期任務、快速記帳及月份隔離。
-- CI 清冊新增 UX 測試；完整 CI 明確執行 Chromium 與 WebKit UX 回歸，並上傳截圖證據。
+- CI 清冊新增 UX 測試；完整 CI 明確執行 Chromium 與 WebKit UX 回歸及 WebKit 全部 Life 瀏覽器測試，並上傳截圖證據。
 
 ## 畫面證據
 
@@ -35,6 +35,7 @@
 | 日曆／平板橫向 | [Chromium](screenshots/calendar-landscape-chromium.png) |
 | 日曆／平板直向 | [Chromium](screenshots/calendar-portrait-chromium.png) |
 | 日曆／手機 | [Chromium](screenshots/calendar-phone-chromium.png) |
+| 日曆／手機日期詳情 | [Chromium](screenshots/calendar-phone-details-chromium.png) |
 | 日曆／手機深色 | [Chromium](screenshots/calendar-phone-dark-chromium.png) |
 | 總覽 | [Chromium](screenshots/overview-chromium.png) |
 | 財務／電腦 | [Chromium](screenshots/Nexus-Finance-overview-desktop.png) |

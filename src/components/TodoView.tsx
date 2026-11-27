@@ -259,7 +259,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
        const list=listReminders.find(row=>row.id===id);
        if(list){setListFocus(list.listId);change({tab:"lists",scroll:0});}
        else if(id.startsWith("budget:")){setFinanceTab("budget");setFinanceFocus(id.slice(7));change({tab:"finance",scroll:0});}
-       else if(id.startsWith("task:"))open(id.slice(5));
+       else if(id.startsWith("task:"))setTaskEditor(id.slice(5));
        else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
      }}/>}
      {state.tab==='calendar'&&<>
@@ -277,7 +277,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
         <button type="button" className={button} aria-expanded={!!manager} onClick={()=>setManager(manager?undefined:!scheduleHidden?'schedule':!tasksHidden?'tasks':!milestonesHidden?'milestones':'habits')}>管理</button>
        </div>
       </div>
-      {habitEditor&&repository&&<HabitForm key={habitEditor.id} habit={habitEditor} repository={repository} close={()=>setHabitEditor(undefined)}/>}
+      {habitEditor&&repository&&<HabitForm modal key={habitEditor.id} habit={habitEditor} repository={repository} close={()=>setHabitEditor(undefined)}/>}
       {manager&&<section className="life-manager space-y-3" aria-label="日曆事項管理">
        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">跨日期管理</h3><button type="button" className={button} onClick={()=>setManager(undefined)}>關閉管理</button></div>
        <div className="flex flex-wrap gap-2" role="group" aria-label="管理類型">

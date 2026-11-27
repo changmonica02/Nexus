@@ -52,6 +52,7 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
       await page.setViewportSize({width,height});
       for(const dark of [false,true]) {
         await page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),dark);
+        await page.locator('#life-content').evaluate(node=>{node.scrollTop=0;});
         const geometry=await page.evaluate(()=>{
           const calendar=document.querySelector('.life-calendar-layout > div').getBoundingClientRect(),details=document.querySelector('.life-day-details').getBoundingClientRect(),scroller=document.getElementById('life-content');
           return {calendar:{x:calendar.x,y:calendar.y,right:calendar.right,bottom:calendar.bottom},details:{x:details.x,y:details.y},overflow:scroller.scrollWidth>scroller.clientWidth,headerBottom:document.querySelector('[data-workspace-header]').getBoundingClientRect().bottom,contentTop:scroller.getBoundingClientRect().top};
@@ -60,7 +61,7 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
         assert.ok(geometry.contentTop>=geometry.headerBottom,`${name} header`);
         if(width>=960&&width>height)assert.ok(geometry.details.x>=geometry.calendar.right-1,`${name} side panel`);
         else assert.ok(geometry.details.y>=geometry.calendar.bottom-1,`${name} stacked panel`);
-        if(process.env.LIFE_UX_SCREENSHOTS&&(!dark||name==='phone')){fs.mkdirSync(process.env.LIFE_UX_SCREENSHOTS,{recursive:true});await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`calendar-${name}${dark?"-dark":""}-${engine}.png`)});}
+        if(process.env.LIFE_UX_SCREENSHOTS&&(!dark||name==='phone')){fs.mkdirSync(process.env.LIFE_UX_SCREENSHOTS,{recursive:true});await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`calendar-${name}${dark?"-dark":""}-${engine}.png`)});if(name==='phone'){await details.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`calendar-phone-details${dark?"-dark":""}-${engine}.png`)});}}
       }
     }
     await page.setViewportSize({width:1440,height:1000});
@@ -93,7 +94,16 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
       await editor.getByRole('button',{name:'取消',exact:true}).click();
     }
     await page.getByLabel('統計月份',{exact:true}).fill('2026-03');
-    await navigateLife(page,'日曆');await page.getByLabel('日曆日期',{exact:true}).fill('2027-02-18');await navigateLife(page,'財務');
+    await navigateLife(page,'日曆');await page.getByLabel('日曆日期',{exact:true}).fill('2027-02-18');
+    await page.getByRole('button',{name:'新增',exact:true}).click();await page.getByRole('button',{name:'新增行程',exact:true}).click();
+    const datedSchedule=page.getByRole('dialog',{name:'新增行程'});
+    assert.ok((await datedSchedule.getByLabel('開始',{exact:true}).inputValue()).startsWith('2027-02-18'));
+    await datedSchedule.getByRole('button',{name:'取消',exact:true}).click();
+    await page.getByRole('button',{name:'新增',exact:true}).click();await page.getByRole('button',{name:'新增習慣',exact:true}).click();
+    const datedHabit=page.getByRole('dialog',{name:'新增習慣'});
+    assert.equal(await datedHabit.getByLabel('開始日期',{exact:true}).inputValue(),'2027-02-18');
+    await datedHabit.getByRole('button',{name:'取消',exact:true}).click();
+    await navigateLife(page,'財務');
     assert.equal(await page.getByLabel('統計月份',{exact:true}).inputValue(),'2026-03');
     assert.deepEqual(await page.evaluate(async()=>window.lifeStorage.getLifeRepository().readDashboard()),before);
     await navigateLife(page,'總覽');await page.getByRole('button',{name:'今天',exact:true}).click();

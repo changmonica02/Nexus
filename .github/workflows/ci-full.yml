@@ -417,6 +417,7 @@ jobs:
           npx playwright install-deps webkit
           npx playwright install webkit
           LIFE_BROWSER=webkit node tests/life/lifeUx.browser.test.cjs
+          LIFE_BROWSER=webkit node tests/tools/run-full-extras.mjs --group life --mode browser
       - name: Start isolated production fixture for dictionary PWA
         if: matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: |
