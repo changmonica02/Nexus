@@ -1,3 +1,4 @@
+import { scheduleOccurrences } from "./scheduleRecurrence";
 import { localDateInput } from "../../lib/todoCalendar";
 import type { ScheduleEvent } from "./syncRecords";
 
@@ -13,6 +14,7 @@ function annualDate(origin: Date, year: number) {
 
 export function milestoneOccurs(event: ScheduleEvent, date: Date) {
   const day = civilDay(date);
+  if (event.repeat_rule) return scheduleOccurrences(event, localDateInput(date)).some(row => row.event.starts_at === day);
   return event.milestone?.yearly
     ? day >= event.starts_at && day === annualDate(new Date(event.starts_at), date.getFullYear())
     : day === event.starts_at;
@@ -20,6 +22,13 @@ export function milestoneOccurs(event: ScheduleEvent, date: Date) {
 
 export function milestoneTarget(event: ScheduleEvent, anchor: Date) {
   const day = civilDay(anchor);
+  if (event.repeat_rule) {
+    const furthest = new Date(day);
+    furthest.setUTCFullYear(Math.min(9999, furthest.getUTCFullYear() + Math.max(2, 2 * event.repeat_rule.interval)));
+    const times = scheduleOccurrences(event, furthest.toISOString().slice(0, 10)).map(row => row.event.starts_at).sort((a, b) => a - b);
+    return (event.milestone?.mode === "elapsed" ? times.findLast(time => time <= day) ?? times[0]
+      : times.find(time => time >= day) ?? times.at(-1)) ?? event.starts_at;
+  }
   if (!event.milestone?.yearly || event.starts_at > day) return event.starts_at;
   const origin = new Date(event.starts_at), year = anchor.getFullYear();
   const current = annualDate(origin, year);

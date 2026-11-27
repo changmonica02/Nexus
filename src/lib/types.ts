@@ -158,7 +158,7 @@ export interface Page {
   // Todo specific
   due_date?: number | null;
   task_start_at?: number | null;
-  task_repeat?: "daily" | "weekly" | "monthly" | null;
+  task_repeat?: "daily" | "weekly" | "monthly" | "after_completion" | null;
   task_repeat_day?: number | null;
   task_steps?: { id: string; title: string; done: boolean }[] | null;
   priority?: "low" | "medium" | "high" | null;
@@ -390,7 +390,9 @@ export interface PageQuery {
   limit?: number;
 }
 
-export interface CreatePageInput {
+export type TaskSchedulingFields = Partial<Pick<Page, "priority" | "task_start_at" | "task_steps" | "task_repeat" | "task_repeat_day">>;
+
+export interface CreatePageInput extends TaskSchedulingFields {
   due_date?: number | null;
   completed?: boolean;
   title?: string;

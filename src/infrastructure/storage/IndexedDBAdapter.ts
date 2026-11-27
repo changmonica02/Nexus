@@ -235,7 +235,11 @@ export class IndexedDBAdapter implements StorageAdapter {
       revision: 1,
       device_id: this.deviceId,
       kind: input?.kind ?? "note",
-      ...(input?.kind==='todo'?{due_date:input.due_date??null,completed:input.completed??false}:{}),
+      ...(input?.kind === "todo" ? {
+        due_date: input.due_date ?? null, completed: input.completed ?? false, priority: input.priority,
+        task_start_at: input.task_start_at, task_steps: input.task_steps,
+        task_repeat: input.task_repeat, task_repeat_day: input.task_repeat_day,
+      } : {}),
       presentation_data: input?.kind === "presentation" ? { theme: "minimal", slides: [] } : undefined,
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),
       sort_order: input?.sort_order,

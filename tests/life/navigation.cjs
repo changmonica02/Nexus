@@ -11,7 +11,7 @@ async function navigateLife(page, name) {
   await tab.click();
   if (children.includes(name)) {
     if (!await page.getByRole('region', { name: '日曆事項管理', exact: true }).isVisible()) await page.getByRole('button', { name: '管理', exact: true }).click();
-    await page.getByRole('group', { name: '管理類型', exact: true }).getByRole('button', { name, exact: true }).click();
+    await page.getByRole('group', { name: '管理類型', exact: true }).getByRole('button', { name: name === '習慣' ? '任務' : name, exact: true }).click();
   }
 }
 module.exports = { navigateLife };

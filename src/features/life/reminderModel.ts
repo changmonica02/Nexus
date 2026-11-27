@@ -1,6 +1,6 @@
 import { milestoneTarget } from "./milestoneDates";
 import { currencies, minorUnits } from "./finance/money";
-import { habitQuantity } from "./habits";
+import { habitPeriodKey, habitQuantity } from "./habits";
 import type { Habit, ScheduleEvent } from "./syncRecords";
 import type { LifeData } from "./lists";
 import { civilAdvance } from "./civilPeriods";
@@ -72,8 +72,7 @@ export function ruleOccurrences(rule:ReminderRule,day:string,tasks:Parameters<ty
     const habit=habits.find(row=>row.id===rule.habitId&&row.deleted_at==null);
     if(!rule.enabled||!habit||day<rule.start||day<habit.started_on)return [];
     if(habitQuantity(habit,new Date(day+"T00:00:00"))<habit.goal)return [];
-    const weekday=new Date(day+"T00:00:00Z").getUTCDay();
-    const period=habit.cadence==="weekly"?civilAdvance(day,"day",-((weekday+6)%7)):day;
+    const period=habitPeriodKey(habit.cadence,day);
     return [{id:JSON.stringify(["habit-completed",rule.id,habit.id,period]),day,title:rule.title,source:"自訂規則",priority:1}];
   }
   if(rule.trigger==="budget-percent"){

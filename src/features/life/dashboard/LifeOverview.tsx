@@ -16,7 +16,7 @@ import { useLanguage } from "../../../lib/LanguageContext";
 import { MilestoneRow } from "../Milestones";
 import { scheduleCalendarEvents, taskCalendarEvents, schedulePeriodMatches } from "../calendarSources";
 import { scheduleLabel } from "../SchedulePanel";
-import { habitQuantity, habitStats } from "../habits";
+import { habitPeriodLabel, habitQuantity, habitStats } from "../habits";
 import type { Habit, ScheduleEvent } from "../syncRecords";
 import type { Page } from "../../../lib/types";
 import { useUnsavedDraft } from "../../dictionary/useUnsavedDraft";
@@ -157,7 +157,6 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
             ...(!config.hiddenModules.includes("tasks")?[{label:"新增任務",action:()=>openModule("tasks",true)}]:[]),
             ...(repository&&!config.hiddenModules.includes("schedule")?[{label:"新增行程",action:()=>openModule("schedule",true)}]:[]),
             ...(repository&&!config.hiddenModules.includes("milestones")?[{label:"新增重要日期",action:()=>openModule("milestones",true)}]:[]),
-            ...(repository&&!config.hiddenModules.includes("habits")?[{label:"新增習慣",action:()=>openModule("habits",true)}]:[]),
             ...(repository&&!config.hiddenModules.includes("lists")?[{label:"新增清單",action:()=>openModule("lists",true)}]:[]),
           ]}/>
           {repository&&!config.hiddenModules.includes("finance")&&<button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={()=>openModule("finance",true)}>記帳</button>}
@@ -263,8 +262,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
                 {habitRows.slice(0, limit).map(({ habit, total }) => <li key={habit.id} className="py-2">
                   <button type="button" className="min-h-11 w-full break-words text-left" onClick={() => openModule("habits")}>
                     <strong>{habit.title}</strong>
-                    <span className="block text-sm opacity-75">期間紀錄 {total} ・{habit.cadence === "weekly" ? "當週" : "當日"} {habitQuantity(habit, anchor)}/{habit.goal}
-                      ・連續 {habitStats(habit, today).streak} {habit.cadence === "weekly" ? "週" : "天"}</span>
+                    <span className="block text-sm opacity-75">期間紀錄 {total} ・當{habitPeriodLabel[habit.cadence]} {habitQuantity(habit, anchor)}/{habit.goal}
+                      ・連續 {habitStats(habit, today).streak} {habitPeriodLabel[habit.cadence]}</span>
                   </button>{repository&&<HabitCheckIn habit={habit} date={anchor} repository={repository}/>}</li>)}
                 {!timeline&&importantDates.slice(0, Math.max(0, limit - tasks.length - schedule.length)).map(event => <li key={event.id} className="py-1">
                   <MilestoneRow event={event} anchor={anchor} open={() => openSchedule(event)}/>

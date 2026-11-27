@@ -10,7 +10,7 @@ import FinanceWorkspace,{type FinanceTab} from '../features/life/finance/Finance
 import {financeCalendarEvents} from '../features/life/finance/financeCalendar';
 import type {FinanceRecord} from '../features/life/finance/model';
 import CalendarMonth from "../features/life/CalendarMonth";
-import {CalendarPeriod,calendarWeek,type CalendarView} from '../features/life/CalendarPeriod';
+import {CalendarList,CalendarItem,CalendarPeriod,calendarWeek,type CalendarView} from '../features/life/CalendarPeriod';
 import {downloadBlobFile,safeFileName} from '../lib/fileDownload';
 import type {LifeCalendarEvent} from '../features/life/calendarSources';
 import {scheduleOccurrence} from '../features/life/scheduleRecurrence';
@@ -21,30 +21,28 @@ import LifeLists from '../features/life/LifeLists';
 import type {StorageAdapter} from '../infrastructure/storage/StorageAdapter';
 import {useMemo,useRef,useState,useEffect,useCallback} from 'react';
 import PageCollection,{type PageActions} from './PageCollection';
-import type {Page} from '../lib/types';
-import {navigateDictionary,useUnsavedDraft} from '../features/dictionary/useUnsavedDraft';
+import type {Page,TaskSchedulingFields} from '../lib/types';
+import {navigateDictionary} from '../features/dictionary/useUnsavedDraft';
 import {useLanguage} from '../lib/LanguageContext';
-import {eventsByLocalDay,habitCalendarEvents,scheduleCalendarEvents,taskCalendarEvents} from '../features/life/calendarSources';
+import {calendarEventKey,sortCalendarEvents,eventsByLocalDay,habitCalendarEvents,scheduleCalendarEvents,taskCalendarEvents} from '../features/life/calendarSources';
 import LifeNavigation from '../features/life/LifeNavigation';
-import {newScheduleEvent,ScheduleForm,SchedulePanel,scheduleLabel} from '../features/life/SchedulePanel';
-import {MilestoneForm,MilestoneRow,MilestonesPanel,newMilestone} from '../features/life/Milestones';
-import CalendarTaskEditor from "../features/life/CalendarTaskEditor";
+import {newScheduleEvent,ScheduleForm,SchedulePanel} from '../features/life/SchedulePanel';
+import {MilestoneForm,MilestonesPanel,newMilestone} from '../features/life/Milestones';
+import CalendarTaskEditor,{NewCalendarTask} from "../features/life/CalendarTaskEditor";
 import AddMenu from "../features/life/AddMenu";
 import HabitCheckIn from "../features/life/HabitCheckIn";
-import {newHabit} from "../features/life/habits";
-import HabitsPanel,{HabitForm} from '../features/life/HabitsPanel';
+import HabitsPanel,{HabitForm,HabitTrackingDialog} from '../features/life/HabitsPanel';
 import type {Habit,ScheduleEvent} from '../features/life/syncRecords';
-import {addDays,calendarDaysForMonth,localDateKey,todosForDay,localDateInput} from '../lib/todoCalendar';
+import {addDays,calendarDaysForMonth,localDateKey,localDateInput} from '../lib/todoCalendar';
 
 export type LifeViewState={tab:'overview'|LifeModule;date:number;month:number;filter:'all'|'today'|'upcoming'|'completed'|'undated'|'overdue';query:string;scroll:number;boardId?:string;calendarView?:CalendarView;financeMonth?:string;financeHide?:boolean;calendarManager?:'schedule'|'milestones'|'tasks'|'habits'};
 export function initialLifeView():LifeViewState{const today=new Date();today.setHours(0,0,0,0);return{tab:'overview',date:today.getTime(),month:new Date(today.getFullYear(),today.getMonth(),1).getTime(),filter:'all',query:'',scroll:0};}
 /** Calendar/tasks share todo Pages; custom lists use their own workspace records. */
 export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,onRenamePage,onDuplicatePage,state:controlled,onStateChange,storage,headerIntegrated=false}:PageActions&{
- pages:Page[];onCreate:(title:string,dueDate?:number)=>void|Promise<unknown>;onUpdate:(id:string,patch:Partial<Page>)=>void;onDelete:(id:string)=>void;onSelectPage:(id:string)=>void;
+ pages:Page[];onCreate:(title:string,dueDate?:number,fields?:TaskSchedulingFields)=>void|Promise<unknown>;onUpdate:(id:string,patch:Partial<Page>)=>void;onDelete:(id:string)=>void;onSelectPage:(id:string)=>void;
  headerIntegrated?:boolean;storage?:StorageAdapter;state?:LifeViewState;onStateChange?:(state:LifeViewState)=>void;
 }){
- const {t,language}=useLanguage();const [local,setLocal]=useState(initialLifeView),[input,setInput]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- useUnsavedDraft(!!input.trim(),busy);
+ const {t,language}=useLanguage();const [local,setLocal]=useState(initialLifeView);
  const dashboard=useLifeDashboard(storage);
  const {repository}=dashboard;
  const [healthRows,setHealth]=useState<HealthRecord[]>([]);
@@ -55,9 +53,42 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const [occurrence,setOccurrence]=useState<string>();
  const [events,setEvents]=useState<ScheduleEvent[]>([]);
  const [habits,setHabits]=useState<Habit[]>([]);
- const [habitFocus,setHabitFocus]=useState<string>();
  const [eventEditor,setEventEditor]=useState<ScheduleEvent>();
  const [eventError,setEventError]=useState('');
+ const preferenceKey='nexus-life-calendar';
+ const [calendarPreferences,setCalendarPreferences]=useState<{view?:CalendarView;details?:Partial<Record<CalendarView,boolean>>}>({});
+ useEffect(()=>{
+  const frame=requestAnimationFrame(()=>{
+   try {
+    const raw=localStorage.getItem(preferenceKey);
+    if(raw) {
+     const stored=JSON.parse(raw);
+     if(stored&&['month','week','day','list',undefined].includes(stored.view))setCalendarPreferences(stored);
+    }
+   } catch { /* Storage may be unavailable in private browsing. */ }
+  });
+  return ()=>cancelAnimationFrame(frame);
+ },[]);
+ const rememberCalendar=(preferences:typeof calendarPreferences)=>{
+  setCalendarPreferences(preferences);
+  try { localStorage.setItem(preferenceKey,JSON.stringify(preferences)); }
+  catch { /* Keep the preference for this visit. */ }
+ };
+ const [calendarFilter,setCalendarFilter]=useState('all');
+ const filterPopover=useRef<HTMLDetailsElement>(null);
+ useEffect(()=>{
+  const outside=(event:PointerEvent)=>{
+   const panel=filterPopover.current;
+   if(panel?.open&&!panel.contains(event.target as Node))panel.open=false;
+  };
+  const escape=(event:KeyboardEvent)=>{
+   const panel=filterPopover.current;
+   if(event.key==='Escape'&&panel?.open){panel.open=false;panel.querySelector('summary')?.focus();}
+  };
+  document.addEventListener('pointerdown',outside);
+  document.addEventListener('keydown',escape);
+  return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+ },[]);
  const [sources,setSources]=useState({tasks:true,schedule:true,milestones:true,habits:true,finance:true,health:true});
  const owner=storage?.getWorkspaceOwner?.()??null;
  const [reminderLists,setReminderLists]=useState(emptyLife);
@@ -77,10 +108,11 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   window.addEventListener('nexus-workspace-refreshed',load);
   return()=>{active=false;window.removeEventListener('nexus-workspace-changed',load);window.removeEventListener('nexus-workspace-refreshed',load);};
  },[owner,repository]);
- const [quickList,setQuickList]=useState(false),[quickTask,setQuickTask]=useState(false);
- const quickTaskInput=useRef<HTMLInputElement>(null);
+ const [quickList,setQuickList]=useState(false);
  const enabled=lifeModuleIds.filter(module=>!dashboard.config.hiddenModules.includes(module)&&(!['lists','schedule','milestones','habits','finance','health'].includes(module)||storage));
+ const [newTask,setNewTask]=useState<'regular'|'tracked'>();
  const [taskEditor,setTaskEditor]=useState<string>();
+ const [trackedTask,setTrackedTask]=useState<{id:string;date:Date}>();
  const [habitEditor,setHabitEditor]=useState<Habit>();
  const original=controlled??local;
  const legacy=['schedule','milestones','tasks','habits'].includes(original.tab)?original.tab as 'schedule'|'milestones'|'tasks'|'habits':undefined;
@@ -88,7 +120,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const state=stored.tab==='overview'||enabled.includes(stored.tab)||stored.tab==='calendar'&&enabled.some(id=>['schedule','milestones','tasks','habits'].includes(id))?stored:{...stored,tab:'overview' as const},change=(patch:Partial<LifeViewState>)=>{const next={...state,...patch};if(onStateChange)onStateChange(next);else setLocal(next);};
  const manager=state.calendarManager;
  const setManager=(calendarManager:LifeViewState['calendarManager'])=>change({calendarManager});
- const scroller=useRef<HTMLDivElement>(null),adding=useRef(false);
+ const scroller=useRef<HTMLDivElement>(null);
  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=state.scroll;},[state.scroll]);
  const [,refreshCivilDay]=useState(0);
  useEffect(()=>{
@@ -96,26 +128,26 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   document.addEventListener("visibilitychange",refresh);
   return ()=>document.removeEventListener("visibilitychange",refresh);
  },[]);
- const selected=new Date(state.date),month=new Date(state.month),today=new Date();today.setHours(0,0,0,0);
+ const selected=new Date(state.date);selected.setHours(0,0,0,0);
+ const month=new Date(state.month),today=new Date();today.setHours(0,0,0,0);
  const todos=useMemo(()=>pages.filter(p=>p.kind==='todo'&&!p.deleted_at).sort((a,b)=>(a.due_date??Infinity)-(b.due_date??Infinity)||a.id.localeCompare(b.id)),[pages]);
- const createSchedule=()=>{setOccurrence(undefined);setEventEditor(newScheduleEvent(owner,selected));};
- const createMilestone=()=>setEventEditor(newMilestone(storage?.getWorkspaceOwner?.()??null,selected));
+ const createSchedule=(slot?:Date)=>{setOccurrence(undefined);setEventEditor(newScheduleEvent(owner,slot??selected,!!slot));};
+ const createMilestone=()=>{setOccurrence(undefined);setEventEditor(newMilestone(owner,selected));};
  const openModule=(tab:LifeModule,quick=false)=>{
 
   navigateDictionary(()=>{
    setQuickList(tab==='lists'&&quick);
-   setQuickTask(tab==='tasks'&&quick);
+   if(tab==='tasks'&&quick)setNewTask('regular');
    if(tab==='health')setHealthFocus(quick?'new-water':undefined);
    if(tab==='finance'){setFinanceTab(quick?'transaction':undefined);setFinanceFocus(quick?'new-transaction':undefined);}
    if(tab==='schedule'&&quick)createSchedule();
    if(tab==='milestones'&&quick)createMilestone();
    if(['schedule','milestones','tasks','habits'].includes(tab)) {
-    if(tab==='habits'&&quick)setHabitEditor(newHabit(owner,selected));
-    change({tab:'calendar',calendarManager:!quick||tab==='tasks'?tab as LifeViewState['calendarManager']:state.calendarManager,scroll:0});
+     if(tab==='habits'&&quick&&repository)setNewTask('tracked');
+    change({tab:'calendar',calendarManager:!quick?tab as LifeViewState['calendarManager']:state.calendarManager,scroll:0});
    } else if(tab!=='timer')change({tab,scroll:0});
   });
  };
- useEffect(()=>{if(manager==='tasks'&&quickTask)quickTaskInput.current?.focus();},[manager,quickTask]);
  const tasksHidden=dashboard.config.hiddenModules.includes('tasks');
  const scheduleHidden=dashboard.config.hiddenModules.includes('schedule');
  const milestonesHidden=dashboard.config.hiddenModules.includes('milestones');
@@ -127,22 +159,24 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const healthSettings=health.find(row=>row.kind==='privacy')?.data;
  const visibleHealth=healthHidden?[]:shared(health,healthSettings??{});
  const financeHidden=dashboard.config.hiddenModules.includes('finance');
- const view=state.calendarView??'month';
- const dateValue=state.date,monthValue=state.month;
- const gridDays=useMemo(()=>view==="month"?calendarDaysForMonth(new Date(monthValue)):view==="week"?calendarWeek(new Date(dateValue)):[new Date(dateValue)],[view,monthValue,dateValue]);
+ const view=state.calendarView??calendarPreferences.view??'month';
+ const detailsOpen=view!=='list'&&(calendarPreferences.details?.[view]??view==='month');
+ const setDetails=(open:boolean)=>rememberCalendar({...calendarPreferences,details:{...calendarPreferences.details,[view]:open}});
+ const dateValue=selected.getTime();
+ const gridAnchor=new Date(dateValue);
+ const gridDays=view==="list"?Array.from({length:31},(_,index)=>addDays(gridAnchor,index))
+  :view==="month"?calendarDaysForMonth(month):view==="week"?calendarWeek(gridAnchor):[gridAnchor];
  const calendarTodos=useMemo(()=>tasksHidden||!sources.tasks?[]:todos,[tasksHidden,sources.tasks,todos]);
  const dates=eventsByLocalDay([
   ...taskCalendarEvents(calendarTodos),
   ...(!scheduleHidden&&sources.schedule?scheduleCalendarEvents(appointments,gridDays):[]),
   ...(!milestonesHidden&&sources.milestones?scheduleCalendarEvents(milestones,gridDays):[]),
-  ...(!habitsHidden&&sources.habits?habitCalendarEvents(habits,gridDays,new Date()):[]),
+  ...(!tasksHidden&&sources.tasks&&!habitsHidden&&sources.habits?habitCalendarEvents(habits,gridDays,new Date()):[]),
   ...(!healthHidden&&sources.health?healthEvents(health,gridDays,healthSettings??{}):[]),
   ...(!financeHidden&&sources.finance?financeCalendarEvents(finances,gridDays):[]),
- ]);
- const daily=todosForDay(calendarTodos,selected),todayKey=localDateKey(today),dayKey=localDateKey(selected);
- const dailySchedule=!scheduleHidden&&sources.schedule?scheduleCalendarEvents(appointments,[selected]):[];
- const dailyMilestones=!milestonesHidden&&sources.milestones?scheduleCalendarEvents(milestones,[selected]):[];
- const dailyTaskStarts=(dates.get(dayKey)??[]).filter(item=>item.source==='taskStart');
+ ].filter(item=>calendarFilter==='all'||(calendarFilter==='once'?!item.recurring:calendarFilter==='recurring'?!!item.recurring:item.source==='habits')),gridDays);
+ const todayKey=localDateKey(today),dayKey=localDateKey(selected);
+ const dailyItems=sortCalendarEvents(dates.get(dayKey)??[]).filter(item=>view!=='day'||item.allDay||item.startsAt==null);
  const sectionLabel=(tab:LifeModule|'overview')=>tab==='schedule'||tab==='timer'||tab==='milestones'||tab==='habits'||tab==='finance'||tab==='health'?lifeModules[tab].label:t('life.'+tab);
  const filtered=todos.filter(p=>{
   const date=p.due_date==null?null:new Date(p.due_date);
@@ -185,7 +219,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
    change({tab:'finance',scroll:0});
    return;
   }
-  if(event.source==='habits'){setHabitFocus(event.sourceId);openModule('habits');return;}
+  if(event.source==='habits'){setTrackedTask({id:event.sourceId,date:new Date(event.date)});return;}
   if(event.source==='tasks'||event.source==='taskStart'){setTaskEditor(event.sourceId);return;}
   const row=events.find(item=>item.id===event.sourceId);
   if(row){setOccurrence(event.occurrence);setEventEditor(row);}
@@ -196,7 +230,23 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
    const last=new Date(target.getFullYear(),target.getMonth()+1,0).getDate();
    change({month:target.getTime(),date:new Date(target.getFullYear(),target.getMonth(),Math.min(selected.getDate(),last)).getTime(),scroll:0});
   }
-  else setDate(addDays(selected,direction*(view==='week'?7:1)));
+  else setDate(addDays(selected,direction*(view==='week'?7:view==='list'?31:1)));
+ };
+ const completeCalendarItem=(item:LifeCalendarEvent)=>{
+  onUpdate(item.sourceId,{completed:!item.completed});
+ };
+ const adjustSchedule=async(item:LifeCalendarEvent,starts_at:number,ends_at:number)=>{
+  const row=appointments.find(event=>event.id===item.sourceId);
+  if(!row||!repository)return;
+  try {
+   if(row.repeat_rule&&item.occurrence){
+    const original=scheduleOccurrence(row,item.occurrence)?.event;
+    if(!original)return;
+    const {title,all_day,category,notes}=original;
+    const overrides={...row.repeat_rule.overrides,[item.occurrence]:{title,all_day,category,notes,starts_at,ends_at}};
+    await repository.saveSchedule({...row,repeat_rule:{...row.repeat_rule,overrides}});
+   } else await repository.saveSchedule({...row,starts_at,ends_at});
+  } catch(error){setEventError(String(error));}
  };
  const uploadFinanceFile=storage?.createAttachment?async(file:File)=>{
   if(file.size>10*1024*1024)throw Error('交易附件最多 10 MiB');
@@ -209,7 +259,6 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   if(!file||!blob)throw Error('附件尚未同步到此裝置');
   downloadBlobFile(safeFileName(file.name),blob);
  }:undefined;
- const add=async()=>{const title=input.trim();if(!title||adding.current)return;adding.current=true;setBusy(true);setError('');try{change({scroll:scroller.current?.scrollTop??0});await onCreate(title,state.date);setInput('');}catch(e){setError(e instanceof Error?e.message:String(e));}finally{adding.current=false;setBusy(false);}};
  const button='min-h-11 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm hover:bg-zinc-500/10';
  return <main data-life-workspace className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-editor-bg)] text-[var(--color-text)]">
   {!headerIntegrated&&<header className="shrink-0 border-b border-[var(--color-border)] px-4 py-2"><h1 className="text-2xl font-semibold">{t('life.title')}</h1></header>}
@@ -217,11 +266,11 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
    <LifeNavigation enabled={enabled} active={state.tab} title={t('life.sections')} label={sectionLabel} open={tab=>
     tab==='overview'?navigateDictionary(()=>change({tab,calendarManager:undefined,scroll:0})):openModule(tab)}/>
    <div ref={scroller} id="life-content" role="tabpanel" aria-label={sectionLabel(state.tab)} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className={state.tab==='calendar'?'min-w-0 space-y-2':'mx-auto max-w-7xl space-y-4'}>
      {eventError&&<p role="alert">{eventError}</p>}
      {taskEditor&&todos.find(task=>task.id===taskEditor)&&<CalendarTaskEditor key={taskEditor} page={todos.find(task=>task.id===taskEditor)!} update={onUpdate} remove={onDelete} close={()=>setTaskEditor(undefined)} open={()=>open(taskEditor)}/>}
      {repository&&eventEditor&&(eventEditor.milestone
-      ?<MilestoneForm key={eventEditor.id} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>
+      ?<MilestoneForm key={eventEditor.id+":"+(occurrence??"")} occurrence={occurrence} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>
       :<ScheduleForm key={eventEditor.id+":"+(occurrence??"")} occurrence={occurrence} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>)}
      {state.tab==='health'&&repository?<HealthWorkspace key={healthFocus??'health'} rows={health} owner={owner} day={localDateInput(selected)} tasks={tasksHidden?[]:todos} habits={habitsHidden?[]:habits} repository={repository} taskOpen={open} focused={healthFocus}/>:state.tab==='finance'&&repository?<FinanceWorkspace key={financeFocus??'finance'} requested={financeTab} focusId={financeFocus}
       records={finances} repository={repository} owner={owner} selectedMonth={state.financeMonth} onMonthChange={financeMonth=>change({financeMonth})} hideAmounts={state.financeHide} onHideChange={financeHide=>change({financeHide})} anchor={today} upload={uploadFinanceFile} download={downloadFinanceFile}/>:state.tab==='lists'&&storage?<LifeLists key={listFocus??""} storage={storage} initialListId={listFocus} startCreating={quickList}
@@ -236,8 +285,6 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
         if(event){setOccurrence(undefined);setEventEditor(event);}
        }}/>:<>
      {state.tab==='overview'&&<div className="flex flex-wrap items-center gap-2"><label className="flex max-w-full items-center gap-2 text-sm">{t('life.date')}<input aria-label={t('life.date')} type="date" value={localDateInput(selected)} onChange={event=>{if(event.target.value)setDate(new Date(event.target.value+'T00:00:00'));}} className="min-h-11 min-w-0 max-w-full rounded border bg-transparent px-2"/></label><button type="button" className={button} onClick={()=>setDate(today)}>{t('todo.today')}</button></div>}
-     {state.tab==='calendar'&&manager==='tasks'&&!dashboard.config.hiddenModules.includes('tasks')&&<form className="flex min-w-0 gap-2" onSubmit={event=>{event.preventDefault();void add();}}><input ref={quickTaskInput} aria-label={t('life.newTitle')} maxLength={500} disabled={busy} placeholder={t('life.newTitle')} value={input} onChange={event=>setInput(event.target.value)} className="min-h-11 min-w-0 flex-1 rounded-lg border bg-transparent px-3"/><button disabled={busy||!input.trim()} className={button}>{t('todo.add')}</button></form>}
-     {error&&<p role="alert">{error}</p>}
      {state.tab==='overview'&&<LifeOverview dashboard={dashboard} todos={todos} anchor={selected} today={today}
        selectedId={state.boardId} onSelectBoard={boardId=>change({boardId})}
        health={visibleHealth} healthShared={Object.entries(healthSettings??{}).some(([key,on])=>key.startsWith('share_')&&on===true&&healthSettings?.['off_'+key.slice(6)]!==true)} finances={financeHidden?[]:finances} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:habits} openSchedule={(event,occurrence)=>{setOccurrence(occurrence);setEventEditor(event);}}
@@ -263,87 +310,95 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
        else {const event=reminderEvents.find(row=>reminderId(row)===id);if(event)openEvent(event);}
      }}/>}
      {state.tab==='calendar'&&<>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-       <h2 className="text-2xl font-semibold">日曆</h2>
-       <div className="flex flex-wrap gap-2">
-        <label className="text-sm"><input aria-label="日曆日期" type="date" className={button+' w-32 bg-transparent'} value={localDateInput(selected)} onChange={event=>{if(event.target.value)setDate(new Date(event.target.value+'T00:00:00'));}}/></label>
-        <button type="button" className={button} onClick={()=>setDate(today)}>今天</button>
-        <AddMenu items={[
-         ...(!scheduleHidden&&repository?[{label:'新增行程',action:createSchedule}]:[]),
-         ...(!milestonesHidden&&repository?[{label:'新增重要日期',action:createMilestone}]:[]),
-         ...(!tasksHidden?[{label:'新增任務',action:()=>{setManager('tasks');setQuickTask(true);}}]:[]),
-         ...(!habitsHidden&&repository?[{label:'新增習慣',action:()=>setHabitEditor(newHabit(owner,selected))}]:[]),
-        ]}/>
-        <button type="button" className={button} aria-expanded={!!manager} onClick={()=>setManager(manager?undefined:!scheduleHidden?'schedule':!tasksHidden?'tasks':!milestonesHidden?'milestones':'habits')}>管理</button>
+      <div className="life-calendar-toolbar">
+       <button type="button" className={button} onClick={()=>setDate(today)}>今天</button>
+       <div className="flex gap-1"><button type="button" aria-label="上一期間" className={button} onClick={()=>movePeriod(-1)}>←</button><button type="button" aria-label="下一期間" className={button} onClick={()=>movePeriod(1)}>→</button></div>
+       <h2 className="text-base font-semibold">{view==='month'?month.toLocaleDateString(language,{year:'numeric',month:'long'}):
+        view==='week'||view==='list'?gridDays[0].toLocaleDateString(language)+' – '+gridDays.at(-1)!.toLocaleDateString(language):selected.toLocaleDateString(language)}</h2>
+       <input aria-label="日曆日期" type="date" className={button+' w-32 bg-transparent'} value={localDateInput(selected)} onChange={event=>{if(event.target.value)setDate(new Date(event.target.value+'T00:00:00'));}}/>
+       <div className="life-calendar-segments" role="group" aria-label="行事曆檢視">
+        {(['month','week','day','list'] as const).map(item=><button key={item} type="button" aria-pressed={view===item}
+         onClick={()=>{rememberCalendar({...calendarPreferences,view:item});change({calendarView:item,month:new Date(selected.getFullYear(),selected.getMonth(),1).getTime(),scroll:0});}}>
+         {{month:'月檢視',week:'週檢視',day:'日檢視',list:'清單檢視'}[item]}</button>)}
        </div>
+       <AddMenu items={[
+        ...(!scheduleHidden&&repository?[{label:'新增行程',action:()=>createSchedule()}]:[]),
+        ...(!milestonesHidden&&repository?[{label:'新增重要日期',action:createMilestone}]:[]),
+        ...(!tasksHidden?[{label:'新增任務',action:()=>setNewTask('regular')}]:[]),
+       ]}/>
+       <button type="button" className={button} aria-expanded={!!manager} onClick={()=>setManager(manager?undefined:!scheduleHidden?'schedule':!tasksHidden?'tasks':'milestones')}>管理</button>
+       {view!=='list'&&<button type="button" className={button} aria-expanded={detailsOpen} aria-controls="life-calendar-details" onClick={()=>setDetails(!detailsOpen)}>{detailsOpen?'收合詳情':'展開詳情'}</button>}
+       <details ref={filterPopover} className="life-calendar-filter"><summary>篩選</summary><div className="life-calendar-filter-panel" aria-label="事件來源">
+        <label className="flex items-center gap-2">重複類型<select value={calendarFilter} onChange={event=>setCalendarFilter(event.target.value)}>
+         <option value="all">全部</option><option value="once">單次</option><option value="recurring">週期性</option><option value="tracked">習慣追蹤</option>
+        </select></label>
+        {([
+         ['tasks','任務',!tasksHidden],['schedule','行程',!scheduleHidden&&repository],['milestones','重要日期',!milestonesHidden&&repository],
+         ['health','健康事項',!healthHidden&&repository&&(healthSettings?.calendar||healthSettings?.calendarCycle||healthSettings?.calendarMedication)],
+         ['finance','財務日期',!financeHidden&&repository],
+        ] as const).map(([key,label,visible])=>visible?<label key={key} className="flex items-center gap-2">
+         <input type="checkbox" checked={sources[key]} onChange={event=>setSources({...sources,[key]:event.target.checked})}/>{label}
+        </label>:null)}
+       </div></details>
       </div>
+      {newTask&&<NewCalendarTask date={selected} owner={owner} repository={!habitsHidden?repository:undefined}
+       create={onCreate} close={()=>setNewTask(undefined)} startTracking={newTask==='tracked'}/>}
+      {trackedTask&&repository&&habits.find(habit=>habit.id===trackedTask.id)&&<HabitTrackingDialog
+       habit={habits.find(habit=>habit.id===trackedTask.id)!} selected={trackedTask.date} today={today} repository={repository}
+       close={()=>setTrackedTask(undefined)} edit={()=>{setHabitEditor(habits.find(habit=>habit.id===trackedTask.id));setTrackedTask(undefined);}}/>}
       {habitEditor&&repository&&<HabitForm modal key={habitEditor.id} habit={habitEditor} repository={repository} close={()=>setHabitEditor(undefined)}/>}
       {manager&&<section className="life-manager space-y-3" aria-label="日曆事項管理">
        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">跨日期管理</h3><button type="button" className={button} onClick={()=>setManager(undefined)}>關閉管理</button></div>
        <div className="flex flex-wrap gap-2" role="group" aria-label="管理類型">
-        {(['schedule','milestones','tasks','habits'] as const).filter(item=>!dashboard.config.hiddenModules.includes(item)).map(item=><button type="button" key={item} className={button} aria-pressed={manager===item} onClick={()=>setManager(item)}>{sectionLabel(item)}</button>)}
+        {(['schedule','milestones','tasks'] as const).filter(item=>!dashboard.config.hiddenModules.includes(item)).map(item=><button type="button" key={item} className={button} aria-pressed={manager===item} onClick={()=>setManager(item)}>{sectionLabel(item)}</button>)}
        </div>
-       {manager==='schedule'&&!scheduleHidden&&<SchedulePanel events={appointments} locale={language} create={createSchedule} edit={event=>{setOccurrence(undefined);setEventEditor(event);}}/>}
-       {manager==='milestones'&&!milestonesHidden&&<MilestonesPanel events={milestones} anchor={selected} open={setEventEditor} create={createMilestone}/>}
-       {manager==='tasks'&&!tasksHidden&&<>
+       {manager==='schedule'&&!scheduleHidden&&<SchedulePanel events={appointments} locale={language} create={()=>createSchedule()} edit={event=>{setOccurrence(undefined);setEventEditor(event);}}/>}
+       {manager==='milestones'&&!milestonesHidden&&<MilestonesPanel events={milestones} anchor={selected} open={event=>{setOccurrence(undefined);setEventEditor(event);}} create={createMilestone}/>}
+       {(manager==='tasks'||manager==='habits')&&!tasksHidden&&<>
         <div className="flex flex-wrap gap-2" role="group" aria-label={t('life.taskViews')}>{(['all','today','upcoming','undated','overdue','completed'] as const).map(filter=><button type="button" className={button} aria-pressed={filter===state.filter} key={filter} onClick={()=>change({filter,scroll:0})}>{filter==='undated'?'無期限':filter==='overdue'?'已逾期':t('life.filter.'+filter)}</button>)}</div>
         <input type="search" aria-label={t('life.search')} value={state.query} onChange={event=>change({query:event.target.value,scroll:0})} className={button+' w-full bg-transparent'}/>
         {collection(filtered,'nexus-life-tasks-view')}
        </>}
-       {manager==='habits'&&!habitsHidden&&repository&&<><HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate} repository={repository} owner={owner} focusId={habitFocus} startCreating={false}/>
+       {(manager==='tasks'||manager==='habits')&&!tasksHidden&&!habitsHidden&&repository&&<><HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate} repository={repository}/>
         {healthSettings?.habits===true&&<GoalList rows={visibleHealth} day={localDateInput(selected)} linked={habits} addWater={()=>{setHealthFocus('new-water');change({tab:'health',scroll:0});}} open={row=>{setHealthFocus(row.id);change({tab:'health',scroll:0});}}/>}
        </>}
       </section>}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2" aria-label="行事曆檢視">
-       {(['month','week','day'] as const).map(item=><button key={item} className={button} type="button" aria-pressed={view===item}
-        onClick={()=>change({calendarView:item,month:new Date(selected.getFullYear(),selected.getMonth(),1).getTime(),scroll:0})}>
-        {{month:'月檢視',week:'週檢視',day:'日檢視'}[item]}</button>)}
+      <div className="life-calendar-layout" data-details-open={detailsOpen}>
+       <div className="min-w-0">{view==='month'
+        ?<CalendarMonth days={gridDays} events={dates} selected={selected} today={today} month={month} locale={language} select={setDate}
+          open={openEvent} complete={completeCalendarItem} more={date=>{setDate(date);setDetails(true);}}/>
+        :view==='list'?<CalendarList days={gridDays} events={dates} locale={language} open={openEvent} select={setDate} complete={completeCalendarItem}/>
+        :<CalendarPeriod days={gridDays} events={dates} selected={selected} locale={language} open={openEvent} select={setDate} complete={completeCalendarItem}
+          create={!scheduleHidden&&repository?createSchedule:undefined} adjust={repository?(item,start,end)=>void adjustSchedule(item,start,end):undefined}/>}</div>
+       {detailsOpen&&<aside id="life-calendar-details" className="life-day-details space-y-3" aria-label="日期詳情">
+        <h3 className="font-semibold">{selected.toLocaleDateString(language)} · {t('life.dayItems')}</h3>
+        {([
+         ['行程',['schedule'],!scheduleHidden&&sources.schedule],
+         ['重要日期',['milestones'],!milestonesHidden&&sources.milestones],
+         ['任務',['tasks','taskStart','habits'],!tasksHidden&&sources.tasks],
+         ['其他事項',['health','finance'],dailyItems.some(item=>item.source==='health'||item.source==='finance')],
+        ] as const).map(([label,kinds,visible])=>{
+         if(!visible)return null;
+         const items=dailyItems.filter(item=>(kinds as readonly string[]).includes(item.source));
+         const flexible=label==='任務'&&!habitsHidden&&repository&&selected<=today&&calendarFilter!=='once'
+          ?habits.filter(habit=>habit.cadence!=='daily'&&habit.started_on<=localDateInput(selected)
+           &&!items.some(item=>item.source==='habits'&&item.sourceId===habit.id)):[];
+         const tracked=(habit:Habit)=><div key={habit.id} className="grid gap-1">
+          <button type="button" className="text-left text-sm" onClick={()=>setTrackedTask({id:habit.id,date:selected})}>↻ {habit.title}</button>
+          {repository&&<HabitCheckIn habit={habit} date={selected} repository={repository}/>}
+         </div>;
+         return <section key={label} className="grid gap-1"><h4 className="text-sm font-semibold">{label}</h4>
+          {!items.length&&!flexible.length&&<p className="text-xs opacity-65">沒有事項</p>}
+          {items.map(item=>{
+           const habit=item.source==='habits'?habits.find(row=>row.id===item.sourceId):undefined;
+           return habit?tracked(habit):<CalendarItem key={calendarEventKey(item)} item={item} locale={language} open={openEvent} complete={completeCalendarItem} showTime/>;
+          })}
+          {flexible.map(tracked)}
+         </section>;
+        })}
+       </aside>}
       </div>
-      <details><summary className="min-h-11 cursor-pointer text-sm">篩選來源</summary><div className="flex flex-wrap items-center gap-3" aria-label="事件來源">
-       {!healthHidden&&repository&&(healthSettings?.calendar===true||healthSettings?.calendarCycle===true||healthSettings?.calendarMedication===true)&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.health} onChange={event=>setSources({...sources,health:event.target.checked})}/>健康事項</label>}
-       {!financeHidden&&repository&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.finance}
-        onChange={event=>setSources({...sources,finance:event.target.checked})}/>財務日期</label>}
-       {!tasksHidden&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.tasks} onChange={event=>setSources({...sources,tasks:event.target.checked})}/>任務起訖</label>}
-       {!scheduleHidden&&repository&&<><label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.schedule} onChange={event=>setSources({...sources,schedule:event.target.checked})}/>行程</label>
-        </>}
-       {!habitsHidden&&repository&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.habits} onChange={event=>setSources({...sources,habits:event.target.checked})}/>習慣</label>}
-       {!milestonesHidden&&repository&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={sources.milestones} onChange={event=>setSources({...sources,milestones:event.target.checked})}/>重要日期</label>}
-      </div></details>
-      <div className="order-first flex flex-wrap items-center gap-2">
-       <h2 className="text-lg font-semibold">{view==='month'?month.toLocaleDateString(language,{year:'numeric',month:'long'}):
-        view==='week'?gridDays[0].toLocaleDateString(language)+' – '+gridDays.at(-1)!.toLocaleDateString(language):selected.toLocaleDateString(language)}</h2>
-       <div className="flex gap-2"><button aria-label="上一期間" className={button} onClick={()=>movePeriod(-1)}>←</button><button aria-label="下一期間" className={button} onClick={()=>movePeriod(1)}>→</button></div>
-      </div>
-      </div>
-      <div className="life-calendar-layout"><div className="min-w-0">{view==='month'
-       ?<CalendarMonth days={gridDays} events={dates} selected={selected} today={today} month={month} locale={language} select={setDate}/>
-       :<CalendarPeriod days={gridDays} events={dates} locale={language} open={openEvent} select={setDate}/>}</div>
-      <aside className="life-day-details space-y-3" aria-label="日期詳情"><h3 className="font-semibold">{selected.toLocaleDateString(language)} · {t('life.dayItems')}</h3>{!scheduleHidden&&sources.schedule&&<h4 className="font-semibold">行程</h4>}{!scheduleHidden&&sources.schedule&&!dailySchedule.length&&<p className="text-sm opacity-65">當日沒有行程</p>}{dailySchedule.length>0&&<ul className="space-y-2">{dailySchedule.map(item=>{
-       const original=events.find(row=>row.id===item.sourceId)!;
-       const event=item.occurrence?scheduleOccurrence(original,item.occurrence)?.event??original:original;
-       return <li key={item.sourceId+':'+(item.occurrence??'')}><button className={button+' w-full break-words text-left'} onClick={()=>openEvent(item)}>
-        {item.title}<span className="ml-2 text-xs opacity-75">{scheduleLabel(event,language)}</span></button></li>;
-      })}</ul>}{!milestonesHidden&&sources.milestones&&<h4 className="font-semibold">重要日期</h4>}{!milestonesHidden&&sources.milestones&&!dailyMilestones.length&&<p className="text-sm opacity-65">當日沒有重要日期</p>}{dailyMilestones.map(item=>{
-       const event=milestones.find(row=>row.id===item.sourceId)!;
-       return <MilestoneRow key={item.sourceId} event={event} anchor={selected} open={()=>setEventEditor(event)}/>;
-      })}
-      {!tasksHidden&&sources.tasks&&<><h4 className="font-semibold">任務</h4>{!daily.length&&!dailyTaskStarts.length&&<p className="text-sm opacity-65">當日沒有任務</p>}
-       <ul className="divide-y divide-[var(--color-border)]">{daily.map(task=><li key={task.id} className="flex items-center gap-2">
-        <label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" aria-label={t('ui.completeTask',{name:task.title})} checked={!!task.completed} onChange={event=>onUpdate(task.id,{completed:event.target.checked})}/></label>
-        <button type="button" className={'min-h-11 min-w-0 flex-1 break-words text-left text-sm '+(task.completed?'line-through opacity-65':'')} onClick={()=>setTaskEditor(task.id)}>{task.title}</button>
-       </li>)}</ul>{dailyTaskStarts.map(item=><button key={item.sourceId} type="button" className={button+' w-full text-left'} onClick={()=>setTaskEditor(item.sourceId)}>
-       開始 · {item.title}</button>)}</>}
-      {!habitsHidden&&sources.habits&&<h4 className="font-semibold">習慣</h4>}
-      {!habitsHidden&&sources.habits&&repository&&habits.filter(habit=>habit.started_on<=localDateInput(selected)).map(habit=><div key={habit.id} className="rounded-lg bg-zinc-500/5 p-2">
-       <button type="button" className="min-h-11 w-full text-left text-sm" onClick={()=>setHabitEditor(habit)}>{habit.title}</button><HabitCheckIn habit={habit} date={selected} repository={repository}/>
-      </div>)}
-      {(!financeHidden&&sources.finance?financeCalendarEvents(finances,[selected]):[]).map(item=>
-      <button className={button+' w-full text-left'} key={item.sourceId} onClick={()=>openEvent(item)}>{item.title}</button>)}
-      {(!healthHidden&&sources.health?healthEvents(health,[selected],healthSettings??{}):[]).map(item=><button className={button+" w-full text-left"} key={item.sourceId+":"+(item.occurrence??"")} onClick={()=>openEvent(item)}>{item.title}</button>)}
-
-      </aside></div>
      </>}
 
      </>}

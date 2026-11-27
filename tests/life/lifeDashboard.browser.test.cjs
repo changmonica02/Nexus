@@ -127,22 +127,28 @@ test("life overview edits, persists and restores real-data cards across viewport
     await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button", { name: /報告日.*就是今天/ }).waitFor();
 
     await selectTab("習慣");
-    await page.getByRole("button", { name: "新增習慣", exact: true }).click();
-    await page.getByRole("region",{name:"日曆事項管理"}).getByLabel("名稱", { exact: true }).fill("每日閱讀");
-    await page.getByRole("button", { name: "儲存習慣" }).click();
+    await page.getByRole("button", { name: "新增", exact: true }).click();
+    await page.getByRole("button", { name: "新增任務", exact: true }).click();
+    await page.getByRole("dialog",{name:"新增任務"}).getByLabel("啟用習慣追蹤").click();
+    const tracked = page.getByRole("dialog",{name:"新增追蹤任務"});
+    await tracked.getByLabel("名稱", { exact: true }).fill("每日閱讀");
+    await tracked.getByRole("button", { name: "儲存任務" }).click();
     await page.getByRole("button", { name: "標記完成", exact: true }).click();
-    await page.getByText(/連續 1 天/).waitFor();
+    await page.getByText(/目前連續 1/).waitFor();
     const calendarTab = page.getByRole("tab", { name: "日曆", exact: true }).count().then(n => n > 0 ? "日曆" : "月曆");
     await selectTab(await calendarTab);
     const calendarPanel = page.locator("#life-content");
     await page.locator(".life-day-details").getByRole("button", { name: /課程討論會/ }).waitFor();
     await page.locator(".life-day-details").getByRole("button", { name: /報告日/ }).waitFor();
-    await calendarPanel.getByRole("button", { name: "每日閱讀",exact:true }).waitFor();
-    await page.getByText("篩選來源",{exact:true}).click();
+    await page.locator(".life-day-details").getByRole("button", { name: /每日閱讀/ }).first().waitFor();
+    await page.getByText("篩選",{exact:true}).click();
     await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).uncheck();
+    await page.keyboard.press("Escape");
     await page.getByRole("region",{name:"日曆事項管理"}).getByRole("button",{name:"關閉管理"}).click();
     await calendarPanel.getByRole("button", { name: /課程討論會/ }).waitFor({ state: "hidden" });
+    await page.getByText("篩選",{exact:true}).click();
     await calendarPanel.getByRole("checkbox", { name: "行程", exact: true }).check();
+    await page.keyboard.press("Escape");
 
     if (process.env.LIFE_SCREENSHOTS) {
       const output = process.env.LIFE_SCREENSHOTS;

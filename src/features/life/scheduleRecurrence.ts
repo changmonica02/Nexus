@@ -2,7 +2,7 @@ import { civilAdvance } from "./civilPeriods";
 import type { ScheduleEvent } from "./syncRecords";
 
 export type RepeatFrequency = "day" | "week" | "month" | "year";
-export type OccurrenceOverride = Pick<ScheduleEvent,"title"|"starts_at"|"ends_at"|"all_day"|"category"|"notes">;
+export type OccurrenceOverride = Pick<ScheduleEvent,"title"|"starts_at"|"ends_at"|"all_day"|"category"|"notes"|"milestone">;
 export type ScheduleRule = {
   frequency: RepeatFrequency;
   interval: number;
@@ -11,6 +11,7 @@ export type ScheduleRule = {
   count: number | null;
   zone: string;
   anchorDay?: number;
+  monthWeekday?: { weekday: number; ordinal: number };
   exceptions: string[];
   overrides: Record<string, OccurrenceOverride>;
 };
@@ -34,8 +35,25 @@ function fromWall(wall: number, zone: string) {
     candidates.find(time=>zonalTime(time,zone)>wall) ?? candidates.at(-1)!;
 }
 
+export function yearlyMilestoneRule(event: ScheduleEvent): ScheduleRule | null {
+  return event.repeat_rule ?? (event.milestone?.yearly ? {
+    frequency: "year", interval: 1, weekdays: [], until: "", count: null, zone: "UTC",
+    exceptions: [], overrides: {},
+  } : null);
+}
+
 export function recurrenceAnchorDay(event: ScheduleEvent) {
   return Number(keyOf(event.all_day?event.starts_at:zonalTime(event.starts_at,event.repeat_rule?.zone??"UTC")).slice(8,10));
+}
+
+function weekdayInMonth(month: string, weekday: number, ordinal: number) {
+  const first = month.slice(0, 7) + "-01";
+  if (ordinal === -1) {
+    const last = civilAdvance(civilAdvance(first, "month", 1), "day", -1);
+    return civilAdvance(last, "day", -((dayNum(last) - weekday + 7) % 7));
+  }
+  const key = civilAdvance(first, "day", (weekday - dayNum(first) + 7) % 7 + (ordinal - 1) * 7);
+  return key.slice(0, 7) === first.slice(0, 7) ? key : undefined;
 }
 
 export function scheduleOccurrences(event: ScheduleEvent, through: string) {
@@ -50,8 +68,10 @@ export function scheduleOccurrences(event: ScheduleEvent, through: string) {
   let ordinal=0;
   for(let step=0;step<100000;step++){
     const start=rule.frequency==="week"?civilAdvance(weekStart,"week",step*rule.interval):civilAdvance(first,rule.frequency,step*rule.interval,rule.anchorDay);
-    if(start>until)break;
-    const keys=rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):[step===0?first:start];
+    const pattern = rule.frequency === "month" ? rule.monthWeekday : undefined;
+    if ((pattern ? start.slice(0, 7) + "-01" : start) > until) break;
+    const monthly = pattern ? weekdayInMonth(start, pattern.weekday, pattern.ordinal) : undefined;
+    const keys= rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):(pattern ? (monthly ? [monthly] : []) : [step===0?first:start]);
     for(const key of keys){
       if(key<first||key>until)continue;
       if(rule.count!==null&&ordinal>=rule.count)return rows;

@@ -1,10 +1,14 @@
 import { useState } from "react";
-import type { Page } from "../../lib/types";
-import { localDateTimeInput } from "../../lib/todoCalendar";
+import type { Page, TaskSchedulingFields } from "../../lib/types";
+import { localDateInput, localDateTimeInput } from "../../lib/todoCalendar";
 import { confirmDialog } from "../../lib/confirmDialog";
 import ModalDialog from "../../components/ModalDialog";
 import { useUnsavedDraft } from "../dictionary/useUnsavedDraft";
 import TaskDetails from "./TaskDetails";
+import { HabitForm } from "./HabitsPanel";
+import { newHabit } from "./habits";
+import type { LifeRepository } from "./LifeRepository";
+import type { Habit } from "./syncRecords";
 import { control } from "./dashboard/styles";
 
 export default function CalendarTaskEditor({ page, update, remove, open, close }: {
@@ -41,5 +45,55 @@ export default function CalendarTaskEditor({ page, update, remove, open, close }
         }}>刪除任務</button>
       </div>
     </fieldset>
+  </ModalDialog>;
+}
+
+export function NewCalendarTask({ date, owner, repository, create, close, startTracking = false }: {
+  date: Date;
+  owner: string | null;
+  repository?: LifeRepository;
+  create: (title: string, due: number, fields?: TaskSchedulingFields) => void | Promise<unknown>;
+  close: () => void;
+  startTracking?: boolean;
+}) {
+  const [tracking, setTracking] = useState(startTracking);
+  const [habit, setHabit] = useState<Habit>(() => newHabit(owner, date));
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState(localDateInput(date) + "T00:00");
+  const [fields, setFields] = useState<TaskSchedulingFields>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = !!title.trim() || due !== localDateInput(date) + "T00:00" || Object.keys(fields).length > 0;
+  useUnsavedDraft(dirty, busy);
+  const dismiss = async () => {
+    if (!busy && (!dirty || await confirmDialog({ title: "捨棄修改", message: "要捨棄目前的任務嗎？" }))) close();
+  };
+  const trackingSwitch = repository && <label className="flex items-center gap-2">
+    <input type="checkbox" checked={tracking} onChange={event => {
+      setHabit(current => ({ ...current, title }));
+      setTracking(event.target.checked);
+    }}/>啟用習慣追蹤
+  </label>;
+  if (tracking && repository) return <HabitForm modal habit={habit} repository={repository} close={close} modeControl={trackingSwitch}/>;
+  return <ModalDialog aria-label="新增任務" busy={busy} onDismiss={() => void dismiss()}
+    className="m-auto max-h-[90dvh] w-[min(94vw,42rem)] overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40">
+    <h2 className="mb-3 text-lg font-semibold">新增任務</h2>
+    <form className="grid gap-3" onSubmit={async event => {
+      event.preventDefault();
+      if (busy || !title.trim()) return;
+      setBusy(true);
+      setError("");
+      try { await create(title.trim(), Date.parse(due), fields); close(); }
+      catch (error) { setError(String(error)); }
+      finally { setBusy(false); }
+    }}>
+      <label className="grid gap-1">名稱<input autoFocus className={control} maxLength={500} required value={title} onChange={event => setTitle(event.target.value)}/></label>
+      <label className="grid gap-1">截止日期<input className={control} type="datetime-local" required value={due} onChange={event => setDue(event.target.value)}/></label>
+      {trackingSwitch}
+      <TaskDetails page={{ kind: "todo", due_date: Date.parse(due), ...fields } as Page} apply={patch => setFields(current => ({ ...current, ...patch }))}/>
+      {error && <p role="alert">{error}</p>}
+      <div className="flex gap-2"><button className={control} disabled={busy}>儲存任務</button>
+        <button type="button" className={control} onClick={() => void dismiss()}>取消</button></div>
+    </form>
   </ModalDialog>;
 }

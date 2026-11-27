@@ -757,3 +757,35 @@ test("automation migrations preserve prior data and fold device-local legacy run
     assert.equal((await pg.query("select count(*)::int as n from public.life_automation_runs")).rows[0].n,1);
   }finally{await a.close();await b.close();await pg.close();}
 });
+
+test("calendar repeat migration retains legacy tracking IDs, history and owner isolation", async () => {
+  const pg = await setup(), a = await device(), b = await device();
+  try {
+    const server = client(pg);
+    const repo = a.getLifeRepository();
+    await repo.saveHabit({
+      id: "legacy-reading", workspace_owner_id: owner, revision: 0, created_at: 1, updated_at: 1, deleted_at: null,
+      title: "閱讀", cadence: "weekly", goal: 3, started_on: "2026-11-23", quantities: { "2026-11-24": 2 },
+    });
+    const syncA = a.getWorkspacePersistence(), syncB = b.getWorkspacePersistence();
+    await flushWorkspace(server, syncA, owner);
+    const before = (await pg.query("select * from life_habits where id='legacy-reading'")).rows;
+    await pg.exec(fs.readFileSync("supabase/migrations/20261128000000_life_calendar_repeat_modes.sql", "utf8"));
+    assert.deepEqual((await pg.query("select * from life_habits where id='legacy-reading'")).rows, before);
+    const [legacy] = await repo.readHabits();
+    await repo.saveHabit({ ...legacy, id: "monthly-reading", revision: 0, cadence: "monthly" });
+    const task = await a.createPage({ kind: "todo", title: "完成後再安排", task_repeat: "after_completion", task_repeat_day: 3 });
+    await flushWorkspace(server, syncA, owner);
+    await pullWorkspace(server, syncB, owner);
+    assert.equal((await b.getLifeRepository().readHabits()).find(row => row.id === "monthly-reading")?.cadence, "monthly");
+    assert.equal((await b.getPage(task.id)).task_repeat, "after_completion");
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select id from life_habits")).rows.length, 0);
+    assert.equal((await pg.query("select id from pages")).rows.length, 0);
+  } finally {
+    a.db.close();
+    b.db.close();
+    await pg.close();
+  }
+});

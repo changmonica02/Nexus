@@ -7,10 +7,16 @@ export async function nextTaskId(id: string) {
 
 export function nextTaskOccurrence(page: Page, id: string): Page | undefined {
   const due = page.due_date;
-  if (page.kind !== "todo" || !page.completed || due == null || !page.task_repeat) return;
-  const anchor = new Date(due), next = new Date(due);
+  if (page.kind !== "todo" || !page.completed || !page.task_repeat) return;
+  const afterCompletion = page.task_repeat === "after_completion";
+  if (due == null && !afterCompletion) return;
+  const timestamp = Date.now();
+  const anchor = new Date(due ?? timestamp);
+  const next = new Date(afterCompletion ? timestamp : anchor);
   let monthDay = page.task_repeat_day ?? null;
-  if (page.task_repeat === "monthly") {
+  if (afterCompletion) {
+    next.setDate(next.getDate() + (monthDay ?? 1));
+  } else if (page.task_repeat === "monthly") {
     monthDay ??= anchor.getDate();
     next.setDate(1);
     next.setMonth(next.getMonth() + 1);
@@ -22,7 +28,6 @@ export function nextTaskOccurrence(page: Page, id: string): Page | undefined {
     - Date.UTC(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())) / 86400000);
   const start = page.task_start_at == null ? null : new Date(page.task_start_at);
   if (start) start.setDate(start.getDate() + daysApart);
-  const timestamp = Date.now();
   return {
     ...page, id, revision: 1, created_at: timestamp, updated_at: timestamp, deleted_at: null,
     completed: false, due_date: next.getTime(), task_start_at: start?.getTime() ?? null,

@@ -1981,10 +1981,10 @@ function NexusAppInner({
       ) : isTodoMode ? (
         <TodoView headerIntegrated storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
-          onCreate={async(title,due)=>{
+          onCreate={async(title,due,fields)=>{
             const storage=storageRef.current!;
             const owner=storage.getWorkspaceOwner?.();
-            const task=await storage.createPage({title,kind:'todo',due_date:due??Date.now(),completed:false});
+            const task=await storage.createPage({ ...fields, title, kind:'todo', due_date:due??Date.now(), completed:false });
             if(storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner){
               setPages(previous=>[task,...previous]);
               syncEngineRef.current?.pushPage(task);

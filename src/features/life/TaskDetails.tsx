@@ -9,6 +9,11 @@ export default function TaskDetails({ page, apply }: {
 }) {
   const [title, setTitle] = useState("");
   const steps = page.task_steps ?? [];
+  const addStep = () => {
+    if (!title.trim() || steps.length >= 50) return;
+    apply({ task_steps: [...steps, { id: crypto.randomUUID(), title: title.trim(), done: false }] });
+    setTitle("");
+  };
   return <>
     <label className="grid min-w-0 gap-1">開始日期<input type="datetime-local" className={control} value={localDateTimeInput(page.task_start_at)}
       onChange={event => {
@@ -21,9 +26,15 @@ export default function TaskDetails({ page, apply }: {
     </select></label>
     <label className="grid gap-1">重複週期<select className={control} value={page.task_repeat ?? ""}
       onChange={event => apply({ task_repeat: (event.target.value || null) as Page["task_repeat"], task_repeat_day: null })}>
-      <option value="">不重複</option><option value="daily">每天</option><option value="weekly">每週</option><option value="monthly">每月</option>
+      <option value="">不重複</option><option value="daily">每天</option><option value="weekly">每週</option><option value="monthly">每月</option><option value="after_completion">完成後再安排</option>
     </select></label>
-    {page.task_repeat && page.due_date == null && <p className="text-sm">設定截止日期後，完成任務才會產生下一次。</p>}
+    {page.task_repeat === "after_completion" && <label className="grid gap-1">完成後間隔天數
+      <input type="number" className={control} min="1" max="31" step="1" value={page.task_repeat_day ?? 1}
+        onChange={event => {
+          const days = event.target.valueAsNumber;
+          if (Number.isInteger(days) && days >= 1 && days <= 31) apply({ task_repeat_day: days });
+        }}/></label>}
+    {page.task_repeat && page.task_repeat !== "after_completion" && page.due_date == null && <p className="text-sm">設定截止日期後，完成任務才會產生下一次。</p>}
     <details className="min-w-0 basis-full">
       <summary className="cursor-pointer py-1">子任務 · {steps.filter(step => step.done).length}/{steps.length}</summary>
       <ul className="max-h-32 overflow-auto">{steps.map(step => <li key={step.id} className="flex items-center gap-2">
@@ -34,15 +45,15 @@ export default function TaskDetails({ page, apply }: {
         <button type="button" className={control} aria-label={`移除子任務 ${step.title}`}
           onClick={() => apply({ task_steps: steps.filter(item => item.id !== step.id) })}>移除</button>
       </li>)}</ul>
-      <form className="mt-2 flex gap-2" onSubmit={event => {
-        event.preventDefault();
-        if (!title.trim() || steps.length >= 50) return;
-        apply({ task_steps: [...steps, { id: crypto.randomUUID(), title: title.trim(), done: false }] });
-        setTitle("");
-      }}>
-        <input aria-label="新增子任務名稱" className={control + " flex-1"} maxLength={120} value={title} onChange={event => setTitle(event.target.value)}/>
-        <button className={control} disabled={!title.trim() || steps.length >= 50}>新增子任務</button>
-      </form>
+      <div className="mt-2 flex gap-2">
+        <input aria-label="新增子任務名稱" className={control + " flex-1"} maxLength={120} value={title}
+          onKeyDown={event => {
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            addStep();
+          }} onChange={event => setTitle(event.target.value)}/>
+        <button type="button" className={control} disabled={!title.trim() || steps.length >= 50} onClick={addStep}>新增子任務</button>
+      </div>
     </details>
   </>;
 }
