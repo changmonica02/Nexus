@@ -111,6 +111,17 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     assert.deepEqual(await page.evaluate(async()=>window.lifeStorage.getLifeRepository().readDashboard()),before);
     await navigateLife(page,'總覽');await page.getByRole('button',{name:'今天',exact:true}).click();
     if(process.env.LIFE_UX_SCREENSHOTS){await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`overview-${engine}.png`)});}
+    for(const [width,height] of [[390,844],[820,1180],[1180,820],[1440,1000]]){
+      await page.setViewportSize({width,height});
+      for(const destination of ['總覽','日曆','財務']){
+        await navigateLife(page,destination);
+        await page.getByRole('button',{name:'新增',exact:true}).click();
+        const bounds=await page.locator('[data-life-add-options]').boundingBox();
+        assert.ok(bounds&&bounds.x>=0&&bounds.x+bounds.width<=width,`${destination} add menu at ${width}`);
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('[data-life-add-options]').count(),0);
+      }
+    }
     assert.deepEqual(errors,[]);
   } finally { await browser?.close(); await new Promise(resolve=>server.close(resolve));fs.rmSync(tmp,{recursive:true,force:true}); }
 });
