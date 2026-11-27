@@ -1,3 +1,4 @@
+import {defaultBinaryIntervals,type BinaryIntervals} from './binaryReviewPolicy';
 import type { StudySettings } from "./studyFSRS";
 export type ScheduleMethod = "fsrs" | "fixed";
 /** Seconds, indexed by Again/Hard/Good/Easy. Independent New and Relearning groups. */
@@ -8,8 +9,9 @@ export type FixedIntervals = Record<
 export type IntervalSettings = Record<"general" | "forgotten", [number, number, number]>;
 export const defaultIntervalSettings = ():IntervalSettings => ({general:[60,600,604800],forgotten:[60,600,86400]});
 export interface StudyStyle {
-  interval_version?: 1;
+  interval_version?: 1 | 2;
   intervals?: IntervalSettings;
+  binary_intervals?: BinaryIntervals;
   auto_speech?: boolean;
   speech_rate?: number;
   id: string;
@@ -33,8 +35,9 @@ export function defaultStudyStyle(owner: string | null): StudyStyle {
     speech_rate: 0.9,
     study_mode: "scheduled",
     scheduling_method: "fixed",
-    interval_version: 1,
+    interval_version: 2,
     intervals: defaultIntervalSettings(),
+    binary_intervals: defaultBinaryIntervals(),
     review_limit: 100,
     new_limit: 20,
     new_pause_threshold: 200,
@@ -70,9 +73,10 @@ export function validateStudyStyle(style: StudyStyle) {
     if (!Number.isInteger(style[key]) || style[key] < min || style[key] > 10000)
       throw Error(`${key}:  ${min}–10000`);
   if(style.interval_version!==undefined){
-    if(style.interval_version!==1)throw Error('Unsupported interval schedule version');
+    if(style.interval_version!==1&&style.interval_version!==2)throw Error('Unsupported interval schedule version');
     for(const group of ['general','forgotten'] as const){const values=style.intervals?.[group];if(!Array.isArray(values)||values.length!==3||values.some(s=>!Number.isSafeInteger(s)||s<1||s>315360000))throw Error('Intervals must contain six positive durations');}
   }
+  if(style.binary_intervals!==undefined)for(const group of ['general','fuzzy','forgotten'] as const){const values=style.binary_intervals[group];if(!Array.isArray(values)||values.length!==2||values.some(s=>!Number.isSafeInteger(s)||s<1||s>315360000))throw Error('Invalid binary intervals');}
   for (const kind of ["new", "relearning", "review"] as const) {
     const times = style.fixed_intervals?.[kind];
     if (
@@ -125,5 +129,7 @@ export function applyStyle(
 /** Read-only normalization: old settings remain stored until the user saves this deck. */
 export function unifiedStudyStyle(style:StudyStyle):StudyStyle {
  validateStudyStyle(style);
- return {...structuredClone(style),scheduling_method:'fixed',interval_version:1,intervals:structuredClone(style.intervals??defaultIntervalSettings()),review_order:style.review_order==='random'?'random':'due'};
+ const legacy=style.intervals??defaultIntervalSettings();
+ const binary=style.binary_intervals??{general:[legacy.general[0],legacy.general[2]],fuzzy:[60,259200],forgotten:[legacy.forgotten[0],legacy.forgotten[2]]};
+ return {...structuredClone(style),binary_intervals:structuredClone(binary) as BinaryIntervals,scheduling_method:'fixed',interval_version:2,intervals:structuredClone(style.intervals??defaultIntervalSettings()),review_order:style.review_order==='random'?'random':'due'};
 }

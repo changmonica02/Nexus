@@ -1,7 +1,7 @@
 begin;
 do $patch$
 declare
-  definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+  definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
   anchor text := $$    if tomb.entity_id is not null then raise exception 'Workspace object permanently deleted'; end if;$$;
 begin
   if strpos(definition,anchor)=0 or strpos(definition,'^automation:[0-9a-f]{64}$')=0 then

@@ -1,6 +1,6 @@
 begin;
 do $migration$
-declare definition text := pg_get_functiondef('public.dictionary_bulk_publish_work(text[],text,boolean,text)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.dictionary_bulk_publish_work(text[],text,boolean,text)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     'version_row record; result jsonb; token uuid; after_stamp text;',

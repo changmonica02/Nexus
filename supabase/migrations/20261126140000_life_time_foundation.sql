@@ -81,7 +81,7 @@ end $$;
 
 -- Keep the current RPC, including its receipt format and retired-column changes.
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   if strpos(definition, $$'life_lists','life_categories','life_items'$$) = 0 then
     raise exception 'Unexpected workspace operation allowlist';

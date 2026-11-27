@@ -61,6 +61,7 @@
       "tests/dictionary/studyDictionaryPanel.browser.test.cjs"
     ],
     "study": [
+      "tests/study/binaryReviewPolicy.test.cjs",
       "tests/study/learningHome.browser.test.cjs",
       "tests/study/learningManagement.browser.test.cjs",
       "tests/study/officialLinkedContent.browser.test.cjs",
@@ -129,12 +130,12 @@
       "tests/world-map/globalMapClientVersion.test.cjs",
       "tests/world-map/globalMapCreator.browser.test.cjs",
       "tests/world-map/globalMapDisplay.test.cjs",
+      "tests/world-map/globalMapSession.browser.test.cjs",
       "tests/world-map/globalMapWorkspace.ui.test.cjs",
       "tests/world-map/heightBrushWorker.test.cjs",
-      "tests/world-map/worldMap.test.cjs",
       "tests/world-map/humanGeography.test.cjs",
-      "tests/world-map/globalMapSession.browser.test.cjs",
-      "tests/world-map/riverSession.test.cjs"
+      "tests/world-map/riverSession.test.cjs",
+      "tests/world-map/worldMap.test.cjs"
     ],
     "note": [
       "tests/note/lessonDocument.test.cjs",
@@ -158,17 +159,17 @@
       "tests/creation/score.test.cjs"
     ],
     "life": [
+      "tests/life/lifeAutomation.browser.test.cjs",
       "tests/life/lifeDashboard.browser.test.cjs",
       "tests/life/lifeDashboard.test.cjs",
       "tests/life/lifeFinance.browser.test.cjs",
       "tests/life/lifeFinance.test.cjs",
-      "tests/life/lifeAutomation.browser.test.cjs",
       "tests/life/lifeHealth.browser.test.cjs",
       "tests/life/lifeHealth.test.cjs",
       "tests/life/lifeLists.browser.test.cjs",
       "tests/life/lifeLists.test.cjs",
-      "tests/life/lifeStorage.test.cjs",
       "tests/life/lifeSensitive.browser.test.cjs",
+      "tests/life/lifeStorage.test.cjs",
       "tests/life/lifeTime.test.cjs",
       "tests/life/lifeViews.browser.test.cjs",
       "tests/life/lifeViews.test.cjs",

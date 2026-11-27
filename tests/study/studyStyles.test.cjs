@@ -28,7 +28,7 @@ async function style(f, patch = {}) {
   return s;
 }
 for (const mode of ["scheduled", "endless"])
-  test(`${mode}: real three-response histories, frozen settings, proper due and no extra practice`, async () => {
+  test(`${mode}: real two-response histories, frozen settings, proper due and no extra practice`, async () => {
       const f = await fixture(3);
       try {
         await style(f, { study_mode: mode });
@@ -43,13 +43,13 @@ for (const mode of ["scheduled", "endless"])
         assert.equal(event.at, now);
         assert.equal(event.rating, 3);
         {
-          assert.equal(event.log.method, "interval");
+          assert.equal(event.log.method, "binary");
           assert.equal(event.log.interval_seconds, 604800);
-          assert.equal(event.engine, "nexus-interval@1");
+          assert.equal(event.engine, "nexus-binary@2");
           assert.equal(event.after.fsrs, null);
           assert.equal(event.after.fixed.state, State.Review);
           assert.equal(dueAt(event.after, now), now + 604800000);
-          assert.ok(event.parameters.intervals);
+          assert.ok(event.parameters.binary_intervals);
         }
         await grade(f.repo, initial.id, 3, now);
         await grade(f.repo, initial.id, 3, now);

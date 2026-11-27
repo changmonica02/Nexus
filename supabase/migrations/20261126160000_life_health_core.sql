@@ -25,7 +25,7 @@ create policy read_own on public.life_health_records for select to authenticated
 -- Health payloads reconcile through authenticated pulls and stay outside Realtime publication.
 
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$'life_finance_records','life_timer_results')$$,

@@ -3,7 +3,7 @@ alter table public.life_lists add column configuration jsonb not null default '{
   check (jsonb_typeof(configuration) = 'object' and octet_length(configuration::text)<=32768);
 
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$when entity='life_lists' then array['title','fields','schema_version','sort_order']$$,

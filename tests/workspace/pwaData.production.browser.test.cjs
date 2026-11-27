@@ -149,7 +149,7 @@ test('PWA stage 2: account data, offline edits/review/PDF, reconnect, conflicts 
   await page.getByRole('button', { name: /Remember|記得/ }).first().click();
   await waitForAsync(page, async ({ A, id }) => (await window.pwaData.study(A, id)).events.some(e => e.kind === 'review'), { A, id: ids.deck });
   const learned = await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck });
-  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.engine,'nexus-interval@1');assert.equal(review.scheduling_method, 'fixed'); assert.ok(review.log); assert.ok(learned.states[0].fixed);
+  const review = learned.events.find(e => e.kind === 'review'); assert.equal(review.engine,'nexus-binary@2');assert.equal(review.scheduling_method, 'fixed'); assert.ok(review.log); assert.ok(learned.states[0].fixed);
   await page.close(); page = await newPage(); await page.goto(origin); await page.locator('main').waitFor(); await inject();
   assert.equal((await page.evaluate(({ A, id }) => window.pwaData.study(A, id), { A, id: ids.deck })).events.filter(e => e.kind === 'review').length, 1);
   assert.deepEqual(offlineCalls.filter(name => /apply_workspace|apply_study|pull_study/.test(name)), []);

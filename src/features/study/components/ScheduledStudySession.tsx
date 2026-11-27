@@ -155,7 +155,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
         {card&&state&&revealed&&<>
           <CardDictionaryPanel compact onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
-          <div className="grid w-full grid-cols-3 gap-1.5 sm:gap-2">{([1,2,3] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="min-h-14 min-w-0 rounded-lg border px-1 py-2 text-sm disabled:opacity-40 sm:px-3 sm:text-base" onClick={()=>void mark(rating)}><span className="block font-medium">{t(`interval.response${rating}`)}</span>{preview&&<span className="mt-1 block break-words text-xs sm:text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
+          <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">{([1,3] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="min-h-14 min-w-0 rounded-lg border px-1 py-2 text-sm disabled:opacity-40 sm:px-3 sm:text-base" onClick={()=>void mark(rating)}><span className="block font-medium">{t(`interval.response${rating}`)}</span>{preview&&<span className="mt-1 block break-words text-xs sm:text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
         </>}
         <div className="flex min-h-6 max-h-20 items-center justify-center overflow-y-auto text-center" data-study-save-status>
           <AnswerSaveNotice saving={saving} error={error} onRetry={hasAttempt?()=>void mark(attempt.current!.rating):undefined} onReload={()=>void change('reload')}/>

@@ -1,6 +1,6 @@
 begin;
 do $patch$
-declare definition text := pg_get_functiondef('public.validate_life_workspace(uuid)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.validate_life_workspace(uuid)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$'checkbox','image','attachment') then raise exception 'Invalid field definition'$$,

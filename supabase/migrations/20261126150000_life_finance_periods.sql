@@ -120,7 +120,7 @@ end $fn$;
 revoke all on function public.validate_life_finance(uuid) from public, anon, authenticated;
 
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$'life_dashboard_configs','life_schedule_events','life_habits')$$,

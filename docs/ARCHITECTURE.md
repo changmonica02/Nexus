@@ -310,9 +310,9 @@ Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週�
 
 ### 學習排程
 
-`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一三按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。新批次以 partial Fisher–Yates 從全部合資格未引入卡抽樣，再沿既有額度／批次順序限制組成目標；複習排序不控制新卡，恢復未完成 Session 不重新抽樣。
+`StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一雙按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。新批次以 partial Fisher–Yates 從全部合資格未引入卡抽樣，再沿既有額度／批次順序限制組成目標；複習排序不控制新卡，恢復未完成 Session 不重新抽樣。
 
-正式學習僅使用三按鈕間隔排程。學習組樣式以 `interval_version: 1`、`intervals.general/forgotten` 各三個秒數保存，沿用既有樣式 JSON、IndexedDB 與同步 RPC。新作答事件使用 `nexus-interval@1`，目前排程沿用 `fixed` 狀態容器；舊 FSRS 記憶、due 與四級作答事實保留，歷史引擎只供重播驗證。舊未完成批次保留 ID、已退出卡片及額度，原快照留於 `legacy_settings_snapshot`，恢復時凍結新間隔；讀取不重寫卡片到期時間。忘記留在批次等待到期，模糊／記得退出，批次不追加不同卡片。
+正式學習僅使用雙按鈕間隔排程。學習組樣式以 `interval_version: 2`、`binary_intervals.general/fuzzy/forgotten` 各兩個秒數保存，沿用既有樣式 JSON、IndexedDB 與同步 RPC。新作答事件使用 `nexus-binary@2`，保留 `nexus-interval@1` 歷史重播，目前排程沿用 `fixed` 狀態容器；舊 FSRS 記憶、due 與四級作答事實保留，歷史引擎只供重播驗證。舊未完成批次保留 ID、已退出卡片及額度，原快照留於 `legacy_settings_snapshot`，恢復時凍結新間隔；讀取不重寫卡片到期時間。忘記留在批次等待到期，記得退出（出盒不提升記憶狀態），批次不追加不同卡片。
 
 目前排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
 
@@ -326,7 +326,7 @@ Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週�
 
 每輪 `studySync` 在任何學習上傳前呼叫 `get_study_clear_times`。`applyClearTimes` 在原 v9 Study stores 的單一 IndexedDB 交易保存權威時間、失效該組 Session／舊決策、移除清除前事件及 outbox、按依賴順序重建合法晚事件並更新同一 outbox。圖遍歷與 pending 事件排序採 Map／queue，重複還原 intents 仍按原事件順序送出並逐個 ack；所有學習寫入由原 RPC 路徑處理。原操作 ID 在本機 study_sync_meta 先行保存，網路回覆／本機提交不明時重試原清除操作，延遲回覆不能降低本機已知清除時間。完成本機交易後發出既有 nexus-study-changed，讓 Session、歷史、首頁統計與每日新卡額度重讀；已失效的正式 Session 需重新開始。
 
-`apply_study_operation` 在既有鎖內重新驗證卡片實際所屬組、帳號與清除時間；清除後只接受晚於屏障且帶目前投影的事件。發生時間必須為整數毫秒，不接受超過伺服器目前時間 24 小時的未來事件；這是異常值檢查，不是精確校時。seed 一律轉成無 legacy 進度的空白 state；card 不可跨組移動；舊 resolution 不能恢復原 after。投影先通過原事件結構檢查，再驗證目前有效轉換、canonical predecessor／決策證明與清除時間，同一 ID 原始內容不同仍報 collision，同一清除時間的不同投影也不靜默取代。正式三按鈕間隔與歷史 fixed 轉換在 SQL 另核對排程公式／due；歷史 FSRS 仍由固定版本 TypeScript 引擎驗證完整計算，SQL 保留結構驗證並增加前置狀態／計數檢查，**不宣稱 SQL 已實作完整 FSRS 公式**。官方更新 SQL 直接插入的新 state 亦經 guard trigger 清空過期 seed。
+`apply_study_operation` 在既有鎖內重新驗證卡片實際所屬組、帳號與清除時間；清除後只接受晚於屏障且帶目前投影的事件。發生時間必須為整數毫秒，不接受超過伺服器目前時間 24 小時的未來事件；這是異常值檢查，不是精確校時。seed 一律轉成無 legacy 進度的空白 state；card 不可跨組移動；舊 resolution 不能恢復原 after。投影先通過原事件結構檢查，再驗證目前有效轉換、canonical predecessor／決策證明與清除時間，同一 ID 原始內容不同仍報 collision，同一清除時間的不同投影也不靜默取代。正式雙按鈕間隔與歷史 fixed 轉換在 SQL 另核對排程公式／due；歷史 FSRS 仍由固定版本 TypeScript 引擎驗證完整計算，SQL 保留結構驗證並增加前置狀態／計數檢查，**不宣稱 SQL 已實作完整 FSRS 公式**。官方更新 SQL 直接插入的新 state 亦經 guard trigger 清空過期 seed。
 
 備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括含 v1 Page-only legacy 欄位的備份；該欄位已退役且忽略）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
 
@@ -485,7 +485,7 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 
 Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、版本或額度。refreshScheduled 保留仍合法的當前題，短間隔到期只重排後續候選；正式評分通過原 CAS／head／內容版本驗證後解除呈現標記。計時器只在明確等待、無當前卡時重新取卡；背景更新只讀取／核對，有實際題目變更時保留畫面並阻止舊題評分，要求重新載入。
 
-首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步與**現行三按鈕間隔排程**不變；舊 FSRS 參數僅按既有歷史相容方式保留，不重新成為可切換的正式排程。
+首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步與**現行雙按鈕間隔排程**不變；舊 FSRS 參數僅按既有歷史相容方式保留，不重新成為可切換的正式排程。
 
 Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。該資料庫 Migration 已經正式套用；後續發佈新欄位仍需遵守 guard 相容性，舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
 ### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）

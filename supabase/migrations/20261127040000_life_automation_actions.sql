@@ -11,7 +11,7 @@ alter table public.life_finance_records add constraint life_finance_estimate_che
     and jsonb_typeof(payload->'category')='string',false));
 
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     '  column_names text; expressions text; assignments text;',

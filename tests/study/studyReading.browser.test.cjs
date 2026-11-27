@@ -12,7 +12,7 @@ test('2A: real Session, speech lifecycle, reveal-only composition, saved prefere
  const browser=await chromium.launch({executablePath:process.env.BROWSER_EXECUTABLE,args:['--no-sandbox']}),errors=[];
  try{for(const width of [1280,320]){
   const context=await browser.newContext({viewport:{width,height:1000},hasTouch:width<900,isMobile:width===320});await context.addInitScript(installReading);const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port);
-  const assertLayout=async()=>{const layout=await page.evaluate(()=>{const card=document.querySelector('[data-study-card]'),r=el=>{const b=el.getBoundingClientRect();return{x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom};};return{notice:r(card.querySelector('[role=status]')),word:r(card.querySelector('p[lang=en]')),answer:r(card.querySelector('p[lang=zh]')),buttons:[...document.querySelectorAll('button')].filter(b=>/^(忘記|模糊|記得)/.test(b.textContent)).map(r),overflow:document.documentElement.scrollWidth>innerWidth};});assert.equal(layout.buttons.length,3);for(const b of layout.buttons){assert.ok(Math.abs(b.y-layout.buttons[0].y)<1);assert.ok(Math.abs(b.w-layout.buttons[0].w)<1);assert.ok(b.h>=44);}assert.ok(layout.notice.bottom<=layout.word.y+1);assert.ok(layout.word.bottom<=layout.answer.y);assert.equal(layout.overflow,false);};
+  const assertLayout=async()=>{const layout=await page.evaluate(()=>{const card=document.querySelector('[data-study-card]'),r=el=>{const b=el.getBoundingClientRect();return{x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom};};return{notice:r(card.querySelector('[role=status]')),word:r(card.querySelector('p[lang=en]')),answer:r(card.querySelector('p[lang=zh]')),buttons:[...document.querySelectorAll('button')].filter(b=>/^(忘記|記得)/.test(b.textContent)).map(r),overflow:document.documentElement.scrollWidth>innerWidth};});assert.equal(layout.buttons.length,2);for(const b of layout.buttons){assert.ok(Math.abs(b.y-layout.buttons[0].y)<1);assert.ok(Math.abs(b.w-layout.buttons[0].w)<1);assert.ok(b.h>=44);}assert.ok(layout.notice.bottom<=layout.word.y+1);assert.ok(layout.word.bottom<=layout.answer.y);assert.equal(layout.overflow,false);};
   const speaks=()=>page.evaluate(()=>window.speechCalls.filter(c=>c.kind==='speak'));const show=()=>page.getByRole('button',{name:'翻至答案',exact:true});const replay=()=>page.getByRole('button',{name:'重新播放發音',exact:true});
   await show().waitFor();await page.waitForFunction(()=>window.speechCalls.some(c=>c.kind==='speak'));assert.deepEqual(await speaks(),[{kind:'speak',text:'preview',rate:.9}]);assert.equal(await page.getByText('預覽',{exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.readingCalls),0);
   // Tablet verifies the layout and basic reveal interaction; full speech,
@@ -20,7 +20,7 @@ test('2A: real Session, speech lifecycle, reveal-only composition, saved prefere
   if(width===820){
    await show().click();
    await page.getByRole('region',{name:'衍生與例句'}).waitFor();
-   for(const rating of ['忘記','模糊','記得'])assert.equal(await page.getByRole('button',{name:new RegExp('^'+rating)}).count(),1);
+   assert.equal(await page.getByRole('button',{name:/^模糊/}).count(),0);for(const rating of ['忘記','記得'])assert.equal(await page.getByRole('button',{name:new RegExp('^'+rating)}).count(),1);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
    await context.close();
    continue;

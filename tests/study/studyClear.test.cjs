@@ -49,13 +49,13 @@ test('offline answers on each side of clear: immutable facts, original snapshot 
   const facts=(await b.repo.readDeck('deck',true)).events,late=facts.find(e=>e.kind==='review'&&e.at>clear.cleared_at);
   assert.equal(late.log.group,'forgotten');assert.ok(late.after.fixed.due<late.at+604800000);
   // Local settings can change after the answer; replay must use the frozen snapshot.
-  await b.repo.saveDeckStyle('deck',{intervals:{general:[2,3,4],forgotten:[5,6,7]}});
+  await b.repo.saveDeckStyle('deck',{binary_intervals:{general:[2,4],fuzzy:[3,5],forgotten:[5,7]}});
   f.calls.length=0;f.loss.name='apply_study_operation';await assert.rejects(()=>f.sync(b),/response lost/);
   assert.equal(f.calls[0],'get_study_clear_times');await f.sync(b);
   const snapshot=await b.repo.readDeck('deck',true),stored=snapshot.events.find(e=>e.id===late.id);
   assert.deepEqual(originalEvent(stored),late);assert.equal(reliableEvent(stored),true);
   assert.equal(effectiveEvent(stored).log.group,'general');
-  assert.equal(effectiveEvent(stored).after.fixed.due,late.at+late.style_snapshot.intervals.general[2]*1000);
+  assert.equal(effectiveEvent(stored).after.fixed.due,late.at+late.style_snapshot.binary_intervals.general[1]*1000);
   assert.equal(effectiveEvent(stored).before.fsrs,null);assert.equal(effectiveEvent(stored).before.learned_at,undefined);
   assert.equal(snapshot.events.filter(e=>e.kind==='review').length,1);assert.ok(snapshot.events.every(e=>e.at>clear.cleared_at));
   assert.equal((await f.pg.query("select count(*)::int n from study_review_events where payload->>'kind'='review'")).rows[0].n,1);
@@ -193,7 +193,7 @@ test('two offline devices retain distinct post-clear facts as conflicts; guarded
   await oldLearning(f);const b=await f.device(0),c=await f.device(0);await f.sync(b);await f.sync(c);
   const sb=await b.repo.startSession('deck','scheduled',Date.now()),sc=await c.repo.startSession('deck','scheduled',Date.now());
   const {data:{clear}}=await f.clear();
-  await grade(b.repo,sb.id,3,clear.cleared_at+10);await grade(c.repo,sc.id,2,clear.cleared_at+20);
+  await grade(b.repo,sb.id,3,clear.cleared_at+10);await grade(c.repo,sc.id,1,clear.cleared_at+20);
   await f.sync(b);await f.sync(c);await f.sync(b);
   let snapshot=await c.repo.readDeck('deck',true);assert.equal(snapshot.states[0].conflict,true);assert.equal(snapshot.events.filter(e=>e.kind==='review').length,2);assert.ok(snapshot.events.every(reliableEvent));
   await c.repo.resolveSchedule(snapshot.cards[0].id,'relearn');await f.sync(c);

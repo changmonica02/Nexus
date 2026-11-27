@@ -22,7 +22,7 @@ grant select on public.life_automation_runs to authenticated;
 create policy read_own on public.life_automation_runs for select to authenticated using ((select auth.uid())=owner_id);
 
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$'life_timer_results','life_health_records')$$,

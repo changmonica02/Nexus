@@ -1,6 +1,6 @@
 begin;
 do $patch$
-declare definition text := pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure);
+declare definition text := replace(pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure), chr(13), '');
 begin
   definition := replace(definition,
     $$    if current_revision <> expected then raise exception 'Workspace revision conflict'; end if;$$,
