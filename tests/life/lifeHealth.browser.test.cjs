@@ -84,7 +84,7 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByRole("checkbox",{name:"在行事曆顯示運動"}).click();
     await page.getByRole("checkbox",{name:"在行事曆顯示運動",checked:true}).waitFor();
     await navigateLife(page, "日曆");
-    await page.getByRole("button",{name:/運動計畫 · 傍晚散步/}).waitFor();
+    await page.locator(".life-month").getByRole("button",{name:/運動計畫 · 傍晚散步/}).waitFor();
     assert.deepEqual(errors,[]);
   } finally {
     await browser?.close();
