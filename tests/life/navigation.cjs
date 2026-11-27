@@ -3,9 +3,9 @@ async function navigateLife(page, name) {
   const children = ['行程', '重要日期', '任務', '習慣', 'Tasks'];
   const target = children.includes(name) ? name==='Tasks'?'Calendar':'日曆' : name;
   const tab = page.getByRole('tab', { name: target, exact: true });
+  const toggle = page.locator('.life-nav-toggle');
+  await tab.or(toggle).filter({ visible: true }).first().waitFor();
   if (!await tab.isVisible()) {
-    const toggle = page.locator('.life-nav-toggle');
-    await toggle.waitFor();
     if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
   }
   await tab.click();

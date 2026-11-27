@@ -142,9 +142,9 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     }
     await navigateLife(page, "日曆");
     await page.getByRole("button",{name:"日檢視",exact:true}).click();
-    await page.locator(".life-day-details").getByRole("button",{name:/預計扣款 · 閱讀服務/}).waitFor();
+    await page.locator(".life-all-day").getByRole("button",{name:/預計扣款 · 閱讀服務/}).waitFor();
     await page.getByRole("button",{name:"週檢視",exact:true}).click();
-    await page.locator(".life-day-details").getByRole("button",{name:/預計扣款 · 閱讀服務/}).click();
+    await page.locator(".life-all-day").getByRole("button",{name:/預計扣款 · 閱讀服務/}).click();
     await page.getByRole("dialog",{name:"編輯訂閱",exact:true}).getByRole("button",{name:"取消",exact:true}).click();
     await tab("訂閱");
     await page.getByRole("button",{name:"確認扣款並記帳"}).click();
@@ -172,7 +172,7 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     await choose(dialog,"套用範圍","single");
     await fill(dialog,"名稱","單次回顧");
     await dialog.getByRole("button",{name:"儲存行程"}).click();
-    await page.locator(".life-day-details").getByRole("button",{name:/單次回顧/}).waitFor();
+    await page.locator(".life-all-day").getByRole("button",{name:/單次回顧/}).waitFor();
 
     await navigateLife(page, "計時工具");
     await page.getByRole("button",{name:"碼錶",exact:true}).click();
