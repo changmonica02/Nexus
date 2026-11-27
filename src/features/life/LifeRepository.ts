@@ -1,3 +1,4 @@
+import { convertHabit, makeExecution, sameTaskData, type TaskExecution, type TaskSlot, type TaskStatus } from "./taskPlan";
 import { automationRunId, automationScheduleId, validAutomationAction, type Reminder, type ReminderRule, type AutomationRun, type AutomationRunStatus } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
@@ -190,7 +191,7 @@ export class LifeRepository {
     if(this.owner()!==owner)throw Error("帳號已切換");
     if(!task||task.workspace_owner_id!==owner||task.deleted_at!=null||task.kind!=="todo")throw Error("待辦不存在或已刪除");
     const field=rule.updateField!;
-    if(field==="completed"&&task.task_repeat)throw Error("週期待辦的完成狀態須手動更新");
+    if(field==="completed"&&(task.task_repeat||task.task_plan))throw Error("週期待辦的完成狀態須手動更新");
     const desired=field==="completed"?rule.updateValue==="true":rule.updateValue!.trim();
     const persistence=new WorkspacePersistence(this.db);
     const value:Page={...task,[field]:desired,revision:task.revision+1,updated_at:Date.now()};
@@ -246,12 +247,50 @@ export class LifeRepository {
     ]);
   }
 
+  async readTaskExecutions(): Promise<TaskExecution[]> {
+    const owner = this.owner();
+    const rows = await this.db.getAll("life_task_executions") as TaskExecution[];
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    return rows.filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
+  }
+
+  async saveTaskExecution(task: Page, slot: TaskSlot, status: TaskStatus, amount: number, completedAt?:number) {
+    const owner = this.owner();
+    if (!task.task_plan || (task.workspace_owner_id ?? null) !== owner) throw Error("找不到此任務");
+    const value = makeExecution(task, slot, status, amount, Date.now(), completedAt);
+    if (slot.record?.status === status && slot.record.amount === value.amount && (completedAt==null||slot.record.completed_at===value.completed_at)) return;
+    const saved = await this.db.get("pages",task.id) as Page | undefined;
+    if (!saved || (saved.workspace_owner_id??null)!==owner || this.owner()!==owner || saved.deleted_at!=null
+      || !sameTaskData(saved.task_plan,task.task_plan)) throw Error("任務設定已變更，請重新開啟");
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_task_executions",kind:"save",value}],
+      [{type:"pages",id:task.id,revision:saved.revision}]);
+  }
+
   async readHabits(): Promise<Habit[]> {
     const owner = this.owner();
     const habits = await this.db.getAll("life_habits") as Habit[];
     if (this.owner() !== owner) throw Error("帳號已切換");
     return habits.filter(habit => habit.workspace_owner_id === owner && habit.deleted_at == null)
       .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+  }
+
+  async adoptHabit(habit: Habit): Promise<Page> {
+    const owner=this.owner();
+    if (habit.workspace_owner_id!==owner) throw Error("帳號已切換");
+    const existing=await this.db.get("pages",habit.id) as Page|undefined;
+    if (existing?.task_plan?.legacyHabitId===habit.id && (existing.workspace_owner_id??null)===owner) return existing;
+    if (existing) throw Error("原有習慣的識別碼已被另一筆任務使用");
+    const {plan,records}=convertHabit(habit);
+    const value:Page={
+      id:habit.id,kind:"todo",title:habit.title,format:"flow",content_json:{type:"doc",content:[{type:"paragraph"}]},content_text:"",
+      created_at:habit.created_at,updated_at:Date.now(),deleted_at:null,revision:1,device_id:"life",
+      workspace_owner_id:owner,completed:false,task_plan:plan,
+    };
+    const changes:WorkspaceChange[]=[{type:"pages",kind:"save",value,createOnce:true},
+      ...records.map(row=>({type:"life_task_executions" as const,kind:"save" as const,value:row,createOnce:true}))];
+    if (this.owner()!==owner) throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(owner,changes,[{type:"life_habits",id:habit.id,revision:habit.revision}]);
+    return await this.db.get("pages",habit.id) as Page;
   }
 
   async saveHabit(habit: Habit, remove = false) {

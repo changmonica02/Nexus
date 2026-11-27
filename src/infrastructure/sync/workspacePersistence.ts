@@ -1,3 +1,4 @@
+import { validateTaskPlan, type TaskExecution } from "../../features/life/taskPlan";
 import type { HealthRecord } from "../../features/life/health/model";
 import type { FinanceRecord } from "../../features/life/finance/model";
 import { validateFinanceRelations } from "../../features/life/finance/ledger";
@@ -19,7 +20,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export type WorkspaceChange = { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob;
   createOnce?: boolean; automationField?:"title"|"priority"|"completed" };
@@ -145,9 +146,19 @@ export class WorkspacePersistence {
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if(change.createOnce&&(old||(await metadata.get(key(owner,type,value.id)))?.hard_deleted))continue;
+        if (type==="pages" && kind==="save" && (value as Page).task_plan) {
+          if ((value as Page).kind!=="todo") throw Error("僅任務可設定週期");
+          validateTaskPlan((value as Page).task_plan!);
+        }
+        if (type==="life_task_executions") {
+          const parent=await tx.objectStore("pages").get((value as TaskExecution).task_id) as Page|undefined;
+          if (kind!=="save" || !parent?.task_plan || parent.deleted_at!=null || (parent.workspace_owner_id??null)!==owner)
+            throw Error("找不到此執行紀錄的任務");
+        }
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
           if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" || type === "life_automation_runs" && !!old : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord);
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution);
+          if (type === "life_task_executions" && !old && (value as TaskExecution).revision !== 0) throw Error("執行紀錄已變更，請重新載入");
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
         if (LIFE_STORES.includes(type as LifeStore)) {

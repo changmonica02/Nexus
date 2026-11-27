@@ -7,7 +7,7 @@ export async function nextTaskId(id: string) {
 
 export function nextTaskOccurrence(page: Page, id: string): Page | undefined {
   const due = page.due_date;
-  if (page.kind !== "todo" || !page.completed || !page.task_repeat) return;
+  if (page.task_plan || page.kind !== "todo" || !page.completed || !page.task_repeat) return;
   const afterCompletion = page.task_repeat === "after_completion";
   if (due == null && !afterCompletion) return;
   const timestamp = Date.now();

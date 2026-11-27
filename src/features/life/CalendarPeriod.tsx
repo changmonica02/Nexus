@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addDays, localDateKey } from "../../lib/todoCalendar";
 import { calendarEventClass, calendarEventKey, sortCalendarEvents, type LifeCalendarEvent } from "./calendarSources";
+import { statusLabels } from "./taskPlan";
 import { layoutTimeline, minutesOnDay } from "./calendarTimeline";
 
 export type CalendarView = "month" | "week" | "day" | "list";
@@ -34,7 +35,7 @@ export function CalendarItem({ item, locale, open, complete, showTime = false }:
         {new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(item.startsAt)}{" "}
       </time>}
       {item.recurring && <span aria-label="週期性">↻ </span>}
-      {item.title}
+      {item.source==="tasks"&&item.taskSlot?.dueAt!=null&&<span className="opacity-75">截止 · </span>}{item.title}{item.taskSlot&&item.taskSlot.status!=="pending"&&<span className="opacity-75"> · {statusLabels[item.taskSlot.status]}</span>}
     </button>
   </div>;
 }

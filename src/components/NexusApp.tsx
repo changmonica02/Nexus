@@ -1312,7 +1312,8 @@ function NexusAppInner({
       links: [...(source.links || [])],
       creative_type: source.creative_type,
       color:source.color,
-      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,task_start_at:source.task_start_at,task_repeat:source.task_repeat,task_repeat_day:source.task_repeat_day,task_steps:source.task_steps?.map(step=>({...step,id:crypto.randomUUID(),done:false})),completed:false}:{}),
+      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,task_start_at:source.task_start_at,
+        task_plan:source.task_plan?{...source.task_plan,legacyHabitId:undefined}:undefined,task_repeat:source.task_repeat,task_repeat_day:source.task_repeat_day,task_steps:source.task_steps?.map(step=>({...step,id:crypto.randomUUID(),done:false})),completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? (source.character_data.isTemplate ? {...snapshotCharacterTemplate(source.character_data),resourceSource:source.character_data.resourceSource} : structuredClone(source.character_data)) : undefined,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
@@ -1981,16 +1982,29 @@ function NexusAppInner({
       ) : isTodoMode ? (
         <TodoView headerIntegrated storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
+          onAdoptTask={task=>setPages(previous=>[task,...previous.filter(row=>row.id!==task.id)])}
           onCreate={async(title,due,fields)=>{
             const storage=storageRef.current!;
             const owner=storage.getWorkspaceOwner?.();
-            const task=await storage.createPage({ ...fields, title, kind:'todo', due_date:due??Date.now(), completed:false });
+            const task=await storage.createPage({ ...fields, title, kind:'todo', due_date:due===undefined?Date.now():due, completed:false });
             if(storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner){
               setPages(previous=>[task,...previous]);
               syncEngineRef.current?.pushPage(task);
             }
           }}
-          onUpdate={(id,patch)=>patchPage(id,patch)}
+          onUpdate={async(id,patch)=>{
+            if (!("task_plan" in patch)) { patchPage(id,patch); return; }
+            const storage=storageRef.current!;
+            const owner=storage.getWorkspaceOwner?.();
+            const current=pendingSavesRef.current.get(id)??await storage.getPage(id);
+            if (!current || current.deleted_at!=null || (current.workspace_owner_id??null)!==(owner??null)) throw Error("找不到此任務");
+            const next={...current,...patch};
+            pendingSavesRef.current.set(id,next);
+            await flushSave(next);
+            const saved=await storage.getPage(id);
+            if(saved&&storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner)
+              setPages(previous=>previous.map(row=>row.id===id?saved:row));
+          }}
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />

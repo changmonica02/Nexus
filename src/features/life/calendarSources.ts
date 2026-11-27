@@ -14,12 +14,14 @@ export type LifeCalendarEvent = {
   startsAt?: number;
   endsAt?: number;
   recurring?: boolean;
+  tracking?: boolean;
+  taskSlot?: import("./taskPlan").TaskSlot;
   occurrence?: string;
 };
 
 export function taskCalendarEvents(pages: Page[]): LifeCalendarEvent[] {
   return pages.flatMap(page => {
-    if (page.kind !== "todo" || page.deleted_at != null) return [];
+    if (page.kind !== "todo" || page.deleted_at != null || page.task_plan) return [];
     const events: LifeCalendarEvent[] = [];
     const start = page.task_start_at;
     const due = page.due_date;
@@ -129,4 +131,20 @@ export function calendarEventClass(item: LifeCalendarEvent) {
 export function sortCalendarEvents(items: LifeCalendarEvent[]) {
   return [...items].sort((a, b) => (a.startsAt ?? -Infinity) - (b.startsAt ?? -Infinity)
     || a.title.localeCompare(b.title));
+}
+
+
+export function plannedTaskEvents(slots: {task:Page;slot:import("./taskPlan").TaskSlot}[]): LifeCalendarEvent[] {
+ return slots.flatMap(({task,slot})=>{
+  if(slot.settings.recurrence.mode==='flexible')return [];
+  const common={sourceId:task.id,occurrence:slot.key,taskSlot:slot,tracking:slot.settings.tracking,title:task.title,
+   completed:slot.status==='complete',recurring:slot.settings.recurrence.mode!=='once'};
+  if(slot.startsAt!=null&&slot.endsAt!=null) {
+   const events:LifeCalendarEvent[]=[{...common,source:'taskStart',date:slot.startsAt,startsAt:slot.startsAt,endsAt:slot.endsAt}];
+   if(slot.dueAt!=null&&localDateKey(new Date(slot.dueAt))!==localDateKey(new Date(slot.startsAt)))events.push({...common,source:'tasks',date:slot.dueAt,allDay:true});
+   return events;
+  }
+  const date=slot.dueAt??new Date(slot.day+'T00:00:00').getTime();
+  return [{...common,source:'tasks',date,allDay:true}];
+ });
 }

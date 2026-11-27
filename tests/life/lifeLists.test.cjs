@@ -13,7 +13,7 @@ const { pullWorkspace, flushWorkspace } = require("../../src/infrastructure/sync
 const owner = "11111111-1111-4111-8111-111111111111",
   other = "22222222-2222-4222-8222-222222222222";
 const migration = "20261103155520_life_custom_lists.sql";
-async function setup(beforeAutomation) {
+async function setup(beforeAutomation, beforeTaskPlan) {
   const pg = new PGlite();
   await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;
 create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,kind text,due_date bigint,completed boolean,priority text,format text,device_id text,tags jsonb,folder text,links jsonb,attachment_ids jsonb,primary_attachment_id text,parent_id text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
@@ -35,6 +35,8 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261127020000_life_automation_task.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127030000_life_automation_runs.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127040000_life_automation_actions.sql", "utf8"));
+  await beforeTaskPlan?.(pg);
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -788,4 +790,81 @@ test("calendar repeat migration retains legacy tracking IDs, history and owner i
     b.db.close();
     await pg.close();
   }
+});
+
+test("task execution migration is repeatable and preserves occurrence identity across devices", async () => {
+  const pg=await setup(), a=await device(), b=await device();
+  const { defaultTaskSettings, editTaskPlan, taskSlots }=require("../../src/features/life/taskPlan.ts");
+  try {
+    await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql","utf8"));
+    const server=client(pg), localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
+    const settings=defaultTaskSettings(new Date(2026,10,27));
+    settings.recurrence={mode:"fixed",rule:{frequency:"day",interval:1,weekdays:[],count:3,until:"",zone:settings.zone,exceptions:[],overrides:{}}};
+    const task_plan=editTaskPlan({segments:[],excluded:[],overrides:{}},undefined,"all",settings);
+    const page=await a.createPage({kind:"todo",title:"閱讀",task_plan});
+    await flushWorkspace(server,localA,owner);
+    await pullWorkspace(server,localB,owner);
+    const remote=await b.getPage(page.id);
+    assert.deepEqual(remote.task_plan,task_plan);
+    const [first,second]=taskSlots(task_plan,[],"2026-11-27","2026-11-29");
+    await a.getLifeRepository().saveTaskExecution(page,first,"complete",1);
+    await b.getLifeRepository().saveTaskExecution(remote,first,"complete",1);
+    await flushWorkspace(server,localA,owner);
+    await flushWorkspace(server,localB,owner);
+    await b.getLifeRepository().saveTaskExecution(remote,second,"skipped",0);
+    await flushWorkspace(server,localB,owner);
+    await pullWorkspace(server,localA,owner);
+    const records=await a.getLifeRepository().readTaskExecutions();
+    assert.equal(records.length,2);
+    assert.deepEqual(taskSlots(task_plan,records,"2026-11-27","2026-11-29").map(row=>row.status),["complete","skipped","pending"]);
+    const backup=await a.exportWorkspaceBackup();
+    assert.equal(backup.life_task_executions.length,2);
+    const restored=await device();
+    try{
+      await restored.importWorkspaceBackup(backup);
+      assert.deepEqual((await restored.getLifeRepository().readTaskExecutions()).map(row=>row.id).sort(),records.map(row=>row.id).sort());
+      assert.deepEqual((await restored.getPage(page.id)).task_plan,task_plan);
+    }finally{restored.db.close();}
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select id from life_task_executions")).rows.length,0);
+  } finally { a.db.close(); b.db.close(); await pg.close(); }
+});
+
+test("adopting a legacy habit keeps its ID, dated source and health link while importing independent periods",async()=>{
+  const pg=await setup(),a=await device(),b=await device();
+  try{
+    const repo=a.getLifeRepository(),server=client(pg),local=a.getWorkspacePersistence();
+    await repo.saveHabit({id:"habit-same-id",workspace_owner_id:owner,revision:0,created_at:1,updated_at:1,deleted_at:null,
+      title:"閱讀",cadence:"weekly",goal:3,started_on:"2026-11-23",quantities:{"2026-11-23":1,"2026-11-24":2,"2026-11-30":1}});
+    await repo.saveHealth({id:"reading-goal",workspace_owner_id:owner,revision:0,created_at:1,updated_at:1,deleted_at:null,
+      kind:"goal",data:{title:"閱讀目標",metric:"custom",mode:"increase",date:"2026-11-23",until:"2026-12-31",
+        baseline:0,target:6,current:1,habit:"habit-same-id"}});
+    await flushWorkspace(server,local,owner);
+    const [habit]=await repo.readHabits();
+    const task=await repo.adoptHabit(habit);
+    assert.equal(task.id,habit.id);
+    assert.equal((await repo.adoptHabit(habit)).id,task.id);
+    await flushWorkspace(server,local,owner);
+    await pullWorkspace(server,b.getWorkspacePersistence(),owner);
+    const cloud=b.getLifeRepository();
+    assert.deepEqual((await cloud.readHabits())[0].quantities,habit.quantities);
+    assert.equal((await cloud.readHealth())[0].data.habit,habit.id);
+    assert.deepEqual((await cloud.readTaskExecutions()).map(row=>[row.day,row.status,row.amount,row.completed_at]).sort(),
+      [["2026-11-23","complete",3,null],["2026-11-30","partial",1,null]]);
+  }finally{a.db.close();b.db.close();await pg.close();}
+});
+
+test("empty execution schema can roll back to the prior sync function without affecting legacy schedules",async()=>{
+  let before;
+  const pg=await setup(undefined,async db=>{
+    before=(await db.query("select pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure) as definition")).rows[0].definition;
+    await db.query("insert into public.life_habits(owner_id,id,revision,created_at,updated_at,title,cadence,goal,started_on,quantities) values($1,'prior',1,0,0,'閱讀','daily',1,'2026-11-27','{}')",[owner]);
+  });
+  try{
+    assert.equal((await pg.query("select count(*)::int as count from public.life_task_executions")).rows[0].count,0);
+    await pg.exec("begin;"+before+"; drop table public.life_task_executions; alter table public.pages drop column task_plan; commit;");
+    assert.equal((await pg.query("select pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure) as definition")).rows[0].definition,before);
+    assert.equal((await pg.query("select title from public.life_habits where id='prior'")).rows[0].title,"閱讀");
+  }finally{await pg.close();}
 });

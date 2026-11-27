@@ -104,20 +104,29 @@ export function HabitHistory({ habit, date, today, repository, selectDate }: {
   </>;
 }
 
-export function HabitTrackingDialog({ habit, selected, today, repository, edit, close }: {
-  habit: Habit; selected: Date; today: Date; repository: LifeRepository; edit: () => void; close: () => void;
+export function HabitTrackingDialog({ habit, selected, today, repository, edit, close, adopt }: {
+  habit: Habit; selected: Date; today: Date; repository: LifeRepository; edit: () => void; close: () => void; adopt?: () => Promise<void>;
 }) {
   const [date, setDate] = useState(selected);
-  return <ModalDialog aria-label="任務追蹤紀錄" onDismiss={close}
+  const [adopting,setAdopting]=useState(false);
+  const [error,setError]=useState("");
+  return <ModalDialog aria-label="任務追蹤紀錄" busy={adopting} onDismiss={close}
     className="m-auto max-h-[90dvh] w-[min(94vw,42rem)] space-y-3 overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40">
     <h2 className="text-lg font-semibold">{habit.title}</h2>
     <label className="flex flex-wrap items-center gap-2">紀錄日期<input type="date" className={control}
       value={localDateInput(date)} onChange={event => { if (event.target.value) setDate(new Date(event.target.value + "T00:00:00")); }}/></label>
     <HabitHistory key={localDateInput(date) + ":" + habit.revision} habit={habit} date={date} today={today} repository={repository} selectDate={setDate}/>
     <div className="flex gap-2">
-      <button type="button" className={control} onClick={edit}>編輯任務</button>
-      <button type="button" className={control} onClick={close}>關閉</button>
+      <button type="button" className={control} disabled={adopting} onClick={edit}>編輯任務</button>
+      {adopt&&<button type="button" className={control} disabled={adopting} onClick={async()=>{
+        setAdopting(true);setError("");
+        try { await adopt(); }
+        catch(problem) {setError(problem instanceof Error?problem.message:"無法轉換任務");}
+        finally {setAdopting(false);}
+      }}>轉換為追蹤任務</button>}
+      <button type="button" className={control} disabled={adopting} onClick={close}>關閉</button>
     </div>
+    {error&&<p role="alert">{error}</p>}
   </ModalDialog>;
 }
 

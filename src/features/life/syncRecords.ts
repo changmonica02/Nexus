@@ -1,3 +1,4 @@
+import { validateTaskExecution, type TaskExecution } from "./taskPlan";
 import { validateHealth, type HealthRecord } from "./health/model";
 import type { ScheduleRule } from "./scheduleRecurrence";
 import { validateFinance, type FinanceRecord } from "./finance/model";
@@ -5,7 +6,7 @@ import { dashboardSettingsKey, isDashboardConfig, sameBoard, type LifeDashboardC
 
 import type { AutomationRun } from "./reminderModel";
 
-export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records", "life_automation_runs"] as const;
+export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records", "life_automation_runs", "life_task_executions"] as const;
 export type LifeSyncStore = typeof LIFE_SYNC_STORES[number];
 
 export interface LifeSyncBase {
@@ -61,6 +62,7 @@ export function isCivilDate(value: string): boolean {
 export const dashboardId = (owner: string) => dashboardSettingsKey(owner);
 
 export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase): void {
+  if (type === "life_task_executions") { validateTaskExecution(value as TaskExecution); return; }
   if (type === "life_automation_runs") {
     const {run}=value as AutomationRunRecord;
     if(!run||typeof run.id!=="string"||!run.id||run.id.length>1000||typeof run.title!=="string"

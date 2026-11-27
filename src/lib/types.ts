@@ -158,6 +158,7 @@ export interface Page {
   // Todo specific
   due_date?: number | null;
   task_start_at?: number | null;
+  task_plan?: import("../features/life/taskPlan").TaskPlan | null;
   task_repeat?: "daily" | "weekly" | "monthly" | "after_completion" | null;
   task_repeat_day?: number | null;
   task_steps?: { id: string; title: string; done: boolean }[] | null;
@@ -390,7 +391,7 @@ export interface PageQuery {
   limit?: number;
 }
 
-export type TaskSchedulingFields = Partial<Pick<Page, "priority" | "task_start_at" | "task_steps" | "task_repeat" | "task_repeat_day">>;
+export type TaskSchedulingFields = Partial<Pick<Page, "priority" | "task_start_at" | "task_steps" | "task_repeat" | "task_repeat_day" | "task_plan">>;
 
 export interface CreatePageInput extends TaskSchedulingFields {
   due_date?: number | null;
@@ -418,6 +419,7 @@ export interface WorkspaceBackupSettingEntry {
 }
 
 export interface WorkspaceBackup {
+  life_task_executions?: import("../features/life/taskPlan").TaskExecution[];
   life_habits?: import("../features/life/syncRecords").Habit[];
   life_schedule_events?: import("../features/life/syncRecords").ScheduleEvent[];
   life?: import("../features/life/lists").LifeData;

@@ -40,6 +40,7 @@ function App() {
           state={lifeState} onStateChange={setLifeState}
           storage={storage}
           pages={tasks}
+          onAdoptTask={()=>void window.reloadLifePages()}
           onCreate={async (title,due,fields)=>{await storage.createPage({...fields,kind:"todo",title,due_date:due});await window.reloadLifePages();}}
           onUpdate={async (id,patch)=>{const task=tasks.find(row=>row.id===id);setTasks(current=>current.map(row=>row.id===id?{...row,...patch}:row));await storage.savePage({...task,...patch});}}
           onDelete={async id=>{await storage.deletePage(id);await window.reloadLifePages();}}

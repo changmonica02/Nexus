@@ -158,6 +158,7 @@ export class SyncEngine {
       .on("postgres_changes", {event:"*",schema:"public",table:"life_items",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_dashboard_configs",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_schedule_events",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
+      .on("postgres_changes", {event:"*",schema:"public",table:"life_task_executions",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_habits",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_finance_records",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())
       .on("postgres_changes", {event:"*",schema:"public",table:"life_timer_results",filter:`owner_id=eq.${this.userId}`},()=>this.workspaceChanged())

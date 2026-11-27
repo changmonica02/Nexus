@@ -19,7 +19,7 @@ const keyOf = (time: number) => new Date(time).toISOString().slice(0,10);
 const dayNum = (key: string) => new Date(key+"T00:00:00Z").getUTCDay();
 
 const formatters=new Map<string,Intl.DateTimeFormat>();
-function zonalTime(time: number, zone: string) {
+export function zonalTime(time: number, zone: string) {
   const fmt = formatters.get(zone)??new Intl.DateTimeFormat("en-CA", {
     timeZone:zone, hourCycle:"h23", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit",
   });
@@ -28,7 +28,7 @@ function zonalTime(time: number, zone: string) {
   return Date.parse(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
 }
 
-function fromWall(wall: number, zone: string) {
+export function fromWall(wall: number, zone: string) {
   const offsets = [...new Set([-86400000,0,86400000].map(delta => zonalTime(wall+delta,zone)-wall-delta))];
   const candidates=offsets.map(offset=>wall-offset).sort((a,b)=>a-b);
   return candidates.find(time=>zonalTime(time,zone)===wall) ??
@@ -56,7 +56,7 @@ function weekdayInMonth(month: string, weekday: number, ordinal: number) {
   return key.slice(0, 7) === first.slice(0, 7) ? key : undefined;
 }
 
-export function scheduleOccurrences(event: ScheduleEvent, through: string) {
+export function scheduleOccurrences(event: ScheduleEvent, through: string, honorMonthDate = false) {
   const rule=event.repeat_rule;
   if(!rule)return [];
   const wall=event.all_day?event.starts_at:zonalTime(event.starts_at,rule.zone);
@@ -71,7 +71,7 @@ export function scheduleOccurrences(event: ScheduleEvent, through: string) {
     const pattern = rule.frequency === "month" ? rule.monthWeekday : undefined;
     if ((pattern ? start.slice(0, 7) + "-01" : start) > until) break;
     const monthly = pattern ? weekdayInMonth(start, pattern.weekday, pattern.ordinal) : undefined;
-    const keys= rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):(pattern ? (monthly ? [monthly] : []) : [step===0?first:start]);
+    const keys= rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):(pattern ? (monthly ? [monthly] : []) : [step===0&&!(honorMonthDate&&rule.frequency==="month"&&rule.anchorDay!==undefined)?first:start]);
     for(const key of keys){
       if(key<first||key>until)continue;
       if(rule.count!==null&&ordinal>=rule.count)return rows;
