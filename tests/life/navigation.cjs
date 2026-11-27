@@ -1,7 +1,7 @@
 async function navigateLife(page, name) {
   if (name === '計時工具') { await page.evaluate(() => window.showLifeTools()); return; }
-  const children = ['行程', '重要日期', '任務', '習慣'];
-  const target = children.includes(name) ? '日曆' : name;
+  const children = ['行程', '重要日期', '任務', '習慣', 'Tasks'];
+  const target = children.includes(name) ? name==='Tasks'?'Calendar':'日曆' : name;
   const tab = page.getByRole('tab', { name: target, exact: true });
   if (!await tab.isVisible()) {
     const toggle = page.locator('.life-nav-toggle');

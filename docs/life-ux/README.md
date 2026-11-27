@@ -22,6 +22,8 @@
 - Life 非瀏覽器測試：44 項，涵蓋資料保留、同步、權限、工作區、規則與配置。
 - Chromium 的 8 個 Life 瀏覽器測試檔，包括原有全部流程及新增 UX 回歸。
 - `LIFE_BROWSER=webkit node --test --test-concurrency=1 tests/life/*.browser.test.cjs`
+- WebKit 附件測試使用獨立持久性設定檔，驗證實際檔案儲存、圖片顯示、重新載入及帳號隔離；不使用無法儲存 IndexedDB Blob 的暫時性工作階段。
+- 另驗證正式建置 PWA 的離線資料流程、學習首頁銜接及四尺寸實際 Nexus 工作區的 Life 操作。
 - 新增 `lifeUx.browser.test.cjs`，驗證四種尺寸、淺／深色、無水平溢出、頂端列預留、詳情排列、直接任務編輯、習慣打卡、側邊欄狀態、舊入口、無期限／逾期任務、快速記帳及月份隔離。
 - CI 清冊新增 UX 測試；完整 CI 明確執行 Chromium 與 WebKit UX 回歸及 WebKit 全部 Life 瀏覽器測試，並上傳截圖證據。
 

@@ -1872,7 +1872,7 @@ function NexusAppInner({
         <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
-          {isTodoMode && <h1 className="ml-3 border-l border-[var(--color-border)] pl-3 text-base font-semibold">生活</h1>}
+          {isTodoMode && <h1 className="ml-3 border-l border-[var(--color-border)] pl-3 text-base font-semibold">{t("life.title")}</h1>}
           <div className="flex-1" />
           {workspaceActions}
         </header>
@@ -1979,7 +1979,7 @@ function NexusAppInner({
           onSelectPage={handleSelectPage}
         />
       ) : isTodoMode ? (
-        <TodoView storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
+        <TodoView headerIntegrated storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
           onCreate={async(title,due)=>{
             const storage=storageRef.current!;

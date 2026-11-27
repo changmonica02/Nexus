@@ -40,16 +40,19 @@ test(
         );
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
-    const browser = await chromium.launch({
+    const browser = process.env.LIFE_BROWSER === "webkit" ? null : await chromium.launch({
         executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE,
         args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"],
       }),
       errors = [];
+    let context;
     try {
-      const context = await browser.newContext({
-          viewport: { width: 320, height: 640 },
-        }),
-        page = await context.newPage();
+      // WebKit's ephemeral data store cannot persist IndexedDB Blobs. Use an
+      // isolated persistent profile to exercise actual file storage and reload.
+      context = process.env.LIFE_BROWSER === "webkit"
+        ? await chromium.launchPersistentContext(path.join(tmp, "profile"), { viewport: { width: 320, height: 640 } })
+        : await browser.newContext({ viewport: { width: 320, height: 640 } });
+      const page = await context.newPage();
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`http://127.0.0.1:${server.address().port}`);
       const open = async () => {
@@ -122,7 +125,7 @@ test(
           name: "photo.png",
           mimeType: "image/png",
           buffer: Buffer.from(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGN0a0phwAaYsIoOWgkA7vIBPLLAqOwAAAAASUVORK5CYII=",
             "base64",
           ),
         });
@@ -136,6 +139,7 @@ test(
       const before = await page.evaluate(async () => window.lifeStorage.getLifeRepository().read());
       assert.equal(before.life_items.length, 1);
       assert.equal(before.life_items[0].attachment_ids.length, 2);
+      await page.locator('img[alt="photo.png"]').evaluate(image=>image.parentElement.scrollIntoView({block:"center"}));
       await page.getByRole("img", { name: "photo.png", exact: true }).waitFor();
       await page.waitForFunction(() => {
         const image = document.querySelector('img[alt="photo.png"]');
@@ -207,7 +211,8 @@ test(
       assert.deepEqual(errors, []);
       await context.close();
     } finally {
-      await browser.close();
+      await context?.close();
+      await browser?.close();
       await new Promise((r) => server.close(r));
       fs.rmSync(tmp, { recursive: true, force: true });
     }

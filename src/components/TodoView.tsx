@@ -36,12 +36,12 @@ import HabitsPanel,{HabitForm} from '../features/life/HabitsPanel';
 import type {Habit,ScheduleEvent} from '../features/life/syncRecords';
 import {addDays,calendarDaysForMonth,localDateKey,todosForDay,localDateInput} from '../lib/todoCalendar';
 
-export type LifeViewState={tab:'overview'|LifeModule;date:number;month:number;filter:'all'|'today'|'upcoming'|'completed'|'undated'|'overdue';query:string;scroll:number;boardId?:string;calendarView?:CalendarView;financeMonth?:string;financeHide?:boolean};
+export type LifeViewState={tab:'overview'|LifeModule;date:number;month:number;filter:'all'|'today'|'upcoming'|'completed'|'undated'|'overdue';query:string;scroll:number;boardId?:string;calendarView?:CalendarView;financeMonth?:string;financeHide?:boolean;calendarManager?:'schedule'|'milestones'|'tasks'|'habits'};
 export function initialLifeView():LifeViewState{const today=new Date();today.setHours(0,0,0,0);return{tab:'overview',date:today.getTime(),month:new Date(today.getFullYear(),today.getMonth(),1).getTime(),filter:'all',query:'',scroll:0};}
 /** Calendar/tasks share todo Pages; custom lists use their own workspace records. */
-export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,onRenamePage,onDuplicatePage,state:controlled,onStateChange,storage}:PageActions&{
+export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,onRenamePage,onDuplicatePage,state:controlled,onStateChange,storage,headerIntegrated=false}:PageActions&{
  pages:Page[];onCreate:(title:string,dueDate?:number)=>void|Promise<unknown>;onUpdate:(id:string,patch:Partial<Page>)=>void;onDelete:(id:string)=>void;onSelectPage:(id:string)=>void;
- storage?:StorageAdapter;state?:LifeViewState;onStateChange?:(state:LifeViewState)=>void;
+ headerIntegrated?:boolean;storage?:StorageAdapter;state?:LifeViewState;onStateChange?:(state:LifeViewState)=>void;
 }){
  const {t,language}=useLanguage();const [local,setLocal]=useState(initialLifeView),[input,setInput]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
  useUnsavedDraft(!!input.trim(),busy);
@@ -80,14 +80,14 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const [quickList,setQuickList]=useState(false),[quickTask,setQuickTask]=useState(false);
  const quickTaskInput=useRef<HTMLInputElement>(null);
  const enabled=lifeModuleIds.filter(module=>!dashboard.config.hiddenModules.includes(module)&&(!['lists','schedule','milestones','habits','finance','health'].includes(module)||storage));
- const [manager,setManager]=useState<'schedule'|'milestones'|'tasks'|'habits'>();
  const [taskEditor,setTaskEditor]=useState<string>();
  const [habitEditor,setHabitEditor]=useState<Habit>();
  const original=controlled??local;
  const legacy=['schedule','milestones','tasks','habits'].includes(original.tab)?original.tab as 'schedule'|'milestones'|'tasks'|'habits':undefined;
- const stored=legacy?{...original,tab:'calendar' as const}:original.tab==='timer'?{...original,tab:'overview' as const}:original;
- useEffect(()=>{if(legacy)setManager(legacy);},[legacy]);
+ const stored=legacy?{...original,tab:'calendar' as const,calendarManager:legacy}:original.tab==='timer'?{...original,tab:'overview' as const}:original;
  const state=stored.tab==='overview'||enabled.includes(stored.tab)||stored.tab==='calendar'&&enabled.some(id=>['schedule','milestones','tasks','habits'].includes(id))?stored:{...stored,tab:'overview' as const},change=(patch:Partial<LifeViewState>)=>{const next={...state,...patch};if(onStateChange)onStateChange(next);else setLocal(next);};
+ const manager=state.calendarManager;
+ const setManager=(calendarManager:LifeViewState['calendarManager'])=>change({calendarManager});
  const scroller=useRef<HTMLDivElement>(null),adding=useRef(false);
  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=state.scroll;},[state.scroll]);
  const [,refreshCivilDay]=useState(0);
@@ -111,8 +111,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
    if(tab==='milestones'&&quick)createMilestone();
    if(['schedule','milestones','tasks','habits'].includes(tab)) {
     if(tab==='habits'&&quick)setHabitEditor(newHabit(owner,selected));
-    else if(!quick||tab==='tasks')setManager(tab as 'schedule'|'milestones'|'tasks'|'habits');
-    change({tab:'calendar',scroll:0});
+    change({tab:'calendar',calendarManager:!quick||tab==='tasks'?tab as LifeViewState['calendarManager']:state.calendarManager,scroll:0});
    } else if(tab!=='timer')change({tab,scroll:0});
   });
  };
@@ -213,9 +212,10 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const add=async()=>{const title=input.trim();if(!title||adding.current)return;adding.current=true;setBusy(true);setError('');try{change({scroll:scroller.current?.scrollTop??0});await onCreate(title,state.date);setInput('');}catch(e){setError(e instanceof Error?e.message:String(e));}finally{adding.current=false;setBusy(false);}};
  const button='min-h-11 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm hover:bg-zinc-500/10';
  return <main data-life-workspace className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-editor-bg)] text-[var(--color-text)]">
+  {!headerIntegrated&&<header className="shrink-0 border-b border-[var(--color-border)] px-4 py-2"><h1 className="text-2xl font-semibold">{t('life.title')}</h1></header>}
   <div className="life-layout">
    <LifeNavigation enabled={enabled} active={state.tab} title={t('life.sections')} label={sectionLabel} open={tab=>
-    tab==='overview'?navigateDictionary(()=>{setManager(undefined);change({tab,scroll:0});}):openModule(tab)}/>
+    tab==='overview'?navigateDictionary(()=>change({tab,calendarManager:undefined,scroll:0})):openModule(tab)}/>
    <div ref={scroller} id="life-content" role="tabpanel" aria-label={sectionLabel(state.tab)} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
     <div className="mx-auto max-w-7xl space-y-4">
      {eventError&&<p role="alert">{eventError}</p>}
