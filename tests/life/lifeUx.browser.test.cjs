@@ -30,6 +30,8 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
       await storage.createPage({kind:'todo',title:'逾期作業',due_date:today.getTime()-86400000});
       await repo.saveSchedule({...base,id:'ux-event',title:'下午討論',starts_at:today.getTime()+14*3600000,ends_at:today.getTime()+15*3600000,all_day:false,category:'學業',notes:'準備筆記'});
       await repo.saveHabit({...base,id:'ux-habit',title:'每日閱讀',cadence:'daily',goal:1,started_on:day,quantities:{}});
+      await repo.saveHealth({...base,id:'health:'+JSON.stringify(storage.getWorkspaceOwner()),kind:'privacy',data:{habits:true,share_goal:true}});
+      await repo.saveHealth({...base,id:'ux-health-goal',kind:'goal',data:{title:'閱讀目標',metric:'custom',mode:'increase',date:day,until:day,baseline:0,target:10,current:0,habit:'ux-habit'}});
       await window.reloadLifePages();
     });
     await page.getByRole('checkbox',{name:'完成任務 當日報告',exact:true}).first().check();
@@ -73,6 +75,7 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
       await page.getByRole('region',{name:'日曆事項管理'}).waitFor();
       assert.equal(await page.getByRole('tab',{name:'日曆',exact:true}).getAttribute('aria-selected'),'true');
     }
+    await page.getByRole('region',{name:'日曆事項管理'}).getByRole('button',{name:'閱讀目標',exact:true}).waitFor();
     await navigateLife(page,'任務');
     await page.getByRole('button',{name:'無期限',exact:true}).click();
     await page.getByText('未排定閱讀',{exact:true}).waitFor();

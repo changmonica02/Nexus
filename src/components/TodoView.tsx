@@ -3,7 +3,7 @@ import { budgetAlerts } from "../features/life/finance/budgetAlerts";
 import { emptyLife } from "../features/life/lists";
 import { listDateReminders } from "../features/life/reminderModel";
 import LifeReminders from "../features/life/LifeReminders";
-import HealthWorkspace from "../features/life/health/HealthWorkspace";
+import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
 import {exerciseAutomationSources,shared,type HealthRecord} from "../features/life/health/model";
 import {healthEvents} from "../features/life/health/summary";
 import FinanceWorkspace,{type FinanceTab} from '../features/life/finance/FinanceWorkspace';
@@ -290,7 +290,9 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
         <input type="search" aria-label={t('life.search')} value={state.query} onChange={event=>change({query:event.target.value,scroll:0})} className={button+' w-full bg-transparent'}/>
         {collection(filtered,'nexus-life-tasks-view')}
        </>}
-       {manager==='habits'&&!habitsHidden&&repository&&<HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate} repository={repository} owner={owner} focusId={habitFocus} startCreating={false}/>}
+       {manager==='habits'&&!habitsHidden&&repository&&<><HabitsPanel habits={habits} date={selected} today={today} selectDate={setDate} repository={repository} owner={owner} focusId={habitFocus} startCreating={false}/>
+        {healthSettings?.habits===true&&<GoalList rows={visibleHealth} day={localDateInput(selected)} linked={habits} addWater={()=>{setHealthFocus('new-water');change({tab:'health',scroll:0});}} open={row=>{setHealthFocus(row.id);change({tab:'health',scroll:0});}}/>}
+       </>}
       </section>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
