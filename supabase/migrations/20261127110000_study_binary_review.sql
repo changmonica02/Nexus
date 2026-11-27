@@ -18,13 +18,21 @@ begin
    expected:=(expected-'fixed'-'scheduling_method')||jsonb_build_object('fsrs',null,'legacy_due_at',null,'introduced_at',null,'learned_at',null,'generation',(b->>'generation')::int+1);
    if e->>'source'='legacy_test_reset' then expected:=expected||jsonb_build_object('legacy_test_reset',true); end if;
  elsif e->>'engine'='nexus-binary@2' then
-   if rating not in (1,3) or (e->'style_snapshot')->>'interval_version' is distinct from '2' or e->'parameters' is distinct from '{"version":2}'::jsonb then raise exception 'Invalid binary snapshot'; end if;
+   if rating not in (1,3) or (e->'style_snapshot')->>'interval_version' is distinct from '2' or e->'parameters' is distinct from (jsonb_build_object('version',2)||case when (e->'style_snapshot') ? 'binary_intervals' then jsonb_build_object('binary_intervals',(e->'style_snapshot')->'binary_intervals') else '{}'::jsonb end) then raise exception 'Invalid binary snapshot'; end if;
    active:=coalesce(b->>'scheduling_method'='fixed' and (b->'fixed')->>'generation'=b->>'generation',false);
    phase:=case when active then ((b->'fixed')->>'state')::int else coalesce(((b->'fsrs')->>'state')::int,0) end;
    box_member:=case when active and (b->'fixed') ? 'memory_level' then ((b->'fixed')->>'in_forgotten_box')::boolean else coalesce(phase in (1,3) and (case when active then b->'fixed' else b->'fsrs' end)->>'last_review' is not null,false) end;
    memory_level:=case when active and (b->'fixed') ? 'memory_level' then (b->'fixed')->>'memory_level' when box_member then 'forgotten' else 'general' end;
    if memory_level not in ('general','fuzzy','forgotten') or box_member is null then raise exception 'Invalid memory level'; end if;
-   seconds:=case when rating=1 then 60 when memory_level='forgotten' then 86400 when memory_level='fuzzy' then 259200 else 604800 end;
+   if (e->'parameters') ? 'binary_intervals' then
+     for grp in select unnest(array['general','fuzzy','forgotten']) loop
+       if jsonb_typeof((e->'parameters')->'binary_intervals'->grp) is distinct from 'array' then raise exception 'Invalid binary intervals'; end if;
+       if jsonb_array_length((e->'parameters')->'binary_intervals'->grp)<>2 or exists(select 1 from jsonb_array_elements((e->'parameters')->'binary_intervals'->grp) v where jsonb_typeof(v)<>'number' or (v::text)::numeric not between 1 and 315360000 or trunc((v::text)::numeric)<>(v::text)::numeric) then raise exception 'Invalid binary intervals'; end if;
+     end loop;
+     seconds:=((e->'parameters')->'binary_intervals'->memory_level->>(case when rating=1 then 0 else 1 end))::numeric;
+   else
+     seconds:=case when rating=1 then 60 when memory_level='forgotten' then 86400 when memory_level='fuzzy' then 259200 else 604800 end;
+   end if;
    next_level:=case when rating=1 or box_member then 'forgotten' when memory_level='forgotten' then 'fuzzy' else 'general' end;
    next_phase:=case when rating=1 then 3 else 2 end;
    expected:=expected||jsonb_build_object('scheduling_method','fixed','fixed',jsonb_build_object('state',next_phase,'due',stamp+seconds*1000,'last_review',stamp,'generation',(b->>'generation')::int,'memory_level',next_level,'in_forgotten_box',rating=1),'legacy_due_at',null);

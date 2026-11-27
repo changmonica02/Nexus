@@ -1,4 +1,4 @@
-import {binaryReviewTransition,binaryIntervalSeconds,legacyBinaryReviewState,type MemoryLevel,type BinaryResponse} from './binaryReviewPolicy';
+import {binaryReviewTransition,binaryIntervalSeconds,legacyBinaryReviewState,type MemoryLevel,type BinaryResponse,type BinaryIntervals} from './binaryReviewPolicy';
 import {defaultIntervalSettings,type StudyStyle,type FixedIntervals,type ScheduleMethod,type IntervalSettings} from './studyStyles';
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade, type ReviewLog } from "ts-fsrs";
 import type { StudyItem } from "../../lib/types";
@@ -65,7 +65,7 @@ export interface StudyEvent {
   kind: "review" | "introduce" | "reset"; at: number; local_day: string;
   device_id: string; parent: string | null; before: StudyState; after: StudyState;
   rating: Grade | null; log: StoredReviewLog | FixedReviewLog | IntervalReviewLog | BinaryReviewLog | null;
-  engine: typeof STUDY_ENGINE | "nexus-fixed@1" | "nexus-interval@1" | "nexus-binary@2"; parameters: typeof STUDY_PARAMETERS | {fixed_intervals:FixedIntervals} | {intervals:IntervalSettings;version:1} | {version:2};
+  engine: typeof STUDY_ENGINE | "nexus-fixed@1" | "nexus-interval@1" | "nexus-binary@2"; parameters: typeof STUDY_PARAMETERS | {fixed_intervals:FixedIntervals} | {intervals:IntervalSettings;version:1} | {version:2;binary_intervals?:BinaryIntervals};
   scheduling_method?:ScheduleMethod;style_snapshot?:StudyStyle;method_transition?:string;
   content_revision: number; question: string; answer: string;
   session_id?: string;
@@ -127,7 +127,7 @@ export function intervalSeconds(state:StudyState,style:StudyStyle,rating:Grade):
  return (style.intervals??defaultIntervalSettings())[forgottenStudyState(state)?'forgotten':'general'][rating-1];
 }
 export function previewStudy(state: StudyState, now: number,style?:StudyStyle) {
-  if(style?.interval_version===2)return Object.fromEntries([1,3].map(r=>[r,{card:{due:new Date(now+binaryIntervalSeconds(binaryState(state).level,r as BinaryResponse)*1000)}}])) as Record<Grade,{card:{due:Date}}>;
+  if(style?.interval_version===2)return Object.fromEntries([1,3].map(r=>[r,{card:{due:new Date(now+binaryIntervalSeconds(binaryState(state).level,r as BinaryResponse,style.binary_intervals)*1000)}}])) as Record<Grade,{card:{due:Date}}>;
   if(style?.interval_version===1)return Object.fromEntries([1,2,3].map(r=>[r,{card:{due:new Date(now+intervalSeconds(state,style,r as Grade)*1000)}}])) as Record<Grade,{card:{due:Date}}>;
   if(style?.scheduling_method==="fixed")return Object.fromEntries([1,2,3,4].map(r=>{const event=createStudyEvent({id:state.id,deck_id:state.deck_id,owner_id:state.owner_id,front:"",back:"",content_revision:0} as StudyCard,state,"review",now,"preview","preview",r as Grade,"scheduled",style);return [r,{card:{due:new Date(event.after.fixed!.due)}}];})) as Record<Grade,{card:{due:Date}}>;
   return studyScheduler.repeat(schedulerCard(state, now), new Date(now));
@@ -139,7 +139,7 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
   let log: StoredReviewLog | FixedReviewLog | IntervalReviewLog | BinaryReviewLog | null = null;
   if(kind==='review'&&style?.interval_version===2){
     const previous=binaryState(state);
-    const result=binaryReviewTransition(previous,rating as BinaryResponse);
+    const result=binaryReviewTransition(previous,rating as BinaryResponse,style.binary_intervals);
     const before=activeFixed(state)?state.fixed!.state:forgottenStudyState(state)?State.Relearning:state.fsrs!=null||state.legacy_due_at!=null||state.learned_at!=null?State.Review:State.New;
     const next=result.inForgottenBox?State.Relearning:State.Review;
     after={...after,scheduling_method:'fixed',fixed:{state:next,due:now+result.seconds*1000,last_review:now,generation:state.generation,memory_level:result.level,in_forgotten_box:result.inForgottenBox},legacy_due_at:null};
@@ -176,7 +176,7 @@ export function createStudyEvent(card: StudyCard, state: StudyState, kind: Study
   }
   return { id, card_id: card.id, deck_id: card.deck_id, owner_id: card.owner_id, kind, at: now,
     local_day: localStudyDay(now), device_id: device, parent: state.head, before: structuredClone(state), after,
-    rating, log, engine: kind==="review"&&style?.interval_version===2?"nexus-binary@2":kind==="review"&&style?.interval_version===1?"nexus-interval@1":kind==="review"&&style?.scheduling_method==="fixed"?"nexus-fixed@1":STUDY_ENGINE, parameters: kind==="review"&&style?.interval_version===2?{version:2}:kind==="review"&&style?.interval_version===1?{intervals:structuredClone(style.intervals??defaultIntervalSettings()),version:1}:kind==="review"&&style?.scheduling_method==="fixed"?{fixed_intervals:structuredClone(style.fixed_intervals)}:structuredClone(STUDY_PARAMETERS),
+    rating, log, engine: kind==="review"&&style?.interval_version===2?"nexus-binary@2":kind==="review"&&style?.interval_version===1?"nexus-interval@1":kind==="review"&&style?.scheduling_method==="fixed"?"nexus-fixed@1":STUDY_ENGINE, parameters: kind==="review"&&style?.interval_version===2?{version:2,...(style.binary_intervals?{binary_intervals:structuredClone(style.binary_intervals)}:{})}:kind==="review"&&style?.interval_version===1?{intervals:structuredClone(style.intervals??defaultIntervalSettings()),version:1}:kind==="review"&&style?.scheduling_method==="fixed"?{fixed_intervals:structuredClone(style.fixed_intervals)}:structuredClone(STUDY_PARAMETERS),
     content_revision: card.content_revision, question: card.front, answer: card.back,
     ...(source ? { source } : {}),
     ...(kind==="review"&&style?{scheduling_method:style.scheduling_method,style_snapshot:structuredClone(style),...(previousMethod&&previousMethod!==style.scheduling_method?{method_transition:style.scheduling_method==="fsrs"?(state.fsrs?"resume-preserved-fsrs-memory":"initialize-from-real-answer-without-estimated-memory"): "retain-fsrs-memory-use-fixed-state"}:{})}: {}) };
