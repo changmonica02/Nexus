@@ -23,7 +23,7 @@ begin
    phase:=case when active then ((b->'fixed')->>'state')::int else coalesce(((b->'fsrs')->>'state')::int,0) end;
    box_member:=case when active and (b->'fixed') ? 'memory_level' then ((b->'fixed')->>'in_forgotten_box')::boolean else coalesce(phase in (1,3) and (case when active then b->'fixed' else b->'fsrs' end)->>'last_review' is not null,false) end;
    memory_level:=case when active and (b->'fixed') ? 'memory_level' then (b->'fixed')->>'memory_level' when box_member then 'forgotten' else 'general' end;
-   if memory_level not in ('general','fuzzy','forgotten') or box_member is null then raise exception 'Invalid memory level'; end if;
+   if memory_level is null or memory_level not in ('general','fuzzy','forgotten') or box_member is null then raise exception 'Invalid memory level'; end if;
    if (e->'parameters') ? 'binary_intervals' then
      for grp in select unnest(array['general','fuzzy','forgotten']) loop
        if jsonb_typeof((e->'parameters')->'binary_intervals'->grp) is distinct from 'array' then raise exception 'Invalid binary intervals'; end if;
@@ -34,10 +34,11 @@ begin
      seconds:=case when rating=1 then 60 when memory_level='forgotten' then 86400 when memory_level='fuzzy' then 259200 else 604800 end;
    end if;
    next_level:=case when rating=1 or box_member then 'forgotten' when memory_level='forgotten' then 'fuzzy' else 'general' end;
+   phase:=case when active then phase when box_member then 3 when b->>'fsrs' is not null or b->>'legacy_due_at' is not null or b->>'learned_at' is not null then 2 else 0 end;
    next_phase:=case when rating=1 then 3 else 2 end;
    expected:=expected||jsonb_build_object('scheduling_method','fixed','fixed',jsonb_build_object('state',next_phase,'due',stamp+seconds*1000,'last_review',stamp,'generation',(b->>'generation')::int,'memory_level',next_level,'in_forgotten_box',rating=1),'legacy_due_at',null);
    if next_phase=2 and b->>'learned_at' is null then expected:=expected||jsonb_build_object('learned_at',stamp); end if;
-   if (e->'log')->>'method' is distinct from 'binary' or (e->'log')->>'version' is distinct from '2' or (e->'log')->>'group' is distinct from memory_level or ((e->'log')->>'review')::bigint is distinct from stamp or ((e->'log')->>'due')::numeric is distinct from stamp+seconds*1000 or ((e->'log')->>'rating')::int is distinct from rating or ((e->'log')->>'interval_seconds')::numeric is distinct from seconds or ((e->'log')->>'state_after')::int is distinct from next_phase then raise exception 'Invalid binary log'; end if;
+   if (e->'log')->>'method' is distinct from 'binary' or (e->'log')->>'version' is distinct from '2' or (e->'log')->>'group' is distinct from memory_level or ((e->'log')->>'review')::bigint is distinct from stamp or ((e->'log')->>'due')::numeric is distinct from stamp+seconds*1000 or ((e->'log')->>'rating')::int is distinct from rating or ((e->'log')->>'interval_seconds')::numeric is distinct from seconds or ((e->'log')->>'state_before')::int is distinct from phase or ((e->'log')->>'state_after')::int is distinct from next_phase then raise exception 'Invalid binary log'; end if;
  elsif e->>'engine' in ('nexus-interval@1','nexus-fixed@1') then
    active:=coalesce(b->>'scheduling_method'='fixed' and (b->'fixed')->>'generation'=b->>'generation',false);
    phase:=case when active then ((b->'fixed')->>'state')::int else coalesce(((b->'fsrs')->>'state')::int,case when b->>'learned_at' is not null or b->>'legacy_due_at' is not null then 2 else 0 end) end;
@@ -65,3 +66,13 @@ begin
  end if;
  if (a-'conflict'-'ambiguity') is distinct from (expected-'conflict'-'ambiguity') then raise exception 'Invalid study scheduling transition'; end if;
 end $$;
+
+-- Check new engine events even on decks without a clear barrier; retain installed visibility and ownership logic.
+do $migration$
+declare definition text; anchor text;
+begin
+ definition:=pg_get_functiondef('public.apply_study_operation(jsonb)'::regprocedure);
+ anchor:=E'   if v ? ''projection'' or v ? ''cleared_at'' then raise exception ''Unknown clear barrier''; end if;';
+ if position(anchor in definition)=0 then raise exception 'Unexpected study operation contract'; end if;
+ execute replace(definition,anchor,anchor||E'\n   if k=''event'' and v->>''engine''=''nexus-binary@2'' then perform public.check_study_transition(v); end if;');
+end $migration$;
