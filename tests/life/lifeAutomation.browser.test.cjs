@@ -1,3 +1,4 @@
+const { navigateLife } = require("./navigation.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict"),
   fs = require("node:fs"),
@@ -5,7 +6,7 @@ const test = require("node:test"),
   os = require("node:os"),
   http = require("node:http");
 const { build } = require("esbuild"),
-  { chromium } = require("playwright");
+  { [process.env.LIFE_BROWSER ?? "chromium"]: chromium } = require("playwright");
 const root = path.resolve(__dirname, "../..");
 test("automation editor persists all four write actions and shows stored executions", { timeout: 60000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-automation-"));
@@ -36,7 +37,7 @@ test("automation editor persists all four write actions and shows stored executi
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ executablePath: process.env.LIFE_BROWSER === "webkit" ? undefined : process.env.BROWSER_EXECUTABLE, args: process.env.LIFE_BROWSER === "webkit" ? [] : ["--no-sandbox"] });
     const page = await browser.newPage({ viewport: { width: 360, height: 700 } });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));

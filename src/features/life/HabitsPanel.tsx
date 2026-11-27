@@ -1,3 +1,4 @@
+import ModalDialog from "../../components/ModalDialog";
 import { useState } from "react";
 import { useUnsavedDraft } from "../dictionary/useUnsavedDraft";
 import { confirmDialog } from "../../lib/confirmDialog";
@@ -7,7 +8,7 @@ import { control, surface } from "./dashboard/styles";
 import type { LifeRepository } from "./LifeRepository";
 import type { Habit } from "./syncRecords";
 
-function HabitForm({ habit, repository, close }: { habit: Habit; repository: LifeRepository; close: () => void }) {
+export function HabitForm({ habit, repository, close, modal = false }: { habit: Habit; repository: LifeRepository; close: () => void; modal?:boolean }) {
   const [draft, setDraft] = useState(habit);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,8 @@ function HabitForm({ habit, repository, close }: { habit: Habit; repository: Lif
     catch (error) { setProblem(error instanceof Error ? error.message : "儲存失敗"); }
     finally { setBusy(false); }
   }
-  return <form className={surface + " space-y-3"} onSubmit={event => { event.preventDefault(); void save(); }}>
+  const dismiss=async()=>{if(!busy&&(draft===habit||await confirmDialog({title:"捨棄修改",message:"要捨棄習慣的修改嗎？"})))close();};
+  const form = <form className={surface + " space-y-3"} onSubmit={event => { event.preventDefault(); void save(); }}>
     <h3 className="font-semibold">{habit.revision ? "編輯習慣" : "新增習慣"}</h3>
     <div className="grid gap-2 sm:grid-cols-3">
       <label className="grid gap-1">名稱<input className={control} required maxLength={160} value={draft.title}
@@ -37,12 +39,13 @@ function HabitForm({ habit, repository, close }: { habit: Habit; repository: Lif
     {problem && <p role="alert">{problem}</p>}
     <div className="flex flex-wrap gap-2">
       <button className={control} disabled={busy}>儲存習慣</button>
-      <button className={control} type="button" disabled={busy} onClick={close}>取消</button>
+      <button className={control} type="button" disabled={busy} onClick={()=>void dismiss()}>取消</button>
       {!!habit.revision && <button className={control} type="button" disabled={busy} onClick={async () => {
         if (await confirmDialog({ title: "刪除習慣", message: `確定刪除「${habit.title}」及其紀錄？`, danger: true })) await save(true);
       }}>刪除習慣</button>}
     </div>
   </form>;
+  return modal?<ModalDialog aria-label={habit.revision?"編輯習慣":"新增習慣"} busy={busy} onDismiss={()=>void dismiss()} className="m-auto max-h-[90dvh] w-[min(94vw,42rem)] overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 text-[var(--color-text)] backdrop:bg-black/40">{form}</ModalDialog>:form;
 }
 
 function HabitHistory({ habit, date, today, repository, selectDate }: {
@@ -95,11 +98,11 @@ export default function HabitsPanel({ habits, date, today, selectDate, repositor
   habits: Habit[]; date: Date; today: Date; selectDate: (date: Date) => void;
   repository: LifeRepository; owner: string | null; focusId?: string; startCreating: boolean;
 }) {
-  const [editor, setEditor] = useState<Habit | undefined>(() => startCreating ? newHabit(owner, today) : undefined);
+  const [editor, setEditor] = useState<Habit | undefined>(() => startCreating ? newHabit(owner, date) : undefined);
   const changeMonth = (offset: number) => selectDate(new Date(date.getFullYear(), date.getMonth() + offset, 1));
   return <section className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">習慣養成</h2>
-      <button className={control} onClick={() => setEditor(newHabit(owner, today))}>新增習慣</button></div>
+      <button className={control} onClick={() => setEditor(newHabit(owner, date))}>新增習慣</button></div>
     <div className="flex flex-wrap items-end gap-2">
       <button type="button" className={control} onClick={() => changeMonth(-1)}>上個月</button>
       <label className="grid gap-1">紀錄日期<input type="date" className={control} value={localDateInput(date)} onChange={event => {

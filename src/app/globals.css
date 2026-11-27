@@ -477,3 +477,29 @@ html, body { overscroll-behavior-y: none; }
 .dark [data-life-overview] { --life-accent: #a5d2b9; }
 
 .dark [data-life-workspace] { color-scheme: dark; }
+
+/* Life keeps one app header; portrait devices use a menu instead of a tab strip. */
+.life-navigation { flex-shrink: 0; padding: 8px; border-bottom: 1px solid var(--color-border); background: var(--color-sidebar-bg); }
+.life-sidebar-toggle, .life-nav-items { display: none; }
+.life-nav-items.is-expanded { display: grid; gap: 4px; }
+.life-layout { display: flex; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
+.life-calendar-layout { display: grid; gap: 16px; min-width: 0; align-items: start; }
+.life-day-details { min-width: 0; border: 1px solid var(--color-border); border-radius: 14px; padding: 16px; background: var(--color-panel-bg); }
+.life-manager { border: 1px solid var(--color-border); border-radius: 14px; padding: 16px; background: var(--color-panel-bg); }
+[data-life-workspace] { --life-accent: #4b8062; }
+[data-life-workspace] :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid #458ac9; outline-offset: 2px; }
+[data-life-workspace] :is(button, input, select, textarea) { max-width: 100%; }
+@media (min-width: 960px) and (orientation: landscape) {
+  .life-layout { flex-direction: row; }
+  .life-navigation { width: 176px; overflow-y: auto; border-bottom: 0; border-right: 1px solid var(--color-border); }
+  .life-navigation.is-collapsed { width: 60px; }
+  .life-navigation.is-collapsed .life-nav-label { display: none; }
+  .life-sidebar-toggle { display: flex; }
+  .life-nav-toggle { display: none; }
+  .life-nav-items { display: grid; gap: 4px; }
+  .life-calendar-layout { grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); }
+  .life-day-details { position: sticky; top: 0; max-height: calc(100dvh - 180px); overflow-y: auto; overscroll-behavior: contain; }
+}
+@media (pointer: fine) {
+  [data-life-workspace] :is(button:not([data-calendar-day]), input:not([type=checkbox]), select) { min-height: 38px; }
+}

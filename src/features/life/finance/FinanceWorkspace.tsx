@@ -1,6 +1,7 @@
 import { confirmDialog } from "../../../lib/confirmDialog";
 import { useMemo, useState } from "react";
-import { Eye, EyeOff, Plus } from "lucide-react";
+import AddMenu from "../AddMenu";
+import { Eye, EyeOff } from "lucide-react";
 import { localDateInput } from "../../../lib/todoCalendar";
 import { civilAdvance } from "../civilPeriods";
 import type { LifeRepository } from "../LifeRepository";
@@ -82,13 +83,18 @@ function PreferenceEditor({ prefs, row, owner, repository }: {
   </form>;
 }
 
-export default function FinanceWorkspace({ records, repository, owner, anchor, upload, download, requested, focusId }: {
+export default function FinanceWorkspace({ records, repository, owner, anchor, upload, download, requested, focusId, selectedMonth, onMonthChange, hideAmounts, onHideChange }: {
+  selectedMonth?: string; onMonthChange?: (month:string)=>void; hideAmounts?:boolean; onHideChange?:(hide:boolean)=>void;
   records: FinanceRecord[]; repository: LifeRepository; owner: string | null; anchor: Date;
   upload?: (file: File) => Promise<string>; download?: (id: string) => Promise<void>; requested?: FinanceTab; focusId?: string;
 }) {
   const [selectedTab, setTab] = useState<FinanceTab>(requested ?? "overview");
-  const [month, setMonth] = useState(localDateInput(anchor).slice(0, 7));
-  const [hide, setHide] = useState(false);
+  const [localMonth, setLocalMonth] = useState(()=>localDateInput(new Date()).slice(0, 7));
+  const month=selectedMonth??localMonth;
+  const setMonth=(next:string)=>{setLocalMonth(next);onMonthChange?.(next);};
+  const [localHide, setLocalHide] = useState(false);
+  const hide=hideAmounts??localHide;
+  const setHide=(next:boolean)=>{setLocalHide(next);onHideChange?.(next);};
   const [query, setQuery] = useState("");
   const [fromDate,setFromDate]=useState("");
   const [toDate,setToDate]=useState("");
@@ -96,7 +102,7 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
   const [categoryFilter, setCategoryFilter] = useState("");
   const [editor, setEditor] = useState<FinanceEdit | undefined>(() => {
     const row=records.find(item=>item.id===focusId);
-    return row&&row.kind!=="preferences"?{kind:row.kind,row}:undefined;
+    return row&&row.kind!=="preferences"?{kind:row.kind,row}:focusId==="new-transaction"?{kind:"transaction"}:undefined;
   });
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
@@ -180,31 +186,54 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
           {hide ? <Eye size={17}/> : <EyeOff size={17}/>} {hide ? "顯示金額" : "隱藏金額"}</button>
       </div>
     </header>
-    <nav aria-label="財務功能" className="flex gap-1 overflow-x-auto rounded-xl bg-[var(--color-panel-bg)] p-1">
+    <nav aria-label="財務功能" className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-panel-bg)] p-1">
       {(Object.keys(tabs) as FinanceTab[]).filter(shown).map(key => <button type="button" key={key} aria-pressed={tab === key}
         className={`min-h-11 shrink-0 rounded-lg px-3 text-sm ${tab===key?"bg-zinc-500/15 font-semibold":""}`} onClick={() => {setTab(key);setProblem("");}}>{tabs[key]}</button>)}
     </nav>
+    <div className="flex flex-wrap gap-2">
+      {(['expense','income','transfer'] as const).map(type=><button type="button" key={type} className={control} onClick={()=>setEditor({kind:'transaction',preset:{type,date:localDateInput(new Date())}})}>{type==='expense'?'記支出':type==='income'?'記收入':'帳戶轉帳'}</button>)}
+      <AddMenu items={[
+        {label:'新增交易',action:()=>setEditor({kind:'transaction'})},
+        {label:'新增帳戶',action:()=>setEditor({kind:'account'})},
+        ...(shown('budget')?[{label:'新增預算',action:()=>setEditor({kind:'budget',preset:{month}})}]:[]),
+        ...(shown('subscription')?[{label:'新增訂閱',action:()=>setEditor({kind:'subscription'})}]:[]),
+        ...(shown('asset')?[{label:'新增資產或負債',action:()=>setEditor({kind:'asset'})}]:[]),
+        ...(shown('goal')?[{label:'新增財務目標',action:()=>setEditor({kind:'goal'})}]:[]),
+        ...(shown('instrument')?[{label:'新增投資標的',action:()=>setEditor({kind:'instrument'})},{label:'新增投資交易',action:()=>setEditor({kind:'trade'})}]:[]),
+      ]}/>
+    </div>
     {withheld.size > 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-sm" role="status">尚缺 {Array.from(withheld).join("、")} 匯率，合計暫未納入這些金額。</p>}
     {totals.portfolios.some(item => item.market === null) && <p className="text-sm opacity-75">未填目前價格的持倉暫不納入淨資產。</p>}
     {problem && <p role="alert">{problem}</p>}
     {tab === "overview" && <>
-      <section className="rounded-3xl bg-[#2e483c] p-6 text-white">
-        <div className="text-sm text-white/80">淨資產 · {month}</div><p className="my-3 break-all text-3xl font-semibold">{write(totals.net)}</p>
-        <dl className="grid gap-4 border-t border-white/30 pt-4 sm:grid-cols-2">
+      <section className="rounded-2xl bg-[#2e483c] p-4 text-white">
+        <div className="text-sm text-white/80">淨資產 · {month}</div><p className="my-1 break-all text-2xl font-semibold">{write(totals.net)}</p>
+        <dl className="grid gap-3 border-t border-white/30 pt-2 sm:grid-cols-2">
           <div><dt className="text-sm text-white/80">總資產</dt><dd>{write(totals.assets)}</dd></div>
           <div><dt className="text-sm text-white/80">總負債</dt><dd>{write(totals.debts)}</dd></div>
         </dl>
       </section>
       <div className="grid gap-3 sm:grid-cols-2"><article className={surface}>本月收入 <strong className="block text-2xl">{write(totals.income)}</strong></article>
         <article className={surface}>本月支出 <strong className="block text-2xl">{write(totals.expense)}</strong></article></div>
+      <section className={surface + " space-y-2"}><h3 className="font-semibold">近期交易</h3>
+        {rowList(transactionRows.slice(0,5),row=>row.kind==='transaction'?row.payload.date+' · '+transactionKinds[row.payload.type]+' · '+write(BigInt(row.payload.amount),accounts.find(account=>account.id===row.payload.account)?.payload.currency):'',"交易")}
+        <button type="button" className={control} onClick={()=>setTab('transaction')}>查看所有交易</button>
+      </section>
+      {shown("budget")&&<><h3 className="font-semibold">預算進度</h3>{budgetCards}</>}
       <section className={surface + " space-y-3"}><h3 className="font-semibold">近六個月收支</h3>
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">{history.map(value=>
-          <li key={value.start} className="rounded-lg bg-zinc-500/10 p-2"><strong>{value.start.slice(0,7)}</strong>
-            {!hide&&<div className="mt-2 flex h-16 items-end justify-center gap-1" aria-hidden="true">
-              <span className="w-4 rounded-t bg-emerald-600/70" style={{height:Number(value.income*BigInt(100)/trendMax)+"%"}}/>
-              <span className="w-4 rounded-t bg-amber-600/65" style={{height:Number(value.expense*BigInt(100)/trendMax)+"%"}}/>
-            </div>}
-            <span className="block text-xs">收入 {write(value.income)}</span><span className="block text-xs">支出 {write(value.expense)}</span></li>)}</ul></section>
+        {history.some(value=>value.income!==BigInt(0)||value.expense!==BigInt(0))?<>
+        <p className="text-xs opacity-75">綠色：收入 · 琥珀色：支出</p>
+        <ul className="grid grid-cols-6 gap-1">{history.map(value=><li key={value.start} className="min-w-0 text-center text-xs">
+          {!hide&&<div className="flex h-24 items-end justify-center gap-1" aria-hidden="true">
+            <span className="w-3 rounded-t bg-emerald-600/70" style={{height:Number(value.income*BigInt(100)/trendMax)+"%"}}/>
+            <span className="w-3 rounded-t bg-amber-600/65" style={{height:Number(value.expense*BigInt(100)/trendMax)+"%"}}/>
+          </div>}
+          <span>{value.start.slice(5,7)} 月</span>
+          <span className="sr-only">收入 {write(value.income)} · 支出 {write(value.expense)}</span>
+        </li>)}</ul>
+        <details><summary className="min-h-11 cursor-pointer text-sm">查看收支金額</summary><ul className="text-sm">{history.map(value=><li key={value.start}>{value.start.slice(0,7)} · 收入 {write(value.income)} · 支出 {write(value.expense)}</li>)}</ul></details>
+        </>:<p className="text-sm opacity-75">近六個月尚無收支紀錄，記下第一筆交易即可查看趨勢。</p>}
+      </section>
       <section className={surface + " space-y-3"}><h3 className="font-semibold">支出分類</h3>
         {breakdown.length?<div className="flex flex-wrap items-center gap-6">
           {!hide&&gradient&&<div className="grid size-40 shrink-0 place-items-center rounded-full" role="img" aria-label="支出分類比例圖"
@@ -216,7 +245,7 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
             <span className="shrink-0">{write(value)}</span>
           </li>)}</ul>
         </div>:<p>這個月尚無支出。</p>}</section>
-      {shown("budget")&&<><h3 className="font-semibold">預算進度</h3>{budgetCards}</>}
+
       {shown("subscription")&&<><h3 className="font-semibold">即將扣款</h3>{rowList(upcoming.slice(0,4),row=>row.kind==="subscription"?row.payload.next+" ・"+write(BigInt(row.payload.amount),row.payload.currency):"", "使用中訂閱")}</>}
       {shown("goal")&&<><h3 className="font-semibold">財務目標</h3>{goalCards}</>}
       {shown("instrument")&&<><h3 className="font-semibold">投資摘要</h3>
@@ -303,6 +332,6 @@ export default function FinanceWorkspace({ records, repository, owner, anchor, u
     {tab === "settings" && <PreferenceEditor key={prefsRow?.revision??0} prefs={prefs} row={prefsRow} owner={owner} repository={repository}/>}
     {editor && <FinanceEditor key={editor.row?.id??editor.kind} editor={editor} base={prefs.currency} categories={prefs.categories}
       date={anchor} repository={repository} records={records} owner={owner} close={()=>setEditor(undefined)} upload={upload} download={download}/>}
-    {tab==="overview"&&<button type="button" className={control+" inline-flex items-center gap-2"} onClick={()=>setEditor({kind:"transaction"})}><Plus size={16}/>新增交易</button>}
+
   </section>;
 }

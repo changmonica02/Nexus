@@ -408,6 +408,16 @@ jobs:
             npx playwright install chromium
             node -e 'require("fs").appendFileSync(process.env.GITHUB_ENV,"BROWSER_EXECUTABLE="+require("playwright").chromium.executablePath()+"\n")'
           fi
+      - name: Life Chromium and WebKit responsive regression
+        if: matrix.group == 'life'
+        env:
+          LIFE_UX_SCREENSHOTS: test-results/life-ux
+        run: |
+          node tests/life/lifeUx.browser.test.cjs
+          npx playwright install-deps webkit
+          npx playwright install webkit
+          LIFE_BROWSER=webkit node tests/life/lifeUx.browser.test.cjs
+          LIFE_BROWSER=webkit node tests/tools/run-full-extras.mjs --group life --mode browser
       - name: Start isolated production fixture for dictionary PWA
         if: matrix.group == 'dictionary' || matrix.group == 'workspace'
         run: |

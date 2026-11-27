@@ -22,7 +22,7 @@ export default function DashboardEditor({ config, activeId, lists, eventSources,
   const [dragId, setDragId] = useState<string>();
   const [template, setTemplate] = useState<"daily" | "study" | "empty">("daily");
   const board = draft.boards.find(board => board.id === id) ?? draft.boards[0];
-  const offered = (Object.keys(cardRegistry) as CardType[]).filter(type =>
+  const offered = (Object.keys(cardRegistry) as CardType[]).filter(type => type!=="timer" &&
     (!isFinanceCard(type)||!financeSections.some(section=>section===financeCardSection[type])) && (!["lists", "schedule", "milestones", "habits"].includes(type) || hasLists) && !draft.hiddenModules.includes(cardRegistry[type].module));
   const [type, setType] = useState<CardType>("calendar");
   const newType = offered.includes(type) ? type : offered[0];
@@ -71,7 +71,7 @@ export default function DashboardEditor({ config, activeId, lists, eventSources,
       </div>
       <fieldset className="flex flex-wrap gap-x-5 gap-y-1">
         <legend className="font-semibold">啟用模組</legend>
-        {lifeModuleIds.filter(module => lifeModules[module].optional && (!["lists", "schedule", "milestones", "habits"].includes(module) || hasLists)).map(module =>
+        {lifeModuleIds.filter(module => module!=="timer" && lifeModules[module].optional && (!["lists", "schedule", "milestones", "habits"].includes(module) || hasLists)).map(module =>
           <label key={module} className="flex min-h-11 items-center gap-2">
             <input type="checkbox" checked={!draft.hiddenModules.includes(module)} onChange={event => setDraft({
               ...draft, hiddenModules: event.target.checked ? draft.hiddenModules.filter(item => item !== module) : [...draft.hiddenModules, module],

@@ -1,4 +1,6 @@
 "use client";
+import type { StorageAdapter } from "../infrastructure/storage/StorageAdapter";
+import ToolsTimer from "../features/life/ToolsTimer";
 import { useState } from "react";
 import type { Page } from "../lib/types";
 import { useLanguage } from "../lib/LanguageContext";
@@ -8,20 +10,23 @@ import FeatureIcon from "./FeatureIcon";
 import CreationChoiceDialog from "./CreationChoiceDialog";
 export default function ToolsOverview({
   pages,
+  storage,
   onOpen,
   onCreate,
   kind,
   onKind,
   ...actions
 }: PageActions & {
-  kind: "counter" | "draw";
-  onKind: (kind: "counter" | "draw") => void;
+  kind: "counter" | "draw" | "timer";
+  storage?: StorageAdapter;
+  onKind: (kind: "counter" | "draw" | "timer") => void;
   pages: Page[];
   onOpen: (id: string) => void;
   onCreate: (kind: "counter" | "draw") => void;
 }) {
   const { t } = useLanguage(),
     [creating, setCreating] = useState(false);
+  if (kind === "timer" && storage) return <section className="flex min-h-0 min-w-0 flex-1 flex-col"><div className="flex flex-wrap items-center gap-3 p-4"><button type="button" className="min-h-11 rounded-lg border border-[var(--color-border)] px-3" onClick={()=>onKind("counter")}>返回工具</button><h2 className="text-2xl font-semibold">計時工具</h2></div><ToolsTimer key={storage.getWorkspaceOwner?.()??"anonymous"} storage={storage} pages={pages}/></section>;
   return (
     <FeatureOverview title={t("ui.tools")} description="" feature="tools" actionLabel={t("ui.create")} onCreate={()=>setCreating(true)}
       pages={pages.filter(p=>p.kind===kind&&!p.deleted_at)} onSelectPage={onOpen} viewStorageKey={"nexus-tools-"+kind+"-view"} {...actions}
@@ -42,6 +47,7 @@ export default function ToolsOverview({
               {t("ui.feature." + value)}
             </button>
           ))}
+          {storage&&<button type="button" className="min-h-11 rounded-lg px-4 text-sm hover:bg-zinc-500/10" onClick={()=>onKind("timer")}>計時工具</button>}
         </nav>
       }>
         {creating && (

@@ -1,6 +1,8 @@
+import AddMenu from "../AddMenu";
+import HabitCheckIn from "../HabitCheckIn";
 import { evaluateFormula } from "../listConfiguration";
 import { HeartPulse } from "lucide-react";
-import { localDateInput } from "../../../lib/todoCalendar";
+import { addDays, localDateInput } from "../../../lib/todoCalendar";
 import { civilAdvance } from "../civilPeriods";
 import { latest, progress, totals, value } from "../health/summary";
 import type { HealthRecord } from "../health/model";
@@ -11,9 +13,8 @@ import { Wallet } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ListChecks, List, Settings2, Timer } from "lucide-react";
 import { useLanguage } from "../../../lib/LanguageContext";
-import { timerModes, timerStatus, type TimerState } from "../LifeTimer";
 import { MilestoneRow } from "../Milestones";
-import { schedulePeriodMatches } from "../calendarSources";
+import { scheduleCalendarEvents, taskCalendarEvents, schedulePeriodMatches } from "../calendarSources";
 import { scheduleLabel } from "../SchedulePanel";
 import { habitQuantity, habitStats } from "../habits";
 import type { Habit, ScheduleEvent } from "../syncRecords";
@@ -29,19 +30,18 @@ const iconByModule = { finance: Wallet, health: HeartPulse, calendar: CalendarDa
 const cardWidths = { small: "", medium: "@3xl/life:col-span-2", large: "col-span-full" };
 const itemLimits = { small: 2, medium: 5, large: 10 };
 
-export default function LifeOverview({ dashboard, todos, anchor, today, timer, events, milestones, habits, finances, health, healthShared, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
+export default function LifeOverview({ dashboard, todos, anchor, today, events, milestones, habits, finances, health, healthShared, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
   dashboard: ReturnType<typeof useLifeDashboard>;
   todos: Page[];
   anchor: Date;
   today: Date;
-  timer: TimerState;
   events: ScheduleEvent[];
   milestones: ScheduleEvent[];
   habits: Habit[];
   finances: FinanceRecord[];
   health: HealthRecord[];
   healthShared: boolean;
-  openSchedule: (event: ScheduleEvent) => void;
+  openSchedule: (event: ScheduleEvent, occurrence?:string) => void;
   selectedId?: string;
   onSelectBoard: (id: string) => void;
   openModule: (module: LifeModule, quick?: boolean) => void;
@@ -53,7 +53,6 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
   const [baseline, setBaseline] = useState<LifeDashboardConfig>();
   const editing = !!baseline;
   const heading = useRef<HTMLHeadingElement>(null);
-  const [clock, setClock] = useState(Date.now);
   const [saving, setSaving] = useState(false);
   const saveInProgress = useRef(false);
   const [saveError, setSaveError] = useState("");
@@ -63,14 +62,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
 
   const board = config.boards.find(board => board.id === selectedId) ?? config.boards.find(board => board.id === config.defaultId) ?? config.boards[0];
   const financeSections = financeRows(finances,"preferences")[0]?.payload.hiddenSections ?? [];
-  const shown = board.cards.filter(card => (card.type !== "health" || healthShared) && (!isFinanceCard(card.type) || !financeSections.some(section=>section===financeCardSection[card.type as keyof typeof financeCardSection])) && !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
+  const shown = board.cards.filter(card => card.type !== "timer" && (card.type !== "health" || healthShared) && (!isFinanceCard(card.type) || !financeSections.some(section=>section===financeCardSection[card.type as keyof typeof financeCardSection])) && !card.hidden && !config.hiddenModules.includes(cardRegistry[card.type].module)
     && (!["lists", "schedule", "milestones", "habits"].includes(card.type) || repository) && (card.type !== "calendar" || !config.hiddenModules.includes("tasks") || events.length > 0 || milestones.length > 0));
-  const showTimer = shown.some(card => card.type === "timer");
-  useEffect(() => {
-    if (!showTimer || timer.startedAt === null) return;
-    const interval = window.setInterval(() => setClock(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [showTimer, timer.startedAt]);
   const needsLists = !!repository && (editing || shown.some(card => card.type === "lists"));
 
   useEffect(() => {
@@ -155,14 +148,20 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
         }}/>
     </Suspense>}
     {ready && !editing && <>
-      {(!config.hiddenModules.includes("tasks") || repository && !config.hiddenModules.includes("schedule")) && <section className="rounded-2xl bg-[#2e483c] p-5 text-white">
+      {(!config.hiddenModules.includes("tasks") || repository && !config.hiddenModules.includes("schedule")) && <section className="rounded-2xl bg-[#2e483c] p-4 text-white">
         <h3 className="text-lg font-semibold">當日摘要</h3>
         <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-2">
           {!config.hiddenModules.includes("tasks") && <span>待完成 <strong className="text-xl">{todos.filter(todo => !todo.completed && dateMatches(todo.due_date, "day", anchor)).length}</strong></span>}
-          {!config.hiddenModules.includes("calendar") && <span>月曆事項 <strong className="text-xl">{(config.hiddenModules.includes("tasks") ? 0 : todos.filter(todo => dateMatches(todo.due_date, "day", anchor)).length) + [...events, ...milestones].filter(event => schedulePeriodMatches(event, "day", anchor)).length}</strong></span>}
-          {!config.hiddenModules.includes("tasks") && <button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={() => openModule("tasks", true)}>＋ 新增任務</button>}
-          {repository && !config.hiddenModules.includes("schedule") && <button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={() => openModule("schedule", true)}>＋ 新增行程</button>}
-          {repository && !config.hiddenModules.includes("lists") && <button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={() => openModule("lists", true)}>＋ 新增清單</button>}
+          {!config.hiddenModules.includes("calendar") && <span>當日事項 <strong className="text-xl">{(config.hiddenModules.includes("tasks") ? 0 : todos.filter(todo => dateMatches(todo.due_date, "day", anchor)).length) + [...events, ...milestones].filter(event => schedulePeriodMatches(event, "day", anchor)).length}</strong></span>}
+          <AddMenu items={[
+            ...(!config.hiddenModules.includes("tasks")?[{label:"新增任務",action:()=>openModule("tasks",true)}]:[]),
+            ...(repository&&!config.hiddenModules.includes("schedule")?[{label:"新增行程",action:()=>openModule("schedule",true)}]:[]),
+            ...(repository&&!config.hiddenModules.includes("milestones")?[{label:"新增重要日期",action:()=>openModule("milestones",true)}]:[]),
+            ...(repository&&!config.hiddenModules.includes("habits")?[{label:"新增習慣",action:()=>openModule("habits",true)}]:[]),
+            ...(repository&&!config.hiddenModules.includes("lists")?[{label:"新增清單",action:()=>openModule("lists",true)}]:[]),
+          ]}/>
+          {repository&&!config.hiddenModules.includes("finance")&&<button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={()=>openModule("finance",true)}>記帳</button>}
+          {repository&&!config.hiddenModules.includes("health")&&<button type="button" className="min-h-11 rounded-lg border border-white/50 px-3" onClick={()=>openModule("health",true)}>記錄飲水</button>}
         </div>
       </section>}
       {config.hiddenModules.includes("tasks") && config.hiddenModules.includes("schedule") && repository && !config.hiddenModules.includes("lists") &&
@@ -197,11 +196,6 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
             <FinanceCard card={card} records={finances} anchor={anchor}/>
             <button className={control+" mt-3"} type="button" onClick={()=>openModule("finance")}>開啟財務</button>
           </article>;
-          if (card.type === "timer") return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
-            <h3 className="flex items-center gap-2 font-semibold"><Timer size={18} aria-hidden="true"/>{card.title.trim() || "計時工具"}</h3>
-            <p className="my-2">{timerModes[timer.mode]} · {timerStatus(timer, clock)}</p>
-            <button className={control} type="button" onClick={() => openModule("timer")}>開啟計時工具</button>
-          </article>;
           const tasks = card.type === "lists" || card.type === "schedule" || card.type === "milestones" || card.type === "habits" || config.hiddenModules.includes("tasks") ? [] : selectTasks(todos, card, anchor, today);
           const schedule = card.type === "schedule" || card.type === "calendar" && card.status === "all"
             ? events.filter(event => (!card.listId || card.listId === event.category) && schedulePeriodMatches(event, card.period, anchor)) : [];
@@ -226,30 +220,43 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
             habit, total: Object.entries(habit.quantities).reduce((sum, [date, quantity]) =>
               dateMatches(new Date(date + "T00:00:00").getTime(), card.period, anchor) ? sum + quantity : sum, 0),
           })) : [];
-          const count = card.type === "habits" ? habitRows.length : card.type === "lists" ? records.length : tasks.length + schedule.length + importantDates.length;
+          const timelineStart=card.period==='month'?new Date(anchor.getFullYear(),anchor.getMonth(),1):new Date(anchor.getFullYear(),anchor.getMonth(),anchor.getDate());
+          const timelineDays=Array.from({length:card.period==='month'?new Date(anchor.getFullYear(),anchor.getMonth()+1,0).getDate():card.period==='week'?7:1},(_,index)=>addDays(timelineStart,index));
+          const timeline=card.type==='calendar'&&card.period!=='all'?[
+            ...taskCalendarEvents(tasks).filter(item=>item.source==='tasks'),
+            ...scheduleCalendarEvents([...schedule,...importantDates],timelineDays),
+          ].sort((a,b)=>a.date-b.date||(a.startsAt??a.date)-(b.startsAt??b.date)||a.title.localeCompare(b.title)):undefined;
+          const count = timeline?timeline.length:card.type === "habits" ? habitRows.length : card.type === "lists" ? records.length : tasks.length + schedule.length + importantDates.length;
           const limit = itemLimits[card.size];
           return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
             <div className="flex items-start gap-2">
               <Icon size={18} className="mt-1 shrink-0 text-[var(--life-accent)]" aria-hidden="true"/>
-              <h3 className="min-w-0 break-all font-semibold">{card.title.trim() || cardRegistry[card.type].title}</h3>
+              <h3 className="min-w-0 break-all font-semibold">{card.title.trim() || (card.type === "calendar" ? "當日時間軸" : cardRegistry[card.type].title)}</h3>
             </div>
             <p className="text-sm opacity-75">{preset?preset.title:periods[card.period]}{!preset&&card.type === "lists" && card.period !== "all" ? "・依建立日期" : ""}</p>
-            {card.type === "calendar" && <p className="text-sm opacity-75">來源為行程、任務截止及重要日期</p>}
             {card.type === "lists" && card.listId && listStatus === "ready" && <p className="break-all text-sm">{lists.find(list => list.id === card.listId)?.title ?? "原清單無法使用"}</p>}
             {card.type === "lists" && listStatus !== "ready" ? <p role="status">{listStatus === "error" ? "無法讀取清單。" : "正在載入清單…"}</p> : <>
-              <p className="my-2 text-2xl font-semibold">{count}<span className="ml-1 text-sm font-normal">筆</span></p>
+              <p className="my-2 text-lg font-semibold">{count}<span className="ml-1 text-sm font-normal">筆</span></p>
               {!!numeric.length&&<p>加總 {total.toLocaleString(language)} · 平均 {(total/numeric.length).toLocaleString(language)}</p>}
               {!!checkCount&&<p>完成 {checked}/{checkCount} · {Math.round(checked/checkCount*100)}%</p>}
               {!count && <p className="text-sm opacity-75">這段期間沒有符合條件的項目。</p>}
               {card.content === "items" && count > 0 && <ul className="divide-y divide-[var(--color-border)]">
-                {tasks.slice(0, limit).map(task => <li key={task.id} className="flex min-h-11 items-center gap-2">
+                {timeline?.slice(0,limit).map(item=><li key={item.source+':'+item.sourceId+':'+item.date} className="flex min-h-11 items-center gap-2">
+                  <span className="w-12 shrink-0 text-xs opacity-75">{card.period!=='day'?new Date(item.date).toLocaleDateString(language,{month:'numeric',day:'numeric'}):item.allDay?'全天':item.startsAt!=null?new Date(item.startsAt).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}):'當日'}</span>
+                  {item.source==='tasks'&&<input type="checkbox" className="size-5 shrink-0" aria-label={`完成任務 ${item.title}`} checked={item.completed} onChange={event=>toggleTask(item.sourceId,event.target.checked)}/>}
+                  <button type="button" className={'min-h-11 min-w-0 flex-1 break-words text-left '+(item.completed?'line-through opacity-75':'')} onClick={()=>{
+                    if(item.source==='tasks')openTask(item.sourceId);
+                    else {const event=[...events,...milestones].find(event=>event.id===item.sourceId);if(event)openSchedule(event,item.occurrence);}
+                  }}>{item.source==='milestones'?'◆ ':''}{item.title}</button>
+                </li>)}
+                {!timeline&&tasks.slice(0, limit).map(task => <li key={task.id} className="flex min-h-11 items-center gap-2">
                   {!config.hiddenModules.includes("tasks") && <input type="checkbox" className="m-1 size-5 shrink-0" aria-label={`完成任務 ${task.title}`}
                     checked={!!task.completed} onChange={event => toggleTask(task.id, event.target.checked)}/>}
                   <button type="button" className={"min-h-11 min-w-0 break-all text-left " + (task.completed ? "line-through opacity-75" : "")} onClick={() => openTask(task.id)}>
                     {task.title}{task.due_date != null && <small className="ml-2 opacity-75">{new Date(task.due_date).toLocaleDateString(language)}</small>}
                   </button>
                 </li>)}
-                {schedule.slice(0, Math.max(0, limit - tasks.length)).map(event => <li key={event.id}>
+                {!timeline&&schedule.slice(0, Math.max(0, limit - tasks.length)).map(event => <li key={event.id}>
                   <button type="button" className="min-h-11 w-full break-words text-left" onClick={() => openSchedule(event)}>
                     {event.title}<small className="ml-2 opacity-75">{scheduleLabel(event, language)}</small>
                   </button></li>)}
@@ -258,8 +265,8 @@ export default function LifeOverview({ dashboard, todos, anchor, today, timer, e
                     <strong>{habit.title}</strong>
                     <span className="block text-sm opacity-75">期間紀錄 {total} ・{habit.cadence === "weekly" ? "當週" : "當日"} {habitQuantity(habit, anchor)}/{habit.goal}
                       ・連續 {habitStats(habit, today).streak} {habit.cadence === "weekly" ? "週" : "天"}</span>
-                  </button></li>)}
-                {importantDates.slice(0, Math.max(0, limit - tasks.length - schedule.length)).map(event => <li key={event.id} className="py-1">
+                  </button>{repository&&<HabitCheckIn habit={habit} date={anchor} repository={repository}/>}</li>)}
+                {!timeline&&importantDates.slice(0, Math.max(0, limit - tasks.length - schedule.length)).map(event => <li key={event.id} className="py-1">
                   <MilestoneRow event={event} anchor={anchor} open={() => openSchedule(event)}/>
                 </li>)}
                 {records.slice(0, limit).map(item => <li key={item.id} className="break-all py-2">{item.title}</li>)}
