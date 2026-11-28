@@ -1,7 +1,5 @@
 "use client";
-import {useEffect,useState} from 'react';
-import {getSupabase} from '../../infrastructure/supabase/client';
-import {readPublishedEntry} from './reader';
+import type {PublishedDetail} from './reader';
 import {studyDictionaryBack,type BackExample} from './studyBackProjection';
 
 function Example({example}:{example:BackExample}){
@@ -13,18 +11,8 @@ function Example({example}:{example:BackExample}){
 /** Read-only extensions inside the existing card; morphology, mnemonic and core meanings
  * are already shown above by StudyCompositionSummary and the private card answer.
  * Older unlinked or multiple examples stay visible rather than being silently discarded. */
-export default function StudyDictionaryBack({entryId,front}:{entryId:string;front:string}){
-  const [read,setRead]=useState<{key:string;detail:Awaited<ReturnType<typeof readPublishedEntry>>}|null>(null);
-  const key=JSON.stringify([entryId,front]);
-  useEffect(()=>{
-    let active=true;
-    const client=getSupabase();
-    if(client)void readPublishedEntry(client,entryId).then(detail=>{
-      if(active)setRead({key,detail});
-    }).catch(()=>{/* Supplemental content cannot block flipping or rating. */});
-    return()=>{active=false;};
-  },[entryId,front,key]);
-  const data=read?.key===key?studyDictionaryBack(read.detail,front):null;
+export default function StudyDictionaryBack({detail,front}:{detail:PublishedDetail|null;front:string}){
+  const data=detail?studyDictionaryBack(detail,front):null;
   const senses=data?.senses.filter(s=>s.derivations.length||s.examples.length)??[];
   if(!senses.length)return null;
   return <section data-study-dictionary-back aria-label="衍生與例句"

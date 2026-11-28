@@ -14,7 +14,11 @@ test('hide/restore, stable active question and safe Session exit in real Indexed
  try{
  const p=await browser.newPage({viewport:{width:320,height:800}});p.on('pageerror',e=>errors.push(e.message));await p.goto('http://127.0.0.1:'+server.address().port);
  const snapshot=()=>p.evaluate(()=>window.visibilityRepo.exportData());
- await p.getByRole('button',{name:'翻至答案',exact:true}).waitFor();await p.getByRole('button',{name:'翻至答案',exact:true}).click();
+ await p.getByRole('button',{name:'翻至答案',exact:true}).waitFor();
+ assert.equal(await p.getByRole('button',{name:'離開',exact:true}).count(),0);
+ assert.equal(await p.locator('[data-page-header]').evaluate(el=>getComputedStyle(el).borderBottomWidth),'0px');
+ assert.equal(await p.getByText('此 Session 保留原批次',{exact:false}).count(),0);
+ await p.getByRole('button',{name:'翻至答案',exact:true}).click();
  await p.getByRole('button',{name:'隱藏字卡',exact:true}).waitFor({timeout:3000}).catch(async e=>{console.error(await p.locator('body').innerText(),errors);throw e;});await p.getByRole('button',{name:'隱藏字卡',exact:true}).click();const dialog=p.getByRole('dialog');await dialog.getByRole('button',{name:'取消',exact:true}).click();assert.equal((await snapshot()).events.filter(e=>e.kind==='review').length,0);
  await p.context().setOffline(true);await p.evaluate(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>false}));
  await p.getByRole('button',{name:'隱藏字卡',exact:true}).click();await dialog.getByRole('button',{name:'隱藏',exact:true}).click();await dialog.waitFor({state:'hidden'});
@@ -23,15 +27,15 @@ test('hide/restore, stable active question and safe Session exit in real Indexed
  await p.evaluate(()=>{const original=window.visibilityRepo.rateSession.bind(window.visibilityRepo);window.visibilityRepo.rateSession=async input=>{await original(input);window.visibilityRepo.rateSession=original;throw Error('Uncertain local response');};});
  await p.getByRole('button',{name:'翻至答案',exact:true}).click();await p.getByRole('button',{name:/忘記/}).click();await p.getByRole('alert').filter({hasText:'Uncertain local response'}).waitFor();
  assert.equal((await snapshot()).events.filter(e=>e.kind==='review').length,1);
- await p.getByRole('button',{name:'離開',exact:true}).click();await dialog.getByRole('button',{name:'離開',exact:true}).click();await dialog.getByRole('alert').waitFor();assert.equal((await snapshot()).sessions[0].ended_at,undefined,'unknown answer result prevents exit');await dialog.getByRole('button',{name:'取消',exact:true}).click();
+ await p.getByRole('button',{name:'回首頁',exact:true}).click();await p.getByRole('alert').filter({hasText:'請'}).waitFor();assert.equal((await snapshot()).sessions[0].ended_at,undefined,'unknown answer result prevents exit');assert.equal(await p.getByRole('dialog').count(),0);
  await p.getByRole('button',{name:'重試儲存同一作答',exact:true}).click();await p.getByRole('button',{name:'翻至答案',exact:true}).waitFor();assert.equal((await snapshot()).events.filter(e=>e.kind==='review').length,1,'same action retry is idempotent');
  const active=await p.locator('[data-study-card] p[lang=en]').innerText();const real=await snapshot();
  await p.evaluate(()=>{const realNow=Date.now;Date.now=()=>realNow()+60001;window.dispatchEvent(new Event('nexus-study-changed'));});await p.waitForTimeout(1250);
  assert.equal(await p.locator('[data-study-card] p[lang=en]').innerText(),active,'due forgotten never preempts visible card');assert.deepEqual((await snapshot()).events,real.events);
- await p.getByRole('button',{name:'離開',exact:true}).click();await dialog.getByRole('button',{name:'取消',exact:true}).click();assert.equal(await p.locator('[data-study-card] p[lang=en]').innerText(),active);
+ assert.equal(await p.getByRole('button',{name:'離開',exact:true}).count(),0);assert.equal(await p.locator('[data-study-card] p[lang=en]').innerText(),active);
  await p.evaluate(()=>{const original=window.visibilityRepo.endSession.bind(window.visibilityRepo);window.visibilityRepo.endSession=async(...args)=>{window.visibilityRepo.endSession=original;throw Error('Storage unavailable');};});
- await p.getByRole('button',{name:'離開',exact:true}).click();await dialog.getByRole('button',{name:'離開',exact:true}).click();await dialog.getByRole('alert').filter({hasText:'Storage unavailable'}).waitFor();assert.equal((await snapshot()).sessions[0].ended_at,undefined,'failed durable write keeps Session');
- await dialog.getByRole('button',{name:'離開',exact:true}).click();await dialog.waitFor({state:'hidden'});await p.getByRole('table').waitFor();
+ await p.getByRole('button',{name:'回首頁',exact:true}).click();await p.getByRole('alert').filter({hasText:'Storage unavailable'}).waitFor();assert.equal((await snapshot()).sessions[0].ended_at,undefined,'failed durable write keeps Session');
+ await p.getByRole('button',{name:'回首頁',exact:true}).click();await p.getByText('Home',{exact:true}).waitFor();await p.getByRole('button',{name:'回到管理',exact:true}).click();await p.getByRole('table').waitFor();
  const ended=await snapshot();assert.deepEqual(ended.events,real.events);assert.ok(ended.sessions[0].ended_at);assert.equal(ended.sessions[0].answers,1);assert.equal(ended.sessions[0].completed_at,null);
  await p.context().setOffline(false);await p.evaluate(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>true}));
  await p.evaluate(async()=>{const legacy=structuredClone(window.hiddenBackup);for(const card of legacy.study.cards){delete card.hidden;delete card.hidden_changed_at;card.updated_at=Date.now()+100;}await window.visibilityStorage.importWorkspaceBackup(legacy);});

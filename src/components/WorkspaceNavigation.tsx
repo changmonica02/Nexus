@@ -35,9 +35,9 @@ export function SidebarToggle() {
 }
 
 /** One title strip per page; the shell yields its generic header while this is mounted. */
-export function PageHeader({title,onBack,backHref,backLabel,actions,backDisabled=false,globalActions=true,autoFocusBack=false}:{title:ReactNode;onBack?:()=>void;backHref?:string;backLabel?:string;actions?:ReactNode;backDisabled?:boolean;globalActions?:boolean;autoFocusBack?:boolean}){
+export function PageHeader({title,onBack,backHref,backLabel,actions,backDisabled=false,globalActions=true,autoFocusBack=false,divider=true}:{title:ReactNode;onBack?:()=>void;backHref?:string;backLabel?:string;actions?:ReactNode;backDisabled?:boolean;globalActions?:boolean;autoFocusBack?:boolean;divider?:boolean}){
  const context=useContext(HeaderContext),{t}=usePaginationLanguage();
  const control="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-zinc-500/10";
  const back=backLabel??t('ui.back');
- return <header data-page-header className="flex min-w-0 shrink-0 items-center gap-1 border-b border-[var(--color-border)] py-1 text-[var(--color-text)]"><SidebarToggle/>{backHref?<Link href={backHref} aria-label={back} className={control}><ArrowLeft size={20}/></Link>:onBack?<button type="button" onClick={onBack} autoFocus={autoFocusBack} disabled={backDisabled} aria-label={back} className={control}><ArrowLeft size={20}/></button>:null}<h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={typeof title==='string'?title:undefined}>{title}</h1><div className="flex shrink-0 items-center gap-1">{actions}{globalActions&&context.actions}</div></header>;
+ return <header data-page-header className={"flex min-w-0 shrink-0 items-center gap-1 py-1 text-[var(--color-text)] "+(divider?"border-b border-[var(--color-border)]":"")}><SidebarToggle/>{backHref?<Link href={backHref} aria-label={back} className={control}><ArrowLeft size={20}/></Link>:onBack?<button type="button" onClick={onBack} autoFocus={autoFocusBack} disabled={backDisabled} aria-label={back} className={control}><ArrowLeft size={20}/></button>:null}<h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={typeof title==='string'?title:undefined}>{title}</h1><div className="flex shrink-0 items-center gap-1">{actions}{globalActions&&context.actions}</div></header>;
 }

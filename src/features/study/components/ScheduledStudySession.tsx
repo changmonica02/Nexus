@@ -1,8 +1,9 @@
 "use client";
 import {EyeOff} from "lucide-react";
 import ModalDialog from "../../../components/ModalDialog";
+import {useStudyDictionary} from "../useStudyDictionary";
 import {useOfficialContent} from "../useOfficialContent";
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StudyRepository } from '../StudyRepository';
 import { previewStudy, type Grade, type StudySnapshot } from '../studyFSRS';
 import type { StudySession } from '../studySessions';
@@ -31,6 +32,25 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   const [now,setNow]=useState(()=>Date.now());
   const alive=useRef(true),busy=useRef(false),opening=useRef<Promise<Data>|null>(null),current=useRef<string|null>(null),formal=useRef<string|null>(null);
   const revealButton=useRef<HTMLButtonElement>(null);
+  const viewport=useRef<HTMLDivElement>(null),footer=useRef<HTMLElement>(null);
+  const [space,setSpace]=useState({height:0,footer:0});
+  const [revealRequested,setRevealRequested]=useState(false);
+  useLayoutEffect(()=>{
+    const measure=()=>{
+      if(!viewport.current||!footer.current)return;
+      const bottom=footer.current.getBoundingClientRect();
+      const top=viewport.current.getBoundingClientRect().top;
+      const height=Math.max(0,bottom.top-Math.max(0,top));
+      setSpace(old=>old.height===height&&old.footer===bottom.height?old:{height,footer:bottom.height});
+    };
+    const observer=new ResizeObserver(measure);
+    if(footer.current)observer.observe(footer.current);
+    if(viewport.current?.parentElement)observer.observe(viewport.current.parentElement);
+    window.addEventListener('resize',measure);
+    window.visualViewport?.addEventListener('resize',measure);
+    measure();
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('resize',measure);};
+  },[]);
   const availability=useRef<{nextDue:number|null;day:string}|null>(null);
   const question=useRef<string|null>(null);
   const presentedCard=useRef<string|null>(null);
@@ -42,7 +62,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     const key=presentedKey(presented);
     presentedCard.current=cardId??null;
     setData(presented);
-    if(question.current!==key){question.current=key;setRevealed(false);setNow(Date.now());}
+    if(question.current!==key){question.current=key;setRevealed(false);setRevealRequested(false);setNow(Date.now());}
     else if(!cardId)setNow(Date.now());
   },[]);
   const load=useCallback((background=false)=>{
@@ -90,6 +110,12 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   const session=data?.session, practice=session?.mode==='practice';
   const rawCard=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
   const [card]=useOfficialContent(rawCard?[rawCard]:[],`${session?.id}:${session?.revision}`);
+  const dictionary=useStudyDictionary((session?.queue.slice(0,3)??[]).map(id=>data?.snapshot.cards.find(c=>c.id===id)?.dictionary_entry_id));
+  useEffect(()=>{
+    let active=true;
+    if(revealRequested&&!dictionary.pending)void Promise.resolve().then(()=>{if(active){setRevealed(true);setRevealRequested(false);}});
+    return()=>{active=false;};
+  },[revealRequested,dictionary.pending]);
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
   const cardId=card?.id,head=state?.head;
   const readingQuestion=JSON.stringify([session?.id,cardId,head,card?.content_revision]);
@@ -131,27 +157,29 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     catch(e){if(alive.current)setError(studyErrorMessage(e,t));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
-  const flip=()=>{if(!saving&&!error&&!dictionaryOpen.current){setNow(Date.now());setRevealed(value=>!value);}};
-  return <div className={"mx-auto flex min-h-[65dvh] w-full max-w-4xl flex-col items-center justify-start gap-4 "+(revealed?"pb-[calc(12rem+env(safe-area-inset-bottom))]":"pb-[calc(3rem+env(safe-area-inset-bottom))]")} data-scheduled-study>
-    {session?.compatibility_notice&&<p role="status" className="text-xs">{t('styles.legacySession')}</p>}
+  const flip=()=>{if(!saving&&!error&&!dictionaryOpen.current){setNow(Date.now());if(revealRequested)setRevealRequested(false);else if(!revealed&&dictionary.pending)setRevealRequested(true);else setRevealed(value=>!value);}};
+  return <div ref={viewport} className="mx-auto w-full max-w-4xl" style={{paddingBottom:space.footer}} data-scheduled-study>
+    <div className="flex w-full flex-col items-center justify-center gap-4 py-3" style={{minHeight:space.height||'65dvh'}} data-study-card-space>
     {card&&state?<>
       <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 pb-12 text-center shadow-sm sm:p-10 sm:pb-12" data-study-card data-side={revealed?'back':'front'}>
         <button ref={revealButton} type="button" className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-4" aria-label={t(revealed?'study.flipFront':'study.flipBack')} aria-pressed={revealed} disabled={saving||!!error||dictionaryEditing} onClick={flip}/>
-        <div className="pointer-events-none relative grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,max-content)_minmax(0,1fr)] items-start gap-x-2">
-          <p className={'col-start-2 row-start-2 w-fit min-w-0 max-w-full justify-self-center whitespace-pre-wrap break-words text-center [overflow-wrap:anywhere] '+(revealed?'text-2xl opacity-60 sm:text-3xl':'text-4xl font-medium sm:text-6xl')} lang={card.direction==='en-zh'?'en':undefined}>{revealed&&card.dictionary_entry_id?<StudyCompositionSummary inline entryId={card.dictionary_entry_id} front={card.front} answer={card.back}/>:card.front}</p>
+        <div className={"pointer-events-none relative mx-auto grid w-fit min-w-0 max-w-full grid-cols-[minmax(0,max-content)_2.75rem] items-start gap-x-2 "+(revealed?"text-2xl leading-8 [--study-word-line:2rem] sm:text-3xl sm:leading-9 sm:[--study-word-line:2.25rem]":"text-4xl leading-10 [--study-word-line:2.5rem] sm:text-6xl sm:leading-none sm:[--study-word-line:3.75rem]")}>
+          <p className={'col-start-1 row-start-2 w-fit min-w-0 max-w-full justify-self-center whitespace-pre-wrap break-words text-center [overflow-wrap:anywhere] '+(revealed?'opacity-60':'font-medium')} lang={card.direction==='en-zh'?'en':undefined}>{revealed&&card.dictionary_entry_id?<StudyCompositionSummary inline detail={dictionary.detail} front={card.front}/>:card.front}</p>
           <span className="contents" data-card-audio><StudyPronunciation inlineCard key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/></span>
         </div>
         <div className="pointer-events-none relative motion-safe:animate-[study-flip_160ms_ease-out]" key={revealed?'back-content':'front-content'}>
           {revealed&&<><p className="mb-7 mt-[1.167rem] whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p></>}
         </div>
-        {revealed&&card.dictionary_entry_id&&<StudyDictionaryBack key={`${session!.id}:${card.id}:${session!.answers}`} entryId={card.dictionary_entry_id} front={card.front}/>}
+        {revealed&&card.dictionary_entry_id&&<StudyDictionaryBack key={`${session!.id}:${card.id}:${session!.answers}`} detail={dictionary.detail} front={card.front}/>}
         {revealed&&<button type="button" className="absolute right-1 top-1 flex min-h-11 w-11 items-center justify-center rounded" aria-label={t('study.hideCard')} disabled={saving||!!error||dictionaryEditing} onClick={()=>setHidePrompt(true)}><EyeOff size={20}/></button>}
         <p className="pointer-events-none absolute inset-x-3 bottom-3 text-xs opacity-50">{t(revealed?'study.flipHintBack':'study.flipHintFront')}</p>
       </article>
 
     </>:<div className="space-y-3 py-8 text-center"><p role="status">{!session?t('study.loading.'+phase):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('interval.finished')}</p></div>}
+    {revealRequested&&<p role="status" className="text-sm">{t('study.loadingDetails')}</p>}
+    </div>
     {hidePrompt&&<ModalDialog aria-labelledby="hide-card-title" busy={saving} onDismiss={()=>setHidePrompt(false)} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-[var(--color-editor-bg)] p-5 text-[var(--color-text)] backdrop:bg-black/30"><h2 id="hide-card-title" className="text-lg font-semibold">{t('study.hideCard')}</h2><p className="my-4">{t('study.hideExplanation')}</p><div className="flex justify-end gap-2"><button type="button" autoFocus disabled={saving} className="min-h-11 rounded border px-4" onClick={()=>setHidePrompt(false)}>{t('ui.cancel')}</button><button type="button" disabled={saving} className="min-h-11 rounded border px-4" onClick={()=>void hideCard()}>{t('study.hideConfirm')}</button></div></ModalDialog>}
-    <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-border)] bg-[var(--color-sidebar-bg)] px-4 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]" data-study-answer-footer>
+    <footer ref={footer} className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-border)] bg-[var(--color-sidebar-bg)] px-4 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]" data-study-answer-footer>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
         {card&&state&&revealed&&<>
           <CardDictionaryPanel compact onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
