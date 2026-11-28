@@ -1,3 +1,7 @@
+# Nexus — 技術架構
+
+> 本文件以 main 的現行原始碼、資料結構、資料流及相容契約為準。產品目標見 SPEC 與各功能規格；規格差距、正式環境狀態與交接事項見 HANDOFF，歷史見 HISTORY。
+
 ## PWA Worker 版本固定於舊啟動參數的修正（2026-11-19；Refs #210）
 
 已於真實 Chromium + repo 原 Service Worker 重現：相同 Worker 啟動器路徑先用 `#params=old` 載入，頁面 reload 後要求 `#params=natural-v4`，從 Cache API 回傳的 Response 仍使 Worker.location 保留首次請求的 old fragment。Next 共用 bootstrap 將本次版本的 chunks 放在 fragment，因此會出現新頁面啟動舊生成器。原正式 Worker 網路直讀／無 SW 的隔離測試無法覆蓋此故障。
@@ -46,7 +50,7 @@ Pack 為重建資料，不寫整張圖到附件；`packSettings {version:1,detai
 
 輸出有程序估計證據旗標，未模擬土壤化學、養分、火災、放牧、群落及人為利用，不能宣稱是完整 IUCN 實地判定。奇幻／魔法覆蓋另存 `overlays`，不參與自然分類或水量計算。預覽有 Pack 邊界、河湖、月枯水樣式及 IUCN 地表／海床圖層；新生成的自然名稱使用所選語言，已保存自訂名稱不隨語系改寫。
 
-新專案建立 Pack 與河湖基礎；舊無標記圖載入不自動加寫，可在自然地理面板明確建立。Pack／河湖／生態流水線為 v1，未來更動需維持既有版本讀取及基礎實體身分。最新驗證狀態見 HANDOFF；未合併、未部署，實際瀏覽器操作仍受既有 socket 限制。
+新專案建立 Pack 與河湖基礎；舊無標記圖載入不自動加寫，可在自然地理面板明確建立。Pack／河湖／生態流水線為 v1，未來更動需維持既有版本讀取及基礎實體身分。最新驗證狀態見 HANDOFF；
 
 ## 球面表層洋流與逐月氣候 v1（2026-11-19；Refs #207）
 
@@ -68,7 +72,7 @@ Pack 為重建資料，不寫整張圖到附件；`packSettings {version:1,detai
 
 mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V3.2 全球月降水研究](https://doi.org/10.1175/JCLI-D-23-0123.1) 的全球約 2.8 mm/day 量級；沒有依每張圖強制縮放成地球總雨量。種子 42 類地範例約 2.77～2.79 mm/day，流場相對散度約 3.6e-5，末次水氣收支相對誤差 <4e-13，剩餘儲水趨勢約 0.005 mm/day。這些是單位與數值檢查，未以真實地球地形／觀測月資料驗證區域氣候，不能宣稱觀測精度；簡化水氣柱量、固定參數及有限迭代仍有限制。無三維／深海海洋、逐日天氣、跨年動力學或全球水文；此氣候模組不直接生成 Pack、河湖或生物群系；#208 已另接衍生流水線。
 
-已產生 1／7 月溫度、降水、SST／洋流、全年柯本及自然出現夏乾／冬乾格的月圖。最新測試及人工驗收狀態見 HANDOFF；未合併、未部署。
+已產生 1／7 月溫度、降水、SST／洋流、全年柯本及自然出現夏乾／冬乾格的月圖。最新測試及人工驗收狀態見 HANDOFF；
 
 ## 適量出水島鏈（2026-11-19；Refs #206）
 
@@ -78,7 +82,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 
 新快照標記 `geologyVersion: 4`，保存 `islandGenesis` 新增格與來源鏈／年齡，並驗證格號、數量、正高程及關聯。`analyzePlanetGeology` 用暫存高度副本將新增格還原為海域，重建原板塊後附加已保存島鏈，不重新選島或寫高度。舊 v3／v2／無標記快照沿用原路徑；新增島嶼不會令板塊隨重開漂移。衍生島嶼清單包含新島，已出水中心從海底火山標記移除。
 
-同種子 42／1729 前後及局部格網圖已檢視，分別新增約 0.027 個百分點、各 9 島；外觀待使用者評估。最新測試完成狀態見 HANDOFF；未合併或部署，實際瀏覽器操作仍受既有 socket 限制。
+同種子 42／1729 前後及局部格網圖已檢視，分別新增約 0.027 個百分點、各 9 島；外觀待使用者評估。最新測試完成狀態見 HANDOFF；
 
 ## 板塊輪廓與隱沒可視化 v3（Refs #205）
 
@@ -86,7 +90,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 
 `tectonic-drawing.mjs` 直接由局部球面法向、相對速度與 Euler 速度推導符號，輸出各類邊界、上覆側隱沒齒、從下沉側朝上覆側的箭頭、張裂／碰撞／錯動箭頭及板塊區域內的移動箭頭原點。所有線段解開日期線，符號使用球面步進後投影；箭頭是方向示意，沒有宣稱物理速率或時間演化。GlobalMapCanvas 的「板塊與隱沒方向」圖層顯示上述符號及雙語圖例。海底圖層維持海溝與上覆側火山弧。
 
-新候選使用 `geologyVersion: 3`；`tectonic-plates-v2.mjs` 封存 v2 分析器，未標記版本使用 legacy，載入均不重算地形。6～12、不等面積、連通主板塊與混合地殼等規則維持；六組已接受海陸及陸地高度雜湊不變。52 項地圖、30 項自然地形、20 項板塊／海底／階段測試、完整 build、最終 TypeScript 與相關 ESLint 通過；符號方向及舊快照相容有專項驗證。v3 外觀仍待使用者確認，未合併、未部署；真實瀏覽器操作仍受既有 socket 限制。
+新候選使用 `geologyVersion: 3`；`tectonic-plates-v2.mjs` 封存 v2 分析器，未標記版本使用 legacy，載入均不重算地形。6～12、不等面積、連通主板塊與混合地殼等規則維持；六組已接受海陸及陸地高度雜湊不變。52 項地圖、30 項自然地形、20 項板塊／海底／階段測試、完整 build、最終 TypeScript 與相關 ESLint 通過；符號方向及舊快照相容有專項驗證。v3 外觀仍待使用者確認，
 
 ## 主板塊與衍生海底地質 v2（封存相容路徑；Refs #205）
 
@@ -96,9 +100,9 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 
 `plate-seafloor.mjs` 只套用海格高度，維持海陸符號及所有陸地高度。新快照標記 `geologyVersion: 2`；舊快照缺少標記時沿用封存分析器，不重算高度。預覽提供主板塊色塊／面積與海底地質圖層。這是固定球面格網上的程序推導，不是跨年代動力學模擬；島鏈使用既有陸地，不新增出水島嶼。
 
-驗證包含 6／8／12 塊連通性、不等面積、混合地殼、局部邊界方向、火山側別、歷史／活動山地、快照相容與六組已接受海陸／陸地高度雜湊。地質專項 19 項通過；完整建置與整合檢查結果見 HANDOFF。桌面／手機瀏覽器仍受既有 Chromium socket 限制，地質外觀待使用者檢視。未合併、未部署。
+驗證包含 6／8／12 塊連通性、不等面積、混合地殼、局部邊界方向、火山側別、歷史／活動山地、快照相容與六組已接受海陸／陸地高度雜湊。地質專項 19 項通過；完整建置與整合檢查結果見 HANDOFF。桌面／手機瀏覽器仍受既有 Chromium socket 限制，地質外觀待使用者檢視。
 
-## 指令核心與群組式大陸配置（2026-11-18；Issues #202–#204，Draft 分支已實作）
+## 指令核心與群組式大陸配置
 
 #203 的輪廓／疏密已被使用者回報退步；其高程統計與自動測試不構成視覺驗收。使用者後續已接受 #204 的海岸輪廓；以下 v3 海陸與陸地高度作為 #205 的保留基準。
 
@@ -124,7 +128,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 - 生成確認流程、固定 36,002 格、`nexus-global-map@1`、uint32、CAS、使用者隔離與附件保存契約維持。舊高度快照不重新生成；新演算法版本的同種子新預覽可改變，板塊覆蓋層仍由現行分析器重算。
 - Azgaar MIT 與原腳本聲明保留；新增 Delaunator（ISC）／robust-predicates（Unlicense）依賴；Worker banner 保留三份完整第三方授權聲明。planet-simulation 僅參考 coreSpread、群組、群間通道、島群與洋盆分配概念，未複製程式。
 - 本輪驗證含小數指令次數、Uint8 截斷、不規則鄰接、原指令順序、群組配置與密度、18 組種子×類型、快照一致性及原有地圖回歸。30 項指令／自然地形、19 項既有地形、52 項地圖測試通過；完整 build、TypeScript 及相關 ESLint 通過。六組設定 × 三版本的二值遮罩與等面積密度已離線檢視，仍待使用者品質驗收。36,002 格仍會有格網海岸折線；未提供完整水力／河湖／氣候或板塊時間演化。
-- 尚未部署、未合併 main；桌面／手機操作仍受既有 Chromium socket 環境限制，離線遮罩／密度圖不是瀏覽器驗收。
+- 離線遮罩／密度圖用於生成結果比較。
 
 ## B 階段契約（PR #186，2026-11-15 正式資料庫已套用）
 
@@ -142,7 +146,7 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 - `sameImportProposal` 以固定 ID 排序無序子列後比對；構詞有序資料保留順序。匯入每批25筆，先原子保存 operation UUID 才送 RPC；收據儲存失敗不能前推 checkpoint，重整後重送原 UUID，由伺服器收據冪等保護。
 - Android TTS 無英文 voice inventory 時，以 `en-US` 請求系統備援而不指定 voice；實機發聲仍須人工驗收。PWA 瀏覽器測試的登入初始化僅作用於頂層文件，不能在 PDF／地圖沙盒讀取 localStorage。舊湖泊工具開啟前顯示湖泊圖層，沿用原原生 snapshot／取消復原，不更改地圖資料核心。
 
-## 新版全球海陸編輯器整合（2026-11-15；Issue #191，Draft）
+## 全球海陸編輯器整合
 
 - `WorldMapCreator` 透過 `GlobalMapClient` 與背景 Worker 建立全球地圖。既有專案格式的讀取檢查由 Repository 處理。
 - `globalMapProject.ts` 定義 `nexus-global-map` v1 純 JSON 封裝，保存生成設定與完整版本化高度快照。格式／高度／格數／種子／海洋起點／checksum 在 repository 寫入前與 Worker 載入前驗證。重開依儲存高度重建幾何，種子不取代地形；Pack 索引不進永久身分契約。
@@ -152,18 +156,11 @@ mm 量級透過有單位的蒸發與面積水氣收支校準，並參考 [GPCP V
 - 重新生成只建立記憶體候選，取消不寫入。確認替換後先寫可復原草稿，再以 CAS 保存正式附件；失敗保留舊正式檔與待存快照，可重試／匯出。未確認候選不進正式保存，離開需先處理候選。新核心不提供舊人文繪製／河湖／筆刷；#207 新候選已接逐月簡化氣候；世界觀條目與既有配置保留。
 - 本輪本機驗證與遠端瀏覽器結果見 HANDOFF；本段表示分支已實作，不代表 main／正式網站已替換。
 
-## 全球海陸離線預覽原型（2026-11-14；Draft #189）
-
-- 隔離來源為 `experiments/spherical-grid/`，固定 36,002 格；尚未接入正式地圖、StorageAdapter、同步或資料庫。
-- `build-offline-preview.mjs` 將 esbuild 的 browser IIFE 內嵌於單一 HTML，避免 file:// 外部模組載入限制；Grid 的 Node CLI 入口受 `typeof process` 保護。
-- `offline-preview.browser.cjs` 直接開啟封裝後的 file:// HTML，攔截網路請求，檢查實際海陸像素、種子重現、參數變動、確認、下載及既有快照匯入驗證。CI 使用隔離的 Playwright Chromium；這不等於 Windows Edge 真人驗收。
-- 畫布只是三角面海陸示意，不是權威 Voronoi 海岸；面積由 Grid 計算。Pack 陣列索引不是永久識別碼。高解析度資料權威方案尚未決定。
-
 ## 現行字典構詞架構（2026-11-13 已套用）
 
 - **資料與身分**：沿用 `dictionary_entries`、`dictionary_senses`、`dictionary_relations` 及草稿／Review／人工發布機制，不建立第二套字典。Entry `kind` 包含 Word、Prefix、Root、Suffix；Word 與構詞不可互換類型，三種構詞形式可在原 ID 內切換。合法同形的不同詞條按 ID 區分，不因拼寫相同合併。
 - **義項語意與變體**：`dictionary_senses.semantic_domain`／`semantic_subdomain` 對應 `src/features/dictionary/semanticDomains.ts` 的**十大類、62 小類**；`derivation` 包含 `verb`、`noun`、`adjective`、`variable` 四個小分類（動詞、名詞、形容詞、不固定），`NULL` 代表未分類。使用者已認可 `force`／`elements`／`quality`／`speech` 等既有代碼改名的新版語意。驗證只接受新版分類，禁止已退役的 `cutting`、`flora_fauna`、`grammar_affixes/derivation` 組合。每個 Sense 的 `variants` 是依順序保存的 `{id,form,condition}` 陣列，UUID 與有效字形不可缺；`[]` 是明確清空，`NULL`／缺省不抹除原內容。舊類別欄位、分組表及轉換 RPC 已退役。
-- **編輯與查詢**：`MorphemeSenseEditor` 共用 `DraftAutosaveQueue` 的輸入法組字、Enter／失焦、CAS 及未存離開保護。`MorphemeWordLinks` 使用現有 Word／Sense 關聯與授權審核，目標義項尚未發布時不可建立正式連結。公開字典與管理端共用 `DictionaryCatalogNavigation` 及 `search_dictionary_catalog`；分類依義項匹配，詞條依穩定 Entry ID 去重、在分頁後組裝摘要及匹配變體。**現行摘要使用 `string_agg(gloss_zh_tw,'；' order by id)` 串接所有義項**，因此尚未符合 SPEC 要求的「列表只顯示第一義項，Word 同時顯示詞性」；修正需由後續產品程式／RPC 工作完成，不能把文件改成接受串接。此 catalog RPC 目前要求 `auth.uid()` 非空，一般已登入使用者只讀已發布內容，管理端可看授權審核工作，維持既有權限與搜尋上限。公開快取使用退休後的 `catalog-current-morphology` 鍵，不清空 IDB。
+- **編輯與查詢**：`MorphemeSenseEditor` 共用 `DraftAutosaveQueue` 的輸入法組字、Enter／失焦、CAS 及未存離開保護。`MorphemeWordLinks` 使用現有 Word／Sense 關聯與授權審核，目標義項尚未發布時不可建立正式連結。公開字典與管理端共用 `DictionaryCatalogNavigation` 及 `search_dictionary_catalog`；分類依義項匹配，詞條依穩定 Entry ID 去重、在分頁後組裝摘要及匹配變體。**現行摘要使用 `string_agg(gloss_zh_tw,'；' order by id)` 串接所有義項**，。此 catalog RPC 目前要求 `auth.uid()` 非空，一般已登入使用者只讀已發布內容，管理端可看授權審核工作，維持既有權限與搜尋上限。公開快取使用退休後的 `catalog-current-morphology` 鍵，不清空 IDB。
 - **完整交換**：JSON／AI JSON 保存有效 sense 分類、變體及穩定 ID；一般 JSON Bundle 的額外欄位只告知並忽略，完整版本化交換仍依身分與版本契約嚴格驗證。CSV 只覆蓋其現行明列欄位，包含多變體／完整關聯的資料請用完整 JSON；無效分類不能因匯入或離線同步繞過現行驗證。快照正規化僅把新增 nullable 欄位的缺省和 `NULL` 視為等價，不忽略實際差異、順序、revision、刪除或明確空陣列。
 - **正式 Migration 完成狀態**：`20261112012042_dictionary_morpheme_senses.sql` 安裝構詞義項與 suffix；`20261112120627_dictionary_catalog_query_plan.sql` 改善列表查詢；`20261113035217_dictionary_legacy_morpheme_retired.sql` 移除舊分組及其 RPC；`20261113035226_dictionary_review_cleanup.sql` 安裝受限清理函式；`20261113061500_dictionary_semantic_ten_domains.sql` 先清空不合法分類（只變更必要分類欄位、維護修訂版本），再更新驗證函式。以上均已**套用正式**，不可重跑舊轉換或直接推送所有 pending SQL。
 - **清理與未來審核**：#174 的原子清理另經管理員授權執行，清除當時 3,796 個 active Review、1,384 個未決匯入項目；保留 4 個已完成項目及現有內容、詞條、學習資料。清理 RPC 使用固定 ID／revision／整列雜湊 manifest、全域鎖、冪等 operation ID 與防舊 session 重建；SQL Migration 本身不自動清除工作。未來新建的 Review 不受歷史一次性清理授權涵蓋，必須照正常流程處理。
@@ -188,9 +185,15 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 ### 生活工作區
 
-`TodoView` 目前提供生活總覽、**月曆**、任務（全部／今日／即將到來／已完成）及自訂清單入口，`PageCollection` 共用同一批 `kind: todo` Pages；內部 `calendar` 導覽識別與既有連結保留相容。`NexusApp` 只持有日期／月份／分頁／篩選／捲動等介面上下文，帳號切換時清除，任務編輯返回恢復上下文。學習首頁捷徑傳入選取的本地日期。
+`TodoView` 組合 `LifeNavigation`、`LifeOverview`、`CalendarMonth`、`CalendarPeriod`、`FinanceWorkspace`、`HealthWorkspace`、`LifeLists`。一級入口為總覽、日曆、健康管理、財務、我的清單；行程、重要日期、任務、習慣透過日曆內管理面板操作。 `LifeViewState` 保存 date、month、filter、query、scroll、calendarView、calendarManager、financeMonth、financeHide 等檢視上下文。日曆與財務月份獨立；學習首頁捷徑帶入本地日期。橫向採可收合側欄，直向採 Life 展開選單；計時由 `ToolsTimer` 重用 `LifeTimer`，進行中狀態使用 owner 分區的裝置鍵，結果由 LifeRepository 保存。
 
-任務的 `due_date`／`completed` 保持 Page 欄位；`CreatePageInput` 允許建立時帶入，Adapter 在原 Page／outbox 交易一起保存，避免先建立無日期任務再補寫。完成、日期及內容編輯走 `patchPage`／既有 pending save，離開先 flush。新增標題使用現有 `useUnsavedDraft` 導覽／離開保護，任務編輯仍走原編輯器保存。日曆／任務沒有額外事件副本；備份與帳號隔離沿用 workspace 契約。行程數是當日有日期任務的投影，非獨立排班或事件來源。**目前沒有獨立記帳、日記、排班、週／日／時間軸日曆或任務看板的正式資料與操作介面**；這些若列於 SPEC，屬後續產品需求，不可用生活模組存在或自訂清單金額欄位推論已完成。
+一般待辦仍使用 `kind: todo` Page 的 due_date／completed，`CalendarTaskEditor` 與 PageCollection 共用 Page 保存流程。行程、習慣使用獨立同步記錄（ScheduleEvent、Habit），由 SchedulePanel／HabitsPanel／HabitCheckIn 操作；calendarSources 依來源與本地日期投影，不複製正式資料。scheduleRecurrence 展開行程，習慣保留自身定義及逐日紀錄。總覽可直接完成任務、打卡、記帳及飲水。
+
+`LifeRepository` 經 `WorkspacePersistence` 保存生活領域資料，沿用帳號隔離、版本、outbox、RPC 與刪除保護。 `syncRecords.ts` 的 LIFE_SYNC_STORES 包含 life_dashboard_configs、life_schedule_events、life_habits、life_finance_records、life_timer_results、life_health_records、life_automation_runs。儀表板配置由 useLifeDashboard／dashboard model 管理；自動化由 reminderModel 與 LifeRepository 評估及執行，支援行程、待辦、預估支出、關聯紀錄及更新待辦等動作。執行結果及動作進入工作區同步，使用來源及執行識別去重，預估支出不列實際帳務。
+
+財務使用 `finance/model.ts`、`ledger.ts`、`money.ts`、`financeCalendar.ts` 與 FinanceWorkspace。資料位於 life_finance_records，現有入口為總覽、記帳、帳戶、預算、訂閱、資產負債、財務目標、投資、設定。金額以最小單位整數計算，帳戶餘額依期初、交易與投資交易推算；歷史匯率依日期取得，持倉依交易日期及估值歷史推算。訂閱由 subscriptionNext 推進，確認交易沿用來源識別與工作區交易。日曆顯示財務來源事件。
+
+健康由 HealthWorkspace、health/model.ts、health/summary.ts 操作 life_health_records；依紀錄種類保存身體、目標、飲水、餐點、運動、睡眠及照護資料，健康摘要與日曆事件由原始紀錄投影，跨模組顯示依隱私設定。飲水快捷預設 150／250／500 mL，設定允許最多十個正數容量。實際健康資料由 LifeRepository 寫入；提醒及運動自動化來源依顯示授權處理。
 
 自訂清單由 `features/life/LifeLists` 與 `LifeRepository` 提供。`life_lists` 保存欄位定義及 schema_version，`life_categories` 保存 parent_id，`life_items` 以固定 fieldId 保存 typed values、category_id 與 attachment_ids；三者獨立記錄／revision，不塞進 Page JSON。金額為十進位字串與幣別；圖片／附件只引用既有 Attachment，Blob 不放入項目。四種檢視共用項目；分類移動使用選擇操作。
 
@@ -200,15 +203,15 @@ Page 是共用容器；編輯結構以 `content_json` 及領域資料為準，`c
 
 `WorkspacePersistence.mutate` 在原交易內校驗帳號、版本、欄位保值、分類與附件引用，並追加同一 outbox；本機 life revision 隨待傳操作前進。`apply_workspace_operations` 擴充三個實體，沿用 owner advisory lock、CAS 與 durable receipt，在整批提交前驗證分類循環、同帳號／同清單引用及附件。RLS 僅允許 owner SELECT，寫入只走驗權 RPC；life 不提供 hard purge，軟刪除保留重連保護。刪清單以單批軟刪項目、分類與清單，非空分類需先移走內容。
 
-Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC 擴充，依使用者確認已套用正式環境，本輪未重新套用或查寫正式資料。隔離 PostgreSQL 17.11 已執行實際 SQL，驗證既有 Page 全欄位、Attachment／binary、舊 receipt／tombstone、新舊混合交易、RLS 與 Migration 失敗整批回滾。初始三表的建表 DDL 未納入版本庫，測試依目前欄位契約重建，再套用實際帳號／創作／章節／workspace migrations；不是正式 schema dump，不能推論不存在正式 schema 漂移。舊 RPC 呼叫與硬刪除標記類型不變，life 不產生舊前端不認得的 hard-delete tombstone。
+清單設定另有可同步的共用檢視、圖示封面、統計設定、欄位轉換及關聯；裝置檢視偏好仍獨立保留。WorkspacePersistence 與 apply_workspace_operations 依生活實體驗證帳號、版本、關聯、唯一來源與交易回覆；正式 SQL 以 migrations 內契約為準。
 
-部署／回復契約：
-- 核准後先確認正式備份／PITR 可用、既有 schema／RPC 前置條件，再以單一交易套用 Migration；驗證 owner SELECT、RPC 與 PostgREST 新表可見性／Realtime publication 後才發布前端。不可重複套用已成功的 Migration，或把 PR／隔離測試視為正式驗收。
-- 若前端誤先發布，`pullWorkspace` 僅對新 life 表的缺表／schema-cache 缺表碼（42P01／PGRST205）保留本機副本並繼續舊同步；權限、網路及舊表錯誤不忽略。未獲支援的 life intents 保留並顯示同步失敗，資料庫就緒後原 ID 重試；不假稱本機保存已上雲。
-- SQL 交易失敗會回滾新表、publication 與 RPC，舊資料／呼叫仍可使用。成功後若已有清單資料，保留新增表與新版 RPC，不執行刪表或回復舊 RPC；修復前端需保留 v9、備份 v4 及 life outbox 契約，優先向前修復。
-- 原 v8 前端不能開啟已升級 v9 的 IndexedDB，不能直接作為同裝置回退版。升級遇舊頁籤阻擋時顯示復原提示，先於舊頁籤保存修改，再關閉並重新載入；延遲開啟的已放棄連線會關閉。遇較新 DB 版本亦顯示錯誤，不降版／刪庫。離線舊前端須恢復連線取得相容版本，禁止以清除網站資料修復。真實 Chromium 已驗證未同步 Page／附件／Blob／outbox 保留與重新載入復原。
+生活與字典發布相關 migration 檔案（按依賴及時間戳）：
+- 20261008_workspace_delete_protection.sql、20261103155520_life_custom_lists.sql。
+- 20261126140000_life_time_foundation.sql、20261126150000_life_finance_periods.sql、20261126160000_life_health_core.sql、20261126170000_life_sensitive_health.sql。
+- 20261126171000_life_list_field_types.sql、20261126180000_life_list_configuration.sql、20261127000000_life_automation_schedule.sql。
+- 20261127010000_dictionary_bulk_publication_wave_updates.sql（獨立字典依賴）、20261127020000_life_automation_task.sql、20261127030000_life_automation_runs.sql、20261127040000_life_automation_actions.sql。
 
-備份 v4 包含三種清單記錄；舊備份不清除本機清單及其附件。匯入校驗整個結構與引用，在同一交易新增記錄與恢復 intents，附件先於項目補傳；遇到不同本機版本或刪除屏障即中止，不靜默覆蓋。本機副本與雲端已有不同版本時，仍由 CAS 阻擋，備份不是強制覆寫雲端的工具。
+備份 v4 及本機資料升級由 IndexedDBAdapter 管理；不得清庫、降版或用舊 RPC 覆蓋含新版資料的環境。正式套用、部署及差距由 HANDOFF 維護。
 
 ### 資料模型與本機儲存
 
@@ -225,7 +228,7 @@ Migration `20261103155520_life_custom_lists.sql` 為新增表、索引與 RPC �
 
 Page 共用 ID、標題、時間、revision、device、軟刪除、標籤、資料夾、關聯、附件引用、排序與父子關係；詳細型別以 [types.ts](../src/lib/types.ts) 為準。
 
-[IndexedDBAdapter](../src/infrastructure/storage/IndexedDBAdapter.ts) 使用 `nexus`，DB_VERSION=9，BACKUP_SCHEMA_VERSION=4。主要 stores 為 life_lists／life_categories／life_items、pages／attachments／binaries／settings、study_cards／states／events／settings／sessions／outbox／sync_meta，以及 workspace_outbox／sync_meta。既有裝置的相容 stores 不因功能退場自動刪除；實際 upgrade 清單以 Adapter 為準。Page／Attachment 的 `workspace_owner_id` 是本機邊界，不當成可任意指定的雲端授權。
+[IndexedDBAdapter](../src/infrastructure/storage/IndexedDBAdapter.ts) 使用 `nexus`，DB_VERSION=13，BACKUP_SCHEMA_VERSION=4。主要 stores 包含 LIFE_SYNC_STORES 所列生活同步資料、life_lists／life_categories／life_items、pages／attachments／binaries／settings、study_cards／states／events／settings／sessions／outbox／sync_meta，以及 workspace_outbox／sync_meta。既有裝置的相容 stores 不因功能退場自動刪除；實際 upgrade 清單以 Adapter 為準。Page／Attachment 的 `workspace_owner_id` 是本機邊界，不當成可任意指定的雲端授權。
 
 備份匯出／匯入走 StorageAdapter 與實際 schema 校驗；涵蓋頁面、附件、學習資料及地圖 canonical／recovery。匯入遵守帳號、版本與引用檢查，交易失敗完整中止；不能把舊版「完全覆蓋」描述直接套到所有現行備份流程。裝置偏好另依 settings／localStorage 保存，不保證全部同步。
 
@@ -238,7 +241,7 @@ Page 共用 ID、標題、時間、revision、device、軟刪除、標籤、資�
 
 `creationOptions.notes` 只有 `note_flow`；全部項目使用 `note`。EditorPane 實際以 `effectiveFormat = "flow"`、`isPaged = false` 呈現；新舊 Note 不因此清除既有 format／pageBreak／未知 metadata。逐篇全寬寫於 `noteAppearance.fullWidth`，與輸出紙張尺寸分離。相容層退場前須驗證舊資料往返。
 
-**規格已記錄、仍待處理的落差**：EditorPane 的 flow 常數也涵蓋 Document 呼叫路徑，10/29 SPEC F-DOCUMENT 已明示目前連續版面與原 A4 預設方向的差異。應先盤點實際操作與預期，不把本次「筆記僅流動」擴大成 Document 改版，也不直接恢復舊分頁程式。
+EditorPane 的 flow 常數亦用於 Document 路徑，Document 目前以連續捲動呈現。
 
 ### 已實作輸出流程
 
@@ -250,7 +253,7 @@ Page 共用 ID、標題、時間、revision、device、軟刪除、標籤、資�
 
 輸出提供本次逐欄轉單欄、寬 code／URL 換行、表格及公式適配與直接重試。公式縮放下限為原尺寸 50%；過寬仍提示。未知欄位容器保留原布局，超高表頭不反覆重複。AbortSignal 及每 20 個頂層區塊讓步支援取消；單張巨表仍同步測量。
 
-### 尚未完成
+### 輸出實際限制
 
 - 長段落、超高合併格與長雙欄未完整分割；目前放寬超高紙張並提示，瀏覽器仍可能另行分頁。不能宣稱所有預覽頁碼／PDF 一致。
 - 預覽沒有手動新增／移動分頁入口；識別原有 pageBreak 不等於提供這項操作。保存分頁調整的規則仍待確認。
@@ -310,11 +313,14 @@ Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週�
 
 ### 學習排程
 
+`ScheduledStudySession` 以 queue 前三張卡的 dictionary_entry_id 呼叫 `useStudyDictionary`，去重並限制三個請求；hook 共用 `readPublishedEntry`，驗證 Entry ID 與 published 狀態，2,500 ms 未完成即解析為 null。離開視窗的請求不再更新結果，字典失效及 online 事件清除請求快取並刷新。翻面請求在當前資料 pending 時暫候，完成或逾時後呈現；`StudyCompositionSummary` 與 `StudyDictionaryBack` 共用 detail，不各自讀取。`PageHeader` 以 divider=false 移除分隔線；ResizeObserver 與 visualViewport 量測底部操作區及可用高度，置中字卡並保留底部間距。此讀取不寫私人字卡或排程。
+
+
 `StudyRepository` 與 `studySync` 為私人字卡／事件來源。正式複習依 `scheduledStudy`／`studyFSRS` 使用唯一雙按鈕間隔排程；Session 凍結有效樣式快照，樣式變更作用於之後的 Session。introduce 事件在實際呈現新卡時扣當日額度，不能因預選或重開重複扣額度。新批次以 partial Fisher–Yates 從全部合資格未引入卡抽樣，再沿既有額度／批次順序限制組成目標；複習排序不控制新卡，恢復未完成 Session 不重新抽樣。
 
 正式學習僅使用雙按鈕間隔排程。學習組樣式以 `interval_version: 2`、`binary_intervals.general/fuzzy/forgotten` 各兩個秒數保存，沿用既有樣式 JSON、IndexedDB 與同步 RPC。新作答事件使用 `nexus-binary@2`，保留 `nexus-interval@1` 歷史重播，目前排程沿用 `fixed` 狀態容器；舊 FSRS 記憶、due 與四級作答事實保留，歷史引擎只供重播驗證。舊未完成批次保留 ID、已退出卡片及額度，原快照留於 `legacy_settings_snapshot`，恢復時凍結新間隔；讀取不重寫卡片到期時間。忘記留在批次等待到期，記得退出（出盒不提升記憶狀態），批次不追加不同卡片。
 
-目前排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
+`20261127110000_study_binary_review.sql` 定義雙按鈕事件及版本化排程驗證；歷史事件保留原引擎。現在排程 state 與保留的 FSRS 記憶分開，不偽造歷史或在讀取時改寫 due。作答帶 method、style snapshot 與必要 transition；事件 predecessor 順序、generation 與伺服器收據保障重試。兩裝置事件衝突保留歷史並要求明確解決，不能靜默推測合併。sessions 僅本機，其他領域資料依 Study 增量 cursor 同步。已退場 Quiz 不掛載 UI、不啟動同步；既有資料／SQL 的相容處理由現行 Adapter 與 migration 管理。
 
 #### 整組清除與有效排程投影（PR #151 已合併；正式 Migration 已套用）
 
@@ -324,11 +330,11 @@ Realtime 訂閱只加快異動通知。訂閱逾時或斷線時，由既有週�
 
 `projectStudyEvent` 使用原事件引擎與快照，從不讀取 legacy.item 的空白狀態或已驗證前置有效狀態重算。`reliableEvent` 保留原轉換驗證，並另外重建／驗證投影；Repository 在套用 feed 時再核對權威清除時間、同帳號／同組／同卡與實際前置事件／決策證明。只有 projection 內自稱的 cleared_at 不構成授權。事件 parent 拓撲序保留；兩裝置競爭分支仍標記衝突，既有單卡 reset／受控 relearn 決策可排除舊單卡分支，不採整組 generation。resolution 僅選有效 after／受控 checkpoint，沿用 event／state sequence CAS；feed 同時提供有效前置狀態所需的決策證明，支援裝置跳過多次更新後重連。
 
-每輪 `studySync` 在任何學習上傳前呼叫 `get_study_clear_times`。`applyClearTimes` 在原 v9 Study stores 的單一 IndexedDB 交易保存權威時間、失效該組 Session／舊決策、移除清除前事件及 outbox、按依賴順序重建合法晚事件並更新同一 outbox。圖遍歷與 pending 事件排序採 Map／queue，重複還原 intents 仍按原事件順序送出並逐個 ack；所有學習寫入由原 RPC 路徑處理。原操作 ID 在本機 study_sync_meta 先行保存，網路回覆／本機提交不明時重試原清除操作，延遲回覆不能降低本機已知清除時間。完成本機交易後發出既有 nexus-study-changed，讓 Session、歷史、首頁統計與每日新卡額度重讀；已失效的正式 Session 需重新開始。
+每輪 `studySync` 在任何學習上傳前呼叫 `get_study_clear_times`。`applyClearTimes` 在既有 Study stores 的單一 IndexedDB 交易保存權威時間、失效該組 Session／舊決策、移除清除前事件及 outbox、按依賴順序重建合法晚事件並更新同一 outbox。圖遍歷與 pending 事件排序採 Map／queue，重複還原 intents 仍按原事件順序送出並逐個 ack；所有學習寫入由原 RPC 路徑處理。原操作 ID 在本機 study_sync_meta 先行保存，網路回覆／本機提交不明時重試原清除操作，延遲回覆不能降低本機已知清除時間。完成本機交易後發出既有 nexus-study-changed，讓 Session、歷史、首頁統計與每日新卡額度重讀；已失效的正式 Session 需重新開始。
 
 `apply_study_operation` 在既有鎖內重新驗證卡片實際所屬組、帳號與清除時間；清除後只接受晚於屏障且帶目前投影的事件。發生時間必須為整數毫秒，不接受超過伺服器目前時間 24 小時的未來事件；這是異常值檢查，不是精確校時。seed 一律轉成無 legacy 進度的空白 state；card 不可跨組移動；舊 resolution 不能恢復原 after。投影先通過原事件結構檢查，再驗證目前有效轉換、canonical predecessor／決策證明與清除時間，同一 ID 原始內容不同仍報 collision，同一清除時間的不同投影也不靜默取代。正式雙按鈕間隔與歷史 fixed 轉換在 SQL 另核對排程公式／due；歷史 FSRS 仍由固定版本 TypeScript 引擎驗證完整計算，SQL 保留結構驗證並增加前置狀態／計數檢查，**不宣稱 SQL 已實作完整 FSRS 公式**。官方更新 SQL 直接插入的新 state 亦經 guard trigger 清空過期 seed。
 
-備份仍為 v4、IndexedDB 仍為 v9，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括含 v1 Page-only legacy 欄位的備份；該欄位已退役且忽略）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
+備份仍為 v4、IndexedDB 使用現行 Adapter 版本，不增加 stores。匯出與原資料同交易讀取清除／待恢復 metadata；備份的 clears 僅為資訊，不可當成權威。登入帳號匯入任何 study_set（包括含 v1 Page-only legacy 欄位的備份；該欄位已退役且忽略）前先登入／連線核對並同步雲端 Study 事實與決策證明，再於原工作區匯入交易內重建有效排程、失效舊 Session。尚無權威清除時間的投影不能匯入；清除後合法原事件按原 ID 聯集，舊事件與 legacy 進度不能回復。缺少可信時間／無法驗證的事件留在 owner-scoped study_sync_meta recovery，排除正式排程與上傳，介面／同步狀態提供提示；v4 可選 recovery_events 保留待恢復原始資料，延後提示不阻擋其餘合法資料或合法備份內容。
 
 Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite PostgreSQL 驗證；使用者已確認正式套用，本輪唯讀記錄可見對應名稱（登錄版本 `20261105060444`）。新增表 RLS、RPC／內部函式 ACL、跨帳號與交易失敗回滾均有測試；本輪沒有正式資料庫寫入。清除、重播、雙裝置、連續清除、遺失回覆、舊 Session／v1／v4 備份、legacy／seed／resolution、6,301 張與 Chromium 中英文／多尺寸入口測試見 `studyClear.test.cjs`、`studyClear.browser.test.cjs`；完整交付結果見 HANDOFF／PR，不將隔離測試視為正式驗收。
 
@@ -347,6 +353,9 @@ Migration `20261105032115_study_deck_clear.sql` 開發時在隔離 PGlite Postgr
 學習內 `CardDictionaryPanel` 沿用原 history marker、30筆內部瀏覽／捲動紀錄、已發布查詢快取及 owner/admin 驗權。首列返回／拖曳把手／叉叉，第二列搜尋／放大鏡，詳細內容在捲動區、鉛筆在內容右上。拖曳只從把手開始，使用 pointer capture；向下至少80px且垂直位移較大才關閉，短／水平／取消拖曳復原，不從內文接管捲動。把手支援鍵盤啟動；有管理員編輯 Modal 時停用，仍走原未儲存保護。開啟期間仍由原 Session editing guard 停用評分，不新增作答。EditorSection 的基本資料／概念／義項使用固定展開模式，其他有意義的區塊仍沿用原 details，欄位不重新掛載、草稿 queue/CAS 未變。
 
 ### 公共字典
+
+構詞義項資料包含形式／語意分類、變體、概述、詞源及連結；舊補充說明欄位及詞條層級概念編輯已退役。`20261127010000_dictionary_bulk_publication_wave_updates.sql` 將大量發布的狀態／版本更新集中於相依批次，避免逐筆重掃整份計畫，保留鎖定、成員及版本驗證。
+
 
 字典獨立 Reader 與正式學習閱讀面板僅讀取已發布詞條與必要管理員驗權，不掛載私人字卡建立／計數／跳轉元件，也不為顯示這些操作查詢私人字卡；私人字卡管理及既有連結流程維持原資料來源。
 
@@ -390,24 +399,7 @@ Google 登入仍為 `AccountButton` 的同一 Supabase OAuth，僅加入 `queryP
 
 RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依以失敗回滾處理。新增 migration 採增量及非破壞回復，不能把文件清理當成刪 schema／歷史資料的授權。
 
-## 7. 改善建議（尚未實作）
-
-
-| 優先 | 建議與理由 | 最小驗證／採用條件 |
-| --- | --- | --- |
-| P0 | 先釐清 Note／Document 的格式邊界，再清理死分支；flow 常數不應默默定義其他產品行為 | 新舊 Note、Document、Presentation 開啟／保存／重開，JSON／ID／未知 metadata 不變 |
-| P1 | 分頁增加獨立、可取消的 layout job 與 block splitter 介面，先抽現有表格策略，再補文字；讓 React 面板處理控制與狀態 | 設定連續切換取消舊 job；單欄長段落、rowspan、圖片／公式內容無缺失重複；逐頁 PDF 比對 |
-| P1 | 將長雙欄順序及手動分頁保存作產品待決項，確認後再新增策略 | 同一 corpus 比較逐欄／逐頁閱讀，不以強制攤平取代決策 |
-| P1 | PWA 先交付外殼，再接本機資料／更新。重用既有同步，不新增 PWA outbox | 線上準備→斷網關閉重開、缺少路由提示、SW 更新不刪 IDB、地圖 scope 不受影響 |
-| P2 | 量測 outbox 長度及 transaction 耗時後再優化。mutate 目前 getAll 佇列，並對每項 change 篩選排序；大 backlog 可能增加交易耗時 | 固定 100／1k／10k pending 比較；可先在交易內建 owner/entity 索引 Map，保留排序、expected revision、原子與重試語意；DB index 變更另評估 |
-| P2 | 保留 workspace／study 領域邏輯，只逐步共用連線、觸發協調及觀測介面 | pending、衝突、遠端刪除、切帳號、掉回覆重試不退化；先記錄重複請求而非假設存在 |
-| P2 | NexusApp 逐步抽出保存與帳號／同步生命週期服務，避免 UI 組裝同時掌管全部副作用 | 一次只搬一項責任；雙窗、待保存輸入遇遠端更新、失敗重試維持原行為 |
-| P2 | 大文件分頁優先分批量測、取消與資源釋放，再評估新引擎 | 峰值 heap、layout 耗時、取消後 DOM／listener 回收；Worker 無法直接量測 DOM，不能只搬計算就宣稱解決 |
-
-目前較合理的是維持現有 Next.js／Tiptap／IndexedDB／Supabase 與隔離地圖核心，以小步收斂責任及量測瓶頸。尚無本輪證據支持重寫編輯器、引入 CRDT、自建第二套同步或全面改用 Paged.js。若要採用，另開 discovery 比較資料相容、長文件、維護成本與授權，再核准實作。
-
-
-## 8. 驗證與維護
+## 7. 驗證與維護
 
 - `.github/workflows/note-editor.yml` 以相關 PR／程式路徑及 main 觸發：note helper／表格、五組 Chromium、workspaceSync、map 契約、TypeScript、限定 ESLint 與 production build。PDF／截圖作該次測試 artifact，正式 runtime 不加入研究用 Paged.js。
 - 修改保存／同步需覆蓋 owner、CAS、pending edits、遠端刪除、斷網／重連、掉回覆重試；修改輸出需驗證正文 markers、span、JSON／ID 不變與預覽／PDF，文字抽取不取代 glyph／圖片視覺檢查。
@@ -426,7 +418,7 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 - 完整 JSON 與 AI JSON 沿用原格式、可選欄位與原匯入疑義審核；舊檔省略構詞欄位保留既有值。舊客戶端若嘗試只更名已具分段的 Word，因拼寫不一致而拒絕，避免靜默破壞。回復前端時保留新欄位，不能 drop 欄位或清庫。
 - `DraftAutosaveQueue` 序列化整份有效候選，180ms 合併欄位完成事件；IME 暫停，textarea Enter 保留換行。回覆僅更新所送快照基線及技術 revision，不覆寫後續輸入。正常草稿沿用 `apply_dictionary_drafts`、已發布詞條沿用 review RPC，自動保存不觸發嵌入編輯器的結束回呼；未知回覆只有在重讀的整份候選相符時才能確認成功。失敗／無效內容保留手動重試與未儲存離開保護，不自動發布。
 - `adminNavigation` 在 URL 保存原管理清單搜尋、類型／狀態／工作篩選及頁碼，跨頁讀取原排序。無上下文採同類型 `headword,id` keyset 順序；找不到原項目則提示清單改變，不猜測跳轉。切換前等待佇列與有效保存。
-- `studyComposition` 只讀已發布的明示字形與提示，不從正式詞條名稱（例如 `ab-`）猜展示字形（`ab`）。背面 inline spans 寬度由英文決定，中文絕對定位並依實際英文寬度換行；不改動 FSRS、due、Session、事件、備份或 IndexedDB v9。
+- `studyComposition` 只讀已發布的明示字形與提示，不從正式詞條名稱（例如 `ab-`）猜展示字形（`ab`）。背面 inline spans 寬度由英文決定，中文絕對定位並依實際英文寬度換行；不改動 FSRS、due、Session、事件、備份或 IndexedDB（現行 v13）。
 - PR #151 的正式套用狀態依使用者確認及本輪唯讀 migration 記錄核對更新；其清除機制未重新實作。IPA cleanup `20261105033000_dictionary_ipa_only.sql` 本輪唯讀核對仍未列入正式紀錄，未代為套用。Production 部署與真實裝置驗收另列 HANDOFF。
 
 
@@ -442,9 +434,9 @@ RPC／constraint／RLS／授權與遠端 ledger 必須另核對；未知相依�
 
 `ScheduledStudySession` 線上仍先 `auth.getUser` → 原 single-flight `syncStudy`（包括每輪 clear times、outbox、feed 與衝突核對），成功且畫面仍掛載才 `openScheduledSession`。本機一次嚴格 readwrite 交易讀取 settings／cards／states，以同一 snapshot 呼叫原建立／恢復演算法並正式呈現首卡；原 introduce、每日額度及 CAS 完全保留，整筆失敗回滾。後續載入使用 `readPresentedSession` 在同一交易 reconcile＋present 一次，practice 不產生正式 introduce；原 startSession／readSession／presentScheduled API 保留供既有呼叫。沒有跨交易快照快取，也不以過期本機資料略過雲端清除核對。
 
-`StudySetView` 開始前只等待設定 flush，不再重讀全組；同步 ref 阻止快速重複開始。管理畫面離開後不為 Session 事件重載管理清單或解析全組官方內容；事件改以既有 styleForDeck 只讀取當前設定，讓閱讀偏好即時生效，排程仍用 Session 凍結快照；原官方解析器接收仍有效的請求檢查，停止後續未送出的批次並忽略晚回覆，返回管理時重新讀取。正式 Session 的官方解析仍只對當前卡片，沿用可信公開備援及原內容更新事件。載入提示區分本機恢復／帳號確認／雲端進度與待同步變更；同步失敗仍阻止正式呈現與作答。IndexedDB v9、備份 v4、帳號邊界、原清除投影與事件去重不變，沒有 Migration。
+`StudySetView` 開始前只等待設定 flush，不再重讀全組；同步 ref 阻止快速重複開始。管理畫面離開後不為 Session 事件重載管理清單或解析全組官方內容；事件改以既有 styleForDeck 只讀取當前設定，讓閱讀偏好即時生效，排程仍用 Session 凍結快照；原官方解析器接收仍有效的請求檢查，停止後續未送出的批次並忽略晚回覆，返回管理時重新讀取。正式 Session 的官方卡字面解析仍只對當前卡片；補充字典資料另由 useStudyDictionary 管理有上限的公開讀取視窗。載入提示區分本機恢復／帳號確認／雲端進度與待同步變更；同步失敗仍阻止正式呈現與作答。IndexedDB（現行 v13）、備份 v4、帳號邊界、原清除投影與事件去重不變，沒有 Migration。
 
-測量程式位於 `studyStartup.performance.test.cjs`（fake-indexeddb、原四讀流程 vs 單交易）與 `studyStartup.browser.test.cjs`（實際 StudySetView 按鈕、IndexedDB v9、受控 RPC）。後者輸出首卡、DB 開啟、各 repository 階段、全組讀取筆數、auth／RPC 耗時；BASELINE 模式從指定目錄讀取 main 基準的三個來源檔，沒有產品內平行實作。測試 RPC 每次受控延遲 5ms，不能當作正式 Supabase 或原生 PWA 效能；數值與未完成實機驗收見 HANDOFF。
+測量程式位於 `studyStartup.performance.test.cjs`（fake-indexeddb、原四讀流程 vs 單交易）與 `studyStartup.browser.test.cjs`（實際 StudySetView 按鈕、IndexedDB（現行 v13）、受控 RPC）。後者輸出首卡、DB 開啟、各 repository 階段、全組讀取筆數、auth／RPC 耗時；BASELINE 模式從指定目錄讀取 main 基準的三個來源檔，沒有產品內平行實作。測試 RPC 每次受控延遲 5ms，不能當作正式 Supabase 或原生 PWA 效能；數值與未完成實機驗收見 HANDOFF。
 
 ### 官方連動與欄位退役（#157）
 
@@ -460,7 +452,7 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 
 發布前測試 fixture 已補載正式生活清單版 workspace RPC；`retirementFunctionBaseline.cjs` 以正式 ledger `20261105083358` 唯讀擷取的 11 個相關函式定義 SHA-256（只正規化 CRLF）及 EXECUTE ACL 驗證 Migration 前基線，不包含正式資料／憑證。`retirementCompatibility.test.cjs` 驗證完整函式比對、三份依序、刪欄後多欄搜尋／排序／跨頁、舊快照／Review、真實內容及版本衝突、錨點漂移與未知 view 相依的交易回滾。fixture 亦模擬正式 service_role 的既有函式預設 grant，驗證 CREATE OR REPLACE 保留權限；不調整正式角色／grant。隔離 auth／樣本資料不是完整正式環境複本；正式套用前仍須重做函式／相依物件／資料筆數檢查。
 
-`study_set` Page 只保存學習組身份與設定連結；`ensureDeck()` 直接建立現行 schema2 設定，字卡／狀態沿用 Study stores 與原 RPC。已刪除 `migrateStudyDeck()`／Page 字卡轉換及舊測試卡自動重設。已轉換的現行 legacy 事件／狀態仍保留原驗證與備份契約。新建／複製／官方下載／工作區同步不輸出 study_items，備份 v4 匯入／匯出與遠端 Page 合併忽略此已知欄位，其他有效內容保留；已排隊 workspace 操作不改寫其 receipt payload，伺服器忽略該舊欄位。IndexedDB 仍為 v9，不清庫、不變更帳號隔離／有效學習同步。
+`study_set` Page 只保存學習組身份與設定連結；`ensureDeck()` 直接建立現行 schema2 設定，字卡／狀態沿用 Study stores 與原 RPC。已刪除 `migrateStudyDeck()`／Page 字卡轉換及舊測試卡自動重設。已轉換的現行 legacy 事件／狀態仍保留原驗證與備份契約。新建／複製／官方下載／工作區同步不輸出 study_items，備份 v4 匯入／匯出與遠端 Page 合併忽略此已知欄位，其他有效內容保留；已排隊 workspace 操作不改寫其 receipt payload，伺服器忽略該舊欄位。IndexedDB 使用現行 Adapter 版本，不清庫、不變更帳號隔離／有效學習同步。
 
 指定順序：既有 Study clear／官方來源身份／Word segments 先就緒，接著 `20261105091439_official_card_linked_content.sql` → `20261105091518_dictionary_pronunciation_columns_retired.sql` → `20261105091519_page_study_items_retired.sql`，各自獨立交易；SQL 原始碼錨點漂移即整筆失敗。第二、三項分別實體 DROP IPA 舊欄與 Page 舊欄，不更新現行 Study 資料。尚未正式執行的 `20261105033000_dictionary_ipa_only.sql` 明確改為 superseded no-op；若環境已執行舊版，第二項會先移除舊觸發器再刪欄，不重做資料清空。正式環境 ledger 的部分版本與 repo 檔名不同，不可直接 db push 補套所有 pending 檔案；須另行授權、核對 Schema／RPC／備份及指定版本後，先資料庫、後相容前端。DROP 的歷史 locale/note 與未轉換 Page-only 卡不可由 down migration 復原，必要時從事前備份還原至隔離環境並向前修復。舊裝置 Page-only 卡經使用者授權捨棄，其現行 study outbox／卡／狀態不受此授權影響。
 
@@ -479,13 +471,13 @@ IPA DROP 前另以唯一 SQL 錨點修正 `search_dictionary_relation_targets(te
 
 ### 學習 Session 穩定顯示與私人隱藏（2026-11-11，階段 B）
 
-字卡沿用 `study_cards.payload`、原 card outbox、apply_study_operation 與同步 feed；可選 `hidden`／`hidden_changed_at` 必須成對出現，舊資料缺省代表可見。不變更 IndexedDB v9、備份 v4、卡片 ID 或 content_revision。偏好以 owner＋deck＋card ID 隔離，不依拼寫；時間戳獨立於內容 LWW，缺省或較舊偏好不能覆蓋較新的設定，同時間衝突隱藏優先，明確恢復產生較新時間。原官方來源 trigger 保留這兩個可變欄位；舊裝置內容編輯及官方包更新仍受來源身分、自訂狀態與刪除保護。未支援此功能的舊離線程式無法即時知道新隱藏設定；不因此刪除合法舊裝置作答。
+字卡沿用 `study_cards.payload`、原 card outbox、apply_study_operation 與同步 feed；可選 `hidden`／`hidden_changed_at` 必須成對出現，舊資料缺省代表可見。不變更 IndexedDB（現行 v13）、備份 v4、卡片 ID 或 content_revision。偏好以 owner＋deck＋card ID 隔離，不依拼寫；時間戳獨立於內容 LWW，缺省或較舊偏好不能覆蓋較新的設定，同時間衝突隱藏優先，明確恢復產生較新時間。原官方來源 trigger 保留這兩個可變欄位；舊裝置內容編輯及官方包更新仍受來源身分、自訂狀態與刪除保護。未支援此功能的舊離線程式無法即時知道新隱藏設定；不因此刪除合法舊裝置作答。
 
 隱藏只改私人偏好，保留內容、due、事件與歷史，不新增假作答。正式新卡、到期／短間隔、無盡提前候選與 Session 後續 queue 共用排除條件；已完成 target 的真實完成統計保留，未作答隱藏 target 不計完成。恢復使用原狀態重新取得候選資格。備份先走既有雲端清除核對，再於原還原交易合併偏好，舊檔缺少欄位不得撤銷較新設定。
 
 Session 可選 `presented_card_id` 只記實際呈現身份，不代表作答、版本或額度。refreshScheduled 保留仍合法的當前題，短間隔到期只重排後續候選；正式評分通過原 CAS／head／內容版本驗證後解除呈現標記。計時器只在明確等待、無當前卡時重新取卡；背景更新只讀取／核對，有實際題目變更時保留畫面並阻止舊題評分，要求重新載入。
 
-首頁啟動記錄來源，返回回首頁；右上離開先確認。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步與**現行雙按鈕間隔排程**不變；舊 FSRS 參數僅按既有歷史相容方式保留，不重新成為可切換的正式排程。
+StudySetView 記錄啟動來源；PageHeader 左側返回箭頭呼叫既有保存與 Session 結束流程，不另設右上離開或確認視窗。結束前等待原啟動核對、讀取及實際作答保存，結果不明或失敗不丟棄 Session。`endSession` 在原 strict IDB 交易保存 `ended_at`、清空後續 queue，不偽造 completed_at、答案或事件；待同步 outbox 保留。下次以最新設定建立新 Session，原清除防復活、同步與**現行雙按鈕間隔排程**不變；舊 FSRS 參數僅按既有歷史相容方式保留，不重新成為可切換的正式排程。
 
 Migration `20261111143124_study_card_visibility.sql` 只增加內部 JSON 合併函式並修補既有 card RPC／官方 guard，沒有新表、資料回填或學習資料重寫；保留原清除／投影驗證與權限。該資料庫 Migration 已經正式套用；後續發佈新欄位仍需遵守 guard 相容性，舊 guard 會拒絕官方卡的新偏好鍵。交易遇到未知安裝契約即回滾。回退前端後保留資料庫偏好保護，不以刪欄位或重寫 payload 回復。
 ### 字典列表身分、待審核口徑與刪除診斷（2026-11-11，階段 C）
@@ -502,10 +494,10 @@ Migration `20261111145758_dictionary_pending_identity.sql` 只替換兩個查詢
 Android 語音恢復（Issue #195）（2026-11-16，已實作；自動化驗證與部署證據見 PR #196，實機待驗收）：已列出的英文 voice 若在 onstart 前回報 voice-unavailable、language-unavailable、synthesis-unavailable、synthesis-failed，或8秒內沒有啟動且引擎未 speaking，僅嘗試一次不指定 voice 的 en-US 備援。先解除舊 utterance 身分再 cancel，避免同步或延遲取消事件誤停新播放；備援仍有啟動／最長播放期限。not-allowed、network、audio-busy、audio-hardware、取消／中斷與已開始朗讀的失敗不重播，最終失敗照原提示顯示。這是測試重現的程式備援缺口，尚未取得使用者 Android 的實際 error code，不宣稱已確定其實機根因。
 
 
-## 世界觀地圖建立流程（Issue #213，工作分支實作，尚未正式驗收）
+## 世界觀地圖建立流程
 
 - `WorldMapManager` 透過共用 `ModalDialog` 顯示置中的新建／匯入、地圖類型對話框；活動地圖操作仍在世界觀內容區，已刪除地圖不再於管理視窗列出。
 - `WorldMapCreator` 以 `GlobalMapClient.request('preview', settings)` 自動取得海陸預覽，參數變更會讓前一次預覽失效；此時沒有資料庫寫入。
 - `globalMapWorker` 的 `preview` 分支僅呼叫 `createNaturalLand` 與海陸繪圖，不呼叫 `createNaturalPlanet`、地質、氣候、Pack 或水文；回傳 `project:null` 並保留既有 `generate` 回傳完整快照的協定。
 - 按生成時才送出 `generate`，並將完整 `GlobalMapProject` 交由 `WorldMapRepository.createSpace` 儲存；完成後 `WorldMapManager` 更新選取地圖並設定編輯模式。資料層仍保留刪除標記供舊版相容及同步使用，不實作地圖歷史備份介面。
-- 以上僅代表工作分支的程式行為，正式部署與人工瀏覽器驗收不在本次自動視為完成。
+
