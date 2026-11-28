@@ -31,7 +31,7 @@ const iconByModule = { finance: Wallet, health: HeartPulse, calendar: CalendarDa
 const cardWidths = { small: "", medium: "@3xl/life:col-span-2", large: "col-span-full" };
 const itemLimits = { small: 2, medium: 5, large: 10 };
 
-export default function LifeOverview({ dashboard, todos, anchor, today, events, milestones, habits, finances, health, healthShared, plannedExecutions, openPlanned, completePlanned, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
+export default function LifeOverview({ dashboard, todos, anchor, today, events, milestones, habits, finances, financeHide, health, healthShared, plannedExecutions, openPlanned, completePlanned, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
   dashboard: ReturnType<typeof useLifeDashboard>;
   todos: Page[];
   anchor: Date;
@@ -40,6 +40,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
   milestones: ScheduleEvent[];
   habits: Habit[];
   finances: FinanceRecord[];
+  financeHide?: boolean;
   health: HealthRecord[];
   healthShared: boolean;
   plannedExecutions?: Map<string,TaskExecution[]>;
@@ -56,7 +57,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
   const { config, repository, ready } = dashboard;
   const [baseline, setBaseline] = useState<LifeDashboardConfig>();
   const editing = !!baseline;
-  const heading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const saveInProgress = useRef(false);
   const [saveError, setSaveError] = useState("");
@@ -101,10 +102,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
 
   return <section className="@container/life space-y-4" aria-label="生活總覽" data-life-overview>
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <p className="text-sm opacity-75">{anchor.toLocaleDateString(language, { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</p>
-        <h2 ref={heading} className="text-2xl font-semibold">我的生活</h2>
-      </div>
+      <div ref={heading} className="text-sm opacity-75">{anchor.toLocaleDateString(language, { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</div>
       {ready && !editing && <div className="flex flex-wrap gap-2">
         <select aria-label="使用中的儀表板" className={control} value={board.id} onChange={event => onSelectBoard(event.target.value)}>
           {config.boards.map(board => <option key={board.id} value={board.id}>{board.name}</option>)}
@@ -196,7 +194,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
           }
           if (isFinanceCard(card.type)) return <article key={card.id} className={surface + " " + cardWidths[card.size]} data-size={card.size}>
             <h3 className="mb-2 flex items-center gap-2 font-semibold"><Wallet size={18} aria-hidden="true"/>{card.title.trim() || cardRegistry[card.type].title}</h3>
-            <FinanceCard card={card} records={finances} anchor={anchor}/>
+            <FinanceCard card={card} records={finances} anchor={anchor} hideAmounts={financeHide}/>
             <button className={control+" mt-3"} type="button" onClick={()=>openModule("finance")}>開啟財務</button>
           </article>;
           const tasks = card.type === "lists" || card.type === "schedule" || card.type === "milestones" || card.type === "habits" || config.hiddenModules.includes("tasks") ? [] : selectTasks(todos.filter(task=>!task.task_plan), card, anchor, today);

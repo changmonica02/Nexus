@@ -1,4 +1,6 @@
 "use client";
+import LifeTitle from "../features/life/LifeTitle";
+import { financeTabFromUrl } from "../features/life/finance/FinanceWorkspace";
 import { nextTaskId } from "../features/life/taskRepeat";
 import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {studyErrorMessage} from '../features/study/studySync';
@@ -1176,6 +1178,13 @@ function NexusAppInner({
   const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setActivePageId(null); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  useEffect(() => {
+    if (!isReady || !isAuthenticated || !financeTabFromUrl()) return;
+    queueMicrotask(() => {
+      handleShowTodoList();
+      setLifeState(current => ({ ...current, tab: "finance", scroll: 0 }));
+    });
+  }, [isReady, isAuthenticated, handleShowTodoList]);
   const handleShowCreative = useCallback(() => {
     setIsTrashMode(false);
     setIsHomeMode(false);
@@ -1873,7 +1882,7 @@ function NexusAppInner({
         <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
-          {isTodoMode && <h1 className="ml-3 border-l border-[var(--color-border)] pl-3 text-base font-semibold">{t("life.title")}</h1>}
+          {isTodoMode && <LifeTitle tab={lifeState.tab}/>}
           <div className="flex-1" />
           {workspaceActions}
         </header>

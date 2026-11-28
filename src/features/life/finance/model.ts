@@ -7,19 +7,23 @@ export const optionalFinanceSections = { budget:"預算", subscription:"訂閱",
 export type OptionalFinanceSection = keyof typeof optionalFinanceSections;
 export const defaultCategories = ["餐飲", "交通", "居住", "日用品", "娛樂", "訂閱", "醫療", "學習", "薪資", "其他"];
 type Common = { title: string; notes: string };
+export type RecurringTerms = Common & {
+  amount: string; currency: string; account: string; category: string;
+  type?: "expense" | "income" | "transfer"; target?: string; targetAmount?: string;
+};
 export type FinancePayloads = {
   account: Common & { type: keyof typeof accountKinds; currency: string; opening: string; icon: string; color: string; archived: boolean; opened?: string;
     limit: string; statementDay: number; paymentDay: number; due: string };
   transaction: Common & { type: keyof typeof transactionKinds; date: string; amount: string; account: string; target: string;
-    targetAmount: string; category: string; attachment: string; source: string };
+    targetAmount: string; interest?: string; category: string; attachment: string; source: string };
   estimate: Common & { date: string; amount: string; currency: string; category: string };
-  preferences: { currency: string; rates: Record<string, string>; rateHistory?:{date:string;base:string;currency:string;rate:string}[]; categories: string[]; hiddenSections?: OptionalFinanceSection[] };
+  preferences: { currency: string; rates: Record<string, string>; rateHistory?:{date:string;base:string;currency:string;rate:string}[]; categories: string[]; hiddenSections?: OptionalFinanceSection[]; showCalendarTransactions?: boolean };
   budget: Common & { month: string; category: string; amount: string; currency: string };
-  subscription: Common & { amount: string; currency: string; cycle: "week" | "month" | "quarter" | "year" | "custom"; interval: number;
+  subscription: RecurringTerms & { cycle: "week" | "month" | "quarter" | "year" | "custom"; interval: number;
     anchorDay: number; next: string; account: string; category: string; state: "active" | "paused" | "cancelled";
-    trial: string; url: string; icon: string };
+    trial: string; url: string; icon: string; until?: string; skipped?: string[]; overrides?: Record<string, RecurringTerms> };
   asset: Common & { type: "asset" | "liability"; currency: string; amount: string; date: string; due: string; series: string };
-  goal: Common & { currency: string; amount: string; due: string; icon: string; color: string; account: string };
+  goal: Common & { currency: string; amount: string; due: string; icon: string; color: string; account: string; state?: "active" | "paused" | "completed" | "archived"; progress?: "manual" | "balance" };
   contribution: Common & { goal: string; amount: string; date: string };
   instrument: Common & { type: "stock" | "etf" | "fund" | "other"; currency: string; price: string; prices?: Record<string,string> };
   trade: Common & { instrument: string; type: "buy" | "sell" | "dividend"; date: string; quantity: string; price: string; fee: string; account?: string };
@@ -62,6 +66,7 @@ export function validateFinance(row: FinanceRecord) {
     case "transaction": {
       const p = row.payload;
       valid = Object.hasOwn(transactionKinds, p.type) && financeDate(p.date) && !!p.account
+        && (p.interest === undefined || p.type === "repayment" && units(p.interest))
         && units(p.amount, p.type === "adjustment") && BigInt(p.amount) !== BigInt(0)
         && (isTransfer(p.type) ? !!p.target && p.account !== p.target && units(p.targetAmount) && BigInt(p.targetAmount) > BigInt(0) : !p.target);
       break;
@@ -79,7 +84,16 @@ export function validateFinance(row: FinanceRecord) {
     case "budget": valid = financeDate(row.payload.month + "-01") && units(row.payload.amount); break;
     case "subscription": {
       const p = row.payload;
-      valid = units(p.amount) && financeDate(p.next) && (!p.trial || financeDate(p.trial))
+      valid = (p.overrides === undefined || Object.entries(p.overrides).every(([date, terms]) =>
+        financeDate(date) && !!terms.title.trim() && terms.title.length <= 160 && terms.notes.length <= 4000
+        && currencies.includes(terms.currency) && units(terms.amount)
+        && (terms.type === undefined || ["expense", "income", "transfer"].includes(terms.type))
+        && (terms.type !== "transfer" || !!terms.account && !!terms.target && terms.account !== terms.target
+          && units(terms.targetAmount ?? "") && BigInt(terms.targetAmount!) > BigInt(0))))
+        && units(p.amount) && financeDate(p.next) && (!p.until || financeDate(p.until))
+        && (p.type === undefined || ["expense", "income", "transfer"].includes(p.type))
+        && (p.type !== "transfer" || !!p.account && !!p.target && p.account !== p.target && units(p.targetAmount ?? "") && BigInt(p.targetAmount!) > BigInt(0))
+        && (p.skipped === undefined || Array.isArray(p.skipped) && p.skipped.every(financeDate) && new Set(p.skipped).size === p.skipped.length) && (!p.trial || financeDate(p.trial))
         && ["week", "month", "quarter", "year", "custom"].includes(p.cycle)
         && ["active", "paused", "cancelled"].includes(p.state) && Number.isInteger(p.interval) && p.interval > 0 && p.interval <= 3650
         && allowedDay(p.anchorDay) && (!p.url || /^https?:\/\//i.test(p.url));
@@ -87,7 +101,9 @@ export function validateFinance(row: FinanceRecord) {
     }
     case "asset": valid = ["asset", "liability"].includes(row.payload.type) && units(row.payload.amount)
       && financeDate(row.payload.date) && (!row.payload.due || financeDate(row.payload.due)); break;
-    case "goal": valid = /^#[0-9a-fA-F]{6}$/.test(row.payload.color) && units(row.payload.amount) && BigInt(row.payload.amount) > BigInt(0) && (!row.payload.due || financeDate(row.payload.due)); break;
+    case "goal": valid = (row.payload.state === undefined || ["active", "paused", "completed", "archived"].includes(row.payload.state))
+      && (row.payload.progress === undefined || row.payload.progress === "manual" || row.payload.progress === "balance" && !!row.payload.account)
+      && /^#[0-9a-fA-F]{6}$/.test(row.payload.color) && units(row.payload.amount) && BigInt(row.payload.amount) > BigInt(0) && (!row.payload.due || financeDate(row.payload.due)); break;
     case "contribution": valid = !!row.payload.goal && units(row.payload.amount, true) && financeDate(row.payload.date); break;
     case "instrument": valid = ["stock", "etf", "fund", "other"].includes(row.payload.type)
       && (row.payload.price === "" || units(row.payload.price))

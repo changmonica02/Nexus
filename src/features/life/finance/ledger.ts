@@ -1,5 +1,5 @@
 import { civilAdvance } from "../civilPeriods";
-import { defaultPreferences, financeRows, isTransfer, type FinanceRecord, type FinancePayloads } from "./model";
+import { defaultPreferences, financeRows, isTransfer, type FinanceRecord, type FinancePayloads, type RecurringTerms } from "./model";
 import { exchange, roundRatio } from "./money";
 
 export function accountBalances(records: FinanceRecord[], through = "9999-12-31") {
@@ -11,7 +11,7 @@ export function accountBalances(records: FinanceRecord[], through = "9999-12-31"
     if (tx.date > through) continue;
     const amount = BigInt(tx.amount);
     if (isTransfer(tx.type)) {
-      add(tx.account, -amount);
+      add(tx.account, -amount - BigInt(tx.interest ?? "0"));
       add(tx.target, BigInt(tx.targetAmount));
     } else add(tx.account, tx.type === "expense" ? -amount : amount);
   }
@@ -55,6 +55,25 @@ export function convertFinance(amount: bigint, currency: string, prefs: FinanceP
   return financeConverter(prefs)(amount,currency,date);
 }
 
+export function latestAssetValues(records: FinanceRecord[], through: string) {
+  const latest = new Map<string, FinanceRecord<"asset">>();
+  for (const row of financeRows(records, "asset")) {
+    const key = row.payload.series || row.id;
+    const prior=latest.get(key);
+    if (row.payload.date <= through && (!prior || prior.payload.date < row.payload.date
+      || prior.payload.date === row.payload.date && prior.updated_at < row.updated_at)) latest.set(key, row);
+  }
+  return [...latest.values()];
+}
+
+export function goalProgress(records: FinanceRecord[], goal: FinanceRecord<"goal">, through: string, balances = accountBalances(records, through)) {
+  const manual = financeRows(records, "contribution").filter(row => row.payload.goal === goal.id && row.payload.date <= through)
+    .reduce((sum, row) => sum + BigInt(row.payload.amount), BigInt(0));
+  if (goal.payload.progress !== "balance") return manual;
+  const balance = balances.get(goal.payload.account) ?? BigInt(0);
+  return manual + (balance > BigInt(0) ? balance : BigInt(0));
+}
+
 export function financeTotals(records: FinanceRecord[], start: string, end: string) {
   const prefs = financeRows(records, "preferences")[0]?.payload ?? defaultPreferences;
   const accounts = financeRows(records, "account");
@@ -72,31 +91,48 @@ export function financeTotals(records: FinanceRecord[], start: string, end: stri
   const categories = new Map<string, bigint>();
   const addValue = (value: bigint) => { if (value < BigInt(0)) debts -= value; else assets += value; };
   for (const account of accounts) addValue(convert(balances.get(account.id) ?? BigInt(0), account.payload.currency));
-  const latest = new Map<string, FinanceRecord<"asset">>();
-  for (const row of financeRows(records, "asset")) {
-    const key = row.payload.series || row.id;
-    const prior=latest.get(key);
-    if (row.payload.date <= end && (!prior || prior.payload.date < row.payload.date
-      || prior.payload.date === row.payload.date && prior.updated_at < row.updated_at)) latest.set(key, row);
+  for (const { payload } of latestAssetValues(records, end)) {
+    addValue(convert(BigInt(payload.amount) * (payload.type === "liability" ? -BigInt(1) : BigInt(1)), payload.currency));
   }
-  for (const { payload } of latest.values()) addValue(convert(BigInt(payload.amount) * (payload.type === "liability" ? -BigInt(1) : BigInt(1)), payload.currency));
   const portfolios = holdings(records, end);
   for (const item of portfolios) {
     if (item.market !== null) addValue(convert(item.market, item.instrument.payload.currency));
   }
   for (const { payload } of financeRows(records, "transaction")) {
-    if (payload.date < start || payload.date > end || payload.type !== "income" && payload.type !== "expense") continue;
+    if (payload.date < start || payload.date > end || payload.type !== "income" && payload.type !== "expense" && !(payload.type === "repayment" && payload.interest)) continue;
     const account = accountById.get(payload.account);
     if (!account) continue;
-    const value = convert(BigInt(payload.amount), account.currency,payload.date);
+    const value = convert(BigInt(payload.type === "repayment" ? payload.interest ?? "0" : payload.amount), account.currency,payload.date);
     if (payload.type === "income") income += value;
     else {
       expense += value;
-      const category = payload.category || "未分類";
+      const category = payload.category || (payload.type === "repayment" ? "貸款利息" : "未分類");
       categories.set(category, (categories.get(category) ?? BigInt(0)) + value);
     }
   }
   return { prefs, balances, income, expense, assets, debts, net: assets - debts, categories, missing: [...missing], portfolios };
+}
+
+export function hasHistoricalNet(records: FinanceRecord[], through: string, totals = financeTotals(records, through, through)) {
+  const accounts = financeRows(records, "account");
+  const assets = latestAssetValues(records, through);
+  const datedAccount = accounts.some(row => row.payload.opened && row.payload.opened <= through);
+  const datedActivity = (["transaction", "trade"] as const).some(kind =>
+    financeRows(records, kind).some(row => row.payload.date <= through));
+  if (!datedAccount && !datedActivity && !assets.length) return false;
+  if (totals.missing.length || accounts.some(row => !row.payload.opened && BigInt(row.payload.opening) !== BigInt(0))) return false;
+  if (totals.portfolios.some(item => item.quantity > BigInt(0) && (!item.instrument.payload.prices || item.market === null))) return false;
+  const foreignCurrencies = [
+    ...accounts.filter(row => totals.balances.get(row.id)).map(row => row.payload.currency),
+    ...assets.filter(row => BigInt(row.payload.amount) > BigInt(0)).map(row => row.payload.currency),
+    ...totals.portfolios.filter(item => item.market).map(item => item.instrument.payload.currency),
+  ];
+  return foreignCurrencies.every(code => code === totals.prefs.currency || totals.prefs.rateHistory?.some(rate =>
+    rate.base === totals.prefs.currency && rate.currency === code && rate.date <= through));
+}
+
+export function recurringTerms(series: FinancePayloads["subscription"], date: string): RecurringTerms {
+  return series.overrides?.[date] ?? series;
 }
 
 export function subscriptionNext(subscription: FinancePayloads["subscription"]) {
@@ -156,15 +192,28 @@ export function validateFinanceRelations(records: FinanceRecord[]) {
     if (payload.type === "cardPayment" && (target?.type !== "card" || account.type === "card")) throw Error("請選擇付款帳戶及信用卡");
     if (payload.type === "repayment" && target?.type !== "loan") throw Error("請選擇貸款帳戶");
     if (payload.source) {
-      if (payload.type !== "expense" || sources.has(payload.source) || !subscriptions.has(payload.source.split("|")[0])) throw Error("此期訂閱已記帳或來源無效");
+      if (!["expense", "income", "transfer"].includes(payload.type) || sources.has(payload.source) || !subscriptions.has(payload.source.split("|")[0])) throw Error("此期訂閱已記帳或來源無效");
       sources.add(payload.source);
     }
   }
-  for (const { payload } of financeRows(records, "subscription")) {
-    if (payload.account && accounts.get(payload.account)?.currency !== payload.currency) throw Error("訂閱與付款帳戶幣別須一致");
+  for (const { payload: series } of financeRows(records, "subscription")) {
+    for (const payload of [series, ...Object.values(series.overrides ?? {})]) {
+      if (payload.account && accounts.get(payload.account)?.currency !== payload.currency) throw Error("週期交易與帳戶幣別須一致");
+      if (payload.type === "transfer") {
+        const target = accounts.get(payload.target ?? "");
+        if (!target || target.currency === payload.currency && BigInt(payload.amount) !== BigInt(payload.targetAmount!)) {
+          throw Error("請確認週期轉帳的目的帳戶與金額");
+        }
+      }
+    }
   }
+  const allocatedAccounts = new Set<string>();
   for (const { payload } of financeRows(records, "goal")) {
     if (payload.account && accounts.get(payload.account)?.currency !== payload.currency) throw Error("目標與關聯帳戶幣別須一致");
+    if (payload.progress === "balance" && payload.state !== "archived" && payload.state !== "completed") {
+      if (allocatedAccounts.has(payload.account)) throw Error("此帳戶已用於另一個進行中或暫停目標");
+      allocatedAccounts.add(payload.account);
+    }
   }
   for (const { payload } of financeRows(records, "contribution")) {
     if (!goals.has(payload.goal)) throw Error("仍有資金異動紀錄");

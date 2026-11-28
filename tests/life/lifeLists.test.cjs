@@ -37,6 +37,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261127040000_life_automation_actions.sql", "utf8"));
   await beforeTaskPlan?.(pg);
   await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128020000_life_finance_recurring.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }

@@ -171,7 +171,7 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
  const max=Math.max(1,...points.map(item=>item.amount??0));
  const taskLink=(row:HealthRecord)=>tasks.some(task=>task.id===row.data.task)?element("開啟關聯任務",()=>taskOpen(str(row,"task"))):null;
  return <section className="min-w-0 space-y-4" aria-label="健康管理">
-  <header className="flex flex-wrap items-end justify-between gap-3"><h2 className="text-2xl font-semibold">健康管理</h2><div className="flex flex-wrap gap-2">
+  <header className="flex flex-wrap items-end justify-between gap-3"><div className="flex flex-wrap gap-2">
    <label className="grid gap-1 text-sm">紀錄日期<input type="date" className={control} value={day} onChange={event=>event.target.value&&setDay(event.target.value)}/></label>
    <label className="grid gap-1 text-sm">統計期間<select className={control} value={period} onChange={event=>setPeriod(event.target.value as Period)}><option value="day">日</option><option value="week">週</option><option value="month">月</option></select></label></div></header>
   <nav aria-label="健康功能" className="flex gap-1 overflow-x-auto rounded-xl bg-[var(--color-panel-bg)] p-1">

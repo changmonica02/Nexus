@@ -175,9 +175,7 @@ export default function LifeLists({ storage, startCreating = false, initialListI
             {label("返回我的清單", "Back to my lists")}
           </button>
         )}
-        <h2 className="min-w-0 flex-1 break-words text-xl font-semibold">
-          {list?.title ?? label("我的清單", "My lists")}
-        </h2>
+        {list && <h2 className="min-w-0 flex-1 break-words text-xl font-semibold">{list.title}</h2>}
         <button className={button} onClick={() => newRecord(list ? "life_items" : "life_lists")}>
           {list ? label("新增項目", "Add item") : label("新增清單", "New list")}
         </button>

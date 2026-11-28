@@ -1,10 +1,11 @@
+import { civilAdvance } from "./civilPeriods";
 import { convertHabit, makeExecution, sameTaskData, type TaskExecution, type TaskSlot, type TaskStatus } from "./taskPlan";
 import { automationRunId, automationScheduleId, validAutomationAction, type Reminder, type ReminderRule, type AutomationRun, type AutomationRunStatus } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
 import { minorUnits } from "./finance/money";
-import { subscriptionNext } from "./finance/ledger";
+import { recurringTerms, subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
 import { WorkspacePersistence, type WorkspaceChange } from "../../infrastructure/sync/workspacePersistence";
 import { LIFE_STORES, emptyLife, lifeBase, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
@@ -345,22 +346,80 @@ export class LifeRepository {
     }]);
   }
 
-  async confirmSubscription(row: FinanceRecord<"subscription">, paidDate: string) {
+  async editRecurringFinance(series: FinanceRecord<"subscription">, payload: FinanceRecord<"subscription">["payload"],
+    date: string, scope: "single" | "future" | "all") {
     const owner = this.owner();
-    if (row.workspace_owner_id !== owner || row.payload.state !== "active") throw Error("此訂閱無法確認扣款");
+    if (series.workspace_owner_id !== owner || date < series.payload.next || series.payload.until && date > series.payload.until) {
+      throw Error("此期週期交易已處理或超出系列");
+    }
+    if (scope === "single") {
+      const { title, notes, currency, amount, account, category, type, target, targetAmount } = payload;
+      await this.saveFinance({ ...series, payload: {
+        ...series.payload, overrides: { ...series.payload.overrides, [date]: { title, notes, currency, amount, account, category, type, target, targetAmount } },
+      } });
+      return;
+    }
+    if (scope === "all" || date === series.payload.next) {
+      await this.saveFinance({ ...series, payload: { ...payload, skipped: series.payload.skipped, overrides: series.payload.overrides } });
+      return;
+    }
+    const earlier = Object.entries(series.payload.overrides ?? {}).filter(([key]) => key < date);
+    const later = Object.entries(series.payload.overrides ?? {}).filter(([key]) => key >= date);
+    const previous = { ...series, updated_at: Date.now(), payload: {
+      ...series.payload, until: civilAdvance(date, "day", -1), skipped: series.payload.skipped?.filter(day => day < date), overrides: Object.fromEntries(earlier),
+    } };
+    const next = financeRow(owner, "subscription", {
+      ...payload, skipped: series.payload.skipped?.filter(day => day >= date), overrides: Object.fromEntries(later),
+    });
+    await new WorkspacePersistence(this.db).mutate(owner, [
+      { type: "life_finance_records", kind: "save", value: previous },
+      { type: "life_finance_records", kind: "save", value: next, createOnce: true },
+    ]);
+  }
+
+  async confirmSubscription(row: FinanceRecord<"subscription">, paidDate: string) {
+    return this.resolveRecurringFinance(row, paidDate);
+  }
+
+  async skipRecurringFinance(row: FinanceRecord<"subscription">, date: string) {
+    if (date === row.payload.next) return this.resolveRecurringFinance(row);
+    if (date < row.payload.next || row.payload.state !== "active" || row.payload.until && date > row.payload.until) {
+      throw Error("這筆週期交易目前無法跳過");
+    }
+    await this.saveFinance({ ...row, payload: { ...row.payload, skipped: [...new Set([...(row.payload.skipped ?? []), date])] } });
+  }
+
+  async resolveRecurringFinance(row: FinanceRecord<"subscription">, paidDate?: string) {
+    const owner = this.owner();
+    if (row.workspace_owner_id !== owner || row.payload.state !== "active" || row.payload.until && row.payload.next > row.payload.until) {
+      throw Error("這筆週期交易目前無法處理");
+    }
     const p = row.payload;
     const source = row.id + "|" + p.next;
     const txId = "subscription:" + source;
     const existing = await this.db.get("life_finance_records", txId);
-    if (existing) throw Error("此期訂閱已有交易");
+    if (existing) throw Error("本期已入帳");
     if (this.owner() !== owner) throw Error("帳號已切換");
+    let next = subscriptionNext(p);
+    const alreadySkipped = new Set(p.skipped);
+    while (alreadySkipped.has(next)) next = subscriptionNext({ ...p, next });
+    const updated: FinanceRecord<"subscription"> = { ...row, updated_at: Date.now(), payload: {
+      ...p, next, state: p.until && next > p.until ? "cancelled" : p.state,
+      ...(!paidDate ? { skipped: [...new Set([...(p.skipped ?? []), p.next])] } : {}),
+    } };
+    const persistence = new WorkspacePersistence(this.db);
+    if (!paidDate) {
+      await persistence.mutate(owner, [{ type: "life_finance_records", kind: "save", value: updated }]);
+      return;
+    }
+    const terms = recurringTerms(p, p.next);
     const transaction = financeRow(owner, "transaction", {
-      title: p.title, notes: p.notes, type: "expense", date: paidDate, amount: p.amount, account: p.account,
-      target: "", targetAmount: "0", category: p.category, source, attachment: "",
+      title: terms.title, notes: terms.notes, type: terms.type ?? "expense", date: paidDate, amount: terms.amount, account: terms.account,
+      target: terms.target ?? "", targetAmount: terms.targetAmount ?? "0", category: terms.category, source, attachment: "",
     }, txId);
-    await new WorkspacePersistence(this.db).mutate(owner, [
-      { type: "life_finance_records", kind: "save", value: transaction },
-      { type: "life_finance_records", kind: "save", value: { ...row, payload: { ...p, next: subscriptionNext(p) }, updated_at: Date.now() } },
+    await persistence.mutate(owner, [
+      { type: "life_finance_records", kind: "save", value: transaction, createOnce: true },
+      { type: "life_finance_records", kind: "save", value: updated },
     ]);
   }
 

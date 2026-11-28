@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/confirmDialog";
 import { budgetAlerts } from "../features/life/finance/budgetAlerts";
 import { emptyLife } from "../features/life/lists";
 import { listDateReminders } from "../features/life/reminderModel";
@@ -6,6 +7,7 @@ import LifeReminders from "../features/life/LifeReminders";
 import HealthWorkspace,{GoalList} from "../features/life/health/HealthWorkspace";
 import {exerciseAutomationSources,shared,type HealthRecord} from "../features/life/health/model";
 import {healthEvents} from "../features/life/health/summary";
+import { recurringTerms } from "../features/life/finance/ledger";
 import FinanceWorkspace,{type FinanceTab} from '../features/life/finance/FinanceWorkspace';
 import {financeCalendarEvents} from '../features/life/finance/financeCalendar';
 import type {FinanceRecord} from '../features/life/finance/model';
@@ -37,7 +39,7 @@ import HabitsPanel,{HabitForm,HabitTrackingDialog} from '../features/life/Habits
 import type {Habit,ScheduleEvent} from '../features/life/syncRecords';
 import {addDays,calendarDaysForMonth,localDateKey,localDateInput} from '../lib/todoCalendar';
 
-export type LifeViewState={tab:'overview'|LifeModule;date:number;month:number;filter:'all'|'today'|'upcoming'|'completed'|'undated'|'overdue';query:string;scroll:number;boardId?:string;calendarView?:CalendarView;financeMonth?:string;financeHide?:boolean;calendarManager?:'schedule'|'milestones'|'tasks'|'habits'};
+export type LifeViewState={tab:'overview'|LifeModule;date:number;month:number;filter:'all'|'today'|'upcoming'|'completed'|'undated'|'overdue';query:string;scroll:number;boardId?:string;calendarView?:CalendarView;financeMonth?:string;calendarManager?:'schedule'|'milestones'|'tasks'|'habits'};
 export function initialLifeView():LifeViewState{const today=new Date();today.setHours(0,0,0,0);return{tab:'overview',date:today.getTime(),month:new Date(today.getFullYear(),today.getMonth(),1).getTime(),filter:'all',query:'',scroll:0};}
 /** Calendar/tasks share todo Pages; custom lists use their own workspace records. */
 export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,onRenamePage,onDuplicatePage,onAdoptTask,state:controlled,onStateChange,storage,headerIntegrated=false}:PageActions&{
@@ -52,6 +54,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  const [finances,setFinances]=useState<FinanceRecord[]>([]);
  const [financeTab,setFinanceTab]=useState<FinanceTab>();
  const [financeFocus,setFinanceFocus]=useState<string>();
+ const [financeDate,setFinanceDate]=useState<string>();
  const [occurrence,setOccurrence]=useState<string>();
  const [events,setEvents]=useState<ScheduleEvent[]>([]);
  const [executions,setExecutions]=useState<TaskExecution[]>([]);
@@ -95,6 +98,14 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
  },[]);
  const [sources,setSources]=useState({tasks:true,schedule:true,milestones:true,habits:true,finance:true,health:true});
  const owner=storage?.getWorkspaceOwner?.()??null;
+ const financePrivacyKey='nexus-life-finance-hide:'+JSON.stringify(owner);
+ const [financeHide,setFinanceHide]=useState(()=>{
+  try{return localStorage.getItem(financePrivacyKey)==='true';}catch{return false;}
+ });
+ const rememberFinanceHide=(hide:boolean)=>{
+  setFinanceHide(hide);
+  try{localStorage.setItem(financePrivacyKey,String(hide));}catch{/* Keep the setting for this visit. */}
+ };
  const [reminderLists,setReminderLists]=useState(emptyLife);
  const [automationSourcesOwner,setAutomationSourcesOwner]=useState<string|null|undefined>(undefined);
  const [listFocus,setListFocus]=useState<string>();
@@ -148,7 +159,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
    setQuickList(tab==='lists'&&quick);
    if(tab==='tasks'&&quick)setNewTask('regular');
    if(tab==='health')setHealthFocus(quick?'new-water':undefined);
-   if(tab==='finance'){setFinanceTab(quick?'transaction':undefined);setFinanceFocus(quick?'new-transaction':undefined);}
+   if(tab==='finance'){setFinanceDate(undefined);setFinanceTab(quick?'transaction':undefined);setFinanceFocus(quick?'new-transaction':undefined);}
    if(tab==='schedule'&&quick)createSchedule();
    if(tab==='milestones'&&quick)createMilestone();
    if(['schedule','milestones','tasks','habits'].includes(tab)) {
@@ -270,8 +281,9 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
   if(event.source==='finance'){
    const row=finances.find(item=>item.id===event.sourceId);
    if(!row)return;
-   setFinanceTab(row.kind==='subscription'?'subscription':row.kind==='goal'?'goal':row.kind==='account'?'account':'asset');
+   setFinanceTab(row.kind==='subscription'?'subscription':row.kind==='transaction'?'transaction':row.kind==='goal'?'goal':row.kind==='account'?'account':'asset');
    setFinanceFocus(row.id);
+   setFinanceDate(row.kind==='subscription'&&!event.completed?localDateInput(new Date(event.date)):undefined);
    change({tab:'finance',scroll:0});
    return;
   }
@@ -339,8 +351,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {repository&&eventEditor&&(eventEditor.milestone
       ?<MilestoneForm key={eventEditor.id+":"+(occurrence??"")} occurrence={occurrence} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>
       :<ScheduleForm key={eventEditor.id+":"+(occurrence??"")} occurrence={occurrence} initial={eventEditor} repository={repository} close={()=>setEventEditor(undefined)}/>)}
-     {state.tab==='health'&&repository?<HealthWorkspace key={healthFocus??'health'} rows={health} owner={owner} day={localDateInput(selected)} tasks={tasksHidden?[]:todos} habits={habitsHidden?[]:trackedReferences} repository={repository} taskOpen={open} focused={healthFocus}/>:state.tab==='finance'&&repository?<FinanceWorkspace key={financeFocus??'finance'} requested={financeTab} focusId={financeFocus}
-      records={finances} repository={repository} owner={owner} selectedMonth={state.financeMonth} onMonthChange={financeMonth=>change({financeMonth})} hideAmounts={state.financeHide} onHideChange={financeHide=>change({financeHide})} anchor={today} upload={uploadFinanceFile} download={downloadFinanceFile}/>:state.tab==='lists'&&storage?<LifeLists key={listFocus??""} storage={storage} initialListId={listFocus} startCreating={quickList}
+     {state.tab==='health'&&repository?<HealthWorkspace key={healthFocus??'health'} rows={health} owner={owner} day={localDateInput(selected)} tasks={tasksHidden?[]:todos} habits={habitsHidden?[]:trackedReferences} repository={repository} taskOpen={open} focused={healthFocus}/>:state.tab==='finance'&&repository?<FinanceWorkspace key={(financeFocus??'finance')+':'+(financeDate??'')} requested={financeTab} focusId={financeFocus} focusDate={financeDate}
+      records={finances} repository={repository} owner={owner} selectedMonth={state.financeMonth} onMonthChange={financeMonth=>change({financeMonth})} hideAmounts={financeHide} onHideChange={rememberFinanceHide} anchor={today} upload={uploadFinanceFile} download={downloadFinanceFile}/>:state.tab==='lists'&&storage?<LifeLists key={listFocus??""} storage={storage} initialListId={listFocus} startCreating={quickList}
        relations={[
         ...(!tasksHidden?todos.map(task=>({kind:"task" as const,id:task.id,title:task.title})):[]),
         ...(!scheduleHidden?appointments.map(event=>({kind:"schedule" as const,id:event.id,title:event.title})):[]),
@@ -355,7 +367,7 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
      {state.tab==='overview'&&<LifeOverview dashboard={dashboard} todos={todos} anchor={selected} today={today}
        selectedId={state.boardId} onSelectBoard={boardId=>change({boardId})}
        plannedExecutions={executionByTask} openPlanned={(page,slot)=>setInstanceEditor({id:page.id,slot})}
-       completePlanned={completeCalendarItem} health={visibleHealth} healthShared={Object.entries(healthSettings??{}).some(([key,on])=>key.startsWith('share_')&&on===true&&healthSettings?.['off_'+key.slice(6)]!==true)} finances={financeHidden?[]:finances} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:legacyHabits} openSchedule={(event,occurrence)=>{setOccurrence(occurrence);setEventEditor(event);}}
+       completePlanned={completeCalendarItem} health={visibleHealth} healthShared={Object.entries(healthSettings??{}).some(([key,on])=>key.startsWith('share_')&&on===true&&healthSettings?.['off_'+key.slice(6)]!==true)} finances={financeHidden?[]:finances} financeHide={financeHide} events={scheduleHidden?[]:appointments} milestones={milestonesHidden?[]:milestones} habits={habitsHidden?[]:legacyHabits} openSchedule={(event,occurrence)=>{setOccurrence(occurrence);setEventEditor(event);}}
        openModule={openModule} openTask={setTaskEditor} toggleTask={(id,completed)=>onUpdate(id,{completed})}/>}
      {state.tab==="overview"&&<LifeReminders key={JSON.stringify(owner)} owner={owner} day={localDateInput(today)} items={reminderItems}
       tasks={tasksHidden?[]:todos.map(task=>({id:task.id,title:task.title,completed:task.completed,due:task.due_date==null?undefined:localDateInput(new Date(task.due_date)),day:localDateInput(new Date(task.updated_at??task.created_at))}))}
@@ -449,7 +461,8 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
          ['行程',['schedule'],!scheduleHidden&&sources.schedule],
          ['重要日期',['milestones'],!milestonesHidden&&sources.milestones],
          ['任務',['tasks','taskStart','habits'],!tasksHidden&&sources.tasks],
-         ['其他事項',['health','finance'],dailyItems.some(item=>item.source==='health'||item.source==='finance')],
+         ['健康管理',['health'],dailyItems.some(item=>item.source==='health')],
+         ['財務',['finance'],dailyItems.some(item=>item.source==='finance')],
         ] as const).map(([label,kinds,visible])=>{
          if(!visible)return null;
          const items=dailyItems.filter(item=>(kinds as readonly string[]).includes(item.source));
@@ -464,7 +477,23 @@ export default function TodoView({pages,onCreate,onUpdate,onDelete,onSelectPage,
           {!items.length&&!flexible.length&&(label!=='任務'||!flexibleTasks.length)&&<p className="text-xs opacity-65">沒有事項</p>}
           {items.map(item=>{
            const habit=item.source==='habits'?habits.find(row=>row.id===item.sourceId):undefined;
-           return habit?tracked(habit):<CalendarItem key={calendarEventKey(item)} item={item} locale={language} open={openEvent} complete={completeCalendarItem} showTime/>;
+           if(habit)return tracked(habit);
+           const series=item.source==='finance'&&!item.completed?finances.find(row=>row.kind==='subscription'&&row.id===item.sourceId):undefined;
+           const financeDay=localDateInput(new Date(item.date));
+           const scheduled=series?.kind==='subscription'&&series.payload.state==='active'&&financeDay>=series.payload.next;
+           const due=scheduled&&financeDay===series.payload.next&&financeDay<=todayInput;
+           return <div key={calendarEventKey(item)}>
+            <CalendarItem item={item} locale={language} open={openEvent} complete={completeCalendarItem} showTime/>
+            {scheduled&&series?.kind==='subscription'&&repository&&<div className="flex flex-wrap gap-1 pl-2">
+             {(due?['確認入帳','跳過本期'] as const:['跳過本期'] as const).map(action=><button key={action} type="button" className={button}
+              disabled={action==='確認入帳'&&!recurringTerms(series.payload,financeDay).account}
+              onClick={async()=>{
+               if(!await confirmDialog({title:action,message:financeDay+' · '+recurringTerms(series.payload,financeDay).title}))return;
+               try{if(action==='確認入帳')await repository.resolveRecurringFinance(series,todayInput);else await repository.skipRecurringFinance(series,financeDay);}
+               catch(error){setEventError(error instanceof Error?error.message:String(error));}
+              }}>{action}</button>)}
+            </div>}
+           </div>;
           })}
           {label==='任務'&&flexibleTasks.map(({task,slot})=><button type="button" key={slot.key} className={button+' text-left'}
            onClick={()=>setInstanceEditor({id:task.id,slot})}>↻ {task.title} · {statusLabels[slot.status]} · {slot.amount}/{slot.settings.goal.target}</button>)}

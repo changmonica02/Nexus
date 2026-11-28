@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { IndexedDBAdapter } from "../../src/infrastructure/storage/IndexedDBAdapter";
+import LifeTitle from "../../src/features/life/LifeTitle";
 import ToolsOverview from "../../src/components/ToolsOverview";
 import TodoView,{initialLifeView} from "../../src/components/TodoView";
 import { LanguageProvider } from "../../src/lib/LanguageContext";
@@ -34,7 +35,7 @@ function App() {
   return (
     <LanguageProvider initialLanguage="zh-TW">
       <div className="flex h-dvh min-w-0 flex-col">
-        <header data-workspace-header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--color-border)] px-3"><strong>Nexus</strong><button className="min-h-11" onClick={()=>setMode("life")}>生活</button><button className="min-h-11" onClick={()=>setMode("tools")}>工具</button></header>
+        <header data-workspace-header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--color-border)] px-3"><strong>Nexus</strong>{mode === "life" && <LifeTitle tab={lifeState.tab}/>}<button className="min-h-11" onClick={()=>setMode("life")}>生活</button><button className="min-h-11" onClick={()=>setMode("tools")}>工具</button></header>
         {mode==="tools"?<ToolsOverview storage={storage} pages={tasks} kind={toolKind} onKind={setToolKind} onCreate={()=>{}} onOpen={()=>{}}/>:<TodoView headerIntegrated
           key={owner}
           state={lifeState} onStateChange={setLifeState}

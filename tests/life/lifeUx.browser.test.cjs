@@ -21,6 +21,13 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     page.on('pageerror',error=>errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole('button',{name:'自訂',exact:true}).waitFor();
+    for (const section of ['總覽', '日曆', '健康管理', '財務', '我的清單']) {
+      await navigateLife(page, section);
+      const title = page.locator('[data-workspace-header]').getByRole('heading', {level:1});
+      assert.deepEqual(await title.locator('span').allTextContents(), ['生活', section]);
+      assert.equal(await page.locator('#life-content').getByRole('heading', {name:section, exact:true}).count(), 0);
+    }
+    await navigateLife(page, '總覽');
     await page.evaluate(async()=>{
       const storage=window.lifeStorage,repo=storage.getLifeRepository(),now=Date.now(),today=new Date();today.setHours(0,0,0,0);
       const day=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
@@ -137,9 +144,10 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     await page.getByRole('button',{name:'月檢視',exact:true}).click();
     await details.waitFor();
     await navigateLife(page,'財務');
-    await page.getByText('近六個月尚無收支紀錄，記下第一筆交易即可查看趨勢。',{exact:true}).waitFor();
-    for(const [label,type] of [['記支出','expense'],['記收入','income'],['帳戶轉帳','transfer']]){
-      await page.getByRole('button',{name:label,exact:true}).click();
+    await page.getByText('尚無交易。',{exact:true}).waitFor();
+    for(const [label,type] of [['記錄支出','expense'],['記錄收入','income'],['帳戶轉帳','transfer']]){
+      await page.getByRole('button',{name:'新增',exact:true}).click();
+      await page.locator('[data-life-add-options]').getByRole('button',{name:label,exact:true}).click();
       const editor=page.getByRole('dialog',{name:'新增交易'});
       assert.equal(await editor.getByLabel('交易類型',{exact:true}).inputValue(),type);
       await editor.getByRole('button',{name:'取消',exact:true}).click();

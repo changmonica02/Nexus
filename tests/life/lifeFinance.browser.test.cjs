@@ -43,9 +43,19 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await navigateLife(page, "財務");
-    const tab = name => page.getByRole("navigation",{name:"財務功能"}).getByRole("button",{name,exact:true}).click();
+    const tab = async name => {
+      const parent = { 記帳: "收支", 訂閱: "收支", 帳戶: "資產", 資產負債: "資產", 投資: "資產", 預算: "規劃", 財務目標: "規劃" };
+      const child = { 記帳: "交易紀錄", 訂閱: "週期交易", 帳戶: "資金帳戶", 資產負債: "其他資產與負債", 投資: "投資資產" };
+      const nav = page.getByRole("navigation", { name: "財務功能" });
+      const button = nav.getByRole("button", { name: parent[name] ?? name, exact: true });
+      if (await button.getAttribute("aria-pressed") !== "true") await button.click();
+      if (parent[name]) await page.getByRole("navigation", { name: parent[name] + "檢視" })
+        .getByRole("button", { name: child[name] ?? name, exact: true }).click();
+    };
     const enter = async (entry, fill) => {
-      await page.getByRole("button",{name:entry,exact:true}).first().click();
+      const direct = entry === "新增交易" || entry === "新增週期交易";
+      await page.getByRole("button",{name:direct ? "＋ 新增" : "新增",exact:true}).first().click();
+      if (!direct) await page.locator("[data-life-add-options]").getByRole("button",{name:entry,exact:true}).click();
       const dialog=page.getByRole("dialog",{name:entry,exact:true});
       await fill(dialog);
       await dialog.getByRole("button",{name:"儲存",exact:true}).click();
@@ -86,14 +96,15 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     });
     await page.getByText(/剩餘.*5150/).waitFor();
     await tab("訂閱");
-    await enter("新增訂閱",async dialog=>{
+    await enter("新增週期交易",async dialog=>{
       await fill(dialog,"名稱","閱讀服務");
       await fill(dialog,"每期金額（TWD）","150");
-      await dialog.getByLabel("付款帳戶",{exact:true}).selectOption({label:"日常帳戶 (TWD)"});
+      await dialog.getByLabel("入帳帳戶",{exact:true}).selectOption({label:"日常帳戶 (TWD)"});
       await choose(dialog,"分類","訂閱");
     });
     await tab("資產負債");
-    await page.getByRole("button",{name:"新增手動資產或負債"}).click();
+    await page.getByRole("button",{name:"新增",exact:true}).first().click();
+    await page.locator("[data-life-add-options]").getByRole("button",{name:"新增其他資產",exact:true}).click();
     let dialog=page.getByRole("dialog",{name:"新增資產與負債"});
     await fill(dialog,"名稱","自行車");
     await fill(dialog,"估值（TWD）","4200");
@@ -127,8 +138,8 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
     if(out){
       fs.mkdirSync(out,{recursive:true});
       for(const [name,label,width,height,dark] of [
-        ["overview-desktop","總覽",1440,1240,false],["transactions-tablet","記帳",820,1050,true],
-        ["accounts-desktop","帳戶",1280,920,false],["budget-mobile","預算",390,900,false],
+        ["overview-desktop","總覽",1440,1240,false],["analysis-desktop","分析",1440,1240,true],["transactions-tablet","記帳",820,1050,true],
+        ["accounts-tablet-landscape","帳戶",1080,810,false],["budget-mobile","預算",390,900,false],
         ["subscriptions-mobile","訂閱",390,900,true],["assets-desktop","資產負債",1280,960,false],
         ["goals-tablet","財務目標",820,960,false],["investment-desktop","投資",1280,960,true],
       ]){
@@ -140,15 +151,23 @@ test("life finance workflows, recurring calendar and responsive screenshots", { 
         await page.screenshot({path:path.join(out,"Nexus-Finance-"+name+".png"),animations:"disabled"});
       }
     }
+    await tab("總覽");
+    await page.getByRole("button", { name: "隱藏金額" }).click();
+    assert.equal(await page.getByText(/TWD [0-9]/).count(), 0);
+    await tab("分析");
+    assert.equal(await page.getByText(/TWD [0-9]/).count(), 0);
+    await page.goBack();
+    await page.getByRole("heading", { name: "近期交易" }).waitFor();
+    await page.getByRole("button", { name: "顯示金額" }).click();
     await navigateLife(page, "日曆");
     await page.getByRole("button",{name:"日檢視",exact:true}).click();
-    await page.locator(".life-all-day").getByRole("button",{name:/預計扣款 · 閱讀服務/}).waitFor();
+    await page.locator(".life-all-day").getByRole("button",{name:/(預計扣款|待確認) · 閱讀服務/}).waitFor();
     await page.getByRole("button",{name:"週檢視",exact:true}).click();
-    await page.locator(".life-all-day").getByRole("button",{name:/預計扣款 · 閱讀服務/}).click();
-    await page.getByRole("dialog",{name:"編輯訂閱",exact:true}).getByRole("button",{name:"取消",exact:true}).click();
+    await page.locator(".life-all-day").getByRole("button",{name:/(預計扣款|待確認) · 閱讀服務/}).click();
+    await page.getByRole("dialog",{name:"編輯週期交易",exact:true}).getByRole("button",{name:"取消",exact:true}).click();
     await tab("訂閱");
-    await page.getByRole("button",{name:"確認扣款並記帳"}).click();
-    await page.getByRole("dialog",{name:"確認訂閱扣款"}).getByRole("button",{name:"確認",exact:true}).click();
+    await page.getByRole("button",{name:"確認入帳"}).click();
+    await page.getByRole("dialog",{name:"確認入帳"}).getByRole("button",{name:"確認",exact:true}).click();
     await tab("記帳");
     await page.getByRole("button",{name:/閱讀服務/}).waitFor();
     await page.reload();
