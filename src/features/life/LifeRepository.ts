@@ -1,3 +1,4 @@
+import type { TaskLink } from "./taskLink";
 import { civilAdvance } from "./civilPeriods";
 import { convertHabit, makeExecution, sameTaskData, type TaskExecution, type TaskSlot, type TaskStatus } from "./taskPlan";
 import { automationRunId, automationScheduleId, validAutomationAction, type Reminder, type ReminderRule, type AutomationRun, type AutomationRunStatus } from "./reminderModel";
@@ -258,6 +259,7 @@ export class LifeRepository {
   async saveTaskExecution(task: Page, slot: TaskSlot, status: TaskStatus, amount: number, completedAt?:number) {
     const owner = this.owner();
     if (!task.task_plan || (task.workspace_owner_id ?? null) !== owner) throw Error("找不到此任務");
+    if(slot.settings.action&&(status==="complete"||status==="partial"))throw Error("請透過連動操作記錄實際結果");
     const value = makeExecution(task, slot, status, amount, Date.now(), completedAt);
     if (slot.record?.status === status && slot.record.amount === value.amount && (completedAt==null||slot.record.completed_at===value.completed_at)) return;
     const saved = await this.db.get("pages",task.id) as Page | undefined;
@@ -403,7 +405,7 @@ export class LifeRepository {
     await this.saveFinance({ ...row, payload: { ...row.payload, skipped: [...new Set([...(row.payload.skipped ?? []), date])] } });
   }
 
-  async resolveRecurringFinance(row: FinanceRecord<"subscription">, paidDate?: string) {
+  async resolveRecurringFinance(row: FinanceRecord<"subscription">, paidDate?: string, taskLink?:TaskLink) {
     const owner = this.owner();
     if (row.workspace_owner_id !== owner || row.payload.state !== "active" || row.payload.until && row.payload.next > row.payload.until) {
       throw Error("這筆週期交易目前無法處理");
@@ -429,7 +431,7 @@ export class LifeRepository {
     const terms = recurringTerms(p, p.next);
     const transaction = financeRow(owner, "transaction", {
       title: terms.title, notes: terms.notes, type: terms.type ?? "expense", date: paidDate, amount: terms.amount, account: terms.account,
-      target: terms.target ?? "", targetAmount: terms.targetAmount ?? "0", category: terms.category, source, attachment: "",
+      target: terms.target ?? "", targetAmount: terms.targetAmount ?? "0", category: terms.category, source, attachment: "", ...taskLink,
     }, txId);
     await persistence.mutate(owner, [
       { type: "life_finance_records", kind: "save", value: transaction, createOnce: true },

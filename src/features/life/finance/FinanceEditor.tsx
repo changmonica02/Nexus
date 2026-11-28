@@ -10,9 +10,9 @@ import { financeRow, type FinanceRecord } from "./model";
 
 export type FinanceEdit = { kind: EditableKind; row?: FinanceRecord; preset?: Record<string, string>; occurrence?: string };
 
-export default function FinanceEditor({ editor, records, base, categories, date, repository, owner, close, upload, download, hideAmounts }: {
+export default function FinanceEditor({ editor, records, base, categories, date, repository, owner, close, upload, download, hideAmounts, saveLinked }: {
   editor: FinanceEdit; records: FinanceRecord[]; base: string; categories: string[]; date: Date;
-  repository: LifeRepository; owner: string | null; close: () => void; hideAmounts?: boolean;
+  repository: LifeRepository; owner: string | null; saveLinked?:(row:FinanceRecord)=>Promise<void>; close: () => void; hideAmounts?: boolean;
   upload?: (file: File) => Promise<string>; download?: (id: string) => Promise<void>;
 }) {
   const { kind, row, preset, occurrence } = editor;
@@ -42,12 +42,16 @@ export default function FinanceEditor({ editor, records, base, categories, date,
           else delete history[date];
           Object.assign(payload,{prices:history,price:history[Object.keys(history).sort().at(-1)??""]??""});
         }
+        if(row?.kind==="transaction"&&row.payload.taskOccurrence)Object.assign(payload,{
+          task:row.payload.task,taskOccurrence:row.payload.taskOccurrence,taskRunOnce:row.payload.taskRunOnce,
+        });
         const next = row ? { ...row, payload } as FinanceRecord
           : financeRow(owner, kind, payload as never,
             undefined);
         if (row?.kind === "subscription" && next.kind === "subscription") {
           await repository.editRecurringFinance(row, next.payload, scope === "all" ? row.payload.next : occurrence ?? row.payload.next, scope);
-        } else await repository.saveFinance(next);
+        } else if(saveLinked)await saveLinked(next);
+        else await repository.saveFinance(next);
       }
       close();
     } catch (error) { setProblem(error instanceof Error ? error.message : "儲存失敗"); }

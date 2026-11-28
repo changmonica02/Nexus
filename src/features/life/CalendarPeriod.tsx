@@ -1,3 +1,4 @@
+import { actionNames } from "./taskLink";
 import { useEffect, useRef, useState } from "react";
 import { addDays, localDateKey } from "../../lib/todoCalendar";
 import { calendarEventClass, calendarEventKey, sortCalendarEvents, type LifeCalendarEvent } from "./calendarSources";
@@ -29,7 +30,9 @@ export function CalendarItem({ item, locale, open, complete, showTime = false }:
 }) {
   return <div className={"life-calendar-item " + calendarEventClass(item)}>
     {complete && (item.source === "tasks" || item.source === "taskStart") &&
-      <input type="checkbox" aria-label={`完成 ${item.title}`} checked={item.completed} onChange={() => complete(item)}/>}
+      (item.taskSlot?.settings.action?
+       <button type="button" className="shrink-0 rounded px-1 text-xs underline" onClick={()=>complete(item)}>{actionNames[item.taskSlot.settings.action.kind]}</button>:
+       <input type="checkbox" aria-label={`完成 ${item.title}`} checked={item.completed} onChange={() => complete(item)}/>)}
     <button type="button" title={item.title} onClick={() => open(item)}>
       {showTime && !item.allDay && item.startsAt != null && <time>
         {new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(item.startsAt)}{" "}

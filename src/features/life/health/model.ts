@@ -51,7 +51,7 @@ export function validateHealth(row:HealthRecord){
    ||Object.entries(item.values).some(([key,value])=>!Object.hasOwn(nutrition,key)||!Number.isFinite(value)||value<0)))throw Error("請確認食品、份量及營養數值");
   if(s("image")&&(s("image").length>180000||!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(s("image")))) throw Error("圖片格式無效");
  }
- if(kind==="water"&&!positive(data,"amount")||["plan","exercise"].includes(kind)&&(!positive(data,"minutes")||Number(data.minutes)>10080))throw Error("容量或時長無效");
+ if(kind==="water"&&(!positive(data,"amount")||Number(data.amount)>100000)||["plan","exercise"].includes(kind)&&(!positive(data,"minutes")||Number(data.minutes)>10080))throw Error("容量或時長無效");
  if(kind==="plan"&&(s("until")&&(!validDay(s("until"))||s("until")<s("date"))||!/^[0-6]*$/.test(s("weekdays"))))throw Error("計畫週期無效");
  if(kind==="sleep"&&(!validDay(s("start").slice(0,10))||!validDay(s("end").slice(0,10))||!clock(s("start").slice(11))||!clock(s("end").slice(11))
   ||!positive(data,"startAt")||Number(data.endAt)<=Number(data.startAt)||!Number.isInteger(data.quality)||Number(data.quality)<1||Number(data.quality)>5))throw Error("請確認睡眠時間及品質");

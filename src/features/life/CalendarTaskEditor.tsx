@@ -5,6 +5,7 @@ import { confirmDialog } from "../../lib/confirmDialog";
 import ModalDialog from "../../components/ModalDialog";
 import { useUnsavedDraft } from "../dictionary/useUnsavedDraft";
 import TaskDetails from "./TaskDetails";
+import type { ActionSources } from "./taskLink";
 import TaskPlanFields from "./TaskPlanFields";
 import { defaultTaskSettings, editTaskPlan, legacyTaskSettings, sameTaskData } from "./taskPlan";
 import { control } from "./dashboard/styles";
@@ -55,11 +56,12 @@ export default function CalendarTaskEditor({ page, update, remove, open, close }
   </ModalDialog>;
 }
 
-export function NewCalendarTask({ date, create, close, startTracking = false }: {
+export function NewCalendarTask({ date, create, close, startTracking = false, sources }: {
   date: Date;
   create: (title: string, due: number | null, fields?: TaskSchedulingFields) => void | Promise<unknown>;
   close: () => void;
   startTracking?: boolean;
+  sources?:ActionSources;
 }) {
   const [title, setTitle] = useState("");
   const [initial] = useState(() => ({...defaultTaskSettings(date), tracking:startTracking}));
@@ -88,7 +90,7 @@ export function NewCalendarTask({ date, create, close, startTracking = false }: 
       finally { setBusy(false); }
     }}>
       <label className="grid gap-1">名稱<input autoFocus className={control} maxLength={500} required value={title} onChange={event => setTitle(event.target.value)}/></label>
-      <TaskPlanFields value={settings} change={setSettings}/>
+      <TaskPlanFields value={settings} change={setSettings} sources={sources}/>
       <TaskDetails page={{...details} as Page} legacyScheduling={false} apply={patch=>setDetails(current=>({...current,...patch}))}/>
       {error && <p role="alert">{error}</p>}
       <div className="flex gap-2"><button className={control} disabled={busy}>儲存任務</button>

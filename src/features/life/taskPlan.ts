@@ -1,3 +1,4 @@
+import { validateTaskAction,type TaskAction } from "./taskLink";
 import type { Page } from "../../lib/types";
 import { localDateInput } from "../../lib/todoCalendar";
 import { civilAdvance } from "./civilPeriods";
@@ -22,6 +23,7 @@ export type TaskSettings = {
   tracking: boolean;
   goal: TaskGoal;
   recurrence: TaskRule;
+  action?:TaskAction;
 };
 export type TaskSegment = { id: string; keyPrefix?: string; sequenceBase?: number; since?: string; through?: string; settings: TaskSettings };
 export type TaskPlan = { segments: TaskSegment[]; excluded: string[]; overrides: Record<string, TaskSettings>; retired?: boolean; retiredOn?: string; legacyHabitId?: string };
@@ -49,6 +51,7 @@ export type TaskSlot = {
   endsAt: number | null;
   dueAt: number | null;
   record?: TaskExecution;
+  completedDay?:string;
   status: TaskStatus;
   amount: number;
 };
@@ -77,6 +80,7 @@ export function validateTaskSettings(settings: TaskSettings) {
     || (settings.startsAt != null && settings.endsAt! <= settings.startsAt)
     || !["once", "fixed", "flexible", "after"].includes(settings.recurrence.mode)) throw Error("請確認任務日期、目標及時間");
   new Intl.DateTimeFormat("en", { timeZone: settings.zone });
+  if(settings.action)validateTaskAction(settings.action);
   const recurrence = settings.recurrence;
   if ((recurrence.mode==="after"||recurrence.mode==="flexible") &&
     (recurrence.until&&(!isCivilDate(recurrence.until)||recurrence.until<settings.anchor)
@@ -122,7 +126,7 @@ function shift(time: number | null, settings: TaskSettings, day: string) {
   return fromWall(zonalTime(time, settings.zone) + utcDay(day) - utcDay(settings.anchor), settings.zone);
 }
 
-export function taskSlots(plan: TaskPlan, executions: TaskExecution[], from: string, until: string, now = Date.now()): TaskSlot[] {
+export function taskSlots(plan: TaskPlan, executions: TaskExecution[], from: string, until: string, now = Date.now(), project?:(slot:TaskSlot)=>TaskSlot): TaskSlot[] {
   const records = new Map(executions.map(row => [row.occurrence, row]));
   const slots = new Map<string, TaskSlot>();
   const excluded = new Set(plan.excluded);
@@ -154,11 +158,14 @@ export function taskSlots(plan: TaskPlan, executions: TaskExecution[], from: str
       const startDay = startsAt == null ? day : dayKey(zonalTime(startsAt, settings.zone));
       const visibleFrom = [day,startDay,dueDay].sort()[0];
       const visibleUntil = [last,endDay,dueDay].sort().at(-1)!;
-      if (visibleUntil < from || visibleFrom > until) return;
+      const visible=visibleUntil>=from&&visibleFrom<=until;
       const saved = record?.status ?? "pending";
       const missed = (dueAt == null ? last < today : dueAt < now) && details.tracking && (saved === "pending" || saved === "partial");
-      slots.set(key, { key, segmentId:segment.id, ordinal, day, through: last, settings: details, startsAt, endsAt, dueAt, record,
-        status: missed ? "missed" : saved, amount: record?.amount ?? 0 });
+      const base:TaskSlot={key,segmentId:segment.id,ordinal,day,through:last,settings:details,startsAt,endsAt,dueAt,record,
+       status:missed?"missed":saved,amount:record?.amount??0};
+      const projected=project?.(base)??base;
+      if(visible)slots.set(key,projected);
+      return projected;
     };
     if (rule.mode === "fixed") {
       const stamp = utcDay(settings.anchor);
@@ -187,14 +194,17 @@ export function taskSlots(plan: TaskPlan, executions: TaskExecution[], from: str
     } else if (rule.mode === "after") {
       let day = settings.anchor;
       if (segment.since && day < segment.since && !records.has(prefix + ":after:" + (segment.sequenceBase??0))) day=segment.since;
-      for (let index = 0; index <= executions.length && index < (rule.count??Infinity); index++) {
+      for (let index = 0; index <= (project?10000:executions.length) && index < (rule.count??Infinity); index++) {
         if (segment.through && day > segment.through || rule.until && day > rule.until) break;
         const ordinal=(segment.sequenceBase??0)+index;
         const key = prefix + ":after:" + ordinal;
-        add(key, day, day, index);
-        const execution = records.get(key);
-        if (execution?.status !== "complete" || execution.completed_at == null) break;
-        day = civilAdvance(dayKey(zonalTime(execution.completed_at,settings.zone)),"day",rule.days);
+        const slot=add(key,day,day,index);
+        const execution=records.get(key);
+        const completed=slot?.settings.action?slot.completedDay:execution?.status==="complete"&&execution.completed_at!=null
+          ?dayKey(zonalTime(execution.completed_at,settings.zone)):slot?.completedDay;
+        if(!completed)break;
+        day=civilAdvance(completed,"day",rule.days);
+        if(day>horizonDay)break;
       }
     } else if (!segment.through || settings.anchor <= segment.through) {
       add(prefix + ":" + settings.anchor, settings.anchor);
@@ -283,9 +293,9 @@ export function editTaskPlan(plan: TaskPlan, slot: TaskSlot | undefined, scope: 
   return { ...plan, segments, retired: !segments.length };
 }
 
-export function executionHistory(plan: TaskPlan, rows: TaskExecution[], today: string) {
+export function executionHistory(plan: TaskPlan, rows: TaskExecution[], today: string, project?:(slot:TaskSlot)=>TaskSlot) {
   const from = [...plan.segments.map(segment => segment.settings.anchor), ...rows.map(row => row.day)].sort()[0] ?? today;
-  const slots = taskSlots(plan,rows,from,today);
+  const slots = taskSlots(plan,rows,from,today,Date.now(),project);
   const keys = new Set(slots.map(slot => slot.key));
   for (const record of rows) {
     if (keys.has(record.occurrence)) continue;

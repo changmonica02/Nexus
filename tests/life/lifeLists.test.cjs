@@ -39,6 +39,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261128020000_life_finance_recurring.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261128030000_life_health_dose_slots.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128040000_life_task_action_slots.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -886,5 +887,26 @@ test("managed care slots reject concurrent duplicates while legacy logs remain r
     await rpc(pg,"life_health_records",managed);
     await assert.rejects(rpc(pg,"life_health_records",{...managed,id:"managed-duplicate"}),/life_health_managed_dose_slot/);
     assert.equal((await pg.query("select id from life_health_records")).rows.length,3);
+  }finally{await storage.close();await pg.close();}
+});
+
+test("linked check results cannot be duplicated, and rejected financial writes add no result",async()=>{
+  const {makeHealth}=require("../../src/features/life/health/model.ts");
+  const {financeRow}=require("../../src/features/life/finance/model.ts");
+  const pg=await setup(), storage=await device();
+  try{
+    const repo=storage.getLifeRepository();
+    const link={task:"linked-task",taskOccurrence:"first",taskRunOnce:true};
+    const first=makeHealth(owner,"water",{date:"2026-11-28",time:"08:00",amount:100,...link});
+    const second={...first,id:"another-linked-drink"};
+    const outcomes=await Promise.allSettled([repo.saveHealth(first),repo.saveHealth(second)]);
+    assert.equal(outcomes.filter(item=>item.status==="fulfilled").length,1);
+    await rpc(pg,"life_health_records",first);
+    await assert.rejects(rpc(pg,"life_health_records",second),/life_health_task_action_slot/);
+    await assert.rejects(repo.saveFinance(financeRow(owner,"transaction",{
+      title:"無效交易",notes:"",type:"expense",date:"2026-11-28",amount:"100",account:"missing",
+      target:"",targetAmount:"0",category:"",attachment:"",source:"",...link,
+    })));
+    assert.equal((await repo.readFinance()).length,0);
   }finally{await storage.close();await pg.close();}
 });

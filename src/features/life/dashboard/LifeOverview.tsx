@@ -227,7 +227,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
           const plannedRows = plannedExecutions && ["tasks","calendar","habits"].includes(card.type) && !config.hiddenModules.includes("tasks")
             ? todos.flatMap(task => {
               if (!task.task_plan || task.task_plan.retired || card.type==="habits"&&card.listId&&task.id!==card.listId) return [];
-              return taskSlots(task.task_plan,plannedExecutions.get(task.id)??[],localDateInput(timelineDays[0]),localDateInput(timelineDays.at(-1)!)).map(slot=>projectTaskSlot?.(task.id,slot)??slot)
+              return taskSlots(task.task_plan,plannedExecutions.get(task.id)??[],localDateInput(timelineDays[0]),localDateInput(timelineDays.at(-1)!),Date.now(),slot=>projectTaskSlot?.(task.id,slot)??slot)
                 .filter(slot => (card.type!=="habits"||slot.settings.tracking)
                   && (card.status==="all" || (card.status==="completed") === (slot.status==="complete")))
                 .map(slot=>({task,slot}));

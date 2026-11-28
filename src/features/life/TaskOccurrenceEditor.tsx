@@ -6,18 +6,21 @@ import ModalDialog from "../../components/ModalDialog";
 import { control } from "./dashboard/styles";
 import type { LifeRepository } from "./LifeRepository";
 import type { TaskHealthKind } from "./health/taskProgress";
+import { actionNames,type ActionSources } from "./taskLink";
 import TaskDetails from "./TaskDetails";
 import TaskPlanFields from "./TaskPlanFields";
 import { defaultTaskSettings, editTaskPlan, executionHistory, statusLabels, taskStatistics,
   type TaskExecution, type TaskScope, type TaskSettings, type TaskSlot, type TaskStatus } from "./taskPlan";
 
-export default function TaskOccurrenceEditor({ page, slot, executions, repository, update, close, project, recordHealth }: {
+export default function TaskOccurrenceEditor({ page, slot, executions, repository, update, close, project, recordHealth, sources, runLink }: {
   page: Page;
   slot?: TaskSlot;
   executions: TaskExecution[];
   repository: LifeRepository;
   update: (id:string, patch:Partial<Page>)=>void | Promise<unknown>;
   close: () => void;
+  sources?:ActionSources;
+  runLink?:(slot:TaskSlot)=>void;
   project?: (slot:TaskSlot)=>TaskSlot;
   recordHealth?: (id:string,kind:TaskHealthKind,day:string)=>void;
 }) {
@@ -29,7 +32,7 @@ export default function TaskOccurrenceEditor({ page, slot, executions, repositor
   const [selected,setSelected] = useState(slot?.key);
   const [group,setGroup] = useState<"daily"|"weekly"|"monthly">("daily");
   const today = localDateInput(new Date());
-  const history = executionHistory(plan,executions,today).map(item=>project?.(item)??item);
+  const history = executionHistory(plan,executions,today,project);
   const current = (selected && history.find(row => row.key === selected)) || slot;
   const [amount,setAmount] = useState(slot?.record?.amount ?? 0);
   const [completedTime,setCompletedTime]=useState(localDateTimeInput(slot?.record?.completed_at));
@@ -71,11 +74,13 @@ export default function TaskOccurrenceEditor({ page, slot, executions, repositor
       {current.dueAt!=null&&<p className="text-sm">截止時間 {localDateTimeInput(current.dueAt).replace("T"," ")}</p>}
       {current.record?.completed_at!=null&&<p className="text-sm">完成時間 {localDateTimeInput(current.record.completed_at).replace("T"," ")}</p>}
       <p>{current.amount} / {(current.record?.goal??current.settings.goal).target} {(current.record?.goal??current.settings.goal).unit}</p>
-      {!current.record&&current.amount>0&&<p className="text-sm">進度來自已關聯的健康紀錄。</p>}
-      {recordHealth&&current.day<=today&&<details><summary>記錄健康資料</summary><div className="flex flex-wrap gap-2 py-2">
+      {!current.record&&current.amount>0&&<p className="text-sm">{current.settings.action?"進度來自已連動的正式紀錄。":"進度來自已關聯的健康紀錄。"}</p>}
+      {!current.settings.action&&recordHealth&&current.day<=today&&<details><summary>記錄健康資料</summary><div className="flex flex-wrap gap-2 py-2">
         {([["water","飲水"],["exercise","運動"],["body","體重"]] as const).map(([kind,label])=>
           <button key={kind} type="button" className={control} onClick={()=>recordHealth(page.id,kind,current.day)}>記錄{label}</button>)}
       </div></details>}
+      {current.settings.action?<button type="button" className={control} disabled={busy||current.day>today||current.status==="complete"&&current.settings.goal.kind==="check"}
+       onClick={()=>runLink?.(current)}>{actionNames[current.settings.action.kind]}</button>:<>
       <label className="grid gap-1">實際完成時間<input type="datetime-local" className={control}
         value={completedTime} onChange={event=>setCompletedTime(event.target.value)}/></label>
       {(current.record?.goal??current.settings.goal).kind!=="check"&&<label className="grid gap-1">實際完成量
@@ -85,6 +90,8 @@ export default function TaskOccurrenceEditor({ page, slot, executions, repositor
         <button type="button" className={control} disabled={busy} onClick={()=>void record("complete")}>標記完成</button>
         {(current.record?.goal??current.settings.goal).kind!=="check"&&<button type="button" className={control} disabled={busy}
           onClick={()=>void record(amount >= (current.record?.goal??current.settings.goal).target?"complete":amount>0?"partial":"pending")}>儲存進度</button>}
+      </div></>}
+      <div className="flex flex-wrap gap-2">
         <button type="button" className={control} disabled={busy} onClick={()=>void record("skipped")}>跳過本次</button>
         <button type="button" className={control} disabled={busy} onClick={()=>void record("missed")}>記為未達成</button>
         <button type="button" className={control} disabled={busy} onClick={()=>void record("pending")}>恢復為未完成</button>
@@ -95,7 +102,7 @@ export default function TaskOccurrenceEditor({ page, slot, executions, repositor
         <option value="one">僅本次</option><option value="future">本次及後續</option><option value="all">整個系列</option>
       </select></label>}
       {scope==="all"&&<label className="grid gap-1">名稱<input className={control} value={title} required maxLength={500} onChange={event=>setTitle(event.target.value)}/></label>}
-      <TaskPlanFields value={settings} change={setSettings} single={scope==="one"}/>
+      <TaskPlanFields value={settings} change={setSettings} single={scope==="one"} sources={sources}/>
       {scope==="all"&&<TaskDetails page={{...page,...details}} legacyScheduling={false} apply={patch=>setDetails(current=>({...current,...patch}))}/>}
       <div className="flex flex-wrap gap-2">
         <button className={control} disabled={busy}>儲存任務</button>

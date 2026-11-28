@@ -232,6 +232,19 @@ export class WorkspacePersistence {
           }
         }
       }
+      for(const type of ["life_health_records","life_finance_records"] as const){
+        const touched=changes.filter(change=>change.type===type&&change.kind==="save").map(change=>type==="life_health_records"?
+          (change.value as HealthRecord).data:(change.value as FinanceRecord<"transaction">).payload).filter(data=>data.taskRunOnce===true&&data.taskOccurrence);
+        if(!touched.length)continue;
+        const ownerRows=(await tx.objectStore(type).getAll() as (HealthRecord|FinanceRecord)[])
+          .filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null);
+        const links=ownerRows.flatMap(row=>"data" in row?[row.data]:row.kind==="transaction"?[row.payload]:[]);
+        for(const link of touched){
+          if(links.filter(row=>row.task===link.task&&row.taskOccurrence===link.taskOccurrence&&row.taskRunOnce===true).length>1){
+            throw Error("本次任務已有正式紀錄，請編輯原紀錄");
+          }
+        }
+      }
       if(!operations.length){ await tx.done; return; }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;

@@ -1,3 +1,4 @@
+import type { TaskLink } from "../taskLink";
 import type { LifeSyncBase } from "../syncRecords";
 import { currencies, decimalUnits, isUnits } from "./money";
 
@@ -15,7 +16,7 @@ export type FinancePayloads = {
   account: Common & { type: keyof typeof accountKinds; currency: string; opening: string; icon: string; color: string; archived: boolean; opened?: string;
     limit: string; statementDay: number; paymentDay: number; due: string };
   transaction: Common & { type: keyof typeof transactionKinds; date: string; amount: string; account: string; target: string;
-    targetAmount: string; interest?: string; category: string; attachment: string; source: string };
+    targetAmount: string; interest?: string; category: string; attachment: string; source: string } & Partial<TaskLink>;
   estimate: Common & { date: string; amount: string; currency: string; category: string };
   preferences: { currency: string; rates: Record<string, string>; rateHistory?:{date:string;base:string;currency:string;rate:string}[]; categories: string[]; hiddenSections?: OptionalFinanceSection[]; showCalendarTransactions?: boolean };
   budget: Common & { month: string; category: string; amount: string; currency: string };

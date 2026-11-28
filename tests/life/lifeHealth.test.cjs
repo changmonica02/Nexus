@@ -210,3 +210,16 @@ test("configured monthly goals use actual recorded days for averages and retain 
  assert.deepEqual(progress(drinks,goal,day),{current:750,ratio:75});
  assert.deepEqual(progress([],goal,day),{current:null,ratio:null});
 });
+
+test("linked records project cumulative progress, reversal and separate occurrence identity",()=>{
+ const {projectTaskLink}=require("../../src/features/life/taskLink.ts");
+ const date="2026-11-28";
+ const slot={day:date,through:date,key:"period",status:"pending",amount:0,settings:{
+  action:{kind:"water",mode:"form"},goal:{kind:"quantity",target:650,unit:"mL"},
+ }};
+ const drink=(amount,taskOccurrence="period")=>record("water",{date,amount,task:"drink",taskOccurrence});
+ const project=health=>projectTaskLink({health,finance:[]},"drink",slot,date);
+ assert.equal(project([drink(350),drink(500,"other")]).status,"partial");
+ assert.equal(project([drink(350),drink(300)]).status,"complete");
+ assert.equal(project([]).status,"pending");
+});

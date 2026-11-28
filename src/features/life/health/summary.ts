@@ -44,6 +44,8 @@ export function totals(rows:HealthRecord[],from:string,to:string){
   lift:workouts.reduce<number|null>((max,row)=>typeof row.data.lift==="number"?Math.max(max??0,row.data.lift):max,null)};
 }
 export function progress(rows:HealthRecord[],row:HealthRecord,day:string){
+ if(row.data.paused===true)return {current:null,ratio:null};
+ rows=rows.filter(item=>!item.data.healthGoal||item.data.healthGoal===row.id);
  const metric=str(row,"metric"),start=str(row,"date"),end=str(row,"until"),through=day>end?end:day;
  const configured=str(row,"period");
  const window:Period=configured==="month"||configured==="week"||configured==="day"?configured:metric==="minutes"||metric==="sessions"?"week":"day";

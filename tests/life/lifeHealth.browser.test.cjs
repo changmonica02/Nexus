@@ -75,18 +75,56 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.reload();
     await navigateLife(page, "健康管理");
     await page.getByText("65 kg",{exact:true}).waitFor();
-    await page.getByText("500 ml",{exact:true}).waitFor();
-    await page.getByText("8 小時",{exact:true}).waitFor();
+    await page.getByText("500 mL",{exact:true}).first().waitFor();
+    await page.getByText("8 小時",{exact:true}).first().waitFor();
     const date = page.getByLabel("紀錄日期");
     const original = await date.inputValue();
     await page.getByRole("button",{name:"前一天",exact:true}).click();
     assert.notEqual(await date.inputValue(),original);
     await page.getByRole("button",{name:"今天",exact:true}).click();
     assert.equal(await date.inputValue(),original);
-    await page.getByRole("button",{name:"記錄 250 ml",exact:true}).click();
-    await page.getByText("750 ml",{exact:true}).waitFor();
+    const screenshots=process.env.NEXUS_HEALTH_SCREENSHOTS;
+    const shot=async name=>{
+      if(!screenshots)return;
+      fs.mkdirSync(screenshots,{recursive:true});
+      await page.screenshot({path:path.join(screenshots,`Nexus-Health-${name}.png`)});
+    };
+    assert.equal(await page.getByText("＋自訂",{exact:true}).count(),2);
+    assert.equal(await page.getByRole("heading",{name:"健康事項",exact:true}).count(),0);
+    assert.equal(await page.getByRole("heading",{name:"當日健康摘要",exact:true}).count(),0);
+    await shot("water-empty");
+    for(const [slot,amount] of [[1,250],[2,600]]){
+      await page.getByRole("button",{name:"設定飲水快捷 "+slot,exact:true}).click();
+      const shortcut=page.getByRole("dialog",{name:"飲水快捷容量",exact:true});
+      await shortcut.getByRole("spinbutton").fill(String(amount));
+      await shortcut.getByRole("button",{name:"儲存",exact:true}).click();
+      await shortcut.waitFor({state:"hidden"});
+    }
+    await page.getByRole("button",{name:"記錄 250 mL",exact:true}).click();
+    await page.getByText("750 mL",{exact:true}).waitFor();
     await page.getByRole("button",{name:"復原",exact:true}).click();
-    await page.getByText("500 ml",{exact:true}).waitFor();
+    await page.getByText("500 mL",{exact:true}).first().waitFor();
+    await page.reload();
+    await navigateLife(page,"健康管理");
+    await page.getByRole("button",{name:"記錄 600 mL",exact:true}).waitFor();
+    await shot("water-configured");
+    await page.getByRole("button",{name:"管理飲水",exact:true}).click();
+    const manager=page.getByRole("dialog",{name:"飲水管理",exact:true});
+    await manager.waitFor();
+    await shot("water-management");
+    await manager.getByRole("button",{name:"飲水",exact:true}).click();
+    const historical=page.getByRole("dialog",{name:"編輯飲水",exact:true});
+    await historical.waitFor();
+    await shot("water-history");
+    await historical.getByLabel("容量（ml）").fill("550");
+    await historical.getByRole("button",{name:"儲存",exact:true}).click();
+    await manager.getByText(/550 mL/).waitFor();
+    await manager.getByRole("button",{name:/修改快捷 2/}).click();
+    const clear=page.getByRole("dialog",{name:"飲水快捷容量",exact:true});
+    await clear.getByRole("spinbutton").fill("");
+    await clear.getByRole("button",{name:"儲存",exact:true}).click();
+    await manager.getByRole("button",{name:"關閉",exact:true}).click();
+    await page.getByRole("button",{name:"設定飲水快捷 2",exact:true}).waitFor();
     assert.deepEqual(await page.getByRole("navigation",{name:"健康功能"}).getByRole("button").allTextContents(),
       ["總覽","身體","飲食","活動與休息","照護","分析"]);
     await nav("分析");
@@ -97,7 +135,7 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByRole("combobox",{name:"統計期間"}).selectOption("0");
     await page.getByLabel("開始日期",{exact:true}).fill(original);
     await page.getByLabel("結束日期",{exact:true}).fill(original);
-    await page.getByText("8 小時",{exact:true}).waitFor();
+    await page.getByText("8 小時",{exact:true}).first().waitFor();
     await nav("飲食");
     await enter("新增常用食品",async dialog=>{
       await dialog.getByLabel("名稱",{exact:true}).fill("燕麥豆漿");
@@ -126,7 +164,6 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByRole("button",{name:"暫停計畫",exact:true}).waitFor();
     await page.getByRole("button",{name:"所選日照護",exact:true}).click();
     await nav("總覽");
-    const screenshots=process.env.NEXUS_HEALTH_SCREENSHOTS;
     if(screenshots){
       fs.mkdirSync(screenshots,{recursive:true});
       for(const [label,width,height,theme] of [["desktop",1280,900,"light"],["tablet-portrait",820,1100,"light"],["tablet-landscape",1180,820,"light"],["mobile",390,844,"dark"]]){
@@ -158,7 +195,7 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
       await page.screenshot({path:path.join(screenshots,"Nexus-Health-dose-editor-mobile.png")});
       await dose.getByRole("button",{name:"取消",exact:true}).click();
       await nav("飲食");
-      await page.getByRole("button",{name:"自訂容量",exact:true}).click();
+      await page.getByRole("button",{name:"新增飲水",exact:true}).click();
       const waterDialog=page.getByRole("dialog",{name:"新增飲水",exact:true});
       await waterDialog.waitFor();
       await page.screenshot({path:path.join(screenshots,"Nexus-Health-water-editor-mobile.png")});
@@ -180,26 +217,55 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await task.getByLabel("重複週期",{exact:true}).selectOption("fixed");
     await task.getByLabel("目標種類",{exact:true}).selectOption("duration");
     await task.getByLabel("目標值",{exact:true}).fill("25");
+    await task.getByLabel("連動模組").selectOption("health");
+    await task.getByLabel("執行動作").selectOption("exercise");
+    await task.getByLabel("預設運動分鐘").fill("30");
+    await shot("task-health-settings");
     await task.getByRole("button",{name:"儲存任務",exact:true}).click();
     const taskItem = page.getByRole("complementary",{name:"日期詳情"}).getByRole("button",{name:/運動測試任務/});
     await taskItem.click();
     const occurrence = page.getByRole("dialog",{name:"週期任務",exact:true});
-    await occurrence.getByText("記錄健康資料",{exact:true}).click();
     await occurrence.getByRole("button",{name:"記錄運動",exact:true}).click();
     const workout = page.getByRole("dialog",{name:"新增運動紀錄",exact:true});
     await workout.getByLabel("名稱",{exact:true}).fill("測試連動");
+    await shot("task-health-execution");
     await workout.getByRole("button",{name:"儲存",exact:true}).click();
     await workout.waitFor({state:"hidden"});
-    await navigateLife(page,"日曆");
-    await taskItem.click();
     await occurrence.getByText(/30 \/ 25/).waitFor();
-    await occurrence.getByText("進度來自已關聯的健康紀錄。",{exact:true}).waitFor();
+    await occurrence.getByText("進度來自已連動的正式紀錄。",{exact:true}).waitFor();
     await page.evaluate(async()=>{
       const repo = window.lifeStorage.getLifeRepository();
       const row = (await repo.readHealth()).find(row=>row.kind==="exercise"&&row.data.title==="測試連動");
       await repo.saveHealth(row,true);
     });
     await occurrence.getByText(/0 \/ 25/).waitFor();
+    await occurrence.getByRole("button",{name:"關閉",exact:true}).click();
+    await page.evaluate(async()=>{
+      const owner=window.lifeStorage.getWorkspaceOwner(), now=Date.now();
+      await window.lifeStorage.getLifeRepository().saveFinance({id:"task-account",kind:"account",workspace_owner_id:owner,created_at:now,
+        updated_at:now,revision:0,deleted_at:null,payload:{title:"測試帳戶",notes:"",currency:"TWD",type:"bank",opening:"0",color:"#000000",
+        icon:"",archived:false,limit:"0",statementDay:1,paymentDay:5,due:""}});
+    });
+    await page.getByRole("button",{name:"新增",exact:true}).click();
+    await page.getByRole("button",{name:"新增任務",exact:true}).click();
+    await task.getByLabel("名稱",{exact:true}).fill("測試交易任務");
+    await task.getByLabel("重複週期",{exact:true}).selectOption("fixed");
+    await task.getByLabel("連動模組").selectOption("finance");
+    await task.getByLabel("執行方式").selectOption("quick");
+    await task.getByLabel("帳戶（含幣別）").selectOption("task-account");
+    await task.getByLabel("預設金額").fill("99");
+    await shot("task-finance-settings");
+    await task.getByRole("button",{name:"儲存任務",exact:true}).click();
+    await page.getByRole("complementary",{name:"日期詳情"}).getByRole("button",{name:/測試交易任務/}).click();
+    await occurrence.getByRole("button",{name:"記錄支出",exact:true}).click();
+    const financeAction=page.getByRole("dialog",{name:"記錄支出",exact:true});
+    await financeAction.getByRole("button",{name:"繼續確認",exact:true}).click();
+    await shot("task-finance-execution");
+    await page.getByRole("button",{name:"確認",exact:true}).click();
+    await occurrence.getByText(/1 \/ 1/).waitFor();
+    assert.equal(await page.evaluate(async()=> (await window.lifeStorage.getLifeRepository().readFinance())
+      .filter(row=>row.kind==="transaction"&&row.payload.taskOccurrence).length),1);
+
     assert.deepEqual(errors,[]);
   } finally {
     await browser?.close();

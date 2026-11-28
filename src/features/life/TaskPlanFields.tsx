@@ -1,11 +1,14 @@
+import TaskLinkFields from "./TaskLinkFields";
+import type { ActionSources } from "./taskLink";
 import { fromWall, zonalTime, type ScheduleRule } from "./scheduleRecurrence";
 import { control } from "./dashboard/styles";
 import type { TaskRule, TaskSettings } from "./taskPlan";
 
-export default function TaskPlanFields({ value, change, single = false }: {
+export default function TaskPlanFields({ value, change, single = false, sources }: {
   value: TaskSettings;
   change: (value: TaskSettings) => void;
   single?: boolean;
+  sources?:ActionSources;
 }) {
   const patch = (fields: Partial<TaskSettings>) => change({ ...value, ...fields });
   const recurrence = value.recurrence;
@@ -32,7 +35,7 @@ export default function TaskPlanFields({ value, change, single = false }: {
         const mode=event.target.value as TaskRule["mode"];
         const rule:TaskRule=mode==="fixed"?{mode,rule:{frequency:"day",interval:1,weekdays:[],until:"",count:null,zone:value.zone,exceptions:[],overrides:{}}}
           :mode==="after"?{mode,days:1}:mode==="flexible"?{mode,period:"weekly"}:{mode:"once"};
-        patch({recurrence:rule,...(mode==="flexible"?{startsAt:null,endsAt:null}:{})});
+        patch({recurrence:rule,...(mode==="once"?{action:undefined}:{}),...(mode==="flexible"?{startsAt:null,endsAt:null}:{})});
       }}>
         <option value="once">不重複</option><option value="fixed">固定日期</option><option value="flexible">週期內彈性達標</option><option value="after">完成後再安排</option>
       </select></label>
@@ -80,6 +83,7 @@ export default function TaskPlanFields({ value, change, single = false }: {
           onChange={event=>patch({recurrence:{...recurrence,count:event.target.value?Number(event.target.value):null}})}/></label>
       </div>}
     </>}
+    {recurrence.mode!=="once"&&<TaskLinkFields action={value.action} change={action=>patch({action})} sources={sources}/>}
     <label className="flex items-center gap-2"><input type="checkbox" checked={value.tracking} onChange={event=>patch({tracking:event.target.checked})}/>啟用習慣追蹤</label>
     <div className="grid gap-2 sm:grid-cols-3">
       <label className="grid gap-1">目標種類<select aria-label="目標種類" className={control} value={value.goal.kind} onChange={event=>{

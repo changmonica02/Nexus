@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Activity, CalendarDays, ChevronLeft, ChevronRight, Droplets, Moon, Pencil, Plus, Scale, Settings, Utensils } from "lucide-react";
 import { localDateInput } from "../../../lib/todoCalendar";
 import AddMenu from "../AddMenu";
 import { useUnsavedDraft } from "../../dictionary/useUnsavedDraft";
@@ -14,9 +14,8 @@ import { cycleSummary, doseIsDuplicate, medicationDue, medicationState, medicati
 import { bmi, dayOf, duration, latest, latestMeasurement, planOn, progress, totals, value } from "./summary";
 
 type Reference={id:string;title:string};
-type HealthAgendaItem={key:string;title:string;details:string;open:()=>void};
 type Field=[key:string,label:string,type?:string,options?:Record<string,string>];
-const overviewLabels={body:"身體",meal:"飲食",water:"飲水",exercise:"運動",sleep:"睡眠",agenda:"健康事項",recent:"近期紀錄",trend:"健康趨勢",goals:"目標進度"} as const;
+const overviewLabels={body:"身體",meal:"飲食",water:"飲水",exercise:"運動",sleep:"睡眠",recent:"近期紀錄"} as const;
 type OverviewBlock=keyof typeof overviewLabels;
 const localDay=(day:string)=>new Date(day+"T12:00:00").toLocaleDateString("zh-TW",{year:"numeric",month:"numeric",day:"numeric",weekday:"short"});
 const sections = {
@@ -56,7 +55,7 @@ const fields:Record<Entry,Field[]> = {
  sleep:[["start","入睡時間","datetime-local"],["end","起床時間","datetime-local"],["nap","午睡","checkbox"],["quality","品質（1–5）","number"],["wakes","夜間醒來次數","number"]],
 };
 const element=(label:string,action:()=>void)=><button className={control} type="button" onClick={action}>{label}</button>;
-function Editor({row,rows,save,close,tasks,habits,preferences}:{row:HealthRecord;rows:HealthRecord[];save:(row:HealthRecord,remove?:boolean)=>Promise<void>;close:()=>void;tasks:Reference[];habits:Reference[];preferences:Fields}){
+export function HealthEditor({row,rows,save,close,tasks,habits,preferences}:{row:HealthRecord;rows:HealthRecord[];save:(row:HealthRecord,remove?:boolean)=>Promise<void>;close:()=>void;tasks:Reference[];habits:Reference[];preferences:Fields}){
  const [draft,set]=useState(row.kind==="medication"?{...row.data,times:medicationTimes(row.data).join(", ")}:row.data),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const dirty = JSON.stringify(draft) !== JSON.stringify(row.kind === "medication"
   ? {...row.data, times:medicationTimes(row.data).join(", ")} : row.data);
@@ -174,8 +173,8 @@ function RestingEnergyEstimate({height,weight}:{height:number|null;weight:number
  </details>;
 }
 
-export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,habits,repository,focused,plannedTime,taskFocus,planExercise,linkedAgenda}:{
- rows:HealthRecord[];owner:string|null;day:string;taskOpen:(id:string)=>void;tasks:Reference[];habits:Reference[];repository:LifeRepository;focused?:string;plannedTime?:string;taskFocus?:{id:string;kind:"water"|"body"|"exercise"};planExercise?:(day:string)=>void;linkedAgenda?:(day:string)=>HealthAgendaItem[];
+export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,habits,repository,focused,plannedTime,taskFocus,planExercise}:{
+ rows:HealthRecord[];owner:string|null;day:string;taskOpen:(id:string)=>void;tasks:Reference[];habits:Reference[];repository:LifeRepository;focused?:string;plannedTime?:string;taskFocus?:{id:string;kind:"water"|"body"|"exercise"};planExercise?:(day:string)=>void;
 }){
  const focusRow=rows.find(row=>row.id===focused);
  const focusGroup=focusRow?.kind && focusRow.kind!=="privacy"?kindGroup[focusRow.kind]:undefined;
@@ -184,6 +183,9 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
   focusGroup==="diet"||focused==="new-water"?"diet":healthTabFromUrl()??"overview");
  const [day,setDay]=useState(initial),[period,setPeriod]=useState(7),[query,setQuery]=useState("");
  const [custom,setCustom]=useState({from:"",to:""});
+ const [waterManage,setWaterManage]=useState(false);
+ const [shortcut,setShortcut]=useState<number>();
+ const [allRecords,setAllRecords]=useState(false);
  const [undo,setUndo]=useState<{row:HealthRecord; action:"create"|"delete"}>();
  const [replacedPlan,setReplacedPlan]=useState<HealthRecord>();
  const navigation=useRef<HTMLElement>(null);
@@ -236,7 +238,8 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
  const change=async(patch:Fields)=>{
   if(busy)return;setBusy(true);setError("");
   try{await repository.saveHealth(pref?{...pref,data:{...privacy,...patch}}:makeHealth(owner,"privacy",patch));}
-  catch(error){setError(error instanceof Error?error.message:"儲存失敗");}finally{setBusy(false);}
+  catch(error){setError(error instanceof Error?error.message:"儲存失敗");return false;}finally{setBusy(false);}
+  return true;
  };
  const list=(kind:Entry,details:(row:HealthRecord)=>React.ReactNode,all=false,match:(row:HealthRecord)=>boolean=()=>true)=>{
   const matches=(all?safe:summary.period).filter(row=>row.kind===kind&&match(row)&&str(row,"title").toLowerCase().includes(query.toLowerCase()))
@@ -269,7 +272,8 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
  const max=Math.max(1,...points.map(item=>item.amount??0));
  const taskLink=(row:HealthRecord)=>tasks.some(task=>task.id===row.data.task)?element("開啟關聯任務",()=>taskOpen(str(row,"task"))):null;
  const goalFor=(group:Group)=>enabled("goal")&&<GoalList rows={safe} day={day} open={setEdit} group={group}/>;
- const waterPresets=String(privacy.presets??"150,250,500").split(",").map(Number).filter(amount=>amount>0);
+ const waterPresets=[num(privacy,"waterShortcut1"),num(privacy,"waterShortcut2")];
+ const waterValue=(amount:number|null)=>privacy.waterUnit==="L"?value(amount===null?null:amount/1000,"L"):value(amount,"mL");
  const logWater=async(amount:number)=>{
   if(busy)return;
   setBusy(true);setError("");
@@ -281,15 +285,33 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
   catch(error){setError(error instanceof Error?error.message:String(error));}
   finally{setBusy(false);}
  };
- const quickWater=waterPresets.map(amount=><button key={amount} type="button" className={control} disabled={busy}
-  onClick={()=>void logWater(amount)}>記錄 {amount} ml</button>);
- const recent=safe.filter(row=>dayOf(row)<=day&&dayOf(row)>=civilAdvance(day,"day",-6)&&!["goal","plan","medication"].includes(row.kind))
-  .sort((a,b)=>dayOf(b).localeCompare(dayOf(a))||b.created_at-a.created_at).slice(0,5);
- const dueDoses=safe.filter(row=>medicationDue(row,day)).flatMap(row=>medicationTimes(row.data)
-  .map(time=>({row,time,dose:scheduledDose(safe,row,day,time)}))).sort((a,b)=>a.time.localeCompare(b.time));
- const linkedItems=active==="overview"&&visibleBlock("agenda")?linkedAgenda?.(day)??[]:[];
- const plannedWorkouts=safe.filter(row=>row.kind==="plan"&&planOn(row,day));
- const waterGoal=safe.find(row=>row.kind==="goal"&&row.data.metric==="water"&&str(row,"date")<=day&&str(row,"until")>=day);
+ const waterActions=<div className="flex flex-wrap gap-1">
+  <button type="button" className={control+" px-2"} aria-label="新增飲水" onClick={()=>start("water",{amount:undefined})}><Plus size={16}/></button>
+  {waterPresets.map((amount,index)=><button key={index} type="button" className={control+" px-2"} disabled={busy}
+   aria-label={amount?"記錄 "+amount+" mL":"設定飲水快捷 "+(index+1)}
+   onClick={()=>amount?void logWater(amount):setShortcut(index+1)}>{amount?"＋"+waterValue(amount):"＋自訂"}</button>)}
+  <button type="button" className={control+" px-2"} aria-label="管理飲水" onClick={()=>setWaterManage(true)}><Pencil size={16}/></button>
+ </div>;
+ const cards=["water","meal","exercise","sleep","body"] as const;
+ const order=[...new Set([...String(privacy.overviewOrder??"").split(",").filter((key):key is typeof cards[number]=>cards.some(card=>card===key)),...cards])];
+ const icons={water:Droplets,meal:Utensils,exercise:Activity,sleep:Moon,body:Scale};
+ const bodyMetric=Object.hasOwn(body,String(privacy.overviewBodyMetric))?String(privacy.overviewBodyMetric):"weight";
+ const bodyEntry=latestMeasurement(safe,bodyMetric,day);
+ const waterGoals=safe.filter(row=>row.kind==="goal"&&row.data.metric==="water");
+ const history=safe.filter(row=>dayOf(row)&&(!["goal","plan","medication"].includes(row.kind))&&dayOf(row)<=day&&(allRecords||dayOf(row)>=civilAdvance(day,"day",-6)))
+  .sort((a,b)=>dayOf(b).localeCompare(dayOf(a))||b.created_at-a.created_at);
+ const recent=allRecords?history:history.slice(0,5);
+ const metricValue=(kind:typeof cards[number],records:HealthRecord[],date:string)=>{
+  const summary=totals(records,date,civilAdvance(date,"day",1));
+  return kind==="water"?summary.water:kind==="meal"?summary.nutrients.kcal.amount:kind==="exercise"?summary.minutes:
+   kind==="sleep"?summary.sleep:latest(records,bodyMetric,date);
+ };
+ const historyLabel=(row:HealthRecord)=>{
+  const stats=totals([row],dayOf(row),civilAdvance(dayOf(row),"day",1));
+  return row.kind==="water"?waterValue(stats.water):row.kind==="meal"?value(stats.nutrients.kcal.amount,"kcal"):
+   row.kind==="sleep"?value(duration(row),"小時"):row.kind==="exercise"?value(stats.minutes,"分鐘"):
+   row.kind==="body"?Object.entries(body).filter(([key])=>num(row.data,key)!==null).slice(0,2).map(([key,label])=>label+" "+num(row.data,key)).join(" · "):"";
+ };
  const goalsWithProgress=safe.filter(row=>row.kind==="goal"&&str(row,"date")<=rangeEnd&&str(row,"until")>=from).map(row=>progress(safe,row,rangeEnd).ratio);
  const knownGoals=goalsWithProgress.filter(ratio=>ratio!==null);
  const careLogs=active==="analysis"?summary.period.filter(row=>row.kind==="dose"&&!doseIsDuplicate(row,safe)):[];
@@ -316,15 +338,15 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    <div className="flex min-w-0 items-center gap-1">
    <button type="button" aria-label="前一天" className={control+" px-2"} onClick={()=>setDay(civilAdvance(day,"day",-1))}><ChevronLeft size={16}/></button>
    <label className={control+" relative inline-flex items-center gap-2 whitespace-nowrap focus-within:ring-2"}>
-    <span aria-hidden="true">{day.replaceAll("-","/")}</span><CalendarDays size={16} aria-hidden="true"/>
+    <span aria-hidden="true">{day.slice(5,7).replace(/^0/,"")+" 月 "+day.slice(8).replace(/^0/,"")+" 日 "+new Date(day+"T12:00:00").toLocaleDateString("zh-TW",{weekday:"short"})}</span><CalendarDays size={16} aria-hidden="true"/>
     <input aria-label="紀錄日期" type="date" lang="zh-TW" className="absolute inset-0 size-full cursor-pointer opacity-0"
      value={day} onChange={event=>event.target.value&&setDay(event.target.value)}/>
    </label>
    <button type="button" aria-label="後一天" className={control+" px-2"} onClick={()=>setDay(civilAdvance(day,"day",1))}><ChevronRight size={16}/></button>
-   <button type="button" className={control} onClick={()=>setDay(today)}>今天</button></div>
+   {day!==today&&<button type="button" className={control} onClick={()=>setDay(today)}>今天</button>}</div>
    {active!=="overview"&&active!=="privacy"&&<select aria-label="統計期間" className={control} value={period}
     onChange={event=>setPeriod(Number(event.target.value))}>{[7,30,90,365].map(value=><option key={value} value={value}>{value===365?"一年":value+" 日"}</option>)}{active==="analysis"&&<option value={0}>自訂期間</option>}</select>}
-   {active!=="privacy"&&<AddMenu items={[
+   {active!=="privacy"&&<AddMenu iconOnly items={[
     ...sectionEntries[active].filter(kind=>enabled(kindGroup[kind])).map(kind=>({
      label:"新增"+labels[kind],action:()=>start(kind,kind==="medication"?{unit:""}:kind==="goal"&&active==="medication"?{metric:"care",mode:"increase"}:{})
     })),
@@ -339,66 +361,55 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
      onClick={()=>{setQuery("");setFoodLibrary(false);setTab(key);}}>{sections[key]}</button>)}</nav>
   {error&&<p role="alert">{error}</p>}
   {active==="overview"&&<>
-   <section className="rounded-2xl bg-[#2e483c] px-3 py-2 text-white sm:px-4">
-    <h3 className="mb-1.5 text-sm font-semibold">{localDay(day)}</h3>
-    <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-5">
-     {enabled("body")&&visibleBlock("body")&&<div><dt className="text-white/80">最新體重</dt><dd className="font-semibold tabular-nums">{displayWeight(latest(safe,"weight",day))}</dd></div>}
-     {enabled("diet")&&visibleBlock("meal")&&<div><dt className="text-white/80">當日熱量</dt><dd className="font-semibold tabular-nums">{value(summary.nutrients.kcal.amount,"kcal")}{summary.nutrients.kcal.missing?"（部分）":""}</dd></div>}
-     {enabled("diet")&&visibleBlock("water")&&<div><dt className="text-white/80">當日飲水</dt><dd className="font-semibold tabular-nums">{value(summary.water,"ml")}</dd></div>}
-     {enabled("sleep")&&visibleBlock("sleep")&&<div><dt className="text-white/80">當日睡眠</dt><dd className="font-semibold tabular-nums">{value(summary.sleep,"小時")}</dd></div>}
-     {enabled("exercise")&&visibleBlock("exercise")&&<div><dt className="text-white/80">當日運動</dt><dd className="font-semibold tabular-nums">{value(summary.minutes,"分鐘")}</dd></div>}
-    </dl>
-   </section>
-   <div className="grid items-start gap-3 md:grid-cols-2">
-    <div className="divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] px-3">
-     {enabled("diet")&&visibleBlock("water")&&<section className="grid gap-1 py-2">
-      <h3 className="font-semibold">飲水</h3>
-      <p className="text-sm opacity-80">當日累計 · {value(summary.water,"ml")}</p>
-      {waterGoal&&(()=>{
-       const result=progress(safe,waterGoal,day);
-       return <div className="text-sm"><p>{value(result.current,"ml")} ／ {str(waterGoal,"target")} ml</p>
-        {result.ratio!==null&&<progress className="w-full accent-emerald-600" aria-label="飲水目標進度" max={100} value={result.ratio}/>}</div>;
-      })()}
-      {quick("water")&&<div className="flex flex-wrap gap-1">{quickWater}{element("自訂容量",()=>start("water"))}</div>}
-     </section>}
-     {(["meal","exercise","body","sleep"] as const).filter(kind=>enabled(kindGroup[kind])&&visibleBlock(kind)).map(kind=>
-      <section key={kind} className="flex flex-wrap items-center justify-between gap-1 py-1.5">
-       <div><h3 className="font-semibold">{overviewLabels[kind]}</h3>
-        <p className="text-xs opacity-75">{kind==="body"?"最新體重 · "+displayWeight(latest(safe,"weight",day)):
-         kind==="meal"?"當日熱量 · "+value(summary.nutrients.kcal.amount,"kcal")+(summary.nutrients.kcal.missing?"（部分）":""):
-         kind==="exercise"?"當日運動 · "+value(summary.minutes,"分鐘"):"當日睡眠 · "+value(summary.sleep,"小時")}</p></div>
-       {quick(kind)&&element("新增"+labels[kind],()=>start(kind))}
-      </section>)}
-    </div>
-    {visibleBlock("agenda")&&<section className={surface+" space-y-1"}><h3 className="font-semibold">健康事項</h3>
-     <ul className="divide-y divide-[var(--color-border)]">
-      {dueDoses.map(({row,time,dose})=><li className="flex flex-wrap items-center justify-between gap-1 py-1" key={row.id+time}>
-       <div><strong className="text-sm">{str(row,"title")}</strong><p className="text-xs opacity-75">{time} · {careStatus(dose,time)}</p></div>
-       {element(dose?"查看":"記錄",()=>openDose(row,time,dose))}
-      </li>)}
-      {plannedWorkouts.map(row=>{
-       const done=dayRows.find(item=>item.kind==="exercise"&&item.data.planId===row.id);
-       return <li key={row.id} className="flex flex-wrap items-center justify-between gap-1 py-1">
-        <div><strong className="text-sm">{str(row,"title")}</strong><p className="text-xs opacity-75">{str(row,"time")} · {done?"已記錄":"預定"} · {done?str(done,"minutes")+" / ":""}{str(row,"minutes")} 分鐘</p></div>
-        {element(done?"查看":"記錄",()=>done?setEdit(done):start("exercise",{title:row.data.title,minutes:row.data.minutes,time:row.data.time,task:row.data.task,planId:row.id}))}
-       </li>;
+   <div className="grid items-start gap-2 sm:grid-cols-2 xl:grid-cols-3">
+    {order.filter(kind=>enabled(kindGroup[kind])&&visibleBlock(kind)).map(kind=>{
+     const Icon=icons[kind], group=kind==="water"||kind==="meal"?"diet":kind;
+     const metric=kind==="body"?latest(safe,bodyMetric,day):metricValue(kind,dayRows,day);
+     const target=kind==="body"?"body":kind==="water"||kind==="meal"?"diet":"activity";
+     const inCard=(key:string)=>kind==="water"?key==="water":kind==="meal"?key!=="water"&&metricGroup(key)==="diet":metricGroup(key)===group;
+     const trend=Array.from({length:7},(_,index)=>{
+      const date=civilAdvance(day,"day",index-6);
+      return metricValue(kind,byDay.get(date)??[],date);
+     });
+     const peak=Math.max(1,...trend.map(point=>point??0));
+     return <section key={kind} className={surface+" grid min-w-0 gap-2 "+(kind==="water"?"border-emerald-600/35":"")}>
+      <div className="flex items-center justify-between"><h3 className="flex items-center gap-2 font-semibold"><Icon size={17} className="text-emerald-700 dark:text-emerald-400"/>{overviewLabels[kind]}</h3>
+       <button type="button" className="min-h-11 px-2 text-xs hover:underline" onClick={()=>{setFoodLibrary(false);setTab(target);}}>詳細</button></div>
+      <p className="text-xl font-semibold tabular-nums">{kind==="water"?waterValue(metric):kind==="body"&&bodyMetric==="weight"?displayWeight(metric):
+       value(metric,kind==="meal"?"kcal":kind==="exercise"?"分鐘":kind==="sleep"?"小時":"")}</p>
+      {kind==="meal"&&<p className="text-xs opacity-75">{Object.entries(nutrition).filter(([key])=>key!=="kcal").flatMap(([key,name])=>{
+       const entry=summary.nutrients[key];
+       return entry.amount===null?[]:[name+" "+value(entry.amount)+(entry.missing?"（部分）":"")];
+      }).slice(0,3).join(" · ")}</p>}
+      {kind==="meal"&&dayRows.filter(row=>row.kind==="meal").map(row=><p key={row.id} className="text-xs opacity-75">{str(row,"meal")} · {str(row,"title")}</p>)}
+      {kind==="exercise"&&summary.sessions!==null&&<p className="text-xs opacity-75">{summary.sessions} 次運動</p>}
+      {kind==="body"&&bodyEntry&&<p className="text-xs opacity-75">{body[bodyMetric as keyof typeof body]} · {dayOf(bodyEntry)}</p>}
+      {kind==="sleep"&&dayRows.filter(row=>row.kind==="sleep").map(row=><p key={row.id} className="text-xs opacity-75">{str(row,"start").replace("T"," ")} 至 {str(row,"end").replace("T"," ")} · 品質 {str(row,"quality")}/5</p>)}
+      {enabled("goal")&&privacy.overviewTargets!==false&&safe.filter(row=>row.kind==="goal"&&row.data.paused!==true&&inCard(str(row,"metric"))&&str(row,"date")<=day&&str(row,"until")>=day).map(row=>{
+       const ratio=progress(safe,row,day).ratio;
+       return <div key={row.id} className="text-xs"><p>{str(row,"title")} · 目標 {kind==="water"?waterValue(num(row.data,"target")):str(row,"target")}</p>
+        {ratio!==null&&<progress aria-label={str(row,"title")} max={100} value={ratio} className="w-full accent-emerald-600"/>}</div>;
       })}
-      {linkedItems.map(item=><li key={item.key} className="flex items-center justify-between gap-2 py-1">
-       <div><strong className="text-sm">{item.title}</strong><p className="text-xs opacity-75">{item.details}</p></div>
-       {element("查看任務",item.open)}
-      </li>)}
-     </ul>
-     {!dueDoses.length&&!plannedWorkouts.length&&!linkedItems.length&&<p className="text-sm opacity-75">這天沒有預定健康事項</p>}
-    </section>}
-    {visibleBlock("recent")&&<section className={surface+" space-y-2"}><h3 className="font-semibold">近期紀錄</h3>
-     {recent.length?<ul className="divide-y divide-[var(--color-border)]">{recent.map(row=><li key={row.id}>
-      <button type="button" className="min-h-11 w-full text-left" onClick={()=>setEdit(row)}>{str(row,"title")||labels[row.kind as Entry]} · {dayOf(row)}</button>
-     </li>)}</ul>:<p>最近七日尚無紀錄</p>}
-    </section>}
+      {privacy.overviewTrends!==false&&trend.filter(point=>point!==null).length>=2&&<div role="img" aria-label="近七日趨勢" className="flex h-5 items-end gap-1">
+       {trend.map((point,index)=><span key={index} className="w-2 rounded-sm bg-emerald-600/60" style={{height:point===null?0:Math.max(8,point/peak*100)+"%"}}/>)}</div>}
+      {kind==="water"?waterActions:quick(kind)&&element("新增"+labels[kind],()=>start(kind))}
+     </section>;
+    })}
    </div>
-   {visibleBlock("goals")&&enabled("goal")&&<GoalList rows={safe} day={day} open={setEdit}/>}
+   {visibleBlock("recent")&&<section className={surface+" space-y-2"}><div className="flex items-center justify-between gap-2"><h3 className="font-semibold">近期紀錄</h3>
+    {element(allRecords?"收合紀錄":"查看全部紀錄",()=>setAllRecords(!allRecords))}</div>
+    {[...new Set(recent.map(dayOf))].map(date=><section key={date}><h4 className="text-xs opacity-75">{localDay(date)}</h4>
+     <ul className="divide-y divide-[var(--color-border)]">{recent.filter(row=>dayOf(row)===date).map(row=>{
+      const Icon=icons[row.kind as keyof typeof icons]??Activity;
+      return <li key={row.id}><button type="button" onClick={()=>setEdit(row)} className="flex min-h-11 w-full items-center gap-2 text-left">
+       <Icon size={16}/><span className="min-w-0 flex-1 truncate">{str(row,"title")||labels[row.kind as Entry]} {row.kind==="meal"&&str(row,"meal")}</span>
+       <span className="text-xs opacity-75">{str(row,"time")||str(row,"end").slice(11)}</span><strong className="text-sm">{historyLabel(row)}</strong>
+      </button></li>;
+     })}</ul></section>)}
+    {!recent.length&&<p>尚無紀錄</p>}
+   </section>}
   </>}
-  {(active==="overview"&&visibleBlock("trend")||active==="analysis")&&<>
+  {active==="analysis"&&<>
    {active==="analysis"&&<>
     {period===0&&<div className="flex flex-wrap gap-1">
      <label>開始日期<input type="date" className={control} value={custom.from} onChange={event=>setCustom({...custom,from:event.target.value})}/></label>
@@ -440,7 +451,7 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
    {list("body",row=><p>{dayOf(row)} · {Object.entries(body).filter(([key])=>row.data[key]!==undefined).map(([key,label])=>label+" "+row.data[key]).join(" ・")}</p>)}{goalFor("cycle")}</>}
   {active==="diet"&&<div className="flex flex-wrap gap-2">
    {element(foodLibrary?"返回飲食紀錄":"常用食品",()=>{setQuery("");setFoodLibrary(!foodLibrary);})}
-   {!foodLibrary&&<>{quickWater}{element("自訂容量",()=>start("water"))}</>}
+   {!foodLibrary&&waterActions}
   </div>}
   {active==="diet"&&!foodLibrary&&<>{goalFor("diet")}
    <dl className={surface+" grid grid-cols-2 gap-3 sm:grid-cols-4"}>{Object.entries(nutrition).map(([key,label])=><div key={key}><dt>{label}</dt><dd>{value(summary.nutrients[key].amount)}{summary.nutrients[key].missing?"（"+summary.nutrients[key].missing+" 項未填）":""}</dd></div>)}<div><dt>飲水（ml）</dt><dd>{value(summary.water)}</dd></div></dl>
@@ -557,12 +568,46 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
      onChange={event=>void change({habits:event.target.checked})}/>在習慣頁顯示已授權的關聯健康目標</label></fieldset>
    <div className="flex flex-wrap gap-4">{([["cycle","calendarCycle","經期"],["medication","calendarMedication","服用提醒"],["body","calendar_body","身體數據"],["diet","calendar_diet","飲食飲水"],["sleep","calendar_sleep","睡眠"]] as const).map(([group,key,label])=><label key={key} className="flex min-h-11 items-center gap-2">
     <input type="checkbox" disabled={busy||!enabled(group)} checked={enabled(group)&&privacy[key]===true} onChange={event=>void change({[key]:event.target.checked})}/>在行事曆顯示{label}</label>)}</div>
-   <form className="flex flex-wrap items-end gap-2" onSubmit={event=>{event.preventDefault();const values=[...new Set(String(new FormData(event.currentTarget).get("water")).split(/[,，\s]+/).filter(Boolean).map(Number))];
-    if(values.length>10||values.some(value=>!Number.isFinite(value)||value<=0)){setError("請輸入最多 10 個正數");return;}void change({presets:values.join(",")});}}>
-    <label className="grid gap-1">常用飲水容量（ml，以逗號分隔）<input className={control} name="water" defaultValue={String(privacy.presets??"150,250,500")}/></label>
-    <button disabled={busy} className={control}>儲存容量</button></form>
+   <fieldset className="flex flex-wrap gap-2"><legend>卡片排列與指標</legend>
+    {order.map((key,index)=><button key={key} type="button" className={control} disabled={busy||index===0}
+     onClick={()=>{const ordered=[...order];[ordered[index-1],ordered[index]]=[ordered[index],ordered[index-1]];void change({overviewOrder:ordered.join(",")});}}>上移{overviewLabels[key]}</button>)}
+    <label>身體主要指標<select className={control} value={bodyMetric} onChange={event=>void change({overviewBodyMetric:event.target.value})}>
+     {Object.entries(body).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+    <label><input type="checkbox" checked={privacy.overviewTargets!==false} onChange={event=>void change({overviewTargets:event.target.checked})}/> 顯示目標</label>
+    <label><input type="checkbox" checked={privacy.overviewTrends!==false} onChange={event=>void change({overviewTrends:event.target.checked})}/> 顯示趨勢</label>
+   </fieldset>
    {element("匯出我的健康資料",()=>downloadJsonFile("nexus-health-"+day+".json",{version:1,records:rows.map(({id,kind,data,created_at,updated_at})=>({id,kind,data,created_at,updated_at}))}))}
   </div>}
+  {shortcut!==undefined&&<ModalDialog aria-label="飲水快捷容量" busy={busy} onDismiss={()=>setShortcut(undefined)} className={surface+" m-auto w-[min(90vw,22rem)] bg-[var(--color-bg)] text-[var(--color-text)]"}>
+   <form className="grid gap-3" onSubmit={async event=>{
+    event.preventDefault();const amount=Number(new FormData(event.currentTarget).get("amount"));
+    if(!Number.isFinite(amount)||amount<0||amount>100000)return;
+    if(await change({["waterShortcut"+shortcut]:amount}))setShortcut(undefined);
+   }}>
+    <label>快捷 {shortcut}（mL）<input className={control+" w-full"} name="amount" type="number" min="0.01" max="100000" step="any" defaultValue={waterPresets[shortcut-1]||""}/></label>
+    <p className="text-xs">留空可清除快捷。</p>{error&&<p role="alert">{error}</p>}<div className="flex gap-2"><button className={control} disabled={busy}>儲存</button>{element("取消",()=>setShortcut(undefined))}</div>
+   </form>
+  </ModalDialog>}
+  {waterManage&&shortcut===undefined&&!edit&&<ModalDialog aria-label="飲水管理" busy={busy} onDismiss={()=>setWaterManage(false)} className={surface+" m-auto max-h-[85dvh] w-[min(94vw,36rem)] overflow-y-auto bg-[var(--color-bg)] text-[var(--color-text)]"}>
+   <div className="grid gap-3"><h2 className="font-semibold">飲水管理</h2>
+    <section><h3>飲水目標</h3>{element("新增飲水目標",()=>start("goal",{metric:"water",mode:"increase",baseline:0}))}
+     <ul className="divide-y divide-[var(--color-border)]">{waterGoals.map(row=><li key={row.id} className="flex flex-wrap items-center gap-1 py-1">
+      <span className="flex-1">{str(row,"title")}</span>{element("修改目標",()=>setEdit(row))}
+      <button type="button" className={control} disabled={busy} onClick={async()=>{
+       setBusy(true);setError("");
+       try{await repository.saveHealth({...row,data:{...row.data,paused:row.data.paused!==true}});}
+       catch(error){setError(error instanceof Error?error.message:String(error));}
+       finally{setBusy(false);}
+      }}>{row.data.paused?"恢復目標":"停用目標"}</button>
+     </li>)}</ul>
+    </section>
+    <section><h3>快捷容量</h3><div className="flex gap-1">{waterPresets.map((amount,index)=>
+     <button key={index} type="button" className={control} onClick={()=>setShortcut(index+1)}>修改快捷 {index+1}{amount?" · "+waterValue(amount):""}</button>)}</div></section>
+    <label>顯示單位<select className={control} value={String(privacy.waterUnit??"mL")} onChange={event=>void change({waterUnit:event.target.value})}><option>mL</option><option>L</option></select></label>
+    <section><h3>{localDay(day)}飲水紀錄</h3>{list("water",row=><p>{str(row,"time")} · {waterValue(num(row.data,"amount"))}</p>,true,row=>dayOf(row)===day)}</section>
+    {element("關閉",()=>setWaterManage(false))}
+   </div>
+  </ModalDialog>}
   {undo&&<aside className="sticky bottom-0 flex items-center justify-between gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1 text-sm" role="status">
    {undo.action==="create"?"已記錄":"已刪除"} {str(undo.row,"amount")} ml
    <button type="button" className={control} disabled={busy} onClick={async()=>{
@@ -582,10 +627,10 @@ export default function HealthWorkspace({rows,owner,day:initial,taskOpen,tasks,h
     finally{setBusy(false);}
    }}>復原</button>
   </aside>}
-  {edit&&edit.kind!=="privacy"&&enabled(kindGroup[edit.kind])&&<Editor key={edit.id} row={edit} rows={safe} tasks={tasks} habits={habits} preferences={privacy} close={()=>{setEdit(undefined);setReplacedPlan(undefined);}} save={async(row,remove)=>{
+  {edit&&edit.kind!=="privacy"&&enabled(kindGroup[edit.kind])&&<HealthEditor key={edit.id} row={edit} rows={safe} tasks={tasks} habits={habits} preferences={privacy} close={()=>{setEdit(undefined);setReplacedPlan(undefined);}} save={async(row,remove)=>{
     if(replacedPlan)await repository.replaceMedication(replacedPlan,row,today);
     else await repository.saveHealth(row,remove);
-    if(remove&&row.kind==="water")setUndo({row:edit,action:"delete"});
+    if(row.kind==="water"){if(remove)setUndo({row:edit,action:"delete"});else if(!edit.revision)setUndo({row,action:"create"});}
    }}/>}
  </section>;
 }

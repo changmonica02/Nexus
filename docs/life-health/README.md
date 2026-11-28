@@ -50,3 +50,25 @@
 | 重要操作 | [自訂飲水](refinement/Nexus-Health-water-editor-mobile.png) · [記錄服用](refinement/Nexus-Health-dose-editor-mobile.png) |
 
 截圖使用測試工作區的合成資料。進階照護規則採既有月末日期推算，尚未提供每月第幾個星期幾或任意單次例外規則。用藥計畫的新舊時段與實際紀錄各自保留。活動資料未接入步數或睡眠階段裝置。
+
+## 健康總覽與週期任務連動
+
+健康總覽改為飲水、飲食、運動、睡眠及身體數據各自成卡。各卡從同一份原始紀錄讀取最新數值、適用目標及近七日趨勢。健康總覽的待辦區改由原本的日曆任務承接。照護與預定交易保留原本專屬流程。
+
+飲水操作列包含手動新增、兩個初始為空的快捷及鉛筆。顯示單位、快捷、既有飲水紀錄與目標都能由鉛筆管理。原先逗號分隔的快捷設定和其他舊健康偏好仍保存在使用者資料。正式刪除後復原飲水維持既有做法，以新 ID 帶回原內容。
+
+任務設定提供健康與財務連動。正式來源保留任務及期別關聯，任務按實際紀錄重算。睡眠用表單記錄真實時間。週期交易使用原本的確認流程，已入帳且符合任務期間的唯一交易可直接連結。快捷確認及累積型任務的重試維持各自的資料來源。
+
+### 遷移
+
+在前一輪 `20261128030000_life_health_dose_slots.sql` 後套用 `20261128040000_life_task_action_slots.sql`。這次只新增部分唯一索引，保護勾選型任務每個來源模組的期別寫入。累積型任務可有多筆紀錄。既有 RLS 和資料不變，復原時可移除這兩個索引。
+
+### 本輪畫面
+
+| 畫面 | 截圖 |
+| --- | --- |
+| 健康總覽 | [手機](cards/Nexus-Health-mobile.png) · [平板橫向](cards/Nexus-Health-tablet-landscape.png) · [電腦](cards/Nexus-Health-desktop.png) |
+| 飲水快捷 | [未設定](cards/Nexus-Health-water-empty.png) · [兩個已設定](cards/Nexus-Health-water-configured.png) |
+| 飲水操作 | [手動新增](cards/Nexus-Health-water-editor-mobile.png) · [鉛筆管理](cards/Nexus-Health-water-management.png) · [歷史編輯](cards/Nexus-Health-water-history.png) |
+| 健康任務 | [連動設定](cards/Nexus-Health-task-health-settings.png) · [執行表單](cards/Nexus-Health-task-health-execution.png) |
+| 財務任務 | [連動設定](cards/Nexus-Health-task-finance-settings.png) · [確認交易](cards/Nexus-Health-task-finance-execution.png) |
