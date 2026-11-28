@@ -20,7 +20,7 @@ import { displayStudyCards, hasLearningData } from "../studySessions";
 import ScheduleConflict from "./ScheduleConflict";
 import ScheduledStudySession from "./ScheduledStudySession";
 import {getSupabase} from '../../../infrastructure/supabase/client';
-import {syncStudy} from '../studySync';
+import {studyErrorMessage,syncStudy} from '../studySync';
 import {setCardDictionaryLink} from '../../dictionary/cardDictionary';
 import StudyLinkSuggestions from '../../dictionary/StudyLinkSuggestions';
 import StudyCardEditor from "./StudyCardEditor";
@@ -217,7 +217,8 @@ function StudySetWorkspace({ page, repository, onBackToInterface, initialMode = 
   const {t}=useLanguage();
   const sessionExit=useRef<()=>Promise<void>>(async()=>{throw Error("study.exitPending");});
   const registerSessionExit=useCallback((exit:()=>Promise<void>)=>{sessionExit.current=exit;},[]);
-  const [exitPrompt,setExitPrompt]=useState(false),[exiting,setExiting]=useState(false);
+  const leaving=useRef(false);
+  const [exiting,setExiting]=useState(false);
   const settingsFlush=useRef<()=>Promise<void>>(async()=>{});
   const registerSettingsFlush=useCallback((flush:()=>Promise<void>)=>{settingsFlush.current=flush;},[]);
   useEffect(()=>registerSettingsSave?.(()=>settingsFlush.current()),[registerSettingsSave]);
@@ -226,7 +227,7 @@ function StudySetWorkspace({ page, repository, onBackToInterface, initialMode = 
   const [officialBusy,setOfficialBusy]=useState(false);
   const [sessionProgress,setSessionProgress]=useState({done:0,total:0});
   const reportProgress=useCallback((done:number,total:number)=>setSessionProgress({done,total}),[]);
-  const leave=async()=>{try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();await settingsFlush.current();if(mode==="scheduled")await sessionExit.current();if(managementOnly&&showCards&&mode==="manage"){setShowCards(false);return;}await onBackToInterface?.();}catch(e){setError(String(e));}};
+  const leave=async()=>{if(leaving.current)return;leaving.current=true;setExiting(true);setError('');try{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();await settingsFlush.current();if(mode==="scheduled")await sessionExit.current();if(managementOnly&&showCards&&mode==="manage"){setShowCards(false);return;}if(onBackToInterface)await onBackToInterface();else if(mode==="scheduled")setMode("manage");}catch(e){setError(studyErrorMessage(e,t));}finally{leaving.current=false;setExiting(false);}};
   const officialAction=async(remove=false)=>{
     if(officialBusy)return;
     if(remove&&!await confirmDialog(packDeleteMessage(page.title)))return;
@@ -286,8 +287,8 @@ function StudySetWorkspace({ page, repository, onBackToInterface, initialMode = 
   };
   if(!snapshot)return <main className="flex-1 p-4"><PageHeader title={t("deck.manageTitle")+"。"+page.title} onBack={()=>void leave()}/>{error||t("study.loadingCards")}</main>;
   return <main data-study-management={managementOnly?page.id:undefined} className="flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto" style={{backgroundColor:"var(--color-editor-bg)",color:"var(--color-text)"}}>
-    <div className="mx-auto w-full" style={{maxWidth:1100,padding:"24px clamp(12px, 3vw, 40px)"}}>
-      <PageHeader autoFocusBack={managementOnly} globalActions={mode!=='scheduled'} title={mode==='scheduled'?page.title:t(mode==='history'?'study.history':managementOnly&&!showCards?'deck.manageTitle':'deck.viewCards')+'。'+page.title} onBack={(onBackToInterface||(managementOnly&&showCards))?()=>void leave():undefined} backLabel={managementOnly&&showCards?t('deck.backSettings'):backLabel??t('study.backToStudySets')} actions={mode==='scheduled'?<><span aria-label={t('study.batchProgress')} aria-live="polite">{sessionProgress.done}／{sessionProgress.total}</span><button className="min-h-11 rounded border px-2 text-sm" onClick={()=>setExitPrompt(true)}>{t('study.exit')}</button></>:mode==='history'?<button className="min-h-11 rounded border border-red-400 px-3 text-sm text-red-600" onClick={()=>setShowClear(true)}>{t('study.clearHistory')}</button>:undefined}/>
+    <div className="mx-auto w-full" style={{maxWidth:1100,padding:mode==='scheduled'?"8px clamp(12px, 3vw, 40px) 0":"24px clamp(12px, 3vw, 40px)"}}>
+      <PageHeader divider={mode!=='scheduled'} backDisabled={exiting} autoFocusBack={managementOnly} globalActions={mode!=='scheduled'} title={mode==='scheduled'?page.title:t(mode==='history'?'study.history':managementOnly&&!showCards?'deck.manageTitle':'deck.viewCards')+'。'+page.title} onBack={(onBackToInterface||(managementOnly&&showCards)||mode==='scheduled')?()=>void leave():undefined} backLabel={managementOnly&&showCards?t('deck.backSettings'):backLabel??t('study.backToStudySets')} actions={mode==='scheduled'?<span aria-label={t('study.batchProgress')} aria-live="polite">{sessionProgress.done}／{sessionProgress.total}</span>:mode==='history'?<button className="min-h-11 rounded border border-red-400 px-3 text-sm text-red-600" onClick={()=>setShowClear(true)}>{t('study.clearHistory')}</button>:undefined}/>
       {mode!=='scheduled'&&<div data-study-actions className="my-3 flex flex-wrap items-center gap-2">{mode==='manage'?<>
         {managementOnly&&!showCards&&<button className="min-h-11 rounded border px-3 text-sm" onClick={()=>void settingsFlush.current().then(()=>setShowCards(true)).catch(e=>setError(String(e)))}>{t('deck.viewCards')} · {t('studySet.cardCount',{count:cards.length})}</button>}
         <button className="min-h-11 rounded border px-3 text-sm disabled:opacity-40" disabled={!snapshot.settings.direction_confirmed||startingStudy} onClick={()=>{if(starting.current)return;starting.current=true;setStartingStudy(true);prepareStudySpeech();void settingsFlush.current().then(()=>setMode('scheduled')).catch(e=>setError(String(e))).finally(()=>{starting.current=false;setStartingStudy(false);});}}>{t('study.start')}</button>
@@ -310,7 +311,6 @@ function StudySetWorkspace({ page, repository, onBackToInterface, initialMode = 
         {!snapshot.states.some(s=>s.cleared_at)&&<details className="mt-5"><summary>遷移前的學習摘要</summary>{cards.filter(card=>card.legacy).map(card=><p key={card.id} className="py-2 text-sm">{card.front}：舊複習次數 {card.legacy!.item.review_count}，原到期時間 {card.legacy!.item.daily_due_at?new Date(card.legacy!.item.daily_due_at).toLocaleString():"未排程"}</p>)}</details>}
       </div>}
     </div>
-    {exitPrompt&&<ModalDialog aria-labelledby="exit-study-title" busy={exiting} onDismiss={()=>setExitPrompt(false)} className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border bg-[var(--color-editor-bg)] p-5 text-[var(--color-text)] backdrop:bg-black/30"><h2 id="exit-study-title" className="font-semibold">{t('study.exitConfirm')}</h2>{error&&<p role="alert">{error}</p>}<div className="mt-4 flex justify-end gap-2"><button type="button" autoFocus disabled={exiting} className="min-h-11 rounded border px-4" onClick={()=>setExitPrompt(false)}>{t('ui.cancel')}</button><button type="button" disabled={exiting} className="min-h-11 rounded border px-4" onClick={()=>{if(exiting)return;setExiting(true);setError('');void sessionExit.current().then(()=>{setExitPrompt(false);setMode('manage');}).catch(e=>setError(t(e instanceof Error?e.message:String(e)))).finally(()=>setExiting(false));}}>{t('study.exit')}</button></div></ModalDialog>}
     {showClear&&<ClearStudyHistoryDialog repository={repository} deckId={page.id} title={page.title} owner={page.workspace_owner_id??null} beforeClear={()=>settingsFlush.current()} onClose={()=>setShowClear(false)} onCleared={()=>{setClearStatus(t('study.clearDone'));setHistoryEvents([]);setSessionProgress({done:0,total:0});refresh.current();}}/>}
     {showLinkSuggestions&&<StudyLinkSuggestions cards={cards} onClose={()=>setShowLinkSuggestions(false)} onEdit={card=>{setShowLinkSuggestions(false);setEditingCard(card);}} onLink={async(card,id)=>{const client=getSupabase();if(!client)throw Error('請先登入');const {data:{user}}=await client.auth.getUser();if(!user)throw Error('請先登入');await syncStudy(repository,client,user.id);await setCardDictionaryLink(client,card.id,id);await repository.updateCard(card.id,{dictionary_entry_id:id});refresh.current();}}/>}
     {showCsvImport&&<CsvImportDialog onClose={()=>setShowCsvImport(false)} onImport={pairs=>void act(()=>repository.addCards(page.id,pairs))}/>}

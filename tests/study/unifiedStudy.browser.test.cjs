@@ -13,7 +13,7 @@ test('actual study and functional preferences: desktop/tablet/mobile, six interv
   await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'每日學習',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'單字複習',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'測驗',exact:true}).count(),0);
   // Reload restores the settings view without invoking the explicit Session-ending action.
   const openSettings=async()=>{await page.reload();await page.getByLabel('一般卡（新卡／複習卡） · 忘記',{exact:true}).waitFor();};
-  const returnToManage=async()=>{await page.getByRole('button',{name:'離開',exact:true}).click();const prompt=page.getByRole('dialog',{name:'確定要離開嗎？',exact:true});await prompt.getByRole('button',{name:'離開',exact:true}).click();await prompt.waitFor({state:'detached'});};
+  const returnToManage=async()=>{assert.equal(await page.getByRole('button',{name:'離開',exact:true}).count(),0);await page.getByRole('button',{name:'返回學習集',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'確定要離開嗎？',exact:true}).count(),0);await page.getByRole('button',{name:'開始學習',exact:true}).waitFor();};
   const dialog=page;
   const closeSettings=async()=>{};
   assert.equal(await page.getByLabel('單一批次上限',{exact:true}).inputValue(),'2');

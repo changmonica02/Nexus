@@ -1,22 +1,13 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getSupabase } from '../../../infrastructure/supabase/client';
-import { readPublishedEntry } from '../../dictionary/reader';
-import { studyComposition, type StudyComposition } from '../../dictionary/studyComposition';
+import { useMemo, useLayoutEffect, useRef, useState } from 'react';
+import type {PublishedDetail} from '../../dictionary/reader';
+import { studyComposition } from '../../dictionary/studyComposition';
 import { useLanguage } from '../../../lib/LanguageContext';
 
-/** Mounted only after reveal. Public reader/cache stays separate from private cards. */
-export default function StudyCompositionSummary({entryId,front,answer,inline=false}:{entryId:string;front:string;answer:string;inline?:boolean}) {
+/** Uses the same preloaded public detail as derivations and examples. */
+export default function StudyCompositionSummary({detail,front,inline=false}:{detail:PublishedDetail|null;front:string;inline?:boolean}) {
   const {t}=useLanguage();
-  const [result,setResult]=useState<{key:string;summary:StudyComposition|null}|null>(null);
-  const key=JSON.stringify([entryId,front,answer]);
-  useEffect(()=>{
-    let active=true;
-    const client=getSupabase();if(!client)return;
-    void readPublishedEntry(client,entryId).then(detail=>{if(active)setResult({key,summary:studyComposition(detail,front)});}).catch(()=>{/* Reading aids never block reveal or grading. */});
-    return()=>{active=false;};
-  },[entryId,front,answer,key]);
-  const summary=result?.key===key?result.summary:null;
+  const summary=useMemo(()=>detail?studyComposition(detail,front):null,[detail,front]);
   const word=useRef<HTMLSpanElement>(null),[hintHeight,setHintHeight]=useState(0),[conceptHeight,setConceptHeight]=useState(0);
   useLayoutEffect(()=>{
     if(!inline||!word.current)return;
