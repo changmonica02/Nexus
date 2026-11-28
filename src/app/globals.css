@@ -456,7 +456,6 @@ html, body { overscroll-behavior-y: none; }
 @media (min-width: 640px) {
 }
 
-@keyframes study-flip { from { opacity: .7; transform: rotateX(-5deg); } to { opacity: 1; transform: rotateX(0); } }
 
 @media (hover: hover) and (pointer: fine) {
  .sidebar-item-actions { opacity: 0; }

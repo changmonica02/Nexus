@@ -38,7 +38,9 @@ test('actual start button: local/cloud phases, bounded first-card data, resume, 
   const state=await p.evaluate(()=>window.startupRepo.exportData());assert.equal(state.sessions.filter(s=>s.completed_at==null).length,1);if(scenario==='resume'||scenario==='offline'||scenario==='reconnect')assert.equal(state.sessions[0].id,await p.evaluate(()=>window.startupExisting));
   if(scenario==='remote')assert.ok(state.cards.some(c=>c.front==='remote published-safe text'));
   assert.equal(state.events.filter(e=>e.kind==='introduce').length,scenario==='pending'?2:1);
-  if(scenario==='offline')assert.equal(m.calls.filter(c=>c.name==='get_study_clear_times').length,0);else assert.equal(m.calls.filter(c=>c.name==='get_study_clear_times').length,2);
+  const passes=scenario==='offline'?0:process.env.BASELINE?2:1;
+  assert.equal(m.calls.filter(c=>c.name==='get_study_clear_times').length,passes);
+  assert.equal(m.calls.filter(c=>c.name==='pull_study_changes').length,passes);
   if(!process.env.BASELINE){if(scenario!=='remote'){assert.equal(m.reads,2);assert.equal(m.records,count*2);}assert.equal(m.methods.snapshotIn.calls,1);assert.equal(m.methods.openScheduledSession.calls,1);}
   if(scenario==='preferences'){await p.evaluate(async()=>{const deck=(await window.startupRepo.exportData()).cards[0].deck_id;await window.startupRepo.saveDeckStyle(deck,{speech_rate:1.2});});let updated=false;for(let retry=0;retry<20;retry++){await p.getByRole('button',{name:'重新播放發音',exact:true}).click();updated=await p.evaluate(()=>window.speechCalls.at(-1)?.rate===1.2);if(updated)break;await p.waitForTimeout(50);}assert.equal(updated,true,'live reading preferences must refresh without changing the frozen Session');const changed=await p.evaluate(()=>window.startupRepo.exportData());for(const key of ['cards','states','events','sessions'])assert.deepEqual(changed[key],state[key],key);}
   await context.close();

@@ -3,7 +3,7 @@ import {EyeOff} from "lucide-react";
 import ModalDialog from "../../../components/ModalDialog";
 import {useStudyDictionary} from "../useStudyDictionary";
 import {useOfficialContent} from "../useOfficialContent";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StudyRepository } from '../StudyRepository';
 import { previewStudy, type Grade, type StudySnapshot } from '../studyFSRS';
 import type { StudySession } from '../studySessions';
@@ -16,6 +16,7 @@ import { syncStudy,studyErrorMessage } from '../studySync';
 
 import StudyPronunciation from "./StudyPronunciation";
 import StudyCompositionSummary from "./StudyCompositionSummary";
+import type { PublishedDetail } from '../../dictionary/reader';
 import StudyDictionaryBack from '../../dictionary/StudyDictionaryBack';
 import type { StudyStyle } from "../studyStyles";
 
@@ -24,6 +25,7 @@ const presentedKey=(value:Data)=>{const cardId=value.session.queue[0];return JSO
 export default function ScheduledStudySession({repository,deckId,readingStyle,onProgress,registerExit}:{repository:StudyRepository;deckId:string;onExit:()=>void;readingStyle?:StudyStyle;onProgress?:(done:number,total:number)=>void;registerExit?:(exit:()=>Promise<void>)=>void}) {
   const {t,language}=useLanguage();
   const [data,setData]=useState<Data|null>(null),[revealed,setRevealed]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[hasAttempt,setHasAttempt]=useState(false);
+  const [answerComposition,setAnswerComposition]=useState<{front:string;detail:PublishedDetail|null}|null>(null);
   const [phase,setPhase]=useState<'local'|'account'|'cloud'>('local');
   const [hidePrompt,setHidePrompt]=useState(false);
   const [dictionaryEditing,setDictionaryEditing]=useState(false);
@@ -32,9 +34,9 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   const [now,setNow]=useState(()=>Date.now());
   const alive=useRef(true),busy=useRef(false),opening=useRef<Promise<Data>|null>(null),current=useRef<string|null>(null),formal=useRef<string|null>(null);
   const revealButton=useRef<HTMLButtonElement>(null);
+  const scroll=useRef<HTMLDivElement>(null);
   const viewport=useRef<HTMLDivElement>(null),footer=useRef<HTMLElement>(null);
   const [space,setSpace]=useState({height:0,footer:0});
-  const [revealRequested,setRevealRequested]=useState(false);
   useLayoutEffect(()=>{
     const measure=()=>{
       if(!viewport.current||!footer.current)return;
@@ -62,7 +64,7 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     const key=presentedKey(presented);
     presentedCard.current=cardId??null;
     setData(presented);
-    if(question.current!==key){question.current=key;setRevealed(false);setRevealRequested(false);setNow(Date.now());}
+    if(question.current!==key){question.current=key;setRevealed(false);setAnswerComposition(null);setNow(Date.now());}
     else if(!cardId)setNow(Date.now());
   },[]);
   const load=useCallback((background=false)=>{
@@ -109,22 +111,19 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
   },[registerExit,repository,t]);
   const session=data?.session, practice=session?.mode==='practice';
   const rawCard=data?.snapshot.cards.find(c=>c.id===session?.queue[0]);
-  const [card]=useOfficialContent(rawCard?[rawCard]:[],`${session?.id}:${session?.revision}`);
-  const dictionary=useStudyDictionary((session?.queue.slice(0,3)??[]).map(id=>data?.snapshot.cards.find(c=>c.id===id)?.dictionary_entry_id));
-  useEffect(()=>{
-    let active=true;
-    if(revealRequested&&!dictionary.pending)void Promise.resolve().then(()=>{if(active){setRevealed(true);setRevealRequested(false);}});
-    return()=>{active=false;};
-  },[revealRequested,dictionary.pending]);
+  const [card]=useOfficialContent(rawCard?[rawCard]:[]);
+  const linkedIds=useMemo(()=>data?.session.queue.slice(0,3).map(id=>data.snapshot.cards.find(c=>c.id===id)?.dictionary_entry_id)??[],[data]);
+  const dictionary=useStudyDictionary(linkedIds);
   const state=data?.snapshot.states.find(s=>s.id===card?.id);
   const cardId=card?.id,head=state?.head;
   const readingQuestion=JSON.stringify([session?.id,cardId,head,card?.content_revision]);
-  useEffect(()=>{if(cardId)revealButton.current?.focus();},[cardId,head]);
-  const status=session&&data?scheduledStatus(session,data.snapshot,now):null;
+  useLayoutEffect(()=>{if(scroll.current)scroll.current.scrollTop=0;},[readingQuestion,revealed]);
+  useEffect(()=>{if(cardId)revealButton.current?.focus({preventScroll:true});},[cardId,head]);
+  const status=useMemo(()=>data?scheduledStatus(data.session,data.snapshot,now):null,[data,now]);
   useEffect(()=>{availability.current=status?{nextDue:status.nextDue,day:new Date().toDateString()}:null;},[status]);
   useEffect(()=>onProgress?.(status?.completed??0,status?.slots??0),[status?.completed,status?.slots,onProgress]);
   const reading=readingStyle??session?.settings_snapshot;
-  const preview=!practice&&state&&revealed?previewStudy(state,now,session?.settings_snapshot):null;
+  const preview=useMemo(()=>!practice&&state?previewStudy(state,now,session?.settings_snapshot):null,[practice,state,now,session?.settings_snapshot]);
   function mark(rating:Grade){
     if(mutation.current)return mutation.current;
     const task=saveMark(rating).finally(()=>{mutation.current=null;});mutation.current=task;return task;
@@ -135,8 +134,14 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     try{
       attempt.current??={sessionId:session.id,cardId:card.id,revision:session.revision,contentRevision:card.content_revision,displayContent:{front:card.front,back:card.back},expectedHead:state.head,rating,actionId:crypto.randomUUID(),now:Date.now(),practice};
       const input=attempt.current;
-      if(input.practice)await repository.ratePractice(input);else await repository.rateSession(input);
-      await load();attempt.current=null;if(alive.current)setHasAttempt(false);
+      if(input.practice){
+        await repository.ratePractice(input);
+        await load();
+      }else{
+        const next=await repository.rateSession(input,true);
+        if(alive.current)accept(next);
+      }
+      attempt.current=null;if(alive.current)setHasAttempt(false);
     }catch(e){if(alive.current)setError(e instanceof Error?e.message:String(e));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
@@ -157,34 +162,44 @@ export default function ScheduledStudySession({repository,deckId,readingStyle,on
     catch(e){if(alive.current)setError(studyErrorMessage(e,t));}
     finally{busy.current=false;if(alive.current)setSaving(false);}
   }
-  const flip=()=>{if(!saving&&!error&&!dictionaryOpen.current){setNow(Date.now());if(revealRequested)setRevealRequested(false);else if(!revealed&&dictionary.pending)setRevealRequested(true);else setRevealed(value=>!value);}};
+  const flip=()=>{
+    if(!card||busy.current||error||dictionaryOpen.current)return;
+    // Keep the spelling and answer in place while late examples load below them.
+    if(!revealed)setAnswerComposition({front:card.front,detail:dictionary});
+    setRevealed(value=>!value);
+  };
   return <div ref={viewport} className="mx-auto w-full max-w-4xl" style={{paddingBottom:space.footer}} data-scheduled-study>
     <div className="flex w-full flex-col items-center justify-center gap-4 py-3" style={{minHeight:space.height||'65dvh'}} data-study-card-space>
     {card&&state?<>
-      <article className="relative flex min-h-[min(52dvh,30rem)] w-full flex-col justify-center rounded-3xl border bg-[var(--color-sidebar-bg)] p-5 pb-12 text-center shadow-sm sm:p-10 sm:pb-12" data-study-card data-side={revealed?'back':'front'}>
-        <button ref={revealButton} type="button" className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:outline-offset-4" aria-label={t(revealed?'study.flipFront':'study.flipBack')} aria-pressed={revealed} disabled={saving||!!error||dictionaryEditing} onClick={flip}/>
-        <div className={"pointer-events-none relative mx-auto grid w-fit min-w-0 max-w-full grid-cols-[minmax(0,max-content)_2.75rem] items-start gap-x-2 "+(revealed?"text-2xl leading-8 [--study-word-line:2rem] sm:text-3xl sm:leading-9 sm:[--study-word-line:2.25rem]":"text-4xl leading-10 [--study-word-line:2.5rem] sm:text-6xl sm:leading-none sm:[--study-word-line:3.75rem]")}>
-          <p className={'col-start-1 row-start-2 w-fit min-w-0 max-w-full justify-self-center whitespace-pre-wrap break-words text-center [overflow-wrap:anywhere] '+(revealed?'opacity-60':'font-medium')} lang={card.direction==='en-zh'?'en':undefined}>{revealed&&card.dictionary_entry_id?<StudyCompositionSummary inline detail={dictionary.detail} front={card.front}/>:card.front}</p>
-          <span className="contents" data-card-audio><StudyPronunciation inlineCard key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/></span>
+      <article className="relative h-[clamp(12rem,52dvh,30rem)] w-full rounded-3xl border bg-[var(--color-sidebar-bg)] text-center shadow-sm" data-study-card data-side={revealed?'back':'front'}>
+        <div ref={scroll} className="absolute inset-x-0 bottom-8 top-0 overflow-y-auto overscroll-contain rounded-t-3xl [scrollbar-gutter:stable_both-edges]" data-study-card-scroll>
+          <div className="relative flex min-h-full flex-col px-5 pb-4 pt-5 sm:px-10 sm:pt-10">
+            <button ref={revealButton} type="button" className="absolute inset-0 rounded-3xl focus-visible:outline-2 focus-visible:-outline-offset-4" aria-label={t(revealed?'study.flipFront':'study.flipBack')} aria-pressed={revealed} disabled={saving||!!error||dictionaryEditing} onClick={flip}/>
+            <div className={"pointer-events-none relative w-full min-w-0 "+(revealed?"":"my-auto")}>
+              <div className={"grid w-full min-w-0 grid-cols-[minmax(3.25rem,1fr)_fit-content(calc(100%-6.5rem))_minmax(3.25rem,1fr)] items-start "+(revealed?"text-2xl leading-8 [--study-word-line:2rem] sm:text-3xl sm:leading-9 sm:[--study-word-line:2.25rem]":"text-4xl leading-10 [--study-word-line:2.5rem] sm:text-6xl sm:leading-none sm:[--study-word-line:3.75rem]")}>
+                <p className={'col-start-2 row-start-2 w-fit min-w-0 max-w-full justify-self-center whitespace-pre-wrap break-words text-center [overflow-wrap:anywhere] '+(revealed?'opacity-60':'font-medium')} lang={card.direction==='en-zh'?'en':undefined}>{revealed&&card.dictionary_entry_id?<StudyCompositionSummary inline detail={answerComposition?.front===card.front?answerComposition.detail:null} front={card.front}/>:card.front}</p>
+                <span className="contents" data-card-audio><StudyPronunciation inlineCard key={readingQuestion} question={readingQuestion} text={card.front} direction={card.direction} frontVisible={!revealed} automatic={reading?.auto_speech??true} rate={reading?.speech_rate??0.9} active={!saving&&!dictionaryEditing}/></span>
+              </div>
+              <div hidden={!revealed}>
+                {revealed&&<p className="mb-7 mt-[1.167rem] whitespace-pre-wrap text-3xl font-semibold [overflow-wrap:anywhere] sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p>}
+              </div>
+              {revealed&&card.dictionary_entry_id&&<StudyDictionaryBack key={`${session!.id}:${card.id}:${session!.answers}`} detail={dictionary} front={card.front}/>}
+            </div>
+          </div>
         </div>
-        <div className="pointer-events-none relative motion-safe:animate-[study-flip_160ms_ease-out]" key={revealed?'back-content':'front-content'}>
-          {revealed&&<><p className="mb-7 mt-[1.167rem] whitespace-pre-wrap break-words text-3xl font-semibold sm:text-5xl" lang={card.direction==='en-zh'?'zh':undefined}>{card.back}</p></>}
-        </div>
-        {revealed&&card.dictionary_entry_id&&<StudyDictionaryBack key={`${session!.id}:${card.id}:${session!.answers}`} detail={dictionary.detail} front={card.front}/>}
         {revealed&&<button type="button" className="absolute right-1 top-1 flex min-h-11 w-11 items-center justify-center rounded" aria-label={t('study.hideCard')} disabled={saving||!!error||dictionaryEditing} onClick={()=>setHidePrompt(true)}><EyeOff size={20}/></button>}
         <p className="pointer-events-none absolute inset-x-3 bottom-3 text-xs opacity-50">{t(revealed?'study.flipHintBack':'study.flipHintFront')}</p>
       </article>
 
     </>:<div className="space-y-3 py-8 text-center"><p role="status">{!session?t('study.loading.'+phase):practice?t('study.noPractice'):status?.blocked?t('study.blocked',{n:status.blocked}):status?.waiting?t('study.waiting',{n:status.waiting,time:new Date(status.nextDue!).toLocaleTimeString(language)}):t('interval.finished')}</p></div>}
-    {revealRequested&&<p role="status" className="text-sm">{t('study.loadingDetails')}</p>}
     </div>
     {hidePrompt&&<ModalDialog aria-labelledby="hide-card-title" busy={saving} onDismiss={()=>setHidePrompt(false)} className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border bg-[var(--color-editor-bg)] p-5 text-[var(--color-text)] backdrop:bg-black/30"><h2 id="hide-card-title" className="text-lg font-semibold">{t('study.hideCard')}</h2><p className="my-4">{t('study.hideExplanation')}</p><div className="flex justify-end gap-2"><button type="button" autoFocus disabled={saving} className="min-h-11 rounded border px-4" onClick={()=>setHidePrompt(false)}>{t('ui.cancel')}</button><button type="button" disabled={saving} className="min-h-11 rounded border px-4" onClick={()=>void hideCard()}>{t('study.hideConfirm')}</button></div></ModalDialog>}
     <footer ref={footer} className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--color-border)] bg-[var(--color-sidebar-bg)] px-4 pt-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]" data-study-answer-footer>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
-        {card&&state&&revealed&&<>
+        {card&&state&&<div className={"flex flex-col gap-2 "+(revealed?"":"invisible")} inert={!revealed}>
           <CardDictionaryPanel compact onOpenChange={editingChanged} key={`${session!.id}:${card.id}:${session!.answers}`} fixedEntryId={card.dictionary_entry_id} rate={reading?.speech_rate??0.9}/>
           <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">{([1,3] as const).map(rating=><button type="button" key={rating} disabled={saving||!!error||dictionaryEditing} className="min-h-14 min-w-0 rounded-lg border px-1 py-2 text-sm disabled:opacity-40 sm:px-3 sm:text-base" onClick={()=>void mark(rating)}><span className="block font-medium">{t(`interval.response${rating}`)}</span>{preview&&<span className="mt-1 block break-words text-xs sm:text-sm">{interval(preview[rating].card.due.getTime())}</span>}</button>)}</div>
-        </>}
+        </div>}
         <div className="flex min-h-6 max-h-20 items-center justify-center overflow-y-auto text-center" data-study-save-status>
           <AnswerSaveNotice saving={saving} error={error} onRetry={hasAttempt?()=>void mark(attempt.current!.rating):undefined} onReload={()=>void change('reload')}/>
         </div>

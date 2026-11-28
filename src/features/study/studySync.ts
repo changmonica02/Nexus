@@ -69,6 +69,8 @@ async function runStudySync(repository:StudyRepository,client:SupabaseClient,own
   const unique=<T extends {id:string}>(values:T[])=>[...new Map(values.map(v=>[v.id,v])).values()];
   data.cards=unique(data.cards);data.states=unique(data.states);data.events=unique(data.events);data.settings=unique(data.settings);
   if(stillActive()&&changes.length)await repository.mergeRemote(data,changes);
+  // A second round is needed only when the pull or concurrent local work queued writes.
+  if(round===0&&!(await repository.pending()).length)break;
   }
   if(staleDecision)throw new Error('排程自選擇後已變更，已保留全部事件並同步最新資料，請重新確認。');
   if((await repository.recoveryEvents()).length)throw new StudyRecoveryNotice();

@@ -11,7 +11,9 @@ export function useStudyDictionary(entryIds:(string|undefined)[]) {
   const ids=useMemo(()=>JSON.parse(key) as string[],[key]);
   const [generation,setGeneration]=useState(0);
   const cache=useRef(new Map<string,Promise<PublishedDetail|null>>());
-  const [result,setResult]=useState(new Map<string,PublishedDetail|null>());
+  const currentId=entryIds[0];
+  const [result,setResult]=useState<{id:string;detail:PublishedDetail|null}>();
+
   useEffect(()=>{
     const refresh=()=>{cache.current.clear();setGeneration(n=>n+1);};
     const stop=observeDictionaryInvalidation(refresh);
@@ -26,29 +28,17 @@ export function useStudyDictionary(entryIds:(string|undefined)[]) {
     for(const id of ids){
       let request=cache.current.get(id);
       if(!request){
-        request=new Promise<PublishedDetail|null>(resolve=>{
-          const timer=setTimeout(()=>resolve(null),2500);
-          if(!client){clearTimeout(timer);resolve(null);return;}
-          void readPublishedEntry(client,id).then(detail=>{
-            clearTimeout(timer);resolve(detail?.entry.id===id&&detail.entry.status==='published'?detail:null);
-          },()=>{clearTimeout(timer);resolve(null);});
-        });
+        request=client?readPublishedEntry(client,id).then(
+          detail=>detail?.entry.id===id&&detail.entry.status==='published'?detail:null,
+          ()=>null,
+        ):Promise.resolve(null);
         cache.current.set(id,request);
       }
-      void request.then(detail=>{
-        if(!active)return;
-        setResult(previous=>{
-          const entries=new Map(previous);
-          for(const old of entries.keys())if(!ids.includes(old))entries.delete(old);
-          entries.set(id,detail);
-          return entries;
-        });
+      if(id===currentId)void request.then(detail=>{
+        if(active)setResult(previous=>previous?.id===id&&previous.detail===detail?previous:{id,detail});
       });
     }
     return()=>{active=false;};
-  },[ids,generation]);
-  const id=entryIds[0];
-  // Keep a displayed answer stable while publication changes refresh in the background.
-  const ready=!id||result.has(id);
-  return {detail:id&&ready?result.get(id)??null:null,pending:!ready};
+  },[currentId,ids,generation]);
+  return result?.id===currentId?result?.detail??null:null;
 }

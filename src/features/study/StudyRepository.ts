@@ -14,6 +14,18 @@ export const STUDY_STORES = ["study_cards", "study_states", "study_events", "stu
 type Write = IDBPTransaction<unknown, string[], "readwrite">;
 const newId = () => crypto.randomUUID();
 
+type ScheduledRatingInput = {
+  sessionId: string;
+  cardId: string;
+  revision: number;
+  contentRevision: number;
+  expectedHead: string | null;
+  rating: Grade;
+  actionId: string;
+  now: number;
+  displayContent?: { front: string; back: string };
+};
+
 /** Durable, account-scoped study operations. No React/debounce/page save dependency. */
 export class StudyRepository {
   constructor(private db: IDBPDatabase, private owner: () => string | null, private device: string) {}
@@ -366,10 +378,16 @@ export class StudyRepository {
     catch(error) { try{tx.abort();}catch{} await tx.done.catch(()=>undefined); throw error; }
   }
   private async snapshotIn(tx: Write, deckId: string): Promise<StudySnapshot> {
-    const settings:StudySettings=await tx.objectStore("study_settings").get(deckId); this.owned(settings);
-    const [cards,states]=await Promise.all(["study_cards","study_states"].map(name=>tx.objectStore(name).index("deck").getAll(deckId)));
-    const events:StudyEvent[]=[];
-    return {settings:applyStyle(settings,await this.effectiveStyle(tx,settings)),cards,states,events};
+    const settingsWithStyle=tx.objectStore("study_settings").get(deckId).then((settings:StudySettings)=>{
+      this.owned(settings);
+      return this.effectiveStyle(tx,settings).then(style=>applyStyle(settings,style));
+    });
+    const [settings,cards,states]=await Promise.all([
+      settingsWithStyle,
+      tx.objectStore("study_cards").index("deck").getAll(deckId),
+      tx.objectStore("study_states").index("deck").getAll(deckId),
+    ]);
+    return {settings,cards,states,events:[]};
   }
   private async saveSession(tx: Write, session: StudySession, event?: StudyEvent) {
     await tx.objectStore("study_sessions").put(session);
@@ -489,13 +507,22 @@ export class StudyRepository {
   async presentScheduled(sessionId:string,now=Date.now()):Promise<{session:StudySession;snapshot:StudySnapshot}> {
     return this.readPresentedSession(sessionId,now,true);
   }
-  async rateSession(input:{sessionId:string;cardId:string;revision:number;contentRevision:number;expectedHead:string|null;rating:Grade;actionId:string;now:number;displayContent?:{front:string;back:string}}):Promise<StudySession> {
+  async rateSession(input:ScheduledRatingInput):Promise<StudySession>;
+  async rateSession(input:ScheduledRatingInput,presentNext:true):Promise<{session:StudySession;snapshot:StudySnapshot}>;
+  async rateSession(input:ScheduledRatingInput,presentNext=false) {
     return this.sessionWrite(async tx=>{
       const {sessionId,cardId,rating,actionId,now}=input;
       if(![1,2,3,4].includes(rating)) throw new Error("無效評分。");
       const saved:StudySession=await tx.objectStore("study_sessions").get(sessionId);this.owned(saved);
       if(saved.mode!=="scheduled") throw new Error("請使用正式排程繼續學習。");
-      if(saved.last_action_id===actionId) return saved;
+      if(saved.last_action_id===actionId){
+        if(!presentNext)return saved;
+        const resumedAt=Date.now();
+        const snapshot=await this.snapshotIn(tx,saved.deck_id);
+        const session=await this.reconciled(tx,saved,snapshot,resumedAt);
+        await this.presentIn(tx,session,snapshot,resumedAt);
+        return {session,snapshot};
+      }
       const snapshot=await this.snapshotIn(tx,saved.deck_id);
       const session=await this.reconciled(tx,saved,snapshot,now);
       if(session.completed_at!=null || session.ended_at!=null || session.revision!==input.revision || session.queue[0]!==cardId) throw new Error("練習進度已變更，請重新載入本次練習。");
@@ -520,7 +547,10 @@ export class StudyRepository {
       snapshot.states=snapshot.states.map(s=>s.id===cardId?event.after:s);
       const next=refreshScheduled(session,snapshot,now);
       await this.saveSession(tx,next,event);
-      return next;
+      if(!presentNext)return next;
+      // Reuse the reconciled snapshot and commit both events before showing the next card.
+      await this.presentIn(tx,next,snapshot,now);
+      return {session:next,snapshot};
     });
   }
   async startPractice(formalSessionId:string, now=Date.now()):Promise<StudySession> {
