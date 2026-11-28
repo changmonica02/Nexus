@@ -277,6 +277,18 @@ test(
           if(width===1440&&!dark)await screenshot("15-item-details");
         }
       }
+      await page.getByRole("button",{name:"返回我的清單",exact:true}).click();
+      const inventoryList=page.locator("article").filter({has:page.getByRole("button",{name:"消耗品管理",exact:true})});
+      await inventoryList.getByRole("button",{name:"另存範本",exact:true}).click();
+      await name().fill("我的保養品範本");
+      await save();
+      await page.getByRole("button",{name:"自訂範本",exact:true}).click();
+      await page.getByText("我的保養品範本",{exact:true}).waitFor();
+      await page.getByRole("button",{name:"使用範本",exact:true}).click();
+      await name().fill("旅行保養品");
+      await save();
+      await page.getByRole("button",{name:"旅行保養品",exact:true}).click();
+      await page.getByText("沒有符合的項目。",{exact:true}).waitFor();
       assert.deepEqual(errors, []);
       await context.close();
     } finally {
