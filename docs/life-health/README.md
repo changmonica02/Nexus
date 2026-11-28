@@ -23,3 +23,30 @@
 ## 實作畫面
 
 [電腦總覽](screenshots/Nexus-Health-desktop.png) · [手機深色總覽](screenshots/Nexus-Health-mobile.png)
+
+## 健康管理介面完善
+
+手機及直向平板透過固定頂欄選擇 Life 分頁。橫向平板及電腦沿用可收合側欄。健康六個入口共用可橫向捲動的單列導覽。
+
+- 總覽新增日期前後移動、今天及本地日期顯示。飲水、飲食、活動、身體與睡眠各有情境快捷。設定可調整區塊及快捷顯示，健康事項列出時段、狀態及動作。
+- 身體數據顯示最新量測日期並連到分析。飲食按餐別分組，食品選單支援搜尋與依最近同名紀錄帶入份量。複製餐點使用歷史營養快照。
+- 飲水快捷寫入正式工作區記錄。復原新增會移除剛記錄的資料。復原已永久刪除的飲水會以新 ID 寫回原始內容，舊 ID 的刪除紀錄保留。
+- 照護分為指定日、計畫與歷史。暫停、恢復及終止從當天生效。修改未來計畫時會在同一工作區交易結束舊計畫並新增後續計畫，已儲存的服用紀錄仍引用原計畫。
+- 分析提供預設期間和自訂起訖、每日數值、健康目標管理與期末達成數。長期間圖表最多取樣 366 日，期間摘要仍採完整區間資料。眼前缺少的紀錄保留未知狀態。
+- 顯示單位偏好套用於主要體重及運動距離摘要。記錄表單和分析指標使用固定儲存單位。睡眠依起床日統計，正確保留多段睡眠及午睡。
+- 舊資料保留原 ID 和格式。新增的 `?health=` 直接入口接受原功能名稱 `cycle`、`foods`、`exercise`、`sleep`、`goal` 等別名。有關聯的健康資料仍使用原本的日曆與任務投影；預設限制跨模組顯示。
+
+### 遷移與復原
+
+依主 PR 順序確認 `20261128000000_life_calendar_repeat_modes.sql`、`20261128010000_life_task_executions.sql`、`20261128020000_life_finance_recurring.sql` 已套用，再套用 `20261128030000_life_health_dose_slots.sql`。健康遷移只為新版寫入的預定時段新增局部唯一索引。既有重複紀錄保留，庫存與統計依原去重邏輯計算。需要復原遷移時，可移除 `life_health_managed_dose_slot` 索引，並保留已儲存資料及原 RLS。
+
+### 瀏覽器截圖
+
+| 畫面 | 實作截圖 |
+| --- | --- |
+| 健康總覽 | [手機深色](refinement/Nexus-Health-mobile.png) · [平板橫向](refinement/Nexus-Health-tablet-landscape.png) · [平板直向](refinement/Nexus-Health-tablet-portrait.png) · [電腦](refinement/Nexus-Health-desktop.png) |
+| 身體、飲食 | [身體](refinement/Nexus-Health-body-mobile.png) · [飲食](refinement/Nexus-Health-food-mobile.png) |
+| 活動、照護、分析 | [活動與休息](refinement/Nexus-Health-activity-mobile.png) · [照護](refinement/Nexus-Health-care-mobile.png) · [分析](refinement/Nexus-Health-analysis-mobile.png) |
+| 重要操作 | [自訂飲水](refinement/Nexus-Health-water-editor-mobile.png) · [記錄服用](refinement/Nexus-Health-dose-editor-mobile.png) |
+
+截圖使用測試工作區的合成資料。進階照護規則採既有月末日期推算，尚未提供每月第幾個星期幾或任意單次例外規則。用藥計畫的新舊時段與實際紀錄各自保留。活動資料未接入步數或睡眠階段裝置。

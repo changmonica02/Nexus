@@ -191,3 +191,22 @@ test("linked health records recalculate task windows without replacing manual ex
   const manual = { ...slot, record: { status: "skipped" }, status: "skipped" };
   assert.equal(project([first, second], {}, manual), manual);
 });
+
+test("monthly care uses month-end anchors and preserves past slots across pause and resume", () => {
+ const { medicationDue } = require("../../src/features/life/health/sensitive.ts");
+ const plan = record("medication",{ date:"2026-01-31",frequency:"monthly",interval:1,
+  lifecycle:["2026-03-15:paused","2026-05-01:active","2026-06-01:ended"] });
+ assert.equal(medicationDue(plan,"2026-02-28"),true);
+ assert.equal(medicationDue(plan,"2026-03-31"),false);
+ assert.equal(medicationDue(plan,"2026-05-31"),true);
+ assert.equal(medicationDue(plan,"2026-06-30"),false);
+});
+
+test("configured monthly goals use actual recorded days for averages and retain unknown measurements", () => {
+ const { progress } = require("../../src/features/life/health/summary.ts");
+ const goal=record("goal",{date:"2026-11-01",until:"2026-11-30",metric:"water",period:"month",aggregation:"average",
+  mode:"increase",baseline:0,target:1000});
+ const drinks=[record("water",{date:"2026-11-02",amount:1000}),record("water",{date:"2026-11-03",amount:500})];
+ assert.deepEqual(progress(drinks,goal,day),{current:750,ratio:75});
+ assert.deepEqual(progress([],goal,day),{current:null,ratio:null});
+});

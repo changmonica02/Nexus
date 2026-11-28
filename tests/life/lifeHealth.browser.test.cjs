@@ -77,6 +77,16 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByText("65 kg",{exact:true}).waitFor();
     await page.getByText("500 ml",{exact:true}).waitFor();
     await page.getByText("8 小時",{exact:true}).waitFor();
+    const date = page.getByLabel("紀錄日期");
+    const original = await date.inputValue();
+    await page.getByRole("button",{name:"前一天",exact:true}).click();
+    assert.notEqual(await date.inputValue(),original);
+    await page.getByRole("button",{name:"今天",exact:true}).click();
+    assert.equal(await date.inputValue(),original);
+    await page.getByRole("button",{name:"記錄 250 ml",exact:true}).click();
+    await page.getByText("750 ml",{exact:true}).waitFor();
+    await page.getByRole("button",{name:"復原",exact:true}).click();
+    await page.getByText("500 ml",{exact:true}).waitFor();
     assert.deepEqual(await page.getByRole("navigation",{name:"健康功能"}).getByRole("button").allTextContents(),
       ["總覽","身體","飲食","活動與休息","照護","分析"]);
     await nav("分析");
@@ -84,16 +94,75 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByLabel("趨勢指標").selectOption("sleep");
     await page.getByText("檢視每日數值",{exact:true}).click();
     assert.equal(await page.getByText(/ · 8$/).count(),1);
+    await page.getByRole("combobox",{name:"統計期間"}).selectOption("0");
+    await page.getByLabel("開始日期",{exact:true}).fill(original);
+    await page.getByLabel("結束日期",{exact:true}).fill(original);
+    await page.getByText("8 小時",{exact:true}).waitFor();
+    await nav("飲食");
+    await enter("新增常用食品",async dialog=>{
+      await dialog.getByLabel("名稱",{exact:true}).fill("燕麥豆漿");
+      await dialog.getByLabel("熱量（kcal）",{exact:true}).fill("120");
+    });
+    await enter("新增飲食",async dialog=>{
+      await dialog.getByLabel("名稱",{exact:true}).fill("今日早餐");
+      await dialog.getByLabel("常用食品",{exact:true}).selectOption({label:"燕麥豆漿"});
+      await dialog.getByRole("button",{name:"加入食品",exact:true}).click();
+    });
+    await page.getByRole("button",{name:"複製餐點",exact:true}).click();
+    const copied=page.getByRole("dialog",{name:"新增飲食",exact:true});
+    await copied.getByText(/燕麥豆漿/).first().waitFor();
+    await copied.getByRole("button",{name:"取消",exact:true}).click();
+    await nav("照護");
+    await enter("新增用藥項目",async dialog=>{
+      await dialog.getByLabel("名稱",{exact:true}).fill("測試照護計畫");
+      await dialog.getByLabel("單位",{exact:true}).fill("份");
+      await dialog.getByLabel(/預定時間/).fill("08:00,20:00");
+    });
+    await page.getByRole("button",{name:"照護計畫",exact:true}).click();
+    await page.getByRole("button",{name:"暫停計畫",exact:true}).click();
+    await page.getByRole("button",{name:"確認",exact:true}).click();
+    await page.getByRole("button",{name:"恢復計畫",exact:true}).click();
+    await page.getByRole("button",{name:"確認",exact:true}).click();
+    await page.getByRole("button",{name:"暫停計畫",exact:true}).waitFor();
+    await page.getByRole("button",{name:"所選日照護",exact:true}).click();
     await nav("總覽");
     const screenshots=process.env.NEXUS_HEALTH_SCREENSHOTS;
     if(screenshots){
       fs.mkdirSync(screenshots,{recursive:true});
-      for(const [label,width,height,theme] of [["desktop",1280,900,"light"],["tablet",820,1100,"light"],["mobile",390,844,"dark"]]){
+      for(const [label,width,height,theme] of [["desktop",1280,900,"light"],["tablet-portrait",820,1100,"light"],["tablet-landscape",1180,820,"light"],["mobile",390,844,"dark"]]){
         await page.setViewportSize({width,height});
-        await page.emulateMedia({colorScheme:theme});
-        await page.evaluate(dark=>document.documentElement.classList.toggle("dark",dark),theme==="dark");
+        const header = page.locator("[data-workspace-header]");
+        for(const color of [theme==="dark"?"light":"dark",theme]){
+          await page.emulateMedia({colorScheme:color});
+          await page.evaluate(dark=>document.documentElement.classList.toggle("dark",dark),color==="dark");
+          if(width<960){
+            assert.equal(await page.locator(".life-navigation").isVisible(),false);
+            await header.getByRole("button",{name:"切換生活分頁"}).click();
+            await header.getByRole("tab",{name:"健康管理"}).click();
+          }
+          assert.equal(await header.getByRole("heading",{level:1}).innerText().then(value=>value.replace(/\s/g,"")),"生活健康管理");
+          assert.ok(await page.locator("#life-content").evaluate(node=>node.scrollWidth<=node.clientWidth));
+        }
         await page.screenshot({path:path.join(screenshots,`Nexus-Health-${label}.png`)});
       }
+      for(const [label,section] of [["body","身體"],["food","飲食"],["activity","活動與休息"],["care","照護"],["analysis","分析"]]){
+        await nav(section);
+        if(section==="分析")await page.getByRole("combobox",{name:"統計期間"}).selectOption("7");
+        await page.locator("#life-content").evaluate(node=>{node.scrollTop=0;});
+        await page.screenshot({path:path.join(screenshots,`Nexus-Health-${label}-mobile.png`)});
+      }
+      await nav("照護");
+      await page.getByRole("button",{name:"新增服用紀錄",exact:true}).first().click();
+      const dose=page.getByRole("dialog",{name:"新增服用紀錄",exact:true});
+      await dose.waitFor();
+      await page.screenshot({path:path.join(screenshots,"Nexus-Health-dose-editor-mobile.png")});
+      await dose.getByRole("button",{name:"取消",exact:true}).click();
+      await nav("飲食");
+      await page.getByRole("button",{name:"自訂容量",exact:true}).click();
+      const waterDialog=page.getByRole("dialog",{name:"新增飲水",exact:true});
+      await waterDialog.waitFor();
+      await page.screenshot({path:path.join(screenshots,"Nexus-Health-water-editor-mobile.png")});
+      await waterDialog.getByRole("button",{name:"取消",exact:true}).click();
       await page.setViewportSize({width:1280,height:900});
     }
     await navigateLife(page, "日曆");

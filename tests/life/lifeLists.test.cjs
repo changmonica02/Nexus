@@ -38,6 +38,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await beforeTaskPlan?.(pg);
   await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261128020000_life_finance_recurring.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128030000_life_health_dose_slots.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -868,4 +869,22 @@ test("empty execution schema can roll back to the prior sync function without af
     assert.equal((await pg.query("select pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure) as definition")).rows[0].definition,before);
     assert.equal((await pg.query("select title from public.life_habits where id='prior'")).rows[0].title,"閱讀");
   }finally{await pg.close();}
+});
+
+test("managed care slots reject concurrent duplicates while legacy logs remain readable", async()=>{
+  const {makeHealth}=require("../../src/features/life/health/model.ts");
+  const pg=await setup(), storage=await device();
+  const row=makeHealth(owner,"dose",{medication:"plan",title:"照護項目",date:"2026-11-28",planned:"08:00",
+    status:"taken",actual:"2026-11-28T08:00",quantity:1});
+  try{
+    const repo=storage.getLifeRepository();
+    const writes=await Promise.allSettled([repo.saveHealth(row),repo.saveHealth({...row,id:"second"})]);
+    assert.equal(writes.filter(item=>item.status==="fulfilled").length,1);
+    await rpc(pg,"life_health_records",row);
+    await rpc(pg,"life_health_records",{...row,id:"legacy-duplicate"});
+    const managed={...row,id:"managed",data:{...row.data,managedSlot:true}};
+    await rpc(pg,"life_health_records",managed);
+    await assert.rejects(rpc(pg,"life_health_records",{...managed,id:"managed-duplicate"}),/life_health_managed_dose_slot/);
+    assert.equal((await pg.query("select id from life_health_records")).rows.length,3);
+  }finally{await storage.close();await pg.close();}
 });

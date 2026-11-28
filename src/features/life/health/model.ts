@@ -7,7 +7,7 @@ export type Entry = keyof typeof labels;
 export type Kind = Entry | "privacy";
 export const body = { height:"身高（cm）",weight:"體重（kg）",fat:"體脂率（%）",muscle:"肌肉量（kg）",waist:"腰圍（cm）",systolic:"收縮壓（mmHg）",diastolic:"舒張壓（mmHg）",heart:"靜息心率（次／分）",temperature:"體溫（°C）",bmr:"基礎代謝率（kcal／日）" };
 export const nutrition = { kcal:"熱量（kcal）",protein:"蛋白質（g）",carbs:"碳水化合物（g）",lipid:"脂肪（g）",sugar:"糖（g）",sodium:"鈉（mg）",fiber:"膳食纖維（g）" };
-export const metrics = {...body,...nutrition, water:"飲水（ml）",minutes:"運動時間（分鐘）",sessions:"運動次數", sleep:"睡眠（小時）",custom:"自訂數值"};
+export const metrics = {...body,...nutrition, water:"飲水（ml）",minutes:"運動時間（分鐘）",sessions:"運動次數", sleep:"睡眠（小時）",care:"照護執行（次）",custom:"自訂數值"};
 export type Item = { title:string; amount:number; unit:string; values:Record<string,number> };
 export type Data = Record<string,string|number|boolean|Item[]|string[]|undefined>;
 export interface HealthRecord extends LifeSyncBase {
@@ -58,12 +58,15 @@ export function validateHealth(row:HealthRecord){
  if(kind==="cycle"&&(!validDay(s("date"))||s("until")&&(!validDay(s("until"))||s("until")<s("date"))||Number(data.pain)>10))throw Error("請確認經期日期及疼痛程度");
  if(kind==="medication"&&(!s("title").trim()||!s("unit").trim()||!positive(data,"quantity")||!validDay(s("date"))||
    s("until")&&(!validDay(s("until"))||s("until")<s("date"))||s("expiry")&&!validDay(s("expiry"))||
-   !["daily","weekly","interval","asNeeded"].includes(s("frequency"))||s("frequency")!=="asNeeded"&&(!medicationTimes(data).length||medicationTimes(data).length>12||!medicationTimes(data).every(clock))||
+   !["daily","weekly","monthly","interval","asNeeded"].includes(s("frequency"))||
+   (data.lifecycle!==undefined&&(!Array.isArray(data.lifecycle)||data.lifecycle.some((event,index,events)=>!/^\d{4}-\d{2}-\d{2}:(paused|active|ended)$/.test(String(event))||
+     !validDay(String(event).slice(0,10))||index>0&&String(event).slice(0,10)<=String(events[index-1]).slice(0,10))))||s("frequency")!=="asNeeded"&&(!medicationTimes(data).length||medicationTimes(data).length>12||!medicationTimes(data).every(clock))||
    s("frequency")==="weekly"&&!/^[0-6]+$/.test(s("weekdays"))||
-   s("frequency")==="interval"&&(!Number.isInteger(data.interval)||!positive(data,"interval"))))throw Error("請確認劑量、日期及服用週期");
+   (s("frequency")==="interval"||s("frequency")==="monthly")&&(!Number.isInteger(data.interval)||!positive(data,"interval"))))throw Error("請確認劑量、日期及服用週期");
  if(kind==="dose"&&(!s("medication")||!s("title").trim()||!validDay(s("date"))||!["taken","missed","skipped"].includes(s("status"))||
    s("planned")&&!clock(s("planned"))||s("status")==="taken"&&(!positive(data,"quantity")||!validDay(s("actual").slice(0,10))||!clock(s("actual").slice(11)))))throw Error("請確認服用日期、狀態及數量");
  if(kind==="goal"){
+  if(s("period")&&!["day","week","month"].includes(s("period"))||s("aggregation")&&!["total","average"].includes(s("aggregation")))throw Error("統計週期或彙整方式無效");
   const base=num(data,"baseline"),target=num(data,"target"),upper=num(data,"upper");
   if(!Object.hasOwn(metrics,s("metric"))||!validDay(s("date"))||!validDay(s("until"))||s("date")>s("until")||base===null||target===null
    ||!(s("mode")==="increase"?base<target:s("mode")==="decrease"?base>target:s("mode")==="maintain"&&upper!==null&&upper>=target))throw Error("請確認健康目標及期間");
@@ -83,7 +86,7 @@ export function shared(rows:HealthRecord[],privacy:Fields){
   &&(row.kind!=="goal"||allowed(privacy,metricGroup(str(row,"metric")))&&privacy["share_"+metricGroup(str(row,"metric"))]===true));
 }
 export const allowed=(privacy:Fields,group:Group)=>privacy["off_"+group]!==true;
-export const metricGroup=(key:string):Group=>Object.hasOwn(body,key)?"body":key==="sleep"?"sleep":key==="minutes"||key==="sessions"?"exercise":key==="custom"?"goal":"diet";
+export const metricGroup=(key:string):Group=>Object.hasOwn(body,key)?"body":key==="sleep"?"sleep":key==="care"?"medication":key==="minutes"||key==="sessions"?"exercise":key==="custom"?"goal":"diet";
 
 export function exerciseAutomationSources(rows:readonly HealthRecord[]) {
  return rows.flatMap(row=>row.kind==="exercise"&&row.deleted_at==null&&typeof row.data.date==="string"

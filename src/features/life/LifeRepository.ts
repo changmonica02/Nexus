@@ -321,8 +321,22 @@ export class LifeRepository {
   async saveHealth(row:HealthRecord,remove=false) {
     const owner=this.owner();
     if(row.workspace_owner_id!==owner)throw Error("帳號已切換");
+    const data=!remove&&row.kind==="dose"&&row.data.planned?{...row.data,managedSlot:true}:row.data;
     await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_health_records",kind:remove?"hard_delete":"save",
-      value:{...row,updated_at:Date.now()}}]);
+      value:{...row,data,updated_at:Date.now()}}]);
+  }
+
+  async replaceMedication(previous:HealthRecord,next:HealthRecord,today:string) {
+    const owner=this.owner(),start=String(next.data.date??"");
+    if(previous.kind!=="medication"||next.kind!=="medication"||previous.workspace_owner_id!==owner||next.workspace_owner_id!==owner
+      ||start<=today||start<=String(previous.data.date)||previous.data.until&&start>String(previous.data.until)){
+      throw Error("新計畫須在既有計畫期間內，並從未來日期開始");
+    }
+    const yesterday=civilAdvance(start,"day",-1);
+    await new WorkspacePersistence(this.db).mutate(owner,[
+      {type:"life_health_records",kind:"save",value:{...previous,updated_at:Date.now(),data:{...previous.data,until:yesterday}}},
+      {type:"life_health_records",kind:"save",value:next},
+    ]);
   }
 
   async readFinance() {

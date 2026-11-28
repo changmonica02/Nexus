@@ -1,4 +1,5 @@
 "use client";
+import { healthTabFromUrl } from "../features/life/health/HealthWorkspace";
 import LifeTitle from "../features/life/LifeTitle";
 import { financeTabFromUrl } from "../features/life/finance/FinanceWorkspace";
 import { nextTaskId } from "../features/life/taskRepeat";
@@ -1179,10 +1180,12 @@ function NexusAppInner({
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setActivePageId(null); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   useEffect(() => {
-    if (!isReady || !isAuthenticated || !financeTabFromUrl()) return;
+    if (!isReady || !isAuthenticated) return;
+    const mode=healthTabFromUrl()?"health":financeTabFromUrl()?"finance":undefined;
+    if(!mode)return;
     queueMicrotask(() => {
       handleShowTodoList();
-      setLifeState(current => ({ ...current, tab: "finance", scroll: 0 }));
+      setLifeState(current => ({ ...current, tab: mode, scroll: 0 }));
     });
   }, [isReady, isAuthenticated, handleShowTodoList]);
   const handleShowCreative = useCallback(() => {
@@ -1882,7 +1885,7 @@ function NexusAppInner({
         <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
-          {isTodoMode && <LifeTitle tab={lifeState.tab}/>}
+          {isTodoMode && <><LifeTitle tab={lifeState.tab}/><div id="life-header-navigation" /></>}
           <div className="flex-1" />
           {workspaceActions}
         </header>

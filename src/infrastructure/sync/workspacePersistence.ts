@@ -215,6 +215,23 @@ export class WorkspacePersistence {
           .filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
         validateFinanceRelations(finance);
       }
+      if (changes.some(change => change.type==="life_health_records" && change.kind==="save"
+        && (change.value as HealthRecord).data.managedSlot===true)) {
+        const rows=(await tx.objectStore("life_health_records").getAll() as HealthRecord[])
+          .filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null&&row.kind==="dose"&&row.data.planned);
+        const slots=new Map<string,number>();
+        for(const row of rows){
+          const key=JSON.stringify([row.data.medication,row.data.date,row.data.planned]);
+          slots.set(key,(slots.get(key)??0)+1);
+        }
+        for(const change of changes){
+          if(change.type!=="life_health_records"||change.kind!=="save")continue;
+          const {data}=change.value as HealthRecord;
+          if(data.managedSlot===true&&(slots.get(JSON.stringify([data.medication,data.date,data.planned]))??0)>1){
+            throw Error("這個預定時段已有服用紀錄，請開啟原紀錄修改。");
+          }
+        }
+      }
       if(!operations.length){ await tx.done; return; }
       const counter = await metadata.get("sequence");
       const sequence = (counter?.value ?? 0) + 1;
