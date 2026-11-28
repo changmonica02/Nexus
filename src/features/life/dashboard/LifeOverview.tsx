@@ -31,7 +31,7 @@ const iconByModule = { finance: Wallet, health: HeartPulse, calendar: CalendarDa
 const cardWidths = { small: "", medium: "@3xl/life:col-span-2", large: "col-span-full" };
 const itemLimits = { small: 2, medium: 5, large: 10 };
 
-export default function LifeOverview({ dashboard, todos, anchor, today, events, milestones, habits, finances, financeHide, health, healthShared, plannedExecutions, openPlanned, completePlanned, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
+export default function LifeOverview({ dashboard, todos, anchor, today, events, milestones, habits, finances, financeHide, health, healthShared, plannedExecutions, projectTaskSlot, openPlanned, completePlanned, openSchedule, selectedId, onSelectBoard, openModule, openTask, toggleTask }: {
   dashboard: ReturnType<typeof useLifeDashboard>;
   todos: Page[];
   anchor: Date;
@@ -43,6 +43,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
   financeHide?: boolean;
   health: HealthRecord[];
   healthShared: boolean;
+  projectTaskSlot?: (id:string,slot:TaskSlot)=>TaskSlot;
   plannedExecutions?: Map<string,TaskExecution[]>;
   openPlanned?: (page:Page,slot?:TaskSlot)=>void;
   completePlanned?: (event:LifeCalendarEvent)=>void;
@@ -226,7 +227,7 @@ export default function LifeOverview({ dashboard, todos, anchor, today, events, 
           const plannedRows = plannedExecutions && ["tasks","calendar","habits"].includes(card.type) && !config.hiddenModules.includes("tasks")
             ? todos.flatMap(task => {
               if (!task.task_plan || task.task_plan.retired || card.type==="habits"&&card.listId&&task.id!==card.listId) return [];
-              return taskSlots(task.task_plan,plannedExecutions.get(task.id)??[],localDateInput(timelineDays[0]),localDateInput(timelineDays.at(-1)!))
+              return taskSlots(task.task_plan,plannedExecutions.get(task.id)??[],localDateInput(timelineDays[0]),localDateInput(timelineDays.at(-1)!)).map(slot=>projectTaskSlot?.(task.id,slot)??slot)
                 .filter(slot => (card.type!=="habits"||slot.settings.tracking)
                   && (card.status==="all" || (card.status==="completed") === (slot.status==="complete")))
                 .map(slot=>({task,slot}));

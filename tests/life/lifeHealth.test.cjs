@@ -173,3 +173,21 @@ test("target-day rules preserve leap-day intent across annual anniversaries", ()
   assert.deepEqual(run("2026-02-27"),[]);
   assert.deepEqual(run("2026-02-26",[]),[]);
 });
+
+test("linked health records recalculate task windows without replacing manual executions", () => {
+  const { taskHealthProgress } = require("../../src/features/life/health/taskProgress.ts");
+  const slot = { day, through: "2026-11-29", status: "pending", amount: 0,
+    settings: { goal: { kind: "quantity", unit: "ml", target: 500 } } };
+  const first = record("water", { amount: 300, task: "drink" });
+  const second = record("water", { date: "2026-11-27", amount: 250, task: "drink" });
+  const other = record("water", { amount: 1000, task: "other" });
+  const project = (rows, settings = {}, item = slot, today = "2026-11-27") =>
+    taskHealthProgress(rows, settings, "drink", item, today);
+  assert.equal(project([first, second, other]).status, "complete");
+  assert.equal(project([first, second], {}, slot, day).amount, 300);
+  assert.equal(project([first, { ...second, data: { ...second.data, amount: 50 } }]).status, "partial");
+  assert.equal(project([first]).amount, 300);
+  assert.equal(project([first], { off_diet: true }).amount, 0);
+  const manual = { ...slot, record: { status: "skipped" }, status: "skipped" };
+  assert.equal(project([first, second], {}, manual), manual);
+});
