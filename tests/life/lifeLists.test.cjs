@@ -40,6 +40,7 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261128020000_life_finance_recurring.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261128030000_life_health_dose_slots.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261128040000_life_task_action_slots.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128050000_life_list_inventory.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -909,4 +910,63 @@ test("linked check results cannot be duplicated, and rejected financial writes a
     })));
     assert.equal((await repo.readFinance()).length,0);
   }finally{await storage.close();await pg.close();}
+});
+
+test("inventory: isolated containers, atomic journal, replay, revision conflicts and owner RLS", async () => {
+  const { stockHeads, stockTotals, stockUsage } = require("../../src/features/life/inventory.ts");
+  const pg = await setup();
+  const a = await device(), b = await device();
+  const local = a.getWorkspacePersistence();
+  const remote = client(pg);
+  const repo = a.getLifeRepository();
+  try {
+    const l = { ...list(), configuration: { inventory: true } };
+    const i = item(l);
+    await repo.save("life_lists", l);
+    await repo.save("life_items", i);
+    const position = { ...lifeBase(owner, "浴室"), parent_id: null };
+    await repo.saveStockPosition(position);
+    await assert.rejects(repo.saveStockPosition({ ...position, revision: 1, parent_id: position.id }), /位置/);
+    const receipt = { capacity: 200, unit: "mL", purchased_on: "2026-11-28", position_id: position.id, expiry: null, price: null, currency: null, note: "" };
+    await repo.receiveStock(i, "receipt-a", 3, receipt);
+    await repo.receiveStock(i, "receipt-a", 3, receipt);
+    let stock = await repo.readStock();
+    assert.equal(stock.life_stock_events.length, 3);
+    await assert.rejects(repo.saveStockPosition({ ...position, revision: 1 }, true), /請先移走/);
+    await repo.changeStock(stock.life_stock_events[0], "open", { state: "open", opened_on: "2026-11-28" });
+    const opened = stockHeads((await repo.readStock()).life_stock_events).find(row => row.state === "open");
+    await assert.rejects(repo.changeStock(opened, "use", { remaining: -1, state: "open" }), /格式/);
+    await repo.changeStock(opened, "use", { remaining: 80 });
+    await assert.rejects(repo.changeStock(opened, "use", { remaining: 70 }), /追加/);
+    stock = await repo.readStock();
+    const heads = stockHeads(stock.life_stock_events);
+    const totals = stockTotals(heads);
+    assert.deepEqual([totals.held, totals.sealed, totals.opened.get("mL"), totals.volume.get("mL")], [3, 2, 80, 480]);
+    assert.equal(stockUsage(stock.life_stock_events).get("mL").used, 120);
+    await flushWorkspace(remote, local, owner);
+    await pullWorkspace(remote, b.getWorkspacePersistence(), owner);
+    assert.equal(stockTotals(stockHeads((await b.getLifeRepository().readStock()).life_stock_events)).volume.get("mL"), 480);
+    await repo.changeStock(heads.find(row => row.state === "open"), "undo");
+    await flushWorkspace(remote, local, owner);
+    assert.equal(stockUsage((await repo.readStock()).life_stock_events).size, 0);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select count(*)::int n from life_stock_events")).rows[0].n, 6);
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    assert.equal((await pg.query("select count(*)::int n from life_stock_events")).rows[0].n, 0);
+    assert.equal((await pg.query("select count(*)::int n from life_stock_positions")).rows[0].n, 0);
+  } finally {
+    a.db.close(); b.db.close(); await pg.close();
+  }
+});
+
+test("list CSV import previews typed rows and export escapes spreadsheet formulas", () => {
+  const {listCsv, previewListCsv} = require("../../src/features/life/listTransfer.ts");
+  const l = { ...list(), fields: [{id:"notes", name:"備註", type:"text"}, {id:"count", name:"數量", type:"number"}] };
+  const source='名稱,備註,數量\r\n乳液,"品牌 A, 旅行裝",3\r\n乳液,重複,9';
+  const preview=previewListCsv(source,l,[]);
+  assert.equal(preview.skipped,1);
+  assert.deepEqual(preview.items[0].values,{notes:"品牌 A, 旅行裝",count:3});
+  assert.throws(()=>previewListCsv("名稱,數量\n乳液,無效",l,[]),/需要數字/);
+  const csv=listCsv(l,[{...preview.items[0],title:"=1+1",values:{notes:" +1",count:-2}}]);
+  assert.match(csv,/"'=1\+1","' \+1","-2"/);
 });

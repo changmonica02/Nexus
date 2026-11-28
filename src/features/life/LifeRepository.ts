@@ -1,3 +1,4 @@
+import { emptyStock, stockId, type StockData, type StockEvent, type StockPosition } from "./inventory";
 import type { TaskLink } from "./taskLink";
 import { civilAdvance } from "./civilPeriods";
 import { convertHabit, makeExecution, sameTaskData, type TaskExecution, type TaskSlot, type TaskStatus } from "./taskPlan";
@@ -483,9 +484,55 @@ export class LifeRepository {
     if (this.owner() !== owner) throw Error("帳號已切換");
     return data;
   }
+  async readStock():Promise<StockData> {
+    const owner=this.owner();
+    const stock=emptyStock();
+    const tx=this.db.transaction(["life_stock_events","life_stock_positions"],"readonly");
+    stock.life_stock_events=(await tx.objectStore("life_stock_events").getAll()).filter(row=>row.workspace_owner_id===owner);
+    stock.life_stock_positions=(await tx.objectStore("life_stock_positions").getAll()).filter(row=>row.workspace_owner_id===owner);
+    await tx.done;
+    if(owner!==this.owner())throw Error("帳號已切換");
+    return stock;
+  }
+  async receiveStock(item:LifeItem, lot:string, count:number, input:Pick<StockEvent,"capacity"|"unit"|"position_id"|"purchased_on"|"expiry"|"price"|"currency"|"note">) {
+    const owner=this.owner();
+    if(item.workspace_owner_id!==owner)throw Error("帳號已切換");
+    if(!Number.isSafeInteger(count)||count<1||count>100)throw Error("每次入庫請輸入 1 至 100 件");
+    const base=lifeBase(owner,"");
+    const operations=Array.from({length:count},(_,index):WorkspaceChange=>{
+      const container=lot+"-"+(index+1);
+      const value:StockEvent={...base,...input,id:stockId(container,1),item_id:item.id,lot_id:lot,container_id:container,
+        sequence:1,action:"purchase",remaining:input.capacity,opened_on:null,state:"sealed"};
+      return {type:"life_stock_events",kind:"save",value,createOnce:true};
+    });
+    await new WorkspacePersistence(this.db).mutate(owner,operations);
+  }
+  async changeStock(current:StockEvent, action:Exclude<StockEvent["action"],"purchase">, patch:Partial<Pick<StockEvent,"remaining"|"state"|"opened_on"|"position_id"|"note">>={}) {
+    const owner=this.owner();
+    if(current.workspace_owner_id!==owner)throw Error("帳號已切換");
+    if(action==="undo"){
+      const prior=await this.db.get("life_stock_events",stockId(current.container_id,current.sequence-1)) as StockEvent|undefined;
+      if(!prior||prior.workspace_owner_id!==owner||owner!==this.owner())throw Error("沒有可復原的庫存異動");
+      patch={remaining:prior.remaining,state:prior.state,opened_on:prior.opened_on,position_id:prior.position_id};
+    }
+    const base=lifeBase(owner,"");
+    const sequence=current.sequence+1;
+    const value:StockEvent={...current,...base,...patch,note:patch.note??"",id:stockId(current.container_id,sequence),sequence,action};
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_stock_events",kind:"save",value}]);
+  }
+  async saveStockPosition(position:StockPosition, remove=false){
+    if(position.workspace_owner_id!==this.owner())throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(this.owner(),[{type:"life_stock_positions",kind:remove?"soft_delete":"save",value:{...position,updated_at:Date.now()}}]);
+  }
   async save(type: LifeStore, value: LifeRecord) {
     if (value.workspace_owner_id !== this.owner()) throw Error("帳號已切換");
     await new WorkspacePersistence(this.db).mutate(this.owner(), [{ type, kind: "save", value }]);
+  }
+  async importListItems(list:LifeList,items:LifeItem[]){
+    const owner=this.owner();
+    if(owner!==list.workspace_owner_id||items.some(item=>item.workspace_owner_id!==owner||item.list_id!==list.id))throw Error("帳號或清單已切換");
+    const local=new WorkspacePersistence(this.db);
+    await local.mutate(owner,items.map(value=>({type:"life_items",kind:"save",value})),[{type:"life_lists",id:list.id,revision:list.revision}]);
   }
   async convertField(list:LifeList,fieldId:string,target:"text"|"number",items:LifeItem[]) {
     const owner=this.owner();

@@ -22,7 +22,7 @@ import type { StorageAdapter } from "./StorageAdapter";
 import { WorkspacePersistence, stageDashboard, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 const BACKUP_SCHEMA_VERSION = 4;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
@@ -101,7 +101,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
       }
     }
-    for(const store of [...LIFE_STORES,"life_schedule_events","life_habits","life_task_executions"])for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
+    for(const store of [...LIFE_STORES,"life_schedule_events","life_habits","life_task_executions","life_stock_positions","life_stock_events"])for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
     // Only explicit, post-upgrade offline intents are claimed for upload. Old cached
     // rows without an outbox record never become inferred cloud creations.
     for (const batch of await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]) {
@@ -147,6 +147,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
+            if(name==="life_stock_events"){store.createIndex("by_item","item_id");store.createIndex("by_position","position_id");}
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
           }
         }

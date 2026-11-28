@@ -103,6 +103,7 @@ test("health records persist and calendar sharing is opt-in", { timeout: 60000 }
     await page.getByRole("button",{name:"記錄 250 mL",exact:true}).click();
     await page.getByText("750 mL",{exact:true}).waitFor();
     await page.getByRole("button",{name:"復原",exact:true}).click();
+    await page.getByRole("button",{name:"復原",exact:true}).waitFor({state:"hidden"});
     await page.getByText("500 mL",{exact:true}).first().waitFor();
     await page.reload();
     await navigateLife(page,"健康管理");

@@ -1,3 +1,4 @@
+import { stockHeads, stockId, validateStockTransition, type StockEvent, type StockPosition } from "../../features/life/inventory";
 import { validateTaskPlan, type TaskExecution } from "../../features/life/taskPlan";
 import type { HealthRecord } from "../../features/life/health/model";
 import type { FinanceRecord } from "../../features/life/finance/model";
@@ -20,7 +21,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution | StockEvent | StockPosition;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export type WorkspaceChange = { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob;
   createOnce?: boolean; automationField?:"title"|"priority"|"completed" };
@@ -150,6 +151,35 @@ export class WorkspacePersistence {
           if ((value as Page).kind!=="todo") throw Error("僅任務可設定週期");
           validateTaskPlan((value as Page).task_plan!);
         }
+        if(type==="life_stock_events"){
+          const event=value as StockEvent;
+          if(kind!=="save"||old)throw Error("庫存異動為追加式紀錄");
+          const item=await tx.objectStore("life_items").get(event.item_id) as LifeItem|undefined;
+          const list=item&&await tx.objectStore("life_lists").get(item.list_id) as LifeList|undefined;
+          if(!item||item.workspace_owner_id!==owner||item.deleted_at!=null||!list?.configuration?.inventory)throw Error("這個物品未啟用庫存");
+          if(event.position_id){
+            const position=await tx.objectStore("life_stock_positions").get(event.position_id) as StockPosition|undefined;
+            if(!position||position.workspace_owner_id!==owner||position.deleted_at!=null)throw Error("找不到存放位置");
+          }
+          const previous=event.sequence>1?await store.get(stockId(event.container_id,event.sequence-1)) as StockEvent|undefined:undefined;
+          const prior=event.sequence>2?await store.get(stockId(event.container_id,event.sequence-2)) as StockEvent|undefined:undefined;
+          if(event.sequence>1&&(!previous||previous.workspace_owner_id!==owner))throw Error("庫存已更新，請重新載入");
+          validateStockTransition(event,previous,prior);
+        }
+        if(type==="life_stock_positions"){
+          const position=value as StockPosition;
+          const positions=(await store.getAll() as StockPosition[]).filter(row=>row.workspace_owner_id===owner&&row.deleted_at===null);
+          if(kind==="soft_delete"&&(positions.some(row=>row.parent_id===position.id)
+            ||stockHeads((await tx.objectStore("life_stock_events").getAll() as StockEvent[]).filter(row=>row.workspace_owner_id===owner))
+             .some(row=>row.position_id===position.id&&(row.state==="sealed"||row.state==="open"))))throw Error("請先移走子位置及庫存");
+          let parent=position.parent_id;
+          const seen=new Set([position.id]);
+          while(parent){
+            const row=positions.find(row=>row.id===parent);
+            if(!row||seen.has(parent))throw Error("位置關聯無效或形成循環");
+            seen.add(parent); parent=row.parent_id;
+          }
+        }
         if (type==="life_task_executions") {
           const parent=await tx.objectStore("pages").get((value as TaskExecution).task_id) as Page|undefined;
           if (kind!=="save" || !parent?.task_plan || parent.deleted_at!=null || (parent.workspace_owner_id??null)!==owner)
@@ -157,7 +187,7 @@ export class WorkspacePersistence {
         }
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
           if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" || type === "life_automation_runs" && !!old : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution);
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution | StockEvent | StockPosition);
           if (type === "life_task_executions" && !old && (value as TaskExecution).revision !== 0) throw Error("執行紀錄已變更，請重新載入");
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
