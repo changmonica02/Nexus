@@ -4,8 +4,9 @@ import { confirmDialog } from "../../lib/confirmDialog";
 import { useUnsavedDraft } from "../dictionary/useUnsavedDraft";
 import { control, surface } from "./dashboard/styles";
 import { civilDay, milestoneText } from "./milestoneDates";
-import { newScheduleEvent } from "./SchedulePanel";
+import { newScheduleEvent, OccurrenceScope, saveScopedSchedule, scopedSchedule } from "./SchedulePanel";
 import type { LifeRepository } from "./LifeRepository";
+import { scheduleOccurrence, yearlyMilestoneRule } from "./scheduleRecurrence";
 import type { ScheduleEvent } from "./syncRecords";
 
 type Milestone = NonNullable<ScheduleEvent["milestone"]>;
@@ -26,16 +27,35 @@ export function MilestoneRow({ event, anchor, open }: { event: ScheduleEvent; an
   </button>;
 }
 
-export function MilestoneForm({ initial, repository, close }: {
-  initial: ScheduleEvent; repository: LifeRepository; close: () => void;
+export function MilestoneForm({ initial, repository, close, occurrence }: {
+  initial: ScheduleEvent; repository: LifeRepository; close: () => void; occurrence?: string;
+}) {
+  const [scope,setScope] = useState(occurrence ? "single" : "series");
+  const series = { ...initial, repeat_rule: yearlyMilestoneRule(initial) };
+  const item = occurrence ? scheduleOccurrence(series,occurrence) : undefined;
+  const source = item ? scopedSchedule(series,item,scope) : series;
+  return <MilestoneFields key={scope} initial={source} close={close} single={!!item&&scope==="single"}
+    scopeOptions={item&&<OccurrenceScope value={scope} change={setScope}/>}
+    persist={(event,remove)=>item?saveScopedSchedule(repository,series,item,scope,event,remove):repository.saveSchedule(event,remove)}/>;
+}
+
+function MilestoneFields({ initial, close, single, scopeOptions, persist }: {
+  initial: ScheduleEvent; close: () => void; single: boolean; scopeOptions?: React.ReactNode;
+  persist: (event: ScheduleEvent, remove: boolean) => Promise<void>;
 }) {
   const [details, setDetails] = useState(initial.milestone ?? defaultDetails);
+  const [repeat, setRepeat] = useState(initial.repeat_rule);
+  const toggleYearly = (yearly: boolean) => {
+    const milestone = { ...details, yearly };
+    setDetails(milestone);
+    setRepeat(yearly ? yearlyMilestoneRule({ ...initial, milestone }) : null);
+  };
   const [name, setName] = useState(initial.title);
   const initialDate = new Date(initial.starts_at).toISOString().slice(0, 10);
   const [date, setDate] = useState(initialDate);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const dirty = name !== initial.title || date !== initialDate || details !== initial.milestone;
+  const dirty = name !== initial.title || date !== initialDate || details !== initial.milestone || repeat !== initial.repeat_rule;
   useUnsavedDraft(dirty, busy);
   const dismiss = async () => {
     if (!busy && (!dirty || await confirmDialog({ title: "捨棄修改", message: "要離開重要日期編輯嗎？" }))) close();
@@ -45,8 +65,12 @@ export function MilestoneForm({ initial, repository, close }: {
     setError("");
     try {
       const time = Date.parse(date + "T00:00:00Z");
-      await repository.saveSchedule(remove ? initial : { ...initial, title: name.trim(),
-        starts_at: time, ends_at: time, milestone: details, updated_at: Date.now() }, remove);
+      const milestone = { ...details, yearly: !single && details.yearly };
+      const repeat_rule = milestone.yearly && repeat ? {
+        ...repeat, anchorDay: date === initialDate ? repeat.anchorDay : Number(date.slice(8, 10)),
+      } : null;
+      await persist(remove ? initial : { ...initial, title: name.trim(), repeat_rule,
+        starts_at: time, ends_at: time, milestone, updated_at: Date.now() }, remove);
       close();
     } catch (error) {
       setError(error instanceof Error ? error.message : "重要日期儲存失敗");
@@ -56,10 +80,19 @@ export function MilestoneForm({ initial, repository, close }: {
     className="m-auto max-h-[90dvh] w-[min(94vw,34rem)] overflow-auto rounded-2xl border bg-[var(--color-bg)] p-5 text-[var(--color-text)] backdrop:bg-black/40">
     <h2 className="mb-4 text-xl font-semibold">{initial.revision ? "編輯重要日期" : "新增重要日期"}</h2>
     <form className="space-y-3" onSubmit={event => { event.preventDefault(); if (!busy) void submit(); }}>
+      {scopeOptions}
       <label className="grid gap-1">名稱<input required className={control} maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>
       <label className="grid gap-1">日期<input required className={control} type="date" value={date} onChange={event => setDate(event.target.value)}/></label>
-      <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={details.yearly}
-        onChange={event => setDetails({ ...details, yearly: event.target.checked })}/>每年重複</label>
+      {!single&&<label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={details.yearly}
+        onChange={event => toggleYearly(event.target.checked)}/>每年重複</label>}
+      {!single&&details.yearly&&repeat&&<div className="grid gap-2 sm:grid-cols-3">
+        <label className="grid gap-1">間隔年數<input type="number" min="1" max="365" className={control}
+          value={repeat.interval} onChange={event=>setRepeat({...repeat,interval:Number(event.target.value)})}/></label>
+        <label className="grid gap-1">重複結束日期<input type="date" className={control} value={repeat.until}
+          onChange={event=>setRepeat({...repeat,until:event.target.value})}/></label>
+        <label className="grid gap-1">重複次數<input type="number" min="1" max="10000" className={control}
+          value={repeat.count??""} onChange={event=>setRepeat({...repeat,count:event.target.value?Number(event.target.value):null})}/></label>
+      </div>}
       <label className="grid gap-1">天數顯示<select className={control} value={details.mode}
         onChange={event => setDetails({ ...details, mode: event.target.value as Milestone["mode"] })}>
         <option value="remaining">倒數至下次日期</option><option value="elapsed">自上次日期累計</option>

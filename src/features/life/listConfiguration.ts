@@ -1,7 +1,8 @@
 import type { ViewPreferences } from "./listViewModel";
 export type Formula = { left:string; right:string; operation:"+"|"-"|"*"|"/" };
 export type StatisticPreset = { id:string; title:string; field:string; start:string; end:string; group:string; chart:string };
-export type ListConfiguration = { icon?:string; cover?:string; statistics?:StatisticPreset[]; view?:ViewPreferences };
+export type SavedListView={id:string;name:string;view:ViewPreferences};
+export type ListConfiguration = { icon?:string; cover?:string; statistics?:StatisticPreset[]; view?:ViewPreferences; inventory?:boolean; pinned?:boolean; archived?:boolean; template?:boolean; folder?:string; description?:string; savedViews?:SavedListView[]; expiryDays?:number; lowStock?:number };
 
 export function evaluateFormula(formula:Formula, values:Record<string,unknown>) {
   const a=Object.hasOwn(values,formula.left)?values[formula.left]:null;
@@ -13,8 +14,15 @@ export function evaluateFormula(formula:Formula, values:Record<string,unknown>) 
 
 export function isListConfiguration(value:unknown):value is ListConfiguration {
   if(!value||typeof value!=="object"||Array.isArray(value))return false;
-  const {icon,cover,statistics,view}=value as ListConfiguration;
-  return (view===undefined||view&&view.version===1&&JSON.stringify(view).length<=8000)
+  const {icon,cover,statistics,view,inventory,pinned,archived,template,folder,description,savedViews,expiryDays,lowStock}=value as ListConfiguration;
+  return (expiryDays===undefined||Number.isInteger(expiryDays)&&expiryDays>=0&&expiryDays<=365)
+    && (lowStock===undefined||Number.isInteger(lowStock)&&lowStock>=0&&lowStock<=1000000)
+    && (savedViews===undefined||Array.isArray(savedViews)&&savedViews.length<=12&&JSON.stringify(savedViews).length<=16000
+      &&savedViews.every(row=>row&&typeof row.id==="string"&&typeof row.name==="string"&&row.name.trim()&&row.name.length<=80&&row.view?.version===1)
+      &&new Set(savedViews.map(row=>row.id)).size===savedViews.length)
+    && [inventory,pinned,archived,template].every(flag=>flag===undefined||typeof flag==="boolean")
+    && [folder,description].every(value=>value===undefined||typeof value==="string"&&value.length<=500)
+    && (view===undefined||view&&view.version===1&&JSON.stringify(view).length<=8000)
     && (icon===undefined||typeof icon==="string"&&icon.length<=12)
     &&(cover===undefined||["sage","sand","sky","plum"].includes(cover))
     &&(statistics===undefined||Array.isArray(statistics)&&statistics.length<=12&&new Set(statistics.map(row=>row?.id)).size===statistics.length

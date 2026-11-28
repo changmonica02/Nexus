@@ -46,6 +46,7 @@ test("sensitive health and list templates use the existing workspace", { timeout
     await navigateLife(page, "健康管理");
     const nav = name => page.getByRole("navigation",{name:"健康功能"}).getByRole("button",{name,exact:true}).click();
     const enter = async (name, fill) => {
+      if(name!=="新增服用紀錄")await page.getByRole("button",{name:"新增",exact:true}).click();
       await page.getByRole("button",{name,exact:true}).first().click();
       const dialog=page.getByRole("dialog",{name,exact:true});
       await fill(dialog);
@@ -61,14 +62,14 @@ test("sensitive health and list templates use the existing workspace", { timeout
         await page.screenshot({path:path.join(output,name+".png")});
       }
     };
-    await nav("經期");
+    await nav("身體");
     await enter("新增經期紀錄",async dialog=>{
       await dialog.getByLabel("經期開始").fill("2026-11-23");
       await dialog.getByLabel("經期結束").fill("2026-11-26");
     });
     await page.getByText(/平均經期 4 天/).waitFor();
     await shot("Nexus-Life5-cycle-desktop",1280,900);
-    await nav("用藥與保健食品");
+    await nav("照護");
     await enter("新增用藥項目",async dialog=>{
       await dialog.getByLabel("名稱",{exact:true}).fill("測試用保健食品");
       await dialog.getByLabel("單位",{exact:true}).fill("粒");

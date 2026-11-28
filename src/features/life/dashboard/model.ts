@@ -5,7 +5,7 @@ import type { Page } from "../../../lib/types";
 
 export const lifeModules = {
   health: { group: "生活紀錄", label: "健康管理", optional: true },
-  finance: { group: "財務管理", label: "財務", optional: true },
+  finance: { group: "財務", label: "財務", optional: true },
   calendar: { group: "時間管理", label: "日曆", optional: true },
   schedule: { group: "時間管理", label: "行程", optional: true },
   milestones: { group: "時間管理", label: "重要日期", optional: true },

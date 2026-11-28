@@ -173,3 +173,53 @@ test("target-day rules preserve leap-day intent across annual anniversaries", ()
   assert.deepEqual(run("2026-02-27"),[]);
   assert.deepEqual(run("2026-02-26",[]),[]);
 });
+
+test("linked health records recalculate task windows without replacing manual executions", () => {
+  const { taskHealthProgress } = require("../../src/features/life/health/taskProgress.ts");
+  const slot = { day, through: "2026-11-29", status: "pending", amount: 0,
+    settings: { goal: { kind: "quantity", unit: "ml", target: 500 } } };
+  const first = record("water", { amount: 300, task: "drink" });
+  const second = record("water", { date: "2026-11-27", amount: 250, task: "drink" });
+  const other = record("water", { amount: 1000, task: "other" });
+  const project = (rows, settings = {}, item = slot, today = "2026-11-27") =>
+    taskHealthProgress(rows, settings, "drink", item, today);
+  assert.equal(project([first, second, other]).status, "complete");
+  assert.equal(project([first, second], {}, slot, day).amount, 300);
+  assert.equal(project([first, { ...second, data: { ...second.data, amount: 50 } }]).status, "partial");
+  assert.equal(project([first]).amount, 300);
+  assert.equal(project([first], { off_diet: true }).amount, 0);
+  const manual = { ...slot, record: { status: "skipped" }, status: "skipped" };
+  assert.equal(project([first, second], {}, manual), manual);
+});
+
+test("monthly care uses month-end anchors and preserves past slots across pause and resume", () => {
+ const { medicationDue } = require("../../src/features/life/health/sensitive.ts");
+ const plan = record("medication",{ date:"2026-01-31",frequency:"monthly",interval:1,
+  lifecycle:["2026-03-15:paused","2026-05-01:active","2026-06-01:ended"] });
+ assert.equal(medicationDue(plan,"2026-02-28"),true);
+ assert.equal(medicationDue(plan,"2026-03-31"),false);
+ assert.equal(medicationDue(plan,"2026-05-31"),true);
+ assert.equal(medicationDue(plan,"2026-06-30"),false);
+});
+
+test("configured monthly goals use actual recorded days for averages and retain unknown measurements", () => {
+ const { progress } = require("../../src/features/life/health/summary.ts");
+ const goal=record("goal",{date:"2026-11-01",until:"2026-11-30",metric:"water",period:"month",aggregation:"average",
+  mode:"increase",baseline:0,target:1000});
+ const drinks=[record("water",{date:"2026-11-02",amount:1000}),record("water",{date:"2026-11-03",amount:500})];
+ assert.deepEqual(progress(drinks,goal,day),{current:750,ratio:75});
+ assert.deepEqual(progress([],goal,day),{current:null,ratio:null});
+});
+
+test("linked records project cumulative progress, reversal and separate occurrence identity",()=>{
+ const {projectTaskLink}=require("../../src/features/life/taskLink.ts");
+ const date="2026-11-28";
+ const slot={day:date,through:date,key:"period",status:"pending",amount:0,settings:{
+  action:{kind:"water",mode:"form"},goal:{kind:"quantity",target:650,unit:"mL"},
+ }};
+ const drink=(amount,taskOccurrence="period")=>record("water",{date,amount,task:"drink",taskOccurrence});
+ const project=health=>projectTaskLink({health,finance:[]},"drink",slot,date);
+ assert.equal(project([drink(350),drink(500,"other")]).status,"partial");
+ assert.equal(project([drink(350),drink(300)]).status,"complete");
+ assert.equal(project([]).status,"pending");
+});

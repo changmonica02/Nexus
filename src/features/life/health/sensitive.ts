@@ -1,3 +1,4 @@
+import { scheduleOccurrence, type ScheduleRule } from "../scheduleRecurrence";
 import { civilAdvance } from "../civilPeriods";
 import { str, type HealthRecord } from "./model";
 
@@ -14,15 +15,26 @@ export function cycleSummary(rows: HealthRecord[]) {
   return { records, cycle, duration:average(durations), next:intervals.length>=2&&cycle!==null?civilAdvance(starts.at(-1)!,"day",Math.round(cycle)):null };
 }
 
+export function medicationState(row:HealthRecord,day:string) {
+  const events=Array.isArray(row.data.lifecycle)?row.data.lifecycle:[];
+  return events.findLast(event=>String(event).slice(0,10)<=day)?.toString().slice(11)??"active";
+}
+
 export function medicationDue(row: HealthRecord, day: string) {
   const start = str(row,"date");
-  if (row.kind!=="medication" || !start || day<start || row.data.until && day>str(row,"until")) return false;
-  switch (row.data.frequency) {
-    case "daily": return true;
-    case "weekly": return str(row,"weekdays").includes(String(new Date(day+"T00:00:00Z").getUTCDay()));
-    case "interval": return dayDistance(start,day)%Number(row.data.interval)===0;
-    default: return false;
-  }
+  if (row.kind!=="medication" || !start || day<start || row.data.until && day>str(row,"until") || medicationState(row,day)!=="active") return false;
+  const frequency=str(row,"frequency");
+  if(frequency==="asNeeded")return false;
+  const rule:ScheduleRule={
+    frequency:frequency==="weekly"?"week":frequency==="monthly"?"month":"day",
+    interval: frequency==="interval"||frequency==="monthly"?Number(row.data.interval)||1:1,
+    weekdays:frequency==="weekly"?[...str(row,"weekdays")].map(Number):[],
+    until:str(row,"until"),count:null,zone:"UTC",anchorDay:Number(start.slice(8,10)),exceptions:[],overrides:{},
+  };
+  if(rule.frequency==="day")return dayDistance(start,day)%rule.interval===0;
+  if(rule.frequency==="week")return rule.weekdays.includes(new Date(day+"T00:00:00Z").getUTCDay());
+  const starts_at=Date.parse(start+"T00:00:00Z");
+  return !!scheduleOccurrence({...row,starts_at,ends_at:starts_at,all_day:true,title:"",category:"",notes:"",repeat_rule:rule},day);
 }
 
 export function scheduledDose(rows:HealthRecord[], medication:HealthRecord, day:string, time=medication.data.time) {

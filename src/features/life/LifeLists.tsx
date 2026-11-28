@@ -1,6 +1,9 @@
 "use client";
 import { coverClasses, evaluateFormula, previewFieldConversion, type Formula, type StatisticPreset } from "./listConfiguration";
-import { listTemplates, templateFields } from "./listTemplates";
+import { LifeInventory, StockPositions } from "./LifeInventory";
+import { listCsv, listJson, previewListCsv } from "./listTransfer";
+import { emptyStock, stockHeads, stockPath } from "./inventory";
+import { inventoryTemplates, listTemplates, templateFields } from "./listTemplates";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StorageAdapter } from "../../infrastructure/storage/StorageAdapter";
 import type { Attachment } from "../../lib/types";
@@ -45,6 +48,16 @@ export default function LifeLists({ storage, startCreating = false, initialListI
     [busy, setBusy] = useState(false),
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [categoryId, setCategoryId] = useState("*");
+  const [stock,setStock]=useState(emptyStock);
+  const [stockItem,setStockItem]=useState<string>();
+  const [positionsOpen,setPositionsOpen]=useState(false);
+  const [importPreview,setImportPreview]=useState<{items:LifeItem[];skipped:number;list:LifeList}>();
+  const importFile=useRef<HTMLInputElement>(null);
+  const [query,setQuery]=useState("");
+  const [homeView,setHomeView]=useState<"cards"|"list">("cards");
+  const [showArchived,setShowArchived]=useState(false);
+  const [showTemplates,setShowTemplates]=useState(false);
+  const refreshStock=useCallback(async()=>setStock(await repo.readStock()),[repo]);
   const refreshSequence = useRef(0);
   const refresh = useCallback(async () => {
     const sequence = ++refreshSequence.current;
@@ -57,7 +70,7 @@ export default function LifeLists({ storage, startCreating = false, initialListI
   useEffect(() => {
     let active = true;
     const load = () => {
-      void refresh().catch((e) => {
+      void Promise.all([refresh(),refreshStock()]).catch((e) => {
         if (active) setError(String(e.message));
       });
     };
@@ -67,7 +80,7 @@ export default function LifeLists({ storage, startCreating = false, initialListI
       active = false;
       window.removeEventListener("nexus-workspace-changed", load);
     };
-  }, [refresh]);
+  }, [refresh,refreshStock]);
   const { list, categories, items } = useMemo(
     () => ({
       list: data.life_lists.find((l) => l.id === listId && l.deleted_at == null),
@@ -161,6 +174,47 @@ export default function LifeLists({ storage, startCreating = false, initialListI
     await refresh();
     setEditor(null);
   };
+  const selected=items.find(item=>item.id===stockItem);
+  const needle=query.trim().toLocaleLowerCase();
+  const visibleLists=data.life_lists.filter(row=>row.deleted_at===null&&row.configuration?.archived!==true&&!row.configuration?.template);
+  const visibleIds=new Set(visibleLists.map(row=>row.id));
+  const openList=(id:string,item?:string)=>{setListId(id);setCategoryId("*");setStockItem(item);};
+  const matches=(value:string)=>value.toLocaleLowerCase().includes(needle);
+  const positionMatches=new Set(stockHeads(stock.life_stock_events).filter(row=>["sealed","open"].includes(row.state)&&matches(stockPath(stock.life_stock_positions,row.position_id))).map(row=>row.item_id));
+  const matchingItems=needle?data.life_items.filter(item=>item.deleted_at===null&&visibleIds.has(item.list_id)&&(matches(item.title)||positionMatches.has(item.id)||Object.values(item.values).some(value=>typeof value==="string"&&matches(value)||Array.isArray(value)&&value.some(entry=>typeof entry==="string"&&matches(entry))))):[];
+  const ownTemplates=data.life_lists.filter(row=>row.deleted_at===null&&row.configuration?.template);
+  const copyStructure=(row:LifeList,title:string,template=false):LifeList=>({
+    ...row,...lifeBase(row.workspace_owner_id,title),
+    configuration:{...row.configuration,template,pinned:false,archived:false,folder:undefined},
+  });
+  const homeLists=(showArchived?data.life_lists.filter(row=>row.deleted_at===null&&row.configuration?.archived&&!row.configuration?.template):visibleLists)
+    .filter(row=>!needle||matches(row.title)||matches(row.configuration?.folder??"")||matchingItems.some(item=>item.list_id===row.id))
+    .sort((a,b)=>Number(!!b.configuration?.pinned)-Number(!!a.configuration?.pinned)||a.sort_order-b.sort_order||a.title.localeCompare(b.title,"zh-TW"));
+  const homeGroups=new Map<string,LifeList[]>();
+  for(const row of homeLists){
+    const key=row.configuration?.pinned?"置頂清單":row.configuration?.folder||"其他清單";
+    const group=homeGroups.get(key)??[];
+    group.push(row);
+    homeGroups.set(key,group);
+  }
+  const visibleItems=new Map(data.life_items.filter(row=>row.deleted_at===null&&visibleIds.has(row.list_id)).map(row=>[row.id,row]));
+  const listById=new Map(visibleLists.map(row=>[row.id,row]));
+  const activeStock=stockHeads(stock.life_stock_events).filter(row=>["sealed","open"].includes(row.state));
+  const heldByItem=new Map<string,number>();
+  for(const row of activeStock)heldByItem.set(row.item_id,(heldByItem.get(row.item_id)??0)+1);
+  const expiryAlerts=activeStock.flatMap(row=>{
+    const item=visibleItems.get(row.item_id);
+    const config=item&&listById.get(item.list_id)?.configuration;
+    if(!row.expiry||!item||!config?.inventory)return [];
+    const limit=new Date();limit.setDate(limit.getDate()+(config.expiryDays??7));
+    return row.expiry<=limit.toLocaleDateString("sv-SE")?[{id:row.id,item,detail:row.expiry+" 到期"}]:[];
+  }).sort((a,b)=>a.detail.localeCompare(b.detail));
+  const lowStockAlerts=[...visibleItems.values()].flatMap(item=>{
+    const config=listById.get(item.list_id)?.configuration;
+    const held=heldByItem.get(item.id)??0;
+    return config?.inventory&&config.lowStock!==undefined&&held<=config.lowStock?[{id:item.id,item,detail:`庫存不足 · 剩餘 ${held} 個容器`}]:[];
+  });
+  const attention=[...expiryAlerts,...lowStockAlerts];
   return (
     <section data-life-lists className="min-w-0 space-y-4">
       <header className="flex flex-wrap items-center gap-2">
@@ -175,12 +229,14 @@ export default function LifeLists({ storage, startCreating = false, initialListI
             {label("返回我的清單", "Back to my lists")}
           </button>
         )}
-        <h2 className="min-w-0 flex-1 break-words text-xl font-semibold">
-          {list?.title ?? label("我的清單", "My lists")}
-        </h2>
+        {list && <h2 className="min-w-0 flex-1 break-words text-xl font-semibold">{list.title}</h2>}
         <button className={button} onClick={() => newRecord(list ? "life_items" : "life_lists")}>
           {list ? label("新增項目", "Add item") : label("新增清單", "New list")}
         </button>
+        {!list&&<button className={button} onClick={()=>{
+          const owner=storage.getWorkspaceOwner?.()??null;
+          setEditor({type:"life_lists",row:{...lifeBase(owner,""),fields:templateFields("一般清單"),schema_version:1}});
+        }}>快速清單</button>}
       </header>
       {error && (
         <p role="alert" className="break-words text-red-500">
@@ -188,37 +244,68 @@ export default function LifeLists({ storage, startCreating = false, initialListI
         </p>
       )}
       {!list ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {data.life_lists
-            .filter((l) => l.deleted_at == null)
-            .map((l) => (
-              <article key={l.id} className={"min-w-0 rounded-lg border border-[var(--color-border)] p-3 "+(coverClasses[l.configuration?.cover??""]??"")}>
-                <button
-                  className="min-h-11 w-full break-words text-left font-medium"
-                  onClick={() => {
-                    setListId(l.id);
-                    setCategoryId("*");
-                  }}
-                >
+        <div className="space-y-5">
+          <div className="flex flex-wrap gap-2">
+            <input className={input+" flex-1 basis-44"} aria-label="搜尋清單與項目" placeholder="搜尋清單與項目" value={query} onChange={event=>setQuery(event.target.value)}/>
+            <button className={button} onClick={()=>setHomeView(value=>value==="cards"?"list":"cards")}>{homeView==="cards"?"清單排列":"卡片排列"}</button>
+            <button className={button} aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)}>封存清單</button>
+            <button className={button} aria-pressed={showTemplates} onClick={()=>setShowTemplates(value=>!value)}>自訂範本</button>
+            <button className={button} onClick={()=>setPositionsOpen(true)}>存放位置</button>
+          </div>
+          {showTemplates&&<section className="space-y-2">
+            <h2 className="font-semibold">自訂範本</h2>
+            {!ownTemplates.length&&<p className="text-sm">可從既有清單另存架構。</p>}
+            {ownTemplates.map(row=><div key={row.id} className="flex flex-wrap items-center gap-2">
+              <span className="min-w-0 flex-1 break-words">{row.title}</span>
+              <button className={button} onClick={()=>setEditor({type:"life_lists",row:copyStructure(row,row.title)})}>使用範本</button>
+              <button className={button} onClick={()=>setEditor({type:"life_lists",row})}>重新命名</button>
+              <button className={button} disabled={busy} onClick={()=>void remove("life_lists",row)}>刪除</button>
+            </div>)}
+          </section>}
+          {!needle&&!showArchived&&<section className="rounded-xl bg-emerald-500/10 p-3">
+            <h2 className="font-semibold">需要注意</h2>
+            {!attention.length?<p className="text-sm">目前沒有庫存或期限提醒。</p>:attention.slice(0,12).map(({id,item,detail})=>{
+              return <button key={id} className="min-h-11 w-full text-left text-sm" onClick={()=>openList(item.list_id,item.id)}>{item.title} · {detail}</button>;
+            })}
+          </section>}
+          {matchingItems.length>0&&<section className="space-y-1">
+            <h2 className="font-semibold">符合的項目</h2>
+            {matchingItems.slice(0,30).map(item=><button key={item.id} className="block min-h-11 text-left" onClick={()=>{openList(item.list_id);setEditor({type:"life_items",row:{...item,schema_version:visibleLists.find(row=>row.id===item.list_id)!.schema_version}});}}>{item.title} · {visibleLists.find(row=>row.id===item.list_id)?.title}</button>)}
+          </section>}
+          {[...homeGroups].map(([title,rows])=><section key={title} className="space-y-2">
+            <h2 className="text-sm font-semibold">{title}</h2>
+            <div className={homeView==="cards"?"grid gap-2 sm:grid-cols-2 xl:grid-cols-3":"grid gap-2"}>
+              {rows.map(l=><article key={l.id} className={"min-w-0 rounded-lg border border-[var(--color-border)] px-3 py-2 "+(coverClasses[l.configuration?.cover??""]??"")}>
+                <button className="min-h-11 w-full break-words text-left font-medium" onClick={()=>openList(l.id)}>
                   {l.configuration?.icon&&<span aria-hidden="true" className="mr-2">{l.configuration.icon}</span>}{l.title}
                 </button>
-                <div className="flex flex-wrap gap-2">
-                  <button className={button} onClick={() => setEditor({ type: "life_lists", row: l })}>
-                    {label("重新命名", "Rename")}
-                  </button>
-                  <button className={button} disabled={busy} onClick={() => void remove("life_lists", l)}>
-                    {label("刪除", "Delete")}
-                  </button>
+                <p className="mb-2 break-words text-sm">{l.configuration?.description||""}{l.configuration?.description&&" · "}{data.life_items.filter(item=>item.list_id===l.id&&item.deleted_at===null).length} 個項目</p>
+                <div className="flex flex-wrap gap-1">
+                  <button className={button} onClick={()=>setEditor({type:"life_lists",row:l})}>{label("重新命名","Rename")}</button>
+                  <button className={button} disabled={busy} onClick={()=>void run(()=>repo.save("life_lists",copyStructure(l,l.title.slice(0,496)+"（副本）")))}>複製架構</button>
+                  <button className={button} onClick={()=>setEditor({type:"life_lists",row:copyStructure(l,l.title,true)})}>另存範本</button>
+                  <button className={button} disabled={busy} onClick={()=>void run(()=>repo.save("life_lists",{...l,configuration:{...l.configuration,archived:!l.configuration?.archived},updated_at:Date.now()}))}>{l.configuration?.archived?"恢復":"封存"}</button>
+                  <button className={button} disabled={busy} onClick={()=>void remove("life_lists",l)}>{label("刪除","Delete")}</button>
                 </div>
-              </article>
-            ))}
-          {!data.life_lists.some((l) => l.deleted_at == null) && (
-            <p>{label("建立第一份清單。", "Create your first list.")}</p>
-          )}
+              </article>)}
+            </div>
+          </section>)}
+          {!homeLists.length&&<p>{needle?"找不到符合的清單。":showArchived?"沒有封存清單。":label("建立第一份清單。","Create your first list.")}</p>}
         </div>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
+            <button className={button} onClick={()=>downloadBlobFile(list.title+".csv",new Blob(["\uFEFF",listCsv(list,items)],{type:"text/csv;charset=utf-8"}))}>匯出 CSV</button>
+            <button className={button} title="包含自訂欄位、庫存批次與異動，不含附件檔案" onClick={()=>downloadBlobFile(list.title+".json",new Blob([listJson(list,items,categories,stock)],{type:"application/json"}))}>匯出 JSON</button>
+            <button className={button} onClick={()=>importFile.current?.click()}>匯入 CSV</button>
+            <input hidden ref={importFile} type="file" accept=".csv,text/csv" onChange={async event=>{
+              const file=event.target.files?.[0];event.target.value="";
+              if(!file)return;setError("");
+              try{
+                if(file.size>2_000_000)throw Error("CSV 檔案上限為 2 MB");
+                setImportPreview({...previewListCsv(await file.text(),list,items),list});
+              }catch(error){setError(error instanceof Error?error.message:String(error));}
+            }}/>
             <button className={button} onClick={() => setEditor({ type: "life_lists", row: list })}>
               {label("清單名稱", "List name")}
             </button>
@@ -276,12 +363,26 @@ export default function LifeLists({ storage, startCreating = false, initialListI
               ))}
             </div>
           </details>
-          <Suspense fallback={<p role="status">{label("載入檢視…", "Loading views…")}</p>}>
+          {list.configuration?.inventory&&<div className="flex flex-wrap items-center gap-2">
+            <label className="flex flex-wrap items-center gap-2">庫存物品<select className={button} value={selected?.id??""} onChange={event=>setStockItem(event.target.value)}>
+              <option value="">選擇物品</option>{items.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}
+            </select></label>
+            <button className={button} onClick={()=>setPositionsOpen(true)}>存放位置</button>
+          </div>}
+          <div className={selected&&list.configuration?.inventory?"grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)]":"min-w-0"}>
+          {selected&&list.configuration?.inventory&&<div className="min-w-0 xl:order-2">
+            <LifeInventory key={selected.id} item={selected} stock={stock} repo={repo} onChange={refreshStock} onClose={()=>setStockItem(undefined)} onEdit={()=>setEditor({type:"life_items",row:{...selected,schema_version:list.schema_version}})}/>
+          </div>}
+          <div className="min-w-0"><Suspense fallback={<p role="status">{label("載入檢視…", "Loading views…")}</p>}>
             <LifeItemViews
               key={JSON.stringify([storage.getWorkspaceOwner?.() ?? null, list.id])}
               onCategoryChange={setCategoryId}
               list={list}
               items={items}
+              saveNamedViews={async(savedViews)=>{
+                await repo.save("life_lists",{...list,configuration:{...list.configuration,savedViews},updated_at:Date.now()});
+                await refresh();
+              }}
               saveView={async(view)=>{
                 await repo.save("life_lists",{...list,configuration:{...list.configuration,view},updated_at:Date.now()});
                 await refresh();
@@ -300,6 +401,19 @@ export default function LifeLists({ storage, startCreating = false, initialListI
                 }
                 return <FieldValue field={f} value={f.formula?evaluateFormula(f.formula,item.values):stored} attachments={attachments} storage={storage}/>;
               }}
+              onDetails={list.configuration?.inventory?item=>setStockItem(item.id):undefined}
+              onToggle={(item,field,value)=>void run(async()=>{
+                const next={...item,values:{...item.values,[field.id]:value},schema_version:list.schema_version,updated_at:Date.now()};
+                validateRequiredFields(list,next);
+                await repo.save("life_items",next);
+              })}
+              onBoardMove={(item,field,value)=>void run(async()=>{
+                const values={...item.values};
+                if(field){if(value)values[field.id]=value;else delete values[field.id];}
+                const next={...item,values,category_id:field?item.category_id:value||null,schema_version:list.schema_version,updated_at:Date.now()};
+                validateRequiredFields(list,next);
+                await repo.save("life_items",next);
+              })}
               onEdit={(item) =>
                 setEditor({ type: "life_items", row: { ...item, schema_version: list.schema_version } })
               }
@@ -308,9 +422,21 @@ export default function LifeLists({ storage, startCreating = false, initialListI
               }}
               busy={busy}
             />
-          </Suspense>
+          </Suspense></div>
+          </div>
         </>
       )}
+      {importPreview&&<ModalDialog onDismiss={()=>setImportPreview(undefined)} aria-label="匯入清單預覽" className="m-auto max-h-[85dvh] w-[min(95vw,36rem)] overflow-auto rounded-xl bg-[var(--color-editor-bg)] p-4 text-[var(--color-text)]">
+        <h2 className="font-semibold">匯入清單預覽</h2>
+        <p className="my-2">{importPreview.list.title} · 新增 {importPreview.items.length} 項 · 略過 {importPreview.skipped} 筆同名項目</p>
+        {error&&<p role="alert" className="text-red-500">{error}</p>}
+        <p className="text-sm">CSV 依欄名對應。圖片、附件、關聯及庫存歷史不包含在 CSV 中。</p>
+        <ul className="my-2 list-inside list-disc">{importPreview.items.slice(0,12).map(item=><li key={item.id}>{item.title}</li>)}</ul>
+        <div className="flex gap-2"><button className={button} disabled={busy||!importPreview.items.length} onClick={()=>void run(async()=>{
+          await repo.importListItems(importPreview.list,importPreview.items);setImportPreview(undefined);
+        })}>確認匯入</button><button className={button} onClick={()=>setImportPreview(undefined)}>取消</button></div>
+      </ModalDialog>}
+      {positionsOpen&&<StockPositions stock={stock} owner={storage.getWorkspaceOwner?.()??null} repo={repo} onChange={refreshStock} onClose={()=>setPositionsOpen(false)}/>}
       {editor && (
         <LifeEditor
           key={editor.type + editor.row.id}
@@ -534,7 +660,7 @@ function LifeEditor({
         {draft.type==="life_lists"&&!("revision" in initial.row&&initial.row.revision)&&<label className="grid gap-1">{label("生活紀錄模板","Life record template")}
           <select className={input} defaultValue="" onChange={event=>{
             const name=event.target.value;
-            patch({title:name,fields:templateFields(name)});
+            patch({title:name,fields:templateFields(name),configuration:{...(row as LifeList).configuration,inventory:inventoryTemplates.has(name)}});
           }}><option value="">{label("空白清單","Blank list")}</option>
             {Object.keys(listTemplates).map(name=><option key={name}>{name}</option>)}</select>
         </label>}
@@ -550,6 +676,15 @@ function LifeEditor({
           />
         </label>
         {draft.type==="life_lists"&&"fields" in row&&<div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1">清單說明<input className={input} maxLength={500} value={row.configuration?.description??""} onChange={event=>patch({configuration:{...row.configuration,description:event.target.value}})}/></label>
+          <label className="grid gap-1">排序<input className={input} type="number" step="1" value={row.sort_order} onChange={event=>patch({sort_order:Number(event.target.value)})}/></label>
+          <label className="grid gap-1">資料夾名稱<input className={input} maxLength={120} value={row.configuration?.folder??""} onChange={event=>patch({configuration:{...row.configuration,folder:event.target.value}})}/></label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={!!row.configuration?.pinned} onChange={event=>patch({configuration:{...row.configuration,pinned:event.target.checked}})}/>置頂清單</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={!!row.configuration?.inventory} onChange={event=>patch({configuration:{...row.configuration,inventory:event.target.checked}})}/>啟用庫存與消耗管理</label>
+          {row.configuration?.inventory&&<>
+            <label className="grid gap-1">到期前提醒天數<input className={input} type="number" min="0" max="365" value={row.configuration.expiryDays??7} onChange={event=>patch({configuration:{...row.configuration,expiryDays:event.target.value===""?undefined:Number(event.target.value)}})}/></label>
+            <label className="grid gap-1">低庫存容器門檻<input className={input} type="number" min="0" max="1000000" value={row.configuration.lowStock??""} onChange={event=>patch({configuration:{...row.configuration,lowStock:event.target.value===""?undefined:Number(event.target.value)}})}/></label>
+          </>}
           <label className="grid gap-1">清單圖示<input className={input} maxLength={12} value={row.configuration?.icon??""}
             onChange={event=>patch({configuration:{...row.configuration,icon:event.target.value}})}/></label>
           <label className="grid gap-1">清單封面<select className={input} value={row.configuration?.cover??""}

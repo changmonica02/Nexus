@@ -1,6 +1,6 @@
 "use client";
 import type { ViewPreferences } from "./listViewModel";
-import { evaluateFormula, type StatisticPreset } from "./listConfiguration";
+import { evaluateFormula, type SavedListView, type StatisticPreset } from "./listConfiguration";
 import LifeRecordSummary from "./LifeRecordSummary";
 import { useEffect, useMemo,useState, type ReactNode } from "react";
 import {
@@ -59,11 +59,15 @@ export default function LifeItemViews({
   owner,
   renderValue,
   onEdit,
+  onDetails,
+  onBoardMove,
+  onToggle,
   onRemove,
   busy,
   onCategoryChange,
   saveStatistics,
   saveView,
+  saveNamedViews,
 }: {
   list: LifeList;
   items: LifeItem[];
@@ -71,8 +75,12 @@ export default function LifeItemViews({
   owner: string | null;
   renderValue: (f: LifeField, item: LifeItem) => ReactNode;
   onEdit: (item: LifeItem) => void;
+  onToggle:(item:LifeItem,field:LifeField,value:boolean)=>void;
+  onDetails?: (item: LifeItem) => void;
+  onBoardMove:(item:LifeItem,field:LifeField|undefined,value:string)=>void;
   onRemove: (item: LifeItem) => void;
   busy: boolean;
+  saveNamedViews:(views:SavedListView[])=>Promise<void>;
   saveView:(view:ViewPreferences)=>Promise<void>;
   saveStatistics: (presets:StatisticPreset[])=>Promise<void>;
   onCategoryChange: (id: string) => void;
@@ -81,6 +89,7 @@ export default function LifeItemViews({
     label = (zh: string, en: string) => (language === "en" ? en : zh);
   const [prefs, update] = useListViewPreferences(viewPreferenceKey(owner, list.id));
   const [viewMessage,setViewMessage]=useState("");
+  const [viewName,setViewName]=useState("");
   const [savingView,setSavingView]=useState(false);
   const fields = useMemo(() => list.fields.filter((f) => !f.archived), [list.fields]);
   const fieldOrder = useMemo(
@@ -165,7 +174,7 @@ export default function LifeItemViews({
         .map(([id, value]) => ({ id, value })),
       columnVisibility: visibility,
       columnOrder: ["title", "category", ...fieldOrder.map(fieldKey)],
-      grouping: ids.has(prefs.group) ? [prefs.group] : [],
+      grouping: prefs.view!=="board"&&ids.has(prefs.group) ? [prefs.group] : [],
     },
     onSortingChange: (u) => update({ sorting: functionalUpdate(u, sorting), page: 0 }),
     onColumnVisibilityChange: (u) => {
@@ -193,8 +202,13 @@ export default function LifeItemViews({
     [order[index], order[next]] = [order[next], order[index]];
     update({ columnOrder: order });
   };
+  const cellValue=(field:LifeField,item:LifeItem)=>field.type==="checkbox"
+    ?<input type="checkbox" aria-label={field.name+" · "+item.title} checked={item.values[field.id]===true} disabled={busy}
+      onChange={event=>onToggle(item,field,event.target.checked)}/>
+    :renderValue(field,item);
   const actions = (item: LifeItem) => (
     <div className="flex flex-wrap gap-2">
+      {onDetails&&<button className={button} onClick={()=>onDetails(item)}>庫存詳情</button>}
       <button className={button} onClick={() => onEdit(item)}>
         {label("編輯項目", "Edit item")}
       </button>
@@ -203,6 +217,10 @@ export default function LifeItemViews({
       </button>
     </div>
   );
+  const boardFields=fields.filter(field=>field.type==="select");
+  const boardField=boardFields.find(field=>fieldKey(field)===prefs.group);
+  const lanes=[{id:"",title:"未設定"},...(boardField?(boardField.options??[]).map(value=>({id:value,title:value})):categories.map(row=>({id:row.id,title:categoryPath(row.id,categories)})))];
+  const lane=(item:LifeItem)=>boardField?String(item.values[boardField.id]??""):item.category_id??"";
   const groupHeading = (row: (typeof rows)[number]) => (
     <button
       className={button + " w-full break-words text-left font-semibold"}
@@ -219,7 +237,7 @@ export default function LifeItemViews({
   return (
     <div className="min-w-0 space-y-3" data-life-item-views>
       <div className="flex flex-wrap gap-2" role="group" aria-label={label("清單檢視", "List views")}>
-        {(["list", "cards", "table", "tree"] as const).map((v, i) => (
+        {(["list", "cards", "table", "tree", "board"] as const).map((v, i) => (
           <button
             type="button"
             key={v}
@@ -228,7 +246,7 @@ export default function LifeItemViews({
             onClick={() => update({ view: v })}
           >
             {
-              [label("清單", "List"), label("卡片", "Cards"), label("表格", "Table"), label("分類樹", "Category tree")][
+              [label("清單", "List"), label("卡片", "Cards"), label("表格", "Table"), label("分類樹", "Category tree"),label("看板","Board")][
                 i
               ]
             }
@@ -387,6 +405,30 @@ export default function LifeItemViews({
         {list.configuration?.view&&<button type="button" className={button} onClick={()=>{
           update(readViewPreferences(JSON.stringify(list.configuration?.view)));setViewMessage("已套用共用檢視");
         }}>套用共用檢視</button>}
+        <form className="flex flex-wrap gap-1" onSubmit={async event=>{
+          event.preventDefault();
+          const name=viewName.trim();if(!name||savingView)return;
+          const views=list.configuration?.savedViews??[];
+          const existing=views.find(row=>row.name===name);
+          setSavingView(true);
+          try{
+            await saveNamedViews(existing?views.map(row=>row.id===existing.id?{...row,view:prefs}:row):[...views,{id:crypto.randomUUID(),name,view:prefs}]);
+            setViewName("");setViewMessage("已儲存檢視");
+          }catch(error){setViewMessage(error instanceof Error?error.message:String(error));}
+          finally{setSavingView(false);}
+        }}>
+          <input className={input+" w-36"} aria-label="檢視名稱" placeholder="檢視名稱" value={viewName} maxLength={80} onChange={event=>setViewName(event.target.value)}/>
+          <button className={button} disabled={savingView||!viewName.trim()}>另存檢視</button>
+        </form>
+        {list.configuration?.savedViews?.map(row=><div key={row.id} className="flex gap-1">
+          <button className={button} onClick={()=>{update(readViewPreferences(JSON.stringify(row.view)));setViewName(row.name);}}>{row.name}</button>
+          <button className={button} aria-label={"移除檢視 "+row.name} disabled={savingView} onClick={async()=>{
+            setSavingView(true);
+            try{await saveNamedViews((list.configuration?.savedViews??[]).filter(view=>view.id!==row.id));}
+            catch(error){setViewMessage(error instanceof Error?error.message:String(error));}
+            finally{setSavingView(false);}
+          }}>×</button>
+        </div>)}
         {viewMessage&&<span role="status">{viewMessage}</span>}
       </div>
       <LifeRecordSummary fields={list.fields} categories={categories} presets={list.configuration?.statistics??[]} savePresets={saveStatistics}
@@ -406,7 +448,30 @@ export default function LifeItemViews({
         {table.getFilteredRowModel().rows.length} {label("個項目", "items")}
         {selected !== "*" && selected !== "" ? " · " + label("包含子分類", "Includes subcategories") : ""}
       </p>
-      {prefs.view === "table" ? (
+      {prefs.view==="board"?<section className="min-w-0 space-y-2">
+        <label className="flex flex-wrap items-center gap-2">看板分組<select className={button} value={boardField?fieldKey(boardField):""} onChange={event=>update({group:event.target.value,page:0})}>
+          <option value="">分類</option>{boardFields.map(field=><option key={field.id} value={fieldKey(field)}>{field.name}</option>)}
+        </select></label>
+        <div className="flex max-w-full gap-2 overflow-x-auto pb-2">
+          {lanes.map(column=>{
+            const entries=rows.filter(row=>lane(row.original)===column.id||!column.id&&!lanes.some(option=>option.id===lane(row.original)));
+            return <section key={column.id} className="w-64 shrink-0 space-y-2 rounded-lg bg-emerald-500/10 p-2" onDragOver={event=>event.preventDefault()} onDrop={event=>{
+              event.preventDefault();
+              const item=items.find(item=>item.id===event.dataTransfer.getData("text/plain"));
+              if(item&&lane(item)!==column.id&&!busy)onBoardMove(item,boardField,column.id);
+            }}>
+              <h3 className="break-words font-semibold">{column.title} · {entries.length}</h3>
+              {entries.map(({original:item})=><article key={item.id} data-life-item={item.id} draggable={!busy} onDragStart={event=>event.dataTransfer.setData("text/plain",item.id)} className="space-y-1 rounded-lg bg-[var(--color-editor-bg)] p-2">
+                <h4 className="break-words">{item.title}</h4>
+                <select className={button+" max-w-full"} aria-label={"移動 "+item.title} value={column.id} disabled={busy} onChange={event=>onBoardMove(item,boardField,event.target.value)}>
+                  {lanes.map(option=><option key={option.id} value={option.id}>{option.title}</option>)}
+                </select>
+                {actions(item)}
+              </article>)}
+            </section>;
+          })}
+        </div>
+      </section>:prefs.view === "table" ? (
         <div
           role="region"
           aria-label={label("項目表格", "Items table")}
@@ -455,7 +520,7 @@ export default function LifeItemViews({
                           ? row.original.title
                           : cell.column.id === "category"
                             ? categoryPath(row.original.category_id, categories) || label("未分類", "Uncategorized")
-                            : renderValue(
+                            : cellValue(
                                 fields.find((f) => fieldKey(f) === cell.column.id)!,
                                 row.original,
                               )}
@@ -481,6 +546,7 @@ export default function LifeItemViews({
                 data-life-item={row.original.id}
                 className="min-w-0 space-y-2 rounded-lg border border-[var(--color-border)] p-3"
               >
+                {prefs.view==="cards"&&(()=>{const image=visibleFields.find(field=>field.type==="image"&&row.original.values[field.id]);return image?<div className="overflow-hidden rounded-lg">{renderValue(image,row.original)}</div>:<div aria-hidden="true" className="grid aspect-[3/1] place-items-center rounded-lg bg-emerald-500/10 text-xl">{list.configuration?.icon||"◇"}</div>;})()}
                 <h3 className="break-words font-medium">{row.original.title}</h3>
                 {visibility.category && (
                   <p className="break-words text-xs opacity-60">
@@ -488,11 +554,11 @@ export default function LifeItemViews({
                   </p>
                 )}
                 {visibleFields
-                  .filter((f) => row.original.values[f.id] != null)
+                  .filter((f) => row.original.values[f.id] != null && !(prefs.view==="cards"&&f===visibleFields.find(field=>field.type==="image"&&row.original.values[field.id])))
                   .map((f) => (
                     <div key={f.id} className="min-w-0 break-words text-sm">
                       <span className="opacity-60">{f.name}：</span>
-                      {renderValue(f, row.original)}
+                      {cellValue(f, row.original)}
                     </div>
                   ))}
                 {actions(row.original)}

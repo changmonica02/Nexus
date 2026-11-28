@@ -1,4 +1,7 @@
 "use client";
+import { healthTabFromUrl } from "../features/life/health/HealthWorkspace";
+import LifeTitle from "../features/life/LifeTitle";
+import { financeTabFromUrl } from "../features/life/finance/FinanceWorkspace";
 import { nextTaskId } from "../features/life/taskRepeat";
 import {rememberGeneratedMap} from '../features/worldMap/generatedMapHandoff';
 import {studyErrorMessage} from '../features/study/studySync';
@@ -1176,6 +1179,15 @@ function NexusAppInner({
   const handleShowHome = useCallback(() => { setIsTrashMode(false); setIsHomeMode(true); setIsQuickNoteMode(false); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowQuickNotes = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(true); setIsTodoMode(false); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
   const handleShowTodoList = useCallback(() => { setIsTrashMode(false); setIsHomeMode(false); setIsQuickNoteMode(false); setIsTodoMode(true); setActivePageId(null); setIsCreativeMode(false); closeFeatureOverviews(); }, []);
+  useEffect(() => {
+    if (!isReady || !isAuthenticated) return;
+    const mode=healthTabFromUrl()?"health":financeTabFromUrl()?"finance":undefined;
+    if(!mode)return;
+    queueMicrotask(() => {
+      handleShowTodoList();
+      setLifeState(current => ({ ...current, tab: mode, scroll: 0 }));
+    });
+  }, [isReady, isAuthenticated, handleShowTodoList]);
   const handleShowCreative = useCallback(() => {
     setIsTrashMode(false);
     setIsHomeMode(false);
@@ -1312,7 +1324,8 @@ function NexusAppInner({
       links: [...(source.links || [])],
       creative_type: source.creative_type,
       color:source.color,
-      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,task_start_at:source.task_start_at,task_repeat:source.task_repeat,task_repeat_day:source.task_repeat_day,task_steps:source.task_steps?.map(step=>({...step,id:crypto.randomUUID(),done:false})),completed:false}:{}),
+      ...(source.kind==='todo'?{due_date:source.due_date,priority:source.priority,task_start_at:source.task_start_at,
+        task_plan:source.task_plan?{...source.task_plan,legacyHabitId:undefined}:undefined,task_repeat:source.task_repeat,task_repeat_day:source.task_repeat_day,task_steps:source.task_steps?.map(step=>({...step,id:crypto.randomUUID(),done:false})),completed:false}:{}),
       novel_settings: source.novel_settings ? structuredClone(source.novel_settings) : undefined,
       character_data: source.character_data ? (source.character_data.isTemplate ? {...snapshotCharacterTemplate(source.character_data),resourceSource:source.character_data.resourceSource} : structuredClone(source.character_data)) : undefined,
       presentation_data: source.presentation_data ? structuredClone(source.presentation_data) : duplicated.presentation_data,
@@ -1872,7 +1885,7 @@ function NexusAppInner({
         <header data-workspace-header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b px-3" style={{ backgroundColor: "var(--color-bg)", borderColor: "var(--color-border)" }}>
           <button type="button" onClick={() => { setIsNavigationOpen((open) => !open); setIsAppLauncherOpen(false); }} className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t("ui.navigation")} title={t("ui.navigation")}><FeatureIcon feature="menu"/></button>
           <button type="button" onClick={()=>navigate(handleShowHome)} className="ml-2 text-base font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>Nexus</button>
-          {isTodoMode && <h1 className="ml-3 border-l border-[var(--color-border)] pl-3 text-base font-semibold">{t("life.title")}</h1>}
+          {isTodoMode && <><LifeTitle tab={lifeState.tab}/><div id="life-header-navigation" /></>}
           <div className="flex-1" />
           {workspaceActions}
         </header>
@@ -1981,16 +1994,29 @@ function NexusAppInner({
       ) : isTodoMode ? (
         <TodoView headerIntegrated storage={storageRef.current!} key={storageRef.current!.getWorkspaceOwner?.()??'anonymous'} state={lifeState} onStateChange={setLifeState} onRenamePage={handleRenamePage} onDuplicatePage={handleDuplicatePage}
           pages={pages.filter(page=>page.kind==='todo'&&!page.deleted_at)}
-          onCreate={async(title,due)=>{
+          onAdoptTask={task=>setPages(previous=>[task,...previous.filter(row=>row.id!==task.id)])}
+          onCreate={async(title,due,fields)=>{
             const storage=storageRef.current!;
             const owner=storage.getWorkspaceOwner?.();
-            const task=await storage.createPage({title,kind:'todo',due_date:due??Date.now(),completed:false});
+            const task=await storage.createPage({ ...fields, title, kind:'todo', due_date:due===undefined?Date.now():due, completed:false });
             if(storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner){
               setPages(previous=>[task,...previous]);
               syncEngineRef.current?.pushPage(task);
             }
           }}
-          onUpdate={(id,patch)=>patchPage(id,patch)}
+          onUpdate={async(id,patch)=>{
+            if (!("task_plan" in patch)) { patchPage(id,patch); return; }
+            const storage=storageRef.current!;
+            const owner=storage.getWorkspaceOwner?.();
+            const current=pendingSavesRef.current.get(id)??await storage.getPage(id);
+            if (!current || current.deleted_at!=null || (current.workspace_owner_id??null)!==(owner??null)) throw Error("找不到此任務");
+            const next={...current,...patch};
+            pendingSavesRef.current.set(id,next);
+            await flushSave(next);
+            const saved=await storage.getPage(id);
+            if(saved&&storageRef.current===storage&&storage.getWorkspaceOwner?.()===owner)
+              setPages(previous=>previous.map(row=>row.id===id?saved:row));
+          }}
           onDelete={(id) => { void handleDeletePage(id); }}
           onSelectPage={handleSelectPage}
         />

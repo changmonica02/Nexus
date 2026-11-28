@@ -13,7 +13,7 @@ const { pullWorkspace, flushWorkspace } = require("../../src/infrastructure/sync
 const owner = "11111111-1111-4111-8111-111111111111",
   other = "22222222-2222-4222-8222-222222222222";
 const migration = "20261103155520_life_custom_lists.sql";
-async function setup(beforeAutomation) {
+async function setup(beforeAutomation, beforeTaskPlan) {
   const pg = new PGlite();
   await pg.exec(`create schema auth;create role authenticated;create role anon;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema public,auth to authenticated,anon;
 create table pages(id text primary key,owner_id uuid,title text,content_json jsonb,content_text text,kind text,due_date bigint,completed boolean,priority text,format text,device_id text,tags jsonb,folder text,links jsonb,attachment_ids jsonb,primary_attachment_id text,parent_id text,revision bigint,created_at bigint,updated_at bigint,deleted_at bigint);
@@ -35,6 +35,12 @@ create policy pages_read on pages for select using(owner_id=auth.uid());create p
   await pg.exec(fs.readFileSync("supabase/migrations/20261127020000_life_automation_task.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127030000_life_automation_runs.sql", "utf8"));
   await pg.exec(fs.readFileSync("supabase/migrations/20261127040000_life_automation_actions.sql", "utf8"));
+  await beforeTaskPlan?.(pg);
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128020000_life_finance_recurring.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128030000_life_health_dose_slots.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128040000_life_task_action_slots.sql", "utf8"));
+  await pg.exec(fs.readFileSync("supabase/migrations/20261128050000_life_list_inventory.sql", "utf8"));
   await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [owner]);
   return pg;
 }
@@ -756,4 +762,211 @@ test("automation migrations preserve prior data and fold device-local legacy run
     assert.equal((await b.getPage("existing-todo")).title,"保留既有待辦");
     assert.equal((await pg.query("select count(*)::int as n from public.life_automation_runs")).rows[0].n,1);
   }finally{await a.close();await b.close();await pg.close();}
+});
+
+test("calendar repeat migration retains legacy tracking IDs, history and owner isolation", async () => {
+  const pg = await setup(), a = await device(), b = await device();
+  try {
+    const server = client(pg);
+    const repo = a.getLifeRepository();
+    await repo.saveHabit({
+      id: "legacy-reading", workspace_owner_id: owner, revision: 0, created_at: 1, updated_at: 1, deleted_at: null,
+      title: "閱讀", cadence: "weekly", goal: 3, started_on: "2026-11-23", quantities: { "2026-11-24": 2 },
+    });
+    const syncA = a.getWorkspacePersistence(), syncB = b.getWorkspacePersistence();
+    await flushWorkspace(server, syncA, owner);
+    const before = (await pg.query("select * from life_habits where id='legacy-reading'")).rows;
+    await pg.exec(fs.readFileSync("supabase/migrations/20261128000000_life_calendar_repeat_modes.sql", "utf8"));
+    assert.deepEqual((await pg.query("select * from life_habits where id='legacy-reading'")).rows, before);
+    const [legacy] = await repo.readHabits();
+    await repo.saveHabit({ ...legacy, id: "monthly-reading", revision: 0, cadence: "monthly" });
+    const task = await a.createPage({ kind: "todo", title: "完成後再安排", task_repeat: "after_completion", task_repeat_day: 3 });
+    await flushWorkspace(server, syncA, owner);
+    await pullWorkspace(server, syncB, owner);
+    assert.equal((await b.getLifeRepository().readHabits()).find(row => row.id === "monthly-reading")?.cadence, "monthly");
+    assert.equal((await b.getPage(task.id)).task_repeat, "after_completion");
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select id from life_habits")).rows.length, 0);
+    assert.equal((await pg.query("select id from pages")).rows.length, 0);
+  } finally {
+    a.db.close();
+    b.db.close();
+    await pg.close();
+  }
+});
+
+test("task execution migration is repeatable and preserves occurrence identity across devices", async () => {
+  const pg=await setup(), a=await device(), b=await device();
+  const { defaultTaskSettings, editTaskPlan, taskSlots }=require("../../src/features/life/taskPlan.ts");
+  try {
+    await pg.exec(fs.readFileSync("supabase/migrations/20261128010000_life_task_executions.sql","utf8"));
+    const server=client(pg), localA=a.getWorkspacePersistence(),localB=b.getWorkspacePersistence();
+    const settings=defaultTaskSettings(new Date(2026,10,27));
+    settings.recurrence={mode:"fixed",rule:{frequency:"day",interval:1,weekdays:[],count:3,until:"",zone:settings.zone,exceptions:[],overrides:{}}};
+    const task_plan=editTaskPlan({segments:[],excluded:[],overrides:{}},undefined,"all",settings);
+    const page=await a.createPage({kind:"todo",title:"閱讀",task_plan});
+    await flushWorkspace(server,localA,owner);
+    await pullWorkspace(server,localB,owner);
+    const remote=await b.getPage(page.id);
+    assert.deepEqual(remote.task_plan,task_plan);
+    const [first,second]=taskSlots(task_plan,[],"2026-11-27","2026-11-29");
+    await a.getLifeRepository().saveTaskExecution(page,first,"complete",1);
+    await b.getLifeRepository().saveTaskExecution(remote,first,"complete",1);
+    await flushWorkspace(server,localA,owner);
+    await flushWorkspace(server,localB,owner);
+    await b.getLifeRepository().saveTaskExecution(remote,second,"skipped",0);
+    await flushWorkspace(server,localB,owner);
+    await pullWorkspace(server,localA,owner);
+    const records=await a.getLifeRepository().readTaskExecutions();
+    assert.equal(records.length,2);
+    assert.deepEqual(taskSlots(task_plan,records,"2026-11-27","2026-11-29").map(row=>row.status),["complete","skipped","pending"]);
+    const backup=await a.exportWorkspaceBackup();
+    assert.equal(backup.life_task_executions.length,2);
+    const restored=await device();
+    try{
+      await restored.importWorkspaceBackup(backup);
+      assert.deepEqual((await restored.getLifeRepository().readTaskExecutions()).map(row=>row.id).sort(),records.map(row=>row.id).sort());
+      assert.deepEqual((await restored.getPage(page.id)).task_plan,task_plan);
+    }finally{restored.db.close();}
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[other]);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select id from life_task_executions")).rows.length,0);
+  } finally { a.db.close(); b.db.close(); await pg.close(); }
+});
+
+test("adopting a legacy habit keeps its ID, dated source and health link while importing independent periods",async()=>{
+  const pg=await setup(),a=await device(),b=await device();
+  try{
+    const repo=a.getLifeRepository(),server=client(pg),local=a.getWorkspacePersistence();
+    await repo.saveHabit({id:"habit-same-id",workspace_owner_id:owner,revision:0,created_at:1,updated_at:1,deleted_at:null,
+      title:"閱讀",cadence:"weekly",goal:3,started_on:"2026-11-23",quantities:{"2026-11-23":1,"2026-11-24":2,"2026-11-30":1}});
+    await repo.saveHealth({id:"reading-goal",workspace_owner_id:owner,revision:0,created_at:1,updated_at:1,deleted_at:null,
+      kind:"goal",data:{title:"閱讀目標",metric:"custom",mode:"increase",date:"2026-11-23",until:"2026-12-31",
+        baseline:0,target:6,current:1,habit:"habit-same-id"}});
+    await flushWorkspace(server,local,owner);
+    const [habit]=await repo.readHabits();
+    const task=await repo.adoptHabit(habit);
+    assert.equal(task.id,habit.id);
+    assert.equal((await repo.adoptHabit(habit)).id,task.id);
+    await flushWorkspace(server,local,owner);
+    await pullWorkspace(server,b.getWorkspacePersistence(),owner);
+    const cloud=b.getLifeRepository();
+    assert.deepEqual((await cloud.readHabits())[0].quantities,habit.quantities);
+    assert.equal((await cloud.readHealth())[0].data.habit,habit.id);
+    assert.deepEqual((await cloud.readTaskExecutions()).map(row=>[row.day,row.status,row.amount,row.completed_at]).sort(),
+      [["2026-11-23","complete",3,null],["2026-11-30","partial",1,null]]);
+  }finally{a.db.close();b.db.close();await pg.close();}
+});
+
+test("empty execution schema can roll back to the prior sync function without affecting legacy schedules",async()=>{
+  let before;
+  const pg=await setup(undefined,async db=>{
+    before=(await db.query("select pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure) as definition")).rows[0].definition;
+    await db.query("insert into public.life_habits(owner_id,id,revision,created_at,updated_at,title,cadence,goal,started_on,quantities) values($1,'prior',1,0,0,'閱讀','daily',1,'2026-11-27','{}')",[owner]);
+  });
+  try{
+    assert.equal((await pg.query("select count(*)::int as count from public.life_task_executions")).rows[0].count,0);
+    await pg.exec("begin;"+before+"; drop table public.life_task_executions; alter table public.pages drop column task_plan; commit;");
+    assert.equal((await pg.query("select pg_get_functiondef('public.apply_workspace_operations(jsonb)'::regprocedure) as definition")).rows[0].definition,before);
+    assert.equal((await pg.query("select title from public.life_habits where id='prior'")).rows[0].title,"閱讀");
+  }finally{await pg.close();}
+});
+
+test("managed care slots reject concurrent duplicates while legacy logs remain readable", async()=>{
+  const {makeHealth}=require("../../src/features/life/health/model.ts");
+  const pg=await setup(), storage=await device();
+  const row=makeHealth(owner,"dose",{medication:"plan",title:"照護項目",date:"2026-11-28",planned:"08:00",
+    status:"taken",actual:"2026-11-28T08:00",quantity:1});
+  try{
+    const repo=storage.getLifeRepository();
+    const writes=await Promise.allSettled([repo.saveHealth(row),repo.saveHealth({...row,id:"second"})]);
+    assert.equal(writes.filter(item=>item.status==="fulfilled").length,1);
+    await rpc(pg,"life_health_records",row);
+    await rpc(pg,"life_health_records",{...row,id:"legacy-duplicate"});
+    const managed={...row,id:"managed",data:{...row.data,managedSlot:true}};
+    await rpc(pg,"life_health_records",managed);
+    await assert.rejects(rpc(pg,"life_health_records",{...managed,id:"managed-duplicate"}),/life_health_managed_dose_slot/);
+    assert.equal((await pg.query("select id from life_health_records")).rows.length,3);
+  }finally{await storage.close();await pg.close();}
+});
+
+test("linked check results cannot be duplicated, and rejected financial writes add no result",async()=>{
+  const {makeHealth}=require("../../src/features/life/health/model.ts");
+  const {financeRow}=require("../../src/features/life/finance/model.ts");
+  const pg=await setup(), storage=await device();
+  try{
+    const repo=storage.getLifeRepository();
+    const link={task:"linked-task",taskOccurrence:"first",taskRunOnce:true};
+    const first=makeHealth(owner,"water",{date:"2026-11-28",time:"08:00",amount:100,...link});
+    const second={...first,id:"another-linked-drink"};
+    const outcomes=await Promise.allSettled([repo.saveHealth(first),repo.saveHealth(second)]);
+    assert.equal(outcomes.filter(item=>item.status==="fulfilled").length,1);
+    await rpc(pg,"life_health_records",first);
+    await assert.rejects(rpc(pg,"life_health_records",second),/life_health_task_action_slot/);
+    await assert.rejects(repo.saveFinance(financeRow(owner,"transaction",{
+      title:"無效交易",notes:"",type:"expense",date:"2026-11-28",amount:"100",account:"missing",
+      target:"",targetAmount:"0",category:"",attachment:"",source:"",...link,
+    })));
+    assert.equal((await repo.readFinance()).length,0);
+  }finally{await storage.close();await pg.close();}
+});
+
+test("inventory: isolated containers, atomic journal, replay, revision conflicts and owner RLS", async () => {
+  const { stockHeads, stockTotals, stockUsage } = require("../../src/features/life/inventory.ts");
+  const pg = await setup();
+  const a = await device(), b = await device();
+  const local = a.getWorkspacePersistence();
+  const remote = client(pg);
+  const repo = a.getLifeRepository();
+  try {
+    const l = { ...list(), configuration: { inventory: true } };
+    const i = item(l);
+    await repo.save("life_lists", l);
+    await repo.save("life_items", i);
+    const position = { ...lifeBase(owner, "浴室"), parent_id: null };
+    await repo.saveStockPosition(position);
+    await assert.rejects(repo.saveStockPosition({ ...position, revision: 1, parent_id: position.id }), /位置/);
+    const receipt = { capacity: 200, unit: "mL", purchased_on: "2026-11-28", position_id: position.id, expiry: null, price: null, currency: null, note: "" };
+    await repo.receiveStock(i, "receipt-a", 3, receipt);
+    await repo.receiveStock(i, "receipt-a", 3, receipt);
+    let stock = await repo.readStock();
+    assert.equal(stock.life_stock_events.length, 3);
+    await assert.rejects(repo.saveStockPosition({ ...position, revision: 1 }, true), /請先移走/);
+    await repo.changeStock(stock.life_stock_events[0], "open", { state: "open", opened_on: "2026-11-28" });
+    const opened = stockHeads((await repo.readStock()).life_stock_events).find(row => row.state === "open");
+    await assert.rejects(repo.changeStock(opened, "use", { remaining: -1, state: "open" }), /格式/);
+    await repo.changeStock(opened, "use", { remaining: 80 });
+    await assert.rejects(repo.changeStock(opened, "use", { remaining: 70 }), /追加/);
+    stock = await repo.readStock();
+    const heads = stockHeads(stock.life_stock_events);
+    const totals = stockTotals(heads);
+    assert.deepEqual([totals.held, totals.sealed, totals.opened.get("mL"), totals.volume.get("mL")], [3, 2, 80, 480]);
+    assert.equal(stockUsage(stock.life_stock_events).get("mL").used, 120);
+    await flushWorkspace(remote, local, owner);
+    await pullWorkspace(remote, b.getWorkspacePersistence(), owner);
+    assert.equal(stockTotals(stockHeads((await b.getLifeRepository().readStock()).life_stock_events)).volume.get("mL"), 480);
+    await repo.changeStock(heads.find(row => row.state === "open"), "undo");
+    await flushWorkspace(remote, local, owner);
+    assert.equal(stockUsage((await repo.readStock()).life_stock_events).size, 0);
+    await pg.exec("set role authenticated");
+    assert.equal((await pg.query("select count(*)::int n from life_stock_events")).rows[0].n, 6);
+    await pg.query("select set_config('request.jwt.claim.sub',$1,false)", [other]);
+    assert.equal((await pg.query("select count(*)::int n from life_stock_events")).rows[0].n, 0);
+    assert.equal((await pg.query("select count(*)::int n from life_stock_positions")).rows[0].n, 0);
+  } finally {
+    a.db.close(); b.db.close(); await pg.close();
+  }
+});
+
+test("list CSV import previews typed rows and export escapes spreadsheet formulas", () => {
+  const {listCsv, previewListCsv} = require("../../src/features/life/listTransfer.ts");
+  const l = { ...list(), fields: [{id:"notes", name:"備註", type:"text"}, {id:"count", name:"數量", type:"number"}] };
+  const source='名稱,備註,數量\r\n乳液,"品牌 A, 旅行裝",3\r\n乳液,重複,9';
+  const preview=previewListCsv(source,l,[]);
+  assert.equal(preview.skipped,1);
+  assert.deepEqual(preview.items[0].values,{notes:"品牌 A, 旅行裝",count:3});
+  assert.throws(()=>previewListCsv("名稱,數量\n乳液,無效",l,[]),/需要數字/);
+  const csv=listCsv(l,[{...preview.items[0],title:"=1+1",values:{notes:" +1",count:-2}}]);
+  assert.match(csv,/"'=1\+1","' \+1","-2"/);
 });

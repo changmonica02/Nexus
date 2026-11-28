@@ -17,10 +17,17 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
   let browser;
   try {
     browser=await require('playwright')[engine].launch({executablePath:engine==='chromium'?process.env.BROWSER_EXECUTABLE:undefined,args:engine==='chromium'?['--no-sandbox']:[]});
-    const page=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'Asia/Taipei'}), errors=[];
+    const page=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'Asia/Taipei',hasTouch:true}), errors=[];
     page.on('pageerror',error=>errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole('button',{name:'自訂',exact:true}).waitFor();
+    for (const section of ['總覽', '日曆', '健康管理', '財務', '我的清單']) {
+      await navigateLife(page, section);
+      const title = page.locator('[data-workspace-header]').getByRole('heading', {level:1});
+      assert.deepEqual(await title.locator('span').allTextContents(), ['生活', section]);
+      assert.equal(await page.locator('#life-content').getByRole('heading', {name:section, exact:true}).count(), 0);
+    }
+    await navigateLife(page, '總覽');
     await page.evaluate(async()=>{
       const storage=window.lifeStorage,repo=storage.getLifeRepository(),now=Date.now(),today=new Date();today.setHours(0,0,0,0);
       const day=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
@@ -66,10 +73,25 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
         if(process.env.LIFE_UX_SCREENSHOTS&&(!dark||name==='phone')){fs.mkdirSync(process.env.LIFE_UX_SCREENSHOTS,{recursive:true});await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`calendar-${name}${dark?"-dark":""}-${engine}.png`)});if(name==='phone'){await details.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(process.env.LIFE_UX_SCREENSHOTS,`calendar-phone-details${dark?"-dark":""}-${engine}.png`)});}}
       }
     }
+    await page.setViewportSize({width:390,height:844});
+    await page.getByRole('button',{name:'日檢視',exact:true}).tap();
+    await page.locator('.life-timeline-slot').nth(12).tap();
+    const touchEditor=page.getByRole('dialog',{name:'新增行程'});
+    assert.match(await touchEditor.getByLabel('開始',{exact:true}).inputValue(),/T12:(00|15|30|45)$/);
+    await touchEditor.getByRole('button',{name:'取消',exact:true}).tap();
+    await page.getByRole('button',{name:'月檢視',exact:true}).tap();
     await page.setViewportSize({width:1440,height:1000});
+    await page.getByRole('button',{name:'週檢視',exact:true}).click();
+    await page.getByRole('button',{name:'展開詳情',exact:true}).click();
     await page.getByRole('button',{name:'收合生活側邊欄'}).click();
     await page.reload();
     await page.getByRole('button',{name:'展開生活側邊欄'}).waitFor();
+    await navigateLife(page,'日曆');
+    await page.locator('.life-timeline').waitFor();
+    assert.equal(await page.locator('.life-timeline-day').count(),7);
+    await details.waitFor();
+    await page.getByRole('button',{name:'收合詳情',exact:true}).click();
+    await page.getByRole('button',{name:'月檢視',exact:true}).click();
     for(const legacy of ['schedule','milestones','tasks','habits']){
       await page.evaluate(tab=>window.openLegacyLife(tab),legacy);
       await page.getByRole('region',{name:'日曆事項管理'}).waitFor();
@@ -80,7 +102,7 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     await page.getByRole('button',{name:'無期限',exact:true}).click();
     await page.getByText('未排定閱讀',{exact:true}).waitFor();
     await page.getByRole('button',{name:'已逾期',exact:true}).click();
-    await page.getByText('逾期作業',{exact:true}).waitFor();
+    await page.getByRole('region',{name:'日曆事項管理'}).getByText('逾期作業',{exact:true}).waitFor();
     await page.getByRole('button',{name:'關閉管理',exact:true}).click();
     await page.getByRole('button',{name:'新增',exact:true}).click();
     await page.getByRole('button',{name:'新增行程',exact:true}).click();
@@ -88,10 +110,44 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     await dialog.getByLabel('名稱',{exact:true}).fill('新行程');
     await dialog.getByRole('button',{name:'儲存行程'}).click();
     await details.getByRole('button',{name:/新行程/}).waitFor();
+    await page.getByRole('button',{name:'週檢視',exact:true}).click();
+    assert.equal(await page.locator('.life-timeline-day').count(),7);
+    assert.equal(await details.count(),0);
+    await page.getByRole('button',{name:'日檢視',exact:true}).click();
+    assert.equal(await page.locator('.life-timeline-day').count(),1);
+    const slot=page.locator('.life-timeline-slot').nth(10);
+    await slot.focus();
+    await page.keyboard.press('Enter');
+    const quick=page.getByRole('dialog',{name:'新增行程'});
+    assert.match(await quick.getByLabel('開始',{exact:true}).inputValue(),/T10:00$/);
+    await quick.getByRole('button',{name:'取消',exact:true}).click();
+    const scheduled=page.locator('.life-timeline-event').filter({hasText:'下午討論'});
+    await scheduled.scrollIntoViewIfNeeded();
+    const handle=scheduled.locator('[data-move]');
+    const bounds=await handle.boundingBox();
+    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2+48,{steps:8});
+    await page.mouse.up();
+    await page.waitForFunction(async()=>{
+      const records=await window.lifeStorage.getLifeRepository().readSchedule();
+      return new Date(records.find(record=>record.id==='ux-event').starts_at).getHours()===15;
+    });
+    await page.getByRole('button',{name:'清單檢視',exact:true}).click();
+    await page.locator('.life-calendar-list').waitFor();
+    await page.getByText('篩選',{exact:true}).click();
+    await page.getByLabel('重複類型').selectOption('once');
+    assert.equal(await page.locator('.life-calendar-list section').count(),1);
+    await page.getByLabel('重複類型').selectOption('all');
+    await page.getByText('篩選',{exact:true}).click();
+    assert.equal(await details.count(),0);
+    await page.getByRole('button',{name:'月檢視',exact:true}).click();
+    await details.waitFor();
     await navigateLife(page,'財務');
-    await page.getByText('近六個月尚無收支紀錄，記下第一筆交易即可查看趨勢。',{exact:true}).waitFor();
-    for(const [label,type] of [['記支出','expense'],['記收入','income'],['帳戶轉帳','transfer']]){
-      await page.getByRole('button',{name:label,exact:true}).click();
+    await page.getByText('尚無交易。',{exact:true}).waitFor();
+    for(const [label,type] of [['記錄支出','expense'],['記錄收入','income'],['帳戶轉帳','transfer']]){
+      await page.getByRole('button',{name:'新增',exact:true}).click();
+      await page.locator('[data-life-add-options]').getByRole('button',{name:label,exact:true}).click();
       const editor=page.getByRole('dialog',{name:'新增交易'});
       assert.equal(await editor.getByLabel('交易類型',{exact:true}).inputValue(),type);
       await editor.getByRole('button',{name:'取消',exact:true}).click();
@@ -102,10 +158,39 @@ test(`Life daily flows, persistent settings and responsive calendar (${engine})`
     const datedSchedule=page.getByRole('dialog',{name:'新增行程'});
     assert.ok((await datedSchedule.getByLabel('開始',{exact:true}).inputValue()).startsWith('2027-02-18'));
     await datedSchedule.getByRole('button',{name:'取消',exact:true}).click();
-    await page.getByRole('button',{name:'新增',exact:true}).click();await page.getByRole('button',{name:'新增習慣',exact:true}).click();
-    const datedHabit=page.getByRole('dialog',{name:'新增習慣'});
+    await page.getByRole('button',{name:'新增',exact:true}).click();await page.getByRole('button',{name:'新增任務',exact:true}).click();
+    await page.getByRole('dialog',{name:'新增任務'}).getByLabel('啟用習慣追蹤').click();
+    const datedHabit=page.getByRole('dialog',{name:'新增任務'});
     assert.equal(await datedHabit.getByLabel('開始日期',{exact:true}).inputValue(),'2027-02-18');
+    await datedHabit.getByLabel('啟用習慣追蹤').uncheck();
     await datedHabit.getByRole('button',{name:'取消',exact:true}).click();
+    await page.getByRole('button',{name:'新增',exact:true}).click();
+    await page.getByRole('button',{name:'新增任務',exact:true}).click();
+    const planned=page.getByRole('dialog',{name:'新增任務'});
+    await planned.getByLabel('名稱',{exact:true}).fill('週期閱讀');
+    await planned.getByLabel('重複週期',{exact:true}).selectOption('fixed');
+    await planned.getByLabel('重複次數',{exact:true}).fill('3');
+    await planned.getByLabel('目標種類',{exact:true}).selectOption('duration');
+    await planned.getByLabel('目標值',{exact:true}).fill('25');
+    await planned.getByRole('button',{name:'儲存任務',exact:true}).click();
+    await details.getByRole('button',{name:/週期閱讀/}).click();
+    const instance=page.getByRole('dialog',{name:'週期任務'});
+    await instance.getByLabel('實際完成量').fill('10');
+    await instance.getByRole('button',{name:'儲存進度'}).click();
+    await instance.getByText(/部分完成/).waitFor();
+    await instance.getByRole('button',{name:'關閉',exact:true}).click();
+    await page.getByLabel('日曆日期',{exact:true}).fill('2027-02-19');
+    await details.getByRole('button',{name:/週期閱讀/}).click();
+    await instance.getByText(/尚未完成/).waitFor();
+    await instance.getByRole('button',{name:'跳過本次'}).click();
+    await instance.getByText(/已跳過/).waitFor();
+    await instance.getByRole('button',{name:'任務設定'}).click();
+    await instance.getByLabel('套用範圍').selectOption('future');
+    await instance.getByLabel('任務說明').fill('換一本書');
+    await instance.getByRole('button',{name:'儲存任務'}).click();
+    await instance.waitFor({state:'hidden'});
+    await page.getByLabel('日曆日期',{exact:true}).fill('2027-02-18');
+    await details.getByRole('button',{name:/週期閱讀.*部分完成/}).waitFor();
     await navigateLife(page,'財務');
     assert.equal(await page.getByLabel('統計月份',{exact:true}).inputValue(),'2026-03');
     assert.deepEqual(await page.evaluate(async()=>window.lifeStorage.getLifeRepository().readDashboard()),before);

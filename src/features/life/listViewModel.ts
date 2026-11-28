@@ -1,5 +1,5 @@
 import type { LifeCategory, LifeField, LifeItem } from "./lists";
-export type ListView = "list" | "cards" | "table" | "tree";
+export type ListView = "list" | "cards" | "table" | "tree" | "board";
 export interface ViewPreferences {
   version: 1;
   view: ListView;
@@ -37,7 +37,7 @@ export function readViewPreferences(raw: string): ViewPreferences {
       Array.isArray(v) ? [...new Set(v.filter((s): s is string => typeof s === "string"))] : [];
     return {
       ...initial,
-      view: ["list", "cards", "table", "tree"].includes(p.view) ? p.view : "list",
+      view: ["list", "cards", "table", "tree", "board"].includes(p.view) ? p.view : "list",
       query: typeof p.query === "string" ? p.query : "",
       category: typeof p.category === "string" ? p.category : "*",
       columnOrder: strings(p.columnOrder),

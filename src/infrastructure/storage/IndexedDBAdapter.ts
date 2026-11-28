@@ -1,3 +1,4 @@
+import { validateTaskPlan, type TaskExecution } from "../../features/life/taskPlan";
 import { LIFE_SYNC_STORES, validateLifeSyncRecord, type ScheduleEvent, type Habit } from "../../features/life/syncRecords";
 import { dashboardSettingsKey, isDashboardConfig, isDashboardSettingsKey } from "../../features/life/dashboard/model";
 import {mergeCardVisibility,validateCardVisibility} from '../../features/study/cardVisibility';
@@ -21,7 +22,7 @@ import type { StorageAdapter } from "./StorageAdapter";
 import { WorkspacePersistence, stageDashboard, withoutRetiredStudyItems, WORKSPACE_STORES, type WorkspaceBatch } from "../sync/workspacePersistence";
 
 const DB_NAME = "nexus";
-const DB_VERSION = 13;
+const DB_VERSION = 15;
 const BACKUP_SCHEMA_VERSION = 4;
 
 function newPageId(): ID { return `page_${nanoid()}`; }
@@ -100,7 +101,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         await tx.objectStore("attachments").put({ ...attachment, workspace_owner_id: ownerId });
       }
     }
-    for(const store of [...LIFE_STORES,"life_schedule_events","life_habits"])for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
+    for(const store of [...LIFE_STORES,"life_schedule_events","life_habits","life_task_executions","life_stock_positions","life_stock_events"])for(const row of await tx.objectStore(store).getAll())if(row.workspace_owner_id==null)await tx.objectStore(store).put({...row,workspace_owner_id:ownerId});
     // Only explicit, post-upgrade offline intents are claimed for upload. Old cached
     // rows without an outbox record never become inferred cloud creations.
     for (const batch of await tx.objectStore("workspace_outbox").getAll() as WorkspaceBatch[]) {
@@ -146,6 +147,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         for (const name of [...STUDY_STORES,...WORKSPACE_STORES,...LIFE_STORES,...LIFE_SYNC_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: "id" });
+            if(name==="life_stock_events"){store.createIndex("by_item","item_id");store.createIndex("by_position","position_id");}
             if (name === "study_cards" || name === "study_states" || name === "study_events") store.createIndex("deck", "deck_id");
           }
         }
@@ -235,7 +237,11 @@ export class IndexedDBAdapter implements StorageAdapter {
       revision: 1,
       device_id: this.deviceId,
       kind: input?.kind ?? "note",
-      ...(input?.kind==='todo'?{due_date:input.due_date??null,completed:input.completed??false}:{}),
+      ...(input?.kind === "todo" ? {
+        due_date: input.due_date ?? null, completed: input.completed ?? false, priority: input.priority,
+        task_start_at: input.task_start_at, task_steps: input.task_steps,
+        task_plan: input.task_plan, task_repeat: input.task_repeat, task_repeat_day: input.task_repeat_day,
+      } : {}),
       presentation_data: input?.kind === "presentation" ? { theme: "minimal", slides: [] } : undefined,
       format: input?.format ?? (input?.kind === "presentation" ? "16:9" : "flow"),
       sort_order: input?.sort_order,
@@ -446,13 +452,14 @@ export class IndexedDBAdapter implements StorageAdapter {
       }
     }
     const lifeRepo = this.getLifeRepository();
-    const [life, dashboard, schedule, habits] = await Promise.all([lifeRepo.read(), lifeRepo.readDashboard(), lifeRepo.readSchedule(), lifeRepo.readHabits()]);
+    const [life, dashboard, schedule, habits, executions] = await Promise.all([lifeRepo.read(), lifeRepo.readDashboard(), lifeRepo.readSchedule(), lifeRepo.readHabits(), lifeRepo.readTaskExecutions()]);
     validateLife(life,owner,allAttachments);
     if (this.workspaceOwnerId !== owner) throw Error("Account changed during backup");
     return {
       life,
       life_schedule_events: schedule,
       life_habits: habits,
+      life_task_executions: executions,
       world_map_drafts,
       schema_version: BACKUP_SCHEMA_VERSION,
       exported_at: snapshotTime,
@@ -493,7 +500,10 @@ export class IndexedDBAdapter implements StorageAdapter {
         validateLifeSyncRecord(type, row);
       }
     }
-    for(const page of backup.pages) validateWorldEntities(page);
+    for(const page of backup.pages) {
+      validateWorldEntities(page);
+      if(page.task_plan)validateTaskPlan(page.task_plan);
+    }
     for(const page of backup.pages)for(const map of page.character_data?.world_maps??[]){
       if(map.world_id!==page.id)throw Error("Invalid world map membership in backup");
       if(!map.attachment_id)continue;
@@ -687,6 +697,35 @@ export class IndexedDBAdapter implements StorageAdapter {
       } else {
         await tx.objectStore("settings").put(setting);
       }
+    }
+    const executionOps: import("../sync/workspacePersistence").WorkspaceOperation[] = [];
+    const queuedTasks = new Set(queued.filter(op=>op.entity_type==="pages").map(op=>op.entity_id));
+    for (const record of backup.life_task_executions ?? []) {
+      if (record.workspace_owner_id!==owner||record.deleted_at!==null) throw Error("執行紀錄備份帳號不符");
+      validateLifeSyncRecord("life_task_executions",record);
+      const parent=await tx.objectStore("pages").get(record.task_id) as Page|undefined;
+      if (!parent?.task_plan || parent.deleted_at!=null || (parent.workspace_owner_id??null)!==owner)
+        throw Error("執行紀錄備份缺少對應任務");
+      const store=tx.objectStore("life_task_executions");
+      if(await store.get(record.id))continue;
+      const meta=await tx.objectStore("workspace_sync_meta").get(JSON.stringify([owner,"life_task_executions",record.id]));
+      if(meta?.hard_deleted||meta?.revision)continue;
+      if(owner&&!queuedTasks.has(parent.id)){
+        const parentMeta=await tx.objectStore("workspace_sync_meta").get(JSON.stringify([owner,"pages",parent.id]));
+        if(!parentMeta?.revision)executionOps.push({id:crypto.randomUUID(),entity_type:"pages",entity_id:parent.id,
+          kind:"save",expected_revision:0,value:parent});
+        queuedTasks.add(parent.id);
+      }
+      const restored:TaskExecution={...record,revision:1};
+      await store.put(restored);
+      executionOps.push({id:crypto.randomUUID(),entity_type:"life_task_executions",entity_id:restored.id,
+        kind:"save",expected_revision:0,value:restored});
+    }
+    if(executionOps.length){
+      const outbox=tx.objectStore("workspace_outbox"),meta=tx.objectStore("workspace_sync_meta");
+      const sequence=((await meta.get("sequence"))?.value??0)+1;
+      await meta.put({id:"sequence",value:sequence});
+      await outbox.put({id:crypto.randomUUID(),owner_id:owner,sequence,operations:executionOps});
     }
     for(const draft of backup.world_map_drafts??[]){
       const id=JSON.stringify(["world-map-draft",owner,draft.world_id,draft.map_id]);

@@ -89,3 +89,44 @@ test("budget thresholds use dated currency conversion and exclude credit card se
  assert.deepEqual(budgetAlerts(records,"2026-01-31"),[{id:"budget",title:"餐飲",percent:80}]);
  assert.deepEqual(budgetAlerts([{...prefs,payload:{...prefs.payload,hiddenSections:["budget"]}},...records.slice(1)],"2026-01-31"),[]);
 });
+
+test("scheduled income and a one-time override affect the ledger only on confirmation", async () => {
+ const db = new IndexedDBAdapter();
+ await db.init();
+ const recurringOwner = owner + "-recurring";
+ db.setWorkspaceOwner(recurringOwner);
+ try {
+  const repo = db.getLifeRepository();
+  await repo.saveFinance({ ...account("salary-bank", "bank", "TWD", "1000"), workspace_owner_id: recurringOwner });
+  const payload = { ...common, type: "income", amount: "500", currency: "TWD", cycle: "month",
+   interval: 1, anchorDay: 31, next: "2026-01-31", account: "salary-bank", category: "薪資",
+   state: "active", trial: "", url: "", icon: "", until: "2026-03-31" };
+  await repo.saveFinance(financeRow(recurringOwner, "subscription", payload, "salary"));
+  const series = async () => financeRows(await repo.readFinance(), "subscription")[0];
+  await repo.editRecurringFinance(await series(), { ...payload, amount: "700" }, "2026-01-31", "single");
+  await repo.skipRecurringFinance(await series(), "2026-02-28");
+  assert.equal(financeTotals(await repo.readFinance(), "2026-01-01", "2026-01-31").income, 0n);
+  await repo.resolveRecurringFinance(await series(), "2026-01-31");
+  const totals = financeTotals(await repo.readFinance(), "2026-01-01", "2026-01-31");
+  assert.equal(totals.income, 700n);
+  assert.equal(totals.net, 1700n);
+  assert.equal((await series()).payload.next, "2026-03-31");
+  await repo.resolveRecurringFinance(await series());
+  assert.equal((await series()).payload.state, "cancelled");
+  assert.equal(financeRows(await repo.readFinance(), "transaction").length, 1);
+ } finally {
+  await db.close();
+ }
+});
+
+test("a loan repayment reduces principal and counts only interest as spending", () => {
+ const records = [account("cash", "bank", "TWD", "9000"), account("loan", "loan", "TWD", "-5000"),
+  { ...transaction("settlement", "repayment", "cash", "1000", "loan", "1000"),
+   payload: { ...transaction("settlement", "repayment", "cash", "1000", "loan", "1000").payload, interest: "100", category: "" } }];
+ const totals = financeTotals(records, "2026-01-01", "2026-01-31");
+ assert.equal(totals.balances.get("cash"), 7900n);
+ assert.equal(totals.balances.get("loan"), -4000n);
+ assert.equal(totals.net, 3900n);
+ assert.equal(totals.expense, 100n);
+ assert.equal(totals.categories.get("貸款利息"), 100n);
+});

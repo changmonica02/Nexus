@@ -9,9 +9,9 @@ import type { LifeRepository } from "./LifeRepository";
 import { control, surface } from "./dashboard/styles";
 import type { ScheduleEvent } from "./syncRecords";
 
-export function newScheduleEvent(owner: string | null, anchor: Date): ScheduleEvent {
+export function newScheduleEvent(owner: string | null, anchor: Date, keepTime = false): ScheduleEvent {
   const start = new Date(anchor);
-  start.setHours(9, 0, 0, 0);
+  if (!keepTime) start.setHours(9, 0, 0, 0);
   return {
     id: crypto.randomUUID(), workspace_owner_id: owner, revision: 0, created_at: Date.now(), updated_at: Date.now(),
     deleted_at: null, title: "", starts_at: start.getTime(), ends_at: start.getTime() + 3600000,
@@ -29,40 +29,55 @@ export function scheduleLabel(event: ScheduleEvent, locale: string) {
 export function ScheduleForm({ initial, repository, close, occurrence }: {
   initial: ScheduleEvent; repository: LifeRepository; close: () => void; occurrence?: string;
 }) {
-  const [scope, setScope] = useState("series");
+  const [scope, setScope] = useState(occurrence ? "single" : "series");
   const item = occurrence ? scheduleOccurrence(initial, occurrence) : undefined;
   if (!item || !occurrence || !initial.repeat_rule) return <ScheduleFields initial={initial} close={close}
     persist={(event,remove)=>repository.saveSchedule(event,remove)}/>;
   const rule=initial.repeat_rule;
-  const options=<label className="grid gap-1">套用範圍<select aria-label="套用範圍" className={control} value={scope} onChange={event=>setScope(event.target.value)}>
-    <option value="series">整個系列</option><option value="single">本次行程</option><option value="future">本次及後續</option>
+  const source=scopedSchedule(initial, item, scope);
+  return <ScheduleFields key={scope} initial={source} close={close} scopeOptions={<OccurrenceScope value={scope} change={setScope}/>}
+    single={scope==="single"} persist={(event,remove)=>saveScopedSchedule(repository,initial,item,scope,event,remove)}/>;
+}
+
+export function OccurrenceScope({ value, change }: { value: string; change: (value: string) => void }) {
+  return <label className="grid gap-1">套用範圍<select aria-label="套用範圍" className={control} value={value} onChange={event=>change(event.target.value)}>
+    <option value="series">整個系列</option><option value="single">僅本次</option><option value="future">本次及後續</option>
   </select></label>;
-  const source=scope==="series"?initial:{...item.event,repeat_rule:scope==="single"?null:{
+}
+
+type ScheduleOccurrence = NonNullable<ReturnType<typeof scheduleOccurrence>>;
+
+export function scopedSchedule(initial:ScheduleEvent, item:ScheduleOccurrence, scope:string) {
+  const rule=initial.repeat_rule!;
+  return scope==="series"?initial:{...item.event,repeat_rule:scope==="single"?null:{
     ...rule, anchorDay:rule.anchorDay??recurrenceAnchorDay(initial), count:rule.count===null?null:rule.count-item.index,
-    exceptions:rule.exceptions.filter(key=>key>=occurrence),
-    overrides:Object.fromEntries(Object.entries(rule.overrides).filter(([key])=>key>occurrence)),
+    exceptions:rule.exceptions.filter(key=>key>=item.key),
+    overrides:Object.fromEntries(Object.entries(rule.overrides).filter(([key])=>key>item.key)),
   }};
-  return <ScheduleFields key={scope} initial={source} close={close} scopeOptions={options} single={scope==="single"}
-    persist={async(event,remove)=>{
-      if(scope==="series"){await repository.saveSchedule(event,remove);return;}
-      if(scope==="single"){
-        const overrides={...rule.overrides};
-        if(remove)delete overrides[occurrence];
-        else {
-          if(!event.title||!Number.isSafeInteger(event.starts_at)||!Number.isSafeInteger(event.ends_at)||event.ends_at<event.starts_at)throw Error("請確認行程時間");
-          const {title,starts_at,ends_at,all_day,category,notes}=event;
-          overrides[occurrence]={title,starts_at,ends_at,all_day,category,notes};
-        }
-        const exceptions=remove?[...new Set([...rule.exceptions,occurrence])]:rule.exceptions.filter(key=>key!==occurrence);
-        await repository.saveSchedule({...initial,repeat_rule:{...rule,exceptions,overrides}});
-        return;
-      }
-      if(item.index===0){await repository.saveSchedule(event,remove);return;}
-      const before={...initial,repeat_rule:{...rule,until:civilAdvance(occurrence,"day",-1),
-        exceptions:rule.exceptions.filter(key=>key<occurrence),
-        overrides:Object.fromEntries(Object.entries(rule.overrides).filter(([key])=>key<occurrence))}};
-      await repository.saveScheduleSplit(before,remove?undefined:{...event,id:crypto.randomUUID(),revision:0,created_at:Date.now()});
-    }}/>;
+}
+
+export async function saveScopedSchedule(repository:LifeRepository, initial:ScheduleEvent, item:ScheduleOccurrence, scope:string, event:ScheduleEvent, remove:boolean) {
+  const rule=initial.repeat_rule!;
+  const key=item.key;
+  if(scope==="series"){await repository.saveSchedule(event,remove);return;}
+  if(scope==="single"){
+    const overrides={...rule.overrides};
+    if(remove)delete overrides[key];
+    else {
+      if(!event.title||!Number.isSafeInteger(event.starts_at)||!Number.isSafeInteger(event.ends_at)||event.ends_at<event.starts_at)throw Error("請確認起訖時間");
+      const {title,starts_at,ends_at,all_day,category,notes,milestone}=event;
+      overrides[key]={title,starts_at,ends_at,all_day,category,notes,...(milestone?{milestone}:{})};
+    }
+    const exceptions=remove?[...new Set([...rule.exceptions,key])]:rule.exceptions.filter(day=>day!==key);
+    await repository.saveSchedule({...initial,repeat_rule:{...rule,exceptions,overrides}});
+    return;
+  }
+  if(item.index===0){await repository.saveSchedule(event,remove);return;}
+  const prior=civilAdvance(key,"day",-1);
+  const before={...initial,repeat_rule:{...rule,until:rule.until&&rule.until<prior?rule.until:prior,
+    exceptions:rule.exceptions.filter(day=>day<key),
+    overrides:Object.fromEntries(Object.entries(rule.overrides).filter(([day])=>day<key))}};
+  await repository.saveScheduleSplit(before,remove?undefined:{...event,id:crypto.randomUUID(),revision:0,created_at:Date.now()});
 }
 
 function ScheduleFields({ initial, close, persist, scopeOptions, single }: {
@@ -137,6 +152,22 @@ function ScheduleFields({ initial, close, persist, scopeOptions, single }: {
           {repeat.frequency==="week"&&<div className="flex flex-wrap gap-3">{["日","一","二","三","四","五","六"].map((label,day)=>
             <label key={day} className="flex items-center gap-1"><input type="checkbox" checked={repeat.weekdays.includes(day)} onChange={event=>
               setRepeat({weekdays:event.target.checked?[...repeat.weekdays,day]:repeat.weekdays.filter(value=>value!==day)})}/>{label}</label>)}</div>}
+          {repeat.frequency==="month"&&<div className="flex flex-wrap gap-2">
+            <label className="grid gap-1">每月依據<select className={control} value={repeat.monthWeekday?"weekday":"date"}
+              onChange={event=>setRepeat({monthWeekday:event.target.value==="weekday"?{weekday:1,ordinal:1}:undefined})}>
+              <option value="date">開始日期</option><option value="weekday">特定星期</option>
+            </select></label>
+            {repeat.monthWeekday&&<>
+              <label className="grid gap-1">第幾次<select className={control} value={repeat.monthWeekday.ordinal}
+                onChange={event=>setRepeat({monthWeekday:{...repeat.monthWeekday!,ordinal:Number(event.target.value)}})}>
+                {[1,2,3,4,5,-1].map(value=><option key={value} value={value}>{value===-1?"最後一次":`第 ${value} 次`}</option>)}
+              </select></label>
+              <label className="grid gap-1">星期<select className={control} value={repeat.monthWeekday.weekday}
+                onChange={event=>setRepeat({monthWeekday:{...repeat.monthWeekday!,weekday:Number(event.target.value)}})}>
+                {["日","一","二","三","四","五","六"].map((label,index)=><option key={label} value={index}>星期{label}</option>)}
+              </select></label>
+            </>}
+          </div>}
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="grid gap-1">結束日期<input type="date" className={control} value={repeat.until} onChange={event=>setRepeat({until:event.target.value})}/></label>
             <label className="grid gap-1">重複次數<input type="number" min="1" max="10000" className={control} value={repeat.count??""}

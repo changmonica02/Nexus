@@ -1,3 +1,5 @@
+import { stockHeads, stockId, validateStockTransition, type StockEvent, type StockPosition } from "../../features/life/inventory";
+import { validateTaskPlan, type TaskExecution } from "../../features/life/taskPlan";
 import type { HealthRecord } from "../../features/life/health/model";
 import type { FinanceRecord } from "../../features/life/finance/model";
 import { validateFinanceRelations } from "../../features/life/finance/ledger";
@@ -19,7 +21,7 @@ export function withoutRetiredStudyItems<T extends object>(row:T):T {
 }
 export const WORKSPACE_STORES = ["workspace_outbox", "workspace_sync_meta"] as const;
 export type EntityType = "pages" | "attachments" | LifeStore | LifeSyncStore;
-export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord;
+export type WorkspaceRecord = Page | Attachment | LifeRecord | DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution | StockEvent | StockPosition;
 export type OperationKind = "save" | "soft_delete" | "restore" | "hard_delete" | "binary";
 export type WorkspaceChange = { type: EntityType; kind: OperationKind; value: WorkspaceRecord; data?: string; blob?: Blob;
   createOnce?: boolean; automationField?:"title"|"priority"|"completed" };
@@ -145,9 +147,48 @@ export class WorkspacePersistence {
         const old = await store.get(value.id) as WorkspaceRecord | undefined;
         if (old && (old.workspace_owner_id ?? null) !== owner) throw new Error("Workspace ownership mismatch");
         if(change.createOnce&&(old||(await metadata.get(key(owner,type,value.id)))?.hard_deleted))continue;
+        if (type==="pages" && kind==="save" && (value as Page).task_plan) {
+          if ((value as Page).kind!=="todo") throw Error("僅任務可設定週期");
+          validateTaskPlan((value as Page).task_plan!);
+        }
+        if(type==="life_stock_events"){
+          const event=value as StockEvent;
+          if(kind!=="save"||old)throw Error("庫存異動為追加式紀錄");
+          const item=await tx.objectStore("life_items").get(event.item_id) as LifeItem|undefined;
+          const list=item&&await tx.objectStore("life_lists").get(item.list_id) as LifeList|undefined;
+          if(!item||item.workspace_owner_id!==owner||item.deleted_at!=null||!list?.configuration?.inventory)throw Error("這個物品未啟用庫存");
+          if(event.position_id){
+            const position=await tx.objectStore("life_stock_positions").get(event.position_id) as StockPosition|undefined;
+            if(!position||position.workspace_owner_id!==owner||position.deleted_at!=null)throw Error("找不到存放位置");
+          }
+          const previous=event.sequence>1?await store.get(stockId(event.container_id,event.sequence-1)) as StockEvent|undefined:undefined;
+          const prior=event.sequence>2?await store.get(stockId(event.container_id,event.sequence-2)) as StockEvent|undefined:undefined;
+          if(event.sequence>1&&(!previous||previous.workspace_owner_id!==owner))throw Error("庫存已更新，請重新載入");
+          validateStockTransition(event,previous,prior);
+        }
+        if(type==="life_stock_positions"){
+          const position=value as StockPosition;
+          const positions=(await store.getAll() as StockPosition[]).filter(row=>row.workspace_owner_id===owner&&row.deleted_at===null);
+          if(kind==="soft_delete"&&(positions.some(row=>row.parent_id===position.id)
+            ||stockHeads((await tx.objectStore("life_stock_events").getAll() as StockEvent[]).filter(row=>row.workspace_owner_id===owner))
+             .some(row=>row.position_id===position.id&&(row.state==="sealed"||row.state==="open"))))throw Error("請先移走子位置及庫存");
+          let parent=position.parent_id;
+          const seen=new Set([position.id]);
+          while(parent){
+            const row=positions.find(row=>row.id===parent);
+            if(!row||seen.has(parent))throw Error("位置關聯無效或形成循環");
+            seen.add(parent); parent=row.parent_id;
+          }
+        }
+        if (type==="life_task_executions") {
+          const parent=await tx.objectStore("pages").get((value as TaskExecution).task_id) as Page|undefined;
+          if (kind!=="save" || !parent?.task_plan || parent.deleted_at!=null || (parent.workspace_owner_id??null)!==owner)
+            throw Error("找不到此執行紀錄的任務");
+        }
         if (LIFE_SYNC_STORES.includes(type as LifeSyncStore)) {
           if (type === "life_dashboard_configs" || type === "life_automation_runs" ? kind !== "save" || type === "life_automation_runs" && !!old : type==="life_health_records" ? !["save","hard_delete"].includes(kind) : !["save", "soft_delete", "restore"].includes(kind)) throw Error("不支援的生活資料操作");
-          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord);
+          validateLifeSyncRecord(type as LifeSyncStore, value as DashboardRecord | ScheduleEvent | Habit | FinanceRecord | TimerResult | HealthRecord | AutomationRunRecord | TaskExecution | StockEvent | StockPosition);
+          if (type === "life_task_executions" && !old && (value as TaskExecution).revision !== 0) throw Error("執行紀錄已變更，請重新載入");
           if (old && (value as DashboardRecord).revision !== (old as DashboardRecord).revision) throw Error("生活資料已更新，請重新載入");
         }
         if (LIFE_STORES.includes(type as LifeStore)) {
@@ -203,6 +244,36 @@ export class WorkspacePersistence {
         const finance = (await tx.objectStore("life_finance_records").getAll() as FinanceRecord[])
           .filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
         validateFinanceRelations(finance);
+      }
+      if (changes.some(change => change.type==="life_health_records" && change.kind==="save"
+        && (change.value as HealthRecord).data.managedSlot===true)) {
+        const rows=(await tx.objectStore("life_health_records").getAll() as HealthRecord[])
+          .filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null&&row.kind==="dose"&&row.data.planned);
+        const slots=new Map<string,number>();
+        for(const row of rows){
+          const key=JSON.stringify([row.data.medication,row.data.date,row.data.planned]);
+          slots.set(key,(slots.get(key)??0)+1);
+        }
+        for(const change of changes){
+          if(change.type!=="life_health_records"||change.kind!=="save")continue;
+          const {data}=change.value as HealthRecord;
+          if(data.managedSlot===true&&(slots.get(JSON.stringify([data.medication,data.date,data.planned]))??0)>1){
+            throw Error("這個預定時段已有服用紀錄，請開啟原紀錄修改。");
+          }
+        }
+      }
+      for(const type of ["life_health_records","life_finance_records"] as const){
+        const touched=changes.filter(change=>change.type===type&&change.kind==="save").map(change=>type==="life_health_records"?
+          (change.value as HealthRecord).data:(change.value as FinanceRecord<"transaction">).payload).filter(data=>data.taskRunOnce===true&&data.taskOccurrence);
+        if(!touched.length)continue;
+        const ownerRows=(await tx.objectStore(type).getAll() as (HealthRecord|FinanceRecord)[])
+          .filter(row=>row.workspace_owner_id===owner&&row.deleted_at==null);
+        const links=ownerRows.flatMap(row=>"data" in row?[row.data]:row.kind==="transaction"?[row.payload]:[]);
+        for(const link of touched){
+          if(links.filter(row=>row.task===link.task&&row.taskOccurrence===link.taskOccurrence&&row.taskRunOnce===true).length>1){
+            throw Error("本次任務已有正式紀錄，請編輯原紀錄");
+          }
+        }
       }
       if(!operations.length){ await tx.done; return; }
       const counter = await metadata.get("sequence");

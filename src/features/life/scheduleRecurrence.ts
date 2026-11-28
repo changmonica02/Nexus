@@ -2,7 +2,7 @@ import { civilAdvance } from "./civilPeriods";
 import type { ScheduleEvent } from "./syncRecords";
 
 export type RepeatFrequency = "day" | "week" | "month" | "year";
-export type OccurrenceOverride = Pick<ScheduleEvent,"title"|"starts_at"|"ends_at"|"all_day"|"category"|"notes">;
+export type OccurrenceOverride = Pick<ScheduleEvent,"title"|"starts_at"|"ends_at"|"all_day"|"category"|"notes"|"milestone">;
 export type ScheduleRule = {
   frequency: RepeatFrequency;
   interval: number;
@@ -11,6 +11,7 @@ export type ScheduleRule = {
   count: number | null;
   zone: string;
   anchorDay?: number;
+  monthWeekday?: { weekday: number; ordinal: number };
   exceptions: string[];
   overrides: Record<string, OccurrenceOverride>;
 };
@@ -18,7 +19,7 @@ const keyOf = (time: number) => new Date(time).toISOString().slice(0,10);
 const dayNum = (key: string) => new Date(key+"T00:00:00Z").getUTCDay();
 
 const formatters=new Map<string,Intl.DateTimeFormat>();
-function zonalTime(time: number, zone: string) {
+export function zonalTime(time: number, zone: string) {
   const fmt = formatters.get(zone)??new Intl.DateTimeFormat("en-CA", {
     timeZone:zone, hourCycle:"h23", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit",
   });
@@ -27,18 +28,35 @@ function zonalTime(time: number, zone: string) {
   return Date.parse(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`);
 }
 
-function fromWall(wall: number, zone: string) {
+export function fromWall(wall: number, zone: string) {
   const offsets = [...new Set([-86400000,0,86400000].map(delta => zonalTime(wall+delta,zone)-wall-delta))];
   const candidates=offsets.map(offset=>wall-offset).sort((a,b)=>a-b);
   return candidates.find(time=>zonalTime(time,zone)===wall) ??
     candidates.find(time=>zonalTime(time,zone)>wall) ?? candidates.at(-1)!;
 }
 
+export function yearlyMilestoneRule(event: ScheduleEvent): ScheduleRule | null {
+  return event.repeat_rule ?? (event.milestone?.yearly ? {
+    frequency: "year", interval: 1, weekdays: [], until: "", count: null, zone: "UTC",
+    exceptions: [], overrides: {},
+  } : null);
+}
+
 export function recurrenceAnchorDay(event: ScheduleEvent) {
   return Number(keyOf(event.all_day?event.starts_at:zonalTime(event.starts_at,event.repeat_rule?.zone??"UTC")).slice(8,10));
 }
 
-export function scheduleOccurrences(event: ScheduleEvent, through: string) {
+function weekdayInMonth(month: string, weekday: number, ordinal: number) {
+  const first = month.slice(0, 7) + "-01";
+  if (ordinal === -1) {
+    const last = civilAdvance(civilAdvance(first, "month", 1), "day", -1);
+    return civilAdvance(last, "day", -((dayNum(last) - weekday + 7) % 7));
+  }
+  const key = civilAdvance(first, "day", (weekday - dayNum(first) + 7) % 7 + (ordinal - 1) * 7);
+  return key.slice(0, 7) === first.slice(0, 7) ? key : undefined;
+}
+
+export function scheduleOccurrences(event: ScheduleEvent, through: string, honorMonthDate = false) {
   const rule=event.repeat_rule;
   if(!rule)return [];
   const wall=event.all_day?event.starts_at:zonalTime(event.starts_at,rule.zone);
@@ -50,8 +68,10 @@ export function scheduleOccurrences(event: ScheduleEvent, through: string) {
   let ordinal=0;
   for(let step=0;step<100000;step++){
     const start=rule.frequency==="week"?civilAdvance(weekStart,"week",step*rule.interval):civilAdvance(first,rule.frequency,step*rule.interval,rule.anchorDay);
-    if(start>until)break;
-    const keys=rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):[step===0?first:start];
+    const pattern = rule.frequency === "month" ? rule.monthWeekday : undefined;
+    if ((pattern ? start.slice(0, 7) + "-01" : start) > until) break;
+    const monthly = pattern ? weekdayInMonth(start, pattern.weekday, pattern.ordinal) : undefined;
+    const keys= rule.frequency==="week"?days.map(day=>civilAdvance(start,"day",day)):(pattern ? (monthly ? [monthly] : []) : [step===0&&!(honorMonthDate&&rule.frequency==="month"&&rule.anchorDay!==undefined)?first:start]);
     for(const key of keys){
       if(key<first||key>until)continue;
       if(rule.count!==null&&ordinal>=rule.count)return rows;

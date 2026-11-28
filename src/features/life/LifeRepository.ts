@@ -1,9 +1,13 @@
+import { emptyStock, stockId, type StockData, type StockEvent, type StockPosition } from "./inventory";
+import type { TaskLink } from "./taskLink";
+import { civilAdvance } from "./civilPeriods";
+import { convertHabit, makeExecution, sameTaskData, type TaskExecution, type TaskSlot, type TaskStatus } from "./taskPlan";
 import { automationRunId, automationScheduleId, validAutomationAction, type Reminder, type ReminderRule, type AutomationRun, type AutomationRunStatus } from "./reminderModel";
 import { previewFieldConversion } from "./listConfiguration";
 import type { HealthRecord } from "./health/model";
 import { financeRow, type FinanceRecord } from "./finance/model";
 import { minorUnits } from "./finance/money";
-import { subscriptionNext } from "./finance/ledger";
+import { recurringTerms, subscriptionNext } from "./finance/ledger";
 import type { IDBPDatabase } from "idb";
 import { WorkspacePersistence, type WorkspaceChange } from "../../infrastructure/sync/workspacePersistence";
 import { LIFE_STORES, emptyLife, lifeBase, type LifeData, type LifeItem, type LifeList, type LifeRecord, type LifeStore } from "./lists";
@@ -190,7 +194,7 @@ export class LifeRepository {
     if(this.owner()!==owner)throw Error("帳號已切換");
     if(!task||task.workspace_owner_id!==owner||task.deleted_at!=null||task.kind!=="todo")throw Error("待辦不存在或已刪除");
     const field=rule.updateField!;
-    if(field==="completed"&&task.task_repeat)throw Error("週期待辦的完成狀態須手動更新");
+    if(field==="completed"&&(task.task_repeat||task.task_plan))throw Error("週期待辦的完成狀態須手動更新");
     const desired=field==="completed"?rule.updateValue==="true":rule.updateValue!.trim();
     const persistence=new WorkspacePersistence(this.db);
     const value:Page={...task,[field]:desired,revision:task.revision+1,updated_at:Date.now()};
@@ -246,12 +250,51 @@ export class LifeRepository {
     ]);
   }
 
+  async readTaskExecutions(): Promise<TaskExecution[]> {
+    const owner = this.owner();
+    const rows = await this.db.getAll("life_task_executions") as TaskExecution[];
+    if (this.owner() !== owner) throw Error("帳號已切換");
+    return rows.filter(row => row.workspace_owner_id === owner && row.deleted_at == null);
+  }
+
+  async saveTaskExecution(task: Page, slot: TaskSlot, status: TaskStatus, amount: number, completedAt?:number) {
+    const owner = this.owner();
+    if (!task.task_plan || (task.workspace_owner_id ?? null) !== owner) throw Error("找不到此任務");
+    if(slot.settings.action&&(status==="complete"||status==="partial"))throw Error("請透過連動操作記錄實際結果");
+    const value = makeExecution(task, slot, status, amount, Date.now(), completedAt);
+    if (slot.record?.status === status && slot.record.amount === value.amount && (completedAt==null||slot.record.completed_at===value.completed_at)) return;
+    const saved = await this.db.get("pages",task.id) as Page | undefined;
+    if (!saved || (saved.workspace_owner_id??null)!==owner || this.owner()!==owner || saved.deleted_at!=null
+      || !sameTaskData(saved.task_plan,task.task_plan)) throw Error("任務設定已變更，請重新開啟");
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_task_executions",kind:"save",value}],
+      [{type:"pages",id:task.id,revision:saved.revision}]);
+  }
+
   async readHabits(): Promise<Habit[]> {
     const owner = this.owner();
     const habits = await this.db.getAll("life_habits") as Habit[];
     if (this.owner() !== owner) throw Error("帳號已切換");
     return habits.filter(habit => habit.workspace_owner_id === owner && habit.deleted_at == null)
       .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+  }
+
+  async adoptHabit(habit: Habit): Promise<Page> {
+    const owner=this.owner();
+    if (habit.workspace_owner_id!==owner) throw Error("帳號已切換");
+    const existing=await this.db.get("pages",habit.id) as Page|undefined;
+    if (existing?.task_plan?.legacyHabitId===habit.id && (existing.workspace_owner_id??null)===owner) return existing;
+    if (existing) throw Error("原有習慣的識別碼已被另一筆任務使用");
+    const {plan,records}=convertHabit(habit);
+    const value:Page={
+      id:habit.id,kind:"todo",title:habit.title,format:"flow",content_json:{type:"doc",content:[{type:"paragraph"}]},content_text:"",
+      created_at:habit.created_at,updated_at:Date.now(),deleted_at:null,revision:1,device_id:"life",
+      workspace_owner_id:owner,completed:false,task_plan:plan,
+    };
+    const changes:WorkspaceChange[]=[{type:"pages",kind:"save",value,createOnce:true},
+      ...records.map(row=>({type:"life_task_executions" as const,kind:"save" as const,value:row,createOnce:true}))];
+    if (this.owner()!==owner) throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(owner,changes,[{type:"life_habits",id:habit.id,revision:habit.revision}]);
+    return await this.db.get("pages",habit.id) as Page;
   }
 
   async saveHabit(habit: Habit, remove = false) {
@@ -281,8 +324,22 @@ export class LifeRepository {
   async saveHealth(row:HealthRecord,remove=false) {
     const owner=this.owner();
     if(row.workspace_owner_id!==owner)throw Error("帳號已切換");
+    const data=!remove&&row.kind==="dose"&&row.data.planned?{...row.data,managedSlot:true}:row.data;
     await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_health_records",kind:remove?"hard_delete":"save",
-      value:{...row,updated_at:Date.now()}}]);
+      value:{...row,data,updated_at:Date.now()}}]);
+  }
+
+  async replaceMedication(previous:HealthRecord,next:HealthRecord,today:string) {
+    const owner=this.owner(),start=String(next.data.date??"");
+    if(previous.kind!=="medication"||next.kind!=="medication"||previous.workspace_owner_id!==owner||next.workspace_owner_id!==owner
+      ||start<=today||start<=String(previous.data.date)||previous.data.until&&start>String(previous.data.until)){
+      throw Error("新計畫須在既有計畫期間內，並從未來日期開始");
+    }
+    const yesterday=civilAdvance(start,"day",-1);
+    await new WorkspacePersistence(this.db).mutate(owner,[
+      {type:"life_health_records",kind:"save",value:{...previous,updated_at:Date.now(),data:{...previous.data,until:yesterday}}},
+      {type:"life_health_records",kind:"save",value:next},
+    ]);
   }
 
   async readFinance() {
@@ -306,22 +363,80 @@ export class LifeRepository {
     }]);
   }
 
-  async confirmSubscription(row: FinanceRecord<"subscription">, paidDate: string) {
+  async editRecurringFinance(series: FinanceRecord<"subscription">, payload: FinanceRecord<"subscription">["payload"],
+    date: string, scope: "single" | "future" | "all") {
     const owner = this.owner();
-    if (row.workspace_owner_id !== owner || row.payload.state !== "active") throw Error("此訂閱無法確認扣款");
+    if (series.workspace_owner_id !== owner || date < series.payload.next || series.payload.until && date > series.payload.until) {
+      throw Error("此期週期交易已處理或超出系列");
+    }
+    if (scope === "single") {
+      const { title, notes, currency, amount, account, category, type, target, targetAmount } = payload;
+      await this.saveFinance({ ...series, payload: {
+        ...series.payload, overrides: { ...series.payload.overrides, [date]: { title, notes, currency, amount, account, category, type, target, targetAmount } },
+      } });
+      return;
+    }
+    if (scope === "all" || date === series.payload.next) {
+      await this.saveFinance({ ...series, payload: { ...payload, skipped: series.payload.skipped, overrides: series.payload.overrides } });
+      return;
+    }
+    const earlier = Object.entries(series.payload.overrides ?? {}).filter(([key]) => key < date);
+    const later = Object.entries(series.payload.overrides ?? {}).filter(([key]) => key >= date);
+    const previous = { ...series, updated_at: Date.now(), payload: {
+      ...series.payload, until: civilAdvance(date, "day", -1), skipped: series.payload.skipped?.filter(day => day < date), overrides: Object.fromEntries(earlier),
+    } };
+    const next = financeRow(owner, "subscription", {
+      ...payload, skipped: series.payload.skipped?.filter(day => day >= date), overrides: Object.fromEntries(later),
+    });
+    await new WorkspacePersistence(this.db).mutate(owner, [
+      { type: "life_finance_records", kind: "save", value: previous },
+      { type: "life_finance_records", kind: "save", value: next, createOnce: true },
+    ]);
+  }
+
+  async confirmSubscription(row: FinanceRecord<"subscription">, paidDate: string) {
+    return this.resolveRecurringFinance(row, paidDate);
+  }
+
+  async skipRecurringFinance(row: FinanceRecord<"subscription">, date: string) {
+    if (date === row.payload.next) return this.resolveRecurringFinance(row);
+    if (date < row.payload.next || row.payload.state !== "active" || row.payload.until && date > row.payload.until) {
+      throw Error("這筆週期交易目前無法跳過");
+    }
+    await this.saveFinance({ ...row, payload: { ...row.payload, skipped: [...new Set([...(row.payload.skipped ?? []), date])] } });
+  }
+
+  async resolveRecurringFinance(row: FinanceRecord<"subscription">, paidDate?: string, taskLink?:TaskLink) {
+    const owner = this.owner();
+    if (row.workspace_owner_id !== owner || row.payload.state !== "active" || row.payload.until && row.payload.next > row.payload.until) {
+      throw Error("這筆週期交易目前無法處理");
+    }
     const p = row.payload;
     const source = row.id + "|" + p.next;
     const txId = "subscription:" + source;
     const existing = await this.db.get("life_finance_records", txId);
-    if (existing) throw Error("此期訂閱已有交易");
+    if (existing) throw Error("本期已入帳");
     if (this.owner() !== owner) throw Error("帳號已切換");
+    let next = subscriptionNext(p);
+    const alreadySkipped = new Set(p.skipped);
+    while (alreadySkipped.has(next)) next = subscriptionNext({ ...p, next });
+    const updated: FinanceRecord<"subscription"> = { ...row, updated_at: Date.now(), payload: {
+      ...p, next, state: p.until && next > p.until ? "cancelled" : p.state,
+      ...(!paidDate ? { skipped: [...new Set([...(p.skipped ?? []), p.next])] } : {}),
+    } };
+    const persistence = new WorkspacePersistence(this.db);
+    if (!paidDate) {
+      await persistence.mutate(owner, [{ type: "life_finance_records", kind: "save", value: updated }]);
+      return;
+    }
+    const terms = recurringTerms(p, p.next);
     const transaction = financeRow(owner, "transaction", {
-      title: p.title, notes: p.notes, type: "expense", date: paidDate, amount: p.amount, account: p.account,
-      target: "", targetAmount: "0", category: p.category, source, attachment: "",
+      title: terms.title, notes: terms.notes, type: terms.type ?? "expense", date: paidDate, amount: terms.amount, account: terms.account,
+      target: terms.target ?? "", targetAmount: terms.targetAmount ?? "0", category: terms.category, source, attachment: "", ...taskLink,
     }, txId);
-    await new WorkspacePersistence(this.db).mutate(owner, [
-      { type: "life_finance_records", kind: "save", value: transaction },
-      { type: "life_finance_records", kind: "save", value: { ...row, payload: { ...p, next: subscriptionNext(p) }, updated_at: Date.now() } },
+    await persistence.mutate(owner, [
+      { type: "life_finance_records", kind: "save", value: transaction, createOnce: true },
+      { type: "life_finance_records", kind: "save", value: updated },
     ]);
   }
 
@@ -369,9 +484,55 @@ export class LifeRepository {
     if (this.owner() !== owner) throw Error("帳號已切換");
     return data;
   }
+  async readStock():Promise<StockData> {
+    const owner=this.owner();
+    const stock=emptyStock();
+    const tx=this.db.transaction(["life_stock_events","life_stock_positions"],"readonly");
+    stock.life_stock_events=(await tx.objectStore("life_stock_events").getAll()).filter(row=>row.workspace_owner_id===owner);
+    stock.life_stock_positions=(await tx.objectStore("life_stock_positions").getAll()).filter(row=>row.workspace_owner_id===owner);
+    await tx.done;
+    if(owner!==this.owner())throw Error("帳號已切換");
+    return stock;
+  }
+  async receiveStock(item:LifeItem, lot:string, count:number, input:Pick<StockEvent,"capacity"|"unit"|"position_id"|"purchased_on"|"expiry"|"price"|"currency"|"note">) {
+    const owner=this.owner();
+    if(item.workspace_owner_id!==owner)throw Error("帳號已切換");
+    if(!Number.isSafeInteger(count)||count<1||count>100)throw Error("每次入庫請輸入 1 至 100 件");
+    const base=lifeBase(owner,"");
+    const operations=Array.from({length:count},(_,index):WorkspaceChange=>{
+      const container=lot+"-"+(index+1);
+      const value:StockEvent={...base,...input,id:stockId(container,1),item_id:item.id,lot_id:lot,container_id:container,
+        sequence:1,action:"purchase",remaining:input.capacity,opened_on:null,state:"sealed"};
+      return {type:"life_stock_events",kind:"save",value,createOnce:true};
+    });
+    await new WorkspacePersistence(this.db).mutate(owner,operations);
+  }
+  async changeStock(current:StockEvent, action:Exclude<StockEvent["action"],"purchase">, patch:Partial<Pick<StockEvent,"remaining"|"state"|"opened_on"|"position_id"|"note">>={}) {
+    const owner=this.owner();
+    if(current.workspace_owner_id!==owner)throw Error("帳號已切換");
+    if(action==="undo"){
+      const prior=await this.db.get("life_stock_events",stockId(current.container_id,current.sequence-1)) as StockEvent|undefined;
+      if(!prior||prior.workspace_owner_id!==owner||owner!==this.owner())throw Error("沒有可復原的庫存異動");
+      patch={remaining:prior.remaining,state:prior.state,opened_on:prior.opened_on,position_id:prior.position_id};
+    }
+    const base=lifeBase(owner,"");
+    const sequence=current.sequence+1;
+    const value:StockEvent={...current,...base,...patch,note:patch.note??"",id:stockId(current.container_id,sequence),sequence,action};
+    await new WorkspacePersistence(this.db).mutate(owner,[{type:"life_stock_events",kind:"save",value}]);
+  }
+  async saveStockPosition(position:StockPosition, remove=false){
+    if(position.workspace_owner_id!==this.owner())throw Error("帳號已切換");
+    await new WorkspacePersistence(this.db).mutate(this.owner(),[{type:"life_stock_positions",kind:remove?"soft_delete":"save",value:{...position,updated_at:Date.now()}}]);
+  }
   async save(type: LifeStore, value: LifeRecord) {
     if (value.workspace_owner_id !== this.owner()) throw Error("帳號已切換");
     await new WorkspacePersistence(this.db).mutate(this.owner(), [{ type, kind: "save", value }]);
+  }
+  async importListItems(list:LifeList,items:LifeItem[]){
+    const owner=this.owner();
+    if(owner!==list.workspace_owner_id||items.some(item=>item.workspace_owner_id!==owner||item.list_id!==list.id))throw Error("帳號或清單已切換");
+    const local=new WorkspacePersistence(this.db);
+    await local.mutate(owner,items.map(value=>({type:"life_items",kind:"save",value})),[{type:"life_lists",id:list.id,revision:list.revision}]);
   }
   async convertField(list:LifeList,fieldId:string,target:"text"|"number",items:LifeItem[]) {
     const owner=this.owner();

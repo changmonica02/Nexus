@@ -1,3 +1,5 @@
+import { validateStockEvent,validateStockPosition,type StockEvent,type StockPosition } from "./inventory";
+import { validateTaskExecution, type TaskExecution } from "./taskPlan";
 import { validateHealth, type HealthRecord } from "./health/model";
 import type { ScheduleRule } from "./scheduleRecurrence";
 import { validateFinance, type FinanceRecord } from "./finance/model";
@@ -5,7 +7,7 @@ import { dashboardSettingsKey, isDashboardConfig, sameBoard, type LifeDashboardC
 
 import type { AutomationRun } from "./reminderModel";
 
-export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records", "life_automation_runs"] as const;
+export const LIFE_SYNC_STORES = ["life_dashboard_configs", "life_schedule_events", "life_habits", "life_finance_records", "life_timer_results", "life_health_records", "life_automation_runs", "life_task_executions","life_stock_events","life_stock_positions"] as const;
 export type LifeSyncStore = typeof LIFE_SYNC_STORES[number];
 
 export interface LifeSyncBase {
@@ -46,7 +48,7 @@ export interface TimerResult extends LifeSyncBase {
 
 export interface Habit extends LifeSyncBase {
   title: string;
-  cadence: "daily" | "weekly";
+  cadence: "daily" | "weekly" | "monthly";
   goal: number;
   started_on: string;
   quantities: Record<string, number>;
@@ -61,6 +63,9 @@ export function isCivilDate(value: string): boolean {
 export const dashboardId = (owner: string) => dashboardSettingsKey(owner);
 
 export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase): void {
+  if(type==="life_stock_events"){validateStockEvent(value as StockEvent);return;}
+  if(type==="life_stock_positions"){validateStockPosition(value as StockPosition);return;}
+  if (type === "life_task_executions") { validateTaskExecution(value as TaskExecution); return; }
   if (type === "life_automation_runs") {
     const {run}=value as AutomationRunRecord;
     if(!run||typeof run.id!=="string"||!run.id||run.id.length>1000||typeof run.title!=="string"
@@ -86,7 +91,7 @@ export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase)
   if (type === "life_habits") {
     const habit = value as Habit;
     if (typeof habit.title !== "string" || !habit.title.trim() || habit.title.length > 160
-      || !["daily", "weekly"].includes(habit.cadence) || !Number.isFinite(habit.goal) || habit.goal <= 0 || habit.goal > 1000000
+      || !["daily", "weekly", "monthly"].includes(habit.cadence) || !Number.isFinite(habit.goal) || habit.goal <= 0 || habit.goal > 1000000
       || !isCivilDate(habit.started_on) || !habit.quantities || typeof habit.quantities !== "object" || Array.isArray(habit.quantities)
       || Object.entries(habit.quantities).some(([date, quantity]) => !isCivilDate(date) || date < habit.started_on
         || !Number.isFinite(quantity) || quantity < 0 || quantity > 1000000)) throw Error("請確認習慣目標及紀錄");
@@ -99,10 +104,12 @@ export function validateLifeSyncRecord(type: LifeSyncStore, value: LifeSyncBase)
     || typeof event.all_day !== "boolean" || typeof event.category !== "string" || event.category.length > 80
     || typeof event.notes !== "string" || event.notes.length > 4000) throw Error("請確認行程資料及起訖時間");
   const rule = event.repeat_rule;
-  if (rule && (event.milestone || !["day","week","month","year"].includes(rule.frequency)
+  if (rule && (!["day","week","month","year"].includes(rule.frequency)
     || !Number.isInteger(rule.interval) || rule.interval < 1 || rule.interval > 365
     || !Array.isArray(rule.weekdays) || rule.weekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6)
     || rule.anchorDay!==undefined&&(!Number.isInteger(rule.anchorDay)||rule.anchorDay<1||rule.anchorDay>31)
+    || rule.monthWeekday !== undefined && (!rule.monthWeekday || !Number.isInteger(rule.monthWeekday.weekday)
+      || rule.monthWeekday.weekday < 0 || rule.monthWeekday.weekday > 6 || ![-1,1,2,3,4,5].includes(rule.monthWeekday.ordinal))
     || rule.until !== "" && !isCivilDate(rule.until)
     || rule.count !== null && (!Number.isInteger(rule.count) || rule.count < 1 || rule.count > 10000)
     || !Array.isArray(rule.exceptions) || rule.exceptions.some(day => !isCivilDate(day))

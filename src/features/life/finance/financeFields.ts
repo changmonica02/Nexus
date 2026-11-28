@@ -15,7 +15,7 @@ const named = <K extends FinanceKind,>(records: FinanceRecord[], kind: K) => fin
   .map(row => [row.id, "title" in row.payload ? row.payload.title : row.id] as [string, string]);
 
 export const kindLabels: Record<EditableKind, string> = {
-  account: "帳戶", transaction: "交易", estimate: "預估支出", budget: "預算", subscription: "訂閱", asset: "資產與負債",
+  account: "帳戶", transaction: "交易", estimate: "預估支出", budget: "預算", subscription: "週期交易", asset: "資產與負債",
   goal: "財務目標", contribution: "資金異動", instrument: "投資標的", trade: "投資交易",
 };
 
@@ -23,10 +23,10 @@ export function initialDraft(kind: EditableKind, base: string, anchor: Date): Dr
   const date = localDateInput(anchor);
   return { title: "", notes: "", currency: base, date, month: date.slice(0, 7), due: "", amount: "", icon: "", color: "#668377",
     opening: "0", limit: "0", statementDay: "1", paymentDay: "1", archived: "",
-    type: { account: "cash", transaction: "expense", asset: "asset", instrument: "stock", trade: "buy" }[kind as "account"] ?? "",
-    account: "", target: "", targetAmount: "", category: "", attachment: "", source: "",
-    cycle: "month", interval: "1", anchorDay: date.slice(8, 10), next: date, state: "active", trial: "", url: "",
-    series: "", opened: date, priceDate: date, goal: "", instrument: "", quantity: "", price: "", fee: "0",
+    type: { account: "cash", transaction: "expense", subscription: "expense", asset: "asset", instrument: "stock", trade: "buy" }[kind as "account"] ?? "",
+    account: "", target: "", targetAmount: "", interest: "0", category: "", attachment: "", source: "",
+    cycle: "month", interval: "1", anchorDay: date.slice(8, 10), next: date, state: "active", trial: "", url: "", until: "",
+    series: "", progress: "manual", opened: date, priceDate: date, goal: "", instrument: "", quantity: "", price: "", fee: "0",
   };
 }
 
@@ -49,19 +49,26 @@ export function fieldsFor(kind: EditableKind, draft: Draft, records: FinanceReco
     case "transaction": {
       const transfer = isTransfer(draft.type as Parameters<typeof isTransfer>[0]);
       return [title, select("type", "交易類型", Object.entries(transactionKinds), true), field("date", "交易日期", "date", true),
-        select("account", transfer ? "轉出帳戶" : "帳戶", accountOptions, true), moneyField("amount", "金額", account?.currency ?? unit),
-        ...(transfer ? [select("target", "轉入帳戶", accountOptions, true), ...(account?.currency === target?.currency ? [] : [moneyField("targetAmount", "轉入金額", target?.currency ?? unit)])] : [classification]), note];
+        select("account", transfer ? "轉出帳戶" : "帳戶", accountOptions, true), moneyField("amount", draft.type === "repayment" ? "本金" : "金額", account?.currency ?? unit),
+        ...(transfer ? [select("target", "轉入帳戶", accountOptions, true), ...(account?.currency === target?.currency ? [] : [moneyField("targetAmount", "轉入金額", target?.currency ?? unit)])] : [classification]),
+        ...(draft.type === "repayment" ? [moneyField("interest", "利息", account?.currency ?? unit), classification] : []), note];
     }
     case "estimate": return [title,field("date","預估日期","date",true),currencyField(),moneyField("amount","預估金額",unit),classification,note];
     case "budget": return [title, field("month", "預算月份", "month", true), classification, currencyField(), moneyField("amount", "預算金額", unit), note];
-    case "subscription": return [title, field("icon", "圖示"), currencyField(), moneyField("amount", "每期金額", unit), select("account", "付款帳戶", accountOptions),
+    case "subscription": return [title, select("type", "交易類型", Object.entries(transactionKinds).filter(([key]) => ["expense", "income", "transfer"].includes(key)), true),
+      field("icon", "圖示"), currencyField(), moneyField("amount", "每期金額", unit), select("account", "入帳帳戶", accountOptions, draft.type === "transfer"),
+      ...(draft.type === "transfer" ? [select("target", "轉入帳戶", accountOptions, true),
+        ...(unit === target?.currency ? [] : [moneyField("targetAmount", "轉入金額", target?.currency ?? unit)])] : []),
       classification, select("cycle", "付款週期", [["week","每週"],["month","每月"],["quarter","每季"],["year","每年"],["custom","自訂天數"]], true),
-      field("interval", "週期間隔", "number", true), field("next", "下次扣款", "date", true), field("trial", "試用截止", "date"),
-      select("state", "狀態", [["active","使用中"],["paused","暫停"],["cancelled","已取消"]], true), field("url", "取消訂閱連結", "url"), note];
+      field("interval", "週期間隔", "number", true), field("next", "下次預定日期", "date", true), field("until", "結束日期", "date"),
+      ...(draft.type === "expense" ? [field("trial", "試用截止", "date"), field("url", "取消訂閱連結", "url")] : []),
+      select("state", "狀態", [["active","使用中"],["paused","暫停"],["cancelled","已取消"]], true), note];
     case "asset": return [title, select("type", "項目類型", [["asset","其他資產"],["liability","其他負債"]], true), currencyField(), moneyField("amount", "估值", unit),
       field("date", "估值日期", "date", true), field("due", "到期日", "date"), note];
     case "goal": return [title, currencyField(existing), moneyField("amount", "目標金額", unit), field("due", "目標日期", "date"), field("icon", "圖示"), field("color", "顏色", "color"),
-      select("account", "關聯帳戶（選填）", accountOptions), note];
+      select("account", "關聯帳戶（選填）", accountOptions, draft.progress === "balance"),
+      select("progress", "進度來源", [["manual","資金異動紀錄"],["balance","關聯帳戶餘額"]]),
+      select("state", "目標狀態", [["active","進行中"],["paused","暫停"],["completed","已完成"],["archived","封存"]]), note];
     case "contribution": {
       const goal = financeRows(records, "goal").find(item => item.id === draft.goal);
       return [title, select("goal", "財務目標", [none, ...named(records, "goal")], true),
@@ -107,7 +114,10 @@ export function encodeDraft(kind: EditableKind, draft: Draft, fields: Field[], o
     target: out.target ?? "", targetAmount: out.target ? out.targetAmount ?? out.amount : "0",
     category: out.category ?? "", attachment: draft.attachment, source: draft.source,
   });
-  if (kind === "subscription") out.anchorDay = offsets.previousNext === draft.next ? Number(draft.anchorDay) : Number(draft.next.slice(8, 10));
+  if (kind === "subscription") Object.assign(out, {
+    anchorDay: offsets.previousNext === draft.next ? Number(draft.anchorDay) : Number(draft.next.slice(8, 10)),
+    targetAmount: out.targetAmount ?? out.amount, trial: out.trial ?? "", url: out.url ?? "",
+  });
   if (kind === "asset") out.series = draft.series;
   if (kind === "trade") out.quantity = out.quantity ?? "0";
   return out;
