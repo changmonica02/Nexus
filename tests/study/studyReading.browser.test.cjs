@@ -1,10 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http=require('node:http');const {build}=require('esbuild'),{chromium,webkit}=require('playwright');
 const installReading=()=>{
+   if(new URLSearchParams(location.search).get('case')==='long')document.addEventListener('DOMContentLoaded',()=>document.documentElement.classList.add('dark'));
    window.speechCalls=[];window.voiceMode=new URLSearchParams(location.search).get('case')?.includes('voices')?'missing':'ready';window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
    const engine=new EventTarget();Object.assign(engine,{getVoices:()=>['missing','unavailable'].includes(window.voiceMode)?[]:[{name:'English',lang:'en-US',localService:true},{name:'Chinese',lang:'zh-TW',localService:true}],cancel:()=>window.speechCalls.push({kind:'cancel'}),resume:()=>{},speak:u=>{window.speechCalls.push({kind:'speak',text:u.text,rate:u.rate});window.lastUtterance=u;if(window.voiceMode==='blocked')u.onerror?.({error:'not-allowed'});else if(window.voiceMode==='unavailable')u.onerror?.({error:'language-unavailable'});else if(!['silent','speaking-no-event'].includes(window.voiceMode))u.onstart?.();}});Object.defineProperty(window,'speechSynthesis',{value:engine,configurable:true});
    window.readingCalls=0;window.readingFailure=new URLSearchParams(location.search).get('case')==='failed';window.readingDelay=new URLSearchParams(location.search).get('case')==='slow'?3500:new URLSearchParams(location.search).get('case')==='delayed'?700:0;window.readingEmpty=new URLSearchParams(location.search).get('case')==='empty';window.readingClient={auth:{getUser:async()=>({data:{user:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})},rpc:async name=>{if(name!=='get_published_dictionary_entry')return{data:false};window.readingCalls++;await new Promise(r=>setTimeout(r,window.readingDelay));if(window.readingFailure)return{error:{message:'fixture unavailable'}};return{data:{entry:{id:'00000000-0000-4000-8000-000000000001',kind:'word',status:'published',headword:'preview',word_segments:window.readingEmpty?null:[{id:'00000000-0000-4000-8000-000000000101',text:'pre',hint:'預先',relation_id:null},{id:'00000000-0000-4000-8000-000000000102',text:'view',hint:'觀看',relation_id:null}]},etymologies:[],public_notes:[],derivations:window.readingEmpty?[]:[{id:'derivation',entry_id:'00000000-0000-4000-8000-000000000001',sense_id:'sense',gloss_zh_tw:'延伸預覽',sort_order:0}],examples:window.readingEmpty?[]:[{id:'example',entry_id:'00000000-0000-4000-8000-000000000001',sense_id:'sense',body:'Preview the page.',translation_zh_tw:'預覽頁面。',derivation_id:'derivation',sort_order:0}],senses:window.readingEmpty?[]:[{id:'sense',part_of_speech:'noun',gloss_zh_tw:'預覽'}],relations:window.readingEmpty?[]:[{sense_id:null,target_entry_id:'prefix',target_sense_id:'ps'},{sense_id:'sense',target_entry_id:'root',target_sense_id:'rs'}],related:[{id:'prefix',sense_id:'ps',headword:'pre-',gloss_zh_tw:'預先'},{id:'root',sense_id:'rs',headword:'view',gloss_zh_tw:'觀看'}],learning_notes:window.readingEmpty?[]:[{kind:'core_concept',sense_id:null,body:'預先觀看。'}]}};}};
   };
-test('2A: real Session, speech lifecycle, front-prefetched atomic back content, saved preferences and safe degradation on desktop/tablet/phone',{timeout:120000},async()=>{
+test('2A: real Session, speech lifecycle, non-blocking front-prefetched back content, saved preferences and safe degradation on desktop/tablet/phone',{timeout:120000},async()=>{
  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'nexus-reading-')),root=path.resolve(__dirname,'../..');
  await build({entryPoints:['tests/fixtures/studyReading.jsx'],outfile:path.join(tmp,'fixture.js'),bundle:true,format:'esm',jsx:'automatic',define:{'process.env':JSON.stringify({NODE_ENV:'development'})},plugins:[{name:'client',setup(b){b.onLoad({filter:/infrastructure[\\/]supabase[\\/]client\.ts$/},()=>({contents:'export const getSupabase=()=>window.readingClient;export const isSupabaseConfigured=()=>true;',loader:'js'}));}}]});
  const css=(await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(root,'src/app/globals.css')})).css;
@@ -18,8 +19,8 @@ test('2A: real Session, speech lifecycle, front-prefetched atomic back content, 
   const frontGeometry=await page.evaluate(()=>{
     const card=document.querySelector('[data-study-card]').getBoundingClientRect(),space=document.querySelector('[data-study-card-space]').getBoundingClientRect();
     const word=document.querySelector('[data-study-card] p[lang=en]').getBoundingClientRect(),audio=document.querySelector('[data-card-audio] button').getBoundingClientRect();
-    return {center:Math.abs(card.y+card.height/2-space.y-space.height/2),align:Math.abs(word.y+word.height/2-audio.y-audio.height/2)};
-  });assert.ok(frontGeometry.center<2,JSON.stringify(frontGeometry));assert.ok(frontGeometry.align<2,JSON.stringify(frontGeometry));
+    return {wordCenter:Math.abs(word.x+word.width/2-card.x-card.width/2),center:Math.abs(card.y+card.height/2-space.y-space.height/2),align:Math.abs(word.y+word.height/2-audio.y-audio.height/2)};
+  });assert.ok(frontGeometry.center<2,JSON.stringify(frontGeometry));assert.ok(frontGeometry.align<2,JSON.stringify(frontGeometry));assert.ok(frontGeometry.wordCenter<1,JSON.stringify(frontGeometry));
   // Tablet verifies the layout and basic reveal interaction; full speech,
   // offline and persistence journeys run on desktop and narrow phone widths.
   if(width===820){
@@ -53,8 +54,8 @@ test('2A: real Session, speech lifecycle, front-prefetched atomic back content, 
   await page.evaluate(()=>window.voiceMode='unavailable');await replay().click();await page.getByText('語音引擎無法提供英文，請啟用或安裝英文語音後重試。',{exact:true}).waitFor();await show().click();await assertLayout();await page.getByRole('button',{name:'翻回題目',exact:true}).click();await page.evaluate(()=>Object.defineProperty(window,'speechSynthesis',{value:undefined,configurable:true}));await replay().click();await page.getByText('此瀏覽器不支援語音，仍可正常學習。',{exact:true}).waitFor();await show().click();assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0);assert.equal(await page.getByRole('button',{name:/^記得/}).isEnabled(),true);await assertLayout();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await context.close();
  }
- for(const scenario of ['failed','empty','delayed','slow','window','offline','chinese','unlinked','late-voices','poll-voices']){
-  const context=await browser.newContext();await context.addInitScript(installReading);const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port+'?case='+scenario);
+ for(const scenario of ['failed','empty','delayed','slow','window','offline','chinese','unlinked','long','late-voices','poll-voices']){
+  const context=await browser.newContext(scenario==='long'?{viewport:{width:320,height:660},colorScheme:'dark',isMobile:true,hasTouch:true}:{});await context.addInitScript(installReading);const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port+'?case='+scenario);
   const show=page.getByRole('button',{name:'翻至答案',exact:true});await show.waitFor();
   if(scenario==='window'){
    await page.waitForFunction(()=>window.readingCalls===3);await page.waitForTimeout(200);
@@ -75,17 +76,44 @@ test('2A: real Session, speech lifecycle, front-prefetched atomic back content, 
   if(scenario.includes('voices')){await page.getByText('正在準備語音引擎…',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.speechCalls.filter(c=>c.kind==='speak').length),0);await page.evaluate(scenario=>{window.voiceMode='ready';if(scenario==='late-voices')window.speechSynthesis.dispatchEvent(new Event('voiceschanged'));},scenario);await page.waitForFunction(()=>window.speechCalls.filter(c=>c.kind==='speak').length===1);await page.evaluate(()=>window.speechSynthesis.dispatchEvent(new Event('voiceschanged')));await page.getByRole('button',{name:'Rerender 0',exact:true}).click();assert.equal(await page.evaluate(()=>window.speechCalls.filter(c=>c.kind==='speak').length),1);await context.close();continue;}
   if(scenario==='chinese'){await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>window.speechCalls.filter(c=>c.kind==='speak').length),0);}
 
-  await show.click();
-  if(scenario==='slow'){
-   await page.getByRole('button',{name:'翻回題目',exact:true}).waitFor();
+  const card=page.locator('[data-study-card]');
+  if(scenario==='long'){
+   const geometry=await card.evaluate(el=>{
+    const box=el.getBoundingClientRect(),word=el.querySelector('p[lang=en]').getBoundingClientRect(),audio=el.querySelector('[data-card-audio] button');
+    const before=word.x;
+    audio.style.display='none';
+    return {center:Math.abs(word.x+word.width/2-box.x-box.width/2),shift:Math.abs(before-el.querySelector('p[lang=en]').getBoundingClientRect().x),height:word.height,overflow:document.documentElement.scrollWidth>innerWidth};
+   });
+   assert.ok(geometry.center<1&&geometry.shift<1&&geometry.height>40&&!geometry.overflow,JSON.stringify(geometry));
+  }
+  if(scenario==='slow'||scenario==='delayed'){
+   const geometry=await card.boundingBox();
+   const result=await card.evaluate(el=>{
+    const button=el.querySelector('button');
+    button.click();
+    return new Promise(resolve=>requestAnimationFrame(()=>resolve({same:el.isConnected&&button===el.querySelector('button'),side:el.dataset.side,calls:window.readingCalls})));
+   });
+   assert.equal(result.same,true);
+   assert.equal(result.side,'back','answer is available on the next frame');
    assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0);
-   await page.waitForTimeout(1200);
-   assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0,'late aids never shift an already revealed answer');
-   await page.getByRole('button',{name:/^記得/}).click();await show.waitFor();
-   assert.equal(await page.getByText('預先觀看。',{exact:false}).count(),0);
-  }else if(scenario==='delayed'){
-   await page.waitForFunction(()=>window.readingCalls===1);await page.getByRole('button',{name:/^記得/}).click();await show.waitFor();await page.waitForTimeout(800);assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0);assert.equal(await page.getByText('預先觀看。',{exact:false}).count(),0);
-  }else if(scenario==='offline'){
+   assert.deepEqual(await card.boundingBox(),geometry,'flipping preserves the card bounds');
+   const answer=await card.locator('p[lang=zh]').boundingBox();
+   await page.getByRole('region',{name:'衍生與例句'}).waitFor();
+   assert.deepEqual(await card.locator('p[lang=zh]').boundingBox(),answer,'late public detail preserves the answer position');
+   assert.deepEqual(await card.boundingBox(),geometry);
+   for(let i=0;i<4;i++){
+    await card.locator('button[aria-pressed]').evaluate(button=>button.click());
+    await page.waitForFunction(side=>document.querySelector('[data-study-card]').dataset.side===side,i%2===0?'front':'back');
+   }
+   assert.equal(await page.evaluate(()=>window.readingCalls),result.calls);
+   await page.getByRole('button',{name:/^記得/}).evaluate(button=>{button.click();button.click();});
+   await show.waitFor();
+   assert.equal(await page.evaluate(async()=> (await window.readingRepo.exportData()).events.filter(event=>event.kind==='review').length),1);
+   assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0);
+   await context.close();continue;
+  }
+  await show.click();
+  if(scenario==='offline'){
    await page.getByRole('region',{name:'衍生與例句'}).waitFor();const count=await page.evaluate(()=>window.readingCalls);await page.getByRole('button',{name:'Manage',exact:true}).click();await context.setOffline(true);await page.getByRole('button',{name:'Session',exact:true}).click();await show.click();await page.getByRole('region',{name:'衍生與例句'}).waitFor();assert.equal(await page.evaluate(()=>window.readingCalls),count);
   }else{
    await page.waitForTimeout(150);assert.equal(await page.getByRole('region',{name:'衍生與例句'}).count(),0);assert.equal(await page.getByRole('button',{name:/^記得/}).isEnabled(),true);if(scenario==='unlinked')assert.equal(await page.evaluate(()=>window.readingCalls),0);

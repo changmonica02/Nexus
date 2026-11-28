@@ -24,7 +24,7 @@ test('hide/restore, stable active question and safe Session exit in real Indexed
  await p.getByRole('button',{name:'隱藏字卡',exact:true}).click();await dialog.getByRole('button',{name:'隱藏',exact:true}).click();await dialog.waitFor({state:'hidden'});
  await p.evaluate(async()=>{window.hiddenBackup=await window.visibilityStorage.exportWorkspaceBackup();});
  const hidden=await snapshot(),hiddenCard=hidden.cards.find(c=>c.hidden);assert.equal(hiddenCard.front,'first');assert.equal(hidden.events.filter(e=>e.kind==='review').length,0);assert.equal(hidden.events.filter(e=>e.kind==='introduce').length,2);
- await p.evaluate(()=>{const original=window.visibilityRepo.rateSession.bind(window.visibilityRepo);window.visibilityRepo.rateSession=async input=>{await original(input);window.visibilityRepo.rateSession=original;throw Error('Uncertain local response');};});
+ await p.evaluate(()=>{const original=window.visibilityRepo.rateSession.bind(window.visibilityRepo);window.visibilityRepo.rateSession=async (...args)=>{await original(...args);window.visibilityRepo.rateSession=original;throw Error('Uncertain local response');};});
  await p.getByRole('button',{name:'翻至答案',exact:true}).click();await p.getByRole('button',{name:/忘記/}).click();await p.getByRole('alert').filter({hasText:'Uncertain local response'}).waitFor();
  assert.equal((await snapshot()).events.filter(e=>e.kind==='review').length,1);
  await p.getByRole('button',{name:'回首頁',exact:true}).click();await p.getByRole('alert').filter({hasText:'請'}).waitFor();assert.equal((await snapshot()).sessions[0].ended_at,undefined,'unknown answer result prevents exit');assert.equal(await p.getByRole('dialog').count(),0);
